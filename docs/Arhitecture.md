@@ -15,6 +15,7 @@
 This spec document defines the Ocean Node arhitecture, interfaces, layers, components,modules and how it all fits together.
 
 Note, this document is not meant to be an introduction of the concepts in OceanProtocol and is not recommended as a first pass to understanding how Ocean works. For that, please refer to the [Docs](https://docs.oceanprotocol.com/).
+Below text requires advanced Ocean terminology and features.
 
 # Table of Contents
 - 1. Arhitecture Overview
@@ -105,7 +106,8 @@ TBD
 
 ## 5.4 Light Docker C2D
 Ocean C2D is flexible, scalable, etc, but if has one major drawback: it requires K8.
-For edge nodes (ie: installed in a car, or a weather station running on RaspPI), we can have a light engine, that is only using the docker system install on the host.  All orchestration (creating & provisioning input volumes, publishing results) can be handled by this module, while only the actual algorithm job is levereged to docker, with local provisioned folders mounted)
+
+For edge nodes (ie: installed in a car, or a weather station running on RaspPI), we can have a light engine, that is only using the docker system install on the host.  All orchestration (creating & provisioning input volumes, publishing results) can be handled by this module, while only the actual algorithm job is levereged to docker, with local provisioned folders mounted.
 
 # 6. P2P Messages & HTTP Endpoints
 
