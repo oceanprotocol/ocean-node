@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "module": "ES2022",
+    "target": "ES2022",
+    "noImplicitAny": true,
+    "removeComments": true,
+    "preserveConstEnums": true,
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports":true,
+    "outDir": "./dist/",
+    "declaration": true,
+    "declarationDir": "./dist/",
+    "suppressImplicitAnyIndexErrors":true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  },
+  
+
+    "ts-node": {
+        "esm": true, // «———— enabling ESM for ts-node
+    },    
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "**/*.test.ts"]
+  }
