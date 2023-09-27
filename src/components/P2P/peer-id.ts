@@ -11,7 +11,8 @@ export async function getPeerIdFromPrivateKey(){
     //key = new keys.supportedKeys.secp256k1.Secp256k1PrivateKey(hexStringToByteArray(privateKey.slice(2)))
     //console.log(key)
 
-    key=await keys.generateKeyPair('secp256k1')
+    //key=await keys.generateKeyPair('secp256k1')
+    key=await keys.generateKeyPair('RSA')
     
 
 
