@@ -110,7 +110,12 @@ export class OceanP2P extends EventEmitter {
       // it can be removed if, for example bootstrappers are configured
       allowQueryWithZeroPeers: true,
       clientMode: false, //this should be true for edge devices
-      kBucketSize:20
+      kBucketSize:20,
+      //randomWalk: {
+      //  enabled: true,            // Allows to disable discovery (enabled by default)
+      //  interval: 300e3,
+      //  timeout: 10e3
+      // }
 
 
     })
@@ -118,7 +123,9 @@ export class OceanP2P extends EventEmitter {
       addresses: {
         listen: [
           '/ip4/0.0.0.0/tcp/0',
+          '/ip6/::1/tcp/0',
           '/ip4/0.0.0.0/tcp/0/ws',
+          '/ip6/::1/tcp/0/ws',
         ]
       },
       peerId: NodeKey.peerId,
@@ -130,7 +137,7 @@ export class OceanP2P extends EventEmitter {
        yamux(),mplex()
       ],
       connectionEncryption: [
-        //noise(),
+        noise(),
         plaintext()
       ],
       peerDiscovery: [
@@ -152,7 +159,7 @@ export class OceanP2P extends EventEmitter {
           gossipsub({ 
           allowPublishToZeroPeers: true,
           emitSelf: false,
-          canRelayMessage: true,
+          canRelayMessage: false,
         }),
         
         dht: dh,
@@ -164,6 +171,13 @@ export class OceanP2P extends EventEmitter {
 
         
       },
+
+      //relay: {
+       // enabled: true, // Allows you to dial and accept relayed connections. Does not make you a relay.
+       // hop: {
+        //  enabled: true // Allows you to be a relay for other peers
+       // }
+      //}
       //nat: {
       //  enabled: true,
       //  description: `ipfs@${os.hostname()}`
@@ -187,39 +201,44 @@ export class OceanP2P extends EventEmitter {
     this._libp2p.addEventListener('peer:connect', (evt:any) => {
       if(evt){
         const peerId = evt.detail
-        console.log('Connection established to:', peerId.toString()) // Emitted when a peer has been found
+        //console.log('Connection established to:', peerId.toString()) // Emitted when a peer has been found
+        /*
         try{
           this._libp2p.services.pubsub.connect(peerId.toString())
         }
         catch(e){
+          console.log(e)
           console.log("Failed to connect pubsub")
         }
+        */
       }
-      else{
-        console.log("Null evt ")
-      }
+      //else{
+      //  console.log("Null evt ")
+      //}
       
       
   
     })
     
     this._libp2p.addEventListener('peer:disconnect', (evt:any) => {
-      const peerId = evt.detail
-      console.log('Connection closed to:', peerId.toString()) // Emitted when a peer has been found
+      //const peerId = evt.detail
+      //console.log('Connection closed to:', peerId.toString()) // Emitted when a peer has been found
     })
     
     this._libp2p.addEventListener('peer:discovery', (evt:any) => {
-      const peerInfo = evt.detail
-  
-      console.log('Discovered:', peerInfo.id.toString())
+      //const peerInfo = evt.detail
+      //console.log('Discovered:', peerInfo.id.toString())
       
+      /*
       try{
         //this._libp2p.services.pubsub.connect(peerInfo.id.toString())
         this._libp2p.services.dht.connect(peerInfo.id.toString())
       }
       catch(e){
+        console.log(e)
         console.log("Failed to connect pubsub")
       }
+      */
     })
     
     this._libp2p.services.pubsub.addEventListener('peer joined', (evt:any) => {
@@ -229,7 +248,7 @@ export class OceanP2P extends EventEmitter {
     })
     
     this._libp2p.services.pubsub.addEventListener('subscription-change', (evt:any) => {
-      console.log('subscription-change:', evt.detail)
+      //console.log('subscription-change:', evt.detail)
     })
     
     //this._libp2p.services.pubsub.on('peer joined', (peer:any) => {
@@ -247,6 +266,9 @@ export class OceanP2P extends EventEmitter {
         console.log('Received broadcast msg...', message.detail)
       //  console.log("Sending back 'who are you' to "+message.detail.from.toString())
       //  this.sendTo(message.detail.from.toString(),'Who are you?',null)
+      }
+      else{
+        console.log('Got some relays...', message.detail)
       }
     })
     //this._libp2p.services.pubsub.on('message', (message:any) => {
