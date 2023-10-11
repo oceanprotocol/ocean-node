@@ -14,7 +14,8 @@
     "declarationDir": "./dist/",
     "suppressImplicitAnyIndexErrors":true,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "emitDecoratorMetadata": true,
+    "allowJs": true
   },
   
 

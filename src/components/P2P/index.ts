@@ -1,12 +1,15 @@
 import diff from 'hyperdiff'
 
+import { P2PCommandResponse} from '../../@types/index'
 //const diff = require("hyperdiff")
 //  const diff = diffx as any
 import EventEmitter from 'events'
 import clone from 'lodash.clonedeep'
-import Connection from './connection'
-import { encoding } from './connection'
-import * as directConnection from './direct-connection-handler'
+
+import { handleBroadcasts, handlePeerConnect, handlePeerDiscovery, handlePeerDisconnect,handlePeerJoined,handleSubscriptionCHange,handleProtocolCommands } from './handlers'
+
+//import { encoding } from './connection'
+//import * as directConnection from './direct-connection-handler'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 
@@ -18,7 +21,7 @@ import  { mplex} from '@libp2p/mplex'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { PeerId } from '@libp2p/interface/peer-id';
 import {peerIdFromString} from '@libp2p/peer-id'
-
+import { pipe } from 'it-pipe'
 import { pubsubPeerDiscovery } from '@libp2p/pubsub-peer-discovery'
 
 
@@ -34,6 +37,7 @@ import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 import {getPeerIdFromPrivateKey} from './peer-id'
 
 import {cidFromRawString} from '../../utils'
+import { Stream,Transform  } from 'stream'
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
@@ -51,6 +55,7 @@ export class OceanP2P extends EventEmitter {
   _publicAddress: string
   _publicKey: Uint8Array
   _privateKey: Uint8Array
+  _analyzeRemoteResponse: Transform
   private _handleMessage: any
   private _interval: NodeJS.Timeout
   private _idx: number
@@ -67,15 +72,12 @@ export class OceanP2P extends EventEmitter {
     this._peers = []
     this._connections = {}
     this._protocol='/ocean/nodes/1.0.0'
-    this._handleDirectMessage = this._handleDirectMessage.bind(this)
-    this._handleMessage = this._onMessage.bind(this)
     
     this._interval = setInterval(
       this._pollPeers.bind(this),
       this._options.pollInterval
     )
-    directConnection.handle(this._libp2p,this._protocol)
-    directConnection.emitter.on(this._topic, this._handleDirectMessage)
+    this._libp2p.handle(this._protocol, handleProtocolCommands)
     
     
     
@@ -83,7 +85,11 @@ export class OceanP2P extends EventEmitter {
     
     //await this.advertiseProviderAddress()
     
-  
+    this._analyzeRemoteResponse = new Transform({
+      transform(chunk, encoding, callback) {
+        callback(null, chunk.toString().toUpperCase());
+      },
+    });
     
   
 
@@ -198,58 +204,11 @@ export class OceanP2P extends EventEmitter {
   async startListners(){
     
     
-    this._libp2p.addEventListener('peer:connect', (evt:any) => {
-      if(evt){
-        const peerId = evt.detail
-        //console.log('Connection established to:', peerId.toString()) // Emitted when a peer has been found
-        /*
-        try{
-          this._libp2p.services.pubsub.connect(peerId.toString())
-        }
-        catch(e){
-          console.log(e)
-          console.log("Failed to connect pubsub")
-        }
-        */
-      }
-      //else{
-      //  console.log("Null evt ")
-      //}
-      
-      
-  
-    })
-    
-    this._libp2p.addEventListener('peer:disconnect', (evt:any) => {
-      //const peerId = evt.detail
-      //console.log('Connection closed to:', peerId.toString()) // Emitted when a peer has been found
-    })
-    
-    this._libp2p.addEventListener('peer:discovery', (evt:any) => {
-      //const peerInfo = evt.detail
-      //console.log('Discovered:', peerInfo.id.toString())
-      
-      /*
-      try{
-        //this._libp2p.services.pubsub.connect(peerInfo.id.toString())
-        this._libp2p.services.dht.connect(peerInfo.id.toString())
-      }
-      catch(e){
-        console.log(e)
-        console.log("Failed to connect pubsub")
-      }
-      */
-    })
-    
-    this._libp2p.services.pubsub.addEventListener('peer joined', (evt:any) => {
-      console.log('New peer joined us:', evt)
-      
-      
-    })
-    
-    this._libp2p.services.pubsub.addEventListener('subscription-change', (evt:any) => {
-      //console.log('subscription-change:', evt.detail)
-    })
+    this._libp2p.addEventListener('peer:connect', (evt:any) => { handlePeerConnect(evt) })
+    this._libp2p.addEventListener('peer:disconnect', (evt:any) => { handlePeerDisconnect(evt)})
+    this._libp2p.addEventListener('peer:discovery', (evt:any) => { handlePeerDiscovery(evt)})
+    this._libp2p.services.pubsub.addEventListener('peer joined', (evt:any) => {handlePeerJoined(evt)})
+    this._libp2p.services.pubsub.addEventListener('subscription-change', (evt:any) => { handleSubscriptionCHange(evt)})
     
     //this._libp2p.services.pubsub.on('peer joined', (peer:any) => {
     //  console.log('New peer joined us:', peer)
@@ -260,17 +219,7 @@ export class OceanP2P extends EventEmitter {
     //this._libp2p.services.pubsub.on('peer left', (peer:any) => {
       //console.log('Peer left...', peer)
     //})
-    this._libp2p.services.pubsub.addEventListener('message', (message:any) => {
-      
-      if(message.detail.topic === this._topic){
-        console.log('Received broadcast msg...', message.detail)
-      //  console.log("Sending back 'who are you' to "+message.detail.from.toString())
-      //  this.sendTo(message.detail.from.toString(),'Who are you?',null)
-      }
-      else{
-        console.log('Got some relays...', message.detail)
-      }
-    })
+    this._libp2p.services.pubsub.addEventListener('message', (message:any) => {handleBroadcasts(this._topic,message)})
     //this._libp2p.services.pubsub.on('message', (message:any) => {
     //  console.log('Received broadcast msg...', message)
     //  console.log("Sending back 'who are you' to "+message.from.toString())
@@ -278,7 +227,7 @@ export class OceanP2P extends EventEmitter {
     //})
 
     this._libp2p.services.pubsub.subscribe(this._topic)
-    this._libp2p.services.pubsub.addEventListener('message', this._handleMessage)
+    
     
   }
   async getAllPeerStore(){
@@ -296,17 +245,6 @@ export class OceanP2P extends EventEmitter {
     return Boolean(this._peers.find(p => p.toString() === peer.toString()))
   }
 
-  async leave () {
-    clearInterval(this._interval)
-    Object.keys(this._connections).forEach((peer) => {
-      this._connections[peer].stop()
-    })
-    directConnection.emitter.removeListener(this._topic, this._handleDirectMessage)
-    // directConnection.unhandle(this._libp2p)
-    await this._libp2p.services.pubsub.unsubscribe(this._topic)
-    this._libp2p.services.pubsub.removeEventListener('message', this._handleMessage)
-  }
-
   async broadcast (_message:any) {
     console.log("Broadcasting")
     console.log(_message)
@@ -314,48 +252,56 @@ export class OceanP2P extends EventEmitter {
     await this._libp2p.services.pubsub.publish(this._topic, message)
   }
 
-  async sendTo (peerName:string, message:any,sink:any) {
-    console.log("Sending to "+peerName)
-    console.log(message)
-    let peer:PeerId
+  
+
+  async sendTo (peerName:string, message:string, sink:any):Promise<P2PCommandResponse> {
+    const status:P2PCommandResponse = {
+      status: {httpStatus:200,error:''},
+      stream: null
+    }
+    let peerId:PeerId
+    let peer
     try{
-      peer=peerIdFromString(peerName)
+      peerId=peerIdFromString(peerName)
+      console.log(peerId)
+      peer = await this._libp2p.peerStore.get(peerId)
+      console.log(peer)
+    }
+    catch(e){
+      
+      status.status.httpStatus=404
+      status.status.error="Invalid peer"
+      return(status)
+    }
+    console.log(peer)
+    console.log(this._protocol)
+    let stream
+    try{
+      //stream= await this._libp2p.dialProtocol(peer, this._protocol)
+      
+      stream = await this._libp2p.dialProtocol(peerId, this._protocol)
       
     }
     catch(e){
-      console.log(e)
-      throw("Invalud peer")
+      
+      status.status.httpStatus=404
+      status.status.error="Cannot connect to peer"
+      return(status)
     }
-    let conn = this._connections[peerName]
-    if (!conn) {
-      conn = new Connection(peer, this._libp2p, this._protocol)
-      conn.on('error', (err:any) => this.emit('error', err))
-      this._connections[peerName] = conn
-
-      conn.once('disconnect', () => {
-        delete this._connections[peerName]
-        this._peers = this._peers.filter((p) => p.toString() !== peer.toString())
-        this.emit('peer left', peer)
-      })
-    }
-
-    // We should use the same sequence number generation as js-libp2p-floosub does:
-    // const seqno = Uint8Array.from(utils.randomSeqno())
-
-    // Until we figure out a good way to bring in the js-libp2p-floosub's randomSeqno
-    // generator, let's use 0 as the sequence number for all private messages
-    const seqno = 0n
-
-    const msg = {
-      to: peer,
-      from: this._libp2p.peerId.toString(),
-      data: uint8ArrayToString(uint8ArrayFromString(message), 'hex'),
-      seqno: seqno.toString(),
-      topic: this._topic
-    }
-    //console.log("Pushing new msg")
-    //console.log(msg)
-    conn.push(uint8ArrayFromString(JSON.stringify(msg)))
+    
+    status.stream=stream
+    pipe(
+      // Source data
+      [uint8ArrayFromString(message)],
+      // Write to the stream, and pass its output to the next function
+      stream,
+      //this is the anayze function
+      //doubler as any,
+      // Sink function
+      sink
+    )
+    return(status)
+    
   }
 
   async _pollPeers () {
@@ -383,20 +329,6 @@ export class OceanP2P extends EventEmitter {
 
     if (message.topic === this._topic) {
       this.emit('message', message)
-    }
-  }
-
-  _handleDirectMessage (message:any,incomingStream:any) {
-    if (message.to.toString() !== this._libp2p.peerId.toString()) {
-      return
-    }
-
-    if (message.topic === this._topic) {
-      const m = Object.assign({}, message)
-      delete m.to
-      //this.emit('message', m)
-      console.log("Received direct protocol message....")
-      console.log(m)
     }
   }
 
@@ -432,3 +364,14 @@ export class OceanP2P extends EventEmitter {
     return(peersFound)
   }
 }
+
+
+function encoding(message:any){
+  if (!(message instanceof Uint8Array)) {
+    return uint8ArrayFromString(message)
+  }
+
+  return message
+}
+
+

@@ -17,6 +17,7 @@ export function hexStringToByteArray(hexString:any) {
     return byteArray;
 }
 
+
 export function stringToByteArray(data:string) {
     var numBytes = data.length / 2;
     var byteArray = new Uint8Array(numBytes);
