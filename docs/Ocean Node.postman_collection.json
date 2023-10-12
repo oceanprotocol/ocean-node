@@ -88,16 +88,64 @@
 		{
 			"name": "8000 - directCommand",
 			"request": {
-				"method": "GET",
-				"header": []
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"command\":\"download\",\n    \"node\": \"16Uiu2HAkxiemC25d2iZWTkVRQmZr9L9h3RNGnhiUWXEonmsPEC8y\"\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/directCommand",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"directCommand"
+					]
+				}
 			},
 			"response": []
 		},
 		{
 			"name": "8001 - directCommand",
 			"request": {
-				"method": "GET",
-				"header": []
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"command\":\"download\",\n    \"node\": \"16Uiu2HAkvfXgYiFhsHRJvcdtmMs3aopgoRphb5xnXMh3dxCRuuX\"\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8001/directCommand",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8001",
+					"path": [
+						"directCommand"
+					]
+				}
 			},
 			"response": []
 		}
