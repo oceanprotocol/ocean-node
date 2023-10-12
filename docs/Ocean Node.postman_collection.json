@@ -38,6 +38,14 @@
 			"response": []
 		},
 		{
+			"name": "8000 - getPeer",
+			"request": {
+				"method": "GET",
+				"header": []
+			},
+			"response": []
+		},
+		{
 			"name": "8000 - advertiseDid",
 			"request": {
 				"method": "GET",

@@ -1,5 +1,6 @@
 import diff from 'hyperdiff'
 
+
 import { P2PCommandResponse} from '../../@types/index'
 //const diff = require("hyperdiff")
 //  const diff = diffx as any
@@ -30,6 +31,7 @@ import { webSockets } from '@libp2p/websockets'
 import { createLibp2p } from 'libp2p'
 import { identifyService} from 'libp2p/identify'
 import { autoNATService} from 'libp2p/autonat'
+import { uPnPNATService } from 'libp2p/upnp-nat'
 
 import { kadDHT, } from '@libp2p/kad-dht'
 import { gossipsub } from '@chainsafe/libp2p-gossipsub'
@@ -113,16 +115,27 @@ export class OceanP2P extends EventEmitter {
     this._publicAddress=NodeKey.peerId.toString()
     this._publicKey=NodeKey.publicKey
     this._privateKey=NodeKey.privateKey
-    const node = await createLibp2p({
+    
+    /** @type {import('libp2p').Libp2pOptions} */
+    const options= {
       addresses: {
         listen: [
           '/ip4/0.0.0.0/tcp/0',
-          //'/ip6/::1/tcp/0',
-          //'/ip4/0.0.0.0/tcp/0/ws',
-          //'/ip6/::1/tcp/0/ws',
+          '/ip6/::1/tcp/0',
+          '/ip4/0.0.0.0/tcp/0/ws',
+          '/ip6/::1/tcp/0/ws',
         ]
       },
       peerId: NodeKey.peerId,
+      uPnPNAT: uPnPNATService(
+        {
+          description: 'my-node',
+          ttl:7200,
+          keepAlive:true
+        }
+      ),
+      autoNat: autoNATService(),
+      
       transports: [
         webSockets(),
         tcp()
@@ -148,7 +161,6 @@ export class OceanP2P extends EventEmitter {
       ],
       services: {
         identify: identifyService(),
-        autoNat: autoNATService(),
         pubsub: 
           gossipsub({ 
             allowPublishToZeroPeers: true,
@@ -177,10 +189,12 @@ export class OceanP2P extends EventEmitter {
       connectionManager: {
         maxParallelDials: 150, // 150 total parallel multiaddr dials
         dialTimeout: 10e3, // 10 second dial timeout per peer dial
-
-
         
       },
+      nat: {
+        enabled: true,
+        description: `ocean@node`
+      }
 
       //relay: {
        // enabled: true, // Allows you to dial and accept relayed connections. Does not make you a relay.
@@ -188,12 +202,8 @@ export class OceanP2P extends EventEmitter {
         //  enabled: true // Allows you to be a relay for other peers
        // }
       //}
-      //nat: {
-      //  enabled: true,
-      //  description: `ipfs@${os.hostname()}`
-      //}
-  
-    })
+    }
+    const node = await createLibp2p(options)
       const x=await node.start()
       node.addEventListener('peer:connect', (evt:any) => { handlePeerConnect(evt) })
       node.addEventListener('peer:disconnect', (evt:any) => { handlePeerDisconnect(evt)})
@@ -253,7 +263,17 @@ export class OceanP2P extends EventEmitter {
   }
 
   
+  async getPeerDetails(peerName:string){
+    try{
+      const peerId=peerIdFromString(peerName)
+      const peer = await this._libp2p.peerStore.get(peerId)
+      return peer
+    }
+    catch(e){
+      return(null)
+    }
 
+  }
   async sendTo (peerName:string, message:string, sink:any):Promise<P2PCommandResponse> {
     console.log("Executing on node "+peerName+" task: "+message)
     const status:P2PCommandResponse = {
