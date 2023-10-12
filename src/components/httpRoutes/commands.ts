@@ -31,8 +31,9 @@ directCommandRoute.post('/directCommand', express.json(),async (req: Request, re
                     const str=uint8ArrayToString(chunk.subarray())
                     const decoded=JSON.parse(str)
                     res.status(decoded.httpStatus)
-                    res.header({'Content-Type': 'text/plain'})
-                    res.header({'sdfdsf': 'sdfdsf'})
+                    if ("headers" in decoded){
+                        res.header(decoded.headers)
+                    }
                     if(decoded.httpStatus!=200){
                         res.write(decoded.error)
                         res.end()

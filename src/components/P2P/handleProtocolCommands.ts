@@ -55,7 +55,13 @@ export async function handleProtocolCommands ( connection:any){
         case 'download':
           sendStream=fs.createReadStream("/var/log/syslog")
           //sendStream=fs.createReadStream("/etc/hostname")
-          status={httpStatus:200,filename: "hostname"}
+          status={
+              httpStatus:200,
+              headers:{
+                  "Content-Disposition": "attachment; filename='syslog'",
+                  "Content-Type":"application/text"
+              }
+          }
           break;
         default:
           status={httpStatus:501,error:"Unknown command"}

@@ -38,6 +38,7 @@ import {getPeerIdFromPrivateKey} from './peer-id'
 
 import {cidFromRawString} from '../../utils'
 import { Stream,Transform  } from 'stream'
+import { Database } from '../database'
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
@@ -59,8 +60,10 @@ export class OceanP2P extends EventEmitter {
   private _handleMessage: any
   private _interval: NodeJS.Timeout
   private _idx: number
-  constructor () {
+  private db:Database
+  constructor (db:Database) {
     super()
+    this.db=db
   }
   async start(options:any=null){
     const topic = 'oceanprotocol'

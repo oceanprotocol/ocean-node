@@ -1,20 +1,19 @@
 import { OceanP2P } from "./components/P2P/index"
 import { OceanProvider } from "./components/Provider/index"
 import { OceanIndexer } from "./components/Indexer/index"
-import { getRandomInt} from './utils'
+import { Database } from "./components/database/index"
 import express, { Express, Request, Response } from 'express';
 import { OceanNode} from './@types/index'
 import swaggerUi from "swagger-ui-express";
 import {httpRoutes} from './components/httpRoutes'
+import {getConfig} from './utils'
 
 let node:any
 let oceanNode:OceanNode
 
 const app: Express = express();
 //const port = getRandomInt(6000,6500)
-let port = parseInt(process.env.PORT)
-if(isNaN(port))
-  port=8000
+
 
 declare global {
   namespace Express {
@@ -26,12 +25,22 @@ declare global {
 
 
 async function main(){
-  const node=new OceanP2P()
-  await node.start()
-  await node.startListners()
-  const indexer = new OceanIndexer()
-  const provider = new OceanProvider()
-  oceanNode = {
+  const config = await getConfig()
+  let node=null
+  let indexer=null
+  let provider=null
+  let dbconn=new Database(config.dbConfig)
+  if (config.hasP2P){
+    node=new OceanP2P(dbconn)
+    await node.start()
+    await node.startListners()
+  }
+  if(config.hasIndexer)
+    indexer = new OceanIndexer(dbconn)
+  if(config.hasProvider)
+    provider = new OceanProvider(dbconn)
+  
+  const oceanNode = {
     node: node,
     indexer: indexer,
     provider: provider
@@ -53,8 +62,8 @@ async function main(){
   );
   app.use('/', httpRoutes);
   
-  app.listen(port, () => {
-    console.log(`HTTP port: ${port}`)
+  app.listen(config.httpPort, () => {
+    console.log(`HTTP port: ${config.httpPort}`)
   })
   
   
