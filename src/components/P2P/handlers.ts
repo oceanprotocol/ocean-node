@@ -45,14 +45,14 @@ export function handlePeerDiscovery(details:any){
 }
 
 export function handlePeerJoined(details:any){
-    console.log('New peer joined us:', details)
+    //console.log('New peer joined us:', details)
 }
 
 export function handlePeerLeft(details:any){
-    console.log('New peer joined us:', details)
+    //console.log('New peer joined us:', details)
 }
 
 
 export function handleSubscriptionCHange(details:any){
-    console.log('subscription-change:', details.detail)
+    //console.log('subscription-change:', details.detail)
 }
