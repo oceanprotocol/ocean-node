@@ -26,7 +26,7 @@ npm run start
 
 ## 4. Open a 2nd terminal and run another node
 ```bash
-export PORT=8000
+export PORT=8001
 npm run start
 ```
 
