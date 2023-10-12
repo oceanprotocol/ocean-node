@@ -16,6 +16,7 @@ export interface OceanNodeConfig {
     hasP2P:boolean,
     hasIndexer: boolean,
     hasProvider: boolean,
+    hasHttp:boolean,
     pk:string,
     dbConfig: OceanNodeDBConfig,
     httpPort:number

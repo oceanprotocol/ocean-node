@@ -27,8 +27,8 @@ class ReadableString extends Readable {
 }
 
 export async function handleProtocolCommands ( connection:any){
-    // can only register one handler for the protocol
-    //console.log(connection)
+    console.log("Incoming connection from peer "+connection.connection.remotePeer)
+    console.log("Using "+connection.connection.remoteAddr)
     let status=null
     let isError=false
     let task
@@ -47,6 +47,8 @@ export async function handleProtocolCommands ( connection:any){
       }
       break
     }
+    console.log("Performing task")
+    console.log(task)
     switch(task.command){
        case 'echo':
           status={httpStatus:200}

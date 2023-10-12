@@ -25,6 +25,7 @@ declare global {
 
 
 async function main(){
+  console.log("\n\n\n\n")
   const config = await getConfig()
   let node=null
   let indexer=null
@@ -33,7 +34,6 @@ async function main(){
   if (config.hasP2P){
     node=new OceanP2P(dbconn)
     await node.start()
-    await node.startListners()
   }
   if(config.hasIndexer)
     indexer = new OceanIndexer(dbconn)
@@ -45,49 +45,24 @@ async function main(){
     indexer: indexer,
     provider: provider
   }
+  if(config.hasHttp){
+      app.use((req, res, next) => {req.oceanNode = oceanNode; next(); });
+      app.use(
+        "/docs",
+        swaggerUi.serve,
+        swaggerUi.setup(undefined, {
+            swaggerOptions: {
+            url: "/swagger.json",
+          },
+        })
+      );
+      app.use('/', httpRoutes);
+      app.listen(config.httpPort, () => {
+          console.log(`HTTP port: ${config.httpPort}`)
+      })
+  }
   
-  app.use((req, res, next) => {
-    req.oceanNode = oceanNode;
-    next();
-  });
-
-  app.use(
-    "/docs",
-    swaggerUi.serve,
-    swaggerUi.setup(undefined, {
-      swaggerOptions: {
-        url: "/swagger.json",
-      },
-    })
-  );
-  app.use('/', httpRoutes);
-  
-  app.listen(config.httpPort, () => {
-    console.log(`HTTP port: ${config.httpPort}`)
-  })
-  
-  
-
-  /*
-
-  setInterval(
-    async () => {
-      console.log("Broadcasting something cool...")
-      node.broadcast("un text lkjfg kfgdhgihi ihdfgoih fgifhdohfgdh ofyg8ofy goydfhgoyfgof goung")
-      //await node.advertiseProviderAddress()
-      //const peers=node.getPeers()
-      //console.log("Peers:")
-      //console.log(peers)
-      //if(peers.length>0){
-      // console.log("Let's find "+peers[0].toString())
-      // await node.getProviders(peers[0].toString())
-      //}
-      
-        
-
-    }
-    , getRandomInt(3000,20000))
-  */    
+    
 }
 
 

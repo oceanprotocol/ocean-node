@@ -16,7 +16,7 @@ export async function getPeerIdFromPrivateKey(){
     
 
 
-    console.log(key)
+    //console.log(key)
     const id = await createFromPrivKey(key)
     console.log('Starting node with peerID:'+id)
 

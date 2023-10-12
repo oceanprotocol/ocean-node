@@ -8,6 +8,7 @@ export async function getConfig():Promise<OceanNodeConfig>{
 
     const config:OceanNodeConfig = {
         hasIndexer:true,
+        hasHttp: true,
         hasP2P:true,
         hasProvider:true,
         httpPort: port,

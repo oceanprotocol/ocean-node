@@ -29,7 +29,8 @@ export function handlePeerDisconnect(details:any){
     
 export function handlePeerDiscovery(details:any){
       const peerInfo = details.detail
-      //console.log('Discovered:', peerInfo.id.toString())
+      //console.log('Discovered new peer:', peerInfo.id.toString())
+      //console.log(details.detail)
       
       /*
       try{
@@ -47,6 +48,11 @@ export function handlePeerJoined(details:any){
     console.log('New peer joined us:', details)
 }
 
+export function handlePeerLeft(details:any){
+    console.log('New peer joined us:', details)
+}
+
+
 export function handleSubscriptionCHange(details:any){
-    //console.log('subscription-change:', details.detail)
+    console.log('subscription-change:', details.detail)
 }

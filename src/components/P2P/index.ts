@@ -6,7 +6,7 @@ import { P2PCommandResponse} from '../../@types/index'
 import EventEmitter from 'events'
 import clone from 'lodash.clonedeep'
 
-import { handleBroadcasts, handlePeerConnect, handlePeerDiscovery, handlePeerDisconnect,handlePeerJoined,handleSubscriptionCHange,handleProtocolCommands } from './handlers'
+import { handleBroadcasts, handlePeerConnect, handlePeerDiscovery, handlePeerDisconnect,handlePeerJoined,handlePeerLeft,handleSubscriptionCHange,handleProtocolCommands } from './handlers'
 
 //import { encoding } from './connection'
 //import * as directConnection from './direct-connection-handler'
@@ -39,6 +39,7 @@ import {getPeerIdFromPrivateKey} from './peer-id'
 import {cidFromRawString} from '../../utils'
 import { Stream,Transform  } from 'stream'
 import { Database } from '../database'
+import { AutoDial } from 'libp2p/dist/src/connection-manager/auto-dial'
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
@@ -66,11 +67,9 @@ export class OceanP2P extends EventEmitter {
     this.db=db
   }
   async start(options:any=null){
-    const topic = 'oceanprotocol'
-    
+    this._topic = 'oceanprotocol'
     this._libp2p = await this.createNode()
     
-    this._topic = topic
     this._options = Object.assign({}, clone(DEFAULT_OPTIONS), clone(options))
     this._peers = []
     this._connections = {}
@@ -114,27 +113,13 @@ export class OceanP2P extends EventEmitter {
     this._publicAddress=NodeKey.peerId.toString()
     this._publicKey=NodeKey.publicKey
     this._privateKey=NodeKey.privateKey
-    const dh = kadDHT({
-      // this is necessary because this node is not connected to the public network
-      // it can be removed if, for example bootstrappers are configured
-      allowQueryWithZeroPeers: true,
-      clientMode: false, //this should be true for edge devices
-      kBucketSize:20,
-      //randomWalk: {
-      //  enabled: true,            // Allows to disable discovery (enabled by default)
-      //  interval: 300e3,
-      //  timeout: 10e3
-      // }
-
-
-    })
     const node = await createLibp2p({
       addresses: {
         listen: [
           '/ip4/0.0.0.0/tcp/0',
-          '/ip6/::1/tcp/0',
-          '/ip4/0.0.0.0/tcp/0/ws',
-          '/ip6/::1/tcp/0/ws',
+          //'/ip6/::1/tcp/0',
+          //'/ip4/0.0.0.0/tcp/0/ws',
+          //'/ip6/::1/tcp/0/ws',
         ]
       },
       peerId: NodeKey.peerId,
@@ -147,7 +132,7 @@ export class OceanP2P extends EventEmitter {
       ],
       connectionEncryption: [
         noise(),
-        plaintext()
+        //plaintext()
       ],
       peerDiscovery: [
         bootstrap({
@@ -166,12 +151,28 @@ export class OceanP2P extends EventEmitter {
         autoNat: autoNATService(),
         pubsub: 
           gossipsub({ 
-          allowPublishToZeroPeers: true,
-          emitSelf: false,
-          canRelayMessage: false,
+            allowPublishToZeroPeers: true,
+            emitSelf: false,
+            canRelayMessage: true,
+            enabled:true
         }),
-        
-        dht: dh,
+        dht: kadDHT(
+          {
+              // this is necessary because this node is not connected to the public network
+              // it can be removed if, for example bootstrappers are configured
+              allowQueryWithZeroPeers: true,
+              maxInboundStreams:500,
+              maxOutboundStreams:500,
+
+              clientMode: false, //this should be true for edge devices
+              kBucketSize:20,
+          //randomWalk: {
+          //  enabled: true,            // Allows to disable discovery (enabled by default)
+          //  interval: 300e3,
+          //  timeout: 10e3
+          //}
+          }
+        )
       },
       connectionManager: {
         maxParallelDials: 150, // 150 total parallel multiaddr dials
@@ -193,28 +194,17 @@ export class OceanP2P extends EventEmitter {
       //}
   
     })
-    const x=await node.start()
-    console.log(x)
-    
-    return node
-    }
-    catch(e){
-      console.log("Unable to create node")
-      console.log(e)
-    }
-  }
-
-  async startListners(){
-    
-    
-    this._libp2p.addEventListener('peer:connect', (evt:any) => { handlePeerConnect(evt) })
-    this._libp2p.addEventListener('peer:disconnect', (evt:any) => { handlePeerDisconnect(evt)})
-    this._libp2p.addEventListener('peer:discovery', (evt:any) => { handlePeerDiscovery(evt)})
-    this._libp2p.services.pubsub.addEventListener('peer joined', (evt:any) => {handlePeerJoined(evt)})
-    this._libp2p.services.pubsub.addEventListener('subscription-change', (evt:any) => { handleSubscriptionCHange(evt)})
+      const x=await node.start()
+      node.addEventListener('peer:connect', (evt:any) => { handlePeerConnect(evt) })
+      node.addEventListener('peer:disconnect', (evt:any) => { handlePeerDisconnect(evt)})
+      node.addEventListener('peer:discovery', (evt:any) => { handlePeerDiscovery(evt)})
+      
+      //node.services.pubsub.addEventListener(  'peer joined', (evt:any) => {handlePeerJoined(evt)})
+      //node.services.pubsub.addEventListener('peer left', (evt:any) => {handlePeerLeft(evt)})
+      //node.services.pubsub.addEventListener('subscription-change', (evt:any) => { handleSubscriptionCHange(evt)})
     
     //this._libp2p.services.pubsub.on('peer joined', (peer:any) => {
-    //  console.log('New peer joined us:', peer)
+      //console.log('New peer joined us:', peer)
     //})
     //this._libp2p.services.pubsub.addEventListener('peer left', (evt:any) => {
       //console.log('Peer left...', evt)
@@ -222,17 +212,24 @@ export class OceanP2P extends EventEmitter {
     //this._libp2p.services.pubsub.on('peer left', (peer:any) => {
       //console.log('Peer left...', peer)
     //})
-    this._libp2p.services.pubsub.addEventListener('message', (message:any) => {handleBroadcasts(this._topic,message)})
+    node.services.pubsub.addEventListener('message', (message:any) => {handleBroadcasts(this._topic,message)})
     //this._libp2p.services.pubsub.on('message', (message:any) => {
     //  console.log('Received broadcast msg...', message)
     //  console.log("Sending back 'who are you' to "+message.from.toString())
     //  this.sendTo(message.from,'Who are you?',null)
     //})
-
-    this._libp2p.services.pubsub.subscribe(this._topic)
-    
-    
+    node.services.pubsub.subscribe(this._topic)
+    node.services.pubsub.publish(this._topic,encoding("online"))
+    return node
+    }
+    catch(e){
+      console.log("Unable to create node")
+      console.log(e)
+    }
+    return null
   }
+
+  
   async getAllPeerStore(){
     const s=await this._libp2p.peerStore.all()
     return(s)
@@ -258,6 +255,7 @@ export class OceanP2P extends EventEmitter {
   
 
   async sendTo (peerName:string, message:string, sink:any):Promise<P2PCommandResponse> {
+    console.log("Executing on node "+peerName+" task: "+message)
     const status:P2PCommandResponse = {
       status: {httpStatus:200,error:''},
       stream: null
@@ -266,9 +264,7 @@ export class OceanP2P extends EventEmitter {
     let peer
     try{
       peerId=peerIdFromString(peerName)
-      console.log(peerId)
       peer = await this._libp2p.peerStore.get(peerId)
-      console.log(peer)
     }
     catch(e){
       
@@ -276,8 +272,6 @@ export class OceanP2P extends EventEmitter {
       status.status.error="Invalid peer"
       return(status)
     }
-    console.log(peer)
-    console.log(this._protocol)
     let stream
     try{
       //stream= await this._libp2p.dialProtocol(peer, this._protocol)
@@ -343,6 +337,7 @@ export class OceanP2P extends EventEmitter {
       if(x>0){
         const cid=await cidFromRawString(did)
         const x=await this._libp2p.contentRouting.provide(cid)
+        console.log(x)
       }
     }
     catch(e){
