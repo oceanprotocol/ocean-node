@@ -3,12 +3,20 @@ import express, { Request, Response } from 'express';
 import { P2PCommandResponse } from '../../@types';
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 
+import { buildDefaultLogger, getDefaultLevel, LEVELS, LOG_LEVELS } from '../../utils/logging/Logger';
+
 export const broadcastCommandRoute = express.Router();
+
+//just use the default logger with default transports
+const logger = buildDefaultLogger();
+
 broadcastCommandRoute.post('/broadcastCommand', express.urlencoded({ extended: true }),async (req: Request, res: Response): Promise<void> => {
     if(!req.query.message){
         res.sendStatus(400)
         return
     }
+
+    logger.log(getDefaultLevel(),`broadcastCommand received ${req.query.message}`);
 
     await req.oceanNode.node.broadcast(req.query.message)
     res.sendStatus(200)
