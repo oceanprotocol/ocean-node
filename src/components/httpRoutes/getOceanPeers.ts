@@ -15,7 +15,7 @@ export const getOceanPeersRoute = express.Router();
 getOceanPeersRoute.get('/getOceanPeers', async (req: Request, res: Response): Promise<void> => {
 
     const peers=await req.oceanNode.node.getPeers()
-    customLogger.log(getDefaultLevel(),`getOceanPeers: ${peers}`);
+    customLogger.log(getDefaultLevel(),`getOceanPeers: ${peers}`,true);
     res.json(peers);
   
 });

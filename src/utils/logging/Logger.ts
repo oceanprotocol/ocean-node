@@ -1,6 +1,10 @@
-import winston, { Logger } from 'winston';
-import * as Transport from 'winston-transport';
+import winston, { Logger, LogEntry } from 'winston';
+import Transport, { TransportStreamOptions } from 'winston-transport';
 import  DailyRotateFile from 'winston-daily-rotate-file';
+import fs from 'fs';
+
+//Uncomment the following to use typesense (npm install typesense)
+//import typesense from 'typesense';
 
 //all the types of modules/components
 export const LOGGER_MODULE_NAMES = {
@@ -43,6 +47,32 @@ export const LOG_LEVELS_STR = {
     LEVEL_DEBUG: 'debug',
     LEVEL_SILLY: 'silly'
 };
+
+
+const LOG_LEVELS_EMOJI = {
+    'error': "\u{1F631}", //face scremaing in panic
+    'debug': "\u{1F9D0}", //face with monocle
+    'warn': "\u{26a0} \u{FE0F}",//warning
+    'verbose': "\u{1F4AC}", //speech ballon
+    'info': "\u{1F449}", //point right 
+    'http': "\u{1F98A}", //firefox homage :-)
+    'silly': "\u{1F92A}" //zany face
+};
+
+//we might want these somewhere else
+export const GENERIC_EMOJIS = {
+    EMOJI_CHECK_MARK : "\u{2705}",
+    EMOJI_CROSS_MARK : "\u{274C}" 
+}
+
+export function getLoggerLevelEmoji(level: string): string {
+
+    let emoji = LOG_LEVELS_EMOJI[level];
+    if(!emoji) {
+        return "\u{1F680}";//rocket emoji
+    }
+    return emoji;
+}
     
 export const LOG_COLORS = {
     error: 'red',
@@ -134,7 +164,6 @@ export function buildDefaultLogger(): Logger {
 export interface CustomNodeLoggerOptions extends winston.LoggerOptions {
 
     moduleName: string; //one of LOGGER_MODULE_NAMES 
-
 }
 
 /**
@@ -167,6 +196,36 @@ export function buildCustomFileTransport(moduleName: string, options?: winston.t
     }
 
     return new winston.transports.File({
+        ... options
+    });
+
+}
+
+/**
+ * 
+ * @param moduleName 
+ * @param options 
+ * options are:
+ * stream: any Node.js stream. If an objectMode stream is provided then the entire info object will be written. 
+ * Otherwise info[MESSAGE] will be written.
+ * level: Level of messages that this transport should log (default: level set on parent logger).
+ * silent: Boolean flag indicating whether to suppress output (default false).
+ * eol: Line-ending character to use. (default: os.EOL).
+ * @returns 
+ */
+export function buildCustomStreamTransport(options?: winston.transports.StreamTransportOptions): 
+    winston.transports.StreamTransportInstance {
+
+    if(!options) {
+
+        options = {
+            stream: fs.createWriteStream('/dev/null'),
+            level: getDefaultLevel(),
+            handleExceptions: true
+        }
+    }
+
+    return new winston.transports.Stream({
         ... options
     });
 
@@ -205,7 +264,10 @@ const transport: DailyRotateFile = new DailyRotateFile({
 
   return transport;
 }
-    
+ 
+/**
+ * Customize the logger options
+ */
 export class CustomNodeLogger {
     
 
@@ -266,25 +328,42 @@ export class CustomNodeLogger {
         this.getLogger().log(level, includeModuleName ? this.buildMessage(message) : message);
     }
 
+    //supports emoji :-)? Experimental, might not work properly on some transports
+    //Usage:
+    //logger.logMessageWithEmoji(`HTTP port: ${config.httpPort}`, true, GENERIC_EMOJIS.EMOJI_CHECK_MARK);
+    //logger.logMessageWithEmoji(`HTTP port: ${config.httpPort}`, true, );
+    logMessageWithEmoji(message: string, includeModuleName: boolean = false, emoji?: string) {
+        let level = this.getLoggerLevel() || getDefaultLevel();
+
+        let msg = includeModuleName ? this.buildMessage(message) : message;
+
+        if(emoji) {
+            msg = emoji.concat(" ").concat(msg);
+        }
+        else {
+            msg = getLoggerLevelEmoji(this.getLoggerLevel()).concat(" ").concat(msg);
+        } 
+
+        this.getLogger().log(level, msg);
+        
+    }
+
     //prefix the message with the module/component name (optional)
     buildMessage(message: string) {
         const cpName = this.getModuleName();
         if(cpName) {
             message = '[' + cpName.toUpperCase() + '] => ' + message;
         }
+
         return message;
         
     }
 
-    
-
-
 }
 
 
-//kind of a factory function for different modules
-export function getCustomLoggerForModule(moduleOrComponentName?: string, 
-    logLevel?: string, 
+//kind of a factory function for different modules/components
+export function getCustomLoggerForModule(moduleOrComponentName?: string, logLevel?: string, 
     loggerTransports?: winston.transport | winston.transport[]): CustomNodeLogger {
 
 
@@ -302,7 +381,7 @@ export function getCustomLoggerForModule(moduleOrComponentName?: string,
             transports: loggerTransports ? loggerTransports : [ buildCustomFileTransport(moduleOrComponentName), defaultConsoleTransport],
             exceptionHandlers: [
                 new winston.transports.File({ filename: moduleOrComponentName +'_exceptions.log' })
-            ]
+            ],
         }
     );
     
@@ -310,7 +389,84 @@ export function getCustomLoggerForModule(moduleOrComponentName?: string,
     
 }
 
+//for a custom logger transport
+interface CustomOceanNodesTransportOptions extends Transport.TransportStreamOptions {
+    moduleName?: string; 
+}
 
+
+//for typesense logging
+interface TypesenseTransportStreamOptions extends CustomOceanNodesTransportOptions {
+
+    nodes: [
+        {
+            host: string,
+            port: number,
+            protocol: string, //http as default protocol
+        }
+    ],
+    apiKey: string,
+    numRetries: number, //3
+    connectionTimeoutSeconds: number, //10
+    logLevel: string
+}
+
+//Skeleton For any custom transport we might need
+//for ElasticSearch for instance there is this one: https://github.com/vanthome/winston-elasticsearch
+//for Typesense we might need to implement our own transport. In any case we can just use this skeleton
+export class CustomOceanNodesTransport extends Transport {
+
+
+    /** Example config for Typesense
+     * const options: TypesenseTransportStreamOptions = {
+
+            nodes: [
+                {
+                    host: some.host,
+                    port: some.port,
+                    protocol: "http",
+                }
+            ],
+            apiKey: someapiKey,
+            numRetries: 3,
+            connectionTimeoutSeconds: 10,
+            logLevel: "debug",
+     * }
+     *  const typesenseClient = new typesense.Client(options)
+     */
+
+    constructor(
+      opts: CustomOceanNodesTransportOptions
+    ) {
+      super(opts);
+  
+          /*
+              * Consume any custom options here. e.h:
+              * Connection information for databases
+              * Authentication information for APIs
+          */
+    }
+  
+      // this functions run when something is logged so here's where you can add you custom logic to do stuff when something is logged.
+    log(info: LogEntry, callback: any) {
+            // make sure you installed `@types/node` or this will give a typerror
+            // this is the basic default behavior don't forget to add this.
+          setImmediate(() => {
+        this.emit("logged", info);
+      });
+  
+      const { level, message, ...meta } = info;
+  
+      // here you can add your custom logic, e.g. ingest data into database etc.
+      // Perform the writing to the remote service
+      //typesenseClient.doSomething()
+  
+      // don't forget this one
+      callback();
+    }
+
+    
+  }
 
 
 
