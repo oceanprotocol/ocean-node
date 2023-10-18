@@ -43,6 +43,17 @@ import { Stream,Transform  } from 'stream'
 import { Database } from '../database'
 import { AutoDial } from 'libp2p/dist/src/connection-manager/auto-dial'
 
+
+import { CustomNodeLogger, 
+  LOGGER_MODULE_NAMES, 
+  LOG_LEVELS_STR, 
+  defaultConsoleTransport, 
+  getCustomLoggerForModule } from '../../utils/logging/Logger';
+
+//just use the default logger with default transports
+//Bellow is just an example usage, only logging to console here
+export const P2P_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.P2P, LOG_LEVELS_STR.LEVEL_INFO, defaultConsoleTransport);
+
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
 }

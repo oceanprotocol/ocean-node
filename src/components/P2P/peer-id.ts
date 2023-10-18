@@ -2,7 +2,7 @@
 import {createFromPrivKey} from '@libp2p/peer-id-factory'
 import {keys} from '@libp2p/crypto'
 import {hexStringToByteArray} from '../../utils'
-
+import { P2P_CONSOLE_LOGGER } from './index'
 
 /* Retusn NodeId, PublicKey, PrivateKey */
 export async function getPeerIdFromPrivateKey(){
@@ -18,7 +18,8 @@ export async function getPeerIdFromPrivateKey(){
 
     //console.log(key)
     const id = await createFromPrivKey(key)
-    console.log('Starting node with peerID:'+id)
+    //console.log('Starting node with peerID:'+id)
+    P2P_CONSOLE_LOGGER.logMessage('Starting node with peerID:'+id, true)
 
     return {
         peerId:id,

@@ -4,16 +4,16 @@ import * as Transport from 'winston-transport';
 
 //all the types of modules/components
 export const LOGGER_MODULE_NAMES = {
-    HTTP: "http.log",
-    P2P: "p2p.log",
-    INDEXER: "indexer.log",
-    PROVIDER: "provider.log",
-    DATABASE: "database.log",
-    ALL_COMBINED: "all.log" 
+    HTTP: "http",
+    P2P: "p2p",
+    INDEXER: "indexer",
+    PROVIDER: "provider",
+    DATABASE: "database",
+    ALL_COMBINED: "all" 
 }
 
 //Some constants for logging
-export const LEVELS = {
+export const LOG_LEVELS_NUM = {
     'error': 0,
     'warn': 1,
     'info': 2,
@@ -23,7 +23,7 @@ export const LEVELS = {
     'silly': 6
 };
 
-export const LOG_LEVELS = {
+export const LOG_LEVELS_STR = {
     LEVEl_ERROR: 'error',
     LEVEL_WARN: 'warn',
     LEVEL_INFO: 'info',
@@ -94,7 +94,7 @@ function getDefaultOptions(): winston.LoggerOptions {
 
     return {
         level: getDefaultLevel(),
-        levels: LEVELS,
+        levels: LOG_LEVELS_NUM,
         format,
         transports: defaultTransports
     }
@@ -111,7 +111,6 @@ export function buildDefaultLogger(): Logger {
 export interface CustomNodeLoggerOptions extends winston.LoggerOptions {
 
     moduleName: string; //one of LOGGER_MODULE_NAMES 
-    logLevel?: string;
 
 }
 
@@ -137,7 +136,7 @@ export function buildCustomFileTransport(moduleName: string, options?: winston.t
     if(!options) {
 
         options = {
-            filename: moduleName,
+            filename: moduleName + '.log',
             dirname: 'logs/',
             level: getDefaultLevel(),
             handleExceptions: true
@@ -163,7 +162,7 @@ export class CustomNodeLogger {
         if(!options)  {
             this.logger = buildDefaultLogger();
             this.loggerOptions = {... getDefaultOptions(), moduleName: LOGGER_MODULE_NAMES.ALL_COMBINED };
-            this.logger.log(LOG_LEVELS.LEVEL_WARN,"Warning! Calling CustomNodeLogger without any logger options, will just use defaults...");
+            this.logger.log(LOG_LEVELS_STR.LEVEL_INFO,"Info! Calling CustomNodeLogger without any logger options, will just use defaults...");
         } else {
             this.logger = winston.createLogger({... options});
             this.loggerOptions = options;
@@ -191,46 +190,61 @@ export class CustomNodeLogger {
         return this.logger;
     }
 
+    //should correspond also to filename when logging to a file
     getModuleName(): string {
         return this.loggerOptions.moduleName;
     }
 
     getLoggerLevel(): string {
-        return this.loggerOptions.logLevel;
+        return this.loggerOptions.level;
+    }
+
+    //wrapper function for logging with custom logger
+    log(level: string = LOG_LEVELS_STR.LEVEL_INFO, message: string, includeModuleName: boolean = false) {
+        this.getLogger().log(level, includeModuleName ? this.buildMessage(message) : message);
+    }
+
+    logMessage(message: string, includeModuleName: boolean = false) {
+        let level = this.getLoggerLevel() || getDefaultLevel();
+        this.getLogger().log(level, includeModuleName ? this.buildMessage(message) : message);
+    }
+
+    //prefix the message with the module/component name (optional)
+    buildMessage(message: string) {
+        const cpName = this.getModuleName();
+        if(cpName) {
+            message = '[' + cpName.toUpperCase() + '] => ' + message;
+        }
+        return message;
+        
     }
 
 
 }
 
+
 //kind of a factory function for different modules
-export function getCustomLoggerForModule(moduleName?: string, logLevel?: string): CustomNodeLogger {
+export function getCustomLoggerForModule(moduleOrComponentName?: string, 
+    logLevel?: string, 
+    loggerTransports?: winston.transport | winston.transport[]): CustomNodeLogger {
 
-    let logger: CustomNodeLogger;
 
-    if(!moduleName) {
-        moduleName = LOGGER_MODULE_NAMES.ALL_COMBINED;
+    if(!moduleOrComponentName) {
+        moduleOrComponentName = LOGGER_MODULE_NAMES.ALL_COMBINED;
+
     }
 
-    if(LOGGER_MODULE_NAMES.P2P === moduleName) {
-
-        logger = new CustomNodeLogger(/*pass any custom options here*/ 
-            {
-                level: logLevel ? logLevel : LOG_LEVELS.LEVEL_HTTP,
-                levels: LEVELS,
-                moduleName: LOGGER_MODULE_NAMES.P2P,
-                transports: [ buildCustomFileTransport(LOGGER_MODULE_NAMES.P2P),defaultConsoleTransport]
-            }
-        );
-    }
-    //TODO others
-
-    if(!logger) {
-        logger = new CustomNodeLogger();
-    }
+    let logger: CustomNodeLogger = new CustomNodeLogger(/*pass any custom options here*/ 
+        {
+            level: logLevel ? logLevel : LOG_LEVELS_STR.LEVEL_HTTP,
+            levels: LOG_LEVELS_NUM,
+            moduleName: moduleOrComponentName,
+            defaultMeta: {component: moduleOrComponentName.toUpperCase()},
+            transports: loggerTransports ? loggerTransports : [ buildCustomFileTransport(moduleOrComponentName), defaultConsoleTransport]
+        }
+    );
     
     return logger;
-
-
     
 }
 
