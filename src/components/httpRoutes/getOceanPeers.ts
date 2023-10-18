@@ -1,12 +1,21 @@
 
 import express, { Request, Response } from 'express';
 import { Get, Route } from "tsoa";
+import { CustomNodeLogger, 
+    LOGGER_MODULE_NAMES, 
+    getCustomLoggerForModule, 
+    getDefaultLevel} from '../../utils/logging/Logger';
 
+//we could just use the default logger with default transports
+//or we can use a customized logger, including logging per module/component
+//Note: Bellow is just an example usage:
+const customLogger: CustomNodeLogger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.P2P, getDefaultLevel());
 
 export const getOceanPeersRoute = express.Router();
 getOceanPeersRoute.get('/getOceanPeers', async (req: Request, res: Response): Promise<void> => {
 
     const peers=await req.oceanNode.node.getPeers()
+    customLogger.log(getDefaultLevel(),`getOceanPeers: ${peers}`,true);
     res.json(peers);
   
 });
