@@ -1,6 +1,6 @@
 import winston, { Logger } from 'winston';
 import * as Transport from 'winston-transport';
-//import { AbstractConfigSetLevels } from 'winston/lib/winston/config';
+import  DailyRotateFile from 'winston-daily-rotate-file';
 
 //all the types of modules/components
 export const LOGGER_MODULE_NAMES = {
@@ -11,6 +11,17 @@ export const LOGGER_MODULE_NAMES = {
     DATABASE: "database",
     ALL_COMBINED: "all" 
 }
+
+// we can setup custom exceptionHandlers as part of initial config options
+// exceptionHandlers: [
+//     new transports.File({ filename: 'exceptions.log' })
+//   ]
+// OR enable it later
+// Call exceptions.handle with a transport to handle exceptions
+// logger.exceptions.handle(
+//     new transports.File({ filename: 'exceptions.log' })
+//   );
+const EXCEPTIONS_HANDLER = 'exceptions.log';
 
 //Some constants for logging
 export const LOG_LEVELS_NUM = {
@@ -43,7 +54,9 @@ export const LOG_COLORS = {
 
 //if not set, then gets default 'development' level & colors
 export const isDevelopment =(): boolean => {
-    return process.env.NODE_ENV && (process.env.NODE_ENV.toLowerCase() === 'development');
+
+    let env = process.env.NODE_ENV || 'development';
+    return env.toLowerCase().startsWith('dev');
 }
 
 export const getDefaultLevel = (): string => {
@@ -64,6 +77,11 @@ export const format: winston.Logform.Format = winston.format.combine (
 export const consoleColorFormatting: winston.Logform.Format | Record<string, any> = isDevelopment() 
 ? { format: winston.format.combine(format, winston.format.colorize({all: true}))} : {};
 
+//ex: we caa also have a simpler format for console only
+// format: winston.format.combine(
+//     winston.format.colorize(),
+//     winston.format.simple()
+//   )
 
 //combine different transports of the same type in one transport
 export const developmentTransports: winston.transports.FileTransportInstance[] = isDevelopment() 
@@ -79,6 +97,8 @@ export const developmentTransports: winston.transports.FileTransportInstance[] =
         filename: 'all.log',
         dirname: 'logs/',
         handleExceptions: true
+        //we can also set a custom 
+        //format: winston.format.json()
     })
 ] : [];
 
@@ -96,7 +116,10 @@ function getDefaultOptions(): winston.LoggerOptions {
         level: getDefaultLevel(),
         levels: LOG_LEVELS_NUM,
         format,
-        transports: defaultTransports
+        transports: defaultTransports,
+        exceptionHandlers: [
+            new winston.transports.File({ filename: 'exceptions.log' })
+        ]
     }
 }
 
@@ -147,6 +170,40 @@ export function buildCustomFileTransport(moduleName: string, options?: winston.t
         ... options
     });
 
+}
+
+
+/**
+ * Example to build a daily rotate file
+ * We can use it on the initials transports config, or add it later with 'addTransport()' method bellow
+ * In this case it will zip the archived files
+ * The max file size is 20Mb and it will keep the logs for 14 days
+ * More here:
+ * https://www.npmjs.com/package/winston-daily-rotate-file
+ * @param moduleName 
+ * @param zippedArchive 
+ * @param maxSize 
+ * @param maxFiles 
+ * @returns 
+ */
+export function buildDailyRotateFile(moduleName: string, 
+    zippedArchive: boolean = true,
+    maxSize: string = '20m', //20 Mb by default
+    maxFiles: string = '14d' //14 days by deafult
+    ): winston.transport {
+    
+
+const transport: DailyRotateFile = new DailyRotateFile({
+    filename: moduleName + '-%DATE%.log',
+    datePattern: 'YYYY-MM-DD-HH',
+    dirname: 'logs/',
+    zippedArchive: zippedArchive,
+    maxSize: maxSize,
+    maxFiles: maxFiles,
+    extension: '.log'
+  });
+
+  return transport;
 }
     
 export class CustomNodeLogger {
@@ -219,6 +276,8 @@ export class CustomNodeLogger {
         
     }
 
+    
+
 
 }
 
@@ -240,7 +299,10 @@ export function getCustomLoggerForModule(moduleOrComponentName?: string,
             levels: LOG_LEVELS_NUM,
             moduleName: moduleOrComponentName,
             defaultMeta: {component: moduleOrComponentName.toUpperCase()},
-            transports: loggerTransports ? loggerTransports : [ buildCustomFileTransport(moduleOrComponentName), defaultConsoleTransport]
+            transports: loggerTransports ? loggerTransports : [ buildCustomFileTransport(moduleOrComponentName), defaultConsoleTransport],
+            exceptionHandlers: [
+                new winston.transports.File({ filename: moduleOrComponentName +'_exceptions.log' })
+            ]
         }
     );
     
