@@ -43,22 +43,27 @@ import { uPnPNATService } from 'libp2p/upnp-nat'
 import { kadDHT } from '@libp2p/kad-dht'
 import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 
-
 import { cidFromRawString } from '../../utils'
 import { Stream, Transform } from 'stream'
 import { Database } from '../database'
 import { AutoDial } from 'libp2p/dist/src/connection-manager/auto-dial'
-import { OceanNodeConfig} from '../../@types/OceanNode'
+import { OceanNodeConfig } from '../../@types/OceanNode'
 
-import { CustomNodeLogger, 
-  LOGGER_MODULE_NAMES, 
-  LOG_LEVELS_STR, 
-  defaultConsoleTransport, 
-  getCustomLoggerForModule } from '../../utils/logging/Logger';
+import {
+  CustomNodeLogger,
+  LOGGER_MODULE_NAMES,
+  LOG_LEVELS_STR,
+  defaultConsoleTransport,
+  getCustomLoggerForModule
+} from '../../utils/logging/Logger'
 
-//just use the default logger with default transports
-//Bellow is just an example usage, only logging to console here
-export const P2P_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.P2P, LOG_LEVELS_STR.LEVEL_INFO, defaultConsoleTransport);
+// just use the default logger with default transports
+// Bellow is just an example usage, only logging to console here
+export const P2P_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
+  LOGGER_MODULE_NAMES.P2P,
+  LOG_LEVELS_STR.LEVEL_INFO,
+  defaultConsoleTransport
+)
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
@@ -80,18 +85,18 @@ export class OceanP2P extends EventEmitter {
   private _handleMessage: any
   private _interval: NodeJS.Timeout
   private _idx: number
-  private db:Database
-  private _config:OceanNodeConfig
-  constructor (db:Database,config:OceanNodeConfig) {
+  private db: Database
+  private _config: OceanNodeConfig
+  constructor(db: Database, config: OceanNodeConfig) {
     super()
-    this.db=db
+    this.db = db
     this._config = config
   }
 
   async start(options: any = null) {
     this._topic = 'oceanprotocol'
     this._libp2p = await this.createNode(this._config)
-    
+
     this._options = Object.assign({}, clone(DEFAULT_OPTIONS), clone(options))
     this._peers = []
     this._connections = {}
@@ -110,7 +115,8 @@ export class OceanP2P extends EventEmitter {
       }
     })
   }
-  async createNode(config:OceanNodeConfig){
+
+  async createNode(config: OceanNodeConfig) {
     const bootstrapers = [
       // '/ip4/127.0.0.12/tcp/49100/p2p/12D3KooWLktGvbzuDK7gv1kS4pq6DNWxmxEREKVtBEhVFQmDNni7'
       '/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ',
@@ -120,24 +126,23 @@ export class OceanP2P extends EventEmitter {
       '/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa',
       '/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt'
     ]
-    try{
-    this._publicAddress=config.keys.peerId.toString()
-    this._publicKey=config.keys.publicKey
-    this._privateKey=config.keys.privateKey
-    
-    /** @type {import('libp2p').Libp2pOptions} */
-    const options= {
-      addresses: {
-        listen: [
-          '/ip4/0.0.0.0/tcp/0',
-          '/ip6/::1/tcp/0',
-          '/ip4/0.0.0.0/tcp/0/ws',
-          '/ip6/::1/tcp/0/ws',
-        ]
-      },
-      peerId: config.keys.peerId,
-      uPnPNAT: uPnPNATService(
-        {
+    try {
+      this._publicAddress = config.keys.peerId.toString()
+      this._publicKey = config.keys.publicKey
+      this._privateKey = config.keys.privateKey
+
+      /** @type {import('libp2p').Libp2pOptions} */
+      const options = {
+        addresses: {
+          listen: [
+            '/ip4/0.0.0.0/tcp/0',
+            '/ip6/::1/tcp/0',
+            '/ip4/0.0.0.0/tcp/0/ws',
+            '/ip6/::1/tcp/0/ws'
+          ]
+        },
+        peerId: config.keys.peerId,
+        uPnPNAT: uPnPNATService({
           description: 'my-node',
           ttl: 7200,
           keepAlive: true
