@@ -8,12 +8,13 @@ import fs from 'fs'
 
 // all the types of modules/components
 export const LOGGER_MODULE_NAMES = {
-  HTTP: 'http',
-  P2P: 'p2p',
-  INDEXER: 'indexer',
-  PROVIDER: 'provider',
-  DATABASE: 'database',
-  ALL_COMBINED: 'all'
+    HTTP: "http",
+    P2P: "p2p",
+    INDEXER: "indexer",
+    PROVIDER: "provider",
+    DATABASE: "database",
+    CONFIG: "config",
+    ALL_COMBINED: "all" 
 }
 
 // we can setup custom exceptionHandlers as part of initial config options
@@ -60,8 +61,9 @@ const LOG_LEVELS_EMOJI = {
 
 // we might want these somewhere else
 export const GENERIC_EMOJIS = {
-  EMOJI_CHECK_MARK: '\u{2705}',
-  EMOJI_CROSS_MARK: '\u{274C}'
+    EMOJI_CHECK_MARK : "\u{2705}",
+    EMOJI_CROSS_MARK : "\u{274C}" 
+
 }
 
 export function getLoggerLevelEmoji(level: string): string {
@@ -304,9 +306,13 @@ export class CustomNodeLogger {
     return this.loggerOptions.moduleName
   }
 
-  getLoggerLevel(): string {
-    return this.loggerOptions.level
-  }
+    //supports emoji :-)? Experimental, might not work properly on some transports
+    //Usage:
+    //logger.logMessageWithEmoji(`HTTP port: ${config.httpPort}`, true, GENERIC_EMOJIS.EMOJI_CHECK_MARK);
+    //logger.logMessageWithEmoji(`HTTP port: ${config.httpPort}`, true, );
+    logMessageWithEmoji(message: string, includeModuleName: boolean = false, emoji?: string, level?:string) {
+        if(!level)
+            level = this.getLoggerLevel() || getDefaultLevel();
 
   // wrapper function for logging with custom logger
   log(

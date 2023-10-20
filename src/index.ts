@@ -43,12 +43,14 @@ declare global {
 async function main() {
   console.log('\n\n\n\n')
   const config = await getConfig()
-  let node = null
-  let indexer = null
-  let provider = null
-  const dbconn = new Database(config.dbConfig)
-  if (config.hasP2P) {
-    node = new OceanP2P(dbconn)
+  if(!config)
+    process.exit(1)
+  let node=null
+  let indexer=null
+  let provider=null
+  let dbconn=new Database(config.dbConfig)
+  if (config.hasP2P){
+    node=new OceanP2P(dbconn,config)
     await node.start()
   }
   if (config.hasIndexer) indexer = new OceanIndexer(dbconn)
