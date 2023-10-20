@@ -21,12 +21,15 @@ npm run build
 
 ## 4. Open terminal 1 and run a node
 ```bash
+export HTTP_API_PORT=8000
+export PRIVATE_KEY=0x.....
 npm run start
 ```
 
 ## 4. Open a 2nd terminal and run another node
 ```bash
-export PORT=8001
+export HTTP_API_PORT=8001
+export PRIVATE_KEY=0x.....
 npm run start
 ```
 
