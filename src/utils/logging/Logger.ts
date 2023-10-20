@@ -150,7 +150,9 @@ function getDefaultOptions(): winston.LoggerOptions {
     levels: LOG_LEVELS_NUM,
     format,
     transports: defaultTransports,
-    exceptionHandlers: [new winston.transports.File({ filename: 'exceptions.log' })]
+    exceptionHandlers: [
+      new winston.transports.File({ dirname: 'logs/', filename: EXCEPTIONS_HANDLER })
+    ]
   }
 }
 
@@ -379,7 +381,8 @@ export function getCustomLoggerForModule(
       ],
       exceptionHandlers: [
         new winston.transports.File({
-          filename: moduleOrComponentName + '_exceptions.log'
+          dirname: 'logs/',
+          filename: moduleOrComponentName + '_' + EXCEPTIONS_HANDLER
         })
       ]
     }
