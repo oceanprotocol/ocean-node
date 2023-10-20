@@ -36,13 +36,12 @@ import { uPnPNATService } from 'libp2p/upnp-nat'
 import { kadDHT, } from '@libp2p/kad-dht'
 import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 
-import {getPeerIdFromPrivateKey} from './peer-id'
 
 import {cidFromRawString} from '../../utils'
 import { Stream,Transform  } from 'stream'
 import { Database } from '../database'
 import { AutoDial } from 'libp2p/dist/src/connection-manager/auto-dial'
-
+import { OceanNodeConfig} from '../../@types/OceanNode'
 
 import { CustomNodeLogger, 
   LOGGER_MODULE_NAMES, 
@@ -75,13 +74,15 @@ export class OceanP2P extends EventEmitter {
   private _interval: NodeJS.Timeout
   private _idx: number
   private db:Database
-  constructor (db:Database) {
+  private _config:OceanNodeConfig
+  constructor (db:Database,config:OceanNodeConfig) {
     super()
     this.db=db
+    this._config = config
   }
   async start(options:any=null){
     this._topic = 'oceanprotocol'
-    this._libp2p = await this.createNode()
+    this._libp2p = await this.createNode(this._config)
     
     this._options = Object.assign({}, clone(DEFAULT_OPTIONS), clone(options))
     this._peers = []
@@ -110,7 +111,7 @@ export class OceanP2P extends EventEmitter {
 
   
   }
-  async createNode(){
+  async createNode(config:OceanNodeConfig){
     const bootstrapers = [
       //'/ip4/127.0.0.12/tcp/49100/p2p/12D3KooWLktGvbzuDK7gv1kS4pq6DNWxmxEREKVtBEhVFQmDNni7'
       '/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ',
@@ -121,11 +122,10 @@ export class OceanP2P extends EventEmitter {
       '/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt'
       
     ]
-    const NodeKey= await getPeerIdFromPrivateKey()
     try{
-    this._publicAddress=NodeKey.peerId.toString()
-    this._publicKey=NodeKey.publicKey
-    this._privateKey=NodeKey.privateKey
+    this._publicAddress=config.keys.peerId.toString()
+    this._publicKey=config.keys.publicKey
+    this._privateKey=config.keys.privateKey
     
     /** @type {import('libp2p').Libp2pOptions} */
     const options= {
@@ -137,7 +137,7 @@ export class OceanP2P extends EventEmitter {
           '/ip6/::1/tcp/0/ws',
         ]
       },
-      peerId: NodeKey.peerId,
+      peerId: config.keys.peerId,
       uPnPNAT: uPnPNATService(
         {
           description: 'my-node',

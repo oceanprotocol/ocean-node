@@ -13,6 +13,7 @@ export const LOGGER_MODULE_NAMES = {
     INDEXER: "indexer",
     PROVIDER: "provider",
     DATABASE: "database",
+    CONFIG: "config",
     ALL_COMBINED: "all" 
 }
 
@@ -63,6 +64,7 @@ const LOG_LEVELS_EMOJI = {
 export const GENERIC_EMOJIS = {
     EMOJI_CHECK_MARK : "\u{2705}",
     EMOJI_CROSS_MARK : "\u{274C}" 
+
 }
 
 export function getLoggerLevelEmoji(level: string): string {
@@ -332,8 +334,9 @@ export class CustomNodeLogger {
     //Usage:
     //logger.logMessageWithEmoji(`HTTP port: ${config.httpPort}`, true, GENERIC_EMOJIS.EMOJI_CHECK_MARK);
     //logger.logMessageWithEmoji(`HTTP port: ${config.httpPort}`, true, );
-    logMessageWithEmoji(message: string, includeModuleName: boolean = false, emoji?: string) {
-        let level = this.getLoggerLevel() || getDefaultLevel();
+    logMessageWithEmoji(message: string, includeModuleName: boolean = false, emoji?: string, level?:string) {
+        if(!level)
+            level = this.getLoggerLevel() || getDefaultLevel();
 
         let msg = includeModuleName ? this.buildMessage(message) : message;
 
