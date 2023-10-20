@@ -1,1 +1,1 @@
-declare module 'hyperdiff';
+declare module 'hyperdiff'

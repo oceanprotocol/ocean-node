@@ -1,8 +1,5 @@
-import {OceanNodeDBConfig} from '../../@types/OceanNode'
+import { OceanNodeDBConfig } from '../../@types/OceanNode'
 
-
-export class Database{
-        constructor (config:OceanNodeDBConfig) {
-          
-        }
+export class Database {
+  constructor(config: OceanNodeDBConfig) {}
 }

@@ -28,7 +28,7 @@ jobs:
           key: ${{ runner.os }}-lint-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
           restore-keys: ${{ runner.os }}-lint-${{ env.cache-name }}-
       - run: npm ci
-      #- run: npm run lint
+      - run: npm run lint
 
   build:
     runs-on: ${{ matrix.os }}
