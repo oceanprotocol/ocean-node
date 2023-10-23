@@ -6,6 +6,11 @@ import StreamConcat from 'stream-concat'
 // export function handleProtocolCommands (sourceStream:any,sinkStream:any) {
 
 import * as fs from 'fs'
+import { handleDownloadURLCommand } from './downloadHandler'
+import { DownloadCommand, PROTOCOL_COMMANDS } from '../../utils/constants'
+import { P2PCommandResponse } from '../../@types/OceanNode'
+
+import { P2P_CONSOLE_LOGGER } from './index'
 
 class ReadableString extends Readable {
   private sent = false
@@ -25,8 +30,12 @@ class ReadableString extends Readable {
 }
 
 export async function handleProtocolCommands(connection: any) {
-  console.log('Incoming connection from peer ' + connection.connection.remotePeer)
-  console.log('Using ' + connection.connection.remoteAddr)
+  P2P_CONSOLE_LOGGER.logMessage(
+    'Incoming connection from peer ' + connection.connection.remotePeer,
+    true
+  )
+  P2P_CONSOLE_LOGGER.logMessage('Using ' + connection.connection.remoteAddr, true)
+
   let status = null
   const isError = false
   let task
@@ -45,32 +54,69 @@ export async function handleProtocolCommands(connection: any) {
     }
     break
   }
-  console.log('Performing task')
-  console.log(task)
+  P2P_CONSOLE_LOGGER.logMessage('Performing task: ' + JSON.stringify(task), true)
+
+  let response: P2PCommandResponse = null
+  try {
+    switch (task.command) {
+      case PROTOCOL_COMMANDS.ECHO:
+        status = { httpStatus: 200 }
+        break
+      case PROTOCOL_COMMANDS.DOWNLOAD_URL:
+        response = await handleDownloadURLCommand(task)
+        // eslint-disable-next-line prefer-destructuring
+        status = response.status
+        sendStream = response.stream
+        break
+      default:
+        status = { httpStatus: 501, error: 'Unknown command' }
+        break
+    }
+    statusStream = new ReadableString(JSON.stringify(status))
+    if (sendStream == null) pipe(statusStream, connection.stream.sink)
+    else {
+      const combinedStream = new StreamConcat([statusStream, sendStream])
+      pipe(combinedStream, connection.stream.sink)
+    }
+  } catch (err) {
+    console.log('error:')
+    console.log(err)
+  }
+}
+/**
+ * Use this method to direct calls to the node as node cannot dial into itself
+ * @param message command message
+ * @param sink transform function
+ */
+export async function handleDirectProtocolCommand(message: string, sink: any) {
+  P2P_CONSOLE_LOGGER.logMessage('Incoming direct command for peer self', true)
+  let status = null
+  const task = JSON.parse(message)
+  // let statusStream
+  let sendStream = null
+  let response: P2PCommandResponse = null
+
+  P2P_CONSOLE_LOGGER.logMessage('Performing task: ' + JSON.stringify(task), true)
   switch (task.command) {
-    case 'echo':
+    case PROTOCOL_COMMANDS.ECHO:
       status = { httpStatus: 200 }
-      sendStream = connection.stream.source
       break
-    case 'download':
-      sendStream = fs.createReadStream('/var/log/syslog')
-      // sendStream=fs.createReadStream("/etc/hostname")
-      status = {
-        httpStatus: 200,
-        headers: {
-          'Content-Disposition': "attachment; filename='syslog'",
-          'Content-Type': 'application/text'
-        }
-      }
+    case PROTOCOL_COMMANDS.DOWNLOAD_URL:
+      response = await handleDownloadURLCommand(task)
+      // eslint-disable-next-line prefer-destructuring
+      status = response.status
+      sendStream = response.stream
       break
     default:
       status = { httpStatus: 501, error: 'Unknown command' }
       break
   }
-  statusStream = new ReadableString(JSON.stringify(status))
-  if (sendStream == null) pipe(statusStream, connection.stream.sink)
-  else {
+
+  const statusStream = new ReadableString(JSON.stringify(status))
+  if (sendStream == null) {
+    pipe(statusStream, sink)
+  } else {
     const combinedStream = new StreamConcat([statusStream, sendStream])
-    pipe(combinedStream, connection.stream.sink)
+    pipe(combinedStream, sink)
   }
 }

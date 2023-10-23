@@ -14,7 +14,8 @@ import {
   handlePeerJoined,
   handlePeerLeft,
   handleSubscriptionCHange,
-  handleProtocolCommands
+  handleProtocolCommands,
+  handleDirectProtocolCommand
 } from './handlers'
 
 // import { encoding } from './connection'
@@ -289,6 +290,7 @@ export class OceanP2P extends EventEmitter {
     sink: any
   ): Promise<P2PCommandResponse> {
     console.log('Executing on node ' + peerName + ' task: ' + message)
+
     const status: P2PCommandResponse = {
       status: { httpStatus: 200, error: '' },
       stream: null
@@ -303,7 +305,9 @@ export class OceanP2P extends EventEmitter {
       status.status.error = 'Invalid peer'
       return status
     }
+
     let stream
+    // dial/connect to the target node
     try {
       // stream= await this._libp2p.dialProtocol(peer, this._protocol)
 
@@ -325,6 +329,24 @@ export class OceanP2P extends EventEmitter {
       // Sink function
       sink
     )
+    return status
+  }
+
+  // when the target is this node
+  async sendToSelf(message: string, sink: any): Promise<P2PCommandResponse> {
+    const status: P2PCommandResponse = {
+      status: { httpStatus: 200, error: '' },
+      stream: null
+    }
+    // direct message to self
+    console.log('message direct to self: ', message)
+    // create a writable stream
+    // const outputStream = new Stream.Writable()
+    status.stream = new Stream.Writable()
+
+    // read from input stream to output one and move on
+    await handleDirectProtocolCommand(message, sink) // pass status stream? working already
+
     return status
   }
 
@@ -384,6 +406,16 @@ export class OceanP2P extends EventEmitter {
       console.error(e)
     }
     return peersFound
+  }
+
+  /**
+   * Is the message intended for this peer or we need to connect to another one?
+   * @param targetPeerID  the target node id
+   * @returns true if the message is intended for this peer, false otherwise
+   */
+  isTargetPeerSelf(targetPeerID: string): boolean {
+    console.log(`isTargetPeerSelf `)
+    return targetPeerID === this._config.keys.peerId.toString()
   }
 }
 

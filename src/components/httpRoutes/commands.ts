@@ -9,6 +9,8 @@ import {
   getDefaultLevel
 } from '../../utils/logging/Logger'
 
+import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants'
+
 export const broadcastCommandRoute = express.Router()
 
 // just use the default logger with default transports
@@ -36,7 +38,13 @@ directCommandRoute.post(
   '/directCommand',
   express.json(),
   async (req: Request, res: Response): Promise<void> => {
-    if (!req.body.command || !req.body.node) {
+    if (
+      !req.body.command ||
+      !validateCommandAPIParameters(req.body) /* || !req.body.node */
+    ) {
+      // 'node' param is not mandatory for 'downloadURL' command for instance:
+      // https://github.com/oceanprotocol/ocean-node/issues/26
+      // https://github.com/oceanprotocol/ocean-node/issues/38
       res.sendStatus(400)
       return
     }
@@ -49,6 +57,7 @@ directCommandRoute.post(
           try {
             const str = uint8ArrayToString(chunk.subarray())
             const decoded = JSON.parse(str)
+
             res.status(decoded.httpStatus)
             if ('headers' in decoded) {
               res.header(decoded.headers)
@@ -71,11 +80,22 @@ directCommandRoute.post(
       res.end()
     }
 
-    const status: P2PCommandResponse = await req.oceanNode.node.sendTo(
-      req.body.node as string,
-      JSON.stringify(req.body),
-      sink
-    )
+    logger.logMessage('Sending command : ' + JSON.stringify(req.body), true)
+
+    let status: P2PCommandResponse = null
+    // send to this peer
+    if (!req.body.node || req.oceanNode.node.isTargetPeerSelf(req.body.node)) {
+      // send to this node
+      status = await req.oceanNode.node.sendToSelf(JSON.stringify(req.body), sink)
+    } else {
+      // send to another peer
+      status = await req.oceanNode.node.sendTo(
+        req.body.node as string,
+        JSON.stringify(req.body),
+        sink
+      )
+    }
+
     if (status.stream == null) {
       res.status(status.status.httpStatus)
       res.write(status.status.error)
@@ -83,3 +103,23 @@ directCommandRoute.post(
     }
   }
 )
+
+function validateCommandAPIParameters(requestBody: any): boolean {
+  // eslint-disable-next-line prefer-destructuring
+  const command: string = requestBody.command as string
+  if (SUPPORTED_PROTOCOL_COMMANDS.includes(command)) {
+    // downloadURL
+    if (command === PROTOCOL_COMMANDS.DOWNLOAD_URL) {
+      // only mandatory is the url
+      if (!requestBody.url) {
+        return false
+      }
+      return true
+      // echo
+    } else if (command === PROTOCOL_COMMANDS.ECHO) {
+      // nothing special with this one
+      return true
+    }
+  }
+  return false
+}
