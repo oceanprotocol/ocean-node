@@ -2,6 +2,7 @@ import type { OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
 import { hexStringToByteArray } from '../utils'
+import type { PeerId } from '@libp2p/interface/peer-id'
 
 import {
   CustomNodeLogger,
@@ -24,15 +25,17 @@ export async function getPeerIdFromPrivateKey(
   const key = new keys.supportedKeys.secp256k1.Secp256k1PrivateKey(
     hexStringToByteArray(privateKey.slice(2))
   )
-  const id = await createFromPrivKey(key)
+  const id: PeerId = await createFromPrivKey(key)
   CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
     'Starting node with peerID:' + id,
     true,
     GENERIC_EMOJIS.EMOJI_CHECK_MARK
   )
+
   return {
     peerId: id,
-    publicKey: (key as any)._publicKey,
+    publicKey: key.public.bytes, // (key as any)._publicKey,
+    // (key as any)._publicKey is stripping this 4 bytes at the beginning: 08021221
     privateKey: (key as any)._key
   }
 }
