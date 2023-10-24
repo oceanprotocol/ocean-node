@@ -47,7 +47,6 @@ import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 import { cidFromRawString } from '../../utils'
 import { Stream, Transform } from 'stream'
 import { Database } from '../database'
-import { AutoDial } from 'libp2p/dist/src/connection-manager/auto-dial'
 import { OceanNodeConfig } from '../../@types/OceanNode'
 
 import {
@@ -277,7 +276,30 @@ export class OceanP2P extends EventEmitter {
   async getPeerDetails(peerName: string) {
     try {
       const peerId = peerIdFromString(peerName)
+      // Example: for ID 16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo
+      // Buffer.from(this._config.keys.publicKey).toString('hex') => 0201cabbabef1cc85218fa2d5bbadfb3425dfc091b311a33e6d9be26f6dcb94668
+      // Buffer.from(peerId.publicKey).toString('hex') => 080212210201cabbabef1cc85218fa2d5bbadfb3425dfc091b311a33e6d9be26f6dcb94668
+
+      // console.log(
+      //   'this key buffer',
+      //   Buffer.from(this._config.keys.publicKey).toString('hex')
+      // )
+      // Result: 0201cabbabef1cc85218fa2d5bbadfb3425dfc091b311a33e6d9be26f6dcb94668
+      // console.log(
+      //   'Getting peer public key ' +
+      //     peerName +
+      //     ' ' +
+      //     Buffer.from(peerId.publicKey).toString('hex')
+      // )
+      // Result: 080212210201cabbabef1cc85218fa2d5bbadfb3425dfc091b311a33e6d9be26f6dcb94668
+
+      // slicing first 4 bytes to match node._config publicKey
+      // not really sure wht this 4 bytes are about but is always the same sequence '08021221'
+      const pubKey = Buffer.from(peerId.publicKey).subarray(4).toString('hex')
+
       const peer = await this._libp2p.peerStore.get(peerId)
+      // write the publicKey as well
+      peer.publicKey = pubKey
       return peer
     } catch (e) {
       return null

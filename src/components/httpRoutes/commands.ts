@@ -116,10 +116,11 @@ function validateCommandAPIParameters(requestBody: any): boolean {
       }
       return true
       // echo
-    } else if (command === PROTOCOL_COMMANDS.ECHO) {
-      // nothing special with this one
-      return true
-    }
+    } // else if (command === PROTOCOL_COMMANDS.ECHO) {
+    // nothing special with this one
+    // return true
+    // }
+    return true
   }
   return false
 }

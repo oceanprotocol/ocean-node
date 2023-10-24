@@ -7,7 +7,7 @@ import StreamConcat from 'stream-concat'
 
 import * as fs from 'fs'
 import { handleDownloadURLCommand } from './downloadHandler'
-import { DownloadCommand, PROTOCOL_COMMANDS } from '../../utils/constants'
+import { PROTOCOL_COMMANDS } from '../../utils/constants'
 import { P2PCommandResponse } from '../../@types/OceanNode'
 
 import { P2P_CONSOLE_LOGGER } from './index'
