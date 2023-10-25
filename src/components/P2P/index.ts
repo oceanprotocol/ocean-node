@@ -57,6 +57,11 @@ import {
   getCustomLoggerForModule
 } from '../../utils/logging/Logger'
 
+// we need the private key to decrypt the downloadURL message secrets (to get AES encryption key and IV)
+export function getPrivateKeyFromConfig(): string {
+  const privateKey = process.env.PRIVATE_KEY as string
+  return privateKey
+}
 // just use the default logger with default transports
 // Bellow is just an example usage, only logging to console here
 export const P2P_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
@@ -277,14 +282,25 @@ export class OceanP2P extends EventEmitter {
     try {
       const peerId = peerIdFromString(peerName)
       // Example: for ID 16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo
-      // Buffer.from(this._config.keys.publicKey).toString('hex') => 0201cabbabef1cc85218fa2d5bbadfb3425dfc091b311a33e6d9be26f6dcb94668
-      // Buffer.from(peerId.publicKey).toString('hex') => 080212210201cabbabef1cc85218fa2d5bbadfb3425dfc091b311a33e6d9be26f6dcb94668
-      // UPDATE: the problem was on the initial configuration, no need to slice 4 bytes here
+      // Buffer.from(this._config.keys.publicKey).toString('hex') =>         0201cabbabef1cc85218fa2d5bbadfb3425dfc091b311a33e6d9be26f6dcb94668
+      // Buffer.from(peerId.publicKey).toString('hex')            => 080212210201cabbabef1cc85218fa2d5bbadfb3425dfc091b311a33e6d9be26f6dcb94668
+      // 08021221 = > extra 4 bytes at the beginning, but they are important for later
+      // UPDATE: no need to slice 4 bytes here, actually we need those on client side to verify the node id and perform the encryption of the keys + iv
       // See config.ts => getPeerIdFromPrivateKey()
-      const pubKey = Buffer.from(peerId.publicKey).toString('hex') // .subarray(4).toString('hex')
+
+      const pubKey = Buffer.from(peerId.publicKey).toString('hex') // no need to do .subarray(4).toString('hex')
       const peer = await this._libp2p.peerStore.get(peerId)
+
       // write the publicKey as well
       peer.publicKey = pubKey
+      // Note: this is a 'compressed' version of the publicKey, we need to decompress it on client side (not working with bellow attempts)
+      // otherwise the encryption will fail due to public key size mismatch
+
+      // taken from '@libp2p/crypto/keys/secp256k1' decompressPublicKey (cannot import module/function)
+      // const decompressedKey = secp.ProjectivePoint.fromHex(key.public.bytes).toRawBytes(false)
+      // Buffer.from(decompressedKey).toString('hex')
+      // in any case is not working (it crashes here)
+
       return peer
     } catch (e) {
       return null
