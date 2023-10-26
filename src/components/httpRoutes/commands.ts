@@ -49,6 +49,7 @@ directCommandRoute.post(
       return
     }
 
+    let isBinaryContent = false
     const sink = async function (source: any) {
       let first = true
       for await (const chunk of source) {
@@ -61,6 +62,10 @@ directCommandRoute.post(
             res.status(decoded.httpStatus)
             if ('headers' in decoded) {
               res.header(decoded.headers)
+              // when streaming binary data we cannot convert to plain string, specially if encrypted data
+              if (str.toLowerCase().includes('application/octet-stream')) {
+                isBinaryContent = true
+              }
             }
             if (decoded.httpStatus !== 200) {
               res.write(decoded.error)
@@ -73,8 +78,13 @@ directCommandRoute.post(
             res.end()
           }
         } else {
-          const str = uint8ArrayToString(chunk.subarray())
-          res.write(str)
+          if (isBinaryContent) {
+            // Binary content, could be encrypted
+            res.write(chunk.subarray())
+          } else {
+            const str = uint8ArrayToString(chunk.subarray())
+            res.write(str)
+          }
         }
       }
       res.end()

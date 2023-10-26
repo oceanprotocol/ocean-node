@@ -18,7 +18,6 @@ export async function handleDownloadURLCommand(
   )
 
   if (encryptFile) {
-    console.log('Encrypted AES secrets: ', task.aes_encrypted_key)
     // we parse the string into the object again
     const encryptedObject = ethCrypto.cipher.parse(task.aes_encrypted_key)
     const nodePrivateKey = await getPrivateKeyFromConfig()
@@ -28,82 +27,63 @@ export async function handleDownloadURLCommand(
     )
     const decryptedPayload = JSON.parse(decrypted)
     // check signature
-    const senderAddress = ethCrypto.recover(
-      decryptedPayload.signature,
-      ethCrypto.hash.keccak256(decryptedPayload.message)
-    )
+    // const senderAddress = ethCrypto.recover(
+    //  decryptedPayload.signature,
+    //  ethCrypto.hash.keccak256(decryptedPayload.message)
+    // )
     // Optional, we can also validate the original address of the sender (the client that created the message)
     // this could be part of the /directCommand payload for instance
-    console.log(
-      'Got message from ' + senderAddress + ' secrets: ' + decryptedPayload.message
-    )
-  }
-  try {
-    sendStream = fs.createReadStream('/var/log/syslog')
-    // for now hardcoded file, but later will handle the urls correctly (the provider ?)
-    return {
-      stream: sendStream,
-      status: {
-        httpStatus: 200,
-        headers: {
-          'Content-Disposition': "attachment; filename='syslog'",
-          'Content-Type': 'application/octet-stream'
+    // console.log(
+    //  'Got message from ' + senderAddress + ' secrets: ' + decryptedPayload.message
+    // )
+    const secrets = JSON.parse(decryptedPayload.message)
+    try {
+      const inputStream = fs.createReadStream('/var/log/syslog') // will read the file/url data here
+
+      const cipher = crypto
+        .createCipheriv(
+          FILE_ENCRYPTION_ALGORITHM,
+          Buffer.from(secrets.key, 'hex'),
+          Buffer.from(secrets.iv, 'hex')
+        )
+        .setAutoPadding(true)
+
+      return {
+        stream: inputStream.pipe(cipher),
+        status: {
+          httpStatus: 200,
+          headers: {
+            'Content-Disposition': "attachment; filename='syslog'",
+            'Content-Type': 'application/octet-stream'
+          }
         }
       }
+    } catch (err) {
+      return {
+        stream: null,
+        status: { httpStatus: 501, error: 'Unknown error: ' + err.message }
+      }
     }
-  } catch (err) {
-    return {
-      stream: null,
-      status: { httpStatus: 501, error: 'Unknown error: ' + err.message }
+  } else {
+    // Download request is not using encryption!
+    try {
+      sendStream = fs.createReadStream('/var/log/syslog')
+      // for now hardcoded file, but later will handle the urls correctly (the provider ?)
+      return {
+        stream: sendStream,
+        status: {
+          httpStatus: 200,
+          headers: {
+            'Content-Disposition': "attachment; filename='syslog'",
+            'Content-Type': 'application/octet-stream'
+          }
+        }
+      }
+    } catch (err) {
+      return {
+        stream: null,
+        status: { httpStatus: 501, error: 'Unknown error: ' + err.message }
+      }
     }
   }
-}
-
-// symmetric encription of file
-type SymmetricEncryptionSecrets = {
-  private_key: string
-  initialization_vector: string
-}
-
-// assymmetric encryption/decryption of symmetric key
-type AsymmetricEncryptionSecrets = {
-  private_key: string
-  public_key: string
-}
-
-/**
- * Encrypt a file stream
- * @param inputStream
- * @param outputStream
- * @returns
- */
-async function encryptFileStream(inputStream: any, outputStream: any): Promise<boolean> {
-  // TODO
-  const privateKey: string = ''
-  const initVect: string = ''
-  const cipher = crypto
-    .createCipheriv(
-      FILE_ENCRYPTION_ALGORITHM,
-      Buffer.from(privateKey, 'hex'),
-      Buffer.from(initVect, 'hex')
-    )
-    .setAutoPadding(true)
-
-  // Details on what is going on
-  cipher.on('data', (chunk) => {
-    console.log('Encrypting a file chunk of size ', chunk.length)
-  })
-
-  return new Promise((resolve, reject) => {
-    // Tinput => encryption => output
-    inputStream.pipe(cipher).pipe(outputStream)
-
-    inputStream.on('end', () => {
-      resolve(true)
-    })
-
-    inputStream.on('error', (err: any) => {
-      reject(err)
-    })
-  })
 }

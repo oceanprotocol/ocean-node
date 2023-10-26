@@ -13,7 +13,7 @@ import pkg from 'secp256k1'
 
 import type { DownloadCommand } from '../../utils'
 
-const ALGORITHM = 'aes-256-cbc'
+const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 const { publicKeyConvert } = pkg
 
 // ########################################
@@ -61,6 +61,11 @@ type PeerDetails = {
   valid: boolean
 }
 
+type FileSecrets = {
+  privateKey: string // the private key used to decrypt the file
+  initVector: string // the initialization vector
+  encryptedKeyAndIV: string // the encrypted private key and iv, used for encrypting the file on Node side, as JSON string
+}
 // receive the node public key from the peer details, already validated before
 /**
  *
@@ -71,7 +76,7 @@ type PeerDetails = {
 async function createKeyPairForFileEncryption(
   nodePublicKey: string,
   nodePrivateKey: string
-): Promise<string> {
+): Promise<FileSecrets> {
   // We could also use Wallet variant
   //  let wallet = ethers.Wallet.createRandom();
 
@@ -90,6 +95,7 @@ async function createKeyPairForFileEncryption(
 
   console.log('initializationVector:', initializationVector.toString('hex'))
 
+  // Symmetric key generation, for file encryption
   const keySecrets = {
     key: keyForAESFileEncryption.toString('hex'),
     iv: initializationVector.toString('hex')
@@ -99,13 +105,6 @@ async function createKeyPairForFileEncryption(
   const secretMessage = JSON.stringify(keySecrets) // '92ecf27434c6140a5bdc6d62d972d5348e50aa6646db3a09e30ef4acc8616bef'
 
   console.log('Secret message JSON (before encryption): ' + secretMessage)
-
-  /**
-   * 0x3634cc4a3d2694a1186a7ce545f149e022eea103cc254d18d08675104bb4b5ac
-b3fe59a48067c50b7151094d648dd7bc016f6a9fe7ef24869af75958b6d0e21b2f20be2211df34da455696f860bdb25b71799c719b0a8dd0badfa50f91a70620
-0x4f0F61C140a7c3eEbeB0CD5B6C4bfb2a3f51FEdB
-92ecf27434c6140a5bdc6d62d972d5348e50aa6646db3a09e30ef4acc8616bef
-   */
 
   const signature = ethCrypto.sign(privateKey, ethCrypto.hash.keccak256(secretMessage))
   const payload = {
@@ -117,13 +116,12 @@ b3fe59a48067c50b7151094d648dd7bc016f6a9fe7ef24869af75958b6d0e21b2f20be2211df34da
   console.log('payload: ', payload)
 
   const encryptedPayload = await ethCrypto.encryptWithPublicKey(
-    nodePublicKey, // by encrypting with bobs publicKey, only bob can decrypt the payload with his privateKey
+    nodePublicKey, // by encrypting with target Node publicKey, only target Node can decrypt the payload with his privateKey
     JSON.stringify(payload) // we have to stringify the payload before we can encrypt it
   )
 
   // we convert the object into a smaller string-representation
   const encryptedAESKeyAndIV = ethCrypto.cipher.stringify(encryptedPayload)
-  // > '812ee676cf06ba72316862fd3dabe7e403c7395bda62243b7b0eea5eb..'
 
   console.log('encrypted string/key:', encryptedAESKeyAndIV)
 
@@ -141,37 +139,46 @@ b3fe59a48067c50b7151094d648dd7bc016f6a9fe7ef24869af75958b6d0e21b2f20be2211df34da
 
   console.log('Got message from ' + senderAddress + ': ' + decryptedPayload.message)
 
-  return encryptedAESKeyAndIV //
+  return {
+    privateKey: keySecrets.key, // we need to pass it here because we're generating the key and IV inside the function
+    initVector: keySecrets.iv, // same
+    encryptedKeyAndIV: encryptedAESKeyAndIV
+  }
 }
-
 /**
- * Encrypt a file stream
- * @param inputStream
- * @param outputStream
- * @returns
+ * Decrypt the file stream
+ * @param inputStream input stream to decrypt
+ * @param outputStream output stream to write to
+ * @param usePadding use padding?
+ * @param privateKey the key to use
+ * @param initVect  the initialization vector
+ * @returns true if successful
  */
-async function encryptFileStream(
+async function decryptFileStream(
   inputStream: any,
   outputStream: any,
   privateKey: string,
   initVect: string
 ): Promise<boolean> {
-  const cipher = crypto
-    .createCipheriv(
-      ALGORITHM,
+  const decipher = crypto
+    .createDecipheriv(
+      FILE_ENCRYPTION_ALGORITHM,
       Buffer.from(privateKey, 'hex'),
       Buffer.from(initVect, 'hex')
     )
     .setAutoPadding(true)
 
-  // Details on what is going on
-  // cipher.on("data", chunk => {
-  //     console.log("Encrypting a file chunk of size ",chunk.length)
+  // To see what is going on uncomment below
+  // decipher.on("data", chunk => {
+  //    // console.log("Decrypting a file chunk of size: ", chunk.length)
   // })
 
+  console.log('Decrypting key: ', privateKey)
+  console.log('Decrypting IV: ', initVect)
+
   return new Promise((resolve, reject) => {
-    // Tinput => encryption => output
-    inputStream.pipe(cipher).pipe(outputStream)
+    // input => decryption => output
+    inputStream.pipe(decipher).pipe(outputStream)
 
     inputStream.on('end', () => {
       resolve(true)
@@ -183,12 +190,36 @@ async function encryptFileStream(
   })
 }
 
+function testEchoCommand(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    axios({
+      method: 'POST',
+      url: 'http://127.0.0.1:8000/directCommand',
+      responseType: 'stream',
+      data: {
+        command: 'echo',
+        // "node": "16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL",
+        // "16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL",//"16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo",
+        url: 'http://example.com'
+      }
+    })
+      .then(function (response: any) {
+        console.log('Got response from server...', response.status)
+        resolve(response.status === 200 ? 'OK' : 'NOK')
+      })
+      .catch((err: any) => {
+        console.error('Error downloading....', err)
+        reject(err)
+      })
+  })
+}
+
 async function testDownloadCommand(
   exampleId: number, // this is just to append to file name for testing purposes
   nodeHttpPort: number,
   nodeId?: string,
-  encryptedAESKeyAndIV?: string
-): Promise<void> {
+  fileSecrets?: FileSecrets
+): Promise<string> {
   const payload: DownloadCommand = {
     command: 'downloadURL',
     // node: '16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL', // IF not present use own node
@@ -197,8 +228,11 @@ async function testDownloadCommand(
     url: 'http://example.com'
     // "aes_encrypted_key": encryptedAESKeyAndIV
   }
-  if (encryptedAESKeyAndIV) {
-    payload.aes_encrypted_key = encryptedAESKeyAndIV
+
+  const useEncryption = fileSecrets && fileSecrets.encryptedKeyAndIV
+
+  if (useEncryption) {
+    payload.aes_encrypted_key = fileSecrets.encryptedKeyAndIV
   }
   if (nodeId) {
     payload.node = nodeId
@@ -214,51 +248,51 @@ async function testDownloadCommand(
       .then(function (response: any) {
         // console.log('Got response from server...', response.data)
 
-        const fileOutput = encryptedAESKeyAndIV
-          ? './output/syslog_out' + exampleId + '.encoded'
+        const fileOutput = useEncryption
+          ? './output/syslog_out' + exampleId + '.decoded'
           : './output/syslog_out' + exampleId
-        // for now, just hardcoded filename, and save to current ./output/ directory
-        // the example id is to help distiguish the example flow that originated the file
 
         // eslint-disable-next-line security/detect-non-literal-fs-filename
         const out = fs.createWriteStream(fileOutput)
 
-        // response.data.on('data', function (chunk: any) {
-        //     console.log('Got chunk: ', chunk);
-        // });
+        if (useEncryption) {
+          // decrypt the stream and store it decrypted already
+          // if we want to store it encrypted just do as bellow:
+          // response.data.pipe(fileOutput)
+          decryptFileStream(
+            response.data,
+            out,
+            fileSecrets.privateKey,
+            fileSecrets.initVector
+          )
+            .then(() => {
+              console.log('File decoded successfully locally!')
+              console.log('File download complete')
+              resolve(fileOutput)
+            })
+            .catch((err) => {
+              console.log('Error decrypting the file: ', err)
+            })
+        } else {
+          // response.data.on('data', function (chunk: any) {
+          //     console.log('Got chunk: ', chunk);
+          // });
 
-        out.on('close', function () {
-          console.log('Stream Ended! Saved file...')
-          resolve()
-        })
+          out.on('close', function () {
+            console.log('Stream Ended! Saved file to path: ', fileOutput)
+            // will decode the file now
+            resolve(fileOutput)
+          })
 
-        response.data.pipe(out)
+          // just write the file output
+          response.data.pipe(out)
+        }
       })
       .catch((err: any) => {
         console.error('Error downloading....', err)
         reject(err)
       })
   })
-}
-
-function testEchoCommand() {
-  axios({
-    method: 'POST',
-    url: 'http://127.0.0.1:8000/directCommand',
-    responseType: 'stream',
-    data: {
-      command: 'echo',
-      // "node": "16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL",
-      // "16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL",//"16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo",
-      url: 'http://example.com'
-    }
-  })
-    .then(function (response: any) {
-      console.log('Got response from server...', response.status)
-    })
-    .catch((err: any) => {
-      console.error('Error downloading....', err)
-    })
 }
 
 async function getPeerDetails(url: string, nodeId: string): Promise<PeerDetails> {
@@ -339,7 +373,7 @@ async function testEncryptionFlow(
     //   Buffer.from(decompressedPublicKeyWithEthers).toString('hex')
     // )
     // get the AES key and IV encrypted with node public key
-    const encryptedSecrets: string = await createKeyPairForFileEncryption(
+    const secrets: FileSecrets = await createKeyPairForFileEncryption(
       decompressedPublicKey,
       privateKey
     )
@@ -350,11 +384,12 @@ async function testEncryptionFlow(
     console.log('targetNodeId: ', targetNodeId)
 
     // send command to Node
-    await testDownloadCommand(exampleId, nodeHttpPort, targetNodeId, encryptedSecrets)
+    await testDownloadCommand(exampleId, nodeHttpPort, targetNodeId, secrets)
   }
 }
 
-// testEchoCommand()
+const status = await testEchoCommand()
+console.log('Echo command status: ', status)
 
 // In the following examples we always connect to Node A HTTP interface.
 // Client = this script
