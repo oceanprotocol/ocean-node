@@ -75,7 +75,9 @@ export async function handleProtocolCommands(connection: any) {
     statusStream = new ReadableString(JSON.stringify(status))
     if (sendStream == null) pipe(statusStream, connection.stream.sink)
     else {
-      const combinedStream = new StreamConcat([statusStream, sendStream])
+      const combinedStream = new StreamConcat([statusStream, sendStream], {
+        highWaterMark: JSON.stringify(status).length // important for reading chunks correctly on sink!
+      })
       pipe(combinedStream, connection.stream.sink)
     }
   } catch (err) {
@@ -116,7 +118,10 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
   if (sendStream == null) {
     pipe(statusStream, sink)
   } else {
-    const combinedStream = new StreamConcat([statusStream, sendStream])
+    const combinedStream = new StreamConcat([statusStream, sendStream], {
+      highWaterMark: JSON.stringify(status).length
+      // the size of the buffer is important!
+    })
     pipe(combinedStream, sink)
   }
 }

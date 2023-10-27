@@ -56,7 +56,7 @@ directCommandRoute.post(
         if (first) {
           first = false
           try {
-            const str = uint8ArrayToString(chunk.subarray())
+            const str = uint8ArrayToString(chunk.subarray()) // Obs: we need to specify the length of the subarrays
             const decoded = JSON.parse(str)
 
             res.status(decoded.httpStatus)

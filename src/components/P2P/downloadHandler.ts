@@ -4,8 +4,22 @@ import { P2PCommandResponse } from '../../@types'
 import fs from 'fs'
 import { P2P_CONSOLE_LOGGER, getPrivateKeyFromConfig } from '../P2P/index'
 import * as ethCrypto from 'eth-crypto'
+import axios from 'axios'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
+/**
+ * Get the file
+ * @param fileURL the location of the file
+ */
+async function getFileFromURL(fileURL: string): Promise<any> {
+  const response = await axios({
+    method: 'get',
+    url: fileURL,
+    responseType: 'stream'
+  })
+
+  return response.data
+}
 // No encryption here yet
 export async function handleDownloadURLCommand(
   task: DownloadCommand
@@ -38,7 +52,9 @@ export async function handleDownloadURLCommand(
     // )
     const secrets = JSON.parse(decryptedPayload.message)
     try {
-      const inputStream = fs.createReadStream('/var/log/syslog') // will read the file/url data here
+      const inputStream = task.url.startsWith('http')
+        ? await getFileFromURL(task.url) // remote url
+        : fs.createReadStream(task.url) //  local file
 
       const cipher = crypto
         .createCipheriv(
@@ -67,8 +83,9 @@ export async function handleDownloadURLCommand(
   } else {
     // Download request is not using encryption!
     try {
-      sendStream = fs.createReadStream('/var/log/syslog')
-      // for now hardcoded file, but later will handle the urls correctly (the provider ?)
+      sendStream = task.url.startsWith('http')
+        ? await getFileFromURL(task.url) // remote
+        : fs.createReadStream(task.url) // local
       return {
         stream: sendStream,
         status: {

@@ -13,8 +13,15 @@ import pkg from 'secp256k1'
 
 import type { DownloadCommand } from '../../utils'
 
+// Replace with any other file, works with a local path or URL
+// '/var/log/syslog'
+const EXAMPLE_FILE =
+  'https://ia800909.us.archive.org/13/items/CC_1917_04_16_TheCure/CC_1917_04_16_TheCure_512kb.mp4'
+// AES encryption
 const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 const { publicKeyConvert } = pkg
+// Decrypt the file after receiving it encrypted?
+const DECRYPT_AFTER_RECEIVING_FILE = true
 
 // ########################################
 /**           README/HOWTO
@@ -225,7 +232,7 @@ async function testDownloadCommand(
     // node: '16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL', // IF not present use own node
     // own node A is: "16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo",
     // other node B is: 16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL
-    url: 'http://example.com'
+    url: EXAMPLE_FILE // http://example.com'
     // "aes_encrypted_key": encryptedAESKeyAndIV
   }
 
@@ -248,14 +255,16 @@ async function testDownloadCommand(
       .then(function (response: any) {
         // console.log('Got response from server...', response.data)
 
-        const fileOutput = useEncryption
-          ? './output/syslog_out' + exampleId + '.decoded'
-          : './output/syslog_out' + exampleId
+        const fileOutput = './output/received_out_'
+        let suffix = '' + exampleId
+        if (useEncryption) {
+          suffix = suffix + (DECRYPT_AFTER_RECEIVING_FILE ? '.decoded' : '.encoded')
+        }
 
         // eslint-disable-next-line security/detect-non-literal-fs-filename
-        const out = fs.createWriteStream(fileOutput)
+        const out = fs.createWriteStream(fileOutput + suffix)
 
-        if (useEncryption) {
+        if (useEncryption && DECRYPT_AFTER_RECEIVING_FILE) {
           // decrypt the stream and store it decrypted already
           // if we want to store it encrypted just do as bellow:
           // response.data.pipe(fileOutput)

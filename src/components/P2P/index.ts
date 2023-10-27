@@ -51,6 +51,7 @@ import { OceanNodeConfig } from '../../@types/OceanNode'
 
 import {
   CustomNodeLogger,
+  GENERIC_EMOJIS,
   LOGGER_MODULE_NAMES,
   LOG_LEVELS_STR,
   defaultConsoleTransport,
@@ -312,7 +313,7 @@ export class OceanP2P extends EventEmitter {
     message: string,
     sink: any
   ): Promise<P2PCommandResponse> {
-    console.log('Executing on node ' + peerName + ' task: ' + message)
+    P2P_CONSOLE_LOGGER.logMessage('SendTo() node ' + peerName + ' task: ' + message, true)
 
     const status: P2PCommandResponse = {
       status: { httpStatus: 200, error: '' },
@@ -324,6 +325,12 @@ export class OceanP2P extends EventEmitter {
       peerId = peerIdFromString(peerName)
       peer = await this._libp2p.peerStore.get(peerId)
     } catch (e) {
+      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+        'Invalid peer (for id): ' + peerId,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEl_ERROR
+      )
       status.status.httpStatus = 404
       status.status.error = 'Invalid peer'
       return status
@@ -362,13 +369,12 @@ export class OceanP2P extends EventEmitter {
       stream: null
     }
     // direct message to self
-    console.log('message direct to self: ', message)
     // create a writable stream
     // const outputStream = new Stream.Writable()
     status.stream = new Stream.Writable()
 
     // read from input stream to output one and move on
-    await handleDirectProtocolCommand(message, sink) // pass status stream? working already
+    await handleDirectProtocolCommand(message, sink)
 
     return status
   }
@@ -437,7 +443,6 @@ export class OceanP2P extends EventEmitter {
    * @returns true if the message is intended for this peer, false otherwise
    */
   isTargetPeerSelf(targetPeerID: string): boolean {
-    console.log(`isTargetPeerSelf `)
     return targetPeerID === this._config.keys.peerId.toString()
   }
 }
