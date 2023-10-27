@@ -29,10 +29,11 @@ const DECRYPT_AFTER_RECEIVING_FILE = true
  * How to run these examples:
  * Open a terminal and setup node A (export port and private key) - Node A terminal
  * Open a second terminal and setup node B (export port and private key) - Node B terminal
- * Open a third terminal and setup node C (export port and private key - this Client script
+ * Open a third terminal - this Client script
  * 1) npm run start on terminal A
  * 2) npm run start on terminal B
  * 3) cd src/helpers/scripts && ts-node clientExample.ts
+ * OBS: when making changes on the client or nodes, we always need to stop them, rebuild npm run build and restart them
  * Have fun!
  */
 // ########################################
