@@ -39,8 +39,6 @@ const DECRYPT_AFTER_RECEIVING_FILE = true
 // ########################################
 type P2PNode = {
   node_id: string
-  // public_key: string
-  private_key: string
   port: number
 }
 
@@ -49,17 +47,11 @@ type P2PNode = {
 // take the port from your local configuration as well
 const nodeA: P2PNode = {
   node_id: '16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo',
-  // public_key:
-  //  '0x080212210201cabbabef1cc85218fa2d5bbadfb3425dfc091b311a33e6d9be26f6dcb94668',
-  private_key: '0xbee525d70c715bee6ca15ea5113e544d13cc1bb2817e07113d0af7755ddb6391',
   port: 8000
 }
 
 const nodeB: P2PNode = {
   node_id: '16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL',
-  // public_key:
-  //  '0x0802122103af841fad03c892d9796c0694ce0158702bd2ff028b3787596d2b27cdb4067c37',
-  private_key: '0xcb345bd2b11264d523ddaf383094e2675c420a17511c3102a53817f13474a7ff',
   port: 8001
 }
 
@@ -82,8 +74,7 @@ type FileSecrets = {
  * @returns
  */
 async function createKeyPairForFileEncryption(
-  nodePublicKey: string,
-  nodePrivateKey: string
+  nodePublicKey: string
 ): Promise<FileSecrets> {
   // We could also use Wallet variant
   //  let wallet = ethers.Wallet.createRandom();
@@ -134,18 +125,18 @@ async function createKeyPairForFileEncryption(
   console.log('encrypted string/key:', encryptedAESKeyAndIV)
 
   // we parse the string into the object again
-  const encryptedObject = ethCrypto.cipher.parse(encryptedAESKeyAndIV)
+  // const encryptedObject = ethCrypto.cipher.parse(encryptedAESKeyAndIV)
 
-  const decrypted = await ethCrypto.decryptWithPrivateKey(nodePrivateKey, encryptedObject)
-  const decryptedPayload = JSON.parse(decrypted)
+  // const decrypted = await ethCrypto.decryptWithPrivateKey(nodePrivateKey, encryptedObject)
+  // const decryptedPayload = JSON.parse(decrypted)
 
-  // check signature
-  const senderAddress = ethCrypto.recover(
-    decryptedPayload.signature,
-    ethCrypto.hash.keccak256(decryptedPayload.message)
-  )
+  // // check signature
+  // const senderAddress = ethCrypto.recover(
+  //   decryptedPayload.signature,
+  //   ethCrypto.hash.keccak256(decryptedPayload.message)
+  // )
 
-  console.log('Got message from ' + senderAddress + ': ' + decryptedPayload.message)
+  // console.log('Got message from ' + senderAddress + ': ' + decryptedPayload.message)
 
   return {
     privateKey: keySecrets.key, // we need to pass it here because we're generating the key and IV inside the function
@@ -350,8 +341,7 @@ async function getPeerDetails(url: string, nodeId: string): Promise<PeerDetails>
 async function testEncryptionFlow(
   exampleId: number,
   nodeHttpPort: number,
-  targetNodeId: string,
-  privateKey: string
+  targetNodeId: string
 ): Promise<void> {
   // get the peer details and validate them to check if public key matches nodeId
 
@@ -383,10 +373,8 @@ async function testEncryptionFlow(
     //   Buffer.from(decompressedPublicKeyWithEthers).toString('hex')
     // )
     // get the AES key and IV encrypted with node public key
-    const secrets: FileSecrets = await createKeyPairForFileEncryption(
-      decompressedPublicKey,
-      privateKey
-    )
+    const secrets: FileSecrets =
+      await createKeyPairForFileEncryption(decompressedPublicKey)
 
     console.log('Will download now: ')
     console.log('exampleId: ', exampleId)
@@ -412,7 +400,7 @@ console.log('Echo command status: ', status)
 // ################# example 1 ####################
 // Ex: 1 - Request directly to Node A
 // Still goes to the same validation and encryption processes, the only difference is that Node A can serve directly to Client
-await testEncryptionFlow(1, nodeA.port, nodeA.node_id, nodeA.private_key)
+await testEncryptionFlow(1, nodeA.port, nodeA.node_id)
 // ################################################
 
 // ################# example 2 ####################
@@ -422,14 +410,14 @@ await testEncryptionFlow(1, nodeA.port, nodeA.node_id, nodeA.private_key)
 // Client encrypts the AES key and IV with node public key, and sends the HTTP request
 // Node A forwards the request to Node B, Node B decrypts the AES key and IV with his private key, and encrypts the file
 // Node B streams encrypted file to Node A, Node A CANNOT decrypt anything and forwards the request to the initial Client
-await testEncryptionFlow(2, nodeA.port, nodeB.node_id, nodeB.private_key)
+await testEncryptionFlow(2, nodeA.port, nodeB.node_id)
 // ################################################
 
 // ################ example 3 #####################
 // On the following example we swap the node roles
 // Example 3 (swap nodes)
 // We connect to Node B via HTTP and try to get a file from node A, instead
-await testEncryptionFlow(3, nodeB.port, nodeA.node_id, nodeA.private_key)
+await testEncryptionFlow(3, nodeB.port, nodeA.node_id)
 // ###############################################
 
 // ################# example 4 ####################
