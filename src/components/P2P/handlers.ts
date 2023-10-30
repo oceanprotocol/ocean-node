@@ -1,5 +1,5 @@
-export * from './handleBroadcasts'
-export * from './handleProtocolCommands'
+export * from './handleBroadcasts.js'
+export * from './handleProtocolCommands.js'
 
 export function handlePeerConnect(details: any) {
   if (details) {
