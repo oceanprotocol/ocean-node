@@ -3,7 +3,7 @@ import diff from 'hyperdiff'
 import { P2PCommandResponse } from '../../@types/index'
 // const diff = require("hyperdiff")
 //  const diff = diffx as any
-import EventEmitter from 'events'
+import EventEmitter from 'node:events'
 import clone from 'lodash.clonedeep'
 
 import {
@@ -41,6 +41,7 @@ import { autoNATService } from 'libp2p/autonat'
 import { uPnPNATService } from 'libp2p/upnp-nat'
 
 import { kadDHT } from '@libp2p/kad-dht'
+import type { PubSub } from '@libp2p/interface/pubsub'
 import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 
 import { cidFromRawString } from '../../utils'
