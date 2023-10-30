@@ -5,6 +5,7 @@ import fs from 'fs'
 import { P2P_CONSOLE_LOGGER, getPrivateKeyFromConfig } from '../P2P/index'
 import * as ethCrypto from 'eth-crypto'
 import axios from 'axios'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 /**
@@ -69,12 +70,18 @@ export async function handleDownloadURLCommand(
         status: {
           httpStatus: 200,
           headers: {
-            'Content-Disposition': "attachment; filename='syslog'",
+            'Content-Disposition': "attachment; filename='syslog'", // TODO: the filename must come from somewhere else?
             'Content-Type': 'application/octet-stream'
           }
         }
       }
     } catch (err) {
+      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+        'Failure executing downloadURL task: ' + err.message,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEl_ERROR
+      )
       return {
         stream: null,
         status: { httpStatus: 501, error: 'Unknown error: ' + err.message }
@@ -97,6 +104,12 @@ export async function handleDownloadURLCommand(
         }
       }
     } catch (err) {
+      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+        'Failure executing downloadURL task: ' + err.message,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEl_ERROR
+      )
       return {
         stream: null,
         status: { httpStatus: 501, error: 'Unknown error: ' + err.message }
