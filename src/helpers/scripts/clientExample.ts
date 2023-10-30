@@ -10,8 +10,7 @@ import { base58btc } from 'multiformats/bases/base58'
 // import { Wallet, ethers } from 'ethers'
 
 import pkg from 'secp256k1'
-
-import type { DownloadCommand } from '../../utils'
+import { DownloadCommand } from '../../utils/constants.js'
 
 // Replace with any other file, works with a local path or URL
 // '/var/log/syslog'
@@ -247,7 +246,7 @@ async function testDownloadCommand(
       .then(function (response: any) {
         // console.log('Got response from server...', response.data)
 
-        const fileOutput = './output/received_out_'
+        const fileOutput = './dist/helpers/scripts/output/received_out_'
         let suffix = '' + exampleId
         if (useEncryption) {
           suffix = suffix + (DECRYPT_AFTER_RECEIVING_FILE ? '.decoded' : '.encoded')

@@ -1,11 +1,11 @@
 import crypto from 'crypto'
-import { DownloadCommand } from '../../utils/constants'
+import { DownloadCommand } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
 import fs from 'fs'
-import { P2P_CONSOLE_LOGGER, getPrivateKeyFromConfig } from '../P2P/index'
+import { P2P_CONSOLE_LOGGER, getPrivateKeyFromConfig } from '../P2P/index.js'
 import * as ethCrypto from 'eth-crypto'
 import axios from 'axios'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 /**

@@ -7,9 +7,9 @@ import {
   CustomNodeLogger,
   getCustomLoggerForModule,
   getDefaultLevel
-} from '../../utils/logging/Logger'
+} from '../../utils/logging/Logger.js'
 
-import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants'
+import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
 
 export const broadcastCommandRoute = express.Router()
 
