@@ -1,2 +1,2 @@
-export * from './conversions'
-export * from './config'
+export * from './conversions.js'
+export * from './config.js'

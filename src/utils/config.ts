@@ -1,7 +1,7 @@
 import type { OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
-import { hexStringToByteArray } from '../utils'
+import { hexStringToByteArray } from '../utils/index.js'
 
 import {
   CustomNodeLogger,
@@ -10,7 +10,7 @@ import {
   defaultConsoleTransport,
   getCustomLoggerForModule,
   GENERIC_EMOJIS
-} from '../utils/logging/Logger'
+} from '../utils/logging/Logger.js'
 
 const CONFIG_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.CONFIG,

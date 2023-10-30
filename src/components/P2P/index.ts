@@ -15,7 +15,7 @@ import {
   handlePeerLeft,
   handleSubscriptionCHange,
   handleProtocolCommands
-} from './handlers'
+} from './handlers.js'
 
 // import { encoding } from './connection'
 // import * as directConnection from './direct-connection-handler'
@@ -44,7 +44,7 @@ import { kadDHT } from '@libp2p/kad-dht'
 import type { PubSub } from '@libp2p/interface/pubsub'
 import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 
-import { cidFromRawString } from '../../utils'
+import { cidFromRawString } from '../../utils/index.js'
 import { Stream, Transform } from 'stream'
 import { Database } from '../database'
 import { AutoDial } from 'libp2p/dist/src/connection-manager/auto-dial'
@@ -56,7 +56,7 @@ import {
   LOG_LEVELS_STR,
   defaultConsoleTransport,
   getCustomLoggerForModule
-} from '../../utils/logging/Logger'
+} from '../../utils/logging/Logger.js'
 
 // just use the default logger with default transports
 // Bellow is just an example usage, only logging to console here
