@@ -66,7 +66,7 @@ export const GENERIC_EMOJIS = {
 }
 
 export function getLoggerLevelEmoji(level: string): string {
-  const emoji = LOG_LEVELS_EMOJI[level]
+  const emoji = LOG_LEVELS_EMOJI[level as keyof typeof LOG_LEVELS_EMOJI]
   if (!emoji) {
     return '\u{1F680}' // rocket emoji
   }
