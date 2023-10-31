@@ -59,11 +59,6 @@ import {
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
 
-// we need the private key to decrypt the downloadURL message secrets (to get AES encryption key and IV)
-export function getPrivateKeyFromConfig(): string {
-  const privateKey = process.env.PRIVATE_KEY as string
-  return privateKey
-}
 // just use the default logger with default transports
 // Bellow is just an example usage, only logging to console here
 export const P2P_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
