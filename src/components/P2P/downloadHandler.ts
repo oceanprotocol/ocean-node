@@ -71,7 +71,9 @@ export async function handleDownloadURLCommand(
           httpStatus: 200,
           headers: {
             'Content-Disposition': "attachment; filename='syslog'", // TODO: the filename must come from somewhere else?
-            'Content-Type': 'application/octet-stream'
+            'Content-Type': 'application/octet-stream',
+            'Content-Encoding': 'aesgcm',
+            'Transfer-Encoding': 'chunked'
           }
         }
       }
@@ -83,7 +85,8 @@ export async function handleDownloadURLCommand(
           httpStatus: 200,
           headers: {
             'Content-Disposition': "attachment; filename='syslog'",
-            'Content-Type': 'application/octet-stream'
+            'Content-Type': 'application/octet-stream',
+            'Transfer-Encoding': 'chunked'
           }
         }
       }
