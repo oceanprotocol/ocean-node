@@ -9,7 +9,7 @@ import {
   getDefaultLevel
 } from '../../utils/logging/Logger.js'
 
-import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { validateCommandAPIParameters } from './validateCommands.js'
 
 export const broadcastCommandRoute = express.Router()
 
@@ -22,7 +22,7 @@ broadcastCommandRoute.post(
   express.urlencoded({ extended: true }),
   async (req: Request, res: Response): Promise<void> => {
     if (!req.query.message) {
-      res.sendStatus(400)
+      res.status(400).send('Missing query parameter: "message" is mandatory')
       return
     }
 
@@ -38,14 +38,12 @@ directCommandRoute.post(
   '/directCommand',
   express.json(),
   async (req: Request, res: Response): Promise<void> => {
-    if (
-      !req.body.command ||
-      !validateCommandAPIParameters(req.body) /* || !req.body.node */
-    ) {
+    const validate = validateCommandAPIParameters(req.body)
+    if (!validate.valid) {
       // 'node' param is not mandatory for 'downloadURL' command for instance:
       // https://github.com/oceanprotocol/ocean-node/issues/26
       // https://github.com/oceanprotocol/ocean-node/issues/38
-      res.sendStatus(400)
+      res.status(validate.status).send(validate.reason)
       return
     }
 
@@ -113,24 +111,3 @@ directCommandRoute.post(
     }
   }
 )
-
-function validateCommandAPIParameters(requestBody: any): boolean {
-  // eslint-disable-next-line prefer-destructuring
-  const command: string = requestBody.command as string
-  if (SUPPORTED_PROTOCOL_COMMANDS.includes(command)) {
-    // downloadURL
-    if (command === PROTOCOL_COMMANDS.DOWNLOAD_URL) {
-      // only mandatory is the url
-      if (!requestBody.url) {
-        return false
-      }
-      return true
-      // echo
-    } // else if (command === PROTOCOL_COMMANDS.ECHO) {
-    // nothing special with this one
-    // return true
-    // }
-    return true
-  }
-  return false
-}

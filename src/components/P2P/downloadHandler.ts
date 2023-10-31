@@ -25,37 +25,37 @@ async function getFileFromURL(fileURL: string): Promise<any> {
 export async function handleDownloadURLCommand(
   task: DownloadCommand
 ): Promise<P2PCommandResponse> {
-  let sendStream = null
   const encryptFile = !!task.aes_encrypted_key
   P2P_CONSOLE_LOGGER.logMessage(
     'DownloadCommand requires file encryption? ' + encryptFile,
     true
   )
 
-  if (encryptFile) {
-    // we parse the string into the object again
-    const encryptedObject = ethCrypto.cipher.parse(task.aes_encrypted_key)
-    const nodePrivateKey = await getPrivateKeyFromConfig()
-    const decrypted = await ethCrypto.decryptWithPrivateKey(
-      nodePrivateKey,
-      encryptedObject
-    )
-    const decryptedPayload = JSON.parse(decrypted)
-    // check signature
-    // const senderAddress = ethCrypto.recover(
-    //  decryptedPayload.signature,
-    //  ethCrypto.hash.keccak256(decryptedPayload.message)
-    // )
-    // Optional, we can also validate the original address of the sender (the client that created the message)
-    // this could be part of the /directCommand payload for instance
-    // console.log(
-    //  'Got message from ' + senderAddress + ' secrets: ' + decryptedPayload.message
-    // )
-    const secrets = JSON.parse(decryptedPayload.message)
-    try {
-      const inputStream = task.url.startsWith('http')
-        ? await getFileFromURL(task.url) // remote url
-        : fs.createReadStream(task.url) //  local file
+  try {
+    const inputStream = task.url.startsWith('http')
+      ? await getFileFromURL(task.url) // remote url
+      : fs.createReadStream(task.url) //  local file
+
+    if (encryptFile) {
+      // we parse the string into the object again
+      const encryptedObject = ethCrypto.cipher.parse(task.aes_encrypted_key)
+      const nodePrivateKey = await getPrivateKeyFromConfig()
+      const decrypted = await ethCrypto.decryptWithPrivateKey(
+        nodePrivateKey,
+        encryptedObject
+      )
+      const decryptedPayload = JSON.parse(decrypted)
+      // check signature
+      // const senderAddress = ethCrypto.recover(
+      //  decryptedPayload.signature,
+      //  ethCrypto.hash.keccak256(decryptedPayload.message)
+      // )
+      // Optional, we can also validate the original address of the sender (the client that created the message)
+      // this could be part of the /directCommand payload for instance
+      // console.log(
+      //  'Got message from ' + senderAddress + ' secrets: ' + decryptedPayload.message
+      // )
+      const secrets = JSON.parse(decryptedPayload.message)
 
       const cipher = crypto
         .createCipheriv(
@@ -75,26 +75,10 @@ export async function handleDownloadURLCommand(
           }
         }
       }
-    } catch (err) {
-      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
-        'Failure executing downloadURL task: ' + err.message,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEl_ERROR
-      )
+    } else {
+      // Download request is not using encryption!
       return {
-        stream: null,
-        status: { httpStatus: 501, error: 'Unknown error: ' + err.message }
-      }
-    }
-  } else {
-    // Download request is not using encryption!
-    try {
-      sendStream = task.url.startsWith('http')
-        ? await getFileFromURL(task.url) // remote
-        : fs.createReadStream(task.url) // local
-      return {
-        stream: sendStream,
+        stream: inputStream,
         status: {
           httpStatus: 200,
           headers: {
@@ -103,17 +87,17 @@ export async function handleDownloadURLCommand(
           }
         }
       }
-    } catch (err) {
-      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
-        'Failure executing downloadURL task: ' + err.message,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEl_ERROR
-      )
-      return {
-        stream: null,
-        status: { httpStatus: 501, error: 'Unknown error: ' + err.message }
-      }
+    }
+  } catch (err) {
+    P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+      'Failure executing downloadURL task: ' + err.message,
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEl_ERROR
+    )
+    return {
+      stream: null,
+      status: { httpStatus: 501, error: 'Unknown error: ' + err.message }
     }
   }
 }

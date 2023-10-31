@@ -31,7 +31,7 @@ const DECRYPT_AFTER_RECEIVING_FILE = true
  * Open a third terminal - this Client script
  * 1) npm run start on terminal A
  * 2) npm run start on terminal B
- * 3) cd src/helpers/scripts && ts-node clientExample.ts
+ * 3) npm run client
  * OBS: when making changes on the client or nodes, we always need to stop them, rebuild npm run build and restart them
  * Have fun!
  */
