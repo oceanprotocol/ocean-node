@@ -1,6 +1,5 @@
 export default class CoreDB {
-    constructor() {
-    }
+  constructor() {}
 
-    // ddo: get, insert, update, query
+  // ddo: get, insert, update, query
 }
