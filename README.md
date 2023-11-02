@@ -48,3 +48,18 @@ Load postman collection from docs and play
     -  httpRoutes:  exposes http endpoints
     -  P2P:  has P2P functionality.  will have to extend handleBroadcasts and handleProtocolCommands, rest is pretty much done
 
+## Run tests
+
+Before running tests, please run Typesense docker
+
+```
+docker-compose -f typesense-compose.yml -p ocean-node up -d
+```
+
+You can then run tests
+
+```
+npm run test
+```
+
+
