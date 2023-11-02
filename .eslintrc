@@ -4,12 +4,7 @@
       "sourceType": "module",
       "ecmaFeatures": {
         "jsx": false
-      },
-      "project": [
-        "./tsconfig.json",
-        "./test/unit/tsconfig.json",
-        "./test/integration/tsconfig.json"
-      ]
+      }
     },
     "extends": ["oceanprotocol", "plugin:prettier/recommended"],
     "plugins": ["@typescript-eslint"],
@@ -25,7 +20,8 @@
       "es6": true,
       "browser": true,
       "mocha": true,
-      "node": true
+      "node": true,
+      "jest": true
     },
     "globals": {
       "NodeJS": true
