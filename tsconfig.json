@@ -15,7 +15,8 @@
     "suppressImplicitAnyIndexErrors":true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "allowJs": true
+    "allowJs": true,
+    "skipLibCheck": true
   },
   
 
