@@ -12,16 +12,16 @@
     "outDir": "./dist/",
     "declaration": true,
     "declarationDir": "./dist/",
-    "suppressImplicitAnyIndexErrors":true,
+    "ignoreDeprecations": "5.0",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "allowJs": true
+    "allowJs": true,
+    "rootDir": "./src",
+    "esModuleInterop": true,
   },
-  
-
     "ts-node": {
-        "esm": true, // «———— enabling ESM for ts-node
-    },    
+        "esm": true,
+    }, 
     "include": ["src/**/*"],
     "exclude": ["node_modules", "**/*.test.ts"]
   }
