@@ -1,6 +1,13 @@
-import { TypesenseConfigOptions, TypesenseNode } from '../../@types'
-import winston, { Logger } from 'winston'
+import {
+  TypesenseAbstractLogger,
+  TypesenseConfigOptions,
+  TypesenseNode
+} from '../../@types'
 
+/**
+ * TypesenseConfig class is used to specify configuration parameters for Typesense
+ * as well as handling optional cases
+ */
 export class TypesenseConfig {
   apiKey: string
   nodes: TypesenseNode[]
@@ -8,7 +15,7 @@ export class TypesenseConfig {
   retryIntervalSeconds: number
   connectionTimeoutSeconds: number
   logLevel: string
-  logger: Logger
+  logger: TypesenseAbstractLogger
 
   constructor(options: TypesenseConfigOptions) {
     this.apiKey = options.apiKey
@@ -17,12 +24,6 @@ export class TypesenseConfig {
     this.connectionTimeoutSeconds = options.connectionTimeoutSeconds || 5
     this.retryIntervalSeconds = options.retryIntervalSeconds || 0.1
     this.logLevel = options.logLevel || 'debug'
-    this.logger =
-      options.logger ||
-      winston.createLogger({
-        level: this.logLevel,
-        format: winston.format.prettyPrint(),
-        transports: [new winston.transports.Console()]
-      })
+    this.logger = options.logger || { debug: (log: any) => console.log(log) }
   }
 }

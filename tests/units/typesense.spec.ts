@@ -17,11 +17,7 @@ describe('Typesense', () => {
           port: 8108,
           protocol: 'http'
         }
-      ],
-      logLevel: 'debug',
-      logger: {
-        debug: (log: any) => console.log(log)
-      } as Logger
+      ]
     }
     typesense = new Typesense(config)
   })

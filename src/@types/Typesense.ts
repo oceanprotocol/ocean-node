@@ -1,5 +1,13 @@
 import { Logger } from 'winston'
 
+export interface TypesenseAbstractLogger {
+  error?: any
+  warn?: any
+  info?: any
+  debug?: any
+  trace?: any
+}
+
 export interface TypesenseNode {
   host: string
   port: number

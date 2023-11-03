@@ -10,6 +10,11 @@ import {
 import { TypesenseApi } from './typesenseApi'
 import { TypesenseConfig } from './typesenseConfig'
 
+/**
+ * TypesenseDocuments class implements CRUD methods
+ * for interacting with documents of an individual collection
+ * In addition, it implements a method for searching in documents
+ */
 class TypesenseDocuments {
   apiPath: string
 
@@ -58,6 +63,10 @@ class TypesenseDocuments {
   }
 }
 
+/**
+ * TypesenseCollection class implements CRUD methods for interacting with an individual collection
+ * It initiates class that provides access to methods of documents
+ */
 class TypesenseCollection {
   apiPath: string
   private readonly _documents: TypesenseDocuments
@@ -89,6 +98,9 @@ class TypesenseCollection {
   }
 }
 
+/**
+ * TypesenseCollections class implements the basic methods of collections
+ */
 export class TypesenseCollections {
   apiPath: string = '/collections'
 
@@ -103,6 +115,11 @@ export class TypesenseCollections {
   }
 }
 
+/**
+ * Typesense class is used to create a base instance to work with Typesense
+ * It initiates classes that provides access to methods of collections
+ * or an individual collection
+ */
 export default class Typesense {
   config: TypesenseConfig
   api: TypesenseApi

@@ -3,6 +3,10 @@ import axios, { AxiosRequestConfig } from 'axios'
 import { setTimeout } from 'timers/promises'
 import { TypesenseConfig } from './typesenseConfig'
 
+/**
+ * TypesenseApi class is used to implement an api interface
+ * for working with Typesense via http requests
+ */
 export class TypesenseApi {
   currentNodeIndex = -1
 
