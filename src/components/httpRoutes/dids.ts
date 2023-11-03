@@ -1,30 +1,54 @@
-import express, { Request, Response } from 'express'
-import { Get, Route } from 'tsoa'
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  Query,
+  Inject,
+  UsePipes,
+  Res
+} from '@nestjs/common'
+import { OceanP2P } from '../P2P/index.js'
+import {
+  CustomNodeLogger,
+  LOGGER_MODULE_NAMES,
+  getCustomLoggerForModule
+} from '../../utils/logging/Logger.js'
+import { BadRequestException } from '../../utils/errorHandling.js'
 
-export const advertiseDidRoute = express.Router()
-advertiseDidRoute.post(
-  '/advertiseDid',
-  express.urlencoded({ extended: true, type: '*/*' }),
-  async (req: Request, res: Response): Promise<void> => {
-    if (!req.query.did) {
-      res.sendStatus(400)
-      return
-    }
-    await req.oceanNode.node.advertiseDid(req.query.did as string)
-    res.sendStatus(200)
-  }
-)
+@Controller('dids')
+@UsePipes()
+export class DidsController {
+  constructor(
+    @Inject(OceanP2P)
+    private readonly oceanNode: OceanP2P
+  ) {}
 
-export const getProvidersForDidRoute = express.Router()
-getProvidersForDidRoute.get(
-  '/getProvidersForDid',
-  express.urlencoded({ extended: true, type: '*/*' }),
-  async (req: Request, res: Response): Promise<void> => {
-    if (!req.query.did) {
-      res.sendStatus(400)
-      return
+  logger: CustomNodeLogger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP)
+
+  @Post('advertiseDid')
+  @HttpCode(200)
+  async advertiseDid(@Query('did') did: string) {
+    try {
+      if (!did) {
+        throw new BadRequestException('The did query parameter is required.')
+      }
+      return await this.oceanNode.advertiseDid(did as string)
+    } catch (error) {
+      throw error
     }
-    const providers = await req.oceanNode.node.getProvidersForDid(req.query.did as string)
-    res.json(providers)
   }
-)
+
+  @Post('getProvidersForDid')
+  @HttpCode(200)
+  async getProvidersForDid(@Query('did') did: string) {
+    try {
+      if (!did) {
+        throw new BadRequestException('The did query parameter is required.')
+      }
+      return await this.oceanNode.getProvidersForDid(did as string)
+    } catch (error) {
+      throw error
+    }
+  }
+}

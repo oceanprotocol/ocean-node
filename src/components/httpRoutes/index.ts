@@ -1,15 +1,7 @@
-import express from 'express'
-import { getOceanPeersRoute, getP2PPeersRoute, getP2PPeerRoute } from './getOceanPeers.js'
-import { advertiseDidRoute, getProvidersForDidRoute } from './dids.js'
-import { broadcastCommandRoute, directCommandRoute } from './commands.js'
-export * from './getOceanPeers.js'
+import { CommandController } from './Commands'
+import { DidsController } from './Dids'
+import { OceanPeersController } from './GetOceanPeers'
 
-export const httpRoutes = express.Router()
+export const controllers = [CommandController, DidsController, OceanPeersController]
 
-httpRoutes.use(getOceanPeersRoute)
-httpRoutes.use(getP2PPeersRoute)
-httpRoutes.use(getP2PPeerRoute)
-httpRoutes.use(advertiseDidRoute)
-httpRoutes.use(getProvidersForDidRoute)
-httpRoutes.use(broadcastCommandRoute)
-httpRoutes.use(directCommandRoute)
+export { CommandController, DidsController, OceanPeersController }

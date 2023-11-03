@@ -72,6 +72,7 @@ const DEFAULT_OPTIONS = {
 
 let index = 0
 
+@Injectable()
 export class OceanP2P extends EventEmitter {
   _libp2p: any
   _topic: string
@@ -394,4 +395,7 @@ function encoding(message: any) {
   }
 
   return message
+}
+function Injectable(): (target: typeof OceanP2P) => void | typeof OceanP2P {
+  throw new Error('Function not implemented.')
 }

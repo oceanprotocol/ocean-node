@@ -2,8 +2,8 @@ import { OceanP2P } from './components/P2P/index.js'
 import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
 import { Database } from './components/database/index.js'
-import express, { Express, Request, Response } from 'express'
 import { OceanNode } from './@types/index.js'
+import { NestFactory } from '@nestjs/core'
 import swaggerUi from 'swagger-ui-express'
 import { httpRoutes } from './components/httpRoutes/index.js'
 import { getConfig } from './utils/index.js'
@@ -32,13 +32,13 @@ let oceanNode: OceanNode
 const app: Express = express()
 // const port = getRandomInt(6000,6500)
 
-declare global {
-  namespace Express {
-    interface Request {
-      oceanNode: OceanNode
-    }
-  }
-}
+// declare global {
+//   namespace Express {
+//     interface Request {
+//       oceanNode: OceanNode
+//     }
+//   }
+// }
 
 async function main() {
   console.log('\n\n\n\n')

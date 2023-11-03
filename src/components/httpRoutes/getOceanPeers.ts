@@ -1,49 +1,69 @@
-import express, { Request, Response } from 'express'
-import { Get, Route } from 'tsoa'
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  Query,
+  Inject,
+  UsePipes,
+  Res,
+  Get
+} from '@nestjs/common'
+import { OceanP2P } from '../P2P/index.js'
 import {
   CustomNodeLogger,
   LOGGER_MODULE_NAMES,
   getCustomLoggerForModule,
   getDefaultLevel
 } from '../../utils/logging/Logger.js'
+import { BadRequestException } from '../../utils/errorHandling.js'
 
-// we could just use the default logger with default transports
-// or we can use a customized logger, including logging per module/component
-// Note: Bellow is just an example usage:
-const customLogger: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.P2P,
-  getDefaultLevel()
-)
+@Controller('ocean-peers')
+@UsePipes()
+export class OceanPeersController {
+  constructor(
+    @Inject(OceanP2P)
+    private readonly oceanNode: OceanP2P
+  ) {}
 
-export const getOceanPeersRoute = express.Router()
-getOceanPeersRoute.get(
-  '/getOceanPeers',
-  async (req: Request, res: Response): Promise<void> => {
-    const peers = await req.oceanNode.node.getPeers()
-    customLogger.log(getDefaultLevel(), `getOceanPeers: ${peers}`, true)
-    res.json(peers)
-  }
-)
+  logger: CustomNodeLogger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP)
 
-export const getP2PPeersRoute = express.Router()
-getP2PPeersRoute.get(
-  '/getP2PPeers',
-  async (req: Request, res: Response): Promise<void> => {
-    const peers = await req.oceanNode.node.getAllPeerStore()
-    res.json(peers)
-  }
-)
-
-export const getP2PPeerRoute = express.Router()
-getP2PPeersRoute.get(
-  '/getP2PPeer',
-  express.urlencoded({ extended: true }),
-  async (req: Request, res: Response): Promise<void> => {
-    if (!req.query.peerId) {
-      res.sendStatus(400)
-      return
+  @Get()
+  @HttpCode(200)
+  async getOceanPeersRoute() {
+    try {
+      const peers = await this.oceanNode.getPeers()
+      this.logger.log(getDefaultLevel(), `getOceanPeers: ${peers}`, true)
+      return peers
+    } catch (error) {
+      throw error
     }
-    const peers = await req.oceanNode.node.getPeerDetails(String(req.query.peerId))
-    res.json(peers)
   }
-)
+
+  @Get('/p2p-peers')
+  @HttpCode(200)
+  async getP2PPeersRoute() {
+    try {
+      const peers = await this.oceanNode.getAllPeerStore()
+      this.logger.log(getDefaultLevel(), `getOceanPeers: ${peers}`, true)
+      return peers
+    } catch (error) {
+      throw error
+    }
+  }
+
+  @Get('/p2p-peer/')
+  @HttpCode(200)
+  async getP2PPeerRoute(@Query('peerId') peerId: any) {
+    try {
+      if (!peerId) {
+        throw new BadRequestException()
+      }
+      const peers = await this.oceanNode.getPeerDetails(String(peerId))
+      this.logger.log(getDefaultLevel(), `getPeerDetails: ${peers}`, true)
+      return peers
+    } catch (error) {
+      throw error
+    }
+  }
+}
