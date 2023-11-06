@@ -1,8 +1,7 @@
-import { Storage } from "..";
+import { Storage } from '..'
 
-
-export class ArweaveStorage extends Storage{
-    public constructor(files: []) {
-        super(files);
-    }
+export class ArweaveStorage extends Storage {
+  public constructor(files: []) {
+    super(files)
+  }
 }
