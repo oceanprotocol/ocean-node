@@ -102,6 +102,5 @@ export async function getConfig(): Promise<OceanNodeConfig> {
       pwd: 'oceannode'
     }
   }
-  console.log(config)
   return config
 }
