@@ -22,6 +22,6 @@
     "ts-node": {
         "esm": true,
     }, 
-    "include": ["src/**/*"],
+    "include": ["src/**/*", "assets", "config", "tasks", "@types", "components", "utils", "index.ts", "api/P2P"],
     "exclude": ["node_modules", "**/*.test.ts"]
   }
