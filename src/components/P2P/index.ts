@@ -14,7 +14,8 @@ import {
   handlePeerJoined,
   handlePeerLeft,
   handleSubscriptionCHange,
-  handleProtocolCommands
+  handleProtocolCommands,
+  handleDirectProtocolCommand
 } from './handlers.js'
 
 // import { encoding } from './connection'
@@ -47,11 +48,11 @@ import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 import { cidFromRawString } from '../../utils/index.js'
 import { Stream, Transform } from 'stream'
 import { Database } from '../database'
-import { AutoDial } from 'libp2p/dist/src/connection-manager/auto-dial'
 import { OceanNodeConfig } from '../../@types/OceanNode'
 
 import {
   CustomNodeLogger,
+  GENERIC_EMOJIS,
   LOGGER_MODULE_NAMES,
   LOG_LEVELS_STR,
   defaultConsoleTransport,
@@ -277,7 +278,26 @@ export class OceanP2P extends EventEmitter {
   async getPeerDetails(peerName: string) {
     try {
       const peerId = peerIdFromString(peerName)
+      // Example: for ID 16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo
+      // Buffer.from(this._config.keys.publicKey).toString('hex') =>         0201cabbabef1cc85218fa2d5bbadfb3425dfc091b311a33e6d9be26f6dcb94668
+      // Buffer.from(peerId.publicKey).toString('hex')            => 080212210201cabbabef1cc85218fa2d5bbadfb3425dfc091b311a33e6d9be26f6dcb94668
+      // 08021221 = > extra 4 bytes at the beginning, but they are important for later
+      // UPDATE: no need to slice 4 bytes here, actually we need those on client side to verify the node id and perform the encryption of the keys + iv
+      // See config.ts => getPeerIdFromPrivateKey()
+
+      const pubKey = Buffer.from(peerId.publicKey).toString('hex') // no need to do .subarray(4).toString('hex')
       const peer = await this._libp2p.peerStore.get(peerId)
+
+      // write the publicKey as well
+      peer.publicKey = pubKey
+      // Note: this is a 'compressed' version of the publicKey, we need to decompress it on client side (not working with bellow attempts)
+      // otherwise the encryption will fail due to public key size mismatch
+
+      // taken from '@libp2p/crypto/keys/secp256k1' decompressPublicKey (cannot import module/function)
+      // const decompressedKey = secp.ProjectivePoint.fromHex(key.public.bytes).toRawBytes(false)
+      // Buffer.from(decompressedKey).toString('hex')
+      // in any case is not working (it crashes here)
+
       return peer
     } catch (e) {
       return null
@@ -289,7 +309,8 @@ export class OceanP2P extends EventEmitter {
     message: string,
     sink: any
   ): Promise<P2PCommandResponse> {
-    console.log('Executing on node ' + peerName + ' task: ' + message)
+    P2P_CONSOLE_LOGGER.logMessage('SendTo() node ' + peerName + ' task: ' + message, true)
+
     const status: P2PCommandResponse = {
       status: { httpStatus: 200, error: '' },
       stream: null
@@ -300,11 +321,19 @@ export class OceanP2P extends EventEmitter {
       peerId = peerIdFromString(peerName)
       peer = await this._libp2p.peerStore.get(peerId)
     } catch (e) {
+      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+        'Invalid peer (for id): ' + peerId,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEl_ERROR
+      )
       status.status.httpStatus = 404
       status.status.error = 'Invalid peer'
       return status
     }
+
     let stream
+    // dial/connect to the target node
     try {
       // stream= await this._libp2p.dialProtocol(peer, this._protocol)
 
@@ -326,6 +355,23 @@ export class OceanP2P extends EventEmitter {
       // Sink function
       sink
     )
+    return status
+  }
+
+  // when the target is this node
+  async sendToSelf(message: string, sink: any): Promise<P2PCommandResponse> {
+    const status: P2PCommandResponse = {
+      status: { httpStatus: 200, error: '' },
+      stream: null
+    }
+    // direct message to self
+    // create a writable stream
+    // const outputStream = new Stream.Writable()
+    status.stream = new Stream.Writable()
+
+    // read from input stream to output one and move on
+    await handleDirectProtocolCommand(message, sink)
+
     return status
   }
 
@@ -385,6 +431,15 @@ export class OceanP2P extends EventEmitter {
       console.error(e)
     }
     return peersFound
+  }
+
+  /**
+   * Is the message intended for this peer or we need to connect to another one?
+   * @param targetPeerID  the target node id
+   * @returns true if the message is intended for this peer, false otherwise
+   */
+  isTargetPeerSelf(targetPeerID: string): boolean {
+    return targetPeerID === this._config.keys.peerId.toString()
   }
 }
 
