@@ -210,7 +210,7 @@ export class OceanP2P extends EventEmitter {
         // }
         // }
       }
-      
+
       const node = await createLibp2p(options)
       const x = await node.start()
       node.addEventListener('peer:connect', (evt: any) => {
