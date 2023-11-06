@@ -82,7 +82,7 @@ export type TypesenseDocumentSchema = Record<string, any>
 type TypesenseOperationMode = 'off' | 'always' | 'fallback'
 
 export interface TypesenseSearchParams {
-  [key: string] : any
+  [key: string]: any
   // From https://typesense.org/docs/latest/api/documents.html#arguments
   q: string
   query_by: string | string[]
