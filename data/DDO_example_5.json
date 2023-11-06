@@ -1,0 +1,88 @@
+{
+    "@context": [
+      "https://w3id.org/did/v1"
+    ],
+    "id": "did:op:3fa8fd3644e73fadb3868f2e2289c55d0b6a2e878d1216bd9b70d4bb7aad0fa1",
+    "nftAddress": "0x8Aac497a2968A373F2F6b0363311F9b9FE7251Fa",
+    "version": "4.1.0",
+    "chainId": 137,
+    "metadata": {
+      "created": "2022-12-23T12:41:32Z",
+      "updated": "2022-12-23T12:41:32Z",
+      "type": "dataset",
+      "name": "Crypto projects funding data",
+      "description": "Data of top crypto projects raising fund, includes \nName, Date, Amount Raised, Round (private, seed, ...), Project Description, Investors, Valuation and many other details.\n\nData from 2014 and update weekly",
+      "tags": [
+        "venture-capital",
+        "crypto",
+        "investing"
+      ],
+      "author": "VC",
+      "license": "https://market.oceanprotocol.com/terms",
+      "additionalInformation": {
+        "termsAndConditions": true
+      }
+    },
+    "services": [
+      {
+        "id": "fbfd21a3fa2a5798e8bef30aeaa113bf33c187004958aded899555a7aa83e2b3",
+        "type": "access",
+        "files": "0x042671ec755fb332ef965bd1df99406205fbba665e127c88fd2d5ffa0d9bd928c94fb7a5ed2833f7ac33e32fd7581397098a5d9fb6458db990a32042960650ff76720970517fdabdb4bbac79d1845da5d28e0f7adccde55be5b30335a2b21c6e3f01c866da5624c6428f174df62d9dc796e41b81ba2f379fcd11db35693bb30fed349cd9a53d71f8543f62408bedcb1bfeabce9f294fda12ead6d003d4e54f0d0d02b4cb21332badf9264685d47b9a7228ddc2b2ad62011d4e4c222f4f1ea3c6d0199d7269641da4d502690a1cb88565a398a0e493fa8ab9513378b7a048a0d29b652c14fca457c8fca2454afc9790ab0fd582b3fcff631755f4e12126d2959420a92ac2cc1e9f40d65dc24b8fbdaa8710b2a3e202c7afdc40ec5e3e4b4a35ade48a2098e5aaea8180efe540f17d224b747a5dce6941bd9e169e227cb7eb263d0823b7e7d0589386b59020e6c1d788e266dbd07e",
+        "datatokenAddress": "0x5D41fb04998B7A431031c8ab13742FceAF70EA71",
+        "serviceEndpoint": "https://v4.provider.polygon.oceanprotocol.com",
+        "timeout": 604800
+      }
+    ],
+    "event": {
+      "tx": "0x1e7916587529199f6caf67a51326da34d64d2f7944b635984920ffa62f848c50",
+      "block": 39326244,
+      "from": "0xaE9261D3a890168Fe9Da3f18B04d73a610565e89",
+      "contract": "0x8Aac497a2968A373F2F6b0363311F9b9FE7251Fa",
+      "datetime": "2023-02-15T16:15:05"
+    },
+    "nft": {
+      "address": "0x8Aac497a2968A373F2F6b0363311F9b9FE7251Fa",
+      "name": "Ocean Data NFT",
+      "symbol": "OCEAN-NFT",
+      "state": 0,
+      "tokenURI": "data:application/json;base64,eyJuYW1lIjoiT2NlYW4gRGF0YSBORlQiLCJzeW1ib2wiOiJPQ0VBTi1ORlQiLCJkZXNjcmlwdGlvbiI6IlRoaXMgTkZUIHJlcHJlc2VudHMgYW4gYXNzZXQgaW4gdGhlIE9jZWFuIFByb3RvY29sIHY0IGVjb3N5c3RlbS5cblxuVmlldyBvbiBPY2VhbiBNYXJrZXQ6IGh0dHBzOi8vbWFya2V0Lm9jZWFucHJvdG9jb2wuY29tL2Fzc2V0L2RpZDpvcDozZmE4ZmQzNjQ0ZTczZmFkYjM4NjhmMmUyMjg5YzU1ZDBiNmEyZTg3OGQxMjE2YmQ5YjcwZDRiYjdhYWQwZmExIiwiZXh0ZXJuYWxfdXJsIjoiaHR0cHM6Ly9tYXJrZXQub2NlYW5wcm90b2NvbC5jb20vYXNzZXQvZGlkOm9wOjNmYThmZDM2NDRlNzNmYWRiMzg2OGYyZTIyODljNTVkMGI2YTJlODc4ZDEyMTZiZDliNzBkNGJiN2FhZDBmYTEiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiMTQxNDE0IiwiaW1hZ2VfZGF0YSI6ImRhdGE6aW1hZ2Uvc3ZnK3htbCwlM0Nzdmcgdmlld0JveD0nMCAwIDk5IDk5JyBmaWxsPSd1bmRlZmluZWQnIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyclM0UlM0NwYXRoIGZpbGw9JyUyM2ZmNDA5Mjc3JyBkPSdNMCw5OUwwLDI1QzExLDIwIDIyLDE1IDMzLDE3QzQzLDE4IDUzLDI3IDY0LDMwQzc0LDMyIDg2LDI5IDk5LDI2TDk5LDk5WicvJTNFJTNDcGF0aCBmaWxsPSclMjNmZjQwOTJiYicgZD0nTTAsOTlMMCw0NkMxMyw1MCAyNyw1NSAzNyw1NUM0Niw1NCA1Myw0NyA2Myw0NkM3Miw0NCA4NSw0NiA5OSw0OUw5OSw5OVonJTNFJTNDL3BhdGglM0UlM0NwYXRoIGZpbGw9JyUyM2ZmNDA5MmZmJyBkPSdNMCw5OUwwLDgxQzEzLDczIDI2LDY2IDM3LDY4QzQ4LDY5IDU3LDc5IDY3LDgxQzc3LDgyIDg4LDc2IDk5LDcwTDk5LDk5WiclM0UlM0MvcGF0aCUzRSUzQy9zdmclM0UifQ==",
+      "owner": "0xaE9261D3a890168Fe9Da3f18B04d73a610565e89",
+      "created": "2022-12-23T12:41:45"
+    },
+    "purgatory": {
+      "state": false
+    },
+    "datatokens": [
+      {
+        "address": "0x5D41fb04998B7A431031c8ab13742FceAF70EA71",
+        "name": "Cerulean Walrus Token",
+        "symbol": "CERWAL-78",
+        "serviceId": "fbfd21a3fa2a5798e8bef30aeaa113bf33c187004958aded899555a7aa83e2b3"
+      }
+    ],
+    "stats": {
+      "allocated": 1119166.75,
+      "orders": 0,
+      "price": {}
+    },
+    "accessDetails": {
+      "templateId": 2,
+      "publisherMarketOrderFee": "0",
+      "type": "fixed",
+      "addressOrId": "0x5db89cf646a6dc9736c43c4bbfd295b1f9d27d5657f9b2edfd965706aec91ff6",
+      "price": "1000",
+      "isPurchasable": true,
+      "baseToken": {
+        "address": "0x282d8efce846a88b159800bd4130ad77443fa1a1",
+        "name": "Ocean Token (PoS)",
+        "symbol": "mOCEAN",
+        "decimals": 18
+      },
+      "datatoken": {
+        "address": "0x5d41fb04998b7a431031c8ab13742fceaf70ea71",
+        "name": "Cerulean Walrus Token",
+        "symbol": "CERWAL-78"
+      }
+    }
+  }
+  
