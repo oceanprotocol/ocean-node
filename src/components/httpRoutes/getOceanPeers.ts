@@ -5,7 +5,7 @@ import {
   LOGGER_MODULE_NAMES,
   getCustomLoggerForModule,
   getDefaultLevel
-} from '../../utils/logging/Logger'
+} from '../../utils/logging/Logger.js'
 
 // we could just use the default logger with default transports
 // or we can use a customized logger, including logging per module/component

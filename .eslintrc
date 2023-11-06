@@ -4,7 +4,10 @@
       "sourceType": "module",
       "ecmaFeatures": {
         "jsx": false
-      }
+      },
+      "project": [
+        "./tsconfig.json"
+      ]
     },
     "extends": ["oceanprotocol", "plugin:prettier/recommended"],
     "plugins": ["@typescript-eslint"],

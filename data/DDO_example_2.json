@@ -1,0 +1,92 @@
+{
+    "@context": [
+      "https://w3id.org/did/v1"
+    ],
+    "id": "did:op:ce3f161fb98c64a2ded37fd34e25f28343f2c88d0c8205242df9c621770d4b3b",
+    "nftAddress": "0x12C79518E69339849ec646CdAF491C25E9c73238",
+    "version": "4.1.0",
+    "chainId": 137,
+    "metadata": {
+      "created": "2022-10-15T20:42:54Z",
+      "updated": "2022-10-15T20:42:54Z",
+      "type": "dataset",
+      "name": "BTC/USDT orderbook",
+      "description": "Real time BTC/USDT orderbook\n\nTo take the bid orders, access data.bids array\nTo take the ask orders, access data.asks array\n\nResponse schema:\n\n```json\n{\n    \"code\":\"200000\",\n    \"data\":\n        {\n            \"time\":1665865828392,\n            \"sequence\":\"357821345\",\n            \"bids\":\n                [\n                    [\"19099.9\",\"0.00078381\"],\n                    [\"19099.8\",\"0.02901545\"],\n                    ....\n                ],\n            \"asks\":\n                [\n                    [\"19100.3\",\"0.0288382\"],\n                    [\"19100.4\",\"0.00167897\"],\n                    ...\n                ]\n        }\n}\n```\n\nAccess is permited for 1 day after buying.",
+      "tags": [
+        "defi",
+        "orderbook"
+      ],
+      "author": "0x4Ab0C24005c410111e21aE16Df5e19180fAD0f6a",
+      "license": "https://market.oceanprotocol.com/terms",
+      "additionalInformation": {
+        "termsAndConditions": true
+      }
+    },
+    "services": [
+      {
+        "id": "a8ad09aeb572ba2b5f72af4970d94d0220be112bbdc53995e31b6dac083b7d2f",
+        "type": "access",
+        "files": "0x046f268901ed5ed2216fdca7aa435db08e1cf07d5a7f078d85b59a78c4a83929ee746236ef0130852b57f0d748e3ceae5ff7ad43f68a10361caefec521b25927266d320397be69d13841b333a6be8e067a178570c7d80fa37829a0e216d5ba6fc0a935040a5f97bf06e81f2387557ddd59def3eaadf22655aa50b66379cfc8ac61dd1ace0b1badbaa79cd2aa6ff8142d030f7e2726f86b07b312febd0bfa5409044216d3170eb069b51da54a322d2203ef6c873ce84a4f1728a137c2bd645a473ac6c7b94547bb5f882aa2a2ad795510177a75c02bc9a1cb28811b62db23a41908a45592653cc60b42d22d4abde72e0f7db3fb7fdf0297afa1d83dd59cca83b3ad02a9ab8cff70bc6b33900844c03db1bceef2105792eb73a8c54725fcc12af3e224a3c0db5bf918de068f81e959d687d11a58d7b6a929d4a4e879a0c950578a2acc4c2ecc23fa6acf8ef4bdb2a76d59ce0e6fcd3bbb70f483032fe3894c3e",
+        "datatokenAddress": "0x506fD5caA79bD5F8aB4268c69690e5bD6B9e7c4f",
+        "serviceEndpoint": "https://v4.provider.polygon.oceanprotocol.com",
+        "timeout": 86400
+      }
+    ],
+    "event": {
+      "tx": "0x613f27ad6a08dae917effaeae8db0a97423cdfdf61ece130b5a973fd74b994c2",
+      "block": 34389215,
+      "from": "0x4Ab0C24005c410111e21aE16Df5e19180fAD0f6a",
+      "contract": "0x12C79518E69339849ec646CdAF491C25E9c73238",
+      "datetime": "2022-10-15T20:43:06"
+    },
+    "nft": {
+      "address": "0x12C79518E69339849ec646CdAF491C25E9c73238",
+      "name": "Ocean Data NFT",
+      "symbol": "OCEAN-NFT",
+      "state": 0,
+      "tokenURI": "data:application/json;base64,eyJuYW1lIjoiT2NlYW4gRGF0YSBORlQiLCJzeW1ib2wiOiJPQ0VBTi1ORlQiLCJkZXNjcmlwdGlvbiI6IlRoaXMgTkZUIHJlcHJlc2VudHMgYW4gYXNzZXQgaW4gdGhlIE9jZWFuIFByb3RvY29sIHY0IGVjb3N5c3RlbS5cblxuVmlldyBvbiBPY2VhbiBNYXJrZXQ6IGh0dHBzOi8vbWFya2V0Lm9jZWFucHJvdG9jb2wuY29tL2Fzc2V0L2RpZDpvcDpjZTNmMTYxZmI5OGM2NGEyZGVkMzdmZDM0ZTI1ZjI4MzQzZjJjODhkMGM4MjA1MjQyZGY5YzYyMTc3MGQ0YjNiIiwiZXh0ZXJuYWxfdXJsIjoiaHR0cHM6Ly9tYXJrZXQub2NlYW5wcm90b2NvbC5jb20vYXNzZXQvZGlkOm9wOmNlM2YxNjFmYjk4YzY0YTJkZWQzN2ZkMzRlMjVmMjgzNDNmMmM4OGQwYzgyMDUyNDJkZjljNjIxNzcwZDRiM2IiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiMTQxNDE0IiwiaW1hZ2VfZGF0YSI6ImRhdGE6aW1hZ2Uvc3ZnK3htbCwlM0Nzdmcgdmlld0JveD0nMCAwIDk5IDk5JyBmaWxsPSd1bmRlZmluZWQnIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyclM0UlM0NwYXRoIGZpbGw9JyUyM2ZmNDA5Mjc3JyBkPSdNMCw5OUwwLDE5QzcsMjEgMTUsMjQgMjMsMjdDMzAsMjkgMzcsMzEgNDUsMzBDNTIsMjggNjEsMjMgNzEsMjNDODAsMjIgODksMjYgOTksMzFMOTksOTlaJy8lM0UlM0NwYXRoIGZpbGw9JyUyM2ZmNDA5MmJiJyBkPSdNMCw5OUwwLDQ2QzcsNDMgMTUsNDEgMjUsNDFDMzQsNDAgNDQsNDMgNTIsNDdDNTksNTEgNjMsNTYgNzEsNTdDNzgsNTcgODgsNTEgOTksNDZMOTksOTlaJyUzRSUzQy9wYXRoJTNFJTNDcGF0aCBmaWxsPSclMjNmZjQwOTJmZicgZD0nTTAsOTlMMCw2OEM1LDc0IDExLDgwIDIxLDgxQzMwLDgxIDQyLDc1IDUxLDczQzU5LDcwIDY1LDcyIDczLDc0QzgwLDc1IDg5LDc1IDk5LDc1TDk5LDk5WiclM0UlM0MvcGF0aCUzRSUzQy9zdmclM0UifQ==",
+      "owner": "0x4Ab0C24005c410111e21aE16Df5e19180fAD0f6a",
+      "created": "2022-10-15T20:43:06"
+    },
+    "datatokens": [
+      {
+        "address": "0x506fD5caA79bD5F8aB4268c69690e5bD6B9e7c4f",
+        "name": "Pleasant Turtle Token",
+        "symbol": "PLETUR-55",
+        "serviceId": "a8ad09aeb572ba2b5f72af4970d94d0220be112bbdc53995e31b6dac083b7d2f"
+      }
+    ],
+    "stats": {
+      "allocated": 2746640.5,
+      "orders": 43,
+      "price": {
+        "value": 18071,
+        "tokenAddress": "0x282d8efCe846A88B159800bd4130ad77443Fa1A1",
+        "tokenSymbol": "mOCEAN"
+      }
+    },
+    "purgatory": {
+      "state": false
+    },
+    "accessDetails": {
+      "templateId": 2,
+      "publisherMarketOrderFee": "0",
+      "type": "fixed",
+      "addressOrId": "0x7741a1e03ac7fa984e2a6118315d2ff26ac7f7b94316b98df02c636b3a2e6b76",
+      "price": "18071",
+      "isPurchasable": true,
+      "baseToken": {
+        "address": "0x282d8efce846a88b159800bd4130ad77443fa1a1",
+        "name": "Ocean Token (PoS)",
+        "symbol": "mOCEAN",
+        "decimals": 18
+      },
+      "datatoken": {
+        "address": "0x506fd5caa79bd5f8ab4268c69690e5bd6b9e7c4f",
+        "name": "Pleasant Turtle Token",
+        "symbol": "PLETUR-55"
+      }
+    }
+  }
+
+  
