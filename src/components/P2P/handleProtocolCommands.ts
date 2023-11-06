@@ -6,7 +6,7 @@ import StreamConcat from 'stream-concat'
 // export function handleProtocolCommands (sourceStream:any,sinkStream:any) {
 
 import * as fs from 'fs'
-import { handleDownloadURLCommand } from './downloadHandler.js'
+import { handleDownloadURLCommand } from '../core/downloadHandler.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode'
 
