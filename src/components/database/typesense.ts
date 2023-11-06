@@ -48,7 +48,7 @@ class TypesenseDocuments {
   async search(
     searchParameters: TypesenseSearchParams
   ): Promise<TypesenseSearchResponse> {
-    const additionalQueryParams = {}
+    const additionalQueryParams: { [key: string] : any }  = {}
     for (const key in searchParameters) {
       if (Array.isArray(searchParameters[key])) {
         additionalQueryParams[key] = searchParameters[key].join(',')
