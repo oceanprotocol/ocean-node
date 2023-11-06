@@ -41,9 +41,28 @@
 			"name": "8000 - getPeer",
 			"request": {
 				"method": "GET",
-				"header": []
-			},
-			"response": []
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/getP2pPeer?peerId=16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"getP2pPeer"
+					],
+					"query": [
+						{
+							"key": "peerId",
+							"value": "16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL"
+						}
+					]
+				}
+			}
 		},
 		{
 			"name": "8000 - advertiseDid",
@@ -106,7 +125,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"command\":\"download\",\n    \"node\": \"16Uiu2HAkxiemC25d2iZWTkVRQmZr9L9h3RNGnhiUWXEonmsPEC8y\"\n}"
+					"raw": "{\n    \"command\":\"downloadURL\",\n    \"node\": \"16Uiu2HAkxiemC25d2iZWTkVRQmZr9L9h3RNGnhiUWXEonmsPEC8y\",\n    \"url\": \"http://example.com\",\n    \"aes_encrypted_key\":  \"0x1234567890abcdef\"\n}"
 				},
 				"url": {
 					"raw": "http://127.0.0.1:8000/directCommand",
@@ -138,7 +157,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"command\":\"download\",\n    \"node\": \"16Uiu2HAkvfXgYiFhsHRJvcdtmMs3aopgoRphb5xnXMh3dxCRuuX\"\n}"
+					"raw": "{\n    \"command\":\"downloadURL\",\n    \"node\": \"16Uiu2HAkvfXgYiFhsHRJvcdtmMs3aopgoRphb5xnXMh3dxCRuuX\",\n    \"url\": \"http://example.com\",\n    \"aes_encrypted_key\":  \"0x1234567890abcdef\"\n}"
 				},
 				"url": {
 					"raw": "http://127.0.0.1:8001/directCommand",
