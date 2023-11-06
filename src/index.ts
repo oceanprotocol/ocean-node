@@ -15,6 +15,7 @@ import {
   defaultConsoleTransport,
   getCustomLoggerForModule
 } from './utils/logging/Logger.js'
+import { Blockchain } from './utils/blockchain.js'
 
 // just use the default logger with default transports
 // Bellow is just an example usage, only logging to console here, we can customize any transports
@@ -48,6 +49,8 @@ async function main() {
   let indexer = null
   let provider = null
   const dbconn = new Database(config.dbConfig)
+  const supportedNetworks = JSON.parse(process.env.RPCS)
+  const blockchainHelper = new Blockchain(supportedNetworks, config.keys)
   if (config.hasP2P) {
     node = new OceanP2P(dbconn, config)
     await node.start()
@@ -58,7 +61,8 @@ async function main() {
   const oceanNode = {
     node,
     indexer,
-    provider
+    provider,
+    blockchain: blockchainHelper
   }
   if (config.hasHttp) {
     app.use((req, res, next) => {
