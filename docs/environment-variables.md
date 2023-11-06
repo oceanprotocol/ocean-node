@@ -13,7 +13,7 @@ they have.
 - `P2P_ipV4BindAddress` : Bind address for IPV4. Defaults to `0.0.0.0`
 - `P2P_ipV4BindTcpPort` : Port used on IPv4 TCP connections. Defaults to `0` (Use whatever port is free. When running as docker, please set it explicitly)
 - `P2P_ipV4BindWsPort` : Port used on IPv4 WS connections. Defaults to `0` (Use whatever port is free. When running as docker, please set it explicitly)
-- `P2P_ipV6BindAddress` : Bind address for IPV4. Defaults to `::1`
+- `P2P_ipV6BindAddress` : Bind address for IPV6. Defaults to `::1`
 - `P2P_ipV6BindTcpPort` : Port used on IPv6 TCP connections. Defaults to `0` (Use whatever port is free. When running as docker, please set it explicitly)
 - `P2P_ipV6BindWsPort` : Port used on IPv6 WS connections. Defaults to `0` (Use whatever port is free. When running as docker, please set it explicitly)
 - `P2P_pubsubPeerDiscoveryInterval` : Interval (in ms) for discovery using pubsub.  Defaults to `1000` (one second)
