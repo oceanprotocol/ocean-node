@@ -18,7 +18,7 @@ they have.
 - `P2P_ipV6BindWsPort` : Port used on IPv6 WS connections. Defaults to `0` (Use whatever port is free. When running as docker, please set it explicitly)
 - `P2P_pubsubPeerDiscoveryInterval` : Interval (in ms) for discovery using pubsub.  Defaults to `1000` (one second)
 - `P2P_dhtMaxInboundStreams` : Maximum no of DHT inbound streams. Defaults to `500`
-- `P2P_dhtMaxOutboundStreams` : Maximum no of DHT inbound streams. Defaults to `500`
+- `P2P_dhtMaxOutboundStreams` : Maximum no of DHT outbound streams. Defaults to `500`
 - `P2P_mDNSInterval` : Interval (in ms) for discovery using mDNS.  Defaults to `20000` (20 seconds)
 - `P2P_connectionsMaxParallelDials` : Maximum no of parallel dials. Defaults to `150`
 - `P2P_connectionsDialTimeout`: Timeout for dial commands.    Defaults to `10000` (10 seconds)
