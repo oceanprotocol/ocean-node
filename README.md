@@ -48,6 +48,11 @@ Load postman collection from docs and play
     -  httpRoutes:  exposes http endpoints
     -  P2P:  has P2P functionality.  will have to extend handleBroadcasts and handleProtocolCommands, rest is pretty much done
 
+## Environment Variables
+  
+  For advanced uses, various aspects of `ocean-node` can further be configured through [environment
+variables](docs/environment-variables.md).
+
 ## Run tests
 
 Before running tests, please run Typesense docker

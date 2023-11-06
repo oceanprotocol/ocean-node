@@ -134,13 +134,14 @@ export class OceanP2P extends EventEmitter {
       this._privateKey = config.keys.privateKey
 
       /** @type {import('libp2p').Libp2pOptions} */
+      // start with some default, overwrite based on config later
       const options = {
         addresses: {
           listen: [
-            '/ip4/0.0.0.0/tcp/0',
-            '/ip6/::1/tcp/0',
-            '/ip4/0.0.0.0/tcp/0/ws',
-            '/ip6/::1/tcp/0/ws'
+            `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindTcpPort}`,
+            `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindWsPort}/ws`,
+            `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindTcpPort}`,
+            `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindWsPort}/ws`
           ]
         },
         peerId: config.keys.peerId,
@@ -162,11 +163,11 @@ export class OceanP2P extends EventEmitter {
             list: bootstrapers
           }),
           pubsubPeerDiscovery({
-            interval: 1000,
+            interval: config.p2pConfig.pubsubPeerDiscoveryInterval,
             topics: ['oceanprotocoldiscovery']
           }),
           mdns({
-            interval: 20e3
+            interval: config.p2pConfig.mDNSInterval
           })
         ],
         services: {
@@ -181,8 +182,8 @@ export class OceanP2P extends EventEmitter {
             // this is necessary because this node is not connected to the public network
             // it can be removed if, for example bootstrappers are configured
             allowQueryWithZeroPeers: true,
-            maxInboundStreams: 500,
-            maxOutboundStreams: 500,
+            maxInboundStreams: config.p2pConfig.dhtMaxInboundStreams,
+            maxOutboundStreams: config.p2pConfig.dhtMaxOutboundStreams,
 
             clientMode: false, // this should be true for edge devices
             kBucketSize: 20
@@ -194,8 +195,8 @@ export class OceanP2P extends EventEmitter {
           })
         },
         connectionManager: {
-          maxParallelDials: 150, // 150 total parallel multiaddr dials
-          dialTimeout: 10e3 // 10 second dial timeout per peer dial
+          maxParallelDials: config.p2pConfig.connectionsMaxParallelDials, // 150 total parallel multiaddr dials
+          dialTimeout: config.p2pConfig.connectionsDialTimeout // 10 second dial timeout per peer dial
         },
         nat: {
           enabled: true,
@@ -209,6 +210,8 @@ export class OceanP2P extends EventEmitter {
         // }
         // }
       }
+      console.log(options)
+
       const node = await createLibp2p(options)
       const x = await node.start()
       node.addEventListener('peer:connect', (evt: any) => {
