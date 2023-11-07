@@ -1,21 +1,23 @@
 import { UrlStorage } from './url'
 import { IpfsStorage } from './ipfs'
 import { ArweaveStorage } from './arweave'
+import { FileObject } from './fileObject'
 
 export class Storage {
-  private files: []
-  public constructor(files: []) {
-    this.files = files
+  private file: FileObject
+  public constructor(file: FileObject) {
+    this.file = file
   }
 
-  getStorageClass(type: string): any {
+  getStorageClass(): any {
+    const type: string = this.file.type
     switch (type) {
       case 'url':
-        return new UrlStorage(this.files)
+        return new UrlStorage(this.file)
       case 'ipfs':
-        return new IpfsStorage(this.files)
+        return new IpfsStorage(this.file)
       case 'arweave':
-        return new ArweaveStorage(this.files)
+        return new ArweaveStorage(this.file)
       default:
         throw new Error(`Invalid storage type: ${type}`)
     }
