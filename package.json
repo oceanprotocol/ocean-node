@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "jest --detectOpenHandles",
+    "test": "jest --runInBand",
     "build": "npm run clean && npm run build:tsc",
     "build:swagger": "tsoa spec",
     "build:tsc": "tsc --sourceMap",

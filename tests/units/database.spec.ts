@@ -1,6 +1,6 @@
 import 'jest'
-import {Database} from "../../src/components/database";
-import {getConfig} from "../../src/utils";
+import { Database } from '../../src/components/database'
+import { getConfig } from '../../src/utils'
 
 describe('Database', () => {
   let database: Database
@@ -10,7 +10,7 @@ describe('Database', () => {
     database = new Database(config.dbConfig)
   })
 
-  it('instance Typesense', async () => {
+  it('instance Database', async () => {
     expect(database).toBeInstanceOf(Database)
   })
 })
