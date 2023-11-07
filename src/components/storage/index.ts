@@ -9,7 +9,11 @@ export class Storage {
     this.file = file
   }
 
-  getStorageClass(): any {
+  getFile(): FileObject {
+    return this.file
+  }
+
+  getStorageClass(): Storage {
     const type: string = this.file.type
     switch (type) {
       case 'url':
@@ -21,5 +25,9 @@ export class Storage {
       default:
         throw new Error(`Invalid storage type: ${type}`)
     }
+  }
+
+  validate(): boolean {
+    return true
   }
 }
