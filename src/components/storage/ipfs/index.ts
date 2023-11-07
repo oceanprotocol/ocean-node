@@ -1,5 +1,6 @@
+import urlJoin from 'url-join';
 import { Storage } from '..'
-import { FileObject } from '../fileObject'
+import { FileObject } from '../../../@types/fileObject'
 
 export class IpfsStorage extends Storage {
   public constructor(file: FileObject) {
@@ -13,5 +14,14 @@ export class IpfsStorage extends Storage {
     }
 
     return true
+  }
+
+  getDownloadUrl(): string {
+    if (this.validate() === true) {
+      if (!process.env.IPFS_GATEWAY) {
+        throw Error("IPFS gatway is not provided!")
+      }
+      return urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', this.getFile().hash))
+    }
   }
 }

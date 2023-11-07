@@ -1,7 +1,7 @@
 import { UrlStorage } from './url'
 import { IpfsStorage } from './ipfs'
 import { ArweaveStorage } from './arweave'
-import { FileObject } from './fileObject'
+import { FileObject } from '../../@types/fileObject'
 
 export class Storage {
   private file: FileObject
@@ -30,4 +30,9 @@ export class Storage {
   validate(): boolean {
     return true
   }
+
+  getDownloadUrl(): string {
+    return ""
+  }
+
 }

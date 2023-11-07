@@ -1,5 +1,5 @@
 import { Storage } from '..'
-import { FileObject } from '../fileObject'
+import { FileObject } from '../../../@types/fileObject'
 
 export class UrlStorage extends Storage {
   public constructor(file: FileObject) {
@@ -14,7 +14,7 @@ export class UrlStorage extends Storage {
     if (['get', 'post'].includes(file.method.toLowerCase())) {
       return false
     }
-    if (this.validateFilename()) {
+    if (this.validateFilename() === true) {
       return false
     }
 
@@ -22,9 +22,15 @@ export class UrlStorage extends Storage {
   }
 
   validateFilename(): boolean {
-    const regex: RegExp = /\\|\.\.|/
+    const regex: RegExp = /\\|\.\.|/ // TODO: check regex pattern
     const url: string = this.getFile().url
     const filename: string = url.split('/').pop()
     return regex.test(filename)
+  }
+
+  getDownloadUrl(): string {
+    if (this.validate() === true) {
+      return this.getFile().url
+    } 
   }
 }
