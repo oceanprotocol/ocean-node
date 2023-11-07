@@ -38,7 +38,18 @@ Now, you should see the nodes discovery/connecting/disconnecting
 Load postman collection from docs and play
 
 
+## Docker:
 
+First, build the image:
+
+```bash
+docker build -t 'ocean-node:mybuild' .
+```
+Then run it:
+
+```bash
+docker run -e PRIVATE_KEY=0x123 ocean-node:mybuild
+```
 
 ## Structure:
  - Everything hovers around components:
