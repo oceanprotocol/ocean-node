@@ -31,6 +31,6 @@ export class UrlStorage extends Storage {
   getDownloadUrl(): string {
     if (this.validate() === true) {
       return this.getFile().url
-    } 
+    }
   }
 }

@@ -32,7 +32,6 @@ export class Storage {
   }
 
   getDownloadUrl(): string {
-    return ""
+    return ''
   }
-
 }

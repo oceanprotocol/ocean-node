@@ -1,4 +1,4 @@
-import urlJoin from 'url-join';
+import urlJoin from 'url-join'
 import { Storage } from '..'
 import { FileObject } from '../../../@types/fileObject'
 
@@ -18,7 +18,7 @@ export class ArweaveStorage extends Storage {
   getDownloadUrl(): string {
     if (this.validate() === true) {
       if (!process.env.ARWEAVE_GATEWAY) {
-        throw Error("Arweave gatway is not provided!")
+        throw Error('Arweave gateway is not provided!')
       }
       return urlJoin(process.env.ARWEAVE_GATEWAY, this.getFile().transactionId)
     }
