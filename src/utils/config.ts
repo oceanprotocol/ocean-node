@@ -67,10 +67,16 @@ export async function getConfig(): Promise<OceanNodeConfig> {
     hasProvider: true,
     httpPort: port,
     dbConfig: {
-      dbname: 'oceannode',
-      host: '127.0.0.1',
-      user: 'oceannode',
-      pwd: 'oceannode'
+      typesense: {
+        apiKey: 'xyz',
+        nodes: [
+          {
+            host: 'localhost',
+            port: 8108,
+            protocol: 'http'
+          }
+        ]
+      }
     }
   }
   return config

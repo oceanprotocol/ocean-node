@@ -1,6 +1,5 @@
 import 'jest'
 import Typesense, { TypesenseCollections } from '../../src/components/database/typesense'
-import { Logger } from 'winston'
 import { TypesenseConfigOptions } from '../../src/@types'
 import { ddoSchema } from '../data/ddoSchema'
 import { ddo } from '../data/ddo'
@@ -48,7 +47,7 @@ describe('Typesense collections', () => {
       logLevel: 'debug',
       logger: {
         debug: (log: any) => console.log(log)
-      } as Logger
+      }
     }
     typesense = new Typesense(config)
   })
@@ -111,7 +110,7 @@ describe('Typesense documents', () => {
       logLevel: 'debug',
       logger: {
         debug: (log: any) => console.log(log)
-      } as Logger
+      }
     }
     typesense = new Typesense(config)
   })
@@ -188,7 +187,7 @@ describe('Typesense documents', () => {
       logLevel: 'debug',
       logger: {
         debug: (log: any) => console.log(log)
-      } as Logger
+      }
     }
     typesense = new Typesense(config)
   })

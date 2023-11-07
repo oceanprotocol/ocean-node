@@ -3,12 +3,10 @@ import { OceanProvider } from '../components/Provider/index'
 import { OceanIndexer } from '../components/Indexer/index'
 import type { PeerId } from '@libp2p/interface/peer-id'
 import { Stream } from 'stream'
+import {TypesenseConfigOptions} from "./Typesense";
 
 export interface OceanNodeDBConfig {
-  host: string
-  user: string
-  pwd: string
-  dbname: string
+  typesense: TypesenseConfigOptions
 }
 
 export interface OceanNodeKeys {
