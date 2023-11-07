@@ -10,12 +10,14 @@ import { getConfig } from './utils/index.js'
 
 import {
   CustomNodeLogger,
+  GENERIC_EMOJIS,
   LOGGER_MODULE_NAMES,
   LOG_LEVELS_STR,
   defaultConsoleTransport,
   getCustomLoggerForModule
 } from './utils/logging/Logger.js'
 import { Blockchain } from './utils/blockchain.js'
+import { RPCS } from './@types/blockchain.js'
 
 // just use the default logger with default transports
 // Bellow is just an example usage, only logging to console here, we can customize any transports
@@ -49,8 +51,20 @@ async function main() {
   let indexer = null
   let provider = null
   const dbconn = new Database(config.dbConfig)
-  const supportedNetworks = JSON.parse(process.env.RPCS)
-  const blockchainHelper = new Blockchain(supportedNetworks, config.keys)
+  if (!process.env.RPCS || !JSON.parse(process.env.RPCS)) {
+    // missing or invalid RPC list
+    logger.logMessageWithEmoji(
+      'Missing or Invalid RPCS env variable format ..',
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEl_ERROR
+    )
+    return
+  }
+  const supportedNetworks: RPCS = JSON.parse(process.env.RPCS)
+  console.log('supportedNetworks', supportedNetworks)
+  const blockchain = new Blockchain(supportedNetworks, config.keys)
+  // console.log('signer', blockchainHelper.getSigner())
   if (config.hasP2P) {
     node = new OceanP2P(dbconn, config)
     await node.start()
@@ -62,7 +76,7 @@ async function main() {
     node,
     indexer,
     provider,
-    blockchain: blockchainHelper
+    blockchain
   }
   if (config.hasHttp) {
     app.use((req, res, next) => {

@@ -4,16 +4,23 @@ import { OceanNodeKeys } from '../@types'
 
 export class Blockchain {
   private signer: Signer
-  private providers: { [chainId: number]: Provider }
-  private supportedChains: number[]
+  private providers: { [chainId: number]: Provider } = {}
+  private supportedChains: string[] = []
 
   public constructor(networks: RPCS, nodeKeys: OceanNodeKeys) {
-    this.signer = new ethers.Wallet(nodeKeys.privateKey)
+    console.log(
+      'process.env.PRIVATE_KEY.substring(2) ',
+      process.env.PRIVATE_KEY.substring(2)
+    )
+    console.log(' OceanNodeKeys private key ', nodeKeys.publicKey.getPrivateKeyBytes())
     const chainIds = Object.keys(networks)
-    for (const chain in chainIds) {
-      this.supportedChains.push(parseInt(chain))
+    this.supportedChains = chainIds
+    chainIds.forEach((chain) => {
       this.providers[parseInt(chain)] = new ethers.JsonRpcProvider(networks[chain])
-    }
+    })
+
+    this.signer = new ethers.Wallet(nodeKeys.publicKey.getPrivateKeyBytes())
+    // this.signer = new ethers.Wallet(process.env.PRIVATE_KEY.substring(2))
   }
 
   public getSigner(): ethers.Signer {
@@ -22,6 +29,10 @@ export class Blockchain {
 
   public getProvider(chain: number): ethers.Provider {
     return this.providers[chain]
+  }
+
+  public getSupportedChains(): string[] {
+    return this.supportedChains
   }
 
   //   public getMiddleware(): ethers.providers.Provider {

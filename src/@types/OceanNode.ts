@@ -31,7 +31,7 @@ export interface OceanNode {
   node: OceanP2P | null
   indexer: OceanIndexer | null
   provider: OceanProvider | null
-  blockchain: Blockchain
+  blockchain: Blockchain | null
 }
 
 export interface P2PCommandResponse {
