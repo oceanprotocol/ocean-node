@@ -1,80 +1,94 @@
-import { OceanNodeDBConfig } from '../../@types/OceanNode'
-import Typesense from './typesense.js'
-import {TypesenseCollectionFieldSchema, TypesenseDocumentSchema} from "../../@types";
+import {OceanNodeDBConfig} from '../../@types/OceanNode'
+import Typesense, {TypesenseError} from './typesense.js'
+import {getConfig} from "../../utils/config.js";
+import {schemes, Schemes, Schema} from "./schemes.js";
+
+export class DdoDatabase {
+    private provider: Typesense
+
+    constructor(private config: OceanNodeDBConfig) {
+        this.provider = new Typesense(config.typesense)
+    }
+
+    async init(ddoSchemes: Schema[]) {
+        // const result = await this.provider.collections().create(ddoSchemes)
+    }
+}
+
+export class NonceDatabase {
+    private provider: Typesense
+    private name: string
+
+    constructor(private config: OceanNodeDBConfig) {
+        this.provider = new Typesense(config.typesense)
+    }
+
+    async init(nonceSchema: Schema) {
+        this.name = nonceSchema.name
+        try {
+            await this.provider.collections(nonceSchema.name).retrieve()
+        } catch (error) {
+            if (error instanceof TypesenseError && error.httpStatus == 404) {
+                await this.provider.collections().create(nonceSchema)
+            } else {
+                throw error;
+            }
+        }
+    }
+
+    async create(id: string, nonce: number) {
+        return await this.provider.collections(this.name).documents().create({id, nonce})
+    }
+
+    async update(id: string, nonce: number) {
+        return await this.provider.collections(this.name).documents().update(id, {nonce})
+    }
+
+    async retrieve(id: string) {
+        const result = await this.provider.collections(this.name).documents().retrieve(id)
+        return result.nonce
+    }
+
+}
+
+export class IndexerDatabase {
+    private provider: Typesense
+
+    constructor(private config: OceanNodeDBConfig) {
+        this.provider = new Typesense(config.typesense)
+    }
+
+    async init(indexerSchema: Schema) {
+        // const result = await this.provider.collections().create(ddoSchemes)
+    }
+}
 
 export class Database {
-  typesense: Typesense
-  private readonly _names: {
-    DDO: 'ddo'
-    NONCE: 'nonce'
-  }
+    ddo: DdoDatabase
+    nonce: NonceDatabase
+    indexer: IndexerDatabase
 
-  constructor(private config: OceanNodeDBConfig) {
-    this.typesense = new Typesense(config.typesense)
-  }
+    constructor(private config: OceanNodeDBConfig) {
+        this.ddo = new DdoDatabase(config)
+        this.nonce = new NonceDatabase(config)
+        this.indexer = new IndexerDatabase(config)
+    }
 
-  async createCollectionNonce(fields: TypesenseCollectionFieldSchema[]): Promise<TypesenseDocumentSchema> {
-    return this.typesense.collections().create({
-      name: this._names.NONCE,
-      enable_nested_fields: true,
-      fields
-    })
-  }
-
-  async retrieveCollectionNonce(): Promise<TypesenseDocumentSchema> {
-    return this.typesense.collections(this._names.NONCE).retrieve()
-  }
-
-  async createNonce(nonce: TypesenseDocumentSchema): Promise<TypesenseDocumentSchema> {
-    return this.typesense.collections(this._names.NONCE).documents().create(nonce)
-  }
-
-  async retrieveNonce(nonceId: string): Promise<TypesenseDocumentSchema> {
-    return this.typesense.collections(this._names.NONCE).documents().retrieve(nonceId)
-  }
-
-  async updateNonce(
-    nonceId: string,
-    nonce: Partial<TypesenseDocumentSchema>
-  ): Promise<TypesenseDocumentSchema> {
-    return this.typesense
-      .collections(this._names.NONCE)
-      .documents()
-      .update(nonceId, nonce)
-  }
-
-  async deleteNonce(nonceId: string): Promise<TypesenseDocumentSchema> {
-    return this.typesense.collections(this._names.NONCE).documents().delete(nonceId)
-  }
-
-  async createCollectionDDO(fields: TypesenseCollectionFieldSchema[]): Promise<TypesenseDocumentSchema> {
-    return this.typesense.collections().create({
-      name: this._names.DDO,
-      enable_nested_fields: true,
-      fields
-    })
-  }
-
-  async retrieveCollectionDDO(): Promise<TypesenseDocumentSchema> {
-    return this.typesense.collections(this._names.DDO).retrieve()
-  }
-
-  async createDDO(ddo: TypesenseDocumentSchema): Promise<TypesenseDocumentSchema> {
-    return this.typesense.collections(this._names.DDO).documents().create(ddo)
-  }
-
-  async retrieveDDO(ddoId: string): Promise<TypesenseDocumentSchema> {
-    return this.typesense.collections(this._names.DDO).documents().retrieve(ddoId)
-  }
-
-  async updateDDO(
-    ddoId: string,
-    ddo: Partial<TypesenseDocumentSchema>
-  ): Promise<TypesenseDocumentSchema> {
-    return this.typesense.collections(this._names.DDO).documents().update(ddoId, ddo)
-  }
-
-  async deleteDDO(ddoId: string): Promise<TypesenseDocumentSchema> {
-    return this.typesense.collections(this._names.DDO).documents().delete(ddoId)
-  }
+    async init(schemes: Schemes) {
+        await this.ddo.init(schemes.ddoSchemes)
+        await this.nonce.init(schemes.nonceSchema)
+        await this.indexer.init(schemes.indexerSchema)
+    }
 }
+
+const config = await getConfig()
+const db = new Database(config.dbConfig)
+// this is necessary because we cannot declare an async constructor
+await db.init(schemes)
+
+export default db;
+
+// Example
+// db.nonce.create('0x123', 1234567) return -> { id:'0x123', nonce:1234567 } or throw error
+// db.nonce.update('0x123', 1234568) return -> { id:'0x123', nonce:1234568 } or throw error
+// db.nonce.retrieve('0x123') return -> 1234568 or throw error

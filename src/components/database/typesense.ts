@@ -10,6 +10,16 @@ import {
 import { TypesenseApi } from './typesenseApi.js'
 import { TypesenseConfig } from './typesenseConfig.js'
 
+export class TypesenseError extends Error {
+  httpStatus?: number;
+
+  constructor(message?: string) {
+    super(message);
+    this.name = new.target.name;
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
 /**
  * TypesenseDocuments class implements CRUD methods
  * for interacting with documents of an individual collection

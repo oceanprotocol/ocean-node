@@ -1,7 +1,8 @@
 import { TypesenseNode } from '../../@types'
-import axios, { AxiosRequestConfig } from 'axios'
+import axios, {AxiosRequestConfig, AxiosResponse} from 'axios'
 import { setTimeout } from 'timers/promises'
 import { TypesenseConfig } from './typesenseConfig'
+import {TypesenseError} from "./typesense";
 
 /**
  * TypesenseApi class is used to implement an api interface
@@ -136,7 +137,7 @@ export class TypesenseApi {
         if (response.status >= 200 && response.status < 300) {
           return Promise.resolve(response.data)
         } else if (response.status < 500) {
-          return Promise.reject(new Error(response.data?.message))
+          return Promise.reject(this.customError(response))
         } else {
           throw new Error(response.data?.message)
         }
@@ -153,5 +154,11 @@ export class TypesenseApi {
     }
     this.config.logger.debug(`Request: No retries left. Raising last error`)
     return Promise.reject(lastException)
+  }
+
+  customError(response: AxiosResponse): TypesenseError {
+    const error = new TypesenseError(response.data?.message);
+    error.httpStatus = response.status;
+    return error;
   }
 }
