@@ -1,3 +1,4 @@
+import { couldStartTrivia } from 'typescript'
 import {
   TypesenseConfigOptions,
   TypesenseCollectionCreateSchema
@@ -13,6 +14,9 @@ import {
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
 
+import { ethers } from 'ethers'
+import { checkNonce } from '../../components/core/nonceHandler.js'
+
 const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.DATABASE,
   LOG_LEVELS_STR.LEVEL_INFO,
@@ -25,7 +29,7 @@ export const nonceSchema: TypesenseCollectionCreateSchema = {
   name: 'nonce',
   enable_nested_fields: true,
   fields: [
-    { name: 'address', type: 'string', sort: true },
+    { name: 'id', type: 'string' },
     { name: 'nonce', type: 'string' } // store nonce as string
   ]
 }
@@ -70,6 +74,10 @@ async function createNonceCollection(): Promise<any> {
   }
 }
 
+async function dropCollection(name: string) {
+  return await typesense.collections(name).delete()
+}
+
 async function createCollections() {
   DB_CONSOLE_LOGGER.logMessage('Creating initial DB collections', true)
   const numCollectionsToLoad = 1
@@ -93,7 +101,6 @@ async function createCollections() {
       }
     } else {
       // create nonce collection
-      console.log('HERE?')
       const res = await createNonceCollection()
       if (res) {
         loaded++
@@ -110,4 +117,50 @@ async function createCollections() {
   }
 }
 
-createCollections()
+async function createNonceData(address: string, nonce: string): Promise<boolean> {
+  try {
+    const data = await typesense.collections('nonce').documents().create({
+      id: address,
+      nonce
+    })
+    return true
+  } catch (err) {
+    return false
+  }
+}
+
+async function getNonceData(consumer: string): Promise<string> {
+  const doc = await typesense.collections('nonce').documents().retrieve(consumer)
+  return doc ? doc.nonce : '0'
+}
+
+async function doNonceTrackingFlow() {
+  // consumer address
+  const address = '0x8F292046bb73595A978F4e7A131b4EBd03A15e8a'
+  const firstNonce = '1'
+  // drop if exists
+  await dropCollection('nonce')
+  // recreate the nonce collection
+  await createCollections()
+  // create firs nonce as '1'
+  await createNonceData(address, firstNonce)
+  // get previously stored from DB
+  const previousNonce = await getNonceData(address)
+  console.log(previousNonce)
+  DB_CONSOLE_LOGGER.logMessage('previous stored nonce: ' + previousNonce, true)
+  // sign the nonce > than previously stored
+  const wallet = new ethers.Wallet(
+    '0xbee525d70c715bee6ca15ea5113e544d13cc1bb2817e07113d0af7755ddb6391'
+  )
+  const nextNonce = Number(previousNonce) + 1
+  const signature = await wallet.signMessage(String(nextNonce))
+  DB_CONSOLE_LOGGER.logMessage(
+    'Next nonce: ' + nextNonce + ' signature: ' + signature,
+    true
+  )
+
+  const checkNonceresult = await checkNonce(address, nextNonce, signature)
+  DB_CONSOLE_LOGGER.logMessage('checkNonce: ' + checkNonceresult.valid, true)
+}
+
+doNonceTrackingFlow()

@@ -7,8 +7,8 @@ import {
   TypesenseDocumentSchema,
   TypesenseSearchResponse
 } from '../../@types'
-import { TypesenseApi } from './typesenseApi'
-import { TypesenseConfig } from './typesenseConfig'
+import { TypesenseApi } from './typesenseApi.js'
+import { TypesenseConfig } from './typesenseConfig.js'
 
 /**
  * TypesenseDocuments class implements CRUD methods

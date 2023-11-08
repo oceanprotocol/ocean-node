@@ -1,63 +1,49 @@
 import { OceanNodeDBConfig } from '../../@types/OceanNode'
 import Typesense from './typesense.js'
 
-import {
-  CustomNodeLogger,
-  GENERIC_EMOJIS,
-  LOGGER_MODULE_NAMES,
-  LOG_LEVELS_STR,
-  defaultConsoleTransport,
-  getCustomLoggerForModule
-} from '../../utils/logging/Logger.js'
-
-export const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.DATABASE,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
-)
-// main db class
 export class Database {
-  // _config: OceanNodeDBConfig
-  _typesense: Typesense
+  typesense: Typesense
   // typesense configuration
   constructor(config: OceanNodeDBConfig) {
-    // this._config = config
-    this._typesense = new Typesense({
-      apiKey: 'xyz',
-      nodes: [
-        {
-          host: 'localhost',
-          port: 8108,
-          protocol: 'http'
-        }
-      ],
-      logLevel: LOG_LEVELS_STR.LEVEL_INFO,
-      logger: DB_CONSOLE_LOGGER.getLogger()
-    })
+    this.typesense = new Typesense(config.typesense)
   }
 
-  async getNonce(consumerAddress: string): Promise<string> {
-    // const collection = await this._typesense.collections('nonce').retrieve()
-
-    const searchParameters = {
-      q: consumerAddress,
-      query_by: 'address'
+  // These functions will be refactored eventually
+  async getNonce(id: string): Promise<string> {
+    const document = await this.typesense.collections('nonce').documents().retrieve(id)
+    if (document) {
+      return document.nonce
     }
+    return '0'
+  }
 
-    const searchResults = await this._typesense
-      .collections('nonce')
-      .documents()
-      .search(searchParameters)
-
-    console.log('query result: ', searchResults)
-    if (!searchResults.found || searchResults.hits.length === 0) {
-      return '0'
-    } else if (searchResults.found) {
-      return searchResults.hits[0].document.nonce
+  // set nonce for a specific address
+  async setNonce(id: string, nonce: string): Promise<boolean> {
+    try {
+      const data = await this.typesense.collections('nonce').documents().create({
+        id,
+        nonce
+      })
+      return true
+    } catch (err) {
+      return false
     }
   }
 
-  async setNonce(consumerAddress: string, nonce: number): Promise<boolean> {
-    return true
+  // the id is the consumer address
+  async updateNonce(id: string, nonce: string): Promise<boolean> {
+    const document = await this.typesense.collections('nonce').documents().retrieve(id)
+    if (document) {
+      const updated = {
+        id,
+        nonce
+      }
+      const update = await this.typesense
+        .collections('nonce')
+        .documents()
+        .update(id, updated)
+      return true
+    }
+    return false
   }
 }

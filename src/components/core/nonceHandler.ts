@@ -1,4 +1,3 @@
-import { Stream } from 'node:stream'
 import { P2PCommandResponse } from '../../@types/index.js'
 
 import {
@@ -11,6 +10,8 @@ import {
 } from '../../utils/logging/Logger.js'
 import { ReadableString } from '../P2P/handleProtocolCommands.js'
 import { Database } from '../database/index.js'
+import { getConfig } from '../../utils/config.js'
+import { ethers } from 'ethers'
 
 export const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.DATABASE,
@@ -18,16 +19,34 @@ export const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   defaultConsoleTransport
 )
 
-const db = new Database(null)
+function getDefaultErrorResponse(errorMessage: string): P2PCommandResponse {
+  return {
+    stream: null,
+    status: { httpStatus: 501, error: 'Unknown error: ' + errorMessage }
+  }
+}
+
+async function getDBHandle(): Promise<Database> {
+  const dbConfig = await getConfig()
+  // dbConfig.dbConfig.typesense.logLevel = LOG_LEVELS_STR.LEVEL_INFO
+  // dbConfig.dbConfig.typesense.logger = DB_CONSOLE_LOGGER.getLogger()
+  const db = new Database(dbConfig.dbConfig)
+  return db
+}
+
+// returns true/false (+ error message if needed)
+export type NonceResponse = {
+  valid: boolean
+  error?: string
+}
 
 // get stored nonce for an address ( 0 if not found)
 export async function getNonce(address: string): Promise<P2PCommandResponse> {
+  // get nonce from db
+  const db = await getDBHandle()
   try {
-    // get nonce from db
     const nonce = await db.getNonce(address)
-    console.log(`Got DB Nonce: ${nonce})`)
     const streamResponse = new ReadableString(String(nonce))
-    console.log('Getting nonce from: ', address)
     // set nonce here
     return {
       status: {
@@ -39,27 +58,43 @@ export async function getNonce(address: string): Promise<P2PCommandResponse> {
       stream: streamResponse
     }
   } catch (err) {
-    DB_CONSOLE_LOGGER.logMessageWithEmoji(
-      'Failure executing nonce task: ' + err.message,
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEl_ERROR
-    )
-    return {
-      stream: null,
-      status: { httpStatus: 501, error: 'Unknown error: ' + err.message }
+    // did not found anything, try add it and return default
+    if (err.message.indexOf(address) > -1) {
+      const setFirst = await db.setNonce(address, '0')
+      if (setFirst) {
+        return {
+          status: {
+            httpStatus: 200,
+            headers: {
+              'Content-Type': 'text/plain'
+            }
+          },
+          stream: new ReadableString(String('0'))
+        }
+      }
+      return getDefaultErrorResponse(err.message)
+    } else {
+      DB_CONSOLE_LOGGER.logMessageWithEmoji(
+        'Failure executing nonce task: ' + err.message,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEl_ERROR
+      )
+      return getDefaultErrorResponse(err.message)
     }
   }
 }
 
 // update stored nonce for an address
-export async function updateNonce(address: string, nonce: number): Promise<boolean> {
-  console.log('updateNonce, nonce: ' + nonce, 'address: ' + address)
-  let res = false
+async function updateNonce(address: string, nonce: string): Promise<NonceResponse> {
   try {
     // update nonce on db
-    const nonce = '0' // await db.updateNonce(address, nonce)
-    res = true
+    const db = await getDBHandle()
+    const ok = await db.updateNonce(address, nonce)
+    return {
+      valid: ok,
+      error: !ok ? 'error updating nonce to: ' + nonce : null
+    }
   } catch (err) {
     DB_CONSOLE_LOGGER.logMessageWithEmoji(
       'Failure executing nonce task: ' + err.message,
@@ -67,35 +102,36 @@ export async function updateNonce(address: string, nonce: number): Promise<boole
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEl_ERROR
     )
+    return {
+      valid: false,
+      error: err.message
+    }
   }
-  return res
 }
 
-// get stored nonce for an address, update it on db, validate
+// get stored nonce for an address, update it on db, validate signature
 export async function checkNonce(
   consumer: string,
   nonce: number,
   signature: string
-): Promise<P2PCommandResponse> {
-  console.log(
-    'checkNonce, consumer: ' + consumer,
-    'nonce: ' + nonce,
-    'signature: ' + signature
-  )
+): Promise<NonceResponse> {
   try {
     // get nonce from db
-    const streamResponse = new Stream.Readable()
-    // set nonce here
-    streamResponse.push(0)
-    return {
-      status: {
-        httpStatus: 200,
-        headers: {
-          'Content-Type': 'text/plain'
-        }
-      },
-      stream: streamResponse
+    const db = await getDBHandle()
+    const existingNonce = await db.getNonce(consumer)
+    // check if bigger than previous stored one and validate signature
+    const validate = validateNonceAndSignature(
+      nonce,
+      Number(existingNonce), // will return 0 if none exists
+      consumer,
+      signature
+    )
+    if (validate.valid) {
+      const updateStatus = await updateNonce(consumer, String(nonce))
+      return updateStatus
     }
+    return validate
+    // return validation status and possible error msg
   } catch (err) {
     DB_CONSOLE_LOGGER.logMessageWithEmoji(
       'Failure executing nonce task: ' + err.message,
@@ -104,8 +140,44 @@ export async function checkNonce(
       LOG_LEVELS_STR.LEVEl_ERROR
     )
     return {
-      stream: null,
-      status: { httpStatus: 501, error: 'Unknown error: ' + err.message }
+      valid: false,
+      error: err.message
     }
+  }
+}
+
+/**
+ *
+ * @param nonce nonce
+ * @param existingNonce store nonce
+ * @param consumer address
+ * @param signature sign(nonce)
+ * @returns true or false + error message
+ */
+function validateNonceAndSignature(
+  nonce: number,
+  existingNonce: number,
+  consumer: string,
+  signature: string
+): NonceResponse {
+  // check if is bigger than previous nonce
+  if (nonce > existingNonce) {
+    // nonce good
+    // now validate signature
+    const recoveredAddress = ethers.verifyMessage(String(nonce), signature)
+    if (recoveredAddress === consumer) {
+      // update nonce on DB, return OK
+      return {
+        valid: true
+      }
+    }
+    return {
+      valid: false,
+      error: 'consumer address and nonce signature mismatch'
+    }
+  }
+  return {
+    valid: false,
+    error: 'nonce: ' + nonce + ' is not a valid nonce'
   }
 }

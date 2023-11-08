@@ -15,7 +15,7 @@
     "lint:fix": "eslint --ignore-path .gitignore --ext .ts,.tsx . --fix",
     "format": "prettier --parser typescript --ignore-path .gitignore --write '**/*.{js,jsx,ts,tsx}'",
     "type-check": "tsc --noEmit",
-    "create-db": "node dist/helpers/scripts/createDBSchema.js"
+    "check-nonce": "node dist/helpers/scripts/checkNonceTracking.js"
   },
   "author": "",
   "type": "module",
