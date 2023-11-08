@@ -2,6 +2,7 @@ import { UrlStorage } from './url'
 import { IpfsStorage } from './ipfs'
 import { ArweaveStorage } from './arweave'
 import { FileObject } from '../../@types/fileObject'
+import { Readable } from 'stream'
 
 export class Storage {
   private file: FileObject
@@ -33,5 +34,18 @@ export class Storage {
 
   getDownloadUrl(): string {
     return ''
+  }
+
+  async getReadableStream(readableStream: Readable): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const chunks: string[] = []
+      readableStream.on('data', (data) => {
+        chunks.push(data.toString())
+      })
+      readableStream.on('end', () => {
+        resolve(chunks.join(''))
+      })
+      readableStream.on('error', reject)
+    })
   }
 }

@@ -1,6 +1,7 @@
 import urlJoin from 'url-join'
 import { Storage } from '..'
 import { FileObject } from '../../../@types/fileObject'
+import { Readable } from 'stream'
 
 export class ArweaveStorage extends Storage {
   public constructor(file: FileObject) {
@@ -22,5 +23,9 @@ export class ArweaveStorage extends Storage {
       }
       return urlJoin(process.env.ARWEAVE_GATEWAY, this.getFile().transactionId)
     }
+  }
+
+  getReadableStream(readableStream: Readable): Promise<string> {
+    return super.getReadableStream(readableStream)
   }
 }

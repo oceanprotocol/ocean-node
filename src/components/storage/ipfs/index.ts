@@ -1,6 +1,7 @@
 import urlJoin from 'url-join'
 import { Storage } from '..'
 import { FileObject } from '../../../@types/fileObject'
+import { Readable } from 'stream'
 
 export class IpfsStorage extends Storage {
   public constructor(file: FileObject) {
@@ -23,5 +24,9 @@ export class IpfsStorage extends Storage {
       }
       return urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', this.getFile().hash))
     }
+  }
+
+  getReadableStream(readableStream: Readable): Promise<string> {
+    return super.getReadableStream(readableStream)
   }
 }

@@ -1,5 +1,6 @@
 import { Storage } from '..'
 import { FileObject } from '../../../@types/fileObject'
+import { Readable } from 'stream'
 
 export class UrlStorage extends Storage {
   public constructor(file: FileObject) {
@@ -22,7 +23,7 @@ export class UrlStorage extends Storage {
   }
 
   validateFilename(): boolean {
-    const regex: RegExp = /\\|\.\.|/ // TODO: check regex pattern
+    const regex: RegExp = /\\|\.\.|/ // The file name should not be a path
     const url: string = this.getFile().url
     const filename: string = url.split('/').pop()
     return regex.test(filename)
@@ -32,5 +33,9 @@ export class UrlStorage extends Storage {
     if (this.validate() === true) {
       return this.getFile().url
     }
+  }
+
+  getReadableStream(readableStream: Readable): Promise<string> {
+    return super.getReadableStream(readableStream)
   }
 }
