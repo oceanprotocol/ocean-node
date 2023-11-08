@@ -5,12 +5,12 @@ import { OceanNodeKeys } from '../@types'
 export class Blockchain {
   private signer: Signer
   private providers: { [chainId: number]: Provider } = {}
-  private supportedChains: string[] = []
+  private supportedChains: number[] = []
 
   public constructor(networks: RPCS, nodeKeys: OceanNodeKeys) {
     const chainIds = Object.keys(networks)
-    this.supportedChains = chainIds
     chainIds.forEach((chain) => {
+      this.supportedChains.push(parseInt(chain))
       this.providers[parseInt(chain)] = new ethers.JsonRpcProvider(networks[chain])
     })
 
@@ -25,7 +25,7 @@ export class Blockchain {
     return this.providers[chain]
   }
 
-  public getSupportedChains(): string[] {
+  public getSupportedChains(): number[] {
     return this.supportedChains
   }
 }

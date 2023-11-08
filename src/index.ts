@@ -62,14 +62,12 @@ async function main() {
     return
   }
   const supportedNetworks: RPCS = JSON.parse(process.env.RPCS)
-  console.log('supportedNetworks', supportedNetworks)
   const blockchain = new Blockchain(supportedNetworks, config.keys)
-  // console.log('signer', blockchainHelper.getSigner())
   if (config.hasP2P) {
     node = new OceanP2P(dbconn, config)
     await node.start()
   }
-  if (config.hasIndexer) indexer = new OceanIndexer(dbconn)
+  if (config.hasIndexer) indexer = new OceanIndexer(dbconn, blockchain.getSupportedChains)
   if (config.hasProvider) provider = new OceanProvider(dbconn)
 
   const oceanNode = {
