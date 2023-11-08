@@ -1,5 +1,10 @@
 import { FileObject } from '../../src/@types/fileObject'
-import { Storage, UrlStorage, ArweaveStorage, IpfsStorage } from '../../src/components/storage'
+import {
+  Storage,
+  UrlStorage,
+  ArweaveStorage,
+  IpfsStorage
+} from '../../src/components/storage'
 
 describe('URL Storage tests', () => {
   let file: FileObject = {

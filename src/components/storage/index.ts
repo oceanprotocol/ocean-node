@@ -68,7 +68,8 @@ export class UrlStorage extends Storage {
   }
 
   validateFilename(): boolean {
-    const regex: RegExp = /^((?:http|https):\/\/)(\/|([A-Za-z]:)?\\)?(\.{1,2}(\/|\\)|[a-zA-Z0-9_-]+(\/|\\))*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/ // The file name should not be a path
+    const regex: RegExp =
+      /^((?:http|https):\/\/)(\/|([A-Za-z]:)?\\)?(\.{1,2}(\/|\\)|[a-zA-Z0-9_-]+(\/|\\))*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/ // The file name should not be a path
     const url: string = this.getFile().url
     const filename: string = url.split('/').pop()
     return regex.test(filename)
