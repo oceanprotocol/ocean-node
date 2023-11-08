@@ -5,7 +5,7 @@ import fs from 'fs'
 import Typesense from '../../components/database/typesense'
 import { TypesenseConfigOptions } from '../../@types'
 
-// all the types of modules/components 
+// all the types of modules/components
 export const LOGGER_MODULE_NAMES = {
   HTTP: 'http',
   P2P: 'p2p',
@@ -393,7 +393,7 @@ export function getCustomLoggerForModule(
 // for a custom logger transport
 interface CustomOceanNodesTransportOptions extends Transport.TransportStreamOptions {
   typesenseConfig: TypesenseConfigOptions
-  collectionName?: string;
+  collectionName?: string
   moduleName?: string
 }
 
@@ -412,37 +412,39 @@ interface TypesenseTransportStreamOptions extends CustomOceanNodesTransportOptio
   logLevel: string
 }
 
-
 export class CustomOceanNodesTransport extends Transport {
-  private typesenseClient: Typesense;
-  private collectionName: string;
+  private typesenseClient: Typesense
+  private collectionName: string
 
   constructor(opts: CustomOceanNodesTransportOptions) {
-    super(opts);
-    this.typesenseClient = new Typesense(opts.typesenseConfig);
-    this.collectionName = opts.collectionName;
+    super(opts)
+    this.typesenseClient = new Typesense(opts.typesenseConfig)
+    this.collectionName = opts.collectionName
   }
 
   async log(info: LogEntry, callback: () => void): Promise<void> {
     setImmediate(() => {
-      this.emit('logged', info);
-    });
+      this.emit('logged', info)
+    })
 
     const document = {
       level: info.level,
       message: info.message,
-      meta: info,
-    };
+      meta: info
+    }
 
     try {
-      await this.typesenseClient.collections(this.collectionName).documents().create(document);
+      await this.typesenseClient
+        .collections(this.collectionName)
+        .documents()
+        .create(document)
     } catch (error) {
       // Handle the error according to your needs
-      console.error('Error writing to Typesense:', error);
+      console.error('Error writing to Typesense:', error)
       // Implement retry logic or other error handling as needed
     }
 
-    callback();
+    callback()
   }
 }
 
