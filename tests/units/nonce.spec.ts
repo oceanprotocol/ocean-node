@@ -11,7 +11,7 @@ const nonceSchema: TypesenseCollectionCreateSchema = {
   enable_nested_fields: true,
   fields: [
     { name: 'id', type: 'string' },
-    { name: 'nonce', type: 'string' } // store nonce as string
+    { name: 'nonce', type: 'int64', sort: true } // store nonce as string
   ]
 }
 
@@ -29,7 +29,7 @@ async function checkDocumentExists(typesense: Typesense) {
   if (!document) {
     await typesense.collections('nonce').documents().create({
       id: '0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1',
-      nonce: '1'
+      nonce: 1
     })
   }
 }
@@ -93,6 +93,6 @@ describe('handle nonce', () => {
       .collections('nonce')
       .documents()
       .retrieve('0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1')
-    expect(document.nonce).toEqual('1')
+    expect(document.nonce).toEqual(1)
   })
 })

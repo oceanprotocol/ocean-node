@@ -9,16 +9,16 @@ export class Database {
   }
 
   // These functions will be refactored eventually
-  async getNonce(id: string): Promise<string> {
+  async getNonce(id: string): Promise<number> {
     const document = await this.typesense.collections('nonce').documents().retrieve(id)
     if (document) {
       return document.nonce
     }
-    return '0'
+    return 0
   }
 
   // set nonce for a specific address
-  async setNonce(id: string, nonce: string): Promise<boolean> {
+  async setNonce(id: string, nonce: number): Promise<boolean> {
     try {
       const data = await this.typesense.collections('nonce').documents().create({
         id,
@@ -31,7 +31,7 @@ export class Database {
   }
 
   // the id is the consumer address
-  async updateNonce(id: string, nonce: string): Promise<boolean> {
+  async updateNonce(id: string, nonce: number): Promise<boolean> {
     const document = await this.typesense.collections('nonce').documents().retrieve(id)
     if (document) {
       const updated = {

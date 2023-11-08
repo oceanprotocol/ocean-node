@@ -60,7 +60,7 @@ export async function getNonce(address: string): Promise<P2PCommandResponse> {
   } catch (err) {
     // did not found anything, try add it and return default
     if (err.message.indexOf(address) > -1) {
-      const setFirst = await db.setNonce(address, '0')
+      const setFirst = await db.setNonce(address, 0)
       if (setFirst) {
         return {
           status: {
@@ -69,7 +69,7 @@ export async function getNonce(address: string): Promise<P2PCommandResponse> {
               'Content-Type': 'text/plain'
             }
           },
-          stream: new ReadableString(String('0'))
+          stream: new ReadableString('0')
         }
       }
       return getDefaultErrorResponse(err.message)
@@ -86,7 +86,7 @@ export async function getNonce(address: string): Promise<P2PCommandResponse> {
 }
 
 // update stored nonce for an address
-async function updateNonce(address: string, nonce: string): Promise<NonceResponse> {
+async function updateNonce(address: string, nonce: number): Promise<NonceResponse> {
   try {
     // update nonce on db
     const db = await getDBHandle()
@@ -122,12 +122,12 @@ export async function checkNonce(
     // check if bigger than previous stored one and validate signature
     const validate = validateNonceAndSignature(
       nonce,
-      Number(existingNonce), // will return 0 if none exists
+      existingNonce, // will return 0 if none exists
       consumer,
       signature
     )
     if (validate.valid) {
-      const updateStatus = await updateNonce(consumer, String(nonce))
+      const updateStatus = await updateNonce(consumer, nonce)
       return updateStatus
     }
     return validate

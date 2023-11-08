@@ -30,7 +30,7 @@ export const nonceSchema: TypesenseCollectionCreateSchema = {
   enable_nested_fields: true,
   fields: [
     { name: 'id', type: 'string' },
-    { name: 'nonce', type: 'string' } // store nonce as string
+    { name: 'nonce', type: 'int64', sort: true } // store nonce as number
   ]
 }
 
@@ -117,7 +117,7 @@ async function createCollections() {
   }
 }
 
-async function createNonceData(address: string, nonce: string): Promise<boolean> {
+async function createNonceData(address: string, nonce: number): Promise<boolean> {
   try {
     const data = await typesense.collections('nonce').documents().create({
       id: address,
@@ -131,13 +131,13 @@ async function createNonceData(address: string, nonce: string): Promise<boolean>
 
 async function getNonceData(consumer: string): Promise<string> {
   const doc = await typesense.collections('nonce').documents().retrieve(consumer)
-  return doc ? doc.nonce : '0'
+  return doc ? doc.nonce : 0
 }
 
 async function doNonceTrackingFlow() {
   // consumer address
   const address = '0x8F292046bb73595A978F4e7A131b4EBd03A15e8a'
-  const firstNonce = '1'
+  const firstNonce = 1
   // drop if exists
   await dropCollection('nonce')
   // recreate the nonce collection
