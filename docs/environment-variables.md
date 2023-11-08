@@ -8,6 +8,9 @@ they have.
 
 ## Core
 - `PRIVATE_KEY` : Private key used by this node (applies to p2p peer id, asset encryption key, etc)
+- `RPCS` :  List of RPC URL for each chain.  Example: ```bash
+export RPC="{ \"1\": \"https://rpc.eth.gateway.fm\", \"137\": \"https://polygon.meowrpc.com\", \"80001\": \"https://rpc-mumbai.maticvigil.com\" }"
+```
 
 ## P2P
 - `P2P_ipV4BindAddress` : Bind address for IPV4. Defaults to `0.0.0.0`
