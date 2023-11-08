@@ -8,16 +8,16 @@ export class ArweaveStorage extends Storage {
     super(file)
   }
 
-  validate(): boolean {
+  validate(): [boolean, string] {
     const file: FileObject = this.getFile()
     if (!file.transactionId) {
-      return false
+      return [false, 'Missing transaction ID']
     }
-    return true
+    return [true, '']
   }
 
   getDownloadUrl(): string {
-    if (this.validate() === true) {
+    if (this.validate()[0] === true) {
       if (!process.env.ARWEAVE_GATEWAY) {
         throw Error('Arweave gateway is not provided!')
       }

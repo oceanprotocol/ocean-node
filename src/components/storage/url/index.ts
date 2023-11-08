@@ -7,19 +7,19 @@ export class UrlStorage extends Storage {
     super(file)
   }
 
-  validate(): boolean {
+  validate(): [boolean, string] {
     const file: FileObject = this.getFile()
     if (!file.url && !file.method) {
-      return false
+      return [false, 'URL or method are missing!']
     }
     if (['get', 'post'].includes(file.method.toLowerCase())) {
-      return false
+      return [false, 'Invalid method for URL']
     }
     if (this.validateFilename() === true) {
-      return false
+      return [false, 'URL looks like a file path']
     }
 
-    return true
+    return [true, '']
   }
 
   validateFilename(): boolean {
@@ -30,7 +30,7 @@ export class UrlStorage extends Storage {
   }
 
   getDownloadUrl(): string {
-    if (this.validate() === true) {
+    if (this.validate()[0] === true) {
       return this.getFile().url
     }
   }

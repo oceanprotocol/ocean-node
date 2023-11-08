@@ -8,17 +8,17 @@ export class IpfsStorage extends Storage {
     super(file)
   }
 
-  validate(): boolean {
+  validate(): [boolean, string] {
     const file: FileObject = this.getFile()
     if (!file.hash) {
-      return false
+      return [false, 'Missing CID']
     }
 
-    return true
+    return [true, '']
   }
 
   getDownloadUrl(): string {
-    if (this.validate() === true) {
+    if (this.validate()[0] === true) {
       if (!process.env.IPFS_GATEWAY) {
         throw Error('IPFS gateway is not provided!')
       }

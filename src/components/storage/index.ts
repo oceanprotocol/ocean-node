@@ -14,22 +14,22 @@ export class Storage {
     return this.file
   }
 
-  getStorageClass(): Storage {
-    const type: string = this.file.type
+  static getStorageClass(file: FileObject): Storage {
+    const type: string = file.type
     switch (type) {
       case 'url':
-        return new UrlStorage(this.file)
+        return new UrlStorage(file)
       case 'ipfs':
-        return new IpfsStorage(this.file)
+        return new IpfsStorage(file)
       case 'arweave':
-        return new ArweaveStorage(this.file)
+        return new ArweaveStorage(file)
       default:
         throw new Error(`Invalid storage type: ${type}`)
     }
   }
 
-  validate(): boolean {
-    return true
+  validate(): [boolean, string] {
+    return [true, '']
   }
 
   getDownloadUrl(): string {
