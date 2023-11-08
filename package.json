@@ -15,7 +15,7 @@
     "lint:fix": "eslint --ignore-path .gitignore --ext .ts,.tsx . --fix",
     "format": "prettier --parser typescript --ignore-path .gitignore --write '**/*.{js,jsx,ts,tsx}'",
     "type-check": "tsc --noEmit",
-    "check-nonce": "node dist/helpers/scripts/checkNonceTracking.js"
+    "check-nonce": "npm run build && node dist/helpers/scripts/checkNonceTracking.js"
   },
   "author": "",
   "type": "module",
