@@ -1,6 +1,3 @@
-import { UrlStorage } from './url'
-import { IpfsStorage } from './ipfs'
-import { ArweaveStorage } from './arweave'
 import { FileObject } from '../../@types/fileObject'
 import { Readable } from 'stream'
 
@@ -47,5 +44,98 @@ export class Storage {
       })
       readableStream.on('error', reject)
     })
+  }
+}
+
+export class UrlStorage extends Storage {
+  public constructor(file: FileObject) {
+    super(file)
+  }
+
+  validate(): [boolean, string] {
+    const file: FileObject = this.getFile()
+    if (!file.url || !file.method) {
+      return [false, 'URL or method are missing!']
+    }
+    if (!['get', 'post'].includes(file.method.toLowerCase())) {
+      return [false, 'Invalid method for URL']
+    }
+    if (this.validateFilename() === true) {
+      return [false, 'URL looks like a file path']
+    }
+
+    return [true, '']
+  }
+
+  validateFilename(): boolean {
+    const regex: RegExp = /^((?:http|https):\/\/)(\/|([A-Za-z]:)?\\)?(\.{1,2}(\/|\\)|[a-zA-Z0-9_-]+(\/|\\))*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/ // The file name should not be a path
+    const url: string = this.getFile().url
+    const filename: string = url.split('/').pop()
+    return regex.test(filename)
+  }
+
+  getDownloadUrl(): string {
+    if (this.validate()[0] === true) {
+      return this.getFile().url
+    }
+  }
+
+  getReadableStream(readableStream: Readable): Promise<string> {
+    return super.getReadableStream(readableStream)
+  }
+}
+
+export class ArweaveStorage extends Storage {
+  public constructor(file: FileObject) {
+    super(file)
+  }
+
+  validate(): [boolean, string] {
+    const file: FileObject = this.getFile()
+    if (!file.transactionId) {
+      return [false, 'Missing transaction ID']
+    }
+    return [true, '']
+  }
+
+  getDownloadUrl(): string {
+    if (this.validate()[0] === true) {
+      if (!process.env.ARWEAVE_GATEWAY) {
+        throw Error('Arweave gateway is not provided!')
+      }
+      return process.env.ARWEAVE_GATEWAY + '/' + this.getFile().transactionId
+    }
+  }
+
+  getReadableStream(readableStream: Readable): Promise<string> {
+    return super.getReadableStream(readableStream)
+  }
+}
+
+export class IpfsStorage extends Storage {
+  public constructor(file: FileObject) {
+    super(file)
+  }
+
+  validate(): [boolean, string] {
+    const file: FileObject = this.getFile()
+    if (!file.hash) {
+      return [false, 'Missing CID']
+    }
+
+    return [true, '']
+  }
+
+  getDownloadUrl(): string {
+    if (this.validate()[0] === true) {
+      if (!process.env.IPFS_GATEWAY) {
+        throw Error('IPFS gateway is not provided!')
+      }
+      return process.env.IPFS_GATEWAY + '/ipfs/' + this.getFile().hash
+    }
+  }
+
+  getReadableStream(readableStream: Readable): Promise<string> {
+    return super.getReadableStream(readableStream)
   }
 }

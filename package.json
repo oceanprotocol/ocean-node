@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "jest --detectOpenHandles",
+    "testStorage": "jest tests/units/storage.spec.ts",
     "build": "npm run clean && npm run build:tsc",
     "build:swagger": "tsoa spec",
     "build:tsc": "tsc --sourceMap",
@@ -51,7 +52,6 @@
     "ts-node": "^10.9.1",
     "tsoa": "^5.1.1",
     "uint8arrays": "^4.0.6",
-    "url-join": "^5.0.0",
     "winston": "^3.11.0",
     "winston-daily-rotate-file": "^4.7.1",
     "winston-transport": "^4.6.0"
