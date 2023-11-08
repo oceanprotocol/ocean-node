@@ -50,6 +50,7 @@
     "swagger-ui-express": "^5.0.0",
     "ts-node": "^10.9.1",
     "tsoa": "^5.1.1",
+    "typesense": "^1.7.2",
     "uint8arrays": "^4.0.6",
     "winston": "^3.11.0",
     "winston-daily-rotate-file": "^4.7.1",

@@ -2,9 +2,7 @@ import winston, { Logger, LogEntry } from 'winston'
 import Transport, { TransportStreamOptions } from 'winston-transport'
 import DailyRotateFile from 'winston-daily-rotate-file'
 import fs from 'fs'
-
-// Uncomment the following to use typesense (npm install typesense)
-// import typesense from 'typesense';
+import typesense from 'typesense';
 
 // all the types of modules/components
 export const LOGGER_MODULE_NAMES = {
