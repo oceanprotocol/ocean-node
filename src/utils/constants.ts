@@ -7,10 +7,10 @@ export const PROTOCOL_COMMANDS = {
 
 export interface Command {
   command: string
+  node?: string // if not present it means current node
 }
 
 export interface DownloadCommand extends Command {
-  node?: string // if not present it means current node
   url: string
   aes_encrypted_key?: string // if not present it means download without encryption
 }
