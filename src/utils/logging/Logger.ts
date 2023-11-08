@@ -2,9 +2,10 @@ import winston, { Logger, LogEntry } from 'winston'
 import Transport, { TransportStreamOptions } from 'winston-transport'
 import DailyRotateFile from 'winston-daily-rotate-file'
 import fs from 'fs'
-import typesense from 'typesense';
+import Typesense from '../../components/database/typesense'
+import { TypesenseConfigOptions } from '../../@types'
 
-// all the types of modules/components
+// all the types of modules/components 
 export const LOGGER_MODULE_NAMES = {
   HTTP: 'http',
   P2P: 'p2p',
@@ -391,6 +392,8 @@ export function getCustomLoggerForModule(
 
 // for a custom logger transport
 interface CustomOceanNodesTransportOptions extends Transport.TransportStreamOptions {
+  typesenseConfig: TypesenseConfigOptions
+  collectionName?: string;
   moduleName?: string
 }
 
@@ -409,54 +412,37 @@ interface TypesenseTransportStreamOptions extends CustomOceanNodesTransportOptio
   logLevel: string
 }
 
-// Skeleton For any custom transport we might need
-// for ElasticSearch for instance there is this one: https://github.com/vanthome/winston-elasticsearch
-// for Typesense we might need to implement our own transport. In any case we can just use this skeleton
-export class CustomOceanNodesTransport extends Transport {
-  /** Example config for Typesense
-     * const options: TypesenseTransportStreamOptions = {
 
-            nodes: [
-                {
-                    host: some.host,
-                    port: some.port,
-                    protocol: "http",
-                }
-            ],
-            apiKey: someapiKey,
-            numRetries: 3,
-            connectionTimeoutSeconds: 10,
-            logLevel: "debug",
-     * }
-     *  const typesenseClient = new typesense.Client(options)
-     */
+export class CustomOceanNodesTransport extends Transport {
+  private typesenseClient: Typesense;
+  private collectionName: string;
 
   constructor(opts: CustomOceanNodesTransportOptions) {
-    super(opts)
-
-    /*
-     * Consume any custom options here. e.h:
-     * Connection information for databases
-     * Authentication information for APIs
-     */
+    super(opts);
+    this.typesenseClient = new Typesense(opts.typesenseConfig);
+    this.collectionName = opts.collectionName;
   }
 
-  // this functions run when something is logged so here's where you can add you custom logic to do stuff when something is logged.
-  log(info: LogEntry, callback: any) {
-    // make sure you installed `@types/node` or this will give a typerror
-    // this is the basic default behavior don't forget to add this.
+  async log(info: LogEntry, callback: () => void): Promise<void> {
     setImmediate(() => {
-      this.emit('logged', info)
-    })
+      this.emit('logged', info);
+    });
 
-    const { level, message, ...meta } = info
+    const document = {
+      level: info.level,
+      message: info.message,
+      meta: info,
+    };
 
-    // here you can add your custom logic, e.g. ingest data into database etc.
-    // Perform the writing to the remote service
-    // typesenseClient.doSomething()
+    try {
+      await this.typesenseClient.collections(this.collectionName).documents().create(document);
+    } catch (error) {
+      // Handle the error according to your needs
+      console.error('Error writing to Typesense:', error);
+      // Implement retry logic or other error handling as needed
+    }
 
-    // don't forget this one
-    callback()
+    callback();
   }
 }
 
