@@ -60,19 +60,21 @@ export class UrlStorage extends Storage {
     if (!['get', 'post'].includes(file.method.toLowerCase())) {
       return [false, 'Invalid method for URL']
     }
-    if (this.validateFilename() === true) {
+    if (this.isFilePath() === true) {
       return [false, 'URL looks like a file path']
     }
 
     return [true, '']
   }
 
-  validateFilename(): boolean {
-    const regex: RegExp =
-      /^((?:http|https):\/\/)(\/|([A-Za-z]:)?\\)?(\.{1,2}(\/|\\)|[a-zA-Z0-9_-]+(\/|\\))*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+$/ // The file name should not be a path
+  isFilePath(): boolean {
+    const regex: RegExp = /^(.+)\/([^/]+)$/ // The URL should not represent a path
     const url: string = this.getFile().url
-    const filename: string = url.split('/').pop()
-    return regex.test(filename)
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return false
+    }
+
+    return regex.test(url)
   }
 
   getDownloadUrl(): string {
