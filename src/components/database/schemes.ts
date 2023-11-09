@@ -11,7 +11,9 @@ export const schemes: Schemes = {
         {
             name: 'ddo_v0.1',
             enable_nested_fields: true,
-            fields: [],
+            fields: [
+                { name: ".*", type: "auto" },
+            ],
         }
     ],
     nonceSchema: {

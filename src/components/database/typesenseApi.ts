@@ -1,8 +1,8 @@
 import { TypesenseNode } from '../../@types'
 import axios, {AxiosRequestConfig, AxiosResponse} from 'axios'
 import { setTimeout } from 'timers/promises'
-import { TypesenseConfig } from './typesenseConfig'
-import {TypesenseError} from "./typesense";
+import { TypesenseConfig } from './typesenseConfig.js'
+import {TypesenseError} from "./typesense.js";
 
 /**
  * TypesenseApi class is used to implement an api interface

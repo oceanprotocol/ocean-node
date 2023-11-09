@@ -1,13 +1,14 @@
 import { OceanP2P } from './components/P2P/index.js'
 import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
-import db from './components/database/index.js'
+import { Database } from './components/database/index.js'
+import { schemes } from "./components/database/schemes.js";
 import express, { Express, Request, Response } from 'express'
 import { OceanNode } from './@types/index.js'
 import swaggerUi from 'swagger-ui-express'
 import { httpRoutes } from './components/httpRoutes/index.js'
-import { getConfig } from './utils/index.js'
 
+import { getConfig } from './utils/index.js'
 import {
   CustomNodeLogger,
   LOGGER_MODULE_NAMES,
@@ -47,6 +48,9 @@ async function main() {
   let node = null
   let indexer = null
   let provider = null
+  const db = new Database(config.dbConfig)
+  // this is necessary because we cannot declare an async constructor
+  await db.init(schemes)
   const dbconn = db
   if (config.hasP2P) {
     node = new OceanP2P(dbconn, config)

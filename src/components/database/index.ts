@@ -1,18 +1,42 @@
 import {OceanNodeDBConfig} from '../../@types/OceanNode'
-import Typesense, {TypesenseError} from './typesense.js'
-import {getConfig} from "../../utils/config.js";
-import {schemes, Schemes, Schema} from "./schemes.js";
+import {Typesense, TypesenseError} from './typesense.js'
+import {Schemes, Schema} from "./schemes.js";
 
 export class DdoDatabase {
     private provider: Typesense
+    private names: string[]
 
     constructor(private config: OceanNodeDBConfig) {
         this.provider = new Typesense(config.typesense)
     }
 
     async init(ddoSchemes: Schema[]) {
-        // const result = await this.provider.collections().create(ddoSchemes)
+        this.names = ddoSchemes.map(schema => schema.name)
+        for (const ddoSchema of ddoSchemes) {
+            try {
+                await this.provider.collections(ddoSchema.name).retrieve()
+            } catch (error) {
+                if (error instanceof TypesenseError && error.httpStatus == 404) {
+                    await this.provider.collections().create(ddoSchema)
+                } else {
+                    throw error;
+                }
+            }
+        }
     }
+
+    async create(ddo: Record<string, any>) {
+        return await this.provider.collections(this.names[0]).documents().create(ddo)
+    }
+
+    async update(id: string, ddo: Record<string, any>) {
+        return await this.provider.collections(this.names[0]).documents().update(id, ddo)
+    }
+
+    async retrieve(id: string) {
+        return await this.provider.collections(this.names[0]).documents().retrieve(id)
+    }
+
 }
 
 export class NonceDatabase {
@@ -80,13 +104,6 @@ export class Database {
         await this.indexer.init(schemes.indexerSchema)
     }
 }
-
-const config = await getConfig()
-const db = new Database(config.dbConfig)
-// this is necessary because we cannot declare an async constructor
-await db.init(schemes)
-
-export default db;
 
 // Example
 // db.nonce.create('0x123', 1234567) return -> { id:'0x123', nonce:1234567 } or throw error

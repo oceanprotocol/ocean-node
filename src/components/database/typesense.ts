@@ -130,7 +130,7 @@ export class TypesenseCollections {
  * It initiates classes that provides access to methods of collections
  * or an individual collection
  */
-export default class Typesense {
+export class Typesense {
   config: TypesenseConfig
   api: TypesenseApi
   collectionsRecords: Record<string, TypesenseCollection> = {}
