@@ -20,12 +20,14 @@ export const schemes: Schemes = {
         name: 'nonce',
         enable_nested_fields: true,
         fields: [
-            {name: 'nonce', type: 'int64', sort: true},
+            {name: 'nonce', type: 'int64'},
         ]
     },
     indexerSchema: {
         name: 'indexer',
         enable_nested_fields: true,
-        fields: []
+        fields: [
+            { name: ".*", type: "auto" },
+        ]
     },
 };
