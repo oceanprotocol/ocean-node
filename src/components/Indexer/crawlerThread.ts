@@ -1,5 +1,5 @@
 import { parentPort, workerData } from 'worker_threads'
-import { getLastIndexedBlock, getNetworkHeight, processBlocks } from './utils'
+import { getLastIndexedBlock, getNetworkHeight, processBlocks } from './utils.js'
 
 const { network, provider } = workerData
 

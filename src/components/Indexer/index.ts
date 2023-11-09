@@ -11,12 +11,13 @@ export class OceanIndexer {
     this.db = db
     this.blockchain = blockchain
     this.networks = supportedNetworks
+    this.startThreads()
   }
 
   public startThreads(): void {
     for (const network of this.networks) {
       const provider = this.blockchain.getProvider(network)
-      const worker = new Worker('./crawlerThread.ts', {
+      const worker = new Worker('./dist/components/Indexer/crawlerThread.js', {
         workerData: { network, provider }
       })
 
