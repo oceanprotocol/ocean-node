@@ -21,16 +21,20 @@ async function createNonceCollection(typesense: Typesense) {
 
 // creates if needed
 async function checkDocumentExists(typesense: Typesense) {
-  const document = await typesense
-    .collections('nonce')
-    .documents()
-    .retrieve('0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1')
-  // if not, create it now
-  if (!document) {
-    await typesense.collections('nonce').documents().create({
-      id: '0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1',
-      nonce: 1
-    })
+  let document
+  try {
+    document = await typesense
+      .collections('nonce')
+      .documents()
+      .retrieve('0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1')
+    // if not, create it now
+  } catch (ex) {
+    if (!document) {
+      await typesense.collections('nonce').documents().create({
+        id: '0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1',
+        nonce: 1
+      })
+    }
   }
 }
 describe('handle nonce', () => {
@@ -52,10 +56,14 @@ describe('handle nonce', () => {
     const existingCollections = await typesense.collections().retrieve()
     // check existing ones
     if (existingCollections && existingCollections.length > 0) {
-      console.log('collections exist')
-      const existsNonceCollection = await typesense
-        .collections(nonceSchema.name)
-        .retrieve()
+      let existsNonceCollection = true
+      try {
+        await typesense.collections(nonceSchema.name).retrieve()
+      } catch (error) {
+        existsNonceCollection = false
+        // collection nonce not exists'
+      }
+
       if (existsNonceCollection) {
         // check if the document exists
         await checkDocumentExists(typesense)

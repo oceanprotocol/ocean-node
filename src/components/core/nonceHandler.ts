@@ -12,6 +12,7 @@ import { ReadableString } from '../P2P/handleProtocolCommands.js'
 import { Database } from '../database/index.js'
 import { getConfig } from '../../utils/config.js'
 import { ethers } from 'ethers'
+import { getOceanNodeSingleton } from '../../index.js'
 
 export const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.DATABASE,
@@ -26,14 +27,6 @@ function getDefaultErrorResponse(errorMessage: string): P2PCommandResponse {
   }
 }
 
-async function getDBHandle(): Promise<Database> {
-  const dbConfig = await getConfig()
-  // dbConfig.dbConfig.typesense.logLevel = LOG_LEVELS_STR.LEVEL_INFO
-  // dbConfig.dbConfig.typesense.logger = DB_CONSOLE_LOGGER.getLogger()
-  const db = new Database(dbConfig.dbConfig)
-  return db
-}
-
 // returns true/false (+ error message if needed)
 export type NonceResponse = {
   valid: boolean
@@ -43,7 +36,7 @@ export type NonceResponse = {
 // get stored nonce for an address ( 0 if not found)
 export async function getNonce(address: string): Promise<P2PCommandResponse> {
   // get nonce from db
-  const db = await getDBHandle()
+  const db = (await getOceanNodeSingleton()).node.getDatabase()
   try {
     const nonce = await db.getNonce(address)
     const streamResponse = new ReadableString(String(nonce))
@@ -89,7 +82,7 @@ export async function getNonce(address: string): Promise<P2PCommandResponse> {
 async function updateNonce(address: string, nonce: number): Promise<NonceResponse> {
   try {
     // update nonce on db
-    const db = await getDBHandle()
+    const db = (await getOceanNodeSingleton()).node.getDatabase()
     const ok = await db.updateNonce(address, nonce)
     return {
       valid: ok,
@@ -117,7 +110,7 @@ export async function checkNonce(
 ): Promise<NonceResponse> {
   try {
     // get nonce from db
-    const db = await getDBHandle()
+    const db = (await getOceanNodeSingleton()).node.getDatabase()
     const existingNonce = await db.getNonce(consumer)
     // check if bigger than previous stored one and validate signature
     const validate = validateNonceAndSignature(

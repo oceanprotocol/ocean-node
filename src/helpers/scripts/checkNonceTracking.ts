@@ -75,7 +75,11 @@ async function createNonceCollection(): Promise<any> {
 }
 
 async function dropCollection(name: string) {
-  return await typesense.collections(name).delete()
+  try {
+    await typesense.collections(name).delete()
+  } catch (err) {
+    // silently ignore, maybe it does not exist yet
+  }
 }
 
 async function createCollections() {
@@ -86,9 +90,14 @@ async function createCollections() {
     const existingCollections = await typesense.collections().retrieve()
     // check existing ones
     if (existingCollections && existingCollections.length > 0) {
-      const existsNonceCollection = await typesense
-        .collections(nonceSchema.name)
-        .retrieve()
+      let existsNonceCollection = true
+      try {
+        await typesense.collections(nonceSchema.name).retrieve()
+        // exists ?
+      } catch (err) {
+        existsNonceCollection = false
+      }
+
       if (existsNonceCollection) {
         // this one already exists
         DB_CONSOLE_LOGGER.logMessageWithEmoji(
@@ -98,16 +107,18 @@ async function createCollections() {
           LOG_LEVELS_STR.LEVEL_WARN
         )
         loaded++
+      } else {
+        // create nonce collection
+        const res = await createNonceCollection()
+        if (res) loaded++
       }
     } else {
-      // create nonce collection
+      // none exists, create nonce collection
       const res = await createNonceCollection()
-      if (res) {
-        loaded++
-      }
+      if (res) loaded++
     }
   } catch (err) {
-    console.log(err)
+    // silently ignore errors
   } finally {
     DB_CONSOLE_LOGGER.logMessageWithEmoji(
       `Done loading initial DB collections (${loaded} / ${numCollectionsToLoad}) `,
@@ -119,7 +130,7 @@ async function createCollections() {
 
 async function createNonceData(address: string, nonce: number): Promise<boolean> {
   try {
-    const data = await typesense.collections('nonce').documents().create({
+    await typesense.collections('nonce').documents().create({
       id: address,
       nonce
     })
@@ -129,9 +140,14 @@ async function createNonceData(address: string, nonce: number): Promise<boolean>
   }
 }
 
-async function getNonceData(consumer: string): Promise<string> {
-  const doc = await typesense.collections('nonce').documents().retrieve(consumer)
-  return doc ? doc.nonce : 0
+async function getNonceData(consumer: string): Promise<number> {
+  let doc
+  try {
+    doc = await typesense.collections('nonce').documents().retrieve(consumer)
+    return doc ? doc.nonce : 0
+  } catch (ex) {
+    return 0
+  }
 }
 
 async function doNonceTrackingFlow() {
@@ -139,20 +155,22 @@ async function doNonceTrackingFlow() {
   const address = '0x8F292046bb73595A978F4e7A131b4EBd03A15e8a'
   const firstNonce = 1
   // drop if exists
-  await dropCollection('nonce')
+  await dropCollection(nonceSchema.name)
   // recreate the nonce collection
   await createCollections()
   // create firs nonce as '1'
   await createNonceData(address, firstNonce)
   // get previously stored from DB
   const previousNonce = await getNonceData(address)
-  console.log(previousNonce)
-  DB_CONSOLE_LOGGER.logMessage('previous stored nonce: ' + previousNonce, true)
+  DB_CONSOLE_LOGGER.logMessage(
+    `previous stored nonce for ${address}: ${previousNonce}`,
+    true
+  )
   // sign the nonce > than previously stored
   const wallet = new ethers.Wallet(
     '0xbee525d70c715bee6ca15ea5113e544d13cc1bb2817e07113d0af7755ddb6391'
   )
-  const nextNonce = Number(previousNonce) + 1
+  const nextNonce = previousNonce + 1
   const signature = await wallet.signMessage(String(nextNonce))
   DB_CONSOLE_LOGGER.logMessage(
     'Next nonce: ' + nextNonce + ' signature: ' + signature,
@@ -160,7 +178,10 @@ async function doNonceTrackingFlow() {
   )
 
   const checkNonceresult = await checkNonce(address, nextNonce, signature)
-  DB_CONSOLE_LOGGER.logMessage('checkNonce: ' + checkNonceresult.valid, true)
+  DB_CONSOLE_LOGGER.logMessage(
+    'checkNonce => is valid nonce and signature?: ' + checkNonceresult.valid,
+    true
+  )
 }
 
 doNonceTrackingFlow()
