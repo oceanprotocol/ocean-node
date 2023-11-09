@@ -17,11 +17,11 @@ export class Blockchain {
     this.signer = new ethers.Wallet(process.env.PRIVATE_KEY.substring(2))
   }
 
-  public getSigner(): ethers.Signer {
+  public getSigner(): Signer {
     return this.signer
   }
 
-  public getProvider(chain: number): ethers.Provider {
+  public getProvider(chain: number): Provider {
     return this.providers[chain]
   }
 

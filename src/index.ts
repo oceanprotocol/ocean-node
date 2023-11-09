@@ -67,7 +67,8 @@ async function main() {
     node = new OceanP2P(dbconn, config)
     await node.start()
   }
-  if (config.hasIndexer) indexer = new OceanIndexer(dbconn, blockchain.getSupportedChains)
+  if (config.hasIndexer)
+    indexer = new OceanIndexer(dbconn, blockchain.getSupportedChains(), blockchain)
   if (config.hasProvider) provider = new OceanProvider(dbconn)
 
   const oceanNode = {

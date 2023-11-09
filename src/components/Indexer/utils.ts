@@ -1,18 +1,11 @@
 import { ethers } from 'ethers'
 
-export const detectDeployedBlock = async (provider: ethers.Provider) => {
-  const deployedBlock = await provider.getTransactionReceipt(deployedContractAddress)
-    .blockNumber
-
-  return deployedBlock
-}
-
 export const getLastIndexedBlock = async (provider: ethers.Provider) => {
-  //   const lastIndexedBlocks = getIndexFromDB()
+  //   const lastIndexedBlocks = getIndexFromDB() once done
   const lastIndexedBlocks = 0
   //   const lastIndexedBlock = lastIndexedBlocks[network] || 0
 
-  return lastIndexedBlock
+  return lastIndexedBlocks
 }
 
 export const getNetworkHeight = async (provider: ethers.Provider) => {
@@ -31,7 +24,7 @@ export const processBlocks = async (
   for (let blockNumber = startIndex; blockNumber < startIndex + count; blockNumber++) {
     const block = await provider.getBlock(blockNumber)
 
-    const processedEvents = processBlockEvents(block)
+    const processedEvents = await processBlockEvents(provider, block)
 
     processedBlocks += processedEvents.length
   }
@@ -39,20 +32,32 @@ export const processBlocks = async (
   return processedBlocks
 }
 
-const processBlockEvents = (block: ethers.Block) => {
+const processBlockEvents = async (provider: ethers.Provider, block: ethers.Block) => {
   const processedEvents = []
-
-  for (const event of block.events) {
-    const processedEventData = processEventData(event)
-
+  console.log(`Block number: ${block.number}`)
+  for (const transaction of block.transactions) {
+    console.log(`Transaction hash: ${transaction}`)
+    const receipt = await provider.getTransactionReceipt(transaction)
+    const processedEventData = processEventData(receipt.logs)
     if (processedEventData) {
       processedEvents.push(processedEventData)
     }
   }
-
   return processedEvents
 }
 
-const processEventData = (event: ethers.LogDescription) => {
-  return 'Metadata created'
+const processEventData = (logs: readonly ethers.Log[]) => {
+  for (const log of logs) {
+    const eventFragment = ethers.EventFragment.from(log.topics[0])
+
+    console.log(`Event name: ${eventFragment.name}`)
+
+    if (eventFragment.name === 'METADATA-CREATED') {
+      //   const decodedData = ethers.defaultAbiCoder.decode(eventFragment.inputs, log.data)
+      //   console.log(`Event data: ${JSON.stringify(decodedData)}`)
+      return 'Metadata created'
+    }
+  }
+
+  return null
 }

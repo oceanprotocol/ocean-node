@@ -1,4 +1,3 @@
-import { ethers, Provider } from 'ethers'
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads'
 import { Database } from '../database'
 import { Blockchain } from '../../utils/blockchain'
@@ -8,11 +7,7 @@ export class OceanIndexer {
   private networks: number[]
   private blockchain: Blockchain
 
-  constructor(
-    db: Database,
-    supportedNetworks: number[],
-    blockchain: Blockchain,
-  ) {
+  constructor(db: Database, supportedNetworks: number[], blockchain: Blockchain) {
     this.db = db
     this.blockchain = blockchain
     this.networks = supportedNetworks
@@ -20,12 +15,14 @@ export class OceanIndexer {
 
   public startThreads(): void {
     for (const network of this.networks) {
+      const provider = this.blockchain.getProvider(network)
       const worker = new Worker('./crawlerThread.ts', {
-        workerData: { network }
+        workerData: { network, provider }
       })
 
       worker.on('metadata-created', (message: string) => {
         console.log(`new metadata-created from worker for network ${network}: ${message}`)
+        // index the DDO in the typesense db
       })
 
       worker.on('error', (err: Error) => {
@@ -35,5 +32,8 @@ export class OceanIndexer {
       worker.on('exit', (code: number) => {
         console.log(`Worker for network ${network} exited with code: ${code}`)
       })
+
+      worker.postMessage({ method: 'start-crawling' })
+    }
   }
 }

@@ -1,22 +1,11 @@
-import { parentPort } from 'worker_threads'
-import {
-  detectDeployedBlock,
-  getLastIndexedBlock,
-  getNetworkHeight,
-  processBlocks
-} from './utils'
-import { Provider } from 'ethers'
-import { Providers } from '@libp2p/kad-dht/dist/src/providers'
-interface WorkerData {
-  provider: Provider
-}
+import { parentPort, workerData } from 'worker_threads'
+import { getLastIndexedBlock, getNetworkHeight, processBlocks } from './utils'
 
-const workerData: WorkerData = parentPort.onmessage(async (message: WorkerData) => {
-  const { provider } = message
+const { network, provider } = workerData
 
-  const deployedBlock = await detectDeployedBlock(provider)
-  console.log('deployedBlock', deployedBlock)
+console.log('worker for network', network)
 
+async function proccesNetworkData(): Promise<void> {
   let lastIndexedBlock = await getLastIndexedBlock(provider)
 
   const networkHeight = await getNetworkHeight(provider)
@@ -47,4 +36,10 @@ const workerData: WorkerData = parentPort.onmessage(async (message: WorkerData) 
   }
 
   parentPort.postMessage({ processedBlocks: 0 })
+}
+
+parentPort.on('message', (message) => {
+  if (message.method === 'start-crawling') {
+    proccesNetworkData()
+  }
 })
