@@ -48,9 +48,7 @@ async function main() {
   let node = null
   let indexer = null
   let provider = null
-  const db = new Database(config.dbConfig)
-  // this is necessary because we cannot declare an async constructor
-  await db.init(schemes)
+  const db = await new Database(config.dbConfig, schemes)
   const dbconn = db
   if (config.hasP2P) {
     node = new OceanP2P(dbconn, config)
