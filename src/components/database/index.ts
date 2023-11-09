@@ -7,7 +7,7 @@ export class DdoDatabase {
     private names: string[]
 
     constructor(private config: OceanNodeDBConfig) {
-        this.provider = new Typesense(config.typesense)
+        this.provider = new Typesense(this.config.typesense)
     }
 
     async init(ddoSchemes: Schema[]) {
@@ -44,7 +44,7 @@ export class NonceDatabase {
     private name: string
 
     constructor(private config: OceanNodeDBConfig) {
-        this.provider = new Typesense(config.typesense)
+        this.provider = new Typesense(this.config.typesense)
     }
 
     async init(nonceSchema: Schema) {
@@ -79,7 +79,7 @@ export class IndexerDatabase {
     private provider: Typesense
 
     constructor(private config: OceanNodeDBConfig) {
-        this.provider = new Typesense(config.typesense)
+        this.provider = new Typesense(this.config.typesense)
     }
 
     async init(indexerSchema: Schema) {
