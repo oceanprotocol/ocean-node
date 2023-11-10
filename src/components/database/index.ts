@@ -27,11 +27,28 @@ export class DdoDatabase {
   }
 
   async create(ddo: Record<string, any>) {
-    return await this.provider.collections(this.schemes[0].name).documents().create(ddo)
+    try {
+      return await this.provider.collections(this.schemes[0].name).documents().create(ddo)
+    } catch (error) {
+      if (error instanceof TypesenseError) {
+        return null
+      }
+      throw error
+    }
   }
 
   async retrieve(id: string) {
-    return await this.provider.collections(this.schemes[0].name).documents().retrieve(id)
+    try {
+      return await this.provider
+        .collections(this.schemes[0].name)
+        .documents()
+        .retrieve(id)
+    } catch (error) {
+      if (error instanceof TypesenseError) {
+        return null
+      }
+      throw error
+    }
   }
 
   async update(id: string, fields: Record<string, any>) {
@@ -46,14 +63,23 @@ export class DdoDatabase {
           .collections(this.schemes[0].name)
           .documents()
           .create({ id, ...fields })
-      } else {
-        throw error
       }
+      if (error instanceof TypesenseError) {
+        return null
+      }
+      throw error
     }
   }
 
   async delete(id: string) {
-    return await this.provider.collections(this.schemes[0].name).documents().delete(id)
+    try {
+      return await this.provider.collections(this.schemes[0].name).documents().delete(id)
+    } catch (error) {
+      if (error instanceof TypesenseError) {
+        return null
+      }
+      throw error
+    }
   }
 }
 
