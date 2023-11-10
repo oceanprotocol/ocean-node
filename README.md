@@ -64,3 +64,19 @@ You can then run tests
 ```
 npm run test
 ```
+
+### Additional tests / helper scripts
+There are a couple of helper scripts to help test additional functionality and components integration. These can be found under src/helpers/scripts
+run them do either:
+```
+npm run client
+```
+(It requires at least 2 nodes properly configured and running)
+
+OR
+
+```
+npm run check-nonce
+```
+(This last one requires DB up and running)
+

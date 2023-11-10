@@ -1,4 +1,3 @@
-import { couldStartTrivia } from 'typescript'
 import {
   TypesenseConfigOptions,
   TypesenseCollectionCreateSchema
@@ -78,7 +77,12 @@ async function dropCollection(name: string) {
   try {
     await typesense.collections(name).delete()
   } catch (err) {
-    // silently ignore, maybe it does not exist yet
+    DB_CONSOLE_LOGGER.logMessageWithEmoji(
+      `Error deleting "${name}" collection: ` + err.message,
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_WARN
+    )
   }
 }
 
@@ -118,7 +122,12 @@ async function createCollections() {
       if (res) loaded++
     }
   } catch (err) {
-    // silently ignore errors
+    DB_CONSOLE_LOGGER.logMessageWithEmoji(
+      `Error on createCollections: ` + err.message,
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_WARN
+    )
   } finally {
     DB_CONSOLE_LOGGER.logMessageWithEmoji(
       `Done loading initial DB collections (${loaded} / ${numCollectionsToLoad}) `,
