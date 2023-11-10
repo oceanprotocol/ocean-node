@@ -57,7 +57,7 @@ describe('Typesense collections', () => {
     const result = await typesense.collections().create(ddoSchema)
     expect(result.enable_nested_fields).to.equal(true)
     expect(result.fields).to.not.be.an('undefined')
-    expect(result.name).to.equalIgnoreCase(ddoSchema.name)
+    expect(result.name).to.be.equal(ddoSchema.name)
     expect(result.num_documents).to.equal(0)
   })
 
@@ -66,7 +66,7 @@ describe('Typesense collections', () => {
     const collection = result[0]
     expect(collection.enable_nested_fields).to.equal(true)
     expect(collection.fields).to.not.be.an('undefined')
-    expect(collection.name).to.equalIgnoreCase(ddoSchema.name)
+    expect(collection.name).to.be.equal(ddoSchema.name)
     expect(collection.num_documents).to.equal(0)
   })
 
@@ -74,7 +74,7 @@ describe('Typesense collections', () => {
     const result = await typesense.collections(ddoSchema.name).retrieve()
     expect(result.enable_nested_fields).to.equal(true)
     expect(result.fields).to.not.be.an('undefined')
-    expect(result.name).to.equalIgnoreCase(ddoSchema.name)
+    expect(result.name).to.be.equal(ddoSchema.name)
     expect(result.num_documents).to.equal(0)
   })
 
@@ -84,14 +84,14 @@ describe('Typesense collections', () => {
     })
     expect(result.fields).to.not.be.an('undefined')
     expect(result.fields[0].drop).to.equal(true)
-    expect(result.fields[0].name).to.equalIgnoreSpaces('nftAddress')
+    expect(result.fields[0].name).to.be.equal('nftAddress')
   })
 
   it('delete ddo collection', async () => {
     const result = await typesense.collections(ddoSchema.name).delete()
     expect(result.enable_nested_fields).to.equal(true)
     expect(result.fields).to.not.be.an('undefined')
-    expect(result.name).to.equalIgnoreCase(ddoSchema.name)
+    expect(result.name).to.be.equal(ddoSchema.name)
   })
 })
 
@@ -120,7 +120,7 @@ describe('Typesense documents', () => {
     const result = await typesense.collections().create(ddoSchema)
     expect(result.enable_nested_fields).to.equal(true)
     expect(result.fields).to.not.be.an('undefined')
-    expect(result.name).to.equalIgnoreCase(ddoSchema.name)
+    expect(result.name).to.be.equal(ddoSchema.name)
     expect(result.num_documents).to.equal(0)
   })
 
@@ -128,7 +128,7 @@ describe('Typesense documents', () => {
     const result = await typesense.collections(ddoSchema.name).documents().create(ddo)
     expect(result.id).to.equal(ddo.id)
     expect(result.metadata).to.not.be.an('undefined')
-    expect(result.metadata.name).to.equalIgnoreCase(ddo.metadata.name)
+    expect(result.metadata.name).to.be.equal(ddo.metadata.name)
   })
 
   it('retrieve document in ddo collection', async () => {
@@ -138,7 +138,7 @@ describe('Typesense documents', () => {
       .retrieve(ddo.id)
     expect(result.id).to.equal(ddo.id)
     expect(result.metadata).to.not.be.an('undefined')
-    expect(result.metadata.name).to.equalIgnoreCase(ddo.metadata.name)
+    expect(result.metadata.name).to.be.equal(ddo.metadata.name)
   })
 
   it('update document in ddo collection', async () => {
@@ -153,7 +153,7 @@ describe('Typesense documents', () => {
       })
     expect(result.id).to.equal(ddo.id)
     expect(result.metadata).to.not.be.an('undefined')
-    expect(result.metadata.name).to.equalIgnoreCase(newMetadataName)
+    expect(result.metadata.name).to.be.equal(newMetadataName)
   })
 
   it('delete document in ddo collection', async () => {
@@ -161,7 +161,7 @@ describe('Typesense documents', () => {
     const result = await typesense.collections(ddoSchema.name).documents().delete(ddo.id)
     expect(result.id).to.equal(ddo.id)
     expect(result.metadata).to.not.be.an('undefined')
-    expect(result.metadata.name).to.equalIgnoreCase(newMetadataName)
+    expect(result.metadata.name).to.be.equal(newMetadataName)
   })
 
   it('delete ddo collection', async () => {
@@ -197,7 +197,7 @@ describe('Typesense documents', () => {
     const result = await typesense.collections().create(ddoSchema)
     expect(result.enable_nested_fields).to.equal(true)
     expect(result.fields).to.not.be.an('undefined')
-    expect(result.name).to.equalIgnoreCase(ddoSchema.name)
+    expect(result.name).to.be.equal(ddoSchema.name)
     expect(result.num_documents).to.equal(0)
   })
 
@@ -205,7 +205,7 @@ describe('Typesense documents', () => {
     const result = await typesense.collections(ddoSchema.name).documents().create(ddo)
     expect(result.id).to.equal(ddo.id)
     expect(result.metadata).to.not.be.an('undefined')
-    expect(result.metadata.name).to.equalIgnoreCase(ddo.metadata.name)
+    expect(result.metadata.name).to.be.equal(ddo.metadata.name)
   })
 
   it('search document in ddo collection', async () => {
@@ -224,6 +224,6 @@ describe('Typesense documents', () => {
     const result = await typesense.collections(ddoSchema.name).delete()
     expect(result.enable_nested_fields).to.equal(true)
     expect(result.fields).to.not.be.an('undefined')
-    expect(result.name).to.equalIgnoreCase(ddoSchema.name)
+    expect(result.name).to.be.equal(ddoSchema.name)
   })
 })
