@@ -11,12 +11,12 @@ import { TypesenseApi } from './typesenseApi.js'
 import { TypesenseConfig } from './typesenseConfig.js'
 
 export class TypesenseError extends Error {
-  httpStatus?: number;
+  httpStatus?: number
 
   constructor(message?: string) {
-    super(message);
-    this.name = new.target.name;
-    Object.setPrototypeOf(this, new.target.prototype);
+    super(message)
+    this.name = new.target.name
+    Object.setPrototypeOf(this, new.target.prototype)
   }
 }
 

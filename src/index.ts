@@ -2,7 +2,7 @@ import { OceanP2P } from './components/P2P/index.js'
 import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
 import { Database } from './components/database/index.js'
-import { schemes } from "./components/database/schemes.js";
+import { schemes } from './components/database/schemes.js'
 import express, { Express, Request, Response } from 'express'
 import { OceanNode } from './@types/index.js'
 import swaggerUi from 'swagger-ui-express'
