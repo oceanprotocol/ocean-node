@@ -12,7 +12,7 @@ export const schemes: Schemes = {
             name: 'ddo_v0.1',
             enable_nested_fields: true,
             fields: [
-                { name: ".*", type: "auto" },
+                {name: ".*", type: "auto"},
             ],
         }
     ],
@@ -27,7 +27,7 @@ export const schemes: Schemes = {
         name: 'indexer',
         enable_nested_fields: true,
         fields: [
-            { name: ".*", type: "auto" },
+            {name: ".*", type: "auto"},
         ]
     },
 };

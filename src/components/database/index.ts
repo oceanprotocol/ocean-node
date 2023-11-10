@@ -69,29 +69,51 @@ export class NonceDatabase {
         })() as unknown as NonceDatabase;
     }
 
-    async create(id: string, nonce: number) {
-        return await this.provider.collections(this.schema.name).documents().create({id, nonce})
+    async create(id: string, fields: Record<string, any>) {
+        try {
+            return await this.provider.collections(this.schema.name).documents().create({id, ...fields})
+        } catch (error) {
+            if (error instanceof TypesenseError) {
+                return null;
+            }
+            throw error;
+        }
     }
 
     async retrieve(id: string) {
-        const result = await this.provider.collections(this.schema.name).documents().retrieve(id)
-        return result.nonce
+        try {
+            return await this.provider.collections(this.schema.name).documents().retrieve(id)
+        } catch (error) {
+            if (error instanceof TypesenseError) {
+                return null;
+            }
+            throw error;
+        }
     }
 
-    async update(id: string, nonce: number) {
+    async update(id: string, fields: Record<string, any>) {
         try {
-            return await this.provider.collections(this.schema.name).documents().update(id, {nonce})
+            return await this.provider.collections(this.schema.name).documents().update(id, fields)
         } catch (error) {
             if (error instanceof TypesenseError && error.httpStatus == 404) {
-                return await this.provider.collections(this.schema.name).documents().create({id, nonce})
-            } else {
-                throw error;
+                return await this.provider.collections(this.schema.name).documents().create({id, ...fields})
             }
+            if (error instanceof TypesenseError) {
+                return null;
+            }
+            throw error;
         }
     }
 
     async delete(id: string) {
-        return await this.provider.collections(this.schema.name).documents().delete(id)
+        try {
+            return await this.provider.collections(this.schema.name).documents().delete(id)
+        } catch (error) {
+            if (error instanceof TypesenseError) {
+                return null;
+            }
+            throw error;
+        }
     }
 }
 
@@ -115,11 +137,25 @@ export class IndexerDatabase {
     }
 
     async create(id: string, fields: Record<string, any>) {
-        return await this.provider.collections(this.schema.name).documents().create({id, ...fields})
+        try {
+            return await this.provider.collections(this.schema.name).documents().create({id, ...fields})
+        } catch (error) {
+            if (error instanceof TypesenseError) {
+                return null;
+            }
+            throw error;
+        }
     }
 
     async retrieve(id: string) {
-        return await this.provider.collections(this.schema.name).documents().retrieve(id)
+        try {
+            return await this.provider.collections(this.schema.name).documents().retrieve(id)
+        } catch (error) {
+            if (error instanceof TypesenseError) {
+                return null;
+            }
+            throw error;
+        }
     }
 
     async update(id: string, fields: Record<string, any>) {
@@ -128,14 +164,23 @@ export class IndexerDatabase {
         } catch (error) {
             if (error instanceof TypesenseError && error.httpStatus == 404) {
                 return await this.provider.collections(this.schema.name).documents().create({id, ...fields})
-            } else {
-                throw error;
             }
+            if (error instanceof TypesenseError) {
+                return null;
+            }
+            throw error;
         }
     }
 
     async delete(id: string) {
-        return await this.provider.collections(this.schema.name).documents().delete(id)
+        try {
+            return await this.provider.collections(this.schema.name).documents().delete(id)
+        } catch (error) {
+            if (error instanceof TypesenseError) {
+                return null;
+            }
+            throw error;
+        }
     }
 }
 
