@@ -45,9 +45,18 @@ export async function getPeerIdFromPrivateKey(
   }
 }
 
+function getEnvValue(env: any, defaultValue: any) {
+  /* Gets value for an ENV var, returning defaultValue if not defined */
+  return process.env.envName != null ? env : defaultValue
+}
+
+function getIntEnvValue(env: any, defaultValue: number) {
+  /* Gets int value for an ENV var, returning defaultValue if not defined */
+  const num = parseInt(env, 10)
+  return isNaN(num) ? defaultValue : num
+}
+
 export async function getConfig(): Promise<OceanNodeConfig> {
-  let port = parseInt(process.env.HTTP_API_PORT)
-  if (isNaN(port)) port = 8000
   const privateKey = process.env.PRIVATE_KEY
   if (!privateKey || privateKey.length !== 66) {
     // invalid private key
@@ -64,8 +73,28 @@ export async function getConfig(): Promise<OceanNodeConfig> {
     hasIndexer: true,
     hasHttp: true,
     hasP2P: true,
+    p2pConfig: {
+      ipV4BindAddress: getEnvValue(process.env.P2P_ipV4BindAddress, '0.0.0.0'),
+      ipV4BindTcpPort: getIntEnvValue(process.env.P2P_ipV4BindTcpPort, 0),
+      ipV4BindWsPort: getIntEnvValue(process.env.P2P_ipV4BindWsPort, 0),
+      ipV6BindAddress: getEnvValue(process.env.P2P_ipV6BindAddress, '::1'),
+      ipV6BindTcpPort: getIntEnvValue(process.env.P2P_ipV6BindTcpPort, 0),
+      ipV6BindWsPort: getIntEnvValue(process.env.P2P_ipV6BindWsPort, 0),
+      pubsubPeerDiscoveryInterval: getIntEnvValue(
+        process.env.P2P_pubsubPeerDiscoveryInterval,
+        1000
+      ),
+      dhtMaxInboundStreams: getIntEnvValue(process.env.P2P_dhtMaxInboundStreams, 500),
+      dhtMaxOutboundStreams: getIntEnvValue(process.env.P2P_dhtMaxOutboundStreams, 500),
+      mDNSInterval: getIntEnvValue(process.env.P2P_mDNSInterval, 20e3), // 20 seconds
+      connectionsMaxParallelDials: getIntEnvValue(
+        process.env.P2P_connectionsMaxParallelDials,
+        150
+      ),
+      connectionsDialTimeout: getIntEnvValue(process.env.P2P_connectionsDialTimeout, 10e3) // 10 seconds
+    },
     hasProvider: true,
-    httpPort: port,
+    httpPort: getIntEnvValue(process.env.HTTP_API_PORT, 8000),
     dbConfig: {
       typesense: {
         apiKey: 'xyz',
