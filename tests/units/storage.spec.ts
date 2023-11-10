@@ -1,4 +1,5 @@
 import { FileObject } from '../../src/@types/fileObject'
+import { ReadableString } from '../../src/components/P2P/handleProtocolCommands'
 import {
   Storage,
   UrlStorage,
@@ -19,8 +20,9 @@ describe('URL Storage tests', () => {
     ]
   }
   let storage: Storage
+  const stream = new ReadableString('') // Testing value
   beforeAll(() => {
-    storage = Storage.getStorageClass(file)
+    storage = Storage.getStorageClass(file, stream)
   })
 
   it('Storage instance', () => {
@@ -40,7 +42,7 @@ describe('URL Storage tests', () => {
         }
       ]
     }
-    storage = Storage.getStorageClass(file)
+    storage = Storage.getStorageClass(file, stream)
     expect(storage.validate()).toStrictEqual([false, 'URL or method are missing!'])
     file = {
       type: 'url',
@@ -52,7 +54,7 @@ describe('URL Storage tests', () => {
         }
       ]
     }
-    storage = Storage.getStorageClass(file)
+    storage = Storage.getStorageClass(file, stream)
     expect(storage.validate()).toStrictEqual([false, 'URL or method are missing!'])
   })
   it('URL validation fails on invalid method', () => {
@@ -67,7 +69,7 @@ describe('URL Storage tests', () => {
         }
       ]
     }
-    storage = Storage.getStorageClass(file)
+    storage = Storage.getStorageClass(file, stream)
     expect(storage.validate()).toStrictEqual([false, 'Invalid method for URL'])
   })
 
@@ -83,7 +85,7 @@ describe('URL Storage tests', () => {
         }
       ]
     }
-    storage = Storage.getStorageClass(file)
+    storage = Storage.getStorageClass(file, stream)
     expect(storage.validate()).toStrictEqual([false, 'URL looks like a file path'])
   })
   it('Gets download URL', () => {
@@ -98,7 +100,7 @@ describe('URL Storage tests', () => {
         }
       ]
     }
-    storage = Storage.getStorageClass(file)
+    storage = Storage.getStorageClass(file, stream)
     expect(storage.getDownloadUrl()).toStrictEqual('http://someUrl.com/file.json')
   })
 })
@@ -109,8 +111,9 @@ describe('IPFS Storage tests', () => {
     hash: 'Qxchjkflsejdfklgjhfkgjkdjoiderj'
   }
   let storage: Storage
+  const stream = new ReadableString('')
   beforeAll(() => {
-    storage = Storage.getStorageClass(file)
+    storage = Storage.getStorageClass(file, stream)
   })
 
   it('Storage instance', () => {
@@ -123,7 +126,7 @@ describe('IPFS Storage tests', () => {
     file = {
       type: 'ipfs'
     }
-    storage = Storage.getStorageClass(file)
+    storage = Storage.getStorageClass(file, stream)
     expect(storage.validate()).toStrictEqual([false, 'Missing CID'])
   })
 })
@@ -134,8 +137,9 @@ describe('Arweave Storage tests', () => {
     transactionId: '0x2563ed54abc0001bcaef'
   }
   let storage: Storage
+  const stream = new ReadableString('')
   beforeAll(() => {
-    storage = Storage.getStorageClass(file)
+    storage = Storage.getStorageClass(file, stream)
   })
 
   it('Storage instance', () => {
@@ -148,7 +152,7 @@ describe('Arweave Storage tests', () => {
     file = {
       type: 'arweave'
     }
-    storage = Storage.getStorageClass(file)
+    storage = Storage.getStorageClass(file, stream)
     expect(storage.validate()).toStrictEqual([false, 'Missing transaction ID'])
   })
 })

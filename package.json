@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "jest --detectOpenHandles",
-    "testStorage": "jest tests/units/storage.spec.ts",
+    "testStorage": "jest --detectOpenHandles tests/units/storage.spec.ts",
     "build": "npm run clean && npm run build:tsc",
     "build:swagger": "tsoa spec",
     "build:tsc": "tsc --sourceMap",

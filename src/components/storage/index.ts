@@ -1,25 +1,31 @@
 import { FileObject } from '../../@types/fileObject'
-import { Readable } from 'stream'
+import { ReadableString } from '../P2P/handleProtocolCommands'
 
 export class Storage {
   private file: FileObject
-  public constructor(file: FileObject) {
+  private stream: ReadableString
+  public constructor(file: FileObject, stream: ReadableString) {
     this.file = file
+    this.stream = stream
   }
 
   getFile(): FileObject {
     return this.file
   }
 
-  static getStorageClass(file: FileObject): Storage {
+  getReadableStream(): ReadableString {
+    return this.stream
+  }
+
+  static getStorageClass(file: FileObject, stream: ReadableString): Storage {
     const type: string = file.type
     switch (type) {
       case 'url':
-        return new UrlStorage(file)
+        return new UrlStorage(file, stream)
       case 'ipfs':
-        return new IpfsStorage(file)
+        return new IpfsStorage(file, stream)
       case 'arweave':
-        return new ArweaveStorage(file)
+        return new ArweaveStorage(file, stream)
       default:
         throw new Error(`Invalid storage type: ${type}`)
     }
@@ -32,24 +38,11 @@ export class Storage {
   getDownloadUrl(): string {
     return ''
   }
-
-  async getReadableStream(readableStream: Readable): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const chunks: string[] = []
-      readableStream.on('data', (data) => {
-        chunks.push(data.toString())
-      })
-      readableStream.on('end', () => {
-        resolve(chunks.join(''))
-      })
-      readableStream.on('error', reject)
-    })
-  }
 }
 
 export class UrlStorage extends Storage {
-  public constructor(file: FileObject) {
-    super(file)
+  public constructor(file: FileObject, stream: ReadableString) {
+    super(file, stream)
   }
 
   validate(): [boolean, string] {
@@ -83,14 +76,14 @@ export class UrlStorage extends Storage {
     }
   }
 
-  getReadableStream(readableStream: Readable): Promise<string> {
-    return super.getReadableStream(readableStream)
+  getReadableStream(): ReadableString {
+    return super.getReadableStream()
   }
 }
 
 export class ArweaveStorage extends Storage {
-  public constructor(file: FileObject) {
-    super(file)
+  public constructor(file: FileObject, stream: ReadableString) {
+    super(file, stream)
   }
 
   validate(): [boolean, string] {
@@ -110,14 +103,14 @@ export class ArweaveStorage extends Storage {
     }
   }
 
-  getReadableStream(readableStream: Readable): Promise<string> {
-    return super.getReadableStream(readableStream)
+  getReadableStream(): ReadableString {
+    return super.getReadableStream()
   }
 }
 
 export class IpfsStorage extends Storage {
-  public constructor(file: FileObject) {
-    super(file)
+  public constructor(file: FileObject, stream: ReadableString) {
+    super(file, stream)
   }
 
   validate(): [boolean, string] {
@@ -138,7 +131,7 @@ export class IpfsStorage extends Storage {
     }
   }
 
-  getReadableStream(readableStream: Readable): Promise<string> {
-    return super.getReadableStream(readableStream)
+  getReadableStream(): ReadableString {
+    return super.getReadableStream()
   }
 }
