@@ -76,7 +76,7 @@ npm run client
 OR
 
 ```
-npm run check-nonce (for checking nonce handling flow)
+npm run check-nonce
 ```
 (Purpose: for checking nonce tracking flow. This last one requires DB up and running)
 
