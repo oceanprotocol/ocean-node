@@ -1,5 +1,10 @@
 import { parentPort, workerData } from 'worker_threads'
-import { getLastIndexedBlock, getNetworkHeight, processBlocks } from './utils.js'
+import {
+  getDeployedContractBlock,
+  getLastIndexedBlock,
+  getNetworkHeight,
+  processBlocks
+} from './utils.js'
 import { Blockchain } from '../../utils/blockchain.js'
 
 const { network } = workerData
@@ -8,26 +13,29 @@ const provider = blockchain.getProvider(network)
 console.log('worker for network', network)
 
 async function proccesNetworkData(): Promise<void> {
-  let lastIndexedBlock = await getLastIndexedBlock(provider)
-  console.log('lastIndexedBlock', lastIndexedBlock)
+  const lastIndexedBlock = await getLastIndexedBlock(provider)
+  console.log(`worker: ${network} getLastIndexedBlock: ${lastIndexedBlock}`)
 
   const networkHeight = await getNetworkHeight(provider)
-  console.log('networkHeight', networkHeight)
+  console.log(`worker: ${network} getNetworkHeight: ${networkHeight}`)
 
-  if (networkHeight > lastIndexedBlock) {
+  const deployedBlock = await getDeployedContractBlock(network)
+  console.log(`worker: ${network} getDeployedContractBlock: ${deployedBlock}`)
+
+  let startBlock =
+    lastIndexedBlock && lastIndexedBlock > deployedBlock
+      ? lastIndexedBlock
+      : deployedBlock
+  if (networkHeight > startBlock) {
     let chunkSize = 100
     let remainingBlocks = networkHeight - lastIndexedBlock
 
     while (remainingBlocks > 0) {
       const blocksToProcess = Math.min(chunkSize, remainingBlocks)
 
-      const processedBlocks = await processBlocks(
-        provider,
-        lastIndexedBlock,
-        blocksToProcess
-      )
+      const processedBlocks = await processBlocks(provider, startBlock, blocksToProcess)
 
-      lastIndexedBlock += processedBlocks
+      startBlock += processedBlocks
 
       parentPort.postMessage({ processedBlocks })
 
@@ -39,7 +47,7 @@ async function proccesNetworkData(): Promise<void> {
     }
   }
 
-  parentPort.postMessage({ processedBlocks: 0 })
+  parentPort.postMessage({ event: 'metadata-created' })
 }
 
 parentPort.on('message', (message) => {

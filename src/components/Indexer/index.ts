@@ -21,8 +21,8 @@ export class OceanIndexer {
         workerData: { network, provider }
       })
 
-      worker.on('metadata-created', (message: string) => {
-        console.log(`new metadata-created from worker for network ${network}: ${message}`)
+      worker.on('message', (event: string) => {
+        console.log(`new metadata-created from worker for network ${network}: ${event}`)
         // index the DDO in the typesense db
       })
 
