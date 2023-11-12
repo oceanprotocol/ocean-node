@@ -7,7 +7,7 @@ export class Blockchain {
   private providers: { [chainId: number]: Provider } = {}
   private supportedChains: number[] = []
 
-  public constructor(networks: RPCS, nodeKeys: OceanNodeKeys) {
+  public constructor(networks: RPCS, nodeKeys?: OceanNodeKeys) {
     const chainIds = Object.keys(networks)
     chainIds.forEach((chain) => {
       this.supportedChains.push(parseInt(chain))
