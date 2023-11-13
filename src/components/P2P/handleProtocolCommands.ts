@@ -12,7 +12,7 @@ import { P2PCommandResponse } from '../../@types/OceanNode'
 
 import { P2P_CONSOLE_LOGGER } from './index.js'
 
-export class ReadableString extends Readable {
+class ReadableString extends Readable {
   private sent = false
 
   constructor(private str: string) {

@@ -1,23 +1,25 @@
-import { FileObject } from '../../@types/fileObject'
-import { ReadableString } from '../P2P/handleProtocolCommands'
+import { ArweaveFileObject } from '../../@types/arweaveFileObject'
+import { IpfsFileObject } from '../../@types/ipfsFileObject'
+import { UrlFileObject } from '../../@types/urlFileObject'
+import { Readable } from 'stream'
 
 export class Storage {
-  private file: FileObject
-  private stream: ReadableString
-  public constructor(file: FileObject, stream: ReadableString) {
+  private file: any
+  private stream: Readable
+  public constructor(file: any, stream: Readable) {
     this.file = file
     this.stream = stream
   }
 
-  getFile(): FileObject {
+  getFile(): any {
     return this.file
   }
 
-  getReadableStream(): ReadableString {
+  getReadableStream(): Readable {
     return this.stream
   }
 
-  static getStorageClass(file: FileObject, stream: ReadableString): Storage {
+  static getStorageClass(file: any, stream: Readable): UrlStorage | IpfsStorage | ArweaveStorage {
     const type: string = file.type
     switch (type) {
       case 'url':
@@ -41,12 +43,23 @@ export class Storage {
 }
 
 export class UrlStorage extends Storage {
-  public constructor(file: FileObject, stream: ReadableString) {
+  public constructor(file: UrlFileObject, stream: Readable) {
     super(file, stream)
+    const [isValid, message] = this.validate()
+    if (isValid === false) {
+      throw new Error(`Error validationg the URL file: ${message}`)
+    }
+  }
+
+  getFile(): UrlFileObject {
+    if (this.getFile() instanceof UrlStorage) {
+      return this.getFile()
+    }
+    throw new Error(`Invalid storage type for this method`)
   }
 
   validate(): [boolean, string] {
-    const file: FileObject = this.getFile()
+    const file: UrlFileObject = this.getFile()
     if (!file.url || !file.method) {
       return [false, 'URL or method are missing!']
     }
@@ -76,18 +89,30 @@ export class UrlStorage extends Storage {
     }
   }
 
-  getReadableStream(): ReadableString {
+  getReadableStream(): Readable {
     return super.getReadableStream()
   }
 }
 
 export class ArweaveStorage extends Storage {
-  public constructor(file: FileObject, stream: ReadableString) {
+  public constructor(file: ArweaveFileObject, stream: Readable) {
     super(file, stream)
+
+    const [isValid, message] = this.validate()
+    if (isValid === false) {
+      throw new Error(`Error validationg the Arweave file: ${message}`)
+    }
+  }
+
+  getFile(): ArweaveFileObject {
+    if (this.getFile() instanceof ArweaveStorage) {
+      return this.getFile()
+    }
+    throw new Error(`Invalid storage type for this method`)
   }
 
   validate(): [boolean, string] {
-    const file: FileObject = this.getFile()
+    const file: ArweaveFileObject = this.getFile()
     if (!file.transactionId) {
       return [false, 'Missing transaction ID']
     }
@@ -103,18 +128,30 @@ export class ArweaveStorage extends Storage {
     }
   }
 
-  getReadableStream(): ReadableString {
+  getReadableStream(): Readable {
     return super.getReadableStream()
   }
 }
 
 export class IpfsStorage extends Storage {
-  public constructor(file: FileObject, stream: ReadableString) {
+  public constructor(file: IpfsFileObject, stream: Readable) {
     super(file, stream)
+
+    const [isValid, message] = this.validate()
+    if (isValid === false) {
+      throw new Error(`Error validationg the IPFS file: ${message}`)
+    }
+  }
+
+  getFile(): IpfsFileObject {
+    if (this.getFile() instanceof IpfsStorage) {
+      return this.getFile()
+    }
+    throw new Error(`Invalid storage type for this method`)
   }
 
   validate(): [boolean, string] {
-    const file: FileObject = this.getFile()
+    const file: IpfsFileObject = this.getFile()
     if (!file.hash) {
       return [false, 'Missing CID']
     }
@@ -131,7 +168,7 @@ export class IpfsStorage extends Storage {
     }
   }
 
-  getReadableStream(): ReadableString {
+  getReadableStream(): Readable {
     return super.getReadableStream()
   }
 }
