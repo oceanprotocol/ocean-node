@@ -5,19 +5,19 @@ import { getFileFromURL } from '../core/downloadHandler'
 import { Readable } from 'stream'
 import urlJoin from 'url-join'
 
-export class Storage {
+export abstract class Storage {
   private file: any
   public constructor(file: any) {
     this.file = file
   }
 
-  getFile(): any {
-    return this.file
-  }
+  abstract getFile(): any
 
-  async getReadableStream(): Promise<Readable> {
-    return new Readable()
-  }
+  abstract getReadableStream(): Promise<Readable>
+
+  abstract validate(): [boolean, string]
+
+  abstract getDownloadUrl(): string
 
   static getStorageClass(file: any): UrlStorage | IpfsStorage | ArweaveStorage {
     const type: string = file.type
@@ -32,14 +32,6 @@ export class Storage {
         throw new Error(`Invalid storage type: ${type}`)
     }
   }
-
-  validate(): [boolean, string] {
-    return [true, '']
-  }
-
-  getDownloadUrl(): string {
-    return ''
-  }
 }
 
 export class UrlStorage extends Storage {
@@ -52,10 +44,7 @@ export class UrlStorage extends Storage {
   }
 
   getFile(): UrlFileObject {
-    if (this.getFile() instanceof UrlStorage) {
-      return this.getFile()
-    }
-    throw new Error(`Invalid storage type for this method`)
+    return this.getFile()
   }
 
   validate(): [boolean, string] {
@@ -112,10 +101,7 @@ export class ArweaveStorage extends Storage {
   }
 
   getFile(): ArweaveFileObject {
-    if (this.getFile() instanceof ArweaveStorage) {
-      return this.getFile()
-    }
-    throw new Error(`Invalid storage type for this method`)
+    return this.getFile()
   }
 
   validate(): [boolean, string] {
@@ -162,10 +148,7 @@ export class IpfsStorage extends Storage {
   }
 
   getFile(): IpfsFileObject {
-    if (this.getFile() instanceof IpfsStorage) {
-      return this.getFile()
-    }
-    throw new Error(`Invalid storage type for this method`)
+    return this.getFile()
   }
 
   validate(): [boolean, string] {
