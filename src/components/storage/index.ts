@@ -5,10 +5,8 @@ import { Readable } from 'stream'
 
 export class Storage {
   private file: any
-  private stream: Readable
-  public constructor(file: any, stream: Readable) {
+  public constructor(file: any) {
     this.file = file
-    this.stream = stream
   }
 
   getFile(): any {
@@ -16,21 +14,18 @@ export class Storage {
   }
 
   getReadableStream(): Readable {
-    return this.stream
+    return new Readable()
   }
 
-  static getStorageClass(
-    file: any,
-    stream: Readable
-  ): UrlStorage | IpfsStorage | ArweaveStorage {
+  static getStorageClass(file: any): UrlStorage | IpfsStorage | ArweaveStorage {
     const type: string = file.type
     switch (type) {
       case 'url':
-        return new UrlStorage(file, stream)
+        return new UrlStorage(file)
       case 'ipfs':
-        return new IpfsStorage(file, stream)
+        return new IpfsStorage(file)
       case 'arweave':
-        return new ArweaveStorage(file, stream)
+        return new ArweaveStorage(file)
       default:
         throw new Error(`Invalid storage type: ${type}`)
     }
@@ -46,8 +41,8 @@ export class Storage {
 }
 
 export class UrlStorage extends Storage {
-  public constructor(file: UrlFileObject, stream: Readable) {
-    super(file, stream)
+  public constructor(file: UrlFileObject) {
+    super(file)
     const [isValid, message] = this.validate()
     if (isValid === false) {
       throw new Error(`Error validationg the URL file: ${message}`)
@@ -90,16 +85,24 @@ export class UrlStorage extends Storage {
     if (this.validate()[0] === true) {
       return this.getFile().url
     }
+    return null
   }
 
   getReadableStream(): Readable {
-    return super.getReadableStream()
+    const input = this.getDownloadUrl()
+    const readableStream = new Readable()
+    if (input) {
+      readableStream.push(input)
+      return readableStream
+    } else {
+      throw new Error(`Input stream is null due to invalid URL ${this.getFile().url}`)
+    }
   }
 }
 
 export class ArweaveStorage extends Storage {
-  public constructor(file: ArweaveFileObject, stream: Readable) {
-    super(file, stream)
+  public constructor(file: ArweaveFileObject) {
+    super(file)
 
     const [isValid, message] = this.validate()
     if (isValid === false) {
@@ -132,13 +135,24 @@ export class ArweaveStorage extends Storage {
   }
 
   getReadableStream(): Readable {
-    return super.getReadableStream()
+    const input = this.getDownloadUrl()
+    const readableStream = new Readable()
+    if (input) {
+      readableStream.push(input)
+      return readableStream
+    } else {
+      throw new Error(
+        `Input stream is null due to invalid URL. Transaction ID: ${
+          this.getFile().transactionId
+        }`
+      )
+    }
   }
 }
 
 export class IpfsStorage extends Storage {
-  public constructor(file: IpfsFileObject, stream: Readable) {
-    super(file, stream)
+  public constructor(file: IpfsFileObject) {
+    super(file)
 
     const [isValid, message] = this.validate()
     if (isValid === false) {
@@ -172,6 +186,15 @@ export class IpfsStorage extends Storage {
   }
 
   getReadableStream(): Readable {
-    return super.getReadableStream()
+    const input = this.getDownloadUrl()
+    const readableStream = new Readable()
+    if (input) {
+      readableStream.push(input)
+      return readableStream
+    } else {
+      throw new Error(
+        `Input stream is null due to invalid URL. CID: ${this.getFile().hash}`
+      )
+    }
   }
 }
