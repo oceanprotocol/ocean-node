@@ -85,12 +85,23 @@ const processEventData = async (
 ) => {
   if (logs.length > 0) {
     for (const log of logs) {
-      console.log(`receipt logs: `, log.topics[0])
-      console.log(EVENT_HASHES)
       const event = findEventByKey(log.topics[0])
-      if (event && event.type === EVENTS.METADATA_CREATED) return 'Metadata created'
+      if (
+        event &&
+        (event.type === EVENTS.METADATA_CREATED ||
+          event.type === EVENTS.METADATA_UPDATED ||
+          event.type === EVENTS.METADATA_STATE)
+      ) {
+        console.log('metadata created -- ')
+        processMetadataEvents()
+        return 'Metadata created'
+      }
     }
   }
 
   return null
+}
+
+const processMetadataEvents = async () => {
+  // lets process metadata events
 }
