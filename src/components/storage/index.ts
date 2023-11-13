@@ -19,7 +19,10 @@ export class Storage {
     return this.stream
   }
 
-  static getStorageClass(file: any, stream: Readable): UrlStorage | IpfsStorage | ArweaveStorage {
+  static getStorageClass(
+    file: any,
+    stream: Readable
+  ): UrlStorage | IpfsStorage | ArweaveStorage {
     const type: string = file.type
     switch (type) {
       case 'url':

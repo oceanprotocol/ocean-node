@@ -1,6 +1,6 @@
 export interface HeadersObject {
-    [key: string]: string
-  }
+  [key: string]: string
+}
 
 export interface UrlFileObject {
   type: string
