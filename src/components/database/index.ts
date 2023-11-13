@@ -1,6 +1,6 @@
 import { OceanNodeDBConfig } from '../../@types/OceanNode'
-import {convertTypesenseConfig, Typesense, TypesenseError} from './typesense.js'
-import { Schema, schemas} from './schemas.js'
+import { convertTypesenseConfig, Typesense, TypesenseError } from './typesense.js'
+import { Schema, schemas } from './schemas.js'
 
 export class DdoDatabase {
   private provider: Typesense
@@ -102,7 +102,10 @@ export class NonceDatabase {
 
   async retrieve(address: string) {
     try {
-      return await this.provider.collections(this.schema.name).documents().retrieve(address)
+      return await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .retrieve(address)
     } catch (error) {
       return null
     }
@@ -113,7 +116,7 @@ export class NonceDatabase {
       return await this.provider
         .collections(this.schema.name)
         .documents()
-        .update(address, {nonce})
+        .update(address, { nonce })
     } catch (error) {
       if (error instanceof TypesenseError && error.httpStatus === 404) {
         return await this.provider
@@ -204,9 +207,7 @@ export class Database {
   nonce: NonceDatabase
   indexer: IndexerDatabase
 
-  constructor(
-    private config: OceanNodeDBConfig
-  ) {
+  constructor(private config: OceanNodeDBConfig) {
     return (async (): Promise<Database> => {
       this.ddo = await new DdoDatabase(config, schemas.ddoSchemas)
       this.nonce = await new NonceDatabase(config, schemas.nonceSchemas)

@@ -1,5 +1,8 @@
 import 'jest'
-import Typesense, {convertTypesenseConfig, TypesenseCollections} from '../../src/components/database/typesense'
+import Typesense, {
+  convertTypesenseConfig,
+  TypesenseCollections
+} from '../../src/components/database/typesense'
 import { TypesenseConfigOptions } from '../../src/@types'
 import { ddoSchema } from '../data/ddoSchema'
 import { ddo } from '../data/ddo'
