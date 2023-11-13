@@ -1,5 +1,5 @@
 import { OceanNodeDBConfig } from '../../@types/OceanNode'
-import { Typesense, TypesenseError } from './typesense.js'
+import {convertTypesenseConfig, Typesense, TypesenseError} from './typesense.js'
 import { Schema, schemas} from './schemas.js'
 
 export class DdoDatabase {
@@ -10,7 +10,7 @@ export class DdoDatabase {
     private schemas: Schema[]
   ) {
     return (async (): Promise<DdoDatabase> => {
-      this.provider = new Typesense(this.config.typesense)
+      this.provider = new Typesense(convertTypesenseConfig(this.config.url))
       for (const ddoSchema of this.schemas) {
         try {
           await this.provider.collections(ddoSchema.name).retrieve()
@@ -77,7 +77,7 @@ export class NonceDatabase {
     private schema: Schema
   ) {
     return (async (): Promise<NonceDatabase> => {
-      this.provider = new Typesense(this.config.typesense)
+      this.provider = new Typesense(convertTypesenseConfig(this.config.url))
       try {
         await this.provider.collections(this.schema.name).retrieve()
       } catch (error) {
@@ -142,7 +142,7 @@ export class IndexerDatabase {
     private schema: Schema
   ) {
     return (async (): Promise<IndexerDatabase> => {
-      this.provider = new Typesense(this.config.typesense)
+      this.provider = new Typesense(convertTypesenseConfig(this.config.url))
       try {
         await this.provider.collections(this.schema.name).retrieve()
       } catch (error) {

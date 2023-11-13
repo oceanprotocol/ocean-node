@@ -1,5 +1,5 @@
 import 'jest'
-import Typesense, { TypesenseCollections } from '../../src/components/database/typesense'
+import Typesense, {convertTypesenseConfig, TypesenseCollections} from '../../src/components/database/typesense'
 import { TypesenseConfigOptions } from '../../src/@types'
 import { ddoSchema } from '../data/ddoSchema'
 import { ddo } from '../data/ddo'
@@ -8,17 +8,8 @@ describe('Typesense', () => {
   let typesense: Typesense
 
   beforeAll(() => {
-    const config: TypesenseConfigOptions = {
-      apiKey: 'xyz',
-      nodes: [
-        {
-          host: 'localhost',
-          port: 8108,
-          protocol: 'http'
-        }
-      ]
-    }
-    typesense = new Typesense(config)
+    const url = 'http://localhost:8108/?apiKey=xyz'
+    typesense = new Typesense(convertTypesenseConfig(url))
   })
 
   it('instance Typesense', async () => {

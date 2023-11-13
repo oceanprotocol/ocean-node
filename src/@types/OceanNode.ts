@@ -7,7 +7,7 @@ import { TypesenseConfigOptions } from './Typesense'
 import { Blockchain } from '../utils/blockchain'
 
 export interface OceanNodeDBConfig {
-  typesense: TypesenseConfigOptions
+  url: string
 }
 
 export interface OceanNodeKeys {

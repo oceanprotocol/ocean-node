@@ -8,7 +8,7 @@ export interface TypesenseAbstractLogger {
 
 export interface TypesenseNode {
   host: string
-  port: number
+  port: string
   protocol: string
 }
 

@@ -10,6 +10,19 @@ import {
 import { TypesenseApi } from './typesenseApi.js'
 import { TypesenseConfig } from './typesenseConfig.js'
 
+export const convertTypesenseConfig = (url: string) => {
+  const urlObject = new URL(url);
+  const protocol = urlObject.protocol;
+  const host = urlObject.hostname;
+  const port = urlObject.port;
+  const apiKey = urlObject.searchParams.get('apiKey');
+  const config: TypesenseConfigOptions = {
+    apiKey,
+    nodes: [{host, port, protocol}]
+  }
+  return config
+}
+
 export class TypesenseError extends Error {
   httpStatus?: number
 
