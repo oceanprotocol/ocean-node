@@ -1,6 +1,8 @@
 import { ethers } from 'ethers'
 import fs from 'fs'
 import { homedir } from 'os'
+import { EVENTS, EVENT_HASHES } from '../../utils/constants.js'
+import { NetworkEvent } from '../../@types/blockchain.js'
 
 export const getDeployedContractBlock = async (network: number) => {
   let deployedBlock: number
@@ -55,11 +57,10 @@ export const processBlocks = async (
 
 const processBlockEvents = async (provider: ethers.Provider, block: ethers.Block) => {
   const processedEvents = []
-  console.log(`Block number: ${block.number}`)
   for (const transaction of block.transactions) {
-    console.log(`Transaction hash: ${transaction}`)
     const receipt = await provider.getTransactionReceipt(transaction)
-    const processedEventData = processEventData(receipt.logs)
+    // console.log(`receipt: `, receipt)
+    const processedEventData = await processEventData(provider, receipt.logs)
     if (processedEventData) {
       processedEvents.push(processedEventData)
     }
@@ -67,16 +68,27 @@ const processBlockEvents = async (provider: ethers.Provider, block: ethers.Block
   return processedEvents
 }
 
-const processEventData = (logs: readonly ethers.Log[]) => {
-  for (const log of logs) {
-    const eventFragment = ethers.EventFragment.from(log.topics[0])
+function findEventByKey(keyToFind: string): NetworkEvent {
+  for (const [key, value] of Object.entries(EVENT_HASHES)) {
+    if (key === keyToFind) {
+      console.log(`Found event with key '${key}':`, value)
+      return value
+    }
+  }
+  console.log(`Event with key '${keyToFind}' not found`)
+  return null
+}
 
-    console.log(`Event name: ${eventFragment.name}`)
-
-    if (eventFragment.name === 'METADATA-CREATED') {
-      //   const decodedData = ethers.defaultAbiCoder.decode(eventFragment.inputs, log.data)
-      //   console.log(`Event data: ${JSON.stringify(decodedData)}`)
-      return 'Metadata created'
+const processEventData = async (
+  provider: ethers.Provider,
+  logs: readonly ethers.Log[]
+) => {
+  if (logs.length > 0) {
+    for (const log of logs) {
+      console.log(`receipt logs: `, log.topics[0])
+      console.log(EVENT_HASHES)
+      const event = findEventByKey(log.topics[0])
+      if (event && event.type === EVENTS.METADATA_CREATED) return 'Metadata created'
     }
   }
 

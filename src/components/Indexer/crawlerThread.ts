@@ -14,18 +14,16 @@ console.log('worker for network', network)
 
 async function proccesNetworkData(): Promise<void> {
   const lastIndexedBlock = await getLastIndexedBlock(provider)
-  console.log(`worker: ${network} getLastIndexedBlock: ${lastIndexedBlock}`)
 
   const networkHeight = await getNetworkHeight(provider)
-  console.log(`worker: ${network} getNetworkHeight: ${networkHeight}`)
 
   const deployedBlock = await getDeployedContractBlock(network)
-  console.log(`worker: ${network} getDeployedContractBlock: ${deployedBlock}`)
 
   let startBlock =
     lastIndexedBlock && lastIndexedBlock > deployedBlock
       ? lastIndexedBlock
       : deployedBlock
+
   if (networkHeight > startBlock) {
     let chunkSize = 100
     let remainingBlocks = networkHeight - lastIndexedBlock
