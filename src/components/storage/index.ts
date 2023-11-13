@@ -132,6 +132,7 @@ export class ArweaveStorage extends Storage {
       }
       return process.env.ARWEAVE_GATEWAY + '/' + this.getFile().transactionId
     }
+    return null
   }
 
   getReadableStream(): Readable {
@@ -183,6 +184,7 @@ export class IpfsStorage extends Storage {
       }
       return process.env.IPFS_GATEWAY + '/ipfs/' + this.getFile().hash
     }
+    return null
   }
 
   getReadableStream(): Readable {
