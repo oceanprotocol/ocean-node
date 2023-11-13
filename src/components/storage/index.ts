@@ -2,6 +2,7 @@ import { ArweaveFileObject } from '../../@types/arweaveFileObject'
 import { IpfsFileObject } from '../../@types/ipfsFileObject'
 import { UrlFileObject } from '../../@types/urlFileObject'
 import { Readable } from 'stream'
+import urlJoin from 'url-join'
 
 export class Storage {
   private file: any
@@ -130,7 +131,7 @@ export class ArweaveStorage extends Storage {
       if (!process.env.ARWEAVE_GATEWAY) {
         throw Error('Arweave gateway is not provided!')
       }
-      return process.env.ARWEAVE_GATEWAY + '/' + this.getFile().transactionId
+      return urlJoin(process.env.ARWEAVE_GATEWAY, this.getFile().transactionId)
     }
     return null
   }
@@ -182,7 +183,7 @@ export class IpfsStorage extends Storage {
       if (!process.env.IPFS_GATEWAY) {
         throw Error('IPFS gateway is not provided!')
       }
-      return process.env.IPFS_GATEWAY + '/ipfs/' + this.getFile().hash
+      return urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', this.getFile().hash))
     }
     return null
   }
