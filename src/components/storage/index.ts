@@ -1,6 +1,7 @@
 import { ArweaveFileObject } from '../../@types/arweaveFileObject'
 import { IpfsFileObject } from '../../@types/ipfsFileObject'
 import { UrlFileObject } from '../../@types/urlFileObject'
+import { getFileFromURL } from '../core/downloadHandler'
 import { Readable } from 'stream'
 import urlJoin from 'url-join'
 
@@ -14,7 +15,7 @@ export class Storage {
     return this.file
   }
 
-  getReadableStream(): Readable {
+  async getReadableStream(): Promise<Readable> {
     return new Readable()
   }
 
@@ -89,12 +90,11 @@ export class UrlStorage extends Storage {
     return null
   }
 
-  getReadableStream(): Readable {
+  async getReadableStream(): Promise<Readable> {
     const input = this.getDownloadUrl()
-    const readableStream = new Readable()
+
     if (input) {
-      readableStream.push(input)
-      return readableStream
+      return await getFileFromURL(input)
     } else {
       throw new Error(`Input stream is null due to invalid URL ${this.getFile().url}`)
     }
@@ -136,12 +136,11 @@ export class ArweaveStorage extends Storage {
     return null
   }
 
-  getReadableStream(): Readable {
+  async getReadableStream(): Promise<Readable> {
     const input = this.getDownloadUrl()
-    const readableStream = new Readable()
+
     if (input) {
-      readableStream.push(input)
-      return readableStream
+      return await getFileFromURL(input)
     } else {
       throw new Error(
         `Input stream is null due to invalid URL. Transaction ID: ${
@@ -188,12 +187,11 @@ export class IpfsStorage extends Storage {
     return null
   }
 
-  getReadableStream(): Readable {
+  async getReadableStream(): Promise<Readable> {
     const input = this.getDownloadUrl()
-    const readableStream = new Readable()
+
     if (input) {
-      readableStream.push(input)
-      return readableStream
+      return await getFileFromURL(input)
     } else {
       throw new Error(
         `Input stream is null due to invalid URL. CID: ${this.getFile().hash}`
