@@ -2,7 +2,6 @@ import { OceanP2P } from './components/P2P/index.js'
 import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
 import { Database } from './components/database/index.js'
-import { schemes } from './components/database/schemes.js'
 import express, { Express, Request, Response } from 'express'
 import { OceanNode } from './@types/index.js'
 import swaggerUi from 'swagger-ui-express'
@@ -51,7 +50,7 @@ async function main() {
   let node = null
   let indexer = null
   let provider = null
-  const dbconn = await new Database(config.dbConfig, schemes)
+  const dbconn = await new Database(config.dbConfig)
   if (!process.env.RPCS || !JSON.parse(process.env.RPCS)) {
     // missing or invalid RPC list
     logger.logMessageWithEmoji(

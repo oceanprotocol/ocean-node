@@ -1,24 +1,22 @@
 import { OceanNodeDBConfig } from '../../@types/OceanNode'
 import { Typesense, TypesenseError } from './typesense.js'
-import { Schemes, Schema } from './schemes.js'
+import { Schema, schemas} from './schemas.js'
 
 export class DdoDatabase {
   private provider: Typesense
 
   constructor(
     private config: OceanNodeDBConfig,
-    private schemes: Schema[]
+    private schemas: Schema[]
   ) {
     return (async (): Promise<DdoDatabase> => {
       this.provider = new Typesense(this.config.typesense)
-      for (const ddoSchema of this.schemes) {
+      for (const ddoSchema of this.schemas) {
         try {
           await this.provider.collections(ddoSchema.name).retrieve()
         } catch (error) {
           if (error instanceof TypesenseError && error.httpStatus === 404) {
             await this.provider.collections().create(ddoSchema)
-          } else {
-            throw error
           }
         }
       }
@@ -28,57 +26,45 @@ export class DdoDatabase {
 
   async create(ddo: Record<string, any>) {
     try {
-      return await this.provider.collections(this.schemes[0].name).documents().create(ddo)
+      return await this.provider.collections(this.schemas[0].name).documents().create(ddo)
     } catch (error) {
-      if (error instanceof TypesenseError) {
-        return null
-      }
-      throw error
+      return null
     }
   }
 
   async retrieve(id: string) {
     try {
       return await this.provider
-        .collections(this.schemes[0].name)
+        .collections(this.schemas[0].name)
         .documents()
         .retrieve(id)
     } catch (error) {
-      if (error instanceof TypesenseError) {
-        return null
-      }
-      throw error
+      return null
     }
   }
 
   async update(id: string, fields: Record<string, any>) {
     try {
       return await this.provider
-        .collections(this.schemes[0].name)
+        .collections(this.schemas[0].name)
         .documents()
         .update(id, fields)
     } catch (error) {
       if (error instanceof TypesenseError && error.httpStatus === 404) {
         return await this.provider
-          .collections(this.schemes[0].name)
+          .collections(this.schemas[0].name)
           .documents()
           .create({ id, ...fields })
       }
-      if (error instanceof TypesenseError) {
-        return null
-      }
-      throw error
+      return null
     }
   }
 
   async delete(id: string) {
     try {
-      return await this.provider.collections(this.schemes[0].name).documents().delete(id)
+      return await this.provider.collections(this.schemas[0].name).documents().delete(id)
     } catch (error) {
-      if (error instanceof TypesenseError) {
-        return null
-      }
-      throw error
+      return null
     }
   }
 }
@@ -97,67 +83,53 @@ export class NonceDatabase {
       } catch (error) {
         if (error instanceof TypesenseError && error.httpStatus === 404) {
           await this.provider.collections().create(this.schema)
-        } else {
-          throw error
         }
       }
       return this
     })() as unknown as NonceDatabase
   }
 
-  async create(id: string, fields: Record<string, any>) {
+  async create(address: string, nonce: number) {
     try {
       return await this.provider
         .collections(this.schema.name)
         .documents()
-        .create({ id, ...fields })
+        .create({ id: address, nonce })
     } catch (error) {
-      if (error instanceof TypesenseError) {
-        return null
-      }
-      throw error
+      return null
     }
   }
 
-  async retrieve(id: string) {
+  async retrieve(address: string) {
     try {
-      return await this.provider.collections(this.schema.name).documents().retrieve(id)
+      return await this.provider.collections(this.schema.name).documents().retrieve(address)
     } catch (error) {
-      if (error instanceof TypesenseError) {
-        return null
-      }
-      throw error
+      return null
     }
   }
 
-  async update(id: string, fields: Record<string, any>) {
+  async update(address: string, nonce: number) {
     try {
       return await this.provider
         .collections(this.schema.name)
         .documents()
-        .update(id, fields)
+        .update(address, {nonce})
     } catch (error) {
       if (error instanceof TypesenseError && error.httpStatus === 404) {
         return await this.provider
           .collections(this.schema.name)
           .documents()
-          .create({ id, ...fields })
+          .create({ id: address, nonce })
       }
-      if (error instanceof TypesenseError) {
-        return null
-      }
-      throw error
+      return null
     }
   }
 
-  async delete(id: string) {
+  async delete(address: string) {
     try {
-      return await this.provider.collections(this.schema.name).documents().delete(id)
+      return await this.provider.collections(this.schema.name).documents().delete(address)
     } catch (error) {
-      if (error instanceof TypesenseError) {
-        return null
-      }
-      throw error
+      return null
     }
   }
 }
@@ -176,8 +148,6 @@ export class IndexerDatabase {
       } catch (error) {
         if (error instanceof TypesenseError && error.httpStatus === 404) {
           await this.provider.collections().create(this.schema)
-        } else {
-          throw error
         }
       }
       return this
@@ -191,10 +161,7 @@ export class IndexerDatabase {
         .documents()
         .create({ id, ...fields })
     } catch (error) {
-      if (error instanceof TypesenseError) {
-        return null
-      }
-      throw error
+      return null
     }
   }
 
@@ -202,10 +169,7 @@ export class IndexerDatabase {
     try {
       return await this.provider.collections(this.schema.name).documents().retrieve(id)
     } catch (error) {
-      if (error instanceof TypesenseError) {
-        return null
-      }
-      throw error
+      return null
     }
   }
 
@@ -222,10 +186,7 @@ export class IndexerDatabase {
           .documents()
           .create({ id, ...fields })
       }
-      if (error instanceof TypesenseError) {
-        return null
-      }
-      throw error
+      return null
     }
   }
 
@@ -233,10 +194,7 @@ export class IndexerDatabase {
     try {
       return await this.provider.collections(this.schema.name).documents().delete(id)
     } catch (error) {
-      if (error instanceof TypesenseError) {
-        return null
-      }
-      throw error
+      return null
     }
   }
 }
@@ -247,13 +205,12 @@ export class Database {
   indexer: IndexerDatabase
 
   constructor(
-    private config: OceanNodeDBConfig,
-    schemes: Schemes
+    private config: OceanNodeDBConfig
   ) {
     return (async (): Promise<Database> => {
-      this.ddo = await new DdoDatabase(config, schemes.ddoSchemes)
-      this.nonce = await new NonceDatabase(config, schemes.nonceSchema)
-      this.indexer = await new IndexerDatabase(config, schemes.indexerSchema)
+      this.ddo = await new DdoDatabase(config, schemas.ddoSchemas)
+      this.nonce = await new NonceDatabase(config, schemas.nonceSchemas)
+      this.indexer = await new IndexerDatabase(config, schemas.indexerSchemas)
       return this
     })() as unknown as Database
   }
