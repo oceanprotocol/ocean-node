@@ -8,3 +8,13 @@ export interface UrlFileObject {
   method: string
   headers?: [HeadersObject]
 }
+
+export interface IpfsFileObject {
+  type: string
+  hash: string
+}
+
+export interface ArweaveFileObject {
+  type: string
+  transactionId: string
+}

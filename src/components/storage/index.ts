@@ -1,7 +1,9 @@
-import { ArweaveFileObject } from '../../@types/arweaveFileObject'
-import { IpfsFileObject } from '../../@types/ipfsFileObject'
-import { UrlFileObject } from '../../@types/urlFileObject'
-import { getFileFromURL } from '../core/downloadHandler'
+import {
+  UrlFileObject,
+  IpfsFileObject,
+  ArweaveFileObject
+} from '../../@types/fileObject.js'
+import { getFileFromURL } from '../core/downloadHandler.js'
 import { Readable } from 'stream'
 import urlJoin from 'url-join'
 
