@@ -11,14 +11,18 @@ export abstract class Storage {
     this.file = file
   }
 
-  abstract getReadableStream(): Promise<Readable>
-
   abstract validate(): [boolean, string]
 
   abstract getDownloadUrl(): string
 
   getFile(): any {
     return this.file
+  }
+
+  async getReadableStream(): Promise<Readable> {
+    const input = this.getDownloadUrl()
+
+    return await getFileFromURL(input)
   }
 
   static getStorageClass(file: any): UrlStorage | IpfsStorage | ArweaveStorage {
@@ -76,16 +80,6 @@ export class UrlStorage extends Storage {
     }
     return null
   }
-
-  async getReadableStream(): Promise<Readable> {
-    const input = this.getDownloadUrl()
-
-    if (input) {
-      return await getFileFromURL(input)
-    } else {
-      throw new Error(`Input stream is null due to invalid URL ${this.getFile().url}`)
-    }
-  }
 }
 
 export class ArweaveStorage extends Storage {
@@ -99,6 +93,9 @@ export class ArweaveStorage extends Storage {
   }
 
   validate(): [boolean, string] {
+    if (!process.env.ARWEAVE_GATEWAY) {
+      return [false, 'Arweave gateway is not provided!']
+    }
     const file: ArweaveFileObject = this.getFile()
     if (!file.transactionId) {
       return [false, 'Missing transaction ID']
@@ -107,27 +104,7 @@ export class ArweaveStorage extends Storage {
   }
 
   getDownloadUrl(): string {
-    if (this.validate()[0] === true) {
-      if (!process.env.ARWEAVE_GATEWAY) {
-        throw Error('Arweave gateway is not provided!')
-      }
-      return urlJoin(process.env.ARWEAVE_GATEWAY, this.getFile().transactionId)
-    }
-    return null
-  }
-
-  async getReadableStream(): Promise<Readable> {
-    const input = this.getDownloadUrl()
-
-    if (input) {
-      return await getFileFromURL(input)
-    } else {
-      throw new Error(
-        `Input stream is null due to invalid URL. Transaction ID: ${
-          this.getFile().transactionId
-        }`
-      )
-    }
+    return urlJoin(process.env.ARWEAVE_GATEWAY, this.getFile().transactionId)
   }
 }
 
@@ -142,6 +119,9 @@ export class IpfsStorage extends Storage {
   }
 
   validate(): [boolean, string] {
+    if (!process.env.IPFS_GATEWAY) {
+      return [false, 'IPFS gateway is not provided!']
+    }
     const file: IpfsFileObject = this.getFile()
     if (!file.hash) {
       return [false, 'Missing CID']
@@ -151,24 +131,6 @@ export class IpfsStorage extends Storage {
   }
 
   getDownloadUrl(): string {
-    if (this.validate()[0] === true) {
-      if (!process.env.IPFS_GATEWAY) {
-        throw Error('IPFS gateway is not provided!')
-      }
-      return urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', this.getFile().hash))
-    }
-    return null
-  }
-
-  async getReadableStream(): Promise<Readable> {
-    const input = this.getDownloadUrl()
-
-    if (input) {
-      return await getFileFromURL(input)
-    } else {
-      throw new Error(
-        `Input stream is null due to invalid URL. CID: ${this.getFile().hash}`
-      )
-    }
+    return urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', this.getFile().hash))
   }
 }
