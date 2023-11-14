@@ -45,10 +45,6 @@ export class UrlStorage extends Storage {
     }
   }
 
-  getFile(): UrlFileObject {
-    return super.getFile()
-  }
-
   validate(): [boolean, string] {
     const file: UrlFileObject = this.getFile()
     if (!file.url || !file.method) {
@@ -102,10 +98,6 @@ export class ArweaveStorage extends Storage {
     }
   }
 
-  getFile(): ArweaveFileObject {
-    return super.getFile()
-  }
-
   validate(): [boolean, string] {
     const file: ArweaveFileObject = this.getFile()
     if (!file.transactionId) {
@@ -147,10 +139,6 @@ export class IpfsStorage extends Storage {
     if (isValid === false) {
       throw new Error(`Error validationg the IPFS file: ${message}`)
     }
-  }
-
-  getFile(): IpfsFileObject {
-    return super.getFile()
   }
 
   validate(): [boolean, string] {

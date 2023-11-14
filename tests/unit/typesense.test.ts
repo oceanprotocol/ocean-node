@@ -1,14 +1,14 @@
-import 'jest'
 import Typesense, { TypesenseCollections } from '../../src/components/database/typesense'
 import { Logger } from 'winston'
 import { TypesenseConfigOptions } from '../../src/@types'
 import { ddoSchema } from '../data/ddoSchema'
 import { ddo } from '../data/ddo'
+import { expect } from 'chai'
 
 describe('Typesense', () => {
   let typesense: Typesense
 
-  beforeAll(() => {
+  before(() => {
     const config: TypesenseConfigOptions = {
       apiKey: 'xyz',
       nodes: [
@@ -23,19 +23,19 @@ describe('Typesense', () => {
   })
 
   it('instance Typesense', async () => {
-    expect(typesense).toBeInstanceOf(Typesense)
+    expect(typesense).to.be.instanceOf(Typesense)
   })
 
   it('instance TypesenseCollections', async () => {
     const result = typesense.collections()
-    expect(result).toBeInstanceOf(TypesenseCollections)
+    expect(result).to.be.instanceOf(TypesenseCollections)
   })
 })
 
 describe('Typesense collections', () => {
   let typesense: Typesense
 
-  beforeAll(() => {
+  before(() => {
     const config: TypesenseConfigOptions = {
       apiKey: 'xyz',
       nodes: [
@@ -55,50 +55,50 @@ describe('Typesense collections', () => {
 
   it('create ddo collection', async () => {
     const result = await typesense.collections().create(ddoSchema)
-    expect(result.enable_nested_fields).toBeTruthy()
-    expect(result.fields).toBeDefined()
-    expect(result.name).toEqual(ddoSchema.name)
-    expect(result.num_documents).toEqual(0)
+    expect(result.enable_nested_fields).to.equal(true)
+    expect(result.fields).to.not.be.an('undefined')
+    expect(result.name).to.be.equal(ddoSchema.name)
+    expect(result.num_documents).to.equal(0)
   })
 
   it('retrieve collections', async () => {
     const result = await typesense.collections().retrieve()
     const collection = result[0]
-    expect(collection.enable_nested_fields).toBeTruthy()
-    expect(collection.fields).toBeDefined()
-    expect(collection.name).toEqual(ddoSchema.name)
-    expect(collection.num_documents).toEqual(0)
+    expect(collection.enable_nested_fields).to.equal(true)
+    expect(collection.fields).to.not.be.an('undefined')
+    expect(collection.name).to.be.equal(ddoSchema.name)
+    expect(collection.num_documents).to.equal(0)
   })
 
   it('retrieve ddo collection', async () => {
     const result = await typesense.collections(ddoSchema.name).retrieve()
-    expect(result.enable_nested_fields).toBeTruthy()
-    expect(result.fields).toBeDefined()
-    expect(result.name).toEqual(ddoSchema.name)
-    expect(result.num_documents).toEqual(0)
+    expect(result.enable_nested_fields).to.equal(true)
+    expect(result.fields).to.not.be.an('undefined')
+    expect(result.name).to.be.equal(ddoSchema.name)
+    expect(result.num_documents).to.equal(0)
   })
 
   it('update ddo collection', async () => {
     const result = await typesense.collections(ddoSchema.name).update({
       fields: [{ name: 'nftAddress', drop: true }]
     })
-    expect(result.fields).toBeDefined()
-    expect(result.fields[0].drop).toBeTruthy()
-    expect(result.fields[0].name).toEqual('nftAddress')
+    expect(result.fields).to.not.be.an('undefined')
+    expect(result.fields[0].drop).to.equal(true)
+    expect(result.fields[0].name).to.be.equal('nftAddress')
   })
 
   it('delete ddo collection', async () => {
     const result = await typesense.collections(ddoSchema.name).delete()
-    expect(result.enable_nested_fields).toBeTruthy()
-    expect(result.fields).toBeDefined()
-    expect(result.name).toEqual(ddoSchema.name)
+    expect(result.enable_nested_fields).to.equal(true)
+    expect(result.fields).to.not.be.an('undefined')
+    expect(result.name).to.be.equal(ddoSchema.name)
   })
 })
 
 describe('Typesense documents', () => {
   let typesense: Typesense
 
-  beforeAll(() => {
+  before(() => {
     const config: TypesenseConfigOptions = {
       apiKey: 'xyz',
       nodes: [
@@ -118,17 +118,17 @@ describe('Typesense documents', () => {
 
   it('create ddo collection', async () => {
     const result = await typesense.collections().create(ddoSchema)
-    expect(result.enable_nested_fields).toBeTruthy()
-    expect(result.fields).toBeDefined()
-    expect(result.name).toEqual(ddoSchema.name)
-    expect(result.num_documents).toEqual(0)
+    expect(result.enable_nested_fields).to.equal(true)
+    expect(result.fields).to.not.be.an('undefined')
+    expect(result.name).to.be.equal(ddoSchema.name)
+    expect(result.num_documents).to.equal(0)
   })
 
   it('create document in ddo collection', async () => {
     const result = await typesense.collections(ddoSchema.name).documents().create(ddo)
-    expect(result.id).toEqual(ddo.id)
-    expect(result.metadata).toBeDefined()
-    expect(result.metadata.name).toEqual(ddo.metadata.name)
+    expect(result.id).to.equal(ddo.id)
+    expect(result.metadata).to.not.be.an('undefined')
+    expect(result.metadata.name).to.be.equal(ddo.metadata.name)
   })
 
   it('retrieve document in ddo collection', async () => {
@@ -136,9 +136,9 @@ describe('Typesense documents', () => {
       .collections(ddoSchema.name)
       .documents()
       .retrieve(ddo.id)
-    expect(result.id).toEqual(ddo.id)
-    expect(result.metadata).toBeDefined()
-    expect(result.metadata.name).toEqual(ddo.metadata.name)
+    expect(result.id).to.equal(ddo.id)
+    expect(result.metadata).to.not.be.an('undefined')
+    expect(result.metadata.name).to.be.equal(ddo.metadata.name)
   })
 
   it('update document in ddo collection', async () => {
@@ -151,31 +151,31 @@ describe('Typesense documents', () => {
           name: newMetadataName
         }
       })
-    expect(result.id).toEqual(ddo.id)
-    expect(result.metadata).toBeDefined()
-    expect(result.metadata.name).toEqual(newMetadataName)
+    expect(result.id).to.equal(ddo.id)
+    expect(result.metadata).to.not.be.an('undefined')
+    expect(result.metadata.name).to.be.equal(newMetadataName)
   })
 
   it('delete document in ddo collection', async () => {
     const newMetadataName = 'new metadata name'
     const result = await typesense.collections(ddoSchema.name).documents().delete(ddo.id)
-    expect(result.id).toEqual(ddo.id)
-    expect(result.metadata).toBeDefined()
-    expect(result.metadata.name).toEqual(newMetadataName)
+    expect(result.id).to.equal(ddo.id)
+    expect(result.metadata).to.not.be.an('undefined')
+    expect(result.metadata.name).to.be.equal(newMetadataName)
   })
 
   it('delete ddo collection', async () => {
     const result = await typesense.collections(ddoSchema.name).delete()
-    expect(result.enable_nested_fields).toBeTruthy()
-    expect(result.fields).toBeDefined()
-    expect(result.name).toEqual(ddoSchema.name)
+    expect(result.enable_nested_fields).to.equal(true)
+    expect(result.fields).to.not.be.an('undefined')
+    expect(result.name).to.equal(ddoSchema.name)
   })
 })
 
 describe('Typesense documents', () => {
   let typesense: Typesense
 
-  beforeAll(() => {
+  before(() => {
     const config: TypesenseConfigOptions = {
       apiKey: 'xyz',
       nodes: [
@@ -195,17 +195,17 @@ describe('Typesense documents', () => {
 
   it('create ddo collection', async () => {
     const result = await typesense.collections().create(ddoSchema)
-    expect(result.enable_nested_fields).toBeTruthy()
-    expect(result.fields).toBeDefined()
-    expect(result.name).toEqual(ddoSchema.name)
-    expect(result.num_documents).toEqual(0)
+    expect(result.enable_nested_fields).to.equal(true)
+    expect(result.fields).to.not.be.an('undefined')
+    expect(result.name).to.be.equal(ddoSchema.name)
+    expect(result.num_documents).to.equal(0)
   })
 
   it('create document in ddo collection', async () => {
     const result = await typesense.collections(ddoSchema.name).documents().create(ddo)
-    expect(result.id).toEqual(ddo.id)
-    expect(result.metadata).toBeDefined()
-    expect(result.metadata.name).toEqual(ddo.metadata.name)
+    expect(result.id).to.equal(ddo.id)
+    expect(result.metadata).to.not.be.an('undefined')
+    expect(result.metadata.name).to.be.equal(ddo.metadata.name)
   })
 
   it('search document in ddo collection', async () => {
@@ -215,15 +215,15 @@ describe('Typesense documents', () => {
       filter_by: 'chainId:<138',
       sort_by: 'version:desc'
     })
-    expect(result.found).toEqual(1)
-    expect(result.hits[0]).toBeDefined()
-    expect(result.hits[0].document).toBeDefined()
+    expect(result.found).to.equal(1)
+    expect(result.hits[0]).to.not.be.an('undefined')
+    expect(result.hits[0].document).to.not.be.an('undefined')
   })
 
   it('delete ddo collection', async () => {
     const result = await typesense.collections(ddoSchema.name).delete()
-    expect(result.enable_nested_fields).toBeTruthy()
-    expect(result.fields).toBeDefined()
-    expect(result.name).toEqual(ddoSchema.name)
+    expect(result.enable_nested_fields).to.equal(true)
+    expect(result.fields).to.not.be.an('undefined')
+    expect(result.name).to.be.equal(ddoSchema.name)
   })
 })
