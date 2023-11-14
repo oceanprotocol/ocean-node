@@ -3,7 +3,8 @@ import {
   IpfsFileObject,
   ArweaveFileObject
 } from '../../@types/fileObject.js'
-import { getFileFromURL } from '../core/downloadHandler.js'
+import axios from 'axios'
+import urlJoin from 'url-join'
 import { Readable } from 'stream'
 
 export abstract class Storage {
@@ -23,7 +24,13 @@ export abstract class Storage {
   async getReadableStream(): Promise<Readable> {
     const input = this.getDownloadUrl()
 
-    return await getFileFromURL(input)
+    const response = await axios({
+      method: 'get',
+      url: input,
+      responseType: 'stream'
+    })
+
+    return response.data
   }
 
   static getStorageClass(file: any): UrlStorage | IpfsStorage | ArweaveStorage {
@@ -53,7 +60,7 @@ export class UrlStorage extends Storage {
   validate(): [boolean, string] {
     const file: UrlFileObject = this.getFile()
     if (!file.url || !file.method) {
-      return [false, 'URL or method are missing!']
+      return [false, 'URL or method are missing']
     }
     if (!['get', 'post'].includes(file.method.toLowerCase())) {
       return [false, 'Invalid method for URL']
@@ -105,7 +112,7 @@ export class ArweaveStorage extends Storage {
   }
 
   getDownloadUrl(): string {
-    return process.env.ARWEAVE_GATEWAY + '/' + this.getFile().transactionId
+    return urlJoin(process.env.ARWEAVE_GATEWAY, this.getFile().transactionId)
   }
 }
 
@@ -132,6 +139,6 @@ export class IpfsStorage extends Storage {
   }
 
   getDownloadUrl(): string {
-    return process.env.IPFS_GATEWAY + '/ipfs/' + this.getFile().hash
+    return urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', this.getFile().hash))
   }
 }

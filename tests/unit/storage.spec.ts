@@ -28,7 +28,7 @@ describe('URL Storage tests', () => {
     expect(storage).to.be.instanceOf(UrlStorage)
   })
   it('URL validation passes', () => {
-    expect(storage.validate()).to.be.equal([true, ''])
+    expect(storage.validate()).to.equal([true, ''])
   })
   it('URL validation fails on missing URL', () => {
     file = {
@@ -41,8 +41,7 @@ describe('URL Storage tests', () => {
         }
       ]
     }
-    storage = Storage.getStorageClass(file)
-    expect(storage.validate()).to.be.equal([false, 'URL or method are missing!'])
+    expect(Storage.getStorageClass(file)).to.throw('Error validationg the URL file: URL or method are missing')
     file = {
       type: 'url',
       url: 'http://someUrl.com/file.json',
@@ -53,8 +52,7 @@ describe('URL Storage tests', () => {
         }
       ]
     }
-    storage = Storage.getStorageClass(file)
-    expect(storage.validate()).to.be.equal([false, 'URL or method are missing!'])
+    expect(Storage.getStorageClass(file)).to.throw('Error validationg the URL file: URL or method are missing')
   })
   it('URL validation fails on invalid method', () => {
     file = {
@@ -68,8 +66,7 @@ describe('URL Storage tests', () => {
         }
       ]
     }
-    storage = Storage.getStorageClass(file)
-    expect(storage.validate()).to.be.equal([false, 'Invalid method for URL'])
+    expect(Storage.getStorageClass(file)).to.throw('Error validationg the URL file: Invalid method for URL')
   })
 
   it('URL validation fails on filename', () => {
@@ -84,8 +81,7 @@ describe('URL Storage tests', () => {
         }
       ]
     }
-    storage = Storage.getStorageClass(file)
-    expect(storage.validate()).to.be.equal([false, 'URL looks like a file path'])
+    expect(Storage.getStorageClass(file)).to.throw('Error validationg the URL file: URL looks like a file path')
   })
   it('Gets download URL', () => {
     file = {
@@ -100,7 +96,7 @@ describe('URL Storage tests', () => {
       ]
     }
     storage = Storage.getStorageClass(file)
-    expect(storage.getDownloadUrl()).to.be.equalIgnoreCase('http://someUrl.com/file.json')
+    expect(storage.getDownloadUrl()).to.equal('http://someUrl.com/file.json')
   })
 })
 
@@ -113,20 +109,21 @@ describe('IPFS Storage tests', () => {
 
   before(() => {
     storage = Storage.getStorageClass(file)
+    process.env.IPFS_GATEWAY = 'https://ipfs.io'
   })
 
   it('Storage instance', () => {
     expect(storage).to.be.instanceOf(IpfsStorage)
   })
   it('IPFS validation passes', () => {
-    expect(storage.validate()).to.be.equal([true, ''])
+    expect(storage.validate()).to.equal([true, ''])
   })
   it('IPFS validation fails', () => {
     file = {
       type: 'ipfs'
     }
     storage = Storage.getStorageClass(file)
-    expect(storage.validate()).to.be.equal([false, 'Missing CID'])
+    expect(storage.validate()).to.equal([false, 'Missing CID'])
   })
 })
 
@@ -138,19 +135,21 @@ describe('Arweave Storage tests', () => {
   let storage: Storage
   before(() => {
     storage = Storage.getStorageClass(file)
+    process.env.ARWEAVE_GATEWAY =
+     'https://snaznabndfe3.arweave.net/nnLNdp6nuTb8mJ-qOgbUEx-9SBtBXQc_jejYOWzYEkM'
   })
 
   it('Storage instance', () => {
     expect(storage).to.be.instanceOf(ArweaveStorage)
   })
   it('Arweave validation passes', () => {
-    expect(storage.validate()).to.be.equal([true, ''])
+    expect(storage.validate()).to.equal([true, ''])
   })
   it('Arweave validation fails', () => {
     file = {
       type: 'arweave'
     }
     storage = Storage.getStorageClass(file)
-    expect(storage.validate()).to.be.equal([false, 'Missing transaction ID'])
+    expect(storage.validate()).to.equal([false, 'Missing transaction ID'])
   })
 })

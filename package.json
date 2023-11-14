@@ -14,10 +14,10 @@
     "lint:fix": "eslint --ignore-path .gitignore --ext .ts,.tsx . --fix",
     "format": "prettier --parser typescript --ignore-path .gitignore --write '**/*.{js,jsx,ts,tsx}'",
     "type-check": "tsc --noEmit",
-    "mocha": "mocha --config=tests/.mocharc.json --node-env=test --exit",
+    "mocha": "mocha --config=tests/.mocharc.json --node-env=test -r ts-node/register --loader=ts-node/esm --es-module-specifier-resolution=node --exit",
     "test": "npm run lint && npm run test:unit:cover && npm run test:integration:cover",
     "test:unit": "npm run mocha -- 'tests/unit/**/*.test.ts'",
-    "test:unit:storage": "npm run mocha -- 'tests/unit/storage.spec.test.ts'",
+    "test:unit:storage": "npm run mocha -- 'tests/unit/storage.spec.ts'",
     "test:integration": "npm run mocha --  'tests/integration/**/*.test.ts'",
     "test:unit:cover": "nyc --report-dir coverage/unit npm run test:unit",
     "test:integration:cover": "nyc --report-dir coverage/integration --no-clean npm run test:integration"
@@ -57,6 +57,7 @@
     "ts-node": "^10.9.1",
     "tsoa": "^5.1.1",
     "uint8arrays": "^4.0.6",
+    "url-join": "^5.0.0",
     "winston": "^3.11.0",
     "winston-daily-rotate-file": "^4.7.1",
     "winston-transport": "^4.6.0"
