@@ -1,14 +1,12 @@
 import { pipe } from 'it-pipe'
-import { Stream, Readable } from 'stream'
-import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
+import { Readable } from 'stream'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import StreamConcat from 'stream-concat'
 // export function handleProtocolCommands (sourceStream:any,sinkStream:any) {
 
-import * as fs from 'fs'
 import { handleDownloadURLCommand } from '../core/downloadHandler.js'
 import { DIRECT_COMMANDS } from '../../utils/constants.js'
-import { P2PCommandResponse } from '../../@types/OceanNode'
+import { P2PCommandResponse } from '../../@types'
 
 import { P2P_CONSOLE_LOGGER } from './index.js'
 

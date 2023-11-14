@@ -56,7 +56,8 @@ import {
   LOGGER_MODULE_NAMES,
   LOG_LEVELS_STR,
   defaultConsoleTransport,
-  getCustomLoggerForModule
+  getCustomLoggerForModule,
+  getLoggerLevelEmoji
 } from '../../utils/logging/Logger.js'
 
 // just use the default logger with default transports
@@ -271,8 +272,13 @@ export class OceanP2P extends EventEmitter {
   }
 
   async broadcast(_message: any) {
-    console.log('Broadcasting')
-    console.log(_message)
+    P2P_CONSOLE_LOGGER.logMessage('Broadcasting:', true)
+    P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+      _message,
+      true,
+      getLoggerLevelEmoji(LOG_LEVELS_STR.LEVEL_INFO),
+      LOG_LEVELS_STR.LEVEL_INFO
+    )
     const message = encoding(_message)
     await this._libp2p.services.pubsub.publish(this._topic, message)
   }

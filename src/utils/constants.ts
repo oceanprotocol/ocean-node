@@ -15,6 +15,11 @@ export type DownloadCommand = {
   aes_encrypted_key?: string // if not present it means download without encryption
 }
 
+export type BroadcastCommand = {
+  command: string
+  message: string
+}
+
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   DIRECT_COMMANDS.DOWNLOAD_URL,
   DIRECT_COMMANDS.ECHO,
