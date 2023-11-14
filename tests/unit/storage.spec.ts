@@ -1,3 +1,4 @@
+import { Readable } from 'stream'
 import {
   Storage,
   UrlStorage,
@@ -124,6 +125,18 @@ describe('URL Storage tests', () => {
     }
     storage = Storage.getStorageClass(file)
     expect(storage.getDownloadUrl()).to.eql('http://someUrl.com/file.json')
+  })
+
+  it('Gets readable stream', async () => {
+    file = {
+      type: 'url',
+      url: 'https://stock-api.oceanprotocol.com/stock/stock.json',
+      method: 'get'
+    }
+    storage = Storage.getStorageClass(file)
+    const stream = await storage.getReadableStream()
+    expect(stream).not.to.eql(null)
+    expect(stream).to.be.instanceOf(Readable)
   })
 })
 
