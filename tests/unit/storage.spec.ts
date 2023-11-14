@@ -41,7 +41,9 @@ describe('URL Storage tests', () => {
         }
       ]
     }
-    expect(Storage.getStorageClass(file)).to.throw('Error validationg the URL file: URL or method are missing')
+    expect(Storage.getStorageClass(file)).to.throw(
+      'Error validationg the URL file: URL or method are missing'
+    )
     file = {
       type: 'url',
       url: 'http://someUrl.com/file.json',
@@ -52,7 +54,9 @@ describe('URL Storage tests', () => {
         }
       ]
     }
-    expect(Storage.getStorageClass(file)).to.throw('Error validationg the URL file: URL or method are missing')
+    expect(Storage.getStorageClass(file)).to.throw(
+      'Error validationg the URL file: URL or method are missing'
+    )
   })
   it('URL validation fails on invalid method', () => {
     file = {
@@ -66,7 +70,9 @@ describe('URL Storage tests', () => {
         }
       ]
     }
-    expect(Storage.getStorageClass(file)).to.throw('Error validationg the URL file: Invalid method for URL')
+    expect(Storage.getStorageClass(file)).to.throw(
+      'Error validationg the URL file: Invalid method for URL'
+    )
   })
 
   it('URL validation fails on filename', () => {
@@ -81,7 +87,9 @@ describe('URL Storage tests', () => {
         }
       ]
     }
-    expect(Storage.getStorageClass(file)).to.throw('Error validationg the URL file: URL looks like a file path')
+    expect(Storage.getStorageClass(file)).to.throw(
+      'Error validationg the URL file: URL looks like a file path'
+    )
   })
   it('Gets download URL', () => {
     file = {
@@ -136,7 +144,7 @@ describe('Arweave Storage tests', () => {
   before(() => {
     storage = Storage.getStorageClass(file)
     process.env.ARWEAVE_GATEWAY =
-     'https://snaznabndfe3.arweave.net/nnLNdp6nuTb8mJ-qOgbUEx-9SBtBXQc_jejYOWzYEkM'
+      'https://snaznabndfe3.arweave.net/nnLNdp6nuTb8mJ-qOgbUEx-9SBtBXQc_jejYOWzYEkM'
   })
 
   it('Storage instance', () => {
