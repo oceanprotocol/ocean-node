@@ -20,6 +20,7 @@ describe('URL Storage tests', () => {
     ]
   }
   let storage: Storage
+  let error: Error
   before(() => {
     storage = Storage.getStorageClass(file)
   })
@@ -28,7 +29,7 @@ describe('URL Storage tests', () => {
     expect(storage).to.be.instanceOf(UrlStorage)
   })
   it('URL validation passes', () => {
-    expect(storage.validate()).to.equal([true, ''])
+    expect(storage.validate()).to.eql([true, ''])
   })
   it('URL validation fails on missing URL', () => {
     file = {
@@ -41,7 +42,12 @@ describe('URL Storage tests', () => {
         }
       ]
     }
-    expect(Storage.getStorageClass(file)).to.throw(
+    try {
+      Storage.getStorageClass(file)
+    } catch (err) {
+      error = err
+    }
+    expect(error.message).to.eql(
       'Error validationg the URL file: URL or method are missing'
     )
     file = {
@@ -54,7 +60,12 @@ describe('URL Storage tests', () => {
         }
       ]
     }
-    expect(Storage.getStorageClass(file)).to.throw(
+    try {
+      Storage.getStorageClass(file)
+    } catch (err) {
+      error = err
+    }
+    expect(error.message).to.eql(
       'Error validationg the URL file: URL or method are missing'
     )
   })
@@ -70,9 +81,12 @@ describe('URL Storage tests', () => {
         }
       ]
     }
-    expect(Storage.getStorageClass(file)).to.throw(
-      'Error validationg the URL file: Invalid method for URL'
-    )
+    try {
+      Storage.getStorageClass(file)
+    } catch (err) {
+      error = err
+    }
+    expect(error.message).to.eql('Error validationg the URL file: Invalid method for URL')
   })
 
   it('URL validation fails on filename', () => {
@@ -87,7 +101,12 @@ describe('URL Storage tests', () => {
         }
       ]
     }
-    expect(Storage.getStorageClass(file)).to.throw(
+    try {
+      Storage.getStorageClass(file)
+    } catch (err) {
+      error = err
+    }
+    expect(error.message).to.eql(
       'Error validationg the URL file: URL looks like a file path'
     )
   })
@@ -104,7 +123,7 @@ describe('URL Storage tests', () => {
       ]
     }
     storage = Storage.getStorageClass(file)
-    expect(storage.getDownloadUrl()).to.equal('http://someUrl.com/file.json')
+    expect(storage.getDownloadUrl()).to.eql('http://someUrl.com/file.json')
   })
 })
 
@@ -113,6 +132,7 @@ describe('IPFS Storage tests', () => {
     type: 'ipfs',
     hash: 'Qxchjkflsejdfklgjhfkgjkdjoiderj'
   }
+  let error: Error
 
   before(() => {
     process.env.IPFS_GATEWAY = 'https://ipfs.io'
@@ -122,13 +142,18 @@ describe('IPFS Storage tests', () => {
     expect(Storage.getStorageClass(file)).to.be.instanceOf(IpfsStorage)
   })
   it('IPFS validation passes', () => {
-    expect(Storage.getStorageClass(file)).to.equal([true, ''])
+    expect(Storage.getStorageClass(file).validate()).to.eql([true, ''])
   })
   it('IPFS validation fails', () => {
     file = {
       type: 'ipfs'
     }
-    expect(Storage.getStorageClass(file)).to.equal([false, 'Missing CID'])
+    try {
+      Storage.getStorageClass(file)
+    } catch (err) {
+      error = err
+    }
+    expect(error.message).to.eql('Error validationg the IPFS file: Missing CID')
   })
 })
 
@@ -137,6 +162,8 @@ describe('Arweave Storage tests', () => {
     type: 'arweave',
     transactionId: '0x2563ed54abc0001bcaef'
   }
+
+  let error: Error
   before(() => {
     process.env.ARWEAVE_GATEWAY =
       'https://snaznabndfe3.arweave.net/nnLNdp6nuTb8mJ-qOgbUEx-9SBtBXQc_jejYOWzYEkM'
@@ -146,12 +173,19 @@ describe('Arweave Storage tests', () => {
     expect(Storage.getStorageClass(file)).to.be.instanceOf(ArweaveStorage)
   })
   it('Arweave validation passes', () => {
-    expect(Storage.getStorageClass(file)).to.equal([true, ''])
+    expect(Storage.getStorageClass(file).validate()).to.eql([true, ''])
   })
   it('Arweave validation fails', () => {
     file = {
       type: 'arweave'
     }
-    expect(Storage.getStorageClass(file)).to.equal([false, 'Missing transaction ID'])
+    try {
+      Storage.getStorageClass(file)
+    } catch (err) {
+      error = err
+    }
+    expect(error.message).to.eql(
+      'Error validationg the Arweave file: Missing transaction ID'
+    )
   })
 })
