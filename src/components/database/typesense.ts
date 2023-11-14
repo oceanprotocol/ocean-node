@@ -12,13 +12,16 @@ import { TypesenseConfig } from './typesenseConfig.js'
 
 export const convertTypesenseConfig = (url: string) => {
   const urlObject = new URL(url)
-  const { protocol } = urlObject
-  const host = urlObject.hostname
-  const { port } = urlObject
   const apiKey = urlObject.searchParams.get('apiKey')
   const config: TypesenseConfigOptions = {
     apiKey,
-    nodes: [{ host, port, protocol }]
+    nodes: [
+      {
+        host: urlObject.hostname,
+        port: urlObject.port,
+        protocol: urlObject.protocol.split(':')[0]
+      }
+    ]
   }
   return config
 }
