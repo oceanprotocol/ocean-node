@@ -5,7 +5,6 @@ import {
 } from '../../@types/fileObject.js'
 import { getFileFromURL } from '../core/downloadHandler.js'
 import { Readable } from 'stream'
-import urlJoin from 'url-join'
 
 export abstract class Storage {
   private file: any
@@ -106,7 +105,7 @@ export class ArweaveStorage extends Storage {
   }
 
   getDownloadUrl(): string {
-    return urlJoin(process.env.ARWEAVE_GATEWAY, this.getFile().transactionId)
+    return process.env.ARWEAVE_GATEWAY + '/' + this.getFile().transactionId
   }
 }
 
@@ -133,6 +132,6 @@ export class IpfsStorage extends Storage {
   }
 
   getDownloadUrl(): string {
-    return urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', this.getFile().hash))
+    return process.env.IPFS_GATEWAY + '/ipfs/' + this.getFile().hash
   }
 }
