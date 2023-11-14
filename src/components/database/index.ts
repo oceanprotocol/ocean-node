@@ -216,11 +216,3 @@ export class Database {
     })() as unknown as Database
   }
 }
-
-// Example
-//
-// db.nonce.create('0x123', 1234567) return -> { id:'0x123', nonce:1234567 } or null or throw error
-// db.nonce.update('0x123', 1234568) return -> { id:'0x123', nonce:1234568 } or null or throw error
-// db.nonce.retrieve('0x123') return -> 1234568 or throw error
-//
-// db.indexer.create('Network_A', { last_indexed_block: 1234567 }) return -> { id:'Network_A', last_indexed_block:1234567 } or null or throw error
