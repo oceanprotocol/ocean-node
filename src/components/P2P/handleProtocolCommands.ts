@@ -7,7 +7,7 @@ import StreamConcat from 'stream-concat'
 
 import * as fs from 'fs'
 import { handleDownloadURLCommand } from '../core/downloadHandler.js'
-import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { DIRECT_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode'
 
 import { P2P_CONSOLE_LOGGER } from './index.js'
@@ -59,10 +59,10 @@ export async function handleProtocolCommands(connection: any) {
   let response: P2PCommandResponse = null
   try {
     switch (task.command) {
-      case PROTOCOL_COMMANDS.ECHO:
+      case DIRECT_COMMANDS.ECHO:
         status = { httpStatus: 200 }
         break
-      case PROTOCOL_COMMANDS.DOWNLOAD_URL:
+      case DIRECT_COMMANDS.DOWNLOAD_URL:
         response = await handleDownloadURLCommand(task)
         // eslint-disable-next-line prefer-destructuring
         status = response.status
@@ -100,10 +100,10 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
 
   P2P_CONSOLE_LOGGER.logMessage('Performing task: ' + JSON.stringify(task), true)
   switch (task.command) {
-    case PROTOCOL_COMMANDS.ECHO:
+    case DIRECT_COMMANDS.ECHO:
       status = { httpStatus: 200 }
       break
-    case PROTOCOL_COMMANDS.DOWNLOAD_URL:
+    case DIRECT_COMMANDS.DOWNLOAD_URL:
       response = await handleDownloadURLCommand(task)
       // eslint-disable-next-line prefer-destructuring
       status = response.status

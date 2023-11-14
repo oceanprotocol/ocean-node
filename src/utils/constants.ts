@@ -1,7 +1,11 @@
 // Add all the supported commands
-export const PROTOCOL_COMMANDS = {
+export const DIRECT_COMMANDS = {
   DOWNLOAD_URL: 'downloadURL',
   ECHO: 'echo'
+}
+
+export const BROADCAST_COMMANDS = {
+  FIND_DDO: 'findDDO'
 }
 
 export type DownloadCommand = {
@@ -12,6 +16,7 @@ export type DownloadCommand = {
 }
 
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
-  PROTOCOL_COMMANDS.DOWNLOAD_URL,
-  PROTOCOL_COMMANDS.ECHO
+  DIRECT_COMMANDS.DOWNLOAD_URL,
+  DIRECT_COMMANDS.ECHO,
+  BROADCAST_COMMANDS.FIND_DDO
 ]

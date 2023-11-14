@@ -99,16 +99,64 @@
 		{
 			"name": "8000 - broadcastCommand",
 			"request": {
-				"method": "GET",
-				"header": []
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "default"
+					}
+				]
+			},
+			"body": {
+				"mode": "raw",
+				"raw": "{\n    \"command\": \"findDDO\",\n    \"message\": \"did:op:0ebed8226ada17fde24b6bf2b95d27f8f05fcce09139ff5cec31f6d81a7cd2ea\"\n}"
+			},
+			"url": {
+				"raw": "http://127.0.0.1:8000/broadcastCommand",
+				"protocol": "http",
+				"host": [
+					"127",
+					"0",
+					"0",
+					"1"
+				],
+				"port": "8000",
+				"path": [
+					"broadcastCommand"
+				]
 			},
 			"response": []
 		},
 		{
 			"name": "8001 - broadcastCommand",
 			"request": {
-				"method": "GET",
-				"header": []
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "default"
+					}
+				]
+			},
+			"body": {
+				"mode": "raw",
+				"raw": "{\n    \"command\": \"findDDO\",\n    \"message\": \"did:op:0ebed8226ada17fde24b6bf2b95d27f8f05fcce09139ff5cec31f6d81a7cd2ea\"\n}"
+			},
+			"url": {
+				"raw": "http://127.0.0.1:8001/broadcastCommand",
+				"protocol": "http",
+				"host": [
+					"127",
+					"0",
+					"0",
+					"1"
+				],
+				"port": "8001",
+				"path": [
+					"broadcastCommand"
+				]
 			},
 			"response": []
 		},
