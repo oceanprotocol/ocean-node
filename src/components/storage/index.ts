@@ -11,13 +11,15 @@ export abstract class Storage {
     this.file = file
   }
 
-  abstract getFile(): any
-
   abstract getReadableStream(): Promise<Readable>
 
   abstract validate(): [boolean, string]
 
   abstract getDownloadUrl(): string
+
+  getFile(): any {
+    return this.file
+  }
 
   static getStorageClass(file: any): UrlStorage | IpfsStorage | ArweaveStorage {
     const type: string = file.type
@@ -44,7 +46,7 @@ export class UrlStorage extends Storage {
   }
 
   getFile(): UrlFileObject {
-    return this.getFile()
+    return super.getFile()
   }
 
   validate(): [boolean, string] {
@@ -101,7 +103,7 @@ export class ArweaveStorage extends Storage {
   }
 
   getFile(): ArweaveFileObject {
-    return this.getFile()
+    return super.getFile()
   }
 
   validate(): [boolean, string] {
@@ -148,7 +150,7 @@ export class IpfsStorage extends Storage {
   }
 
   getFile(): IpfsFileObject {
-    return this.getFile()
+    return super.getFile()
   }
 
   validate(): [boolean, string] {
