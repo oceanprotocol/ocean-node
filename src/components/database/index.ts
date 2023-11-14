@@ -157,12 +157,9 @@ export class IndexerDatabase {
     })() as unknown as IndexerDatabase
   }
 
-  async create(id: string, fields: Record<string, any>) {
+  async create(fields: Record<string, any>) {
     try {
-      return await this.provider
-        .collections(this.schema.name)
-        .documents()
-        .create({ id, ...fields })
+      return await this.provider.collections(this.schema.name).documents().create(fields)
     } catch (error) {
       return null
     }
