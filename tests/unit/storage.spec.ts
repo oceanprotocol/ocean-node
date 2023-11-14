@@ -113,25 +113,22 @@ describe('IPFS Storage tests', () => {
     type: 'ipfs',
     hash: 'Qxchjkflsejdfklgjhfkgjkdjoiderj'
   }
-  let storage: Storage
 
   before(() => {
-    storage = Storage.getStorageClass(file)
     process.env.IPFS_GATEWAY = 'https://ipfs.io'
   })
 
   it('Storage instance', () => {
-    expect(storage).to.be.instanceOf(IpfsStorage)
+    expect(Storage.getStorageClass(file)).to.be.instanceOf(IpfsStorage)
   })
   it('IPFS validation passes', () => {
-    expect(storage.validate()).to.equal([true, ''])
+    expect(Storage.getStorageClass(file)).to.equal([true, ''])
   })
   it('IPFS validation fails', () => {
     file = {
       type: 'ipfs'
     }
-    storage = Storage.getStorageClass(file)
-    expect(storage.validate()).to.equal([false, 'Missing CID'])
+    expect(Storage.getStorageClass(file)).to.equal([false, 'Missing CID'])
   })
 })
 
@@ -140,24 +137,21 @@ describe('Arweave Storage tests', () => {
     type: 'arweave',
     transactionId: '0x2563ed54abc0001bcaef'
   }
-  let storage: Storage
   before(() => {
-    storage = Storage.getStorageClass(file)
     process.env.ARWEAVE_GATEWAY =
       'https://snaznabndfe3.arweave.net/nnLNdp6nuTb8mJ-qOgbUEx-9SBtBXQc_jejYOWzYEkM'
   })
 
   it('Storage instance', () => {
-    expect(storage).to.be.instanceOf(ArweaveStorage)
+    expect(Storage.getStorageClass(file)).to.be.instanceOf(ArweaveStorage)
   })
   it('Arweave validation passes', () => {
-    expect(storage.validate()).to.equal([true, ''])
+    expect(Storage.getStorageClass(file)).to.equal([true, ''])
   })
   it('Arweave validation fails', () => {
     file = {
       type: 'arweave'
     }
-    storage = Storage.getStorageClass(file)
-    expect(storage.validate()).to.equal([false, 'Missing transaction ID'])
+    expect(Storage.getStorageClass(file)).to.equal([false, 'Missing transaction ID'])
   })
 })
