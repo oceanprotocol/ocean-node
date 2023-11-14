@@ -3,7 +3,7 @@ import {
   UrlStorage,
   ArweaveStorage,
   IpfsStorage
-} from '../../src/components/storage'
+} from '../../src/components/storage/index.js'
 
 import { expect } from 'chai'
 
