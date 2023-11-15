@@ -1,6 +1,8 @@
-import Typesense, { TypesenseCollections } from '../../src/components/database/typesense'
-import { Logger } from 'winston'
-import { TypesenseConfigOptions } from '../../src/@types'
+import {
+  Typesense,
+  convertTypesenseConfig,
+  TypesenseCollections
+} from '../../src/components/database/typesense'
 import { ddoSchema } from '../data/ddoSchema'
 import { ddo } from '../data/ddo'
 import { expect } from 'chai'
@@ -9,17 +11,8 @@ describe('Typesense', () => {
   let typesense: Typesense
 
   before(() => {
-    const config: TypesenseConfigOptions = {
-      apiKey: 'xyz',
-      nodes: [
-        {
-          host: 'localhost',
-          port: 8108,
-          protocol: 'http'
-        }
-      ]
-    }
-    typesense = new Typesense(config)
+    const url = 'http://localhost:8108/?apiKey=xyz'
+    typesense = new Typesense(convertTypesenseConfig(url))
   })
 
   it('instance Typesense', async () => {
@@ -36,21 +29,8 @@ describe('Typesense collections', () => {
   let typesense: Typesense
 
   before(() => {
-    const config: TypesenseConfigOptions = {
-      apiKey: 'xyz',
-      nodes: [
-        {
-          host: 'localhost',
-          port: 8108,
-          protocol: 'http'
-        }
-      ],
-      logLevel: 'debug',
-      logger: {
-        debug: (log: any) => console.log(log)
-      } as Logger
-    }
-    typesense = new Typesense(config)
+    const url = 'http://localhost:8108/?apiKey=xyz'
+    typesense = new Typesense(convertTypesenseConfig(url))
   })
 
   it('create ddo collection', async () => {
@@ -99,21 +79,8 @@ describe('Typesense documents', () => {
   let typesense: Typesense
 
   before(() => {
-    const config: TypesenseConfigOptions = {
-      apiKey: 'xyz',
-      nodes: [
-        {
-          host: 'localhost',
-          port: 8108,
-          protocol: 'http'
-        }
-      ],
-      logLevel: 'debug',
-      logger: {
-        debug: (log: any) => console.log(log)
-      } as Logger
-    }
-    typesense = new Typesense(config)
+    const url = 'http://localhost:8108/?apiKey=xyz'
+    typesense = new Typesense(convertTypesenseConfig(url))
   })
 
   it('create ddo collection', async () => {
@@ -176,21 +143,8 @@ describe('Typesense documents', () => {
   let typesense: Typesense
 
   before(() => {
-    const config: TypesenseConfigOptions = {
-      apiKey: 'xyz',
-      nodes: [
-        {
-          host: 'localhost',
-          port: 8108,
-          protocol: 'http'
-        }
-      ],
-      logLevel: 'debug',
-      logger: {
-        debug: (log: any) => console.log(log)
-      } as Logger
-    }
-    typesense = new Typesense(config)
+    const url = 'http://localhost:8108/?apiKey=xyz'
+    typesense = new Typesense(convertTypesenseConfig(url))
   })
 
   it('create ddo collection', async () => {
