@@ -22,7 +22,7 @@ export abstract class Storage {
   }
 
   static getStorageClass(file: any): UrlStorage | IpfsStorage | ArweaveStorage {
-    const type: string = file.type
+    const { type } = file
     switch (type) {
       case 'url':
         return new UrlStorage(file)
@@ -62,7 +62,7 @@ export class UrlStorage extends Storage {
 
   isFilePath(): boolean {
     const regex: RegExp = /^(.+)\/([^/]+)$/ // The URL should not represent a path
-    const url: string = this.getFile().url
+    const { url } = this.getFile()
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return false
     }
