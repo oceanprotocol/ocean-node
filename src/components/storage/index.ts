@@ -21,18 +21,6 @@ export abstract class Storage {
     return this.file
   }
 
-  async getReadableStream(): Promise<Readable> {
-    const input = this.getDownloadUrl()
-
-    const response = await axios({
-      method: 'get',
-      url: input,
-      responseType: 'stream'
-    })
-
-    return response.data
-  }
-
   static getStorageClass(file: any): UrlStorage | IpfsStorage | ArweaveStorage {
     const type: string = file.type
     switch (type) {
@@ -88,6 +76,18 @@ export class UrlStorage extends Storage {
     }
     return null
   }
+
+  async getReadableStream(): Promise<Readable> {
+    const input = this.getDownloadUrl()
+
+    const response = await axios({
+      method: 'get',
+      url: input,
+      responseType: 'stream'
+    })
+
+    return response.data
+  }
 }
 
 export class ArweaveStorage extends Storage {
@@ -113,6 +113,18 @@ export class ArweaveStorage extends Storage {
 
   getDownloadUrl(): string {
     return urlJoin(process.env.ARWEAVE_GATEWAY, this.getFile().transactionId)
+  }
+
+  async getReadableStream(): Promise<Readable> {
+    const input = this.getDownloadUrl()
+
+    const response = await axios({
+      method: 'get',
+      url: input,
+      responseType: 'stream'
+    })
+
+    return response.data
   }
 }
 
@@ -140,5 +152,17 @@ export class IpfsStorage extends Storage {
 
   getDownloadUrl(): string {
     return urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', this.getFile().hash))
+  }
+
+  async getReadableStream(): Promise<Readable> {
+    const input = this.getDownloadUrl()
+
+    const response = await axios({
+      method: 'get',
+      url: input,
+      responseType: 'stream'
+    })
+
+    return response.data
   }
 }

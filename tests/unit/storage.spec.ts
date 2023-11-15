@@ -133,7 +133,7 @@ describe('URL Storage tests', () => {
       url: 'https://stock-api.oceanprotocol.com/stock/stock.json',
       method: 'get'
     }
-    storage = Storage.getStorageClass(file)
+    const storage = Storage.getStorageClass(file)
     const stream = await storage.getReadableStream()
     expect(stream).not.to.eql(null)
     expect(stream).to.be.instanceOf(Readable)
