@@ -11,6 +11,7 @@ import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode'
 
 import { P2P_CONSOLE_LOGGER } from './index.js'
+import { handleGetDdoCommand } from '../core/ddoHandler.js'
 
 class ReadableString extends Readable {
   private sent = false
@@ -68,6 +69,11 @@ export async function handleProtocolCommands(connection: any) {
         status = response.status
         sendStream = response.stream
         break
+      case PROTOCOL_COMMANDS.GET_DDO:
+        response = await handleGetDdoCommand.call(this, task)
+        status = response.status
+        sendStream = response.stream
+        break
       default:
         status = { httpStatus: 501, error: 'Unknown command' }
         break
@@ -105,6 +111,12 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
       break
     case PROTOCOL_COMMANDS.DOWNLOAD_URL:
       response = await handleDownloadURLCommand(task)
+      // eslint-disable-next-line prefer-destructuring
+      status = response.status
+      sendStream = response.stream
+      break
+    case PROTOCOL_COMMANDS.GET_DDO:
+      response = await handleGetDdoCommand.call(this, task)
       // eslint-disable-next-line prefer-destructuring
       status = response.status
       sendStream = response.stream

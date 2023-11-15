@@ -105,7 +105,7 @@ export class OceanP2P extends EventEmitter {
     this._protocol = '/ocean/nodes/1.0.0'
 
     this._interval = setInterval(this._pollPeers.bind(this), this._options.pollInterval)
-    this._libp2p.handle(this._protocol, handleProtocolCommands)
+    this._libp2p.handle(this._protocol, handleProtocolCommands.bind(this))
 
     this._idx = index++
 
@@ -370,9 +370,8 @@ export class OceanP2P extends EventEmitter {
     // create a writable stream
     // const outputStream = new Stream.Writable()
     status.stream = new Stream.Writable()
-
     // read from input stream to output one and move on
-    await handleDirectProtocolCommand(message, sink)
+    await handleDirectProtocolCommand.call(this, message, sink)
 
     return status
   }

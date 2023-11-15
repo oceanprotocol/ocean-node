@@ -37,6 +37,17 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
       return {
         valid: true
       }
+    } else if (command === PROTOCOL_COMMANDS.GET_DDO) {
+      if (!requestBody.id) {
+        return {
+          valid: false,
+          reason: 'Missing required parameter: "id"',
+          status: 400
+        }
+      }
+      return {
+        valid: true
+      }
     }
     return {
       valid: true
