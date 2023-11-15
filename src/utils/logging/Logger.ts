@@ -447,7 +447,3 @@ export class CustomOceanNodesTransport extends Transport {
     callback()
   }
 }
-
-// Notes: we can write a custom transport if needed, for a specific DB access, API access, etc...
-// https://github.com/winstonjs/winston-transport
-// many exist already, list here: https://github.com/winstonjs/winston/blob/master/docs/transports.md

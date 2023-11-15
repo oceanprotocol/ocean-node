@@ -5,6 +5,7 @@ export type Schemas = {
   ddoSchemas: Schema[]
   nonceSchemas: Schema
   indexerSchemas: Schema
+  logSchemas: Schema
 }
 export const schemas: Schemas = {
   ddoSchemas: [
@@ -23,5 +24,15 @@ export const schemas: Schemas = {
     name: 'indexer',
     enable_nested_fields: true,
     fields: [{ name: '.*', type: 'auto' }]
+  },
+  logSchemas: {
+    name: 'logs',
+    enable_nested_fields: true,
+    fields: [
+      { name: 'timestamp', type: 'string' },
+      { name: 'level', type: 'string' },
+      { name: 'message', type: 'string' },
+      { name: 'meta', type: 'object', optional: true }
+    ]
   }
 }
