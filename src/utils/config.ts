@@ -96,10 +96,7 @@ export async function getConfig(): Promise<OceanNodeConfig> {
     hasProvider: true,
     httpPort: getIntEnvValue(process.env.HTTP_API_PORT, 8000),
     dbConfig: {
-      dbname: 'oceannode',
-      host: '127.0.0.1',
-      user: 'oceannode',
-      pwd: 'oceannode'
+      url: getEnvValue(process.env.DB_URL, 'http://localhost:8108/?apiKey=xyz')
     }
   }
   return config
