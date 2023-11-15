@@ -1,7 +1,8 @@
 // Add all the supported commands
 export const PROTOCOL_COMMANDS = {
   DOWNLOAD_URL: 'downloadURL',
-  ECHO: 'echo'
+  ECHO: 'echo',
+  GET_DDO: 'getDDO'
 }
 
 export type DownloadCommand = {
