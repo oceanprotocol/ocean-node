@@ -13,7 +13,8 @@ RUN curl https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash 
     && nvm use default
 ENV NODE_PATH $NVM_DIR/$NODE_VERSION/lib/node_modules
 ENV PATH $NVM_DIR/versions/node/$NODE_VERSION/bin:$PATH
-
+ENV IPFS_GATEWAY=''
+ENV ARWEAVE_GATEWAY=''
 
 FROM base as builder
 RUN apt-get update && apt-get -y install wget
