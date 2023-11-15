@@ -17,8 +17,9 @@ export class OceanIndexer {
   public startThreads(): void {
     for (const network of this.networks) {
       const provider = this.blockchain.getProvider(network)
+      const lastIndexedBlock = this.getLastIndexedBlock(network)
       const worker = new Worker('./dist/components/Indexer/crawlerThread.js', {
-        workerData: { network, provider }
+        workerData: { network, lastIndexedBlock }
       })
 
       worker.on('message', (event: string) => {
@@ -35,6 +36,30 @@ export class OceanIndexer {
       })
 
       worker.postMessage({ method: 'start-crawling' })
+    }
+  }
+
+  private async getLastIndexedBlock(network: number): Promise<number> {
+    const dbconn = this.db.indexer
+    try {
+      const indexer = await dbconn.retrieve(network)
+      return indexer?.lastIndexedBlock
+    } catch (err) {
+      console.error('Error retrieving last indexed block')
+      return null
+    }
+  }
+
+  private async updateLastIndexedBlockNumber(
+    network: number,
+    block: number
+  ): Promise<void> {
+    const dbconn = this.db.indexer
+    try {
+      const updatedIndex = await dbconn.update(network, block)
+      console.log('New last indexed block :', updatedIndex)
+    } catch (err) {
+      console.error('Error retrieving last indexed block')
     }
   }
 }

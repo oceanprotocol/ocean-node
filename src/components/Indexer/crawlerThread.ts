@@ -1,19 +1,12 @@
 import { parentPort, workerData } from 'worker_threads'
-import {
-  getDeployedContractBlock,
-  getLastIndexedBlock,
-  getNetworkHeight,
-  processBlocks
-} from './utils.js'
+import { getDeployedContractBlock, getNetworkHeight, processBlocks } from './utils.js'
 import { Blockchain } from '../../utils/blockchain.js'
 
-const { network } = workerData
+const { network, lastIndexedBlock } = workerData
 const blockchain = new Blockchain(JSON.parse(process.env.RPCS))
 const provider = blockchain.getProvider(network)
 
 async function proccesNetworkData(): Promise<void> {
-  const lastIndexedBlock = await getLastIndexedBlock(provider)
-
   const networkHeight = await getNetworkHeight(provider)
 
   const deployedBlock = await getDeployedContractBlock(network)

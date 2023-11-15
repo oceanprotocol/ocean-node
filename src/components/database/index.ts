@@ -157,42 +157,59 @@ export class IndexerDatabase {
     })() as unknown as IndexerDatabase
   }
 
-  async create(fields: Record<string, any>) {
-    try {
-      return await this.provider.collections(this.schema.name).documents().create(fields)
-    } catch (error) {
-      return null
-    }
-  }
+  // async create(fields: Record<string, any>) {
+  //   try {
+  //     return await this.provider.collections(this.schema.name).documents().create(fields)
+  //   } catch (error) {
+  //     return null
+  //   }
+  // }
 
-  async retrieve(id: string) {
-    try {
-      return await this.provider.collections(this.schema.name).documents().retrieve(id)
-    } catch (error) {
-      return null
-    }
-  }
-
-  async update(id: string, fields: Record<string, any>) {
+  async create(network: number, lastIndexedBlock: number) {
     try {
       return await this.provider
         .collections(this.schema.name)
         .documents()
-        .update(id, fields)
+        .create({ id: network.toString(), lastIndexedBlock })
+    } catch (error) {
+      return null
+    }
+  }
+
+  async retrieve(network: number) {
+    try {
+      return await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .retrieve(network.toString())
+    } catch (error) {
+      return null
+    }
+  }
+
+  async update(network: number, lastIndexedBlock: number) {
+    try {
+      return await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .update(network.toString(), { lastIndexedBlock })
     } catch (error) {
       if (error instanceof TypesenseError && error.httpStatus === 404) {
         return await this.provider
           .collections(this.schema.name)
           .documents()
-          .create({ id, ...fields })
+          .create({ id: network.toString(), lastIndexedBlock })
       }
       return null
     }
   }
 
-  async delete(id: string) {
+  async delete(network: number) {
     try {
-      return await this.provider.collections(this.schema.name).documents().delete(id)
+      return await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .delete(network.toString())
     } catch (error) {
       return null
     }

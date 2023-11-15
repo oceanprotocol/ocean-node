@@ -23,14 +23,6 @@ export const getDeployedContractBlock = async (network: number) => {
   return deployedBlock
 }
 
-export const getLastIndexedBlock = async (provider: ethers.Provider) => {
-  //   const lastIndexedBlocks = getIndexFromDB() once done
-  const lastIndexedBlocks = 0
-  //   const lastIndexedBlock = lastIndexedBlocks[network] || 0
-
-  return lastIndexedBlocks
-}
-
 export const getNetworkHeight = async (provider: ethers.Provider) => {
   const networkHeight = await provider.getBlockNumber()
 
