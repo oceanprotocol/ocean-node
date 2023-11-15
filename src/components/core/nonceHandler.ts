@@ -26,6 +26,20 @@ function getDefaultErrorResponse(errorMessage: string): P2PCommandResponse {
   }
 }
 
+function getDefaultResponse(nonce: number): P2PCommandResponse {
+  const streamResponse = new ReadableString(String(nonce))
+  // set nonce here
+  return {
+    status: {
+      httpStatus: 200,
+      headers: {
+        'Content-Type': 'text/plain'
+      }
+    },
+    stream: streamResponse
+  }
+}
+
 // returns true/false (+ error message if needed)
 export type NonceResponse = {
   valid: boolean
@@ -38,32 +52,20 @@ export async function getNonce(address: string): Promise<P2PCommandResponse> {
   const db: NonceDatabase = (await getOceanNodeSingleton()).node.getDatabase().nonce
   try {
     const nonce = await db.retrieve(address)
-    const streamResponse = new ReadableString(String(nonce))
-    // set nonce here
-    return {
-      status: {
-        httpStatus: 200,
-        headers: {
-          'Content-Type': 'text/plain'
-        }
-      },
-      stream: streamResponse
+    if (nonce !== null) {
+      return getDefaultResponse(nonce.nonce)
     }
+    // // did not found anything, try add it and return default
+    const setFirst = await db.create(address, 0)
+    if (setFirst) {
+      return getDefaultResponse(0)
+    }
+    return getDefaultErrorResponse(
+      `Unable to retrieve nonce neither set first default for: ${address}`
+    )
   } catch (err) {
     // did not found anything, try add it and return default
     if (err.message.indexOf(address) > -1) {
-      const setFirst = await db.create(address, 0)
-      if (setFirst) {
-        return {
-          status: {
-            httpStatus: 200,
-            headers: {
-              'Content-Type': 'text/plain'
-            }
-          },
-          stream: new ReadableString('0')
-        }
-      }
       return getDefaultErrorResponse(err.message)
     } else {
       DB_CONSOLE_LOGGER.logMessageWithEmoji(
