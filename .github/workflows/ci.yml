@@ -60,3 +60,74 @@ jobs:
           restore-keys: ${{ runner.os }}-${{ matrix.node }}-build-${{ env.cache-name }}-
       - run: npm ci
       - run: npm run build
+
+  test_unit:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v3
+        - uses: actions/setup-node@v2
+          with:
+            node-version: '20.9.0'
+        - name: Cache node_modules
+          uses: actions/cache@v2
+          env:
+            cache-name: cache-node-modules
+          with:
+            path: ~/.npm
+            key: ${{ runner.os }}-test-unit-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+            restore-keys: ${{ runner.os }}-test-unit-${{ env.cache-name }}-
+        - run: npm ci
+        - run: npm run test:unit:cover
+        - uses: actions/upload-artifact@v2
+          with:
+            name: coverage
+            path: coverage/
+
+  test_integration:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v3
+        - uses: actions/setup-node@v2
+          with:
+            node-version: '20.9.0'
+        - name: Cache node_modules
+          uses: actions/cache@v2
+          env:
+            cache-name: cache-node-modules
+          with:
+            path: ~/.npm
+            key: ${{ runner.os }}-test-integration-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+            restore-keys: ${{ runner.os }}-test-integration-${{ env.cache-name }}-
+        - name: Set ADDRESS_FILE
+          run: echo "ADDRESS_FILE=${HOME}/.ocean/ocean-contracts/artifacts/address.json" >> $GITHUB_ENV
+        - name: Checkout Barge
+          uses: actions/checkout@v3
+          with:
+            repository: 'oceanprotocol/barge'
+            path: 'barge'
+            ref: 'feature/nodes'
+        - name: Login to Docker Hub
+          if: ${{ env.DOCKERHUB_PASSWORD && env.DOCKERHUB_USERNAME }}
+          run: |
+              echo "Login to Docker Hub";echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+              env:
+                  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+                  DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+        - name: Run Barge
+          working-directory: ${{ github.workspace }}/barge
+          run: |
+            bash -x start_ocean.sh --no-dashboard2>&1 > start_ocean.log &
+        - run: npm ci
+        - name: Wait for contracts deployment
+          working-directory: ${{ github.workspace }}/barge
+          run: |
+            for i in $(seq 1 250); do
+              sleep 10
+              [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" ] && break
+            done  
+        - name: integration tests
+          run: npm run test:integration:cover
+        - uses: actions/upload-artifact@v2
+          with:
+            name: coverage
+            path: coverage/
