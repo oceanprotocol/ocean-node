@@ -82,6 +82,7 @@ First, in a seperate terminal,install barge, checkout `feature/nodes` branch and
 
 ```bash
 git clone https://github.com/oceanprotocol/barge.git
+cd barge
 git checkout feature/nodes
 ./start_ocean.sh
 ```
