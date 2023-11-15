@@ -10,6 +10,32 @@ import {
 import { TypesenseApi } from './typesenseApi.js'
 import { TypesenseConfig } from './typesenseConfig.js'
 
+export const convertTypesenseConfig = (url: string) => {
+  const urlObject = new URL(url)
+  const apiKey = urlObject.searchParams.get('apiKey')
+  const config: TypesenseConfigOptions = {
+    apiKey,
+    nodes: [
+      {
+        host: urlObject.hostname,
+        port: urlObject.port,
+        protocol: urlObject.protocol.split(':')[0]
+      }
+    ]
+  }
+  return config
+}
+
+export class TypesenseError extends Error {
+  httpStatus?: number
+
+  constructor(message?: string) {
+    super(message)
+    this.name = new.target.name
+    Object.setPrototypeOf(this, new.target.prototype)
+  }
+}
+
 /**
  * TypesenseDocuments class implements CRUD methods
  * for interacting with documents of an individual collection
@@ -120,7 +146,7 @@ export class TypesenseCollections {
  * It initiates classes that provides access to methods of collections
  * or an individual collection
  */
-export default class Typesense {
+export class Typesense {
   config: TypesenseConfig
   api: TypesenseApi
   collectionsRecords: Record<string, TypesenseCollection> = {}

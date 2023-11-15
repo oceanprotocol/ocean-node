@@ -9,8 +9,7 @@ import {
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
 import { ReadableString } from '../P2P/handleProtocolCommands.js'
-import { Database } from '../database/index.js'
-import { getConfig } from '../../utils/config.js'
+import { NonceDatabase } from '../database/index.js'
 import { ethers } from 'ethers'
 import { getOceanNodeSingleton } from '../../index.js'
 
@@ -36,9 +35,9 @@ export type NonceResponse = {
 // get stored nonce for an address ( 0 if not found)
 export async function getNonce(address: string): Promise<P2PCommandResponse> {
   // get nonce from db
-  const db = (await getOceanNodeSingleton()).node.getDatabase()
+  const db: NonceDatabase = (await getOceanNodeSingleton()).node.getDatabase().nonce
   try {
-    const nonce = await db.getNonce(address)
+    const nonce = await db.retrieve(address)
     const streamResponse = new ReadableString(String(nonce))
     // set nonce here
     return {
@@ -53,7 +52,7 @@ export async function getNonce(address: string): Promise<P2PCommandResponse> {
   } catch (err) {
     // did not found anything, try add it and return default
     if (err.message.indexOf(address) > -1) {
-      const setFirst = await db.setNonce(address, 0)
+      const setFirst = await db.create(address, 0)
       if (setFirst) {
         return {
           status: {
@@ -82,11 +81,12 @@ export async function getNonce(address: string): Promise<P2PCommandResponse> {
 async function updateNonce(address: string, nonce: number): Promise<NonceResponse> {
   try {
     // update nonce on db
-    const db = (await getOceanNodeSingleton()).node.getDatabase()
-    const ok = await db.updateNonce(address, nonce)
+    const db = (await getOceanNodeSingleton()).node.getDatabase().nonce
+    // it will create if none exists yet
+    const resp = await db.update(address, nonce)
     return {
-      valid: ok,
-      error: !ok ? 'error updating nonce to: ' + nonce : null
+      valid: resp != null,
+      error: resp == null ? 'error updating nonce to: ' + nonce : null
     }
   } catch (err) {
     DB_CONSOLE_LOGGER.logMessageWithEmoji(
@@ -110,12 +110,16 @@ export async function checkNonce(
 ): Promise<NonceResponse> {
   try {
     // get nonce from db
-    const db = (await getOceanNodeSingleton()).node.getDatabase()
-    const existingNonce = await db.getNonce(consumer)
+    let previousNonce = 0 // if none exists
+    const db: NonceDatabase = (await getOceanNodeSingleton()).node.getDatabase().nonce
+    const existingNonce = await db.retrieve(consumer)
+    if (existingNonce !== null) {
+      previousNonce = existingNonce.nonce
+    }
     // check if bigger than previous stored one and validate signature
     const validate = validateNonceAndSignature(
       nonce,
-      existingNonce, // will return 0 if none exists
+      previousNonce, // will return 0 if none exists
       consumer,
       signature
     )

@@ -1,8 +1,5 @@
-import {
-  TypesenseConfigOptions,
-  TypesenseCollectionCreateSchema
-} from '../../@types/index.js'
-import Typesense from '../../components/database/typesense.js'
+import { TypesenseCollectionCreateSchema } from '../../@types/index.js'
+import { Typesense, convertTypesenseConfig } from '../../components/database/typesense.js'
 import {
   getLoggerLevelEmoji,
   GENERIC_EMOJIS,
@@ -33,20 +30,8 @@ export const nonceSchema: TypesenseCollectionCreateSchema = {
   ]
 }
 
-const typesenseConfig: TypesenseConfigOptions = {
-  apiKey: 'xyz',
-  nodes: [
-    {
-      host: 'localhost',
-      port: 8108,
-      protocol: 'http'
-    }
-  ],
-  logLevel: LOG_LEVELS_STR.LEVEL_INFO,
-  logger: DB_CONSOLE_LOGGER.getLogger(),
-  numRetries: 3
-}
-const typesense = new Typesense(typesenseConfig)
+const url = 'http://localhost:8108/?apiKey=xyz'
+const typesense = new Typesense(convertTypesenseConfig(url))
 
 // const typesenseApi: TypesenseApi = new TypesenseApi(typesense.config)
 

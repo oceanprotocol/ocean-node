@@ -42,14 +42,31 @@ Now, you should see the nodes discovery/connecting/disconnecting
 
 Load postman collection from docs and play
 
-## Structure:
+## Docker:
 
-- Everything hovers around components:
-  - database: will have connection to typesense/es and will implement basic operations. This is used by all other components
-  - indexer: upcoming indexer feature
-  - provider: will have core provider functionality
-  - httpRoutes: exposes http endpoints
-  - P2P: has P2P functionality. will have to extend handleBroadcasts and handleProtocolCommands, rest is pretty much done
+First, build the image:
+
+```bash
+docker build -t 'ocean-node:mybuild' .
+```
+Then run it:
+
+```bash
+docker run -e PRIVATE_KEY=0x123 ocean-node:mybuild
+```
+
+## Structure:
+ - Everything hovers around components:
+    -  database:   will have connection to typesense/es and will implement basic operations.   This is used by all other components
+    -  indexer:  upcoming indexer feature
+    -  provider: will have core provider functionality
+    -  httpRoutes:  exposes http endpoints
+    -  P2P:  has P2P functionality.  will have to extend handleBroadcasts and handleProtocolCommands, rest is pretty much done
+
+## Environment Variables
+  
+  For advanced uses, various aspects of `ocean-node` can further be configured through [environment
+variables](docs/environment-variables.md).
 
 ## Run tests
 

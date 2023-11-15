@@ -1,10 +1,10 @@
-import 'jest'
+import { expect } from 'chai'
 import { ethers } from 'ethers'
+import { TypesenseCollectionCreateSchema } from '../../src/@types/Typesense'
 import {
-  TypesenseCollectionCreateSchema,
-  TypesenseConfigOptions
-} from '../../src/@types/Typesense'
-import Typesense from '../../src/components/database/typesense'
+  Typesense,
+  convertTypesenseConfig
+} from '../../src/components/database/typesense'
 
 const nonceSchema: TypesenseCollectionCreateSchema = {
   name: 'nonce',
@@ -40,18 +40,9 @@ async function checkDocumentExists(typesense: Typesense) {
 describe('handle nonce', () => {
   let typesense: Typesense
 
-  beforeAll(async () => {
-    const config: TypesenseConfigOptions = {
-      apiKey: 'xyz',
-      nodes: [
-        {
-          host: 'localhost',
-          port: 8108,
-          protocol: 'http'
-        }
-      ]
-    }
-    typesense = new Typesense(config)
+  before(async () => {
+    const url = 'http://localhost:8108/?apiKey=xyz'
+    typesense = new Typesense(convertTypesenseConfig(url))
 
     const existingCollections = await typesense.collections().retrieve()
     // check existing ones
@@ -93,7 +84,7 @@ describe('handle nonce', () => {
     const signature = await wallet.signMessage(nonce)
     const actualAddress = ethers.verifyMessage(nonce, signature)
 
-    expect(actualAddress).toEqual(expectedAddress)
+    expect(actualAddress).to.be.equal(expectedAddress)
   })
 
   it('should get nonce (1)', async () => {
@@ -101,6 +92,6 @@ describe('handle nonce', () => {
       .collections('nonce')
       .documents()
       .retrieve('0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1')
-    expect(document.nonce).toEqual(1)
+    expect(document.nonce).to.be.equal(1)
   })
 })
