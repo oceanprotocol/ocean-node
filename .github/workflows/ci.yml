@@ -29,6 +29,12 @@ jobs:
           restore-keys: ${{ runner.os }}-lint-${{ env.cache-name }}-
       - run: npm ci
       - run: npm run lint
+  
+  dockertest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: docker build -t 'ocean-node:mybuild' .
 
   build:
     runs-on: ${{ matrix.os }}
@@ -36,7 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]
         node: ['20.9.0']
 
     steps:

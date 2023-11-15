@@ -50,7 +50,7 @@ async function main() {
   let node = null
   let indexer = null
   let provider = null
-  const dbconn = new Database(config.dbConfig)
+  const dbconn = await new Database(config.dbConfig)
   if (!process.env.RPCS || !JSON.parse(process.env.RPCS)) {
     // missing or invalid RPC list
     logger.logMessageWithEmoji(

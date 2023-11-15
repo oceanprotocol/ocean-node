@@ -1,5 +1,3 @@
-import { Logger } from 'winston'
-
 export interface TypesenseAbstractLogger {
   error?: any
   warn?: any
@@ -10,7 +8,7 @@ export interface TypesenseAbstractLogger {
 
 export interface TypesenseNode {
   host: string
-  port: number
+  port: string
   protocol: string
 }
 
@@ -21,7 +19,7 @@ export interface TypesenseConfigOptions {
   retryIntervalSeconds?: number
   connectionTimeoutSeconds?: number
   logLevel?: string
-  logger?: Logger
+  logger?: TypesenseAbstractLogger
 }
 
 export type TypesenseFieldType =
