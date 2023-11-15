@@ -1,6 +1,6 @@
 import { GetDdoCommand } from '../../utils/constants'
 import { P2PCommandResponse } from '../../@types'
-import {Readable} from "stream";
+import { Readable } from 'stream'
 
 export async function handleGetDdoCommand(
   task: GetDdoCommand
