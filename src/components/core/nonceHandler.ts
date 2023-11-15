@@ -11,7 +11,7 @@ import {
 import { ReadableString } from '../P2P/handleProtocolCommands.js'
 import { NonceDatabase } from '../database/index.js'
 import { ethers } from 'ethers'
-import { getOceanNodeSingleton } from '../../index.js'
+import OceanNodeInstance from '../../index.js'
 
 export const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.DATABASE,
@@ -49,7 +49,7 @@ export type NonceResponse = {
 // get stored nonce for an address ( 0 if not found)
 export async function getNonce(address: string): Promise<P2PCommandResponse> {
   // get nonce from db
-  const db: NonceDatabase = (await getOceanNodeSingleton()).node.getDatabase().nonce
+  const db: NonceDatabase = (await OceanNodeInstance.node).getDatabase().nonce
   try {
     const nonce = await db.retrieve(address)
     if (nonce !== null) {
@@ -83,7 +83,7 @@ export async function getNonce(address: string): Promise<P2PCommandResponse> {
 async function updateNonce(address: string, nonce: number): Promise<NonceResponse> {
   try {
     // update nonce on db
-    const db = (await getOceanNodeSingleton()).node.getDatabase().nonce
+    const db = (await OceanNodeInstance.node).getDatabase().nonce
     // it will create if none exists yet
     const resp = await db.update(address, nonce)
     return {
@@ -113,7 +113,7 @@ export async function checkNonce(
   try {
     // get nonce from db
     let previousNonce = 0 // if none exists
-    const db: NonceDatabase = (await getOceanNodeSingleton()).node.getDatabase().nonce
+    const db: NonceDatabase = (await OceanNodeInstance.node).getDatabase().nonce
     const existingNonce = await db.retrieve(consumer)
     if (existingNonce !== null) {
       previousNonce = existingNonce.nonce

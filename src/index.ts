@@ -42,13 +42,6 @@ declare global {
     }
   }
 }
-/**
- * Get the oceanNode instance
- * @returns ocenaNode object
- */
-export async function getOceanNodeSingleton(): Promise<OceanNode> {
-  return oceanNode
-}
 
 async function main() {
   console.log('\n\n\n\n')
@@ -107,4 +100,11 @@ async function main() {
   }
 }
 
-main()
+await main()
+
+/**
+ * Get the oceanNode instance
+ * @returns oceanNode object
+ */
+const OceanNodeInstance = oceanNode
+export default OceanNodeInstance
