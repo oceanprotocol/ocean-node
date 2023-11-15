@@ -31,8 +31,8 @@ export RPCS="{ \"1\": \"https://rpc.eth.gateway.fm\", \"137\": \"https://polygon
 For downloading the file from IPFS or ARWEAVE, please export the following env variables;
 
 ```bash
-export IPFS_GATEWAY=''
-export ARWEAVE_GATEWAY=''
+export IPFS_GATEWAY='https://ipfs.io/'
+export ARWEAVE_GATEWAY='https://arweave.net/'
 ```
 Then start the node:
 
