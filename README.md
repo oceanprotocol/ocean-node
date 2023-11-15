@@ -28,7 +28,7 @@ export PRIVATE_KEY=0x.....
 export RPCS="{ \"1\": \"https://rpc.eth.gateway.fm\", \"137\": \"https://polygon.meowrpc.com\", \"80001\": \"https://rpc-mumbai.maticvigil.com\" }"
 ```
 
-For storing the file on IPFS or ARWEAVE, please export the following env variables;
+For downloading the file from IPFS or ARWEAVE, please export the following env variables;
 
 ```bash
 export IPFS_GATEWAY=''
@@ -49,7 +49,7 @@ export PRIVATE_KEY=0x.....
 export RPCS="{ \"1\": \"https://rpc.eth.gateway.fm\", \"137\": \"https://polygon.meowrpc.com\", \"80001\": \"https://rpc-mumbai.maticvigil.com\" }"
 ```
 
-For storing the file on IPFS or ARWEAVE, please export the following env variables;
+For downloading the file from IPFS or ARWEAVE, please export the following env variables;
 
 ```bash
 export IPFS_GATEWAY=''
