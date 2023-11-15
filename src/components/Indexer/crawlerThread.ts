@@ -10,7 +10,6 @@ import { Blockchain } from '../../utils/blockchain.js'
 const { network } = workerData
 const blockchain = new Blockchain(JSON.parse(process.env.RPCS))
 const provider = blockchain.getProvider(network)
-console.log('worker for network', network)
 
 async function proccesNetworkData(): Promise<void> {
   const lastIndexedBlock = await getLastIndexedBlock(provider)
@@ -24,9 +23,14 @@ async function proccesNetworkData(): Promise<void> {
       ? lastIndexedBlock
       : deployedBlock
 
+  console.log(
+    `network: ${network} Start block ${startBlock} network height ${networkHeight}`
+  )
+
   if (networkHeight > startBlock) {
     let chunkSize = 100
     let remainingBlocks = networkHeight - lastIndexedBlock
+    console.log(`network: ${network} Remaining blocks ${remainingBlocks} `)
 
     while (remainingBlocks > 0) {
       const blocksToProcess = Math.min(chunkSize, remainingBlocks)
@@ -39,6 +43,7 @@ async function proccesNetworkData(): Promise<void> {
 
       if (processedBlocks !== blocksToProcess) {
         chunkSize = Math.floor(chunkSize / 2)
+        console.log(`network: ${network} Reducing chink size  ${chunkSize} `)
       }
 
       remainingBlocks -= processedBlocks
@@ -51,7 +56,6 @@ async function proccesNetworkData(): Promise<void> {
 parentPort.on('message', (message) => {
   console.log('message --', message)
   if (message.method === 'start-crawling') {
-    console.log('start-crawling', message.method)
     proccesNetworkData()
   }
 })
