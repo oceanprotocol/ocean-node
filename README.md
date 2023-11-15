@@ -70,14 +70,24 @@ variables](docs/environment-variables.md).
 
 ## Run tests
 
-Before running tests, please run Typesense docker
+### Unit tests
 
-```
-docker-compose -f typesense-compose.yml -p ocean-node up -d
+```bash
+npm run test:unit
 ```
 
-You can then run tests
+### Integration tests:
 
+First, in a seperate terminal,install barge, checkout `feature/nodes` branch and start it
+
+```bash
+git clone https://github.com/oceanprotocol/barge.git
+git checkout feature/nodes
+./start_ocean.sh
 ```
-npm run test
+
+Now, back in your nodes terminal, you can run the tests
+
+```bash
+npm run test:integration
 ```
