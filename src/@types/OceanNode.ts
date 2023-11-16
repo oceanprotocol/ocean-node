@@ -54,7 +54,7 @@ export interface P2PCommandResponse {
 }
 
 export interface P2PBroadcastResponse {
-  id: string // doc id
-  lastUpdateTx: string // last update transaction
-  lastUpdateTime: string // last update timestamp (or milliseconds from epoch?)
+  command: string // original broadcast command
+  message: any // original broadcast message
+  response: any // the actual response to the original command and message
 }
