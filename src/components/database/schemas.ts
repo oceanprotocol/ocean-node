@@ -32,7 +32,7 @@ export const schemas: Schemas = {
       { name: 'timestamp', type: 'string' },
       { name: 'level', type: 'string' },
       { name: 'message', type: 'string' },
-      { name: 'meta', type: 'object', optional: true }
+      { name: 'meta', type: 'string', optional: true }
     ]
   }
 }
