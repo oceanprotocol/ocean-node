@@ -393,7 +393,6 @@ export function getCustomLoggerForModule(
 
 // for a custom logger transport
 interface CustomOceanNodesTransportOptions extends Transport.TransportStreamOptions {
-  typesenseConfig: TypesenseConfigOptions
   dbInstance: Database
   collectionName?: string
   moduleName?: string
@@ -416,12 +415,10 @@ interface TypesenseTransportStreamOptions extends CustomOceanNodesTransportOptio
 
 export class CustomOceanNodesTransport extends Transport {
   private dbInstance: Database
-  private collectionName: string
 
   constructor(options: CustomOceanNodesTransportOptions) {
     super(options)
     this.dbInstance = options.dbInstance
-    this.collectionName = options.collectionName || 'Logs'
   }
 
   async log(info: LogEntry, callback: () => void): Promise<void> {
@@ -429,17 +426,17 @@ export class CustomOceanNodesTransport extends Transport {
       this.emit('logged', info)
     })
 
+    // Prepare the document to be logged
     const document = {
       level: info.level,
       message: info.message,
-      meta: info
+      timestamp: new Date().toISOString(), // Storing the current timestamp
+      meta: JSON.stringify(info.meta) // Ensure meta is a string
     }
 
     try {
-      await this.typesenseClient
-        .collections(this.collectionName)
-        .documents()
-        .create(document)
+      // Use the insertLog method of the LogDatabase instance
+      await this.dbInstance.logs.insertLog(document)
     } catch (error) {
       // Handle the error according to your needs
       console.error('Error writing to Typesense:', error)
