@@ -72,6 +72,7 @@ First, build the image:
 ```bash
 docker build -t 'ocean-node:mybuild' .
 ```
+
 Then run it:
 
 ```bash
@@ -79,16 +80,17 @@ docker run -e PRIVATE_KEY=0x123 ocean-node:mybuild
 ```
 
 ## Structure:
- - Everything hovers around components:
-    -  database:   will have connection to typesense/es and will implement basic operations.   This is used by all other components
-    -  indexer:  upcoming indexer feature
-    -  provider: will have core provider functionality
-    -  httpRoutes:  exposes http endpoints
-    -  P2P:  has P2P functionality.  will have to extend handleBroadcasts and handleProtocolCommands, rest is pretty much done
+
+- Everything hovers around components:
+  - database: will have connection to typesense/es and will implement basic operations. This is used by all other components
+  - indexer: upcoming indexer feature
+  - provider: will have core provider functionality
+  - httpRoutes: exposes http endpoints
+  - P2P: has P2P functionality. will have to extend handleBroadcasts and handleProtocolCommands, rest is pretty much done
 
 ## Environment Variables
-  
-  For advanced uses, various aspects of `ocean-node` can further be configured through [environment
+
+For advanced uses, various aspects of `ocean-node` can further be configured through [environment
 variables](docs/environment-variables.md).
 
 ## Run tests
@@ -115,3 +117,22 @@ Now, back in your nodes terminal, you can run the tests
 ```bash
 npm run test:integration
 ```
+
+### Additional tests / helper scripts
+
+There are a couple of helper scripts to help test additional functionality and components integration. These can be found under 'src/helpers/scripts'
+To run them, do either:
+
+```
+npm run client
+```
+
+(Purpose: for downloadURL flow. It requires at least 2 nodes properly configured and running)
+
+OR
+
+```
+npm run check-nonce
+```
+
+(Purpose: for checking nonce tracking flow. This last one requires DB up and running)

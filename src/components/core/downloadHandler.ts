@@ -12,8 +12,9 @@ export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 /**
  * Get the file
  * @param fileURL the location of the file
+ * DO NOT export this!
  */
-export async function getFileFromURL(fileURL: string): Promise<any> {
+async function getFileFromURL(fileURL: string): Promise<any> {
   const response = await axios({
     method: 'get',
     url: fileURL,

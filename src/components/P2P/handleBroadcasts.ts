@@ -1,4 +1,4 @@
-import { BROADCAST_COMMANDS, BroadcastCommand } from '../../utils/constants.js'
+import { BroadcastCommand } from '../../utils/constants.js'
 import { LOG_LEVELS_STR, getLoggerLevelEmoji } from '../../utils/logging/Logger.js'
 
 import { P2P_CONSOLE_LOGGER } from '../P2P/index.js'
@@ -17,18 +17,12 @@ export function handleBroadcasts(topic: string, _message: any) {
     )
 
     const command: BroadcastCommand = JSON.parse(rawMessage) as BroadcastCommand
-    switch (command.command) {
-      case BROADCAST_COMMANDS.FIND_DDO:
-        // use the ocean node singleton, call ddo database, check for DDO and return the result
-        // (contains id, last_update_tx,last_update_time)
-        break
-      default:
-        P2P_CONSOLE_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_WARN,
-          `Broadcast command "${command.command}" not implemented yet!`,
-          true
-        )
-    }
+
+    P2P_CONSOLE_LOGGER.log(
+      LOG_LEVELS_STR.LEVEL_WARN,
+      `Broadcast command "${command.command}" not implemented yet!`,
+      true
+    )
   } else {
     // console.log('Got some relays...', message.detail)
   }

@@ -1,8 +1,5 @@
-import {
-  SUPPORTED_PROTOCOL_COMMANDS,
-  DIRECT_COMMANDS,
-  BROADCAST_COMMANDS
-} from '../../utils/constants.js'
+import { isAddress } from 'ethers'
+import { SUPPORTED_PROTOCOL_COMMANDS, DIRECT_COMMANDS } from '../../utils/constants.js'
 
 export type ValidateParams = {
   valid: boolean
@@ -49,8 +46,7 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
       return {
         valid: true
       }
-      // broadcast commands
-    } else if (command === BROADCAST_COMMANDS.FIND_DDO) {
+    } else if (command === DIRECT_COMMANDS.FIND_DDO) {
       // message is DDO identifier
       if (!requestBody.message || !requestBody.message.startsWith('did:op')) {
         return {
@@ -58,6 +54,21 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
           reason: 'Missing or invalid required parameter: "message"',
           status: 400
         }
+      }
+      // nonce
+    } else if (command === DIRECT_COMMANDS.NONCE) {
+      // needs a valid and mandatory address
+      if (!requestBody.address || !isAddress(requestBody.address)) {
+        return {
+          valid: false,
+          reason: !requestBody.address
+            ? 'Missing required parameter: "address"'
+            : 'Parameter : "address" is not a valid web3 address',
+          status: 400
+        }
+      }
+      return {
+        valid: true
       }
     }
     return {
