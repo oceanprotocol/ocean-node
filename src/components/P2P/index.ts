@@ -443,6 +443,10 @@ export class OceanP2P extends EventEmitter {
   isTargetPeerSelf(targetPeerID: string): boolean {
     return targetPeerID === this._config.keys.peerId.toString()
   }
+
+  getDatabase(): Database {
+    return this.db
+  }
 }
 
 function encoding(message: any) {
