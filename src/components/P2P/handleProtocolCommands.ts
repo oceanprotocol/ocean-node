@@ -117,7 +117,6 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
       break
     case PROTOCOL_COMMANDS.GET_DDO:
       response = await handleGetDdoCommand.call(this, task)
-      // eslint-disable-next-line prefer-destructuring
       status = response.status
       sendStream = response.stream
       break
