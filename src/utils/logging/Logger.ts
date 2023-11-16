@@ -4,6 +4,7 @@ import DailyRotateFile from 'winston-daily-rotate-file'
 import fs from 'fs'
 import { Typesense } from '../../components/database/typesense'
 import { TypesenseConfigOptions } from '../../@types'
+import { Database } from '../../components/database/index.js'
 
 // all the types of modules/components
 export const LOGGER_MODULE_NAMES = {
@@ -393,6 +394,7 @@ export function getCustomLoggerForModule(
 // for a custom logger transport
 interface CustomOceanNodesTransportOptions extends Transport.TransportStreamOptions {
   typesenseConfig: TypesenseConfigOptions
+  dbInstance: Database
   collectionName?: string
   moduleName?: string
 }
@@ -413,13 +415,13 @@ interface TypesenseTransportStreamOptions extends CustomOceanNodesTransportOptio
 }
 
 export class CustomOceanNodesTransport extends Transport {
-  private typesenseClient: Typesense
+  private dbInstance: Database
   private collectionName: string
 
-  constructor(opts: CustomOceanNodesTransportOptions) {
-    super(opts)
-    this.typesenseClient = new Typesense(opts.typesenseConfig)
-    this.collectionName = opts.collectionName
+  constructor(options: CustomOceanNodesTransportOptions) {
+    super(options)
+    this.dbInstance = options.dbInstance
+    this.collectionName = options.collectionName || 'Logs'
   }
 
   async log(info: LogEntry, callback: () => void): Promise<void> {

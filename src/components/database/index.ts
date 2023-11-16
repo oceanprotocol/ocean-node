@@ -199,16 +199,51 @@ export class IndexerDatabase {
   }
 }
 
+export class LogDatabase {
+  private provider: Typesense
+
+  constructor(
+    private config: OceanNodeDBConfig,
+    private schema: Schema
+  ) {
+    return (async (): Promise<LogDatabase> => {
+      this.provider = new Typesense(convertTypesenseConfig(this.config.url))
+      try {
+        await this.provider.collections(this.schema.name).retrieve()
+      } catch (error) {
+        if (error instanceof TypesenseError && error.httpStatus === 404) {
+          await this.provider.collections().create(this.schema)
+        }
+      }
+      return this
+    })() as unknown as LogDatabase
+  }
+
+  async insertLog(logEntry: Record<string, any>) {
+    try {
+      return await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .create(logEntry)
+    } catch (error) {
+      console.error('Error inserting log entry:', error)
+      return null
+    }
+  }
+}
+
 export class Database {
   ddo: DdoDatabase
   nonce: NonceDatabase
   indexer: IndexerDatabase
+  logs: LogDatabase
 
   constructor(private config: OceanNodeDBConfig) {
     return (async (): Promise<Database> => {
       this.ddo = await new DdoDatabase(config, schemas.ddoSchemas)
       this.nonce = await new NonceDatabase(config, schemas.nonceSchemas)
       this.indexer = await new IndexerDatabase(config, schemas.indexerSchemas)
+      this.logs = await new LogDatabase(config, schemas.logSchemas)
       return this
     })() as unknown as Database
   }
