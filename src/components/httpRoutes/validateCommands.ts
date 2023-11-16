@@ -48,10 +48,10 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
       }
     } else if (command === PROTOCOL_COMMANDS.FIND_DDO) {
       // message is DDO identifier
-      if (!requestBody.message || !requestBody.message.startsWith('did:op')) {
+      if (!requestBody.id || !requestBody.id.startsWith('did:op')) {
         return {
           valid: false,
-          reason: 'Missing or invalid required parameter: "message"',
+          reason: 'Missing or invalid required parameter: "id"',
           status: 400
         }
       }
