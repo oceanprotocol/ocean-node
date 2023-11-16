@@ -26,8 +26,20 @@ npm run build
 export HTTP_API_PORT=8000
 export PRIVATE_KEY=0x.....
 export RPCS="{ \"1\": \"https://rpc.eth.gateway.fm\", \"137\": \"https://polygon.meowrpc.com\", \"80001\": \"https://rpc-mumbai.maticvigil.com\" }"
+```
+
+For downloading the file from IPFS or ARWEAVE, please export the following env variables;
+
+```bash
+export IPFS_GATEWAY='https://ipfs.io/'
+export ARWEAVE_GATEWAY='https://arweave.net/'
+```
+Then start the node:
+
+```bash
 npm run start
 ```
+
 
 ## 4. Open a 2nd terminal and run another node
 
@@ -35,6 +47,17 @@ npm run start
 export HTTP_API_PORT=8001
 export PRIVATE_KEY=0x.....
 export RPCS="{ \"1\": \"https://rpc.eth.gateway.fm\", \"137\": \"https://polygon.meowrpc.com\", \"80001\": \"https://rpc-mumbai.maticvigil.com\" }"
+```
+
+For downloading the file from IPFS or ARWEAVE, please export the following env variables;
+
+```bash
+export IPFS_GATEWAY=''
+export ARWEAVE_GATEWAY=''
+```
+Then start the node:
+
+```bash
 npm run start
 ```
 
