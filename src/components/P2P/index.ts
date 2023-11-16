@@ -11,9 +11,6 @@ import {
   handlePeerConnect,
   handlePeerDiscovery,
   handlePeerDisconnect,
-  handlePeerJoined,
-  handlePeerLeft,
-  handleSubscriptionCHange,
   handleProtocolCommands,
   handleDirectProtocolCommand
 } from './handlers.js'
@@ -21,11 +18,9 @@ import {
 // import { encoding } from './connection'
 // import * as directConnection from './direct-connection-handler'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
-import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 
 import { bootstrap } from '@libp2p/bootstrap'
 import { noise } from '@chainsafe/libp2p-noise'
-import { plaintext } from 'libp2p/insecure'
 import { mdns } from '@libp2p/mdns'
 import { mplex } from '@libp2p/mplex'
 import { yamux } from '@chainsafe/libp2p-yamux'
@@ -42,7 +37,6 @@ import { autoNATService } from 'libp2p/autonat'
 import { uPnPNATService } from 'libp2p/upnp-nat'
 
 import { kadDHT } from '@libp2p/kad-dht'
-import type { PubSub } from '@libp2p/interface/pubsub'
 import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 
 import { cidFromRawString } from '../../utils/index.js'
@@ -106,7 +100,7 @@ export class OceanP2P extends EventEmitter {
     this._protocol = '/ocean/nodes/1.0.0'
 
     this._interval = setInterval(this._pollPeers.bind(this), this._options.pollInterval)
-    this._libp2p.handle(this._protocol, handleProtocolCommands)
+    this._libp2p.handle(this._protocol, handleProtocolCommands.bind(this))
 
     this._idx = index++
 
@@ -376,9 +370,8 @@ export class OceanP2P extends EventEmitter {
     // create a writable stream
     // const outputStream = new Stream.Writable()
     status.stream = new Stream.Writable()
-
     // read from input stream to output one and move on
-    await handleDirectProtocolCommand(message, sink)
+    await handleDirectProtocolCommand.call(this, message, sink)
 
     return status
   }

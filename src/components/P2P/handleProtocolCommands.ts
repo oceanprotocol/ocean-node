@@ -5,10 +5,11 @@ import StreamConcat from 'stream-concat'
 // export function handleProtocolCommands (sourceStream:any,sinkStream:any) {
 
 import { handleDownloadURLCommand } from '../core/downloadHandler.js'
-import { DIRECT_COMMANDS } from '../../utils/constants.js'
+import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
 
 import { P2P_CONSOLE_LOGGER } from './index.js'
+import { handleGetDdoCommand } from '../core/ddoHandler.js'
 import { getNonce } from '../core/nonceHandler.js'
 
 export class ReadableString extends Readable {
@@ -58,13 +59,16 @@ export async function handleProtocolCommands(connection: any) {
   let response: P2PCommandResponse = null
   try {
     switch (task.command) {
-      case DIRECT_COMMANDS.ECHO:
+      case PROTOCOL_COMMANDS.ECHO:
         status = { httpStatus: 200 }
         break
-      case DIRECT_COMMANDS.DOWNLOAD_URL:
+      case PROTOCOL_COMMANDS.DOWNLOAD_URL:
         response = await handleDownloadURLCommand(task)
         break
-      case DIRECT_COMMANDS.NONCE:
+      case PROTOCOL_COMMANDS.GET_DDO:
+        response = await handleGetDdoCommand.call(this, task)
+        break
+      case PROTOCOL_COMMANDS.NONCE:
         response = await getNonce(task.address)
         break
       default:
@@ -106,13 +110,16 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
 
   P2P_CONSOLE_LOGGER.logMessage('Performing task: ' + JSON.stringify(task), true)
   switch (task.command) {
-    case DIRECT_COMMANDS.ECHO:
+    case PROTOCOL_COMMANDS.ECHO:
       status = { httpStatus: 200 }
       break
-    case DIRECT_COMMANDS.DOWNLOAD_URL:
+    case PROTOCOL_COMMANDS.DOWNLOAD_URL:
       response = await handleDownloadURLCommand(task)
       break
-    case DIRECT_COMMANDS.NONCE:
+    case PROTOCOL_COMMANDS.GET_DDO:
+      response = await handleGetDdoCommand.call(this, task)
+      break
+    case PROTOCOL_COMMANDS.NONCE:
       response = await getNonce(task.address)
       break
     default:

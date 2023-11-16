@@ -1,5 +1,5 @@
 import { isAddress } from 'ethers'
-import { SUPPORTED_PROTOCOL_COMMANDS, DIRECT_COMMANDS } from '../../utils/constants.js'
+import { SUPPORTED_PROTOCOL_COMMANDS, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 
 export type ValidateParams = {
   valid: boolean
@@ -28,7 +28,7 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
   // direct commands
   if (SUPPORTED_PROTOCOL_COMMANDS.includes(command)) {
     // downloadURL
-    if (command === DIRECT_COMMANDS.DOWNLOAD_URL) {
+    if (command === PROTOCOL_COMMANDS.DOWNLOAD_URL) {
       // only mandatory is the url
       if (!requestBody.url) {
         return {
@@ -41,12 +41,12 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
         valid: true
       }
       // echo
-    } else if (command === DIRECT_COMMANDS.ECHO) {
+    } else if (command === PROTOCOL_COMMANDS.ECHO) {
       // nothing special with this one
       return {
         valid: true
       }
-    } else if (command === DIRECT_COMMANDS.FIND_DDO) {
+    } else if (command === PROTOCOL_COMMANDS.FIND_DDO) {
       // message is DDO identifier
       if (!requestBody.message || !requestBody.message.startsWith('did:op')) {
         return {
@@ -56,7 +56,7 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
         }
       }
       // nonce
-    } else if (command === DIRECT_COMMANDS.NONCE) {
+    } else if (command === PROTOCOL_COMMANDS.NONCE) {
       // needs a valid and mandatory address
       if (!requestBody.address || !isAddress(requestBody.address)) {
         return {
@@ -64,6 +64,17 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
           reason: !requestBody.address
             ? 'Missing required parameter: "address"'
             : 'Parameter : "address" is not a valid web3 address',
+          status: 400
+        }
+      }
+      return {
+        valid: true
+      }
+    } else if (command === PROTOCOL_COMMANDS.GET_DDO) {
+      if (!requestBody.id) {
+        return {
+          valid: false,
+          reason: 'Missing required parameter: "id"',
           status: 400
         }
       }

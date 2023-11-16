@@ -1,8 +1,9 @@
 // Add all the supported commands
-export const DIRECT_COMMANDS = {
+export const PROTOCOL_COMMANDS = {
   DOWNLOAD_URL: 'downloadURL',
   ECHO: 'echo',
   NONCE: 'nonce',
+  GET_DDO: 'getDDO',
   FIND_DDO: 'findDDO'
 }
 
@@ -21,13 +22,18 @@ export interface DownloadCommand extends Command {
   aes_encrypted_key?: string // if not present it means download without encryption
 }
 
+export interface GetDdoCommand extends Command {
+  id: string
+}
+
 export interface NonceCommand extends Command {
   address: string // consumer address
 }
 
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
-  DIRECT_COMMANDS.DOWNLOAD_URL,
-  DIRECT_COMMANDS.ECHO,
-  DIRECT_COMMANDS.NONCE,
-  DIRECT_COMMANDS.FIND_DDO
+  PROTOCOL_COMMANDS.DOWNLOAD_URL,
+  PROTOCOL_COMMANDS.ECHO,
+  PROTOCOL_COMMANDS.NONCE,
+  PROTOCOL_COMMANDS.GET_DDO,
+  PROTOCOL_COMMANDS.FIND_DDO
 ]
