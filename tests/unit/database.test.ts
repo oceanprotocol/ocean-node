@@ -148,3 +148,36 @@ describe('IndexerDatabase CRUD', () => {
     expect(result?.last_block).to.equal(1)
   })
 })
+
+describe('LogDatabase CRUD', () => {
+  let database: Database
+  const logEntry = {
+    id: `log_${Date.now()}_${Math.random().toString(36)`, // ID generation
+    timestamp: new Date().toISOString(),
+    level: 'info',
+    message: 'Test log message',
+    meta: 'Test meta information'
+  }
+
+  before(async () => {
+    const dbConfig = {
+      url: 'http://localhost:8108/?apiKey=xyz'
+    }
+    database = await new Database(dbConfig)
+  })
+
+  it('insert log', async () => {
+    const result = await database.logs.insertLog(logEntry)
+    expect(result).to.include.keys('id', 'timestamp', 'level', 'message', 'meta')
+    logEntry.id = result?.id // Save the auto-generated id for further operations
+  })
+
+  it('retrieve log', async () => {
+    const result = await database.logs.provider
+      .collections('logs')
+      .documents()
+      .retrieve(logEntry.id)
+    expect(result.id).to.equal(logEntry.id)
+    expect(result.level).to.equal(logEntry.level)
+  })
+})
