@@ -51,9 +51,13 @@ const processBlockEvents = async (provider: ethers.Provider, block: ethers.Block
   const processedEvents = []
   for (const transaction of block.transactions) {
     const receipt = await provider.getTransactionReceipt(transaction)
-    const processedEventData = await processEventData(provider, receipt.logs)
-    if (processedEventData) {
-      processedEvents.push(processedEventData)
+    if (receipt?.logs) {
+      const processedEventData = await processEventData(receipt?.logs)
+      if (processedEventData) {
+        processedEvents.push(processedEventData)
+      }
+    } else {
+      continue
     }
   }
   return processedEvents
@@ -61,19 +65,17 @@ const processBlockEvents = async (provider: ethers.Provider, block: ethers.Block
 
 function findEventByKey(keyToFind: string): NetworkEvent {
   for (const [key, value] of Object.entries(EVENT_HASHES)) {
-    // console.log(` >>> ${key} compare to topic ${keyToFind} <<<`)
     if (key === keyToFind) {
       console.log(`Found event with key '${key}':`, value)
       return value
     }
   }
-  // console.log(`Event with key '${keyToFind}' not found`)
   return null
 }
 
-const processEventData = async (
-  provider: ethers.Provider,
-  logs: readonly ethers.Log[]
+export const processEventData = async (
+  logs: readonly ethers.Log[],
+  provider?: ethers.Provider
 ) => {
   if (logs.length > 0) {
     for (const log of logs) {

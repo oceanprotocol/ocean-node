@@ -1,29 +1,33 @@
-import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads'
+import { Worker } from 'node:worker_threads'
 import { Database } from '../database'
-import { Blockchain } from '../../utils/blockchain'
+import { RPCS, SupportedNetwork } from '../../@types/blockchain'
 
 export class OceanIndexer {
   private db: Database
-  private networks: number[]
-  private blockchain: Blockchain
+  private networks: RPCS
+  private supportedChains: string[]
 
-  constructor(db: Database, supportedNetworks: number[], blockchain: Blockchain) {
+  constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
-    this.blockchain = blockchain
     this.networks = supportedNetworks
+    this.supportedChains = Object.keys(supportedNetworks)
     this.startThreads()
   }
 
-  public startThreads(): void {
-    for (const network of this.networks) {
-      const provider = this.blockchain.getProvider(network)
-      const lastIndexedBlock = this.getLastIndexedBlock(network)
+  public async startThreads(): Promise<void> {
+    for (const network of this.supportedChains) {
+      const chainId = parseInt(network)
+      const rpcDetails: SupportedNetwork = this.networks[network]
+      const lastIndexedBlock = await this.getLastIndexedBlock(chainId)
       const worker = new Worker('./dist/components/Indexer/crawlerThread.js', {
-        workerData: { network, lastIndexedBlock }
+        workerData: { rpcDetails, lastIndexedBlock }
       })
 
-      worker.on('message', (event: string) => {
-        console.log(`new metadata-created from worker for network ${network}: ${event}`)
+      worker.on('message', (event: any) => {
+        if (event.method === 'store-last-indexed-block') {
+          this.updateLastIndexedBlockNumber(event.network, event.data)
+        }
+        console.log(`Main thread message from worker for network ${network}: ${event}`)
         // index the DDO in the typesense db
       })
 

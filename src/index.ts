@@ -51,31 +51,19 @@ async function main() {
   let indexer = null
   let provider = null
   const dbconn = await new Database(config.dbConfig)
-  if (!process.env.RPCS || !JSON.parse(process.env.RPCS)) {
-    // missing or invalid RPC list
-    logger.logMessageWithEmoji(
-      'Missing or Invalid RPCS env variable format ..',
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEl_ERROR
-    )
-    return
-  }
-  const supportedNetworks: RPCS = JSON.parse(process.env.RPCS)
-  const blockchain = new Blockchain(supportedNetworks, config.keys)
+
+  // const blockchain = new Blockchain(supportedNetworks, config.keys)
   if (config.hasP2P) {
     node = new OceanP2P(dbconn, config)
     await node.start()
   }
-  if (config.hasIndexer)
-    indexer = new OceanIndexer(dbconn, blockchain.getSupportedChains(), blockchain)
+  if (config.hasIndexer) indexer = new OceanIndexer(dbconn, config.supportedNetworks)
   if (config.hasProvider) provider = new OceanProvider(dbconn)
 
   const oceanNode = {
     node,
     indexer,
-    provider,
-    blockchain
+    provider
   }
   if (config.hasHttp) {
     app.use((req, res, next) => {

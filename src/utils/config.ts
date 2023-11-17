@@ -12,6 +12,7 @@ import {
   getCustomLoggerForModule,
   GENERIC_EMOJIS
 } from '../utils/logging/Logger.js'
+import { RPCS } from '../@types/blockchain'
 
 const CONFIG_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.CONFIG,
@@ -56,6 +57,21 @@ function getIntEnvValue(env: any, defaultValue: number) {
   return isNaN(num) ? defaultValue : num
 }
 
+function getSupportedChains(): RPCS {
+  if (!process.env.RPCS || !JSON.parse(process.env.RPCS)) {
+    // missing or invalid RPC list
+    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+      'Missing or Invalid RPCS env variable format ..',
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEl_ERROR
+    )
+    return
+  }
+  const supportedNetworks: RPCS = JSON.parse(process.env.RPCS)
+  return supportedNetworks
+}
+
 export async function getConfig(): Promise<OceanNodeConfig> {
   const privateKey = process.env.PRIVATE_KEY
   if (!privateKey || privateKey.length !== 66) {
@@ -97,7 +113,8 @@ export async function getConfig(): Promise<OceanNodeConfig> {
     httpPort: getIntEnvValue(process.env.HTTP_API_PORT, 8000),
     dbConfig: {
       url: getEnvValue(process.env.DB_URL, 'http://localhost:8108/?apiKey=xyz')
-    }
+    },
+    supportedNetworks: getSupportedChains()
   }
   return config
 }

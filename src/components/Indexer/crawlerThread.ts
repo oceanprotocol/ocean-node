@@ -1,15 +1,22 @@
 import { parentPort, workerData } from 'worker_threads'
 import { getDeployedContractBlock, getNetworkHeight, processBlocks } from './utils.js'
 import { Blockchain } from '../../utils/blockchain.js'
+import { SupportedNetwork } from '../../@types/blockchain.js'
 
-const { network, lastIndexedBlock } = workerData
-const blockchain = new Blockchain(JSON.parse(process.env.RPCS))
-const provider = blockchain.getProvider(network)
+interface ThreadData {
+  rpcDetails: SupportedNetwork
+  lastIndexedBlock: number
+}
 
-async function proccesNetworkData(): Promise<void> {
+const { rpcDetails, lastIndexedBlock } = workerData as ThreadData
+
+const blockchain = new Blockchain(rpcDetails.rpc, rpcDetails.chainId)
+const provider = blockchain.getProvider()
+
+export async function proccesNetworkData(): Promise<void> {
   const networkHeight = await getNetworkHeight(provider)
 
-  const deployedBlock = await getDeployedContractBlock(network)
+  const deployedBlock = await getDeployedContractBlock(rpcDetails.chainId)
 
   let startBlock =
     lastIndexedBlock && lastIndexedBlock > deployedBlock
@@ -17,13 +24,13 @@ async function proccesNetworkData(): Promise<void> {
       : deployedBlock
 
   console.log(
-    `network: ${network} Start block ${startBlock} network height ${networkHeight}`
+    `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`
   )
 
   if (networkHeight > startBlock) {
-    let chunkSize = 100
-    let remainingBlocks = networkHeight - lastIndexedBlock
-    console.log(`network: ${network} Remaining blocks ${remainingBlocks} `)
+    let { chunkSize } = rpcDetails
+    let remainingBlocks = networkHeight - startBlock
+    console.log(`network: ${rpcDetails.network} Remaining blocks ${remainingBlocks} `)
 
     while (remainingBlocks > 0) {
       const blocksToProcess = Math.min(chunkSize, remainingBlocks)
@@ -32,11 +39,15 @@ async function proccesNetworkData(): Promise<void> {
 
       startBlock += processedBlocks
 
-      parentPort.postMessage({ processedBlocks })
+      parentPort.postMessage({
+        method: 'store-last-indexed-block',
+        network: rpcDetails.chainId,
+        data: startBlock
+      })
 
       if (processedBlocks !== blocksToProcess) {
         chunkSize = Math.floor(chunkSize / 2)
-        console.log(`network: ${network} Reducing chink size  ${chunkSize} `)
+        console.log(`network: ${rpcDetails.network} Reducing chink size  ${chunkSize} `)
       }
 
       remainingBlocks -= processedBlocks

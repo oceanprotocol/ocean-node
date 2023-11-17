@@ -52,6 +52,7 @@
     "it-pipe": "^3.0.1",
     "libp2p": "^0.46.9",
     "lodash.clonedeep": "^4.5.0",
+    "sinon": "^17.0.1",
     "stream-concat": "^1.0.0",
     "swagger-ui-express": "^5.0.0",
     "ts-node": "^10.9.1",

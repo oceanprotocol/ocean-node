@@ -1,10 +1,12 @@
-export interface RPCS {
-  [chainId: string]: string
+export interface SupportedNetwork {
+  chainId: number
+  network: string
+  rpc: string
+  chunkSize: number
 }
 
-export interface BlockchainData {
-  chainId: number
-  rpc: string
+export interface RPCS {
+  [chainId: string]: SupportedNetwork
 }
 
 export interface NetworkEvent {
