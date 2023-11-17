@@ -415,7 +415,7 @@ export class CustomOceanNodesTransport extends Transport {
     const document = {
       level: info.level,
       message: info.message,
-      timestamp: new Date().toISOString(), // Storing the current timestamp
+      timestamp: new Date().toISOString(), // Storing the current timestamp as a string
       meta: JSON.stringify(info.meta) // Ensure meta is a string
     }
 
