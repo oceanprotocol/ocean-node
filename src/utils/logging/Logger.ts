@@ -398,21 +398,6 @@ interface CustomOceanNodesTransportOptions extends Transport.TransportStreamOpti
   moduleName?: string
 }
 
-// for typesense logging
-interface TypesenseTransportStreamOptions extends CustomOceanNodesTransportOptions {
-  nodes: [
-    {
-      host: string
-      port: number
-      protocol: string // http as default protocol
-    }
-  ]
-  apiKey: string
-  numRetries: number // 3
-  connectionTimeoutSeconds: number // 10
-  logLevel: string
-}
-
 export class CustomOceanNodesTransport extends Transport {
   private dbInstance: Database
 
