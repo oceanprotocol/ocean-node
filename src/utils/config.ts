@@ -47,7 +47,7 @@ export async function getPeerIdFromPrivateKey(
 
 function getEnvValue(env: any, defaultValue: any) {
   /* Gets value for an ENV var, returning defaultValue if not defined */
-  return process.env.envName != null ? env : defaultValue
+  return env != null ? (env as string) : defaultValue
 }
 
 function getIntEnvValue(env: any, defaultValue: number) {
