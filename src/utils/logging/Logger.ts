@@ -1,9 +1,7 @@
 import winston, { Logger, LogEntry } from 'winston'
-import Transport, { TransportStreamOptions } from 'winston-transport'
+import Transport from 'winston-transport'
 import DailyRotateFile from 'winston-daily-rotate-file'
 import fs from 'fs'
-import { Typesense } from '../../components/database/typesense'
-import { TypesenseConfigOptions } from '../../@types'
 import { Database } from '../../components/database/index.js'
 
 // all the types of modules/components
