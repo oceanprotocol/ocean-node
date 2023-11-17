@@ -1,6 +1,7 @@
 import { ethers, Signer, Provider } from 'ethers'
 import { RPCS } from '../@types/blockchain'
 import { OceanNodeKeys } from '../@types'
+import { SUPPORTED_NETWORK_NAMES_BY_CHAIN_IDS } from './constants.js'
 
 export class Blockchain {
   private signer: Signer
@@ -27,5 +28,9 @@ export class Blockchain {
 
   public getSupportedChains(): string[] {
     return this.supportedChains
+  }
+
+  public getNetworkNameByChainId(chainId: string): string {
+    return JSON.parse(SUPPORTED_NETWORK_NAMES_BY_CHAIN_IDS)[chainId]
   }
 }
