@@ -1,6 +1,19 @@
 import { Worker } from 'node:worker_threads'
 import { Database } from '../database'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain'
+import {
+  CustomNodeLogger,
+  LOGGER_MODULE_NAMES,
+  LOG_LEVELS_STR,
+  defaultConsoleTransport,
+  getCustomLoggerForModule
+} from '../../utils/logging/Logger'
+
+export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
+  LOGGER_MODULE_NAMES.DATABASE,
+  LOG_LEVELS_STR.LEVEL_INFO,
+  defaultConsoleTransport
+)
 
 export class OceanIndexer {
   private db: Database
@@ -27,16 +40,24 @@ export class OceanIndexer {
         if (event.method === 'store-last-indexed-block') {
           this.updateLastIndexedBlockNumber(event.network, event.data)
         }
-        console.log(`Main thread message from worker for network ${network}: ${event}`)
+        INDEXER_LOGGER.logMessage(
+          `Main thread message from worker for network ${network}: ${event}`
+        )
         // index the DDO in the typesense db
       })
 
       worker.on('error', (err: Error) => {
-        console.error(`Error in worker for network ${network}: ${err.message}`)
+        INDEXER_LOGGER.loggerOptions.level = LOG_LEVELS_STR.LEVEl_ERROR
+        INDEXER_LOGGER.logMessage(
+          `Error in worker for network ${network}: ${err.message}`
+        )
+        INDEXER_LOGGER.loggerOptions.level = LOG_LEVELS_STR.LEVEL_INFO
       })
 
       worker.on('exit', (code: number) => {
-        console.log(`Worker for network ${network} exited with code: ${code}`)
+        INDEXER_LOGGER.logMessage(
+          `Worker for network ${network} exited with code: ${code}`
+        )
       })
 
       worker.postMessage({ method: 'start-crawling' })
@@ -49,7 +70,9 @@ export class OceanIndexer {
       const indexer = await dbconn.retrieve(network)
       return indexer?.lastIndexedBlock
     } catch (err) {
-      console.error('Error retrieving last indexed block')
+      INDEXER_LOGGER.loggerOptions.level = LOG_LEVELS_STR.LEVEl_ERROR
+      INDEXER_LOGGER.logMessage('Error retrieving last indexed block')
+      INDEXER_LOGGER.loggerOptions.level = LOG_LEVELS_STR.LEVEL_INFO
       return null
     }
   }
@@ -61,9 +84,11 @@ export class OceanIndexer {
     const dbconn = this.db.indexer
     try {
       const updatedIndex = await dbconn.update(network, block)
-      console.log('New last indexed block :', updatedIndex)
+      INDEXER_LOGGER.logMessage(`New last indexed block :, ${updatedIndex}`)
     } catch (err) {
-      console.error('Error retrieving last indexed block')
+      INDEXER_LOGGER.loggerOptions.level = LOG_LEVELS_STR.LEVEl_ERROR
+      INDEXER_LOGGER.logMessage('Error retrieving last indexed block')
+      INDEXER_LOGGER.loggerOptions.level = LOG_LEVELS_STR.LEVEL_INFO
     }
   }
 }

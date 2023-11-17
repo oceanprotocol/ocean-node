@@ -2,6 +2,13 @@ import { parentPort, workerData } from 'worker_threads'
 import { getDeployedContractBlock, getNetworkHeight, processBlocks } from './utils.js'
 import { Blockchain } from '../../utils/blockchain.js'
 import { SupportedNetwork } from '../../@types/blockchain.js'
+import {
+  CustomNodeLogger,
+  LOGGER_MODULE_NAMES,
+  LOG_LEVELS_STR,
+  defaultConsoleTransport,
+  getCustomLoggerForModule
+} from '../../utils/logging/Logger.js'
 
 interface ThreadData {
   rpcDetails: SupportedNetwork
@@ -13,6 +20,12 @@ const { rpcDetails, lastIndexedBlock } = workerData as ThreadData
 const blockchain = new Blockchain(rpcDetails.rpc, rpcDetails.chainId)
 const provider = blockchain.getProvider()
 
+export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
+  LOGGER_MODULE_NAMES.DATABASE,
+  LOG_LEVELS_STR.LEVEL_INFO,
+  defaultConsoleTransport
+)
+
 export async function proccesNetworkData(): Promise<void> {
   const networkHeight = await getNetworkHeight(provider)
 
@@ -23,14 +36,16 @@ export async function proccesNetworkData(): Promise<void> {
       ? lastIndexedBlock
       : deployedBlock
 
-  console.log(
+  INDEXER_LOGGER.logMessage(
     `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`
   )
 
   if (networkHeight > startBlock) {
     let { chunkSize } = rpcDetails
     let remainingBlocks = networkHeight - startBlock
-    console.log(`network: ${rpcDetails.network} Remaining blocks ${remainingBlocks} `)
+    INDEXER_LOGGER.logMessage(
+      `network: ${rpcDetails.network} Remaining blocks ${remainingBlocks} `
+    )
 
     while (remainingBlocks > 0) {
       const blocksToProcess = Math.min(chunkSize, remainingBlocks)
@@ -47,7 +62,9 @@ export async function proccesNetworkData(): Promise<void> {
 
       if (processedBlocks !== blocksToProcess) {
         chunkSize = Math.floor(chunkSize / 2)
-        console.log(`network: ${rpcDetails.network} Reducing chink size  ${chunkSize} `)
+        INDEXER_LOGGER.logMessage(
+          `network: ${rpcDetails.network} Reducing chink size  ${chunkSize} `
+        )
       }
 
       remainingBlocks -= processedBlocks
@@ -58,7 +75,7 @@ export async function proccesNetworkData(): Promise<void> {
 }
 
 parentPort.on('message', (message) => {
-  console.log('message --', message)
+  INDEXER_LOGGER.logMessage('message --', message)
   if (message.method === 'start-crawling') {
     proccesNetworkData()
   }

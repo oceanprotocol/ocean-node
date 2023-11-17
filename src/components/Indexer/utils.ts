@@ -3,6 +3,19 @@ import fs from 'fs'
 import { homedir } from 'os'
 import { EVENTS, EVENT_HASHES } from '../../utils/constants.js'
 import { NetworkEvent } from '../../@types/blockchain.js'
+import {
+  CustomNodeLogger,
+  LOGGER_MODULE_NAMES,
+  LOG_LEVELS_STR,
+  defaultConsoleTransport,
+  getCustomLoggerForModule
+} from '../../utils/logging/Logger.js'
+
+export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
+  LOGGER_MODULE_NAMES.DATABASE,
+  LOG_LEVELS_STR.LEVEL_INFO,
+  defaultConsoleTransport
+)
 
 export const getDeployedContractBlock = async (network: number) => {
   let deployedBlock: number
@@ -66,7 +79,7 @@ const processBlockEvents = async (provider: ethers.Provider, block: ethers.Block
 function findEventByKey(keyToFind: string): NetworkEvent {
   for (const [key, value] of Object.entries(EVENT_HASHES)) {
     if (key === keyToFind) {
-      console.log(`Found event with key '${key}':`, value)
+      INDEXER_LOGGER.logMessage(`Found event with key '${key}':  ${value}`)
       return value
     }
   }
@@ -86,19 +99,21 @@ export const processEventData = async (
           event.type === EVENTS.METADATA_UPDATED ||
           event.type === EVENTS.METADATA_STATE)
       ) {
-        console.log('METADATA_CREATED || METADATA_UPDATED || METADATA_STATE   -- ')
+        INDEXER_LOGGER.logMessage(
+          'METADATA_CREATED || METADATA_UPDATED || METADATA_STATE   -- '
+        )
         return await processMetadataEvents()
       } else if (event && event.type === EVENTS.EXCHANGE_CREATED) {
-        console.log('-- EXCHANGE_CREATED -- ')
+        INDEXER_LOGGER.logMessage('-- EXCHANGE_CREATED -- ')
         return procesExchangeCreated()
       } else if (event && event.type === EVENTS.EXCHANGE_RATE_CHANGED) {
-        console.log('-- EXCHANGE_RATE_CHANGED -- ')
+        INDEXER_LOGGER.logMessage('-- EXCHANGE_RATE_CHANGED -- ')
         return await processExchangeRateChanged()
       } else if (event && event.type === EVENTS.ORDER_STARTED) {
-        console.log('-- ORDER_STARTED -- ')
+        INDEXER_LOGGER.logMessage('-- ORDER_STARTED -- ')
         return await procesOrderStarted()
       } else if (event && event.type === EVENTS.TOKEN_URI_UPDATE) {
-        console.log('-- TOKEN_URI_UPDATE -- ')
+        INDEXER_LOGGER.logMessage('-- TOKEN_URI_UPDATE -- ')
         return await processTokenUriUpadate()
       }
     }
