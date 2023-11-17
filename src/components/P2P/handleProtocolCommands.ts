@@ -11,8 +11,10 @@ import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode'
 
 import { P2P_CONSOLE_LOGGER } from './index.js'
+import { handleGetDdoCommand } from '../core/ddoHandler.js'
+import { getNonce } from '../core/nonceHandler.js'
 
-class ReadableString extends Readable {
+export class ReadableString extends Readable {
   private sent = false
 
   constructor(private str: string) {
@@ -64,14 +66,24 @@ export async function handleProtocolCommands(connection: any) {
         break
       case PROTOCOL_COMMANDS.DOWNLOAD_URL:
         response = await handleDownloadURLCommand(task)
-        // eslint-disable-next-line prefer-destructuring
-        status = response.status
-        sendStream = response.stream
+        break
+      case PROTOCOL_COMMANDS.GET_DDO:
+        response = await handleGetDdoCommand.call(this, task)
+        break
+      case PROTOCOL_COMMANDS.NONCE:
+        response = await getNonce(task.address)
         break
       default:
         status = { httpStatus: 501, error: 'Unknown command' }
         break
     }
+
+    if (response) {
+      // eslint-disable-next-line prefer-destructuring
+      status = response.status
+      sendStream = response.stream
+    }
+
     statusStream = new ReadableString(JSON.stringify(status))
     if (sendStream == null) pipe(statusStream, connection.stream.sink)
     else {
@@ -105,13 +117,22 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
       break
     case PROTOCOL_COMMANDS.DOWNLOAD_URL:
       response = await handleDownloadURLCommand(task)
-      // eslint-disable-next-line prefer-destructuring
-      status = response.status
-      sendStream = response.stream
+      break
+    case PROTOCOL_COMMANDS.GET_DDO:
+      response = await handleGetDdoCommand.call(this, task)
+      break
+    case PROTOCOL_COMMANDS.NONCE:
+      response = await getNonce(task.address)
       break
     default:
       status = { httpStatus: 501, error: 'Unknown command' }
       break
+  }
+
+  if (response) {
+    // eslint-disable-next-line prefer-destructuring
+    status = response.status
+    sendStream = response.stream
   }
 
   const statusStream = new ReadableString(JSON.stringify(status))

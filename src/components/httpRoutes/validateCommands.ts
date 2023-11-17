@@ -1,3 +1,4 @@
+import { isAddress } from 'ethers'
 import { SUPPORTED_PROTOCOL_COMMANDS, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 
 export type ValidateParams = {
@@ -34,6 +35,32 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
       // echo
     } else if (command === PROTOCOL_COMMANDS.ECHO) {
       // nothing special with this one
+      return {
+        valid: true
+      }
+      // nonce
+    } else if (command === PROTOCOL_COMMANDS.NONCE) {
+      // needs a valid and mandatory address
+      if (!requestBody.address || !isAddress(requestBody.address)) {
+        return {
+          valid: false,
+          reason: !requestBody.address
+            ? 'Missing required parameter: "address"'
+            : 'Parameter : "address" is not a valid web3 address',
+          status: 400
+        }
+      }
+      return {
+        valid: true
+      }
+    } else if (command === PROTOCOL_COMMANDS.GET_DDO) {
+      if (!requestBody.id) {
+        return {
+          valid: false,
+          reason: 'Missing required parameter: "id"',
+          status: 400
+        }
+      }
       return {
         valid: true
       }
