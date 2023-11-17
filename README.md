@@ -26,6 +26,18 @@ npm run build
 export HTTP_API_PORT=8000
 export PRIVATE_KEY=0x.....
 export RPCS="{ \"1\":{ \"rpc\":\"https://rpc.eth.gateway.fm\", \"chainId\": 1, \"network\": \"mainet\", \"chunkSize\": 100 }, \"137\": { \"rpc\": \"https://polygon.meowrpc.com\", \"chainId\": 137, \"network\": \"polygon\", \"chunkSize\": 100 }, \"80001\": { \"rpc\": \"https://rpc-mumbai.maticvigil.com\", \"chainId\": 80001, \"network\": \"polygon-mumbai\", \"chunkSize\": 100 }}"
+```
+
+For downloading the file from IPFS or ARWEAVE, please export the following env variables;
+
+```bash
+export IPFS_GATEWAY='https://ipfs.io/'
+export ARWEAVE_GATEWAY='https://arweave.net/'
+```
+
+Then start the node:
+
+```bash
 npm run start
 ```
 
@@ -35,6 +47,18 @@ npm run start
 export HTTP_API_PORT=8001
 export PRIVATE_KEY=0x.....
 export RPCS="{ \"1\": \"https://rpc.eth.gateway.fm\", \"137\": \"https://polygon.meowrpc.com\", \"80001\": \"https://rpc-mumbai.maticvigil.com\" }"
+```
+
+For downloading the file from IPFS or ARWEAVE, please export the following env variables;
+
+```bash
+export IPFS_GATEWAY=''
+export ARWEAVE_GATEWAY=''
+```
+
+Then start the node:
+
+```bash
 npm run start
 ```
 
@@ -72,14 +96,44 @@ variables](docs/environment-variables.md).
 
 ## Run tests
 
-Before running tests, please run Typesense docker
+### Unit tests
+
+```bash
+npm run test:unit
+```
+
+### Integration tests:
+
+First, in a seperate terminal,install barge, checkout `feature/nodes` branch and start it
+
+```bash
+git clone https://github.com/oceanprotocol/barge.git
+cd barge
+git checkout feature/nodes
+./start_ocean.sh
+```
+
+Now, back in your nodes terminal, you can run the tests
+
+```bash
+npm run test:integration
+```
+
+### Additional tests / helper scripts
+
+There are a couple of helper scripts to help test additional functionality and components integration. These can be found under 'src/helpers/scripts'
+To run them, do either:
 
 ```
-docker-compose -f typesense-compose.yml -p ocean-node up -d
+npm run client
 ```
 
-You can then run tests
+(Purpose: for downloadURL flow. It requires at least 2 nodes properly configured and running)
+
+OR
 
 ```
-npm run test
+npm run check-nonce
 ```
+
+(Purpose: for checking nonce tracking flow. This last one requires DB up and running)

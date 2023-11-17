@@ -29,7 +29,7 @@ const logger: CustomNodeLogger = getCustomLoggerForModule(
   defaultConsoleTransport // console only Transport
 )
 
-let node: any
+// let node: OceanP2P
 let oceanNode: OceanNode
 
 const app: Express = express()
@@ -60,7 +60,8 @@ async function main() {
   if (config.hasIndexer) indexer = new OceanIndexer(dbconn, config.supportedNetworks)
   if (config.hasProvider) provider = new OceanProvider(dbconn)
 
-  const oceanNode = {
+  // global
+  oceanNode = {
     node,
     indexer,
     provider
@@ -81,13 +82,16 @@ async function main() {
     )
     app.use('/', httpRoutes)
     app.listen(config.httpPort, () => {
-      // console.log(`HTTP port: ${config.httpPort}`)
-      // other usages example:
-      // logger.log(LOG_LEVELS_STR.LEVEL_WARN,`HTTP port: ${config.httpPort}`, true);
-      // logger.logMessageWithEmoji(`HTTP port: ${config.httpPort}`, true);
       logger.logMessage(`HTTP port: ${config.httpPort}`, true)
     })
   }
 }
 
-main()
+await main()
+
+/**
+ * Get the oceanNode instance
+ * @returns oceanNode object
+ */
+const OceanNodeInstance = oceanNode
+export default OceanNodeInstance
