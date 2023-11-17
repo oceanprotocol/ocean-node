@@ -26,6 +26,10 @@ export interface GetDdoCommand extends Command {
   id: string
 }
 
+export interface FindDDOCommand extends Command {
+  id: string
+}
+
 export interface NonceCommand extends Command {
   address: string // consumer address
 }

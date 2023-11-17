@@ -66,34 +66,6 @@ function loadInitialDDOS(): any[] {
   return ddos
 }
 
-/**
- * Goes through the list and tries to store and avertise
- * @param result the initial list
- * @param node the node
- * @returns  boolean from counter
- */
-async function storeAndAdvertiseDDOS(result: any[], node: OceanP2P): Promise<boolean> {
-  try {
-    let count = 0
-    console.log(`trying to store and advertise ${result.length} initial DDOS`)
-    const db = node.getDatabase().ddo
-    result.forEach(async (ddo: any) => {
-      // if already added before, create() will return null, but still advertise it
-      try {
-        await db.create(ddo)
-        await node.advertiseDid(ddo.id)
-        count++
-      } catch (e) {
-        console.log(e)
-      }
-    })
-    return count === result.length
-  } catch (err) {
-    console.log(err)
-    return false
-  }
-}
-
 async function main() {
   console.log('\n\n\n\n')
   const config = await getConfig()
@@ -126,10 +98,12 @@ async function main() {
     // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
     // store and advertise DDOs
     if (process.env.LOAD_INITIAL_DDOS) {
-      const result = loadInitialDDOS()
-      if (result.length > 0) {
-        // we probably should have this fn inside the node itself
-        await storeAndAdvertiseDDOS(result, node)
+      const list = loadInitialDDOS()
+      if (list.length > 0) {
+        // we need a timeout here, otherwise we have no peers available
+        setTimeout(() => {
+          node.storeAndAdvertiseDDOS(list)
+        }, 3000)
       }
     }
   }

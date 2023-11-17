@@ -9,7 +9,7 @@ import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
 
 import { P2P_CONSOLE_LOGGER } from './index.js'
-import { handleGetDdoCommand } from '../core/ddoHandler.js'
+import { handleGetDdoCommand, findProvidersForDDO } from '../core/ddoHandler.js'
 import { getNonce } from '../core/nonceHandler.js'
 
 export class ReadableString extends Readable {
@@ -71,6 +71,9 @@ export async function handleProtocolCommands(connection: any) {
       case PROTOCOL_COMMANDS.NONCE:
         response = await getNonce(task.address)
         break
+      case PROTOCOL_COMMANDS.FIND_DDO:
+        response = await findProvidersForDDO.call(this, task)
+        break
       default:
         status = { httpStatus: 501, error: 'Unknown command' }
         break
@@ -121,6 +124,9 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
       break
     case PROTOCOL_COMMANDS.NONCE:
       response = await getNonce(task.address)
+      break
+    case PROTOCOL_COMMANDS.FIND_DDO:
+      response = await findProvidersForDDO.call(this, task)
       break
     default:
       status = { httpStatus: 501, error: 'Unknown command' }

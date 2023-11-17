@@ -181,7 +181,8 @@ export class OceanP2P extends EventEmitter {
             maxOutboundStreams: config.p2pConfig.dhtMaxOutboundStreams,
 
             clientMode: false, // this should be true for edge devices
-            kBucketSize: 20
+            kBucketSize: 20,
+            protocolPrefix: '/ocean/nodes/1.0.0'
             // randomWalk: {
             //  enabled: true,            // Allows to disable discovery (enabled by default)
             //  interval: 300e3,
@@ -410,13 +411,11 @@ export class OceanP2P extends EventEmitter {
       const x = this._peers.length
       if (x > 0) {
         const cid = await cidFromRawString(did)
-        const x = await this._libp2p.contentRouting.provide(cid)
-        console.log(x)
+        await this._libp2p.contentRouting.provide(cid)
       }
     } catch (e) {
       console.log(e)
     }
-    // console.log(CID.toString())
   }
 
   async getProvidersForDid(did: string) {
@@ -424,7 +423,9 @@ export class OceanP2P extends EventEmitter {
     const cid = await cidFromRawString(did)
     const peersFound = []
     try {
-      const f = this._libp2p.contentRouting.findProviders(cid, { queryFuncTimeout: 5000 })
+      const f = await this._libp2p.contentRouting.findProviders(cid, {
+        queryFuncTimeout: 5000
+      })
       for await (const value of f) {
         peersFound.push(value)
       }
@@ -445,6 +446,34 @@ export class OceanP2P extends EventEmitter {
 
   getDatabase(): Database {
     return this.db
+  }
+
+  /**
+   * Goes through some dddo list list and tries to store and avertise
+   * @param result the initial list
+   * @param node the node
+   * @returns  boolean from counter
+   */
+  async storeAndAdvertiseDDOS(result: any[]): Promise<boolean> {
+    try {
+      let count = 0
+      console.log(`trying to store and advertise ${result.length} initial DDOS`)
+      const db = this.getDatabase().ddo
+      result.forEach(async (ddo: any) => {
+        // if already added before, create() will return null, but still advertise it
+        try {
+          await db.create(ddo)
+          await this.advertiseDid(ddo.id)
+          count++
+        } catch (e) {
+          console.log(e)
+        }
+      })
+      return count === result.length
+    } catch (err) {
+      console.log(err)
+      return false
+    }
   }
 }
 
