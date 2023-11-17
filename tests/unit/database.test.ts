@@ -152,12 +152,12 @@ describe('IndexerDatabase CRUD', () => {
 describe('LogDatabase CRUD', () => {
   let database: Database
   const logEntry = {
-    id: `log_${Date.now()}_${Math.random().toString(36)`, // ID generation
     timestamp: new Date().toISOString(),
     level: 'info',
     message: 'Test log message',
     meta: 'Test meta information'
   }
+  let logId: string // Variable to store the ID of the created log entry
 
   before(async () => {
     const dbConfig = {
@@ -169,15 +169,14 @@ describe('LogDatabase CRUD', () => {
   it('insert log', async () => {
     const result = await database.logs.insertLog(logEntry)
     expect(result).to.include.keys('id', 'timestamp', 'level', 'message', 'meta')
-    logEntry.id = result?.id // Save the auto-generated id for further operations
+    logId = result?.id // Save the auto-generated id for further operations
   })
 
   it('retrieve log', async () => {
-    const result = await database.logs.provider
-      .collections('logs')
-      .documents()
-      .retrieve(logEntry.id)
-    expect(result.id).to.equal(logEntry.id)
-    expect(result.level).to.equal(logEntry.level)
+    const result = await database.logs.retrieveLog(logId)
+    expect(result?.id).to.equal(logId)
+    expect(result?.level).to.equal(logEntry.level)
+    expect(result?.message).to.equal(logEntry.message)
+    expect(result?.meta).to.equal(logEntry.meta)
   })
 })

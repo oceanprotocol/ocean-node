@@ -230,6 +230,15 @@ export class LogDatabase {
       return null
     }
   }
+
+  async retrieveLog(id: string): Promise<Record<string, any> | null> {
+    try {
+      return await this.provider.collections(this.schema.name).documents().retrieve(id)
+    } catch (error) {
+      console.error('Error retrieving log entry:', error)
+      return null
+    }
+  }
 }
 
 export class Database {
