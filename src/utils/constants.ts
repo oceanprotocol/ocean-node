@@ -3,7 +3,8 @@ export const PROTOCOL_COMMANDS = {
   DOWNLOAD_URL: 'downloadURL',
   ECHO: 'echo',
   GET_DDO: 'getDDO',
-  NONCE: 'nonce'
+  NONCE: 'nonce',
+  STATUS: 'status'
 }
 
 export interface Command {
@@ -24,11 +25,17 @@ export interface NonceCommand extends Command {
   address: string // consumer address
 }
 
+export interface StatusCommand extends Command {
+  config: any
+  blockchain: any
+}
+
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.DOWNLOAD_URL,
   PROTOCOL_COMMANDS.ECHO,
   PROTOCOL_COMMANDS.GET_DDO,
-  PROTOCOL_COMMANDS.NONCE
+  PROTOCOL_COMMANDS.NONCE,
+  PROTOCOL_COMMANDS.STATUS
 ]
 
 export const SUPPORTED_NETWORK_NAMES_BY_CHAIN_IDS: any = {

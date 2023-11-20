@@ -2,10 +2,13 @@ import {
   OceanNodeStatus,
   OceanNodeConfig,
   OceanNodeProvider,
-  OceanNodeIndexer
+  OceanNodeIndexer,
+  P2PCommandResponse
 } from '../../@types'
 import { Blockchain } from '../../utils/blockchain.js'
 import { version } from '../../../package.json'
+import { StatusCommand } from '../../utils/constants.js'
+import { Readable } from 'stream'
 
 export function status(config: OceanNodeConfig, blockchain: Blockchain): OceanNodeStatus {
   let status: OceanNodeStatus
@@ -30,4 +33,18 @@ export function status(config: OceanNodeConfig, blockchain: Blockchain): OceanNo
   })
 
   return status
+}
+
+export function handleStatusCommand(task: StatusCommand): P2PCommandResponse {
+  const statusResult = status(task.config, task.blockchain)
+  if (!statusResult) {
+    return {
+      stream: null,
+      status: { httpStatus: 404, error: 'Status Not Found' }
+    }
+  }
+  return {
+    stream: Readable.from(JSON.stringify(statusResult)),
+    status: { httpStatus: 200 }
+  }
 }

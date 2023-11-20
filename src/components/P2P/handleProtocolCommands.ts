@@ -13,6 +13,7 @@ import { P2PCommandResponse } from '../../@types/OceanNode'
 import { P2P_CONSOLE_LOGGER } from './index.js'
 import { handleGetDdoCommand } from '../core/ddoHandler.js'
 import { getNonce } from '../core/nonceHandler.js'
+import { handleStatusCommand } from '../core/statusHandler.js'
 
 export class ReadableString extends Readable {
   private sent = false
@@ -73,6 +74,9 @@ export async function handleProtocolCommands(connection: any) {
       case PROTOCOL_COMMANDS.NONCE:
         response = await getNonce(task.address)
         break
+      case PROTOCOL_COMMANDS.STATUS:
+        response = handleStatusCommand(task)
+        break
       default:
         status = { httpStatus: 501, error: 'Unknown command' }
         break
@@ -123,6 +127,9 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
       break
     case PROTOCOL_COMMANDS.NONCE:
       response = await getNonce(task.address)
+      break
+    case PROTOCOL_COMMANDS.STATUS:
+      response = handleStatusCommand(task)
       break
     default:
       status = { httpStatus: 501, error: 'Unknown command' }
