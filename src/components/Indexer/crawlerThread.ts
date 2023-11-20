@@ -1,7 +1,7 @@
 import { parentPort, workerData } from 'worker_threads'
 import { getDeployedContractBlock, getNetworkHeight, processBlocks } from './utils.js'
 import { Blockchain } from '../../utils/blockchain.js'
-import { SupportedNetwork } from '../../@types/blockchain.js'
+import { BlocksEvents, SupportedNetwork } from '../../@types/blockchain.js'
 import {
   CustomNodeLogger,
   LOGGER_MODULE_NAMES,
@@ -57,25 +57,28 @@ export async function proccesNetworkData(): Promise<void> {
       while (remainingBlocks > 0) {
         const blocksToProcess = Math.min(chunkSize, remainingBlocks)
 
-        const processedBlocks = await processBlocks(provider, startBlock, blocksToProcess)
+        try {
+          const processedBlocks = await processBlocks(
+            provider,
+            startBlock,
+            blocksToProcess
+          )
 
-        startBlock += processedBlocks
-
-        parentPort.postMessage({
-          method: 'store-last-indexed-block',
-          network: rpcDetails.chainId,
-          data: startBlock
-        })
-
-        if (processedBlocks !== blocksToProcess) {
+          parentPort.postMessage({
+            method: 'store-last-indexed-block',
+            network: rpcDetails.chainId,
+            data: processedBlocks.lastBlock
+          })
+          await storeFoundEvents(processedBlocks.foundEvents)
+          startBlock += blocksToProcess
+          remainingBlocks -= blocksToProcess
+        } catch (error) {
           chunkSize = Math.floor(chunkSize / 2)
           INDEXER_LOGGER.logMessage(
             `network: ${rpcDetails.network} Reducing chink size  ${chunkSize} `,
             true
           )
         }
-
-        remainingBlocks -= processedBlocks
       }
     }
 
@@ -84,6 +87,17 @@ export async function proccesNetworkData(): Promise<void> {
   }
 }
 
+export async function storeFoundEvents(events: BlocksEvents): Promise<void> {
+  const eventKeys = Object.keys(events)
+  eventKeys.forEach((eventType) => {
+    INDEXER_LOGGER.logMessage(`store event ${events[eventType]}`)
+    parentPort.postMessage({
+      method: eventType,
+      network: rpcDetails.chainId,
+      data: events[eventType]
+    })
+  })
+}
 parentPort.on('message', (message) => {
   INDEXER_LOGGER.logMessage('message --', message)
   if (message.method === 'start-crawling') {

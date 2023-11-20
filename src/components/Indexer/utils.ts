@@ -1,7 +1,7 @@
 import { ethers } from 'ethers'
 import fs from 'fs'
 import { EVENTS, EVENT_HASHES } from '../../utils/constants.js'
-import { NetworkEvent } from '../../@types/blockchain.js'
+import { BlocksEvents, NetworkEvent, ProcessingEvents } from '../../@types/blockchain.js'
 import {
   CustomNodeLogger,
   LOGGER_MODULE_NAMES,
@@ -41,34 +41,22 @@ export const processBlocks = async (
   provider: ethers.Provider,
   startIndex: number,
   count: number
-) => {
-  let processedBlocks = 0
+): Promise<ProcessingEvents> => {
+  try {
+    const blockLogs = await provider.getLogs({
+      fromBlock: startIndex,
+      toBlock: startIndex + count
+    })
 
-  for (let blockNumber = startIndex; blockNumber < startIndex + count; blockNumber++) {
-    const block = await provider.getBlock(blockNumber)
+    const events = await processChunkLogs(blockLogs, provider)
 
-    const processedEvents = await processBlockEvents(provider, block)
-
-    processedBlocks += processedEvents.length
-  }
-
-  return processedBlocks
-}
-
-const processBlockEvents = async (provider: ethers.Provider, block: ethers.Block) => {
-  const processedEvents = []
-  for (const transaction of block.transactions) {
-    const receipt = await provider.getTransactionReceipt(transaction)
-    if (receipt?.logs) {
-      const processedEventData = await processEventData(receipt?.logs)
-      if (processedEventData) {
-        processedEvents.push(processedEventData)
-      }
-    } else {
-      continue
+    return {
+      lastBlock: startIndex + count,
+      foundEvents: events
     }
+  } catch (error) {
+    throw new Error('error processing chunk of blocks events')
   }
-  return processedEvents
 }
 
 function findEventByKey(keyToFind: string): NetworkEvent {
@@ -81,10 +69,11 @@ function findEventByKey(keyToFind: string): NetworkEvent {
   return null
 }
 
-export const processEventData = async (
+export const processChunkLogs = async (
   logs: readonly ethers.Log[],
   provider?: ethers.Provider
-) => {
+): Promise<BlocksEvents> => {
+  const storeEvents: BlocksEvents = {}
   if (logs.length > 0) {
     for (const log of logs) {
       const event = findEventByKey(log.topics[0])
@@ -98,24 +87,25 @@ export const processEventData = async (
           'METADATA_CREATED || METADATA_UPDATED || METADATA_STATE   -- ',
           true
         )
-        return await processMetadataEvents()
+        storeEvents[event.type] = await processMetadataEvents()
       } else if (event && event.type === EVENTS.EXCHANGE_CREATED) {
         INDEXER_LOGGER.logMessage('-- EXCHANGE_CREATED -- ', true)
-        return procesExchangeCreated()
+        storeEvents[event.type] = await procesExchangeCreated()
       } else if (event && event.type === EVENTS.EXCHANGE_RATE_CHANGED) {
         INDEXER_LOGGER.logMessage('-- EXCHANGE_RATE_CHANGED -- ', true)
-        return await processExchangeRateChanged()
+        storeEvents[event.type] = await processExchangeRateChanged()
       } else if (event && event.type === EVENTS.ORDER_STARTED) {
         INDEXER_LOGGER.logMessage('-- ORDER_STARTED -- ', true)
-        return await procesOrderStarted()
+        storeEvents[event.type] = await procesOrderStarted()
       } else if (event && event.type === EVENTS.TOKEN_URI_UPDATE) {
         INDEXER_LOGGER.logMessage('-- TOKEN_URI_UPDATE -- ', true)
-        return await processTokenUriUpadate()
+        storeEvents[event.type] = await processTokenUriUpadate()
       }
     }
+    return storeEvents
   }
 
-  return 'EVENT_NOT_FOUND'
+  return {}
 }
 
 const processMetadataEvents = async (): Promise<string> => {
