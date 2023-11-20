@@ -34,8 +34,18 @@ export async function status(nodeId?: string): Promise<OceanNodeStatus> {
     )
     return
   }
-  let status: OceanNodeStatus
-  if (nodeId) {
+  const status: OceanNodeStatus = {
+    id: undefined,
+    publicKey: undefined,
+    address: undefined,
+    version: undefined,
+    http: undefined,
+    p2p: undefined,
+    provider: [],
+    indexer: []
+  }
+  STATUS_CONSOLE_LOGGER.logMessage('node ID: ' + nodeId, true)
+  if (nodeId && nodeId !== undefined) {
     status.id = nodeId
   } else {
     // get current node ID
@@ -49,13 +59,20 @@ export async function status(nodeId?: string): Promise<OceanNodeStatus> {
   const blockchain = new Blockchain(JSON.parse(process.env.RPCS), config.keys)
   const supportedChains = blockchain.getSupportedChains()
   status.provider = supportedChains.map((chain) => {
-    let provider: OceanNodeProvider
+    const provider: OceanNodeProvider = {
+      chainId: undefined,
+      network: undefined
+    }
     provider.chainId = chain
     provider.network = blockchain.getNetworkNameByChainId(chain)
     return provider
   })
   status.indexer = supportedChains.map((chain) => {
-    let indexer: OceanNodeIndexer
+    const indexer: OceanNodeIndexer = {
+      chainId: undefined,
+      network: undefined,
+      block: undefined
+    }
     indexer.chainId = chain
     indexer.network = blockchain.getNetworkNameByChainId(chain)
     indexer.block = '0'
