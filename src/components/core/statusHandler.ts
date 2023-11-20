@@ -14,7 +14,6 @@ import {
 } from '../../utils/logging/Logger.js'
 import { Blockchain } from '../../utils/blockchain.js'
 import { getConfig } from '../../utils/index.js'
-import { version } from '../../../package.json'
 import { Command } from '../../utils/constants.js'
 import { Readable } from 'stream'
 
@@ -42,7 +41,7 @@ export async function status(nodeId?: string): Promise<OceanNodeStatus> {
     // get current node ID
     status.id = config.keys.peerId.toString()
   }
-  status.version = version
+  status.version = process.env.npm_package_version
   status.publicKey = config.keys.publicKey
   status.address = config.keys.ethAddress
   status.http = config.hasHttp
