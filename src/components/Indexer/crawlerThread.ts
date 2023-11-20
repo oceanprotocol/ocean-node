@@ -21,7 +21,7 @@ const blockchain = new Blockchain(rpcDetails.rpc, rpcDetails.chainId)
 const provider = blockchain.getProvider()
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.DATABASE,
+  LOGGER_MODULE_NAMES.INDEXER,
   LOG_LEVELS_STR.LEVEL_INFO,
   defaultConsoleTransport
 )
@@ -42,14 +42,16 @@ export async function proccesNetworkData(): Promise<void> {
         : deployedBlock
 
     INDEXER_LOGGER.logMessage(
-      `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`
+      `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`,
+      true
     )
 
     if (networkHeight > startBlock) {
       let { chunkSize } = rpcDetails
       let remainingBlocks = networkHeight - startBlock
       INDEXER_LOGGER.logMessage(
-        `network: ${rpcDetails.network} Remaining blocks ${remainingBlocks} `
+        `network: ${rpcDetails.network} Remaining blocks ${remainingBlocks} `,
+        true
       )
 
       while (remainingBlocks > 0) {
@@ -68,7 +70,8 @@ export async function proccesNetworkData(): Promise<void> {
         if (processedBlocks !== blocksToProcess) {
           chunkSize = Math.floor(chunkSize / 2)
           INDEXER_LOGGER.logMessage(
-            `network: ${rpcDetails.network} Reducing chink size  ${chunkSize} `
+            `network: ${rpcDetails.network} Reducing chink size  ${chunkSize} `,
+            true
           )
         }
 

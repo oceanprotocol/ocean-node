@@ -10,7 +10,7 @@ import {
 } from '../../utils/logging/Logger'
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.DATABASE,
+  LOGGER_MODULE_NAMES.INDEXER,
   LOG_LEVELS_STR.LEVEL_INFO,
   defaultConsoleTransport
 )
@@ -41,22 +41,24 @@ export class OceanIndexer {
           this.updateLastIndexedBlockNumber(event.network, event.data)
         }
         INDEXER_LOGGER.logMessage(
-          `Main thread message from worker for network ${network}: ${event}`
+          `Main thread message from worker for network ${network}: ${event}`,
+          true
         )
         // index the DDO in the typesense db
       })
 
       worker.on('error', (err: Error) => {
-        INDEXER_LOGGER.loggerOptions.level = LOG_LEVELS_STR.LEVEl_ERROR
-        INDEXER_LOGGER.logMessage(
-          `Error in worker for network ${network}: ${err.message}`
+        INDEXER_LOGGER.log(
+          LOG_LEVELS_STR.LEVEl_ERROR,
+          `Error in worker for network ${network}: ${err.message}`,
+          true
         )
-        INDEXER_LOGGER.loggerOptions.level = LOG_LEVELS_STR.LEVEL_INFO
       })
 
       worker.on('exit', (code: number) => {
         INDEXER_LOGGER.logMessage(
-          `Worker for network ${network} exited with code: ${code}`
+          `Worker for network ${network} exited with code: ${code}`,
+          true
         )
       })
 
@@ -70,9 +72,11 @@ export class OceanIndexer {
       const indexer = await dbconn.retrieve(network)
       return indexer?.lastIndexedBlock
     } catch (err) {
-      INDEXER_LOGGER.loggerOptions.level = LOG_LEVELS_STR.LEVEl_ERROR
-      INDEXER_LOGGER.logMessage('Error retrieving last indexed block')
-      INDEXER_LOGGER.loggerOptions.level = LOG_LEVELS_STR.LEVEL_INFO
+      INDEXER_LOGGER.log(
+        LOG_LEVELS_STR.LEVEl_ERROR,
+        'Error retrieving last indexed block',
+        true
+      )
       return null
     }
   }
@@ -84,11 +88,13 @@ export class OceanIndexer {
     const dbconn = this.db.indexer
     try {
       const updatedIndex = await dbconn.update(network, block)
-      INDEXER_LOGGER.logMessage(`New last indexed block :, ${updatedIndex}`)
+      INDEXER_LOGGER.logMessage(`New last indexed block :, ${updatedIndex}`, true)
     } catch (err) {
-      INDEXER_LOGGER.loggerOptions.level = LOG_LEVELS_STR.LEVEl_ERROR
-      INDEXER_LOGGER.logMessage('Error retrieving last indexed block')
-      INDEXER_LOGGER.loggerOptions.level = LOG_LEVELS_STR.LEVEL_INFO
+      INDEXER_LOGGER.log(
+        LOG_LEVELS_STR.LEVEl_ERROR,
+        'Error retrieving last indexed block',
+        true
+      )
     }
   }
 }

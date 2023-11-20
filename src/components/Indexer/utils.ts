@@ -12,7 +12,7 @@ import {
 } from '../../utils/logging/Logger.js'
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.DATABASE,
+  LOGGER_MODULE_NAMES.INDEXER,
   LOG_LEVELS_STR.LEVEL_INFO,
   defaultConsoleTransport
 )
@@ -79,7 +79,7 @@ const processBlockEvents = async (provider: ethers.Provider, block: ethers.Block
 function findEventByKey(keyToFind: string): NetworkEvent {
   for (const [key, value] of Object.entries(EVENT_HASHES)) {
     if (key === keyToFind) {
-      INDEXER_LOGGER.logMessage(`Found event with key '${key}':  ${value}`)
+      INDEXER_LOGGER.logMessage(`Found event with key '${key}':  ${value}`, true)
       return value
     }
   }
@@ -100,20 +100,21 @@ export const processEventData = async (
           event.type === EVENTS.METADATA_STATE)
       ) {
         INDEXER_LOGGER.logMessage(
-          'METADATA_CREATED || METADATA_UPDATED || METADATA_STATE   -- '
+          'METADATA_CREATED || METADATA_UPDATED || METADATA_STATE   -- ',
+          true
         )
         return await processMetadataEvents()
       } else if (event && event.type === EVENTS.EXCHANGE_CREATED) {
-        INDEXER_LOGGER.logMessage('-- EXCHANGE_CREATED -- ')
+        INDEXER_LOGGER.logMessage('-- EXCHANGE_CREATED -- ', true)
         return procesExchangeCreated()
       } else if (event && event.type === EVENTS.EXCHANGE_RATE_CHANGED) {
-        INDEXER_LOGGER.logMessage('-- EXCHANGE_RATE_CHANGED -- ')
+        INDEXER_LOGGER.logMessage('-- EXCHANGE_RATE_CHANGED -- ', true)
         return await processExchangeRateChanged()
       } else if (event && event.type === EVENTS.ORDER_STARTED) {
-        INDEXER_LOGGER.logMessage('-- ORDER_STARTED -- ')
+        INDEXER_LOGGER.logMessage('-- ORDER_STARTED -- ', true)
         return await procesOrderStarted()
       } else if (event && event.type === EVENTS.TOKEN_URI_UPDATE) {
-        INDEXER_LOGGER.logMessage('-- TOKEN_URI_UPDATE -- ')
+        INDEXER_LOGGER.logMessage('-- TOKEN_URI_UPDATE -- ', true)
         return await processTokenUriUpadate()
       }
     }
