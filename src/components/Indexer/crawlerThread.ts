@@ -26,52 +26,59 @@ export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   defaultConsoleTransport
 )
 
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export async function proccesNetworkData(): Promise<void> {
-  const networkHeight = await getNetworkHeight(provider)
+  while (true) {
+    const networkHeight = await getNetworkHeight(provider)
 
-  const deployedBlock = await getDeployedContractBlock(rpcDetails.chainId)
+    const deployedBlock = await getDeployedContractBlock(rpcDetails.chainId)
 
-  let startBlock =
-    lastIndexedBlock && lastIndexedBlock > deployedBlock
-      ? lastIndexedBlock
-      : deployedBlock
+    let startBlock =
+      lastIndexedBlock && lastIndexedBlock > deployedBlock
+        ? lastIndexedBlock
+        : deployedBlock
 
-  INDEXER_LOGGER.logMessage(
-    `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`
-  )
-
-  if (networkHeight > startBlock) {
-    let { chunkSize } = rpcDetails
-    let remainingBlocks = networkHeight - startBlock
     INDEXER_LOGGER.logMessage(
-      `network: ${rpcDetails.network} Remaining blocks ${remainingBlocks} `
+      `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`
     )
 
-    while (remainingBlocks > 0) {
-      const blocksToProcess = Math.min(chunkSize, remainingBlocks)
+    if (networkHeight > startBlock) {
+      let { chunkSize } = rpcDetails
+      let remainingBlocks = networkHeight - startBlock
+      INDEXER_LOGGER.logMessage(
+        `network: ${rpcDetails.network} Remaining blocks ${remainingBlocks} `
+      )
 
-      const processedBlocks = await processBlocks(provider, startBlock, blocksToProcess)
+      while (remainingBlocks > 0) {
+        const blocksToProcess = Math.min(chunkSize, remainingBlocks)
 
-      startBlock += processedBlocks
+        const processedBlocks = await processBlocks(provider, startBlock, blocksToProcess)
 
-      parentPort.postMessage({
-        method: 'store-last-indexed-block',
-        network: rpcDetails.chainId,
-        data: startBlock
-      })
+        startBlock += processedBlocks
 
-      if (processedBlocks !== blocksToProcess) {
-        chunkSize = Math.floor(chunkSize / 2)
-        INDEXER_LOGGER.logMessage(
-          `network: ${rpcDetails.network} Reducing chink size  ${chunkSize} `
-        )
+        parentPort.postMessage({
+          method: 'store-last-indexed-block',
+          network: rpcDetails.chainId,
+          data: startBlock
+        })
+
+        if (processedBlocks !== blocksToProcess) {
+          chunkSize = Math.floor(chunkSize / 2)
+          INDEXER_LOGGER.logMessage(
+            `network: ${rpcDetails.network} Reducing chink size  ${chunkSize} `
+          )
+        }
+
+        remainingBlocks -= processedBlocks
       }
-
-      remainingBlocks -= processedBlocks
     }
-  }
 
-  parentPort.postMessage({ event: 'metadata-created' })
+    parentPort.postMessage({ event: 'metadata-created' })
+    await delay(30000)
+  }
 }
 
 parentPort.on('message', (message) => {
