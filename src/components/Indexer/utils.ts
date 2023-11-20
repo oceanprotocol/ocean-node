@@ -1,6 +1,5 @@
 import { ethers } from 'ethers'
 import fs from 'fs'
-import { homedir } from 'os'
 import { EVENTS, EVENT_HASHES } from '../../utils/constants.js'
 import { NetworkEvent } from '../../@types/blockchain.js'
 import {
@@ -21,11 +20,7 @@ export const getDeployedContractBlock = async (network: number) => {
   let deployedBlock: number
   const addressFile = JSON.parse(
     // eslint-disable-next-line security/detect-non-literal-fs-filename
-    fs.readFileSync(
-      process.env.ADDRESS_FILE ||
-        `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-      'utf8'
-    )
+    fs.readFileSync(process.env.ADDRESS_FILE || '../../../data/address.json', 'utf8')
   )
   const networkKeys = Object.keys(addressFile)
   networkKeys.forEach((key) => {

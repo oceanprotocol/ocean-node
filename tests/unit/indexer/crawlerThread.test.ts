@@ -6,14 +6,6 @@ import { Blockchain } from '../../../src/utils/blockchain'
 import { SupportedNetwork } from '../../../src/@types/blockchain'
 
 describe('Your Test Suite Description', () => {
-  let originalParentPort: any
-  let originalWorkerData: any
-
-  before(() => {
-    originalParentPort = { ...parentPort }
-    originalWorkerData = { ...workerData }
-  })
-
   it('should process network data correctly', async () => {
     const mockProvider = {}
 
