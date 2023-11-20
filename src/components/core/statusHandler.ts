@@ -44,7 +44,6 @@ export async function status(nodeId?: string): Promise<OceanNodeStatus> {
     provider: [],
     indexer: []
   }
-  STATUS_CONSOLE_LOGGER.logMessage('node ID: ' + nodeId, true)
   if (nodeId && nodeId !== undefined) {
     status.id = nodeId
   } else {

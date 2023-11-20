@@ -435,15 +435,6 @@ export class OceanP2P extends EventEmitter {
     return peersFound
   }
 
-  async getStatus(nodeId: string) {
-    console.log('Get status for ' + nodeId)
-    try {
-      return await status(nodeId)
-    } catch (error) {
-      console.error(error)
-    }
-  }
-
   /**
    * Is the message intended for this peer or we need to connect to another one?
    * @param targetPeerID  the target node id
