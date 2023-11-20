@@ -52,7 +52,7 @@ export async function status(nodeId?: string): Promise<OceanNodeStatus> {
     status.id = config.keys.peerId.toString()
   }
   status.version = process.env.npm_package_version
-  status.publicKey = config.keys.publicKey
+  status.publicKey = Buffer.from(config.keys.publicKey).toString('hex')
   status.address = config.keys.ethAddress
   status.http = config.hasHttp
   status.p2p = config.hasP2P
