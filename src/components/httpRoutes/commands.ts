@@ -33,6 +33,12 @@ broadcastCommandRoute.post(
   }
 )
 
+export const statusCommandRoute = express.Router()
+statusCommandRoute.get('/status', async (req: Request, res: Response): Promise<void> => {
+  const status = await req.oceanNode.node.getStatus(req.body.node as string)
+  res.json(status)
+})
+
 export const directCommandRoute = express.Router()
 directCommandRoute.post(
   '/directCommand',

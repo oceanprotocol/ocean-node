@@ -58,6 +58,7 @@ import {
   defaultConsoleTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
+import { status } from '../core/statusHandler.js'
 
 // just use the default logger with default transports
 // Bellow is just an example usage, only logging to console here
@@ -432,6 +433,15 @@ export class OceanP2P extends EventEmitter {
       console.error(e)
     }
     return peersFound
+  }
+
+  async getStatus(nodeId: string) {
+    console.log('Get status for ' + nodeId)
+    try {
+      return await status(nodeId)
+    } catch (error) {
+      console.error(error)
+    }
   }
 
   /**

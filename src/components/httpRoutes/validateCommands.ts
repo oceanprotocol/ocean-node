@@ -64,6 +64,10 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
       return {
         valid: true
       }
+    } else if (command === PROTOCOL_COMMANDS.STATUS) {
+      return {
+        valid: true
+      }
     }
     return {
       valid: true
