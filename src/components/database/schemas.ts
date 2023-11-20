@@ -29,7 +29,7 @@ export const schemas: Schemas = {
     name: 'logs',
     enable_nested_fields: true,
     fields: [
-      { name: 'timestamp', type: 'string' },
+      { name: 'timestamp', type: 'int64', sort: true },
       { name: 'level', type: 'string' },
       { name: 'message', type: 'string' },
       { name: 'meta', type: 'string', optional: true }

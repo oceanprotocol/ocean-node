@@ -210,9 +210,22 @@ export class LogDatabase {
       this.provider = new Typesense(convertTypesenseConfig(this.config.url))
       try {
         await this.provider.collections(this.schema.name).retrieve()
+        console.log(`Schema for '${this.schema.name}' collection already exists.`)
       } catch (error) {
         if (error instanceof TypesenseError && error.httpStatus === 404) {
-          await this.provider.collections().create(this.schema)
+          console.log(`Creating schema for '${this.schema.name}' collection.`)
+          try {
+            const createdSchema = await this.provider.collections().create(this.schema)
+            console.log(
+              `Schema created for '${this.schema.name}' collection:`,
+              createdSchema
+            )
+          } catch (creationError) {
+            console.error(
+              `Error creating schema for '${this.schema.name}' collection:`,
+              creationError
+            )
+          }
         }
       }
       return this
@@ -241,15 +254,15 @@ export class LogDatabase {
   }
 
   async retrieveMultipleLogs(
-    startTime: string,
-    endTime: string,
+    startTime: Date,
+    endTime: Date,
     maxLogs: number
   ): Promise<Record<string, any>[] | null> {
     try {
       const searchParameters = {
         q: '*',
-        query_by: 'timestamp',
-        filter_by: `timestamp:>=${startTime} && timestamp:<${endTime}`,
+        query_by: 'message,level,meta',
+        filter_by: `timestamp:>=${startTime.getTime()} && timestamp:<${endTime.getTime()}`,
         sort_by: 'timestamp:desc',
         per_page: maxLogs
       }
