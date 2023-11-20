@@ -1,6 +1,6 @@
 import { ethers } from 'ethers'
 import fs from 'fs'
-import { EVENTS, EVENT_HASHES } from '../../utils/constants.js'
+import { EVENTS, EVENT_HASHES, addressFile as localAdressFile } from '../../utils/'
 import { BlocksEvents, NetworkEvent, ProcessingEvents } from '../../@types/blockchain.js'
 import {
   CustomNodeLogger,
@@ -18,10 +18,12 @@ export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
 
 export const getDeployedContractBlock = async (network: number) => {
   let deployedBlock: number
-  const addressFile = JSON.parse(
-    // eslint-disable-next-line security/detect-non-literal-fs-filename
-    fs.readFileSync(process.env.ADDRESS_FILE || '../../../data/address.json', 'utf8')
-  )
+  const addressFile = process.env.ADDRESS_FILE
+    ? JSON.parse(
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        fs.readFileSync(process.env.ADDRESS_FILE, 'utf8')
+      )
+    : localAdressFile
   const networkKeys = Object.keys(addressFile)
   networkKeys.forEach((key) => {
     if (addressFile[key].chainId === network) {

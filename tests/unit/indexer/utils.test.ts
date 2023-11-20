@@ -10,7 +10,7 @@ import {
   getDeployedContractBlock,
   getNetworkHeight,
   processBlocks,
-  processEventData
+  processChunkLogs
 } from '../../../src/components/Indexer/utils.js'
 
 describe('Your Test Suite', () => {
@@ -34,7 +34,7 @@ describe('Your Test Suite', () => {
     const startIndex = 100
     const count = 5 // Provide the block count
     const processedBlocks = await processBlocks(provider, startIndex, count)
-    expect(processedBlocks).to.be.a('number')
+    expect(processedBlocks.lastBlock).to.be.a('number')
   })
 
   it('should process event data', async () => {
@@ -72,7 +72,7 @@ describe('Your Test Suite', () => {
       }
     ]
 
-    const result = await processEventData(logs, provider)
-    expect(result).to.be.a('string')
+    const result = await processChunkLogs(logs, provider)
+    expect(result).to.be.a('object')
   })
 })
