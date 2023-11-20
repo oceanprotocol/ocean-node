@@ -75,7 +75,7 @@ export async function handleProtocolCommands(connection: any) {
         response = await getNonce(task.address)
         break
       case PROTOCOL_COMMANDS.STATUS:
-        response = handleStatusCommand(task)
+        response = await handleStatusCommand(task)
         break
       default:
         status = { httpStatus: 501, error: 'Unknown command' }
@@ -129,7 +129,7 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
       response = await getNonce(task.address)
       break
     case PROTOCOL_COMMANDS.STATUS:
-      response = handleStatusCommand(task)
+      response = await handleStatusCommand(task)
       break
     default:
       status = { httpStatus: 501, error: 'Unknown command' }

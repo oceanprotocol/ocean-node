@@ -25,11 +25,6 @@ export interface NonceCommand extends Command {
   address: string // consumer address
 }
 
-export interface StatusCommand extends Command {
-  config: any
-  blockchain: any
-}
-
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.DOWNLOAD_URL,
   PROTOCOL_COMMANDS.ECHO,
