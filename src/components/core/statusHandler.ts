@@ -24,6 +24,7 @@ export const STATUS_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
 )
 
 export async function status(nodeId?: string): Promise<OceanNodeStatus> {
+  STATUS_CONSOLE_LOGGER.logMessage('Command status started execution...', true)
   const config = await getConfig()
   if (!config) {
     STATUS_CONSOLE_LOGGER.logMessageWithEmoji(
