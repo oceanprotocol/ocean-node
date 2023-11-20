@@ -1,78 +1,60 @@
-// import { expect } from 'chai'
-// import sinon from 'sinon'
-// import { OceanIndexer } from '../../../src/components/Indexer'
+import { expect } from 'chai'
+import { stub } from 'sinon'
+import { describe, it } from 'mocha'
+import { OceanIndexer } from '../../../src/components/Indexer' // Adjust the import path accordingly
+import { RPCS } from '../../../src/@types/blockchain'
 
-// describe('OceanIndexer', () => {
-//   let oceanIndexer
-//   let dbMock
-//   let blockchainMock
+class MockDatabase {
+  indexer = {
+    retrieve: stub(),
+    update: stub()
+  }
+}
 
-//   beforeEach(() => {
-//     dbMock = {
-//       indexer: {
-//         retrieve: sinon.stub().resolves({ lastIndexedBlock: 1000 }),
-//         update: sinon.stub().resolves(2000)
-//       }
-//     }
-//     oceanIndexer = new OceanIndexer(dbMock, [1, 2], blockchainMock)
-//   })
+const mockSupportedNetworks: RPCS = {
+  '1': { chainId: 1, network: 'mainnet', rpc: 'https://mainnet.rpc', chunkSize: 1000 },
+  '2': { chainId: 2, network: 'testnet', rpc: 'https://testnet.rpc', chunkSize: 500 }
+}
 
-//   afterEach(() => {
-//     sinon.restore()
-//   })
+describe('OceanIndexer', () => {
+  it('should start threads and handle worker events', async () => {
+    const mockDatabase = new MockDatabase()
+    const oceanIndexer = new OceanIndexer(mockDatabase as any, mockSupportedNetworks)
 
-//   it('should start threads for each supported network', () => {
-//     const workerStub = {
-//       on: sinon.stub(),
-//       postMessage: sinon.stub()
-//     }
-//     const workerConstructorStub = sinon.stub(global, 'Worker').returns(workerStub)
+    const mockWorker = {
+      on: stub(),
+      postMessage: stub()
+    }
 
-//     oceanIndexer.startThreads()
+    stub(oceanIndexer as any, 'startThreads').callsFake(() => {
+      oceanIndexer.updateLastIndexedBlockNumber = stub()
+      oceanIndexer.getLastIndexedBlock = stub().resolves(0)
+      oceanIndexer.startThreads = async () => {
+        try {
+          const network = '1'
 
-//     expect(workerConstructorStub).to.have.been.calledTwice
-//     expect(workerStub.postMessage).to.have.been.calledTwice
-//     expect(workerStub.postMessage).to.have.been.calledWith({ method: 'start-crawling' })
-//   })
+          mockWorker.on
+            .withArgs('message')
+            .callArgWith(1, { method: 'store-last-indexed-block', network, data: 42 })
 
-//   it('should handle worker messages and update last indexed block', () => {
-//     const workerStub = {
-//       on: sinon.stub(),
-//       postMessage: sinon.stub()
-//     }
-//     sinon.stub(global, 'Worker').returns(workerStub)
+          mockWorker.on.withArgs('error').callArgWith(1, new Error('Worker error'))
 
-//     oceanIndexer.startThreads()
-//     const messageHandler = workerStub.on.firstCall.args[1] // Get the message handler
+          mockWorker.on.withArgs('exit').callArgWith(1, 0)
 
-//     messageHandler({ method: 'store-last-indexed-block', network: 1, data: 1500 })
+          await oceanIndexer.startThreads()
+        } catch (error) {
+          console.error(error)
+        }
+      }
+    })
 
-//     expect(dbMock.indexer.update).to.have.been.calledWith(1, 1500)
-//   })
+    stub(oceanIndexer as any, 'createWorker').returns(mockWorker)
 
-//   it('should handle worker errors', () => {
-//     const workerStub = {
-//       on: sinon.stub(),
-//       postMessage: sinon.stub()
-//     }
-//     sinon.stub(global, 'Worker').returns(workerStub)
+    await oceanIndexer.startThreads()
 
-//     oceanIndexer.startThreads()
-//     const errorHandler = workerStub.on.withArgs('error').firstCall.args[1] // Get the error handler
-
-//     errorHandler(new Error('Worker error'))
-//   })
-
-//   it('should handle worker exits', () => {
-//     const workerStub = {
-//       on: sinon.stub(),
-//       postMessage: sinon.stub()
-//     }
-//     sinon.stub(global, 'Worker').returns(workerStub)
-
-//     oceanIndexer.startThreads()
-//     const exitHandler = workerStub.on.withArgs('exit').firstCall.args[1] // Get the exit handler
-
-//     exitHandler(0)
-//   })
-// })
+    // eslint-disable-next-line no-unused-expressions
+    expect(mockWorker.postMessage.calledOnceWith({ method: 'start-crawling' })).to.be.true
+    // eslint-disable-next-line no-unused-expressions
+    expect(mockWorker.on.calledThrice).to.be.true
+  })
+})

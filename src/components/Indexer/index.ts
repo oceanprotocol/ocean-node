@@ -64,7 +64,7 @@ export class OceanIndexer {
     }
   }
 
-  private async getLastIndexedBlock(network: number): Promise<number> {
+  public async getLastIndexedBlock(network: number): Promise<number> {
     const dbconn = this.db.indexer
     try {
       const indexer = await dbconn.retrieve(network)
@@ -77,7 +77,7 @@ export class OceanIndexer {
     }
   }
 
-  private async updateLastIndexedBlockNumber(
+  public async updateLastIndexedBlockNumber(
     network: number,
     block: number
   ): Promise<void> {

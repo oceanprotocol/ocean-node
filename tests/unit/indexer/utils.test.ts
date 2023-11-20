@@ -1,102 +1,78 @@
-// import { expect } from 'chai'
-// import sinon from 'sinon'
-// import fs from 'fs'
-// import {
-//   getDeployedContractBlock,
-//   getNetworkHeight,
-//   processBlocks,
-//   processEventData
-// } from '../../../src/components/Indexer/utils.js'
-// import { EVENTS } from '../../../src/utils/constants.js'
+import {
+  Block,
+  OrphanFilter,
+  TransactionReceipt,
+  TransactionResponse,
+  ethers
+} from 'ethers'
+import { expect } from 'chai'
+import {
+  getDeployedContractBlock,
+  getNetworkHeight,
+  processBlocks,
+  processEventData
+} from '../../../src/components/Indexer/utils.js'
 
-// describe('getDeployedContractBlock', () => {
-//   it('should return the deployed block for the specified network', async () => {
-//     const mockAddressFile = {
-//       someKey: { chainId: 1, startBlock: 1000 },
-//       otherKey: { chainId: 2, startBlock: 2000 }
-//     }
-//     const readFileSyncStub = sinon
-//       .stub(fs, 'readFileSync')
-//       .returns(JSON.stringify(mockAddressFile))
-//     process.env.ADDRESS_FILE = 'mockedAddressFile'
+describe('Your Test Suite', () => {
+  let provider: ethers.JsonRpcProvider
 
-//     const result = await getDeployedContractBlock(1)
+  before(async () => {
+    provider = new ethers.JsonRpcProvider('https://rpc-mumbai.maticvigil.com')
+  })
 
-//     expect(result).to.equal(1000)
-//     expect(readFileSyncStub.calledWith('mockedAddressFile', 'utf8')
+  it('should get deployed contract block', async () => {
+    const deployedBlock = await getDeployedContractBlock(80001)
+    expect(deployedBlock).to.be.a('number')
+  })
 
-//     sinon.restore()
-//   })
+  it('should get network height', async () => {
+    const networkHeight = await getNetworkHeight(provider)
+    expect(networkHeight).to.be.a('number')
+  })
 
-//   it('should return undefined for a network not in the address file', async () => {
-//     const mockAddressFile = {
-//       someKey: { chainId: 1, startBlock: 1000 },
-//       otherKey: { chainId: 2, startBlock: 2000 }
-//     }
-//     sinon.stub(fs, 'readFileSync').returns(JSON.stringify(mockAddressFile))
-//     process.env.ADDRESS_FILE = 'mockedAddressFile'
+  it('should process blocks', async () => {
+    const startIndex = 100
+    const count = 5 // Provide the block count
+    const processedBlocks = await processBlocks(provider, startIndex, count)
+    expect(processedBlocks).to.be.a('number')
+  })
 
-//     const result = await getDeployedContractBlock(3)
+  it('should process event data', async () => {
+    async function getBlock(): Promise<Block> {
+      return {} as Block
+    }
+    async function getTransaction(): Promise<TransactionResponse> {
+      return {} as TransactionResponse
+    }
+    async function getTransactionReceipt(): Promise<TransactionReceipt> {
+      return {} as TransactionReceipt
+    }
+    function removedEvent(): OrphanFilter {
+      return {} as OrphanFilter
+    }
+    const logs = [
+      {
+        provider,
+        transactionHash: 'str',
+        blockHash: 'str',
+        blockNumber: 100,
+        timestamp: 100,
+        logIndex: 100,
+        index: 100,
+        transactionIndex: 100,
+        address: 'str',
+        data: 'abcdef',
+        removed: false,
+        topics: ['0x49a0cb7b80992c55744fa9510891b184199580af9b73325e21762948f7888a77'],
+        toJSON: () => {},
+        getBlock,
+        getTransaction,
+        getTransactionReceipt,
+        removedEvent
+      }
+    ]
 
-//     expect(result).to.be.undefined
-
-//     sinon.restore()
-//   })
-// })
-
-// describe('getNetworkHeight', () => {
-//   it('should return the network height from the provider', async () => {
-//     const mockProvider = { getBlockNumber: sinon.stub().resolves(5000) }
-
-//     const result = await getNetworkHeight(mockProvider)
-
-//     expect(result).to.equal(5000)
-//   })
-// })
-
-// describe('processBlocks', () => {
-//   it('should process the specified number of blocks', async () => {
-//     const mockProvider = {
-//       getBlock: sinon.stub().resolves({ transactions: ['tx1', 'tx2'] }),
-//       getTransactionReceipt: sinon.stub().resolves({ logs: ['log1', 'log2'] })
-//     }
-
-//     const result = await processBlocks(mockProvider, 1, 2)
-
-//     expect(result).to.equal(4)
-//     expect(mockProvider.getBlock).to.have.been.calledTwice
-//     expect(mockProvider.getTransactionReceipt).to.have.been.calledTwice
-//   })
-// })
-
-// describe('processEventData', () => {
-//   let findEventByKeyStub
-//   let processMetadataEventsStub
-//   let procesExchangeCreatedStub
-//   let processExchangeRateChangedStub
-//   let procesOrderStartedStub
-//   let processTokenUriUpadateStub
-
-//   beforeEach(() => {
-//     findEventByKeyStub = sinon.stub().returns({ type: EVENTS.METADATA_CREATED })
-//     processMetadataEventsStub = sinon.stub().resolves('METADATA_CREATED')
-//     procesExchangeCreatedStub = sinon.stub().resolves('EXCHANGE_CREATED')
-//     processExchangeRateChangedStub = sinon.stub().resolves('EXCHANGE_RATE_CHANGED')
-//     procesOrderStartedStub = sinon.stub().resolves('ORDER_STARTED')
-//     processTokenUriUpadateStub = sinon.stub().resolves('TOKEN_URI_UPDATE')
-//   })
-
-//   it('should process metadata events', async () => {
-//     const logs: Log[] = [{ topics: ['0x123'] }]
-
-//     const result = await processEventData(logs)
-
-//     expect(result).to.equal('METADATA_CREATED')
-//     expect(findEventByKeyStub.calledOnce()).to.be.true
-//     expect(processMetadataEventsStub.calledOnce
-//   })
-
-//   afterEach(() => {
-//     sinon.restore()
-//   })
-// })
+    const result = await processEventData(logs, provider)
+    expect(result).to.be.a('string')
+  })
+})

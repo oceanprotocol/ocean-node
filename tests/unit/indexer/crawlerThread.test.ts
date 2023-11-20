@@ -1,90 +1,39 @@
-// import { expect } from 'chai'
-// import sinon from 'sinon'
-// import { proccesNetworkData } from '../../../src/components/Indexer/crawlerThread'
-// import * as utils from '../../../src/components/Indexer/utils'
-// import { Blockchain } from '../../../src/utils/blockchain'
+import { expect } from 'chai'
+import { describe, it, before, after } from 'mocha'
+import { parentPort, workerData } from 'worker_threads'
+import { proccesNetworkData } from '../../../src/components/Indexer/crawlerThread'
+import { Blockchain } from '../../../src/utils/blockchain'
+import { SupportedNetwork } from '../../../src/@types/blockchain'
 
-// describe('proccesNetworkData', () => {
-//   before(() => {
-//     global.parentPort = {
-//       on: sinon.stub(),
-//       postMessage: sinon.stub()
-//     }
+describe('Your Test Suite Description', () => {
+  let originalParentPort: any
+  let originalWorkerData: any
 
-//     global.workerData = {
-//       network: 1,
-//       lastIndexedBlock: 1000
-//     }
+  before(() => {
+    originalParentPort = { ...parentPort }
+    originalWorkerData = { ...workerData }
+  })
 
-//     const getBlockNumberStub = sinon.stub().returns(5000)
+  it('should process network data correctly', async () => {
+    const mockProvider = {}
 
-//     // Create a stub for getProvider
-//     // const getProviderStub = sinon.stub(Blockchain.prototype, 'getProvider').returns({
-//     //   getBlockNumber: getBlockNumberStub
-//     // })
+    const mockBlockchain = {
+      getProvider: () => mockProvider
+    } as Blockchain
 
-//     sinon.stub(utils, 'getDeployedContractBlock').resolves(500)
-//     sinon.stub(utils, 'getNetworkHeight').resolves(10000)
-//     sinon.stub(utils, 'processBlocks').resolves(100)
-//   })
+    const mockRpcDetails: SupportedNetwork = {
+      chainId: 1,
+      network: 'mainnet',
+      rpc: 'https://mainnet.rpc',
+      chunkSize: 1000
+    }
 
-//   after(() => {
-//     sinon.restore()
-//   })
+    Object.assign(workerData, { rpcDetails: mockRpcDetails, lastIndexedBlock: 0 })
+    Object.assign(proccesNetworkData, {
+      blockchain: mockBlockchain
+    })
 
-//   it('should call the necessary functions and post messages to parentPort', async () => {
-//     await proccesNetworkData()
-
-//     expect((utils.getNetworkHeight as any).calledOnce).to.be.true
-//     expect(utils.getDeployedContractBlock.calledWith(sinon.match(1)))
-
-//     const processBlocksSpy = sinon.spy(utils, 'processBlocks')
-//     const getDeployedContractBlock = sinon.spy(utils, 'getDeployedContractBlock')
-
-//     // Your test logic here
-
-//     // Verify the spy or mock was called with the expected arguments
-//     expect(
-//       processBlocksSpy.calledWith(sinon.match.any, sinon.match.number, sinon.match.number)
-//     ).to.be.true
-
-//     expect(getDeployedContractBlock.calledWith(sinon.match.number)).to.be.true
-
-//     expect(
-//       global.parentPort.postMessage.calledWith(
-//         sinon.match({
-//           processedBlocks: 100
-//         })
-//       )
-//     )
-
-//     expect(
-//       global.parentPort.postMessage.calledWith(
-//         sinon.match({
-//           event: 'metadata-created'
-//         })
-//       )
-//     )
-//   })
-// })
-
-// describe('Utility Functions', () => {
-//   it('getDeployedContractBlock should return a number', async () => {
-//     const result = await utils.getDeployedContractBlock(1)
-//     expect(result).to.equal(500)
-//   })
-
-//   it('getNetworkHeight should return a number', async () => {
-//     // const result = await utils.getNetworkHeight()
-//     // expect(result).to.equal(10000)
-//   })
-
-//   it('processBlocks should return a number', async () => {
-//     // const result = await utils.processBlocks(
-//     // //   sinon.match.any,
-//     //   sinon.match.number,
-//     //   sinon.match.number
-//     // )
-//     // expect(result).to.equal(100)
-//   })
-// })
+    // Perform the actual test
+    await proccesNetworkData()
+  })
+})
