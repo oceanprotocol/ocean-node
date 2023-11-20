@@ -19,7 +19,7 @@ import { Command } from '../../utils/constants.js'
 import { Readable } from 'stream'
 
 export const STATUS_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.DATABASE,
+  LOGGER_MODULE_NAMES.CORE,
   LOG_LEVELS_STR.LEVEL_INFO,
   defaultConsoleTransport
 )
