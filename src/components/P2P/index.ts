@@ -42,7 +42,7 @@ import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 import { cidFromRawString } from '../../utils/index.js'
 import { Stream, Transform } from 'stream'
 import { Database } from '../database'
-import { OceanNodeConfig } from '../../@types/OceanNode'
+import { OceanNodeConfig, FindDDOResponse } from '../../@types/OceanNode'
 
 import {
   CustomNodeLogger,
@@ -65,6 +65,13 @@ export const P2P_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
 }
+// we might want this configurable
+export const CACHE_TTL = 1000 * 60 * 5 // 5 minutes
+type DDOCache = {
+  // when last updated cache
+  updated: number
+  dht: Map<string, FindDDOResponse>
+}
 
 let index = 0
 
@@ -79,6 +86,7 @@ export class OceanP2P extends EventEmitter {
   _publicKey: Uint8Array
   _privateKey: Uint8Array
   _analyzeRemoteResponse: Transform
+  private _ddoDHT: DDOCache
   private _handleMessage: any
   private _interval: NodeJS.Timeout
   private _idx: number
@@ -88,6 +96,10 @@ export class OceanP2P extends EventEmitter {
     super()
     this.db = db
     this._config = config
+    this._ddoDHT = {
+      updated: new Date().getTime(),
+      dht: new Map<string, FindDDOResponse>()
+    }
   }
 
   async start(options: any = null) {
@@ -441,35 +453,54 @@ export class OceanP2P extends EventEmitter {
    * @returns true if the message is intended for this peer, false otherwise
    */
   isTargetPeerSelf(targetPeerID: string): boolean {
-    return targetPeerID === this._config.keys.peerId.toString()
+    return targetPeerID === this.getPeerId()
+  }
+
+  getPeerId(): string {
+    return this._config.keys.peerId.toString()
   }
 
   getDatabase(): Database {
     return this.db
   }
 
+  getDDOCache(): DDOCache {
+    return this._ddoDHT
+  }
+
   /**
    * Goes through some dddo list list and tries to store and avertise
-   * @param result the initial list
+   * @param list the initial list
    * @param node the node
    * @returns  boolean from counter
    */
-  async storeAndAdvertiseDDOS(result: any[]): Promise<boolean> {
+  async storeAndAdvertiseDDOS(list: any[]): Promise<boolean> {
     try {
       let count = 0
-      console.log(`trying to store and advertise ${result.length} initial DDOS`)
+      console.log(`trying to store and advertise ${list.length} initial DDOS`)
       const db = this.getDatabase().ddo
-      result.forEach(async (ddo: any) => {
+      const peerId = this.getPeerId()
+      list.forEach(async (ddo: any) => {
         // if already added before, create() will return null, but still advertise it
         try {
           await db.create(ddo)
           await this.advertiseDid(ddo.id)
+          // populate hash table
+          this._ddoDHT.dht.set(ddo.id, {
+            id: ddo.id,
+            lastUpdateTx: ddo.event.tx, // check if we're getting these from the right place
+            lastUpdateTime: ddo.metadata.updated,
+            provider: peerId
+          })
           count++
         } catch (e) {
           console.log(e)
         }
       })
-      return count === result.length
+      if (count > 0) {
+        this._ddoDHT.updated = new Date().getTime()
+      }
+      return count === list.length
     } catch (err) {
       console.log(err)
       return false
