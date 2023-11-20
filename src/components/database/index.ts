@@ -239,6 +239,30 @@ export class LogDatabase {
       return null
     }
   }
+
+  async retrieveMultipleLogs(
+    startTime: string,
+    endTime: string,
+    maxLogs: number
+  ): Promise<Record<string, any>[] | null> {
+    try {
+      const searchParameters = {
+        q: '*',
+        query_by: 'timestamp',
+        filter_by: `timestamp:>=${startTime} && timestamp:<${endTime}`,
+        sort_by: 'timestamp:desc',
+        per_page: maxLogs
+      }
+      const result = await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .search(searchParameters)
+      return result.hits.map((hit) => hit.document)
+    } catch (error) {
+      console.error('Error retrieving log entries:', error)
+      return null
+    }
+  }
 }
 
 export class Database {
