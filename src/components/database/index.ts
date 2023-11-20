@@ -1,7 +1,7 @@
 import { OceanNodeDBConfig } from '../../@types/OceanNode'
 import { convertTypesenseConfig, Typesense, TypesenseError } from './typesense.js'
 import { Schema, schemas } from './schemas.js'
-import {TypesenseSearchParams} from "../../@types";
+import { TypesenseSearchParams } from '../../@types'
 
 export class DdoDatabase {
   private provider: Typesense
@@ -27,7 +27,10 @@ export class DdoDatabase {
 
   async search(query: Record<string, any>) {
     try {
-      return await this.provider.collections(this.schemas[0].name).documents().search(query as TypesenseSearchParams)
+      return await this.provider
+        .collections(this.schemas[0].name)
+        .documents()
+        .search(query as TypesenseSearchParams)
     } catch (error) {
       return null
     }

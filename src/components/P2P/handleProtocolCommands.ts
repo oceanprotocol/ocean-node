@@ -13,7 +13,7 @@ import { P2PCommandResponse } from '../../@types/OceanNode'
 import { P2P_CONSOLE_LOGGER } from './index.js'
 import { handleGetDdoCommand } from '../core/ddoHandler.js'
 import { getNonce } from '../core/nonceHandler.js'
-import {handleQueryCommand} from "../core/queryHandler.js";
+import { handleQueryCommand } from '../core/queryHandler.js'
 
 export class ReadableString extends Readable {
   private sent = false
