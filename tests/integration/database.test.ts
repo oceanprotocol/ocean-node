@@ -1,5 +1,13 @@
 import { Database } from '../../src/components/database'
 import { expect } from 'chai'
+import {
+  CustomNodeLogger,
+  LOG_LEVELS_STR,
+  CustomOceanNodesTransport,
+  getCustomLoggerForModule,
+  LOGGER_MODULE_NAMES,
+  defaultConsoleTransport
+} from '../../src/utils/logging/Logger'
 
 describe('Database', () => {
   let database: Database
@@ -151,10 +159,11 @@ describe('IndexerDatabase CRUD', () => {
 
 describe('LogDatabase CRUD', () => {
   let database: Database
+  let logger: CustomNodeLogger
   const logEntry = {
-    timestamp: new Date().toISOString(),
+    timestamp: Date.now(),
     level: 'info',
-    message: 'Test log message',
+    message: `Test log message ${Date.now()}`,
     meta: 'Test meta information'
   }
   let logId: string // Variable to store the ID of the created log entry
@@ -164,19 +173,56 @@ describe('LogDatabase CRUD', () => {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
     database = await new Database(dbConfig)
+    // Initialize logger with the custom transport that writes to the LogDatabase
+    const customLogTransport = new CustomOceanNodesTransport({ dbInstance: database })
+    logger = getCustomLoggerForModule(
+      LOGGER_MODULE_NAMES.HTTP,
+      LOG_LEVELS_STR.LEVEL_INFO, // Info level
+      defaultConsoleTransport // console only Transport
+    )
+    logger.addTransport(customLogTransport)
   })
 
   it('insert log', async () => {
     const result = await database.logs.insertLog(logEntry)
+    console.log('insert log', result)
     expect(result).to.include.keys('id', 'timestamp', 'level', 'message', 'meta')
     logId = result?.id // Save the auto-generated id for further operations
   })
 
   it('retrieve log', async () => {
     const result = await database.logs.retrieveLog(logId)
+    console.log('result', result)
     expect(result?.id).to.equal(logId)
     expect(result?.level).to.equal(logEntry.level)
     expect(result?.message).to.equal(logEntry.message)
     expect(result?.meta).to.equal(logEntry.meta)
+  })
+
+  it('should save a log in the database when a log event is triggered', async () => {
+    const newLogEntry = {
+      timestamp: Date.now(),
+      level: 'info',
+      message: `NEW Test log message ${Date.now()}`,
+      meta: 'Test meta information'
+    }
+    // Trigger a log event which should be saved in the database
+    logger.log(newLogEntry.level, newLogEntry.message)
+
+    // Wait for the log to be written to the database
+    await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay to allow log to be processed
+
+    // Define the time frame for the log retrieval
+    const startTime = new Date(Date.now() - 10000) // 10 seconds ago
+    const endTime = new Date() // current time
+
+    // Retrieve the latest log entry
+    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 1)
+    console.log('logs', logs)
+
+    expect(logs?.length).to.equal(1)
+    expect(logs?.[0].id).to.equal(String(Number(logId) + 1))
+    expect(logs?.[0].level).to.equal(newLogEntry.level)
+    expect(logs?.[0].message).to.equal(newLogEntry.message)
   })
 })
