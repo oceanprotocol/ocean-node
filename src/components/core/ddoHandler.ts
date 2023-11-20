@@ -41,29 +41,6 @@ export async function handleGetDdoCommand(
 }
 
 /**
- * Straight ask the DHT table
- * @param task the command find ddo
- * @returns raw list of providers for the ddo id
- */
-export async function findProvidersForDDO(
-  task: FindDDOCommand
-): Promise<P2PCommandResponse> {
-  try {
-    const { node } = await OceanNodeInstance
-    const providers = await node.getProvidersForDid(task.id)
-    return {
-      stream: Readable.from(JSON.stringify(providers)),
-      status: { httpStatus: 200 }
-    }
-  } catch (error) {
-    return {
-      stream: null,
-      status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
-    }
-  }
-}
-
-/**
  * Check if the specified ddo is cached and if the cached version is recent enough
  * @param task FindDDO
  * @returns boolean

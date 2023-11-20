@@ -9,7 +9,7 @@ import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
 
 import { P2P_CONSOLE_LOGGER } from './index.js'
-import { handleGetDdoCommand, findProvidersForDDO, findDDO } from '../core/ddoHandler.js'
+import { handleGetDdoCommand, findDDO } from '../core/ddoHandler.js'
 import { getNonce } from '../core/nonceHandler.js'
 
 export class ReadableString extends Readable {
