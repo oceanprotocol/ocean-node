@@ -64,6 +64,17 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
       return {
         valid: true
       }
+    } else if (command === PROTOCOL_COMMANDS.QUERY) {
+      if (!requestBody.query) {
+        return {
+          valid: false,
+          reason: 'Missing required parameter: "query"',
+          status: 400
+        }
+      }
+      return {
+        valid: true
+      }
     }
     return {
       valid: true

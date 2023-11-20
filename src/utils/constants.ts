@@ -1,8 +1,10 @@
 // Add all the supported commands
+
 export const PROTOCOL_COMMANDS = {
   DOWNLOAD_URL: 'downloadURL',
   ECHO: 'echo',
   GET_DDO: 'getDDO',
+  QUERY: 'query',
   NONCE: 'nonce'
 }
 
@@ -18,6 +20,10 @@ export interface DownloadCommand extends Command {
 
 export interface GetDdoCommand extends Command {
   id: string
+}
+
+export interface QueryCommand extends Command {
+  query: Record<string, any>
 }
 
 export interface NonceCommand extends Command {
