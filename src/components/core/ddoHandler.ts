@@ -7,14 +7,15 @@ import { FindDDOResponse, P2PCommandResponse } from '../../@types'
 import { Readable } from 'stream'
 import OceanNodeInstance from '../../index.js'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
-import { CACHE_TTL, OceanP2P } from '../P2P/index.js'
+import { CACHE_TTL, OceanP2P, P2P_CONSOLE_LOGGER } from '../P2P/index.js'
 import { sleep } from '../../utils/util.js'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
 const MAX_RESPONSE_WAIT_TIME_SECONDS = 60
 // wait time for reading the next getDDO command
-const MAX_WAIT_TIME_SECONDS_GET_DDO = 8
+const MAX_WAIT_TIME_SECONDS_GET_DDO = 5
 
 export async function handleGetDdoCommand(
   task: GetDdoCommand
@@ -76,6 +77,13 @@ export function hasCachedDDO(node: OceanP2P, task: FindDDOCommand): boolean {
       // console.log('cache age (ms):', now - cacheTime)
       return true
     }
+    P2P_CONSOLE_LOGGER.log(
+      LOG_LEVELS_STR.LEVEL_INFO,
+      `DDO cache for ${task.id} has expired, cache age(secs): ${
+        (now - cacheTime) / 1000
+      }`,
+      true
+    )
   }
   return false
 }
@@ -94,6 +102,10 @@ export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse>
     // if we have the result cached recently we return that result
     if (hasCachedDDO(node, task)) {
       // 'found cached DDO'
+      P2P_CONSOLE_LOGGER.logMessage(
+        'Found local cached version for DDO id: ' + task.id,
+        true
+      )
       resultList.push(node.getDDOCache().dht.get(task.id))
       return {
         stream: Readable.from(JSON.stringify(resultList, null, 4)),
@@ -105,9 +117,9 @@ export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse>
     const providerIds: string[] = []
     let processed = 0
     let toProcess = 0
-    const chunks: string[] = []
     // sink fn
     const sink = async function (source: any) {
+      const chunks: string[] = []
       let first = true
       try {
         for await (const chunk of source) {
@@ -126,7 +138,7 @@ export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse>
         } // end for chunk
         const ddo = JSON.parse(chunks.toString())
         chunks.length = 0
-        // console.log(`PARSED ddo with id ${ddo.id}:`, ddo)
+        // process it
         if (providerIds.length > 0) {
           const peer = providerIds.pop()
           const ddoInfo: FindDDOResponse = {
@@ -136,6 +148,10 @@ export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse>
             provider: peer
           }
           resultList.push(ddoInfo)
+          P2P_CONSOLE_LOGGER.logMessage(
+            `Succesfully processed DDO info, id: ${ddo.id} from remote peer: ${peer}`,
+            true
+          )
           // is it cached?
           if (node.getDDOCache().dht.has(ddo.id)) {
             const localValue: FindDDOResponse = node.getDDOCache().dht.get(ddo.id)
@@ -184,27 +200,9 @@ export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse>
     }, 1000 * MAX_RESPONSE_WAIT_TIME_SECONDS)
 
     // Checking locally...
-    const ddo = await node.getDatabase().ddo.retrieve(task.id)
-    if (ddo) {
+    const ddoInfo = await findDDOLocally(node, task.id)
+    if (ddoInfo) {
       // node has ddo
-
-      const ddoInfo: FindDDOResponse = {
-        id: ddo.id,
-        lastUpdateTx: ddo.event.tx,
-        lastUpdateTime: ddo.metadata.updated,
-        provider: node.getPeerId()
-      }
-      // not in the cache yet
-      if (!node.getDDOCache().dht.has(ddo.id)) {
-        node.getDDOCache().dht.set(ddo.id, ddoInfo)
-      } else {
-        // it has, just check wich one is newer
-        const localCachedData: FindDDOResponse = node.getDDOCache().dht.get(ddo.id)
-        // update localCachedData if newer
-        if (new Date(ddoInfo.lastUpdateTime) > new Date(localCachedData.lastUpdateTime)) {
-          node.getDDOCache().dht.set(ddo.id, ddoInfo)
-        }
-      }
       // add to the result list anyway
       resultList.push(ddoInfo)
       updatedCache = true
@@ -241,6 +239,9 @@ export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse>
             providerIds.push(peer)
 
             try {
+              // problem here is that even if we get the P2PCommandResponse right after await(), we still don't know
+              // exactly when the chunks are written/processed/received on the sink function
+              // so, better to wait/sleep some small amount of time before proceeding to the next one
               const status: P2PCommandResponse = await node.sendTo(
                 peer,
                 JSON.stringify(getCommand),
@@ -254,8 +255,16 @@ export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse>
               providerIds.pop() // ignore this one
               processed++
             }
-            // 'sleep 8 seconds...'
-            await sleep(MAX_WAIT_TIME_SECONDS_GET_DDO * 1000) // await 8 seconds before proceeding to next one
+            // 'sleep 5 seconds...'
+            P2P_CONSOLE_LOGGER.logMessage(
+              `Sleeping for: ${MAX_WAIT_TIME_SECONDS_GET_DDO} seconds, while getting DDO info remote peer...`,
+              true
+            )
+            await sleep(MAX_WAIT_TIME_SECONDS_GET_DDO * 1000) // await 5 seconds before proceeding to next one
+            // if the ddo is not cached, the very 1st request will take a bit longer
+            // cause it needs to get the response from all the other providers call getDDO()
+            // otherwise is immediate as we just return the cached version, once the cache expires we
+            // repeat the procedure and query the network again, updating cache at the end
           }
           doneLoop += 1
         } while (processed < toProcess)
@@ -288,9 +297,51 @@ export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse>
     }
   } catch (error) {
     // 'FindDDO big error: '
+    P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+      `Error: '${error.message}' was caught while getting DDO info for id: ${task.id}`,
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEl_ERROR
+    )
     return {
       stream: null,
       status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
     }
   }
+}
+
+/**
+ * Finds a given DDO on local DB and updates cache if needed
+ * @param node this node
+ * @param id ddo id
+ * @returns ddo info
+ */
+async function findDDOLocally(
+  node: OceanP2P,
+  id: string
+): Promise<FindDDOResponse> | undefined {
+  const ddo = await node.getDatabase().ddo.retrieve(id)
+  if (ddo) {
+    // node has ddo
+
+    const ddoInfo: FindDDOResponse = {
+      id: ddo.id,
+      lastUpdateTx: ddo.event.tx,
+      lastUpdateTime: ddo.metadata.updated,
+      provider: node.getPeerId()
+    }
+    // not in the cache yet
+    if (!node.getDDOCache().dht.has(ddo.id)) {
+      node.getDDOCache().dht.set(ddo.id, ddoInfo)
+    } else {
+      // it has, just check wich one is newer
+      const localCachedData: FindDDOResponse = node.getDDOCache().dht.get(ddo.id)
+      // update localCachedData if newer
+      if (new Date(ddoInfo.lastUpdateTime) > new Date(localCachedData.lastUpdateTime)) {
+        node.getDDOCache().dht.set(ddo.id, ddoInfo)
+      }
+    }
+    return ddoInfo
+  }
+  return undefined
 }

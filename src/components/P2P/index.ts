@@ -418,7 +418,7 @@ export class OceanP2P extends EventEmitter {
   }
 
   async advertiseDid(did: string) {
-    console.log('Advertising ' + did)
+    P2P_CONSOLE_LOGGER.logMessage('Advertising ' + did, true)
     try {
       const x = this._peers.length
       if (x > 0) {
@@ -431,7 +431,7 @@ export class OceanP2P extends EventEmitter {
   }
 
   async getProvidersForDid(did: string) {
-    console.log('Fetching providers for ' + did)
+    P2P_CONSOLE_LOGGER.logMessage('Fetching providers for ' + did, true)
     const cid = await cidFromRawString(did)
     const peersFound = []
     try {
