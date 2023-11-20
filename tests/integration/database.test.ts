@@ -1,5 +1,5 @@
 import { Database } from '../../src/components/database'
-import { expect } from 'chai'
+import { expect, assert } from 'chai'
 import {
   CustomNodeLogger,
   LOG_LEVELS_STR,
@@ -224,5 +224,59 @@ describe('LogDatabase CRUD', () => {
     expect(logs?.[0].id).to.equal(String(Number(logId) + 1))
     expect(logs?.[0].level).to.equal(newLogEntry.level)
     expect(logs?.[0].message).to.equal(newLogEntry.message)
+  })
+
+  it('should save a log in the database when a log.logMessage is called', async () => {
+    const newLogEntry = {
+      timestamp: Date.now(),
+      level: 'info',
+      message: `logMessage: Test log message ${Date.now()}`,
+      meta: 'Test meta information'
+    }
+    // Trigger a log event which should be saved in the database
+    logger.logMessage(newLogEntry.message)
+
+    // Wait for the log to be written to the database
+    await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay to allow log to be processed
+
+    // Define the time frame for the log retrieval
+    const startTime = new Date(Date.now() - 10000) // 10 seconds ago
+    const endTime = new Date() // current time
+
+    // Retrieve the latest log entry
+    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 1)
+    console.log('logs', logs)
+
+    expect(logs?.length).to.equal(1)
+    expect(logs?.[0].id).to.equal(String(Number(logId) + 2))
+    expect(logs?.[0].level).to.equal(newLogEntry.level)
+    expect(logs?.[0].message).to.equal(newLogEntry.message)
+  })
+
+  it('should save a log in the database when a log.logMessageWithEmoji is called', async () => {
+    const newLogEntry = {
+      timestamp: Date.now(),
+      level: 'info',
+      message: `logMessageWithEmoji: Test log message ${Date.now()}`,
+      meta: 'Test meta information'
+    }
+    // Trigger a log event which should be saved in the database
+    logger.logMessageWithEmoji(newLogEntry.message)
+
+    // Wait for the log to be written to the database
+    await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay to allow log to be processed
+
+    // Define the time frame for the log retrieval
+    const startTime = new Date(Date.now() - 10000) // 10 seconds ago
+    const endTime = new Date() // current time
+
+    // Retrieve the latest log entry
+    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 1)
+    console.log('logs', logs)
+
+    expect(logs?.length).to.equal(1)
+    expect(logs?.[0].id).to.equal(String(Number(logId) + 3))
+    expect(logs?.[0].level).to.equal(newLogEntry.level)
+    assert(logs?.[0].message)
   })
 })
