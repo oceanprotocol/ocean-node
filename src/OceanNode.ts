@@ -16,6 +16,7 @@ import {
 import express, { Express } from 'express'
 import swaggerUi from 'swagger-ui-express'
 import { httpRoutes } from './components/httpRoutes/index.js'
+import fs from 'fs'
 
 const app: Express = express()
 
@@ -28,9 +29,6 @@ export class OceanNode {
   private config: OceanNodeConfig
   private oceanNode: any
   public constructor(config: OceanNodeConfig) {
-    if (!this.validateEnv()) {
-      return null
-    }
     this.config = config
     this.oceanNode = Promise.resolve(this.main()).then((node) => {
       return node
@@ -64,44 +62,30 @@ export class OceanNode {
     return this.oceanNode
   }
 
-  public validateEnv(): boolean {
-    const privateKey = process.env.PRIVATE_KEY
-    if (!privateKey || privateKey.length !== 66) {
-      // invalid private key
-      logger.logMessageWithEmoji(
-        'Invalid PRIVATE_KEY env variable..',
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEl_ERROR
-      )
-      return false
+  // we have 5 json examples
+  // we should have some DDO class too
+  public loadInitialDDOS(): any[] {
+    const ddos: any[] = []
+    const dir: string = './data/'
+    console.log('LOADING initial', dir)
+    for (let i = 1; i < 6; i++) {
+      const fileName = `${dir}DDO_example_${i}.json`
+      console.log(fileName)
+      try {
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        const rawData = fs.readFileSync(fileName, 'utf8')
+        const jsonData = JSON.parse(rawData)
+        ddos.push(jsonData)
+      } catch (err) {
+        console.log(err)
+      }
     }
-
-    if (!process.env.IPFS_GATEWAY) {
-      logger.logMessageWithEmoji(
-        'Invalid IPFS_GATEWAY env variable..',
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEl_ERROR
-      )
-      return false
-    }
-
-    if (!process.env.ARWEAVE_GATEWAY) {
-      logger.logMessageWithEmoji(
-        'Invalid ARWEAVE_GATEWAY env variable..',
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEl_ERROR
-      )
-      return false
-    }
-    return true
+    return ddos
   }
 
   public async main() {
     const config = this.getConfig()
-    let node = null
+    let node: OceanP2P = null
     let indexer = null
     let provider = null
     const dbconn = await new Database(config.dbConfig)
@@ -122,7 +106,21 @@ export class OceanNode {
       node = new OceanP2P(dbconn, config)
       await node.start()
     }
-    if (config.hasIndexer) indexer = new OceanIndexer(dbconn)
+    if (config.hasIndexer) {
+      indexer = new OceanIndexer(dbconn)
+      // if we set this var
+      // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
+      // store and advertise DDOs
+      if (process.env.LOAD_INITIAL_DDOS) {
+        const list = this.loadInitialDDOS()
+        if (list.length > 0) {
+          // we need a timeout here, otherwise we have no peers available
+          setTimeout(() => {
+            node.storeAndAdvertiseDDOS(list)
+          }, 3000)
+        }
+      }
+    }
     if (config.hasProvider) provider = new OceanProvider(dbconn)
 
     return {
