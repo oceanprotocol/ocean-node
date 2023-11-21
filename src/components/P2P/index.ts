@@ -1,8 +1,5 @@
 import diff from 'hyperdiff'
-
 import { P2PCommandResponse } from '../../@types/index'
-// const diff = require("hyperdiff")
-//  const diff = diffx as any
 import EventEmitter from 'node:events'
 import clone from 'lodash.clonedeep'
 
@@ -15,8 +12,6 @@ import {
   handleDirectProtocolCommand
 } from './handlers.js'
 
-// import { encoding } from './connection'
-// import * as directConnection from './direct-connection-handler'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 
 import { bootstrap } from '@libp2p/bootstrap'
@@ -53,7 +48,6 @@ import {
   getCustomLoggerForModule,
   getLoggerLevelEmoji
 } from '../../utils/logging/Logger.js'
-import { status } from '../core/statusHandler.js'
 
 // just use the default logger with default transports
 // Bellow is just an example usage, only logging to console here
@@ -479,7 +473,7 @@ export class OceanP2P extends EventEmitter {
     try {
       let count = 0
       P2P_CONSOLE_LOGGER.logMessage(
-        `trying to store and advertise ${list.length} initial DDOS`,
+        `Trying to store and advertise ${list.length} initial DDOS`,
         true
       )
       const db = this.getDatabase().ddo
