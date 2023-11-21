@@ -9,7 +9,10 @@ import {
   getDefaultLevel
 } from '../../utils/logging/Logger.js'
 
-import { validateCommandAPIParameters } from './validateCommands.js'
+import {
+  validateBroadcastParameters,
+  validateCommandAPIParameters
+} from './validateCommands.js'
 
 export const broadcastCommandRoute = express.Router()
 
@@ -19,16 +22,17 @@ const logger: CustomNodeLogger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.HT
 
 broadcastCommandRoute.post(
   '/broadcastCommand',
-  express.urlencoded({ extended: true }),
+  express.json(),
   async (req: Request, res: Response): Promise<void> => {
-    if (!req.query.message) {
-      res.status(400).send('Missing query parameter: "message" is mandatory')
+    const validate = validateBroadcastParameters(req.body)
+    if (!validate.valid) {
+      res.status(validate.status).send(validate.reason)
       return
     }
 
-    logger.log(getDefaultLevel(), `broadcastCommand received ${req.query.message}`, true)
+    logger.log(getDefaultLevel(), `broadcastCommand received ${req.body}`, true)
 
-    await req.oceanNode.node.broadcast(req.query.message)
+    await req.oceanNode.node.broadcast(JSON.stringify(req.body))
     res.sendStatus(200)
   }
 )
