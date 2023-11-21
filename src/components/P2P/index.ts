@@ -478,7 +478,10 @@ export class OceanP2P extends EventEmitter {
   async storeAndAdvertiseDDOS(list: any[]): Promise<boolean> {
     try {
       let count = 0
-      console.log(`trying to store and advertise ${list.length} initial DDOS`)
+      P2P_CONSOLE_LOGGER.logMessage(
+        `trying to store and advertise ${list.length} initial DDOS`,
+        true
+      )
       const db = this.getDatabase().ddo
       const peerId = this.getPeerId()
       list.forEach(async (ddo: any) => {
@@ -495,7 +498,11 @@ export class OceanP2P extends EventEmitter {
           })
           count++
         } catch (e) {
-          console.log(e)
+          P2P_CONSOLE_LOGGER.log(
+            LOG_LEVELS_STR.LEVEl_ERROR,
+            `Caught "${e.message}" on storeAndAdvertiseDDOS()`,
+            true
+          )
         }
       })
       if (count > 0) {
@@ -503,7 +510,11 @@ export class OceanP2P extends EventEmitter {
       }
       return count === list.length
     } catch (err) {
-      console.log(err)
+      P2P_CONSOLE_LOGGER.log(
+        LOG_LEVELS_STR.LEVEl_ERROR,
+        `Caught "${err.message}" on storeAndAdvertiseDDOS()`,
+        true
+      )
       return false
     }
   }

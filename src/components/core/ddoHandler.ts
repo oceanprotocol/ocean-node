@@ -64,6 +64,23 @@ export function hasCachedDDO(node: OceanP2P, task: FindDDOCommand): boolean {
   }
   return false
 }
+
+// 1st result is allways the most recent
+function sortFindDDOResults(resultList: FindDDOResponse[]): FindDDOResponse[] {
+  if (resultList.length > 0) {
+    return resultList.sort((a: FindDDOResponse, b: FindDDOResponse) => {
+      const dateA = new Date(a.lastUpdateTime)
+      const dateB = new Date(b.lastUpdateTime)
+      if (dateB > dateA) {
+        return 1
+      } else if (dateB < dateA) {
+        return -1
+      }
+      return 0
+    })
+  }
+  return resultList
+}
 /**
  * Get the DDO list from list of available providers (including self)
  * @param task the findDDO command task
@@ -150,28 +167,11 @@ export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse>
     }
     // end sink
 
-    // 1st result is allways the most recent
-    const sortedResults = function (): FindDDOResponse[] {
-      if (resultList.length > 0) {
-        return resultList.sort((a: FindDDOResponse, b: FindDDOResponse) => {
-          const dateA = new Date(a.lastUpdateTime)
-          const dateB = new Date(b.lastUpdateTime)
-          if (dateB > dateA) {
-            return 1
-          } else if (dateB < dateA) {
-            return -1
-          }
-          return 0
-        })
-      }
-      return resultList
-    }
-
     // if something goes really bad then exit after 60 secs
     const fnTimeout = setTimeout(() => {
       console.log('FindDDO Timeout reached: ')
       return {
-        stream: Readable.from(JSON.stringify(sortedResults(), null, 4)),
+        stream: Readable.from(JSON.stringify(sortFindDDOResults(resultList), null, 4)),
         status: { httpStatus: 200 }
       }
     }, 1000 * MAX_RESPONSE_WAIT_TIME_SECONDS)
@@ -253,14 +253,14 @@ export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse>
         // house cleaning
         clearTimeout(fnTimeout)
         return {
-          stream: Readable.from(JSON.stringify(sortedResults(), null, 4)),
+          stream: Readable.from(JSON.stringify(sortFindDDOResults(resultList), null, 4)),
           status: { httpStatus: 200 }
         }
       } else {
         // could empty list
         clearTimeout(fnTimeout)
         return {
-          stream: Readable.from(JSON.stringify(sortedResults(), null, 4)),
+          stream: Readable.from(JSON.stringify(sortFindDDOResults(resultList), null, 4)),
           status: { httpStatus: 200 }
         }
       }
@@ -268,7 +268,7 @@ export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse>
       // could be empty list
       clearTimeout(fnTimeout)
       return {
-        stream: Readable.from(JSON.stringify(sortedResults(), null, 4)),
+        stream: Readable.from(JSON.stringify(sortFindDDOResults(resultList), null, 4)),
         status: { httpStatus: 200 }
       }
     }
