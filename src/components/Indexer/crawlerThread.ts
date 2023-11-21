@@ -63,7 +63,6 @@ export async function proccesNetworkData(): Promise<void> {
             startBlock,
             blocksToProcess
           )
-
           parentPort.postMessage({
             method: 'store-last-indexed-block',
             network: rpcDetails.chainId,

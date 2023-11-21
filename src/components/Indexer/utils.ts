@@ -1,6 +1,7 @@
 import { ethers } from 'ethers'
+import localAdressFile from '@oceanprotocol/contracts/addresses/address.json'
 import fs from 'fs'
-import { EVENTS, EVENT_HASHES, addressFile as localAdressFile } from '../../utils/'
+import { EVENTS, EVENT_HASHES } from '../../utils/'
 import { BlocksEvents, NetworkEvent, ProcessingEvents } from '../../@types/blockchain.js'
 import {
   CustomNodeLogger,
@@ -47,7 +48,8 @@ export const processBlocks = async (
   try {
     const blockLogs = await provider.getLogs({
       fromBlock: startIndex,
-      toBlock: startIndex + count
+      toBlock: startIndex + count,
+      topics: Object.keys(EVENT_HASHES)
     })
 
     const events = await processChunkLogs(blockLogs, provider)
