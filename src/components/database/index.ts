@@ -27,10 +27,15 @@ export class DdoDatabase {
 
   async search(query: Record<string, any>) {
     try {
-      return await this.provider
-        .collections(this.schemas[0].name)
-        .documents()
-        .search(query as TypesenseSearchParams)
+      const results = []
+      for (const schema of this.schemas) {
+        const result = await this.provider
+          .collections(schema.name)
+          .documents()
+          .search(query as TypesenseSearchParams)
+        results.push(result)
+      }
+      return results
     } catch (error) {
       return null
     }
