@@ -316,12 +316,20 @@ export class CustomNodeLogger {
     message: string,
     includeModuleName: boolean = false
   ) {
-    this.getLogger().log(level, includeModuleName ? this.buildMessage(message) : message)
+    this.getLogger().log(
+      level,
+      includeModuleName ? this.buildMessage(message) : message,
+      { moduleName: this.getModuleName().toUpperCase() }
+    )
   }
 
   logMessage(message: string, includeModuleName: boolean = false) {
     const level = this.getLoggerLevel() || getDefaultLevel()
-    this.getLogger().log(level, includeModuleName ? this.buildMessage(message) : message)
+    this.getLogger().log(
+      level,
+      includeModuleName ? this.buildMessage(message) : message,
+      { moduleName: this.getModuleName().toUpperCase() }
+    )
   }
 
   // supports emoji :-)? Experimental, might not work properly on some transports
@@ -344,7 +352,7 @@ export class CustomNodeLogger {
       msg = getLoggerLevelEmoji(this.getLoggerLevel()).concat(' ').concat(msg)
     }
 
-    this.getLogger().log(level, msg)
+    this.getLogger().log(level, msg, { moduleName: this.getModuleName().toUpperCase() })
   }
 
   // prefix the message with the module/component name (optional)
@@ -414,6 +422,7 @@ export class CustomOceanNodesTransport extends Transport {
     const document = {
       level: info.level,
       message: info.message,
+      moduleName: info.moduleName || 'undefined',
       timestamp: Date.now(), // Storing the current timestamp as a Unix epoch timestamp (number)
       meta: JSON.stringify(info.meta) // Ensure meta is a string
     }

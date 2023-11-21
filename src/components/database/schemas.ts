@@ -32,6 +32,7 @@ export const schemas: Schemas = {
       { name: 'timestamp', type: 'int64', sort: true },
       { name: 'level', type: 'string' },
       { name: 'message', type: 'string' },
+      { name: 'moduleName', type: 'string', optional: true },
       { name: 'meta', type: 'string', optional: true }
     ]
   }
