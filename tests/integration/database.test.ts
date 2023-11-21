@@ -164,6 +164,7 @@ describe('LogDatabase CRUD', () => {
     timestamp: Date.now(),
     level: 'info',
     message: `Test log message ${Date.now()}`,
+    moduleName: 'testModule-1',
     meta: 'Test meta information'
   }
   let logId: string // Variable to store the ID of the created log entry
@@ -175,6 +176,7 @@ describe('LogDatabase CRUD', () => {
     database = await new Database(dbConfig)
     // Initialize logger with the custom transport that writes to the LogDatabase
     const customLogTransport = new CustomOceanNodesTransport({ dbInstance: database })
+
     logger = getCustomLoggerForModule(
       LOGGER_MODULE_NAMES.HTTP,
       LOG_LEVELS_STR.LEVEL_INFO, // Info level
@@ -185,17 +187,23 @@ describe('LogDatabase CRUD', () => {
 
   it('insert log', async () => {
     const result = await database.logs.insertLog(logEntry)
-    console.log('insert log', result)
-    expect(result).to.include.keys('id', 'timestamp', 'level', 'message', 'meta')
+    expect(result).to.include.keys(
+      'id',
+      'timestamp',
+      'level',
+      'message',
+      'moduleName',
+      'meta'
+    )
     logId = result?.id // Save the auto-generated id for further operations
   })
 
   it('retrieve log', async () => {
     const result = await database.logs.retrieveLog(logId)
-    console.log('result', result)
     expect(result?.id).to.equal(logId)
     expect(result?.level).to.equal(logEntry.level)
     expect(result?.message).to.equal(logEntry.message)
+    expect(result?.moduleName).to.equal(logEntry.moduleName)
     expect(result?.meta).to.equal(logEntry.meta)
   })
 
@@ -203,8 +211,7 @@ describe('LogDatabase CRUD', () => {
     const newLogEntry = {
       timestamp: Date.now(),
       level: 'info',
-      message: `NEW Test log message ${Date.now()}`,
-      meta: 'Test meta information'
+      message: `NEW Test log message ${Date.now()}`
     }
     // Trigger a log event which should be saved in the database
     logger.log(newLogEntry.level, newLogEntry.message)
@@ -218,12 +225,12 @@ describe('LogDatabase CRUD', () => {
 
     // Retrieve the latest log entry
     const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 1)
-    console.log('logs', logs)
 
     expect(logs?.length).to.equal(1)
     expect(logs?.[0].id).to.equal(String(Number(logId) + 1))
     expect(logs?.[0].level).to.equal(newLogEntry.level)
     expect(logs?.[0].message).to.equal(newLogEntry.message)
+    expect(logs?.[0].moduleName).to.equal('HTTP')
   })
 
   it('should save a log in the database when a log.logMessage is called', async () => {
@@ -231,6 +238,7 @@ describe('LogDatabase CRUD', () => {
       timestamp: Date.now(),
       level: 'info',
       message: `logMessage: Test log message ${Date.now()}`,
+      moduleName: 'testModule-3',
       meta: 'Test meta information'
     }
     // Trigger a log event which should be saved in the database
@@ -245,12 +253,12 @@ describe('LogDatabase CRUD', () => {
 
     // Retrieve the latest log entry
     const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 1)
-    console.log('logs', logs)
 
     expect(logs?.length).to.equal(1)
     expect(logs?.[0].id).to.equal(String(Number(logId) + 2))
     expect(logs?.[0].level).to.equal(newLogEntry.level)
     expect(logs?.[0].message).to.equal(newLogEntry.message)
+    expect(logs?.[0].moduleName).to.equal('HTTP')
   })
 
   it('should save a log in the database when a log.logMessageWithEmoji is called', async () => {
@@ -258,6 +266,7 @@ describe('LogDatabase CRUD', () => {
       timestamp: Date.now(),
       level: 'info',
       message: `logMessageWithEmoji: Test log message ${Date.now()}`,
+      moduleName: 'testModule-4',
       meta: 'Test meta information'
     }
     // Trigger a log event which should be saved in the database
@@ -272,11 +281,11 @@ describe('LogDatabase CRUD', () => {
 
     // Retrieve the latest log entry
     const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 1)
-    console.log('logs', logs)
 
     expect(logs?.length).to.equal(1)
     expect(logs?.[0].id).to.equal(String(Number(logId) + 3))
     expect(logs?.[0].level).to.equal(newLogEntry.level)
     assert(logs?.[0].message)
+    expect(logs?.[0].moduleName).to.equal('HTTP')
   })
 })
