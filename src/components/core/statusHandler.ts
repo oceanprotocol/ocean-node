@@ -12,7 +12,6 @@ import {
   defaultConsoleTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
-import { Blockchain } from '../../utils/blockchain.js'
 import { getConfig } from '../../utils/index.js'
 import { Command } from '../../utils/constants.js'
 import { Readable } from 'stream'
@@ -56,29 +55,20 @@ export async function status(nodeId?: string): Promise<OceanNodeStatus> {
   status.address = config.keys.ethAddress
   status.http = config.hasHttp
   status.p2p = config.hasP2P
-  const blockchain = new Blockchain(JSON.parse(process.env.RPCS), config.keys)
-  const supportedChains = blockchain.getSupportedChains()
-  status.provider = supportedChains.map((chain) => {
-    const provider: OceanNodeProvider = {
-      chainId: undefined,
-      network: undefined
-    }
-    provider.chainId = chain
-    provider.network = blockchain.getNetworkNameByChainId(chain)
-    return provider
-  })
-  status.indexer = supportedChains.map((chain) => {
-    const indexer: OceanNodeIndexer = {
-      chainId: undefined,
-      network: undefined,
-      block: undefined
-    }
-    indexer.chainId = chain
-    indexer.network = blockchain.getNetworkNameByChainId(chain)
-    indexer.block = '0'
-    return indexer
-  })
 
+  for (const [key, supportedNetwork] of Object.entries(config.supportedNetworks)) {
+    const provider: OceanNodeProvider = {
+      chainId: key,
+      network: supportedNetwork.network
+    }
+    status.provider.push(provider)
+    const indexer: OceanNodeIndexer = {
+      chainId: key,
+      network: supportedNetwork.network,
+      block: '0'
+    }
+    status.indexer.push(indexer)
+  }
   return status
 }
 

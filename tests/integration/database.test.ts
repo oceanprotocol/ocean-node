@@ -120,31 +120,26 @@ describe('IndexerDatabase CRUD', () => {
   })
 
   it('create indexer', async () => {
-    const result = await database.indexer.create({
-      id: 'chain1',
-      last_block: 0
-    })
-    expect(result.id).to.equal('chain1')
-    expect(result.last_block).to.equal(0)
+    const result = await database.indexer.create(1, 0)
+    expect(result.id).to.equal('1')
+    expect(result.lastIndexedBlock).to.equal(0)
   })
 
   it('retrieve indexer', async () => {
-    const result = await database.indexer.retrieve('chain1')
-    expect(result.id).to.equal('chain1')
-    expect(result.last_block).to.equal(0)
+    const result = await database.indexer.retrieve(1)
+    expect(result.id).to.equal('1')
+    expect(result.lastIndexedBlock).to.equal(0)
   })
 
   it('update indexer', async () => {
-    const result = await database.indexer.update('chain1', {
-      last_block: 1
-    })
-    expect(result.id).to.equal('chain1')
-    expect(result.last_block).to.equal(1)
+    const result = await database.indexer.update(1, 1)
+    expect(result.id).to.equal('1')
+    expect(result.lastIndexedBlock).to.equal(1)
   })
 
   it('delete indexer', async () => {
-    const result = await database.indexer.delete('chain1')
-    expect(result.id).to.equal('chain1')
-    expect(result.last_block).to.equal(1)
+    const result = await database.indexer.delete(1)
+    expect(result.id).to.equal('1')
+    expect(result.lastIndexedBlock).to.equal(1)
   })
 })
