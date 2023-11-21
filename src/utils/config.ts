@@ -12,6 +12,7 @@ import {
   getCustomLoggerForModule,
   GENERIC_EMOJIS
 } from '../utils/logging/Logger.js'
+import { Wallet } from 'ethers'
 
 const CONFIG_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.CONFIG,
@@ -27,7 +28,7 @@ export async function getPeerIdFromPrivateKey(
   )
   const id: PeerId = await createFromPrivKey(key)
   CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
-    'Starting node with peerID:' + id,
+    'Starting node with peerID: ' + id,
     true,
     GENERIC_EMOJIS.EMOJI_CHECK_MARK
   )
@@ -41,7 +42,8 @@ export async function getPeerIdFromPrivateKey(
     // when getting the peer details with 'peerIdFromString(peerName)' it returns the version with the 4 extra bytes
     // and we also need to send that to the client, so he can uncompress the public key correctly and perform the check and the encryption
     // so it would make more sense to use this value on the configuration
-    privateKey: (key as any)._key
+    privateKey: (key as any)._key,
+    ethAddress: new Wallet(privateKey).address
   }
 }
 

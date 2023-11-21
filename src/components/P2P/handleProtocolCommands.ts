@@ -1,19 +1,18 @@
 import { pipe } from 'it-pipe'
-import { Stream, Readable } from 'stream'
-import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
+import { Readable } from 'stream'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import StreamConcat from 'stream-concat'
 // export function handleProtocolCommands (sourceStream:any,sinkStream:any) {
 
-import * as fs from 'fs'
 import { handleDownloadURLCommand } from '../core/downloadHandler.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { P2PCommandResponse } from '../../@types/OceanNode'
+import { P2PCommandResponse } from '../../@types'
 
 import { P2P_CONSOLE_LOGGER } from './index.js'
-import { handleGetDdoCommand } from '../core/ddoHandler.js'
+import { handleGetDdoCommand, findDDO } from '../core/ddoHandler.js'
 import { getNonce } from '../core/nonceHandler.js'
 import { handleQueryCommand } from '../core/queryHandler.js'
+import { handleStatusCommand } from '../core/statusHandler.js'
 
 export class ReadableString extends Readable {
   private sent = false
@@ -77,9 +76,14 @@ export async function handleProtocolCommands(connection: any) {
       case PROTOCOL_COMMANDS.NONCE:
         response = await getNonce(task.address)
         break
+      case PROTOCOL_COMMANDS.STATUS:
+        response = await handleStatusCommand(task)
+        break
+      case PROTOCOL_COMMANDS.FIND_DDO:
+        response = await findDDO(task)
+        break
       default:
         status = { httpStatus: 501, error: 'Unknown command' }
-        break
     }
 
     if (response) {
@@ -130,6 +134,12 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
       break
     case PROTOCOL_COMMANDS.NONCE:
       response = await getNonce(task.address)
+      break
+    case PROTOCOL_COMMANDS.STATUS:
+      response = await handleStatusCommand(task)
+      break
+    case PROTOCOL_COMMANDS.FIND_DDO:
+      response = await findDDO(task)
       break
     default:
       status = { httpStatus: 501, error: 'Unknown command' }

@@ -6,7 +6,14 @@ export type ValidateParams = {
   reason?: string
   status?: number
 }
-// TODO add others when we add support
+
+export function validateBroadcastParameters(requestBody: any): ValidateParams {
+  // for now we can use the same validation function,
+  // but later we might need to have separate validation functions
+  // if we many different commands of each type
+  return validateCommandAPIParameters(requestBody)
+}
+// add others when we add support
 export function validateCommandAPIParameters(requestBody: any): ValidateParams {
   // eslint-disable-next-line prefer-destructuring
   const command: string = requestBody.command as string
@@ -18,6 +25,7 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
       status: 400
     }
   }
+  // direct commands
   if (SUPPORTED_PROTOCOL_COMMANDS.includes(command)) {
     // downloadURL
     if (command === PROTOCOL_COMMANDS.DOWNLOAD_URL) {
@@ -37,6 +45,15 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
       // nothing special with this one
       return {
         valid: true
+      }
+    } else if (command === PROTOCOL_COMMANDS.FIND_DDO) {
+      // message is DDO identifier
+      if (!requestBody.id || !requestBody.id.startsWith('did:op')) {
+        return {
+          valid: false,
+          reason: 'Missing or invalid required parameter: "id"',
+          status: 400
+        }
       }
       // nonce
     } else if (command === PROTOCOL_COMMANDS.NONCE) {

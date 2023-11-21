@@ -1,8 +1,5 @@
 import diff from 'hyperdiff'
-
 import { P2PCommandResponse } from '../../@types/index'
-// const diff = require("hyperdiff")
-//  const diff = diffx as any
 import EventEmitter from 'node:events'
 import clone from 'lodash.clonedeep'
 
@@ -11,21 +8,14 @@ import {
   handlePeerConnect,
   handlePeerDiscovery,
   handlePeerDisconnect,
-  handlePeerJoined,
-  handlePeerLeft,
-  handleSubscriptionCHange,
   handleProtocolCommands,
   handleDirectProtocolCommand
 } from './handlers.js'
 
-// import { encoding } from './connection'
-// import * as directConnection from './direct-connection-handler'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
-import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 
 import { bootstrap } from '@libp2p/bootstrap'
 import { noise } from '@chainsafe/libp2p-noise'
-import { plaintext } from 'libp2p/insecure'
 import { mdns } from '@libp2p/mdns'
 import { mplex } from '@libp2p/mplex'
 import { yamux } from '@chainsafe/libp2p-yamux'
@@ -42,13 +32,12 @@ import { autoNATService } from 'libp2p/autonat'
 import { uPnPNATService } from 'libp2p/upnp-nat'
 
 import { kadDHT } from '@libp2p/kad-dht'
-import type { PubSub } from '@libp2p/interface/pubsub'
 import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 
 import { cidFromRawString } from '../../utils/index.js'
 import { Stream, Transform } from 'stream'
 import { Database } from '../database'
-import { OceanNodeConfig } from '../../@types/OceanNode'
+import { OceanNodeConfig, FindDDOResponse } from '../../@types/OceanNode'
 
 import {
   CustomNodeLogger,
@@ -56,7 +45,8 @@ import {
   LOGGER_MODULE_NAMES,
   LOG_LEVELS_STR,
   defaultConsoleTransport,
-  getCustomLoggerForModule
+  getCustomLoggerForModule,
+  getLoggerLevelEmoji
 } from '../../utils/logging/Logger.js'
 
 // just use the default logger with default transports
@@ -69,6 +59,13 @@ export const P2P_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
+}
+// we might want this configurable
+export const CACHE_TTL = 1000 * 60 * 5 // 5 minutes
+type DDOCache = {
+  // when last updated cache
+  updated: number
+  dht: Map<string, FindDDOResponse>
 }
 
 let index = 0
@@ -84,6 +81,7 @@ export class OceanP2P extends EventEmitter {
   _publicKey: Uint8Array
   _privateKey: Uint8Array
   _analyzeRemoteResponse: Transform
+  private _ddoDHT: DDOCache
   private _handleMessage: any
   private _interval: NodeJS.Timeout
   private _idx: number
@@ -93,6 +91,10 @@ export class OceanP2P extends EventEmitter {
     super()
     this.db = db
     this._config = config
+    this._ddoDHT = {
+      updated: new Date().getTime(),
+      dht: new Map<string, FindDDOResponse>()
+    }
   }
 
   async start(options: any = null) {
@@ -186,7 +188,8 @@ export class OceanP2P extends EventEmitter {
             maxOutboundStreams: config.p2pConfig.dhtMaxOutboundStreams,
 
             clientMode: false, // this should be true for edge devices
-            kBucketSize: 20
+            kBucketSize: 20,
+            protocolPrefix: '/ocean/nodes/1.0.0'
             // randomWalk: {
             //  enabled: true,            // Allows to disable discovery (enabled by default)
             //  interval: 300e3,
@@ -271,8 +274,13 @@ export class OceanP2P extends EventEmitter {
   }
 
   async broadcast(_message: any) {
-    console.log('Broadcasting')
-    console.log(_message)
+    P2P_CONSOLE_LOGGER.logMessage('Broadcasting:', true)
+    P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+      _message,
+      true,
+      getLoggerLevelEmoji(LOG_LEVELS_STR.LEVEL_INFO),
+      LOG_LEVELS_STR.LEVEL_INFO
+    )
     const message = encoding(_message)
     await this._libp2p.services.pubsub.publish(this._topic, message)
   }
@@ -405,26 +413,26 @@ export class OceanP2P extends EventEmitter {
   }
 
   async advertiseDid(did: string) {
-    console.log('Advertising ' + did)
+    P2P_CONSOLE_LOGGER.logMessage('Advertising ' + did, true)
     try {
       const x = this._peers.length
       if (x > 0) {
         const cid = await cidFromRawString(did)
-        const x = await this._libp2p.contentRouting.provide(cid)
-        console.log(x)
+        await this._libp2p.contentRouting.provide(cid)
       }
     } catch (e) {
       console.log(e)
     }
-    // console.log(CID.toString())
   }
 
   async getProvidersForDid(did: string) {
-    console.log('Fetching providers for ' + did)
+    P2P_CONSOLE_LOGGER.logMessage('Fetching providers for ' + did, true)
     const cid = await cidFromRawString(did)
     const peersFound = []
     try {
-      const f = this._libp2p.contentRouting.findProviders(cid, { queryFuncTimeout: 5000 })
+      const f = await this._libp2p.contentRouting.findProviders(cid, {
+        queryFuncTimeout: 5000
+      })
       for await (const value of f) {
         peersFound.push(value)
       }
@@ -440,11 +448,69 @@ export class OceanP2P extends EventEmitter {
    * @returns true if the message is intended for this peer, false otherwise
    */
   isTargetPeerSelf(targetPeerID: string): boolean {
-    return targetPeerID === this._config.keys.peerId.toString()
+    return targetPeerID === this.getPeerId()
+  }
+
+  getPeerId(): string {
+    return this._config.keys.peerId.toString()
   }
 
   getDatabase(): Database {
     return this.db
+  }
+
+  getDDOCache(): DDOCache {
+    return this._ddoDHT
+  }
+
+  /**
+   * Goes through some dddo list list and tries to store and avertise
+   * @param list the initial list
+   * @param node the node
+   * @returns  boolean from counter
+   */
+  async storeAndAdvertiseDDOS(list: any[]): Promise<boolean> {
+    try {
+      let count = 0
+      P2P_CONSOLE_LOGGER.logMessage(
+        `Trying to store and advertise ${list.length} initial DDOS`,
+        true
+      )
+      const db = this.getDatabase().ddo
+      const peerId = this.getPeerId()
+      list.forEach(async (ddo: any) => {
+        // if already added before, create() will return null, but still advertise it
+        try {
+          await db.create(ddo)
+          await this.advertiseDid(ddo.id)
+          // populate hash table
+          this._ddoDHT.dht.set(ddo.id, {
+            id: ddo.id,
+            lastUpdateTx: ddo.event.tx, // check if we're getting these from the right place
+            lastUpdateTime: ddo.metadata.updated,
+            provider: peerId
+          })
+          count++
+        } catch (e) {
+          P2P_CONSOLE_LOGGER.log(
+            LOG_LEVELS_STR.LEVEl_ERROR,
+            `Caught "${e.message}" on storeAndAdvertiseDDOS()`,
+            true
+          )
+        }
+      })
+      if (count > 0) {
+        this._ddoDHT.updated = new Date().getTime()
+      }
+      return count === list.length
+    } catch (err) {
+      P2P_CONSOLE_LOGGER.log(
+        LOG_LEVELS_STR.LEVEl_ERROR,
+        `Caught "${err.message}" on storeAndAdvertiseDDOS()`,
+        true
+      )
+      return false
+    }
   }
 }
 

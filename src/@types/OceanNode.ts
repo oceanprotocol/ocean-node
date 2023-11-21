@@ -13,6 +13,7 @@ export interface OceanNodeKeys {
   peerId: PeerId
   publicKey: any
   privateKey: any
+  ethAddress: string
 }
 
 export interface OceanNodeP2PConfig {
@@ -51,4 +52,39 @@ export interface OceanNode {
 export interface P2PCommandResponse {
   status: any
   stream: Stream | null
+}
+
+export interface OceanNodeProvider {
+  chainId: string
+  network: string
+}
+
+export interface OceanNodeIndexer {
+  chainId: string
+  network: string
+  block?: string // mark it as optional until the functionality is done
+}
+
+export interface OceanNodeStatus {
+  id: string
+  publicKey: string
+  address: string
+  version: string
+  http: boolean
+  p2p: boolean
+  provider: OceanNodeProvider[]
+  indexer: OceanNodeIndexer[]
+}
+
+export interface P2PBroadcastResponse {
+  command: string // original broadcast command
+  message: any // original broadcast message
+  response: any // the actual response to the original command and message
+}
+
+export interface FindDDOResponse {
+  provider: string
+  id: string
+  lastUpdateTx: string
+  lastUpdateTime: string
 }
