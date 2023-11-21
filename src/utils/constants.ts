@@ -2,14 +2,10 @@
 export const PROTOCOL_COMMANDS = {
   DOWNLOAD_URL: 'downloadURL',
   ECHO: 'echo',
-  NONCE: 'nonce',
   GET_DDO: 'getDDO',
+  NONCE: 'nonce',
+  STATUS: 'status',
   FIND_DDO: 'findDDO'
-}
-
-export interface BroadcastCommand {
-  command: string // the name of the command
-  message: any // the message to broadcast
 }
 
 export interface Command {
@@ -34,10 +30,17 @@ export interface NonceCommand extends Command {
   address: string // consumer address
 }
 
+export interface BroadcastCommand {
+  command: string // the name of the command
+  message: any // the message to broadcast
+}
+
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.DOWNLOAD_URL,
   PROTOCOL_COMMANDS.ECHO,
   PROTOCOL_COMMANDS.NONCE,
   PROTOCOL_COMMANDS.GET_DDO,
+  PROTOCOL_COMMANDS.NONCE,
+  PROTOCOL_COMMANDS.STATUS,
   PROTOCOL_COMMANDS.FIND_DDO
 ]

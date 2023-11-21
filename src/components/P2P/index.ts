@@ -53,6 +53,7 @@ import {
   getCustomLoggerForModule,
   getLoggerLevelEmoji
 } from '../../utils/logging/Logger.js'
+import { status } from '../core/statusHandler.js'
 
 // just use the default logger with default transports
 // Bellow is just an example usage, only logging to console here
