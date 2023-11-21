@@ -44,7 +44,7 @@ export async function getPeerIdFromPrivateKey(
     // and we also need to send that to the client, so he can uncompress the public key correctly and perform the check and the encryption
     // so it would make more sense to use this value on the configuration
     privateKey: (key as any)._key,
-    ethAddress: new Wallet(privateKey).address
+    ethAddress: new Wallet(privateKey.substring(2)).address
   }
 }
 

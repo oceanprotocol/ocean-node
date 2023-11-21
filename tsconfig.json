@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "module": "ES2022",
+    "module": "esnext",
     "target": "ES2022",
     "noImplicitAny": true,
     "removeComments": true,

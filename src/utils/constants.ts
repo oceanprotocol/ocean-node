@@ -51,7 +51,7 @@ export const EVENT_HASHES: Hashes = {
     type: EVENTS.METADATA_CREATED,
     text: 'MetadataCreated(address,uint8,string,bytes,bytes,bytes32,uint256,uint256)'
   },
-  '0x5848120529d1b6790a99b0f336a9f57a128442e79375621646d2614747217f3': {
+  '0xaf0b9caa897afc5b9f6208c36ea2c50351f8e088b4bee51440a1330d05eb2e8a': {
     type: EVENTS.METADATA_UPDATED,
     text: 'MetadataUpdated(address,uint8,string,bytes,bytes,bytes32,uint256,uint256)'
   },

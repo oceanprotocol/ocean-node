@@ -1,7 +1,7 @@
 import { ethers } from 'ethers'
-import localAdressFile from '@oceanprotocol/contracts/addresses/address.json'
+import localAdressFile from '@oceanprotocol/contracts/addresses/address.json' assert { type: 'json' }
 import fs from 'fs'
-import { EVENTS, EVENT_HASHES } from '../../utils/'
+import { EVENTS, EVENT_HASHES } from '../../utils/index.js'
 import { BlocksEvents, NetworkEvent, ProcessingEvents } from '../../@types/blockchain.js'
 import {
   CustomNodeLogger,
@@ -10,6 +10,8 @@ import {
   defaultConsoleTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
+
+type Topic = `0x${string & { length: 64 }}`
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
@@ -46,12 +48,14 @@ export const processBlocks = async (
   count: number
 ): Promise<ProcessingEvents> => {
   try {
+    const eventHashes = Object.keys(EVENT_HASHES)
+    const topics: Topic[] = eventHashes as Topic[]
     const blockLogs = await provider.getLogs({
       fromBlock: startIndex,
       toBlock: startIndex + count,
-      topics: Object.keys(EVENT_HASHES)
+      topics
     })
-
+    console.log('blockLogs ', blockLogs)
     const events = await processChunkLogs(blockLogs, provider)
 
     return {
@@ -59,6 +63,7 @@ export const processBlocks = async (
       foundEvents: events
     }
   } catch (error) {
+    console.error('error == ', error)
     throw new Error('error processing chunk of blocks events')
   }
 }

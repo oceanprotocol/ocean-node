@@ -7,7 +7,7 @@ import {
   LOG_LEVELS_STR,
   defaultConsoleTransport,
   getCustomLoggerForModule
-} from '../../utils/logging/Logger'
+} from '../../utils/logging/Logger.js'
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
