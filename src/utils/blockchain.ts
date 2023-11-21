@@ -32,6 +32,7 @@ export class Blockchain {
   }
 
   public getNetworkNameByChainId(chainId: string): string {
+    // TODO - change me in indexer logic
     let networkName: string
     const addressFile = JSON.parse(
       // eslint-disable-next-line security/detect-non-literal-fs-filename
