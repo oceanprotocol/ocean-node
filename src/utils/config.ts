@@ -28,7 +28,7 @@ export async function getPeerIdFromPrivateKey(
   )
   const id: PeerId = await createFromPrivKey(key)
   CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
-    'Starting node with peerID:' + id,
+    'Starting node with peerID: ' + id,
     true,
     GENERIC_EMOJIS.EMOJI_CHECK_MARK
   )
