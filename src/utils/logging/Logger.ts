@@ -12,7 +12,8 @@ export const LOGGER_MODULE_NAMES = {
   PROVIDER: 'provider',
   DATABASE: 'database',
   CONFIG: 'config',
-  ALL_COMBINED: 'all'
+  ALL_COMBINED: 'all',
+  CORE: 'core'
 }
 
 // we can setup custom exceptionHandlers as part of initial config options
