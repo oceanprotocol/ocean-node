@@ -3,7 +3,8 @@ export const PROTOCOL_COMMANDS = {
   DOWNLOAD_URL: 'downloadURL',
   ECHO: 'echo',
   GET_DDO: 'getDDO',
-  NONCE: 'nonce'
+  NONCE: 'nonce',
+  STATUS: 'status'
 }
 
 export interface Command {
@@ -28,5 +29,6 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.DOWNLOAD_URL,
   PROTOCOL_COMMANDS.ECHO,
   PROTOCOL_COMMANDS.GET_DDO,
-  PROTOCOL_COMMANDS.NONCE
+  PROTOCOL_COMMANDS.NONCE,
+  PROTOCOL_COMMANDS.STATUS
 ]
