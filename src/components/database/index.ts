@@ -1,6 +1,7 @@
 import { OceanNodeDBConfig } from '../../@types/OceanNode'
 import { convertTypesenseConfig, Typesense, TypesenseError } from './typesense.js'
 import { Schema, schemas } from './schemas.js'
+import { logger } from '../../index'
 
 export class DdoDatabase {
   private provider: Typesense
@@ -210,20 +211,17 @@ export class LogDatabase {
       this.provider = new Typesense(convertTypesenseConfig(this.config.url))
       try {
         await this.provider.collections(this.schema.name).retrieve()
-        console.log(`Schema for '${this.schema.name}' collection already exists.`)
+        logger.log('info', `Schema for '${this.schema.name}' collection already exists.`)
       } catch (error) {
         if (error instanceof TypesenseError && error.httpStatus === 404) {
-          console.log(`Creating schema for '${this.schema.name}' collection.`)
+          logger.log('info', `Creating schema for '${this.schema.name}' collection.`)
           try {
-            const createdSchema = await this.provider.collections().create(this.schema)
-            console.log(
-              `Schema created for '${this.schema.name}' collection:`,
-              createdSchema
-            )
+            await this.provider.collections().create(this.schema)
+            logger.log('info', `Schema created for '${this.schema.name}' collection:`)
           } catch (creationError) {
-            console.error(
-              `Error creating schema for '${this.schema.name}' collection:`,
-              creationError
+            logger.log(
+              'info',
+              `Error creating schema for '${this.schema.name}' collection: '${creationError}'`
             )
           }
         }

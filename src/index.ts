@@ -24,7 +24,7 @@ import { RPCS } from './@types/blockchain.js'
 // Bellow is just an example usage, only logging to console here, we can customize any transports
 // we could create just one logger per module/component, and export/import it between files of the same component/module
 // we can also have different log levels, going to different files
-const logger: CustomNodeLogger = getCustomLoggerForModule(
+export const logger: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.HTTP,
   LOG_LEVELS_STR.LEVEL_INFO, // Info level
   defaultConsoleTransport // console only Transport
