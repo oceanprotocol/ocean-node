@@ -1,4 +1,4 @@
-import { OceanNodeConfig } from './@types'
+import { OceanNodeConfig, OceanNodeType } from './@types'
 import { OceanP2P } from './components/P2P/index.js'
 import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
@@ -17,6 +17,13 @@ import { httpRoutes } from './components/httpRoutes/index.js'
 import fs from 'fs'
 
 const app: Express = express()
+declare global {
+  namespace Express {
+    interface Request {
+      oceanNode: OceanNodeType
+    }
+  }
+}
 
 const logger: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.HTTP,
@@ -25,15 +32,13 @@ const logger: CustomNodeLogger = getCustomLoggerForModule(
 )
 export class OceanNode {
   private config: OceanNodeConfig
-  private oceanNode: any
+  private node: OceanNodeType
   public constructor(config: OceanNodeConfig) {
     this.config = config
-    this.oceanNode = Promise.resolve(this.main()).then((node) => {
-      return node
-    })
+    this.init()
     if (this.config.hasHttp) {
       app.use((req, res, next) => {
-        req.oceanNode = this.oceanNode
+        req.oceanNode = this.node
         next()
       })
       app.use(
@@ -52,12 +57,17 @@ export class OceanNode {
     }
   }
 
+  private async init(): Promise<void> {
+    const oceanNode = await this.main()
+    this.node = oceanNode
+  }
+
   public getConfig(): OceanNodeConfig {
     return this.config
   }
 
-  public getOceanNode(): any {
-    return this.oceanNode
+  public getNode(): OceanNodeType {
+    return this.node
   }
 
   // we have 5 json examples
@@ -81,7 +91,7 @@ export class OceanNode {
     return ddos
   }
 
-  public async main() {
+  public async main(): Promise<OceanNodeType> {
     const config = this.getConfig()
     let node: OceanP2P = null
     let indexer = null
@@ -117,11 +127,11 @@ export class OceanNode {
       }
     }
     if (config.hasProvider) provider = new OceanProvider(dbconn)
-
-    return {
+    const oceanNode: OceanNodeType = {
       node,
       indexer,
       provider
     }
+    return oceanNode
   }
 }

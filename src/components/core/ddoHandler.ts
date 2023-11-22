@@ -5,17 +5,19 @@ import {
 } from '../../utils/constants.js'
 import { FindDDOResponse, P2PCommandResponse } from '../../@types'
 import { Readable } from 'stream'
-import OceanNodeInstance from '../../index.js'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { CACHE_TTL, OceanP2P, P2P_CONSOLE_LOGGER } from '../P2P/index.js'
 import { sleep } from '../../utils/util.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { OceanNode } from '../../OceanNode.js'
+import { getConfig } from '../../utils/index.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
 const MAX_RESPONSE_WAIT_TIME_SECONDS = 60
 // wait time for reading the next getDDO command
 const MAX_WAIT_TIME_SECONDS_GET_DDO = 5
+const oceanNode = new OceanNode(await getConfig())
 
 export async function handleGetDdoCommand(
   task: GetDdoCommand
@@ -90,7 +92,7 @@ export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse>
   try {
     let updatedCache = false
     // this node
-    const { node } = await OceanNodeInstance
+    const { node } = await oceanNode.getNode()
     // result list
     const resultList: FindDDOResponse[] = []
     // if we have the result cached recently we return that result

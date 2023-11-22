@@ -3,7 +3,6 @@ import { OceanProvider } from '../components/Provider/index'
 import { OceanIndexer } from '../components/Indexer/index'
 import type { PeerId } from '@libp2p/interface/peer-id'
 import { Stream } from 'stream'
-import { Blockchain } from '../utils/blockchain'
 import { RPCS } from './blockchain'
 
 export interface OceanNodeDBConfig {
@@ -44,7 +43,7 @@ export interface OceanNodeConfig {
   supportedNetworks: RPCS
 }
 
-export interface OceanNode {
+export interface OceanNodeType {
   node: OceanP2P | null
   indexer: OceanIndexer | null
   provider: OceanProvider | null
