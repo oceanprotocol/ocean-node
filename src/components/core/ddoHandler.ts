@@ -9,7 +9,7 @@ import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { CACHE_TTL, OceanP2P, P2P_CONSOLE_LOGGER } from '../P2P/index.js'
 import { sleep } from '../../utils/util.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { OceanNode } from '../../OceanNode.js'
+import { OceanNode } from '../../index.js'
 import { getConfig } from '../../utils/index.js'
 
 const MAX_NUM_PROVIDERS = 5

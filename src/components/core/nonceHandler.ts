@@ -1,5 +1,5 @@
 import { P2PCommandResponse } from '../../@types/index.js'
-import { OceanNode } from '../../OceanNode.js'
+import { OceanNode } from '../../index.js'
 import { getConfig } from '../../utils/index.js'
 
 import {

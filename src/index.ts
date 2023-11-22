@@ -91,7 +91,7 @@ export class OceanNode {
     return ddos
   }
 
-  public async main(): Promise<OceanNodeType> {
+  private async main(): Promise<OceanNodeType> {
     const config = this.getConfig()
     let node: OceanP2P = null
     let indexer = null
