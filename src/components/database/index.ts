@@ -2,6 +2,7 @@ import { OceanNodeDBConfig } from '../../@types/OceanNode'
 import { convertTypesenseConfig, Typesense, TypesenseError } from './typesense.js'
 import { Schema, schemas } from './schemas.js'
 import { logger } from '../../index'
+import { TypesenseSearchParams } from '../../@types'
 
 export class DdoDatabase {
   private provider: Typesense
@@ -23,6 +24,22 @@ export class DdoDatabase {
       }
       return this
     })() as unknown as DdoDatabase
+  }
+
+  async search(query: Record<string, any>) {
+    try {
+      const results = []
+      for (const schema of this.schemas) {
+        const result = await this.provider
+          .collections(schema.name)
+          .documents()
+          .search(query as TypesenseSearchParams)
+        results.push(result)
+      }
+      return results
+    } catch (error) {
+      return null
+    }
   }
 
   async create(ddo: Record<string, any>) {
