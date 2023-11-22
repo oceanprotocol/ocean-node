@@ -99,7 +99,8 @@ async function main() {
   oceanNode = {
     node,
     indexer,
-    provider
+    provider,
+    db: dbconn
   }
   if (config.hasHttp) {
     app.use((req, res, next) => {
