@@ -2,7 +2,7 @@ import { OceanP2P } from './components/P2P/index.js'
 import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
 import { Database } from './components/database/index.js'
-import express, { Express, Request, Response } from 'express'
+import express, { Express } from 'express'
 import { OceanNode } from './@types/index.js'
 import swaggerUi from 'swagger-ui-express'
 import { httpRoutes } from './components/httpRoutes/index.js'
@@ -10,16 +10,12 @@ import { getConfig } from './utils/index.js'
 
 import {
   CustomNodeLogger,
-  GENERIC_EMOJIS,
   LOGGER_MODULE_NAMES,
   LOG_LEVELS_STR,
   defaultConsoleTransport,
   getCustomLoggerForModule
 } from './utils/logging/Logger.js'
-import { Blockchain } from './utils/blockchain.js'
-import { RPCS } from './@types/blockchain.js'
 import fs from 'fs'
-import path from 'path'
 
 // just use the default logger with default transports
 // Bellow is just an example usage, only logging to console here, we can customize any transports
@@ -74,26 +70,13 @@ async function main() {
   let indexer = null
   let provider = null
   const dbconn = await new Database(config.dbConfig)
-  if (!process.env.RPCS || !JSON.parse(process.env.RPCS)) {
-    // missing or invalid RPC list
-    logger.logMessageWithEmoji(
-      'Missing or Invalid RPCS env variable format ..',
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEl_ERROR
-    )
-    return
-  }
-  const supportedNetworks: RPCS = JSON.parse(process.env.RPCS)
-  logger.logMessage(`supportedNetworks: ${process.env.RPCS}`)
-  const blockchain = new Blockchain(supportedNetworks, config.keys)
   // console.log('signer', blockchainHelper.getSigner())
   if (config.hasP2P) {
     node = new OceanP2P(dbconn, config)
     await node.start()
   }
   if (config.hasIndexer) {
-    indexer = new OceanIndexer(dbconn)
+    indexer = new OceanIndexer(dbconn, config.supportedNetworks)
     // if we set this var
     // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
     // store and advertise DDOs
@@ -113,8 +96,7 @@ async function main() {
   oceanNode = {
     node,
     indexer,
-    provider,
-    blockchain
+    provider
   }
   if (config.hasHttp) {
     app.use((req, res, next) => {

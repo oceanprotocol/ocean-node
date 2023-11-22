@@ -12,6 +12,7 @@ import {
   getCustomLoggerForModule,
   GENERIC_EMOJIS
 } from '../utils/logging/Logger.js'
+import { RPCS } from '../@types/blockchain'
 import { Wallet } from 'ethers'
 
 const CONFIG_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
@@ -43,7 +44,7 @@ export async function getPeerIdFromPrivateKey(
     // and we also need to send that to the client, so he can uncompress the public key correctly and perform the check and the encryption
     // so it would make more sense to use this value on the configuration
     privateKey: (key as any)._key,
-    ethAddress: new Wallet(privateKey).address
+    ethAddress: new Wallet(privateKey.substring(2)).address
   }
 }
 
@@ -56,6 +57,21 @@ function getIntEnvValue(env: any, defaultValue: number) {
   /* Gets int value for an ENV var, returning defaultValue if not defined */
   const num = parseInt(env, 10)
   return isNaN(num) ? defaultValue : num
+}
+
+function getSupportedChains(): RPCS {
+  if (!process.env.RPCS || !JSON.parse(process.env.RPCS)) {
+    // missing or invalid RPC list
+    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+      'Missing or Invalid RPCS env variable format ..',
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEl_ERROR
+    )
+    return
+  }
+  const supportedNetworks: RPCS = JSON.parse(process.env.RPCS)
+  return supportedNetworks
 }
 
 export async function getConfig(): Promise<OceanNodeConfig> {
@@ -119,7 +135,8 @@ export async function getConfig(): Promise<OceanNodeConfig> {
     httpPort: getIntEnvValue(process.env.HTTP_API_PORT, 8000),
     dbConfig: {
       url: getEnvValue(process.env.DB_URL, 'http://localhost:8108/?apiKey=xyz')
-    }
+    },
+    supportedNetworks: getSupportedChains()
   }
   return config
 }

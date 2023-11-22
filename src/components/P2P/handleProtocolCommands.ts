@@ -11,6 +11,7 @@ import { P2PCommandResponse } from '../../@types'
 import { P2P_CONSOLE_LOGGER } from './index.js'
 import { handleGetDdoCommand, findDDO } from '../core/ddoHandler.js'
 import { getNonce } from '../core/nonceHandler.js'
+import { handleQueryCommand } from '../core/queryHandler.js'
 import { handleStatusCommand } from '../core/statusHandler.js'
 
 export class ReadableString extends Readable {
@@ -69,6 +70,9 @@ export async function handleProtocolCommands(connection: any) {
       case PROTOCOL_COMMANDS.GET_DDO:
         response = await handleGetDdoCommand.call(this, task)
         break
+      case PROTOCOL_COMMANDS.QUERY:
+        response = await handleQueryCommand.call(this, task)
+        break
       case PROTOCOL_COMMANDS.NONCE:
         response = await getNonce(task.address)
         break
@@ -124,6 +128,9 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
       break
     case PROTOCOL_COMMANDS.GET_DDO:
       response = await handleGetDdoCommand.call(this, task)
+      break
+    case PROTOCOL_COMMANDS.QUERY:
+      response = await handleQueryCommand.call(this, task)
       break
     case PROTOCOL_COMMANDS.NONCE:
       response = await getNonce(task.address)
