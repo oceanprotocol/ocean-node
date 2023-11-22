@@ -3,8 +3,6 @@ import { OceanP2P } from './components/P2P/index.js'
 import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
 import { Database } from './components/database/index.js'
-import { Blockchain } from './utils/blockchain.js'
-import { RPCS } from './@types/blockchain.js'
 import {
   CustomNodeLogger,
   GENERIC_EMOJIS,
@@ -99,15 +97,12 @@ export class OceanNode {
       )
       return
     }
-    const supportedNetworks: RPCS = JSON.parse(process.env.RPCS)
-    console.log('supportedNetworks', supportedNetworks)
-    const blockchain = new Blockchain(supportedNetworks, config.keys)
     if (config.hasP2P) {
       node = new OceanP2P(dbconn, config)
       await node.start()
     }
     if (config.hasIndexer) {
-      indexer = new OceanIndexer(dbconn)
+      indexer = new OceanIndexer(dbconn, config.supportedNetworks)
       // if we set this var
       // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
       // store and advertise DDOs
@@ -126,8 +121,7 @@ export class OceanNode {
     return {
       node,
       indexer,
-      provider,
-      blockchain
+      provider
     }
   }
 }
