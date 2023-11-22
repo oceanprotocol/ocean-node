@@ -15,7 +15,7 @@ import {
   LOG_LEVELS_STR,
   defaultConsoleTransport,
   getCustomLoggerForModule,
-  CustomOceanNodesTransport
+  newCustomDBTransport
 } from './utils/logging/Logger.js'
 import { Blockchain } from './utils/blockchain.js'
 import { RPCS } from './@types/blockchain.js'
@@ -72,7 +72,7 @@ async function main() {
   }
   if (config.hasIndexer) indexer = new OceanIndexer(dbconn)
   if (config.hasProvider) provider = new OceanProvider(dbconn)
-  const customLogTransport = new CustomOceanNodesTransport({ dbInstance: dbconn })
+  const customLogTransport = newCustomDBTransport(dbconn)
   logger.addTransport(customLogTransport)
 
   // global

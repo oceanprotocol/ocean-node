@@ -56,7 +56,8 @@ import {
   LOGGER_MODULE_NAMES,
   LOG_LEVELS_STR,
   defaultConsoleTransport,
-  getCustomLoggerForModule
+  getCustomLoggerForModule,
+  newCustomDBTransport
 } from '../../utils/logging/Logger.js'
 import { status } from '../core/statusHandler.js'
 
@@ -94,6 +95,8 @@ export class OceanP2P extends EventEmitter {
     super()
     this.db = db
     this._config = config
+    const customLogTransport = newCustomDBTransport(this.db)
+    P2P_CONSOLE_LOGGER.addTransport(customLogTransport)
   }
 
   async start(options: any = null) {

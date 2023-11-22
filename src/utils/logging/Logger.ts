@@ -439,3 +439,7 @@ export class CustomOceanNodesTransport extends Transport {
     callback()
   }
 }
+
+export function newCustomDBTransport(dbConnection: Database) {
+  return new CustomOceanNodesTransport({ dbInstance: dbConnection })
+}
