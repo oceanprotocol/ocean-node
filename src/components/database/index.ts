@@ -1,7 +1,6 @@
 import { OceanNodeDBConfig } from '../../@types/OceanNode'
 import { convertTypesenseConfig, Typesense, TypesenseError } from './typesense.js'
 import { Schema, schemas } from './schemas.js'
-import { logger } from '../../index'
 import { TypesenseSearchParams } from '../../@types'
 
 export class DdoDatabase {
@@ -245,18 +244,15 @@ export class LogDatabase {
       this.provider = new Typesense(convertTypesenseConfig(this.config.url))
       try {
         await this.provider.collections(this.schema.name).retrieve()
-        logger.log('info', `Schema for '${this.schema.name}' collection already exists.`)
       } catch (error) {
         if (error instanceof TypesenseError && error.httpStatus === 404) {
-          logger.log('info', `Creating schema for '${this.schema.name}' collection.`)
           try {
             await this.provider.collections().create(this.schema)
-            logger.log('info', `Schema created for '${this.schema.name}' collection:`)
           } catch (creationError) {
-            logger.log(
-              'info',
-              `Error creating schema for '${this.schema.name}' collection: '${creationError}'`
-            )
+            // logger.log(
+            // 'info',
+            // `Error creating schema for '${this.schema.name}' collection: '${creationError}'`
+            // )
           }
         }
       }
