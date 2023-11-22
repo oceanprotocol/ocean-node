@@ -23,7 +23,7 @@ export const schemas: Schemas = {
   indexerSchemas: {
     name: 'indexer',
     enable_nested_fields: true,
-    fields: [{ name: '.*', type: 'auto' }]
+    fields: [{ name: 'lastIndexedBlock', type: 'int64' }]
   },
   logSchemas: {
     name: 'logs',
