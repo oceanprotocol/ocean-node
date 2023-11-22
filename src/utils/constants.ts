@@ -5,6 +5,7 @@ export const PROTOCOL_COMMANDS = {
   DOWNLOAD_URL: 'downloadURL',
   ECHO: 'echo',
   GET_DDO: 'getDDO',
+  QUERY: 'query',
   NONCE: 'nonce',
   STATUS: 'status',
   FIND_DDO: 'findDDO'
@@ -22,6 +23,10 @@ export interface DownloadCommand extends Command {
 
 export interface GetDdoCommand extends Command {
   id: string
+}
+
+export interface QueryCommand extends Command {
+  query: Record<string, any>
 }
 
 export interface FindDDOCommand extends Command {
@@ -42,7 +47,7 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.ECHO,
   PROTOCOL_COMMANDS.NONCE,
   PROTOCOL_COMMANDS.GET_DDO,
-  PROTOCOL_COMMANDS.NONCE,
+  PROTOCOL_COMMANDS.QUERY,
   PROTOCOL_COMMANDS.STATUS,
   PROTOCOL_COMMANDS.FIND_DDO
 ]
