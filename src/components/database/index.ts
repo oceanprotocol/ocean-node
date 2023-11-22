@@ -254,16 +254,27 @@ export class LogDatabase {
   async retrieveMultipleLogs(
     startTime: Date,
     endTime: Date,
-    maxLogs: number
+    maxLogs: number,
+    moduleName?: string,
+    level?: string
   ): Promise<Record<string, any>[] | null> {
     try {
+      let filterConditions = `timestamp:>=${startTime.getTime()} && timestamp:<${endTime.getTime()}`
+      if (moduleName) {
+        filterConditions += ` && moduleName:${moduleName}`
+      }
+      if (level) {
+        filterConditions += ` && level:${level}`
+      }
+
       const searchParameters = {
         q: '*',
         query_by: 'message,level,meta',
-        filter_by: `timestamp:>=${startTime.getTime()} && timestamp:<${endTime.getTime()}`,
+        filter_by: filterConditions,
         sort_by: 'timestamp:desc',
         per_page: maxLogs
       }
+
       const result = await this.provider
         .collections(this.schema.name)
         .documents()
