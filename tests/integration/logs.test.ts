@@ -194,4 +194,63 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
       logs.every((log) => log.moduleName === moduleName && log.level === level)
     )
   })
+
+  it('should not retrieve logs when no logs match the moduleName', async () => {
+    const logs = await database.logs.retrieveMultipleLogs(
+      startTime,
+      endTime,
+      10,
+      'nonExistentModule'
+    )
+    assert.isEmpty(logs, 'Expected logs to be empty')
+  })
+
+  it('should not retrieve logs when no logs match the level', async () => {
+    const logs = await database.logs.retrieveMultipleLogs(
+      startTime,
+      endTime,
+      10,
+      undefined,
+      'nonExistentLevel'
+    )
+    assert.isEmpty(logs, 'Expected logs to be empty')
+  })
+
+  it('should return an error or empty result for invalid startTime and endTime', async () => {
+    const invalidTime = new Date('invalid date')
+    try {
+      const logs = await database.logs.retrieveMultipleLogs(invalidTime, invalidTime, 10)
+      assert.isEmpty(logs, 'Expected logs to be empty')
+    } catch (error) {
+      assert(error, 'Expected an error for invalid date inputs')
+    }
+  })
+
+  it('should return an empty array for negative maxLogs', async () => {
+    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, -1)
+    assert.isNull(logs, 'Expected logs to be null')
+  })
+
+  it('should retrieve a maximum of one log when maxLogs is set to 1', async () => {
+    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 1)
+    expect(logs).to.have.lengthOf(1)
+  })
+
+  it('should retrieve no logs when maxLogs is set to 0', async () => {
+    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 0)
+    assert.isEmpty(logs, 'Expected logs to be empty')
+  })
+
+  // Performance test
+  it('should perform within acceptable limits', async function () {
+    this.timeout(5000) // Extend default Mocha test timeout
+
+    const startPerfTime = process.hrtime()
+    await database.logs.retrieveMultipleLogs(startTime, endTime, 10)
+    const endPerfTime = process.hrtime(startPerfTime)
+
+    // Convert [seconds, nanoseconds] to milliseconds
+    const elapsedTimeInMs = endPerfTime[0] * 1000 + endPerfTime[1] / 1e6
+    expect(elapsedTimeInMs).to.be.below(1000) // threshold
+  })
 })
