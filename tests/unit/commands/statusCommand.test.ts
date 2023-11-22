@@ -1,6 +1,6 @@
-import { OceanNode } from '../../src/index.js'
+import { OceanNode } from '../../../src/index.js'
 import { expect } from 'chai'
-import { getConfig } from '../../src/utils/index.js'
+import { getConfig } from '../../../src/utils/index.js'
 
 describe('Status command tests', async () => {
   let oceanNode: OceanNode
