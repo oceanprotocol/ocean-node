@@ -25,13 +25,4 @@ describe('Status command tests', () => {
       '80001': 'https://rpc-mumbai.maticvigil.com'
     })
   })
-
-  // it('should get config successfully', () => {
-  //   expect(oceanNode.getConfig().keys.privateKey).to.eql(config.keys.privateKey)
-  //   expect(oceanNode.getConfig().supportedNetworks).to.eql({
-  //     '1': 'https://rpc.eth.gateway.fm',
-  //     '137': 'https://polygon.meowrpc.com',
-  //     '80001': 'https://rpc-mumbai.maticvigil.com'
-  //   })
-  // })
 })
