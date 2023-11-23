@@ -1,5 +1,5 @@
-import { QueryCommand } from '../../utils/constants'
-import { P2PCommandResponse } from '../../@types'
+import { QueryCommand } from '../../utils/constants.js'
+import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
 
 export async function handleQueryCommand(

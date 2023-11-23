@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 import { DownloadCommand } from '../../utils/constants.js'
-import { OceanNodeConfig, P2PCommandResponse } from '../../@types'
+import { OceanNodeConfig, P2PCommandResponse } from '../../@types/OceanNode.js'
 import fs from 'fs'
 import { P2P_CONSOLE_LOGGER } from '../P2P/index.js'
 import * as ethCrypto from 'eth-crypto'

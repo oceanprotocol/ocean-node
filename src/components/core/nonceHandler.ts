@@ -11,7 +11,7 @@ import {
 import { ReadableString } from '../P2P/handleProtocolCommands.js'
 import { NonceDatabase } from '../database/index.js'
 import { ethers } from 'ethers'
-import OceanNodeInstance from '../../index.js'
+import { OceanNodeInstance } from '../../index.js'
 
 export const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.DATABASE,

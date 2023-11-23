@@ -5,7 +5,7 @@ import {
 } from '../../utils/constants.js'
 import { FindDDOResponse, P2PCommandResponse } from '../../@types'
 import { Readable } from 'stream'
-import OceanNodeInstance from '../../index.js'
+import { OceanNodeInstance } from '../../index.js'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { CACHE_TTL, OceanP2P, P2P_CONSOLE_LOGGER } from '../P2P/index.js'
 import { sleep } from '../../utils/util.js'
