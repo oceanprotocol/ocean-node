@@ -49,4 +49,4 @@ fi
 # Make API call to retrieve logs
 curl -G "$API_URL/logs" \
      -H "Content-Type: application/json" \
-     "${DATA[@]}"
+     "${DATA[@]}" | jq

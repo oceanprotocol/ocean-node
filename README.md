@@ -140,7 +140,7 @@ npm run check-nonce
 
 (Purpose: for checking nonce tracking flow. This last one requires DB up and running)
 
-## Log Retrieval
+## Log Retrieval using HTTP
 
 ### Get Multiple Logs
 
@@ -212,3 +212,29 @@ GET /log/123456789
 ```
 
 If the log with the given ID is not found, you will receive a `404 Not Found` response. For server errors, you will receive a `500 Internal Server Error` response.
+
+## Log Retrieval Using Script
+
+The logging system provides a convenient way to retrieve logs via a command-line script. The script is capable of fetching logs with various filters, such as start time, end time, maximum number of logs, module name, and log level.
+
+**Usage**
+You can call the script directly from your command line with optional parameters to filter the logs. The parameters are as follows:
+
+- `API_URL`: The URL of the logs API endpoint. Defaults to http://localhost:8000.
+- `START_TIME`: The start time for the logs you want to retrieve. Defaults to 24 hours before the current time.
+- `END_TIME`: The end time for the logs you want to retrieve. Defaults to the current time.
+- `MAX_LOGS`: The maximum number of logs to retrieve. Defaults to 100.
+- `MODULE_NAME`: The specific module name to filter the logs. Optional.
+- `LEVEL`: The specific log level to filter the logs. Optional.
+
+**Example Without Parameters (Uses Defaults):**
+
+```bash
+npm run logs
+```
+
+**Example With Specific Parameters:**
+
+```
+npm run logs http://localhost:8000 "2023-11-01T00:00:00Z" "2023-11-30T23:59:59Z" 50 "http" "info"
+```
