@@ -43,12 +43,6 @@ export interface OceanNodeConfig {
   supportedNetworks: RPCS
 }
 
-export interface OceanNodeType {
-  node: OceanP2P | null
-  indexer: OceanIndexer | null
-  provider: OceanProvider | null
-}
-
 export interface P2PCommandResponse {
   status: any
   stream: Stream | null

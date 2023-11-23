@@ -19,7 +19,7 @@ export const getOceanPeersRoute = express.Router()
 getOceanPeersRoute.get(
   '/getOceanPeers',
   async (req: Request, res: Response): Promise<void> => {
-    const peers = await req.oceanNode.node.getPeers()
+    const peers = await req.oceanNode.getP2PNode().getPeers()
     customLogger.log(getDefaultLevel(), `getOceanPeers: ${peers}`, true)
     res.json(peers)
   }
@@ -29,7 +29,7 @@ export const getP2PPeersRoute = express.Router()
 getP2PPeersRoute.get(
   '/getP2PPeers',
   async (req: Request, res: Response): Promise<void> => {
-    const peers = await req.oceanNode.node.getAllPeerStore()
+    const peers = await req.oceanNode.getP2PNode().getAllPeerStore()
     res.json(peers)
   }
 )
@@ -43,7 +43,9 @@ getP2PPeersRoute.get(
       res.sendStatus(400)
       return
     }
-    const peers = await req.oceanNode.node.getPeerDetails(String(req.query.peerId))
+    const peers = await req.oceanNode
+      .getP2PNode()
+      .getPeerDetails(String(req.query.peerId))
     res.json(peers)
   }
 )

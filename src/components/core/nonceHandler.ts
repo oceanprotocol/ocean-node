@@ -1,6 +1,4 @@
 import { P2PCommandResponse } from '../../@types/index.js'
-import { OceanNode } from '../../index.js'
-import { getConfig } from '../../utils/index.js'
 
 import {
   CustomNodeLogger,
@@ -13,13 +11,14 @@ import {
 import { ReadableString } from '../P2P/handleProtocolCommands.js'
 import { NonceDatabase } from '../database/index.js'
 import { ethers } from 'ethers'
+import OceanNodeInstance from '../../index.js'
 
 export const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.DATABASE,
   LOG_LEVELS_STR.LEVEL_INFO,
   defaultConsoleTransport
 )
-const oceanNode = new OceanNode(await getConfig())
+
 function getDefaultErrorResponse(errorMessage: string): P2PCommandResponse {
   return {
     stream: null,
@@ -50,7 +49,7 @@ export type NonceResponse = {
 // get stored nonce for an address ( 0 if not found)
 export async function getNonce(address: string): Promise<P2PCommandResponse> {
   // get nonce from db
-  const db: NonceDatabase = (await oceanNode.getNode().node).getDatabase().nonce
+  const db: NonceDatabase = (await OceanNodeInstance.getP2PNode()).getDatabase().nonce
   try {
     const nonce = await db.retrieve(address)
     if (nonce !== null) {
@@ -84,7 +83,7 @@ export async function getNonce(address: string): Promise<P2PCommandResponse> {
 async function updateNonce(address: string, nonce: number): Promise<NonceResponse> {
   try {
     // update nonce on db
-    const db = (await oceanNode.getNode().node).getDatabase().nonce
+    const db = (await OceanNodeInstance.getP2PNode()).getDatabase().nonce
     // it will create if none exists yet
     const resp = await db.update(address, nonce)
     return {
@@ -114,7 +113,7 @@ export async function checkNonce(
   try {
     // get nonce from db
     let previousNonce = 0 // if none exists
-    const db: NonceDatabase = (await oceanNode.getNode().node).getDatabase().nonce
+    const db: NonceDatabase = (await OceanNodeInstance.getP2PNode()).getDatabase().nonce
     const existingNonce = await db.retrieve(consumer)
     if (existingNonce !== null) {
       previousNonce = existingNonce.nonce
