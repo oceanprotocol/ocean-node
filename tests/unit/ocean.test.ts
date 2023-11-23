@@ -4,8 +4,6 @@ import { getConfig } from '../../src/utils/index.js'
 import { expect } from 'chai'
 
 describe('Status command tests', async () => {
-  const config = await getConfig()
-  const oceanNode = new OceanNode(config)
   before(() => {
     // dummy private key from barge
     process.env.PRIVATE_KEY =
@@ -15,6 +13,8 @@ describe('Status command tests', async () => {
     process.env.RPCS =
       '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com", "80001": "https://rpc-mumbai.maticvigil.com" }'
   })
+  const config = await getConfig()
+  const oceanNode = new OceanNode(config)
 
   it('Ocean Node instance', () => {
     expect(oceanNode).to.be.instanceOf(OceanNode)
