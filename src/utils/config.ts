@@ -1,4 +1,4 @@
-import type { OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
+import type { OceanNodeConfig, OceanNodeKeys } from '../@types/oceanNode.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
 import { hexStringToByteArray } from '../utils/index.js'
@@ -12,7 +12,7 @@ import {
   getCustomLoggerForModule,
   GENERIC_EMOJIS
 } from '../utils/logging/Logger.js'
-import { RPCS } from '../@types/blockchain'
+import { RPCS } from '../@types/blockchain.js'
 import { Wallet } from 'ethers'
 
 const CONFIG_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(

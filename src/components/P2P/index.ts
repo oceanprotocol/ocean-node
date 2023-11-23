@@ -1,5 +1,9 @@
 import diff from 'hyperdiff'
-import { P2PCommandResponse } from '../../@types/index'
+import {
+  P2PCommandResponse,
+  OceanNodeConfig,
+  FindDDOResponse
+} from '../../@types/oceanNode.js'
 import EventEmitter from 'node:events'
 import clone from 'lodash.clonedeep'
 
@@ -36,8 +40,7 @@ import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 
 import { cidFromRawString } from '../../utils/index.js'
 import { Stream, Transform } from 'stream'
-import { Database } from '../database'
-import { OceanNodeConfig, FindDDOResponse } from '../../@types/OceanNode'
+import { Database } from '../database/index.js'
 
 import {
   CustomNodeLogger,

@@ -9,7 +9,7 @@
     "build:tsc": "tsc --sourceMap",
     "client": "mkdir -p ./dist/helpers/scripts/output && node dist/helpers/scripts/clientExample.js",
     "clean": "rm -rf ./dist/ ./doc/ ./.nyc_output",
-    "start": "node --trace-warnings --experimental-specifier-resolution=node dist/index.js",
+    "start": "node --trace-warnings --experimental-specifier-resolution=node --experimental-json-modules dist/index.js",
     "lint": "eslint --ignore-path .gitignore --ext .ts,.tsx . && npm run type-check",
     "lint:fix": "eslint --ignore-path .gitignore --ext .ts,.tsx . --fix",
     "format": "prettier --parser typescript --ignore-path .gitignore --write '**/*.{js,jsx,ts,tsx}'",
