@@ -2,7 +2,7 @@ import {
   TypesenseAbstractLogger,
   TypesenseConfigOptions,
   TypesenseNode
-} from '../../@types/Typesense.js'
+} from '../../@types'
 
 /**
  * TypesenseConfig class is used to specify configuration parameters for Typesense

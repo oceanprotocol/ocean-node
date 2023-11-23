@@ -1,4 +1,4 @@
-import { TypesenseNode } from '../../@types/Typesense.js'
+import { TypesenseNode } from '../../@types'
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios'
 import { setTimeout } from 'timers/promises'
 import { TypesenseConfig } from './typesenseConfig.js'

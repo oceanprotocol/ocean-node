@@ -1,4 +1,4 @@
-import { Hashes } from '../@types/blockchain.js'
+import { Hashes } from '../@types/blockchain'
 
 // Add all the supported commands
 export const PROTOCOL_COMMANDS = {

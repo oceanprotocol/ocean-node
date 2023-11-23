@@ -1,5 +1,5 @@
 import express, { Request, Response } from 'express'
-import { P2PCommandResponse } from '../../@types/oceanNode.js'
+import { P2PCommandResponse } from '../../@types'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 
 import {

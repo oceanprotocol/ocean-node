@@ -27,6 +27,9 @@ const logger: CustomNodeLogger = getCustomLoggerForModule(
   defaultConsoleTransport // console only Transport
 )
 
+const config = await getConfig()
+const oceanNode = new OceanNode(config)
+
 const app: Express = express()
 // const port = getRandomInt(6000,6500)
 
@@ -60,8 +63,6 @@ function loadInitialDDOS(): any[] {
 }
 
 async function main(): Promise<OceanNode> {
-  const config = await getConfig()
-  const oceanNode = new OceanNode(config)
   console.log('\n\n\n\n')
   if (!config) process.exit(1)
   let node: OceanP2P = null
@@ -118,4 +119,5 @@ async function main(): Promise<OceanNode> {
  * Get the oceanNode instance
  * @returns oceanNode object
  */
-export const OceanNodeInstance = await main()
+const OceanNodeInstance = await main()
+export default OceanNodeInstance

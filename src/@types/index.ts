@@ -1,2 +1,2 @@
-export * from './oceanNode'
+export * from './OceanNode'
 export * from './Typesense'

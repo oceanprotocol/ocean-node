@@ -1,7 +1,7 @@
 import { OceanP2P } from './components/P2P/index.js'
 import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
-import { OceanNodeConfig } from './@types/oceanNode.js'
+import { OceanNodeConfig } from './@types'
 
 export class OceanNode {
   private config: OceanNodeConfig

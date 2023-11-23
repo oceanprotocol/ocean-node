@@ -1,6 +1,6 @@
 import { Worker } from 'node:worker_threads'
-import { Database } from '../database/index.js'
-import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
+import { Database } from '../database'
+import { RPCS, SupportedNetwork } from '../../@types/blockchain'
 import {
   CustomNodeLogger,
   LOGGER_MODULE_NAMES,
