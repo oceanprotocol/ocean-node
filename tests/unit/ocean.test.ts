@@ -3,7 +3,7 @@ import { getConfig } from '../../src/utils/index.js'
 
 import { expect } from 'chai'
 
-describe('Status command tests', async () => {
+describe('Status command tests', () => {
   before(() => {
     // dummy private key from barge
     process.env.PRIVATE_KEY =
@@ -13,14 +13,11 @@ describe('Status command tests', async () => {
     process.env.RPCS =
       '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com", "80001": "https://rpc-mumbai.maticvigil.com" }'
   })
-  const config = await getConfig()
-  const oceanNode = new OceanNode(config)
 
-  it('Ocean Node instance', () => {
+  it('Ocean Node instance', async () => {
+    const config = await getConfig()
+    const oceanNode = new OceanNode(config)
     expect(oceanNode).to.be.instanceOf(OceanNode)
-  })
-
-  it('should get config successfully', () => {
     expect(oceanNode.getConfig().keys.privateKey).to.eql(config.keys.privateKey)
     expect(oceanNode.getConfig().supportedNetworks).to.eql({
       '1': 'https://rpc.eth.gateway.fm',
@@ -28,4 +25,13 @@ describe('Status command tests', async () => {
       '80001': 'https://rpc-mumbai.maticvigil.com'
     })
   })
+
+  // it('should get config successfully', () => {
+  //   expect(oceanNode.getConfig().keys.privateKey).to.eql(config.keys.privateKey)
+  //   expect(oceanNode.getConfig().supportedNetworks).to.eql({
+  //     '1': 'https://rpc.eth.gateway.fm',
+  //     '137': 'https://polygon.meowrpc.com',
+  //     '80001': 'https://rpc-mumbai.maticvigil.com'
+  //   })
+  // })
 })
