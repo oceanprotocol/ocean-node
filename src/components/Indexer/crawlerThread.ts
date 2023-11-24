@@ -60,6 +60,7 @@ export async function proccesNetworkData(): Promise<void> {
         try {
           const processedBlocks = await processBlocks(
             provider,
+            rpcDetails.chainId,
             startBlock,
             blocksToProcess
           )

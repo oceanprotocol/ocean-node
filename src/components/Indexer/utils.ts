@@ -1,5 +1,7 @@
-import { ethers } from 'ethers'
+import { ethers, getAddress } from 'ethers'
 import localAdressFile from '@oceanprotocol/contracts/addresses/address.json' assert { type: 'json' }
+import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
+import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import fs from 'fs'
 import { EVENTS, EVENT_HASHES } from '../../utils/index.js'
 import { BlocksEvents, NetworkEvent, ProcessingEvents } from '../../@types/blockchain.js'
@@ -10,6 +12,7 @@ import {
   defaultConsoleTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
+import { processMetadataCreatedEvent } from './eventProcessor.js'
 
 type Topic = `0x${string & { length: 64 }}`
 
@@ -44,6 +47,7 @@ export const getNetworkHeight = async (provider: ethers.Provider) => {
 
 export const processBlocks = async (
   provider: ethers.Provider,
+  network: number,
   startIndex: number,
   count: number
 ): Promise<ProcessingEvents> => {
@@ -55,8 +59,7 @@ export const processBlocks = async (
       toBlock: startIndex + count,
       topics
     })
-    console.log('blockLogs ', blockLogs)
-    const events = await processChunkLogs(blockLogs, provider)
+    const events = await processChunkLogs(blockLogs, provider, network)
 
     return {
       lastBlock: startIndex + count,
@@ -80,7 +83,8 @@ function findEventByKey(keyToFind: string): NetworkEvent {
 
 export const processChunkLogs = async (
   logs: readonly ethers.Log[],
-  provider?: ethers.Provider
+  provider: ethers.Provider,
+  chainId: number
 ): Promise<BlocksEvents> => {
   const storeEvents: BlocksEvents = {}
   if (logs.length > 0) {
@@ -96,7 +100,12 @@ export const processChunkLogs = async (
           'METADATA_CREATED || METADATA_UPDATED || METADATA_STATE   -- ',
           true
         )
-        storeEvents[event.type] = await processMetadataEvents()
+        storeEvents[event.type] = await processMetadataEvents(
+          log,
+          event.type,
+          provider,
+          chainId
+        )
       } else if (event && event.type === EVENTS.EXCHANGE_CREATED) {
         INDEXER_LOGGER.logMessage('-- EXCHANGE_CREATED -- ', true)
         storeEvents[event.type] = await procesExchangeCreated()
@@ -117,8 +126,19 @@ export const processChunkLogs = async (
   return {}
 }
 
-const processMetadataEvents = async (): Promise<string> => {
-  return 'METADATA_CREATED'
+const processMetadataEvents = async (
+  log: ethers.Log,
+  eventType: string,
+  provider: ethers.Provider,
+  chainId: number
+): Promise<any> => {
+  if (eventType === EVENTS.METADATA_CREATED) {
+    try {
+      return await processMetadataCreatedEvent(log, chainId, provider)
+    } catch (e) {
+      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error proccessing metadata: ${e}`)
+    }
+  }
 }
 
 const procesExchangeCreated = async (): Promise<string> => {
@@ -135,4 +155,40 @@ const procesOrderStarted = async (): Promise<string> => {
 
 const processTokenUriUpadate = async (): Promise<string> => {
   return 'TOKEN_URI_UPDATE'
+}
+
+export const getNFTContract = (
+  provider: ethers.Provider,
+  address: string
+): ethers.Contract => {
+  address = getAddress(address)
+  return getContract(provider, 'ERC721Template', address)
+}
+
+export const getNFTFactory = (
+  provider: ethers.Provider,
+  address: string
+): ethers.Contract => {
+  address = getAddress(address)
+  return getContract(provider, 'ERC721Factory', address)
+}
+
+function getContract(
+  provider: ethers.Provider,
+  contractName: string,
+  address: string
+): ethers.Contract {
+  const abi = getContractDefinition(contractName)
+  return new ethers.Contract(getAddress(address), abi, provider)
+}
+
+function getContractDefinition(contractName: string): any {
+  switch (contractName) {
+    case 'ERC721Factory':
+      return ERC721Factory.abi
+    case 'ERC721Template':
+      return ERC721Template.abi
+    default:
+      return ERC721Factory.abi
+  }
 }

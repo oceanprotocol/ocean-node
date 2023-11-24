@@ -8,6 +8,7 @@ import {
   defaultConsoleTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
+import { EVENTS } from '../../utils/index.js'
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
@@ -38,6 +39,9 @@ export class OceanIndexer {
 
       worker.on('message', (event: any) => {
         if (event.method === 'store-last-indexed-block') {
+          this.updateLastIndexedBlockNumber(event.network, event.data)
+        }
+        if (event.method === EVENTS.METADATA_CREATED) {
           this.updateLastIndexedBlockNumber(event.network, event.data)
         }
         INDEXER_LOGGER.logMessage(
@@ -78,6 +82,20 @@ export class OceanIndexer {
         true
       )
       return null
+    }
+  }
+
+  public async saveDDO(network: number, ddo: any): Promise<void> {
+    const dbconn = this.db.ddo
+    try {
+      const saveDDO = await dbconn.create({ ...ddo })
+      INDEXER_LOGGER.logMessage(`Saved new DDO  : ${saveDDO} from network ${network} `)
+    } catch (err) {
+      INDEXER_LOGGER.log(
+        LOG_LEVELS_STR.LEVEl_ERROR,
+        'Error retrieving last indexed block',
+        true
+      )
     }
   }
 
