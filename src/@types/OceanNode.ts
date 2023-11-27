@@ -3,9 +3,8 @@ import { Stream } from 'stream'
 import { OceanP2P } from '../components/P2P/index.js'
 import { OceanProvider } from '../components/Provider/index.js'
 import { OceanIndexer } from '../components/Indexer/index.js'
-=import { Database } from '../components/database/index.js'
+import { Database } from '../components/database/index.js'
 import { RPCS } from './blockchain.js'
-
 
 export interface OceanNodeDBConfig {
   url: string
