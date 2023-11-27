@@ -65,7 +65,7 @@ export async function handleProtocolCommands(connection: any) {
         status = { httpStatus: 200 }
         break
       case PROTOCOL_COMMANDS.DOWNLOAD_URL:
-        response = await handleDownloadURLCommand(task)
+        response = await handleDownloadURLCommand.call(this, task)
         break
       case PROTOCOL_COMMANDS.GET_DDO:
         response = await handleGetDdoCommand.call(this, task)
@@ -74,13 +74,13 @@ export async function handleProtocolCommands(connection: any) {
         response = await handleQueryCommand.call(this, task)
         break
       case PROTOCOL_COMMANDS.NONCE:
-        response = await getNonce(task.address)
+        response = await getNonce.call(this, task.address)
         break
       case PROTOCOL_COMMANDS.STATUS:
-        response = await handleStatusCommand(task)
+        response = await handleStatusCommand.call(this, task)
         break
       case PROTOCOL_COMMANDS.FIND_DDO:
-        response = await findDDO(task)
+        response = await findDDO.call(this, task)
         break
       default:
         status = { httpStatus: 501, error: 'Unknown command' }
@@ -124,7 +124,7 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
       status = { httpStatus: 200 }
       break
     case PROTOCOL_COMMANDS.DOWNLOAD_URL:
-      response = await handleDownloadURLCommand(task)
+      response = await handleDownloadURLCommand.call(this, task)
       break
     case PROTOCOL_COMMANDS.GET_DDO:
       response = await handleGetDdoCommand.call(this, task)
@@ -133,13 +133,13 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
       response = await handleQueryCommand.call(this, task)
       break
     case PROTOCOL_COMMANDS.NONCE:
-      response = await getNonce(task.address)
+      response = await getNonce.call(this, task.address)
       break
     case PROTOCOL_COMMANDS.STATUS:
-      response = await handleStatusCommand(task)
+      response = await handleStatusCommand.call(this, task)
       break
     case PROTOCOL_COMMANDS.FIND_DDO:
-      response = await findDDO(task)
+      response = await findDDO.call(this, task)
       break
     default:
       status = { httpStatus: 501, error: 'Unknown command' }

@@ -5,7 +5,6 @@ import {
 } from '../../utils/constants.js'
 import { FindDDOResponse, P2PCommandResponse } from '../../@types'
 import { Readable } from 'stream'
-import { OceanNodeInstance } from '../../index.js'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { CACHE_TTL, OceanP2P, P2P_CONSOLE_LOGGER } from '../P2P/index.js'
 import { sleep } from '../../utils/util.js'
@@ -89,18 +88,16 @@ function sortFindDDOResults(resultList: FindDDOResponse[]): FindDDOResponse[] {
 export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse> {
   try {
     let updatedCache = false
-    // this node
-    const node = await OceanNodeInstance.getP2PNode()
     // result list
     const resultList: FindDDOResponse[] = []
     // if we have the result cached recently we return that result
-    if (hasCachedDDO(node, task)) {
+    if (hasCachedDDO(this, task)) {
       // 'found cached DDO'
       P2P_CONSOLE_LOGGER.logMessage(
         'Found local cached version for DDO id: ' + task.id,
         true
       )
-      resultList.push(node.getDDOCache().dht.get(task.id))
+      resultList.push(this.getDDOCache().dht.get(task.id))
       return {
         stream: Readable.from(JSON.stringify(resultList, null, 4)),
         status: { httpStatus: 200 }
@@ -147,15 +144,15 @@ export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse>
             true
           )
           // is it cached?
-          if (node.getDDOCache().dht.has(ddo.id)) {
-            const localValue: FindDDOResponse = node.getDDOCache().dht.get(ddo.id)
+          if (this.getDDOCache().dht.has(ddo.id)) {
+            const localValue: FindDDOResponse = this.getDDOCache().dht.get(ddo.id)
             if (new Date(ddoInfo.lastUpdateTime) > new Date(localValue.lastUpdateTime)) {
               // update cached version
-              node.getDDOCache().dht.set(ddo.id, ddoInfo)
+              this.getDDOCache().dht.set(ddo.id, ddoInfo)
             }
           } else {
             // just add it to the list
-            node.getDDOCache().dht.set(ddo.id, ddoInfo)
+            this.getDDOCache().dht.set(ddo.id, ddoInfo)
           }
           updatedCache = true
         }
@@ -177,7 +174,7 @@ export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse>
     }, 1000 * MAX_RESPONSE_WAIT_TIME_SECONDS)
 
     // Checking locally...
-    const ddoInfo = await findDDOLocally(node, task.id)
+    const ddoInfo = await findDDOLocally(this, task.id)
     if (ddoInfo) {
       // node has ddo
       // add to the result list anyway
@@ -186,12 +183,12 @@ export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse>
     }
 
     // check other providers for this ddo
-    const providers = await node.getProvidersForDid(task.id)
+    const providers = await this.getProvidersForDid(task.id)
     // check if includes self and exclude from check list
     if (providers.length > 0) {
       // exclude this node from the providers list if present
-      const filteredProviders = providers.filter((provider) => {
-        return provider.id.toString() !== node.getPeerId()
+      const filteredProviders = providers.filter((provider: any) => {
+        return provider.id.toString() !== this.getPeerId()
       })
 
       // work with the filtered list only
@@ -219,7 +216,7 @@ export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse>
               // problem here is that even if we get the P2PCommandResponse right after await(), we still don't know
               // exactly when the chunks are written/processed/received on the sink function
               // so, better to wait/sleep some small amount of time before proceeding to the next one
-              const status: P2PCommandResponse = await node.sendTo(
+              const status: P2PCommandResponse = await this.sendTo(
                 peer,
                 JSON.stringify(getCommand),
                 sink
@@ -247,7 +244,7 @@ export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse>
         } while (processed < toProcess)
 
         if (updatedCache) {
-          node.getDDOCache().updated = new Date().getTime()
+          this.getDDOCache().updated = new Date().getTime()
         }
 
         // house cleaning

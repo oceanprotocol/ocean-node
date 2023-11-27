@@ -60,65 +60,58 @@ function loadInitialDDOS(): any[] {
   return ddos
 }
 
-async function main(): Promise<OceanNode> {
-  console.log('\n\n\n\n')
-  const config = await getConfig()
-  const oceanNode = new OceanNode(config)
-  if (!config) process.exit(1)
-  let node: OceanP2P = null
-  let indexer = null
-  let provider = null
-  const dbconn = await new Database(config.dbConfig)
-  if (config.hasP2P) {
-    node = new OceanP2P(dbconn, config)
-    await node.start()
-  }
-  if (config.hasIndexer) {
-    indexer = new OceanIndexer(dbconn, config.supportedNetworks)
-    // if we set this var
-    // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
-    // store and advertise DDOs
-    if (process.env.LOAD_INITIAL_DDOS) {
-      const list = loadInitialDDOS()
-      if (list.length > 0) {
-        // we need a timeout here, otherwise we have no peers available
-        setTimeout(() => {
-          node.storeAndAdvertiseDDOS(list)
-        }, 3000)
-      }
+// async function main(): Promise<OceanNode> {
+
+// }
+console.log('\n\n\n\n')
+const config = await getConfig()
+const oceanNode = new OceanNode(config)
+if (!config) process.exit(1)
+let node: OceanP2P = null
+let indexer = null
+let provider = null
+const dbconn = await new Database(config.dbConfig)
+if (config.hasP2P) {
+  node = new OceanP2P(dbconn, config)
+  await node.start()
+}
+if (config.hasIndexer) {
+  indexer = new OceanIndexer(dbconn, config.supportedNetworks)
+  // if we set this var
+  // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
+  // store and advertise DDOs
+  if (process.env.LOAD_INITIAL_DDOS) {
+    const list = loadInitialDDOS()
+    if (list.length > 0) {
+      // we need a timeout here, otherwise we have no peers available
+      setTimeout(() => {
+        node.storeAndAdvertiseDDOS(list)
+      }, 3000)
     }
   }
-  if (config.hasProvider) provider = new OceanProvider(dbconn)
-  const customLogTransport = newCustomDBTransport(dbconn)
-  logger.addTransport(customLogTransport)
-
-  // global
-  oceanNode.setOceanNode(node, indexer, provider, dbconn)
-  if (config.hasHttp) {
-    app.use((req, res, next) => {
-      req.oceanNode = oceanNode
-      next()
-    })
-    app.use(
-      '/docs',
-      swaggerUi.serve,
-      swaggerUi.setup(undefined, {
-        swaggerOptions: {
-          url: '/swagger.json'
-        }
-      })
-    )
-    app.use('/', httpRoutes)
-    app.listen(config.httpPort, () => {
-      logger.logMessage(`HTTP port: ${config.httpPort}`, true)
-    })
-  }
-
-  return oceanNode
 }
+if (config.hasProvider) provider = new OceanProvider(dbconn)
+const customLogTransport = newCustomDBTransport(dbconn)
+logger.addTransport(customLogTransport)
 
-/**
- * Get the oceanNode instance
- * @returns oceanNode object
- */
-export const OceanNodeInstance = await main()
+// global
+oceanNode.setOceanNode(node, indexer, provider, dbconn)
+if (config.hasHttp) {
+  app.use((req, res, next) => {
+    req.oceanNode = oceanNode
+    next()
+  })
+  app.use(
+    '/docs',
+    swaggerUi.serve,
+    swaggerUi.setup(undefined, {
+      swaggerOptions: {
+        url: '/swagger.json'
+      }
+    })
+  )
+  app.use('/', httpRoutes)
+  app.listen(config.httpPort, () => {
+    logger.logMessage(`HTTP port: ${config.httpPort}`, true)
+  })
+}
