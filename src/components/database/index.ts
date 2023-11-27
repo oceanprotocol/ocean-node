@@ -1,7 +1,7 @@
-import { OceanNodeDBConfig } from '../../@types/OceanNode'
+import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { convertTypesenseConfig, Typesense, TypesenseError } from './typesense.js'
 import { Schema, schemas } from './schemas.js'
-import { TypesenseSearchParams } from '../../@types'
+import { TypesenseSearchParams } from '../../@types/index.js'
 
 export class DdoDatabase {
   private provider: Typesense

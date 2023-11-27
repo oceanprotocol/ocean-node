@@ -1,5 +1,5 @@
 import { Worker } from 'node:worker_threads'
-import { Database } from '../database'
+import { Database } from '../database/index.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
 import {
   CustomNodeLogger,

@@ -1,10 +1,9 @@
-import { OceanP2P } from '../components/P2P/index'
-import { OceanProvider } from '../components/Provider/index'
-import { OceanIndexer } from '../components/Indexer/index'
 import type { PeerId } from '@libp2p/interface/peer-id'
 import { Stream } from 'stream'
-import { Blockchain } from '../utils/blockchain'
-import { RPCS } from './blockchain'
+import { OceanP2P } from '../components/P2P/index.js'
+import { OceanProvider } from '../components/Provider/index.js'
+import { OceanIndexer } from '../components/Indexer/index.js'
+import { RPCS } from './blockchain.js'
 
 export interface OceanNodeDBConfig {
   url: string
