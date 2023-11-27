@@ -21,7 +21,8 @@
     "test:unit:storage": "npm run mocha -- 'tests/unit/storage.test.ts'",
     "test:integration": "npm run mocha -- 'tests/integration/indexer.test.ts'",
     "test:unit:cover": "nyc --report-dir coverage/unit npm run test:unit",
-    "test:integration:cover": "nyc --report-dir coverage/integration --no-clean npm run test:integration"
+    "test:integration:cover": "nyc --report-dir coverage/integration --no-clean npm run test:integration",
+    "logs": "./scripts/logs.sh"
   },
   "author": "",
   "type": "module",
