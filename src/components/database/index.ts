@@ -24,45 +24,48 @@ export class DdoDatabase {
     })() as unknown as DdoDatabase
   }
 
-  async create(ddo: Record<string, any>) {
+  async create(did: string, ddo: Record<string, any>) {
     try {
-      return await this.provider.collections(this.schemas[0].name).documents().create(ddo)
+      return await this.provider
+        .collections(this.schemas[0].name)
+        .documents()
+        .create({ id: did, ddo })
     } catch (error) {
       return null
     }
   }
 
-  async retrieve(id: string) {
+  async retrieve(did: string) {
     try {
       return await this.provider
         .collections(this.schemas[0].name)
         .documents()
-        .retrieve(id)
+        .retrieve(did)
     } catch (error) {
       return null
     }
   }
 
-  async update(id: string, fields: Record<string, any>) {
+  async update(did: string, fields: Record<string, any>) {
     try {
       return await this.provider
         .collections(this.schemas[0].name)
         .documents()
-        .update(id, fields)
+        .update(did, fields)
     } catch (error) {
       if (error instanceof TypesenseError && error.httpStatus === 404) {
         return await this.provider
           .collections(this.schemas[0].name)
           .documents()
-          .create({ id, ...fields })
+          .create({ did, ...fields })
       }
       return null
     }
   }
 
-  async delete(id: string) {
+  async delete(did: string) {
     try {
-      return await this.provider.collections(this.schemas[0].name).documents().delete(id)
+      return await this.provider.collections(this.schemas[0].name).documents().delete(did)
     } catch (error) {
       return null
     }

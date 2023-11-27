@@ -72,5 +72,5 @@ export const processMetadataCreatedEvent = async (
   INDEXER_LOGGER.logMessage(
     `Process new DDO: ${expectedDID}, block ${decodedEvent.args.data}, `
   )
-  return decodedEvent.args.metaDataHash
+  return decodedEvent.args.data
 }

@@ -1,6 +1,7 @@
 import { expect } from 'chai'
 import { createHash } from 'crypto'
-import { JsonRpcProvider, Signer, Provider, Contract, ethers, Indexed } from 'ethers'
+import { JsonRpcProvider, Signer, Contract, ethers, getAddress } from 'ethers'
+import { SHA256 } from 'crypto-js'
 import fs from 'fs'
 import { homedir } from 'os'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
@@ -14,7 +15,7 @@ const genericAsset = {
   '@context': ['https://w3id.org/did/v1'],
   id: '',
   version: '4.1.0',
-  chainId: 4,
+  chainId: 8996,
   nftAddress: '0x0',
   metadata: {
     created: '2021-12-20T14:35:20Z',
@@ -41,6 +42,26 @@ const genericAsset = {
   ]
 }
 
+function delay(interval: number) {
+  return it('should delay', (done) => {
+    setTimeout(() => done(), interval)
+  }).timeout(interval + 100)
+}
+
+async function waitToIndex(did: string, database: Database): Promise<any> {
+  let tries = 0
+  do {
+    try {
+      return await database.ddo.retrieve(did)
+    } catch (e) {
+      // do nothing
+    }
+    await delay(1500)
+    tries++
+  } while (tries < 100)
+  return null
+}
+
 describe('Indexer stores a new published DDO', () => {
   let database: Database
   let indexer: OceanIndexer
@@ -49,6 +70,8 @@ describe('Indexer stores a new published DDO', () => {
   let nftContract: Contract
   let publisherAccount: Signer
   let nftAddress: string
+  const chainId = 8996
+  let assetDID: string
 
   const mockSupportedNetworks: RPCS = {
     '8996': {
@@ -119,8 +142,13 @@ describe('Indexer stores a new published DDO', () => {
     expect(txReceipt.hash).to.be('string')
   })
 
-  it('should set ', async () => {
+  it('should set metadata and save ', async () => {
     nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, provider)
+
+    genericAsset.id = 'did:op:' + SHA256(getAddress(nftAddress) + chainId.toString(10))
+    genericAsset.nftAddress = nftAddress
+
+    assetDID = genericAsset.id
 
     const stringDDO = JSON.stringify(genericAsset)
     const hash = createHash('sha256').update(stringDDO).digest('hex')
@@ -137,5 +165,12 @@ describe('Indexer stores a new published DDO', () => {
     const trxReceipt = await setMetaDataTx.wait()
     console.log('trxReceipt ==', trxReceipt)
     expect(trxReceipt.hash).to.be('string')
+  })
+
+  delay(10000)
+
+  it('should store the ddo in the database and return it ', async () => {
+    const resolvedDDO = await waitToIndex(assetDID, database)
+    expect(resolvedDDO.id).to.equal(genericAsset.id)
   })
 })

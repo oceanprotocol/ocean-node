@@ -42,7 +42,7 @@ export class OceanIndexer {
           this.updateLastIndexedBlockNumber(event.network, event.data)
         }
         if (event.method === EVENTS.METADATA_CREATED) {
-          this.updateLastIndexedBlockNumber(event.network, event.data)
+          this.saveDDO(event.network, event.data)
         }
         INDEXER_LOGGER.logMessage(
           `Main thread message from worker for network ${network}: ${event}`,
@@ -88,7 +88,7 @@ export class OceanIndexer {
   public async saveDDO(network: number, ddo: any): Promise<void> {
     const dbconn = this.db.ddo
     try {
-      const saveDDO = await dbconn.create({ ...ddo })
+      const saveDDO = await dbconn.create(ddo.id, { ...ddo })
       INDEXER_LOGGER.logMessage(`Saved new DDO  : ${saveDDO} from network ${network} `)
     } catch (err) {
       INDEXER_LOGGER.log(

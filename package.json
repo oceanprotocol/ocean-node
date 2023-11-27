@@ -46,6 +46,7 @@
     "@types/lodash.clonedeep": "^4.5.7",
     "aegir": "^37.3.0",
     "axios": "^1.6.0",
+    "crypto-js": "^4.2.0",
     "delay": "^5.0.0",
     "eth-crypto": "^2.6.0",
     "ethers": "^6.8.1",
