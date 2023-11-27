@@ -50,12 +50,12 @@ describe('DdoDatabase CRUD', () => {
 
   it('create ddo', async () => {
     const result = await database.ddo.create(ddo)
-    expect(result.id).to.equal(ddo.id)
+    expect(result?.id).to.equal(ddo.id)
   })
 
   it('retrieve ddo', async () => {
     const result = await database.ddo.retrieve(ddo.id)
-    expect(result.id).to.equal(ddo.id)
+    expect(result?.id).to.equal(ddo.id)
   })
 
   it('update ddo', async () => {
@@ -65,12 +65,12 @@ describe('DdoDatabase CRUD', () => {
         name: newMetadataName
       }
     })
-    expect(result.metadata.name).to.equal(newMetadataName)
+    expect(result?.metadata.name).to.equal(newMetadataName)
   })
 
   it('delete ddo', async () => {
     const result = await database.ddo.delete(ddo.id)
-    expect(result.id).to.equal(ddo.id)
+    expect(result?.id).to.equal(ddo.id)
   })
 })
 
@@ -86,26 +86,26 @@ describe('NonceDatabase CRUD', () => {
 
   it('create nonce', async () => {
     const result = await database.nonce.create('0x123', 0)
-    expect(result.id).to.equal('0x123')
-    expect(result.nonce).to.equal(0)
+    expect(result?.id).to.equal('0x123')
+    expect(result?.nonce).to.equal(0)
   })
 
   it('retrieve nonce', async () => {
     const result = await database.nonce.retrieve('0x123')
-    expect(result.id).to.equal('0x123')
-    expect(result.nonce).to.equal(0)
+    expect(result?.id).to.equal('0x123')
+    expect(result?.nonce).to.equal(0)
   })
 
   it('update nonce', async () => {
     const result = await database.nonce.update('0x123', 1)
-    expect(result.id).to.equal('0x123')
-    expect(result.nonce).to.equal(1)
+    expect(result?.id).to.equal('0x123')
+    expect(result?.nonce).to.equal(1)
   })
 
   it('delete nonce', async () => {
     const result = await database.nonce.delete('0x123')
-    expect(result.id).to.equal('0x123')
-    expect(result.nonce).to.equal(1)
+    expect(result?.id).to.equal('0x123')
+    expect(result?.nonce).to.equal(1)
   })
 })
 
@@ -121,25 +121,25 @@ describe('IndexerDatabase CRUD', () => {
 
   it('create indexer', async () => {
     const result = await database.indexer.create(1, 0)
-    expect(result.id).to.equal('1')
-    expect(result.lastIndexedBlock).to.equal(0)
+    expect(result?.id).to.equal('1')
+    expect(result?.lastIndexedBlock).to.equal(0)
   })
 
   it('retrieve indexer', async () => {
     const result = await database.indexer.retrieve(1)
-    expect(result.id).to.equal('1')
-    expect(result.lastIndexedBlock).to.equal(0)
+    expect(result?.id).to.equal('1')
+    expect(result?.lastIndexedBlock).to.equal(0)
   })
 
   it('update indexer', async () => {
     const result = await database.indexer.update(1, 1)
-    expect(result.id).to.equal('1')
-    expect(result.lastIndexedBlock).to.equal(1)
+    expect(result?.id).to.equal('1')
+    expect(result?.lastIndexedBlock).to.equal(1)
   })
 
   it('delete indexer', async () => {
     const result = await database.indexer.delete(1)
-    expect(result.id).to.equal('1')
-    expect(result.lastIndexedBlock).to.equal(1)
+    expect(result?.id).to.equal('1')
+    expect(result?.lastIndexedBlock).to.equal(1)
   })
 })

@@ -1,10 +1,8 @@
 import winston, { Logger, LogEntry } from 'winston'
-import Transport, { TransportStreamOptions } from 'winston-transport'
+import Transport from 'winston-transport'
 import DailyRotateFile from 'winston-daily-rotate-file'
 import fs from 'fs'
-
-// Uncomment the following to use typesense (npm install typesense)
-// import typesense from 'typesense';
+import { Database } from '../../components/database/index.js'
 
 // all the types of modules/components
 export const LOGGER_MODULE_NAMES = {
@@ -318,12 +316,20 @@ export class CustomNodeLogger {
     message: string,
     includeModuleName: boolean = false
   ) {
-    this.getLogger().log(level, includeModuleName ? this.buildMessage(message) : message)
+    this.getLogger().log(
+      level,
+      includeModuleName ? this.buildMessage(message) : message,
+      { moduleName: this.getModuleName().toUpperCase() }
+    )
   }
 
   logMessage(message: string, includeModuleName: boolean = false) {
     const level = this.getLoggerLevel() || getDefaultLevel()
-    this.getLogger().log(level, includeModuleName ? this.buildMessage(message) : message)
+    this.getLogger().log(
+      level,
+      includeModuleName ? this.buildMessage(message) : message,
+      { moduleName: this.getModuleName().toUpperCase() }
+    )
   }
 
   // supports emoji :-)? Experimental, might not work properly on some transports
@@ -346,7 +352,7 @@ export class CustomNodeLogger {
       msg = getLoggerLevelEmoji(this.getLoggerLevel()).concat(' ').concat(msg)
     }
 
-    this.getLogger().log(level, msg)
+    this.getLogger().log(level, msg, { moduleName: this.getModuleName().toUpperCase() })
   }
 
   // prefix the message with the module/component name (optional)
@@ -394,75 +400,46 @@ export function getCustomLoggerForModule(
 
 // for a custom logger transport
 interface CustomOceanNodesTransportOptions extends Transport.TransportStreamOptions {
+  dbInstance: Database
+  collectionName?: string
   moduleName?: string
 }
 
-// for typesense logging
-interface TypesenseTransportStreamOptions extends CustomOceanNodesTransportOptions {
-  nodes: [
-    {
-      host: string
-      port: number
-      protocol: string // http as default protocol
-    }
-  ]
-  apiKey: string
-  numRetries: number // 3
-  connectionTimeoutSeconds: number // 10
-  logLevel: string
-}
-
-// Skeleton For any custom transport we might need
-// for ElasticSearch for instance there is this one: https://github.com/vanthome/winston-elasticsearch
-// for Typesense we might need to implement our own transport. In any case we can just use this skeleton
 export class CustomOceanNodesTransport extends Transport {
-  /** Example config for Typesense
-     * const options: TypesenseTransportStreamOptions = {
+  private dbInstance: Database
 
-            nodes: [
-                {
-                    host: some.host,
-                    port: some.port,
-                    protocol: "http",
-                }
-            ],
-            apiKey: someapiKey,
-            numRetries: 3,
-            connectionTimeoutSeconds: 10,
-            logLevel: "debug",
-     * }
-     *  const typesenseClient = new typesense.Client(options)
-     */
-
-  constructor(opts: CustomOceanNodesTransportOptions) {
-    super(opts)
-
-    /*
-     * Consume any custom options here. e.h:
-     * Connection information for databases
-     * Authentication information for APIs
-     */
+  constructor(options: CustomOceanNodesTransportOptions) {
+    super(options)
+    this.dbInstance = options.dbInstance
   }
 
-  // this functions run when something is logged so here's where you can add you custom logic to do stuff when something is logged.
-  log(info: LogEntry, callback: any) {
-    // make sure you installed `@types/node` or this will give a typerror
-    // this is the basic default behavior don't forget to add this.
+  async log(info: LogEntry, callback: () => void): Promise<void> {
     setImmediate(() => {
       this.emit('logged', info)
     })
 
-    const { level, message, ...meta } = info
+    // Prepare the document to be logged
+    const document = {
+      level: info.level,
+      message: info.message,
+      moduleName: info.moduleName || 'undefined',
+      timestamp: Date.now(), // Storing the current timestamp as a Unix epoch timestamp (number)
+      meta: JSON.stringify(info.meta) // Ensure meta is a string
+    }
 
-    // here you can add your custom logic, e.g. ingest data into database etc.
-    // Perform the writing to the remote service
-    // typesenseClient.doSomething()
+    try {
+      // Use the insertLog method of the LogDatabase instance
+      await this.dbInstance.logs.insertLog(document)
+    } catch (error) {
+      // Handle the error according to your needs
+      console.error('Error writing to Typesense:', error)
+      // Implement retry logic or other error handling as needed
+    }
 
-    // don't forget this one
     callback()
   }
 }
 
-// Notes: we can write a custom transport if needed, for a specific DB access, API access, etc...
-// https://github.com/winstonjs/winston-transport
-// many exist already, list here: https://github.com/winstonjs/winston/blob/master/docs/transports.md
+export function newCustomDBTransport(dbConnection: Database) {
+  return new CustomOceanNodesTransport({ dbInstance: dbConnection })
+}
