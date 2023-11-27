@@ -1,4 +1,4 @@
-import { EncryptCommand } from '../../utils/constants'
+import { EncryptCommand } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
 import { Readable } from 'stream'
 import * as base58 from 'base58-js'

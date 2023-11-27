@@ -1,5 +1,4 @@
 import { Hashes } from '../@types/blockchain'
-import { handleEncryptCommand } from '../components/core/encryptHandler'
 
 // Add all the supported commands
 export const PROTOCOL_COMMANDS = {
