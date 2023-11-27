@@ -17,7 +17,8 @@ export const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOG_LEVELS_STR.LEVEL_INFO,
   defaultConsoleTransport
 )
-// nonce db
+// TODO - nonce db needs discussion for the moment marked as global variable.
+// For future development, this should be removed and replace `checkNonce.call(this).`
 let db: NonceDatabase
 function getDefaultErrorResponse(errorMessage: string): P2PCommandResponse {
   return {
