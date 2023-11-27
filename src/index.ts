@@ -13,7 +13,8 @@ import {
   LOGGER_MODULE_NAMES,
   LOG_LEVELS_STR,
   defaultConsoleTransport,
-  getCustomLoggerForModule
+  getCustomLoggerForModule,
+  newCustomDBTransport
 } from './utils/logging/Logger.js'
 import fs from 'fs'
 
@@ -88,9 +89,11 @@ async function main(): Promise<OceanNode> {
     }
   }
   if (config.hasProvider) provider = new OceanProvider(dbconn)
+  const customLogTransport = newCustomDBTransport(dbconn)
+  logger.addTransport(customLogTransport)
 
   // global
-  oceanNode.setOceanNode(node, indexer, provider)
+  oceanNode.setOceanNode(node, indexer, provider, dbconn)
   if (config.hasHttp) {
     app.use((req, res, next) => {
       req.oceanNode = oceanNode

@@ -46,6 +46,7 @@ import {
   LOG_LEVELS_STR,
   defaultConsoleTransport,
   getCustomLoggerForModule,
+  newCustomDBTransport,
   getLoggerLevelEmoji
 } from '../../utils/logging/Logger.js'
 
@@ -91,6 +92,8 @@ export class OceanP2P extends EventEmitter {
     super()
     this.db = db
     this._config = config
+    const customLogTransport = newCustomDBTransport(this.db)
+    P2P_CONSOLE_LOGGER.addTransport(customLogTransport)
     this._ddoDHT = {
       updated: new Date().getTime(),
       dht: new Map<string, FindDDOResponse>()

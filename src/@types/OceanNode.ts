@@ -4,6 +4,7 @@ import { OceanIndexer } from '../components/Indexer/index'
 import type { PeerId } from '@libp2p/interface/peer-id'
 import { Stream } from 'stream'
 import { RPCS } from './blockchain'
+import { Database } from '../components/database'
 
 export interface OceanNodeDBConfig {
   url: string
