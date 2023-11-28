@@ -2,7 +2,7 @@ import { EncryptCommand } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
 import { Readable } from 'stream'
 import * as base58 from 'base58-js'
-import {encrypt} from "../../utils/crypt.js";
+import { encrypt } from '../../utils/crypt.js'
 
 export async function handleEncryptCommand(
   task: EncryptCommand
