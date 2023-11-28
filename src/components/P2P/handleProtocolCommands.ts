@@ -7,8 +7,8 @@ import StreamConcat from 'stream-concat'
 import { handleDownloadURLCommand } from '../core/downloadHandler.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
+import { OceanP2P, P2P_CONSOLE_LOGGER } from './index.js'
 
-import { P2P_CONSOLE_LOGGER } from './index.js'
 import { handleGetDdoCommand, findDDO } from '../core/ddoHandler.js'
 import { getNonce } from '../core/nonceHandler.js'
 import { handleQueryCommand } from '../core/queryHandler.js'
@@ -65,22 +65,22 @@ export async function handleProtocolCommands(connection: any) {
         status = { httpStatus: 200 }
         break
       case PROTOCOL_COMMANDS.DOWNLOAD_URL:
-        response = await handleDownloadURLCommand.call(this, task)
+        response = await handleDownloadURLCommand(this, task)
         break
       case PROTOCOL_COMMANDS.GET_DDO:
-        response = await handleGetDdoCommand.call(this, task)
+        response = await handleGetDdoCommand(this, task)
         break
       case PROTOCOL_COMMANDS.QUERY:
-        response = await handleQueryCommand.call(this, task)
+        response = await handleQueryCommand(this, task)
         break
       case PROTOCOL_COMMANDS.NONCE:
-        response = await getNonce.call(this, task.address)
+        response = await getNonce(this, task.address)
         break
       case PROTOCOL_COMMANDS.STATUS:
-        response = await handleStatusCommand.call(this, task)
+        response = await handleStatusCommand(task)
         break
       case PROTOCOL_COMMANDS.FIND_DDO:
-        response = await findDDO.call(this, task)
+        response = await findDDO(this, task)
         break
       default:
         status = { httpStatus: 501, error: 'Unknown command' }
@@ -124,22 +124,22 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
       status = { httpStatus: 200 }
       break
     case PROTOCOL_COMMANDS.DOWNLOAD_URL:
-      response = await handleDownloadURLCommand.call(this, task)
+      response = await handleDownloadURLCommand(this, task)
       break
     case PROTOCOL_COMMANDS.GET_DDO:
-      response = await handleGetDdoCommand.call(this, task)
+      response = await handleGetDdoCommand(this, task)
       break
     case PROTOCOL_COMMANDS.QUERY:
-      response = await handleQueryCommand.call(this, task)
+      response = await handleQueryCommand(this, task)
       break
     case PROTOCOL_COMMANDS.NONCE:
-      response = await getNonce.call(this, task.address)
+      response = await getNonce(this, task.address)
       break
     case PROTOCOL_COMMANDS.STATUS:
-      response = await handleStatusCommand.call(this, task)
+      response = await handleStatusCommand(task)
       break
     case PROTOCOL_COMMANDS.FIND_DDO:
-      response = await findDDO.call(this, task)
+      response = await findDDO(this, task)
       break
     default:
       status = { httpStatus: 501, error: 'Unknown command' }
