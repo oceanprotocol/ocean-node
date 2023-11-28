@@ -17,6 +17,13 @@ export interface Command {
 }
 
 export interface DownloadCommand extends Command {
+  documentId: string
+  serviceId: string
+  transferTxId: string
+  fileIndex: number
+  nonce: string
+  consumerAddress: string
+  signature: string
   url: string
   aes_encrypted_key?: string // if not present it means download without encryption
 }

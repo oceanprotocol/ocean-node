@@ -7,6 +7,9 @@ import * as ethCrypto from 'eth-crypto'
 import axios from 'axios'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { getConfig } from '../../utils/config.js'
+import { checkNonce, NonceResponse } from './nonceHandler.js'
+import { checkProviderFees } from './checkFees.js'
+import { validateOrderTransaction } from './validateTransaction.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 /**
@@ -27,6 +30,46 @@ async function getFileFromURL(fileURL: string): Promise<any> {
 export async function handleDownloadURLCommand(
   task: DownloadCommand
 ): Promise<P2PCommandResponse> {
+  // Validate nonce and signature
+  const nonceCheckResult: NonceResponse = await checkNonce(
+    task.consumerAddress,
+    parseInt(task.nonce),
+    task.signature
+  )
+  if (!nonceCheckResult.valid) {
+    P2P_CONSOLE_LOGGER.logMessage(
+      'Invalid nonce or signature, unable to proceed with download: ' +
+        nonceCheckResult.error,
+      true
+    )
+    throw new Error(nonceCheckResult.error)
+  }
+
+  // Call the checkProviderFees mock function to simulate fee checking
+  const providerFeeResponse = checkProviderFees() // This is just a placeholder for now
+
+  // Log the provider fee response for debugging purposes
+  P2P_CONSOLE_LOGGER.logMessage(
+    `Provider fee response: ${JSON.stringify(providerFeeResponse)}`,
+    true
+  )
+
+  // Call the mock validateOrderTransaction function to simulate transaction validation
+  const paymentValidation = validateOrderTransaction(task.transferTxId)
+  if (!paymentValidation.isValid) {
+    P2P_CONSOLE_LOGGER.logMessage(
+      `Invalid payment transaction: ${paymentValidation.message}`,
+      true
+    )
+    throw new Error(paymentValidation.message)
+  }
+
+  // Log the validation success for debugging purposes
+  P2P_CONSOLE_LOGGER.logMessage(
+    `Payment transaction validation result: ${paymentValidation.message}`,
+    true
+  )
+
   const encryptFile = !!task.aes_encrypted_key
   P2P_CONSOLE_LOGGER.logMessage(
     'DownloadCommand requires file encryption? ' + encryptFile,
