@@ -4,6 +4,7 @@ import { Hashes } from '../@types/blockchain.js'
 export const PROTOCOL_COMMANDS = {
   DOWNLOAD_URL: 'downloadURL',
   ECHO: 'echo',
+  ENCRYPT: 'encrypt',
   GET_DDO: 'getDDO',
   QUERY: 'query',
   NONCE: 'nonce',
@@ -29,6 +30,12 @@ export interface QueryCommand extends Command {
   query: Record<string, any>
 }
 
+export interface EncryptCommand extends Command {
+  blob: string
+  encoding: string
+  encryptionType: string
+}
+
 export interface FindDDOCommand extends Command {
   id: string
 }
@@ -45,6 +52,7 @@ export interface BroadcastCommand {
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.DOWNLOAD_URL,
   PROTOCOL_COMMANDS.ECHO,
+  PROTOCOL_COMMANDS.ENCRYPT,
   PROTOCOL_COMMANDS.NONCE,
   PROTOCOL_COMMANDS.GET_DDO,
   PROTOCOL_COMMANDS.QUERY,

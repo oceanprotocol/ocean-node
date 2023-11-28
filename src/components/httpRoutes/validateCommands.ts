@@ -92,6 +92,37 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
       return {
         valid: true
       }
+    } else if (command === PROTOCOL_COMMANDS.ENCRYPT) {
+      if (!requestBody.blob) {
+        return {
+          valid: false,
+          reason: 'Missing required parameter: "blob"',
+          status: 400
+        }
+      }
+      if (!requestBody.encoding) {
+        requestBody.encoding = 'string'
+      }
+      if (!['string', 'base58'].includes(requestBody.encoding)) {
+        return {
+          valid: false,
+          reason: 'Invalid parameter: "encoding" must be String | Base58',
+          status: 400
+        }
+      }
+      if (!requestBody.encryptionType) {
+        requestBody.encoding = 'ECIES'
+      }
+      if (!['AES', 'ECIES'].includes(requestBody.encryptionType)) {
+        return {
+          valid: false,
+          reason: 'Invalid parameter: "encryptionType" must be AES | ECIES',
+          status: 400
+        }
+      }
+      return {
+        valid: true
+      }
     }
     return {
       valid: true
