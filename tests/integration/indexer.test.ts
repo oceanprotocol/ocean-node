@@ -110,12 +110,15 @@ describe('Indexer stores a new published DDO', () => {
 
     publisherAccount = (await provider.getSigner(0)) as Signer
 
-    const contractInterface = new Interface(ERC721Factory.abi)
-    console.log(' contractInterface ', contractInterface)
-
     factoryContract = new ethers.Contract(
       data.development.ERC721Factory,
-      contractInterface,
+      ERC721Factory.abi,
+      publisherAccount
+    )
+
+    nftContract = new ethers.Contract(
+      data.development.ERC721Template[1],
+      ERC721Template.abi,
       publisherAccount
     )
   })
