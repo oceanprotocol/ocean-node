@@ -84,6 +84,7 @@ jobs:
           NODE2_PRIVATE_KEY: ${{ secrets.NODE2_PRIVATE_KEY }}
           NODE3_PRIVATE_KEY: ${{ secrets.NODE3_PRIVATE_KEY }}
           IPFS_GATEWAY: http://172.15.0.16:8080/
+          ARWEAVE_GATEWAY: https://arweave.net/
       - uses: actions/upload-artifact@v2
         with:
           name: coverage
@@ -139,6 +140,7 @@ jobs:
           NODE2_PRIVATE_KEY: ${{ secrets.NODE2_PRIVATE_KEY }}
           NODE3_PRIVATE_KEY: ${{ secrets.NODE3_PRIVATE_KEY }}
           IPFS_GATEWAY: http://172.15.0.16:8080/
+          ARWEAVE_GATEWAY: https://arweave.net/
       - uses: actions/upload-artifact@v2
         with:
           name: coverage
