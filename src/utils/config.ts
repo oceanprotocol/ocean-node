@@ -74,6 +74,18 @@ function getSupportedChains(): RPCS {
   return supportedNetworks
 }
 
+function existsEnvironmentVariable(envVar: string, envName: string): any {
+  if (!envVar) {
+    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+      `Invalid or missing "${envName}" env variable...`,
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEl_ERROR
+    )
+    return null
+  }
+  return true
+}
 export async function getConfig(): Promise<OceanNodeConfig> {
   const privateKey = process.env.PRIVATE_KEY
   if (!privateKey || privateKey.length !== 66) {
@@ -87,25 +99,15 @@ export async function getConfig(): Promise<OceanNodeConfig> {
     return null
   }
 
-  if (!process.env.IPFS_GATEWAY) {
-    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
-      'Invalid IPFS_GATEWAY env variable..',
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEl_ERROR
-    )
+  if (
+    !existsEnvironmentVariable(process.env.IPFS_GATEWAY, 'IPFS_GATEWAY') ||
+    !existsEnvironmentVariable(process.env.ARWEAVE_GATEWAY, 'ARWEAVE_GATEWAY') ||
+    !existsEnvironmentVariable(process.env.FEE_TOKENS, 'FEE_TOKENS') ||
+    !existsEnvironmentVariable(process.env.FEE_AMOUNT, 'FEE_AMOUNT')
+  ) {
     return null
   }
 
-  if (!process.env.ARWEAVE_GATEWAY) {
-    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
-      'Invalid ARWEAVE_GATEWAY env variable..',
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEl_ERROR
-    )
-    return null
-  }
   const config: OceanNodeConfig = {
     keys: await getPeerIdFromPrivateKey(privateKey),
     hasIndexer: true,
