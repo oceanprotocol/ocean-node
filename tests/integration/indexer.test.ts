@@ -147,7 +147,13 @@ describe('Indexer stores a new published DDO', () => {
       mpFeeAddress: ZERO_ADDRESS
     }
 
+    console.log('nftParams ', nftParams)
+    console.log('datatokenParams ', datatokenParams)
+
+    console.log('getAddress ', await factoryContract.getAddress())
+
     const createTx = await factoryContract.createNftWithErc20(nftParams, datatokenParams)
+    // console.log('createTx', createTx)
     // const txReceipt = await createTx.wait()
     // console.log('trxReceipt ==', txReceipt)
     // nftAddress = txReceipt?.events?.filter((log) => {
