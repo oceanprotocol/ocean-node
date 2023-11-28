@@ -16,6 +16,11 @@ export interface Command {
   node?: string // if not present it means current node
 }
 
+export interface DownloadURLCommand extends Command {
+  url: string
+  aes_encrypted_key?: string // if not present it means download without encryption
+}
+
 export interface DownloadCommand extends Command {
   documentId: string
   serviceId: string
