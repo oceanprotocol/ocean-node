@@ -43,7 +43,7 @@
     "@libp2p/tcp": "^8.0.5",
     "@libp2p/websockets": "^7.0.5",
     "@multiformats/multiaddr": "^10.2.0",
-    "@oceanprotocol/contracts": "^2.0.2",
+    "@oceanprotocol/contracts": "^2.0.3",
     "@types/lodash.clonedeep": "^4.5.7",
     "aegir": "^37.3.0",
     "axios": "^1.6.0",
