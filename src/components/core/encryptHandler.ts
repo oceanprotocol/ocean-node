@@ -11,10 +11,10 @@ export async function handleEncryptCommand(
 ): Promise<P2PCommandResponse> {
   try {
     let blobData: Uint8Array = new Uint8Array()
-    if (task.encoding === 'String') {
+    if (task.encoding === 'string') {
       blobData = Uint8Array.from(Buffer.from(task.blob, 'hex'))
     }
-    if (task.encoding === 'Base58') {
+    if (task.encoding === 'base58') {
       blobData = base58.base58_to_binary(task.blob)
     }
 

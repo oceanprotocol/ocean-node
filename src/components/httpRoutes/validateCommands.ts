@@ -101,13 +101,9 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
         }
       }
       if (!requestBody.encoding) {
-        return {
-          valid: false,
-          reason: 'Missing required parameter: "encoding"',
-          status: 400
-        }
+        requestBody.encoding = 'string'
       }
-      if (!['String', 'Base58'].includes(requestBody.encoding)) {
+      if (!['string', 'base58'].includes(requestBody.encoding)) {
         return {
           valid: false,
           reason: 'Invalid parameter: "encoding" must be String | Base58',
@@ -115,11 +111,7 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
         }
       }
       if (!requestBody.encryptionType) {
-        return {
-          valid: false,
-          reason: 'Missing required parameter: "encryptionType"',
-          status: 400
-        }
+        requestBody.encoding = 'ECIES'
       }
       if (!['AES', 'ECIES'].includes(requestBody.encryptionType)) {
         return {
