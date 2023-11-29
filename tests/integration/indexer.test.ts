@@ -1,15 +1,6 @@
 import { expect, assert } from 'chai'
 import { createHash } from 'crypto'
-import {
-  JsonRpcProvider,
-  Signer,
-  Contract,
-  ethers,
-  getAddress,
-  ContractInterface,
-  Interface
-} from 'ethers'
-// import { SHA256 } from 'crypto-js'
+import { JsonRpcProvider, Signer, Contract, ethers, getAddress, hexlify } from 'ethers'
 import fs from 'fs'
 import { homedir } from 'os'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
@@ -17,7 +8,7 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { Database } from '../../src/components/database/index.js'
 import { OceanIndexer } from '../../src/components/Indexer/index.js'
 import { RPCS } from '../../src/@types/blockchain.js'
-import { getEventFromTx } from '../../src/utils/util.js'
+import { getEventFromTx, sleep } from '../../src/utils/util.js'
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 const genericAsset = {
@@ -65,9 +56,9 @@ async function waitToIndex(did: string, database: Database): Promise<any> {
     } catch (e) {
       // do nothing
     }
-    // await delay(1500)
+    sleep(1500)
     tries++
-  } while (tries < 10000)
+  } while (tries < 1000)
   return null
 }
 
@@ -159,30 +150,36 @@ describe('Indexer stores a new published DDO', () => {
     assert(nftAddress, 'find nft created failed')
   })
 
-  // it('should set metadata and save ', async () => {
-  //   nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, provider)
+  it('should set metadata and save ', async () => {
+    genericAsset.id =
+      'did:op:' +
+      createHash('sha256')
+        .update(getAddress(nftAddress) + chainId.toString(10))
+        .digest('hex')
+    genericAsset.nftAddress = nftAddress
 
-  //   genericAsset.id = 'did:op:' + SHA256(getAddress(nftAddress) + chainId.toString(10))
-  //   genericAsset.nftAddress = nftAddress
+    assetDID = genericAsset.id
+    console.log('assetDID', assetDID)
+    const stringDDO = JSON.stringify(genericAsset)
+    const bytes = Buffer.from(stringDDO)
+    const metadata = hexlify(bytes)
+    console.log('metadata ', metadata)
+    const hash = createHash('sha256').update(metadata).digest('hex')
+    console.log('hash ', hash)
 
-  //   assetDID = genericAsset.id
-
-  //   const stringDDO = JSON.stringify(genericAsset)
-  //   const hash = createHash('sha256').update(stringDDO).digest('hex')
-
-  //   const setMetaDataTx = await nftContract.setMetaData(
-  //     0,
-  //     'http://v4.provider.oceanprotocol.com',
-  //     '0x123',
-  //     '0x02',
-  //     stringDDO,
-  //     hash,
-  //     []
-  //   )
-  //   const trxReceipt = await setMetaDataTx.wait()
-  //   console.log('trxReceipt ==', trxReceipt)
-  //   expect(trxReceipt.hash).to.be('string')
-  // })
+    const setMetaDataTx = await nftContract.setMetaData(
+      0,
+      'http://v4.provider.oceanprotocol.com',
+      '0x123',
+      '0x02',
+      metadata,
+      hash,
+      []
+    )
+    const trxReceipt = await setMetaDataTx.wait()
+    console.log('trxReceipt ==', trxReceipt)
+    assert(trxReceipt, 'set metada failed')
+  })
 
   // delay(100000)
 
