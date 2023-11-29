@@ -55,7 +55,12 @@ export async function handleDownloadCommand(
   )
 
   // Call the mock validateOrderTransaction function to simulate transaction validation
-  const paymentValidation = validateOrderTransaction(task.transferTxId)
+  const paymentValidation = await validateOrderTransaction(
+    task.transferTxId,
+    task.consumerAddress,
+    null
+  ) // This is just a placeholder for now
+
   if (!paymentValidation.isValid) {
     P2P_CONSOLE_LOGGER.logMessage(
       `Invalid payment transaction: ${paymentValidation.message}`,
