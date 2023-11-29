@@ -1,4 +1,4 @@
-import { expect } from 'chai'
+import { expect, assert } from 'chai'
 import { createHash } from 'crypto'
 import {
   JsonRpcProvider,
@@ -128,34 +128,37 @@ describe('Indexer stores a new published DDO', () => {
   })
 
   it('should publish a dataset', async () => {
-    const nftParams = {
-      name: 'testNftDispenser',
-      symbol: 'TSTD',
-      templateIndex: 1,
-      tokenURI: '',
-      transferable: true,
-      owner: await publisherAccount.getAddress()
-    }
+    const tx = await factoryContract.createNftWithErc20(
+      {
+        name: '72120Bundle',
+        symbol: '72Bundle',
+        templateIndex: 1,
+        tokenURI: 'https://oceanprotocol.com/nft/',
+        transferable: true,
+        owner: await publisherAccount.getAddress()
+      },
+      {
+        strings: ['ERC20B1', 'ERC20DT1Symbol'],
+        templateIndex: 1,
+        addresses: [
+          await publisherAccount.getAddress(),
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          '0x0000000000000000000000000000000000000000'
+        ],
+        uints: [1000, 0],
+        bytess: []
+      }
+    )
 
-    const datatokenParams = {
-      templateIndex: 1,
-      cap: '100000',
-      feeAmount: '0',
-      paymentCollector: ZERO_ADDRESS,
-      feeToken: ZERO_ADDRESS,
-      minter: await publisherAccount.getAddress(),
-      mpFeeAddress: ZERO_ADDRESS
-    }
+    const txReceipt = await tx.wait()
+    // nftAddress = txReceipt?.events?.filter((log) => {
+    //   return log.event === 'NFTCreated'
+    // })[0].args.newTokenAddress
+    // console.log('nftAddress ==', nftAddress)
+    assert(txReceipt.hash, 'transaction failed')
+    // expect(nftAddress).to.be(nftAddress)
 
-    console.log('nftParams ', nftParams)
-    console.log('datatokenParams ', datatokenParams)
-
-    console.log('getAddress ', await factoryContract.getAddress())
-
-    const createTx = await factoryContract.createNftWithErc20(nftParams, datatokenParams)
-    // console.log('createTx', createTx)
-    // const txReceipt = await createTx.wait()
-    // console.log('trxReceipt ==', txReceipt)
     // nftAddress = txReceipt?.events?.filter((log) => {
     //   return log.event === 'NFTCreated'
     // })[0].args.newTokenAddress
