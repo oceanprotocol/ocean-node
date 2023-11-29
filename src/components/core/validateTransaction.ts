@@ -1,7 +1,8 @@
-import { Blockchain } from '../../utils/blockchain.js'
+import { Provider, Contract } from 'ethers'
 import { parseEventLogs } from '../../utils/events.js'
 import { OrderStartedEvent, OrderReusedEvent } from '../../@types/contracts.js'
 import IERC20Template from '@oceanprotocol/contracts/artifacts/contracts/interfaces/IERC20Template.sol/IERC20Template.json'
+import IERC721Template from '@oceanprotocol/contracts/artifacts/contracts/interfaces/IERC721Template.sol/IERC721Template.json'
 import { Interface } from '@ethersproject/abi'
 
 interface ValidateTransactionResponse {
@@ -12,11 +13,10 @@ interface ValidateTransactionResponse {
 export async function validateOrderTransaction(
   txId: string,
   userAddress: string,
-  blockchain: Blockchain
+  provider: Provider,
+  dataNftAddress: string,
+  datatokenAddress: string
 ): Promise<ValidateTransactionResponse> {
-  // Use the provider from the Blockchain class
-  const provider = blockchain.getProvider()
-
   // 1. Fetch the transaction receipt and parse for OrderStarted and OrderReused events
   let txReceipt = await provider.getTransactionReceipt(txId)
 
@@ -47,7 +47,18 @@ export async function validateOrderTransaction(
     contractInterface
   )
 
-  // 3. Validate other conditions...
+  // Check if the datatoken is deployed using ERC721 contract
+  const ERC721Contract = new Contract(dataNftAddress, IERC721Template.abi, provider)
+
+  const isDatatokenDeployed = await ERC721Contract.isDeployed(datatokenAddress)
+  if (!isDatatokenDeployed) {
+    return {
+      isValid: false,
+      message: 'Datatoken is not deployed.'
+    }
+  }
+
+  // TODO: Validate other conditions...
 
   return {
     isValid: true,
