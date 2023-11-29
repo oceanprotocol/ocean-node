@@ -18,7 +18,12 @@
     "allowJs": true,
     "rootDir": "./src",
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "paths": {
+      "@components/*": ["./src/components/*"],
+      "@types/*": ["./src/@types/*"],
+      "@utils/*": ["./src/@utils/*"]
+    }
   },
   "ts-node": {
     "esm": true
