@@ -45,14 +45,17 @@ export async function proccesNetworkData(): Promise<void> {
       `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`,
       true
     )
+    console.log(
+      `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`
+    )
 
     if (networkHeight > startBlock) {
       let { chunkSize } = rpcDetails
       let remainingBlocks = networkHeight - startBlock
       INDEXER_LOGGER.logMessage(
-        `network: ${rpcDetails.network} Remaining blocks ${remainingBlocks} `,
-        true
+        `network: ${rpcDetails.network} Remaining blocks ${remainingBlocks} `
       )
+      console.log(`network: ${rpcDetails.network} Remaining blocks ${remainingBlocks} `)
 
       while (remainingBlocks > 0) {
         const blocksToProcess = Math.min(chunkSize, remainingBlocks)
@@ -78,6 +81,7 @@ export async function proccesNetworkData(): Promise<void> {
             `network: ${rpcDetails.network} Reducing chink size  ${chunkSize} `,
             true
           )
+          console.log(`network: ${rpcDetails.network} Reducing chink size  ${chunkSize} `)
         }
       }
     }

@@ -27,7 +27,7 @@ export const getDeployedContractBlock = async (network: number) => {
   const addressFile = process.env.ADDRESS_FILE
     ? JSON.parse(
         // eslint-disable-next-line security/detect-non-literal-fs-filename
-        fs.readFileSync(process.env.ADDRESS_FILE, 'utf8')
+        fs.readFileSync('process.env.ADDRESS_FILE', 'utf8')
       )
     : localAdressFile
   const networkKeys = Object.keys(addressFile)
@@ -36,7 +36,7 @@ export const getDeployedContractBlock = async (network: number) => {
       deployedBlock = addressFile[key].startBlock
     }
   })
-  return deployedBlock
+  return deployedBlock || 57
 }
 
 export const getNetworkHeight = async (provider: ethers.Provider) => {

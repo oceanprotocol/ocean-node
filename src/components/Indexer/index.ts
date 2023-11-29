@@ -33,19 +33,28 @@ export class OceanIndexer {
       const chainId = parseInt(network)
       const rpcDetails: SupportedNetwork = this.networks[network]
       const lastIndexedBlock = await this.getLastIndexedBlock(chainId)
+      console.log('lastIndexedBlock ', lastIndexedBlock)
       const worker = new Worker('./dist/components/Indexer/crawlerThread.js', {
         workerData: { rpcDetails, lastIndexedBlock }
       })
 
       worker.on('message', (event: any) => {
         if (event.method === 'store-last-indexed-block') {
+          INDEXER_LOGGER.logMessage(
+            `this.updateLastIndexedBlockNumber(event.network, event.data) ${event.network}: ${event.data} `,
+            true
+          )
           this.updateLastIndexedBlockNumber(event.network, event.data)
         }
         if (event.method === EVENTS.METADATA_CREATED) {
+          INDEXER_LOGGER.logMessage(
+            `saveDDO(event.network, event.data) ${event.network}: ${event.data} `,
+            true
+          )
           this.saveDDO(event.network, event.data)
         }
         INDEXER_LOGGER.logMessage(
-          `Main thread message from worker for network ${network}: ${event}`,
+          `Main thread message from worker for network ${network}, ${event.method}: ${event.data} `,
           true
         )
         // index the DDO in the typesense db

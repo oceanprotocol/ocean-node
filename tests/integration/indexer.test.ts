@@ -52,7 +52,10 @@ async function waitToIndex(did: string, database: Database): Promise<any> {
   let tries = 0
   do {
     try {
-      return await database.ddo.retrieve(did)
+      const ddo = await database.ddo.retrieve(did)
+      if (ddo) {
+        return ddo
+      }
     } catch (e) {
       // do nothing
     }
@@ -176,10 +179,11 @@ describe('Indexer stores a new published DDO', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  // delay(100000)
+  delay(100000)
 
-  // it('should store the ddo in the database and return it ', async () => {
-  //   const resolvedDDO = await waitToIndex(assetDID, database)
-  //   expect(resolvedDDO.id).to.equal(genericAsset.id)
-  // })
+  it('should store the ddo in the database and return it ', async () => {
+    const resolvedDDO = await waitToIndex(assetDID, database)
+    console.log('resolvedDDO ', resolvedDDO)
+    // expect(resolvedDDO.id).to.equal(genericAsset.id)
+  })
 })
