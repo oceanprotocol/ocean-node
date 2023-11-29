@@ -107,12 +107,6 @@ describe('Indexer stores a new published DDO', () => {
       ERC721Factory.abi,
       publisherAccount
     )
-
-    nftContract = new ethers.Contract(
-      data.development.ERC721Template[1],
-      ERC721Template.abi,
-      publisherAccount
-    )
   })
 
   it('instance Database', async () => {
@@ -151,6 +145,7 @@ describe('Indexer stores a new published DDO', () => {
   })
 
   it('should set metadata and save ', async () => {
+    nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, publisherAccount)
     genericAsset.id =
       'did:op:' +
       createHash('sha256')
@@ -173,7 +168,7 @@ describe('Indexer stores a new published DDO', () => {
       '0x123',
       '0x02',
       metadata,
-      hash,
+      '0x' + hash,
       []
     )
     const trxReceipt = await setMetaDataTx.wait()
