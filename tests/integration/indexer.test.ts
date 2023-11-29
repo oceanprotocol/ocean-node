@@ -17,6 +17,7 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { Database } from '../../src/components/database/index.js'
 import { OceanIndexer } from '../../src/components/Indexer/index.js'
 import { RPCS } from '../../src/@types/blockchain.js'
+import { getEventFromTx } from '../../src/utils/util.js'
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 const genericAsset = {
@@ -150,19 +151,12 @@ describe('Indexer stores a new published DDO', () => {
         bytess: []
       }
     )
-
     const txReceipt = await tx.wait()
-    // nftAddress = txReceipt?.events?.filter((log) => {
-    //   return log.event === 'NFTCreated'
-    // })[0].args.newTokenAddress
-    // console.log('nftAddress ==', nftAddress)
-    assert(txReceipt.hash, 'transaction failed')
-    // expect(nftAddress).to.be(nftAddress)
-
-    // nftAddress = txReceipt?.events?.filter((log) => {
-    //   return log.event === 'NFTCreated'
-    // })[0].args.newTokenAddress
-    // expect(txReceipt.hash).to.be('string')
+    assert(txReceipt, 'transaction failed')
+    const event = getEventFromTx(txReceipt, 'NFTCreated')
+    nftAddress = event.args[0]
+    console.log('nftAddress ', nftAddress)
+    assert(nftAddress, 'find nft created failed')
   })
 
   // it('should set metadata and save ', async () => {
