@@ -32,7 +32,7 @@ broadcastCommandRoute.post(
 
     logger.log(getDefaultLevel(), `broadcastCommand received ${req.body}`, true)
 
-    await req.oceanNode.node.broadcast(JSON.stringify(req.body))
+    await req.oceanNode.getP2PNode().broadcast(JSON.stringify(req.body))
     res.sendStatus(200)
   }
 )
@@ -96,16 +96,14 @@ directCommandRoute.post(
 
     let status: P2PCommandResponse = null
     // send to this peer
-    if (!req.body.node || req.oceanNode.node.isTargetPeerSelf(req.body.node)) {
+    if (!req.body.node || req.oceanNode.getP2PNode().isTargetPeerSelf(req.body.node)) {
       // send to this node
-      status = await req.oceanNode.node.sendToSelf(JSON.stringify(req.body), sink)
+      status = await req.oceanNode.getP2PNode().sendToSelf(JSON.stringify(req.body), sink)
     } else {
       // send to another peer
-      status = await req.oceanNode.node.sendTo(
-        req.body.node as string,
-        JSON.stringify(req.body),
-        sink
-      )
+      status = await req.oceanNode
+        .getP2PNode()
+        .sendTo(req.body.node as string, JSON.stringify(req.body), sink)
     }
 
     if (status.stream == null) {

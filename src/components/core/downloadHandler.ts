@@ -1,12 +1,11 @@
 import crypto from 'crypto'
 import { DownloadCommand } from '../../utils/constants.js'
-import { OceanNodeConfig, P2PCommandResponse } from '../../@types'
+import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import fs from 'fs'
-import { P2P_CONSOLE_LOGGER } from '../P2P/index.js'
+import { OceanP2P, P2P_CONSOLE_LOGGER } from '../P2P/index.js'
 import * as ethCrypto from 'eth-crypto'
 import axios from 'axios'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { getConfig } from '../../utils/config.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 /**
@@ -25,6 +24,7 @@ async function getFileFromURL(fileURL: string): Promise<any> {
 }
 // No encryption here yet
 export async function handleDownloadURLCommand(
+  node: OceanP2P,
   task: DownloadCommand
 ): Promise<P2PCommandResponse> {
   const encryptFile = !!task.aes_encrypted_key
@@ -42,8 +42,7 @@ export async function handleDownloadURLCommand(
       // we parse the string into the object again
       const encryptedObject = ethCrypto.cipher.parse(task.aes_encrypted_key)
       // get the key from configuration
-      const config: OceanNodeConfig = await getConfig()
-      const nodePrivateKey = Buffer.from(config.keys.privateKey).toString('hex')
+      const nodePrivateKey = Buffer.from(node.getConfig().keys.privateKey).toString('hex')
       const decrypted = await ethCrypto.decryptWithPrivateKey(
         nodePrivateKey,
         encryptedObject
