@@ -12,6 +12,16 @@ export class OceanNode {
   private db: Database
   public constructor(config: OceanNodeConfig) {
     this.config = config
+    this.db = new Database(config.dbConfig)
+    if (config.hasP2P) {
+      this.node = new OceanP2P(this.db, config)
+    }
+    if (config.hasIndexer) {
+      this.indexer = new OceanIndexer(this.db, config.supportedNetworks)
+    }
+    if (config.hasProvider) {
+      this.provider = new OceanProvider(this.db)
+    }
   }
 
   public getConfig(): OceanNodeConfig {
@@ -32,17 +42,5 @@ export class OceanNode {
 
   public getDatabase(): Database {
     return this.db
-  }
-
-  public setOceanNode(
-    newNode: OceanP2P,
-    newIndexer: OceanIndexer,
-    newProvider: OceanProvider,
-    newDbConn: Database
-  ): void {
-    this.node = newNode
-    this.indexer = newIndexer
-    this.provider = newProvider
-    this.db = newDbConn
   }
 }

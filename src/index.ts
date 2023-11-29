@@ -65,18 +65,15 @@ function loadInitialDDOS(): any[] {
 // }
 console.log('\n\n\n\n')
 const config = await getConfig()
-const oceanNode = new OceanNode(config)
 if (!config) process.exit(1)
-let node: OceanP2P = null
-let indexer = null
-let provider = null
-const dbconn = await new Database(config.dbConfig)
-if (config.hasP2P) {
-  node = new OceanP2P(dbconn, config)
+const oceanNode = new OceanNode(config)
+const node: OceanP2P = oceanNode.getP2PNode()
+const indexer: OceanIndexer = oceanNode.getIndexer()
+const dbconn: Database = oceanNode.getDatabase()
+if (node) {
   await node.start()
 }
-if (config.hasIndexer) {
-  indexer = new OceanIndexer(dbconn, config.supportedNetworks)
+if (indexer) {
   // if we set this var
   // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
   // store and advertise DDOs
@@ -90,12 +87,10 @@ if (config.hasIndexer) {
     }
   }
 }
-if (config.hasProvider) provider = new OceanProvider(dbconn)
 const customLogTransport = newCustomDBTransport(dbconn)
 logger.addTransport(customLogTransport)
 
 // global
-oceanNode.setOceanNode(node, indexer, provider, dbconn)
 if (config.hasHttp) {
   app.use((req, res, next) => {
     req.oceanNode = oceanNode

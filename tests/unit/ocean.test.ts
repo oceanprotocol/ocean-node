@@ -24,5 +24,15 @@ describe('Status command tests', () => {
       '137': 'https://polygon.meowrpc.com',
       '80001': 'https://rpc-mumbai.maticvigil.com'
     })
+    expect(oceanNode.getDatabase()).to.not.eql(null)
+    if (config.hasP2P) {
+      expect(oceanNode.getP2PNode()).to.not.eql(null)
+    }
+    if (config.hasIndexer) {
+      expect(oceanNode.getIndexer()).to.not.eql(null)
+    }
+    if (config.hasProvider) {
+      expect(oceanNode.getProvider()).to.not.eql(null)
+    }
   })
 })
