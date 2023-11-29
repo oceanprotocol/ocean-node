@@ -12,6 +12,9 @@ export class OceanNode {
   private db: Database
   public constructor(config: OceanNodeConfig) {
     this.config = config
+  }
+
+  public buildOceanNode(config: OceanNodeConfig): OceanNode {
     this.db = new Database(config.dbConfig)
     if (config.hasP2P) {
       this.node = new OceanP2P(this.db, config)
@@ -22,6 +25,7 @@ export class OceanNode {
     if (config.hasProvider) {
       this.provider = new OceanProvider(this.db)
     }
+    return this
   }
 
   public getConfig(): OceanNodeConfig {

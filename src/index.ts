@@ -60,13 +60,11 @@ function loadInitialDDOS(): any[] {
   return ddos
 }
 
-// async function main(): Promise<OceanNode> {
-
-// }
 console.log('\n\n\n\n')
 const config = await getConfig()
 if (!config) process.exit(1)
-const oceanNode = new OceanNode(config)
+let oceanNode = new OceanNode(config)
+oceanNode = oceanNode.buildOceanNode(config)
 const node: OceanP2P = oceanNode.getP2PNode()
 const indexer: OceanIndexer = oceanNode.getIndexer()
 const dbconn: Database = oceanNode.getDatabase()

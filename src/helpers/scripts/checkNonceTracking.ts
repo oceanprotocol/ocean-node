@@ -22,7 +22,8 @@ const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
 )
 
 const config = await getConfig()
-const oceanNode = new OceanNode(config)
+let oceanNode = new OceanNode(config)
+oceanNode = oceanNode.buildOceanNode(config)
 
 // before running this: "setup-db": "docker-compose -f typesense-compose.yml -p ocean-node up -d",
 // nonce schema (address => nonce)
