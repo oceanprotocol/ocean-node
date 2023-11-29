@@ -32,3 +32,22 @@ export const processMetadataCreatedEvent = async (
   INDEXER_LOGGER.logMessage(`Processed new DDO data ${ddo} `, true)
   return ddo
 }
+
+export const processMetadataStateEvent = async (
+  event: ethers.Log,
+  provider: ethers.Provider
+) => {
+  INDEXER_LOGGER.logMessage(`Processing metadata state event...`, true)
+  const iface = new Interface(ERC721Template.abi)
+  const receipt = await provider.getTransactionReceipt(event.transactionHash)
+  INDEXER_LOGGER.logMessage(`Tx receipt for MetadataState event: ${receipt} `, true)
+  const eventObj = {
+    topics: receipt.logs[0].topics as string[],
+    data: receipt.logs[0].data
+  }
+  const decodedEventData = iface.parseLog(eventObj)
+  INDEXER_LOGGER.logMessage(`decodedEvent for MetadataState: ${decodedEventData}`, true)
+  const metadataState = parseInt(decodedEventData.args[1].toString())
+  INDEXER_LOGGER.logMessage(`Processed new metadata state ${metadataState} `, true)
+  return { metadataState, eventAddress: event.address }
+}

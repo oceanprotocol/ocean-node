@@ -9,6 +9,8 @@ import {
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
 import { EVENTS } from '../../utils/index.js'
+import { createHash } from 'crypto'
+import { getAddress } from 'ethers'
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
@@ -43,6 +45,9 @@ export class OceanIndexer {
         }
         if (event.method === EVENTS.METADATA_CREATED) {
           this.saveDDO(event.network, event.data)
+        }
+        if (event.method === EVENTS.METADATA_STATE) {
+          this.storeState(event)
         }
       })
 
@@ -91,6 +96,51 @@ export class OceanIndexer {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEl_ERROR,
         'Error retrieving last indexed block',
+        true
+      )
+    }
+  }
+
+  public async storeState(event: any): Promise<void> {
+    INDEXER_LOGGER.logMessage(
+      `MetadataState event data: ${event.data}, network: ${event.network}`,
+      true
+    )
+
+    const dbconn = this.db.ddo
+    const did =
+      'did:op:' +
+      createHash('sha256')
+        .update(getAddress(event.data.eventAddress) + event.network.toString(10))
+        .digest('hex')
+    try {
+      const ddo = await dbconn.retrieve(did)
+      if (!ddo) {
+        INDEXER_LOGGER.logMessage(
+          `Detected MetadataState changed for ${did}, but it does not exists.`
+        )
+        return
+      }
+      INDEXER_LOGGER.logMessage(`Found did ${did} on network ${event.network}`)
+      if ('nft' in ddo && ddo.nft.state !== event.data.metadataState) {
+        ddo.nft.state = event.data.metadataState
+      } else {
+        // Still update until we validate and polish schemas for DDO.
+        // But it should update ONLY if first condition is met.
+        // Check https://github.com/oceanprotocol/aquarius/blob/84a560ea972485e46dd3c2cfc3cdb298b65d18fa/aquarius/events/processors.py#L663
+        ddo.nft = {
+          state: event.data.metadataState
+        }
+      }
+      INDEXER_LOGGER.logMessage(`Found did ${did} on network ${event.network}`)
+      await dbconn.update({ ...ddo })
+      INDEXER_LOGGER.logMessage(
+        `Updated ddo ${did} state with ${event.data.metadataState} on network ${event.network}`
+      )
+    } catch (err) {
+      INDEXER_LOGGER.log(
+        LOG_LEVELS_STR.LEVEl_ERROR,
+        `Error retrieving & updating DDO state: ${err}`,
         true
       )
     }
