@@ -18,29 +18,36 @@ export async function validateOrderTransaction(
   const provider = blockchain.getProvider()
 
   // 1. Fetch the transaction receipt and parse for OrderStarted and OrderReused events
-  const txReceipt = await provider.getTransactionReceipt(txId)
-
-  const contractInterface = new Interface(IERC20Template.abi)
-  const orderStartedLogs = parseEventLogs<OrderStartedEvent>(
-    txReceipt.logs,
-    'OrderStarted',
-    contractInterface
-  )
-  const orderReusedLogs = parseEventLogs<OrderReusedEvent>(
-    txReceipt.logs,
-    'OrderReused',
-    contractInterface
-  )
+  let txReceipt = await provider.getTransactionReceipt(txId)
 
   // 2. Validate user address
   if (userAddress.toLowerCase() !== txReceipt.from.toLowerCase()) {
     throw new Error('User address does not match the sender of the transaction.')
   }
 
-  // 3. Validate other conditions...
+  // 3. Fetch the event logs
+  const contractInterface = new Interface(IERC20Template.abi)
+  // Check for OrderReused events
+  const orderReusedLogs = parseEventLogs<OrderReusedEvent>(
+    txReceipt.logs,
+    'OrderReused',
+    contractInterface
+  )
 
-  // After all checks pass
-  return true
+  // If OrderReused event found, fetch the associated OrderStarted transaction
+  if (orderReusedLogs.length > 0) {
+    const reusedTxId = orderReusedLogs[0].orderTxId
+    txReceipt = await provider.getTransactionReceipt(reusedTxId)
+  }
+
+  // Now get OrderStarted event logs
+  const orderStartedLogs = parseEventLogs<OrderStartedEvent>(
+    txReceipt.logs,
+    'OrderStarted',
+    contractInterface
+  )
+
+  // 3. Validate other conditions...
 
   return {
     isValid: true,
