@@ -5,7 +5,6 @@ import {
 } from '../../utils/constants.js'
 import { FindDDOResponse, P2PCommandResponse } from '../../@types'
 import { Readable } from 'stream'
-import OceanNodeInstance from '../../index.js'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { CACHE_TTL, OceanP2P, P2P_CONSOLE_LOGGER } from '../P2P/index.js'
 import { sleep } from '../../utils/util.js'
@@ -18,10 +17,11 @@ const MAX_RESPONSE_WAIT_TIME_SECONDS = 60
 const MAX_WAIT_TIME_SECONDS_GET_DDO = 5
 
 export async function handleGetDdoCommand(
+  node: OceanP2P,
   task: GetDdoCommand
 ): Promise<P2PCommandResponse> {
   try {
-    const ddo = await this.db.ddo.retrieve(task.id)
+    const ddo = await node.getDatabase().ddo.retrieve(task.id)
     if (!ddo) {
       return {
         stream: null,
@@ -86,11 +86,12 @@ function sortFindDDOResults(resultList: FindDDOResponse[]): FindDDOResponse[] {
  * @param task the findDDO command task
  * @returns filtered list
  */
-export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse> {
+export async function findDDO(
+  node: OceanP2P,
+  task: FindDDOCommand
+): Promise<P2PCommandResponse> {
   try {
     let updatedCache = false
-    // this node
-    const { node } = await OceanNodeInstance
     // result list
     const resultList: FindDDOResponse[] = []
     // if we have the result cached recently we return that result
@@ -190,7 +191,7 @@ export async function findDDO(task: FindDDOCommand): Promise<P2PCommandResponse>
     // check if includes self and exclude from check list
     if (providers.length > 0) {
       // exclude this node from the providers list if present
-      const filteredProviders = providers.filter((provider) => {
+      const filteredProviders = providers.filter((provider: any) => {
         return provider.id.toString() !== node.getPeerId()
       })
 
