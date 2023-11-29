@@ -46,7 +46,7 @@ export async function handleDownloadCommand(
   }
 
   // Call the checkProviderFees mock function to simulate fee checking
-  const providerFeeResponse = checkProviderFees() // This is just a placeholder for now
+  const providerFeeResponse = checkProviderFees(task.transferTxId) // This is just a placeholder for now
 
   // Log the provider fee response for debugging purposes
   P2P_CONSOLE_LOGGER.logMessage(

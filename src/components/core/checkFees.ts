@@ -2,7 +2,9 @@ import { P2P_CONSOLE_LOGGER } from '../P2P/index.js'
 
 // Mock function to simulate checking of provider fees.
 // This function always returns the same response for now.
-export function checkProviderFees(): Record<string, any> {
+export function checkProviderFees(txId: string): Record<string, any> {
+  // Log the mock response for debugging purposes.
+  P2P_CONSOLE_LOGGER.logMessage(`Checking provider fees for txId: ` + txId, true)
   // Define a mock response object with fixed values.
   // These values should be replaced with actual data once the full logic is implemented.
   const mockResponse = {
@@ -18,7 +20,7 @@ export function checkProviderFees(): Record<string, any> {
 
   // Log the mock response for debugging purposes.
   P2P_CONSOLE_LOGGER.logMessage(
-    `Mock provider fees: ${JSON.stringify(mockResponse)}`,
+    `Mock provider fees response: ${JSON.stringify(mockResponse)}`,
     true
   )
 
