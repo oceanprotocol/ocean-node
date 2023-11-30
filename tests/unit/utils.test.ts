@@ -13,6 +13,53 @@ describe('Utilities Functions', () => {
   })
 
   describe('getEventFromTx function', () => {
+    // Mock event for OrderStarted
+    const mockOrderStartedEvent = {
+      fragment: { name: 'OrderStarted' },
+      data: {
+        consumer: '0xConsumerAddress',
+        payer: '0xPayerAddress',
+        amount: 1000,
+        serviceIndex: 1,
+        timestamp: Date.now(),
+        publishMarketAddress: '0xMarketAddress',
+        blockNumber: 123456
+      }
+    }
+
+    // Mock event for OrderReused
+    const mockOrderReusedEvent = {
+      fragment: { name: 'OrderReused' },
+      data: {
+        orderTxId: '0xOrderTxId',
+        caller: '0xCallerAddress',
+        timestamp: Date.now(),
+        number: 2
+      }
+    }
+
+    // Test for OrderStarted event
+    it('should return the OrderStarted event when present in txReceipt', () => {
+      const txReceipt = { logs: [mockOrderStartedEvent] }
+      const result = getEventFromTx(txReceipt, 'OrderStarted')
+      assert.deepEqual(
+        result,
+        mockOrderStartedEvent,
+        'Should return the correct OrderStarted event'
+      )
+    })
+
+    // Test for OrderReused event
+    it('should return the OrderReused event when present in txReceipt', () => {
+      const txReceipt = { logs: [mockOrderReusedEvent] }
+      const result = getEventFromTx(txReceipt, 'OrderReused')
+      assert.deepEqual(
+        result,
+        mockOrderReusedEvent,
+        'Should return the correct OrderReused event'
+      )
+    })
+
     it('should return the correct event when present in txReceipt', () => {
       const mockEvent = { fragment: { name: 'MockEvent' } }
       const txReceipt = { logs: [mockEvent] }
