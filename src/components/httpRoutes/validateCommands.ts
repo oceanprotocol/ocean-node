@@ -46,7 +46,10 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
       return {
         valid: true
       }
-    } else if (command === PROTOCOL_COMMANDS.FIND_DDO) {
+    } else if (
+      command === PROTOCOL_COMMANDS.FIND_DDO ||
+      command === PROTOCOL_COMMANDS.GET_DDO
+    ) {
       // message is DDO identifier
       if (!requestBody.id || !requestBody.id.startsWith('did:op')) {
         return {
@@ -64,17 +67,6 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
           reason: !requestBody.address
             ? 'Missing required parameter: "address"'
             : 'Parameter : "address" is not a valid web3 address',
-          status: 400
-        }
-      }
-      return {
-        valid: true
-      }
-    } else if (command === PROTOCOL_COMMANDS.GET_DDO) {
-      if (!requestBody.id) {
-        return {
-          valid: false,
-          reason: 'Missing required parameter: "id"',
           status: 400
         }
       }

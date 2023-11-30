@@ -10,7 +10,8 @@ export const PROTOCOL_COMMANDS = {
   QUERY: 'query',
   NONCE: 'nonce',
   STATUS: 'status',
-  FIND_DDO: 'findDDO'
+  FIND_DDO: 'findDDO',
+  GET_FEES: 'getFees'
 }
 
 export interface Command {
@@ -23,9 +24,12 @@ export interface DownloadCommand extends Command {
   aes_encrypted_key?: string // if not present it means download without encryption
 }
 
-export interface GetDdoCommand extends Command {
+// group these 2
+export interface DDOCommand extends Command {
   id: string
 }
+export interface GetDdoCommand extends DDOCommand {}
+export interface FindDDOCommand extends DDOCommand {}
 
 export interface QueryCommand extends Command {
   query: Record<string, any>
@@ -35,10 +39,6 @@ export interface EncryptCommand extends Command {
   blob: string
   encoding: string
   encryptionType: string
-}
-
-export interface FindDDOCommand extends Command {
-  id: string
 }
 
 export interface NonceCommand extends Command {
@@ -63,7 +63,8 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.GET_DDO,
   PROTOCOL_COMMANDS.QUERY,
   PROTOCOL_COMMANDS.STATUS,
-  PROTOCOL_COMMANDS.FIND_DDO
+  PROTOCOL_COMMANDS.FIND_DDO,
+  PROTOCOL_COMMANDS.GET_FEES
 ]
 
 export const EVENTS = {
