@@ -1,3 +1,4 @@
+import { P2PCommandResponse } from '../@types/OceanNode'
 import { Hashes } from '../@types/blockchain'
 
 // Add all the supported commands
@@ -42,6 +43,11 @@ export interface FindDDOCommand extends Command {
 
 export interface NonceCommand extends Command {
   address: string // consumer address
+}
+
+// useful if/when we refactor
+export interface ICommandHandler {
+  handleCommand(command: Command): Promise<P2PCommandResponse>
 }
 
 export interface BroadcastCommand {

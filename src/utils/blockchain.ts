@@ -23,3 +23,26 @@ export class Blockchain {
     return this.chainId
   }
 }
+
+/**
+ * Verify a signed message, see if signature matches address
+ * @param message to verify
+ * @param address to check against
+ * @param signature to validate
+ * @returns boolean
+ */
+export async function verifyMessage(
+  message: string | Uint8Array,
+  address: string,
+  signature: string
+) {
+  try {
+    const signerAddr = await ethers.verifyMessage(message, signature)
+    if (signerAddr !== address) {
+      return false
+    }
+    return true
+  } catch (err) {
+    return false
+  }
+}

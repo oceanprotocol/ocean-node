@@ -14,6 +14,7 @@ import {
 } from '../utils/logging/Logger.js'
 import { RPCS } from '../@types/blockchain'
 import { Wallet } from 'ethers'
+import { FeeStrategy, FeeTokens, FeeAmount } from '../@types/Fees'
 
 const CONFIG_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.CONFIG,
@@ -72,6 +73,40 @@ function getSupportedChains(): RPCS {
   }
   const supportedNetworks: RPCS = JSON.parse(process.env.RPCS)
   return supportedNetworks
+}
+
+// parse fees structure from .env
+function getOceanNodeFees(): FeeStrategy {
+  const logError = () => {
+    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+      'Error parsing Fee Strategy... Please check "FEE_TOKENS" and "FEE_AMOUNT" env variables',
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEl_ERROR
+    )
+  }
+
+  try {
+    const nodeFeesTokens = JSON.parse(process.env.FEE_TOKENS) as [FeeTokens]
+    const nodeFeesAmount = JSON.parse(process.env.FEE_AMOUNT) as FeeAmount
+    if (!nodeFeesAmount || !nodeFeesTokens) {
+      // invalid values
+      logError()
+      return null
+    }
+    const test = {
+      fee_tokens: nodeFeesTokens,
+      fee_amount: nodeFeesAmount
+    }
+    console.log(test)
+    return {
+      feeTokens: nodeFeesTokens,
+      feeAmount: nodeFeesAmount
+    }
+  } catch (error) {
+    logError()
+    return null
+  }
 }
 
 function existsEnvironmentVariable(envVar: string, envName: string): any {
@@ -138,7 +173,8 @@ export async function getConfig(): Promise<OceanNodeConfig> {
     dbConfig: {
       url: getEnvValue(process.env.DB_URL, 'http://localhost:8108/?apiKey=xyz')
     },
-    supportedNetworks: getSupportedChains()
+    supportedNetworks: getSupportedChains(),
+    feeStrategy: getOceanNodeFees()
   }
   return config
 }
