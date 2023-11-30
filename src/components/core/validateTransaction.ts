@@ -1,8 +1,8 @@
 import { Provider, Contract } from 'ethers'
-import { parseEventLogs } from '../../utils/events.js'
+import { getEventFromTx } from '../../utils/util.js'
 import { OrderStartedEvent, OrderReusedEvent } from '../../@types/contracts.js'
-import IERC20Template from '@oceanprotocol/contracts/artifacts/contracts/interfaces/IERC20Template.sol/IERC20Template.json'
-import IERC721Template from '@oceanprotocol/contracts/artifacts/contracts/interfaces/IERC721Template.sol/IERC721Template.json'
+import IERC20Template from '@oceanprotocol/contracts/artifacts/contracts/interfaces/IERC20Template.sol/IERC20Template.json' assert { type: 'json' }
+import IERC721Template from '@oceanprotocol/contracts/artifacts/contracts/interfaces/IERC721Template.sol/IERC721Template.json' assert { type: 'json' }
 import { Interface } from '@ethersproject/abi'
 
 interface ValidateTransactionResponse {
@@ -26,13 +26,8 @@ export async function validateOrderTransaction(
   }
 
   // 3. Fetch the event logs
-  const contractInterface = new Interface(IERC20Template.abi)
   // Check for OrderReused events
-  const orderReusedLogs = parseEventLogs<OrderReusedEvent>(
-    txReceipt.logs,
-    'OrderReused',
-    contractInterface
-  )
+  const orderReusedLogs = getEventFromTx(txReceipt as any, 'OrderReused')
 
   // If OrderReused event found, fetch the associated OrderStarted transaction
   if (orderReusedLogs.length > 0) {
@@ -41,11 +36,7 @@ export async function validateOrderTransaction(
   }
 
   // Now get OrderStarted event logs
-  const orderStartedLogs = parseEventLogs<OrderStartedEvent>(
-    txReceipt.logs,
-    'OrderStarted',
-    contractInterface
-  )
+  const orderStartedLogs = getEventFromTx(txReceipt as any, 'OrderStarted')
 
   // Check if the datatoken is deployed using ERC721 contract
   const ERC721Contract = new Contract(dataNftAddress, IERC721Template.abi, provider)
@@ -54,7 +45,29 @@ export async function validateOrderTransaction(
   if (!isDatatokenDeployed) {
     return {
       isValid: false,
-      message: 'Datatoken is not deployed.'
+      message: 'Datatoken was not deployed by this DataNFT.'
+    }
+  }
+
+  // Get the ProviderFee event logs
+  const providerFeeEventLogs = getEventFromTx(txReceipt as any, 'ProviderFee')
+
+  // Check if datatoken belongs to the service
+  let datatokenBelongsToService = false
+  providerFeeEventLogs.forEach((log: any) => {
+    const providerData = JSON.parse(log.args.providerData)
+    if (
+      providerData.dt.toLowerCase() === datatokenAddress.toLowerCase() &&
+      providerData.id.toLowerCase() === orderStartedLogs.serviceIndex.toLowerCase()
+    ) {
+      datatokenBelongsToService = true
+    }
+  })
+
+  if (!datatokenBelongsToService) {
+    return {
+      isValid: false,
+      message: 'Datatoken does not belong to the service.'
     }
   }
 
