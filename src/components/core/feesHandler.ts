@@ -252,12 +252,12 @@ export async function createFee(
 
 export async function checkFee(
   txId: string,
-  message: string | Uint8Array,
-  nodeAddress: string
+  message: string | Uint8Array // the message that was signed (fee structure) ?
 ): Promise<boolean> {
   // checkFee function: given a txID, checks:
   // the address that signed the fee signature = ocean-node address
   // amount, tokens, etc are a match
+  const nodeAddress = getProviderWalletAddress()
   return await verifyMessage(message, nodeAddress, txId)
 }
 
