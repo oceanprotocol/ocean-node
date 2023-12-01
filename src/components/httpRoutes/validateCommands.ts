@@ -37,15 +37,7 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
           status: 400
         }
       }
-      return {
-        valid: true
-      }
-      // echo
-    } else if (command === PROTOCOL_COMMANDS.ECHO) {
-      // nothing special with this one
-      return {
-        valid: true
-      }
+      // note: PROTOCOL_COMMANDS.ECHO is always fine
     } else if (
       command === PROTOCOL_COMMANDS.FIND_DDO ||
       command === PROTOCOL_COMMANDS.GET_DDO
@@ -70,9 +62,6 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
           status: 400
         }
       }
-      return {
-        valid: true
-      }
     } else if (command === PROTOCOL_COMMANDS.QUERY) {
       if (!requestBody.query) {
         return {
@@ -80,9 +69,6 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
           reason: 'Missing required parameter: "query"',
           status: 400
         }
-      }
-      return {
-        valid: true
       }
     } else if (command === PROTOCOL_COMMANDS.ENCRYPT) {
       if (!requestBody.blob) {
@@ -112,10 +98,14 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
           status: 400
         }
       }
-      return {
-        valid: true
+    } else if (command === PROTOCOL_COMMANDS.GET_FEES) {
+      if (!requestBody.ddo || !requestBody.serviceId) {
+        return {
+          valid: true
+        }
       }
     }
+    // only once is enough :-)
     return {
       valid: true
     }

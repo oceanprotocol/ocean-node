@@ -49,18 +49,25 @@ export class FeesHandler extends CommandHandler {
         true
       )
 
-      const fees = calculateFee(task.ddo, task.serviceId)
+      const fees = await calculateFee(task.ddo, task.serviceId)
       if (fees) {
         return {
-          stream: Readable.from(JSON.stringify(fees)),
+          stream: Readable.from(JSON.stringify(fees, null, 4)),
           status: { httpStatus: 200 }
         }
       } else {
+        const error = `Unable to calculate fees (null) for DDO with id: ${task.ddo.id} and serviceId: ${task.serviceId}`
+        logger.logMessageWithEmoji(
+          error,
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEl_ERROR
+        )
         return {
           stream: null,
           status: {
             httpStatus: 500,
-            error: `Unable to calculate fees for DDO with id: ${task.ddo.id} and serviceId: ${task.serviceId}`
+            error
           }
         }
       }
