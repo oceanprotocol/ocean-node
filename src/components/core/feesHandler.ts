@@ -265,12 +265,29 @@ export async function checkFee(
   // checkFee function: given a txID, checks:
   // the address that signed the fee signature = ocean-node address
   // amount, tokens, etc are a match
-  const wallet = getProviderWallet(null)
+
+  const wallet = getProviderWallet()
   const nodeAddress = wallet.address
+  const feeAmount = getProviderFeeAmount()
+  // first check if these are a match
+  if (
+    nodeAddress !== providerFeesData.providerFeeAddress ||
+    providerFeesData.providerFeeAmount !== feeAmount
+  ) {
+    return false
+  }
+
+  const providerDataAsArray = ethers.toBeArray(providerFeesData.providerData)
+  const providerDataStr = Buffer.from(providerDataAsArray).toString('utf8')
+  const providerData = JSON.parse(providerDataStr)
+
+  // done previously as ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(providerData))),
+  // check signature stuff now
+
   const messageHash = ethers.solidityPackedKeccak256(
     ['bytes', 'address', 'address', 'uint256', 'uint256'],
     [
-      ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(providerFeesData))),
+      ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(providerData))),
       ethers.getAddress(providerFeesData.providerFeeAddress), // signer address
       ethers.getAddress(providerFeesData.providerFeeToken), // TODO check decimals on contract?
       providerFeesData.providerFeeAmount,
@@ -284,23 +301,8 @@ export async function checkFee(
   )
 
   const signed32Bytes = await wallet.signMessage(ethers.toBeArray(signableHash))
-  const signatureSplitted = ethers.Signature.from(signed32Bytes)
-  const v = signatureSplitted.v <= 1 ? signatureSplitted.v + 27 : signatureSplitted.v
-  const r = ethers.toBeArray(signatureSplitted.r) // 32 bytes
-  const s = ethers.toBeArray(signatureSplitted.s) // 32 bytes
-
-  // first check if these are a match
-  if (
-    v !== providerFeesData.v ||
-    r !== providerFeesData.r ||
-    s !== providerFeesData.s ||
-    nodeAddress !== providerFeesData.providerFeeAddress
-  ) {
-    return false
-  }
-
   // and also check that we signed this message
-  return await verifyMessage(signed32Bytes, providerFeesData.providerFeeAddress, txId)
+  return await verifyMessage(signed32Bytes, nodeAddress, txId)
   // before was only return await verifyMessage(message, nodeAddress, txId)
 }
 
@@ -338,7 +340,7 @@ export async function getFees(task: GetFeesCommand): Promise<P2PCommandResponse>
  * @param chainId the chain id (not used now)
  * @returns the wallet
  */
-export function getProviderWallet(chainId: string): ethers.Wallet {
+export function getProviderWallet(chainId?: string): ethers.Wallet {
   const wallet: ethers.Wallet = new ethers.Wallet(
     Buffer.from(config.keys.privateKey).toString('hex')
   )
