@@ -259,13 +259,49 @@ export async function createFee(
 
 export async function checkFee(
   txId: string,
-  message: string | Uint8Array // the message that was signed (fee structure) ?
+  providerFeesData: ProviderFeeData
+  // message: string | Uint8Array // the message that was signed (fee structure) ?
 ): Promise<boolean> {
   // checkFee function: given a txID, checks:
   // the address that signed the fee signature = ocean-node address
   // amount, tokens, etc are a match
-  const nodeAddress = getProviderWalletAddress()
-  return await verifyMessage(message, nodeAddress, txId)
+  const wallet = getProviderWallet(null)
+  const nodeAddress = wallet.address
+  const messageHash = ethers.solidityPackedKeccak256(
+    ['bytes', 'address', 'address', 'uint256', 'uint256'],
+    [
+      ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(providerFeesData))),
+      ethers.getAddress(providerFeesData.providerFeeAddress), // signer address
+      ethers.getAddress(providerFeesData.providerFeeToken), // TODO check decimals on contract?
+      providerFeesData.providerFeeAmount,
+      providerFeesData.validUntil
+    ]
+  )
+
+  const signableHash = ethers.solidityPackedKeccak256(
+    ['bytes'],
+    [ethers.toUtf8Bytes(messageHash)]
+  )
+
+  const signed32Bytes = await wallet.signMessage(ethers.toBeArray(signableHash))
+  const signatureSplitted = ethers.Signature.from(signed32Bytes)
+  const v = signatureSplitted.v <= 1 ? signatureSplitted.v + 27 : signatureSplitted.v
+  const r = ethers.toBeArray(signatureSplitted.r) // 32 bytes
+  const s = ethers.toBeArray(signatureSplitted.s) // 32 bytes
+
+  // first check if these are a match
+  if (
+    v !== providerFeesData.v ||
+    r !== providerFeesData.r ||
+    s !== providerFeesData.s ||
+    nodeAddress !== providerFeesData.providerFeeAddress
+  ) {
+    return false
+  }
+
+  // and also check that we signed this message
+  return await verifyMessage(signed32Bytes, providerFeesData.providerFeeAddress, txId)
+  // before was only return await verifyMessage(message, nodeAddress, txId)
 }
 
 export async function calculateFee(
