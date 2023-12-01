@@ -87,18 +87,20 @@ function getOceanNodeFees(): FeeStrategy {
   }
 
   try {
-    const nodeFeesTokens = JSON.parse(process.env.FEE_TOKENS) as [FeeTokens]
+    const nodeFeesTokens: FeeTokens[] = []
+    const tokens = JSON.parse(process.env.FEE_TOKENS)
+    Object.keys(tokens).forEach((key: string) => {
+      nodeFeesTokens.push({
+        chain: key,
+        token: tokens[key]
+      })
+    })
     const nodeFeesAmount = JSON.parse(process.env.FEE_AMOUNT) as FeeAmount
     if (!nodeFeesAmount || !nodeFeesTokens) {
       // invalid values
       logError()
       return null
     }
-    const test = {
-      fee_tokens: nodeFeesTokens,
-      fee_amount: nodeFeesAmount
-    }
-    console.log(test)
     return {
       feeTokens: nodeFeesTokens,
       feeAmount: nodeFeesAmount

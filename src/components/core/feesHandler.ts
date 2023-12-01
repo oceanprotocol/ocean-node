@@ -1,25 +1,84 @@
 import { ethers } from 'ethers'
 import { FeeTokens, ProviderFeeData } from '../../@types/Fees'
-import { OceanProvider } from '../Provider'
-import { getConfig, verifyMessage } from '../../utils'
-import { Asset } from '../../@types/Asset'
+import { Command, ICommandHandler, GetFeesCommand } from '../../utils/constants.js'
+import { DDO } from '../../@types/DDO/DDO'
 import { Service } from '../../@types/DDO/Service'
+import { AssetUtils } from '../../utils/asset.js'
+import { P2PCommandResponse } from '../../@types'
+import { OceanP2P } from '../P2P/index'
+import { Readable } from 'stream'
+import {
+  CustomNodeLogger,
+  GENERIC_EMOJIS,
+  LOGGER_MODULE_NAMES,
+  LOG_LEVELS_STR,
+  defaultConsoleTransport,
+  getCustomLoggerForModule,
+  newCustomDBTransport
+} from '../../utils/logging/Logger.js'
+import { Database } from '../database/index.js'
+import { verifyMessage } from '../../utils/blockchain.js'
+import { getConfig } from '../../utils/config.js'
 
-// export abstract class CommandHandler {
-//   public constructor(protected readonly node: OceanP2P) {}
-// }
-// export class FeesHandler extends CommandHandler implements ICommandHandler {
-//   handleCommand(command: Command): Promise<P2PCommandResponse> {
-//     throw new Error(`Method handleCommand() not implemented for command: ${command}`)
-//   }
-// }
-
+// for now use the global config
 const config = await getConfig()
+// this should be actually part of provider, so lets put this as module name
+const logger: CustomNodeLogger = getCustomLoggerForModule(
+  LOGGER_MODULE_NAMES.PROVIDER,
+  LOG_LEVELS_STR.LEVEL_INFO, // Info level
+  [defaultConsoleTransport, newCustomDBTransport(await new Database(config.dbConfig))] // console only Transport
+)
+/**
+ * We could turn other core Command handlers into something like this:
+ */
+export abstract class CommandHandler implements ICommandHandler {
+  private p2pNode?: OceanP2P
+  public constructor(node?: OceanP2P) {
+    this.p2pNode = node || undefined
+  }
+
+  // handle directCommands
+  abstract handleCommand(command: Command): Promise<P2PCommandResponse>
+}
+export class FeesHandler extends CommandHandler {
+  async handleCommand(command: Command): Promise<P2PCommandResponse> {
+    try {
+      const task = command as GetFeesCommand
+      logger.logMessage(
+        `Try to calculate fees for DDO with id: ${task.ddo.id} and serviceId: ${task.serviceId}`,
+        true
+      )
+
+      const fees = calculateFee(task.ddo, task.serviceId)
+      if (fees) {
+        return {
+          stream: Readable.from(JSON.stringify(fees)),
+          status: { httpStatus: 200 }
+        }
+      } else {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: `Unable to calculate fees for DDO with id: ${task.ddo.id} and serviceId: ${task.serviceId}`
+          }
+        }
+      }
+    } catch (error) {
+      logger.logMessageWithEmoji(
+        error.message,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEl_ERROR
+      )
+    }
+  }
+}
 
 // equiv to get_provider_fees
 // *** NOTE: provider.py => get_provider_fees ***
 export async function createFee(
-  asset: Asset,
+  asset: DDO,
   validUntil: number,
   computeEnv: string,
   service: Service
@@ -203,15 +262,30 @@ export async function checkFee(
 }
 
 export async function calculateFee(
-  ddo: Asset,
-  service: Service,
-  provider: OceanProvider
+  ddo: DDO,
+  serviceId: string
 ): Promise<ProviderFeeData | undefined> {
+  const service: Service = AssetUtils.getServiceById(ddo, serviceId)
+  if (!service) {
+    return undefined
+  }
+  // create fee structure
   const fee: ProviderFeeData | undefined = await createFee(ddo, 0, 'null', service)
   // - this will use fileInfo command to get the length of the file
   // - will analyze the DDO and get validity, so we can know who many times/until then user can download this asset
   // - compute required cost using FEE_AMOUNT and FEE_TOKENS
   return fee
+}
+
+/**
+ * Core function to get the fees structure
+ * @param task the command task (ddo, serviceId)
+ * @returns fees structure
+ */
+export async function getFees(task: GetFeesCommand): Promise<P2PCommandResponse> {
+  // Get the fees structure,
+  const handler = new FeesHandler()
+  return await handler.handleCommand(task)
 }
 
 // These core functions are provider related functions, maybe they will be on Provider
@@ -221,17 +295,17 @@ export async function calculateFee(
  * @param chainId the chain id (not used now)
  * @returns the wallet
  */
-function getProviderWallet(chainId: string): ethers.Wallet {
+export function getProviderWallet(chainId: string): ethers.Wallet {
   const wallet: ethers.Wallet = new ethers.Wallet(
     Buffer.from(config.keys.privateKey).toString('hex')
   )
   return wallet
 }
-function getProviderWalletAddress(): string {
+export function getProviderWalletAddress(): string {
   return getProviderWallet(null).address
 }
 
-function getProviderKey(): string {
+export function getProviderKey(): string {
   return Buffer.from(config.keys.privateKey).toString('hex')
 }
 
@@ -240,19 +314,18 @@ function getProviderKey(): string {
  * @param chainId the chain id
  * @returns the token address
  */
-function getProviderFeeToken(chainId: string): string | null {
-  const result = config.feeStrategy.feeTokens.filter((token: FeeTokens) => {
-    const id = Object.keys(token)[0]
-    return id === chainId
-  })
-  return result.length ? Object.values(result[0])[0] : null
+export function getProviderFeeToken(chainId: string): string | null {
+  const result = config.feeStrategy.feeTokens.filter(
+    (token: FeeTokens) => token.chain === chainId
+  )
+  return result.length ? result[0].token : null
 }
 
 /**
  * get the fee amount (in MB or other units)
  * @returns amount
  */
-function getProviderFeeAmount(): number {
+export function getProviderFeeAmount(): number {
   return config.feeStrategy.feeAmount.amount
 }
 // https://github.com/oceanprotocol/contracts/blob/main/contracts/templates/ERC20Template.sol#L65-L74

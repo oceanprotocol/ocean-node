@@ -1,5 +1,7 @@
+import { DDO } from '../@types/DDO/DDO'
 import { P2PCommandResponse } from '../@types/OceanNode'
 import { Hashes } from '../@types/blockchain'
+import { OceanP2P } from '../components/P2P'
 
 // Add all the supported commands
 export const PROTOCOL_COMMANDS = {
@@ -45,7 +47,11 @@ export interface NonceCommand extends Command {
   address: string // consumer address
 }
 
-// useful if/when we refactor
+export interface GetFeesCommand extends Command {
+  ddo: DDO
+  serviceId: string
+}
+
 export interface ICommandHandler {
   handleCommand(command: Command): Promise<P2PCommandResponse>
 }
