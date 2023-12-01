@@ -8,9 +8,11 @@ import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Fa
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getEventFromTx, sleep } from '../../src/utils/util.js'
-import { genericAsset } from '../constants.js'
+import { genericAsset } from '../testUtils.js'
+import { Database } from '../../src/components/database/index.js'
 
 describe('validateOrderTransaction Function with Real Transactions', () => {
+  let database: Database
   let provider: JsonRpcProvider
   let factoryContract: Contract
   let nftContract: Contract
@@ -45,12 +47,21 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
       )
     )
 
+    const dbConfig = {
+      url: 'http://localhost:8108/?apiKey=xyz'
+    }
+    database = await new Database(dbConfig)
+
     // Initialize the factory contract
     factoryContract = new ethers.Contract(
       data.development.ERC721Factory,
       ERC721Factory.abi,
       publisherAccount
     )
+  })
+
+  it('Start instance of Database', async () => {
+    expect(database).to.be.instanceOf(Database)
   })
 
   it('should publish a dataset', async () => {
@@ -89,7 +100,7 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
     assert(datatokenAddress, 'find datatoken created failed')
   })
 
-  it('should set metadata and save ', async () => {
+  it('should set metadata and save', async () => {
     console.log('1. should set metadata and save')
     nftContract = new Contract(dataNftAddress, ERC721Template.abi, publisherAccount)
     console.log('2. should set metadata and save')
@@ -120,7 +131,6 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
       []
     )
     const trxReceipt = await setMetaDataTx.wait()
-    console.log('trxReceipt ==', trxReceipt)
     assert(trxReceipt, 'set metadata failed')
   })
 

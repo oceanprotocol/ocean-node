@@ -1,3 +1,5 @@
+import { Database } from '../src/components/database/index.js'
+
 export const genericAsset = {
   '@context': ['https://w3id.org/did/v1'],
   id: '',
@@ -27,4 +29,25 @@ export const genericAsset = {
       timeout: 0
     }
   ]
+}
+
+export function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+export async function waitToIndex(did: string, database: Database): Promise<any> {
+  let tries = 0
+  do {
+    try {
+      const ddo = await database.ddo.retrieve(did)
+      if (ddo) {
+        return ddo
+      }
+    } catch (e) {
+      // do nothing
+    }
+    sleep(1500)
+    tries++
+  } while (tries < 1000)
+  return null
 }
