@@ -3,6 +3,8 @@ import { getOceanPeersRoute, getP2PPeersRoute, getP2PPeerRoute } from './getOcea
 import { advertiseDidRoute, getProvidersForDidRoute } from './dids.js'
 import { broadcastCommandRoute, directCommandRoute } from './commands.js'
 import { logRoutes } from './logs.js'
+import { serviceRoutes } from './service.js'
+
 export * from './getOceanPeers.js'
 
 export const httpRoutes = express.Router()
@@ -15,3 +17,4 @@ httpRoutes.use(getProvidersForDidRoute)
 httpRoutes.use(broadcastCommandRoute)
 httpRoutes.use(directCommandRoute)
 httpRoutes.use(logRoutes)
+httpRoutes.use('/api/service/', serviceRoutes)
