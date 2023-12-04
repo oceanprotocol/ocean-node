@@ -162,6 +162,8 @@ describe('Indexer stores a new published DDO', () => {
   it('should get the updated state', async () => {
     // TODO: interact with DDO instead of contract call of getMetaData
     const result = await nftContract.getMetaData()
-    expect(result[2]).to.eql(4)
+    console.log('result: ', result)
+    console.log('as int: ', parseInt(result[2].toString()))
+    expect(parseInt(result[2].toString())).to.eql(4)
   })
 })
