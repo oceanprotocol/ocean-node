@@ -9,7 +9,8 @@ import {
   toUtf8Bytes,
   solidityPackedKeccak256,
   parseUnits,
-  Interface
+  Interface,
+  ZeroAddress
 } from 'ethers'
 import { createHash } from 'crypto'
 import fs from 'fs'
@@ -35,6 +36,8 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
   let publisherAddress: string
   let consumerAccount: Signer
   let consumerAddress: string
+  let feeCollector: Signer
+  let feeCollectorAddress: string
   let dataNftAddress: string
   let feeAddress: string
   let datatokenAddress: string
@@ -47,9 +50,11 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccount = (await provider.getSigner(1)) as Signer
+    feeCollector = (await provider.getSigner(2)) as Signer
     feeAddress = await publisherAccount.getAddress()
     publisherAddress = await publisherAccount.getAddress()
     consumerAddress = await consumerAccount.getAddress()
+    feeCollectorAddress = await feeCollector.getAddress()
 
     const data = JSON.parse(
       // eslint-disable-next-line security/detect-non-literal-fs-filename
@@ -154,9 +159,14 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
       ERC20Template.abi,
       publisherAccount
     )
-    const providerFeeAddress = publisherAddress
+    const paymentCollector = await dataTokenContract.getPaymentCollector()
+    console.log('paymentCollector', paymentCollector)
+    console.log('publisherAddress', publisherAddress)
+    // await erc20Token.connect(user3).setPaymentCollector(owner.address);
+
+    const providerFeeAddress = ZeroAddress // publisherAddress
     const providerFeeToken = feeToken
-    const serviceIndex = 1 // dummy index
+    const serviceIndex = 0 // dummy index
     const providerFeeAmount = 0 // fee to be collected on top, requires approval
     const consumeMarketFeeAddress = publisherAddress // marketplace fee Collector
     const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
@@ -178,11 +188,8 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
 
     let consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
     console.log('consumer datatoken Balance', consumerBalance)
-    const mintTx = await dataTokenContract.mint(
-      consumerAddress,
-      parseUnits('10000000000000000000000000000', 18)
-    )
-    const txReceipt = await mintTx.wait()
+    const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
+    await mintTx.wait()
     consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
     console.log('consumer datatoken Balance', consumerBalance)
     const signedMessage = await signMessage(message, publisherAddress)
@@ -212,8 +219,24 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
         }
       )
       const orderTxReceipt = await orderTx.wait()
-      const txId = orderTxReceipt.transactionHash
+      console.log('orderTxReceipt', orderTxReceipt)
+      const txId = orderTxReceipt.hash
       console.log('txId', txId)
+
+      // // Simulate a transaction
+      // // expect(txReceipt).to.exist
+      // // Use the transaction receipt in validateOrderTransaction
+      //
+      //
+      // const result = await validateOrderTransaction(
+      //   txId,
+      //   userAddress,
+      //   provider,
+      //   dataNftAddress,
+      //   datatokenAddress
+      // )
+      // expect(result.isValid).to.be.true
+      // expect(result.message).to.equal('Transaction is valid.')
     } catch (error) {
       console.log('error', error)
     }
@@ -221,21 +244,3 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
 
   // Additional tests and logic as needed
 })
-
-// const txReceipt = await mintTx.wait()
-
-// console.log('txReceipt', txReceipt)
-// // Simulate a transaction
-// // expect(txReceipt).to.exist
-// // Use the transaction receipt in validateOrderTransaction
-//
-//
-// const result = await validateOrderTransaction(
-//   txId,
-//   userAddress,
-//   provider,
-//   dataNftAddress,
-//   datatokenAddress
-// )
-// expect(result.isValid).to.be.true
-// expect(result.message).to.equal('Transaction is valid.')
