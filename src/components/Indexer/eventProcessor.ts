@@ -7,27 +7,13 @@ import {
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
 import { getNFTContract } from './utils.js'
+import { createHash } from 'node:crypto'
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
   LOG_LEVELS_STR.LEVEL_INFO,
   defaultConsoleTransport
 )
-
-export function makeDID(dataNFTAddress: string, chainId: number): string | null {
-  const isValidAddress = isAddress(dataNFTAddress)
-
-  if (!isValidAddress) {
-    return null
-  }
-
-  const checksummedAddress = getAddress(dataNFTAddress)
-  const didData = `${checksummedAddress}${chainId}`
-  const didHash = keccak256(toUtf8Bytes(didData))
-  const did = `did:op:${hexlify(didHash).substring(2)}`
-
-  return did
-}
 
 //   const deployerAddress =
 //   const deployedByDeployer = eventData.some(
@@ -47,30 +33,28 @@ export const processMetadataCreatedEvent = async (
   chainId: number,
   provider: ethers.Provider
 ) => {
-  console.log('log address', event.address)
   const nftContract = getNFTContract(provider, event.address)
 
-  console.log('log tx hash', event.transactionHash)
   const receipt = await provider.getTransactionReceipt(event.transactionHash)
-  console.log('logs receipt', receipt.logs)
+  INDEXER_LOGGER.logMessage(`Process new DDO: ${event.blockNumber}, receipt ${receipt} `)
 
   const eventData = event.data
-  console.log('eventData', eventData)
 
-  const decodedEvent = await nftContract.parseLog(event)
-  console.log('decodedEvent', decodedEvent)
-
-  const expectedDID = makeDID(event.address, chainId)
+  // const decodedEvent = await nftContract.parseLog(event)
+  const expectedDID =
+    'did:op:' +
+    createHash('sha256')
+      .update(getAddress(event.address) + chainId.toString(10))
+      .digest('hex')
   INDEXER_LOGGER.logMessage(
     `Process new DDO: ${expectedDID}, block ${event.blockNumber}, ` +
       `contract: ${event.address}, txid: ${event.transactionHash}, chainId: ${chainId}`
   )
 
-  INDEXER_LOGGER.logMessage(
-    `Process new DDO: ${expectedDID}, block ${decodedEvent.args.metaDataHash}, `
-  )
-  INDEXER_LOGGER.logMessage(
-    `Process new DDO: ${expectedDID}, block ${decodedEvent.args.data}, `
-  )
-  return decodedEvent.args.data
+  // INDEXER_LOGGER.logMessage(
+  //   `Process new DDO: ${expectedDID}, metaDataHash ${decodedEvent.args.metaDataHash}, `
+  // )
+
+  INDEXER_LOGGER.logMessage(`Process new DDO: ${expectedDID}, data ${eventData} `)
+  return event.data
 }

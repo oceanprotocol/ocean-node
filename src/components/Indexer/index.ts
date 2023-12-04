@@ -33,7 +33,6 @@ export class OceanIndexer {
       const chainId = parseInt(network)
       const rpcDetails: SupportedNetwork = this.networks[network]
       const lastIndexedBlock = await this.getLastIndexedBlock(chainId)
-      console.log('lastIndexedBlock ', lastIndexedBlock)
       const worker = new Worker('./dist/components/Indexer/crawlerThread.js', {
         workerData: { rpcDetails, lastIndexedBlock }
       })

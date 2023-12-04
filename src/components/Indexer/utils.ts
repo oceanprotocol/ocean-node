@@ -92,12 +92,10 @@ export const processChunkLogs = async (
   provider: ethers.Provider,
   chainId: number
 ): Promise<BlocksEvents> => {
-  console.log('logs ', logs)
   const storeEvents: BlocksEvents = {}
   if (logs.length > 0) {
     for (const log of logs) {
       const event = findEventByKey(log.topics[0])
-      console.log('(log.topics[0] ', log.topics[0])
       if (
         event &&
         (event.type === EVENTS.METADATA_CREATED ||
