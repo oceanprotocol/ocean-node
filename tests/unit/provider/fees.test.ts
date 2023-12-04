@@ -1,15 +1,16 @@
 import { expect } from 'chai'
-import { getConfig } from '../../../src/utils'
+import { PROTOCOL_COMMANDS, getConfig } from '../../../src/utils'
 import { ProviderFeeData } from '../../../src/@types/Fees'
 import {
   checkFee,
   createFee,
+  getFees,
   getProviderFeeAmount,
   getProviderFeeToken,
   getProviderWallet,
   getProviderWalletAddress
 } from '../../../src/components/core/feesHandler'
-import { OceanNodeConfig } from '../../../src/@types'
+import { OceanNodeConfig, P2PCommandResponse } from '../../../src/@types'
 import { Service } from '../../../src/@types/DDO/Service'
 import { DDOExample } from '../../data/ddo'
 import {
@@ -116,6 +117,40 @@ describe('Ocean Node fees', () => {
       const txID = await wallet.signMessage(ethers.toBeArray(signableHash))
       const checkFeeResult = await checkFee(txID, data)
       expect(checkFeeResult).to.be.equal(true)
+    }
+  })
+
+  it('should get fees data from API call', async () => {
+    const asset: any = DDOExample
+    const wallet = getProviderWallet()
+    const { address } = wallet
+    const { chainId } = asset // this chain id is a number
+    const providerFeeToken = getProviderFeeToken(String(chainId))
+    const providerAmount = getProviderFeeAmount()
+
+    const data: P2PCommandResponse = await getFees({
+      ddo: asset,
+      serviceId: service.id,
+      command: PROTOCOL_COMMANDS.GET_FEES
+    })
+    expect(data.status.httpStatus).to.equal(200)
+    const { stream } = data
+    if (stream) {
+      const buffer: any[] = []
+      stream.on('data', (data) => {
+        // read streamed data to buffer
+        buffer.push(data)
+      })
+      stream.on('end', () => {
+        // check that we got a valid response
+        const feesData: ProviderFeeData = JSON.parse(buffer.toString()) as ProviderFeeData
+        expect(feesData.providerFeeAddress).to.be.equal(address)
+        expect(feesData.providerFeeToken).to.be.equal(providerFeeToken)
+        expect(feesData.providerFeeAmount).to.be.equal(providerAmount)
+        expect(feesData.v).to.be.gte(27) // 27 OR 28
+        expect(Object.keys(feesData.r).length).to.be.equal(32) // 32 bytes
+        expect(Object.keys(feesData.s).length).to.be.equal(32)
+      })
     }
   })
 
