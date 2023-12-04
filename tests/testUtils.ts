@@ -1,4 +1,5 @@
 import { Database } from '../src/components/database/index.js'
+import { Signer } from 'ethers'
 
 export const genericAsset = {
   '@context': ['https://w3id.org/did/v1'],
@@ -50,4 +51,24 @@ export async function waitToIndex(did: string, database: Database): Promise<any>
     tries++
   } while (tries < 1000)
   return null
+}
+
+export async function signMessage(
+  message: string,
+  signer: Signer
+): Promise<{ v: string; r: string; s: string }> {
+  // Ensure the signer is connected to a provider
+  if (!signer.provider) {
+    throw new Error('Signer must be connected to a provider')
+  }
+
+  // Sign the message
+  const signature = await signer.signMessage(message)
+
+  // Extract r, s, and v components from the signature
+  const r = signature.slice(0, 66)
+  const s = '0x' + signature.slice(66, 130)
+  const v = '0x' + signature.slice(130, 132)
+
+  return { v, r, s }
 }
