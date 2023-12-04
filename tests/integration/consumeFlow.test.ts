@@ -1,5 +1,16 @@
 import { expect, assert } from 'chai'
-import { JsonRpcProvider, Signer, Contract, ethers, getAddress, hexlify } from 'ethers'
+import {
+  JsonRpcProvider,
+  Signer,
+  Contract,
+  ethers,
+  getAddress,
+  hexlify,
+  toUtf8Bytes,
+  solidityPackedKeccak256,
+  parseUnits,
+  Interface
+} from 'ethers'
 import { createHash } from 'crypto'
 import fs from 'fs'
 import { homedir } from 'os'
@@ -8,7 +19,7 @@ import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Fa
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getEventFromTx, sleep } from '../../src/utils/util.js'
-import { genericAsset } from '../testUtils.js'
+import { genericAsset, signMessage } from '../testUtils.js'
 import { Database } from '../../src/components/database/index.js'
 
 describe('validateOrderTransaction Function with Real Transactions', () => {
@@ -16,12 +27,14 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
   let provider: JsonRpcProvider
   let factoryContract: Contract
   let nftContract: Contract
+  let dataTokenContract: Contract
   let nftAddress: string
   const chainId = 8996
   let assetDID: string
   let publisherAccount: Signer
+  let publisherAddress: string
   let consumerAccount: Signer
-  let userAddress: string
+  let consumerAddress: string
   let dataNftAddress: string
   let feeAddress: string
   let datatokenAddress: string
@@ -35,8 +48,8 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
     publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccount = (await provider.getSigner(1)) as Signer
     feeAddress = await publisherAccount.getAddress()
-    userAddress = await publisherAccount.getAddress()
-    console.log('userAddress', userAddress)
+    publisherAddress = await publisherAccount.getAddress()
+    consumerAddress = await consumerAccount.getAddress()
 
     const data = JSON.parse(
       // eslint-disable-next-line security/detect-non-literal-fs-filename
@@ -134,22 +147,95 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
     assert(trxReceipt, 'set metadata failed')
   })
 
-  it('should simulate a transaction and validate it', async () => {
-    // // Simulate a transaction
-    // // expect(txReceipt).to.exist
-    // // Use the transaction receipt in validateOrderTransaction
-    // const txId = txReceipt.transactionHash
-    // console.log('txId', txId)
-    // const result = await validateOrderTransaction(
-    //   txId,
-    //   userAddress,
-    //   provider,
-    //   dataNftAddress,
-    //   datatokenAddress
-    // )
-    // expect(result.isValid).to.be.true
-    // expect(result.message).to.equal('Transaction is valid.')
+  it('should simulate a transaction and validate it', async function () {
+    this.timeout(5000) // Extend default Mocha test timeout
+    dataTokenContract = new Contract(
+      datatokenAddress,
+      ERC20Template.abi,
+      publisherAccount
+    )
+    const providerFeeAddress = publisherAddress
+    const providerFeeToken = feeToken
+    const serviceIndex = 1 // dummy index
+    const providerFeeAmount = 0 // fee to be collected on top, requires approval
+    const consumeMarketFeeAddress = publisherAddress // marketplace fee Collector
+    const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
+    const consumeMarketFeeToken = feeToken // token address for the feeAmount,
+    const providerValidUntil = 0
+    // sign provider data
+    const providerData = JSON.stringify({ timeout: 0 })
+    const message = solidityPackedKeccak256(
+      ['bytes', 'address', 'address', 'uint256', 'uint256'],
+      [
+        hexlify(toUtf8Bytes(providerData)),
+        providerFeeAddress,
+        providerFeeToken,
+        providerFeeAmount,
+        providerValidUntil
+      ]
+    )
+    // call the mint function on the dataTokenContract
+
+    let consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
+    console.log('consumer datatoken Balance', consumerBalance)
+    const mintTx = await dataTokenContract.mint(
+      consumerAddress,
+      parseUnits('10000000000000000000000000000', 18)
+    )
+    const txReceipt = await mintTx.wait()
+    consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
+    console.log('consumer datatoken Balance', consumerBalance)
+    const signedMessage = await signMessage(message, publisherAddress)
+
+    try {
+      const dataTokenContractWithNewSigner = dataTokenContract.connect(
+        consumerAccount
+      ) as any
+
+      const orderTx = await dataTokenContractWithNewSigner.startOrder(
+        consumerAddress,
+        serviceIndex,
+        {
+          providerFeeAddress,
+          providerFeeToken,
+          providerFeeAmount,
+          v: signedMessage.v,
+          r: signedMessage.r,
+          s: signedMessage.s,
+          providerData: hexlify(toUtf8Bytes(providerData)),
+          validUntil: providerValidUntil
+        },
+        {
+          consumeMarketFeeAddress,
+          consumeMarketFeeToken,
+          consumeMarketFeeAmount
+        }
+      )
+      const orderTxReceipt = await orderTx.wait()
+      const txId = orderTxReceipt.transactionHash
+      console.log('txId', txId)
+    } catch (error) {
+      console.log('error', error)
+    }
   })
 
   // Additional tests and logic as needed
 })
+
+// const txReceipt = await mintTx.wait()
+
+// console.log('txReceipt', txReceipt)
+// // Simulate a transaction
+// // expect(txReceipt).to.exist
+// // Use the transaction receipt in validateOrderTransaction
+//
+//
+// const result = await validateOrderTransaction(
+//   txId,
+//   userAddress,
+//   provider,
+//   dataNftAddress,
+//   datatokenAddress
+// )
+// expect(result.isValid).to.be.true
+// expect(result.message).to.equal('Transaction is valid.')

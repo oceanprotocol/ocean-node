@@ -1,5 +1,6 @@
 import { Database } from '../src/components/database/index.js'
 import { Signer } from 'ethers'
+import Web3 from 'web3'
 
 export const genericAsset = {
   '@context': ['https://w3id.org/did/v1'],
@@ -55,20 +56,50 @@ export async function waitToIndex(did: string, database: Database): Promise<any>
 
 export async function signMessage(
   message: string,
-  signer: Signer
+  signerAddress: string
 ): Promise<{ v: string; r: string; s: string }> {
-  // Ensure the signer is connected to a provider
-  if (!signer.provider) {
-    throw new Error('Signer must be connected to a provider')
+  // Initialize Web3 with the provider
+  const web3 = new Web3('http://127.0.0.1:8545')
+
+  try {
+    // Sign the message
+    const signature = (await web3.eth.sign(
+      web3.utils.sha3(message) || '',
+      signerAddress
+    )) as string
+
+    // Extract r, s, and v components from the signature
+    const r = signature.slice(0, 66)
+    const s = '0x' + signature.slice(66, 130)
+    const v = '0x' + signature.slice(130, 132)
+
+    return { v, r, s }
+  } catch (e) {
+    console.log('signMessage error', e)
+    throw new Error('Signing message failed')
   }
-
-  // Sign the message
-  const signature = await signer.signMessage(message)
-
-  // Extract r, s, and v components from the signature
-  const r = signature.slice(0, 66)
-  const s = '0x' + signature.slice(66, 130)
-  const v = '0x' + signature.slice(130, 132)
-
-  return { v, r, s }
 }
+
+// export async function signMessage(
+//   message: string,
+//   signer: Signer
+// ): Promise<{ v: string; r: string; s: string }> {
+//   // Ensure the signer is connected to a provider
+//   if (!signer.provider) {
+//     throw new Error('Signer must be connected to a provider')
+//   }
+//   try {
+//     // Sign the message
+//     const signature = await signer.signMessage(message)
+
+//     // Extract r, s, and v components from the signature
+//     const r = signature.slice(0, 66)
+//     const s = '0x' + signature.slice(66, 130)
+//     const v = '0x' + signature.slice(130, 132)
+
+//     return { v, r, s }
+//   } catch (e) {
+//     console.log('signMessage error', e)
+//     throw new Error('Signing message failed')
+//   }
+// }
