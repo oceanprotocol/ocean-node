@@ -7,8 +7,6 @@ export function sleep(ms: number) {
 
 export function getEventFromTx(txReceipt: { logs: any[] }, eventName: any) {
   return txReceipt?.logs?.filter((log) => {
-    console.log(' LOG ==> ', log?.fragment?.name)
-
     return log?.fragment?.name === eventName
   })[0]
 }

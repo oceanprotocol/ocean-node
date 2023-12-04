@@ -53,11 +53,10 @@ export class OceanIndexer {
           )
           this.saveDDO(event.network, event.data)
         }
-        INDEXER_LOGGER.logMessage(
-          `Main thread message from worker for network ${network}, ${event.method}: ${event.data} `,
-          true
-        )
-        // index the DDO in the typesense db
+        // INDEXER_LOGGER.logMessage(
+        //   `Main thread message from worker for network ${network}, ${event.method}: ${event.data} `,
+        //   true
+        // )
       })
 
       worker.on('error', (err: Error) => {

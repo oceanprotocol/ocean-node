@@ -143,7 +143,6 @@ describe('Indexer stores a new published DDO', () => {
     assert(txReceipt, 'transaction failed')
     const event = getEventFromTx(txReceipt, 'NFTCreated')
     nftAddress = event.args[0]
-    console.log('nftAddress ', nftAddress)
     assert(nftAddress, 'find nft created failed')
   })
 
@@ -157,13 +156,10 @@ describe('Indexer stores a new published DDO', () => {
     genericAsset.nftAddress = nftAddress
 
     assetDID = genericAsset.id
-    console.log('assetDID', assetDID)
     const stringDDO = JSON.stringify(genericAsset)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
-    console.log('metadata ', metadata)
     const hash = createHash('sha256').update(metadata).digest('hex')
-    console.log('hash ', hash)
 
     const setMetaDataTx = await nftContract.setMetaData(
       0,
@@ -175,7 +171,6 @@ describe('Indexer stores a new published DDO', () => {
       []
     )
     const trxReceipt = await setMetaDataTx.wait()
-    console.log('trxReceipt ==', trxReceipt)
     assert(trxReceipt, 'set metada failed')
   })
 
@@ -183,7 +178,6 @@ describe('Indexer stores a new published DDO', () => {
 
   it('should store the ddo in the database and return it ', async () => {
     const resolvedDDO = await waitToIndex(assetDID, database)
-    console.log('resolvedDDO ', resolvedDDO)
     // expect(resolvedDDO.id).to.equal(genericAsset.id)
   })
 })

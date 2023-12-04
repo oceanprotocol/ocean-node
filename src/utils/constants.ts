@@ -72,7 +72,7 @@ export const EVENTS = {
 }
 
 export const EVENT_HASHES: Hashes = {
-  '0x49a0cb7b80992c55744fa9510891b184199580af9b73325e21762948f7888a77': {
+  '0x5463569dcc320958360074a9ab27e809e8a6942c394fb151d139b5f7b4ecb1bd': {
     type: EVENTS.METADATA_CREATED,
     text: 'MetadataCreated(address,uint8,string,bytes,bytes,bytes32,uint256,uint256)'
   },

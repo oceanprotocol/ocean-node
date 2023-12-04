@@ -13,6 +13,7 @@ import {
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
 import { processMetadataCreatedEvent } from './eventProcessor.js'
+import { inspect } from 'node:util'
 
 type Topic = `0x${string & { length: 64 }}`
 
@@ -54,12 +55,17 @@ export const processBlocks = async (
   try {
     const eventHashes = Object.keys(EVENT_HASHES)
     const topics: Topic[] = eventHashes as Topic[]
+    INDEXER_LOGGER.logMessage(`from block --> ${inspect(startIndex)} `, true)
+    INDEXER_LOGGER.logMessage(`to Block --> ${inspect(startIndex + count)} `, true)
+    INDEXER_LOGGER.logMessage(`topics --> ${inspect(topics)} `, true)
     const blockLogs = await provider.getLogs({
       fromBlock: startIndex,
-      toBlock: startIndex + count,
-      topics
+      toBlock: startIndex + count
+      // topics
     })
+    INDEXER_LOGGER.logMessage(`blockLogs --> ${inspect(blockLogs)} `, true)
     const events = await processChunkLogs(blockLogs, provider, network)
+    INDEXER_LOGGER.logMessage(`events --> ${inspect(events)} `, true)
 
     return {
       lastBlock: startIndex + count,
@@ -86,10 +92,12 @@ export const processChunkLogs = async (
   provider: ethers.Provider,
   chainId: number
 ): Promise<BlocksEvents> => {
+  console.log('logs ', logs)
   const storeEvents: BlocksEvents = {}
   if (logs.length > 0) {
     for (const log of logs) {
       const event = findEventByKey(log.topics[0])
+      console.log('(log.topics[0] ', log.topics[0])
       if (
         event &&
         (event.type === EVENTS.METADATA_CREATED ||
