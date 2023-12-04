@@ -1,10 +1,7 @@
 import type { PeerId } from '@libp2p/interface/peer-id'
 import { Stream } from 'stream'
-import { OceanP2P } from '../components/P2P/index.js'
-import { OceanProvider } from '../components/Provider/index.js'
-import { OceanIndexer } from '../components/Indexer/index.js'
-import { Database } from '../components/database/index.js'
-import { RPCS } from './blockchain.js'
+import { RPCS } from './blockchain'
+import { Database } from '../components/database'
 
 export interface OceanNodeDBConfig {
   url: string
@@ -42,13 +39,6 @@ export interface OceanNodeConfig {
   dbConfig: OceanNodeDBConfig
   httpPort: number
   supportedNetworks: RPCS
-}
-
-export interface OceanNode {
-  node: OceanP2P | null
-  indexer: OceanIndexer | null
-  provider: OceanProvider | null
-  db: Database | null
 }
 
 export interface P2PCommandResponse {

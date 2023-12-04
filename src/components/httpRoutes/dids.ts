@@ -10,7 +10,7 @@ advertiseDidRoute.post(
       res.sendStatus(400)
       return
     }
-    await req.oceanNode.node.advertiseDid(req.query.did as string)
+    await req.oceanNode.getP2PNode().advertiseDid(req.query.did as string)
     res.sendStatus(200)
   }
 )
@@ -24,7 +24,9 @@ getProvidersForDidRoute.get(
       res.sendStatus(400)
       return
     }
-    const providers = await req.oceanNode.node.getProvidersForDid(req.query.did as string)
+    const providers = await req.oceanNode
+      .getP2PNode()
+      .getProvidersForDid(req.query.did as string)
     res.json(providers)
   }
 )
