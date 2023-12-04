@@ -1,8 +1,8 @@
-import { ethers, Signer, Provider } from 'ethers'
+import { ethers, Signer, JsonRpcApiProvider } from 'ethers'
 
 export class Blockchain {
   private signer: Signer
-  private provider: Provider
+  private provider: JsonRpcApiProvider
   private chainId: number
 
   public constructor(rpc: string, chaindId: number) {
@@ -15,7 +15,7 @@ export class Blockchain {
     return this.signer
   }
 
-  public getProvider(): Provider {
+  public getProvider(): JsonRpcApiProvider {
     return this.provider
   }
 

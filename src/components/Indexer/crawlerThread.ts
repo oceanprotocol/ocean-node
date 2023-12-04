@@ -9,7 +9,6 @@ import {
   defaultConsoleTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
-import { inspect } from 'node:util'
 
 interface ThreadData {
   rpcDetails: SupportedNetwork
@@ -47,7 +46,7 @@ export async function proccesNetworkData(): Promise<void> {
       true
     )
 
-    if (networkHeight >= startBlock) {
+    if (networkHeight > startBlock) {
       let { chunkSize } = rpcDetails
       let remainingBlocks = networkHeight - startBlock
       INDEXER_LOGGER.logMessage(

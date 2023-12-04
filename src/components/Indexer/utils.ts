@@ -1,4 +1,4 @@
-import { ethers, getAddress } from 'ethers'
+import { JsonRpcApiProvider, ethers, getAddress } from 'ethers'
 import localAdressFile from '@oceanprotocol/contracts/addresses/address.json' assert { type: 'json' }
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
@@ -40,32 +40,26 @@ export const getDeployedContractBlock = async (network: number) => {
   return deployedBlock || 57
 }
 
-export const getNetworkHeight = async (provider: ethers.Provider) => {
+export const getNetworkHeight = async (provider: JsonRpcApiProvider) => {
   const networkHeight = await provider.getBlockNumber()
 
   return networkHeight
 }
 
 export const processBlocks = async (
-  provider: ethers.Provider,
+  provider: JsonRpcApiProvider,
   network: number,
   startIndex: number,
   count: number
 ): Promise<ProcessingEvents> => {
   try {
     const eventHashes = Object.keys(EVENT_HASHES)
-    const topics: Topic[] = eventHashes as Topic[]
-    INDEXER_LOGGER.logMessage(`from block --> ${inspect(startIndex)} `, true)
-    INDEXER_LOGGER.logMessage(`to Block --> ${inspect(startIndex + count)} `, true)
-    INDEXER_LOGGER.logMessage(`topics --> ${inspect(topics)} `, true)
     const blockLogs = await provider.getLogs({
       fromBlock: startIndex,
-      toBlock: startIndex + count
-      // topics
+      toBlock: startIndex + count,
+      topics: [eventHashes]
     })
-    INDEXER_LOGGER.logMessage(`blockLogs --> ${inspect(blockLogs)} `, true)
     const events = await processChunkLogs(blockLogs, provider, network)
-    INDEXER_LOGGER.logMessage(`events --> ${inspect(events)} `, true)
 
     return {
       lastBlock: startIndex + count,
@@ -89,7 +83,7 @@ function findEventByKey(keyToFind: string): NetworkEvent {
 
 export const processChunkLogs = async (
   logs: readonly ethers.Log[],
-  provider: ethers.Provider,
+  provider: JsonRpcApiProvider,
   chainId: number
 ): Promise<BlocksEvents> => {
   const storeEvents: BlocksEvents = {}
@@ -135,7 +129,7 @@ export const processChunkLogs = async (
 const processMetadataEvents = async (
   log: ethers.Log,
   eventType: string,
-  provider: ethers.Provider,
+  provider: JsonRpcApiProvider,
   chainId: number
 ): Promise<any> => {
   if (eventType === EVENTS.METADATA_CREATED) {
@@ -163,29 +157,29 @@ const processTokenUriUpadate = async (): Promise<string> => {
   return 'TOKEN_URI_UPDATE'
 }
 
-export const getNFTContract = (
-  provider: ethers.Provider,
+export const getNFTContract = async (
+  provider: JsonRpcApiProvider,
   address: string
-): ethers.Contract => {
+): Promise<ethers.Contract> => {
   address = getAddress(address)
   return getContract(provider, 'ERC721Template', address)
 }
 
-export const getNFTFactory = (
-  provider: ethers.Provider,
+export const getNFTFactory = async (
+  provider: JsonRpcApiProvider,
   address: string
-): ethers.Contract => {
+): Promise<ethers.Contract> => {
   address = getAddress(address)
-  return getContract(provider, 'ERC721Factory', address)
+  return await getContract(provider, 'ERC721Factory', address)
 }
 
-function getContract(
-  provider: ethers.Provider,
+async function getContract(
+  provider: JsonRpcApiProvider,
   contractName: string,
   address: string
-): ethers.Contract {
+): Promise<ethers.Contract> {
   const abi = getContractDefinition(contractName)
-  return new ethers.Contract(getAddress(address), abi, provider)
+  return new ethers.Contract(getAddress(address), abi, await provider.getSigner())
 }
 
 function getContractDefinition(contractName: string): any {
