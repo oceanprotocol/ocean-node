@@ -6,21 +6,42 @@ import {
   createFee,
   getProviderFeeAmount,
   getProviderFeeToken,
-  getProviderWallet,
   getProviderWalletAddress
 } from '../../../src/components/core/feesHandler'
 import { OceanNodeConfig } from '../../../src/@types'
 import { Service } from '../../../src/@types/DDO/Service'
 import { DDOExample } from '../../data/ddo'
-import { setupEnvironment } from '../../utils/utils'
-import { ethers } from 'ethers'
+import {
+  OverrideEnvConfig,
+  setupEnvironment,
+  tearDownEnvironment
+} from '../../utils/utils'
 
+// we're gonna override these
+function getEnvOverrides(): OverrideEnvConfig[] {
+  return [
+    {
+      name: 'FEE_TOKENS',
+      newValue:
+        '{ "1": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48", "137": "0x282d8efCe846A88B159800bd4130ad77443Fa1A1", "80001": "0xd8992Ed72C445c35Cb4A2be468568Ed1079357c8", "56": "0xDCe07662CA8EbC241316a15B611c89711414Dd1a" }',
+      override: true,
+      originalValue: process.env.FEE_TOKENS
+    },
+    {
+      name: 'FEE_AMOUNT',
+      newValue: '{ "amount": 1, "unit": "MB" }',
+      override: true,
+      originalValue: process.env.FEE_AMOUNT
+    }
+  ]
+}
 describe('Ocean Node fees', () => {
   let config: OceanNodeConfig
   const serviceId = '24654b91482a3351050510ff72694d88edae803cf31a5da993da963ba0087648'
+  let envBefore: OverrideEnvConfig[] | undefined
 
   before(async () => {
-    await setupEnvironment('../.env.test')
+    envBefore = await setupEnvironment('../.env.test', getEnvOverrides())
     // avoid overriding the local environment, use the .env.test
     config = await getConfig()
   })
@@ -80,5 +101,9 @@ describe('Ocean Node fees', () => {
       const checkFeeResult = await checkFee(txID, data)
       expect(checkFeeResult).to.be.equal(true)
     }
+  })
+
+  after(async () => {
+    tearDownEnvironment(envBefore)
   })
 })
