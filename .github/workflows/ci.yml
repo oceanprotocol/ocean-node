@@ -85,6 +85,7 @@ jobs:
           NODE3_PRIVATE_KEY: ${{ secrets.NODE3_PRIVATE_KEY }}
           IPFS_GATEWAY: http://172.15.0.16:8080/
           ARWEAVE_GATEWAY: https://arweave.net/
+          RPCS: '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com", "80001": "https://rpc-mumbai.maticvigil.com" }'
           FEE_TOKENS: NA
           FEE_AMOUNT: NA
       - uses: actions/upload-artifact@v2
@@ -143,6 +144,7 @@ jobs:
           NODE3_PRIVATE_KEY: ${{ secrets.NODE3_PRIVATE_KEY }}
           IPFS_GATEWAY: http://172.15.0.16:8080/
           ARWEAVE_GATEWAY: https://arweave.net/
+          RPCS: '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com", "80001": "https://rpc-mumbai.maticvigil.com" }'
           FEE_TOKENS: NA
           FEE_AMOUNT: NA
       - uses: actions/upload-artifact@v2
