@@ -3,10 +3,8 @@ import {
   JsonRpcApiProvider,
   ethers,
   getAddress,
-  hexlify,
-  isAddress,
-  keccak256,
-  toUtf8Bytes
+  getBytes,
+  toUtf8String
 } from 'ethers'
 import {
   CustomNodeLogger,
@@ -15,9 +13,7 @@ import {
   defaultConsoleTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
-import { getNFTContract } from './utils.js'
 import { createHash } from 'node:crypto'
-import { EVENTS } from '../../utils/constants.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
@@ -44,19 +40,14 @@ export const processMetadataCreatedEvent = async (
   chainId: number,
   provider: JsonRpcApiProvider
 ) => {
-  const nftContract = await getNFTContract(provider, event.address)
-  nftContract.getEvent(EVENTS.METADATA_CREATED)
-
   const receipt = await provider.getTransactionReceipt(event.transactionHash)
-
   const iface = new Interface(ERC721Template.abi)
   const eventObj = {
     topics: receipt.logs[0].topics as string[],
     data: receipt.logs[0].data
   }
   const decodedEventData = iface.parseLog(eventObj)
-
-  console.log('decodedEventData', decodedEventData.args)
+  console.log('decodedEventData == ', decodedEventData)
 
   // const eventData = event.data
   const expectedDID =
@@ -64,6 +55,12 @@ export const processMetadataCreatedEvent = async (
     createHash('sha256')
       .update(getAddress(event.address) + chainId.toString(10))
       .digest('hex')
+
+  // Convert hex string to byte array
+  const byteArray = getBytes(decodedEventData.args[4])
+
+  // Decode byte array to UTF-8 string
+  const utf8String = toUtf8String(byteArray)
   // INDEXER_LOGGER.logMessage(
   //   `Process new DDO: ${expectedDID}, block ${event.blockNumber}, ` +
   //     `contract: ${event.address}, txid: ${event.transactionHash}, chainId: ${chainId}`
@@ -73,6 +70,6 @@ export const processMetadataCreatedEvent = async (
   //   `Process new DDO: ${expectedDID}, metaDataHash ${decodedEvent.args.metaDataHash}, `
   // )
 
-  INDEXER_LOGGER.logMessage(`Process new DDO: ${expectedDID}, data ${event.data} `)
-  return event.data
+  INDEXER_LOGGER.logMessage(`Process new DDO: ${expectedDID}, data ${utf8String} `)
+  return utf8String
 }
