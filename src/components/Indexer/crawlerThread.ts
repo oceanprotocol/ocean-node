@@ -89,7 +89,6 @@ export async function proccesNetworkData(): Promise<void> {
 export async function storeFoundEvents(events: BlocksEvents): Promise<void> {
   const eventKeys = Object.keys(events)
   eventKeys.forEach((eventType) => {
-    INDEXER_LOGGER.logMessage(`store event ${events[eventType]}`)
     parentPort.postMessage({
       method: eventType,
       network: rpcDetails.chainId,
@@ -98,7 +97,6 @@ export async function storeFoundEvents(events: BlocksEvents): Promise<void> {
   })
 }
 parentPort.on('message', (message) => {
-  INDEXER_LOGGER.logMessage('message --', message)
   if (message.method === 'start-crawling') {
     proccesNetworkData()
   }

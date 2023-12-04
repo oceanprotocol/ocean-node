@@ -488,7 +488,7 @@ export class OceanP2P extends EventEmitter {
       list.forEach(async (ddo: any) => {
         // if already added before, create() will return null, but still advertise it
         try {
-          await db.create(ddo.id, ddo)
+          await db.create(ddo)
           await this.advertiseDid(ddo.id)
           // populate hash table
           this._ddoDHT.dht.set(ddo.id, {

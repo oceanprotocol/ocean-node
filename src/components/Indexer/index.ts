@@ -39,23 +39,11 @@ export class OceanIndexer {
 
       worker.on('message', (event: any) => {
         if (event.method === 'store-last-indexed-block') {
-          INDEXER_LOGGER.logMessage(
-            `this.updateLastIndexedBlockNumber(event.network, event.data) ${event.network}: ${event.data} `,
-            true
-          )
           this.updateLastIndexedBlockNumber(event.network, event.data)
         }
         if (event.method === EVENTS.METADATA_CREATED) {
-          INDEXER_LOGGER.logMessage(
-            `saveDDO(event.network, event.data) ${event.network}: ${event.data} `,
-            true
-          )
           this.saveDDO(event.network, event.data)
         }
-        // INDEXER_LOGGER.logMessage(
-        //   `Main thread message from worker for network ${network}, ${event.method}: ${event.data} `,
-        //   true
-        // )
       })
 
       worker.on('error', (err: Error) => {
@@ -95,8 +83,10 @@ export class OceanIndexer {
   public async saveDDO(network: number, ddo: any): Promise<void> {
     const dbconn = this.db.ddo
     try {
-      const saveDDO = await dbconn.create(ddo.id, { ...ddo })
-      INDEXER_LOGGER.logMessage(`Saved new DDO  : ${saveDDO} from network ${network} `)
+      const saveDDO = await dbconn.update({ ...ddo })
+      INDEXER_LOGGER.logMessage(
+        `Saved new DDO  : ${saveDDO.id} from network: ${network} `
+      )
     } catch (err) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEl_ERROR,
@@ -113,7 +103,7 @@ export class OceanIndexer {
     const dbconn = this.db.indexer
     try {
       const updatedIndex = await dbconn.update(network, block)
-      INDEXER_LOGGER.logMessage(`New last indexed block :, ${updatedIndex}`, true)
+      INDEXER_LOGGER.logMessage(`New last indexed block : ${updatedIndex}`, true)
     } catch (err) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEl_ERROR,

@@ -9,6 +9,7 @@ import { Database } from '../../src/components/database/index.js'
 import { OceanIndexer } from '../../src/components/Indexer/index.js'
 import { RPCS } from '../../src/@types/blockchain.js'
 import { getEventFromTx, sleep } from '../../src/utils/util.js'
+import { schemas } from '../../src/components/database/schemas.js'
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 const genericAsset = {
@@ -61,7 +62,7 @@ async function waitToIndex(did: string, database: Database): Promise<any> {
     }
     sleep(1500)
     tries++
-  } while (tries < 1000)
+  } while (tries < 100)
   return null
 }
 
@@ -81,7 +82,7 @@ describe('Indexer stores a new published DDO', () => {
       chainId: 8996,
       network: 'development',
       rpc: 'http://127.0.0.1:8545',
-      chunkSize: 1000
+      chunkSize: 100
     }
   }
 
@@ -178,6 +179,6 @@ describe('Indexer stores a new published DDO', () => {
 
   it('should store the ddo in the database and return it ', async () => {
     const resolvedDDO = await waitToIndex(assetDID, database)
-    // expect(resolvedDDO.id).to.equal(genericAsset.id)
+    expect(resolvedDDO.id).to.equal(genericAsset.id)
   })
 })

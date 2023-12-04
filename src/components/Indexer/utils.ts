@@ -13,9 +13,6 @@ import {
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
 import { processMetadataCreatedEvent } from './eventProcessor.js'
-import { inspect } from 'node:util'
-
-type Topic = `0x${string & { length: 64 }}`
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
@@ -66,7 +63,6 @@ export const processBlocks = async (
       foundEvents: events
     }
   } catch (error) {
-    console.error('error == ', error)
     throw new Error('error processing chunk of blocks events')
   }
 }
@@ -74,7 +70,6 @@ export const processBlocks = async (
 function findEventByKey(keyToFind: string): NetworkEvent {
   for (const [key, value] of Object.entries(EVENT_HASHES)) {
     if (key === keyToFind) {
-      INDEXER_LOGGER.logMessage(`Found event with key '${key}':  ${value}`, true)
       return value
     }
   }

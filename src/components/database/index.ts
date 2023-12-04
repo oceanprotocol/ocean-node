@@ -41,40 +41,40 @@ export class DdoDatabase {
     }
   }
 
-  async create(did: string, ddo: Record<string, any>) {
+  async create(ddo: Record<string, any>) {
     try {
       return await this.provider
         .collections(this.schemas[0].name)
         .documents()
-        .create({ id: did, ddo })
+        .create({ ...ddo })
     } catch (error) {
       return null
     }
   }
 
-  async retrieve(did: string) {
+  async retrieve(id: string) {
     try {
       return await this.provider
         .collections(this.schemas[0].name)
         .documents()
-        .retrieve(did)
+        .retrieve(id)
     } catch (error) {
       return null
     }
   }
 
-  async update(did: string, fields: Record<string, any>) {
+  async update(ddo: Record<string, any>) {
     try {
       return await this.provider
         .collections(this.schemas[0].name)
         .documents()
-        .update(did, fields)
+        .update(ddo.id, ddo)
     } catch (error) {
       if (error instanceof TypesenseError && error.httpStatus === 404) {
         return await this.provider
           .collections(this.schemas[0].name)
           .documents()
-          .create({ did, ...fields })
+          .create({ ...ddo })
       }
       return null
     }
