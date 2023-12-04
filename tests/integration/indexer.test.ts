@@ -9,7 +9,6 @@ import { Database } from '../../src/components/database/index.js'
 import { OceanIndexer } from '../../src/components/Indexer/index.js'
 import { RPCS } from '../../src/@types/blockchain.js'
 import { getEventFromTx, sleep } from '../../src/utils/util.js'
-import { schemas } from '../../src/components/database/schemas.js'
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 const genericAsset = {
@@ -103,7 +102,8 @@ describe('Indexer stores a new published DDO', () => {
     )
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
-
+    process.env.PRIVATE_KEY =
+      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
     publisherAccount = (await provider.getSigner(0)) as Signer
 
     factoryContract = new ethers.Contract(

@@ -3,6 +3,7 @@ import localAdressFile from '@oceanprotocol/contracts/addresses/address.json' as
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import fs from 'fs'
+import { homedir } from 'os'
 import { EVENTS, EVENT_HASHES } from '../../utils/index.js'
 import { BlocksEvents, NetworkEvent, ProcessingEvents } from '../../@types/blockchain.js'
 import {
@@ -22,19 +23,24 @@ export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
 
 export const getDeployedContractBlock = async (network: number) => {
   let deployedBlock: number
-  const addressFile = process.env.ADDRESS_FILE
-    ? JSON.parse(
-        // eslint-disable-next-line security/detect-non-literal-fs-filename
-        fs.readFileSync('process.env.ADDRESS_FILE', 'utf8')
-      )
-    : localAdressFile
+  const addressFile =
+    process.env.ADDRESS_FILE || network === 8996
+      ? JSON.parse(
+          // eslint-disable-next-line security/detect-non-literal-fs-filename
+          fs.readFileSync(
+            process.env.ADDRESS_FILE ||
+              `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
+            'utf8'
+          )
+        )
+      : localAdressFile
   const networkKeys = Object.keys(addressFile)
   networkKeys.forEach((key) => {
     if (addressFile[key].chainId === network) {
       deployedBlock = addressFile[key].startBlock
     }
   })
-  return deployedBlock || 57
+  return deployedBlock
 }
 
 export const getNetworkHeight = async (provider: JsonRpcApiProvider) => {
