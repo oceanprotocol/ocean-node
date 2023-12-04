@@ -108,6 +108,7 @@ export async function createFee(
 
   const providerWallet = getProviderWallet(String(asset.chainId))
   const providerFeeAddress: string = providerWallet.address
+
   // from env FEE_TOKENS
   const providerFeeToken: string = getProviderFeeToken(String(asset.chainId))
 
@@ -269,6 +270,7 @@ export async function checkFee(
   const wallet = getProviderWallet()
   const nodeAddress = wallet.address
   const feeAmount = getProviderFeeAmount()
+
   // first check if these are a match
   if (
     nodeAddress !== providerFeesData.providerFeeAddress ||
@@ -300,9 +302,10 @@ export async function checkFee(
     [ethers.toUtf8Bytes(messageHash)]
   )
 
-  const signed32Bytes = await wallet.signMessage(ethers.toBeArray(signableHash))
+  const message = ethers.toBeArray(signableHash) // await wallet.signMessage()
+
   // and also check that we signed this message
-  return await verifyMessage(signed32Bytes, nodeAddress, txId)
+  return await verifyMessage(message, nodeAddress, txId)
   // before was only return await verifyMessage(message, nodeAddress, txId)
 }
 

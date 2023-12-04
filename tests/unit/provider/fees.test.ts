@@ -6,6 +6,7 @@ import {
   createFee,
   getProviderFeeAmount,
   getProviderFeeToken,
+  getProviderWallet,
   getProviderWalletAddress
 } from '../../../src/components/core/feesHandler'
 import { OceanNodeConfig } from '../../../src/@types'
@@ -16,7 +17,16 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../../utils/utils'
+import { ethers } from 'ethers'
 
+const service: Service = {
+  id: '24654b91482a3351050510ff72694d88edae803cf31a5da993da963ba0087648', // matches the service ID on the example DDO
+  type: '',
+  files: '',
+  datatokenAddress: '',
+  serviceEndpoint: '',
+  timeout: 0
+}
 // we're gonna override these
 function getEnvOverrides(): OverrideEnvConfig[] {
   return [
@@ -35,9 +45,9 @@ function getEnvOverrides(): OverrideEnvConfig[] {
     }
   ]
 }
+
 describe('Ocean Node fees', () => {
   let config: OceanNodeConfig
-  const serviceId = '24654b91482a3351050510ff72694d88edae803cf31a5da993da963ba0087648'
   let envBefore: OverrideEnvConfig[] | undefined
 
   before(async () => {
@@ -51,18 +61,9 @@ describe('Ocean Node fees', () => {
     expect(address).to.be.equal(config.keys.ethAddress)
   })
 
-  it('should should create provider fees data', async () => {
+  it('should create provider fees data', async () => {
     const asset: any = DDOExample
     const address = getProviderWalletAddress()
-
-    const service: Service = {
-      id: serviceId,
-      type: '',
-      files: '',
-      datatokenAddress: '',
-      serviceEndpoint: '',
-      timeout: 0
-    }
     const { chainId } = asset // this chain id is a number
     const providerFeeToken = getProviderFeeToken(String(chainId))
     const providerAmount = getProviderFeeAmount()
@@ -74,18 +75,10 @@ describe('Ocean Node fees', () => {
     }
   })
 
-  it('should should check the fees data', async () => {
+  it('should check the fees data and validate signature', async () => {
     const asset: any = DDOExample
-    const address = getProviderWalletAddress()
-
-    const service: Service = {
-      id: serviceId,
-      type: '',
-      files: '',
-      datatokenAddress: '',
-      serviceEndpoint: '',
-      timeout: 0
-    }
+    const wallet = getProviderWallet()
+    const { address } = wallet
     const { chainId } = asset // this chain id is a number
     const providerFeeToken = getProviderFeeToken(String(chainId))
     const providerAmount = getProviderFeeAmount()
@@ -95,9 +88,32 @@ describe('Ocean Node fees', () => {
       expect(data.providerFeeAddress).to.be.equal(address)
       expect(data.providerFeeToken).to.be.equal(providerFeeToken)
       expect(data.providerFeeAmount).to.be.equal(providerAmount)
-      const txID =
-        '0x698926822f2e6f511e3cd6e0e2339f170b355b5212e31bbee3267bc094f7f5b92974d3ae66887f382be28408a07d24db6364ca84021994a3e2a435b6371851d91c'
 
+      // will sign a new message with this data to simulate the txId and then check it
+      const providerDataAsArray = ethers.toBeArray(data.providerData)
+      const providerDataStr = Buffer.from(providerDataAsArray).toString('utf8')
+      const providerData = JSON.parse(providerDataStr)
+
+      // done previously as ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(providerData))),
+      // check signature stuff now
+
+      const messageHash = ethers.solidityPackedKeccak256(
+        ['bytes', 'address', 'address', 'uint256', 'uint256'],
+        [
+          ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(providerData))),
+          ethers.getAddress(data.providerFeeAddress), // signer address
+          ethers.getAddress(data.providerFeeToken), // TODO check decimals on contract?
+          data.providerFeeAmount,
+          data.validUntil
+        ]
+      )
+
+      const signableHash = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.toUtf8Bytes(messageHash)]
+      )
+
+      const txID = await wallet.signMessage(ethers.toBeArray(signableHash))
       const checkFeeResult = await checkFee(txID, data)
       expect(checkFeeResult).to.be.equal(true)
     }
