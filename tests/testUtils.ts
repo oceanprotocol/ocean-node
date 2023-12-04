@@ -56,22 +56,15 @@ export async function waitToIndex(did: string, database: Database): Promise<any>
 
 export async function signMessage(
   message: string,
-  signerAddress: string
+  address: string
 ): Promise<{ v: string; r: string; s: string }> {
-  // Initialize Web3 with the provider
-  const web3 = new Web3('http://127.0.0.1:8545')
-
   try {
-    // Sign the message
-    const signature = (await web3.eth.sign(
-      web3.utils.sha3(message) || '',
-      signerAddress
-    )) as string
-
-    // Extract r, s, and v components from the signature
-    const r = signature.slice(0, 66)
-    const s = '0x' + signature.slice(66, 130)
-    const v = '0x' + signature.slice(130, 132)
+    const web3 = new Web3('http://127.0.0.1:8545')
+    let signedMessage = (await web3.eth.sign(message, address)) as string
+    signedMessage = signedMessage.slice(2) // remove 0x
+    const r = '0x' + signedMessage.slice(0, 64)
+    const s = '0x' + signedMessage.slice(64, 128)
+    const v = '0x' + signedMessage.slice(128, 130)
 
     return { v, r, s }
   } catch (e) {
@@ -79,27 +72,3 @@ export async function signMessage(
     throw new Error('Signing message failed')
   }
 }
-
-// export async function signMessage(
-//   message: string,
-//   signer: Signer
-// ): Promise<{ v: string; r: string; s: string }> {
-//   // Ensure the signer is connected to a provider
-//   if (!signer.provider) {
-//     throw new Error('Signer must be connected to a provider')
-//   }
-//   try {
-//     // Sign the message
-//     const signature = await signer.signMessage(message)
-
-//     // Extract r, s, and v components from the signature
-//     const r = signature.slice(0, 66)
-//     const s = '0x' + signature.slice(66, 130)
-//     const v = '0x' + signature.slice(130, 132)
-
-//     return { v, r, s }
-//   } catch (e) {
-//     console.log('signMessage error', e)
-//     throw new Error('Signing message failed')
-//   }
-// }
