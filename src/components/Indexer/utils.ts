@@ -142,7 +142,8 @@ const processMetadataEvents = async (
     } catch (e) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error proccessing metadata: ${e}`)
     }
-  } else if (eventType === EVENTS.METADATA_STATE) {
+  }
+  if (eventType === EVENTS.METADATA_STATE) {
     try {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_INFO,
