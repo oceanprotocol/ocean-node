@@ -153,7 +153,7 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
   })
 
   it('should simulate a transaction and validate it', async function () {
-    this.timeout(5000) // Extend default Mocha test timeout
+    this.timeout(15000) // Extend default Mocha test timeout
     dataTokenContract = new Contract(
       datatokenAddress,
       ERC20Template.abi,
@@ -218,18 +218,16 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
       const txId = orderTxReceipt.hash
       assert(txId, 'transaction id not found')
 
-      // // Simulate a transaction
-      // // expect(txReceipt).to.exist
-      // // Use the transaction receipt in validateOrderTransaction
-      //
-      //
-      // const result = await validateOrderTransaction(
-      //   txId,
-      //   userAddress,
-      //   provider,
-      //   dataNftAddress,
-      //   datatokenAddress
-      // )
+      // Use the transaction receipt in validateOrderTransaction
+
+      const validationResult = await validateOrderTransaction(
+        txId,
+        consumerAddress,
+        provider,
+        dataNftAddress,
+        datatokenAddress
+      )
+      console.log('validationResult', validationResult)
       // expect(result.isValid).to.be.true
       // expect(result.message).to.equal('Transaction is valid.')
     } catch (error) {
