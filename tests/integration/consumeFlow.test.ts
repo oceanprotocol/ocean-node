@@ -275,7 +275,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     )
   })
 
-  it('should reject reuse an order with invaldid serviceIndex', async function () {
+  it('should reject reuse an order with invald serviceIndex', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
 
     const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
@@ -317,6 +317,51 @@ describe('validateOrderTransaction Function with Orders', () => {
     assert(
       validationResult.message === 'Invalid service index.',
       'Invalid reuse order transaction validation message.'
+    )
+  })
+  it('should reject reuse an order with invald user address', async function () {
+    this.timeout(15000) // Extend default Mocha test timeout
+
+    const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
+      orderTxId,
+      {
+        providerFeeAddress,
+        providerFeeToken,
+        providerFeeAmount,
+        v: signedMessage.v,
+        r: signedMessage.r,
+        s: signedMessage.s,
+        providerData: hexlify(toUtf8Bytes(providerData)),
+        validUntil: providerValidUntil
+      },
+      {
+        consumeMarketFeeAddress,
+        consumeMarketFeeToken,
+        consumeMarketFeeAmount
+      }
+    )
+    const orderTxReceipt = await orderTx.wait()
+    assert(orderTxReceipt, 'order transaction failed')
+    const txId = orderTxReceipt.hash
+    assert(txId, 'transaction id not found')
+
+    // Use the transaction receipt in validateOrderTransaction
+
+    const validationResult = await validateOrderTransaction(
+      txId,
+      '0x0',
+      provider,
+      dataNftAddress,
+      datatokenAddress,
+      serviceIndex,
+      timeout
+    )
+
+    assert(!validationResult.isValid, 'Reuse order transaction should not be valid.')
+    assert(
+      validationResult.message ===
+        'User address does not match the sender of the transaction.',
+      'Wrong transaction rejection message'
     )
   })
 })

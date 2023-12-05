@@ -1,6 +1,5 @@
 import { Provider, Contract, Interface } from 'ethers'
-import { getEventFromTx, fetchEventFromTransaction } from '../../utils/util.js'
-import { OrderStartedEvent, OrderReusedEvent } from '../../@types/contracts.js'
+import { fetchEventFromTransaction } from '../../utils/util.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 
@@ -18,16 +17,16 @@ export async function validateOrderTransaction(
   serviceIndex: number,
   serviceTimeout: number
 ): Promise<ValidateTransactionResponse> {
-  const datatokenContract = new Contract(datatokenAddress, ERC20Template.abi, provider)
   const contractInterface = new Interface(ERC20Template.abi)
 
   // 1. Fetch the transaction receipt and parse for OrderStarted and OrderReused events
   let txReceipt = await provider.getTransactionReceipt(txId)
-  console.log('txReceipt', txReceipt)
-
   // 2. Validate user address
   if (userAddress.toLowerCase() !== txReceipt.from.toLowerCase()) {
-    throw new Error('User address does not match the sender of the transaction.')
+    return {
+      isValid: false,
+      message: 'User address does not match the sender of the transaction.'
+    }
   }
 
   // 3. Fetch the event logs
