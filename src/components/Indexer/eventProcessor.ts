@@ -14,7 +14,7 @@ export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   defaultConsoleTransport
 )
 
-export const processMetadataCreatedEvent = async (
+export const processMetadataEvents = async (
   event: ethers.Log,
   chainId: number,
   provider: JsonRpcApiProvider
