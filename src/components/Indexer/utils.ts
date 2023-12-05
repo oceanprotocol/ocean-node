@@ -136,7 +136,7 @@ const processMetadataEvents = async (
   provider: JsonRpcApiProvider,
   chainId: number
 ): Promise<any> => {
-  INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_INFO, `event as ${eventType}`)
+  INDEXER_LOGGER.logMessage(`event as ${eventType}`, true)
   if (eventType === EVENTS.METADATA_CREATED) {
     try {
       return await processMetadataCreatedEvent(log, chainId, provider)
