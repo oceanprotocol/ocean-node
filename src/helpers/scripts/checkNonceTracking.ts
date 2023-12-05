@@ -12,12 +12,22 @@ import {
 
 import { ethers } from 'ethers'
 import { checkNonce } from '../../components/core/nonceHandler.js'
+import { getConfig } from '../../utils/config.js'
+import { OceanNode } from '../../OceanNode.js'
+import { OceanP2P } from '../../components/P2P/index.js'
+import { Database } from '../../components/database/index.js'
 
 const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.DATABASE,
   LOG_LEVELS_STR.LEVEL_INFO,
   defaultConsoleTransport
 )
+
+const config = await getConfig()
+const oceanNode = new OceanNode(config)
+const dbconn = new Database(config.dbConfig)
+const p2pNode = new OceanP2P(dbconn, config)
+oceanNode.setOceanNode(p2pNode, null, null, dbconn)
 
 // before running this: "setup-db": "docker-compose -f typesense-compose.yml -p ocean-node up -d",
 // nonce schema (address => nonce)
@@ -171,7 +181,12 @@ async function doNonceTrackingFlow() {
     true
   )
 
-  const checkNonceresult = await checkNonce(address, nextNonce, signature)
+  const checkNonceresult = await checkNonce(
+    oceanNode.getP2PNode(),
+    address,
+    nextNonce,
+    signature
+  )
   DB_CONSOLE_LOGGER.logMessage(
     'checkNonce => is valid nonce and signature?: ' + checkNonceresult.valid,
     true

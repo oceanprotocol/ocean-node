@@ -238,3 +238,11 @@ npm run logs
 ```
 npm run logs http://localhost:8000 "2023-11-01T00:00:00Z" "2023-11-30T23:59:59Z" 50 "http" "info"
 ```
+
+## CI Envs
+
+For now, we have three private keys defined (NODE1_PRIVATE_KEY, NODE2_PRIVATE_KEY,NODE3_PRIVATE_KEY). They are using the 10th,11th and 12rd accounts of barge:
+
+- (10) 0xee59A16d95042e1B252d4598e2e503837a52eCb1
+- (11) 0x320608cEB9B40fC5a77596CCad2E0B35659fbb2C
+- (12) 0x675003EF9a381Edb5bA2A954eD4b15037C602A2d

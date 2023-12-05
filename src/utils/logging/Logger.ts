@@ -13,7 +13,8 @@ export const LOGGER_MODULE_NAMES = {
   DATABASE: 'database',
   CONFIG: 'config',
   ALL_COMBINED: 'all',
-  CORE: 'core'
+  CORE: 'core',
+  OCEAN_NODE: 'OceanNode'
 }
 
 // we can setup custom exceptionHandlers as part of initial config options

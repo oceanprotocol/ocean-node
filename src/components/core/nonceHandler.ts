@@ -9,16 +9,15 @@ import {
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
 import { ReadableString } from '../P2P/handleProtocolCommands.js'
+import { OceanP2P } from '../P2P/index.js'
 import { NonceDatabase } from '../database/index.js'
 import { ethers } from 'ethers'
-import OceanNodeInstance from '../../index.js'
 
 export const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.DATABASE,
   LOG_LEVELS_STR.LEVEL_INFO,
   defaultConsoleTransport
 )
-
 function getDefaultErrorResponse(errorMessage: string): P2PCommandResponse {
   return {
     stream: null,
@@ -47,9 +46,12 @@ export type NonceResponse = {
 }
 
 // get stored nonce for an address ( 0 if not found)
-export async function getNonce(address: string): Promise<P2PCommandResponse> {
+export async function getNonce(
+  node: OceanP2P,
+  address: string
+): Promise<P2PCommandResponse> {
   // get nonce from db
-  const db: NonceDatabase = (await OceanNodeInstance.node).getDatabase().nonce
+  const db: NonceDatabase = node.getDatabase().nonce
   try {
     const nonce = await db.retrieve(address)
     if (nonce !== null) {
@@ -80,10 +82,13 @@ export async function getNonce(address: string): Promise<P2PCommandResponse> {
 }
 
 // update stored nonce for an address
-async function updateNonce(address: string, nonce: number): Promise<NonceResponse> {
+async function updateNonce(
+  db: NonceDatabase,
+  address: string,
+  nonce: number
+): Promise<NonceResponse> {
   try {
     // update nonce on db
-    const db = (await OceanNodeInstance.node).getDatabase().nonce
     // it will create if none exists yet
     const resp = await db.update(address, nonce)
     return {
@@ -106,14 +111,15 @@ async function updateNonce(address: string, nonce: number): Promise<NonceRespons
 
 // get stored nonce for an address, update it on db, validate signature
 export async function checkNonce(
+  node: OceanP2P,
   consumer: string,
   nonce: number,
   signature: string
 ): Promise<NonceResponse> {
   try {
     // get nonce from db
+    const db: NonceDatabase = node.getDatabase().nonce
     let previousNonce = 0 // if none exists
-    const db: NonceDatabase = (await OceanNodeInstance.node).getDatabase().nonce
     const existingNonce = await db.retrieve(consumer)
     if (existingNonce !== null) {
       previousNonce = existingNonce.nonce
@@ -126,7 +132,7 @@ export async function checkNonce(
       signature
     )
     if (validate.valid) {
-      const updateStatus = await updateNonce(consumer, nonce)
+      const updateStatus = await updateNonce(db, consumer, nonce)
       return updateStatus
     }
     return validate

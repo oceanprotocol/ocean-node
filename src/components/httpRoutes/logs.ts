@@ -18,13 +18,9 @@ logRoutes.get('/logs', async (req, res) => {
     const level = typeof req.query.level === 'string' ? req.query.level : undefined
 
     // Retrieve logs from the database
-    const logs = await req.oceanNode.db.logs.retrieveMultipleLogs(
-      startTime,
-      endTime,
-      maxLogs,
-      moduleName,
-      level
-    )
+    const logs = await req.oceanNode
+      .getDatabase()
+      .logs.retrieveMultipleLogs(startTime, endTime, maxLogs, moduleName, level)
     if (logs) {
       res.json(logs)
     } else {
@@ -38,7 +34,7 @@ logRoutes.get('/logs', async (req, res) => {
 logRoutes.get('/log/:id', async (req, res) => {
   try {
     const logId = req.params.id
-    const log = await req.oceanNode.db.logs.retrieveLog(logId)
+    const log = await req.oceanNode.getDatabase().logs.retrieveLog(logId)
     if (log) {
       res.json(log)
     } else {
