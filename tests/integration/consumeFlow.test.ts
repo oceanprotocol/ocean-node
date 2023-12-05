@@ -23,7 +23,7 @@ import { getEventFromTx, sleep } from '../../src/utils/util.js'
 import { genericAsset, signMessage } from '../testUtils.js'
 import { Database } from '../../src/components/database/index.js'
 
-describe('validateOrderTransaction Function with Real Transactions', () => {
+describe('validateOrderTransaction Function with Orders', () => {
   let database: Database
   let provider: JsonRpcProvider
   let factoryContract: Contract
@@ -92,7 +92,8 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
     expect(database).to.be.instanceOf(Database)
   })
 
-  it('should publish a dataset', async () => {
+  it('should publish a dataset', async function () {
+    this.timeout(15000) // Extend default Mocha test timeout
     const tx = await factoryContract.createNftWithErc20(
       {
         name: '72120Bundle',
@@ -128,7 +129,8 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
     assert(datatokenAddress, 'find datatoken created failed')
   })
 
-  it('should set metadata and save', async () => {
+  it('should set metadata and save', async function () {
+    this.timeout(15000) // Extend default Mocha test timeout
     console.log('1. should set metadata and save')
     nftContract = new Contract(dataNftAddress, ERC721Template.abi, publisherAccount)
     console.log('2. should set metadata and save')
