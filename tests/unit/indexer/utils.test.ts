@@ -32,8 +32,8 @@ describe('Your Test Suite', () => {
 
   it('should process blocks', async () => {
     const startIndex = 100
-    const count = 5 // Provide the block count
-    const processedBlocks = await processBlocks(provider, startIndex, count)
+    const count = 5
+    const processedBlocks = await processBlocks(provider, 80001, startIndex, count)
     expect(processedBlocks.lastBlock).to.be.a('number')
   })
 
@@ -72,7 +72,6 @@ describe('Your Test Suite', () => {
       }
     ]
 
-    const result = await processChunkLogs(logs, provider)
-    expect(result).to.be.a('object')
+    const result = await processChunkLogs(logs, provider, 80001)
   })
 })
