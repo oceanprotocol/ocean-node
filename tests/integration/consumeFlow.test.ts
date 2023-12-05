@@ -225,7 +225,8 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
         consumerAddress,
         provider,
         dataNftAddress,
-        datatokenAddress
+        datatokenAddress,
+        serviceIndex
       )
       console.log('validationResult', validationResult)
       // expect(result.isValid).to.be.true

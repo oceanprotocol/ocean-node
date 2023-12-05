@@ -1,9 +1,8 @@
 import { Provider, Contract, Interface } from 'ethers'
 import { getEventFromTx, fetchEventFromTransaction } from '../../utils/util.js'
 import { OrderStartedEvent, OrderReusedEvent } from '../../@types/contracts.js'
-import IERC20Template from '@oceanprotocol/contracts/artifacts/contracts/interfaces/IERC20Template.sol/IERC20Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-import IERC721Template from '@oceanprotocol/contracts/artifacts/contracts/interfaces/IERC721Template.sol/IERC721Template.json' assert { type: 'json' }
+import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 
 interface ValidateTransactionResponse {
   isValid: boolean
@@ -15,8 +14,10 @@ export async function validateOrderTransaction(
   userAddress: string,
   provider: Provider,
   dataNftAddress: string,
-  datatokenAddress: string
+  datatokenAddress: string,
+  serviceIndex: number
 ): Promise<ValidateTransactionResponse> {
+  const datatokenContract = new Contract(datatokenAddress, ERC20Template.abi, provider)
   const contractInterface = new Interface(ERC20Template.abi)
   console.log(
     'validateOrderTransaction',
@@ -54,43 +55,26 @@ export async function validateOrderTransaction(
     'OrderStarted',
     contractInterface
   )
+  const eventServiceIndex = OrderStartedEvent[0].args[3]
 
-  console.log('OrderStartedEvent', OrderStartedEvent)
+  if (BigInt(serviceIndex) !== eventServiceIndex) {
+    return {
+      isValid: false,
+      message: 'Invalid service index.'
+    }
+  }
 
-  // // Check if the datatoken is deployed using ERC721 contract
-  // const ERC721Contract = new Contract(dataNftAddress, IERC721Template.abi, provider)
+  // Check if the datatoken is deployed using ERC721 contract
+  const ERC721Contract = new Contract(dataNftAddress, ERC721Template.abi, provider)
 
-  // const isDatatokenDeployed = await ERC721Contract.isDeployed(datatokenAddress)
-  // if (!isDatatokenDeployed) {
-  //   return {
-  //     isValid: false,
-  //     message: 'Datatoken was not deployed by this DataNFT.'
-  //   }
-  // }
+  const isDatatokenDeployed = await ERC721Contract.isDeployed(datatokenAddress)
 
-  // // Get the ProviderFee event logs
-  // const providerFeeEventLogs = getEventFromTx(txReceipt as any, 'ProviderFee')
-
-  // // Check if datatoken belongs to the service
-  // let datatokenBelongsToService = false
-  // providerFeeEventLogs.forEach((log: any) => {
-  //   const providerData = JSON.parse(log.args.providerData)
-  //   if (
-  //     providerData.dt.toLowerCase() === datatokenAddress.toLowerCase() &&
-  //     providerData.id.toLowerCase() === orderStartedLogs.serviceIndex.toLowerCase()
-  //   ) {
-  //     datatokenBelongsToService = true
-  //   }
-  // })
-
-  // if (!datatokenBelongsToService) {
-  //   return {
-  //     isValid: false,
-  //     message: 'Datatoken does not belong to the service.'
-  //   }
-  // }
-
-  // TODO: Validate other conditions...
+  if (!isDatatokenDeployed) {
+    return {
+      isValid: false,
+      message: 'Datatoken was not deployed by this DataNFT.'
+    }
+  }
 
   return {
     isValid: true,
