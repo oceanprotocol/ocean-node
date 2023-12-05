@@ -160,9 +160,7 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
       publisherAccount
     )
     const paymentCollector = await dataTokenContract.getPaymentCollector()
-    console.log('paymentCollector', paymentCollector)
-    console.log('publisherAddress', publisherAddress)
-    // await erc20Token.connect(user3).setPaymentCollector(owner.address);
+    assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
 
     const providerFeeAddress = ZeroAddress // publisherAddress
     const providerFeeToken = feeToken
@@ -185,13 +183,10 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
       ]
     )
     // call the mint function on the dataTokenContract
-
-    let consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
-    console.log('consumer datatoken Balance', consumerBalance)
     const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
     await mintTx.wait()
-    consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
-    console.log('consumer datatoken Balance', consumerBalance)
+    const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
+    assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
     const signedMessage = await signMessage(message, publisherAddress)
 
     try {
@@ -219,9 +214,9 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
         }
       )
       const orderTxReceipt = await orderTx.wait()
-      console.log('orderTxReceipt', orderTxReceipt)
+      assert(orderTxReceipt, 'order transaction failed')
       const txId = orderTxReceipt.hash
-      console.log('txId', txId)
+      assert(txId, 'transaction id not found')
 
       // // Simulate a transaction
       // // expect(txReceipt).to.exist
