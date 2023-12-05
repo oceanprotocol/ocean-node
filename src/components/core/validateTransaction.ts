@@ -42,10 +42,12 @@ export async function validateOrderTransaction(
     'OrderReused',
     contractInterface
   )
+  console.log('orderReusedEvent', orderReusedEvent)
 
   // If OrderReused event found, fetch the associated OrderStarted transaction
   if (orderReusedEvent && orderReusedEvent?.length > 0) {
-    const reusedTxId = orderReusedEvent[0].orderTxId
+    const reusedTxId = orderReusedEvent[0].args[0]
+    console.log('reusedTxId', reusedTxId)
     txReceipt = await provider.getTransactionReceipt(reusedTxId)
   }
 
