@@ -40,6 +40,7 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
   let message: string
   let providerData: string
   let orderTxId: string
+  let dataTokenContractWithNewSigner: any
   let signedMessage: {
     v: string
     r: string
@@ -56,6 +57,7 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
   const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
   const consumeMarketFeeToken = feeToken // token address for the feeAmount,
   const providerValidUntil = 0
+  const timeout = 0
 
   before(async () => {
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
@@ -171,7 +173,7 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
     assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
 
     // sign provider data
-    providerData = JSON.stringify({ timeout: 0 })
+    providerData = JSON.stringify({ timeout })
     message = solidityPackedKeccak256(
       ['bytes', 'address', 'address', 'uint256', 'uint256'],
       [
@@ -189,62 +191,53 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
     assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
     signedMessage = await signMessage(message, publisherAddress)
 
-    try {
-      const dataTokenContractWithNewSigner = dataTokenContract.connect(
-        consumerAccount
-      ) as any
+    dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
 
-      const orderTx = await dataTokenContractWithNewSigner.startOrder(
-        consumerAddress,
-        serviceIndex,
-        {
-          providerFeeAddress,
-          providerFeeToken,
-          providerFeeAmount,
-          v: signedMessage.v,
-          r: signedMessage.r,
-          s: signedMessage.s,
-          providerData: hexlify(toUtf8Bytes(providerData)),
-          validUntil: providerValidUntil
-        },
-        {
-          consumeMarketFeeAddress,
-          consumeMarketFeeToken,
-          consumeMarketFeeAmount
-        }
-      )
-      const orderTxReceipt = await orderTx.wait()
-      assert(orderTxReceipt, 'order transaction failed')
-      orderTxId = orderTxReceipt.hash
-      assert(orderTxId, 'transaction id not found')
+    const orderTx = await dataTokenContractWithNewSigner.startOrder(
+      consumerAddress,
+      serviceIndex,
+      {
+        providerFeeAddress,
+        providerFeeToken,
+        providerFeeAmount,
+        v: signedMessage.v,
+        r: signedMessage.r,
+        s: signedMessage.s,
+        providerData: hexlify(toUtf8Bytes(providerData)),
+        validUntil: providerValidUntil
+      },
+      {
+        consumeMarketFeeAddress,
+        consumeMarketFeeToken,
+        consumeMarketFeeAmount
+      }
+    )
+    const orderTxReceipt = await orderTx.wait()
+    assert(orderTxReceipt, 'order transaction failed')
+    orderTxId = orderTxReceipt.hash
+    assert(orderTxId, 'transaction id not found')
 
-      // Use the transaction receipt in validateOrderTransaction
+    // Use the transaction receipt in validateOrderTransaction
 
-      const validationResult = await validateOrderTransaction(
-        orderTxId,
-        consumerAddress,
-        provider,
-        dataNftAddress,
-        datatokenAddress,
-        serviceIndex
-      )
-      console.log('validationResult', validationResult)
-      assert(validationResult.isValid, 'Transaction is not valid.')
-      assert(
-        validationResult.message === 'Transaction is valid.',
-        'Invalid transaction validation message.'
-      )
-    } catch (error) {
-      console.log('error', error)
-    }
+    const validationResult = await validateOrderTransaction(
+      orderTxId,
+      consumerAddress,
+      provider,
+      dataNftAddress,
+      datatokenAddress,
+      serviceIndex,
+      timeout
+    )
+    console.log('validationResult', validationResult)
+    assert(validationResult.isValid, 'Transaction is not valid.')
+    assert(
+      validationResult.message === 'Transaction is valid.',
+      'Invalid transaction validation message.'
+    )
   })
 
   it('should reuse an order and validate the transaction', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
-
-    const dataTokenContractWithNewSigner = dataTokenContract.connect(
-      consumerAccount
-    ) as any
 
     const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
       orderTxId,
@@ -277,7 +270,8 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
       provider,
       dataNftAddress,
       datatokenAddress,
-      serviceIndex
+      serviceIndex,
+      timeout
     )
 
     assert(validationResult.isValid, 'Reuse order transaction is not valid.')

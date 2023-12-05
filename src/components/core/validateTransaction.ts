@@ -15,17 +15,12 @@ export async function validateOrderTransaction(
   provider: Provider,
   dataNftAddress: string,
   datatokenAddress: string,
-  serviceIndex: number
+  serviceIndex: number,
+  serviceTimeout: number
 ): Promise<ValidateTransactionResponse> {
   const datatokenContract = new Contract(datatokenAddress, ERC20Template.abi, provider)
   const contractInterface = new Interface(ERC20Template.abi)
-  console.log(
-    'validateOrderTransaction',
-    txId,
-    userAddress,
-    dataNftAddress,
-    datatokenAddress
-  )
+
   // 1. Fetch the transaction receipt and parse for OrderStarted and OrderReused events
   let txReceipt = await provider.getTransactionReceipt(txId)
   console.log('txReceipt', txReceipt)
@@ -42,12 +37,10 @@ export async function validateOrderTransaction(
     'OrderReused',
     contractInterface
   )
-  console.log('orderReusedEvent', orderReusedEvent)
 
   // If OrderReused event found, fetch the associated OrderStarted transaction
   if (orderReusedEvent && orderReusedEvent?.length > 0) {
     const reusedTxId = orderReusedEvent[0].args[0]
-    console.log('reusedTxId', reusedTxId)
     txReceipt = await provider.getTransactionReceipt(reusedTxId)
   }
 
@@ -75,6 +68,18 @@ export async function validateOrderTransaction(
     return {
       isValid: false,
       message: 'Datatoken was not deployed by this DataNFT.'
+    }
+  }
+
+  const eventTimestamp = (await provider.getBlock(txReceipt.blockHash)).timestamp
+  // Calculate the time difference
+  const currentTimestamp = Math.floor(Date.now() / 1000)
+  const timeElapsed = currentTimestamp - eventTimestamp
+  // Check if the order has expired
+  if (serviceTimeout !== 0 && timeElapsed > serviceTimeout) {
+    return {
+      isValid: false,
+      message: 'The order has expired.'
     }
   }
 
