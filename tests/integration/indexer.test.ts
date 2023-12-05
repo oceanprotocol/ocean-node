@@ -7,7 +7,8 @@ import {
   ethers,
   getAddress,
   hexlify,
-  ZeroAddress
+  ZeroAddress,
+  Indexed
 } from 'ethers'
 import fs from 'fs'
 import { homedir } from 'os'
@@ -74,6 +75,7 @@ async function waitToIndex(did: string, database: Database): Promise<any> {
 
 describe('Indexer stores a new published DDO', () => {
   let database: Database
+  let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let factoryContract: Contract
   let nftContract: Contract
