@@ -120,36 +120,29 @@ describe('validateOrderTransaction Function with Orders', () => {
     assert(txReceipt, 'transaction failed')
     const nftEvent = getEventFromTx(txReceipt, 'NFTCreated')
     const erc20Event = getEventFromTx(txReceipt, 'TokenCreated')
-    console.log('erc20Event', erc20Event)
+
     dataNftAddress = nftEvent.args[0]
     datatokenAddress = erc20Event.args[0]
-    console.log('nftAddress ', dataNftAddress)
-    console.log('datatokenAddress ', datatokenAddress)
+
     assert(dataNftAddress, 'find nft created failed')
     assert(datatokenAddress, 'find datatoken created failed')
   })
 
   it('should set metadata and save', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
-    console.log('1. should set metadata and save')
     nftContract = new Contract(dataNftAddress, ERC721Template.abi, publisherAccount)
-    console.log('2. should set metadata and save')
     genericAsset.id =
       'did:op:' +
       createHash('sha256')
         .update(getAddress(dataNftAddress) + chainId.toString(10))
         .digest('hex')
     genericAsset.nftAddress = dataNftAddress
-    console.log('3. should set metadata and save')
 
     assetDID = genericAsset.id
-    console.log('assetDID', assetDID)
     const stringDDO = JSON.stringify(genericAsset)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
-    console.log('metadata ', metadata)
     const hash = createHash('sha256').update(metadata).digest('hex')
-    console.log('hash ', hash)
 
     const setMetaDataTx = await nftContract.setMetaData(
       0,
@@ -230,7 +223,6 @@ describe('validateOrderTransaction Function with Orders', () => {
       serviceIndex,
       timeout
     )
-    console.log('validationResult', validationResult)
     assert(validationResult.isValid, 'Transaction is not valid.')
     assert(
       validationResult.message === 'Transaction is valid.',
@@ -279,6 +271,51 @@ describe('validateOrderTransaction Function with Orders', () => {
     assert(validationResult.isValid, 'Reuse order transaction is not valid.')
     assert(
       validationResult.message === 'Transaction is valid.',
+      'Invalid reuse order transaction validation message.'
+    )
+  })
+
+  it('should reject reuse an order with invaldid serviceIndex', async function () {
+    this.timeout(15000) // Extend default Mocha test timeout
+
+    const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
+      orderTxId,
+      {
+        providerFeeAddress,
+        providerFeeToken,
+        providerFeeAmount,
+        v: signedMessage.v,
+        r: signedMessage.r,
+        s: signedMessage.s,
+        providerData: hexlify(toUtf8Bytes(providerData)),
+        validUntil: providerValidUntil
+      },
+      {
+        consumeMarketFeeAddress,
+        consumeMarketFeeToken,
+        consumeMarketFeeAmount
+      }
+    )
+    const orderTxReceipt = await orderTx.wait()
+    assert(orderTxReceipt, 'order transaction failed')
+    const txId = orderTxReceipt.hash
+    assert(txId, 'transaction id not found')
+
+    // Use the transaction receipt in validateOrderTransaction
+
+    const validationResult = await validateOrderTransaction(
+      txId,
+      consumerAddress,
+      provider,
+      dataNftAddress,
+      datatokenAddress,
+      999,
+      timeout
+    )
+
+    assert(!validationResult.isValid, 'Reuse order transaction should not be valid.')
+    assert(
+      validationResult.message === 'Invalid service index.',
       'Invalid reuse order transaction validation message.'
     )
   })
