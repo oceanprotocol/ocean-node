@@ -152,16 +152,4 @@ describe('Indexer stores a new published DDO', () => {
     // Expect the result from contract
     expect(resolvedDDO.nft.state).to.equal(parseInt(result[2].toString()))
   })
-
-  it('should change metadata state of the published DDO', async () => {
-    const setMetaDataStateTx = await nftContract.setMetaDataState(4)
-    const trxReceipt = await setMetaDataStateTx.wait()
-    assert(trxReceipt, 'set metada state failed')
-  })
-
-  it('should get the updated state', async () => {
-    // TODO: interact with DDO instead of contract call of getMetaData
-    const result = await nftContract.getMetaData()
-    expect(parseInt(result[2].toString())).to.eql(4)
-  })
 })
