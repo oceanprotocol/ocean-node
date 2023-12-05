@@ -229,8 +229,11 @@ describe('validateOrderTransaction Function with Real Transactions', () => {
         serviceIndex
       )
       console.log('validationResult', validationResult)
-      // expect(result.isValid).to.be.true
-      // expect(result.message).to.equal('Transaction is valid.')
+      assert(validationResult.isValid, 'Transaction is not valid.')
+      assert(
+        validationResult.message === 'Transaction is valid.',
+        'Invalid transaction validation message.'
+      )
     } catch (error) {
       console.log('error', error)
     }
