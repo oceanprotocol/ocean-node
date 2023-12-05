@@ -136,14 +136,14 @@ const processMetadataEvents = async (
   provider: JsonRpcApiProvider,
   chainId: number
 ): Promise<any> => {
+  INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_INFO, `event as ${eventType}`)
   if (eventType === EVENTS.METADATA_CREATED) {
     try {
       return await processMetadataCreatedEvent(log, chainId, provider)
     } catch (e) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error proccessing metadata: ${e}`)
     }
-  }
-  if (eventType === EVENTS.METADATA_STATE) {
+  } else if (eventType === EVENTS.METADATA_STATE) {
     try {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_INFO,
