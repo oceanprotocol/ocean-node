@@ -13,7 +13,10 @@ import {
   defaultConsoleTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
-import { processMetadataCreatedEvent } from './eventProcessor.js'
+import {
+  processMetadataCreatedEvent,
+  processOrderStartedEvent
+} from './eventProcessor.js'
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
@@ -113,9 +116,17 @@ export const processChunkLogs = async (
       } else if (event && event.type === EVENTS.EXCHANGE_RATE_CHANGED) {
         INDEXER_LOGGER.logMessage('-- EXCHANGE_RATE_CHANGED -- ', true)
         storeEvents[event.type] = await processExchangeRateChanged()
-      } else if (event && event.type === EVENTS.ORDER_STARTED) {
-        INDEXER_LOGGER.logMessage('-- ORDER_STARTED -- ', true)
-        storeEvents[event.type] = await procesOrderStarted()
+      } else if (
+        event &&
+        (event.type === EVENTS.ORDER_STARTED || event.type === EVENTS.ORDER_REUSED)
+      ) {
+        INDEXER_LOGGER.logMessage('-- ORDER_STARTED || ORDER_REUSED -- ', true)
+        storeEvents[event.type] = await procesOrdersEvents(
+          log,
+          event.type,
+          provider,
+          chainId
+        )
       } else if (event && event.type === EVENTS.TOKEN_URI_UPDATE) {
         INDEXER_LOGGER.logMessage('-- TOKEN_URI_UPDATE -- ', true)
         storeEvents[event.type] = await processTokenUriUpadate()
@@ -150,8 +161,19 @@ const processExchangeRateChanged = async (): Promise<string> => {
   return 'EXCHANGE_RATE_CHANGED'
 }
 
-const procesOrderStarted = async (): Promise<string> => {
-  return 'ORDER_STARTED'
+const procesOrdersEvents = async (
+  log: ethers.Log,
+  eventType: string,
+  provider: JsonRpcApiProvider,
+  chainId: number
+): Promise<any> => {
+  if (eventType === EVENTS.ORDER_STARTED) {
+    try {
+      return await processOrderStartedEvent(log, chainId, provider)
+    } catch (e) {
+      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error proccessing order: ${e}`)
+    }
+  }
 }
 
 const processTokenUriUpadate = async (): Promise<string> => {

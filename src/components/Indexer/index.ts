@@ -41,7 +41,10 @@ export class OceanIndexer {
         if (event.method === 'store-last-indexed-block') {
           this.updateLastIndexedBlockNumber(event.network, event.data)
         }
-        if (event.method === EVENTS.METADATA_CREATED) {
+        if (
+          event.method === EVENTS.METADATA_CREATED ||
+          event.method === EVENTS.ORDER_STARTED
+        ) {
           this.saveDDO(event.network, event.data)
         }
       })
