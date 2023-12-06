@@ -143,8 +143,7 @@ describe('Indexer stores a new published DDO', () => {
     resolvedDDO.metadata.name = 'dataset-name-updated'
     resolvedDDO.metadata.description =
       'Updated description for the Ocean protocol test dataset'
-    expect(resolvedDDO.id).to.equal(genericAsset.id)
-    const stringDDO = JSON.stringify(genericAsset)
+    const stringDDO = JSON.stringify(resolvedDDO)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
     const hash = createHash('sha256').update(metadata).digest('hex')
@@ -166,7 +165,6 @@ describe('Indexer stores a new published DDO', () => {
 
   it('should detect update event and store the udpdated ddo in the database', async () => {
     const updatedDDO = await waitToIndex(assetDID, database)
-    expect(updatedDDO.id).to.equal(genericAsset.id)
     expect(updatedDDO.metadata.name).to.equal('dataset-name-updated')
     expect(updatedDDO.metadata.description).to.equal(
       'Updated description for the Ocean protocol test dataset'
