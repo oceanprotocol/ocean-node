@@ -78,7 +78,12 @@ describe('handle nonce', () => {
   })
 
   it('create nonce collection', async () => {
-    const result = await typesense.collections().create(nonceSchema)
+    let result
+    try {
+      result = await typesense.collections(nonceSchema.name).retrieve()
+    } catch (error) {
+      result = await typesense.collections().create(nonceSchema)
+    }
     expect(result.enable_nested_fields).to.equal(true)
     expect(result.fields).to.not.be.an('undefined')
     expect(result.name).to.be.equal(nonceSchema.name)
