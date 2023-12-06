@@ -87,7 +87,9 @@ if (config.hasIndexer) {
     }
   }
 }
-if (config.hasProvider) provider = new OceanProvider(dbconn)
+if (config.hasProvider) {
+  provider = new OceanProvider(dbconn)
+}
 const customLogTransport = newCustomDBTransport(dbconn)
 logger.addTransport(customLogTransport)
 

@@ -6,7 +6,7 @@ import {
   TypesenseConfigOptions,
   TypesenseDocumentSchema,
   TypesenseSearchResponse
-} from '../../@types'
+} from '../../@types/index.js'
 import { TypesenseApi } from './typesenseApi.js'
 import { TypesenseConfig } from './typesenseConfig.js'
 
