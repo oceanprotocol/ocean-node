@@ -9,8 +9,7 @@ import {
   toUtf8Bytes,
   solidityPackedKeccak256,
   parseUnits,
-  ZeroAddress,
-  Wallet
+  ZeroAddress
 } from 'ethers'
 import { createHash } from 'crypto'
 import fs from 'fs'
@@ -47,6 +46,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     s: string
   }
 
+  const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
   const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
   const providerFeeAddress = ZeroAddress // publisherAddress
   const providerFeeToken = feeToken
@@ -57,9 +57,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   const consumeMarketFeeToken = feeToken // token address for the feeAmount,
   const providerValidUntil = 0
   const timeout = 0
-  const publisherWallet = new Wallet(
-    '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
-  )
 
   before(async () => {
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
@@ -103,12 +100,17 @@ describe('validateOrderTransaction Function with Orders', () => {
         templateIndex: 1,
         tokenURI: 'https://oceanprotocol.com/nft/',
         transferable: true,
-        owner: publisherAddress
+        owner: await publisherAccount.getAddress()
       },
       {
         strings: ['ERC20B1', 'ERC20DT1Symbol'],
         templateIndex: 1,
-        addresses: [publisherAddress, ZeroAddress, ZeroAddress, ZeroAddress],
+        addresses: [
+          await publisherAccount.getAddress(),
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          '0x0000000000000000000000000000000000000000'
+        ],
         uints: [1000, 0],
         bytess: []
       }
@@ -180,7 +182,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     await mintTx.wait()
     const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
     assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
-    signedMessage = await signMessage(message, publisherWallet)
+    signedMessage = await signMessage(message, publisherAddress)
 
     dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
 
