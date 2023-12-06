@@ -58,6 +58,16 @@ export IPFS_GATEWAY=''
 export ARWEAVE_GATEWAY=''
 ```
 
+For configuring the ocean node fees, please export the following environment variables;
+
+```bash
+export FEE_TOKENS="{ \"1\": \"0x967da4048cD07aB37855c090aAF366e4ce1b9F48\", \"137\": \"0x282d8efCe846A88B159800bd4130ad77443Fa1A1\", \"80001\": \"0xd8992Ed72C445c35Cb4A2be468568Ed1079357c8\", \"56\": \"0xDCe07662CA8EbC241316a15B611c89711414Dd1a\" }"
+export FEE_AMOUNT="{ \"amount\": 1, \"unit\": \"MB\" }"
+```
+
+Where FEE_TOKENS is a map (chainID => Token address) and FEE_AMOUNT is the fees amount (unit of fee token).
+The 'unit' parameter is not used at the moment, but allows to specify an specific unit of size (MB, KB, GB, etc). Default is MB.
+
 Then start the node:
 
 ```bash

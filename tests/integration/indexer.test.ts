@@ -7,8 +7,7 @@ import {
   ethers,
   getAddress,
   hexlify,
-  ZeroAddress,
-  Indexed
+  ZeroAddress
 } from 'ethers'
 import fs from 'fs'
 import { homedir } from 'os'
@@ -17,61 +16,9 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { Database } from '../../src/components/database/index.js'
 import { OceanIndexer } from '../../src/components/Indexer/index.js'
 import { RPCS } from '../../src/@types/blockchain.js'
-import { getEventFromTx, sleep } from '../../src/utils/util.js'
-
-const genericAsset = {
-  '@context': ['https://w3id.org/did/v1'],
-  id: '',
-  version: '4.1.0',
-  chainId: 8996,
-  nftAddress: '0x0',
-  metadata: {
-    created: '2021-12-20T14:35:20Z',
-    updated: '2021-12-20T14:35:20Z',
-    type: 'dataset',
-    name: 'dataset-name',
-    description: 'Ocean protocol test dataset description',
-    author: 'oceanprotocol-team',
-    license: 'MIT',
-    tags: ['white-papers'],
-    additionalInformation: { 'test-key': 'test-value' },
-    links: ['http://data.ceda.ac.uk/badc/ukcp09/']
-  },
-  services: [
-    {
-      id: 'testFakeId',
-      type: 'access',
-      description: 'Download service',
-      files: '',
-      datatokenAddress: '0x0',
-      serviceEndpoint: 'http://172.15.0.4:8030',
-      timeout: 0
-    }
-  ]
-}
-
-function delay(interval: number) {
-  return it('should delay', (done) => {
-    setTimeout(() => done(), interval)
-  }).timeout(interval + 100)
-}
-
-async function waitToIndex(did: string, database: Database): Promise<any> {
-  let tries = 0
-  do {
-    try {
-      const ddo = await database.ddo.retrieve(did)
-      if (ddo) {
-        return ddo
-      }
-    } catch (e) {
-      // do nothing
-    }
-    sleep(1500)
-    tries++
-  } while (tries < 100)
-  return null
-}
+import { getEventFromTx } from '../../src/utils/util.js'
+import { delay, waitToIndex } from './testUtils.js'
+import { genericDDO } from '../data/ddo.js'
 
 describe('Indexer stores a new published DDO', () => {
   let database: Database
@@ -84,6 +31,7 @@ describe('Indexer stores a new published DDO', () => {
   const chainId = 8996
   let assetDID: string
   let resolvedDDO: Record<string, any>
+  let genericAsset: any
 
   const mockSupportedNetworks: RPCS = {
     '8996': {
@@ -114,7 +62,7 @@ describe('Indexer stores a new published DDO', () => {
     process.env.PRIVATE_KEY =
       '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
     publisherAccount = (await provider.getSigner(0)) as Signer
-
+    genericAsset = genericDDO
     factoryContract = new ethers.Contract(
       data.development.ERC721Factory,
       ERC721Factory.abi,

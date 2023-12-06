@@ -14,6 +14,7 @@ import {
 } from '../utils/logging/Logger.js'
 import { RPCS } from '../@types/blockchain'
 import { Wallet } from 'ethers'
+import { FeeStrategy, FeeTokens, FeeAmount } from '../@types/Fees'
 
 const CONFIG_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.CONFIG,
@@ -74,6 +75,54 @@ function getSupportedChains(): RPCS {
   return supportedNetworks
 }
 
+// parse fees structure from .env
+function getOceanNodeFees(): FeeStrategy {
+  const logError = () => {
+    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+      'Error parsing Fee Strategy... Please check "FEE_TOKENS" and "FEE_AMOUNT" env variables',
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEl_ERROR
+    )
+  }
+
+  try {
+    const nodeFeesTokens: FeeTokens[] = []
+    const tokens = JSON.parse(process.env.FEE_TOKENS)
+    Object.keys(tokens).forEach((key: string) => {
+      nodeFeesTokens.push({
+        chain: key,
+        token: tokens[key]
+      })
+    })
+    const nodeFeesAmount = JSON.parse(process.env.FEE_AMOUNT) as FeeAmount
+    if (!nodeFeesAmount || !nodeFeesTokens) {
+      // invalid values
+      logError()
+      return null
+    }
+    return {
+      feeTokens: nodeFeesTokens,
+      feeAmount: nodeFeesAmount
+    }
+  } catch (error) {
+    logError()
+    return null
+  }
+}
+
+function existsEnvironmentVariable(envVar: string, envName: string): any {
+  if (!envVar) {
+    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+      `Invalid or missing "${envName}" env variable...`,
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEl_ERROR
+    )
+    return null
+  }
+  return true
+}
 export async function getConfig(): Promise<OceanNodeConfig> {
   const privateKey = process.env.PRIVATE_KEY
   if (!privateKey || privateKey.length !== 66) {
@@ -87,25 +136,15 @@ export async function getConfig(): Promise<OceanNodeConfig> {
     return null
   }
 
-  if (!process.env.IPFS_GATEWAY) {
-    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
-      'Invalid IPFS_GATEWAY env variable..',
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEl_ERROR
-    )
+  if (
+    !existsEnvironmentVariable(process.env.IPFS_GATEWAY, 'IPFS_GATEWAY') ||
+    !existsEnvironmentVariable(process.env.ARWEAVE_GATEWAY, 'ARWEAVE_GATEWAY') ||
+    !existsEnvironmentVariable(process.env.FEE_TOKENS, 'FEE_TOKENS') ||
+    !existsEnvironmentVariable(process.env.FEE_AMOUNT, 'FEE_AMOUNT')
+  ) {
     return null
   }
 
-  if (!process.env.ARWEAVE_GATEWAY) {
-    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
-      'Invalid ARWEAVE_GATEWAY env variable..',
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEl_ERROR
-    )
-    return null
-  }
   const config: OceanNodeConfig = {
     keys: await getPeerIdFromPrivateKey(privateKey),
     hasIndexer: true,
@@ -136,7 +175,8 @@ export async function getConfig(): Promise<OceanNodeConfig> {
     dbConfig: {
       url: getEnvValue(process.env.DB_URL, 'http://localhost:8108/?apiKey=xyz')
     },
-    supportedNetworks: getSupportedChains()
+    supportedNetworks: getSupportedChains(),
+    feeStrategy: getOceanNodeFees()
   }
   return config
 }
