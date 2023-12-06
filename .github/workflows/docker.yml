@@ -48,6 +48,7 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
+          load: true
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.ocean_node.outputs.tags }}
           labels: ${{ steps.ocean_node.outputs.labels }}
