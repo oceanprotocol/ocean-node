@@ -1,6 +1,9 @@
-import { ethers } from 'ethers'
+import { JsonRpcApiProvider, ethers, getAddress } from 'ethers'
 import localAdressFile from '@oceanprotocol/contracts/addresses/address.json' assert { type: 'json' }
+import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
+import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import fs from 'fs'
+import { homedir } from 'os'
 import { EVENTS, EVENT_HASHES } from '../../utils/index.js'
 import { BlocksEvents, NetworkEvent, ProcessingEvents } from '../../@types/blockchain.js'
 import {
@@ -10,8 +13,7 @@ import {
   defaultConsoleTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
-
-type Topic = `0x${string & { length: 64 }}`
+import { processMetadataCreatedEvent } from './eventProcessor.js'
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
@@ -21,12 +23,17 @@ export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
 
 export const getDeployedContractBlock = async (network: number) => {
   let deployedBlock: number
-  const addressFile = process.env.ADDRESS_FILE
-    ? JSON.parse(
-        // eslint-disable-next-line security/detect-non-literal-fs-filename
-        fs.readFileSync(process.env.ADDRESS_FILE, 'utf8')
-      )
-    : localAdressFile
+  const addressFile =
+    process.env.ADDRESS_FILE || network === 8996
+      ? JSON.parse(
+          // eslint-disable-next-line security/detect-non-literal-fs-filename
+          fs.readFileSync(
+            process.env.ADDRESS_FILE ||
+              `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
+            'utf8'
+          )
+        )
+      : localAdressFile
   const networkKeys = Object.keys(addressFile)
   networkKeys.forEach((key) => {
     if (addressFile[key].chainId === network) {
@@ -36,34 +43,32 @@ export const getDeployedContractBlock = async (network: number) => {
   return deployedBlock
 }
 
-export const getNetworkHeight = async (provider: ethers.Provider) => {
+export const getNetworkHeight = async (provider: JsonRpcApiProvider) => {
   const networkHeight = await provider.getBlockNumber()
 
   return networkHeight
 }
 
 export const processBlocks = async (
-  provider: ethers.Provider,
+  provider: JsonRpcApiProvider,
+  network: number,
   startIndex: number,
   count: number
 ): Promise<ProcessingEvents> => {
   try {
     const eventHashes = Object.keys(EVENT_HASHES)
-    const topics: Topic[] = eventHashes as Topic[]
     const blockLogs = await provider.getLogs({
       fromBlock: startIndex,
       toBlock: startIndex + count,
-      topics
+      topics: [eventHashes]
     })
-    console.log('blockLogs ', blockLogs)
-    const events = await processChunkLogs(blockLogs, provider)
+    const events = await processChunkLogs(blockLogs, provider, network)
 
     return {
       lastBlock: startIndex + count,
       foundEvents: events
     }
   } catch (error) {
-    console.error('error == ', error)
     throw new Error('error processing chunk of blocks events')
   }
 }
@@ -71,7 +76,6 @@ export const processBlocks = async (
 function findEventByKey(keyToFind: string): NetworkEvent {
   for (const [key, value] of Object.entries(EVENT_HASHES)) {
     if (key === keyToFind) {
-      INDEXER_LOGGER.logMessage(`Found event with key '${key}':  ${value}`, true)
       return value
     }
   }
@@ -80,7 +84,8 @@ function findEventByKey(keyToFind: string): NetworkEvent {
 
 export const processChunkLogs = async (
   logs: readonly ethers.Log[],
-  provider?: ethers.Provider
+  provider: JsonRpcApiProvider,
+  chainId: number
 ): Promise<BlocksEvents> => {
   const storeEvents: BlocksEvents = {}
   if (logs.length > 0) {
@@ -96,7 +101,12 @@ export const processChunkLogs = async (
           'METADATA_CREATED || METADATA_UPDATED || METADATA_STATE   -- ',
           true
         )
-        storeEvents[event.type] = await processMetadataEvents()
+        storeEvents[event.type] = await processMetadataEvents(
+          log,
+          event.type,
+          provider,
+          chainId
+        )
       } else if (event && event.type === EVENTS.EXCHANGE_CREATED) {
         INDEXER_LOGGER.logMessage('-- EXCHANGE_CREATED -- ', true)
         storeEvents[event.type] = await procesExchangeCreated()
@@ -117,8 +127,19 @@ export const processChunkLogs = async (
   return {}
 }
 
-const processMetadataEvents = async (): Promise<string> => {
-  return 'METADATA_CREATED'
+const processMetadataEvents = async (
+  log: ethers.Log,
+  eventType: string,
+  provider: JsonRpcApiProvider,
+  chainId: number
+): Promise<any> => {
+  if (eventType === EVENTS.METADATA_CREATED) {
+    try {
+      return await processMetadataCreatedEvent(log, chainId, provider)
+    } catch (e) {
+      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error proccessing metadata: ${e}`)
+    }
+  }
 }
 
 const procesExchangeCreated = async (): Promise<string> => {
@@ -135,4 +156,40 @@ const procesOrderStarted = async (): Promise<string> => {
 
 const processTokenUriUpadate = async (): Promise<string> => {
   return 'TOKEN_URI_UPDATE'
+}
+
+export const getNFTContract = async (
+  provider: JsonRpcApiProvider,
+  address: string
+): Promise<ethers.Contract> => {
+  address = getAddress(address)
+  return getContract(provider, 'ERC721Template', address)
+}
+
+export const getNFTFactory = async (
+  provider: JsonRpcApiProvider,
+  address: string
+): Promise<ethers.Contract> => {
+  address = getAddress(address)
+  return await getContract(provider, 'ERC721Factory', address)
+}
+
+async function getContract(
+  provider: JsonRpcApiProvider,
+  contractName: string,
+  address: string
+): Promise<ethers.Contract> {
+  const abi = getContractDefinition(contractName)
+  return new ethers.Contract(getAddress(address), abi, await provider.getSigner())
+}
+
+function getContractDefinition(contractName: string): any {
+  switch (contractName) {
+    case 'ERC721Factory':
+      return ERC721Factory.abi
+    case 'ERC721Template':
+      return ERC721Template.abi
+    default:
+      return ERC721Factory.abi
+  }
 }

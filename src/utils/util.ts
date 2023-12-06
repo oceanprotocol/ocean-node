@@ -1,6 +1,7 @@
 // Put some utilities functions here
+
 // sleep for ms miliseconds
-import { Provider, Interface, Log } from 'ethers'
+import { Interface } from 'ethers'
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }

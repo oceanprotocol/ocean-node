@@ -1,4 +1,4 @@
-import { Database } from '../../src/components/database'
+import { Database } from '../../src/components/database/index.js'
 import { expect } from 'chai'
 
 describe('Database', () => {
@@ -60,7 +60,7 @@ describe('DdoDatabase CRUD', () => {
 
   it('update ddo', async () => {
     const newMetadataName = 'new metadata name'
-    const result = await database.ddo.update(ddo.id, {
+    const result = await database.ddo.update({
       metadata: {
         name: newMetadataName
       }
