@@ -9,8 +9,6 @@ import {
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
 import { EVENTS } from '../../utils/index.js'
-import { createHash } from 'crypto'
-import { getAddress } from 'ethers'
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
@@ -43,11 +41,8 @@ export class OceanIndexer {
         if (event.method === 'store-last-indexed-block') {
           this.updateLastIndexedBlockNumber(event.network, event.data)
         }
-        if (event.method === EVENTS.METADATA_CREATED) {
-          this.saveDDO(event.network, event.data)
-        }
-        if (event.method === EVENTS.METADATA_STATE) {
-          this.storeState(event.network, event.data)
+        if (event.method === EVENTS.METADATA_CREATED || EVENTS.METADATA_STATE) {
+          this.createOrUpdateDDO(event.network, event.data, event.method)
         }
       })
 
@@ -85,38 +80,24 @@ export class OceanIndexer {
     }
   }
 
-  public async saveDDO(network: number, ddo: any): Promise<void> {
+  public async createOrUpdateDDO(
+    network: number,
+    ddo: any,
+    method: string
+  ): Promise<void> {
+    INDEXER_LOGGER.logMessage(
+      `Detected event ${method} on network ${network}. Data: ${ddo}`
+    )
     const dbconn = this.db.ddo
     try {
       const saveDDO = await dbconn.update({ ...ddo })
       INDEXER_LOGGER.logMessage(
-        `Saved new DDO  : ${saveDDO.id} from network: ${network} `
+        `Saved or updated DDO  : ${saveDDO.id} from network: ${network}`
       )
     } catch (err) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEl_ERROR,
-        'Error retrieving last indexed block',
-        true
-      )
-    }
-  }
-
-  public async storeState(network: number, ddo: any): Promise<void> {
-    INDEXER_LOGGER.logMessage(
-      `MetadataState event data: ${ddo}, network: ${network}`,
-      true
-    )
-
-    const dbconn = this.db.ddo
-    try {
-      await dbconn.update({ ...ddo })
-      INDEXER_LOGGER.logMessage(
-        `Updated ddo ${ddo.did} state with ${ddo.nft.state} on network ${network}`
-      )
-    } catch (err) {
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEl_ERROR,
-        `Error updating DDO state: ${err}`,
+        `Error retrieving & storing DDO: ${err}`,
         true
       )
     }
