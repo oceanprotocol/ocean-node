@@ -31,12 +31,10 @@ async function checkDocumentExists(typesense: Typesense) {
     // if not, create it now
   } catch (ex) {
     console.log('caught ex in checkDocumentExists: ', ex)
-    if (!document) {
-      await typesense.collections('nonce').documents().create({
-        id: '0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1',
-        nonce: 1
-      })
-    }
+    await typesense.collections('nonce').documents().create({
+      id: '0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1',
+      nonce: 1
+    })
     console.log('document in checkDocumentExists after creating: ', document)
   }
 }
@@ -58,20 +56,21 @@ describe('handle nonce', () => {
         existsNonceCollection = false
         // collection nonce not exists'
       }
-
-      if (existsNonceCollection) {
-        // check if the document exists
-        await checkDocumentExists(typesense)
-      } else {
-        // create collection and document if needed
-        await createNonceCollection(typesense)
-        await checkDocumentExists(typesense)
-      }
-    } else {
-      // create collection and document
-      await createNonceCollection(typesense)
-      await checkDocumentExists(typesense)
     }
+
+    //   if (existsNonceCollection) {
+    //     // check if the document exists
+    //     await checkDocumentExists(typesense)
+    //   } else {
+    //     // create collection and document if needed
+    //     await createNonceCollection(typesense)
+    //     await checkDocumentExists(typesense)
+    //   }
+    // } else {
+    //   // create collection and document
+    //   await createNonceCollection(typesense)
+    //   await checkDocumentExists(typesense)
+    // }
   })
 
   it('should validate signature', async () => {
