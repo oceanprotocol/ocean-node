@@ -43,7 +43,7 @@ describe('Indexer stores a new published DDO', () => {
 
   before(async () => {
     const dbConfig = {
-      url: 'http://172.15.0.6:8108/?apiKey=xyz'
+      url: 'http://localhost:8108/?apiKey=xyz'
     }
     database = await new Database(dbConfig)
     indexer = new OceanIndexer(database, mockSupportedNetworks)
