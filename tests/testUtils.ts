@@ -33,10 +33,6 @@ export const genericAsset = {
   ]
 }
 
-export function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 export async function waitToIndex(did: string, database: Database): Promise<any> {
   let tries = 0
   do {

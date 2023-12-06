@@ -9,7 +9,6 @@ import {
   toUtf8Bytes,
   solidityPackedKeccak256,
   parseUnits,
-  Interface,
   ZeroAddress
 } from 'ethers'
 import { createHash } from 'crypto'
@@ -19,7 +18,7 @@ import { validateOrderTransaction } from '../../src/components/core/validateTran
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-import { getEventFromTx, sleep } from '../../src/utils/util.js'
+import { getEventFromTx } from '../../src/utils/util.js'
 import { genericAsset, signMessage } from '../testUtils.js'
 import { Database } from '../../src/components/database/index.js'
 
@@ -30,7 +29,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   let nftContract: Contract
   let dataTokenContract: Contract
   const chainId = 8996
-  let assetDID: string
   let publisherAccount: Signer
   let publisherAddress: string
   let consumerAccount: Signer
@@ -138,7 +136,6 @@ describe('validateOrderTransaction Function with Orders', () => {
         .digest('hex')
     genericAsset.nftAddress = dataNftAddress
 
-    assetDID = genericAsset.id
     const stringDDO = JSON.stringify(genericAsset)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
