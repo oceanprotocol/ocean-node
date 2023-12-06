@@ -78,6 +78,14 @@ describe('handle nonce', () => {
     expect(typesense).to.be.instanceOf(Typesense)
   })
 
+  it('create nonce collection', async () => {
+    const result = await typesense.collections().create(nonceSchema)
+    expect(result.enable_nested_fields).to.equal(true)
+    expect(result.fields).to.not.be.an('undefined')
+    expect(result.name).to.be.equal(nonceSchema.name)
+    expect(result.num_documents).to.equal(0)
+  })
+
   it('should validate signature', async () => {
     // await typesense.collections().create(nonceSchema)
     // typesense.collections('nonce').documents().create({
