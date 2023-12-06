@@ -1,76 +1,17 @@
 import { expect } from 'chai'
 import { ethers } from 'ethers'
-import { TypesenseCollectionCreateSchema } from '../../src/@types/Typesense'
+import { nonceSchema } from '../data/nonceSchema.js'
 import {
   Typesense,
   convertTypesenseConfig
 } from '../../src/components/database/typesense'
 
-const nonceSchema: TypesenseCollectionCreateSchema = {
-  name: 'nonce',
-  enable_nested_fields: true,
-  fields: [
-    { name: 'id', type: 'string' },
-    { name: 'nonce', type: 'int64', sort: true } // store nonce as string
-  ]
-}
-
-// async function createNonceCollection(typesense: Typesense) {
-//   return await typesense.collections().create(nonceSchema)
-// }
-
-// // creates if needed
-// async function checkDocumentExists(typesense: Typesense) {
-//   let document
-//   try {
-//     document = await typesense
-//       .collections('nonce')
-//       .documents()
-//       .retrieve('0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1')
-//     console.log('document in checkDocumentExists: ', document)
-//     // if not, create it now
-//   } catch (ex) {
-//     console.log('caught ex in checkDocumentExists: ', ex)
-//     await typesense.collections('nonce').documents().create({
-//       id: '0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1',
-//       nonce: 1
-//     })
-//     console.log('document in checkDocumentExists after creating: ', document)
-//   }
-// }
 describe('handle nonce', () => {
   let typesense: Typesense
 
   before(() => {
     const url = 'http://172.15.0.6:8108/?apiKey=xyz'
     typesense = new Typesense(convertTypesenseConfig(url))
-
-    // const existingCollections = await typesense.collections().retrieve()
-    // console.log('existingCollections: ', existingCollections)
-    // // check existing ones
-    // if (existingCollections && existingCollections.length > 0) {
-    //   let existsNonceCollection = true
-    //   try {
-    //     await typesense.collections(nonceSchema.name).retrieve()
-    //   } catch (error) {
-    //     existsNonceCollection = false
-    //     // collection nonce not exists'
-    //   }
-    // }
-
-    //   if (existsNonceCollection) {
-    //     // check if the document exists
-    //     await checkDocumentExists(typesense)
-    //   } else {
-    //     // create collection and document if needed
-    //     await createNonceCollection(typesense)
-    //     await checkDocumentExists(typesense)
-    //   }
-    // } else {
-    //   // create collection and document
-    //   await createNonceCollection(typesense)
-    //   await checkDocumentExists(typesense)
-    // }
   })
 
   it('instance Typesense', async () => {
@@ -117,11 +58,11 @@ describe('handle nonce', () => {
     expect(actualAddress).to.be.equal(expectedAddress)
   })
 
-  // it('should get nonce (1)', async () => {
-  //   const document = await typesense
-  //     .collections('nonce')
-  //     .documents()
-  //     .retrieve('0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1')
-  //   expect(document.nonce).to.be.equal(1)
-  // })
+  it('should get nonce (1)', async () => {
+    const document = await typesense
+      .collections('nonce')
+      .documents()
+      .retrieve('0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1')
+    expect(document.nonce).to.be.equal(1)
+  })
 })

@@ -11,7 +11,7 @@ describe('Typesense', () => {
   let typesense: Typesense
 
   before(() => {
-    const url = 'http://localhost:8108/?apiKey=xyz'
+    const url = 'http://172.15.0.6:8108/?apiKey=xyz'
     typesense = new Typesense(convertTypesenseConfig(url))
   })
 
@@ -29,7 +29,7 @@ describe('Typesense collections', () => {
   let typesense: Typesense
 
   before(() => {
-    const url = 'http://localhost:8108/?apiKey=xyz'
+    const url = 'http://172.15.0.6:8108/?apiKey=xyz'
     typesense = new Typesense(convertTypesenseConfig(url))
   })
 
@@ -79,7 +79,7 @@ describe('Typesense documents', () => {
   let typesense: Typesense
 
   before(() => {
-    const url = 'http://localhost:8108/?apiKey=xyz'
+    const url = 'http://172.15.0.6:8108/?apiKey=xyz'
     typesense = new Typesense(convertTypesenseConfig(url))
   })
 
@@ -143,7 +143,7 @@ describe('Typesense documents', () => {
   let typesense: Typesense
 
   before(() => {
-    const url = 'http://localhost:8108/?apiKey=xyz'
+    const url = 'http://172.15.0.6:8108/?apiKey=xyz'
     typesense = new Typesense(convertTypesenseConfig(url))
   })
 

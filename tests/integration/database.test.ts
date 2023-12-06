@@ -6,7 +6,7 @@ describe('Database', () => {
 
   before(async () => {
     const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
+      url: 'http://172.15.0.6:8108/?apiKey=xyz'
     }
     database = await new Database(dbConfig)
   })
@@ -43,7 +43,7 @@ describe('DdoDatabase CRUD', () => {
 
   before(async () => {
     const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
+      url: 'http://172.15.0.6:8108/?apiKey=xyz'
     }
     database = await new Database(dbConfig)
   })
@@ -79,7 +79,7 @@ describe('NonceDatabase CRUD', () => {
 
   before(async () => {
     const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
+      url: 'http://172.15.0.6:8108/?apiKey=xyz'
     }
     database = await new Database(dbConfig)
   })
@@ -114,7 +114,7 @@ describe('IndexerDatabase CRUD', () => {
 
   before(async () => {
     const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
+      url: 'http://172.15.0.6:8108/?apiKey=xyz'
     }
     database = await new Database(dbConfig)
   })
