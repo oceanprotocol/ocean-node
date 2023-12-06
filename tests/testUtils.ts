@@ -1,5 +1,3 @@
-import { Database } from '../src/components/database/index.js'
-import { Signer } from 'ethers'
 import Web3 from 'web3'
 
 export async function signMessage(

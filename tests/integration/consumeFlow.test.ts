@@ -46,7 +46,6 @@ describe('validateOrderTransaction Function with Orders', () => {
     s: string
   }
 
-  const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
   const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
   const providerFeeAddress = ZeroAddress // publisherAddress
   const providerFeeToken = feeToken
@@ -107,9 +106,9 @@ describe('validateOrderTransaction Function with Orders', () => {
         templateIndex: 1,
         addresses: [
           await publisherAccount.getAddress(),
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-          '0x0000000000000000000000000000000000000000'
+          ZeroAddress,
+          ZeroAddress,
+          ZeroAddress
         ],
         uints: [1000, 0],
         bytess: []
