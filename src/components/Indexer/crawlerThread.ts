@@ -31,15 +31,14 @@ function delay(ms: number) {
 }
 
 export async function proccesNetworkData(): Promise<void> {
+  let lastSavedBlock = lastIndexedBlock
   while (true) {
     const networkHeight = await getNetworkHeight(provider)
 
     const deployedBlock = await getDeployedContractBlock(rpcDetails.chainId)
 
     let startBlock =
-      lastIndexedBlock && lastIndexedBlock > deployedBlock
-        ? lastIndexedBlock
-        : deployedBlock
+      lastSavedBlock && lastSavedBlock > deployedBlock ? lastSavedBlock : deployedBlock
 
     INDEXER_LOGGER.logMessage(
       `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`,
@@ -69,6 +68,7 @@ export async function proccesNetworkData(): Promise<void> {
           network: rpcDetails.chainId,
           data: processedBlocks.lastBlock
         })
+        lastSavedBlock = processedBlocks.lastBlock
         await storeFoundEvents(processedBlocks.foundEvents)
         startBlock += blocksToProcess
       } catch (error) {
