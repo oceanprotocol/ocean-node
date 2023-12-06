@@ -1,7 +1,7 @@
 import type { PeerId } from '@libp2p/interface/peer-id'
 import { Stream } from 'stream'
 import { RPCS } from './blockchain'
-import { Database } from '../components/database'
+import { FeeStrategy } from './Fees'
 
 export interface OceanNodeDBConfig {
   url: string
@@ -39,6 +39,7 @@ export interface OceanNodeConfig {
   dbConfig: OceanNodeDBConfig
   httpPort: number
   supportedNetworks: RPCS
+  feeStrategy: FeeStrategy
 }
 
 export interface P2PCommandResponse {

@@ -14,6 +14,7 @@ import { getNonce } from '../core/nonceHandler.js'
 import { handleQueryCommand } from '../core/queryHandler.js'
 import { handleStatusCommand } from '../core/statusHandler.js'
 import { handleEncryptCommand } from '../core/encryptHandler.js'
+import { getFees } from '../core/feesHandler.js'
 
 export class ReadableString extends Readable {
   private sent = false
@@ -86,6 +87,9 @@ export async function handleProtocolCommands(connection: any) {
       case PROTOCOL_COMMANDS.FIND_DDO:
         response = await findDDO(this, task)
         break
+      case PROTOCOL_COMMANDS.GET_FEES:
+        response = await getFees(task)
+        break
       default:
         status = { httpStatus: 501, error: 'Unknown command' }
     }
@@ -147,6 +151,9 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
       break
     case PROTOCOL_COMMANDS.FIND_DDO:
       response = await findDDO(this, task)
+      break
+    case PROTOCOL_COMMANDS.GET_FEES:
+      response = await getFees(task)
       break
     default:
       status = { httpStatus: 501, error: 'Unknown command' }
