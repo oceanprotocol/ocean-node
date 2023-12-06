@@ -15,7 +15,7 @@ import {
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json'
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' assert { type: 'json' }
 import { getConfig } from '../../utils/config.js'
 import { Database } from '../database/index.js'
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
