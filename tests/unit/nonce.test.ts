@@ -16,33 +16,33 @@ const nonceSchema: TypesenseCollectionCreateSchema = {
   ]
 }
 
-async function createNonceCollection(typesense: Typesense) {
-  return await typesense.collections().create(nonceSchema)
-}
+// async function createNonceCollection(typesense: Typesense) {
+//   return await typesense.collections().create(nonceSchema)
+// }
 
-// creates if needed
-async function checkDocumentExists(typesense: Typesense) {
-  let document
-  try {
-    document = await typesense
-      .collections('nonce')
-      .documents()
-      .retrieve('0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1')
-    console.log('document in checkDocumentExists: ', document)
-    // if not, create it now
-  } catch (ex) {
-    console.log('caught ex in checkDocumentExists: ', ex)
-    await typesense.collections('nonce').documents().create({
-      id: '0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1',
-      nonce: 1
-    })
-    console.log('document in checkDocumentExists after creating: ', document)
-  }
-}
+// // creates if needed
+// async function checkDocumentExists(typesense: Typesense) {
+//   let document
+//   try {
+//     document = await typesense
+//       .collections('nonce')
+//       .documents()
+//       .retrieve('0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1')
+//     console.log('document in checkDocumentExists: ', document)
+//     // if not, create it now
+//   } catch (ex) {
+//     console.log('caught ex in checkDocumentExists: ', ex)
+//     await typesense.collections('nonce').documents().create({
+//       id: '0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1',
+//       nonce: 1
+//     })
+//     console.log('document in checkDocumentExists after creating: ', document)
+//   }
+// }
 describe('handle nonce', () => {
   let typesense: Typesense
 
-  before(async () => {
+  before(() => {
     const url = 'http://localhost:8108/?apiKey=xyz'
     typesense = new Typesense(convertTypesenseConfig(url))
 
@@ -74,8 +74,12 @@ describe('handle nonce', () => {
     // }
   })
 
+  it('instance Typesense', async () => {
+    expect(typesense).to.be.instanceOf(Typesense)
+  })
+
   it('should validate signature', async () => {
-    await typesense.collections().create(nonceSchema)
+    // await typesense.collections().create(nonceSchema)
     // typesense.collections('nonce').documents().create({
     //   id: '0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1',
     //   nonce: 1
@@ -83,16 +87,13 @@ describe('handle nonce', () => {
     // const wallet = new ethers.Wallet(
     //   '0xbee525d70c715bee6ca15ea5113e544d13cc1bb2817e07113d0af7755ddb6391'
     // )
-
     // // message to sign
     // const nonce = '1'
-
     // const expectedAddress = await wallet.getAddress()
     // // '0x8F292046bb73595A978F4e7A131b4EBd03A15e8a'
     // // sign message/nonce
     // const signature = await wallet.signMessage(nonce)
     // const actualAddress = ethers.verifyMessage(nonce, signature)
-
     // expect(actualAddress).to.be.equal(expectedAddress)
   })
 
