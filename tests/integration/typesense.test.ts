@@ -6,6 +6,7 @@ import {
 import { ddoSchema } from '../data/ddoSchema.js'
 import { ddo } from '../data/ddo.js'
 import { expect } from 'chai'
+import axios from 'axios'
 
 describe('Typesense', () => {
   let typesense: Typesense
