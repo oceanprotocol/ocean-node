@@ -27,14 +27,17 @@ async function checkDocumentExists(typesense: Typesense) {
       .collections('nonce')
       .documents()
       .retrieve('0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1')
+    console.log('document in checkDocumentExists: ', document)
     // if not, create it now
   } catch (ex) {
+    console.log('caught ex in checkDocumentExists: ', ex)
     if (!document) {
       await typesense.collections('nonce').documents().create({
         id: '0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1',
         nonce: 1
       })
     }
+    console.log('document in checkDocumentExists after creating: ', document)
   }
 }
 describe('handle nonce', () => {
@@ -45,6 +48,7 @@ describe('handle nonce', () => {
     typesense = new Typesense(convertTypesenseConfig(url))
 
     const existingCollections = await typesense.collections().retrieve()
+    console.log('existingCollections: ', existingCollections)
     // check existing ones
     if (existingCollections && existingCollections.length > 0) {
       let existsNonceCollection = true
