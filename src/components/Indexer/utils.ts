@@ -153,7 +153,7 @@ const processMetadataEvents = async (
         LOG_LEVELS_STR.LEVEL_INFO,
         `Is eventType ${eventType} equal to ${EVENTS.METADATA_STATE}?`
       )
-      return await processMetadataStateEvent(log, provider)
+      return await processMetadataStateEvent(log, chainId, provider)
     } catch (e) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error proccessing metadata: ${e}`)
     }

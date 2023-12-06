@@ -47,7 +47,7 @@ export class OceanIndexer {
           this.saveDDO(event.network, event.data)
         }
         if (event.method === EVENTS.METADATA_STATE) {
-          this.storeState(event)
+          this.storeState(event.network, event.data)
         }
       })
 
@@ -101,48 +101,22 @@ export class OceanIndexer {
     }
   }
 
-  public async storeState(event: any): Promise<void> {
+  public async storeState(network: number, ddo: any): Promise<void> {
     INDEXER_LOGGER.logMessage(
-      `MetadataState event data: ${event.data}, network: ${event.network}`,
+      `MetadataState event data: ${ddo}, network: ${network}`,
       true
     )
 
     const dbconn = this.db.ddo
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(event.data.eventAddress) + event.network.toString(10))
-        .digest('hex')
     try {
-      const ddo = await dbconn.retrieve(did)
-      if (!ddo) {
-        INDEXER_LOGGER.logMessage(
-          `Detected MetadataState changed for ${did}, but it does not exists.`
-        )
-        return
-      }
-      INDEXER_LOGGER.logMessage(`Found did ${did} on network ${event.network}`)
-      if ('nft' in ddo && ddo.nft.state !== event.data.metadataState) {
-        ddo.nft.state = event.data.metadataState
-      } else {
-        // Still update until we validate and polish schemas for DDO.
-        // But it should update ONLY if first condition is met.
-        // Check https://github.com/oceanprotocol/aquarius/blob/84a560ea972485e46dd3c2cfc3cdb298b65d18fa/aquarius/events/processors.py#L663
-        ddo.nft = {
-          state: event.data.metadataState
-        }
-      }
-      INDEXER_LOGGER.logMessage(
-        `Found did ${did} for state updating on network ${event.network}`
-      )
       await dbconn.update({ ...ddo })
       INDEXER_LOGGER.logMessage(
-        `Updated ddo ${did} state with ${event.data.metadataState} on network ${event.network}`
+        `Updated ddo ${ddo.did} state with ${ddo.nft.state} on network ${network}`
       )
     } catch (err) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEl_ERROR,
-        `Error retrieving & updating DDO state: ${err}`,
+        `Error updating DDO state: ${err}`,
         true
       )
     }
