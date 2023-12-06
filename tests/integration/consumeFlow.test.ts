@@ -19,7 +19,8 @@ import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Fa
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getEventFromTx } from '../../src/utils/util.js'
-import { genericAsset, signMessage } from '../testUtils.js'
+import { signMessage } from '../testUtils.js'
+import { genericDDO } from '../data/ddo.js'
 import { Database } from '../../src/components/database/index.js'
 
 describe('validateOrderTransaction Function with Orders', () => {
@@ -129,14 +130,14 @@ describe('validateOrderTransaction Function with Orders', () => {
   it('should set metadata and save', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
     nftContract = new Contract(dataNftAddress, ERC721Template.abi, publisherAccount)
-    genericAsset.id =
+    genericDDO.id =
       'did:op:' +
       createHash('sha256')
         .update(getAddress(dataNftAddress) + chainId.toString(10))
         .digest('hex')
-    genericAsset.nftAddress = dataNftAddress
+    genericDDO.nftAddress = dataNftAddress
 
-    const stringDDO = JSON.stringify(genericAsset)
+    const stringDDO = JSON.stringify(genericDDO)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
     const hash = createHash('sha256').update(metadata).digest('hex')
