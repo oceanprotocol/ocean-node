@@ -106,7 +106,10 @@ export class OceanIndexer {
     const dbconn = this.db.indexer
     try {
       const updatedIndex = await dbconn.update(network, block)
-      INDEXER_LOGGER.logMessage(`New last indexed block : ${updatedIndex}`, true)
+      INDEXER_LOGGER.logMessage(
+        `New last indexed block : ${updatedIndex.lastIndexedBlock}`,
+        true
+      )
     } catch (err) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEl_ERROR,

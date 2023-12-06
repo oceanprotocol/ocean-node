@@ -52,8 +52,10 @@ export async function proccesNetworkData(): Promise<void> {
       INDEXER_LOGGER.logMessage(
         `network: ${rpcDetails.network} Remaining blocks ${remainingBlocks} `
       )
-
       const blocksToProcess = Math.min(chunkSize, remainingBlocks)
+      INDEXER_LOGGER.logMessage(
+        `network: ${rpcDetails.network} processing ${blocksToProcess} blocks ...`
+      )
 
       try {
         const processedBlocks = await processBlocks(
@@ -84,6 +86,10 @@ export async function proccesNetworkData(): Promise<void> {
 export async function storeFoundEvents(events: BlocksEvents): Promise<void> {
   const eventKeys = Object.keys(events)
   eventKeys.forEach((eventType) => {
+    INDEXER_LOGGER.logMessage(
+      `Network: ${rpcDetails.network} storing event type  ${eventType} `,
+      true
+    )
     parentPort.postMessage({
       method: eventType,
       network: rpcDetails.chainId,

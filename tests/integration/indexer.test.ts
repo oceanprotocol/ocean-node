@@ -184,7 +184,7 @@ describe('Indexer stores a new published DDO', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(10000)
+  delay(50000)
 
   it('should store the ddo in the database and return it ', async () => {
     resolvedDDO = await waitToIndex(assetDID, database)
@@ -214,7 +214,7 @@ describe('Indexer stores a new published DDO', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(10000)
+  delay(50000)
 
   it('should detect update event and store the udpdated ddo in the database', async () => {
     const updatedDDO = await waitToIndex(assetDID, database)
