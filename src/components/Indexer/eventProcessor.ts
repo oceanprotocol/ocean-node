@@ -93,3 +93,45 @@ export const processOrderStartedEvent = async (
     INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error retrieving DDO: ${err}`, true)
   }
 }
+
+export const processOrderReusedEvent = async (
+  event: ethers.Log,
+  chainId: number,
+  provider: JsonRpcApiProvider
+) => {
+  const receipt = await provider.getTransactionReceipt(event.transactionHash)
+  const iface = new Interface(ERC20Template.abi)
+  const eventObj = {
+    topics: receipt.logs[0].topics as string[],
+    data: receipt.logs[0].data
+  }
+  const decodedEventData = iface.parseLog(eventObj)
+  const byteArray = getBytes(decodedEventData.args[0])
+  const orderTxId = toUtf8String(byteArray)
+  const timestamp = parseInt(decodedEventData.args[2].toString())
+  INDEXER_LOGGER.logMessage(
+    `Processed reused order for order ${orderTxId} at ${timestamp}`,
+    true
+  )
+  const dbconn = await new Database(config.dbConfig)
+  const did =
+    'did:op:' +
+    createHash('sha256')
+      .update(getAddress(event.address) + chainId.toString(10))
+      .digest('hex')
+  try {
+    const ddo = await dbconn.ddo.retrieve(did)
+    if (!ddo) {
+      INDEXER_LOGGER.logMessage(
+        `Detected OrderReused changed for ${did}, but it does not exists.`
+      )
+      return
+    }
+    INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
+    ddo.stats.orders += 1
+    INDEXER_LOGGER.logMessage(`Found did ${did} for order starting on network ${chainId}`)
+    return ddo
+  } catch (err) {
+    INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error retrieving DDO: ${err}`, true)
+  }
+}

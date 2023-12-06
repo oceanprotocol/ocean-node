@@ -43,7 +43,8 @@ export class OceanIndexer {
         }
         if (
           event.method === EVENTS.METADATA_CREATED ||
-          event.method === EVENTS.ORDER_STARTED
+          event.method === EVENTS.ORDER_STARTED ||
+          event.method === EVENTS.ORDER_REUSED
         ) {
           this.saveDDO(event.network, event.data)
         }
