@@ -14,14 +14,6 @@ on:
 jobs:
   build-node:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - linux/amd64
-          - linux/arm/v6
-          - linux/arm/v7
-          - linux/arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -55,7 +47,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          platforms: ${{ matrix.platform }}
+          platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.ocean_node.outputs.tags }}
           labels: ${{ steps.ocean_node.outputs.labels }}
