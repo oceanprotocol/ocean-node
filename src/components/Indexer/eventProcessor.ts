@@ -46,8 +46,8 @@ export const processMetadataStateEvent = async (
     data: receipt.logs[0].data
   }
   const decodedEventData = iface.parseLog(eventObj)
-  INDEXER_LOGGER.logMessage(`decodedEvent for MetadataState: ${decodedEventData}`, true)
   const metadataState = parseInt(decodedEventData.args[1].toString())
   INDEXER_LOGGER.logMessage(`Processed new metadata state ${metadataState} `, true)
+
   return { metadataState, eventAddress: event.address }
 }

@@ -132,7 +132,9 @@ export class OceanIndexer {
           state: event.data.metadataState
         }
       }
-      INDEXER_LOGGER.logMessage(`Found did ${did} on network ${event.network}`)
+      INDEXER_LOGGER.logMessage(
+        `Found did ${did} for state updating on network ${event.network}`
+      )
       await dbconn.update({ ...ddo })
       INDEXER_LOGGER.logMessage(
         `Updated ddo ${did} state with ${event.data.metadataState} on network ${event.network}`
