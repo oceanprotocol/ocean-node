@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import { ethers } from 'ethers'
+import { ethers, ZeroAddress } from 'ethers'
 import { nonceSchema } from '../data/nonceSchema.js'
 import {
   Typesense,
@@ -8,6 +8,7 @@ import {
 
 describe('handle nonce', () => {
   let typesense: Typesense
+  let error: Error
 
   before(() => {
     const url = 'http://localhost:8108/?apiKey=xyz'
@@ -60,9 +61,19 @@ describe('handle nonce', () => {
 
   it('should get nonce (1)', async () => {
     const document = await typesense
-      .collections('nonce')
+      .collections(nonceSchema.name)
       .documents()
       .retrieve('0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1')
     expect(document.nonce).to.be.equal(1)
+  })
+
+  it('should throw error for retrieving unexistent address', async () => {
+    try {
+      await typesense.collections(nonceSchema.name).documents().retrieve(ZeroAddress)
+    } catch (err) {
+      error = err
+    }
+    console.log(error.message)
+    // expect(error)
   })
 })
