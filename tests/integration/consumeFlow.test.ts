@@ -19,7 +19,6 @@ import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Fa
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getEventFromTx } from '../../src/utils/util.js'
-import { signMessage } from '../testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import { Database } from '../../src/components/database/index.js'
 
@@ -40,10 +39,10 @@ describe('validateOrderTransaction Function with Orders', () => {
   let providerData: string
   let orderTxId: string
   let dataTokenContractWithNewSigner: any
-  let signedMessage: {
-    v: string
-    r: string
-    s: string
+  const signedMessage = {
+    v: '0x00',
+    r: '0x83fac218b4bfd066a6cd0b355253d66c19b123fd346e81d5a1d9b06e656ce3cf',
+    s: '0x0f55d72703ac39f907c8c8aa9097165d4a7202bfb09ec559dc34afc4ccca13c2'
   }
 
   const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
@@ -63,6 +62,8 @@ describe('validateOrderTransaction Function with Orders', () => {
     consumerAccount = (await provider.getSigner(1)) as Signer
     publisherAddress = await publisherAccount.getAddress()
     consumerAddress = await consumerAccount.getAddress()
+
+    console.log('publisher address', publisherAddress)
 
     const data = JSON.parse(
       // eslint-disable-next-line security/detect-non-literal-fs-filename
@@ -181,7 +182,6 @@ describe('validateOrderTransaction Function with Orders', () => {
     await mintTx.wait()
     const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
     assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
-    signedMessage = await signMessage(message, publisherAddress)
 
     dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
 
