@@ -52,20 +52,21 @@ export const getNetworkHeight = async (provider: JsonRpcApiProvider) => {
 export const processBlocks = async (
   provider: JsonRpcApiProvider,
   network: number,
-  startIndex: number,
+  lastIndexedBlock: number,
   count: number
 ): Promise<ProcessingEvents> => {
   try {
     const eventHashes = Object.keys(EVENT_HASHES)
+    const startIndex = lastIndexedBlock + 1
     const blockLogs = await provider.getLogs({
       fromBlock: startIndex,
-      toBlock: startIndex + count,
+      toBlock: lastIndexedBlock + count,
       topics: [eventHashes]
     })
     const events = await processChunkLogs(blockLogs, provider, network)
 
     return {
-      lastBlock: startIndex + count,
+      lastBlock: lastIndexedBlock + count,
       foundEvents: events
     }
   } catch (error) {

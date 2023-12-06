@@ -48,20 +48,16 @@ export async function proccesNetworkData(): Promise<void> {
     if (networkHeight > startBlock) {
       let { chunkSize } = rpcDetails
       const remainingBlocks = networkHeight - startBlock
-      INDEXER_LOGGER.logMessage(
-        `network: ${rpcDetails.network} Remaining blocks ${remainingBlocks} `
-      )
       const blocksToProcess = Math.min(chunkSize, remainingBlocks)
       INDEXER_LOGGER.logMessage(
         `network: ${rpcDetails.network} processing ${blocksToProcess} blocks ...`
       )
 
       try {
-        const fromBlock = startBlock + 1
         const processedBlocks = await processBlocks(
           provider,
           rpcDetails.chainId,
-          fromBlock,
+          startBlock,
           blocksToProcess
         )
         parentPort.postMessage({
