@@ -5,7 +5,6 @@ import {
   Typesense,
   convertTypesenseConfig
 } from '../../src/components/database/typesense'
-import axios from 'axios'
 
 const nonceSchema: TypesenseCollectionCreateSchema = {
   name: 'nonce',
