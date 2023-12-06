@@ -37,7 +37,7 @@ export async function proccesNetworkData(): Promise<void> {
 
     const deployedBlock = await getDeployedContractBlock(rpcDetails.chainId)
 
-    let startBlock =
+    const startBlock =
       lastSavedBlock && lastSavedBlock > deployedBlock ? lastSavedBlock : deployedBlock
 
     INDEXER_LOGGER.logMessage(
@@ -57,10 +57,11 @@ export async function proccesNetworkData(): Promise<void> {
       )
 
       try {
+        const fromBlock = startBlock + 1
         const processedBlocks = await processBlocks(
           provider,
           rpcDetails.chainId,
-          startBlock,
+          fromBlock,
           blocksToProcess
         )
         parentPort.postMessage({
@@ -70,7 +71,6 @@ export async function proccesNetworkData(): Promise<void> {
         })
         lastSavedBlock = processedBlocks.lastBlock
         await storeFoundEvents(processedBlocks.foundEvents)
-        startBlock += blocksToProcess
       } catch (error) {
         chunkSize = Math.floor(chunkSize / 2)
         INDEXER_LOGGER.logMessage(

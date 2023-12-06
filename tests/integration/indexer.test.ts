@@ -191,7 +191,7 @@ describe('Indexer stores a new published DDO', () => {
     expect(resolvedDDO.id).to.equal(genericAsset.id)
   })
 
-  it('should update ddo metadata fields and  ', async () => {
+  it('should update ddo metadata fields ', async () => {
     resolvedDDO.metadata.name = 'dataset-name-updated'
     resolvedDDO.metadata.description =
       'Updated description for the Ocean protocol test dataset'
