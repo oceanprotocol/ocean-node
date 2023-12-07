@@ -31,6 +31,7 @@ describe('Indexer stores a new published DDO', () => {
   const chainId = 8996
   let assetDID: string
   let genericAsset: any
+  let error: Error
 
   const mockSupportedNetworks: RPCS = {
     '8996': {
@@ -191,8 +192,12 @@ describe('Indexer stores a new published DDO', () => {
         .digest('hex')
 
     const result = await nftContract.getMetaData()
-    const resolvedDDO = await waitToIndex(didNotIndexed, database)
-    console.log('result: ', result)
-    console.log('resolvedDDO: ', resolvedDDO)
+    try {
+      await database.ddo.retrieve(didNotIndexed)
+    } catch (e) {
+      error = e
+    }
+    expect(parseInt(result[2].toString())).to.equal(0)
+    console.log('error message: ', error.message)
   })
 })
