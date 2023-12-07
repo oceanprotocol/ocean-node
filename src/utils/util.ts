@@ -47,8 +47,6 @@ export function fetchEventFromTransaction(
 
     return events.length > 0 ? events : null
   } catch (error) {
-    console.error('Error fetching event from transaction:', error)
-
     const PROVIDER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
       LOGGER_MODULE_NAMES.PROVIDER,
       LOG_LEVELS_STR.LEVEl_ERROR,
