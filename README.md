@@ -54,7 +54,7 @@ Then start the node:
 npm run start
 ```
 
-### 5. Open a 2nd terminal and run another node
+### 6. Open a 2nd terminal and run another node
 
 ```bash
 export HTTP_API_PORT=8001
