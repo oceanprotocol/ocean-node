@@ -100,7 +100,7 @@ export const processChunkLogs = async (
         storeEvents[event.type] = await processMetadataEvents(log, chainId, provider)
       } else if (event && event.type === EVENTS.METADATA_STATE) {
         INDEXER_LOGGER.logMessage(`-- ${event.type} triggered`, true)
-        storeEvents[event.type] = processMetadataStateEvent(log, chainId, provider)
+        storeEvents[event.type] = await processMetadataStateEvent(log, chainId, provider)
       } else if (event && event.type === EVENTS.EXCHANGE_CREATED) {
         INDEXER_LOGGER.logMessage('-- EXCHANGE_CREATED -- ', true)
         storeEvents[event.type] = await procesExchangeCreated()
