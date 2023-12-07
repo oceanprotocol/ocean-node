@@ -1,4 +1,6 @@
-import { Hashes } from '../@types/blockchain.js'
+import { Hashes } from '../@types/blockchain'
+import { DDO } from '../@types/DDO/DDO'
+import { P2PCommandResponse } from '../@types/OceanNode'
 
 // Add all the supported commands
 export const PROTOCOL_COMMANDS = {
@@ -9,7 +11,8 @@ export const PROTOCOL_COMMANDS = {
   QUERY: 'query',
   NONCE: 'nonce',
   STATUS: 'status',
-  FIND_DDO: 'findDDO'
+  FIND_DDO: 'findDDO',
+  GET_FEES: 'getFees'
 }
 
 export interface Command {
@@ -34,9 +37,12 @@ export interface DownloadCommand extends Command {
   aes_encrypted_key?: string // if not present it means download without encryption
 }
 
-export interface GetDdoCommand extends Command {
+// group these 2
+export interface DDOCommand extends Command {
   id: string
 }
+export interface GetDdoCommand extends DDOCommand {}
+export interface FindDDOCommand extends DDOCommand {}
 
 export interface QueryCommand extends Command {
   query: Record<string, any>
@@ -48,12 +54,17 @@ export interface EncryptCommand extends Command {
   encryptionType: string
 }
 
-export interface FindDDOCommand extends Command {
-  id: string
-}
-
 export interface NonceCommand extends Command {
   address: string // consumer address
+}
+
+export interface GetFeesCommand extends Command {
+  ddo: DDO
+  serviceId: string
+}
+
+export interface ICommandHandler {
+  handleCommand(command: Command): Promise<P2PCommandResponse>
 }
 
 export interface BroadcastCommand {
@@ -69,7 +80,8 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.GET_DDO,
   PROTOCOL_COMMANDS.QUERY,
   PROTOCOL_COMMANDS.STATUS,
-  PROTOCOL_COMMANDS.FIND_DDO
+  PROTOCOL_COMMANDS.FIND_DDO,
+  PROTOCOL_COMMANDS.GET_FEES
 ]
 
 export const EVENTS = {

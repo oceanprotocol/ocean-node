@@ -94,6 +94,12 @@ directCommandRoute.post(
 
     logger.logMessage('Sending command : ' + JSON.stringify(req.body), true)
 
+    // TODO NOTES: We are sending all "/directCommand" requests to the P2P component as "req.oceanNode.getP2PNode()"
+    // even if we do not need any P2P functionality at all (as all our handlers are "inside" P2P)
+    // All ends up here => "handleProtocolCommands()" or here => "handleDirectProtocolCommands()", where we do not have
+    // any access to main OceanNode, neither Provider or Indexer components
+    // probably the handlers should be on the OceanNode level, and if they need P2P connectivity we pass them the getP2PNode()
+    // (we kinda do it already on most handlers anyway)
     let status: P2PCommandResponse = null
     // send to this peer
     if (!req.body.node || req.oceanNode.getP2PNode().isTargetPeerSelf(req.body.node)) {
