@@ -1,3 +1,4 @@
+import { INDEXER_LOGGER } from '../../src/components/Indexer/index.js'
 import { Database } from '../../src/components/database'
 import { sleep } from '../../src/utils/util'
 
@@ -18,7 +19,7 @@ export const waitToIndex = async (did: string, database: Database): Promise<any>
         return ddo
       }
     } catch (e) {
-      // do nothing
+      INDEXER_LOGGER.logMessage(`Error could not retrieve the DDO ${did}: ${e}`)
     }
     sleep(1500)
     tries++
