@@ -37,16 +37,11 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
           status: 400
         }
       }
-      return {
-        valid: true
-      }
-      // echo
-    } else if (command === PROTOCOL_COMMANDS.ECHO) {
-      // nothing special with this one
-      return {
-        valid: true
-      }
-    } else if (command === PROTOCOL_COMMANDS.FIND_DDO) {
+      // note: PROTOCOL_COMMANDS.ECHO is always fine
+    } else if (
+      command === PROTOCOL_COMMANDS.FIND_DDO ||
+      command === PROTOCOL_COMMANDS.GET_DDO
+    ) {
       // message is DDO identifier
       if (!requestBody.id || !requestBody.id.startsWith('did:op')) {
         return {
@@ -67,20 +62,6 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
           status: 400
         }
       }
-      return {
-        valid: true
-      }
-    } else if (command === PROTOCOL_COMMANDS.GET_DDO) {
-      if (!requestBody.id) {
-        return {
-          valid: false,
-          reason: 'Missing required parameter: "id"',
-          status: 400
-        }
-      }
-      return {
-        valid: true
-      }
     } else if (command === PROTOCOL_COMMANDS.QUERY) {
       if (!requestBody.query) {
         return {
@@ -89,10 +70,42 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
           status: 400
         }
       }
-      return {
-        valid: true
+    } else if (command === PROTOCOL_COMMANDS.ENCRYPT) {
+      if (!requestBody.blob) {
+        return {
+          valid: false,
+          reason: 'Missing required parameter: "blob"',
+          status: 400
+        }
+      }
+      if (!requestBody.encoding) {
+        requestBody.encoding = 'string'
+      }
+      if (!['string', 'base58'].includes(requestBody.encoding)) {
+        return {
+          valid: false,
+          reason: 'Invalid parameter: "encoding" must be String | Base58',
+          status: 400
+        }
+      }
+      if (!requestBody.encryptionType) {
+        requestBody.encoding = 'ECIES'
+      }
+      if (!['AES', 'ECIES'].includes(requestBody.encryptionType)) {
+        return {
+          valid: false,
+          reason: 'Invalid parameter: "encryptionType" must be AES | ECIES',
+          status: 400
+        }
+      }
+    } else if (command === PROTOCOL_COMMANDS.GET_FEES) {
+      if (!requestBody.ddo || !requestBody.serviceId) {
+        return {
+          valid: true
+        }
       }
     }
+    // only once is enough :-)
     return {
       valid: true
     }

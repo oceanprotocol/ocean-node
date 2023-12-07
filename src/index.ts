@@ -3,7 +3,7 @@ import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
 import { Database } from './components/database/index.js'
 import express, { Express } from 'express'
-import { OceanNode } from './@types/index.js'
+import { OceanNode } from './OceanNode.js'
 import swaggerUi from 'swagger-ui-express'
 import { httpRoutes } from './components/httpRoutes/index.js'
 import { getConfig } from './utils/index.js'
@@ -23,13 +23,10 @@ import fs from 'fs'
 // we could create just one logger per module/component, and export/import it between files of the same component/module
 // we can also have different log levels, going to different files
 const logger: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.HTTP,
+  LOGGER_MODULE_NAMES.OCEAN_NODE,
   LOG_LEVELS_STR.LEVEL_INFO, // Info level
   defaultConsoleTransport // console only Transport
 )
-
-// let node: OceanP2P
-let oceanNode: OceanNode
 
 const app: Express = express()
 // const port = getRandomInt(6000,6500)
@@ -63,71 +60,57 @@ function loadInitialDDOS(): any[] {
   return ddos
 }
 
-async function main() {
-  console.log('\n\n\n\n')
-  const config = await getConfig()
-  if (!config) process.exit(1)
-  let node: OceanP2P = null
-  let indexer = null
-  let provider = null
-  const dbconn = await new Database(config.dbConfig)
-  // console.log('signer', blockchainHelper.getSigner())
-  if (config.hasP2P) {
-    node = new OceanP2P(dbconn, config)
-    await node.start()
-  }
-  if (config.hasIndexer) {
-    indexer = new OceanIndexer(dbconn, config.supportedNetworks)
-    // if we set this var
-    // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
-    // store and advertise DDOs
-    if (process.env.LOAD_INITIAL_DDOS) {
-      const list = loadInitialDDOS()
-      if (list.length > 0) {
-        // we need a timeout here, otherwise we have no peers available
-        setTimeout(() => {
-          node.storeAndAdvertiseDDOS(list)
-        }, 3000)
-      }
+console.log('\n\n\n\n')
+const config = await getConfig()
+if (!config) process.exit(1)
+const oceanNode = new OceanNode(config)
+let node: OceanP2P = null
+let indexer = null
+let provider = null
+const dbconn = await new Database(config.dbConfig)
+if (config.hasP2P) {
+  node = new OceanP2P(dbconn, config)
+  await node.start()
+}
+if (config.hasIndexer) {
+  indexer = new OceanIndexer(dbconn, config.supportedNetworks)
+  // if we set this var
+  // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
+  // store and advertise DDOs
+  if (process.env.LOAD_INITIAL_DDOS) {
+    const list = loadInitialDDOS()
+    if (list.length > 0) {
+      // we need a timeout here, otherwise we have no peers available
+      setTimeout(() => {
+        node.storeAndAdvertiseDDOS(list)
+      }, 3000)
     }
   }
-  if (config.hasProvider) provider = new OceanProvider(dbconn)
-  const customLogTransport = newCustomDBTransport(dbconn)
-  logger.addTransport(customLogTransport)
-
-  // global
-  oceanNode = {
-    node,
-    indexer,
-    provider,
-    db: dbconn
-  }
-  if (config.hasHttp) {
-    app.use((req, res, next) => {
-      req.oceanNode = oceanNode
-      next()
-    })
-    app.use(
-      '/docs',
-      swaggerUi.serve,
-      swaggerUi.setup(undefined, {
-        swaggerOptions: {
-          url: '/swagger.json'
-        }
-      })
-    )
-    app.use('/', httpRoutes)
-    app.listen(config.httpPort, () => {
-      logger.logMessage(`HTTP port: ${config.httpPort}`, true)
-    })
-  }
 }
+if (config.hasProvider) {
+  provider = new OceanProvider(dbconn)
+}
+const customLogTransport = newCustomDBTransport(dbconn)
+logger.addTransport(customLogTransport)
 
-await main()
-
-/**
- * Get the oceanNode instance
- * @returns oceanNode object
- */
-const OceanNodeInstance = oceanNode
-export default OceanNodeInstance
+// global
+oceanNode.setOceanNode(node, indexer, provider, dbconn)
+if (config.hasHttp) {
+  app.use((req, res, next) => {
+    req.oceanNode = oceanNode
+    next()
+  })
+  app.use(
+    '/docs',
+    swaggerUi.serve,
+    swaggerUi.setup(undefined, {
+      swaggerOptions: {
+        url: '/swagger.json'
+      }
+    })
+  )
+  app.use('/', httpRoutes)
+  app.listen(config.httpPort, () => {
+    logger.logMessage(`HTTP port: ${config.httpPort}`, true)
+  })
+}

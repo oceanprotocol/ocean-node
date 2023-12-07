@@ -1,4 +1,4 @@
-import { TypesenseCollectionCreateSchema } from '../../@types'
+import { TypesenseCollectionCreateSchema } from '../../@types/index.js'
 
 export type Schema = TypesenseCollectionCreateSchema
 export type Schemas = {

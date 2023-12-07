@@ -1,7 +1,7 @@
-import { OceanNodeDBConfig } from '../../@types/OceanNode'
+import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { convertTypesenseConfig, Typesense, TypesenseError } from './typesense.js'
 import { Schema, schemas } from './schemas.js'
-import { TypesenseSearchParams } from '../../@types'
+import { TypesenseSearchParams } from '../../@types/index.js'
 
 export class DdoDatabase {
   private provider: Typesense
@@ -43,7 +43,10 @@ export class DdoDatabase {
 
   async create(ddo: Record<string, any>) {
     try {
-      return await this.provider.collections(this.schemas[0].name).documents().create(ddo)
+      return await this.provider
+        .collections(this.schemas[0].name)
+        .documents()
+        .create({ ...ddo })
     } catch (error) {
       return null
     }
@@ -60,26 +63,26 @@ export class DdoDatabase {
     }
   }
 
-  async update(id: string, fields: Record<string, any>) {
+  async update(ddo: Record<string, any>) {
     try {
       return await this.provider
         .collections(this.schemas[0].name)
         .documents()
-        .update(id, fields)
+        .update(ddo.id, ddo)
     } catch (error) {
       if (error instanceof TypesenseError && error.httpStatus === 404) {
         return await this.provider
           .collections(this.schemas[0].name)
           .documents()
-          .create({ id, ...fields })
+          .create({ ...ddo })
       }
       return null
     }
   }
 
-  async delete(id: string) {
+  async delete(did: string) {
     try {
-      return await this.provider.collections(this.schemas[0].name).documents().delete(id)
+      return await this.provider.collections(this.schemas[0].name).documents().delete(did)
     } catch (error) {
       return null
     }

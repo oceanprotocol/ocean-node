@@ -1,12 +1,14 @@
-import { QueryCommand } from '../../utils/constants'
-import { P2PCommandResponse } from '../../@types'
+import { QueryCommand } from '../../utils/constants.js'
+import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
+import { OceanP2P } from '../P2P/index.js'
 
 export async function handleQueryCommand(
+  node: OceanP2P,
   task: QueryCommand
 ): Promise<P2PCommandResponse> {
   try {
-    const result = await this.db.ddo.search(task.query)
+    const result = await node.getDatabase().ddo.search(task.query)
     if (!result) {
       return {
         stream: null,

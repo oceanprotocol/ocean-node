@@ -462,6 +462,10 @@ export class OceanP2P extends EventEmitter {
     return this.db
   }
 
+  getConfig(): OceanNodeConfig {
+    return this._config
+  }
+
   getDDOCache(): DDOCache {
     return this._ddoDHT
   }

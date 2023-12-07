@@ -3,7 +3,7 @@ import {
   OceanNodeProvider,
   OceanNodeIndexer,
   P2PCommandResponse
-} from '../../@types'
+} from '../../@types/OceanNode.js'
 import {
   CustomNodeLogger,
   LOGGER_MODULE_NAMES,

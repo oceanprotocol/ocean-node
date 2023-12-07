@@ -1,8 +1,8 @@
-import { ethers, Signer, Provider } from 'ethers'
+import { ethers, Signer, JsonRpcApiProvider } from 'ethers'
 
 export class Blockchain {
   private signer: Signer
-  private provider: Provider
+  private provider: JsonRpcApiProvider
   private chainId: number
 
   public constructor(rpc: string, chaindId: number) {
@@ -15,11 +15,34 @@ export class Blockchain {
     return this.signer
   }
 
-  public getProvider(): Provider {
+  public getProvider(): JsonRpcApiProvider {
     return this.provider
   }
 
   public getSupportedChains(): number {
     return this.chainId
+  }
+}
+
+/**
+ * Verify a signed message, see if signature matches address
+ * @param message to verify
+ * @param address to check against
+ * @param signature to validate
+ * @returns boolean
+ */
+export async function verifyMessage(
+  message: string | Uint8Array,
+  address: string,
+  signature: string
+) {
+  try {
+    const signerAddr = await ethers.verifyMessage(message, signature)
+    if (signerAddr !== address) {
+      return false
+    }
+    return true
+  } catch (err) {
+    return false
   }
 }
