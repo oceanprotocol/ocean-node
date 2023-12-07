@@ -68,6 +68,12 @@ export FEE_AMOUNT="{ \"amount\": 1, \"unit\": \"MB\" }"
 Where FEE_TOKENS is a map (chainID => Token address) and FEE_AMOUNT is the fees amount (unit of fee token).
 The 'unit' parameter is not used at the moment, but allows to specify an specific unit of size (MB, KB, GB, etc). Default is MB.
 
+Start the database with the following command:
+
+```bash
+docker-compose -f typesense-compose.yml -p ocean-node up -d
+```
+
 Then start the node:
 
 ```bash
