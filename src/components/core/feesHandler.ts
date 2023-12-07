@@ -13,20 +13,16 @@ import {
   LOGGER_MODULE_NAMES,
   LOG_LEVELS_STR,
   defaultConsoleTransport,
-  getCustomLoggerForModule,
-  newCustomDBTransport
+  getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
-import { Database } from '../database/index.js'
 import { verifyMessage } from '../../utils/blockchain.js'
 import { getConfig } from '../../utils/config.js'
 
-// for now use the global config
-const config = await getConfig()
 // this should be actually part of provider, so lets put this as module name
 const logger: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.PROVIDER,
   LOG_LEVELS_STR.LEVEL_INFO, // Info level
-  [defaultConsoleTransport, newCustomDBTransport(await new Database(config.dbConfig))] // console only Transport
+  [defaultConsoleTransport] // console only Transport
 )
 /**
  * We could turn other core Command handlers into something like this:
@@ -106,14 +102,14 @@ export async function createFee(
   //   "id": service.id,
   // }
 
-  const providerWallet = getProviderWallet(String(asset.chainId))
+  const providerWallet = await getProviderWallet(String(asset.chainId))
   const providerFeeAddress: string = providerWallet.address
 
   // from env FEE_TOKENS
-  const providerFeeToken: string = getProviderFeeToken(String(asset.chainId))
+  const providerFeeToken: string = await getProviderFeeToken(asset.chainId)
 
   // from env FEE_AMOUNT
-  const providerFeeAmount: number = getProviderFeeAmount() // TODO check decimals on contract?
+  const providerFeeAmount: number = await getProviderFeeAmount() // TODO check decimals on contract?
 
   /** https://github.com/ethers-io/ethers.js/issues/468
    * 
@@ -267,9 +263,9 @@ export async function checkFee(
   // the address that signed the fee signature = ocean-node address
   // amount, tokens, etc are a match
 
-  const wallet = getProviderWallet()
+  const wallet = await getProviderWallet()
   const nodeAddress = wallet.address
-  const feeAmount = getProviderFeeAmount()
+  const feeAmount = await getProviderFeeAmount()
 
   // first check if these are a match
   if (
@@ -343,17 +339,19 @@ export async function getFees(task: GetFeesCommand): Promise<P2PCommandResponse>
  * @param chainId the chain id (not used now)
  * @returns the wallet
  */
-export function getProviderWallet(chainId?: string): ethers.Wallet {
+export async function getProviderWallet(chainId?: string): Promise<ethers.Wallet> {
+  const config = await getConfig()
   const wallet: ethers.Wallet = new ethers.Wallet(
     Buffer.from(config.keys.privateKey).toString('hex')
   )
   return wallet
 }
-export function getProviderWalletAddress(): string {
-  return getProviderWallet(null).address
+export async function getProviderWalletAddress(): Promise<string> {
+  return (await getProviderWallet()).address
 }
 
-export function getProviderKey(): string {
+export async function getProviderKey(): Promise<string> {
+  const config = await getConfig()
   return Buffer.from(config.keys.privateKey).toString('hex')
 }
 
@@ -362,9 +360,10 @@ export function getProviderKey(): string {
  * @param chainId the chain id
  * @returns the token address
  */
-export function getProviderFeeToken(chainId: string): string | null {
+export async function getProviderFeeToken(chainId: number): Promise<string> {
+  const config = await getConfig()
   const result = config.feeStrategy.feeTokens.filter(
-    (token: FeeTokens) => token.chain === chainId
+    (token: FeeTokens) => Number(token.chain) === chainId
   )
   return result.length ? result[0].token : null
 }
@@ -373,7 +372,8 @@ export function getProviderFeeToken(chainId: string): string | null {
  * get the fee amount (in MB or other units)
  * @returns amount
  */
-export function getProviderFeeAmount(): number {
+export async function getProviderFeeAmount(): Promise<number> {
+  const config = await getConfig()
   return config.feeStrategy.feeAmount.amount
 }
 // https://github.com/oceanprotocol/contracts/blob/main/contracts/templates/ERC20Template.sol#L65-L74

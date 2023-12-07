@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import { PROTOCOL_COMMANDS, getConfig } from '../../../src/utils'
-import { ProviderFeeData } from '../../../src/@types/Fees'
+import { ProviderFeeData, FeeStrategy } from '../../../src/@types/Fees'
 import {
   checkFee,
   createFee,
@@ -58,16 +58,16 @@ describe('Ocean Node fees', () => {
   })
 
   it('should get provider wallet address', async () => {
-    const address = getProviderWalletAddress()
+    const address = await getProviderWalletAddress()
     expect(address).to.be.equal(config.keys.ethAddress)
   })
 
   it('should create provider fees data', async () => {
     const asset: any = DDOExample
-    const address = getProviderWalletAddress()
+    const address = await getProviderWalletAddress()
     const { chainId } = asset // this chain id is a number
-    const providerFeeToken = getProviderFeeToken(String(chainId))
-    const providerAmount = getProviderFeeAmount()
+    const providerFeeToken = await getProviderFeeToken(chainId)
+    const providerAmount = await getProviderFeeAmount()
     const data: ProviderFeeData | undefined = await createFee(asset, 0, 'null', service)
     if (data) {
       expect(data.providerFeeAddress).to.be.equal(address)
@@ -78,11 +78,11 @@ describe('Ocean Node fees', () => {
 
   it('should check the fees data and validate signature', async () => {
     const asset: any = DDOExample
-    const wallet = getProviderWallet()
+    const wallet = await getProviderWallet()
     const { address } = wallet
     const { chainId } = asset // this chain id is a number
-    const providerFeeToken = getProviderFeeToken(String(chainId))
-    const providerAmount = getProviderFeeAmount()
+    const providerFeeToken = await getProviderFeeToken(chainId)
+    const providerAmount = await getProviderFeeAmount()
 
     const data: ProviderFeeData | undefined = await createFee(asset, 0, 'null', service)
     if (data) {
@@ -122,11 +122,11 @@ describe('Ocean Node fees', () => {
 
   it('should get fees data from API call', async () => {
     const asset: any = DDOExample
-    const wallet = getProviderWallet()
+    const wallet = await getProviderWallet()
     const { address } = wallet
     const { chainId } = asset // this chain id is a number
-    const providerFeeToken = getProviderFeeToken(String(chainId))
-    const providerAmount = getProviderFeeAmount()
+    const providerFeeToken = await getProviderFeeToken(chainId)
+    const providerAmount = await getProviderFeeAmount()
 
     const data: P2PCommandResponse = await getFees({
       ddo: asset,
@@ -152,6 +152,11 @@ describe('Ocean Node fees', () => {
         expect(Object.keys(feesData.s).length).to.be.equal(32)
       })
     }
+  })
+
+  it('should always get some token fees default data', () => {
+    expect(config.feeStrategy.feeTokens.length).to.be.gte(1)
+    expect(config.feeStrategy.feeAmount.amount).to.be.gte(0)
   })
 
   after(async () => {

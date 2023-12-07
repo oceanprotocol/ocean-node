@@ -1,6 +1,7 @@
 import { expect, assert } from 'chai'
 import { sleep, getEventFromTx } from '../../src/utils/util' // replace './yourModule' with the actual path of your module
 import 'mocha'
+import { getOceanArtifactsAdresses } from '../../src/utils/address'
 
 describe('Utilities Functions', () => {
   describe('sleep function', () => {
@@ -94,6 +95,11 @@ describe('Utilities Functions', () => {
         result,
         'Result should be undefined for txReceipt with null logs'
       )
+    })
+
+    it('should return some some token artifacts', () => {
+      const data = getOceanArtifactsAdresses()
+      expect(Object.keys(data).length).to.be.gte(1)
     })
   })
 })

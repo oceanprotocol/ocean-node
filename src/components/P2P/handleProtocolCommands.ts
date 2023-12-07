@@ -7,7 +7,7 @@ import StreamConcat from 'stream-concat'
 import { handleDownloadURLCommand } from '../core/downloadHandler.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
-import { OceanP2P, P2P_CONSOLE_LOGGER } from './index.js'
+import { P2P_CONSOLE_LOGGER } from './index.js'
 
 import { handleGetDdoCommand, findDDO } from '../core/ddoHandler.js'
 import { getNonce } from '../core/nonceHandler.js'

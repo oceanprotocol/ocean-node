@@ -44,7 +44,6 @@ declare global {
 function loadInitialDDOS(): any[] {
   const ddos: any[] = []
   const dir: string = './data/'
-  console.log('LOADING initial', dir)
   for (let i = 1; i < 6; i++) {
     const fileName = `${dir}DDO_example_${i}.json`
     console.log(fileName)
@@ -59,10 +58,16 @@ function loadInitialDDOS(): any[] {
   }
   return ddos
 }
-
+// (*) optional flag
+const isStartup: boolean = true
+// this is to avoid too much verbose logging, cause we're calling getConfig() from many parts
+// and we are always running though the same process.env checks
+// (we must start accessing the config from the OceanNode class only once we refactor)
 console.log('\n\n\n\n')
-const config = await getConfig()
-if (!config) process.exit(1)
+const config = await getConfig(isStartup)
+if (!config) {
+  process.exit(1)
+}
 const oceanNode = new OceanNode(config)
 let node: OceanP2P = null
 let indexer = null
