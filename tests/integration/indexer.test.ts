@@ -149,6 +149,8 @@ describe('Indexer stores a new published DDO', () => {
   it('should get the updated state', async () => {
     const result = await nftContract.getMetaData()
     const resolvedDDO = await waitToIndex(assetDID, database)
+    expect(resolvedDDO.nft).to.not.equal(undefined)
+    expect(resolvedDDO).to.have.nested.property('nft.state')
     // Expect the result from contract
     expect(resolvedDDO.nft.state).to.equal(parseInt(result[2].toString()))
   })
