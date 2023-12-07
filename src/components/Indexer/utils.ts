@@ -13,7 +13,10 @@ import {
   defaultConsoleTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
-import { processMetadataCreatedEvent } from './eventProcessor.js'
+import {
+  processMetadataCreatedEvent,
+  processMetadataStateEvent
+} from './eventProcessor.js'
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
@@ -133,9 +136,24 @@ const processMetadataEvents = async (
   provider: JsonRpcApiProvider,
   chainId: number
 ): Promise<any> => {
+  INDEXER_LOGGER.logMessage(`event as ${eventType}`, true)
   if (eventType === EVENTS.METADATA_CREATED) {
     try {
       return await processMetadataCreatedEvent(log, chainId, provider)
+    } catch (e) {
+      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error proccessing metadata: ${e}`)
+    }
+  } else if (eventType === EVENTS.METADATA_STATE) {
+    try {
+      INDEXER_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_INFO,
+        `Found MetadataState event as ${eventType}`
+      )
+      INDEXER_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_INFO,
+        `Is eventType ${eventType} equal to ${EVENTS.METADATA_STATE}?`
+      )
+      return await processMetadataStateEvent(log, chainId, provider)
     } catch (e) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error proccessing metadata: ${e}`)
     }
