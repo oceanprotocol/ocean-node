@@ -195,6 +195,7 @@ describe('Indexer stores a new published DDO', () => {
     try {
       await database.ddo.retrieve(didNotIndexed)
     } catch (e) {
+      console.log('err: ', e)
       error = e
     }
     expect(parseInt(result[2].toString())).to.equal(0)

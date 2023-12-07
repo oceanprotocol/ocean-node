@@ -73,7 +73,6 @@ describe('handle nonce', () => {
     } catch (err) {
       error = err
     }
-    console.log(error.message)
     expect(error.message).to.eql(
       'Could not find a document with id: 0x0000000000000000000000000000000000000000'
     )
