@@ -52,7 +52,7 @@ export const processMetadataEvents = async (
 export const processMetadataStateEvent = async (
   event: ethers.Log,
   chainId: number,
-  provider: ethers.Provider
+  provider: JsonRpcApiProvider
 ) => {
   INDEXER_LOGGER.logMessage(`Processing metadata state event...`, true)
   const iface = new Interface(ERC721Template.abi)
