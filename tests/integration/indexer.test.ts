@@ -7,17 +7,21 @@ import {
   ethers,
   getAddress,
   hexlify,
-  ZeroAddress
+  ZeroAddress,
+  toUtf8Bytes,
+  solidityPackedKeccak256,
+  parseUnits
 } from 'ethers'
 import fs from 'fs'
 import { homedir } from 'os'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { Database } from '../../src/components/database/index.js'
 import { OceanIndexer } from '../../src/components/Indexer/index.js'
 import { RPCS } from '../../src/@types/blockchain.js'
 import { getEventFromTx } from '../../src/utils/util.js'
-import { delay, waitToIndex } from './testUtils.js'
+import { delay, waitToIndex, signMessage } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 
 describe('Indexer stores a new published DDO', () => {
@@ -26,11 +30,24 @@ describe('Indexer stores a new published DDO', () => {
   let provider: JsonRpcProvider
   let factoryContract: Contract
   let nftContract: Contract
+  let datatokenContract: Contract
   let publisherAccount: Signer
+  let consumerAccount: Signer
   let nftAddress: string
+  let datatokenAddress: string
   const chainId = 8996
   let assetDID: string
   let genericAsset: any
+  const timeout = 0
+  const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
+  const providerFeeAddress = ZeroAddress // publisherAddress
+  const providerFeeToken = feeToken
+  const serviceIndex = 0 // dummy index
+  const providerFeeAmount = 0 // fee to be collected on top, requires approval
+  const consumeMarketFeeAddress = ZeroAddress // marketplace fee Collector
+  const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
+  const consumeMarketFeeToken = feeToken // token address for the feeAmount,
+  const providerValidUntil = 0
 
   const mockSupportedNetworks: RPCS = {
     '8996': {
@@ -61,6 +78,7 @@ describe('Indexer stores a new published DDO', () => {
     process.env.PRIVATE_KEY =
       '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
     publisherAccount = (await provider.getSigner(0)) as Signer
+    consumerAccount = (await provider.getSigner(1)) as Signer
     genericAsset = genericDDO
     factoryContract = new ethers.Contract(
       data.development.ERC721Factory,
@@ -98,9 +116,12 @@ describe('Indexer stores a new published DDO', () => {
     )
     const txReceipt = await tx.wait()
     assert(txReceipt, 'transaction failed')
-    const event = getEventFromTx(txReceipt, 'NFTCreated')
+    let event = getEventFromTx(txReceipt, 'NFTCreated')
     nftAddress = event.args[0]
     assert(nftAddress, 'find nft created failed')
+    event = getEventFromTx(txReceipt, 'TokenCreated')
+    datatokenAddress = event.args[0]
+    assert(datatokenAddress, 'find datatoken created failed')
   })
 
   it('should set metadata and save ', async () => {
@@ -153,5 +174,59 @@ describe('Indexer stores a new published DDO', () => {
     expect(resolvedDDO).to.have.nested.property('nft.state')
     // Expect the result from contract
     expect(resolvedDDO.nft.state).to.equal(parseInt(result[2].toString()))
+  })
+
+  it('should get OrderStarted event', async function () {
+    const publisherAddress = await publisherAccount.getAddress()
+    this.timeout(15000)
+    datatokenContract = new Contract(
+      datatokenAddress,
+      ERC20Template.abi,
+      publisherAccount
+    )
+    const paymentCollector = await datatokenContract.getPaymentCollector()
+    assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
+
+    // sign provider data
+    const providerData = JSON.stringify({ timeout })
+    const message = solidityPackedKeccak256(
+      ['bytes', 'address', 'address', 'uint256', 'uint256'],
+      [
+        hexlify(toUtf8Bytes(providerData)),
+        providerFeeAddress,
+        providerFeeToken,
+        providerFeeAmount,
+        providerValidUntil
+      ]
+    )
+    const signedMessage = await signMessage(message, publisherAddress, provider)
+
+    const orderTx = await datatokenContract.startOrder(
+      publisherAddress,
+      serviceIndex,
+      {
+        providerFeeAddress,
+        providerFeeToken,
+        providerFeeAmount,
+        v: signedMessage.v,
+        r: signedMessage.r,
+        s: signedMessage.s,
+        providerData: hexlify(toUtf8Bytes(providerData)),
+        validUntil: providerValidUntil
+      },
+      {
+        consumeMarketFeeAddress,
+        consumeMarketFeeToken,
+        consumeMarketFeeAmount
+      }
+    )
+    const orderTxReceipt = await orderTx.wait()
+    assert(orderTxReceipt, 'order transaction failed')
+    const orderTxId = orderTxReceipt.hash
+    assert(orderTxId, 'transaction id not found')
+
+    const event = getEventFromTx(orderTxReceipt, 'OrderStarted')
+    expect(event.args[1]).to.equal(publisherAddress) // payer
+    expect(event.args[3]).to.equal(serviceIndex) // serviceIndex
   })
 })
