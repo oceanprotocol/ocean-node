@@ -68,6 +68,11 @@ export async function proccesNetworkData(): Promise<void> {
         lastSavedBlock = processedBlocks.lastBlock
         await storeFoundEvents(processedBlocks.foundEvents)
       } catch (error) {
+        INDEXER_LOGGER.log(
+          LOG_LEVELS_STR.LEVEl_ERROR,
+          `network: ${rpcDetails.network} Error: ${error.message} `,
+          true
+        )
         chunkSize = Math.floor(chunkSize / 2)
         INDEXER_LOGGER.logMessage(
           `network: ${rpcDetails.network} Reducing chink size  ${chunkSize} `,
