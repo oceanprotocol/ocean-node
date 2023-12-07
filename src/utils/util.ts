@@ -1,7 +1,15 @@
+import {
+  CustomNodeLogger,
+  LOGGER_MODULE_NAMES,
+  LOG_LEVELS_STR,
+  defaultConsoleTransport,
+  getCustomLoggerForModule
+} from '../utils/logging/Logger.js'
 // Put some utilities functions here
 
 // sleep for ms miliseconds
 import { Interface } from 'ethers'
+
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -40,6 +48,17 @@ export function fetchEventFromTransaction(
     return events.length > 0 ? events : null
   } catch (error) {
     console.error('Error fetching event from transaction:', error)
+
+    const PROVIDER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
+      LOGGER_MODULE_NAMES.PROVIDER,
+      LOG_LEVELS_STR.LEVEl_ERROR,
+      defaultConsoleTransport
+    )
+
+    PROVIDER_LOGGER.logMessage(
+      'Error fetching event from transaction: ' + error.message,
+      true
+    )
     return null
   }
 }
