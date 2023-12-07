@@ -10,7 +10,7 @@ import { base58btc } from 'multiformats/bases/base58'
 // import { Wallet, ethers } from 'ethers'
 
 import pkg from 'secp256k1'
-import { DownloadCommand } from '../../utils/constants.js'
+import { DownloadURLCommand } from '../../utils/constants.js'
 
 // Replace with any other file, works with a local path or URL
 // '/var/log/syslog'
@@ -218,7 +218,7 @@ async function testDownloadCommand(
   nodeId?: string,
   fileSecrets?: FileSecrets
 ): Promise<string> {
-  const payload: DownloadCommand = {
+  const payload: DownloadURLCommand = {
     command: 'downloadURL',
     // node: '16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL', // IF not present use own node
     // own node A is: "16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo",

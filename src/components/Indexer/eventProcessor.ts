@@ -45,6 +45,54 @@ export const processMetadataCreatedEvent = async (
   return ddo
 }
 
+export const processMetadataStateEvent = async (
+  event: ethers.Log,
+  chainId: number,
+  provider: ethers.Provider
+) => {
+  INDEXER_LOGGER.logMessage(`Processing metadata state event...`, true)
+  const iface = new Interface(ERC721Template.abi)
+  const receipt = await provider.getTransactionReceipt(event.transactionHash)
+  INDEXER_LOGGER.logMessage(`Tx receipt for MetadataState event: ${receipt} `, true)
+  const eventObj = {
+    topics: receipt.logs[0].topics as string[],
+    data: receipt.logs[0].data
+  }
+  const decodedEventData = iface.parseLog(eventObj)
+  const metadataState = parseInt(decodedEventData.args[1].toString())
+  INDEXER_LOGGER.logMessage(`Processed new metadata state ${metadataState} `, true)
+  const dbconn = await new Database(config.dbConfig)
+  const did =
+    'did:op:' +
+    createHash('sha256')
+      .update(getAddress(event.address) + chainId.toString(10))
+      .digest('hex')
+  try {
+    const ddo = await dbconn.ddo.retrieve(did)
+    if (!ddo) {
+      INDEXER_LOGGER.logMessage(
+        `Detected MetadataState changed for ${did}, but it does not exists.`
+      )
+      return
+    }
+    INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
+    if ('nft' in ddo && ddo.nft.state !== metadataState) {
+      ddo.nft.state = metadataState
+    } else {
+      // Still update until we validate and polish schemas for DDO.
+      // But it should update ONLY if first condition is met.
+      // Check https://github.com/oceanprotocol/aquarius/blob/84a560ea972485e46dd3c2cfc3cdb298b65d18fa/aquarius/events/processors.py#L663
+      ddo.nft = {
+        state: metadataState
+      }
+    }
+    INDEXER_LOGGER.logMessage(`Found did ${did} for state updating on network ${chainId}`)
+    return ddo
+  } catch (err) {
+    INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error retrieving DDO: ${err}`, true)
+  }
+}
+
 export const processOrderStartedEvent = async (
   event: ethers.Log,
   chainId: number,
