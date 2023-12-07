@@ -41,7 +41,7 @@ providerRoutes.get('/nonce', async (req, res) => {
         const userAddress: string = String(req.query.userAddress)
         const node = req.oceanNode.getP2PNode()
         const result = await getNonce(node, userAddress)
-        if (result) {
+        if (result.stream) {
             res.json({ nonce: await streamToString(result.stream as Readable) })
         } else {
             res.status(400).send()

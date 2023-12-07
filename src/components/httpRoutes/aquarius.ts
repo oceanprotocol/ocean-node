@@ -54,3 +54,44 @@ aquariusRoutes.post('/assets/metadata/query', async (req, res) => {
         res.status(500).send('Internal Server Error')
     }
 })
+
+aquariusRoutes.get('/aquarius/state/ddo', async (req, res) => {
+    try {
+        let query
+        const did: string = String(req.query.did)
+        if (did) {
+            query = {
+                q: did,
+                query_by: 'id',
+            }
+        }
+        const chainId: string = String(req.query.chainId)
+        if (chainId) {
+            query = {
+                q: chainId,
+                query_by: 'chainId',
+            }
+        }
+        const nft: string = String(req.query.nft)
+        if (nft) {
+            query = {
+                q: nft,
+                query_by: 'nft.address',
+            }
+        }
+        const node = req.oceanNode.getP2PNode()
+        const result = await handleQueryCommand(node, { query, command: PROTOCOL_COMMANDS.QUERY })
+        if (result.stream) {
+            const queryResult = JSON.parse(await streamToString(result.stream as Readable))
+            if (queryResult.found) {
+                res.json(queryResult.hits[0].nft.state)
+            } else {
+                res.status(404).send('Not found')
+            }
+        } else {
+            res.status(result.status.httpStatus).send(result.status.error)
+        }
+    } catch (error) {
+        res.status(500).send('Internal Server Error')
+    }
+})
