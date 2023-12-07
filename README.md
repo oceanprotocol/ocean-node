@@ -22,7 +22,18 @@ npm i
 npm run build
 ```
 
-### 4. Open terminal 1 and run a node
+### 4. Download barge and run services
+
+In a separate terminal, clone barge repo, checkout `feature/nodes` branch and start it.
+
+```bash
+git clone https://github.com/oceanprotocol/barge.git
+cd barge
+git checkout feature/nodes
+./start_ocean.sh
+```
+
+### 5. Open terminal 1 and run a node
 
 ```bash
 export HTTP_API_PORT=8000
@@ -43,7 +54,7 @@ Then start the node:
 npm run start
 ```
 
-### 4. Open a 2nd terminal and run another node
+### 6. Open a 2nd terminal and run another node
 
 ```bash
 export HTTP_API_PORT=8001
@@ -114,16 +125,7 @@ variables](docs/environment-variables.md).
 npm run test:unit
 ```
 
-## Integration tests:
-
-First, in a seperate terminal,install barge, checkout `feature/nodes` branch and start it
-
-```bash
-git clone https://github.com/oceanprotocol/barge.git
-cd barge
-git checkout feature/nodes
-./start_ocean.sh
-```
+## Integration tests
 
 Now, back in your nodes terminal, you can run the tests
 
