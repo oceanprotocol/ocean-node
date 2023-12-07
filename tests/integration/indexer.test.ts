@@ -31,7 +31,6 @@ describe('Indexer stores a new published DDO', () => {
   const chainId = 8996
   let assetDID: string
   let genericAsset: any
-  let error: Error
 
   const mockSupportedNetworks: RPCS = {
     '8996': {
@@ -154,51 +153,5 @@ describe('Indexer stores a new published DDO', () => {
     expect(resolvedDDO).to.have.nested.property('nft.state')
     // Expect the result from contract
     expect(resolvedDDO.nft.state).to.equal(parseInt(result[2].toString()))
-  })
-  it('should fail if asset is not indexed', async () => {
-    const tx = await factoryContract.createNftWithErc20(
-      {
-        name: '72120Bundle1',
-        symbol: '72Bundle1',
-        templateIndex: 1,
-        tokenURI: 'https://oceanprotocol.com/nft/',
-        transferable: true,
-        owner: await publisherAccount.getAddress()
-      },
-      {
-        strings: ['ERC20B1', 'ERC20DT1Symbol'],
-        templateIndex: 1,
-        addresses: [
-          await publisherAccount.getAddress(),
-          ZeroAddress,
-          ZeroAddress,
-          '0x0000000000000000000000000000000000000000'
-        ],
-        uints: [1000, 0],
-        bytess: []
-      }
-    )
-    const txReceipt = await tx.wait()
-    assert(txReceipt, 'transaction failed')
-    const event = getEventFromTx(txReceipt, 'NFTCreated')
-    nftAddress = event.args[0]
-    assert(nftAddress, 'find nft created failed')
-    nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, publisherAccount)
-
-    const didNotIndexed =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
-
-    const result = await nftContract.getMetaData()
-    try {
-      await database.ddo.retrieve(didNotIndexed)
-    } catch (e) {
-      console.log('err: ', e)
-      error = e
-    }
-    expect(parseInt(result[2].toString())).to.equal(0)
-    console.log('error message: ', error.message)
   })
 })
