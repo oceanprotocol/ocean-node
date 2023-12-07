@@ -2,10 +2,25 @@ import express from 'express'
 import {getNonce} from "../core/nonceHandler.js";
 import {streamToString} from "../../utils/util.js";
 import {Readable} from "stream";
+import {encrypt} from "../../utils/crypt.js";
 
-export const serviceRoutes = express.Router()
+export const providerRoutes = express.Router()
 
-serviceRoutes.get('/decrypt', async (req, res) => {
+providerRoutes.post('/encrypt', async (req, res) => {
+    try {
+        const data = Uint8Array.from(req.body)
+        const encryptedData = await encrypt(data, 'ECIES')
+        if (encryptedData) {
+            res.send(encryptedData)
+        } else {
+            res.status(400).send()
+        }
+    } catch (error) {
+        res.status(500).send('Internal Server Error')
+    }
+})
+
+providerRoutes.get('/download', async (req, res) => {
     try {
         res.status(400).send()
     } catch (error) {
@@ -13,7 +28,7 @@ serviceRoutes.get('/decrypt', async (req, res) => {
     }
 })
 
-serviceRoutes.get('/encrypt', async (req, res) => {
+providerRoutes.get('/initialize', async (req, res) => {
     try {
         res.status(400).send()
     } catch (error) {
@@ -21,23 +36,7 @@ serviceRoutes.get('/encrypt', async (req, res) => {
     }
 })
 
-serviceRoutes.get('/download', async (req, res) => {
-    try {
-        res.status(400).send()
-    } catch (error) {
-        res.status(500).send('Internal Server Error')
-    }
-})
-
-serviceRoutes.get('/initialize', async (req, res) => {
-    try {
-        res.status(400).send()
-    } catch (error) {
-        res.status(500).send('Internal Server Error')
-    }
-})
-
-serviceRoutes.get('/nonce', async (req, res) => {
+providerRoutes.get('/nonce', async (req, res) => {
     try {
         const userAddress: string = String(req.query.userAddress)
         const node = req.oceanNode.getP2PNode()

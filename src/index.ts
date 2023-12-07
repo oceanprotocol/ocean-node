@@ -96,6 +96,7 @@ logger.addTransport(customLogTransport)
 // global
 oceanNode.setOceanNode(node, indexer, provider, dbconn)
 if (config.hasHttp) {
+  app.use(express.raw())
   app.use((req, res, next) => {
     req.oceanNode = oceanNode
     next()
