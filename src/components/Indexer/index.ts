@@ -43,9 +43,10 @@ export class OceanIndexer {
         }
         if (
           event.method === EVENTS.METADATA_CREATED ||
-          event.method === EVENTS.METADATA_UPDATED
+          event.method === EVENTS.METADATA_UPDATED ||
+          event.method === EVENTS.METADATA_STATE
         ) {
-          this.createOrUpdateDDO(event.network, event.data)
+          this.createOrUpdateDDO(event.network, event.data, event.method)
         }
       })
 
@@ -83,7 +84,11 @@ export class OceanIndexer {
     }
   }
 
-  public async createOrUpdateDDO(network: number, ddo: any): Promise<void> {
+  public async createOrUpdateDDO(
+    network: number,
+    ddo: any,
+    method: string
+  ): Promise<void> {
     const dbconn = this.db.ddo
     try {
       const saveDDO = await dbconn.update({ ...ddo })
@@ -93,7 +98,7 @@ export class OceanIndexer {
     } catch (err) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEl_ERROR,
-        'Error retrieving last indexed block',
+        `Error retrieving & storing DDO: ${err}`,
         true
       )
     }
