@@ -1,7 +1,7 @@
 import type { OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
-import { hexStringToByteArray } from '../utils/index.js'
+import { ENVIRONMENT_VARIABLES, hexStringToByteArray } from '../utils/index.js'
 import type { PeerId } from '@libp2p/interface/peer-id'
 
 import {
@@ -10,11 +10,16 @@ import {
   LOG_LEVELS_STR,
   defaultConsoleTransport,
   getCustomLoggerForModule,
-  GENERIC_EMOJIS
+  GENERIC_EMOJIS,
+  getLoggerLevelEmoji
 } from '../utils/logging/Logger.js'
 import { RPCS } from '../@types/blockchain'
 import { Wallet } from 'ethers'
 import { FeeStrategy, FeeTokens, FeeAmount } from '../@types/Fees'
+import {
+  OCEAN_TOKEN_ADDRESS_PER_CHAIN,
+  getOceanArtifactsAdresses
+} from '../utils/address'
 
 const CONFIG_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.CONFIG,
@@ -75,51 +80,125 @@ function getSupportedChains(): RPCS {
   return supportedNetworks
 }
 
+/**
+ * get default values for provider fee tokens
+ * @param supportedNetworks chains that we support
+ * @returns ocean fees token
+ */
+function getDefaultFeeTokens(supportedNetworks: RPCS): FeeTokens[] {
+  const nodeFeesTokens: FeeTokens[] = []
+  let addressesData: any = getOceanArtifactsAdresses()
+  if (!addressesData) {
+    addressesData = OCEAN_TOKEN_ADDRESS_PER_CHAIN
+  }
+  // check if we have configured anything ourselves
+  const hasSupportedNetworks =
+    supportedNetworks && Object.keys(supportedNetworks).length > 0
+  // check if we have it supported
+  Object.keys(addressesData).forEach((chain: any) => {
+    const chainName = chain as string
+    const { chainId, Ocean } = addressesData[chainName]
+
+    // if we have set the supported chains, we use those chains/tokens
+    if (hasSupportedNetworks) {
+      // check if exists the correct one to add
+      const keyId: string = chainId as string
+      const chainInfo: any = supportedNetworks[keyId]
+      if (chainInfo) {
+        nodeFeesTokens.push({
+          chain: chainId as string,
+          token: Ocean
+        })
+      }
+    } else {
+      // otherwise, we add all we know about
+      nodeFeesTokens.push({
+        chain: chainId as string,
+        token: Ocean
+      })
+    }
+  })
+  return nodeFeesTokens
+}
 // parse fees structure from .env
-function getOceanNodeFees(): FeeStrategy {
+function getOceanNodeFees(supportedNetworks: RPCS): FeeStrategy {
   const logError = () => {
     CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
-      'Error parsing Fee Strategy... Please check "FEE_TOKENS" and "FEE_AMOUNT" env variables',
+      'Error parsing Fee Strategy! Please check "FEE_TOKENS" and "FEE_AMOUNT" env variables. Will use defaults...',
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEl_ERROR
     )
   }
-
+  let nodeFeesAmount: FeeAmount
+  let nodeFeesTokens: FeeTokens[] = []
   try {
-    const nodeFeesTokens: FeeTokens[] = []
-    const tokens = JSON.parse(process.env.FEE_TOKENS)
-    Object.keys(tokens).forEach((key: string) => {
-      nodeFeesTokens.push({
-        chain: key,
-        token: tokens[key]
-      })
-    })
-    const nodeFeesAmount = JSON.parse(process.env.FEE_AMOUNT) as FeeAmount
-    if (!nodeFeesAmount || !nodeFeesTokens) {
-      // invalid values
-      logError()
-      return null
+    // if not exists, just use defaults
+    if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.FEE_AMOUNT)) {
+      CONFIG_CONSOLE_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_WARN,
+        `Missing "${ENVIRONMENT_VARIABLES.FEE_AMOUNT.name}" env variable. Will use defaults...`,
+        true
+      )
+      nodeFeesAmount = { amount: 0, unit: 'MB' }
+    } else {
+      nodeFeesAmount = JSON.parse(process.env.FEE_AMOUNT) as FeeAmount
     }
+    if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.FEE_TOKENS)) {
+      // try to get first for artifacts address if available
+      CONFIG_CONSOLE_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_WARN,
+        `Missing "${ENVIRONMENT_VARIABLES.FEE_TOKENS.name}" env variable, using defaults...`,
+        true
+      )
+      nodeFeesTokens = getDefaultFeeTokens(supportedNetworks)
+    } else {
+      const tokens = JSON.parse(ENVIRONMENT_VARIABLES.FEE_TOKENS.value)
+      Object.keys(tokens).forEach((key: string) => {
+        nodeFeesTokens.push({
+          chain: key,
+          token: tokens[key]
+        })
+      })
+    }
+
     return {
       feeTokens: nodeFeesTokens,
       feeAmount: nodeFeesAmount
     }
   } catch (error) {
     logError()
-    return null
+    // make sure we always return something usable
+    return {
+      feeTokens: nodeFeesTokens.length
+        ? nodeFeesTokens
+        : getDefaultFeeTokens(supportedNetworks),
+      feeAmount: nodeFeesAmount || { amount: 0, unit: 'MB' }
+    }
   }
 }
 
-function existsEnvironmentVariable(envVar: string, envName: string): any {
-  if (!envVar) {
-    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
-      `Invalid or missing "${envName}" env variable...`,
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEl_ERROR
-    )
-    return null
+/**
+ * checks if a var is defined on env
+ * @param envVariable check utils/constants ENVIRONMENT_VARIABLES
+ * @param hasDefault if true we ignore if not set
+ * @returns boolean
+ */
+function existsEnvironmentVariable(envVariable: any, log?: boolean): boolean {
+  const { name, required } = envVariable
+  if (!process.env[name]) {
+    if (log) {
+      CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+        `Invalid or missing "${name}" env variable...`,
+        true,
+        required
+          ? GENERIC_EMOJIS.EMOJI_CROSS_MARK
+          : getLoggerLevelEmoji(LOG_LEVELS_STR.LEVEL_WARN),
+        required ? LOG_LEVELS_STR.LEVEl_ERROR : LOG_LEVELS_STR.LEVEL_WARN
+      )
+    }
+
+    return false
   }
   return true
 }
@@ -137,10 +216,12 @@ export async function getConfig(): Promise<OceanNodeConfig> {
   }
 
   if (
-    !existsEnvironmentVariable(process.env.IPFS_GATEWAY, 'IPFS_GATEWAY') ||
-    !existsEnvironmentVariable(process.env.ARWEAVE_GATEWAY, 'ARWEAVE_GATEWAY') ||
-    !existsEnvironmentVariable(process.env.FEE_TOKENS, 'FEE_TOKENS') ||
-    !existsEnvironmentVariable(process.env.FEE_AMOUNT, 'FEE_AMOUNT')
+    // these will not be required in the future
+    !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.IPFS_GATEWAY, true) ||
+    !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY, true)
+    // have some defaults for these ones:
+    // ENVIRONMENT_VARIABLES.FEE_TOKENS
+    // ENVIRONMENT_VARIABLES.FEE_AMOUNT
   ) {
     return null
   }
@@ -176,7 +257,7 @@ export async function getConfig(): Promise<OceanNodeConfig> {
       url: getEnvValue(process.env.DB_URL, 'http://localhost:8108/?apiKey=xyz')
     },
     supportedNetworks: getSupportedChains(),
-    feeStrategy: getOceanNodeFees()
+    feeStrategy: getOceanNodeFees(getSupportedChains())
   }
   return config
 }
