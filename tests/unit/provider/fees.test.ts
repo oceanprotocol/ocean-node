@@ -1,6 +1,6 @@
 import { expect } from 'chai'
-import { PROTOCOL_COMMANDS, getConfig } from '../../../src/utils'
-import { ProviderFeeData, FeeStrategy } from '../../../src/@types/Fees'
+import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS, getConfig } from '../../../src/utils'
+import { ProviderFeeData } from '../../../src/@types/Fees'
 import {
   checkFee,
   createFee,
@@ -32,17 +32,17 @@ const service: Service = {
 function getEnvOverrides(): OverrideEnvConfig[] {
   return [
     {
-      name: 'FEE_TOKENS',
+      name: ENVIRONMENT_VARIABLES.FEE_TOKENS.name,
       newValue:
         '{ "1": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48", "137": "0x282d8efCe846A88B159800bd4130ad77443Fa1A1", "80001": "0xd8992Ed72C445c35Cb4A2be468568Ed1079357c8", "56": "0xDCe07662CA8EbC241316a15B611c89711414Dd1a" }',
       override: true,
-      originalValue: process.env.FEE_TOKENS
+      originalValue: ENVIRONMENT_VARIABLES.FEE_TOKENS.value
     },
     {
-      name: 'FEE_AMOUNT',
+      name: ENVIRONMENT_VARIABLES.FEE_AMOUNT.name,
       newValue: '{ "amount": 1, "unit": "MB" }',
       override: true,
-      originalValue: process.env.FEE_AMOUNT
+      originalValue: ENVIRONMENT_VARIABLES.FEE_AMOUNT.value
     }
   ]
 }
@@ -157,6 +157,14 @@ describe('Ocean Node fees', () => {
   it('should always get some token fees default data', () => {
     expect(config.feeStrategy.feeTokens.length).to.be.gte(1)
     expect(config.feeStrategy.feeAmount.amount).to.be.gte(0)
+  })
+
+  it('should return some defaults for fees token', async () => {
+    process.env[ENVIRONMENT_VARIABLES.FEE_TOKENS.name] = undefined
+    process.env[ENVIRONMENT_VARIABLES.FEE_AMOUNT.name] = undefined
+    const conf = await getConfig()
+    expect(Object.keys(conf.feeStrategy.feeTokens).length).to.be.gte(1)
+    expect(conf.feeStrategy.feeAmount.amount).to.be.gte(0)
   })
 
   after(async () => {

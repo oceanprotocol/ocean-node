@@ -96,10 +96,5 @@ describe('Utilities Functions', () => {
         'Result should be undefined for txReceipt with null logs'
       )
     })
-
-    it('should return some some token artifacts', () => {
-      const data = getOceanArtifactsAdresses()
-      expect(Object.keys(data).length).to.be.gte(1)
-    })
   })
 })
