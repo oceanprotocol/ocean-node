@@ -20,7 +20,19 @@ export interface Command {
   node?: string // if not present it means current node
 }
 
+export interface DownloadURLCommand extends Command {
+  url: string
+  aes_encrypted_key?: string // if not present it means download without encryption
+}
+
 export interface DownloadCommand extends Command {
+  documentId: string
+  serviceId: string
+  transferTxId: string
+  fileIndex: number
+  nonce: string
+  consumerAddress: string
+  signature: string
   url: string
   aes_encrypted_key?: string // if not present it means download without encryption
 }
