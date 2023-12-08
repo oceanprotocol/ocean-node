@@ -4,7 +4,7 @@ import { Command, ICommandHandler, GetFeesCommand } from '../../utils/constants.
 import { DDO } from '../../@types/DDO/DDO'
 import { Service } from '../../@types/DDO/Service'
 import { AssetUtils } from '../../utils/asset.js'
-import { P2PCommandResponse } from '../../@types'
+import { OceanNodeConfig, P2PCommandResponse } from '../../@types'
 import { OceanP2P } from '../P2P/index'
 import { Readable } from 'stream'
 import {
@@ -18,6 +18,14 @@ import {
 import { verifyMessage } from '../../utils/blockchain.js'
 import { getConfig } from '../../utils/config.js'
 
+let config: OceanNodeConfig
+// Lazy load configuration
+async function getConfiguration(): Promise<OceanNodeConfig> {
+  if (!config) {
+    config = await getConfig()
+  }
+  return config
+}
 // this should be actually part of provider, so lets put this as module name
 const logger: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.PROVIDER,
@@ -340,9 +348,8 @@ export async function getFees(task: GetFeesCommand): Promise<P2PCommandResponse>
  * @returns the wallet
  */
 export async function getProviderWallet(chainId?: string): Promise<ethers.Wallet> {
-  const config = await getConfig()
   const wallet: ethers.Wallet = new ethers.Wallet(
-    Buffer.from(config.keys.privateKey).toString('hex')
+    Buffer.from((await getConfiguration()).keys.privateKey).toString('hex')
   )
   return wallet
 }
@@ -351,8 +358,7 @@ export async function getProviderWalletAddress(): Promise<string> {
 }
 
 export async function getProviderKey(): Promise<string> {
-  const config = await getConfig()
-  return Buffer.from(config.keys.privateKey).toString('hex')
+  return Buffer.from((await getConfiguration()).keys.privateKey).toString('hex')
 }
 
 /**
@@ -361,8 +367,7 @@ export async function getProviderKey(): Promise<string> {
  * @returns the token address
  */
 export async function getProviderFeeToken(chainId: number): Promise<string> {
-  const config = await getConfig()
-  const result = config.feeStrategy.feeTokens.filter(
+  const result = (await getConfiguration()).feeStrategy.feeTokens.filter(
     (token: FeeTokens) => Number(token.chain) === chainId
   )
   return result.length ? result[0].token : null
@@ -373,8 +378,7 @@ export async function getProviderFeeToken(chainId: number): Promise<string> {
  * @returns amount
  */
 export async function getProviderFeeAmount(): Promise<number> {
-  const config = await getConfig()
-  return config.feeStrategy.feeAmount.amount
+  return (await getConfiguration()).feeStrategy.feeAmount.amount
 }
 // https://github.com/oceanprotocol/contracts/blob/main/contracts/templates/ERC20Template.sol#L65-L74
 // https://github.com/oceanprotocol/contracts/blob/main/contracts/templates/ERC20Template.sol#L447-L508
