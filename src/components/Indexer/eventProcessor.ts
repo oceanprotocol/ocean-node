@@ -64,6 +64,7 @@ export const processMetadataStateEvent = async (
   const metadataState = parseInt(decodedEventData.args[1].toString())
   INDEXER_LOGGER.logMessage(`Processed new metadata state ${metadataState} `, true)
   const dbconn = await new Database(config.dbConfig)
+  INDEXER_LOGGER.logMessage(`NFT address: ${event.address} `, true)
   const did =
     'did:op:' +
     createHash('sha256')
