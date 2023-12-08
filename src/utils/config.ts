@@ -17,7 +17,7 @@ import { RPCS } from '../@types/blockchain'
 import { Wallet } from 'ethers'
 import { FeeStrategy, FeeTokens, FeeAmount } from '../@types/Fees'
 import {
-  OCEAN_TOKEN_ADDRESS_PER_CHAIN,
+  OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN,
   getOceanArtifactsAdresses
 } from '../utils/address'
 
@@ -84,7 +84,7 @@ function getDefaultFeeTokens(supportedNetworks: RPCS): FeeTokens[] {
   const nodeFeesTokens: FeeTokens[] = []
   let addressesData: any = getOceanArtifactsAdresses()
   if (!addressesData) {
-    addressesData = OCEAN_TOKEN_ADDRESS_PER_CHAIN
+    addressesData = OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN
   }
   // check if we have configured anything ourselves
   const hasSupportedNetworks =
