@@ -1,10 +1,12 @@
 import {
+  Contract,
   Interface,
   JsonRpcApiProvider,
   ethers,
   getAddress,
   getBytes,
-  toUtf8String
+  toUtf8String,
+  utils
 } from 'ethers'
 import { createHash } from 'crypto'
 import {
@@ -16,6 +18,7 @@ import {
 } from '../../utils/logging/Logger.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' assert { type: 'json' }
+import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
 import { getConfig } from '../../utils/config.js'
 import { Database } from '../database/index.js'
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
@@ -126,15 +129,60 @@ export const processOrderStartedEvent = async (
       return
     }
     INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
+    INDEXER_LOGGER.logMessage(
+      `Datatoken ${ddo.services[serviceIndex].datatoken}. Event address: ${event.address}`
+    )
     if ('stats' in ddo && ddo.services[serviceIndex].datatoken === event.address) {
       ddo.stats.orders += 1
     } else {
       // Still update until we validate and polish schemas for DDO.
       // But it should update ONLY if first condition is met.
+      INDEXER_LOGGER.logMessage(`First OrderStarted changed for ${did}.`)
       ddo.stats = {
         orders: 1
       }
     }
+    const datatokenContract = new Contract(
+      ddo.services[serviceIndex].datatoken,
+      ERC20Template.abi,
+      provider
+    )
+    const fixedRates = await datatokenContract.getFixedRates()
+    INDEXER_LOGGER.logMessage(`Fixed rates: ${fixedRates}`)
+    const dispensers = await datatokenContract.getDispensers()
+    INDEXER_LOGGER.logMessage(`Dispensers: ${dispensers}`)
+    let priceResult: any
+    if (fixedRates.length > 0) {
+      INDEXER_LOGGER.logMessage(`Exchange ID for the first FRE: ${fixedRates[0][1]}`)
+      const exchangeId = fixedRates[0][1]
+      const fixedRateContract = new Contract(
+        fixedRates[0][0], // address
+        FixedRateExchange.abi,
+        provider
+      )
+      const exchange = await fixedRateContract.getExchange(exchangeId)
+      INDEXER_LOGGER.logMessage(`Exchange: ${exchange}`)
+      const rate = exchange[5]
+      INDEXER_LOGGER.logMessage(`Rate: ${rate}`)
+      // get the price from FRE
+      const price = parseFloat(utils.formatEther(rate))
+      INDEXER_LOGGER.logMessage(`Price: ${price}`)
+      // get base token address from FRE
+      const baseToken = exchange[3]
+      INDEXER_LOGGER.logMessage(`Base token: ${baseToken}`)
+      priceResult = {
+        value: price,
+        tokenAddress: baseToken
+      }
+    } else if (dispensers.length > 0) {
+      priceResult = {
+        value: 0
+      }
+    } else {
+      priceResult = {}
+    }
+    INDEXER_LOGGER.logMessage(`priceResult: ${priceResult}`)
+    ddo.stats.price = priceResult
     INDEXER_LOGGER.logMessage(`Found did ${did} for order starting on network ${chainId}`)
     return ddo
   } catch (err) {
