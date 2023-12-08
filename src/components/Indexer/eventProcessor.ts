@@ -114,10 +114,13 @@ export const processOrderStartedEvent = async (
     true
   )
   const dbconn = await new Database(config.dbConfig)
+  const datatokenContract = new Contract(event.address, ERC20Template.abi, provider)
+  const nftAddress = await datatokenContract.getERC721Address()
+  INDEXER_LOGGER.logMessage(`NFT address: ${nftAddress}`, true)
   const did =
     'did:op:' +
     createHash('sha256')
-      .update(getAddress(event.address) + chainId.toString(10))
+      .update(getAddress(nftAddress) + chainId.toString(10))
       .digest('hex')
   try {
     const ddo = await dbconn.ddo.retrieve(did)
@@ -141,11 +144,6 @@ export const processOrderStartedEvent = async (
         orders: 1
       }
     }
-    const datatokenContract = new Contract(
-      ddo.services[serviceIndex].datatoken,
-      ERC20Template.abi,
-      provider
-    )
     const fixedRates = await datatokenContract.getFixedRates()
     INDEXER_LOGGER.logMessage(`Fixed rates: ${fixedRates}`)
     const dispensers = await datatokenContract.getDispensers()
@@ -209,10 +207,13 @@ export const processOrderReusedEvent = async (
     true
   )
   const dbconn = await new Database(config.dbConfig)
+  const datatokenContract = new Contract(event.address, ERC20Template.abi, provider)
+  const nftAddress = await datatokenContract.getERC721Address()
+  INDEXER_LOGGER.logMessage(`NFT address: ${nftAddress}`, true)
   const did =
     'did:op:' +
     createHash('sha256')
-      .update(getAddress(event.address) + chainId.toString(10))
+      .update(getAddress(nftAddress) + chainId.toString(10))
       .digest('hex')
   try {
     const ddo = await dbconn.ddo.retrieve(did)
