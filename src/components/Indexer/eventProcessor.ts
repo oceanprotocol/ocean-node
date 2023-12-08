@@ -5,8 +5,7 @@ import {
   ethers,
   getAddress,
   getBytes,
-  toUtf8String,
-  utils
+  toUtf8String
 } from 'ethers'
 import { createHash } from 'crypto'
 import {
@@ -165,7 +164,7 @@ export const processOrderStartedEvent = async (
       const rate = exchange[5]
       INDEXER_LOGGER.logMessage(`Rate: ${rate}`)
       // get the price from FRE
-      const price = parseFloat(utils.formatEther(rate))
+      const price = parseFloat(ethers.formatEther(rate))
       INDEXER_LOGGER.logMessage(`Price: ${price}`)
       // get base token address from FRE
       const baseToken = exchange[3]
