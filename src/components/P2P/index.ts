@@ -338,7 +338,7 @@ export class OceanP2P extends EventEmitter {
         'Invalid peer (for id): ' + peerId,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEl_ERROR
+        LOG_LEVELS_STR.LEVEL_ERROR
       )
       status.status.httpStatus = 404
       status.status.error = 'Invalid peer'
@@ -500,7 +500,7 @@ export class OceanP2P extends EventEmitter {
           count++
         } catch (e) {
           P2P_CONSOLE_LOGGER.log(
-            LOG_LEVELS_STR.LEVEl_ERROR,
+            LOG_LEVELS_STR.LEVEL_ERROR,
             `Caught "${e.message}" on storeAndAdvertiseDDOS()`,
             true
           )
@@ -512,7 +512,7 @@ export class OceanP2P extends EventEmitter {
       return count === list.length
     } catch (err) {
       P2P_CONSOLE_LOGGER.log(
-        LOG_LEVELS_STR.LEVEl_ERROR,
+        LOG_LEVELS_STR.LEVEL_ERROR,
         `Caught "${err.message}" on storeAndAdvertiseDDOS()`,
         true
       )

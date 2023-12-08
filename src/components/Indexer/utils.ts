@@ -141,7 +141,7 @@ const processMetadataEvents = async (
     try {
       return await processMetadataCreatedEvent(log, chainId, provider)
     } catch (e) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error proccessing metadata: ${e}`)
+      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error proccessing metadata: ${e}`)
     }
   } else if (eventType === EVENTS.METADATA_STATE) {
     try {
@@ -155,7 +155,7 @@ const processMetadataEvents = async (
       )
       return await processMetadataStateEvent(log, chainId, provider)
     } catch (e) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error proccessing metadata: ${e}`)
+      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error proccessing metadata: ${e}`)
     }
   }
 }

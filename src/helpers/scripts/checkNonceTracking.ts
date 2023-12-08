@@ -62,7 +62,7 @@ async function createNonceCollection(): Promise<any> {
       'Error creating "nonce" collection: ' + err.message,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEl_ERROR
+      LOG_LEVELS_STR.LEVEL_ERROR
     )
     return null
   }

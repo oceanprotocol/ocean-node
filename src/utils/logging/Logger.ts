@@ -40,7 +40,7 @@ export const LOG_LEVELS_NUM = {
 }
 
 export const LOG_LEVELS_STR = {
-  LEVEl_ERROR: 'error',
+  LEVEL_ERROR: 'error',
   LEVEL_WARN: 'warn',
   LEVEL_INFO: 'info',
   LEVEL_HTTP: 'http',

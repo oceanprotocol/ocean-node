@@ -51,7 +51,7 @@ export class OceanIndexer {
 
       worker.on('error', (err: Error) => {
         INDEXER_LOGGER.log(
-          LOG_LEVELS_STR.LEVEl_ERROR,
+          LOG_LEVELS_STR.LEVEL_ERROR,
           `Error in worker for network ${network}: ${err.message}`,
           true
         )
@@ -75,7 +75,7 @@ export class OceanIndexer {
       return indexer?.lastIndexedBlock
     } catch (err) {
       INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEl_ERROR,
+        LOG_LEVELS_STR.LEVEL_ERROR,
         'Error retrieving last indexed block',
         true
       )
@@ -99,7 +99,7 @@ export class OceanIndexer {
       )
     } catch (err) {
       INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEl_ERROR,
+        LOG_LEVELS_STR.LEVEL_ERROR,
         `Error retrieving & storing DDO: ${err}`,
         true
       )
@@ -119,7 +119,7 @@ export class OceanIndexer {
       )
     } catch (err) {
       INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEl_ERROR,
+        LOG_LEVELS_STR.LEVEL_ERROR,
         'Error retrieving last indexed block',
         true
       )
