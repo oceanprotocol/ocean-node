@@ -147,7 +147,6 @@ export const processOrderStartedEvent = async (
     createHash('sha256')
       .update(getAddress(nftAddress) + chainId.toString(10))
       .digest('hex')
-  INDEXER_LOGGER.logMessage(`DID in OrderStarted: ${did}`)
   try {
     const ddo = await dbconn.ddo.retrieve(did)
     if (!ddo) {
@@ -156,16 +155,11 @@ export const processOrderStartedEvent = async (
       )
       return
     }
-    INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
-    INDEXER_LOGGER.logMessage(
-      `Datatoken ${ddo.services[serviceIndex].datatoken}. Event address: ${event.address}`
-    )
     if ('stats' in ddo && ddo.services[serviceIndex].datatoken === event.address) {
       ddo.stats.orders += 1
     } else {
       // Still update until we validate and polish schemas for DDO.
       // But it should update ONLY if first condition is met.
-      INDEXER_LOGGER.logMessage(`First OrderStarted changed for ${did}.`)
       ddo.stats = {
         orders: 1
       }
@@ -204,7 +198,6 @@ export const processOrderReusedEvent = async (
     createHash('sha256')
       .update(getAddress(nftAddress) + chainId.toString(10))
       .digest('hex')
-  INDEXER_LOGGER.logMessage(`DID in OrderReused: ${did}`)
   try {
     const ddo = await dbconn.ddo.retrieve(did)
     if (!ddo) {
@@ -213,11 +206,9 @@ export const processOrderReusedEvent = async (
       )
       return
     }
-    INDEXER_LOGGER.logMessage(
-      `Found did ${did} on network ${chainId}. Stats: ${ddo.stats}`
-    )
+    INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}.`)
     ddo.stats.orders += 1
-    INDEXER_LOGGER.logMessage(`Found did ${did} for order starting on network ${chainId}`)
+
     return ddo
   } catch (err) {
     INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error retrieving DDO: ${err}`, true)
