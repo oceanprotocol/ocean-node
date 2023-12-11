@@ -33,7 +33,7 @@ async function getFileFromURL(fileURL: string): Promise<any> {
 
 export async function handleDownload(
   task: DownloadTask,
-  node?: OceanP2P
+  node: OceanP2P
 ): Promise<P2PCommandResponse> {
   // 1. Get the DDO
   const ddo = await findAndFormatDdo(node, task.documentId)
@@ -180,7 +180,7 @@ export async function handleDownloadURLCommand(
     } else {
       // Download request is not using encryption!
       return {
-        stream: 'inputStream' as any,
+        stream: inputStream,
         status: {
           httpStatus: 200,
           headers: {
