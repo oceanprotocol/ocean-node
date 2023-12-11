@@ -17,6 +17,7 @@ import {
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { getConfig } from '../../utils/config.js'
 import { Database } from '../database/index.js'
+import { MetadataStates } from '../../utils/constants.js'
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
@@ -48,7 +49,7 @@ export const processMetadataCreatedEvent = async (
 export const processMetadataStateEvent = async (
   event: ethers.Log,
   chainId: number,
-  provider: ethers.Provider
+  provider: JsonRpcApiProvider
 ) => {
   INDEXER_LOGGER.logMessage(`Processing metadata state event...`, true)
   const iface = new Interface(ERC721Template.abi)
@@ -76,8 +77,30 @@ export const processMetadataStateEvent = async (
       return
     }
     INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
-    if ('nft' in ddo && ddo.nft.state !== metadataState) {
-      ddo.nft.state = metadataState
+    if ('nft' in ddo) {
+      // if asset was already in soft state, let's check if we need to bring it back
+      if (
+        (metadataState === MetadataStates.ACTIVE ||
+          metadataState === MetadataStates.END_OF_LIFE) &&
+        [MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(ddo.nft.state)
+      ) {
+        return processMetadataCreatedEvent(event, chainId, provider)
+      }
+      // check if asset is active before doing delete
+      if (
+        [MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(metadataState) &&
+        ![MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(ddo.nft.state)
+      ) {
+        try {
+          await dbconn.ddo.delete(did)
+        } catch (err) {
+          INDEXER_LOGGER.logMessage(`Error for soft deleting DDO ${did}: ${err}`)
+          return
+        }
+      }
+      if (ddo.nft.state !== metadataState) {
+        ddo.nft.state = metadataState
+      }
     } else {
       // Still update until we validate and polish schemas for DDO.
       // But it should update ONLY if first condition is met.
