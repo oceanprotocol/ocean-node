@@ -87,31 +87,12 @@ export const processMetadataStateEvent = async (
         return processMetadataCreatedEvent(event, chainId, provider)
       }
       // check if asset is active before doing delete
-      INDEXER_LOGGER.logMessage(
-        `contract metadata state REVOKED, DEPRECATED, END_OF_LIFE: ${[
-          MetadataStates.REVOKED,
-          MetadataStates.DEPRECATED,
-          MetadataStates.END_OF_LIFE
-        ].includes(metadataState)} contract state value: ${metadataState}`
-      )
-      INDEXER_LOGGER.logMessage(
-        `ddo NFT state REVOKED, DEPRECATED, END_OF_LIFE: ${[
-          MetadataStates.REVOKED,
-          MetadataStates.DEPRECATED,
-          MetadataStates.END_OF_LIFE
-        ].includes(ddo.nft.state)} ddo NFT state value: ${ddo.nft.state}`
-      )
       if (
         [
           MetadataStates.REVOKED,
           MetadataStates.DEPRECATED,
           MetadataStates.END_OF_LIFE
-        ].includes(metadataState) &&
-        ![
-          MetadataStates.REVOKED,
-          MetadataStates.DEPRECATED,
-          MetadataStates.END_OF_LIFE
-        ].includes(ddo.nft.state)
+        ].includes(metadataState)
       ) {
         try {
           await dbconn.ddo.delete(did)
