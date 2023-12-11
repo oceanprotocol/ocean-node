@@ -254,8 +254,12 @@ export class OceanP2P extends EventEmitter {
       node.services.pubsub.publish(this._topic, encoding('online'))
       return node
     } catch (e) {
-      console.log('Unable to create node')
-      console.log(e)
+      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+        'Unable to create node: ' + e.message,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
     }
     return null
   }

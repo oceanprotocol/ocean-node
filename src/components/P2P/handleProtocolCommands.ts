@@ -15,6 +15,7 @@ import { handleQueryCommand } from '../core/queryHandler.js'
 import { handleStatusCommand } from '../core/statusHandler.js'
 import { handleEncryptCommand } from '../core/encryptHandler.js'
 import { getFees } from '../core/feesHandler.js'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 
 export class ReadableString extends Readable {
   private sent = false
@@ -109,8 +110,12 @@ export async function handleProtocolCommands(connection: any) {
       pipe(combinedStream, connection.stream.sink)
     }
   } catch (err) {
-    console.log('error:')
-    console.log(err)
+    P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+      'handleProtocolCommands Error: ' + err.message,
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
   }
 }
 /**
