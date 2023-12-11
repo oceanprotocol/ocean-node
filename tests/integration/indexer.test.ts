@@ -147,19 +147,27 @@ describe('Indexer stores a new published DDO', () => {
   delay(100000)
 
   it('should get the updated state', async () => {
-    let result = await nftContract.getMetaData()
-    let resolvedDDO = await waitToIndex(assetDID, database)
+    const result = await nftContract.getMetaData()
+    const resolvedDDO = await waitToIndex(assetDID, database)
     expect(resolvedDDO.nft).to.not.equal(undefined)
     expect(resolvedDDO).to.have.nested.property('nft.state')
     // Expect the result from contract
     expect(resolvedDDO.nft.state).to.equal(parseInt(result[2].toString()))
+  })
+
+  it('should change metadata state to END OF LIFE', async () => {
     // End of life state for this asset
     const setMetaDataStateTx = await nftContract.setMetaDataState(1)
     const trxReceipt = await setMetaDataStateTx.wait()
     assert(trxReceipt, 'set metada state failed')
-    result = await nftContract.getMetaData()
+  })
+
+  delay(100000)
+
+  it('should delete the ddo', async () => {
+    const result = await nftContract.getMetaData()
     expect(parseInt(result[2].toString())).to.equal(1)
-    resolvedDDO = await waitToIndex(assetDID, database)
+    const resolvedDDO = await waitToIndex(assetDID, database)
     console.log('resolvedDDO after state update: ', resolvedDDO)
     expect(resolvedDDO).to.equal(null)
   })
