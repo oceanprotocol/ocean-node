@@ -43,6 +43,7 @@ export class OceanIndexer {
         }
         if (
           event.method === EVENTS.METADATA_CREATED ||
+          event.method === EVENTS.METADATA_UPDATED ||
           event.method === EVENTS.METADATA_STATE
         ) {
           this.createOrUpdateDDO(event.network, event.data, event.method)
@@ -88,14 +89,11 @@ export class OceanIndexer {
     ddo: any,
     method: string
   ): Promise<void> {
-    INDEXER_LOGGER.logMessage(
-      `Detected event ${method} on network ${network}. Data: ${ddo}`
-    )
     const dbconn = this.db.ddo
     try {
       const saveDDO = await dbconn.update({ ...ddo })
       INDEXER_LOGGER.logMessage(
-        `Saved or updated DDO  : ${saveDDO.id} from network: ${network}`
+        `Saved or updated DDO  : ${saveDDO.id} from network: ${network} `
       )
     } catch (err) {
       INDEXER_LOGGER.log(
