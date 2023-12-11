@@ -283,7 +283,6 @@ describe('Indexer stores a new published DDO', () => {
 
   it('should get number of orders', async () => {
     const retrievedDDO = await waitToIndex(assetDID, database)
-    console.log('retrievedDDO', retrievedDDO)
     expect(retrievedDDO.stats.orders).to.equal(1)
   })
 
@@ -315,5 +314,12 @@ describe('Indexer stores a new published DDO', () => {
 
     const event = getEventFromTx(orderTxReceipt, 'OrderReused')
     expect(event.args[0]).to.equal(orderTxId)
+  })
+
+  delay(50000)
+
+  it('should increase number of orders', async () => {
+    const retrievedDDO = await waitToIndex(assetDID, database)
+    expect(retrievedDDO.stats.orders).to.equal(2)
   })
 })
