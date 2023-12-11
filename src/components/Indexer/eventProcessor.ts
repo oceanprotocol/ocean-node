@@ -111,7 +111,8 @@ export const processMetadataStateEvent = async (
         [MetadataStates.REVOKED].includes(ddo.nft.state)
       ) {
         ddo.nft.state = metadataState
-      } else if (
+      }
+      if (
         // check if asset is active before doing delete
         [
           MetadataStates.REVOKED,
