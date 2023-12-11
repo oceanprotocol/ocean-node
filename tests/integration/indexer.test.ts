@@ -119,14 +119,10 @@ describe('Indexer stores a new published DDO', () => {
     assert(txReceipt, 'transaction failed')
     const event = getEventFromTx(txReceipt, 'NFTCreated')
     nftAddress = event.args[0]
-    console.log('NFT created event args: ', event.args)
     assert(nftAddress, 'find nft created failed')
-    console.log('nftAddress for OrderStarted test: ', nftAddress)
     const datatokenEvent = getEventFromTx(txReceipt, 'TokenCreated')
-    console.log('Token created event args: ', datatokenEvent.args)
     datatokenAddress = datatokenEvent.args[0]
     assert(datatokenAddress, 'find datatoken created failed')
-    console.log('datatokenAddress for OrderStarted test: ', datatokenAddress)
   })
 
   it('should set metadata and save ', async () => {
@@ -207,7 +203,6 @@ describe('Indexer stores a new published DDO', () => {
   it('should get the updated state', async () => {
     const result = await nftContract.getMetaData()
     const retrievedDDO = await waitToIndex(assetDID, database)
-    console.log('retrievedDDO', retrievedDDO)
     expect(retrievedDDO.nft).to.not.equal(undefined)
     expect(retrievedDDO).to.have.nested.property('nft.state')
     // Expect the result from contract
@@ -238,9 +233,7 @@ describe('Indexer stores a new published DDO', () => {
         providerValidUntil
       ]
     )
-    console.log('solidityPackedKeccak256 message: ', message)
     const signedMessage = await signMessage(message, publisherAddress, provider)
-    console.log('signedMessage: ', signedMessage)
 
     // call the mint function on the dataTokenContract
     const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
@@ -271,7 +264,6 @@ describe('Indexer stores a new published DDO', () => {
         consumeMarketFeeAmount
       }
     )
-    console.log('orderTx: ', orderTx)
 
     const orderTxReceipt = await orderTx.wait()
     assert(orderTxReceipt, 'order transaction failed')
@@ -279,7 +271,8 @@ describe('Indexer stores a new published DDO', () => {
     assert(orderTxId, 'transaction id not found')
 
     const event = getEventFromTx(orderTxReceipt, 'OrderStarted')
-    expect(event.args[1]).to.equal(publisherAddress) // payer
-    expect(event.args[3]).to.equal(serviceIndex) // serviceIndex
+
+    expect(event.args[1]).to.equal(consumerAddress) // payer
+    expect(parseInt(event.args[3]).toString()).to.equal(serviceIndex) // serviceIndex
   })
 })
