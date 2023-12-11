@@ -141,6 +141,7 @@ export const processOrderStartedEvent = async (
     `Processed new order for service index ${serviceIndex} at ${timestamp}`,
     true
   )
+  const config = await getConfiguration()
   const dbconn = await new Database(config.dbConfig)
   INDEXER_LOGGER.logMessage(`Datatoken address: ${event.address}`)
   const datatokenContract = new Contract(

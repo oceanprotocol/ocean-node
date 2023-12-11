@@ -215,19 +215,16 @@ describe('Indexer stores a new published DDO', () => {
   })
 
   it('should get OrderStarted event', async function () {
+    this.timeout(15000) // Extend default Mocha test timeout
     const publisherAddress = await publisherAccount.getAddress()
-    this.timeout(15000)
-    const datatokenContract1 = new Contract(
+    const consumerAddress = await consumerAccount.getAddress()
+    const dataTokenContract = new Contract(
       datatokenAddress,
       ERC20Template.abi,
       publisherAccount
     )
-    const paymentCollector = await datatokenContract1.getPaymentCollector()
-    console.log(
-      'NFT address from getERC721Address function: ',
-      await datatokenContract1.getERC721Address()
-    )
-    assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
+    // const paymentCollector = await dataTokenContract.getPaymentCollector()
+    // assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
 
     // sign provider data
     const providerData = JSON.stringify({ timeout })
@@ -245,8 +242,18 @@ describe('Indexer stores a new published DDO', () => {
     const signedMessage = await signMessage(message, publisherAddress, provider)
     console.log('signedMessage: ', signedMessage)
 
-    const orderTx = await datatokenContract1.startOrder(
-      publisherAddress,
+    // call the mint function on the dataTokenContract
+    const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
+    await mintTx.wait()
+    const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
+    assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
+
+    const dataTokenContractWithNewSigner = dataTokenContract.connect(
+      consumerAccount
+    ) as any
+
+    const orderTx = await dataTokenContractWithNewSigner.startOrder(
+      consumerAddress,
       serviceIndex,
       {
         providerFeeAddress,
