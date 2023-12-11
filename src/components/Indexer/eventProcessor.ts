@@ -125,10 +125,10 @@ export const processOrderStartedEvent = async (
   INDEXER_LOGGER.logMessage(`Decoded data OrderStarted processing: ${receipt}`)
   const serviceIndex = parseInt(decodedEventData.args[3].toString())
   const timestamp = parseInt(decodedEventData.args[4].toString())
-  const consumer = toUtf8String(getBytes(decodedEventData.args[0]))
-  INDEXER_LOGGER.logMessage(`Consumer for the order: ${consumer}`)
-  const payer = toUtf8String(getBytes(decodedEventData.args[1]))
-  INDEXER_LOGGER.logMessage(`Payer for the order: ${payer}`)
+  // const consumer = toUtf8String(getBytes(decodedEventData.args[0]))
+  // INDEXER_LOGGER.logMessage(`Consumer for the order: ${consumer}`)
+  // const payer = toUtf8String(getBytes(decodedEventData.args[1]))
+  // INDEXER_LOGGER.logMessage(`Payer for the order: ${payer}`)
   INDEXER_LOGGER.logMessage(
     `Processed new order for service index ${serviceIndex} at ${timestamp}`,
     true
