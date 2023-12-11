@@ -121,36 +121,27 @@ export const processOrderStartedEvent = async (
   chainId: number,
   provider: JsonRpcApiProvider
 ) => {
-  INDEXER_LOGGER.logMessage(`Entering OrderStarted processing`)
   const receipt = await provider.getTransactionReceipt(event.transactionHash)
-  INDEXER_LOGGER.logMessage(`Tx receipt OrderStarted processing: ${receipt}`)
   const iface = new Interface(ERC20Template.abi)
   const eventObj = {
     topics: receipt.logs[0].topics as string[],
     data: receipt.logs[0].data
   }
   const decodedEventData = iface.parseLog(eventObj)
-  INDEXER_LOGGER.logMessage(`Decoded data OrderStarted processing: ${receipt}`)
   const serviceIndex = parseInt(decodedEventData.args[3].toString())
   const timestamp = parseInt(decodedEventData.args[4].toString())
-  // const consumer = toUtf8String(getBytes(decodedEventData.args[0]))
-  // INDEXER_LOGGER.logMessage(`Consumer for the order: ${consumer}`)
-  // const payer = toUtf8String(getBytes(decodedEventData.args[1]))
-  // INDEXER_LOGGER.logMessage(`Payer for the order: ${payer}`)
   INDEXER_LOGGER.logMessage(
     `Processed new order for service index ${serviceIndex} at ${timestamp}`,
     true
   )
   const config = await getConfiguration()
   const dbconn = await new Database(config.dbConfig)
-  INDEXER_LOGGER.logMessage(`Datatoken address: ${event.address}`)
   const datatokenContract = new Contract(
     event.address,
     ERC20Template.abi,
     await provider.getSigner()
   )
   const nftAddress = await datatokenContract.getERC721Address()
-  INDEXER_LOGGER.logMessage(`NFT address in processing OrderStarted: ${nftAddress}`, true)
   const did =
     'did:op:' +
     createHash('sha256')
@@ -204,8 +195,13 @@ export const processOrderReusedEvent = async (
     `Processed reused order for order ${orderTxId} at ${timestamp}`,
     true
   )
+  const config = await getConfiguration()
   const dbconn = await new Database(config.dbConfig)
-  const datatokenContract = new Contract(event.address, ERC20Template.abi, provider)
+  const datatokenContract = new Contract(
+    event.address,
+    ERC20Template.abi,
+    await provider.getSigner()
+  )
   const nftAddress = await datatokenContract.getERC721Address()
   INDEXER_LOGGER.logMessage(`NFT address: ${nftAddress}`, true)
   const did =

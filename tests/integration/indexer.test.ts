@@ -39,6 +39,11 @@ describe('Indexer stores a new published DDO', () => {
   let assetDID: string
   let resolvedDDO: Record<string, any>
   let genericAsset: any
+  let orderTxId: string
+  let dataTokenContractWithNewSigner: any
+  let signedMessage: { v: string; r: string; s: string }
+  let message: string
+  let providerData: string
   const timeout = 0
   const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
   const providerFeeAddress = ZeroAddress // publisherAddress
@@ -224,8 +229,8 @@ describe('Indexer stores a new published DDO', () => {
     assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
 
     // sign provider data
-    const providerData = JSON.stringify({ timeout })
-    const message = solidityPackedKeccak256(
+    providerData = JSON.stringify({ timeout })
+    message = solidityPackedKeccak256(
       ['bytes', 'address', 'address', 'uint256', 'uint256'],
       [
         hexlify(toUtf8Bytes(providerData)),
@@ -235,7 +240,7 @@ describe('Indexer stores a new published DDO', () => {
         providerValidUntil
       ]
     )
-    const signedMessage = await signMessage(message, publisherAddress, provider)
+    signedMessage = await signMessage(message, publisherAddress, provider)
 
     // call the mint function on the dataTokenContract
     const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
@@ -243,9 +248,7 @@ describe('Indexer stores a new published DDO', () => {
     const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
     assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
 
-    const dataTokenContractWithNewSigner = dataTokenContract.connect(
-      consumerAccount
-    ) as any
+    dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
 
     const orderTx = await dataTokenContractWithNewSigner.startOrder(
       consumerAddress,
@@ -268,7 +271,7 @@ describe('Indexer stores a new published DDO', () => {
     )
     const orderTxReceipt = await orderTx.wait()
     assert(orderTxReceipt, 'order transaction failed')
-    const orderTxId = orderTxReceipt.hash
+    orderTxId = orderTxReceipt.hash
     assert(orderTxId, 'transaction id not found')
 
     const event = getEventFromTx(orderTxReceipt, 'OrderStarted')
@@ -282,5 +285,35 @@ describe('Indexer stores a new published DDO', () => {
     const retrievedDDO = await waitToIndex(assetDID, database)
     console.log('retrievedDDO', retrievedDDO)
     expect(retrievedDDO.stats.orders).to.equal(1)
+  })
+
+  it('should detect OrderReused event', async function () {
+    this.timeout(15000) // Extend default Mocha test timeout
+
+    const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
+      orderTxId,
+      {
+        providerFeeAddress,
+        providerFeeToken,
+        providerFeeAmount,
+        v: signedMessage.v,
+        r: signedMessage.r,
+        s: signedMessage.s,
+        providerData: hexlify(toUtf8Bytes(providerData)),
+        validUntil: providerValidUntil
+      },
+      {
+        consumeMarketFeeAddress,
+        consumeMarketFeeToken,
+        consumeMarketFeeAmount
+      }
+    )
+    const orderTxReceipt = await orderTx.wait()
+    assert(orderTxReceipt, 'order transaction failed')
+    const txId = orderTxReceipt.hash
+    assert(txId, 'transaction id not found')
+
+    const event = getEventFromTx(orderTxReceipt, 'OrderReused')
+    expect(event.args[0]).to.equal(orderTxId)
   })
 })
