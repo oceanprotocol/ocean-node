@@ -3,7 +3,7 @@ import {streamToString} from "../../utils/util.js";
 import {Readable} from "stream";
 import {handleGetDdoCommand} from "../core/ddoHandler.js";
 import {PROTOCOL_COMMANDS} from "../../utils/constants.js";
-import {handleQueryCommand} from "../core/queryHandler";
+import {handleQueryCommand} from "../core/queryHandler.js";
 
 export const aquariusRoutes = express.Router()
 
@@ -58,21 +58,21 @@ aquariusRoutes.post('/assets/metadata/query', async (req, res) => {
 aquariusRoutes.get('/aquarius/state/ddo', async (req, res) => {
     try {
         let query
-        const did: string = String(req.query.did)
+        const did = String(req.query.did)
         if (did) {
             query = {
                 q: did,
                 query_by: 'id',
             }
         }
-        const chainId: string = String(req.query.chainId)
+        const chainId = String(req.query.chainId)
         if (chainId) {
             query = {
                 q: chainId,
                 query_by: 'chainId',
             }
         }
-        const nft: string = String(req.query.nft)
+        const nft = String(req.query.nft)
         if (nft) {
             query = {
                 q: nft,
