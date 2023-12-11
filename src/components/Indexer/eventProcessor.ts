@@ -19,13 +19,21 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getConfig } from '../../utils/config.js'
 import { Database } from '../database/index.js'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
   LOG_LEVELS_STR.LEVEL_INFO,
   defaultConsoleTransport
 )
 
-const config = await getConfig()
+let config: OceanNodeConfig
+// Lazy load configuration
+async function getConfiguration(): Promise<OceanNodeConfig> {
+  if (!config) {
+    config = await getConfig()
+  }
+  return config
+}
 
 export const processMetadataEvents = async (
   event: ethers.Log,
@@ -73,7 +81,7 @@ export const processMetadataStateEvent = async (
   const decodedEventData = iface.parseLog(eventObj)
   const metadataState = parseInt(decodedEventData.args[1].toString())
   INDEXER_LOGGER.logMessage(`Processed new metadata state ${metadataState} `, true)
-  const dbconn = await new Database(config.dbConfig)
+  const dbconn = await new Database(await (await getConfiguration()).dbConfig)
   INDEXER_LOGGER.logMessage(
     `NFT address in processing MetadataState: ${event.address} `,
     true

@@ -241,7 +241,9 @@ describe('Indexer stores a new published DDO', () => {
         providerValidUntil
       ]
     )
+    console.log('solidityPackedKeccak256 message: ', message)
     const signedMessage = await signMessage(message, publisherAddress, provider)
+    console.log('signedMessage: ', signedMessage)
 
     const orderTx = await datatokenContract1.startOrder(
       publisherAddress,
@@ -262,6 +264,8 @@ describe('Indexer stores a new published DDO', () => {
         consumeMarketFeeAmount
       }
     )
+    console.log('orderTx: ', orderTx)
+
     const orderTxReceipt = await orderTx.wait()
     assert(orderTxReceipt, 'order transaction failed')
     const orderTxId = orderTxReceipt.hash
