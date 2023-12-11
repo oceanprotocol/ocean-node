@@ -137,8 +137,6 @@ export async function getConfig(): Promise<OceanNodeConfig> {
   }
 
   if (
-    !existsEnvironmentVariable(process.env.IPFS_GATEWAY, 'IPFS_GATEWAY') ||
-    !existsEnvironmentVariable(process.env.ARWEAVE_GATEWAY, 'ARWEAVE_GATEWAY') ||
     !existsEnvironmentVariable(process.env.FEE_TOKENS, 'FEE_TOKENS') ||
     !existsEnvironmentVariable(process.env.FEE_AMOUNT, 'FEE_AMOUNT')
   ) {
