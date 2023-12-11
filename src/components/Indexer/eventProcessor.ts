@@ -77,17 +77,31 @@ export const processMetadataStateEvent = async (
       return
     }
     INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
+    INDEXER_LOGGER.logMessage(
+      `contract metadata state REVOKED, DEPRECATED, END_OF_LIFE: ${[
+        MetadataStates.REVOKED,
+        MetadataStates.DEPRECATED,
+        MetadataStates.END_OF_LIFE
+      ].includes(metadataState)} contract state value: ${metadataState}`
+    )
+    INDEXER_LOGGER.logMessage(
+      `ddo NFT state REVOKED, DEPRECATED, END_OF_LIFE: ${[
+        MetadataStates.REVOKED,
+        MetadataStates.DEPRECATED,
+        MetadataStates.END_OF_LIFE
+      ].includes(ddo.nft.state)} ddo NFT state value: ${ddo.nft.state}`
+    )
+
     if ('nft' in ddo) {
       // if asset was already in soft state, let's check if we need to bring it back
-      // if (
-      //   (metadataState === MetadataStates.ACTIVE ||
-      //     metadataState === MetadataStates.END_OF_LIFE) &&
-      //   [MetadataStates.REVOKED].includes(ddo.nft.state)
-      // ) {
-      //   return processMetadataCreatedEvent(event, chainId, provider)
-      // }
-      // check if asset is active before doing delete
       if (
+        (metadataState === MetadataStates.ACTIVE ||
+          metadataState === MetadataStates.END_OF_LIFE) &&
+        [MetadataStates.REVOKED].includes(ddo.nft.state)
+      ) {
+        return processMetadataCreatedEvent(event, chainId, provider)
+      } else if (
+        // check if asset is active before doing delete
         [
           MetadataStates.REVOKED,
           MetadataStates.DEPRECATED,
