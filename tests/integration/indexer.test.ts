@@ -23,6 +23,7 @@ import { RPCS } from '../../src/@types/blockchain.js'
 import { getEventFromTx } from '../../src/utils/util.js'
 import { delay, waitToIndex, signMessage } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
+import { consumers } from 'stream'
 
 describe('Indexer stores a new published DDO', () => {
   let database: Database
@@ -218,8 +219,8 @@ describe('Indexer stores a new published DDO', () => {
       ERC20Template.abi,
       publisherAccount
     )
-    // const paymentCollector = await dataTokenContract.getPaymentCollector()
-    // assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
+    const paymentCollector = await dataTokenContract.getPaymentCollector()
+    assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
 
     // sign provider data
     const providerData = JSON.stringify({ timeout })
@@ -271,8 +272,21 @@ describe('Indexer stores a new published DDO', () => {
     assert(orderTxId, 'transaction id not found')
 
     const event = getEventFromTx(orderTxReceipt, 'OrderStarted')
+<<<<<<< Updated upstream
 
     expect(event.args[1]).to.equal(consumerAddress) // payer
     expect(parseInt(event.args[3]).toString()).to.equal(serviceIndex) // serviceIndex
+=======
+    expect(event.args[1]).to.equal(consumerAddress) // payer
+    expect(event.args[3]).to.equal(serviceIndex) // serviceIndex
+>>>>>>> Stashed changes
+  })
+
+  delay(50000)
+
+  it('should get number of orders', async () => {
+    const retrievedDDO = await waitToIndex(assetDID, database)
+    console.log('retrievedDDO', retrievedDDO)
+    expect(retrievedDDO.stats.orders).to.equal(1)
   })
 })
