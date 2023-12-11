@@ -23,7 +23,6 @@ import { RPCS } from '../../src/@types/blockchain.js'
 import { getEventFromTx } from '../../src/utils/util.js'
 import { delay, waitToIndex, signMessage } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
-import { consumers } from 'stream'
 
 describe('Indexer stores a new published DDO', () => {
   let database: Database
@@ -121,9 +120,11 @@ describe('Indexer stores a new published DDO', () => {
     const event = getEventFromTx(txReceipt, 'NFTCreated')
     nftAddress = event.args[0]
     assert(nftAddress, 'find nft created failed')
+    console.log('nftAddress for OrderStarted test: ', nftAddress)
     const datatokenEvent = getEventFromTx(txReceipt, 'TokenCreated')
     datatokenAddress = datatokenEvent.args[0]
     assert(datatokenAddress, 'find datatoken created failed')
+    console.log('datatokenAddress for OrderStarted test: ', datatokenAddress)
   })
 
   it('should set metadata and save ', async () => {
@@ -265,21 +266,14 @@ describe('Indexer stores a new published DDO', () => {
         consumeMarketFeeAmount
       }
     )
-
     const orderTxReceipt = await orderTx.wait()
     assert(orderTxReceipt, 'order transaction failed')
     const orderTxId = orderTxReceipt.hash
     assert(orderTxId, 'transaction id not found')
 
     const event = getEventFromTx(orderTxReceipt, 'OrderStarted')
-<<<<<<< Updated upstream
-
     expect(event.args[1]).to.equal(consumerAddress) // payer
-    expect(parseInt(event.args[3]).toString()).to.equal(serviceIndex) // serviceIndex
-=======
-    expect(event.args[1]).to.equal(consumerAddress) // payer
-    expect(event.args[3]).to.equal(serviceIndex) // serviceIndex
->>>>>>> Stashed changes
+    expect(parseInt(event.args[3].toString())).to.equal(serviceIndex) // serviceIndex
   })
 
   delay(50000)
