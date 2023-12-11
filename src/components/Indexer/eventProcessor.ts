@@ -189,13 +189,8 @@ export const processOrderReusedEvent = async (
     data: receipt.logs[0].data
   }
   const decodedEventData = iface.parseLog(eventObj)
-  const byteArray = getBytes(decodedEventData.args[0])
-  const orderTxId = toUtf8String(byteArray)
   const timestamp = parseInt(decodedEventData.args[2].toString())
-  INDEXER_LOGGER.logMessage(
-    `Processed reused order for order ${orderTxId} at ${timestamp}`,
-    true
-  )
+  INDEXER_LOGGER.logMessage(`Processed reused order at ${timestamp}`, true)
   const config = await getConfiguration()
   const dbconn = await new Database(config.dbConfig)
   const datatokenContract = new Contract(
