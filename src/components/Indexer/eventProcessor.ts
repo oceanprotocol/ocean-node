@@ -135,7 +135,11 @@ export const processOrderStartedEvent = async (
   )
   const dbconn = await new Database(config.dbConfig)
   INDEXER_LOGGER.logMessage(`Datatoken address: ${event.address}`)
-  const datatokenContract = new Contract(event.address, ERC20Template.abi, provider)
+  const datatokenContract = new Contract(
+    event.address,
+    ERC20Template.abi,
+    await provider.getSigner()
+  )
   const nftAddress = await datatokenContract.getERC721Address()
   INDEXER_LOGGER.logMessage(`NFT address in processing OrderStarted: ${nftAddress}`, true)
   const did =
