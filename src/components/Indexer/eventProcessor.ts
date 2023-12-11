@@ -111,7 +111,7 @@ export const processMetadataStateEvent = async (
 export const processOrderStartedEvent = async (
   event: ethers.Log,
   chainId: number,
-  provider: JsonRpcApiProvider
+  provider: ethers.Provider
 ) => {
   const receipt = await provider.getTransactionReceipt(event.transactionHash)
   const iface = new Interface(ERC20Template.abi)
@@ -122,6 +122,10 @@ export const processOrderStartedEvent = async (
   const decodedEventData = iface.parseLog(eventObj)
   const serviceIndex = parseInt(decodedEventData.args[3].toString())
   const timestamp = parseInt(decodedEventData.args[4].toString())
+  const consumer = toUtf8String(getBytes(decodedEventData.args[0]))
+  INDEXER_LOGGER.logMessage(`Consumer for the order: ${consumer}`)
+  const payer = toUtf8String(getBytes(decodedEventData.args[1]))
+  INDEXER_LOGGER.logMessage(`Payer for the order: ${payer}`)
   INDEXER_LOGGER.logMessage(
     `Processed new order for service index ${serviceIndex} at ${timestamp}`,
     true

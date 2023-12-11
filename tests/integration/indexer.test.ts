@@ -217,9 +217,17 @@ describe('Indexer stores a new published DDO', () => {
   it('should get OrderStarted event', async function () {
     const publisherAddress = await publisherAccount.getAddress()
     this.timeout(15000)
-    datatokenContract = new Contract(datatokenAddress, ERC20Template.abi, provider)
-    // const paymentCollector = await datatokenContract.getPaymentCollector()
-    // assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
+    const datatokenContract1 = new Contract(
+      datatokenAddress,
+      ERC20Template.abi,
+      publisherAccount
+    )
+    const paymentCollector = await datatokenContract1.getPaymentCollector()
+    console.log(
+      'NFT address from getERC721Address function: ',
+      await datatokenContract1.getERC721Address()
+    )
+    assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
 
     // sign provider data
     const providerData = JSON.stringify({ timeout })
@@ -235,7 +243,7 @@ describe('Indexer stores a new published DDO', () => {
     )
     const signedMessage = await signMessage(message, publisherAddress, provider)
 
-    const orderTx = await datatokenContract.startOrder(
+    const orderTx = await datatokenContract1.startOrder(
       publisherAddress,
       serviceIndex,
       {
