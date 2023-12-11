@@ -6,7 +6,7 @@ import {
   getCustomLoggerForModule
 } from '../utils/logging/Logger.js'
 // Put some utilities functions here
-import {Readable} from "stream";
+import { Readable } from 'stream'
 
 // sleep for ms miliseconds
 import { Interface } from 'ethers'
@@ -17,7 +17,7 @@ export function sleep(ms: number) {
 
 export async function streamToString(stream: Readable) {
   const chunks = []
-  for await (let chunk of stream) {
+  for await (const chunk of stream) {
     chunks.push(chunk)
   }
   return Buffer.concat(chunks).toString()
