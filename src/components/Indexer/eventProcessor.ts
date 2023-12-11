@@ -92,14 +92,14 @@ export const processMetadataStateEvent = async (
           MetadataStates.REVOKED,
           MetadataStates.DEPRECATED,
           MetadataStates.END_OF_LIFE
-        ].includes(metadataState)}`
+        ].includes(metadataState)} contract state value: ${metadataState}`
       )
       INDEXER_LOGGER.logMessage(
         `ddo NFT state REVOKED, DEPRECATED, END_OF_LIFE: ${[
           MetadataStates.REVOKED,
           MetadataStates.DEPRECATED,
           MetadataStates.END_OF_LIFE
-        ].includes(ddo.nft.state)}`
+        ].includes(ddo.nft.state)} ddo NFT state value: ${ddo.nft.state}`
       )
       if (
         [
