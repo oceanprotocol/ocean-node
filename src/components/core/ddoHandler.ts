@@ -7,8 +7,10 @@ import { FindDDOResponse, P2PCommandResponse } from '../../@types'
 import { Readable } from 'stream'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { CACHE_TTL, OceanP2P, P2P_CONSOLE_LOGGER } from '../P2P/index.js'
-import { sleep } from '../../utils/util.js'
+import { sleep, readStream } from '../../utils/util.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { DDO } from '../../@types/DDO/DDO.js'
+import { Service } from '../../@types/DDO/Service.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -322,4 +324,70 @@ async function findDDOLocally(
     return ddoInfo
   }
   return undefined
+}
+
+// Function to map and format each service
+function formatService(serviceData: any): Service {
+  return {
+    id: serviceData.id,
+    type: serviceData.type,
+    files: serviceData.files,
+    datatokenAddress: serviceData.datatokenAddress,
+    serviceEndpoint: serviceData.serviceEndpoint,
+    timeout: serviceData.timeout,
+    name: serviceData.name,
+    description: serviceData.description,
+    compute: serviceData.compute, // Ensure this matches the ServiceComputeOptions interface
+    consumerParameters: serviceData.consumerParameters, // Ensure this matches the ConsumerParameter[] interface
+    additionalInformation: serviceData.additionalInformation
+  }
+}
+
+// Function to use findDDO and get DDO in desired format
+export async function findAndFormatDdo(
+  node: OceanP2P,
+  ddoId: string
+): Promise<DDO | null> {
+  const task: FindDDOCommand = {
+    id: ddoId,
+    command: PROTOCOL_COMMANDS.FIND_DDO
+  }
+
+  try {
+    const response: P2PCommandResponse = await findDDO(node, task)
+
+    if (response.stream) {
+      const streamData = await readStream(response.stream)
+      const ddoList = JSON.parse(streamData)
+
+      // Assuming the first DDO in the list is the one we want
+      const ddoData = ddoList[0]
+      if (!ddoData) {
+        return null
+      }
+
+      // Format each service according to the Service interface
+      const formattedServices = ddoData.services.map(formatService)
+
+      // Map the DDO data to the DDO interface
+      const ddo: DDO = {
+        '@context': ddoData['@context'],
+        id: ddoData.id,
+        version: ddoData.version,
+        nftAddress: ddoData.nftAddress,
+        chainId: ddoData.chainId,
+        metadata: ddoData.metadata,
+        services: formattedServices,
+        credentials: ddoData.credentials,
+        event: ddoData.event
+      }
+
+      return ddo
+    }
+
+    return null
+  } catch (error) {
+    console.error('Error getting DDO:', error)
+    return null
+  }
 }

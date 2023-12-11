@@ -1,4 +1,4 @@
-import { Provider, Contract, Interface } from 'ethers'
+import { JsonRpcProvider, Contract, Interface } from 'ethers'
 import { fetchEventFromTransaction } from '../../utils/util.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
@@ -11,13 +11,14 @@ interface ValidateTransactionResponse {
 export async function validateOrderTransaction(
   txId: string,
   userAddress: string,
-  provider: Provider,
+  rpc: string,
   dataNftAddress: string,
   datatokenAddress: string,
   serviceIndex: number,
   serviceTimeout: number
 ): Promise<ValidateTransactionResponse> {
   const contractInterface = new Interface(ERC20Template.abi)
+  const provider = new JsonRpcProvider(rpc)
 
   // 1. Fetch the transaction receipt and parse for OrderStarted and OrderReused events
   let txReceipt = await provider.getTransactionReceipt(txId)

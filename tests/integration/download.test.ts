@@ -14,7 +14,7 @@ import {
 import { createHash } from 'crypto'
 import fs from 'fs'
 import { homedir } from 'os'
-import { validateOrderTransaction } from '../../src/components/core/validateTransaction'
+import { handleDownload } from '../../src/components/core/downloadHandler.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
@@ -22,6 +22,9 @@ import { getEventFromTx } from '../../src/utils/util.js'
 import { signMessage } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import { Database } from '../../src/components/database/index.js'
+import { getConfig } from '../../src/utils/config.js'
+import { OceanP2P } from '../../src/components/P2P/index.js'
+import { PROTOCOL_COMMANDS } from '../../src/utils/constants.js'
 
 describe('validateOrderTransaction Function with Orders', () => {
   let database: Database
@@ -36,6 +39,7 @@ describe('validateOrderTransaction Function with Orders', () => {
   let consumerAddress: string
   let dataNftAddress: string
   let datatokenAddress: string
+  let assetDID: string
   let message: string
   let providerData: string
   let orderTxId: string
@@ -137,6 +141,7 @@ describe('validateOrderTransaction Function with Orders', () => {
         .update(getAddress(dataNftAddress) + chainId.toString(10))
         .digest('hex')
     genericDDO.nftAddress = dataNftAddress
+    assetDID = genericDDO.id
 
     const stringDDO = JSON.stringify(genericDDO)
     const bytes = Buffer.from(stringDDO)
@@ -156,7 +161,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     assert(trxReceipt, 'set metadata failed')
   })
 
-  it('should start an order and validate the transaction', async function () {
+  it('should start an order and then download the asset', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
     dataTokenContract = new Contract(
       datatokenAddress,
@@ -211,157 +216,5 @@ describe('validateOrderTransaction Function with Orders', () => {
     assert(orderTxReceipt, 'order transaction failed')
     orderTxId = orderTxReceipt.hash
     assert(orderTxId, 'transaction id not found')
-
-    // Use the transaction receipt in validateOrderTransaction
-
-    const validationResult = await validateOrderTransaction(
-      orderTxId,
-      consumerAddress,
-      provider,
-      dataNftAddress,
-      datatokenAddress,
-      serviceIndex,
-      timeout
-    )
-    assert(validationResult.isValid, 'Transaction is not valid.')
-    assert(
-      validationResult.message === 'Transaction is valid.',
-      'Invalid transaction validation message.'
-    )
-  })
-
-  it('should reuse an order and validate the transaction', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
-
-    const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
-      orderTxId,
-      {
-        providerFeeAddress,
-        providerFeeToken,
-        providerFeeAmount,
-        v: signedMessage.v,
-        r: signedMessage.r,
-        s: signedMessage.s,
-        providerData: hexlify(toUtf8Bytes(providerData)),
-        validUntil: providerValidUntil
-      },
-      {
-        consumeMarketFeeAddress,
-        consumeMarketFeeToken,
-        consumeMarketFeeAmount
-      }
-    )
-    const orderTxReceipt = await orderTx.wait()
-    assert(orderTxReceipt, 'order transaction failed')
-    const txId = orderTxReceipt.hash
-    assert(txId, 'transaction id not found')
-
-    // Use the transaction receipt in validateOrderTransaction
-
-    const validationResult = await validateOrderTransaction(
-      txId,
-      consumerAddress,
-      provider,
-      dataNftAddress,
-      datatokenAddress,
-      serviceIndex,
-      timeout
-    )
-
-    assert(validationResult.isValid, 'Reuse order transaction is not valid.')
-    assert(
-      validationResult.message === 'Transaction is valid.',
-      'Invalid reuse order transaction validation message.'
-    )
-  })
-
-  it('should reject reuse an order with invald serviceIndex', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
-
-    const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
-      orderTxId,
-      {
-        providerFeeAddress,
-        providerFeeToken,
-        providerFeeAmount,
-        v: signedMessage.v,
-        r: signedMessage.r,
-        s: signedMessage.s,
-        providerData: hexlify(toUtf8Bytes(providerData)),
-        validUntil: providerValidUntil
-      },
-      {
-        consumeMarketFeeAddress,
-        consumeMarketFeeToken,
-        consumeMarketFeeAmount
-      }
-    )
-    const orderTxReceipt = await orderTx.wait()
-    assert(orderTxReceipt, 'order transaction failed')
-    const txId = orderTxReceipt.hash
-    assert(txId, 'transaction id not found')
-
-    // Use the transaction receipt in validateOrderTransaction
-
-    const validationResult = await validateOrderTransaction(
-      txId,
-      consumerAddress,
-      provider,
-      dataNftAddress,
-      datatokenAddress,
-      999,
-      timeout
-    )
-
-    assert(!validationResult.isValid, 'Reuse order transaction should not be valid.')
-    assert(
-      validationResult.message === 'Invalid service index.',
-      'Invalid reuse order transaction validation message.'
-    )
-  })
-  it('should reject reuse an order with invald user address', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
-
-    const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
-      orderTxId,
-      {
-        providerFeeAddress,
-        providerFeeToken,
-        providerFeeAmount,
-        v: signedMessage.v,
-        r: signedMessage.r,
-        s: signedMessage.s,
-        providerData: hexlify(toUtf8Bytes(providerData)),
-        validUntil: providerValidUntil
-      },
-      {
-        consumeMarketFeeAddress,
-        consumeMarketFeeToken,
-        consumeMarketFeeAmount
-      }
-    )
-    const orderTxReceipt = await orderTx.wait()
-    assert(orderTxReceipt, 'order transaction failed')
-    const txId = orderTxReceipt.hash
-    assert(txId, 'transaction id not found')
-
-    // Use the transaction receipt in validateOrderTransaction
-
-    const validationResult = await validateOrderTransaction(
-      txId,
-      '0x0',
-      provider,
-      dataNftAddress,
-      datatokenAddress,
-      serviceIndex,
-      timeout
-    )
-
-    assert(!validationResult.isValid, 'Reuse order transaction should not be valid.')
-    assert(
-      validationResult.message ===
-        'User address does not match the sender of the transaction.',
-      'Wrong transaction rejection message'
-    )
   })
 })

@@ -337,7 +337,7 @@ export async function getFees(task: GetFeesCommand): Promise<P2PCommandResponse>
 }
 
 // These core functions are provider related functions, maybe they will be on Provider
-// this migth be different between chains
+// this might be different between chains
 /**
  * Get the provider wallet
  * @param chainId the chain id (not used now)

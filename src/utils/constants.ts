@@ -4,6 +4,7 @@ import { P2PCommandResponse } from '../@types/OceanNode'
 
 // Add all the supported commands
 export const PROTOCOL_COMMANDS = {
+  DOWNLOAD: 'download',
   DOWNLOAD_URL: 'downloadURL',
   ECHO: 'echo',
   ENCRYPT: 'encrypt',
@@ -25,15 +26,14 @@ export interface DownloadURLCommand extends Command {
   aes_encrypted_key?: string // if not present it means download without encryption
 }
 
-export interface DownloadCommand extends Command {
+export interface DownloadTask {
   documentId: string
-  serviceId: string
+  serviceIndex: number
   transferTxId: string
   fileIndex: number
   nonce: string
   consumerAddress: string
   signature: string
-  url: string
   aes_encrypted_key?: string // if not present it means download without encryption
 }
 
