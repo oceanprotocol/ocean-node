@@ -428,7 +428,7 @@ export class OceanP2P extends EventEmitter {
         await this._libp2p.contentRouting.provide(cid)
       }
     } catch (e) {
-      console.log(e)
+      P2P_CONSOLE_LOGGER.error(e)
     }
   }
 
