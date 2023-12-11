@@ -111,15 +111,18 @@ export const processMetadataStateEvent = async (
 export const processOrderStartedEvent = async (
   event: ethers.Log,
   chainId: number,
-  provider: ethers.Provider
+  provider: JsonRpcApiProvider
 ) => {
+  INDEXER_LOGGER.logMessage(`Entering OrderStarted processing`)
   const receipt = await provider.getTransactionReceipt(event.transactionHash)
+  INDEXER_LOGGER.logMessage(`Tx receipt OrderStarted processing: ${receipt}`)
   const iface = new Interface(ERC20Template.abi)
   const eventObj = {
     topics: receipt.logs[0].topics as string[],
     data: receipt.logs[0].data
   }
   const decodedEventData = iface.parseLog(eventObj)
+  INDEXER_LOGGER.logMessage(`Decoded data OrderStarted processing: ${receipt}`)
   const serviceIndex = parseInt(decodedEventData.args[3].toString())
   const timestamp = parseInt(decodedEventData.args[4].toString())
   const consumer = toUtf8String(getBytes(decodedEventData.args[0]))
@@ -131,6 +134,7 @@ export const processOrderStartedEvent = async (
     true
   )
   const dbconn = await new Database(config.dbConfig)
+  INDEXER_LOGGER.logMessage(`Datatoken address: ${event.address}`)
   const datatokenContract = new Contract(event.address, ERC20Template.abi, provider)
   const nftAddress = await datatokenContract.getERC721Address()
   INDEXER_LOGGER.logMessage(`NFT address in processing OrderStarted: ${nftAddress}`, true)
