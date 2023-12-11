@@ -136,8 +136,8 @@ jobs:
             sleep 10
             [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" ] && break
           done
-      - name: Setup upterm session
-        uses: lhotari/action-upterm@v1
+      - name: Display addresses
+        run: cat $HOME/.ocean/ocean-contracts/artifacts/address.json
       - name: integration tests
         run: npm run test:integration:cover
         env:
