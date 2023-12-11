@@ -147,6 +147,7 @@ export const processOrderStartedEvent = async (
     createHash('sha256')
       .update(getAddress(nftAddress) + chainId.toString(10))
       .digest('hex')
+  INDEXER_LOGGER.logMessage(`DID in OrderStarted: ${did}`)
   try {
     const ddo = await dbconn.ddo.retrieve(did)
     if (!ddo) {
@@ -203,12 +204,12 @@ export const processOrderReusedEvent = async (
     await provider.getSigner()
   )
   const nftAddress = await datatokenContract.getERC721Address()
-  INDEXER_LOGGER.logMessage(`NFT address: ${nftAddress}`, true)
   const did =
     'did:op:' +
     createHash('sha256')
       .update(getAddress(nftAddress) + chainId.toString(10))
       .digest('hex')
+  INDEXER_LOGGER.logMessage(`DID in OrderReused: ${did}`)
   try {
     const ddo = await dbconn.ddo.retrieve(did)
     if (!ddo) {
@@ -217,7 +218,9 @@ export const processOrderReusedEvent = async (
       )
       return
     }
-    INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
+    INDEXER_LOGGER.logMessage(
+      `Found did ${did} on network ${chainId}. Stats: ${ddo.stats}`
+    )
     ddo.stats.orders += 1
     INDEXER_LOGGER.logMessage(`Found did ${did} for order starting on network ${chainId}`)
     return ddo
