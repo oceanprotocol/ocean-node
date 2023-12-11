@@ -160,7 +160,7 @@ describe('Indexer stores a new published DDO', () => {
     result = await nftContract.getMetaData()
     expect(parseInt(result[2].toString())).to.equal(1)
     resolvedDDO = await waitToIndex(assetDID, database)
-    console.log('resolvedDDO: ', resolvedDDO)
+    console.log('resolvedDDO after state update: ', resolvedDDO)
     expect(resolvedDDO).to.equal(null)
   })
 })
