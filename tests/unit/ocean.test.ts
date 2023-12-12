@@ -1,7 +1,7 @@
 import { OceanNode } from '../../src/OceanNode.js'
 import { getConfig } from '../../src/utils/index.js'
 
-import { expect } from 'chai'
+import { expect, assert } from 'chai'
 
 // avoid override local setup / env variables
 const ORIGINAL_PRIVATE_KEY = process.env.PRIVATE_KEY
@@ -44,6 +44,8 @@ describe('Status command tests', () => {
     })
     expect(oceanNode.getDatabase()).to.not.eql(null)
     if (config.hasP2P) {
+      console.log('oceanNode.getP2PNode()', oceanNode.getP2PNode())
+      assert(oceanNode.getP2PNode())
       expect(oceanNode.getP2PNode()).to.not.eql(null)
     }
     if (config.hasIndexer) {
