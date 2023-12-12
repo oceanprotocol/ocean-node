@@ -65,7 +65,7 @@ export class FeesHandler extends CommandHandler {
           error,
           true,
           GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-          LOG_LEVELS_STR.LEVEl_ERROR
+          LOG_LEVELS_STR.LEVEL_ERROR
         )
         return {
           stream: null,
@@ -80,7 +80,7 @@ export class FeesHandler extends CommandHandler {
         error.message,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEl_ERROR
+        LOG_LEVELS_STR.LEVEL_ERROR
       )
     }
   }

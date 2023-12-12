@@ -162,7 +162,12 @@ export async function findDDO(
         }
         processed++
       } catch (err) {
-        console.log('Error on sink function: ' + err.message)
+        P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+          'FindDDO: Error on sink function: ' + err.message,
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEL_ERROR
+        )
         processed++
       }
     }
@@ -170,7 +175,11 @@ export async function findDDO(
 
     // if something goes really bad then exit after 60 secs
     const fnTimeout = setTimeout(() => {
-      console.log('FindDDO Timeout reached: ')
+      P2P_CONSOLE_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_DEBUG,
+        'FindDDO: Timeout reached: ',
+        true
+      )
       return {
         stream: Readable.from(JSON.stringify(sortFindDDOResults(resultList), null, 4)),
         status: { httpStatus: 200 }
@@ -279,7 +288,7 @@ export async function findDDO(
       `Error: '${error.message}' was caught while getting DDO info for id: ${task.id}`,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEl_ERROR
+      LOG_LEVELS_STR.LEVEL_ERROR
     )
     return {
       stream: null,

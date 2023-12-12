@@ -10,6 +10,7 @@ import { getConfig } from './utils/index.js'
 
 import {
   CustomNodeLogger,
+  GENERIC_EMOJIS,
   LOGGER_MODULE_NAMES,
   LOG_LEVELS_STR,
   defaultConsoleTransport,
@@ -46,14 +47,18 @@ function loadInitialDDOS(): any[] {
   const dir: string = './data/'
   for (let i = 1; i < 6; i++) {
     const fileName = `${dir}DDO_example_${i}.json`
-    console.log(fileName)
+    logger.logMessage(`Loading test DDO from ${fileName}`, true)
     try {
       // eslint-disable-next-line security/detect-non-literal-fs-filename
       const rawData = fs.readFileSync(fileName, 'utf8')
       const jsonData = JSON.parse(rawData)
       ddos.push(jsonData)
     } catch (err) {
-      console.log(err)
+      logger.log(
+        LOG_LEVELS_STR.LEVEL_WARN,
+        `Error loading test DDO from ${fileName}`,
+        true
+      )
     }
   }
   return ddos
@@ -68,6 +73,12 @@ const config = await getConfig(isStartup)
 if (!config) {
   process.exit(1)
 }
+logger.logMessageWithEmoji(
+  '[ Starting Ocean Node ]',
+  true,
+  GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
+  LOG_LEVELS_STR.LEVEL_INFO
+)
 const oceanNode = new OceanNode(config)
 let node: OceanP2P = null
 let indexer = null

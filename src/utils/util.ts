@@ -49,7 +49,7 @@ export function fetchEventFromTransaction(
   } catch (error) {
     const PROVIDER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
       LOGGER_MODULE_NAMES.PROVIDER,
-      LOG_LEVELS_STR.LEVEl_ERROR,
+      LOG_LEVELS_STR.LEVEL_ERROR,
       defaultConsoleTransport
     )
 

@@ -67,7 +67,7 @@ function getSupportedChains(): RPCS {
       'Missing or Invalid RPCS env variable format ..',
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEl_ERROR
+      LOG_LEVELS_STR.LEVEL_ERROR
     )
     return
   }
@@ -128,7 +128,7 @@ function getOceanNodeFees(supportedNetworks: RPCS, isStartup?: boolean): FeeStra
       'Error parsing Fee Strategy! Please check "FEE_TOKENS" and "FEE_AMOUNT" env variables. Will use defaults...',
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEl_ERROR
+      LOG_LEVELS_STR.LEVEL_ERROR
     )
   }
   let nodeFeesAmount: FeeAmount
@@ -203,7 +203,7 @@ function existsEnvironmentVariable(envVariable: any, log = false): boolean {
         required
           ? GENERIC_EMOJIS.EMOJI_CROSS_MARK
           : getLoggerLevelEmoji(LOG_LEVELS_STR.LEVEL_WARN),
-        required ? LOG_LEVELS_STR.LEVEl_ERROR : LOG_LEVELS_STR.LEVEL_WARN
+        required ? LOG_LEVELS_STR.LEVEL_ERROR : LOG_LEVELS_STR.LEVEL_WARN
       )
     }
 
@@ -219,7 +219,7 @@ export async function getConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       'Invalid PRIVATE_KEY env variable..',
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEl_ERROR
+      LOG_LEVELS_STR.LEVEL_ERROR
     )
     return null
   }
