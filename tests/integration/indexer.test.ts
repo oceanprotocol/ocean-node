@@ -278,6 +278,9 @@ describe('Indexer stores a new published DDO', () => {
   it('should get number of orders', async () => {
     const retrievedDDO = await waitToIndex(assetDID, database)
     expect(retrievedDDO.stats.orders).to.equal(1)
+    const resultOrder = await database.order.retrieve(orderTxId)
+    expect(resultOrder?.id).to.equal(orderTxId)
+    expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
   })
 
   it('should detect OrderReused event', async function () {

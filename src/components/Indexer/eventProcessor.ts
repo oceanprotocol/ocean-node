@@ -128,8 +128,11 @@ export const processOrderStartedEvent = async (
     data: receipt.logs[0].data
   }
   const decodedEventData = iface.parseLog(eventObj)
+  INDEXER_LOGGER.logMessage(`Decoded event data args: ${decodedEventData.args}`, true)
   const serviceIndex = parseInt(decodedEventData.args[3].toString())
   const timestamp = parseInt(decodedEventData.args[4].toString())
+  const consumer = decodedEventData.args[0].toString()
+  const payer = decodedEventData.args[1].toString()
   INDEXER_LOGGER.logMessage(
     `Processed new order for service index ${serviceIndex} at ${timestamp}`,
     true
@@ -164,6 +167,7 @@ export const processOrderStartedEvent = async (
         orders: 1
       }
     }
+    await dbconn.order.create(event.transactionHash, consumer, payer, 0) // set 0 for forever
     INDEXER_LOGGER.logMessage(`Found did ${did} for order starting on network ${chainId}`)
     return ddo
   } catch (err) {
