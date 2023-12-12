@@ -80,7 +80,7 @@ export const processMetadataStateEvent = async (
       .update(getAddress(event.address) + chainId.toString(10))
       .digest('hex')
   try {
-    const ddo = await dbconn.ddo.retrieve(did)
+    let ddo = await dbconn.ddo.retrieve(did)
     if (!ddo) {
       INDEXER_LOGGER.logMessage(
         `Detected MetadataState changed for ${did}, but it does not exists.`
@@ -106,31 +106,19 @@ export const processMetadataStateEvent = async (
     if ('nft' in ddo) {
       // if asset was already in soft state, let's check if we need to bring it back
       if (
-        (metadataState === MetadataStates.ACTIVE ||
-          metadataState === MetadataStates.END_OF_LIFE) &&
-        [MetadataStates.REVOKED].includes(ddo.nft.state)
-      ) {
-        ddo.nft.state = metadataState
-      }
-      if (
-        // check if asset is active before doing delete
+        ddo.nft.state === MetadataStates.ACTIVE &&
         [
           MetadataStates.REVOKED,
           MetadataStates.DEPRECATED,
           MetadataStates.END_OF_LIFE
-        ].includes(metadataState) &&
-        ![
-          MetadataStates.REVOKED,
-          MetadataStates.DEPRECATED,
-          MetadataStates.END_OF_LIFE
-        ].includes(ddo.nft.state)
+        ].includes(metadataState)
       ) {
-        try {
-          await dbconn.ddo.delete(did)
-        } catch (err) {
-          INDEXER_LOGGER.logMessage(`Error for soft deleting DDO ${did}: ${err}`)
-          return
+        const shortVersion = {
+          id: ddo.id,
+          nftAddress: ddo.nftAddress
         }
+        ddo.nft.state = metadataState
+        ddo = shortVersion
       }
       if (ddo.nft.state !== metadataState) {
         ddo.nft.state = metadataState
