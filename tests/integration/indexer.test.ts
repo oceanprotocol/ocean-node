@@ -41,10 +41,12 @@ describe('Indexer stores a new published DDO', () => {
   let resolvedDDO: Record<string, any>
   let genericAsset: any
   let orderTxId: string
+  let reuseOrderTxId: string
   let dataTokenContractWithNewSigner: any
   let signedMessage: { v: string; r: string; s: string }
   let message: string
   let providerData: string
+  let orderEvent: any
   const timeout = 0
   const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
   const providerFeeAddress = ZeroAddress // publisherAddress
@@ -268,9 +270,9 @@ describe('Indexer stores a new published DDO', () => {
     orderTxId = orderTxReceipt.hash
     assert(orderTxId, 'transaction id not found')
 
-    const event = getEventFromTx(orderTxReceipt, 'OrderStarted')
-    expect(event.args[1]).to.equal(consumerAddress) // payer
-    expect(parseInt(event.args[3].toString())).to.equal(serviceIndex) // serviceIndex
+    orderEvent = getEventFromTx(orderTxReceipt, 'OrderStarted')
+    expect(orderEvent.args[1]).to.equal(consumerAddress) // payer
+    expect(parseInt(orderEvent.args[3].toString())).to.equal(serviceIndex) // serviceIndex
   })
 
   delay(50000)
@@ -281,6 +283,9 @@ describe('Indexer stores a new published DDO', () => {
     const resultOrder = await database.order.retrieve(orderTxId)
     expect(resultOrder?.id).to.equal(orderTxId)
     expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
+    expect(resultOrder?.type).to.equal('startOrder')
+    const timestamp = orderEvent.args[4].toString()
+    expect(resultOrder?.timestamp.toString()).to.equal(timestamp)
   })
 
   it('should detect OrderReused event', async function () {
@@ -306,8 +311,8 @@ describe('Indexer stores a new published DDO', () => {
     )
     const orderTxReceipt = await orderTx.wait()
     assert(orderTxReceipt, 'order transaction failed')
-    const txId = orderTxReceipt.hash
-    assert(txId, 'transaction id not found')
+    reuseOrderTxId = orderTxReceipt.hash
+    assert(reuseOrderTxId, 'transaction id not found')
 
     const event = getEventFromTx(orderTxReceipt, 'OrderReused')
     expect(event.args[0]).to.equal(orderTxId)
@@ -318,5 +323,12 @@ describe('Indexer stores a new published DDO', () => {
   it('should increase number of orders', async () => {
     const retrievedDDO = await waitToIndex(assetDID, database)
     expect(retrievedDDO.stats.orders).to.equal(2)
+    const resultOrder = await database.order.retrieve(reuseOrderTxId)
+    expect(resultOrder?.id).to.equal(reuseOrderTxId)
+    expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
+    expect(resultOrder?.type).to.equal('reuseOrder')
+    const timestamp = orderEvent.args[2].toString()
+    expect(resultOrder?.timestamp.toString()).to.equal(timestamp)
+    expect(resultOrder?.startOrderId).to.equal(orderTxId)
   })
 })
