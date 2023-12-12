@@ -174,7 +174,8 @@ describe('OrderDatabase CRUD', () => {
     expect(result?.id).to.equal('order1.0')
     expect(result?.consumer).to.equal('0x1234')
     expect(result?.payer).to.equal('0x4567')
-    expect(result?.validity).to.equal(3)
+    expect(result?.type).to.equal('startOrder')
+    expect(result?.timestamp).to.equal(1678593728)
   })
 
   it('update order', async () => {
