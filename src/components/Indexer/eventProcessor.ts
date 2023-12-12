@@ -59,7 +59,7 @@ export const processMetadataEvents = async (
     return ddo
   } catch (error) {
     INDEXER_LOGGER.log(
-      LOG_LEVELS_STR.LEVEl_ERROR,
+      LOG_LEVELS_STR.LEVEL_ERROR,
       `Error processMetadataEvents : ${error}`,
       true
     )
@@ -112,7 +112,7 @@ export const processMetadataStateEvent = async (
     INDEXER_LOGGER.logMessage(`Found did ${did} for state updating on network ${chainId}`)
     return ddo
   } catch (err) {
-    INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error retrieving DDO: ${err}`, true)
+    INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
   }
 }
 

@@ -23,6 +23,7 @@ import { RPCS } from '../../src/@types/blockchain.js'
 import { getEventFromTx } from '../../src/utils/util.js'
 import { delay, waitToIndex, signMessage } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
+import { getOceanArtifactsAdresses } from '../../src/utils/address.js'
 
 describe('Indexer stores a new published DDO', () => {
   let database: Database
@@ -71,14 +72,7 @@ describe('Indexer stores a new published DDO', () => {
     database = await new Database(dbConfig)
     indexer = new OceanIndexer(database, mockSupportedNetworks)
 
-    const data = JSON.parse(
-      // eslint-disable-next-line security/detect-non-literal-fs-filename
-      fs.readFileSync(
-        process.env.ADDRESS_FILE ||
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-        'utf8'
-      )
-    )
+    const data = getOceanArtifactsAdresses()
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     process.env.PRIVATE_KEY =

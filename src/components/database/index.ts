@@ -2,6 +2,21 @@ import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { convertTypesenseConfig, Typesense, TypesenseError } from './typesense.js'
 import { Schema, schemas } from './schemas.js'
 import { TypesenseSearchParams } from '../../@types/index.js'
+import {
+  CustomNodeLogger,
+  defaultConsoleTransport,
+  getCustomLoggerForModule,
+  LOG_LEVELS_STR,
+  LOGGER_MODULE_NAMES,
+  newCustomDBTransport
+} from '../../utils/logging/Logger.js'
+import { Logger } from 'winston'
+
+export const DATABASE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
+  LOGGER_MODULE_NAMES.DATABASE,
+  LOG_LEVELS_STR.LEVEL_INFO,
+  defaultConsoleTransport
+)
 
 export class OrderDatabase {
   private provider: Typesense
@@ -93,7 +108,10 @@ export class DdoDatabase {
     private schemas: Schema[]
   ) {
     return (async (): Promise<DdoDatabase> => {
-      this.provider = new Typesense(convertTypesenseConfig(this.config.url))
+      this.provider = new Typesense({
+        ...convertTypesenseConfig(this.config.url),
+        logger: DATABASE_LOGGER
+      })
       for (const ddoSchema of this.schemas) {
         try {
           await this.provider.collections(ddoSchema.name).retrieve()
@@ -179,7 +197,10 @@ export class NonceDatabase {
     private schema: Schema
   ) {
     return (async (): Promise<NonceDatabase> => {
-      this.provider = new Typesense(convertTypesenseConfig(this.config.url))
+      this.provider = new Typesense({
+        ...convertTypesenseConfig(this.config.url),
+        logger: DATABASE_LOGGER
+      })
       try {
         await this.provider.collections(this.schema.name).retrieve()
       } catch (error) {
@@ -247,7 +268,10 @@ export class IndexerDatabase {
     private schema: Schema
   ) {
     return (async (): Promise<IndexerDatabase> => {
-      this.provider = new Typesense(convertTypesenseConfig(this.config.url))
+      this.provider = new Typesense({
+        ...convertTypesenseConfig(this.config.url),
+        logger: DATABASE_LOGGER
+      })
       try {
         await this.provider.collections(this.schema.name).retrieve()
       } catch (error) {
@@ -326,7 +350,10 @@ export class LogDatabase {
     private schema: Schema
   ) {
     return (async (): Promise<LogDatabase> => {
-      this.provider = new Typesense(convertTypesenseConfig(this.config.url))
+      this.provider = new Typesense({
+        ...convertTypesenseConfig(this.config.url),
+        logger: DATABASE_LOGGER
+      })
       try {
         await this.provider.collections(this.schema.name).retrieve()
       } catch (error) {
@@ -411,6 +438,10 @@ export class Database {
 
   constructor(private config: OceanNodeDBConfig) {
     return (async (): Promise<Database> => {
+      // add this DB transport too
+      // once we create a DB instance, the logger will be using this transport as well
+      DATABASE_LOGGER.addTransport(newCustomDBTransport(this))
+
       this.ddo = await new DdoDatabase(config, schemas.ddoSchemas)
       this.nonce = await new NonceDatabase(config, schemas.nonceSchemas)
       this.indexer = await new IndexerDatabase(config, schemas.indexerSchemas)
