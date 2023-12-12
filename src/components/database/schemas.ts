@@ -45,7 +45,6 @@ export const schemas: Schemas = {
       { name: 'timestamp', type: 'int64' },
       { name: 'consumer', type: 'string' },
       { name: 'payer', type: 'string' },
-      { name: 'validity', type: 'int64' },
       {
         name: 'startOrderId',
         type: 'string',
