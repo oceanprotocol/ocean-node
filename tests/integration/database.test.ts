@@ -155,11 +155,18 @@ describe('OrderDatabase CRUD', () => {
   })
 
   it('create order', async () => {
-    const result = await database.order.create('order1.0', '0x1234', '0x4567', 3)
+    const result = await database.order.create(
+      'order1.0',
+      'startOrder',
+      1678593728,
+      '0x1234',
+      '0x4567'
+    )
     expect(result?.id).to.equal('order1.0')
     expect(result?.consumer).to.equal('0x1234')
     expect(result?.payer).to.equal('0x4567')
-    expect(result?.validity).to.equal(3)
+    expect(result?.type).to.equal('startOrder')
+    expect(result?.timestamp).to.equal(1678593728)
   })
 
   it('retrieve order', async () => {
@@ -171,11 +178,18 @@ describe('OrderDatabase CRUD', () => {
   })
 
   it('update order', async () => {
-    const result = await database.order.update('order1.0', '0x1235', '0x4567', 4)
+    const result = await database.order.update(
+      'order1.0',
+      'startOrder',
+      1678593730,
+      '0x1235',
+      '0x4567'
+    )
     expect(result?.id).to.equal('order1.0')
     expect(result?.consumer).to.equal('0x1235')
     expect(result?.payer).to.equal('0x4567')
-    expect(result?.validity).to.equal(4)
+    expect(result?.type).to.equal('startOrder')
+    expect(result?.timestamp).to.equal(1678593730)
   })
 
   it('delete order', async () => {
@@ -183,6 +197,7 @@ describe('OrderDatabase CRUD', () => {
     expect(result?.id).to.equal('order1.0')
     expect(result?.consumer).to.equal('0x1235')
     expect(result?.payer).to.equal('0x4567')
-    expect(result?.validity).to.equal(4)
+    expect(result?.type).to.equal('startOrder')
+    expect(result?.timestamp).to.equal(1678593730)
   })
 })

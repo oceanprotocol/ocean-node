@@ -41,9 +41,17 @@ export const schemas: Schemas = {
     name: 'order',
     enable_nested_fields: true,
     fields: [
+      { name: 'type', type: 'string', enum: ['startOrder', 'reuseOrder'] },
+      { name: 'timestamp', type: 'int64' },
       { name: 'consumer', type: 'string' },
       { name: 'payer', type: 'string' },
-      { name: 'validity', type: 'int64' }
+      { name: 'validity', type: 'int64' },
+      {
+        name: 'startOrderId',
+        type: 'string',
+        optional: true,
+        dependencies: { type: ['reuseOrder'] }
+      }
     ]
   }
 }

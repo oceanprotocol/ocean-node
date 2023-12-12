@@ -167,7 +167,13 @@ export const processOrderStartedEvent = async (
         orders: 1
       }
     }
-    await dbconn.order.create(event.transactionHash, consumer, payer, 0) // set 0 for forever
+    await dbconn.order.create(
+      event.transactionHash,
+      'startOrder',
+      timestamp,
+      consumer,
+      payer
+    )
     INDEXER_LOGGER.logMessage(`Found did ${did} for order starting on network ${chainId}`)
     return ddo
   } catch (err) {
@@ -187,7 +193,9 @@ export const processOrderReusedEvent = async (
     data: receipt.logs[0].data
   }
   const decodedEventData = iface.parseLog(eventObj)
+  const startOrderId = decodedEventData.args[0].toString()
   const timestamp = parseInt(decodedEventData.args[2].toString())
+  const payer = decodedEventData.args[1].toString()
   INDEXER_LOGGER.logMessage(`Processed reused order at ${timestamp}`, true)
   const config = await getConfiguration()
   const dbconn = await new Database(config.dbConfig)
@@ -212,6 +220,30 @@ export const processOrderReusedEvent = async (
     }
     INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}.`)
     ddo.stats.orders += 1
+
+    try {
+      const startOrder = await dbconn.order.retrieve(startOrderId)
+      if (!startOrder) {
+        INDEXER_LOGGER.logMessage(
+          `Detected OrderReused changed for order ${startOrderId}, but it does not exists.`
+        )
+        return
+      }
+      await dbconn.order.create(
+        event.transactionHash,
+        'reuseOrder',
+        timestamp,
+        startOrder.consumer,
+        payer,
+        startOrderId
+      )
+    } catch (error) {
+      INDEXER_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `Error retrieving startOrder for reuseOrder: ${error}`,
+        true
+      )
+    }
 
     return ddo
   } catch (err) {

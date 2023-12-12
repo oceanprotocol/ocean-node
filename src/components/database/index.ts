@@ -52,12 +52,19 @@ export class OrderDatabase {
     }
   }
 
-  async create(orderId: string, consumer: string, payer: string, validity: number) {
+  async create(
+    orderId: string,
+    type: string,
+    timestamp: number,
+    consumer: string,
+    payer: string,
+    startOrderId?: string
+  ) {
     try {
       return await this.provider
         .collections(this.schema.name)
         .documents()
-        .create({ id: orderId, consumer, payer, validity })
+        .create({ id: orderId, type, timestamp, consumer, payer, startOrderId })
     } catch (error) {
       return null
     }
@@ -74,18 +81,25 @@ export class OrderDatabase {
     }
   }
 
-  async update(orderId: string, consumer: string, payer: string, validity: number) {
+  async update(
+    orderId: string,
+    type: string,
+    timestamp: number,
+    consumer: string,
+    payer: string,
+    startOrderId?: string
+  ) {
     try {
       return await this.provider
         .collections(this.schema.name)
         .documents()
-        .update(orderId, { consumer, payer, validity })
+        .update(orderId, { type, timestamp, consumer, payer, startOrderId })
     } catch (error) {
       if (error instanceof TypesenseError && error.httpStatus === 404) {
         return await this.provider
           .collections(this.schema.name)
           .documents()
-          .create({ id: orderId, consumer, payer, validity })
+          .create({ id: orderId, type, timestamp, consumer, payer, startOrderId })
       }
       return null
     }
