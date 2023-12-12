@@ -10,6 +10,10 @@ export const aquariusRoutes = express.Router()
 aquariusRoutes.get('/assets/ddo/:did', async (req, res) => {
   try {
     const { did } = req.params
+    if (!did || !did.startsWith('did:op')) {
+      res.status(400).send('Missing or invalid required parameter: "did"')
+      return
+    }
     const node = req.oceanNode.getP2PNode()
     const result = await handleGetDdoCommand(node, {
       id: did,
@@ -29,6 +33,10 @@ aquariusRoutes.get('/assets/ddo/:did', async (req, res) => {
 aquariusRoutes.get('/assets/metadata/:did', async (req, res) => {
   try {
     const { did } = req.params
+    if (!did || !did.startsWith('did:op')) {
+      res.status(400).send('Missing or invalid required parameter: "did"')
+      return
+    }
     const node = req.oceanNode.getP2PNode()
     const result = await handleGetDdoCommand(node, {
       id: did,
