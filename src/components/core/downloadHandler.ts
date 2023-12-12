@@ -5,10 +5,8 @@ import {
   PROTOCOL_COMMANDS
 } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
-import fs from 'fs'
 import { OceanP2P, P2P_CONSOLE_LOGGER } from '../P2P/index.js'
 import * as ethCrypto from 'eth-crypto'
-import axios from 'axios'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { validateOrderTransaction } from './validateTransaction.js'
 import { checkNonce, NonceResponse } from './nonceHandler.js'
@@ -17,21 +15,6 @@ import { calculateFee, checkFee } from './feesHandler.js'
 import { decrypt } from '../../utils/crypt.js'
 import { Storage } from '../../components/storage/index.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
-
-/**
- * Get the file
- * @param fileURL the location of the file
- * DO NOT export this!
- */
-async function getFileFromURL(fileURL: string): Promise<any> {
-  const response = await axios({
-    method: 'get',
-    url: fileURL,
-    responseType: 'stream'
-  })
-
-  return response.data
-}
 
 export async function handleDownload(
   task: DownloadTask,
