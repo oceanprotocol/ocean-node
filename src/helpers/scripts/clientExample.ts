@@ -14,6 +14,7 @@ import { DownloadURLCommand } from '../../utils/constants.js'
 
 // Replace with any other file, works with a local path or URL
 // '/var/log/syslog'
+// See tests/unit/storage.test.ts for more examples, including IPFS and Arweave
 const EXAMPLE_FILE = {
   type: 'url',
   url: 'https://ia800909.us.archive.org/13/items/CC_1917_04_16_TheCure/CC_1917_04_16_TheCure_512kb.mp4',
