@@ -1,7 +1,7 @@
 import { assert } from 'chai'
-import { Database } from '../../src/components/database/index.js'
-import { getConfig } from '../../src/utils/config.js'
-import { OceanP2P } from '../../src/components/P2P/index.js'
+import { Database } from '../../components/database/index.js'
+import { getConfig } from '../../utils/config.js'
+import { OceanP2P } from '../../components/P2P/index.js'
 
 describe('OceanP2P Test', () => {
   it('Start instance of OceanP2P', async () => {
