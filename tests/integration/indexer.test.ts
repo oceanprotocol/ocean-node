@@ -47,6 +47,7 @@ describe('Indexer stores a new published DDO', () => {
   let message: string
   let providerData: string
   let orderEvent: any
+  let reusedOrderEvent: any
   const timeout = 0
   const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
   const providerFeeAddress = ZeroAddress // publisherAddress
@@ -314,8 +315,8 @@ describe('Indexer stores a new published DDO', () => {
     reuseOrderTxId = orderTxReceipt.hash
     assert(reuseOrderTxId, 'transaction id not found')
 
-    const event = getEventFromTx(orderTxReceipt, 'OrderReused')
-    expect(event.args[0]).to.equal(orderTxId)
+    reusedOrderEvent = getEventFromTx(orderTxReceipt, 'OrderReused')
+    expect(reusedOrderEvent.args[0]).to.equal(orderTxId)
   })
 
   delay(50000)
@@ -327,7 +328,7 @@ describe('Indexer stores a new published DDO', () => {
     expect(resultOrder?.id).to.equal(reuseOrderTxId)
     expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
     expect(resultOrder?.type).to.equal('reuseOrder')
-    const timestamp = orderEvent.args[2].toString()
+    const timestamp = reusedOrderEvent.args[2].toString()
     expect(resultOrder?.timestamp.toString()).to.equal(timestamp)
     expect(resultOrder?.startOrderId).to.equal(orderTxId)
   })
