@@ -152,14 +152,14 @@ const procesOrdersEvents = async (
     try {
       return await processOrderStartedEvent(log, chainId, provider)
     } catch (e) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error proccessing order: ${e}`)
+      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error proccessing order: ${e}`)
     }
   } else if (eventType === EVENTS.ORDER_REUSED) {
     try {
       return await processOrderReusedEvent(log, chainId, provider)
     } catch (e) {
       INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEl_ERROR,
+        LOG_LEVELS_STR.LEVEL_ERROR,
         `Error proccessing order reused: ${e}`
       )
     }

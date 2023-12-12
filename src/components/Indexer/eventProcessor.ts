@@ -167,7 +167,7 @@ export const processOrderStartedEvent = async (
     INDEXER_LOGGER.logMessage(`Found did ${did} for order starting on network ${chainId}`)
     return ddo
   } catch (err) {
-    INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error retrieving DDO: ${err}`, true)
+    INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
   }
 }
 
@@ -211,6 +211,6 @@ export const processOrderReusedEvent = async (
 
     return ddo
   } catch (err) {
-    INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error retrieving DDO: ${err}`, true)
+    INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
   }
 }
