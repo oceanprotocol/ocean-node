@@ -99,7 +99,7 @@ export async function handleDownloadURLCommand(
       'Failure executing downloadURL task: ' + err.message,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEl_ERROR
+      LOG_LEVELS_STR.LEVEL_ERROR
     )
     return {
       stream: null,

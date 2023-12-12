@@ -65,7 +65,7 @@ export async function proccesNetworkData(): Promise<void> {
       await storeFoundEvents(processedBlocks.foundEvents)
     } catch (error) {
       INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEl_ERROR,
+        LOG_LEVELS_STR.LEVEL_ERROR,
         `network: ${rpcDetails.network} Error: ${error.message} `,
         true
       )
