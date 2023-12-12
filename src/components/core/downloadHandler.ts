@@ -106,7 +106,7 @@ export async function handleDownload(
   // Convert the hex string to a Uint8Array
   const encryptedFilesBytes = Uint8Array.from(Buffer.from(hexString, 'hex'))
   // Call the decrypt function with the appropriate algorithm
-  const decryptedUrlBytes = await decrypt(encryptedFilesBytes, 'AES')
+  const decryptedUrlBytes = await decrypt(encryptedFilesBytes, 'ECIES')
   // Convert the decrypted bytes back to a string
   const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
   // Parse the string as JSON to get the file object
