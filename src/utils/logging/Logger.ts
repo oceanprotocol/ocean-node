@@ -40,7 +40,7 @@ export const LOG_LEVELS_NUM = {
 }
 
 export const LOG_LEVELS_STR = {
-  LEVEl_ERROR: 'error',
+  LEVEL_ERROR: 'error',
   LEVEL_WARN: 'warn',
   LEVEL_INFO: 'info',
   LEVEL_HTTP: 'http',
@@ -62,13 +62,15 @@ const LOG_LEVELS_EMOJI = {
 // we might want these somewhere else
 export const GENERIC_EMOJIS = {
   EMOJI_CHECK_MARK: '\u{2705}',
-  EMOJI_CROSS_MARK: '\u{274C}'
+  EMOJI_CROSS_MARK: '\u{274C}',
+  EMOJI_OCEAN_WAVE: '\u{1F30A}',
+  EMOJI_TO_MOON: '\u{1F680}' // rocket emoji
 }
 
 export function getLoggerLevelEmoji(level: string): string {
   const emoji = LOG_LEVELS_EMOJI[level as keyof typeof LOG_LEVELS_EMOJI]
   if (!emoji) {
-    return '\u{1F680}' // rocket emoji
+    return GENERIC_EMOJIS.EMOJI_OCEAN_WAVE
   }
   return emoji
 }
@@ -309,6 +311,27 @@ export class CustomNodeLogger {
 
   getLoggerLevel(): string {
     return this.loggerOptions.level
+  }
+
+  // some shorter versions
+  debug(message: string): void {
+    this.log(LOG_LEVELS_STR.LEVEL_DEBUG, message, true)
+  }
+
+  warn(message: string): void {
+    this.log(LOG_LEVELS_STR.LEVEL_WARN, message, true)
+  }
+
+  info(message: string): void {
+    this.log(LOG_LEVELS_STR.LEVEL_INFO, message, true)
+  }
+
+  error(message: string): void {
+    this.log(LOG_LEVELS_STR.LEVEL_ERROR, message, true)
+  }
+
+  trace(message: string): void {
+    this.log(LOG_LEVELS_STR.LEVEL_SILLY, message, true)
   }
 
   // wrapper function for logging with custom logger

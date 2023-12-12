@@ -13,10 +13,7 @@ import {
   defaultConsoleTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
-import {
-  processMetadataCreatedEvent,
-  processMetadataStateEvent
-} from './eventProcessor.js'
+import { processMetadataEvents, processMetadataStateEvent } from './eventProcessor.js'
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
@@ -55,20 +52,21 @@ export const getNetworkHeight = async (provider: JsonRpcApiProvider) => {
 export const processBlocks = async (
   provider: JsonRpcApiProvider,
   network: number,
-  startIndex: number,
+  lastIndexedBlock: number,
   count: number
 ): Promise<ProcessingEvents> => {
   try {
     const eventHashes = Object.keys(EVENT_HASHES)
+    const startIndex = lastIndexedBlock + 1
     const blockLogs = await provider.getLogs({
       fromBlock: startIndex,
-      toBlock: startIndex + count,
+      toBlock: lastIndexedBlock + count,
       topics: [eventHashes]
     })
     const events = await processChunkLogs(blockLogs, provider, network)
 
     return {
-      lastBlock: startIndex + count,
+      lastBlock: lastIndexedBlock + count,
       foundEvents: events
     }
   } catch (error) {
@@ -96,20 +94,13 @@ export const processChunkLogs = async (
       const event = findEventByKey(log.topics[0])
       if (
         event &&
-        (event.type === EVENTS.METADATA_CREATED ||
-          event.type === EVENTS.METADATA_UPDATED ||
-          event.type === EVENTS.METADATA_STATE)
+        (event.type === EVENTS.METADATA_CREATED || event.type === EVENTS.METADATA_UPDATED)
       ) {
-        INDEXER_LOGGER.logMessage(
-          'METADATA_CREATED || METADATA_UPDATED || METADATA_STATE   -- ',
-          true
-        )
-        storeEvents[event.type] = await processMetadataEvents(
-          log,
-          event.type,
-          provider,
-          chainId
-        )
+        INDEXER_LOGGER.logMessage(`-- ${event.type} triggered`, true)
+        storeEvents[event.type] = await processMetadataEvents(log, chainId, provider)
+      } else if (event && event.type === EVENTS.METADATA_STATE) {
+        INDEXER_LOGGER.logMessage(`-- ${event.type} triggered`, true)
+        storeEvents[event.type] = await processMetadataStateEvent(log, chainId, provider)
       } else if (event && event.type === EVENTS.EXCHANGE_CREATED) {
         INDEXER_LOGGER.logMessage('-- EXCHANGE_CREATED -- ', true)
         storeEvents[event.type] = await procesExchangeCreated()
@@ -128,36 +119,6 @@ export const processChunkLogs = async (
   }
 
   return {}
-}
-
-const processMetadataEvents = async (
-  log: ethers.Log,
-  eventType: string,
-  provider: JsonRpcApiProvider,
-  chainId: number
-): Promise<any> => {
-  INDEXER_LOGGER.logMessage(`event as ${eventType}`, true)
-  if (eventType === EVENTS.METADATA_CREATED) {
-    try {
-      return await processMetadataCreatedEvent(log, chainId, provider)
-    } catch (e) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error proccessing metadata: ${e}`)
-    }
-  } else if (eventType === EVENTS.METADATA_STATE) {
-    try {
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_INFO,
-        `Found MetadataState event as ${eventType}`
-      )
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_INFO,
-        `Is eventType ${eventType} equal to ${EVENTS.METADATA_STATE}?`
-      )
-      return await processMetadataStateEvent(log, chainId, provider)
-    } catch (e) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error proccessing metadata: ${e}`)
-    }
-  }
 }
 
 const procesExchangeCreated = async (): Promise<string> => {
