@@ -19,7 +19,7 @@ import { FeeStrategy, FeeTokens, FeeAmount } from '../@types/Fees'
 import {
   OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN,
   getOceanArtifactsAdresses
-} from '../utils/address'
+} from '../utils/address.js'
 
 const CONFIG_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.CONFIG,
