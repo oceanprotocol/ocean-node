@@ -370,7 +370,7 @@ export async function getProviderFeeToken(chainId: number): Promise<string> {
   const result = (await getConfiguration()).feeStrategy.feeTokens.filter(
     (token: FeeTokens) => Number(token.chain) === chainId
   )
-  return result.length ? result[0].token : null
+  return result.length ? result[0].token : ethers.ZeroAddress
 }
 
 /**
