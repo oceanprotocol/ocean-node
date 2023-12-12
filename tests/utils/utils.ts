@@ -2,18 +2,6 @@ import path from 'path'
 import dotenv from 'dotenv'
 import { fileURLToPath } from 'url'
 
-// usefull to keep track of what we need to config (these could maybe move to utils/constants.js)
-export const ENVIRONMENT_VARIABLES = {
-  HTTP_API_PORT: process.env.HTTP_API_PORT,
-  PRIVATE_KEY: process.env.HTTP_API_PORT,
-  RPCS: process.env.RPCS,
-  DB_URL: process.env.DB_URL,
-  IPFS_GATEWAY: process.env.IPFS_GATEWAY,
-  ARWEAVE_GATEWAY: process.env.ARWEAVE_GATEWAY,
-  LOAD_INITIAL_DDOS: process.env.LOAD_INITIAL_DDOS,
-  FEE_TOKENS: process.env.FEE_TOKENS,
-  FEE_AMOUNT: process.env.FEE_AMOUNT
-}
 // __dirname and __filename are not defined in ES module scope
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)

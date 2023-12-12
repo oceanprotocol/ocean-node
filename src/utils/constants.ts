@@ -129,3 +129,32 @@ export const EVENT_HASHES: Hashes = {
     text: 'DispenserCreated(address,address,uint256,uint256,address)'
   }
 }
+
+// usefull to keep track of what all the env variables we are using
+// (faster to read than README and we can easily use the constants if needed)
+// required means its not mandatory OR we have defaults
+export const ENVIRONMENT_VARIABLES = {
+  HTTP_API_PORT: {
+    name: 'HTTP_API_PORT',
+    value: process.env.HTTP_API_PORT,
+    required: false
+  },
+  PRIVATE_KEY: { name: 'PRIVATE_KEY', value: process.env.PRIVATE_KEY, required: true },
+  RPCS: { name: 'RPCS', value: process.env.RPCS, required: false },
+  DB_URL: { name: 'DB_URL', value: process.env.DB_URL, required: false },
+  // these 2 bellow will change in the future (not required, just remove functionality)
+  IPFS_GATEWAY: { name: 'IPFS_GATEWAY', value: process.env.IPFS_GATEWAY, required: true },
+  ARWEAVE_GATEWAY: {
+    name: 'ARWEAVE_GATEWAY',
+    value: process.env.ARWEAVE_GATEWAY,
+    required: true
+  },
+  LOAD_INITIAL_DDOS: {
+    name: 'LOAD_INITIAL_DDOS',
+    value: process.env.LOAD_INITIAL_DDOS,
+    required: false
+  },
+  FEE_TOKENS: { name: 'FEE_TOKENS', value: process.env.FEE_TOKENS, required: false },
+  FEE_AMOUNT: { name: 'FEE_AMOUNT', value: process.env.FEE_AMOUNT, required: false },
+  ADDRESS_FILE: { name: 'ADDRESS_FILE', value: process.env.ADDRESS_FILE, required: false }
+}

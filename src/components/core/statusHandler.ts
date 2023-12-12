@@ -30,7 +30,7 @@ export async function status(nodeId?: string): Promise<OceanNodeStatus> {
       'Config object not found. Cannot proceed with status command.',
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEl_ERROR
+      LOG_LEVELS_STR.LEVEL_ERROR
     )
     return
   }

@@ -25,7 +25,7 @@ const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
 
 const config = await getConfig()
 const oceanNode = new OceanNode(config)
-const dbconn = new Database(config.dbConfig)
+const dbconn = await new Database(config.dbConfig) // carefull! db constructor is async
 const p2pNode = new OceanP2P(dbconn, config)
 oceanNode.setOceanNode(p2pNode, null, null, dbconn)
 
@@ -40,7 +40,7 @@ export const nonceSchema: TypesenseCollectionCreateSchema = {
   ]
 }
 
-const url = 'http://localhost:8108/?apiKey=xyz'
+const url = process.env.DB_URL || 'http://172.15.0.6:8108/?apiKey=xyz'
 const typesense = new Typesense(convertTypesenseConfig(url))
 
 // const typesenseApi: TypesenseApi = new TypesenseApi(typesense.config)
@@ -62,7 +62,7 @@ async function createNonceCollection(): Promise<any> {
       'Error creating "nonce" collection: ' + err.message,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEl_ERROR
+      LOG_LEVELS_STR.LEVEL_ERROR
     )
     return null
   }

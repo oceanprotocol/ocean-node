@@ -15,6 +15,7 @@ import { handleQueryCommand } from '../core/queryHandler.js'
 import { handleStatusCommand } from '../core/statusHandler.js'
 import { handleEncryptCommand } from '../core/encryptHandler.js'
 import { getFees } from '../core/feesHandler.js'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 
 export class ReadableString extends Readable {
   private sent = false
@@ -111,8 +112,12 @@ export async function handleProtocolCommands(connection: any) {
       pipe(combinedStream, connection.stream.sink)
     }
   } catch (err) {
-    console.log('error:')
-    console.log(err)
+    P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+      'handleProtocolCommands Error: ' + err.message,
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
   }
 }
 /**
@@ -129,53 +134,62 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
   let response: P2PCommandResponse = null
 
   P2P_CONSOLE_LOGGER.logMessage('Performing task: ' + JSON.stringify(task), true)
-  switch (task.command) {
-    case PROTOCOL_COMMANDS.ECHO:
-      status = { httpStatus: 200 }
-      break
-    case PROTOCOL_COMMANDS.DOWNLOAD_URL:
-      response = await handleDownloadURLCommand(this, task)
-      break
-    case PROTOCOL_COMMANDS.GET_DDO:
-      response = await handleGetDdoCommand(this, task)
-      break
-    case PROTOCOL_COMMANDS.QUERY:
-      response = await handleQueryCommand(this, task)
-      break
-    case PROTOCOL_COMMANDS.ENCRYPT:
-      response = await handleEncryptCommand.call(this, task)
-      break
-    case PROTOCOL_COMMANDS.NONCE:
-      response = await getNonce(this, task.address)
-      break
-    case PROTOCOL_COMMANDS.STATUS:
-      response = await handleStatusCommand(task)
-      break
-    case PROTOCOL_COMMANDS.FIND_DDO:
-      response = await findDDO(this, task)
-      break
-    case PROTOCOL_COMMANDS.GET_FEES:
-      response = await getFees(task)
-      break
-    default:
-      status = { httpStatus: 501, error: 'Unknown command' }
-      break
-  }
+  try {
+    switch (task.command) {
+      case PROTOCOL_COMMANDS.ECHO:
+        status = { httpStatus: 200 }
+        break
+      case PROTOCOL_COMMANDS.DOWNLOAD_URL:
+        response = await handleDownloadURLCommand(this, task)
+        break
+      case PROTOCOL_COMMANDS.GET_DDO:
+        response = await handleGetDdoCommand(this, task)
+        break
+      case PROTOCOL_COMMANDS.QUERY:
+        response = await handleQueryCommand(this, task)
+        break
+      case PROTOCOL_COMMANDS.ENCRYPT:
+        response = await handleEncryptCommand.call(this, task)
+        break
+      case PROTOCOL_COMMANDS.NONCE:
+        response = await getNonce(this, task.address)
+        break
+      case PROTOCOL_COMMANDS.STATUS:
+        response = await handleStatusCommand(task)
+        break
+      case PROTOCOL_COMMANDS.FIND_DDO:
+        response = await findDDO(this, task)
+        break
+      case PROTOCOL_COMMANDS.GET_FEES:
+        response = await getFees(task)
+        break
+      default:
+        status = { httpStatus: 501, error: 'Unknown command' }
+        break
+    }
 
-  if (response) {
-    // eslint-disable-next-line prefer-destructuring
-    status = response.status
-    sendStream = response.stream
-  }
+    if (response) {
+      // eslint-disable-next-line prefer-destructuring
+      status = response.status
+      sendStream = response.stream
+    }
 
-  const statusStream = new ReadableString(JSON.stringify(status))
-  if (sendStream == null) {
-    pipe(statusStream, sink)
-  } else {
-    const combinedStream = new StreamConcat([statusStream, sendStream], {
-      highWaterMark: JSON.stringify(status).length
-      // the size of the buffer is important!
-    })
-    pipe(combinedStream, sink)
+    const statusStream = new ReadableString(JSON.stringify(status))
+    if (sendStream == null) {
+      pipe(statusStream, sink)
+    } else {
+      const combinedStream = new StreamConcat([statusStream, sendStream], {
+        highWaterMark: JSON.stringify(status).length
+        // the size of the buffer is important!
+      })
+      pipe(combinedStream, sink)
+    }
+  } catch (err) {
+    P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+      'handleDirectProtocolCommands Error: ' + err.message,
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
   }
 }

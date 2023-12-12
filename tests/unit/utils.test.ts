@@ -1,6 +1,7 @@
 import { expect, assert } from 'chai'
 import { sleep, getEventFromTx } from '../../src/utils/util' // replace './yourModule' with the actual path of your module
 import 'mocha'
+import { getOceanArtifactsAdresses } from '../../src/utils/address'
 
 describe('Utilities Functions', () => {
   describe('sleep function', () => {
