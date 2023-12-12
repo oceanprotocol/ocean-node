@@ -10,7 +10,6 @@ import {
   LOGGER_MODULE_NAMES,
   newCustomDBTransport
 } from '../../utils/logging/Logger.js'
-import { Logger } from 'winston'
 
 export const DATABASE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.DATABASE,
@@ -28,6 +27,7 @@ export class OrderDatabase {
     return (async (): Promise<OrderDatabase> => {
       this.provider = new Typesense(convertTypesenseConfig(this.config.url))
       try {
+        DATABASE_LOGGER.logMessage(`schema name for order: ${this.schema.name}`)
         await this.provider.collections(this.schema.name).retrieve()
       } catch (error) {
         if (error instanceof TypesenseError && error.httpStatus === 404) {
