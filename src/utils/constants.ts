@@ -22,7 +22,7 @@ export interface Command {
 }
 
 export interface DownloadURLCommand extends Command {
-  url: string
+  fileObject: any
   aes_encrypted_key?: string // if not present it means download without encryption
 }
 

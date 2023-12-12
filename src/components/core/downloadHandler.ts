@@ -15,6 +15,7 @@ import { checkNonce, NonceResponse } from './nonceHandler.js'
 import { findAndFormatDdo } from './ddoHandler.js'
 import { calculateFee, checkFee } from './feesHandler.js'
 import { decrypt } from '../../utils/crypt.js'
+import { Storage } from '../../components/storage/index.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 /**
@@ -113,23 +114,25 @@ export async function handleDownload(
   }
 
   // 6. Decrypt the url
-  const encryptedUrlHex = ddo.services[task.serviceIndex].files
+  const encryptedFilesHex = ddo.services[task.serviceIndex].files
   // Check if the string starts with '0x' and remove it if present
-  const hexString = encryptedUrlHex.startsWith('0x')
-    ? encryptedUrlHex.substring(2)
-    : encryptedUrlHex
+  const hexString = encryptedFilesHex.startsWith('0x')
+    ? encryptedFilesHex.substring(2)
+    : encryptedFilesHex
 
   // Convert the hex string to a Uint8Array
-  const encryptedUrlBytes = Uint8Array.from(Buffer.from(hexString, 'hex'))
+  const encryptedFilesBytes = Uint8Array.from(Buffer.from(hexString, 'hex'))
   // Call the decrypt function with the appropriate algorithm
-  const decryptedUrlBytes = await decrypt(encryptedUrlBytes, 'AES')
+  const decryptedUrlBytes = await decrypt(encryptedFilesBytes, 'AES')
   // Convert the decrypted bytes back to a string
-  const decryptedUrl = Buffer.from(decryptedUrlBytes).toString()
+  const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
+  // Parse the string as JSON to get the file object
+  const decryptedFileObject = JSON.parse(decryptedFilesString)
 
   // 7. Proceed to download the file
   return await handleDownloadURLCommand(node, {
     command: PROTOCOL_COMMANDS.DOWNLOAD_URL,
-    url: decryptedUrl,
+    fileObject: decryptedFileObject,
     aes_encrypted_key: task.aes_encrypted_key
   })
 }
@@ -146,9 +149,9 @@ export async function handleDownloadURLCommand(
   )
 
   try {
-    const inputStream = task.url.startsWith('http')
-      ? await getFileFromURL(task.url) // remote url
-      : fs.createReadStream(task.url) //  local file
+    // Determine the type of storage and get a readable stream
+    const storage = Storage.getStorageClass(task.fileObject)
+    const inputStream = await storage.getReadableStream()
 
     if (encryptFile) {
       // we parse the string into the object again
