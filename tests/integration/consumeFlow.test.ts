@@ -22,6 +22,7 @@ import { getEventFromTx } from '../../src/utils/util.js'
 import { signMessage } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import { Database } from '../../src/components/database/index.js'
+import { getOceanArtifactsAdresses } from '../../src/utils/address.js'
 
 describe('validateOrderTransaction Function with Orders', () => {
   let database: Database
@@ -66,14 +67,7 @@ describe('validateOrderTransaction Function with Orders', () => {
 
     console.log('publisher address', publisherAddress)
 
-    const data = JSON.parse(
-      // eslint-disable-next-line security/detect-non-literal-fs-filename
-      fs.readFileSync(
-        process.env.ADDRESS_FILE ||
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-        'utf8'
-      )
-    )
+    const data = getOceanArtifactsAdresses()
 
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
