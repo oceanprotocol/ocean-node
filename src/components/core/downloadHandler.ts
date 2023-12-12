@@ -14,6 +14,7 @@ import { validateOrderTransaction } from './validateTransaction.js'
 import { checkNonce, NonceResponse } from './nonceHandler.js'
 import { findAndFormatDdo } from './ddoHandler.js'
 import { calculateFee, checkFee } from './feesHandler.js'
+import { decrypt } from '../../utils/crypt.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 /**
@@ -111,10 +112,24 @@ export async function handleDownload(
     throw new Error(paymentValidation.message)
   }
 
-  // 6. Proceed to download the file
+  // 6. Decrypt the url
+  const encryptedUrlHex = ddo.services[task.serviceIndex].files
+  // Check if the string starts with '0x' and remove it if present
+  const hexString = encryptedUrlHex.startsWith('0x')
+    ? encryptedUrlHex.substring(2)
+    : encryptedUrlHex
+
+  // Convert the hex string to a Uint8Array
+  const encryptedUrlBytes = Uint8Array.from(Buffer.from(hexString, 'hex'))
+  // Call the decrypt function with the appropriate algorithm
+  const decryptedUrlBytes = await decrypt(encryptedUrlBytes, 'AES')
+  // Convert the decrypted bytes back to a string
+  const decryptedUrl = Buffer.from(decryptedUrlBytes).toString()
+
+  // 7. Proceed to download the file
   return await handleDownloadURLCommand(node, {
     command: PROTOCOL_COMMANDS.DOWNLOAD_URL,
-    url: ddo.services[task.serviceIndex].files,
+    url: decryptedUrl,
     aes_encrypted_key: task.aes_encrypted_key
   })
 }
