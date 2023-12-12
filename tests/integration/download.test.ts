@@ -216,5 +216,9 @@ describe('validateOrderTransaction Function with Orders', () => {
     assert(orderTxReceipt, 'order transaction failed')
     orderTxId = orderTxReceipt.hash
     assert(orderTxId, 'transaction id not found')
+
+    const config = await getConfig()
+    const dbconn = await new Database(config.dbConfig)
+    const p2pNode = new OceanP2P(dbconn, config)
   })
 })
