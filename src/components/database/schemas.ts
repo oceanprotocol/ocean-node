@@ -6,6 +6,7 @@ export type Schemas = {
   nonceSchemas: Schema
   indexerSchemas: Schema
   logSchemas: Schema
+  orderSchema: Schema
 }
 export const schemas: Schemas = {
   ddoSchemas: [
@@ -34,6 +35,16 @@ export const schemas: Schemas = {
       { name: 'message', type: 'string' },
       { name: 'moduleName', type: 'string', optional: true },
       { name: 'meta', type: 'string', optional: true }
+    ]
+  },
+  orderSchema: {
+    name: 'order',
+    enable_nested_fields: true,
+    fields: [
+      { name: 'orderTx', type: 'string' },
+      { name: 'consumer', type: 'string' },
+      { name: 'payer', type: 'string' },
+      { name: 'validity', type: 'int64' }
     ]
   }
 }

@@ -3,6 +3,88 @@ import { convertTypesenseConfig, Typesense, TypesenseError } from './typesense.j
 import { Schema, schemas } from './schemas.js'
 import { TypesenseSearchParams } from '../../@types/index.js'
 
+export class OrderDatabase {
+  private provider: Typesense
+
+  constructor(
+    private config: OceanNodeDBConfig,
+    private schema: Schema
+  ) {
+    return (async (): Promise<OrderDatabase> => {
+      this.provider = new Typesense(convertTypesenseConfig(this.config.url))
+      try {
+        await this.provider.collections(this.schema.name).retrieve()
+      } catch (error) {
+        if (error instanceof TypesenseError && error.httpStatus === 404) {
+          await this.provider.collections().create(this.schema)
+        }
+      }
+      return this
+    })() as unknown as OrderDatabase
+  }
+
+  async search(query: Record<string, any>) {
+    try {
+      const results = []
+      const result = await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .search(query as TypesenseSearchParams)
+      results.push(result)
+      return results
+    } catch (error) {
+      return null
+    }
+  }
+
+  async create(orderId: string, consumer: string, payer: string, validity: number) {
+    try {
+      return await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .create({ id: orderId, consumer, payer, validity })
+    } catch (error) {
+      return null
+    }
+  }
+
+  async retrieve(orderId: string) {
+    try {
+      return await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .retrieve(orderId)
+    } catch (error) {
+      return null
+    }
+  }
+
+  async update(orderId: string, consumer: string, payer: string, validity: number) {
+    try {
+      return await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .update(orderId, { consumer, payer, validity })
+    } catch (error) {
+      if (error instanceof TypesenseError && error.httpStatus === 404) {
+        return await this.provider
+          .collections(this.schema.name)
+          .documents()
+          .create({ id: orderId, consumer, payer, validity })
+      }
+      return null
+    }
+  }
+
+  async delete(orderId: string) {
+    try {
+      return await this.provider.collections(this.schema.name).documents().delete(orderId)
+    } catch (error) {
+      return null
+    }
+  }
+}
+
 export class DdoDatabase {
   private provider: Typesense
 
@@ -325,6 +407,7 @@ export class Database {
   nonce: NonceDatabase
   indexer: IndexerDatabase
   logs: LogDatabase
+  order: OrderDatabase
 
   constructor(private config: OceanNodeDBConfig) {
     return (async (): Promise<Database> => {
@@ -332,6 +415,7 @@ export class Database {
       this.nonce = await new NonceDatabase(config, schemas.nonceSchemas)
       this.indexer = await new IndexerDatabase(config, schemas.indexerSchemas)
       this.logs = await new LogDatabase(config, schemas.logSchemas)
+      this.order = await new OrderDatabase(config, schemas.orderSchema)
       return this
     })() as unknown as Database
   }
