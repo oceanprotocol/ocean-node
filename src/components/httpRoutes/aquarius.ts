@@ -38,7 +38,7 @@ aquariusRoutes.get('/assets/ddo/:did', async (req, res) => {
       res.status(result.status.httpStatus).send(result.status.error)
     }
   } catch (error) {
-    logger.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error: ${error}`)
+    logger.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
@@ -62,7 +62,7 @@ aquariusRoutes.get('/assets/metadata/:did', async (req, res) => {
       res.status(result.status.httpStatus).send(result.status.error)
     }
   } catch (error) {
-    logger.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error: ${error}`)
+    logger.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
@@ -86,7 +86,7 @@ aquariusRoutes.post('/assets/metadata/query', async (req, res) => {
       res.status(result.status.httpStatus).send(result.status.error)
     }
   } catch (error) {
-    logger.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error: ${error}`)
+    logger.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
@@ -137,7 +137,7 @@ aquariusRoutes.get('/state/ddo', async (req, res) => {
       res.status(result.status.httpStatus).send(result.status.error)
     }
   } catch (error) {
-    logger.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error: ${error}`)
+    logger.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })

@@ -41,7 +41,7 @@ providerRoutes.post('/encrypt', async (req, res) => {
       res.status(result.status.httpStatus).send(result.status.error)
     }
   } catch (error) {
-    logger.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error: ${error}`)
+    logger.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
@@ -50,7 +50,7 @@ providerRoutes.get('/download', async (req, res) => {
   try {
     res.status(400).send()
   } catch (error) {
-    logger.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error: ${error}`)
+    logger.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
@@ -96,7 +96,7 @@ providerRoutes.get('/initialize', async (req, res) => {
 
     res.json(response)
   } catch (error) {
-    logger.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error: ${error}`)
+    logger.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
@@ -116,7 +116,7 @@ providerRoutes.get('/nonce', async (req, res) => {
       res.status(400).send()
     }
   } catch (error) {
-    logger.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error: ${error}`)
+    logger.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
