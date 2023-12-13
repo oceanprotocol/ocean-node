@@ -1,4 +1,5 @@
 import { expect, assert } from 'chai'
+import { Readable } from 'stream'
 import { createHash } from 'crypto'
 import {
   JsonRpcProvider,
@@ -330,6 +331,13 @@ describe('Download Tests', () => {
     assert(orderTxId, 'transaction id not found')
 
     const config = await getConfig()
+    config.supportedNetworks[8996] = {
+      chainId: 8996,
+      network: 'development',
+      rpc: 'http://127.0.0.1:8545',
+      chunkSize: 100
+    }
+
     const dbconn = await new Database(config.dbConfig)
     const p2pNode = new OceanP2P(dbconn, config)
     assert(p2pNode, 'Failed to instantiate OceanP2P')
@@ -353,7 +361,8 @@ describe('Download Tests', () => {
       feeTx,
       feeData
     }
-    const download = await handleDownload(downloadTask, p2pNode)
-    console.log('download', download)
+    const response = await handleDownload(downloadTask, p2pNode)
+
+    assert(response)
   })
 })
