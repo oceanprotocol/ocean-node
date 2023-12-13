@@ -25,10 +25,8 @@ export async function handleDownload(
   const ddo = await findAndFormatDdo(node, task.documentId)
 
   if (ddo) {
-    console.log('DDO for asset found: ', ddo)
     P2P_CONSOLE_LOGGER.logMessage('DDO for asset found: ' + ddo, true)
   } else {
-    console.log('No DDO for asset found. Cannot proceed with download.')
     P2P_CONSOLE_LOGGER.logMessage(
       'No DDO for asset found. Cannot proceed with download.',
       true
@@ -53,25 +51,12 @@ export async function handleDownload(
     throw new Error(nonceCheckResult.error)
   }
 
-  // 3. Calculate the provider fee
-  // const providerFee = await calculateFee(ddo, String(task.serviceIndex))
-  // console.log('2. handleDownload providerFee', providerFee)
-  // if (providerFee) {
-  //   // Log the provider fee response for debugging purposes
-  //   P2P_CONSOLE_LOGGER.logMessage(
-  //     `Provider fee response: ${JSON.stringify(providerFee)}`,
-  //     true
-  //   )
-  // } else {
-  //   throw new Error('No provider fees calculated')
-  // }
-
   // 4. check that the provider fee transaction is valid
   let feeValidation
   try {
     feeValidation = await checkFee(task.feeTx, task.feeData)
   } catch (e) {
-    console.log('checkFee ERROR', e)
+    throw new Error('ERROR checking fees')
   }
   if (feeValidation) {
     // Log the provider fee response for debugging purposes
@@ -83,32 +68,24 @@ export async function handleDownload(
   // 5. Call the validateOrderTransaction function to check order transaction
   const config = node.getConfig()
   const { rpc } = config.supportedNetworks[ddo.chainId]
-  console.log('rpc', rpc)
 
   let provider
   try {
     provider = new JsonRpcProvider(rpc)
-    console.log('provider', provider)
   } catch (e) {
-    console.log('JsonRpcProvider ERROR', e)
+    throw new Error('JsonRpcProvider ERROR')
   }
 
-  let paymentValidation
-  try {
-    paymentValidation = await validateOrderTransaction(
-      task.transferTxId,
-      task.consumerAddress,
-      provider,
-      ddo.nftAddress,
-      ddo.services[task.serviceIndex].datatokenAddress,
-      task.serviceIndex,
-      ddo.services[task.serviceIndex].timeout
-    )
-  } catch (e) {
-    console.log('e', e)
-  }
+  const paymentValidation = await validateOrderTransaction(
+    task.transferTxId,
+    task.consumerAddress,
+    provider,
+    ddo.nftAddress,
+    ddo.services[task.serviceIndex].datatokenAddress,
+    task.serviceIndex,
+    ddo.services[task.serviceIndex].timeout
+  )
 
-  console.log('paymentValidation', paymentValidation)
   if (paymentValidation.isValid) {
     P2P_CONSOLE_LOGGER.logMessage(
       `Valid payment transaction. Result: ${paymentValidation.message}`,
@@ -138,7 +115,6 @@ export async function handleDownload(
     // Convert the decrypted bytes back to a string
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
     const decryptedFileObject = JSON.parse(decryptedFilesString)
-    console.log('decryptedFileObject', decryptedFileObject)
 
     // 7. Proceed to download the file
     return await handleDownloadURLCommand(node, {
@@ -147,7 +123,7 @@ export async function handleDownload(
       aes_encrypted_key: task.aes_encrypted_key
     })
   } catch (e) {
-    console.log('decryption error', e)
+    P2P_CONSOLE_LOGGER.logMessage('decryption error' + e, true)
   }
 }
 

@@ -19,16 +19,6 @@ export async function validateOrderTransaction(
   serviceIndex: number,
   serviceTimeout: number
 ): Promise<ValidateTransactionResponse> {
-  console.log('Entering validateOrderTransaction', {
-    txId,
-    userAddress,
-    provider,
-    dataNftAddress,
-    datatokenAddress,
-    serviceIndex,
-    serviceTimeout
-  })
-
   const contractInterface = new Interface(ERC20Template.abi)
 
   let txReceipt = await provider.getTransactionReceipt(txId)
