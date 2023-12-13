@@ -1,5 +1,5 @@
-import { OceanNode } from '../../src/OceanNode.js'
-import { getConfig } from '../../src/utils/index.js'
+import { OceanNode } from '../../OceanNode.js'
+import { getConfig } from '../../utils/index.js'
 
 import { expect } from 'chai'
 

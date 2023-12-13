@@ -11,7 +11,7 @@ import {
   getNetworkHeight,
   processBlocks,
   processChunkLogs
-} from '../../../src/components/Indexer/utils.js'
+} from '../../../components/Indexer/utils.js'
 
 describe('Your Test Suite', () => {
   let provider: ethers.JsonRpcProvider

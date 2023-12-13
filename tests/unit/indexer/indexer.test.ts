@@ -1,8 +1,8 @@
 import { expect } from 'chai'
 import { stub } from 'sinon'
 import { describe, it } from 'mocha'
-import { OceanIndexer } from '../../../src/components/Indexer' // Adjust the import path accordingly
-import { RPCS } from '../../../src/@types/blockchain'
+import { OceanIndexer } from '../../../components/Indexer/index.js' // Adjust the import path accordingly
+import { RPCS } from '../../../@types/blockchain'
 
 class MockDatabase {
   indexer = {
