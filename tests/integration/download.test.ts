@@ -365,5 +365,8 @@ describe('Download Tests', () => {
     console.log('response', response)
 
     assert(response)
+    assert(response.stream, 'stream not present')
+    assert(response.status.httpStatus === 200, 'http status not 200')
+    expect(response.stream).to.be.instanceOf(Readable)
   })
 })
