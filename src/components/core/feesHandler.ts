@@ -267,9 +267,6 @@ export async function checkFee(
   providerFeesData: ProviderFeeData
   // message: string | Uint8Array // the message that was signed (fee structure) ?
 ): Promise<boolean> {
-  console.log('checkFee function: given a txID')
-  console.log('txId', txId)
-  console.log('providerFeesData', providerFeesData)
   // checkFee function: given a txID, checks:
   // the address that signed the fee signature = ocean-node address
   // amount, tokens, etc are a match
@@ -283,14 +280,6 @@ export async function checkFee(
     nodeAddress !== providerFeesData.providerFeeAddress ||
     providerFeesData.providerFeeAmount !== feeAmount
   ) {
-    console.log('first check if these are a match')
-    console.log('nodeAddress', nodeAddress)
-    console.log(
-      'providerFeesData.providerFeeAddress',
-      providerFeesData.providerFeeAddress
-    )
-    console.log('providerFeesData.providerFeeAmount', providerFeesData.providerFeeAmount)
-    console.log('feeAmount', feeAmount)
     return false
   }
 
@@ -320,10 +309,6 @@ export async function checkFee(
   const message = ethers.toBeArray(signableHash) // await wallet.signMessage()
 
   // and also check that we signed this message
-  console.log('and also check that we signed this message')
-  console.log('message', message)
-  console.log('nodeAddress', nodeAddress)
-  console.log('txId', txId)
   return await verifyMessage(message, nodeAddress, txId)
   // before was only return await verifyMessage(message, nodeAddress, txId)
 }
@@ -332,16 +317,12 @@ export async function calculateFee(
   ddo: DDO,
   serviceId: string
 ): Promise<ProviderFeeData | undefined> {
-  console.log('calculateFee serviceId', serviceId)
-  console.log('calculateFee ddo', ddo)
   const service: Service = AssetUtils.getServiceById(ddo, serviceId)
   if (!service) {
-    console.log('No service for ddo', ddo)
     return undefined
   }
   // create fee structure
   const fee: ProviderFeeData | undefined = await createFee(ddo, 0, 'null', service)
-  console.log('calculateFee fee', fee)
   // - this will use fileInfo command to get the length of the file
   // - will analyze the DDO and get validity, so we can know who many times/until then user can download this asset
   // - compute required cost using FEE_AMOUNT and FEE_TOKENS

@@ -73,7 +73,6 @@ export async function handleDownload(
   } catch (e) {
     console.log('checkFee ERROR', e)
   }
-  console.log('feeValidation', feeValidation)
   if (feeValidation) {
     // Log the provider fee response for debugging purposes
     P2P_CONSOLE_LOGGER.logMessage(`Valid provider fee transaction`, true)

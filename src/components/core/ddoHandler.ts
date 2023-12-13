@@ -406,7 +406,6 @@ export async function findAndFormatDdo(
 
     return null
   } catch (error) {
-    console.error('Error getting DDO:', error)
     P2P_CONSOLE_LOGGER.logMessage(`Error getting DDO: ${error}`, true)
     return null
   }

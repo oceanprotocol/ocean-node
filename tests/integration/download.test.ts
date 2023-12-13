@@ -362,6 +362,7 @@ describe('Download Tests', () => {
       feeData
     }
     const response = await handleDownload(downloadTask, p2pNode)
+    console.log('response', response)
 
     assert(response)
   })
