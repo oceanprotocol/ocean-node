@@ -63,7 +63,11 @@ function loadInitialDDOS(): any[] {
   }
   return ddos
 }
-
+// (*) optional flag
+const isStartup: boolean = true
+// this is to avoid too much verbose logging, cause we're calling getConfig() from many parts
+// and we are always running though the same process.env checks
+// (we must start accessing the config from the OceanNode class only once we refactor)
 console.log('\n\n\n\n')
 logger.logMessageWithEmoji(
   '[ Starting Ocean Node ]',
@@ -71,8 +75,10 @@ logger.logMessageWithEmoji(
   GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
   LOG_LEVELS_STR.LEVEL_INFO
 )
-const config = await getConfig()
-if (!config) process.exit(1)
+const config = await getConfig(isStartup)
+if (!config) {
+  process.exit(1)
+}
 const oceanNode = new OceanNode(config)
 let node: OceanP2P = null
 let indexer = null
@@ -106,6 +112,7 @@ logger.addTransport(customLogTransport)
 // global
 oceanNode.setOceanNode(node, indexer, provider, dbconn)
 if (config.hasHttp) {
+  app.use(express.raw())
   app.use((req, res, next) => {
     req.oceanNode = oceanNode
     next()

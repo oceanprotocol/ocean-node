@@ -1,7 +1,9 @@
-import { Provider, Contract, Interface } from 'ethers'
+import { JsonRpcProvider, Contract, Interface } from 'ethers'
 import { fetchEventFromTransaction } from '../../utils/util.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
+
+console.log('Imports loaded')
 
 interface ValidateTransactionResponse {
   isValid: boolean
@@ -11,7 +13,7 @@ interface ValidateTransactionResponse {
 export async function validateOrderTransaction(
   txId: string,
   userAddress: string,
-  provider: Provider,
+  provider: JsonRpcProvider,
   dataNftAddress: string,
   datatokenAddress: string,
   serviceIndex: number,
@@ -19,9 +21,8 @@ export async function validateOrderTransaction(
 ): Promise<ValidateTransactionResponse> {
   const contractInterface = new Interface(ERC20Template.abi)
 
-  // 1. Fetch the transaction receipt and parse for OrderStarted and OrderReused events
   let txReceipt = await provider.getTransactionReceipt(txId)
-  // 2. Validate user address
+
   if (userAddress.toLowerCase() !== txReceipt.from.toLowerCase()) {
     return {
       isValid: false,
@@ -29,26 +30,23 @@ export async function validateOrderTransaction(
     }
   }
 
-  // 3. Fetch the event logs
-  // Check for OrderReused events
   const orderReusedEvent = fetchEventFromTransaction(
     txReceipt,
     'OrderReused',
     contractInterface
   )
 
-  // If OrderReused event found, fetch the associated OrderStarted transaction
   if (orderReusedEvent && orderReusedEvent?.length > 0) {
     const reusedTxId = orderReusedEvent[0].args[0]
     txReceipt = await provider.getTransactionReceipt(reusedTxId)
   }
 
-  // Filter logs for "OrderStarted" event
   const OrderStartedEvent = fetchEventFromTransaction(
     txReceipt,
     'OrderStarted',
     contractInterface
   )
+
   const eventServiceIndex = OrderStartedEvent[0].args[3]
 
   if (BigInt(serviceIndex) !== eventServiceIndex) {
@@ -58,7 +56,6 @@ export async function validateOrderTransaction(
     }
   }
 
-  // Check if the datatoken is deployed using ERC721 contract
   const ERC721Contract = new Contract(dataNftAddress, ERC721Template.abi, provider)
 
   const isDatatokenDeployed = await ERC721Contract.isDeployed(datatokenAddress)
@@ -71,10 +68,11 @@ export async function validateOrderTransaction(
   }
 
   const eventTimestamp = (await provider.getBlock(txReceipt.blockHash)).timestamp
-  // Calculate the time difference
+
   const currentTimestamp = Math.floor(Date.now() / 1000)
+
   const timeElapsed = currentTimestamp - eventTimestamp
-  // Check if the order has expired
+
   if (serviceTimeout !== 0 && timeElapsed > serviceTimeout) {
     return {
       isValid: false,

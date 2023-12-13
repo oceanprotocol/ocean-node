@@ -13,12 +13,13 @@ import fs from 'fs'
 import { homedir } from 'os'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import { Database } from '../../src/components/database/index.js'
-import { OceanIndexer } from '../../src/components/Indexer/index.js'
-import { RPCS } from '../../src/@types/blockchain.js'
-import { getEventFromTx } from '../../src/utils/util.js'
+import { Database } from '../../components/database/index.js'
+import { OceanIndexer } from '../../components/Indexer/index.js'
+import { RPCS } from '../../@types/blockchain.js'
+import { getEventFromTx } from '../../utils/util.js'
 import { delay, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
+import { getOceanArtifactsAdresses } from '../../utils/address.js'
 
 describe('Indexer stores a new published DDO', () => {
   let database: Database
@@ -49,14 +50,7 @@ describe('Indexer stores a new published DDO', () => {
     database = await new Database(dbConfig)
     indexer = new OceanIndexer(database, mockSupportedNetworks)
 
-    const data = JSON.parse(
-      // eslint-disable-next-line security/detect-non-literal-fs-filename
-      fs.readFileSync(
-        process.env.ADDRESS_FILE ||
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-        'utf8'
-      )
-    )
+    const data = getOceanArtifactsAdresses()
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     process.env.PRIVATE_KEY =
@@ -136,6 +130,7 @@ describe('Indexer stores a new published DDO', () => {
 
   it('should store the ddo in the database and return it ', async () => {
     resolvedDDO = await waitToIndex(assetDID, database)
+    console.log('resolvedDDO', resolvedDDO)
     expect(resolvedDDO.id).to.equal(genericAsset.id)
   })
 

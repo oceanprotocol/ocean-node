@@ -2,7 +2,7 @@ import {
   Typesense,
   convertTypesenseConfig,
   TypesenseCollections
-} from '../../src/components/database/typesense.js'
+} from '../../components/database/typesense.js'
 import { ddoSchema } from '../data/ddoSchema.js'
 import { ddo } from '../data/ddo.js'
 import { expect } from 'chai'

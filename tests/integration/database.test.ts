@@ -1,4 +1,4 @@
-import { Database } from '../../src/components/database/index.js'
+import { Database } from '../../components/database/index.js'
 import { expect } from 'chai'
 
 describe('Database', () => {
