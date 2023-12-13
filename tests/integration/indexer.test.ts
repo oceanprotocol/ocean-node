@@ -183,8 +183,8 @@ describe('Indexer stores a new published DDO', () => {
     expect(retrievedDDO.nft.state).to.equal(parseInt(result[2].toString()))
   })
 
-  it('should change metadata state to END OF LIFE', async () => {
-    // End of life state for this asset
+  it('should change metadata state to DEPRECATED', async () => {
+    // Deprecated state for this asset
     const setMetaDataStateTx = await nftContract.setMetaDataState(2)
     const trxReceipt = await setMetaDataStateTx.wait()
     assert(trxReceipt, 'set metada state failed')
