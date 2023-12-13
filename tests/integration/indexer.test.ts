@@ -204,6 +204,9 @@ describe('Indexer stores a new published DDO', () => {
     expect(parseInt(result[2].toString())).to.equal(2)
     const resolvedDDO = await waitToIndex(assetDID, database)
     // Expect a short version of the DDO
-    console.log('resolvedDDO after state update with short version of ddo: ', resolvedDDO)
+    expect(Object.keys(resolvedDDO).length).to.equal(3)
+    expect(
+      'id' in resolvedDDO && 'nftAddress' in resolvedDDO && 'nft' in resolvedDDO
+    ).to.equal(true)
   })
 })

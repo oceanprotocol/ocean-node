@@ -113,16 +113,12 @@ export const processMetadataStateEvent = async (
         }
       }
 
+      // We should keep it here, because in further development we'll store
+      // the previous structure of the non-visible DDOs (full version)
+      // in case their state changes back to active.
       ddo.nft.state = metadataState
       if (shortVersion) {
         ddo = shortVersion
-        INDEXER_LOGGER.logMessage(
-          `Short version DDO ${ddo.id}, ${ddo.nftAddress}, ${
-            ddo.nft
-          }. Are only id, nftAddress and nft keys inside ddo: ${
-            'id' in ddo && 'nftAddress' in ddo && 'nft' in ddo
-          }`
-        )
       }
     } else {
       // Still update until we validate and polish schemas for DDO.
