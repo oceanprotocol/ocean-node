@@ -17,17 +17,17 @@ import { homedir } from 'os'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-import { Database } from '../../src/components/database/index.js'
-import { OceanIndexer } from '../../src/components/Indexer/index.js'
-import { OceanNode } from '../../src/OceanNode.js'
-import { OceanP2P } from '../../src/components/P2P/index.js'
-import { RPCS } from '../../src/@types/blockchain.js'
-import { getEventFromTx } from '../../src/utils/util.js'
+import { Database } from '../../components/database/index.js'
+import { OceanIndexer } from '../../components/Indexer/index.js'
+import { OceanNode } from '../../OceanNode.js'
+import { OceanP2P } from '../../components/P2P/index.js'
+import { RPCS } from '../../@types/blockchain.js'
+import { getEventFromTx } from '../../utils/util.js'
 import { delay, signMessage, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
-import { getConfig } from '../../src/utils/index.js'
-import { validateOrderTransaction } from '../../src/components/core/validateTransaction.js'
-import { decrypt, encrypt } from '../../src/utils/crypt.js'
+import { getConfig } from '../../utils/index.js'
+import { validateOrderTransaction } from '../../components/core/validateTransaction.js'
+import { decrypt, encrypt } from '../../utils/crypt.js'
 import { Readable } from 'stream'
 
 // TODO: remove this once we have it in the codebase
