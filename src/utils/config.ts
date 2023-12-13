@@ -225,12 +225,8 @@ export async function getConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
   }
 
   if (
-    // these will not be required in the future
-    !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.IPFS_GATEWAY, isStartup) ||
-    !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY, isStartup)
-    // have some defaults for these ones:
-    // ENVIRONMENT_VARIABLES.FEE_TOKENS
-    // ENVIRONMENT_VARIABLES.FEE_AMOUNT
+    !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.FEE_TOKENS, isStartup) ||
+    !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.FEE_AMOUNT, isStartup)
   ) {
     return null
   }

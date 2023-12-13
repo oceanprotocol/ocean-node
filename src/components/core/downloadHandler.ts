@@ -34,6 +34,36 @@ export async function handleDownloadURLCommand(
   )
 
   try {
+    // we will replace this check once the handle download is merged and we can use the storage type for this
+    if (task.url.includes('arweave')) {
+      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+        'Failure executing downloadURL task: Oean-node does not support arweave storage type files! ',
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return {
+        stream: null,
+        status: {
+          httpStatus: 501,
+          error: 'Error: Oean-node does not support arweave storage type files!'
+        }
+      }
+    } else if (task.url.includes('ipfs')) {
+      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+        'Failure executing downloadURL task: Oean-node does not support ipfs storage type files! ',
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return {
+        stream: null,
+        status: {
+          httpStatus: 501,
+          error: 'Error: Oean-node does not support ipfs storage type files!'
+        }
+      }
+    }
     const inputStream = task.url.startsWith('http')
       ? await getFileFromURL(task.url) // remote url
       : fs.createReadStream(task.url) //  local file
