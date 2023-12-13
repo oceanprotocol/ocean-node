@@ -89,7 +89,8 @@ export const MetadataStates = {
   END_OF_LIFE: 1,
   DEPRECATED: 2,
   REVOKED: 3,
-  ORDERING_DISABLED: 4
+  ORDERING_DISABLED: 4,
+  UNLISTED: 5
 }
 
 export const EVENTS = {

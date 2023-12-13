@@ -90,27 +90,27 @@ export const processMetadataStateEvent = async (
     INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
 
     if ('nft' in ddo && ddo.nft.state !== metadataState) {
-      // if asset was already in soft state, let's check if we need to bring it back
+      const updatedNftState = metadataState
+
       if (
         ddo.nft.state === MetadataStates.ACTIVE &&
         [MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(metadataState)
       ) {
         INDEXER_LOGGER.logMessage(
-          `DDO became non visible from ${ddo.nft.state} to ${metadataState}`
+          `DDO became non-visible from ${ddo.nft.state} to ${metadataState}`
         )
         const shortVersion = {
           id: ddo.id,
           nftAddress: ddo.nftAddress,
           nft: {
-            state: metadataState
+            state: updatedNftState
           }
         }
-        ddo.nft.state = metadataState
         ddo = shortVersion
-        INDEXER_LOGGER.logMessage(`Short  version DDO ${ddo}`)
-      } else {
-        ddo.nft.state = metadataState
+        INDEXER_LOGGER.logMessage(`Short version DDO ${ddo}`)
       }
+
+      ddo.nft.state = updatedNftState
     } else {
       // Still update until we validate and polish schemas for DDO.
       // But it should update ONLY if first condition is met.
