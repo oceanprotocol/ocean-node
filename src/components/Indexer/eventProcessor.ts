@@ -90,7 +90,7 @@ export const processMetadataStateEvent = async (
     INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
 
     if ('nft' in ddo && ddo.nft.state !== metadataState) {
-      const updatedNftState = metadataState
+      let shortVersion = null
 
       if (
         ddo.nft.state === MetadataStates.ACTIVE &&
@@ -99,21 +99,29 @@ export const processMetadataStateEvent = async (
         INDEXER_LOGGER.logMessage(
           `DDO became non-visible from ${ddo.nft.state} to ${metadataState}`
         )
-        const shortVersion = {
+        shortVersion = {
           id: ddo.id,
           nftAddress: ddo.nftAddress,
           nft: {
-            state: updatedNftState
+            state: metadataState
           }
         }
-        ddo = shortVersion
-        INDEXER_LOGGER.logMessage(`Short version DDO ${ddo}`)
       }
 
-      ddo.nft.state = updatedNftState
+      ddo.nft.state = metadataState
+      if (shortVersion) {
+        ddo = shortVersion
+        INDEXER_LOGGER.logMessage(
+          `Short version DDO ${ddo.id}, ${ddo.nftAddress}, ${
+            ddo.nft
+          }. Are only id, nftAddress and nft keys inside ddo: ${
+            'id' in ddo && 'nftAddress' in ddo && 'nft' in ddo
+          }`
+        )
+      }
     } else {
       // Still update until we validate and polish schemas for DDO.
-      // But it should update ONLY if first condition is met.
+      // But it should update ONLY if the first condition is met.
       // Check https://github.com/oceanprotocol/aquarius/blob/84a560ea972485e46dd3c2cfc3cdb298b65d18fa/aquarius/events/processors.py#L663
       ddo.nft = {
         state: metadataState
