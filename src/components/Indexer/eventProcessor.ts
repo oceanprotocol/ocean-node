@@ -100,7 +100,12 @@ export const processMetadataStateEvent = async (
           `DDO became non-visible from ${ddo.nft.state} to ${metadataState}`
         )
         shortVersion = {
+          '@context': null,
           id: ddo.id,
+          version: null,
+          chainId: null,
+          metadata: null,
+          services: null,
           nftAddress: ddo.nftAddress,
           nft: {
             state: metadataState

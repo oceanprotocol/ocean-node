@@ -68,7 +68,7 @@ class TypesenseDocuments {
 
   async update(documentId: string, partialDocument: Partial<TypesenseDocumentSchema>) {
     const path = `${this.apiPath}/${documentId}`
-    return this.api.put<TypesenseDocumentSchema>(path, partialDocument)
+    return this.api.patch<TypesenseDocumentSchema>(path, partialDocument)
   }
 
   async search(
