@@ -41,7 +41,7 @@ export const genericDDO = {
   },
   services: [
     {
-      id: 'testFakeId',
+      id: '0',
       type: 'access',
       description: 'Download service',
       files: '',

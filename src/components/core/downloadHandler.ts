@@ -22,9 +22,12 @@ export async function handleDownload(
 ): Promise<P2PCommandResponse> {
   // 1. Get the DDO
   const ddo = await findAndFormatDdo(node, task.documentId)
+
   if (ddo) {
+    console.log('DDO for asset found: ', ddo)
     P2P_CONSOLE_LOGGER.logMessage('DDO for asset found: ' + ddo, true)
   } else {
+    console.log('No DDO for asset found. Cannot proceed with download.')
     P2P_CONSOLE_LOGGER.logMessage(
       'No DDO for asset found. Cannot proceed with download.',
       true
@@ -39,6 +42,7 @@ export async function handleDownload(
     parseInt(task.nonce),
     task.signature
   )
+  console.log('nonceCheckResult', nonceCheckResult)
 
   if (!nonceCheckResult.valid) {
     P2P_CONSOLE_LOGGER.logMessage(
@@ -51,6 +55,7 @@ export async function handleDownload(
 
   // 3. Calculate the provider fee
   const providerFee = await calculateFee(ddo, String(task.serviceIndex))
+  console.log('providerFee', providerFee)
   if (providerFee) {
     // Log the provider fee response for debugging purposes
     P2P_CONSOLE_LOGGER.logMessage(
@@ -62,7 +67,8 @@ export async function handleDownload(
   }
 
   // 4. check that the provider fee transaction is valid
-  const feeValidation = await checkFee(task.transferTxId, providerFee)
+  const feeValidation = await checkFee(task.feeTx, providerFee)
+  console.log('feeValidation', feeValidation)
   if (feeValidation) {
     // Log the provider fee response for debugging purposes
     P2P_CONSOLE_LOGGER.logMessage(`Valid provider fee transaction`, true)
@@ -73,6 +79,7 @@ export async function handleDownload(
   // 5. Call the validateOrderTransaction function to check order transaction
   const config = node.getConfig()
   const { rpc } = config.supportedNetworks[ddo.chainId]
+  console.log('rpc', rpc)
 
   const paymentValidation = await validateOrderTransaction(
     task.transferTxId,
@@ -83,6 +90,7 @@ export async function handleDownload(
     task.serviceIndex,
     ddo.services[task.serviceIndex].timeout
   )
+  console.log('paymentValidation', paymentValidation)
   if (paymentValidation.isValid) {
     P2P_CONSOLE_LOGGER.logMessage(
       `Valid payment transaction. Result: ${paymentValidation.message}`,
@@ -98,19 +106,26 @@ export async function handleDownload(
 
   // 6. Decrypt the url
   const encryptedFilesHex = ddo.services[task.serviceIndex].files
+  console.log('encryptedFilesHex', encryptedFilesHex)
   // Check if the string starts with '0x' and remove it if present
   const hexString = encryptedFilesHex.startsWith('0x')
     ? encryptedFilesHex.substring(2)
     : encryptedFilesHex
 
+  console.log('hexString', hexString)
+
   // Convert the hex string to a Uint8Array
   const encryptedFilesBytes = Uint8Array.from(Buffer.from(hexString, 'hex'))
+  console.log('encryptedFilesBytes', encryptedFilesBytes)
   // Call the decrypt function with the appropriate algorithm
   const decryptedUrlBytes = await decrypt(encryptedFilesBytes, 'ECIES')
+  console.log('decryptedUrlBytes', decryptedUrlBytes)
   // Convert the decrypted bytes back to a string
   const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
+  console.log('decryptedFilesString', decryptedFilesString)
   // Parse the string as JSON to get the file object
   const decryptedFileObject = JSON.parse(decryptedFilesString)
+  console.log('decryptedFileObject', decryptedFileObject)
 
   // 7. Proceed to download the file
   return await handleDownloadURLCommand(node, {

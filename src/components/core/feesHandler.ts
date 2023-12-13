@@ -95,6 +95,7 @@ export async function createFee(
   service: Service
   // provider: OceanProvider // this node provider
 ): Promise<ProviderFeeData> | undefined {
+  console.log('createFee', createFee)
   // create providerData struct
   const providerData = {
     environment: computeEnv, //  null for us now
@@ -317,12 +318,16 @@ export async function calculateFee(
   ddo: DDO,
   serviceId: string
 ): Promise<ProviderFeeData | undefined> {
+  console.log('calculateFee serviceId', serviceId)
+  console.log('calculateFee ddo', ddo)
   const service: Service = AssetUtils.getServiceById(ddo, serviceId)
   if (!service) {
+    console.log('No service for ddo', ddo)
     return undefined
   }
   // create fee structure
   const fee: ProviderFeeData | undefined = await createFee(ddo, 0, 'null', service)
+  console.log('calculateFee fee', fee)
   // - this will use fileInfo command to get the length of the file
   // - will analyze the DDO and get validity, so we can know who many times/until then user can download this asset
   // - compute required cost using FEE_AMOUNT and FEE_TOKENS

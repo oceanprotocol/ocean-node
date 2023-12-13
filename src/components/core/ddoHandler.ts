@@ -53,7 +53,6 @@ export function hasCachedDDO(node: OceanP2P, task: FindDDOCommand): boolean {
     const now: number = new Date().getTime()
     const cacheTime: number = node.getDDOCache().updated
     if (now - cacheTime <= CACHE_TTL) {
-      // console.log('cache age (ms):', now - cacheTime)
       return true
     }
     P2P_CONSOLE_LOGGER.log(
@@ -145,6 +144,7 @@ export async function findDDO(
             provider: peer
           }
           resultList.push(ddoInfo)
+
           P2P_CONSOLE_LOGGER.logMessage(
             `Succesfully processed DDO info, id: ${ddo.id} from remote peer: ${peer}`,
             true
@@ -194,6 +194,7 @@ export async function findDDO(
       // node has ddo
       // add to the result list anyway
       resultList.push(ddoInfo)
+
       updatedCache = true
     }
 
@@ -357,15 +358,24 @@ export async function findAndFormatDdo(
   node: OceanP2P,
   ddoId: string
 ): Promise<DDO | null> {
-  const task: FindDDOCommand = {
-    id: ddoId,
-    command: PROTOCOL_COMMANDS.FIND_DDO
-  }
-
+  // First try to find the DDO Locally
   try {
+    const ddo = await node.getDatabase().ddo.retrieve(ddoId)
+    return ddo as DDO
+  } catch (error) {
+    P2P_CONSOLE_LOGGER.logMessage(
+      `Unable to find DDO locally. Proceeding to call findDDO`,
+      true
+    )
+  }
+  try {
+    const task: FindDDOCommand = {
+      id: ddoId,
+      command: PROTOCOL_COMMANDS.FIND_DDO
+    }
     const response: P2PCommandResponse = await findDDO(node, task)
 
-    if (response.stream) {
+    if (response && response?.status?.httpStatus === 200 && response?.stream) {
       const streamData = await readStream(response.stream)
       const ddoList = JSON.parse(streamData)
 
@@ -397,6 +407,7 @@ export async function findAndFormatDdo(
     return null
   } catch (error) {
     console.error('Error getting DDO:', error)
+    P2P_CONSOLE_LOGGER.logMessage(`Error getting DDO: ${error}`, true)
     return null
   }
 }

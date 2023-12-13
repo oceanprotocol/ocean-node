@@ -33,6 +33,7 @@ export interface DownloadTask {
   nonce: string
   consumerAddress: string
   signature: string
+  feeTx: string
   aes_encrypted_key?: string // if not present it means download without encryption
 }
 
