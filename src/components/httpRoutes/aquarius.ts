@@ -10,10 +10,14 @@ import {
   getCustomLoggerForModule,
   LOG_LEVELS_STR,
   LOGGER_MODULE_NAMES
-} from "../../utils/logging/Logger.js";
+} from '../../utils/logging/Logger.js'
 
 export const aquariusRoutes = express.Router()
-const logger: CustomNodeLogger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP,  LOG_LEVELS_STR.LEVEL_INFO, defaultConsoleTransport)
+const logger: CustomNodeLogger = getCustomLoggerForModule(
+  LOGGER_MODULE_NAMES.HTTP,
+  LOG_LEVELS_STR.LEVEL_INFO,
+  defaultConsoleTransport
+)
 
 aquariusRoutes.get('/assets/ddo/:did', async (req, res) => {
   try {
@@ -66,6 +70,10 @@ aquariusRoutes.get('/assets/metadata/:did', async (req, res) => {
 aquariusRoutes.post('/assets/metadata/query', async (req, res) => {
   try {
     const query = req.body
+    if (!query) {
+      res.status(400).send('Missing required body')
+      return
+    }
     const node = req.oceanNode.getP2PNode()
     const result = await handleQueryCommand(node, {
       query,
@@ -106,6 +114,12 @@ aquariusRoutes.get('/state/ddo', async (req, res) => {
         q: nft,
         query_by: 'nft.address'
       }
+    }
+    if (!query) {
+      res
+        .status(400)
+        .send('Missing or invalid required parameters: "did", "chainId", "nft"')
+      return
     }
     const node = req.oceanNode.getP2PNode()
     const result = await handleQueryCommand(node, {

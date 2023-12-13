@@ -10,16 +10,24 @@ import {
   getCustomLoggerForModule,
   LOG_LEVELS_STR,
   LOGGER_MODULE_NAMES
-} from "../../utils/logging/Logger.js";
-import {PROTOCOL_COMMANDS} from "../../utils/constants.js";
-import {handleEncryptCommand} from "../core/encryptHandler.js";
+} from '../../utils/logging/Logger.js'
+import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { handleEncryptCommand } from '../core/encryptHandler.js'
 
 export const providerRoutes = express.Router()
-const logger: CustomNodeLogger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP,  LOG_LEVELS_STR.LEVEL_INFO, defaultConsoleTransport)
+const logger: CustomNodeLogger = getCustomLoggerForModule(
+  LOGGER_MODULE_NAMES.HTTP,
+  LOG_LEVELS_STR.LEVEL_INFO,
+  defaultConsoleTransport
+)
 
 providerRoutes.post('/encrypt', async (req, res) => {
   try {
-    const data = req.body
+    const data = String(req.body)
+    if (!data) {
+      res.status(400).send('Missing required body')
+      return
+    }
     const result = await handleEncryptCommand({
       blob: data,
       encoding: 'string',
@@ -27,7 +35,7 @@ providerRoutes.post('/encrypt', async (req, res) => {
       command: PROTOCOL_COMMANDS.ENCRYPT
     })
     if (result.stream) {
-      const encryptedData = JSON.parse(await streamToString(result.stream as Readable))
+      const encryptedData = await streamToString(result.stream as Readable)
       res.status(200).send(encryptedData)
     } else {
       res.status(result.status.httpStatus).send(result.status.error)
@@ -96,6 +104,10 @@ providerRoutes.get('/initialize', async (req, res) => {
 providerRoutes.get('/nonce', async (req, res) => {
   try {
     const userAddress = String(req.query.userAddress)
+    if (!userAddress) {
+      res.status(400).send('Missing required parameter: "userAddress"')
+      return
+    }
     const node = req.oceanNode.getP2PNode()
     const result = await getNonce(node, userAddress)
     if (result.stream) {
