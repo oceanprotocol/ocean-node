@@ -30,7 +30,6 @@ export interface DownloadTask {
   documentId: string
   serviceIndex: number
   transferTxId: string
-  fileIndex: number
   nonce: string
   consumerAddress: string
   signature: string

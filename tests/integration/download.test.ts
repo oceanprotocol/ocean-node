@@ -26,7 +26,7 @@ import { getConfig } from '../../utils/config.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 
-describe('validateOrderTransaction Function with Orders', () => {
+describe('Download tests', () => {
   let database: Database
   let provider: JsonRpcProvider
   let factoryContract: Contract
@@ -221,5 +221,24 @@ describe('validateOrderTransaction Function with Orders', () => {
     const dbconn = await new Database(config.dbConfig)
     const p2pNode = new OceanP2P(dbconn, config)
     assert(p2pNode, 'Failed to instantiate OceanP2P')
+
+    const wallet = new ethers.Wallet(
+      '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
+    )
+    // message to sign
+    const nonce = '1'
+    // sign message/nonce
+    const signature = await wallet.signMessage(nonce)
+
+    const downloadTask = {
+      documentId: assetDID,
+      serviceIndex,
+      transferTxId: orderTxId,
+      nonce: '1',
+      consumerAddress,
+      signature
+    }
+    const download = await handleDownload(downloadTask, p2pNode)
+    console.log('download', download)
   })
 })
