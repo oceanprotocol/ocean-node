@@ -23,7 +23,7 @@ const logger: CustomNodeLogger = getCustomLoggerForModule(
 
 providerRoutes.post('/encrypt', async (req, res) => {
   try {
-    const data = String(req.body)
+    const data = req.body.toString()
     if (!data) {
       res.status(400).send('Missing required body')
       return
