@@ -26,6 +26,7 @@ import { signMessage, waitToIndex, delay } from './testUtils.js'
 import { getConfig } from '../../utils/config.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { ProviderFeeData } from '../../@types/Fees'
+import { encrypt } from '../../utils/crypt.js'
 import {
   checkFee,
   createFee,
@@ -56,6 +57,7 @@ describe('Download Tests', () => {
   let orderTxId: string
   let dataTokenContractWithNewSigner: any
   let feeTx: string
+  let feeData: ProviderFeeData | undefined
   let signedMessage: {
     v: string
     r: string
@@ -141,12 +143,23 @@ describe('Download Tests', () => {
 
     nftAddress = nftEvent.args[0]
     datatokenAddress = erc20Event.args[0]
+    console.log('### datatokenAddress', datatokenAddress)
 
     assert(nftAddress, 'find nft created failed')
     assert(datatokenAddress, 'find datatoken created failed')
   })
 
   it('should set metadata and save ', async () => {
+    // Encrypt the files
+    const files = {
+      type: 'url',
+      url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
+      method: 'get'
+    }
+    const data = Uint8Array.from(Buffer.from(JSON.stringify(files)))
+    const encryptedData = await encrypt(data, 'ECIES')
+    const encryptedDataString = encryptedData.toString('base64')
+
     nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, publisherAccount)
     genericAsset.id =
       'did:op:' +
@@ -154,6 +167,8 @@ describe('Download Tests', () => {
         .update(getAddress(nftAddress) + chainId.toString(10))
         .digest('hex')
     genericAsset.nftAddress = nftAddress
+    genericAsset.services[0].datatokenAddress = datatokenAddress
+    genericAsset.services[0].files = encryptedDataString
 
     assetDID = genericAsset.id
     const stringDDO = JSON.stringify(genericAsset)
@@ -210,23 +225,20 @@ describe('Download Tests', () => {
     const asset: any = resolvedDDO
     const wallet = await getProviderWallet()
     const { address } = wallet
+    console.log('address', address)
     const { chainId } = asset // this chain id is a number
     const providerFeeToken = await getProviderFeeToken(chainId)
     const providerAmount = await getProviderFeeAmount()
 
-    const data: ProviderFeeData | undefined = await createFee(
-      asset,
-      0,
-      'null',
-      resolvedDDO.services[0]
-    )
-    if (data) {
-      expect(data.providerFeeAddress).to.be.equal(address)
-      expect(data.providerFeeToken).to.be.equal(providerFeeToken)
-      expect(data.providerFeeAmount).to.be.equal(providerAmount)
+    feeData = await createFee(asset, 0, 'null', resolvedDDO.services[0])
+
+    if (feeData) {
+      expect(feeData.providerFeeAddress).to.be.equal(address)
+      expect(feeData.providerFeeToken).to.be.equal(providerFeeToken)
+      expect(feeData.providerFeeAmount).to.be.equal(providerAmount)
 
       // will sign a new message with this data to simulate the txId and then check it
-      const providerDataAsArray = ethers.toBeArray(data.providerData)
+      const providerDataAsArray = ethers.toBeArray(feeData.providerData)
       const providerDataStr = Buffer.from(providerDataAsArray).toString('utf8')
       const providerData = JSON.parse(providerDataStr)
 
@@ -237,10 +249,10 @@ describe('Download Tests', () => {
         ['bytes', 'address', 'address', 'uint256', 'uint256'],
         [
           ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(providerData))),
-          ethers.getAddress(data.providerFeeAddress), // signer address
-          ethers.getAddress(data.providerFeeToken), // TODO check decimals on contract?
-          data.providerFeeAmount,
-          data.validUntil
+          ethers.getAddress(feeData.providerFeeAddress), // signer address
+          ethers.getAddress(feeData.providerFeeToken), // TODO check decimals on contract?
+          feeData.providerFeeAmount,
+          feeData.validUntil
         ]
       )
 
@@ -250,13 +262,16 @@ describe('Download Tests', () => {
       )
 
       feeTx = await wallet.signMessage(ethers.toBeArray(signableHash))
-      const checkFeeResult = await checkFee(feeTx, data)
+
+      console.log('1. feeTx', feeTx)
+      console.log('1. Test data', feeData)
+      const checkFeeResult = await checkFee(feeTx, feeData)
       expect(checkFeeResult).to.be.equal(true)
     }
   })
 
   it('should start an order and then download the asset', async function () {
-    this.timeout(55000) // Extend default Mocha test timeout
+    this.timeout(65000) // Extend default Mocha test timeout
     console.log('should start an order and then download the asset')
     const dataTokenContract = new Contract(
       datatokenAddress,
@@ -326,7 +341,8 @@ describe('Download Tests', () => {
     const nonce = Date.now().toString()
     // sign message/nonce
     const signature = await wallet.signMessage(nonce)
-
+    console.log('2. feeTx', feeTx)
+    console.log('consumerAddress', consumerAddress)
     const downloadTask = {
       documentId: assetDID,
       serviceIndex,
@@ -334,7 +350,8 @@ describe('Download Tests', () => {
       nonce,
       consumerAddress,
       signature,
-      feeTx
+      feeTx,
+      feeData
     }
     const download = await handleDownload(downloadTask, p2pNode)
     console.log('download', download)

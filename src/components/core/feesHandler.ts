@@ -95,7 +95,6 @@ export async function createFee(
   service: Service
   // provider: OceanProvider // this node provider
 ): Promise<ProviderFeeData> | undefined {
-  console.log('createFee', createFee)
   // create providerData struct
   const providerData = {
     environment: computeEnv, //  null for us now
@@ -268,6 +267,9 @@ export async function checkFee(
   providerFeesData: ProviderFeeData
   // message: string | Uint8Array // the message that was signed (fee structure) ?
 ): Promise<boolean> {
+  console.log('checkFee function: given a txID')
+  console.log('txId', txId)
+  console.log('providerFeesData', providerFeesData)
   // checkFee function: given a txID, checks:
   // the address that signed the fee signature = ocean-node address
   // amount, tokens, etc are a match
@@ -281,6 +283,14 @@ export async function checkFee(
     nodeAddress !== providerFeesData.providerFeeAddress ||
     providerFeesData.providerFeeAmount !== feeAmount
   ) {
+    console.log('first check if these are a match')
+    console.log('nodeAddress', nodeAddress)
+    console.log(
+      'providerFeesData.providerFeeAddress',
+      providerFeesData.providerFeeAddress
+    )
+    console.log('providerFeesData.providerFeeAmount', providerFeesData.providerFeeAmount)
+    console.log('feeAmount', feeAmount)
     return false
   }
 
@@ -310,6 +320,10 @@ export async function checkFee(
   const message = ethers.toBeArray(signableHash) // await wallet.signMessage()
 
   // and also check that we signed this message
+  console.log('and also check that we signed this message')
+  console.log('message', message)
+  console.log('nodeAddress', nodeAddress)
+  console.log('txId', txId)
   return await verifyMessage(message, nodeAddress, txId)
   // before was only return await verifyMessage(message, nodeAddress, txId)
 }

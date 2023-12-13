@@ -38,11 +38,14 @@ export async function verifyMessage(
 ) {
   try {
     const signerAddr = await ethers.verifyMessage(message, signature)
-    if (signerAddr !== address) {
+    console.log('signerAddr', signerAddr)
+    if (signerAddr.toLowerCase() !== address.toLowerCase()) {
+      console.log('signerAddr !== address')
       return false
     }
     return true
   } catch (err) {
+    console.log('verifyMessage error', err)
     return false
   }
 }

@@ -211,7 +211,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     const validationResult = await validateOrderTransaction(
       orderTxId,
       consumerAddress,
-      'http://127.0.0.1:8545',
+      provider,
       dataNftAddress,
       datatokenAddress,
       serviceIndex,
@@ -255,7 +255,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     const validationResult = await validateOrderTransaction(
       txId,
       consumerAddress,
-      'http://127.0.0.1:8545',
+      provider,
       dataNftAddress,
       datatokenAddress,
       serviceIndex,
@@ -300,7 +300,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     const validationResult = await validateOrderTransaction(
       txId,
       consumerAddress,
-      'http://127.0.0.1:8545',
+      provider,
       dataNftAddress,
       datatokenAddress,
       999,
@@ -344,7 +344,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     const validationResult = await validateOrderTransaction(
       txId,
       '0x0',
-      'http://127.0.0.1:8545',
+      provider,
       dataNftAddress,
       datatokenAddress,
       serviceIndex,

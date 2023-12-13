@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { JsonRpcProvider } from 'ethers'
 import {
   DownloadTask,
   DownloadURLCommand,
@@ -42,7 +43,6 @@ export async function handleDownload(
     parseInt(task.nonce),
     task.signature
   )
-  console.log('nonceCheckResult', nonceCheckResult)
 
   if (!nonceCheckResult.valid) {
     P2P_CONSOLE_LOGGER.logMessage(
@@ -54,20 +54,25 @@ export async function handleDownload(
   }
 
   // 3. Calculate the provider fee
-  const providerFee = await calculateFee(ddo, String(task.serviceIndex))
-  console.log('providerFee', providerFee)
-  if (providerFee) {
-    // Log the provider fee response for debugging purposes
-    P2P_CONSOLE_LOGGER.logMessage(
-      `Provider fee response: ${JSON.stringify(providerFee)}`,
-      true
-    )
-  } else {
-    throw new Error('No provider fees calculated')
-  }
+  // const providerFee = await calculateFee(ddo, String(task.serviceIndex))
+  // console.log('2. handleDownload providerFee', providerFee)
+  // if (providerFee) {
+  //   // Log the provider fee response for debugging purposes
+  //   P2P_CONSOLE_LOGGER.logMessage(
+  //     `Provider fee response: ${JSON.stringify(providerFee)}`,
+  //     true
+  //   )
+  // } else {
+  //   throw new Error('No provider fees calculated')
+  // }
 
   // 4. check that the provider fee transaction is valid
-  const feeValidation = await checkFee(task.feeTx, providerFee)
+  let feeValidation
+  try {
+    feeValidation = await checkFee(task.feeTx, task.feeData)
+  } catch (e) {
+    console.log('checkFee ERROR', e)
+  }
   console.log('feeValidation', feeValidation)
   if (feeValidation) {
     // Log the provider fee response for debugging purposes
@@ -81,15 +86,29 @@ export async function handleDownload(
   const { rpc } = config.supportedNetworks[ddo.chainId]
   console.log('rpc', rpc)
 
-  const paymentValidation = await validateOrderTransaction(
-    task.transferTxId,
-    task.consumerAddress,
-    rpc,
-    ddo.nftAddress,
-    ddo.services[task.serviceIndex].datatokenAddress,
-    task.serviceIndex,
-    ddo.services[task.serviceIndex].timeout
-  )
+  let provider
+  try {
+    provider = new JsonRpcProvider(rpc)
+    console.log('provider', provider)
+  } catch (e) {
+    console.log('JsonRpcProvider ERROR', e)
+  }
+
+  let paymentValidation
+  try {
+    paymentValidation = await validateOrderTransaction(
+      task.transferTxId,
+      task.consumerAddress,
+      provider,
+      ddo.nftAddress,
+      ddo.services[task.serviceIndex].datatokenAddress,
+      task.serviceIndex,
+      ddo.services[task.serviceIndex].timeout
+    )
+  } catch (e) {
+    console.log('e', e)
+  }
+
   console.log('paymentValidation', paymentValidation)
   if (paymentValidation.isValid) {
     P2P_CONSOLE_LOGGER.logMessage(
@@ -104,35 +123,33 @@ export async function handleDownload(
     throw new Error(paymentValidation.message)
   }
 
-  // 6. Decrypt the url
-  const encryptedFilesHex = ddo.services[task.serviceIndex].files
-  console.log('encryptedFilesHex', encryptedFilesHex)
-  // Check if the string starts with '0x' and remove it if present
-  const hexString = encryptedFilesHex.startsWith('0x')
-    ? encryptedFilesHex.substring(2)
-    : encryptedFilesHex
+  try {
+    // 6. Decrypt the url
+    const encryptedFilesString = ddo.services[task.serviceIndex].files
+    const encryptedFilesBuffer = Buffer.from(encryptedFilesString, 'base64')
 
-  console.log('hexString', hexString)
+    // Ensure that encryptedFilesBuffer is of type Buffer
+    if (!Buffer.isBuffer(encryptedFilesBuffer)) {
+      throw new Error('Encrypted data is not a Buffer')
+    }
 
-  // Convert the hex string to a Uint8Array
-  const encryptedFilesBytes = Uint8Array.from(Buffer.from(hexString, 'hex'))
-  console.log('encryptedFilesBytes', encryptedFilesBytes)
-  // Call the decrypt function with the appropriate algorithm
-  const decryptedUrlBytes = await decrypt(encryptedFilesBytes, 'ECIES')
-  console.log('decryptedUrlBytes', decryptedUrlBytes)
-  // Convert the decrypted bytes back to a string
-  const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
-  console.log('decryptedFilesString', decryptedFilesString)
-  // Parse the string as JSON to get the file object
-  const decryptedFileObject = JSON.parse(decryptedFilesString)
-  console.log('decryptedFileObject', decryptedFileObject)
+    // Call the decrypt function with the appropriate algorithm
+    const decryptedUrlBytes = await decrypt(encryptedFilesBuffer, 'ECIES')
 
-  // 7. Proceed to download the file
-  return await handleDownloadURLCommand(node, {
-    command: PROTOCOL_COMMANDS.DOWNLOAD_URL,
-    fileObject: decryptedFileObject,
-    aes_encrypted_key: task.aes_encrypted_key
-  })
+    // Convert the decrypted bytes back to a string
+    const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
+    const decryptedFileObject = JSON.parse(decryptedFilesString)
+    console.log('decryptedFileObject', decryptedFileObject)
+
+    // 7. Proceed to download the file
+    return await handleDownloadURLCommand(node, {
+      command: PROTOCOL_COMMANDS.DOWNLOAD_URL,
+      fileObject: decryptedFileObject,
+      aes_encrypted_key: task.aes_encrypted_key
+    })
+  } catch (e) {
+    console.log('decryption error', e)
+  }
 }
 
 // No encryption here yet

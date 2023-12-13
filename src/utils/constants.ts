@@ -34,6 +34,7 @@ export interface DownloadTask {
   consumerAddress: string
   signature: string
   feeTx: string
+  feeData: any
   aes_encrypted_key?: string // if not present it means download without encryption
 }
 
