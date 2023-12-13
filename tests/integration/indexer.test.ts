@@ -165,22 +165,30 @@ describe('Indexer stores a new published DDO', () => {
     )
   })
 
-  // it('should change metadata state of the published DDO', async () => {
-  //   const setMetaDataStateTx = await nftContract.setMetaDataState(4)
-  //   const trxReceipt = await setMetaDataStateTx.wait()
-  //   assert(trxReceipt, 'set metada state failed')
-  // })
+  it('should change metadata state of the published DDO', async () => {
+    const setMetaDataStateTx = await nftContract.setMetaDataState(4)
+    const trxReceipt = await setMetaDataStateTx.wait()
+    assert(trxReceipt, 'set metada state failed')
+  })
 
-  // delay(50000)
+  delay(50000)
 
-  // it('should get the updated state', async () => {
-  //   const result = await nftContract.getMetaData()
-  //   const retrievedDDO = await waitToIndex(assetDID, database)
-  //   expect(retrievedDDO.nft).to.not.equal(undefined)
-  //   expect(retrievedDDO).to.have.nested.property('nft.state')
-  //   // Expect the result from contract
-  //   expect(retrievedDDO.nft.state).to.equal(parseInt(result[2].toString()))
-  // })
+  it('should get the updated state', async () => {
+    const result = await nftContract.getMetaData()
+    const retrievedDDO = await waitToIndex(assetDID, database)
+    expect(retrievedDDO.nft).to.not.equal(undefined)
+    expect(retrievedDDO).to.have.nested.property('nft.state')
+    // Expect the result from contract
+    expect(retrievedDDO.nft.state).to.equal(parseInt(result[2].toString()))
+  })
+
+  it('should change metadata state back to ACTIVE state', async () => {
+    const setMetaDataStateTx = await nftContract.setMetaDataState(0)
+    const trxReceipt = await setMetaDataStateTx.wait()
+    assert(trxReceipt, 'set metada state failed')
+  })
+
+  delay(50000)
 
   it('should change metadata state to DEPRECATED', async () => {
     // Deprecated state for this asset
