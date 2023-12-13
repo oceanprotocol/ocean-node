@@ -88,20 +88,6 @@ export const processMetadataStateEvent = async (
       return
     }
     INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
-    INDEXER_LOGGER.logMessage(
-      `contract metadata state REVOKED, DEPRECATED, END_OF_LIFE: ${[
-        MetadataStates.REVOKED,
-        MetadataStates.DEPRECATED,
-        MetadataStates.END_OF_LIFE
-      ].includes(metadataState)} contract state value: ${metadataState}`
-    )
-    INDEXER_LOGGER.logMessage(
-      `ddo NFT state REVOKED, DEPRECATED, END_OF_LIFE: ${[
-        MetadataStates.REVOKED,
-        MetadataStates.DEPRECATED,
-        MetadataStates.END_OF_LIFE
-      ].includes(ddo.nft.state)} ddo NFT state value: ${ddo.nft.state}`
-    )
 
     if ('nft' in ddo && ddo.nft.state !== metadataState) {
       // if asset was already in soft state, let's check if we need to bring it back
@@ -121,13 +107,6 @@ export const processMetadataStateEvent = async (
       // Still update until we validate and polish schemas for DDO.
       // But it should update ONLY if first condition is met.
       // Check https://github.com/oceanprotocol/aquarius/blob/84a560ea972485e46dd3c2cfc3cdb298b65d18fa/aquarius/events/processors.py#L663
-      if ([MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(metadataState)) {
-        const shortVersion = {
-          id: ddo.id,
-          nftAddress: ddo.nftAddress
-        }
-        ddo = shortVersion
-      }
       ddo.nft = {
         state: metadataState
       }
