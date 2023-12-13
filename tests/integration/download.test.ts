@@ -14,17 +14,17 @@ import {
 import { createHash } from 'crypto'
 import fs from 'fs'
 import { homedir } from 'os'
-import { handleDownload } from '../../src/components/core/downloadHandler.js'
+import { handleDownload } from '../../components/core/downloadHandler.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-import { getEventFromTx } from '../../src/utils/util.js'
+import { getEventFromTx } from '../../utils/util.js'
 import { signMessage } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
-import { Database } from '../../src/components/database/index.js'
-import { getConfig } from '../../src/utils/config.js'
-import { OceanP2P } from '../../src/components/P2P/index.js'
-import { PROTOCOL_COMMANDS } from '../../src/utils/constants.js'
+import { Database } from '../../components/database/index.js'
+import { getConfig } from '../../utils/config.js'
+import { OceanP2P } from '../../components/P2P/index.js'
+import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 
 describe('validateOrderTransaction Function with Orders', () => {
   let database: Database
@@ -219,6 +219,7 @@ describe('validateOrderTransaction Function with Orders', () => {
 
     const config = await getConfig()
     const dbconn = await new Database(config.dbConfig)
-    // const p2pNode = new OceanP2P(dbconn, config)
+    const p2pNode = new OceanP2P(dbconn, config)
+    assert(p2pNode, 'Failed to instantiate OceanP2P')
   })
 })
