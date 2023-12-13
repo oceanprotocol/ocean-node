@@ -123,11 +123,9 @@ describe('Indexer stores a new published DDO', () => {
     const event = getEventFromTx(txReceipt, 'NFTCreated')
     nftAddress = event.args[0]
     assert(nftAddress, 'find nft created failed')
-    console.log('nftAddress for OrderStarted test: ', nftAddress)
     const datatokenEvent = getEventFromTx(txReceipt, 'TokenCreated')
     datatokenAddress = datatokenEvent.args[0]
     assert(datatokenAddress, 'find datatoken created failed')
-    console.log('datatokenAddress for OrderStarted test: ', datatokenAddress)
   })
 
   it('should set metadata and save ', async () => {

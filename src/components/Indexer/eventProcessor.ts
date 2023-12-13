@@ -128,7 +128,6 @@ export const processOrderStartedEvent = async (
     data: receipt.logs[0].data
   }
   const decodedEventData = iface.parseLog(eventObj)
-  INDEXER_LOGGER.logMessage(`Decoded event data args: ${decodedEventData.args}`, true)
   const serviceIndex = parseInt(decodedEventData.args[3].toString())
   const timestamp = parseInt(decodedEventData.args[4].toString())
   const consumer = decodedEventData.args[0].toString()
@@ -218,7 +217,6 @@ export const processOrderReusedEvent = async (
       )
       return
     }
-    INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}.`)
     ddo.stats.orders += 1
 
     try {
