@@ -1,6 +1,10 @@
 import { expect } from 'chai'
-import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS, getConfig } from '../../../src/utils'
-import { ProviderFeeData } from '../../../src/@types/Fees'
+import {
+  ENVIRONMENT_VARIABLES,
+  PROTOCOL_COMMANDS,
+  getConfig
+} from '../../../utils/index.js'
+import { ProviderFeeData } from '../../../@types/Fees'
 import {
   checkFee,
   createFee,
@@ -9,15 +13,15 @@ import {
   getProviderFeeToken,
   getProviderWallet,
   getProviderWalletAddress
-} from '../../../src/components/core/feesHandler'
-import { OceanNodeConfig, P2PCommandResponse } from '../../../src/@types'
-import { Service } from '../../../src/@types/DDO/Service'
-import { DDOExample } from '../../data/ddo'
+} from '../../../components/core/feesHandler.js'
+import { OceanNodeConfig, P2PCommandResponse } from '../../../@types'
+import { Service } from '../../../@types/DDO/Service.js'
+import { DDOExample } from '../../data/ddo.js'
 import {
   OverrideEnvConfig,
   setupEnvironment,
   tearDownEnvironment
-} from '../../utils/utils'
+} from '../../utils/utils.js'
 import { ethers } from 'ethers'
 
 const service: Service = {

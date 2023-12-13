@@ -14,8 +14,13 @@ import { DownloadURLCommand } from '../../utils/constants.js'
 
 // Replace with any other file, works with a local path or URL
 // '/var/log/syslog'
-const EXAMPLE_FILE =
-  'https://ia800909.us.archive.org/13/items/CC_1917_04_16_TheCure/CC_1917_04_16_TheCure_512kb.mp4'
+// See tests/unit/storage.test.ts for more examples, including IPFS and Arweave
+const EXAMPLE_FILE = {
+  type: 'url',
+  url: 'https://ia800909.us.archive.org/13/items/CC_1917_04_16_TheCure/CC_1917_04_16_TheCure_512kb.mp4',
+  method: 'get'
+}
+
 // AES encryption
 const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 const { publicKeyConvert } = pkg
@@ -223,7 +228,7 @@ async function testDownloadCommand(
     // node: '16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL', // IF not present use own node
     // own node A is: "16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo",
     // other node B is: 16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL
-    url: EXAMPLE_FILE // http://example.com'
+    fileObject: EXAMPLE_FILE // http://example.com'
     // "aes_encrypted_key": encryptedAESKeyAndIV
   }
 

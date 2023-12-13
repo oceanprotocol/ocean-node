@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import { decrypt, encrypt } from '../../src/utils/crypt.js'
+import { decrypt, encrypt } from '../../utils/crypt.js'
 
 describe('crypt', () => {
   it('should encrypt/decrypt AES', async () => {

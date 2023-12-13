@@ -1,4 +1,4 @@
-import { TypesenseCollectionCreateSchema } from '../../src/@types'
+import { TypesenseCollectionCreateSchema } from '../../@types'
 
 export const ddoSchema: TypesenseCollectionCreateSchema = {
   name: 'ddo',
