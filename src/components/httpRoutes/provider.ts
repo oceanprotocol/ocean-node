@@ -2,22 +2,38 @@ import express from 'express'
 import { getNonce } from '../core/nonceHandler.js'
 import { streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
-import { encrypt } from '../../utils/crypt.js'
 import { calculateFee } from '../core/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO'
+import {
+  CustomNodeLogger,
+  defaultConsoleTransport,
+  getCustomLoggerForModule,
+  LOG_LEVELS_STR,
+  LOGGER_MODULE_NAMES
+} from "../../utils/logging/Logger.js";
+import {PROTOCOL_COMMANDS} from "../../utils/constants.js";
+import {handleEncryptCommand} from "../core/encryptHandler.js";
 
 export const providerRoutes = express.Router()
+const logger: CustomNodeLogger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP,  LOG_LEVELS_STR.LEVEL_INFO, defaultConsoleTransport)
 
 providerRoutes.post('/encrypt', async (req, res) => {
   try {
-    const data = Uint8Array.from(req.body)
-    const encryptedData = await encrypt(data, 'ECIES')
-    if (encryptedData) {
-      res.send(encryptedData)
+    const data = req.body
+    const result = await handleEncryptCommand({
+      blob: data,
+      encoding: 'string',
+      encryptionType: 'ECIES',
+      command: PROTOCOL_COMMANDS.ENCRYPT
+    })
+    if (result.stream) {
+      const encryptedData = JSON.parse(await streamToString(result.stream as Readable))
+      res.status(200).send(encryptedData)
     } else {
-      res.status(400).send()
+      res.status(result.status.httpStatus).send(result.status.error)
     }
   } catch (error) {
+    logger.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
@@ -26,6 +42,7 @@ providerRoutes.get('/download', async (req, res) => {
   try {
     res.status(400).send()
   } catch (error) {
+    logger.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
@@ -71,6 +88,7 @@ providerRoutes.get('/initialize', async (req, res) => {
 
     res.json(response)
   } catch (error) {
+    logger.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
@@ -86,6 +104,7 @@ providerRoutes.get('/nonce', async (req, res) => {
       res.status(400).send()
     }
   } catch (error) {
+    logger.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })

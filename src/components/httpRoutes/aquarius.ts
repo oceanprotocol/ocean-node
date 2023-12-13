@@ -4,8 +4,16 @@ import { Readable } from 'stream'
 import { handleGetDdoCommand } from '../core/ddoHandler.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { handleQueryCommand } from '../core/queryHandler.js'
+import {
+  CustomNodeLogger,
+  defaultConsoleTransport,
+  getCustomLoggerForModule,
+  LOG_LEVELS_STR,
+  LOGGER_MODULE_NAMES
+} from "../../utils/logging/Logger.js";
 
 export const aquariusRoutes = express.Router()
+const logger: CustomNodeLogger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP,  LOG_LEVELS_STR.LEVEL_INFO, defaultConsoleTransport)
 
 aquariusRoutes.get('/assets/ddo/:did', async (req, res) => {
   try {
@@ -26,6 +34,7 @@ aquariusRoutes.get('/assets/ddo/:did', async (req, res) => {
       res.status(result.status.httpStatus).send(result.status.error)
     }
   } catch (error) {
+    logger.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
@@ -49,6 +58,7 @@ aquariusRoutes.get('/assets/metadata/:did', async (req, res) => {
       res.status(result.status.httpStatus).send(result.status.error)
     }
   } catch (error) {
+    logger.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
@@ -68,11 +78,12 @@ aquariusRoutes.post('/assets/metadata/query', async (req, res) => {
       res.status(result.status.httpStatus).send(result.status.error)
     }
   } catch (error) {
+    logger.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
 
-aquariusRoutes.get('/aquarius/state/ddo', async (req, res) => {
+aquariusRoutes.get('/state/ddo', async (req, res) => {
   try {
     let query
     const did = String(req.query.did)
@@ -103,8 +114,8 @@ aquariusRoutes.get('/aquarius/state/ddo', async (req, res) => {
     })
     if (result.stream) {
       const queryResult = JSON.parse(await streamToString(result.stream as Readable))
-      if (queryResult.found) {
-        res.json(queryResult.hits[0].nft.state)
+      if (queryResult[0].found) {
+        res.json(queryResult[0].hits[0].document.nft.state)
       } else {
         res.status(404).send('Not found')
       }
@@ -112,6 +123,7 @@ aquariusRoutes.get('/aquarius/state/ddo', async (req, res) => {
       res.status(result.status.httpStatus).send(result.status.error)
     }
   } catch (error) {
+    logger.log(LOG_LEVELS_STR.LEVEl_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
