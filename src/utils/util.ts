@@ -6,12 +6,21 @@ import {
   getCustomLoggerForModule
 } from '../utils/logging/Logger.js'
 // Put some utilities functions here
+import { Readable } from 'stream'
 
 // sleep for ms miliseconds
 import { Interface } from 'ethers'
 
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+export async function streamToString(stream: Readable) {
+  const chunks = []
+  for await (const chunk of stream) {
+    chunks.push(Buffer.from(chunk))
+  }
+  return Buffer.concat(chunks).toString()
 }
 
 export function getEventFromTx(txReceipt: { logs: any[] }, eventName: any) {
