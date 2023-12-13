@@ -1,10 +1,7 @@
 import { expect } from 'chai'
 import { ethers, ZeroAddress } from 'ethers'
 import { nonceSchema } from '../data/nonceSchema.js'
-import {
-  Typesense,
-  convertTypesenseConfig
-} from '../../src/components/database/typesense'
+import { Typesense, convertTypesenseConfig } from '../../components/database/typesense.js'
 
 describe('handle nonce', () => {
   let typesense: Typesense

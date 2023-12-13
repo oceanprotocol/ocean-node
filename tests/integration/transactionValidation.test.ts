@@ -14,15 +14,15 @@ import {
 import { createHash } from 'crypto'
 import fs from 'fs'
 import { homedir } from 'os'
-import { validateOrderTransaction } from '../../src/components/core/validateTransaction'
+import { validateOrderTransaction } from '../../components/core/validateTransaction.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-import { getEventFromTx } from '../../src/utils/util.js'
+import { getEventFromTx } from '../../utils/util.js'
 import { signMessage } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
-import { Database } from '../../src/components/database/index.js'
-import { getOceanArtifactsAdresses } from '../../src/utils/address.js'
+import { Database } from '../../components/database/index.js'
+import { getOceanArtifactsAdresses } from '../../utils/address.js'
 
 describe('validateOrderTransaction Function with Orders', () => {
   let database: Database

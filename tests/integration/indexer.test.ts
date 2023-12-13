@@ -13,13 +13,13 @@ import fs from 'fs'
 import { homedir } from 'os'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import { Database } from '../../src/components/database/index.js'
-import { OceanIndexer } from '../../src/components/Indexer/index.js'
-import { RPCS } from '../../src/@types/blockchain.js'
-import { getEventFromTx } from '../../src/utils/util.js'
+import { Database } from '../../components/database/index.js'
+import { OceanIndexer } from '../../components/Indexer/index.js'
+import { RPCS } from '../../@types/blockchain.js'
+import { getEventFromTx } from '../../utils/util.js'
 import { delay, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
-import { getOceanArtifactsAdresses } from '../../src/utils/address.js'
+import { getOceanArtifactsAdresses } from '../../utils/address.js'
 
 describe('Indexer stores a new published DDO', () => {
   let database: Database
