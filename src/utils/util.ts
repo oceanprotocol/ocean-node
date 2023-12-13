@@ -5,13 +5,20 @@ import {
   defaultConsoleTransport,
   getCustomLoggerForModule
 } from '../utils/logging/Logger.js'
-// Put some utilities functions here
+import { Readable, Stream } from 'stream'
 
-// sleep for ms miliseconds
 import { Interface } from 'ethers'
 
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+export async function streamToString(stream: Readable) {
+  const chunks = []
+  for await (const chunk of stream) {
+    chunks.push(Buffer.from(chunk))
+  }
+  return Buffer.concat(chunks).toString()
 }
 
 export function getEventFromTx(txReceipt: { logs: any[] }, eventName: any) {
@@ -59,4 +66,29 @@ export function fetchEventFromTransaction(
     )
     return null
   }
+}
+
+// Helper function to read from a stream
+export async function readStream(stream: Stream): Promise<string> {
+  return new Promise((resolve, reject) => {
+    // Check if the stream is readable
+    if (!(stream instanceof Readable)) {
+      reject(new Error('Provided stream is not a readable stream.'))
+      return
+    }
+
+    let data = ''
+
+    stream.on('data', (chunk) => {
+      data += chunk
+    })
+
+    stream.on('end', () => {
+      resolve(data)
+    })
+
+    stream.on('error', (error) => {
+      reject(error)
+    })
+  })
 }
