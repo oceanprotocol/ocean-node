@@ -1,4 +1,5 @@
 import { expect, assert } from 'chai'
+import { Readable } from 'stream'
 import { createHash } from 'crypto'
 import {
   JsonRpcProvider,
@@ -12,43 +13,58 @@ import {
   solidityPackedKeccak256,
   parseUnits
 } from 'ethers'
-import fs from 'fs'
-import { homedir } from 'os'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
-import { getEventFromTx } from '../../utils/util.js'
-import { delay, waitToIndex, signMessage } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
+import { handleDownload } from '../../components/core/downloadHandler.js'
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import { getEventFromTx, sleep } from '../../utils/util.js'
+import { signMessage, waitToIndex, delay } from './testUtils.js'
+import { getConfig } from '../../utils/config.js'
+import { OceanP2P } from '../../components/P2P/index.js'
+import { ProviderFeeData } from '../../@types/Fees'
+import { encrypt } from '../../utils/crypt.js'
+import {
+  checkFee,
+  createFee,
+  getProviderFeeAmount,
+  getProviderFeeToken,
+  getProviderWallet
+} from '../../components/core/feesHandler.js'
 
-describe('Indexer stores a new published DDO', () => {
+describe('Download Tests', () => {
   let database: Database
   let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let factoryContract: Contract
   let nftContract: Contract
-  let datatokenContract: Contract
   let publisherAccount: Signer
-  let consumerAccount: Signer
   let nftAddress: string
-  let datatokenAddress: string
   const chainId = 8996
   let assetDID: string
   let resolvedDDO: Record<string, any>
   let genericAsset: any
-  let orderTxId: string
-  let reuseOrderTxId: string
-  let dataTokenContractWithNewSigner: any
-  let signedMessage: { v: string; r: string; s: string }
+  let publisherAddress: string
+  let consumerAccount: Signer
+  let consumerAddress: string
+  let dataNftAddress: string
+  let datatokenAddress: string
   let message: string
   let providerData: string
-  let orderEvent: any
-  let reusedOrderEvent: any
-  const timeout = 0
+  let orderTxId: string
+  let dataTokenContractWithNewSigner: any
+  let feeTx: string
+  let feeData: ProviderFeeData | undefined
+  let signedMessage: {
+    v: string
+    r: string
+    s: string
+  }
+
   const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
   const providerFeeAddress = ZeroAddress // publisherAddress
   const providerFeeToken = feeToken
@@ -58,6 +74,7 @@ describe('Indexer stores a new published DDO', () => {
   const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
   const consumeMarketFeeToken = feeToken // token address for the feeAmount,
   const providerValidUntil = 0
+  const timeout = 0
 
   const mockSupportedNetworks: RPCS = {
     '8996': {
@@ -80,8 +97,11 @@ describe('Indexer stores a new published DDO', () => {
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     process.env.PRIVATE_KEY =
       '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
-    publisherAccount = (await provider.getSigner(0)) as Signer
+
     consumerAccount = (await provider.getSigner(1)) as Signer
+    publisherAccount = (await provider.getSigner(0)) as Signer
+    publisherAddress = await publisherAccount.getAddress()
+    consumerAddress = await consumerAccount.getAddress()
     genericAsset = genericDDO
     factoryContract = new ethers.Contract(
       data.development.ERC721Factory,
@@ -119,17 +139,28 @@ describe('Indexer stores a new published DDO', () => {
     )
     const txReceipt = await tx.wait()
     assert(txReceipt, 'transaction failed')
-    const event = getEventFromTx(txReceipt, 'NFTCreated')
-    nftAddress = event.args[0]
+    const nftEvent = getEventFromTx(txReceipt, 'NFTCreated')
+    const erc20Event = getEventFromTx(txReceipt, 'TokenCreated')
+
+    nftAddress = nftEvent.args[0]
+    datatokenAddress = erc20Event.args[0]
+    console.log('### datatokenAddress', datatokenAddress)
+
     assert(nftAddress, 'find nft created failed')
-    console.log('nftAddress for OrderStarted test: ', nftAddress)
-    const datatokenEvent = getEventFromTx(txReceipt, 'TokenCreated')
-    datatokenAddress = datatokenEvent.args[0]
     assert(datatokenAddress, 'find datatoken created failed')
-    console.log('datatokenAddress for OrderStarted test: ', datatokenAddress)
   })
 
   it('should set metadata and save ', async () => {
+    // Encrypt the files
+    const files = {
+      type: 'url',
+      url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
+      method: 'get'
+    }
+    const data = Uint8Array.from(Buffer.from(JSON.stringify(files)))
+    const encryptedData = await encrypt(data, 'ECIES')
+    const encryptedDataString = encryptedData.toString('base64')
+
     nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, publisherAccount)
     genericAsset.id =
       'did:op:' +
@@ -137,6 +168,8 @@ describe('Indexer stores a new published DDO', () => {
         .update(getAddress(nftAddress) + chainId.toString(10))
         .digest('hex')
     genericAsset.nftAddress = nftAddress
+    genericAsset.services[0].datatokenAddress = datatokenAddress
+    genericAsset.services[0].files = encryptedDataString
 
     assetDID = genericAsset.id
     const stringDDO = JSON.stringify(genericAsset)
@@ -189,41 +222,66 @@ describe('Indexer stores a new published DDO', () => {
 
   delay(50000)
 
-  it('should detect update event and store the udpdated ddo in the database', async () => {
-    const updatedDDO = await waitToIndex(assetDID, database)
-    expect(updatedDDO.metadata.name).to.equal('dataset-name-updated')
-    expect(updatedDDO.metadata.description).to.equal(
-      'Updated description for the Ocean protocol test dataset'
-    )
+  it('should check the fees data and validate signature', async () => {
+    const asset: any = resolvedDDO
+    const wallet = await getProviderWallet()
+    const { address } = wallet
+    console.log('address', address)
+    const { chainId } = asset // this chain id is a number
+    const providerFeeToken = await getProviderFeeToken(chainId)
+    const providerAmount = await getProviderFeeAmount()
+
+    feeData = await createFee(asset, 0, 'null', resolvedDDO.services[0])
+
+    if (feeData) {
+      expect(feeData.providerFeeAddress).to.be.equal(address)
+      expect(feeData.providerFeeToken).to.be.equal(providerFeeToken)
+      expect(feeData.providerFeeAmount).to.be.equal(providerAmount)
+
+      // will sign a new message with this data to simulate the txId and then check it
+      const providerDataAsArray = ethers.toBeArray(feeData.providerData)
+      const providerDataStr = Buffer.from(providerDataAsArray).toString('utf8')
+      const providerData = JSON.parse(providerDataStr)
+
+      // done previously as ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(providerData))),
+      // check signature stuff now
+
+      const messageHash = ethers.solidityPackedKeccak256(
+        ['bytes', 'address', 'address', 'uint256', 'uint256'],
+        [
+          ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(providerData))),
+          ethers.getAddress(feeData.providerFeeAddress), // signer address
+          ethers.getAddress(feeData.providerFeeToken), // TODO check decimals on contract?
+          feeData.providerFeeAmount,
+          feeData.validUntil
+        ]
+      )
+
+      const signableHash = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.toUtf8Bytes(messageHash)]
+      )
+
+      feeTx = await wallet.signMessage(ethers.toBeArray(signableHash))
+
+      console.log('1. feeTx', feeTx)
+      console.log('1. Test data', feeData)
+      const checkFeeResult = await checkFee(feeTx, feeData)
+      expect(checkFeeResult).to.be.equal(true)
+    }
   })
 
-  it('should change metadata state of the published DDO', async () => {
-    const setMetaDataStateTx = await nftContract.setMetaDataState(4)
-    const trxReceipt = await setMetaDataStateTx.wait()
-    assert(trxReceipt, 'set metada state failed')
-  })
-
-  delay(50000)
-
-  it('should get the updated state', async () => {
-    const result = await nftContract.getMetaData()
-    const retrievedDDO = await waitToIndex(assetDID, database)
-    expect(retrievedDDO.nft).to.not.equal(undefined)
-    expect(retrievedDDO).to.have.nested.property('nft.state')
-    // Expect the result from contract
-    expect(retrievedDDO.nft.state).to.equal(parseInt(result[2].toString()))
-  })
-
-  it('should get OrderStarted event', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
-    const publisherAddress = await publisherAccount.getAddress()
-    const consumerAddress = await consumerAccount.getAddress()
+  it('should start an order and then download the asset', async function () {
+    this.timeout(65000) // Extend default Mocha test timeout
+    console.log('should start an order and then download the asset')
     const dataTokenContract = new Contract(
       datatokenAddress,
       ERC20Template.abi,
       publisherAccount
     )
+    console.log('dataTokenContract')
     const paymentCollector = await dataTokenContract.getPaymentCollector()
+    console.log('paymentCollector', paymentCollector)
     assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
 
     // sign provider data
@@ -272,65 +330,43 @@ describe('Indexer stores a new published DDO', () => {
     orderTxId = orderTxReceipt.hash
     assert(orderTxId, 'transaction id not found')
 
-    orderEvent = getEventFromTx(orderTxReceipt, 'OrderStarted')
-    expect(orderEvent.args[1]).to.equal(consumerAddress) // payer
-    expect(parseInt(orderEvent.args[3].toString())).to.equal(serviceIndex) // serviceIndex
-  })
+    const config = await getConfig()
+    config.supportedNetworks[8996] = {
+      chainId: 8996,
+      network: 'development',
+      rpc: 'http://127.0.0.1:8545',
+      chunkSize: 100
+    }
 
-  delay(50000)
+    const dbconn = await new Database(config.dbConfig)
+    const p2pNode = new OceanP2P(dbconn, config)
+    assert(p2pNode, 'Failed to instantiate OceanP2P')
 
-  it('should get number of orders', async () => {
-    const retrievedDDO = await waitToIndex(assetDID, database)
-    expect(retrievedDDO.stats.orders).to.equal(1)
-    const resultOrder = await database.order.retrieve(orderTxId)
-    expect(resultOrder?.id).to.equal(orderTxId)
-    expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
-    expect(resultOrder?.type).to.equal('startOrder')
-    const timestamp = orderEvent.args[4].toString()
-    expect(resultOrder?.timestamp.toString()).to.equal(timestamp)
-  })
-
-  it('should detect OrderReused event', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
-
-    const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
-      orderTxId,
-      {
-        providerFeeAddress,
-        providerFeeToken,
-        providerFeeAmount,
-        v: signedMessage.v,
-        r: signedMessage.r,
-        s: signedMessage.s,
-        providerData: hexlify(toUtf8Bytes(providerData)),
-        validUntil: providerValidUntil
-      },
-      {
-        consumeMarketFeeAddress,
-        consumeMarketFeeToken,
-        consumeMarketFeeAmount
-      }
+    const wallet = new ethers.Wallet(
+      '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
     )
-    const orderTxReceipt = await orderTx.wait()
-    assert(orderTxReceipt, 'order transaction failed')
-    reuseOrderTxId = orderTxReceipt.hash
-    assert(reuseOrderTxId, 'transaction id not found')
+    // message to sign
+    const nonce = Date.now().toString()
+    // sign message/nonce
+    const signature = await wallet.signMessage(nonce)
+    console.log('2. feeTx', feeTx)
+    console.log('consumerAddress', consumerAddress)
+    const downloadTask = {
+      documentId: assetDID,
+      serviceIndex,
+      transferTxId: orderTxId,
+      nonce,
+      consumerAddress,
+      signature,
+      feeTx,
+      feeData
+    }
+    const response = await handleDownload(downloadTask, p2pNode)
+    console.log('response', response)
 
-    reusedOrderEvent = getEventFromTx(orderTxReceipt, 'OrderReused')
-    expect(reusedOrderEvent.args[0]).to.equal(orderTxId)
-  })
-
-  delay(50000)
-
-  it('should increase number of orders', async () => {
-    const retrievedDDO = await waitToIndex(assetDID, database)
-    expect(retrievedDDO.stats.orders).to.equal(2)
-    const resultOrder = await database.order.retrieve(reuseOrderTxId)
-    expect(resultOrder?.id).to.equal(reuseOrderTxId)
-    expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
-    expect(resultOrder?.type).to.equal('reuseOrder')
-    const timestamp = reusedOrderEvent.args[2].toString()
-    expect(resultOrder?.timestamp.toString()).to.equal(timestamp)
-    expect(resultOrder?.startOrderId).to.equal(orderTxId)
+    assert(response)
+    assert(response.stream, 'stream not present')
+    assert(response.status.httpStatus === 200, 'http status not 200')
+    expect(response.stream).to.be.instanceOf(Readable)
   })
 })

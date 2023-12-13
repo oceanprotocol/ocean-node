@@ -1,7 +1,7 @@
-import { OceanNode } from '../../src/OceanNode.js'
-import { getConfig } from '../../src/utils/index.js'
+import { OceanNode } from '../../OceanNode.js'
+import { getConfig } from '../../utils/index.js'
 
-import { expect } from 'chai'
+import { expect, assert } from 'chai'
 
 // avoid override local setup / env variables
 const ORIGINAL_PRIVATE_KEY = process.env.PRIVATE_KEY

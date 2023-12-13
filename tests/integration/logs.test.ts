@@ -1,4 +1,4 @@
-import { Database } from '../../src/components/database'
+import { Database } from '../../components/database/index.js'
 import { expect, assert } from 'chai'
 import {
   CustomNodeLogger,
@@ -7,7 +7,7 @@ import {
   getCustomLoggerForModule,
   LOGGER_MODULE_NAMES,
   defaultConsoleTransport
-} from '../../src/utils/logging/Logger'
+} from '../../utils/logging/Logger.js'
 
 describe('LogDatabase CRUD', () => {
   let database: Database

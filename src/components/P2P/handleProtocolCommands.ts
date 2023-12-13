@@ -4,7 +4,7 @@ import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import StreamConcat from 'stream-concat'
 // export function handleProtocolCommands (sourceStream:any,sinkStream:any) {
 
-import { handleDownloadURLCommand } from '../core/downloadHandler.js'
+import { handleDownloadURLCommand, handleDownload } from '../core/downloadHandler.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
 import { P2P_CONSOLE_LOGGER } from './index.js'
@@ -42,7 +42,6 @@ export async function handleProtocolCommands(connection: any) {
   P2P_CONSOLE_LOGGER.logMessage('Using ' + connection.connection.remoteAddr, true)
 
   let status = null
-  const isError = false
   let task
   let statusStream
   let sendStream = null
@@ -66,6 +65,9 @@ export async function handleProtocolCommands(connection: any) {
     switch (task.command) {
       case PROTOCOL_COMMANDS.ECHO:
         status = { httpStatus: 200 }
+        break
+      case PROTOCOL_COMMANDS.DOWNLOAD:
+        response = await handleDownload(this, task)
         break
       case PROTOCOL_COMMANDS.DOWNLOAD_URL:
         response = await handleDownloadURLCommand(this, task)
