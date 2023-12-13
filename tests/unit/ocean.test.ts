@@ -44,8 +44,6 @@ describe('Status command tests', () => {
     })
     expect(oceanNode.getDatabase()).to.not.eql(null)
     if (config.hasP2P) {
-      console.log('oceanNode.getP2PNode()', oceanNode.getP2PNode())
-      assert(oceanNode.getP2PNode())
       expect(oceanNode.getP2PNode()).to.not.eql(null)
     }
     if (config.hasIndexer) {
