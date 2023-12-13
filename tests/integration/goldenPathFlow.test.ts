@@ -28,6 +28,7 @@ import { genericDDO } from '../data/ddo.js'
 import { getConfig } from '../../src/utils/index.js'
 import { validateOrderTransaction } from '../../src/components/core/validateTransaction.js'
 import { decrypt, encrypt } from '../../src/utils/crypt.js'
+import { Readable } from 'stream'
 
 describe('Indexer stores a new published DDO', () => {
   const chainId = 8996
@@ -151,7 +152,10 @@ describe('Indexer stores a new published DDO', () => {
     assetDID = genericAsset.id
     const fileData = Uint8Array.from(Buffer.from(genericAsset.services[0].files))
     const encryptedData = await encrypt(fileData, 'ECIES')
-    genericAsset.services[0].files = encryptedData
+    const encryptedFiles = hexlify(encryptedData)
+    // const hash = createHash('sha256').update(metadata).digest('hex')
+    genericAsset.services[0].files = encryptedFiles
+
     console.log('generic asset to publish ', genericAsset)
     const stringDDO = JSON.stringify(genericAsset)
     const bytes = Buffer.from(stringDDO)
@@ -177,10 +181,21 @@ describe('Indexer stores a new published DDO', () => {
     resolvedDDO = await waitToIndex(assetDID, database)
     expect(resolvedDDO.id).to.equal(genericAsset.id)
     console.log('resolvedDDO', resolvedDDO)
-    const decryptedFiles = await decrypt(resolvedDDO.services[0].files, 'ECIES')
-    console.log('decryptedFiles', decryptedFiles)
-    console.log('genericAsset.services[0].files', genericAsset.services[0].files)
-    // expect(Uint8Array.from(decryptedFiles)).to.deep.equal(genericAsset.services[0].files)
+    const encryptedFilesHex = resolvedDDO.services[0].files
+    console.log('encryptedFilesHex ', encryptedFilesHex)
+
+    const hexString = encryptedFilesHex.substring(2)
+    console.log('hexString ', hexString)
+
+    const encryptedFilesBytes = Uint8Array.from(Buffer.from(hexString, 'hex'))
+    console.log('encryptedFilesBytes', encryptedFilesBytes)
+
+    const decryptedUrlBytes = await decrypt(encryptedFilesBytes, 'ECIES')
+    console.log('decryptedUrlBytes ', decryptedUrlBytes)
+
+    const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
+    const decryptedFileObject = JSON.parse(decryptedFilesString)
+    console.log('decryptedFileObject ', decryptedFileObject)
   })
 
   it('should start an order and validate the transaction', async function () {
