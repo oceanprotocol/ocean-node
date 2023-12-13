@@ -1,4 +1,4 @@
-import { expect, assert, config } from 'chai'
+import { expect, assert, config, should } from 'chai'
 import { createHash } from 'crypto'
 import {
   JsonRpcProvider,
@@ -29,6 +29,15 @@ import { getConfig } from '../../src/utils/index.js'
 import { validateOrderTransaction } from '../../src/components/core/validateTransaction.js'
 import { decrypt, encrypt } from '../../src/utils/crypt.js'
 import { Readable } from 'stream'
+
+// TODO: remove this once we have it in the codebase
+export async function streamToString(stream: Readable) {
+  const chunks = []
+  for await (const chunk of stream) {
+    chunks.push(chunk)
+  }
+  return Buffer.concat(chunks).toString()
+}
 
 describe('Indexer stores a new published DDO', () => {
   const chainId = 8996
@@ -150,13 +159,13 @@ describe('Indexer stores a new published DDO', () => {
     genericAsset.nftAddress = dataNftAddress
 
     assetDID = genericAsset.id
-    const fileData = Uint8Array.from(Buffer.from(genericAsset.services[0].files))
-    const encryptedData = await encrypt(fileData, 'ECIES')
-    const encryptedFiles = hexlify(encryptedData)
-    // const hash = createHash('sha256').update(metadata).digest('hex')
-    genericAsset.services[0].files = encryptedFiles
 
-    console.log('generic asset to publish ', genericAsset)
+    const fileData = Uint8Array.from(
+      Buffer.from(JSON.stringify(genericAsset.services[0].files))
+    )
+    const encryptedData = (await encrypt(fileData, 'ECIES')).toString('hex')
+    genericAsset.services[0].files = encryptedData
+
     const stringDDO = JSON.stringify(genericAsset)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
@@ -180,22 +189,17 @@ describe('Indexer stores a new published DDO', () => {
   it('should store the ddo in the database and return it ', async () => {
     resolvedDDO = await waitToIndex(assetDID, database)
     expect(resolvedDDO.id).to.equal(genericAsset.id)
-    console.log('resolvedDDO', resolvedDDO)
+  })
+
+  it('should be able to decrypt the ddo files ', async () => {
     const encryptedFilesHex = resolvedDDO.services[0].files
-    console.log('encryptedFilesHex ', encryptedFilesHex)
-
-    const hexString = encryptedFilesHex.substring(2)
-    console.log('hexString ', hexString)
-
-    const encryptedFilesBytes = Uint8Array.from(Buffer.from(hexString, 'hex'))
-    console.log('encryptedFilesBytes', encryptedFilesBytes)
-
+    const encryptedFilesBytes = Uint8Array.from(Buffer.from(encryptedFilesHex, 'hex'))
     const decryptedUrlBytes = await decrypt(encryptedFilesBytes, 'ECIES')
-    console.log('decryptedUrlBytes ', decryptedUrlBytes)
-
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
     const decryptedFileObject = JSON.parse(decryptedFilesString)
-    console.log('decryptedFileObject ', decryptedFileObject)
+    expect(decryptedFileObject[0].url).to.equal(
+      'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js'
+    )
   })
 
   it('should start an order and validate the transaction', async function () {
