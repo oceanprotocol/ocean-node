@@ -19,6 +19,7 @@ import { RPCS } from '../../src/@types/blockchain.js'
 import { getEventFromTx } from '../../src/utils/util.js'
 import { delay, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
+import { getOceanArtifactsAdresses } from '../../src/utils/address.js'
 
 describe('Indexer stores a new published DDO', () => {
   let database: Database
@@ -30,6 +31,7 @@ describe('Indexer stores a new published DDO', () => {
   let nftAddress: string
   const chainId = 8996
   let assetDID: string
+  let resolvedDDO: Record<string, any>
   let genericAsset: any
 
   const mockSupportedNetworks: RPCS = {
@@ -48,14 +50,7 @@ describe('Indexer stores a new published DDO', () => {
     database = await new Database(dbConfig)
     indexer = new OceanIndexer(database, mockSupportedNetworks)
 
-    const data = JSON.parse(
-      // eslint-disable-next-line security/detect-non-literal-fs-filename
-      fs.readFileSync(
-        process.env.ADDRESS_FILE ||
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-        'utf8'
-      )
-    )
+    const data = getOceanArtifactsAdresses()
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     process.env.PRIVATE_KEY =
@@ -131,11 +126,43 @@ describe('Indexer stores a new published DDO', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(100000)
+  delay(50000)
 
   it('should store the ddo in the database and return it ', async () => {
-    const resolvedDDO = await waitToIndex(assetDID, database)
+    resolvedDDO = await waitToIndex(assetDID, database)
     expect(resolvedDDO.id).to.equal(genericAsset.id)
+  })
+
+  it('should update ddo metadata fields ', async () => {
+    resolvedDDO.metadata.name = 'dataset-name-updated'
+    resolvedDDO.metadata.description =
+      'Updated description for the Ocean protocol test dataset'
+    const stringDDO = JSON.stringify(resolvedDDO)
+    const bytes = Buffer.from(stringDDO)
+    const metadata = hexlify(bytes)
+    const hash = createHash('sha256').update(metadata).digest('hex')
+
+    const setMetaDataTx = await nftContract.setMetaData(
+      0,
+      'http://v4.provider.oceanprotocol.com',
+      '0x123',
+      '0x02',
+      metadata,
+      '0x' + hash,
+      []
+    )
+    const trxReceipt = await setMetaDataTx.wait()
+    assert(trxReceipt, 'set metada failed')
+  })
+
+  delay(50000)
+
+  it('should detect update event and store the udpdated ddo in the database', async () => {
+    const updatedDDO = await waitToIndex(assetDID, database)
+    expect(updatedDDO.metadata.name).to.equal('dataset-name-updated')
+    expect(updatedDDO.metadata.description).to.equal(
+      'Updated description for the Ocean protocol test dataset'
+    )
   })
 
   it('should change metadata state of the published DDO', async () => {
@@ -144,14 +171,15 @@ describe('Indexer stores a new published DDO', () => {
     assert(trxReceipt, 'set metada state failed')
   })
 
-  delay(100000)
+  delay(50000)
 
   it('should get the updated state', async () => {
     const result = await nftContract.getMetaData()
-    const resolvedDDO = await waitToIndex(assetDID, database)
-    expect(resolvedDDO.nft).to.not.equal(undefined)
-    expect(resolvedDDO).to.have.nested.property('nft.state')
+    const retrievedDDO = await waitToIndex(assetDID, database)
+    console.log('retrievedDDO', retrievedDDO)
+    expect(retrievedDDO.nft).to.not.equal(undefined)
+    expect(retrievedDDO).to.have.nested.property('nft.state')
     // Expect the result from contract
-    expect(resolvedDDO.nft.state).to.equal(parseInt(result[2].toString()))
+    expect(retrievedDDO.nft.state).to.equal(parseInt(result[2].toString()))
   })
 })
