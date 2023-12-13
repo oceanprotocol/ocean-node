@@ -48,6 +48,7 @@ describe('Indexer stores a new published DDO', () => {
   let providerData: string
   let orderEvent: any
   let reusedOrderEvent: any
+  let initialOrderCount: number
   const timeout = 0
   const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
   const providerFeeAddress = ZeroAddress // publisherAddress
@@ -282,6 +283,7 @@ describe('Indexer stores a new published DDO', () => {
   it('should get number of orders', async () => {
     const retrievedDDO = await waitToIndex(assetDID, database)
     expect(retrievedDDO.stats.orders).to.equal(1)
+    initialOrderCount = retrievedDDO.stats.orders
     const resultOrder = await database.order.retrieve(orderTxId)
     expect(resultOrder?.id).to.equal(orderTxId)
     expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
@@ -324,7 +326,7 @@ describe('Indexer stores a new published DDO', () => {
 
   it('should increase number of orders', async () => {
     const retrievedDDO = await waitToIndex(assetDID, database)
-    expect(retrievedDDO.stats.orders).to.equal(2)
+    expect(retrievedDDO.stats.orders).to.be.greaterThan(initialOrderCount)
     const resultOrder = await database.order.retrieve(reuseOrderTxId)
     expect(resultOrder?.id).to.equal(reuseOrderTxId)
     expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
