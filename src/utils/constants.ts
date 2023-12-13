@@ -143,11 +143,15 @@ export const ENVIRONMENT_VARIABLES = {
   RPCS: { name: 'RPCS', value: process.env.RPCS, required: false },
   DB_URL: { name: 'DB_URL', value: process.env.DB_URL, required: false },
   // these 2 bellow will change in the future (not required, just remove functionality)
-  IPFS_GATEWAY: { name: 'IPFS_GATEWAY', value: process.env.IPFS_GATEWAY, required: true },
+  IPFS_GATEWAY: {
+    name: 'IPFS_GATEWAY',
+    value: process.env.IPFS_GATEWAY,
+    required: false
+  },
   ARWEAVE_GATEWAY: {
     name: 'ARWEAVE_GATEWAY',
     value: process.env.ARWEAVE_GATEWAY,
-    required: true
+    required: false
   },
   LOAD_INITIAL_DDOS: {
     name: 'LOAD_INITIAL_DDOS',

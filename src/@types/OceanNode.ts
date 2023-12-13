@@ -58,6 +58,12 @@ export interface OceanNodeIndexer {
   block?: string // mark it as optional until the functionality is done
 }
 
+export interface StorageTypes {
+  ipfs: boolean
+  arwave: boolean
+  url: boolean
+}
+
 export interface OceanNodeStatus {
   id: string
   publicKey: string
@@ -67,6 +73,7 @@ export interface OceanNodeStatus {
   p2p: boolean
   provider: OceanNodeProvider[]
   indexer: OceanNodeIndexer[]
+  supportedStorage: StorageTypes
 }
 
 export interface P2PBroadcastResponse {
