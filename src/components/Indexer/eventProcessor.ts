@@ -95,14 +95,22 @@ export const processMetadataStateEvent = async (
         ddo.nft.state === MetadataStates.ACTIVE &&
         [MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(metadataState)
       ) {
+        INDEXER_LOGGER.logMessage(
+          `DDO became non visible from ${ddo.nft.state} to ${metadataState}`
+        )
         const shortVersion = {
           id: ddo.id,
-          nftAddress: ddo.nftAddress
+          nftAddress: ddo.nftAddress,
+          nft: {
+            state: metadataState
+          }
         }
         ddo.nft.state = metadataState
         ddo = shortVersion
+        INDEXER_LOGGER.logMessage(`Short  version DDO ${ddo}`)
+      } else {
+        ddo.nft.state = metadataState
       }
-      ddo.nft.state = metadataState
     } else {
       // Still update until we validate and polish schemas for DDO.
       // But it should update ONLY if first condition is met.

@@ -188,7 +188,7 @@ describe('Indexer stores a new published DDO', () => {
     assert(trxReceipt, 'set metada state failed')
   })
 
-  delay(50000)
+  delay(100000)
 
   it('should change metadata state to DEPRECATED', async () => {
     // Deprecated state for this asset
@@ -205,6 +205,5 @@ describe('Indexer stores a new published DDO', () => {
     const resolvedDDO = await waitToIndex(assetDID, database)
     // Expect a short version of the DDO
     console.log('resolvedDDO after state update: ', resolvedDDO)
-    // expect(resolvedDDO).to.equal(null)
   })
 })
