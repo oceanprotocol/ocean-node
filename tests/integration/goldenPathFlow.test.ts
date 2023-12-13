@@ -197,6 +197,7 @@ describe('Indexer stores a new published DDO', () => {
     const decryptedUrlBytes = await decrypt(encryptedFilesBytes, 'ECIES')
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
     const decryptedFileObject = JSON.parse(decryptedFilesString)
+    console.log('decryptedFileObject', decryptedFileObject)
     expect(decryptedFileObject[0].url).to.equal(
       'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js'
     )
