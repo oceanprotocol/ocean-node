@@ -74,7 +74,7 @@ export async function getNonce(
         'Failure executing nonce task: ' + err.message,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEl_ERROR
+        LOG_LEVELS_STR.LEVEL_ERROR
       )
       return getDefaultErrorResponse(err.message)
     }
@@ -100,7 +100,7 @@ async function updateNonce(
       'Failure executing nonce task: ' + err.message,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEl_ERROR
+      LOG_LEVELS_STR.LEVEL_ERROR
     )
     return {
       valid: false,
@@ -142,7 +142,7 @@ export async function checkNonce(
       'Failure executing nonce task: ' + err.message,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEl_ERROR
+      LOG_LEVELS_STR.LEVEL_ERROR
     )
     return {
       valid: false,
