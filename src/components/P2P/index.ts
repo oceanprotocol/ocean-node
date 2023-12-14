@@ -151,11 +151,10 @@ export class OceanP2P extends EventEmitter {
         addresses: {
           listen: [
             `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindTcpPort}`,
-            // `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindWsPort}/ws`,
-            `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindTcpPort}`
-            // `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindWsPort}/ws`
-          ],
-          annouce: ['/ip4/188.26.232.218/tcp/8000']
+            `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindWsPort}/ws`,
+            `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindTcpPort}`,
+            `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindWsPort}/ws`
+          ]
         },
         peerId: config.keys.peerId,
         // uPnPNAT: ,
@@ -238,8 +237,6 @@ export class OceanP2P extends EventEmitter {
         // }
         // }
       }
-      console.log(options)
-
       const node = await createLibp2p(options)
       const x = await node.start()
       node.addEventListener('peer:connect', (evt: any) => {
