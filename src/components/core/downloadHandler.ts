@@ -12,7 +12,7 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { validateOrderTransaction } from './validateTransaction.js'
 import { checkNonce, NonceResponse } from './nonceHandler.js'
 import { findAndFormatDdo } from './ddoHandler.js'
-import { calculateFee, checkFee } from './feesHandler.js'
+import { checkFee } from './feesHandler.js'
 import { decrypt } from '../../utils/crypt.js'
 import { Storage } from '../../components/storage/index.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
@@ -116,12 +116,12 @@ export async function handleDownload(
 
     // Convert the decrypted bytes back to a string
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
-    const decryptedFileObject = JSON.parse(decryptedFilesString)
+    const decryptedFileArray = JSON.parse(decryptedFilesString)
 
     // 7. Proceed to download the file
     return await handleDownloadURLCommand(node, {
       command: PROTOCOL_COMMANDS.DOWNLOAD_URL,
-      fileObject: decryptedFileObject,
+      fileObject: decryptedFileArray[task.filesIndex],
       aes_encrypted_key: task.aes_encrypted_key
     })
   } catch (e) {

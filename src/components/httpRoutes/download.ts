@@ -22,6 +22,7 @@ downloadRoute.post(
     try {
       const node = req.oceanNode.getP2PNode()
       const {
+        filesIndex,
         documentId,
         serviceIndex,
         transferTxId,
@@ -31,6 +32,7 @@ downloadRoute.post(
       } = req.params
 
       const downloadTask = {
+        filesIndex: Number(filesIndex),
         documentId,
         serviceIndex,
         transferTxId,

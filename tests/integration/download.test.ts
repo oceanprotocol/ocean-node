@@ -352,14 +352,13 @@ describe('Download Tests', () => {
     console.log('2. feeTx', feeTx)
     console.log('consumerAddress', consumerAddress)
     const downloadTask = {
+      filesIndex: 0,
       documentId: assetDID,
       serviceIndex,
       transferTxId: orderTxId,
       nonce,
       consumerAddress,
-      signature,
-      feeTx,
-      feeData
+      signature
     }
     const response = await handleDownload(downloadTask, p2pNode)
     console.log('response', response)

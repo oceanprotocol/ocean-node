@@ -27,6 +27,7 @@ export interface DownloadURLCommand extends Command {
 }
 
 export interface DownloadTask {
+  filesIndex: number
   documentId: string
   serviceIndex: string
   transferTxId: string
