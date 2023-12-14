@@ -52,17 +52,19 @@ export async function handleDownload(
   }
 
   // 4. check that the provider fee transaction is valid
-  let feeValidation
-  try {
-    feeValidation = await checkFee(task.feeTx, task.feeData)
-  } catch (e) {
-    throw new Error('ERROR checking fees')
-  }
-  if (feeValidation) {
-    // Log the provider fee response for debugging purposes
-    P2P_CONSOLE_LOGGER.logMessage(`Valid provider fee transaction`, true)
-  } else {
-    throw new Error('Invalid provider fee transaction')
+  if (task.feeTx && task.feeData) {
+    let feeValidation
+    try {
+      feeValidation = await checkFee(task.feeTx, task.feeData)
+    } catch (e) {
+      throw new Error('ERROR checking fees')
+    }
+    if (feeValidation) {
+      // Log the provider fee response for debugging purposes
+      P2P_CONSOLE_LOGGER.logMessage(`Valid provider fee transaction`, true)
+    } else {
+      throw new Error('Invalid provider fee transaction')
+    }
   }
 
   // 5. Call the validateOrderTransaction function to check order transaction
@@ -81,9 +83,9 @@ export async function handleDownload(
     task.consumerAddress,
     provider,
     ddo.nftAddress,
-    ddo.services[task.serviceIndex].datatokenAddress,
+    ddo.services[Number(task.serviceIndex)].datatokenAddress,
     task.serviceIndex,
-    ddo.services[task.serviceIndex].timeout
+    ddo.services[Number(task.serviceIndex)].timeout
   )
 
   if (paymentValidation.isValid) {
@@ -101,7 +103,7 @@ export async function handleDownload(
 
   try {
     // 6. Decrypt the url
-    const encryptedFilesString = ddo.services[task.serviceIndex].files
+    const encryptedFilesString = ddo.services[Number(task.serviceIndex)].files
     const encryptedFilesBuffer = Buffer.from(encryptedFilesString, 'base64')
 
     // Ensure that encryptedFilesBuffer is of type Buffer

@@ -1,9 +1,9 @@
 import express, { Request, Response } from 'express'
+import { handleDownload } from '../core/downloadHandler.js'
 import {
   LOGGER_MODULE_NAMES,
   CustomNodeLogger,
-  getCustomLoggerForModule,
-  getDefaultLevel
+  getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
 
 const logger: CustomNodeLogger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP)
@@ -17,7 +17,33 @@ downloadRoute.post(
       res.sendStatus(400)
       return
     }
-    logger.log(getDefaultLevel(), `Download request received: ${req.body}`, true)
+    logger.logMessage(`Download request received: ${req.body}`, true)
+    try {
+      const node = req.oceanNode.getP2PNode()
+      const {
+        documentId,
+        serviceIndex,
+        transferTxId,
+        nonce,
+        consumerAddress,
+        signature
+      } = req.params
+
+      const downloadTask = {
+        documentId,
+        serviceIndex,
+        transferTxId,
+        nonce,
+        consumerAddress,
+        signature
+      }
+
+      await handleDownload(downloadTask, node)
+    } catch (error) {
+      logger.logMessage(`Error: ${error}`, true)
+      res.sendStatus(500)
+      return
+    }
     res.sendStatus(200)
   }
 )
