@@ -23,7 +23,7 @@ export async function handleDownload(
 ): Promise<P2PCommandResponse> {
   P2P_CONSOLE_LOGGER.logMessage(
     'Download Request recieved with arguments: ' +
-      task.filesIndex +
+      task.fileIndex +
       task.documentId +
       task.serviceId +
       task.transferTxId +
@@ -132,7 +132,7 @@ export async function handleDownload(
     // 7. Proceed to download the file
     return await handleDownloadURLCommand(node, {
       command: PROTOCOL_COMMANDS.DOWNLOAD_URL,
-      fileObject: decryptedFileArray[task.filesIndex],
+      fileObject: decryptedFileArray[task.fileIndex],
       aes_encrypted_key: task.aes_encrypted_key
     })
   } catch (e) {
