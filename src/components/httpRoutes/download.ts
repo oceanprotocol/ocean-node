@@ -24,7 +24,7 @@ downloadRoute.get(
       res.sendStatus(400)
       return
     }
-    logger.logMessage(`Download request received: ${req}`, true)
+    logger.logMessage(`Download request received: ${JSON.stringify(req.query)}`, true)
     try {
       const node = req.oceanNode.getP2PNode()
       const {
@@ -35,16 +35,16 @@ downloadRoute.get(
         nonce,
         consumerAddress,
         signature
-      } = req.params
+      } = req.query
 
       const downloadTask = {
         filesIndex: Number(filesIndex),
-        documentId,
-        serviceIndex: serviceId,
-        transferTxId,
-        nonce,
-        consumerAddress,
-        signature
+        documentId: documentId as string,
+        serviceIndex: serviceId as string,
+        transferTxId: transferTxId as string,
+        nonce: nonce as string,
+        consumerAddress: consumerAddress as string,
+        signature: signature as string
       }
 
       const response = await handleDownload(downloadTask, node)
