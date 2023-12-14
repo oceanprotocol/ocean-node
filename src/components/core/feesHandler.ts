@@ -187,7 +187,7 @@ export async function createFee(
   // Sign the string message
   // const signed32Bytes = await providerWallet.signMessage(ethers.toBeArray(signableHash)) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
   // const signed32Bytes = await providerWallet.signMessage(ethers.hexlify(signableHash)) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
-  const signed32Bytes = await providerWallet.signMessage(messageHash) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
+  const signed32Bytes = await providerWallet.signMessage(ethers.hexlify(messageHash)) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
 
   // OR just ethCrypto.sign(pk, signable_hash)
 
@@ -218,8 +218,8 @@ export async function createFee(
   // ethers.toBeArray(r).length
 
   const providerFee: ProviderFeeData = {
-    providerFeeAddress,
-    providerFeeToken,
+    providerFeeAddress: ethers.getAddress(providerFeeAddress),
+    providerFeeToken: ethers.getAddress(providerFeeToken),
     providerFeeAmount,
     providerData: ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(providerData))),
     v,
