@@ -172,7 +172,6 @@ describe('Download Tests', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  // delay(50000)
   delay(35000)
   it('should store the ddo in the database and return it ', async () => {
     resolvedDDO = await waitToIndex(assetDID, database)
@@ -202,7 +201,7 @@ describe('Download Tests', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(50000)
+  delay(35000)
 
   it('should start an order and then download the asset', async function () {
     const asset: any = resolvedDDO
