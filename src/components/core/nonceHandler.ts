@@ -114,7 +114,8 @@ export async function checkNonce(
   node: OceanP2P,
   consumer: string,
   nonce: number,
-  signature: string
+  signature: string,
+  ddoId: string = null
 ): Promise<NonceResponse> {
   try {
     // get nonce from db
@@ -129,7 +130,8 @@ export async function checkNonce(
       nonce,
       previousNonce, // will return 0 if none exists
       consumer,
-      signature
+      signature,
+      ddoId
     )
     if (validate.valid) {
       const updateStatus = await updateNonce(db, consumer, nonce)
@@ -163,13 +165,17 @@ function validateNonceAndSignature(
   nonce: number,
   existingNonce: number,
   consumer: string,
-  signature: string
+  signature: string,
+  ddoId: string = null
 ): NonceResponse {
   // check if is bigger than previous nonce
   if (nonce > existingNonce) {
     // nonce good
     // now validate signature
-    const recoveredAddress = ethers.verifyMessage(String(nonce), signature)
+    let message: string
+    if (ddoId) message = String(ddoId + nonce)
+    else message = String(nonce)
+    const recoveredAddress = ethers.verifyMessage(message, signature)
     if (recoveredAddress === consumer) {
       // update nonce on DB, return OK
       return {

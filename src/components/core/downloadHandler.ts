@@ -50,7 +50,8 @@ export async function handleDownload(
     node,
     task.consumerAddress,
     parseInt(task.nonce),
-    task.signature
+    task.signature,
+    ddo.id
   )
 
   if (!nonceCheckResult.valid) {
