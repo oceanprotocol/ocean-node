@@ -55,7 +55,7 @@ export const processMetadataEvents = async (
     const byteArray = getBytes(decodedEventData.args[4])
     const utf8String = toUtf8String(byteArray)
     const ddo = JSON.parse(utf8String)
-    ddo.datatokens = await getTokenInfo(ddo.services)
+    ddo.datatokens = getTokenInfo(ddo.services)
     INDEXER_LOGGER.logMessage(
       `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
       true
