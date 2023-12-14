@@ -24,7 +24,7 @@ downloadRoute.post(
       const {
         filesIndex,
         documentId,
-        serviceIndex,
+        serviceId,
         transferTxId,
         nonce,
         consumerAddress,
@@ -34,7 +34,7 @@ downloadRoute.post(
       const downloadTask = {
         filesIndex: Number(filesIndex),
         documentId,
-        serviceIndex,
+        serviceIndex: serviceId,
         transferTxId,
         nonce,
         consumerAddress,
