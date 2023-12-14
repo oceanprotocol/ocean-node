@@ -146,7 +146,6 @@ export class OceanP2P extends EventEmitter {
 
       /** @type {import('libp2p').Libp2pOptions} */
       // start with some default, overwrite based on config later
-      console.log(config)
       const options = {
         addresses: {
           listen: [
