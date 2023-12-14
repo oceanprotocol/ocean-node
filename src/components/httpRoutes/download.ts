@@ -17,7 +17,7 @@ const logger: CustomNodeLogger = getCustomLoggerForModule(
 
 export const downloadRoute = express.Router()
 downloadRoute.get(
-  '/download',
+  '/api/services/download',
   express.urlencoded({ extended: true, type: '*/*' }),
   async (req: Request, res: Response): Promise<void> => {
     if (!req.query) {
