@@ -23,7 +23,7 @@ import { getOceanArtifactsAdresses } from '../../utils/address.js'
 import { handleDownload } from '../../components/core/downloadHandler.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getEventFromTx, sleep } from '../../utils/util.js'
-import { signMessage, waitToIndex, delay } from './testUtils.js'
+import { waitToIndex, delay } from './testUtils.js'
 import { getConfig } from '../../utils/config.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { ProviderFeeData } from '../../@types/Fees'
@@ -45,10 +45,7 @@ describe('Download Tests', () => {
   let publisherAddress: string
   let consumerAccount: Signer
   let consumerAddress: string
-  let dataNftAddress: string
   let datatokenAddress: string
-  let message: string
-  let providerData: string
   let orderTxId: string
   let dataTokenContractWithNewSigner: any
   let feeTx: string
@@ -85,11 +82,6 @@ describe('Download Tests', () => {
     publisherAccount = (await provider.getSigner(0)) as Signer
     publisherAddress = await publisherAccount.getAddress()
     consumerAddress = await consumerAccount.getAddress()
-    providerFeeAddress = publisherAddress
-    console.log('publisherAddress')
-    console.log(publisherAddress)
-    console.log('consumerAddress')
-    console.log(consumerAddress)
     genericAsset = genericDDO
     factoryContract = new ethers.Contract(
       data.development.ERC721Factory,
