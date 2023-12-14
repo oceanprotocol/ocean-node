@@ -271,7 +271,7 @@ describe('Download Tests', () => {
     console.log('2. feeTx', feeTx)
     console.log('consumerAddress', consumerAddress)
     const downloadTask = {
-      filesIndex: 0,
+      fileIndex: 0,
       documentId: assetDID,
       serviceId,
       transferTxId: orderTxId,

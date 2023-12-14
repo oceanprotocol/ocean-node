@@ -17,7 +17,7 @@ const logger: CustomNodeLogger = getCustomLoggerForModule(
 
 export const downloadRoute = express.Router()
 downloadRoute.get(
-  '/download',
+  '/api/services/download',
   express.urlencoded({ extended: true, type: '*/*' }),
   async (req: Request, res: Response): Promise<void> => {
     if (!req.query) {
@@ -28,7 +28,7 @@ downloadRoute.get(
     try {
       const node = req.oceanNode.getP2PNode()
       const {
-        filesIndex,
+        fileIndex,
         documentId,
         serviceId,
         transferTxId,
@@ -38,7 +38,7 @@ downloadRoute.get(
       } = req.query
 
       const downloadTask = {
-        filesIndex: Number(filesIndex),
+        fileIndex: Number(fileIndex),
         documentId: documentId as string,
         serviceId: serviceId as string,
         transferTxId: transferTxId as string,
