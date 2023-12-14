@@ -5,6 +5,7 @@ import { broadcastCommandRoute, directCommandRoute } from './commands.js'
 import { logRoutes } from './logs.js'
 import { providerRoutes } from './provider.js'
 import { aquariusRoutes } from './aquarius.js'
+import { rootEndpointRoutes } from './rootEndpoint.js'
 
 export * from './getOceanPeers.js'
 
@@ -20,3 +21,4 @@ httpRoutes.use(directCommandRoute)
 httpRoutes.use(logRoutes)
 httpRoutes.use('/api/services/', providerRoutes)
 httpRoutes.use('/api/aquarius/', aquariusRoutes)
+httpRoutes.use(rootEndpointRoutes)
