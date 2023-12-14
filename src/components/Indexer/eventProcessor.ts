@@ -30,10 +30,10 @@ function getTokenInfo(services: any[]): any[] {
   const datatokens: any[] = []
   services.forEach((service) => {
     datatokens.push({
-      address: service.address,
+      address: service.datatokenAddress,
       name: 'Datatoken',
       symbol: 'DT1',
-      serviceId: service.serviceId
+      serviceId: service.id
     })
   })
   return datatokens
