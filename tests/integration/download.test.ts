@@ -152,11 +152,13 @@ describe('Download Tests', () => {
 
   it('should set metadata and save ', async () => {
     // Encrypt the files
-    const files = {
-      type: 'url',
-      url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
-      method: 'get'
-    }
+    const files = [
+      {
+        type: 'url',
+        url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
+        method: 'get'
+      }
+    ]
     const data = Uint8Array.from(Buffer.from(JSON.stringify(files)))
     const encryptedData = await encrypt(data, 'ECIES')
     const encryptedDataString = encryptedData.toString('base64')
