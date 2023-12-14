@@ -191,6 +191,13 @@ describe('Indexer stores a new published DDO', () => {
 
   delay(100000)
 
+  it('should get the active state', async () => {
+    const result = await nftContract.getMetaData()
+    const retrievedDDO = await waitToIndex(assetDID, database)
+    // Expect the result from contract
+    expect(retrievedDDO.nft.state).to.equal(parseInt(result[2].toString()))
+  })
+
   it('should change metadata state to DEPRECATED', async () => {
     // Deprecated state for this asset
     const setMetaDataStateTx = await nftContract.setMetaDataState(2)
