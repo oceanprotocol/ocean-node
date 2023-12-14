@@ -87,7 +87,7 @@ providerRoutes.get('/initialize', async (req, res) => {
       ? await streamToString(nonceResult.stream as Readable)
       : nonceResult.stream
     const providerFee = await calculateFee(ddo, serviceId)
-
+    console.log(providerFee)
     const response = {
       datatoken,
       nonce,
