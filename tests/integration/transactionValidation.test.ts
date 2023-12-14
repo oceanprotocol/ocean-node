@@ -303,7 +303,7 @@ describe('validateOrderTransaction Function with Orders', () => {
       provider,
       dataNftAddress,
       datatokenAddress,
-      999,
+      '999',
       timeout
     )
 
