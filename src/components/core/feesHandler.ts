@@ -136,7 +136,7 @@ export async function createFee(
     let signature = await wallet.signMessage(messageHashBinary);
      */
 
-  const messageHash = ethers.solidityPackedKeccak256(
+  const messageHash = ethers.solidityPacked(
     ['bytes', 'address', 'address', 'uint256', 'uint256'],
     [
       ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(providerData))),
@@ -187,7 +187,7 @@ export async function createFee(
   // Sign the string message
   // const signed32Bytes = await providerWallet.signMessage(ethers.toBeArray(signableHash)) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
   // const signed32Bytes = await providerWallet.signMessage(ethers.hexlify(signableHash)) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
-  const signed32Bytes = await providerWallet.signMessage(ethers.hexlify(messageHash)) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
+  const signed32Bytes = await providerWallet.signMessage(messageHash) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
 
   // OR just ethCrypto.sign(pk, signable_hash)
 
