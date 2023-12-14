@@ -96,13 +96,13 @@ export async function createFee(
   // provider: OceanProvider // this node provider
 ): Promise<ProviderFeeData> | undefined {
   // create providerData struct
-  // const providerData = {
-  // environment: computeEnv, //  null for us now
-  // timestamp: Date.now(),
-  // dt: service.datatokenAddress,
-  //  id: service.id
-  // }
-  const providerData = { timeout: 0 }
+  const providerData = {
+    environment: computeEnv, //  null for us now
+    timestamp: Date.now(),
+    dt: service.datatokenAddress,
+    id: service.id
+  }
+
   // *** NOTE: provider.py ***
   // provider_data =  {
   //   "environment": compute_env,  //  null for us now
