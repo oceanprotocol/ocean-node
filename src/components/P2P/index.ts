@@ -26,10 +26,13 @@ import { pubsubPeerDiscovery } from '@libp2p/pubsub-peer-discovery'
 
 import { tcp } from '@libp2p/tcp'
 import { webSockets } from '@libp2p/websockets'
-import { createLibp2p } from 'libp2p'
-import { identifyService } from 'libp2p/identify'
-import { autoNATService } from 'libp2p/autonat'
-import { uPnPNATService } from 'libp2p/upnp-nat'
+import { circuitRelayTransport, circuitRelayServer } from '@libp2p/circuit-relay-v2'
+import { createLibp2p, Libp2p } from 'libp2p'
+import { identify } from '@libp2p/identify'
+import { autoNAT } from '@libp2p/autonat'
+import { uPnPNAT } from '@libp2p/upnp-nat'
+import { ping } from '@libp2p/ping'
+import { dcutr } from '@libp2p/dcutr'
 
 import { kadDHT } from '@libp2p/kad-dht'
 import { gossipsub } from '@chainsafe/libp2p-gossipsub'
@@ -123,16 +126,17 @@ export class OceanP2P extends EventEmitter {
     })
   }
 
-  async createNode(config: OceanNodeConfig) {
+  async createNode(config: OceanNodeConfig): Promise<Libp2p | null> {
     const bootstrapers = [
+      '/ip4/104.131.131.82/tcp/4001/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ',
+      '/dnsaddr/bootstrap.libp2p.io/ipfs/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN',
+      '/dnsaddr/bootstrap.libp2p.io/ipfs/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa',
       // '/ip4/127.0.0.12/tcp/49100/p2p/12D3KooWLktGvbzuDK7gv1kS4pq6DNWxmxEREKVtBEhVFQmDNni7'
       '/ip4/35.198.125.13/tcp/8000/p2p/16Uiu2HAmKZuuY2Lx3JiY938rJWZrYQh6kjBZCNrh3ALkodtwFRdF', // paulo
       '/ip4/34.159.64.236/tcp/8000/p2p/16Uiu2HAmAy1GcZGhzFT3cbARTmodg9c3M4EAmtBZyDgu5cSL1NPr', // jaime
       '/ip4/34.107.3.14/tcp/8000/p2p/16Uiu2HAm4DWmX56ZX2bKjvARJQZPMUZ9xsdtAfrMmd7P8czcN4UT', // maria
-      '/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN',
       '/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb',
       '/dnsaddr/bootstrap.libp2p.io/p2p/QmZa1sAxajnQjVM8WjWXoMbmPd7NsWhfKsPkErzpm9wGkp',
-      '/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa',
       '/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt'
     ]
     try {
@@ -142,24 +146,22 @@ export class OceanP2P extends EventEmitter {
 
       /** @type {import('libp2p').Libp2pOptions} */
       // start with some default, overwrite based on config later
+      console.log(config)
       const options = {
         addresses: {
           listen: [
             `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindTcpPort}`,
-            `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindWsPort}/ws`,
-            `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindTcpPort}`,
-            `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindWsPort}/ws`
-          ]
+            // `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindWsPort}/ws`,
+            `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindTcpPort}`
+            // `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindWsPort}/ws`
+          ],
+          annouce: ['/ip4/188.26.232.218/tcp/8000']
         },
         peerId: config.keys.peerId,
-        uPnPNAT: uPnPNATService({
-          description: 'my-node',
-          ttl: 7200,
-          keepAlive: true
-        }),
-        autoNat: autoNATService(),
+        // uPnPNAT: ,
+        // autoNat: autoNATService(),
 
-        transports: [webSockets(), tcp()],
+        transports: [webSockets(), tcp(), circuitRelayTransport()],
         streamMuxers: [yamux(), mplex()],
         connectionEncryption: [
           noise()
@@ -171,19 +173,23 @@ export class OceanP2P extends EventEmitter {
           }),
           pubsubPeerDiscovery({
             interval: config.p2pConfig.pubsubPeerDiscoveryInterval,
-            topics: ['oceanprotocoldiscovery']
+            topics: [
+              'oceanprotocoldiscovery',
+              `oceanprotocol._peer-discovery._p2p._pubsub`, // It's recommended but not required to extend the global space
+              '_peer-discovery._p2p._pubsub' // Include if you want to participate in the global space
+            ],
+            listenOnly: false
           }),
           mdns({
             interval: config.p2pConfig.mDNSInterval
           })
         ],
         services: {
-          identify: identifyService(),
+          identify: identify(),
           pubsub: gossipsub({
-            allowPublishToZeroPeers: true,
-            emitSelf: false,
-            canRelayMessage: true,
-            enabled: true
+            allowPublishToZeroPeers: true
+            // canRelayMessage: true,
+            // enabled: true
           }),
           dht: kadDHT({
             // this is necessary because this node is not connected to the public network
@@ -200,16 +206,30 @@ export class OceanP2P extends EventEmitter {
             //  interval: 300e3,
             //  timeout: 10e3
             // }
-          })
+          }),
+          autoNAT: autoNAT(),
+          upnpNAT: uPnPNAT(),
+          ping: ping(),
+          dcutr: dcutr(),
+          circuitRelay: circuitRelayServer()
+          /*,
+            uPnPNATService({
+              description: 'my-node',
+              ttl: 7200,
+              keepAlive: true
+            })
+            
+          ] */
         },
         connectionManager: {
           maxParallelDials: config.p2pConfig.connectionsMaxParallelDials, // 150 total parallel multiaddr dials
           dialTimeout: config.p2pConfig.connectionsDialTimeout // 10 second dial timeout per peer dial
-        },
+        }
+        /*,
         nat: {
           enabled: true,
           description: `ocean@node`
-        }
+        } */
 
         // relay: {
         // enabled: true, // Allows you to dial and accept relayed connections. Does not make you a relay.
@@ -218,6 +238,7 @@ export class OceanP2P extends EventEmitter {
         // }
         // }
       }
+      console.log(options)
 
       const node = await createLibp2p(options)
       const x = await node.start()
