@@ -68,7 +68,7 @@ describe('Download Tests', () => {
   const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
   const providerFeeAddress = ZeroAddress // publisherAddress
   const providerFeeToken = feeToken
-  const serviceIndex = '0' // dummy index
+  const serviceId = '0' // dummy index
   const providerFeeAmount = 0 // fee to be collected on top, requires approval
   const consumeMarketFeeAddress = ZeroAddress // marketplace fee Collector
   const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
@@ -310,7 +310,7 @@ describe('Download Tests', () => {
 
     const orderTx = await dataTokenContractWithNewSigner.startOrder(
       consumerAddress,
-      serviceIndex,
+      serviceId,
       {
         providerFeeAddress,
         providerFeeToken,
@@ -356,7 +356,7 @@ describe('Download Tests', () => {
     const downloadTask = {
       filesIndex: 0,
       documentId: assetDID,
-      serviceIndex,
+      serviceId,
       transferTxId: orderTxId,
       nonce,
       consumerAddress,

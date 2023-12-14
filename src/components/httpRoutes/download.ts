@@ -40,7 +40,7 @@ downloadRoute.get(
       const downloadTask = {
         filesIndex: Number(filesIndex),
         documentId: documentId as string,
-        serviceIndex: serviceId as string,
+        serviceId: serviceId as string,
         transferTxId: transferTxId as string,
         nonce: nonce as string,
         consumerAddress: consumerAddress as string,

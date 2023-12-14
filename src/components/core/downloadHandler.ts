@@ -25,7 +25,7 @@ export async function handleDownload(
     'Download Request recieved with arguments: ' +
       task.filesIndex +
       task.documentId +
-      task.serviceIndex +
+      task.serviceId +
       task.transferTxId +
       task.nonce +
       task.consumerAddress +
@@ -94,9 +94,9 @@ export async function handleDownload(
     task.consumerAddress,
     provider,
     ddo.nftAddress,
-    ddo.services[Number(task.serviceIndex)].datatokenAddress,
-    task.serviceIndex,
-    ddo.services[Number(task.serviceIndex)].timeout
+    ddo.services[Number(task.serviceId)].datatokenAddress,
+    task.serviceId,
+    ddo.services[Number(task.serviceId)].timeout
   )
 
   if (paymentValidation.isValid) {
@@ -114,7 +114,7 @@ export async function handleDownload(
 
   try {
     // 6. Decrypt the url
-    const encryptedFilesString = ddo.services[Number(task.serviceIndex)].files
+    const encryptedFilesString = ddo.services[Number(task.serviceId)].files
     const encryptedFilesBuffer = Buffer.from(encryptedFilesString, 'base64')
 
     // Ensure that encryptedFilesBuffer is of type Buffer
