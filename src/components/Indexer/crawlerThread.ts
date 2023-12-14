@@ -9,6 +9,7 @@ import {
   defaultConsoleTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
+import { sleep } from '../../utils/util.js'
 
 interface ThreadData {
   rpcDetails: SupportedNetwork
@@ -27,54 +28,57 @@ export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
 )
 
 export async function proccesNetworkData(): Promise<void> {
-  const networkHeight = await getNetworkHeight(provider)
+  while (true) {
+    const networkHeight = await getNetworkHeight(provider)
 
-  const deployedBlock = await getDeployedContractBlock(rpcDetails.chainId)
+    const deployedBlock = await getDeployedContractBlock(rpcDetails.chainId)
 
-  const startBlock =
-    lastIndexedBlock && lastIndexedBlock > deployedBlock
-      ? lastIndexedBlock
-      : deployedBlock
+    const startBlock =
+      lastIndexedBlock && lastIndexedBlock > deployedBlock
+        ? lastIndexedBlock
+        : deployedBlock
 
-  INDEXER_LOGGER.logMessage(
-    `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`,
-    true
-  )
-
-  if (networkHeight > startBlock) {
-    let { chunkSize } = rpcDetails
-    const remainingBlocks = networkHeight - startBlock
-    const blocksToProcess = Math.min(chunkSize, remainingBlocks)
     INDEXER_LOGGER.logMessage(
-      `network: ${rpcDetails.network} processing ${blocksToProcess} blocks ...`
+      `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`,
+      true
     )
 
-    try {
-      const processedBlocks = await processBlocks(
-        provider,
-        rpcDetails.chainId,
-        startBlock,
-        blocksToProcess
-      )
-      parentPort.postMessage({
-        method: 'store-last-indexed-block',
-        network: rpcDetails.chainId,
-        data: processedBlocks.lastBlock
-      })
-      lastIndexedBlock = processedBlocks.lastBlock
-      await storeFoundEvents(processedBlocks.foundEvents)
-    } catch (error) {
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `network: ${rpcDetails.network} Error: ${error.message} `,
-        true
-      )
-      chunkSize = Math.floor(chunkSize / 2)
+    if (networkHeight > startBlock) {
+      let { chunkSize } = rpcDetails
+      const remainingBlocks = networkHeight - startBlock
+      const blocksToProcess = Math.min(chunkSize, remainingBlocks)
       INDEXER_LOGGER.logMessage(
-        `network: ${rpcDetails.network} Reducing chink size  ${chunkSize} `,
-        true
+        `network: ${rpcDetails.network} processing ${blocksToProcess} blocks ...`
       )
+
+      try {
+        const processedBlocks = await processBlocks(
+          provider,
+          rpcDetails.chainId,
+          startBlock,
+          blocksToProcess
+        )
+        parentPort.postMessage({
+          method: 'store-last-indexed-block',
+          network: rpcDetails.chainId,
+          data: processedBlocks.lastBlock
+        })
+        lastIndexedBlock = processedBlocks.lastBlock
+        await storeFoundEvents(processedBlocks.foundEvents)
+      } catch (error) {
+        INDEXER_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_ERROR,
+          `network: ${rpcDetails.network} Error: ${error.message} `,
+          true
+        )
+        chunkSize = Math.floor(chunkSize / 2)
+        INDEXER_LOGGER.logMessage(
+          `network: ${rpcDetails.network} Reducing chink size  ${chunkSize} `,
+          true
+        )
+      }
     }
+    await sleep(30000)
   }
 }
 
@@ -94,8 +98,6 @@ export async function storeFoundEvents(events: BlocksEvents): Promise<void> {
 }
 parentPort.on('message', (message) => {
   if (message.method === 'start-crawling') {
-    setInterval(async () => {
-      await proccesNetworkData()
-    }, 30000)
+    proccesNetworkData()
   }
 })

@@ -35,6 +35,19 @@ async function getConfiguration(): Promise<OceanNodeConfig> {
   return config
 }
 
+function getTokenInfo(services: any[]): any[] {
+  const datatokens: any[] = []
+  services.forEach((service) => {
+    datatokens.push({
+      address: service.datatokenAddress,
+      name: 'Datatoken',
+      symbol: 'DT1',
+      serviceId: service.id
+    })
+  })
+  return datatokens
+}
+
 export const processMetadataEvents = async (
   event: ethers.Log,
   chainId: number,
@@ -51,7 +64,7 @@ export const processMetadataEvents = async (
     const byteArray = getBytes(decodedEventData.args[4])
     const utf8String = toUtf8String(byteArray)
     const ddo = JSON.parse(utf8String)
-
+    ddo.datatokens = getTokenInfo(ddo.services)
     INDEXER_LOGGER.logMessage(
       `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
       true

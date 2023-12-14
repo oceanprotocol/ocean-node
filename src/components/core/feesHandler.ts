@@ -102,6 +102,7 @@ export async function createFee(
     dt: service.datatokenAddress,
     id: service.id
   }
+
   // *** NOTE: provider.py ***
   // provider_data =  {
   //   "environment": compute_env,  //  null for us now
@@ -109,7 +110,6 @@ export async function createFee(
   //   "dt": service.datatoken_address,
   //   "id": service.id,
   // }
-
   const providerWallet = await getProviderWallet(String(asset.chainId))
   const providerFeeAddress: string = providerWallet.address
 
@@ -185,7 +185,11 @@ export async function createFee(
   //   )
 
   // Sign the string message
-  const signed32Bytes = await providerWallet.signMessage(ethers.toBeArray(signableHash)) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
+  // const signed32Bytes = await providerWallet.signMessage(ethers.toBeArray(signableHash)) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
+  // const signed32Bytes = await providerWallet.signMessage(ethers.hexlify(signableHash)) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
+  const signed32Bytes = await providerWallet.signMessage(
+    new Uint8Array(ethers.toBeArray(messageHash))
+  ) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
   // OR just ethCrypto.sign(pk, signable_hash)
 
   // *** NOTE: provider.py ***
@@ -193,7 +197,6 @@ export async function createFee(
 
   // For Solidity, we need the expanded-format of a signature
   const signatureSplitted = ethers.Signature.from(signed32Bytes)
-
   // console.log(
   //   'verify message:',
   //   await verifyMessage(
@@ -205,8 +208,8 @@ export async function createFee(
 
   // # make it compatible with last openzepellin https://github.com/OpenZeppelin/openzeppelin-contracts/pull/1622
   const v = signatureSplitted.v <= 1 ? signatureSplitted.v + 27 : signatureSplitted.v
-  const r = ethers.toBeArray(signatureSplitted.r) // 32 bytes
-  const s = ethers.toBeArray(signatureSplitted.s)
+  const r = ethers.hexlify(signatureSplitted.r) // 32 bytes
+  const s = ethers.hexlify(signatureSplitted.s)
   // ethers.hexlify(ethers.toUtf8Bytes(signatureSplitted.s))
 
   // length 66
@@ -215,8 +218,8 @@ export async function createFee(
   // ethers.toBeArray(r).length
 
   const providerFee: ProviderFeeData = {
-    providerFeeAddress,
-    providerFeeToken,
+    providerFeeAddress: ethers.getAddress(providerFeeAddress),
+    providerFeeToken: ethers.getAddress(providerFeeToken),
     providerFeeAmount,
     providerData: ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(providerData))),
     v,

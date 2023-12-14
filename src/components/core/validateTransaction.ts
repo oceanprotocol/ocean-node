@@ -16,7 +16,7 @@ export async function validateOrderTransaction(
   provider: JsonRpcProvider,
   dataNftAddress: string,
   datatokenAddress: string,
-  serviceIndex: number,
+  serviceIndex: string,
   serviceTimeout: number
 ): Promise<ValidateTransactionResponse> {
   const contractInterface = new Interface(ERC20Template.abi)

@@ -12,7 +12,7 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { validateOrderTransaction } from './validateTransaction.js'
 import { checkNonce, NonceResponse } from './nonceHandler.js'
 import { findAndFormatDdo } from './ddoHandler.js'
-import { calculateFee, checkFee } from './feesHandler.js'
+import { checkFee } from './feesHandler.js'
 import { decrypt } from '../../utils/crypt.js'
 import { Storage } from '../../components/storage/index.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
@@ -21,6 +21,17 @@ export async function handleDownload(
   task: DownloadTask,
   node: OceanP2P
 ): Promise<P2PCommandResponse> {
+  P2P_CONSOLE_LOGGER.logMessage(
+    'Download Request recieved with arguments: ' +
+      task.filesIndex +
+      task.documentId +
+      task.serviceId +
+      task.transferTxId +
+      task.nonce +
+      task.consumerAddress +
+      task.signature,
+    true
+  )
   // 1. Get the DDO
   const ddo = await findAndFormatDdo(node, task.documentId)
 
@@ -52,17 +63,19 @@ export async function handleDownload(
   }
 
   // 4. check that the provider fee transaction is valid
-  let feeValidation
-  try {
-    feeValidation = await checkFee(task.feeTx, task.feeData)
-  } catch (e) {
-    throw new Error('ERROR checking fees')
-  }
-  if (feeValidation) {
-    // Log the provider fee response for debugging purposes
-    P2P_CONSOLE_LOGGER.logMessage(`Valid provider fee transaction`, true)
-  } else {
-    throw new Error('Invalid provider fee transaction')
+  if (task.feeTx && task.feeData) {
+    let feeValidation
+    try {
+      feeValidation = await checkFee(task.feeTx, task.feeData)
+    } catch (e) {
+      throw new Error('ERROR checking fees')
+    }
+    if (feeValidation) {
+      // Log the provider fee response for debugging purposes
+      P2P_CONSOLE_LOGGER.logMessage(`Valid provider fee transaction`, true)
+    } else {
+      throw new Error('Invalid provider fee transaction')
+    }
   }
 
   // 5. Call the validateOrderTransaction function to check order transaction
@@ -81,9 +94,9 @@ export async function handleDownload(
     task.consumerAddress,
     provider,
     ddo.nftAddress,
-    ddo.services[task.serviceIndex].datatokenAddress,
-    task.serviceIndex,
-    ddo.services[task.serviceIndex].timeout
+    ddo.services[Number(task.serviceId)].datatokenAddress,
+    task.serviceId,
+    ddo.services[Number(task.serviceId)].timeout
   )
 
   if (paymentValidation.isValid) {
@@ -101,7 +114,7 @@ export async function handleDownload(
 
   try {
     // 6. Decrypt the url
-    const encryptedFilesString = ddo.services[task.serviceIndex].files
+    const encryptedFilesString = ddo.services[Number(task.serviceId)].files
     const encryptedFilesBuffer = Buffer.from(encryptedFilesString, 'base64')
 
     // Ensure that encryptedFilesBuffer is of type Buffer
@@ -114,12 +127,12 @@ export async function handleDownload(
 
     // Convert the decrypted bytes back to a string
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
-    const decryptedFileObject = JSON.parse(decryptedFilesString)
+    const decryptedFileArray = JSON.parse(decryptedFilesString)
 
     // 7. Proceed to download the file
     return await handleDownloadURLCommand(node, {
       command: PROTOCOL_COMMANDS.DOWNLOAD_URL,
-      fileObject: decryptedFileObject,
+      fileObject: decryptedFileArray[task.filesIndex],
       aes_encrypted_key: task.aes_encrypted_key
     })
   } catch (e) {
