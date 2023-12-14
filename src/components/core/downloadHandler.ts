@@ -21,6 +21,17 @@ export async function handleDownload(
   task: DownloadTask,
   node: OceanP2P
 ): Promise<P2PCommandResponse> {
+  P2P_CONSOLE_LOGGER.logMessage(
+    'Download Request recieved with arguments: ' +
+      task.filesIndex +
+      task.documentId +
+      task.serviceIndex +
+      task.transferTxId +
+      task.nonce +
+      task.consumerAddress +
+      task.signature,
+    true
+  )
   // 1. Get the DDO
   const ddo = await findAndFormatDdo(node, task.documentId)
 

@@ -4,10 +4,16 @@ import { Readable } from 'stream'
 import {
   LOGGER_MODULE_NAMES,
   CustomNodeLogger,
-  getCustomLoggerForModule
+  getCustomLoggerForModule,
+  LOG_LEVELS_STR,
+  defaultConsoleTransport
 } from '../../utils/logging/Logger.js'
 
-const logger: CustomNodeLogger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP)
+const logger: CustomNodeLogger = getCustomLoggerForModule(
+  LOGGER_MODULE_NAMES.HTTP,
+  LOG_LEVELS_STR.LEVEL_INFO, // Info level
+  defaultConsoleTransport // console only Transport
+)
 
 export const downloadRoute = express.Router()
 downloadRoute.get(
@@ -18,7 +24,7 @@ downloadRoute.get(
       res.sendStatus(400)
       return
     }
-    logger.logMessage(`Download request received: ${req.body}`, true)
+    logger.logMessage(`Download request received: ${req}`, true)
     try {
       const node = req.oceanNode.getP2PNode()
       const {
