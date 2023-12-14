@@ -96,12 +96,13 @@ export async function createFee(
   // provider: OceanProvider // this node provider
 ): Promise<ProviderFeeData> | undefined {
   // create providerData struct
-  const providerData = {
-    environment: computeEnv, //  null for us now
-    timestamp: Date.now(),
-    dt: service.datatokenAddress,
-    id: service.id
-  }
+  // const providerData = {
+  // environment: computeEnv, //  null for us now
+  // timestamp: Date.now(),
+  // dt: service.datatokenAddress,
+  //  id: service.id
+  // }
+  const providerData = { timeout: 0 }
   // *** NOTE: provider.py ***
   // provider_data =  {
   //   "environment": compute_env,  //  null for us now
@@ -109,7 +110,6 @@ export async function createFee(
   //   "dt": service.datatoken_address,
   //   "id": service.id,
   // }
-
   const providerWallet = await getProviderWallet(String(asset.chainId))
   const providerFeeAddress: string = providerWallet.address
 
@@ -136,7 +136,7 @@ export async function createFee(
     let signature = await wallet.signMessage(messageHashBinary);
      */
 
-  const messageHash = ethers.solidityPacked(
+  const messageHash = ethers.solidityPackedKeccak256(
     ['bytes', 'address', 'address', 'uint256', 'uint256'],
     [
       ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(providerData))),
@@ -187,8 +187,8 @@ export async function createFee(
   // Sign the string message
   // const signed32Bytes = await providerWallet.signMessage(ethers.toBeArray(signableHash)) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
   // const signed32Bytes = await providerWallet.signMessage(ethers.hexlify(signableHash)) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
-  const signed32Bytes = await providerWallet.signMessage(messageHash) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
-
+  const x = new Uint8Array(ethers.toBeArray(messageHash))
+  const signed32Bytes = await providerWallet.signMessage(x) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
   // OR just ethCrypto.sign(pk, signable_hash)
 
   // *** NOTE: provider.py ***
@@ -196,7 +196,6 @@ export async function createFee(
 
   // For Solidity, we need the expanded-format of a signature
   const signatureSplitted = ethers.Signature.from(signed32Bytes)
-
   // console.log(
   //   'verify message:',
   //   await verifyMessage(
@@ -207,7 +206,10 @@ export async function createFee(
   // )
 
   // # make it compatible with last openzepellin https://github.com/OpenZeppelin/openzeppelin-contracts/pull/1622
-  const v = signatureSplitted.v <= 1 ? signatureSplitted.v + 27 : signatureSplitted.v
+  const v =
+    '0x' +
+    String(signatureSplitted.v >= 27 ? signatureSplitted.v - 27 : signatureSplitted.v)
+  // const { v } = signatureSplitted
   const r = ethers.hexlify(signatureSplitted.r) // 32 bytes
   const s = ethers.hexlify(signatureSplitted.s)
   // ethers.hexlify(ethers.toUtf8Bytes(signatureSplitted.s))
