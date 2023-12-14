@@ -186,7 +186,9 @@ export async function createFee(
 
   // Sign the string message
   // const signed32Bytes = await providerWallet.signMessage(ethers.toBeArray(signableHash)) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
-  const signed32Bytes = await providerWallet.signMessage(ethers.hexlify(signableHash)) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
+  // const signed32Bytes = await providerWallet.signMessage(ethers.hexlify(signableHash)) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
+  const signed32Bytes = await providerWallet.signMessage(messageHash) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
+
   // OR just ethCrypto.sign(pk, signable_hash)
 
   // *** NOTE: provider.py ***
