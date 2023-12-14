@@ -206,10 +206,7 @@ export async function createFee(
   // )
 
   // # make it compatible with last openzepellin https://github.com/OpenZeppelin/openzeppelin-contracts/pull/1622
-  const v =
-    '0x' +
-    String(signatureSplitted.v >= 27 ? signatureSplitted.v - 27 : signatureSplitted.v)
-  // const { v } = signatureSplitted
+  const v = signatureSplitted.v <= 1 ? signatureSplitted.v + 27 : signatureSplitted.v
   const r = ethers.hexlify(signatureSplitted.r) // 32 bytes
   const s = ethers.hexlify(signatureSplitted.s)
   // ethers.hexlify(ethers.toUtf8Bytes(signatureSplitted.s))
