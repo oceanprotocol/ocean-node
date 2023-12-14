@@ -27,14 +27,15 @@ export interface DownloadURLCommand extends Command {
 }
 
 export interface DownloadTask {
+  filesIndex: number
   documentId: string
-  serviceIndex: number
+  serviceId: string
   transferTxId: string
   nonce: string
   consumerAddress: string
   signature: string
-  feeTx: string
-  feeData: any
+  feeTx?: string
+  feeData?: any
   aes_encrypted_key?: string // if not present it means download without encryption
 }
 
