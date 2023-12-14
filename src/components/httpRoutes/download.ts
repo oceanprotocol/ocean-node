@@ -10,7 +10,7 @@ import {
 const logger: CustomNodeLogger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP)
 
 export const downloadRoute = express.Router()
-downloadRoute.post(
+downloadRoute.get(
   '/download',
   express.urlencoded({ extended: true, type: '*/*' }),
   async (req: Request, res: Response): Promise<void> => {
