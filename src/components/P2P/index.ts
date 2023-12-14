@@ -156,9 +156,6 @@ export class OceanP2P extends EventEmitter {
           ]
         },
         peerId: config.keys.peerId,
-        // uPnPNAT: ,
-        // autoNat: autoNATService(),
-
         transports: [webSockets(), tcp(), circuitRelayTransport()],
         streamMuxers: [yamux(), mplex()],
         connectionEncryption: [
@@ -210,31 +207,11 @@ export class OceanP2P extends EventEmitter {
           ping: ping(),
           dcutr: dcutr(),
           circuitRelay: circuitRelayServer()
-          /*,
-            uPnPNATService({
-              description: 'my-node',
-              ttl: 7200,
-              keepAlive: true
-            })
-            
-          ] */
         },
         connectionManager: {
           maxParallelDials: config.p2pConfig.connectionsMaxParallelDials, // 150 total parallel multiaddr dials
           dialTimeout: config.p2pConfig.connectionsDialTimeout // 10 second dial timeout per peer dial
         }
-        /*,
-        nat: {
-          enabled: true,
-          description: `ocean@node`
-        } */
-
-        // relay: {
-        // enabled: true, // Allows you to dial and accept relayed connections. Does not make you a relay.
-        // hop: {
-        //  enabled: true // Allows you to be a relay for other peers
-        // }
-        // }
       }
       const node = await createLibp2p(options)
       const x = await node.start()
