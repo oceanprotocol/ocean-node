@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express'
 import { handleDownload } from '../core/downloadHandler.js'
+import { Readable } from 'stream'
 import {
   LOGGER_MODULE_NAMES,
   CustomNodeLogger,
@@ -38,7 +39,12 @@ downloadRoute.post(
         signature
       }
 
-      await handleDownload(downloadTask, node)
+      const response = await handleDownload(downloadTask, node)
+      if (response.stream) {
+        res.send(response.stream as Readable)
+      } else {
+        res.status(response.status.httpStatus).send(response.status.error)
+      }
     } catch (error) {
       logger.logMessage(`Error: ${error}`, true)
       res.sendStatus(500)
