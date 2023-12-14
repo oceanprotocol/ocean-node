@@ -12,7 +12,7 @@ export const schemas: Schemas = {
     {
       name: 'ddo_v0.1',
       enable_nested_fields: true,
-      fields: [{ name: '.*', type: 'auto', optional: true }] // optional: tru for turning the full version DDO into short one for states DEPRECATED and REVOKED
+      fields: [{ name: '.*', type: 'auto', optional: true }] // optional: true for turning the full version DDO into short one for states DEPRECATED and REVOKED
     }
   ],
   nonceSchemas: {

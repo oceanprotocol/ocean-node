@@ -119,6 +119,11 @@ export const processMetadataStateEvent = async (
           chainId: null,
           metadata: null,
           services: null,
+          event: null,
+          stats: null,
+          purgatory: null,
+          datatokens: null,
+          accessDetails: null,
           nftAddress: ddo.nftAddress,
           nft: {
             state: metadataState
