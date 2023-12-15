@@ -1,3 +1,5 @@
+import { Readable } from 'stream'
+
 export interface HeadersObject {
   [key: string]: string
 }
@@ -17,4 +19,10 @@ export interface IpfsFileObject {
 export interface ArweaveFileObject {
   type: string
   transactionId: string
+}
+
+export interface StorageReadable {
+  stream: Readable
+  httpStatus?: number
+  headers?: [any]
 }

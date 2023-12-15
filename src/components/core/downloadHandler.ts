@@ -11,6 +11,8 @@ import * as ethCrypto from 'eth-crypto'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { validateOrderTransaction } from './validateTransaction.js'
 import { checkNonce, NonceResponse } from './nonceHandler.js'
+import { AssetUtils } from '../../utils/asset.js'
+import { Service } from '../../@types/DDO/Service'
 import { findAndFormatDdo } from './ddoHandler.js'
 import { checkFee } from './feesHandler.js'
 import { decrypt } from '../../utils/crypt.js'
@@ -42,7 +44,13 @@ export async function handleDownload(
       'No DDO for asset found. Cannot proceed with download.',
       true
     )
-    throw new Error('No DDO found for asset')
+    return {
+      stream: null,
+      status: {
+        httpStatus: 500
+      },
+      error: 'No DDO found for asset'
+    }
   }
 
   // 2. Validate nonce and signature
@@ -60,7 +68,13 @@ export async function handleDownload(
         nonceCheckResult.error,
       true
     )
-    throw new Error(nonceCheckResult.error)
+    return {
+      stream: null,
+      status: {
+        httpStatus: 500
+      },
+      error: nonceCheckResult.error
+    }
   }
 
   // 4. check that the provider fee transaction is valid
@@ -69,13 +83,25 @@ export async function handleDownload(
     try {
       feeValidation = await checkFee(task.feeTx, task.feeData)
     } catch (e) {
-      throw new Error('ERROR checking fees')
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500
+        },
+        error: 'ERROR checking fees'
+      }
     }
     if (feeValidation) {
       // Log the provider fee response for debugging purposes
       P2P_CONSOLE_LOGGER.logMessage(`Valid provider fee transaction`, true)
     } else {
-      throw new Error('Invalid provider fee transaction')
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500
+        },
+        error: 'Invalid provider fee transaction'
+      }
     }
   }
 
@@ -87,17 +113,26 @@ export async function handleDownload(
   try {
     provider = new JsonRpcProvider(rpc)
   } catch (e) {
-    throw new Error('JsonRpcProvider ERROR')
+    return {
+      stream: null,
+      status: {
+        httpStatus: 500
+      },
+      error: 'JsonRpcProvider ERROR'
+    }
   }
 
+  let service: Service = AssetUtils.getServiceById(ddo, task.serviceId)
+  if (!service) service = AssetUtils.getServiceByIndex(ddo, Number(task.serviceId))
+  if (!service) throw new Error('Cannot find service')
   const paymentValidation = await validateOrderTransaction(
     task.transferTxId,
     task.consumerAddress,
     provider,
     ddo.nftAddress,
-    ddo.services[Number(task.serviceId)].datatokenAddress,
-    task.serviceId,
-    ddo.services[Number(task.serviceId)].timeout
+    service.datatokenAddress,
+    AssetUtils.getServiceIndexById(ddo, task.serviceId),
+    service.timeout
   )
 
   if (paymentValidation.isValid) {
@@ -110,34 +145,39 @@ export async function handleDownload(
       `Invalid payment transaction: ${paymentValidation.message}`,
       true
     )
-    throw new Error(paymentValidation.message)
+    return {
+      stream: null,
+      status: {
+        httpStatus: 500
+      },
+      error: paymentValidation.message
+    }
   }
 
   try {
     // 6. Decrypt the url
-    const encryptedFilesString = ddo.services[Number(task.serviceId)].files
-    const encryptedFilesBuffer = Buffer.from(encryptedFilesString, 'base64')
-
-    // Ensure that encryptedFilesBuffer is of type Buffer
-    if (!Buffer.isBuffer(encryptedFilesBuffer)) {
-      throw new Error('Encrypted data is not a Buffer')
-    }
-
-    // Call the decrypt function with the appropriate algorithm
-    const decryptedUrlBytes = await decrypt(encryptedFilesBuffer, 'ECIES')
-
+    const decryptedUrlBytes = await decrypt(
+      Uint8Array.from(Buffer.from(service.files, 'hex')),
+      'ECIES'
+    )
     // Convert the decrypted bytes back to a string
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
     const decryptedFileArray = JSON.parse(decryptedFilesString)
-
     // 7. Proceed to download the file
     return await handleDownloadURLCommand(node, {
       command: PROTOCOL_COMMANDS.DOWNLOAD_URL,
-      fileObject: decryptedFileArray[task.fileIndex],
+      fileObject: decryptedFileArray.files[task.fileIndex],
       aes_encrypted_key: task.aes_encrypted_key
     })
   } catch (e) {
     P2P_CONSOLE_LOGGER.logMessage('decryption error' + e, true)
+    return {
+      stream: null,
+      status: {
+        httpStatus: 500
+      },
+      error: 'Failed to decrypt'
+    }
   }
 }
 
@@ -156,7 +196,16 @@ export async function handleDownloadURLCommand(
     // Determine the type of storage and get a readable stream
     const storage = Storage.getStorageClass(task.fileObject)
     const inputStream = await storage.getReadableStream()
-
+    const headers: any = {}
+    for (const [key, value] of Object.entries(inputStream.headers)) {
+      headers[key] = value
+    }
+    // need to check if content length is already in headers, but we don't know the case
+    const objTemp = JSON.parse(JSON.stringify(headers).toLowerCase())
+    if (!('Content-Length'.toLowerCase() in objTemp))
+      headers['Transfer-Encoding'] = 'chunked'
+    if (!('Content-Disposition'.toLowerCase() in objTemp))
+      headers['Content-Disposition'] = 'attachment;filename=unknownfile' // TO DO: use did+serviceId+fileIndex
     if (encryptFile) {
       // we parse the string into the object again
       const encryptedObject = ethCrypto.cipher.parse(task.aes_encrypted_key)
@@ -187,29 +236,22 @@ export async function handleDownloadURLCommand(
         )
         .setAutoPadding(true)
 
+      headers['Content-Encoding'] = 'aesgcm'
+
       return {
-        stream: inputStream.pipe(cipher),
+        stream: inputStream.stream.pipe(cipher),
         status: {
-          httpStatus: 200,
-          headers: {
-            'Content-Disposition': "attachment; filename='syslog'", // TODO: the filename must come from somewhere else?
-            'Content-Type': 'application/octet-stream',
-            'Content-Encoding': 'aesgcm',
-            'Transfer-Encoding': 'chunked'
-          }
+          httpStatus: inputStream.httpStatus,
+          headers
         }
       }
     } else {
       // Download request is not using encryption!
       return {
-        stream: inputStream,
+        stream: inputStream.stream,
         status: {
-          httpStatus: 200,
-          headers: {
-            'Content-Disposition': "attachment; filename='syslog'",
-            'Content-Type': 'application/octet-stream',
-            'Transfer-Encoding': 'chunked'
-          }
+          httpStatus: inputStream.httpStatus,
+          headers
         }
       }
     }

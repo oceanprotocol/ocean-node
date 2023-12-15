@@ -5,6 +5,11 @@ import { Service } from '../@types/DDO/Service'
 // Asset as per asset.py on provider, is a class there, while on ocean.Js we only have a type
 // this is an utility to extract information from the Asset services
 export const AssetUtils = {
+  getServiceIndexById(asset: DDO, id: string): number | null {
+    for (let c = 0; c < asset.services.length; c++)
+      if (asset.services[c].id === id) return c
+    return null
+  },
   getServiceByIndex(asset: DDO, index: number): Service | null {
     if (index >= 0 && index < asset.services.length) {
       return asset.services[index]

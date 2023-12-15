@@ -49,15 +49,16 @@ downloadRoute.get(
 
       const response = await handleDownload(downloadTask, node)
       if (response.stream) {
-        res.send(response.stream as Readable)
+        res.status(response.status.httpStatus)
+        res.set(response.status.headers)
+        response.stream.pipe(res)
       } else {
-        res.status(response.status.httpStatus).send(response.status.error)
+        res.status(response.status.httpStatus).send(response.error)
       }
     } catch (error) {
       logger.logMessage(`Error: ${error}`, true)
-      res.sendStatus(500)
-      return
+      res.status(500).send(error)
     }
-    res.sendStatus(200)
+    // res.sendStatus(200)
   }
 )
