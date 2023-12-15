@@ -76,8 +76,7 @@ describe('Download Tests', () => {
     const data = getOceanArtifactsAdresses()
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    process.env.PRIVATE_KEY =
-      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
+    //    process.env.PRIVATE_KEY =      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
     consumerAccount = (await provider.getSigner(1)) as Signer
     publisherAccount = (await provider.getSigner(0)) as Signer
     publisherAddress = await publisherAccount.getAddress()
@@ -266,8 +265,14 @@ describe('Download Tests', () => {
     )
     // message to sign
     const nonce = Date.now().toString()
+    const message = String(asset.id + nonce)
     // sign message/nonce
-    const signature = await wallet.signMessage(nonce)
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await wallet.signMessage(messageHashBytes)
     console.log('2. feeTx', feeTx)
     console.log('consumerAddress', consumerAddress)
     const downloadTask = {
