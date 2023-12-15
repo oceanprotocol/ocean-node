@@ -175,7 +175,13 @@ function validateNonceAndSignature(
     let message: string
     if (ddoId) message = String(ddoId + nonce)
     else message = String(nonce)
-    const recoveredAddress = ethers.verifyMessage(message, signature)
+    console.log(message)
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const recoveredAddress = ethers.verifyMessage(messageHashBytes, signature)
     if (ethers.getAddress(recoveredAddress) === ethers.getAddress(consumer)) {
       // update nonce on DB, return OK
       return {

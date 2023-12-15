@@ -44,10 +44,15 @@ export async function handleDownload(
       'No DDO for asset found. Cannot proceed with download.',
       true
     )
-    throw new Error('No DDO found for asset')
+    return {
+      stream: null,
+      status: {
+        httpStatus: 500
+      },
+      error: 'No DDO found for asset'
+    }
   }
 
-  /*
   // 2. Validate nonce and signature
   const nonceCheckResult: NonceResponse = await checkNonce(
     node,
@@ -63,22 +68,40 @@ export async function handleDownload(
         nonceCheckResult.error,
       true
     )
-    throw new Error(nonceCheckResult.error)
+    return {
+      stream: null,
+      status: {
+        httpStatus: 500
+      },
+      error: nonceCheckResult.error
+    }
   }
-  */
+
   // 4. check that the provider fee transaction is valid
   if (task.feeTx && task.feeData) {
     let feeValidation
     try {
       feeValidation = await checkFee(task.feeTx, task.feeData)
     } catch (e) {
-      throw new Error('ERROR checking fees')
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500
+        },
+        error: 'ERROR checking fees'
+      }
     }
     if (feeValidation) {
       // Log the provider fee response for debugging purposes
       P2P_CONSOLE_LOGGER.logMessage(`Valid provider fee transaction`, true)
     } else {
-      throw new Error('Invalid provider fee transaction')
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500
+        },
+        error: 'Invalid provider fee transaction'
+      }
     }
   }
 
@@ -90,7 +113,13 @@ export async function handleDownload(
   try {
     provider = new JsonRpcProvider(rpc)
   } catch (e) {
-    throw new Error('JsonRpcProvider ERROR')
+    return {
+      stream: null,
+      status: {
+        httpStatus: 500
+      },
+      error: 'JsonRpcProvider ERROR'
+    }
   }
 
   let service: Service = AssetUtils.getServiceById(ddo, task.serviceId)
@@ -116,7 +145,13 @@ export async function handleDownload(
       `Invalid payment transaction: ${paymentValidation.message}`,
       true
     )
-    throw new Error(paymentValidation.message)
+    return {
+      stream: null,
+      status: {
+        httpStatus: 500
+      },
+      error: paymentValidation.message
+    }
   }
 
   try {
@@ -136,6 +171,13 @@ export async function handleDownload(
     })
   } catch (e) {
     P2P_CONSOLE_LOGGER.logMessage('decryption error' + e, true)
+    return {
+      stream: null,
+      status: {
+        httpStatus: 500
+      },
+      error: 'Failed to decrypt'
+    }
   }
 }
 

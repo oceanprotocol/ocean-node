@@ -53,11 +53,11 @@ downloadRoute.get(
         res.set(response.status.headers)
         response.stream.pipe(res)
       } else {
-        res.status(response.status.httpStatus).send(response.status.error)
+        res.status(response.status.httpStatus).send(response.error)
       }
     } catch (error) {
       logger.logMessage(`Error: ${error}`, true)
-      res.sendStatus(500)
+      res.status(500).send(error)
     }
     // res.sendStatus(200)
   }
