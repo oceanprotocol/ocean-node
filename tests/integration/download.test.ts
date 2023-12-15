@@ -131,16 +131,21 @@ describe('Download Tests', () => {
 
   it('should set metadata and save ', async () => {
     // Encrypt the files
-    const files = [
-      {
-        type: 'url',
-        url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
-        method: 'get'
-      }
-    ]
+    const files = {
+      datatokenAddress: '0x0',
+      nftAddress: '0x0',
+      files: [
+        {
+          type: 'url',
+          url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
+          method: 'GET'
+        }
+      ]
+    }
+
     const data = Uint8Array.from(Buffer.from(JSON.stringify(files)))
     const encryptedData = await encrypt(data, 'ECIES')
-    const encryptedDataString = encryptedData.toString('base64')
+    // const encryptedDataString = encryptedData.toString('base64')
 
     nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, publisherAccount)
     genericAsset.id =
@@ -150,7 +155,7 @@ describe('Download Tests', () => {
         .digest('hex')
     genericAsset.nftAddress = nftAddress
     genericAsset.services[0].datatokenAddress = datatokenAddress
-    genericAsset.services[0].files = encryptedDataString
+    genericAsset.services[0].files = encryptedData
 
     assetDID = genericAsset.id
     const stringDDO = JSON.stringify(genericAsset)
@@ -285,7 +290,6 @@ describe('Download Tests', () => {
       signature
     }
     const response = await handleDownload(downloadTask, p2pNode)
-    console.log('response', response)
 
     assert(response)
     assert(response.stream, 'stream not present')
