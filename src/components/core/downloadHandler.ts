@@ -162,6 +162,8 @@ export async function handleDownloadURLCommand(
     const objTemp = JSON.parse(JSON.stringify(headers).toLowerCase())
     if (!('Content-Length'.toLowerCase() in objTemp))
       headers['Transfer-Encoding'] = 'chunked'
+    if (!('Content-Disposition'.toLowerCase() in objTemp))
+      headers['Content-Disposition'] = 'attachment;filename=unknownfile' // TO DO: use did+serviceId+fileIndex
     if (encryptFile) {
       // we parse the string into the object again
       const encryptedObject = ethCrypto.cipher.parse(task.aes_encrypted_key)
