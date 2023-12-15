@@ -1,11 +1,11 @@
 import {
   UrlFileObject,
   IpfsFileObject,
-  ArweaveFileObject
+  ArweaveFileObject,
+  StorageReadable
 } from '../../@types/fileObject.js'
 import axios from 'axios'
 import urlJoin from 'url-join'
-import { Readable } from 'stream'
 
 export abstract class Storage {
   private file: any
@@ -77,14 +77,19 @@ export class UrlStorage extends Storage {
     return null
   }
 
-  async getReadableStream(): Promise<Readable> {
+  async getReadableStream(): Promise<StorageReadable> {
     const input = this.getDownloadUrl()
+    console.log(input)
     const response = await axios({
       method: 'get',
       url: input,
       responseType: 'stream'
     })
-    return response.data
+    return {
+      httpStatus: response.status,
+      stream: response.data,
+      headers: response.headers as any
+    }
   }
 }
 
@@ -113,7 +118,7 @@ export class ArweaveStorage extends Storage {
     return urlJoin(process.env.ARWEAVE_GATEWAY, this.getFile().transactionId)
   }
 
-  async getReadableStream(): Promise<Readable> {
+  async getReadableStream(): Promise<StorageReadable> {
     const input = this.getDownloadUrl()
 
     const response = await axios({
@@ -122,7 +127,11 @@ export class ArweaveStorage extends Storage {
       responseType: 'stream'
     })
 
-    return response.data
+    return {
+      httpStatus: response.status,
+      stream: response.data,
+      headers: response.headers as any
+    }
   }
 }
 
@@ -152,7 +161,7 @@ export class IpfsStorage extends Storage {
     return urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', this.getFile().hash))
   }
 
-  async getReadableStream(): Promise<Readable> {
+  async getReadableStream(): Promise<StorageReadable> {
     const input = this.getDownloadUrl()
 
     const response = await axios({
@@ -161,6 +170,10 @@ export class IpfsStorage extends Storage {
       responseType: 'stream'
     })
 
-    return response.data
+    return {
+      httpStatus: response.status,
+      stream: response.data,
+      headers: response.headers as any
+    }
   }
 }

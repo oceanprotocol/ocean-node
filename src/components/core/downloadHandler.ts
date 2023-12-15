@@ -154,6 +154,14 @@ export async function handleDownloadURLCommand(
     // Determine the type of storage and get a readable stream
     const storage = Storage.getStorageClass(task.fileObject)
     const inputStream = await storage.getReadableStream()
+    const headers: any = {}
+    for (const [key, value] of Object.entries(inputStream.headers)) {
+      headers[key] = value
+    }
+    // need to check if content length is already in headers, but we don't know the case
+    const objTemp = JSON.parse(JSON.stringify(headers).toLowerCase())
+    if (!('Content-Length'.toLowerCase() in objTemp))
+      headers['Transfer-Encoding'] = 'chunked'
     if (encryptFile) {
       // we parse the string into the object again
       const encryptedObject = ethCrypto.cipher.parse(task.aes_encrypted_key)
@@ -184,29 +192,22 @@ export async function handleDownloadURLCommand(
         )
         .setAutoPadding(true)
 
+      headers['Content-Encoding'] = 'aesgcm'
+
       return {
-        stream: inputStream.pipe(cipher),
+        stream: inputStream.stream.pipe(cipher),
         status: {
-          httpStatus: 200,
-          headers: {
-            'Content-Disposition': "attachment; filename='syslog'", // TODO: the filename must come from somewhere else?
-            'Content-Type': 'application/octet-stream',
-            'Content-Encoding': 'aesgcm',
-            'Transfer-Encoding': 'chunked'
-          }
+          httpStatus: inputStream.httpStatus,
+          headers
         }
       }
     } else {
       // Download request is not using encryption!
       return {
-        stream: inputStream,
+        stream: inputStream.stream,
         status: {
-          httpStatus: 200,
-          headers: {
-            // 'Content-Disposition': "attachment; filename='syslog'",
-            'Content-Type': 'application/octet-stream',
-            'Transfer-Encoding': 'chunked'
-          }
+          httpStatus: inputStream.httpStatus,
+          headers
         }
       }
     }
