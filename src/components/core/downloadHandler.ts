@@ -153,12 +153,7 @@ export async function handleDownloadURLCommand(
   try {
     // Determine the type of storage and get a readable stream
     const storage = Storage.getStorageClass(task.fileObject)
-    console.log('storage')
-    console.log(storage)
     const inputStream = await storage.getReadableStream()
-    console.log('inputStream')
-    console.log(inputStream)
-
     if (encryptFile) {
       // we parse the string into the object again
       const encryptedObject = ethCrypto.cipher.parse(task.aes_encrypted_key)
