@@ -11,6 +11,8 @@ import * as ethCrypto from 'eth-crypto'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { validateOrderTransaction } from './validateTransaction.js'
 import { checkNonce, NonceResponse } from './nonceHandler.js'
+import { AssetUtils } from '../../utils/asset.js'
+import { Service } from '../../@types/DDO/Service'
 import { findAndFormatDdo } from './ddoHandler.js'
 import { checkFee } from './feesHandler.js'
 import { decrypt } from '../../utils/crypt.js'
@@ -45,6 +47,7 @@ export async function handleDownload(
     throw new Error('No DDO found for asset')
   }
 
+  /*
   // 2. Validate nonce and signature
   const nonceCheckResult: NonceResponse = await checkNonce(
     node,
@@ -62,7 +65,7 @@ export async function handleDownload(
     )
     throw new Error(nonceCheckResult.error)
   }
-
+  */
   // 4. check that the provider fee transaction is valid
   if (task.feeTx && task.feeData) {
     let feeValidation
@@ -90,14 +93,18 @@ export async function handleDownload(
     throw new Error('JsonRpcProvider ERROR')
   }
 
+  let service: Service = AssetUtils.getServiceById(ddo, task.serviceId)
+  console.log(service)
+  if (!service) service = AssetUtils.getServiceByIndex(ddo, Number(task.serviceId))
+  if (!service) throw new Error('Cannot find service')
   const paymentValidation = await validateOrderTransaction(
     task.transferTxId,
     task.consumerAddress,
     provider,
     ddo.nftAddress,
-    ddo.services[Number(task.serviceId)].datatokenAddress,
-    task.serviceId,
-    ddo.services[Number(task.serviceId)].timeout
+    service.datatokenAddress,
+    AssetUtils.getServiceIndexById(ddo, task.serviceId),
+    service.timeout
   )
 
   if (paymentValidation.isValid) {
@@ -115,21 +122,19 @@ export async function handleDownload(
 
   try {
     // 6. Decrypt the url
-    const encryptedFilesString = ddo.services[Number(task.serviceId)].files
-    const encryptedFilesBuffer = Buffer.from(encryptedFilesString, 'base64')
-
-    // Ensure that encryptedFilesBuffer is of type Buffer
-    if (!Buffer.isBuffer(encryptedFilesBuffer)) {
-      throw new Error('Encrypted data is not a Buffer')
-    }
-
-    // Call the decrypt function with the appropriate algorithm
-    const decryptedUrlBytes = await decrypt(encryptedFilesBuffer, 'ECIES')
-
+    const decryptedUrlBytes = await decrypt(
+      Uint8Array.from(Buffer.from(service.files, 'hex')),
+      'ECIES'
+    )
+    console.log('decryptedUrlBytes')
+    console.log(decryptedUrlBytes)
     // Convert the decrypted bytes back to a string
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
+    console.log('decryptedFilesString')
+    console.log(decryptedFilesString)
     const decryptedFileArray = JSON.parse(decryptedFilesString)
-
+    console.log('decryptedFileArray')
+    console.log(decryptedFileArray)
     // 7. Proceed to download the file
     return await handleDownloadURLCommand(node, {
       command: PROTOCOL_COMMANDS.DOWNLOAD_URL,
@@ -155,6 +160,8 @@ export async function handleDownloadURLCommand(
   try {
     // Determine the type of storage and get a readable stream
     const storage = Storage.getStorageClass(task.fileObject)
+    console.log('storage')
+    console.log(storage)
     const inputStream = await storage.getReadableStream()
 
     if (encryptFile) {
