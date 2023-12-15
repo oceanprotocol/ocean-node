@@ -94,7 +94,6 @@ export async function handleDownload(
   }
 
   let service: Service = AssetUtils.getServiceById(ddo, task.serviceId)
-  console.log(service)
   if (!service) service = AssetUtils.getServiceByIndex(ddo, Number(task.serviceId))
   if (!service) throw new Error('Cannot find service')
   const paymentValidation = await validateOrderTransaction(
@@ -126,19 +125,13 @@ export async function handleDownload(
       Uint8Array.from(Buffer.from(service.files, 'hex')),
       'ECIES'
     )
-    console.log('decryptedUrlBytes')
-    console.log(decryptedUrlBytes)
     // Convert the decrypted bytes back to a string
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
-    console.log('decryptedFilesString')
-    console.log(decryptedFilesString)
     const decryptedFileArray = JSON.parse(decryptedFilesString)
-    console.log('decryptedFileArray')
-    console.log(decryptedFileArray)
     // 7. Proceed to download the file
     return await handleDownloadURLCommand(node, {
       command: PROTOCOL_COMMANDS.DOWNLOAD_URL,
-      fileObject: decryptedFileArray[task.fileIndex],
+      fileObject: decryptedFileArray.files[task.fileIndex],
       aes_encrypted_key: task.aes_encrypted_key
     })
   } catch (e) {
@@ -163,6 +156,8 @@ export async function handleDownloadURLCommand(
     console.log('storage')
     console.log(storage)
     const inputStream = await storage.getReadableStream()
+    console.log('inputStream')
+    console.log(inputStream)
 
     if (encryptFile) {
       // we parse the string into the object again
@@ -213,7 +208,7 @@ export async function handleDownloadURLCommand(
         status: {
           httpStatus: 200,
           headers: {
-            'Content-Disposition': "attachment; filename='syslog'",
+            // 'Content-Disposition': "attachment; filename='syslog'",
             'Content-Type': 'application/octet-stream',
             'Transfer-Encoding': 'chunked'
           }

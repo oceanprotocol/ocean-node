@@ -48,7 +48,10 @@ downloadRoute.get(
       }
 
       const response = await handleDownload(downloadTask, node)
+      console.log('response')
+      console.log(response)
       if (response.stream) {
+        res.set(response.status.headers)
         res.send(response.stream as Readable)
       } else {
         res.status(response.status.httpStatus).send(response.status.error)
