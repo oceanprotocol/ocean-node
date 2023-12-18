@@ -12,9 +12,8 @@ import {
   defaultConsoleTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
-import { getConfig } from '../../utils/index.js'
-import { Command } from '../../utils/constants.js'
 import { Readable } from 'stream'
+import { Handler } from './handlers/handler.js'
 
 export const STATUS_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.CORE,
@@ -22,73 +21,75 @@ export const STATUS_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   defaultConsoleTransport
 )
 
-export async function status(nodeId?: string): Promise<OceanNodeStatus> {
-  STATUS_CONSOLE_LOGGER.logMessage('Command status started execution...', true)
-  const config = await getConfig()
-  if (!config) {
-    STATUS_CONSOLE_LOGGER.logMessageWithEmoji(
-      'Config object not found. Cannot proceed with status command.',
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_ERROR
-    )
-    return
-  }
-  const status: OceanNodeStatus = {
-    id: undefined,
-    publicKey: undefined,
-    address: undefined,
-    version: undefined,
-    http: undefined,
-    p2p: undefined,
-    provider: [],
-    indexer: []
-  }
-  if (nodeId && nodeId !== undefined) {
-    status.id = nodeId
-  } else {
-    // get current node ID
-    status.id = config.keys.peerId.toString()
-  }
-  status.version = process.env.npm_package_version
-  status.publicKey = Buffer.from(config.keys.publicKey).toString('hex')
-  status.address = config.keys.ethAddress
-  status.http = config.hasHttp
-  status.p2p = config.hasP2P
-
-  for (const [key, supportedNetwork] of Object.entries(config.supportedNetworks)) {
-    const provider: OceanNodeProvider = {
-      chainId: key,
-      network: supportedNetwork.network
+export class StatusHandler extends Handler {
+  async status(nodeId?: string): Promise<OceanNodeStatus> {
+    STATUS_CONSOLE_LOGGER.logMessage('Command status started execution...', true)
+    const config = this.getConfig()
+    if (!config) {
+      STATUS_CONSOLE_LOGGER.logMessageWithEmoji(
+        'Config object not found. Cannot proceed with status command.',
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return
     }
-    status.provider.push(provider)
-    const indexer: OceanNodeIndexer = {
-      chainId: key,
-      network: supportedNetwork.network,
-      block: '0'
+    const status: OceanNodeStatus = {
+      id: undefined,
+      publicKey: undefined,
+      address: undefined,
+      version: undefined,
+      http: undefined,
+      p2p: undefined,
+      provider: [],
+      indexer: []
     }
-    status.indexer.push(indexer)
-  }
-  return status
-}
+    if (nodeId && nodeId !== undefined) {
+      status.id = nodeId
+    } else {
+      // get current node ID
+      status.id = config.keys.peerId.toString()
+    }
+    status.version = process.env.npm_package_version
+    status.publicKey = Buffer.from(config.keys.publicKey).toString('hex')
+    status.address = config.keys.ethAddress
+    status.http = config.hasHttp
+    status.p2p = config.hasP2P
 
-export async function handleStatusCommand(task: Command): Promise<P2PCommandResponse> {
-  try {
-    const statusResult = await status(task.node)
-    if (!statusResult) {
+    for (const [key, supportedNetwork] of Object.entries(config.supportedNetworks)) {
+      const provider: OceanNodeProvider = {
+        chainId: key,
+        network: supportedNetwork.network
+      }
+      status.provider.push(provider)
+      const indexer: OceanNodeIndexer = {
+        chainId: key,
+        network: supportedNetwork.network,
+        block: '0'
+      }
+      status.indexer.push(indexer)
+    }
+    return status
+  }
+
+  async handle(): Promise<P2PCommandResponse> {
+    try {
+      const statusResult = await this.status(this.getTask().node)
+      if (!statusResult) {
+        return {
+          stream: null,
+          status: { httpStatus: 404, error: 'Status Not Found' }
+        }
+      }
+      return {
+        stream: Readable.from(JSON.stringify(statusResult)),
+        status: { httpStatus: 200 }
+      }
+    } catch (error) {
       return {
         stream: null,
-        status: { httpStatus: 404, error: 'Config Not Found' }
+        status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
       }
-    }
-    return {
-      stream: Readable.from(JSON.stringify(statusResult)),
-      status: { httpStatus: 200 }
-    }
-  } catch (error) {
-    return {
-      stream: null,
-      status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
     }
   }
 }
