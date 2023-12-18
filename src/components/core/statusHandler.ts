@@ -1,3 +1,4 @@
+import os from 'os'
 import {
   OceanNodeStatus,
   OceanNodeProvider,
@@ -42,7 +43,19 @@ export async function status(nodeId?: string): Promise<OceanNodeStatus> {
     http: undefined,
     p2p: undefined,
     provider: [],
-    indexer: []
+    indexer: [],
+    platform: {
+      cpus: os.cpus(),
+      freemem: os.freemem(),
+      totalmem: os.totalmem(),
+      loadavg: os.loadavg(),
+      arch: os.arch(),
+      machine: os.machine(),
+      platform: os.platform(),
+      release: os.release(),
+      osType: os.type(),
+      osVersion: os.version()
+    }
   }
   if (nodeId && nodeId !== undefined) {
     status.id = nodeId
