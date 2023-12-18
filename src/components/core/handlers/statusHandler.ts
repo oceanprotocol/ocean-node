@@ -3,7 +3,7 @@ import {
   OceanNodeProvider,
   OceanNodeIndexer,
   P2PCommandResponse
-} from '../../@types/OceanNode.js'
+} from '../../../@types/OceanNode.js'
 import {
   CustomNodeLogger,
   LOGGER_MODULE_NAMES,
@@ -11,9 +11,9 @@ import {
   GENERIC_EMOJIS,
   defaultConsoleTransport,
   getCustomLoggerForModule
-} from '../../utils/logging/Logger.js'
+} from '../../../utils/logging/Logger.js'
 import { Readable } from 'stream'
-import { Handler } from './handlers/handler.js'
+import { Handler } from './handler.js'
 
 export const STATUS_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.CORE,

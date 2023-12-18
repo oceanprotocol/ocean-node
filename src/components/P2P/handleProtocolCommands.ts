@@ -12,10 +12,11 @@ import { P2P_CONSOLE_LOGGER } from './index.js'
 import { handleGetDdoCommand, findDDO } from '../core/ddoHandler.js'
 import { getNonce } from '../core/nonceHandler.js'
 import { handleQueryCommand } from '../core/queryHandler.js'
-import { handleStatusCommand } from '../core/statusHandler.js'
 import { handleEncryptCommand } from '../core/encryptHandler.js'
 import { getFees } from '../core/feesHandler.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { StatusHandler } from '../core/handlers/statusHandler.js'
+import { getConfig } from '../../utils/index.js'
 
 export class ReadableString extends Readable {
   private sent = false
@@ -45,6 +46,7 @@ export async function handleProtocolCommands(connection: any) {
   let task
   let statusStream
   let sendStream = null
+  const config = await getConfig()
   /* eslint no-unreachable-loop: ["error", { "ignore": ["ForInStatement", "ForOfStatement"] }] */
   for await (const chunk of connection.stream.source) {
     try {
@@ -85,7 +87,7 @@ export async function handleProtocolCommands(connection: any) {
         response = await getNonce(this, task.address)
         break
       case PROTOCOL_COMMANDS.STATUS:
-        response = await handleStatusCommand(task)
+        response = await new StatusHandler(task, config, null).handle()
         break
       case PROTOCOL_COMMANDS.FIND_DDO:
         response = await findDDO(this, task)
@@ -132,6 +134,7 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
   // let statusStream
   let sendStream = null
   let response: P2PCommandResponse = null
+  const config = await getConfig()
 
   P2P_CONSOLE_LOGGER.logMessage('Performing task: ' + JSON.stringify(task), true)
   try {
@@ -155,7 +158,7 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
         response = await getNonce(this, task.address)
         break
       case PROTOCOL_COMMANDS.STATUS:
-        response = await handleStatusCommand(task)
+        response = await new StatusHandler(task, config, null).handle()
         break
       case PROTOCOL_COMMANDS.FIND_DDO:
         response = await findDDO(this, task)
