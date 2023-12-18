@@ -2,15 +2,15 @@ import {
   FindDDOCommand,
   GetDdoCommand,
   PROTOCOL_COMMANDS
-} from '../../utils/constants.js'
-import { FindDDOResponse, P2PCommandResponse } from '../../@types'
+} from '../../../utils/constants.js'
+import { FindDDOResponse, P2PCommandResponse } from '../../../@types'
 import { Readable } from 'stream'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
-import { CACHE_TTL, OceanP2P, P2P_CONSOLE_LOGGER } from '../P2P/index.js'
-import { sleep, readStream } from '../../utils/util.js'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { DDO } from '../../@types/DDO/DDO.js'
-import { Service } from '../../@types/DDO/Service.js'
+import { CACHE_TTL, OceanP2P, P2P_CONSOLE_LOGGER } from '../../P2P/index.js'
+import { sleep, readStream } from '../../../utils/util.js'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
+import { DDO } from '../../../@types/DDO/DDO.js'
+import { Service } from '../../../@types/DDO/Service.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available

@@ -9,9 +9,8 @@ import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
 import { P2P_CONSOLE_LOGGER } from './index.js'
 
-import { handleGetDdoCommand, findDDO } from '../core/ddoHandler.js'
+import { findDDO } from '../core/handlers/ddoHandler.js'
 import { getNonce } from '../core/nonceHandler.js'
-// import { handleQueryCommand } from '../core/handlers/queryHandler.js'
 import { getFees } from '../core/feesHandler.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { StatusHandler } from '../core/handlers/statusHandler.js'
@@ -19,6 +18,7 @@ import { getConfig } from '../../utils/index.js'
 import { EncryptHandler } from '../core/handlers/encryptHandler.js'
 import { QueryHandler } from '../core/handlers/queryHandler.js'
 import { Database } from '../database/index.js'
+import { GetDdoHandler } from '../core/handlers/getDdoHandler.js'
 
 export class ReadableString extends Readable {
   private sent = false
@@ -79,7 +79,7 @@ export async function handleProtocolCommands(connection: any) {
         response = await handleDownloadURLCommand(this, task)
         break
       case PROTOCOL_COMMANDS.GET_DDO:
-        response = await handleGetDdoCommand(this, task)
+        response = await new GetDdoHandler(task, db).handle()
         break
       case PROTOCOL_COMMANDS.QUERY:
         response = await new QueryHandler(task, db).handle()
@@ -149,7 +149,7 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
         response = await handleDownloadURLCommand(this, task)
         break
       case PROTOCOL_COMMANDS.GET_DDO:
-        response = await handleGetDdoCommand(this, task)
+        response = await new GetDdoHandler(task, db).handle()
         break
       case PROTOCOL_COMMANDS.QUERY:
         response = await new QueryHandler(task, db).handle()
