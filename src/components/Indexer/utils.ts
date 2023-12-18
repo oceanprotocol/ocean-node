@@ -112,17 +112,12 @@ export const processChunkLogs = async (
       } else if (event && event.type === EVENTS.EXCHANGE_RATE_CHANGED) {
         INDEXER_LOGGER.logMessage('-- EXCHANGE_RATE_CHANGED -- ', true)
         storeEvents[event.type] = await processExchangeRateChanged()
-      } else if (
-        event &&
-        (event.type === EVENTS.ORDER_STARTED || event.type === EVENTS.ORDER_REUSED)
-      ) {
-        INDEXER_LOGGER.logMessage('-- ORDER_STARTED || ORDER_REUSED -- ', true)
-        storeEvents[event.type] = await procesOrdersEvents(
-          log,
-          event.type,
-          provider,
-          chainId
-        )
+      } else if (event && event.type === EVENTS.ORDER_STARTED) {
+        INDEXER_LOGGER.logMessage(`-- ${event.type} triggered`, true)
+        storeEvents[event.type] = await procesOrderStarted(log, provider, chainId)
+      } else if (event && event.type === EVENTS.ORDER_REUSED) {
+        INDEXER_LOGGER.logMessage(`-- ${event.type} triggered`, true)
+        storeEvents[event.type] = await processOrderReused(log, provider, chainId)
       } else if (event && event.type === EVENTS.TOKEN_URI_UPDATE) {
         INDEXER_LOGGER.logMessage('-- TOKEN_URI_UPDATE -- ', true)
         storeEvents[event.type] = await processTokenUriUpadate()
@@ -142,27 +137,27 @@ const processExchangeRateChanged = async (): Promise<string> => {
   return 'EXCHANGE_RATE_CHANGED'
 }
 
-const procesOrdersEvents = async (
+const procesOrderStarted = async (
   log: ethers.Log,
-  eventType: string,
   provider: JsonRpcApiProvider,
   chainId: number
 ): Promise<any> => {
-  if (eventType === EVENTS.ORDER_STARTED) {
-    try {
-      return await processOrderStartedEvent(log, chainId, provider)
-    } catch (e) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error proccessing order: ${e}`)
-    }
-  } else if (eventType === EVENTS.ORDER_REUSED) {
-    try {
-      return await processOrderReusedEvent(log, chainId, provider)
-    } catch (e) {
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `Error proccessing order reused: ${e}`
-      )
-    }
+  try {
+    return await processOrderStartedEvent(log, chainId, provider)
+  } catch (e) {
+    INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error proccessing order: ${e}`)
+  }
+}
+
+const processOrderReused = async (
+  log: ethers.Log,
+  provider: JsonRpcApiProvider,
+  chainId: number
+): Promise<any> => {
+  try {
+    return await processOrderReusedEvent(log, chainId, provider)
+  } catch (e) {
+    INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error proccessing order reused: ${e}`)
   }
 }
 
