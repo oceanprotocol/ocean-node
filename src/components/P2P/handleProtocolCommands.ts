@@ -12,11 +12,11 @@ import { P2P_CONSOLE_LOGGER } from './index.js'
 import { handleGetDdoCommand, findDDO } from '../core/ddoHandler.js'
 import { getNonce } from '../core/nonceHandler.js'
 import { handleQueryCommand } from '../core/queryHandler.js'
-import { handleEncryptCommand } from '../core/encryptHandler.js'
 import { getFees } from '../core/feesHandler.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { StatusHandler } from '../core/handlers/statusHandler.js'
 import { getConfig } from '../../utils/index.js'
+import { EncryptHandler } from '../core/handlers/encryptHandler.js'
 
 export class ReadableString extends Readable {
   private sent = false
@@ -81,13 +81,13 @@ export async function handleProtocolCommands(connection: any) {
         response = await handleQueryCommand(this, task)
         break
       case PROTOCOL_COMMANDS.ENCRYPT:
-        response = await handleEncryptCommand.call(this, task)
+        response = await new EncryptHandler(task).handle()
         break
       case PROTOCOL_COMMANDS.NONCE:
         response = await getNonce(this, task.address)
         break
       case PROTOCOL_COMMANDS.STATUS:
-        response = await new StatusHandler(task, config, null).handle()
+        response = await new StatusHandler(task, config).handle()
         break
       case PROTOCOL_COMMANDS.FIND_DDO:
         response = await findDDO(this, task)
@@ -152,13 +152,13 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
         response = await handleQueryCommand(this, task)
         break
       case PROTOCOL_COMMANDS.ENCRYPT:
-        response = await handleEncryptCommand.call(this, task)
+        response = await new EncryptHandler(task).handle()
         break
       case PROTOCOL_COMMANDS.NONCE:
         response = await getNonce(this, task.address)
         break
       case PROTOCOL_COMMANDS.STATUS:
-        response = await new StatusHandler(task, config, null).handle()
+        response = await new StatusHandler(task, config).handle()
         break
       case PROTOCOL_COMMANDS.FIND_DDO:
         response = await findDDO(this, task)

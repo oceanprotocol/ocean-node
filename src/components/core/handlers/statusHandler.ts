@@ -2,7 +2,8 @@ import {
   OceanNodeStatus,
   OceanNodeProvider,
   OceanNodeIndexer,
-  P2PCommandResponse
+  P2PCommandResponse,
+  OceanNodeConfig
 } from '../../../@types/OceanNode.js'
 import {
   CustomNodeLogger,
@@ -14,6 +15,7 @@ import {
 } from '../../../utils/logging/Logger.js'
 import { Readable } from 'stream'
 import { Handler } from './handler.js'
+import { Command } from '../../../utils/constants.js'
 
 export const STATUS_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.CORE,
@@ -22,6 +24,17 @@ export const STATUS_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
 )
 
 export class StatusHandler extends Handler {
+  public constructor(task: any, config: OceanNodeConfig) {
+    super(task, config, null)
+    if (!this.isCommand(task)) {
+      throw new Error(`Task has not EncryptCommand type. It has ${typeof task}`)
+    }
+  }
+
+  isCommand(obj: any): obj is Command {
+    return typeof obj === 'object' && obj !== null && 'command' in obj
+  }
+
   async status(nodeId?: string): Promise<OceanNodeStatus> {
     STATUS_CONSOLE_LOGGER.logMessage('Command status started execution...', true)
     const config = this.getConfig()
