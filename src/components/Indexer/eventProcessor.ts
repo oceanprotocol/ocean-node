@@ -20,6 +20,8 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 import { getConfig } from '../../utils/config.js'
 import { Database } from '../database/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { MetadataStates } from '../../utils/constants.js'
+
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
   LOG_LEVELS_STR.LEVEL_INFO,
@@ -105,18 +107,54 @@ export const processMetadataStateEvent = async (
       .update(getAddress(event.address) + chainId.toString(10))
       .digest('hex')
   try {
-    const ddo = await dbconn.ddo.retrieve(did)
+    let ddo = await dbconn.ddo.retrieve(did)
     if (!ddo) {
       INDEXER_LOGGER.logMessage(
         `Detected MetadataState changed for ${did}, but it does not exists.`
       )
       return
     }
+    INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
+
     if ('nft' in ddo && ddo.nft.state !== metadataState) {
+      let shortVersion = null
+
+      if (
+        ddo.nft.state === MetadataStates.ACTIVE &&
+        [MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(metadataState)
+      ) {
+        INDEXER_LOGGER.logMessage(
+          `DDO became non-visible from ${ddo.nft.state} to ${metadataState}`
+        )
+        shortVersion = {
+          '@context': null,
+          id: ddo.id,
+          version: null,
+          chainId: null,
+          metadata: null,
+          services: null,
+          event: null,
+          stats: null,
+          purgatory: null,
+          datatokens: null,
+          accessDetails: null,
+          nftAddress: ddo.nftAddress,
+          nft: {
+            state: metadataState
+          }
+        }
+      }
+
+      // We should keep it here, because in further development we'll store
+      // the previous structure of the non-visible DDOs (full version)
+      // in case their state changes back to active.
       ddo.nft.state = metadataState
+      if (shortVersion) {
+        ddo = shortVersion
+      }
     } else {
       // Still update until we validate and polish schemas for DDO.
-      // But it should update ONLY if first condition is met.
+      // But it should update ONLY if the first condition is met.
       // Check https://github.com/oceanprotocol/aquarius/blob/84a560ea972485e46dd3c2cfc3cdb298b65d18fa/aquarius/events/processors.py#L663
       ddo.nft = {
         state: metadataState

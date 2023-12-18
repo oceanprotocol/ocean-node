@@ -213,6 +213,20 @@ describe('Indexer stores a new published DDO', () => {
     expect(retrievedDDO.nft.state).to.equal(parseInt(result[2].toString()))
   })
 
+  it('should change metadata state back to ACTIVE state', async () => {
+    const setMetaDataStateTx = await nftContract.setMetaDataState(0)
+    const trxReceipt = await setMetaDataStateTx.wait()
+    assert(trxReceipt, 'set metada state failed')
+  })
+
+  delay(100000)
+
+  it('should get the active state', async () => {
+    const retrievedDDO = await waitToIndex(assetDID, database)
+    // Expect the result from contract
+    expect(retrievedDDO.nft.state).to.equal(0)
+  })
+
   it('should get OrderStarted event', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
     const publisherAddress = await publisherAccount.getAddress()
@@ -332,5 +346,25 @@ describe('Indexer stores a new published DDO', () => {
     const timestamp = reusedOrderEvent.args[2].toString()
     expect(resultOrder?.timestamp.toString()).to.equal(timestamp)
     expect(resultOrder?.startOrderId).to.equal(orderTxId)
+  })
+
+  it('should change metadata state to DEPRECATED', async () => {
+    // Deprecated state for this asset
+    const setMetaDataStateTx = await nftContract.setMetaDataState(2)
+    const trxReceipt = await setMetaDataStateTx.wait()
+    assert(trxReceipt, 'set metada state failed')
+  })
+
+  delay(100000)
+
+  it('should have a short version of ddo', async () => {
+    const result = await nftContract.getMetaData()
+    expect(parseInt(result[2].toString())).to.equal(2)
+    const resolvedDDO = await waitToIndex(assetDID, database)
+    // Expect a short version of the DDO
+    expect(Object.keys(resolvedDDO).length).to.equal(3)
+    expect(
+      'id' in resolvedDDO && 'nftAddress' in resolvedDDO && 'nft' in resolvedDDO
+    ).to.equal(true)
   })
 })

@@ -86,6 +86,15 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.GET_FEES
 ]
 
+export const MetadataStates = {
+  ACTIVE: 0,
+  END_OF_LIFE: 1,
+  DEPRECATED: 2,
+  REVOKED: 3,
+  ORDERING_DISABLED: 4,
+  UNLISTED: 5
+}
+
 export const EVENTS = {
   METADATA_CREATED: 'MetadataCreated',
   METADATA_UPDATED: 'MetadataUpdated',
