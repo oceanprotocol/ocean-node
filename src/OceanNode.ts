@@ -8,7 +8,19 @@ import {
   PROTOCOL_COMMANDS,
   SUPPORTED_PROTOCOL_COMMANDS
 } from './utils/constants.js'
-import { OCEAN_NODE_LOGGER } from './index.js'
+import {
+  CustomNodeLogger,
+  LOGGER_MODULE_NAMES,
+  LOG_LEVELS_STR,
+  defaultConsoleTransport,
+  getCustomLoggerForModule
+} from './utils/logging/Logger.js'
+
+export const OCEAN_NODE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
+  LOGGER_MODULE_NAMES.OCEAN_NODE,
+  LOG_LEVELS_STR.LEVEL_INFO, // Info level
+  defaultConsoleTransport // console only Transport
+)
 
 // placeholder, replace with final handler class
 abstract class Handler {

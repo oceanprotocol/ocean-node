@@ -23,7 +23,7 @@ import fs from 'fs'
 // Bellow is just an example usage, only logging to console here, we can customize any transports
 // we could create just one logger per module/component, and export/import it between files of the same component/module
 // we can also have different log levels, going to different files
-export const OCEAN_NODE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
+const logger: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.OCEAN_NODE,
   LOG_LEVELS_STR.LEVEL_INFO, // Info level
   defaultConsoleTransport // console only Transport
@@ -47,14 +47,14 @@ function loadInitialDDOS(): any[] {
   const dir: string = './data/'
   for (let i = 1; i < 6; i++) {
     const fileName = `${dir}DDO_example_${i}.json`
-    OCEAN_NODE_LOGGER.logMessage(`Loading test DDO from ${fileName}`, true)
+    logger.logMessage(`Loading test DDO from ${fileName}`, true)
     try {
       // eslint-disable-next-line security/detect-non-literal-fs-filename
       const rawData = fs.readFileSync(fileName, 'utf8')
       const jsonData = JSON.parse(rawData)
       ddos.push(jsonData)
     } catch (err) {
-      OCEAN_NODE_LOGGER.log(
+      logger.log(
         LOG_LEVELS_STR.LEVEL_WARN,
         `Error loading test DDO from ${fileName}`,
         true
@@ -69,7 +69,7 @@ const isStartup: boolean = true
 // and we are always running though the same process.env checks
 // (we must start accessing the config from the OceanNode class only once we refactor)
 console.log('\n\n\n\n')
-OCEAN_NODE_LOGGER.logMessageWithEmoji(
+logger.logMessageWithEmoji(
   '[ Starting Ocean Node ]',
   true,
   GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
@@ -106,7 +106,7 @@ if (config.hasProvider) {
   provider = new OceanProvider(dbconn)
 }
 const customLogTransport = newCustomDBTransport(dbconn)
-OCEAN_NODE_LOGGER.addTransport(customLogTransport)
+logger.addTransport(customLogTransport)
 
 // global
 const oceanNode = new OceanNode(config, dbconn, node, provider, indexer)
@@ -128,7 +128,7 @@ if (config.hasHttp) {
   )
   app.use('/', httpRoutes)
   app.listen(config.httpPort, () => {
-    OCEAN_NODE_LOGGER.logMessage(`HTTP port: ${config.httpPort}`, true)
+    logger.logMessage(`HTTP port: ${config.httpPort}`, true)
   })
 }
 // Singleton is still useful inside the running node process
