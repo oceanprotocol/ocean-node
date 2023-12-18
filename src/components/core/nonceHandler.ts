@@ -175,7 +175,6 @@ function validateNonceAndSignature(
     let message: string
     if (ddoId) message = String(ddoId + nonce)
     else message = String(nonce)
-    console.log(message)
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
       [ethers.hexlify(ethers.toUtf8Bytes(message))]
