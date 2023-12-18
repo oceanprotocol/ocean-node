@@ -5,44 +5,49 @@ import { OceanNodeConfig } from './@types/OceanNode.js'
 import { Database } from './components/database/index.js'
 
 export class OceanNode {
-  private config: OceanNodeConfig
-  private node: OceanP2P
-  private provider: OceanProvider
-  private indexer: OceanIndexer
-  private db: Database
-  public constructor(config: OceanNodeConfig) {
-    this.config = config
+  // private config: OceanNodeConfig
+  // private node: OceanP2P
+  // private provider: OceanProvider
+  // private indexer: OceanIndexer
+  // private db: Database
+  // eslint-disable-next-line no-useless-constructor
+  public constructor(
+    private config: OceanNodeConfig,
+    private db: Database,
+    private node?: OceanP2P,
+    private provider?: OceanProvider,
+    private indexer?: OceanIndexer
+  ) {}
+
+  public addP2PNode(_node: OceanP2P) {
+    this.node = _node
+  }
+
+  public addProvider(_provider: OceanProvider) {
+    this.provider = _provider
+  }
+
+  public addIndexer(_indexer: OceanIndexer) {
+    this.indexer = _indexer
   }
 
   public getConfig(): OceanNodeConfig {
     return this.config
   }
 
-  public getP2PNode(): OceanP2P {
+  public getP2PNode(): OceanP2P | undefined {
     return this.node
   }
 
-  public getProvider(): OceanProvider {
+  public getProvider(): OceanProvider | undefined {
     return this.provider
   }
 
-  public getIndexer(): OceanIndexer {
+  public getIndexer(): OceanIndexer | undefined {
     return this.indexer
   }
 
   public getDatabase(): Database {
     return this.db
-  }
-
-  public setOceanNode(
-    newNode: OceanP2P,
-    newIndexer: OceanIndexer,
-    newProvider: OceanProvider,
-    newDbConn: Database
-  ): void {
-    this.node = newNode
-    this.indexer = newIndexer
-    this.provider = newProvider
-    this.db = newDbConn
   }
 }

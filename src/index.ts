@@ -79,7 +79,6 @@ const config = await getConfig(isStartup)
 if (!config) {
   process.exit(1)
 }
-const oceanNode = new OceanNode(config)
 let node: OceanP2P = null
 let indexer = null
 let provider = null
@@ -110,7 +109,8 @@ const customLogTransport = newCustomDBTransport(dbconn)
 logger.addTransport(customLogTransport)
 
 // global
-oceanNode.setOceanNode(node, indexer, provider, dbconn)
+const oceanNode = new OceanNode(config, dbconn, node, provider, indexer)
+
 if (config.hasHttp) {
   app.use(express.raw())
   app.use((req, res, next) => {
@@ -131,3 +131,5 @@ if (config.hasHttp) {
     logger.logMessage(`HTTP port: ${config.httpPort}`, true)
   })
 }
+// Singleton is still useful inside the running node process
+export const OceanNodeSingleton = oceanNode

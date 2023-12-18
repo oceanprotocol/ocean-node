@@ -1,4 +1,5 @@
 import { OceanNode } from '../../OceanNode.js'
+import { Database } from '../../components/database/index.js'
 import { getConfig } from '../../utils/index.js'
 
 import { expect, assert } from 'chai'
@@ -34,7 +35,8 @@ describe('Status command tests', () => {
 
   it('Ocean Node instance', async () => {
     const config = await getConfig()
-    const oceanNode = new OceanNode(config)
+    const db = await new Database(config.dbConfig)
+    const oceanNode = new OceanNode(config, db)
     expect(oceanNode).to.be.instanceOf(OceanNode)
     expect(oceanNode.getConfig().keys.privateKey).to.eql(config.keys.privateKey)
     expect(oceanNode.getConfig().supportedNetworks).to.eql({
