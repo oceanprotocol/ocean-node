@@ -152,8 +152,8 @@ describe('Ocean Node fees', () => {
         expect(feesData.providerFeeToken).to.be.equal(providerFeeToken)
         expect(feesData.providerFeeAmount).to.be.equal(providerAmount)
         expect(feesData.v).to.be.gte(27) // 27 OR 28
-        expect(Object.keys(feesData.r).length).to.be.equal(32) // 32 bytes
-        expect(Object.keys(feesData.s).length).to.be.equal(32)
+        expect(Object.keys(feesData.r).length).to.be.equal(66) // 32 bytes in hex + 0x
+        expect(Object.keys(feesData.s).length).to.be.equal(66) // 32 bytes in hex + 0x
       })
     }
   })

@@ -23,6 +23,7 @@ import { signMessage } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import { Database } from '../../components/database/index.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
+import { AssetUtils } from '../../utils/asset.js'
 
 describe('validateOrderTransaction Function with Orders', () => {
   let database: Database
@@ -50,7 +51,7 @@ describe('validateOrderTransaction Function with Orders', () => {
   const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
   const providerFeeAddress = ZeroAddress // publisherAddress
   const providerFeeToken = feeToken
-  const serviceIndex = 0 // dummy index
+  const serviceId = '0' // dummy index
   const providerFeeAmount = 0 // fee to be collected on top, requires approval
   const consumeMarketFeeAddress = ZeroAddress // marketplace fee Collector
   const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
@@ -184,7 +185,7 @@ describe('validateOrderTransaction Function with Orders', () => {
 
     const orderTx = await dataTokenContractWithNewSigner.startOrder(
       consumerAddress,
-      serviceIndex,
+      serviceId,
       {
         providerFeeAddress,
         providerFeeToken,
@@ -214,7 +215,7 @@ describe('validateOrderTransaction Function with Orders', () => {
       provider,
       dataNftAddress,
       datatokenAddress,
-      serviceIndex,
+      parseInt(serviceId),
       timeout
     )
     assert(validationResult.isValid, 'Transaction is not valid.')
@@ -258,7 +259,7 @@ describe('validateOrderTransaction Function with Orders', () => {
       provider,
       dataNftAddress,
       datatokenAddress,
-      serviceIndex,
+      parseInt(serviceId),
       timeout
     )
 
@@ -269,7 +270,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     )
   })
 
-  it('should reject reuse an order with invald serviceIndex', async function () {
+  it('should reject reuse an order with invald serviceId', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
 
     const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
@@ -303,7 +304,7 @@ describe('validateOrderTransaction Function with Orders', () => {
       provider,
       dataNftAddress,
       datatokenAddress,
-      999,
+      parseInt('999'),
       timeout
     )
 
@@ -348,7 +349,7 @@ describe('validateOrderTransaction Function with Orders', () => {
       provider,
       dataNftAddress,
       datatokenAddress,
-      serviceIndex,
+      parseInt(serviceId),
       timeout
     )
 
