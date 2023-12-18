@@ -14,7 +14,7 @@ export abstract class Handler {
   }
 
   abstract handle(): Promise<P2PCommandResponse>
-  getDatabse(): Database | null {
+  getDatabase(): Database | null {
     if (!this.db) {
       return null
     }

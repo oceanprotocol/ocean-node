@@ -27,7 +27,7 @@ export class StatusHandler extends Handler {
   public constructor(task: any, config: OceanNodeConfig) {
     super(task, config, null)
     if (!this.isCommand(task)) {
-      throw new Error(`Task has not EncryptCommand type. It has ${typeof task}`)
+      throw new Error(`Task has not Command type. It has ${typeof task}`)
     }
   }
 

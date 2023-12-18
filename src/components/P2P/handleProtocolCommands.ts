@@ -11,12 +11,14 @@ import { P2P_CONSOLE_LOGGER } from './index.js'
 
 import { handleGetDdoCommand, findDDO } from '../core/ddoHandler.js'
 import { getNonce } from '../core/nonceHandler.js'
-import { handleQueryCommand } from '../core/queryHandler.js'
+// import { handleQueryCommand } from '../core/handlers/queryHandler.js'
 import { getFees } from '../core/feesHandler.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { StatusHandler } from '../core/handlers/statusHandler.js'
 import { getConfig } from '../../utils/index.js'
 import { EncryptHandler } from '../core/handlers/encryptHandler.js'
+import { QueryHandler } from '../core/handlers/queryHandler.js'
+import { Database } from '../database/index.js'
 
 export class ReadableString extends Readable {
   private sent = false
@@ -35,6 +37,9 @@ export class ReadableString extends Readable {
   }
 }
 
+const config = await getConfig()
+const db = await new Database(config.dbConfig)
+
 export async function handleProtocolCommands(connection: any) {
   P2P_CONSOLE_LOGGER.logMessage(
     'Incoming connection from peer ' + connection.connection.remotePeer,
@@ -46,7 +51,6 @@ export async function handleProtocolCommands(connection: any) {
   let task
   let statusStream
   let sendStream = null
-  const config = await getConfig()
   /* eslint no-unreachable-loop: ["error", { "ignore": ["ForInStatement", "ForOfStatement"] }] */
   for await (const chunk of connection.stream.source) {
     try {
@@ -78,7 +82,7 @@ export async function handleProtocolCommands(connection: any) {
         response = await handleGetDdoCommand(this, task)
         break
       case PROTOCOL_COMMANDS.QUERY:
-        response = await handleQueryCommand(this, task)
+        response = await new QueryHandler(task, db).handle()
         break
       case PROTOCOL_COMMANDS.ENCRYPT:
         response = await new EncryptHandler(task).handle()
@@ -134,7 +138,6 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
   // let statusStream
   let sendStream = null
   let response: P2PCommandResponse = null
-  const config = await getConfig()
 
   P2P_CONSOLE_LOGGER.logMessage('Performing task: ' + JSON.stringify(task), true)
   try {
@@ -149,7 +152,7 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
         response = await handleGetDdoCommand(this, task)
         break
       case PROTOCOL_COMMANDS.QUERY:
-        response = await handleQueryCommand(this, task)
+        response = await new QueryHandler(task, db).handle()
         break
       case PROTOCOL_COMMANDS.ENCRYPT:
         response = await new EncryptHandler(task).handle()

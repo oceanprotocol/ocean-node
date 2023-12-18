@@ -3,7 +3,7 @@ import { streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { handleGetDdoCommand } from '../core/ddoHandler.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { handleQueryCommand } from '../core/queryHandler.js'
+import { handleQueryCommand } from '../core/handlers/queryHandler.js'
 import {
   CustomNodeLogger,
   defaultConsoleTransport,
