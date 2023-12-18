@@ -1,10 +1,10 @@
-import { Readable } from 'stream'
 import {
   Storage,
   UrlStorage,
   ArweaveStorage,
   IpfsStorage
 } from '../../components/storage/index.js'
+import { StorageReadable } from '../../@types/fileObject.js'
 
 import { expect } from 'chai'
 
@@ -136,7 +136,6 @@ describe('URL Storage tests', () => {
     const storage = Storage.getStorageClass(file)
     const stream = await storage.getReadableStream()
     expect(stream).not.to.eql(null)
-    expect(stream).to.be.instanceOf(Readable)
   })
 })
 

@@ -45,6 +45,7 @@ export interface OceanNodeConfig {
 export interface P2PCommandResponse {
   status: any
   stream: Stream | null
+  error?: string
 }
 
 export interface OceanNodeProvider {

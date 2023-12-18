@@ -12,7 +12,7 @@ export async function handleEncryptCommand(
     let blobData: Uint8Array = new Uint8Array()
     if (task.encoding === 'string') {
       // get bytes from basic blob
-      blobData = Uint8Array.from(Buffer.from(task.blob, 'hex'))
+      blobData = Uint8Array.from(Buffer.from(task.blob))
     }
     if (task.encoding === 'base58') {
       // get bytes from a blob that is encoded in standard base58

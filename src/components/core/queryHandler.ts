@@ -8,12 +8,9 @@ export async function handleQueryCommand(
   task: QueryCommand
 ): Promise<P2PCommandResponse> {
   try {
-    const result = await node.getDatabase().ddo.search(task.query)
+    let result = await node.getDatabase().ddo.search(task.query)
     if (!result) {
-      return {
-        stream: null,
-        status: { httpStatus: 400, error: 'Invalid query parameters' }
-      }
+      result = []
     }
     return {
       stream: Readable.from(JSON.stringify(result)),

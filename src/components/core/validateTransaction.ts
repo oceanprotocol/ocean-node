@@ -3,8 +3,6 @@ import { fetchEventFromTransaction } from '../../utils/util.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 
-console.log('Imports loaded')
-
 interface ValidateTransactionResponse {
   isValid: boolean
   message: string
