@@ -53,7 +53,68 @@ export async function handleDownload(
     }
   }
 
-  // 2. Validate nonce and signature
+  // 2. Validate ddo and credentials
+  if (!ddo.chainId || !ddo.nftAddress || !ddo.metadata) {
+    P2P_CONSOLE_LOGGER.logMessage('Error: DDO malformed or disabled', true)
+    return {
+      stream: null,
+      status: {
+        httpStatus: 500
+      },
+      error: 'Error: DDO malformed or disabled'
+    }
+  }
+
+  // check credentials
+  if (ddo.credentials) {
+    const consumerCredentials = {
+      type: 'address',
+      values: [task.consumerAddress]
+    }
+
+    // check allow access
+    if (Array.isArray(ddo.credentials.allow) && ddo.credentials.allow.length > 0) {
+      const allowCredential = ddo.credentials.allow.find(
+        (credential) =>
+          credential.type == consumerCredentials.type &&
+          credential.values.includes(consumerCredentials.values[0])
+      )
+      if (!allowCredential) {
+        P2P_CONSOLE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500
+          },
+          error: `Error: Access to asset ${ddo.id} was denied`
+        }
+      }
+    }
+
+    // check deny access
+    if (Array.isArray(ddo.credentials.deny) && ddo.credentials.deny.length > 0) {
+      const denyCredential = ddo.credentials.deny.find(
+        (credential) =>
+          credential.type == consumerCredentials.type &&
+          credential.values.includes(consumerCredentials.values[0])
+      )
+      if (denyCredential) {
+        P2P_CONSOLE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500
+          },
+          error: `Error: Access to asset ${ddo.id} was denied`
+        }
+      }
+    }
+  }
+  // task.consumerAddress 0xBE5449a6A97aD46c8558A3356267Ee5D2731ab5e
+  console.log('task.consumerAddress', task.consumerAddress)
+  console.log('task.consumerAddress', ddo.credentials)
+
+  // 3. Validate nonce and signature
   const nonceCheckResult: NonceResponse = await checkNonce(
     node,
     task.consumerAddress,

@@ -49,7 +49,21 @@ export const genericDDO = {
       serviceEndpoint: 'http://172.15.0.4:8030',
       timeout: 0
     }
-  ]
+  ],
+  credentials: {
+    allow: [
+      {
+        type: 'address',
+        values: ['0x123']
+      }
+    ],
+    deny: [
+      {
+        type: 'address',
+        values: ['0x123']
+      }
+    ]
+  }
 }
 
 export const DDOExample = {
