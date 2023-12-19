@@ -54,7 +54,7 @@ export const genericDDO = {
     allow: [
       {
         type: 'address',
-        values: ['0x123']
+        values: ['0xBE5449a6A97aD46c8558A3356267Ee5D2731ab5e']
       }
     ],
     deny: [

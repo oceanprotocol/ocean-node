@@ -76,7 +76,7 @@ export async function handleDownload(
     if (Array.isArray(ddo.credentials.allow) && ddo.credentials.allow.length > 0) {
       const allowCredential = ddo.credentials.allow.find(
         (credential) =>
-          credential.type == consumerCredentials.type &&
+          credential.type === consumerCredentials.type &&
           credential.values.includes(consumerCredentials.values[0])
       )
       if (!allowCredential) {
@@ -95,7 +95,7 @@ export async function handleDownload(
     if (Array.isArray(ddo.credentials.deny) && ddo.credentials.deny.length > 0) {
       const denyCredential = ddo.credentials.deny.find(
         (credential) =>
-          credential.type == consumerCredentials.type &&
+          credential.type === consumerCredentials.type &&
           credential.values.includes(consumerCredentials.values[0])
       )
       if (denyCredential) {
@@ -110,9 +110,6 @@ export async function handleDownload(
       }
     }
   }
-  // task.consumerAddress 0xBE5449a6A97aD46c8558A3356267Ee5D2731ab5e
-  console.log('task.consumerAddress', task.consumerAddress)
-  console.log('task.consumerAddress', ddo.credentials)
 
   // 3. Validate nonce and signature
   const nonceCheckResult: NonceResponse = await checkNonce(
