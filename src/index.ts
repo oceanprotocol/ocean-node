@@ -82,7 +82,15 @@ if (!config) {
 let node: OceanP2P = null
 let indexer = null
 let provider = null
-const dbconn = await new Database(config.dbConfig)
+let dbconn = null
+
+if (config.dbConfig) {
+  dbconn = await new Database(config.dbConfig)
+} else {
+  config.hasIndexer = false
+  config.hasProvider = false
+}
+
 if (config.hasP2P) {
   node = new OceanP2P(dbconn, config)
   await node.start()

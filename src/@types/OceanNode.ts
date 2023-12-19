@@ -36,7 +36,7 @@ export interface OceanNodeConfig {
   hasIndexer: boolean
   hasProvider: boolean
   hasHttp: boolean
-  dbConfig: OceanNodeDBConfig
+  dbConfig?: OceanNodeDBConfig
   httpPort: number
   supportedNetworks: RPCS
   feeStrategy: FeeStrategy
