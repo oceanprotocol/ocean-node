@@ -96,12 +96,12 @@ export class OceanP2P extends EventEmitter {
     this._config = config
     if (db) {
       this.db = db
+      const customLogTransport = newCustomDBTransport(this.db)
+      P2P_CONSOLE_LOGGER.addTransport(customLogTransport)
     } else {
       this._config.hasIndexer = false
       this._config.hasProvider = false
     }
-    const customLogTransport = newCustomDBTransport(this.db)
-    P2P_CONSOLE_LOGGER.addTransport(customLogTransport)
     this._ddoDHT = {
       updated: new Date().getTime(),
       dht: new Map<string, FindDDOResponse>()

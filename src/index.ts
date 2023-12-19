@@ -84,18 +84,24 @@ let indexer = null
 let provider = null
 let dbconn = null
 
-if (config.dbConfig) {
+if (config.dbConfig?.url) {
   dbconn = await new Database(config.dbConfig)
+  const customLogTransport = newCustomDBTransport(dbconn)
+  logger.addTransport(customLogTransport)
 } else {
   config.hasIndexer = false
   config.hasProvider = false
 }
 
 if (config.hasP2P) {
-  node = new OceanP2P(dbconn, config)
+  if (dbconn) {
+    node = new OceanP2P(config, dbconn)
+  } else {
+    node = new OceanP2P(config)
+  }
   await node.start()
 }
-if (config.hasIndexer) {
+if (config.hasIndexer && dbconn) {
   indexer = new OceanIndexer(dbconn, config.supportedNetworks)
   // if we set this var
   // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
@@ -110,11 +116,9 @@ if (config.hasIndexer) {
     }
   }
 }
-if (config.hasProvider) {
+if (config.hasProvider && dbconn) {
   provider = new OceanProvider(dbconn)
 }
-const customLogTransport = newCustomDBTransport(dbconn)
-logger.addTransport(customLogTransport)
 
 // global
 const oceanNode = new OceanNode(config, dbconn, node, provider, indexer)

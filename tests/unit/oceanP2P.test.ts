@@ -7,7 +7,12 @@ describe('OceanP2P Test', () => {
   it('Start instance of OceanP2P', async () => {
     const config = await getConfig()
     const db = await new Database(config.dbConfig)
-    const p2pNode = new OceanP2P(db, config)
+    const p2pNode = new OceanP2P(config, db)
+    assert(p2pNode, 'Failed to create P2P Node instance')
+  })
+  it('Start instance of OceanP2P without a database', async () => {
+    const config = await getConfig()
+    const p2pNode = new OceanP2P(config)
     assert(p2pNode, 'Failed to create P2P Node instance')
   })
 })
