@@ -91,10 +91,15 @@ export class OceanP2P extends EventEmitter {
   private _idx: number
   private db: Database
   private _config: OceanNodeConfig
-  constructor(db: Database, config: OceanNodeConfig) {
+  constructor(config: OceanNodeConfig, db?: Database) {
     super()
-    this.db = db
     this._config = config
+    if (db) {
+      this.db = db
+    } else {
+      this._config.hasIndexer = false
+      this._config.hasProvider = false
+    }
     const customLogTransport = newCustomDBTransport(this.db)
     P2P_CONSOLE_LOGGER.addTransport(customLogTransport)
     this._ddoDHT = {
