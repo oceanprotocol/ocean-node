@@ -1,5 +1,5 @@
 import express, { Request, Response } from 'express'
-import { handleDownload } from '../core/handlers/downloadHandler.js'
+import { DownloadHandler } from '../core/handlers/downloadHandler.js'
 import { Readable } from 'stream'
 import {
   LOGGER_MODULE_NAMES,
@@ -26,7 +26,8 @@ downloadRoute.get(
     }
     logger.logMessage(`Download request received: ${JSON.stringify(req.query)}`, true)
     try {
-      const node = req.oceanNode.getP2PNode()
+      const config = req.oceanNode.getConfig()
+      const db = req.oceanNode.getDatabase()
       const {
         fileIndex,
         documentId,
@@ -47,7 +48,7 @@ downloadRoute.get(
         signature: signature as string
       }
 
-      const response = await handleDownload(downloadTask, node)
+      const response = await new DownloadHandler(downloadTask, config, db).handle()
       if (response.stream) {
         res.status(response.status.httpStatus)
         res.set(response.status.headers)
