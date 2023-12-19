@@ -194,8 +194,8 @@ export class OceanP2P extends EventEmitter {
             maxOutboundStreams: config.p2pConfig.dhtMaxOutboundStreams,
 
             clientMode: false, // this should be true for edge devices
-            kBucketSize: 20,
-            protocolPrefix: '/ocean/nodes/1.0.0'
+            kBucketSize: 20
+            // protocolPrefix: '/ocean/nodes/1.0.0'
             // randomWalk: {
             //  enabled: true,            // Allows to disable discovery (enabled by default)
             //  interval: 300e3,
@@ -248,6 +248,12 @@ export class OceanP2P extends EventEmitter {
       // })
       node.services.pubsub.subscribe(this._topic)
       node.services.pubsub.publish(this._topic, encoding('online'))
+      // ;(node.services.upnpNAT as any).mapIpAddresses()
+      ;(node.services.upnpNAT as any).mapIpAddresses().catch((err: any) => {
+        // hole punching errors are non-fatal
+        console.error(err)
+      })
+
       return node
     } catch (e) {
       P2P_CONSOLE_LOGGER.logMessageWithEmoji(
