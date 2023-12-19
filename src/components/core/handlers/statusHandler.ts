@@ -16,6 +16,7 @@ import {
 import { Readable } from 'stream'
 import { Handler } from './handler.js'
 import { Command } from '../../../utils/constants.js'
+import os from 'os'
 
 export const STATUS_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.CORE,
@@ -55,7 +56,20 @@ export class StatusHandler extends Handler {
       http: undefined,
       p2p: undefined,
       provider: [],
-      indexer: []
+      indexer: [],
+      uptime: process.uptime(),
+      platform: {
+        cpus: os.cpus().length,
+        freemem: os.freemem(),
+        totalmem: os.totalmem(),
+        loadavg: os.loadavg(),
+        arch: os.arch(),
+        machine: os.machine(),
+        platform: os.platform(),
+        release: os.release(),
+        osType: os.type(),
+        osVersion: os.version()
+      }
     }
     if (nodeId && nodeId !== undefined) {
       status.id = nodeId

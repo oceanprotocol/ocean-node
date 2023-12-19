@@ -68,6 +68,8 @@ export interface OceanNodeStatus {
   p2p: boolean
   provider: OceanNodeProvider[]
   indexer: OceanNodeIndexer[]
+  platform: any
+  uptime?: number // seconds since start
 }
 
 export interface P2PBroadcastResponse {
