@@ -45,7 +45,7 @@ export async function status(nodeId?: string): Promise<OceanNodeStatus> {
     provider: [],
     indexer: [],
     platform: {
-      cpus: os.cpus(),
+      cpus: os.cpus().length,
       freemem: os.freemem(),
       totalmem: os.totalmem(),
       loadavg: os.loadavg(),
