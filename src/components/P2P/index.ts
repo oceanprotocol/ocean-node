@@ -248,6 +248,8 @@ export class OceanP2P extends EventEmitter {
       // })
       node.services.pubsub.subscribe(this._topic)
       node.services.pubsub.publish(this._topic, encoding('online'))
+      ;(node.services.upnpNAT as any).mapIpAddresses()
+
       return node
     } catch (e) {
       P2P_CONSOLE_LOGGER.logMessageWithEmoji(
