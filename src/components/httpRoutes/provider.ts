@@ -4,22 +4,12 @@ import { streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { calculateFee } from '../core/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO'
-import {
-  CustomNodeLogger,
-  defaultConsoleTransport,
-  getCustomLoggerForModule,
-  LOG_LEVELS_STR,
-  LOGGER_MODULE_NAMES
-} from '../../utils/logging/Logger.js'
+import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { handleEncryptCommand } from '../core/encryptHandler.js'
+import { HTTP_LOGGER } from './index.js'
 
 export const providerRoutes = express.Router()
-const logger: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.HTTP,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
-)
 
 providerRoutes.post('/encrypt', async (req, res) => {
   try {
@@ -41,7 +31,7 @@ providerRoutes.post('/encrypt', async (req, res) => {
       res.status(result.status.httpStatus).send(result.status.error)
     }
   } catch (error) {
-    logger.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
@@ -50,7 +40,7 @@ providerRoutes.get('/download', async (req, res) => {
   try {
     res.status(400).send()
   } catch (error) {
-    logger.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
@@ -95,7 +85,7 @@ providerRoutes.get('/initialize', async (req, res) => {
 
     res.json(response)
   } catch (error) {
-    logger.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
@@ -115,7 +105,7 @@ providerRoutes.get('/nonce', async (req, res) => {
       res.status(400).send()
     }
   } catch (error) {
-    logger.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
