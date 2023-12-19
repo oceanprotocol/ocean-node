@@ -15,6 +15,19 @@ export const PROTOCOL_COMMANDS = {
   FIND_DDO: 'findDDO',
   GET_FEES: 'getFees'
 }
+// more visible, keep then close to make sure we always update both
+export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
+  PROTOCOL_COMMANDS.DOWNLOAD,
+  PROTOCOL_COMMANDS.DOWNLOAD_URL,
+  PROTOCOL_COMMANDS.ECHO,
+  PROTOCOL_COMMANDS.ENCRYPT,
+  PROTOCOL_COMMANDS.NONCE,
+  PROTOCOL_COMMANDS.GET_DDO,
+  PROTOCOL_COMMANDS.QUERY,
+  PROTOCOL_COMMANDS.STATUS,
+  PROTOCOL_COMMANDS.FIND_DDO,
+  PROTOCOL_COMMANDS.GET_FEES
+]
 
 export interface Command {
   command: string
@@ -73,18 +86,6 @@ export interface BroadcastCommand {
   command: string // the name of the command
   message: any // the message to broadcast
 }
-
-export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
-  PROTOCOL_COMMANDS.DOWNLOAD_URL,
-  PROTOCOL_COMMANDS.ECHO,
-  PROTOCOL_COMMANDS.ENCRYPT,
-  PROTOCOL_COMMANDS.NONCE,
-  PROTOCOL_COMMANDS.GET_DDO,
-  PROTOCOL_COMMANDS.QUERY,
-  PROTOCOL_COMMANDS.STATUS,
-  PROTOCOL_COMMANDS.FIND_DDO,
-  PROTOCOL_COMMANDS.GET_FEES
-]
 
 export const MetadataStates = {
   ACTIVE: 0,
