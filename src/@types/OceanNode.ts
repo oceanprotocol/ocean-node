@@ -75,6 +75,8 @@ export interface OceanNodeStatus {
   provider: OceanNodeProvider[]
   indexer: OceanNodeIndexer[]
   supportedStorage: StorageTypes
+  platform: any
+  uptime?: number // seconds since start
 }
 
 export interface P2PBroadcastResponse {
