@@ -10,7 +10,7 @@ import { P2PCommandResponse } from '../../@types'
 import { P2P_CONSOLE_LOGGER } from './index.js'
 
 import { findDDO } from '../core/handlers/ddoHandler.js'
-import { getNonce } from '../core/nonceHandler.js'
+import { NonceHandler } from '../core/handlers/nonceHandler.js'
 import { FeesHandler } from '../core/handlers/feesHandler.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { StatusHandler } from '../core/handlers/statusHandler.js'
@@ -88,7 +88,7 @@ export async function handleProtocolCommands(connection: any) {
         response = await new EncryptHandler(task).handle()
         break
       case PROTOCOL_COMMANDS.NONCE:
-        response = await getNonce(this, task.address)
+        response = await new NonceHandler(task, db).handle()
         break
       case PROTOCOL_COMMANDS.STATUS:
         response = await new StatusHandler(task, config).handle()
@@ -158,7 +158,7 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
         response = await new EncryptHandler(task).handle()
         break
       case PROTOCOL_COMMANDS.NONCE:
-        response = await getNonce(this, task.address)
+        response = await new NonceHandler(task, db).handle()
         break
       case PROTOCOL_COMMANDS.STATUS:
         response = await new StatusHandler(task, config).handle()

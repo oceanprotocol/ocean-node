@@ -8,10 +8,14 @@ export abstract class Handler {
   // that Database class has
   private db: Database
   private task: any
+  private p2pNode: OceanP2P
   public constructor(task: any, config?: OceanNodeConfig, db?: Database) {
     this.config = config
     this.db = db
     this.task = task
+    if (this.config && this.db) {
+      this.p2pNode = new OceanP2P(this.db, this.config)
+    }
   }
 
   abstract handle(): Promise<P2PCommandResponse>
@@ -34,9 +38,9 @@ export abstract class Handler {
   }
 
   getP2PNode(): OceanP2P | null {
-    if (this.config && this.db) {
-      return new OceanP2P(this.db, this.config)
+    if (!this.p2pNode) {
+      return null
     }
-    return null
+    return this.p2pNode
   }
 }

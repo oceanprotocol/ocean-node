@@ -11,7 +11,7 @@ import {
 } from '../../utils/logging/Logger.js'
 
 import { ethers } from 'ethers'
-import { checkNonce } from '../../components/core/nonceHandler.js'
+import { checkNonce } from '../../components/core/handlers/nonceHandler.js'
 import { getConfig } from '../../utils/config.js'
 import { OceanNode } from '../../OceanNode.js'
 import { OceanP2P } from '../../components/P2P/index.js'
@@ -40,7 +40,7 @@ export const nonceSchema: TypesenseCollectionCreateSchema = {
   ]
 }
 
-const url = process.env.DB_URL || 'http://172.15.0.6:8108/?apiKey=xyz'
+const url = process.env.DB_URL || 'http://localhost:8108/?apiKey=xyz'
 const typesense = new Typesense(convertTypesenseConfig(url))
 
 // const typesenseApi: TypesenseApi = new TypesenseApi(typesense.config)

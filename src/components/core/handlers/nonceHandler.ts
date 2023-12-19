@@ -1,4 +1,4 @@
-import { P2PCommandResponse } from '../../@types/index.js'
+import { P2PCommandResponse } from '../../../@types/index.js'
 
 import {
   CustomNodeLogger,
@@ -7,11 +7,13 @@ import {
   LOG_LEVELS_STR,
   defaultConsoleTransport,
   getCustomLoggerForModule
-} from '../../utils/logging/Logger.js'
-import { ReadableString } from '../P2P/handleProtocolCommands.js'
-import { OceanP2P } from '../P2P/index.js'
-import { NonceDatabase } from '../database/index.js'
+} from '../../../utils/logging/Logger.js'
+import { ReadableString } from '../../P2P/handleProtocolCommands.js'
+import { OceanP2P } from '../../P2P/index.js'
+import { Database, NonceDatabase } from '../../database/index.js'
 import { ethers } from 'ethers'
+import { Handler } from './handler.js'
+import { NonceCommand } from '../../../utils/constants.js'
 
 export const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.DATABASE,
@@ -36,6 +38,51 @@ function getDefaultResponse(nonce: number): P2PCommandResponse {
       }
     },
     stream: streamResponse
+  }
+}
+
+export class NonceHandler extends Handler {
+  public constructor(task: any, db: Database) {
+    super(task, null, db)
+    if (!this.isNonceCommand(task)) {
+      throw new Error(`Task has not GetFeesCommand type. It has ${typeof task}`)
+    }
+  }
+
+  isNonceCommand(obj: any): obj is NonceCommand {
+    return typeof obj === 'object' && obj !== null && 'command' in obj && 'address' in obj
+  }
+
+  async handle(): Promise<P2PCommandResponse> {
+    const db: NonceDatabase = this.getDatabase().nonce
+    const { address } = this.getTask()
+    try {
+      const nonce = await db.retrieve(address)
+      if (nonce !== null) {
+        return getDefaultResponse(nonce.nonce)
+      }
+      // // did not found anything, try add it and return default
+      const setFirst = await db.create(address, 0)
+      if (setFirst) {
+        return getDefaultResponse(0)
+      }
+      return getDefaultErrorResponse(
+        `Unable to retrieve nonce neither set first default for: ${address}`
+      )
+    } catch (err) {
+      // did not found anything, try add it and return default
+      if (err.message.indexOf(address) > -1) {
+        return getDefaultErrorResponse(err.message)
+      } else {
+        DB_CONSOLE_LOGGER.logMessageWithEmoji(
+          'Failure executing nonce task: ' + err.message,
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEL_ERROR
+        )
+        return getDefaultErrorResponse(err.message)
+      }
+    }
   }
 }
 
