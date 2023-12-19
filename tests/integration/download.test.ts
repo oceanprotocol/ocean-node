@@ -28,7 +28,7 @@ import { getConfig } from '../../utils/config.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { ProviderFeeData } from '../../@types/Fees'
 import { encrypt } from '../../utils/crypt.js'
-import { createFee } from '../../components/core/feesHandler.js'
+import { createFee } from '../../components/core/handlers/feesHandler.js'
 
 describe('Download Tests', () => {
   let database: Database

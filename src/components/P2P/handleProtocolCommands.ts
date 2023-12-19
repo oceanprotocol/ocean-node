@@ -11,7 +11,7 @@ import { P2P_CONSOLE_LOGGER } from './index.js'
 
 import { findDDO } from '../core/handlers/ddoHandler.js'
 import { getNonce } from '../core/nonceHandler.js'
-import { getFees } from '../core/feesHandler.js'
+import { FeesHandler } from '../core/handlers/feesHandler.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { StatusHandler } from '../core/handlers/statusHandler.js'
 import { getConfig } from '../../utils/index.js'
@@ -97,7 +97,7 @@ export async function handleProtocolCommands(connection: any) {
         response = await findDDO(this, task)
         break
       case PROTOCOL_COMMANDS.GET_FEES:
-        response = await getFees(task)
+        response = await new FeesHandler(task).handle()
         break
       default:
         status = { httpStatus: 501, error: 'Unknown command' }
@@ -167,7 +167,7 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
         response = await findDDO(this, task)
         break
       case PROTOCOL_COMMANDS.GET_FEES:
-        response = await getFees(task)
+        response = await new FeesHandler(task).handle()
         break
       default:
         status = { httpStatus: 501, error: 'Unknown command' }

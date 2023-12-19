@@ -1,5 +1,6 @@
 import { Database } from '../../database/index.js'
 import { OceanNodeConfig, P2PCommandResponse } from '../../../@types/OceanNode.js'
+import { OceanP2P } from '../../P2P/index.js'
 
 export abstract class Handler {
   private config: OceanNodeConfig
@@ -30,5 +31,12 @@ export abstract class Handler {
       return null
     }
     return this.config
+  }
+
+  getP2PNode(): OceanP2P | null {
+    if (this.config && this.db) {
+      return new OceanP2P(this.db, this.config)
+    }
+    return null
   }
 }

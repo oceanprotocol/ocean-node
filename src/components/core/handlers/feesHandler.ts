@@ -1,11 +1,10 @@
 import { ethers } from 'ethers'
-import { FeeTokens, ProviderFeeData } from '../../@types/Fees'
-import { Command, ICommandHandler, GetFeesCommand } from '../../utils/constants.js'
-import { DDO } from '../../@types/DDO/DDO'
-import { Service } from '../../@types/DDO/Service'
-import { AssetUtils } from '../../utils/asset.js'
-import { OceanNodeConfig, P2PCommandResponse } from '../../@types'
-import { OceanP2P } from '../P2P/index'
+import { FeeTokens, ProviderFeeData } from '../../../@types/Fees'
+import { GetFeesCommand } from '../../../utils/constants.js'
+import { DDO } from '../../../@types/DDO/DDO'
+import { Service } from '../../../@types/DDO/Service'
+import { AssetUtils } from '../../../utils/asset.js'
+import { OceanNodeConfig, P2PCommandResponse } from '../../../@types'
 import { Readable } from 'stream'
 import {
   CustomNodeLogger,
@@ -14,9 +13,10 @@ import {
   LOG_LEVELS_STR,
   defaultConsoleTransport,
   getCustomLoggerForModule
-} from '../../utils/logging/Logger.js'
-import { verifyMessage } from '../../utils/blockchain.js'
-import { getConfig } from '../../utils/config.js'
+} from '../../../utils/logging/Logger.js'
+import { verifyMessage } from '../../../utils/blockchain.js'
+import { getConfig } from '../../../utils/config.js'
+import { Handler } from './handler.js'
 
 let config: OceanNodeConfig
 // Lazy load configuration
@@ -26,28 +26,35 @@ async function getConfiguration(): Promise<OceanNodeConfig> {
   }
   return config
 }
+
 // this should be actually part of provider, so lets put this as module name
 const logger: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.PROVIDER,
   LOG_LEVELS_STR.LEVEL_INFO, // Info level
   [defaultConsoleTransport] // console only Transport
 )
-/**
- * We could turn other core Command handlers into something like this:
- */
-export abstract class CommandHandler implements ICommandHandler {
-  private p2pNode?: OceanP2P
-  public constructor(node?: OceanP2P) {
-    this.p2pNode = node || undefined
+
+export class FeesHandler extends Handler {
+  public constructor(task: any) {
+    super(task, null, null)
+    if (!this.isGetFeesCommand(task)) {
+      throw new Error(`Task has not GetFeesCommand type. It has ${typeof task}`)
+    }
   }
 
-  // handle directCommands
-  abstract handleCommand(command: Command): Promise<P2PCommandResponse>
-}
-export class FeesHandler extends CommandHandler {
-  async handleCommand(command: Command): Promise<P2PCommandResponse> {
+  isGetFeesCommand(obj: any): obj is GetFeesCommand {
+    return (
+      typeof obj === 'object' &&
+      obj !== null &&
+      'command' in obj &&
+      'ddo' in obj &&
+      'serviceId' in obj
+    )
+  }
+
+  async handle(): Promise<P2PCommandResponse> {
     try {
-      const task = command as GetFeesCommand
+      const task = this.getTask() as GetFeesCommand
       logger.logMessage(
         `Try to calculate fees for DDO with id: ${task.ddo.id} and serviceId: ${task.serviceId}`,
         true
@@ -330,17 +337,6 @@ export async function calculateFee(
   // - will analyze the DDO and get validity, so we can know who many times/until then user can download this asset
   // - compute required cost using FEE_AMOUNT and FEE_TOKENS
   return fee
-}
-
-/**
- * Core function to get the fees structure
- * @param task the command task (ddo, serviceId)
- * @returns fees structure
- */
-export async function getFees(task: GetFeesCommand): Promise<P2PCommandResponse> {
-  // Get the fees structure,
-  const handler = new FeesHandler()
-  return await handler.handleCommand(task)
 }
 
 // These core functions are provider related functions, maybe they will be on Provider

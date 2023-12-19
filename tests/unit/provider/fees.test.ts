@@ -8,12 +8,12 @@ import { ProviderFeeData } from '../../../@types/Fees'
 import {
   checkFee,
   createFee,
-  getFees,
+  FeesHandler,
   getProviderFeeAmount,
   getProviderFeeToken,
   getProviderWallet,
   getProviderWalletAddress
-} from '../../../components/core/feesHandler.js'
+} from '../../../components/core/handlers/feesHandler.js'
 import { OceanNodeConfig, P2PCommandResponse } from '../../../@types'
 import { Service } from '../../../@types/DDO/Service.js'
 import { DDOExample } from '../../data/ddo.js'
@@ -132,11 +132,11 @@ describe('Ocean Node fees', () => {
     const providerFeeToken = await getProviderFeeToken(chainId)
     const providerAmount = await getProviderFeeAmount()
 
-    const data: P2PCommandResponse = await getFees({
+    const data: P2PCommandResponse = await new FeesHandler({
       ddo: asset,
       serviceId: service.id,
       command: PROTOCOL_COMMANDS.GET_FEES
-    })
+    }).handle()
     expect(data.status.httpStatus).to.equal(200)
     const { stream } = data
     if (stream) {
