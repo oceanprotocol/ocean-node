@@ -22,26 +22,20 @@ import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { RPCS } from '../../@types/blockchain.js'
-import { getEventFromTx } from '../../utils/util.js'
+import { getEventFromTx, streamToString } from '../../utils/util.js'
 import { delay, signMessage, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
-import { getConfig } from '../../utils/index.js'
+import { PROTOCOL_COMMANDS, getConfig } from '../../utils/index.js'
 import { validateOrderTransaction } from '../../components/core/validateTransaction.js'
 import { decrypt, encrypt } from '../../utils/crypt.js'
-import { Readable } from 'stream'
+import { handleDownload } from '../../components/core/downloadHandler.js'
+import { handleStatusCommand } from '../../components/core/statusHandler.js'
 
-// TODO: remove this once we have it in the codebase
-export async function streamToString(stream: Readable) {
-  const chunks = []
-  for await (const chunk of stream) {
-    chunks.push(chunk)
-  }
-  return Buffer.concat(chunks).toString()
-}
+import { Readable } from 'stream'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
 describe('Indexer stores a new published DDO', () => {
-  const chainId = 8996
-
+  let config: OceanNodeConfig
   let database: Database
   let oceanNode: OceanNode
   let p2pNode: OceanP2P
@@ -58,10 +52,10 @@ describe('Indexer stores a new published DDO', () => {
   let datatokenAddress: string
   let resolvedDDO: Record<string, any>
   let orderTxId: string
-
   let assetDID: string
   let genericAsset: any
 
+  const chainId = 8996
   const mockSupportedNetworks: RPCS = {
     '8996': {
       chainId: 8996,
@@ -70,16 +64,15 @@ describe('Indexer stores a new published DDO', () => {
       chunkSize: 100
     }
   }
+  const serviceId = '0'
 
   before(async () => {
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
-    const config = await getConfig()
-    console.log('config ', config)
+    config = await getConfig()
     database = await new Database(dbConfig)
     oceanNode = await new OceanNode(config)
-    console.log(' node ', oceanNode)
 
     indexer = new OceanIndexer(database, mockSupportedNetworks)
 
@@ -107,6 +100,20 @@ describe('Indexer stores a new published DDO', () => {
       ERC721Factory.abi,
       publisherAccount
     )
+  })
+
+  it('should get node status', async () => {
+    const oceanNodeConfig = oceanNode.getConfig()
+
+    const statusCommand = {
+      command: PROTOCOL_COMMANDS.STATUS,
+      node: oceanNodeConfig.keys.peerId.toString()
+    }
+    const response = await handleStatusCommand(statusCommand)
+    assert(response.status.httpStatus === 200, 'http status not 200')
+    const resp = await streamToString(response.stream as Readable)
+    const status = JSON.parse(resp)
+    assert(status.id === oceanNodeConfig.keys.peerId.toString(), 'peer id not matching ')
   })
 
   it('should publish a dataset', async function () {
@@ -197,7 +204,6 @@ describe('Indexer stores a new published DDO', () => {
     const decryptedUrlBytes = await decrypt(encryptedFilesBytes, 'ECIES')
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
     const decryptedFileObject = JSON.parse(decryptedFilesString)
-    console.log('decryptedFileObject', decryptedFileObject)
     expect(decryptedFileObject[0].url).to.equal(
       'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js'
     )
@@ -286,5 +292,47 @@ describe('Indexer stores a new published DDO', () => {
       validationResult.message === 'Transaction is valid.',
       'Invalid transaction validation message.'
     )
+  })
+
+  it('should download triger download file', async function () {
+    const config = await getConfig()
+    config.supportedNetworks[8996] = {
+      chainId: 8996,
+      network: 'development',
+      rpc: 'http://127.0.0.1:8545',
+      chunkSize: 100
+    }
+
+    const p2pNode = new OceanP2P(database, config)
+    assert(p2pNode, 'Failed to instantiate OceanP2P')
+
+    const wallet = new ethers.Wallet(
+      '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
+    )
+    // message to sign
+    const nonce = Date.now().toString()
+    const message = String(resolvedDDO.id + nonce)
+    // sign message/nonce
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await wallet.signMessage(messageHashBytes)
+    const downloadTask = {
+      fileIndex: 0,
+      documentId: assetDID,
+      serviceId,
+      transferTxId: orderTxId,
+      nonce,
+      consumerAddress,
+      signature
+    }
+    const response = await handleDownload(downloadTask, p2pNode)
+
+    assert(response)
+    assert(response.stream, 'stream not present')
+    assert(response.status.httpStatus === 200, 'http status not 200')
+    expect(response.stream).to.be.instanceOf(Readable)
   })
 })
