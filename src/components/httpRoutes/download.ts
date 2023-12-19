@@ -1,5 +1,5 @@
 import express, { Request, Response } from 'express'
-import { handleDownload } from '../core/downloadHandler.js'
+import { handleDownload } from '../core/handlers/downloadHandler.js'
 import { Readable } from 'stream'
 import {
   LOGGER_MODULE_NAMES,

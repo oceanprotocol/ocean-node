@@ -4,7 +4,8 @@ import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import StreamConcat from 'stream-concat'
 // export function handleProtocolCommands (sourceStream:any,sinkStream:any) {
 
-import { handleDownloadURLCommand, handleDownload } from '../core/downloadHandler.js'
+import { DownloadHandler } from '../core/handlers/downloadHandler.js'
+import { DownloadUrlHandler } from '../core/handlers/downloadUrlHandler.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
 import { P2P_CONSOLE_LOGGER } from './index.js'
@@ -73,10 +74,10 @@ export async function handleProtocolCommands(connection: any) {
         status = { httpStatus: 200 }
         break
       case PROTOCOL_COMMANDS.DOWNLOAD:
-        response = await handleDownload(this, task)
+        response = await new DownloadHandler(task, config, db).handle()
         break
       case PROTOCOL_COMMANDS.DOWNLOAD_URL:
-        response = await handleDownloadURLCommand(this, task)
+        response = await new DownloadUrlHandler(task, config).handle()
         break
       case PROTOCOL_COMMANDS.GET_DDO:
         response = await new GetDdoHandler(task, db).handle()
@@ -145,8 +146,11 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
       case PROTOCOL_COMMANDS.ECHO:
         status = { httpStatus: 200 }
         break
+      case PROTOCOL_COMMANDS.DOWNLOAD:
+        response = await new DownloadHandler(task, config, db).handle()
+        break
       case PROTOCOL_COMMANDS.DOWNLOAD_URL:
-        response = await handleDownloadURLCommand(this, task)
+        response = await new DownloadUrlHandler(task, config).handle()
         break
       case PROTOCOL_COMMANDS.GET_DDO:
         response = await new GetDdoHandler(task, db).handle()
