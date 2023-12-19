@@ -143,3 +143,62 @@ describe('IndexerDatabase CRUD', () => {
     expect(result?.lastIndexedBlock).to.equal(1)
   })
 })
+
+describe('OrderDatabase CRUD', () => {
+  let database: Database
+
+  before(async () => {
+    const dbConfig = {
+      url: 'http://localhost:8108/?apiKey=xyz'
+    }
+    database = await new Database(dbConfig)
+  })
+
+  it('create order', async () => {
+    const result = await database.order.create(
+      'order1.0',
+      'startOrder',
+      1678593728,
+      '0x1234',
+      '0x4567'
+    )
+    expect(result?.id).to.equal('order1.0')
+    expect(result?.consumer).to.equal('0x1234')
+    expect(result?.payer).to.equal('0x4567')
+    expect(result?.type).to.equal('startOrder')
+    expect(result?.timestamp).to.equal(1678593728)
+  })
+
+  it('retrieve order', async () => {
+    const result = await database.order.retrieve('order1.0')
+    expect(result?.id).to.equal('order1.0')
+    expect(result?.consumer).to.equal('0x1234')
+    expect(result?.payer).to.equal('0x4567')
+    expect(result?.type).to.equal('startOrder')
+    expect(result?.timestamp).to.equal(1678593728)
+  })
+
+  it('update order', async () => {
+    const result = await database.order.update(
+      'order1.0',
+      'startOrder',
+      1678593730,
+      '0x1235',
+      '0x4567'
+    )
+    expect(result?.id).to.equal('order1.0')
+    expect(result?.consumer).to.equal('0x1235')
+    expect(result?.payer).to.equal('0x4567')
+    expect(result?.type).to.equal('startOrder')
+    expect(result?.timestamp).to.equal(1678593730)
+  })
+
+  it('delete order', async () => {
+    const result = await database.order.delete('order1.0')
+    expect(result?.id).to.equal('order1.0')
+    expect(result?.consumer).to.equal('0x1235')
+    expect(result?.payer).to.equal('0x4567')
+    expect(result?.type).to.equal('startOrder')
+    expect(result?.timestamp).to.equal(1678593730)
+  })
+})
