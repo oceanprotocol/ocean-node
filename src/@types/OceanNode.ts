@@ -4,7 +4,7 @@ import { RPCS } from './blockchain'
 import { FeeStrategy } from './Fees'
 
 export interface OceanNodeDBConfig {
-  url: string
+  url: string | null
 }
 
 export interface OceanNodeKeys {
