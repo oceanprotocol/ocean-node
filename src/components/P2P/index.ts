@@ -194,8 +194,8 @@ export class OceanP2P extends EventEmitter {
             maxOutboundStreams: config.p2pConfig.dhtMaxOutboundStreams,
 
             clientMode: false, // this should be true for edge devices
-            kBucketSize: 20,
-            protocolPrefix: '/ocean/nodes/1.0.0'
+            kBucketSize: 20
+            // protocolPrefix: '/ocean/nodes/1.0.0'
             // randomWalk: {
             //  enabled: true,            // Allows to disable discovery (enabled by default)
             //  interval: 300e3,
