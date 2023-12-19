@@ -290,7 +290,7 @@ export class CustomNodeLogger {
       this.loggerOptions = options
     }
 
-    if (INSTANCE_COUNT > 10) {
+    if (INSTANCE_COUNT >= 10) {
       // after 10 instances we get warnings about possible memory leaks
       this.logger.warn(
         `You already have ${INSTANCE_COUNT} instances of Logger. Please consider reusing some of them!`

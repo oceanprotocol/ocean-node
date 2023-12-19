@@ -35,7 +35,6 @@ describe('handle nonce', () => {
         .collections(nonceSchema.name)
         .documents()
         .retrieve('0x4cc9DBfc4bEeA8c986c61DAABB350C2eC55e29d1')
-      console.log('document in checkDocumentExists: ', document)
       // if not, create it now
     } catch (ex) {
       await typesense.collections(nonceSchema.name).documents().create({

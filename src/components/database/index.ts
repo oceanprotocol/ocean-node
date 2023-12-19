@@ -10,7 +10,6 @@ import {
   LOGGER_MODULE_NAMES,
   newCustomDBTransport
 } from '../../utils/logging/Logger.js'
-import { Logger } from 'winston'
 
 export const DATABASE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.DATABASE,
