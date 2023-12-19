@@ -83,6 +83,8 @@ export const LOG_COLORS = {
   http: 'magenta'
 }
 
+let INSTANCE_COUNT = 0
+
 // if not set, then gets default 'development' level & colors
 export const isDevelopment = (): boolean => {
   const env = process.env.NODE_ENV || 'development'
@@ -160,7 +162,7 @@ function getDefaultOptions(): winston.LoggerOptions {
 
 export function buildDefaultLogger(): Logger {
   const logger: winston.Logger = winston.createLogger(getDefaultOptions())
-
+  INSTANCE_COUNT++
   return logger
 }
 
@@ -284,7 +286,15 @@ export class CustomNodeLogger {
       )
     } else {
       this.logger = winston.createLogger({ ...options })
+      INSTANCE_COUNT++
       this.loggerOptions = options
+    }
+
+    if (INSTANCE_COUNT > 10) {
+      // after 10 instances we get warnings about possible memory leaks
+      this.logger.warn(
+        `You already have ${INSTANCE_COUNT} instances of Logger. Please consider reusing some of them!`
+      )
     }
   }
 
