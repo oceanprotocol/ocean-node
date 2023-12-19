@@ -44,6 +44,7 @@ export async function status(nodeId?: string): Promise<OceanNodeStatus> {
     p2p: undefined,
     provider: [],
     indexer: [],
+    uptime: process.uptime(),
     platform: {
       cpus: os.cpus().length,
       freemem: os.freemem(),
