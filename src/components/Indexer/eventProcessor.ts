@@ -7,23 +7,12 @@ import {
   toUtf8String
 } from 'ethers'
 import { createHash } from 'crypto'
-import {
-  CustomNodeLogger,
-  LOGGER_MODULE_NAMES,
-  LOG_LEVELS_STR,
-  defaultConsoleTransport,
-  getCustomLoggerForModule
-} from '../../utils/logging/Logger.js'
+import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { getConfig } from '../../utils/config.js'
 import { Database } from '../database/index.js'
 import { MetadataStates } from '../../utils/constants.js'
-
-export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.INDEXER,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
-)
+import { INDEXER_LOGGER } from './index.js'
 
 const config = await getConfig()
 
