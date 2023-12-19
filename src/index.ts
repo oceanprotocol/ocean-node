@@ -131,5 +131,5 @@ if (config.hasHttp) {
     logger.logMessage(`HTTP port: ${config.httpPort}`, true)
   })
 }
-// Singleton is still useful inside the running node process
+// Singleton might still useful inside the running node process
 export const OceanNodeSingleton = oceanNode
