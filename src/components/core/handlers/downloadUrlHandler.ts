@@ -12,7 +12,7 @@ export class DownloadUrlHandler extends Handler {
   public constructor(task: any, config: OceanNodeConfig) {
     super(task, config, null)
     if (!this.isDownloadUrlCommand(task)) {
-      throw new Error(`Task has not DownloadCommand type. It has ${typeof task}`)
+      throw new Error(`Task has not DownloadUrlCommand type. It has ${typeof task}`)
     }
   }
 

@@ -9,8 +9,6 @@ import {
   getAddress,
   hexlify,
   ZeroAddress,
-  toUtf8Bytes,
-  solidityPackedKeccak256,
   parseUnits
 } from 'ethers'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }

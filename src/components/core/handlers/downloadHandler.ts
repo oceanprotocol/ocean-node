@@ -180,14 +180,15 @@ export class DownloadHandler extends Handler {
       const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
       const decryptedFileArray = JSON.parse(decryptedFilesString)
       // 7. Proceed to download the file
-      return await new DownloadUrlHandler(
+      const downloadHandler = new DownloadUrlHandler(
         {
           command: PROTOCOL_COMMANDS.DOWNLOAD_URL,
           fileObject: decryptedFileArray.files[task.fileIndex],
           aes_encrypted_key: task.aes_encrypted_key
         },
         config
-      ).handle()
+      )
+      return await downloadHandler.handle()
     } catch (e) {
       P2P_CONSOLE_LOGGER.logMessage('decryption error' + e, true)
       return {
