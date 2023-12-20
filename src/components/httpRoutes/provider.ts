@@ -12,7 +12,7 @@ import {
   LOGGER_MODULE_NAMES
 } from '../../utils/logging/Logger.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { EncryptHandler } from '../core/handlers/encryptHandler.js'
+import { EncryptHandler } from '../core/handlers/handler.js'
 
 export const providerRoutes = express.Router()
 const logger: CustomNodeLogger = getCustomLoggerForModule(

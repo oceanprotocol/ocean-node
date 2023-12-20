@@ -10,10 +10,14 @@ import { P2PCommandResponse } from '../../@types'
 import { P2P_CONSOLE_LOGGER } from './index.js'
 
 import { findDDO } from '../core/handlers/ddoHandler.js'
-import { NonceHandler, FeesHandler, StatusHandler } from '../core/handlers/handler.js'
+import {
+  NonceHandler,
+  FeesHandler,
+  StatusHandler,
+  EncryptHandler
+} from '../core/handlers/handler.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { getConfig } from '../../utils/index.js'
-import { EncryptHandler } from '../core/handlers/encryptHandler.js'
 import { QueryHandler } from '../core/handlers/queryHandler.js'
 import { Database } from '../database/index.js'
 import { GetDdoHandler } from '../core/handlers/getDdoHandler.js'
