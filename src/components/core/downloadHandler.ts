@@ -17,7 +17,7 @@ import { findAndFormatDdo } from './ddoHandler.js'
 import { checkFee } from './feesHandler.js'
 import { decrypt } from '../../utils/crypt.js'
 import { Storage } from '../../components/storage/index.js'
-import { checkCredentials } from '../../utils/credentials'
+import { checkCredentials } from '../../utils/credentials.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownload(
