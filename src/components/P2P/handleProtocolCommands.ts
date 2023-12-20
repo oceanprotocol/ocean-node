@@ -14,11 +14,11 @@ import {
   NonceHandler,
   FeesHandler,
   StatusHandler,
-  EncryptHandler
+  EncryptHandler,
+  QueryHandler
 } from '../core/handlers/handler.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { getConfig } from '../../utils/index.js'
-import { QueryHandler } from '../core/handlers/queryHandler.js'
 import { Database } from '../database/index.js'
 import { GetDdoHandler } from '../core/handlers/getDdoHandler.js'
 
