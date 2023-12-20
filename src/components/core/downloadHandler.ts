@@ -67,15 +67,17 @@ export async function handleDownload(
   }
 
   // check credentials
-  const accessGranted = checkCredentials(ddo.credentials, task.consumerAddress)
-  if (!accessGranted) {
-    P2P_CONSOLE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
-    return {
-      stream: null,
-      status: {
-        httpStatus: 500
-      },
-      error: `Error: Access to asset ${ddo.id} was denied`
+  if (ddo.credentials) {
+    const accessGranted = checkCredentials(ddo.credentials, task.consumerAddress)
+    if (!accessGranted) {
+      P2P_CONSOLE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500
+        },
+        error: `Error: Access to asset ${ddo.id} was denied`
+      }
     }
   }
 
