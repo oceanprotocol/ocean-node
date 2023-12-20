@@ -14,6 +14,15 @@ export function findCredential(
   })
 }
 
+export function hasCredential(credentials: Credential[]) {
+  return (
+    Array.isArray(credentials) &&
+    credentials.length > 0 &&
+    Array.isArray(credentials?.values) &&
+    credentials.values.length > 0
+  )
+}
+
 /**
  * This method checks credentials
  * @param credentials credentials
@@ -24,22 +33,13 @@ export function checkCredentials(credentials: Credentials, consumerAddress: stri
     type: 'address',
     values: [String(consumerAddress).toLowerCase()]
   }
-
-  // check allow access
-  if (Array.isArray(credentials.allow) && credentials.allow.length > 0) {
-    const allowCredential = findCredential(credentials.allow, consumerCredentials)
-    if (!allowCredential) {
-      return false
-    }
-  }
-
   // check deny access
-  if (Array.isArray(credentials.deny) && credentials.deny.length > 0) {
-    const denyCredential = findCredential(credentials.deny, consumerCredentials)
-    if (denyCredential) {
-      return false
-    }
+  if (hasCredential(credentials?.deny)) {
+    return !!findCredential(credentials.deny, consumerCredentials)
   }
-
+  // check allow access
+  if (hasCredential(credentials?.allow)) {
+    return !findCredential(credentials.allow, consumerCredentials)
+  }
   return true
 }
