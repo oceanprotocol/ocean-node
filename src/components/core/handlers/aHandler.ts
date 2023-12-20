@@ -1,13 +1,15 @@
 import { Database, NonceDatabase } from '../../database/index.js'
 import { OceanNodeConfig, P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { OceanP2P } from '../../P2P/index.js'
-import { NonceCommand } from '../../../utils/constants.js'
+import { NonceCommand, GetFeesCommand } from '../../../utils/constants.js'
 import {
   DB_CONSOLE_LOGGER,
   getDefaultResponse,
   getDefaultErrorResponse
 } from './utils/nonceHandler.js'
+import { Readable } from 'stream'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
+import { logger, calculateFee } from './utils/feesHandler.js'
 
 export abstract class Handler {
   private config: OceanNodeConfig
@@ -97,6 +99,65 @@ export class NonceHandler extends Handler {
         )
         return getDefaultErrorResponse(err.message)
       }
+    }
+  }
+}
+
+export class FeesHandler extends Handler {
+  public constructor(task: any) {
+    super(task, null, null)
+    if (!this.isGetFeesCommand(task)) {
+      throw new Error(`Task has not GetFeesCommand type. It has ${typeof task}`)
+    }
+  }
+
+  isGetFeesCommand(obj: any): obj is GetFeesCommand {
+    return (
+      typeof obj === 'object' &&
+      obj !== null &&
+      'command' in obj &&
+      'ddo' in obj &&
+      'serviceId' in obj
+    )
+  }
+
+  async handle(): Promise<P2PCommandResponse> {
+    try {
+      const task = this.getTask() as GetFeesCommand
+      logger.logMessage(
+        `Try to calculate fees for DDO with id: ${task.ddo.id} and serviceId: ${task.serviceId}`,
+        true
+      )
+
+      const fees = await calculateFee(task.ddo, task.serviceId)
+      if (fees) {
+        return {
+          stream: Readable.from(JSON.stringify(fees, null, 4)),
+          status: { httpStatus: 200 }
+        }
+      } else {
+        const error = `Unable to calculate fees (null) for DDO with id: ${task.ddo.id} and serviceId: ${task.serviceId}`
+        logger.logMessageWithEmoji(
+          error,
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEL_ERROR
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error
+          }
+        }
+      }
+    } catch (error) {
+      logger.logMessageWithEmoji(
+        error.message,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
     }
   }
 }
