@@ -1,6 +1,6 @@
-import { Database } from '../database/index.js'
-import { OceanNodeConfig, P2PCommandResponse } from '../../@types/OceanNode.js'
-import { OceanP2P } from '../P2P/index.js'
+import { Database } from '../../database/index.js'
+import { OceanNodeConfig, P2PCommandResponse } from '../../../@types/OceanNode.js'
+import { OceanP2P } from '../../P2P/index.js'
 
 export abstract class Handler {
   private config: OceanNodeConfig

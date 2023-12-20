@@ -4,7 +4,7 @@ import {
   PROTOCOL_COMMANDS,
   DownloadURLCommand
 } from '../../../utils/constants.js'
-import { Handler } from '../handler.js'
+import { Handler } from './aHandler.js'
 import { OceanNodeConfig, P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { P2P_CONSOLE_LOGGER } from '../../P2P/index.js'
 import { validateOrderTransaction } from '../validateTransaction.js'

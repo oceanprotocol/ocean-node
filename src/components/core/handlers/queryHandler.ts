@@ -1,7 +1,7 @@
 import { QueryCommand } from '../../../utils/constants.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { Readable } from 'stream'
-import { Handler } from '../handler.js'
+import { Handler } from './aHandler.js'
 import { Database } from '../../database/index.js'
 
 export class QueryHandler extends Handler {

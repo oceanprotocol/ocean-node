@@ -1,4 +1,4 @@
-import { Handler } from '../handler.js'
+import { Handler } from './aHandler.js'
 import { GetDdoCommand } from '../../../utils/constants.js'
 import { Database } from '../../database/index.js'
 import { P2PCommandResponse } from '../../../@types/index.js'

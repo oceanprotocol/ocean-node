@@ -3,7 +3,7 @@ import { P2PCommandResponse } from '../../../@types/index.js'
 import { Readable } from 'stream'
 import * as base58 from 'base58-js'
 import { encrypt } from '../../../utils/crypt.js'
-import { Handler } from '../handler.js'
+import { Handler } from './aHandler.js'
 
 export class EncryptHandler extends Handler {
   public constructor(task: any) {
