@@ -13,6 +13,7 @@ export function findCredential(
     )
   })
 }
+
 /**
  * This method checks credentials
  * @param credentials credentials
