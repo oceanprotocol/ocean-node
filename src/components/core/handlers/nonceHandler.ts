@@ -12,7 +12,7 @@ import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { OceanP2P } from '../../P2P/index.js'
 import { Database, NonceDatabase } from '../../database/index.js'
 import { ethers } from 'ethers'
-import { Handler } from './handler.js'
+import { Handler } from '../handler.js'
 import { NonceCommand } from '../../../utils/constants.js'
 
 export const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(

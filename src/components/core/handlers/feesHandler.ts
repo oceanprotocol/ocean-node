@@ -16,7 +16,7 @@ import {
 } from '../../../utils/logging/Logger.js'
 import { verifyMessage } from '../../../utils/blockchain.js'
 import { getConfig } from '../../../utils/config.js'
-import { Handler } from './handler.js'
+import { Handler } from '../handler.js'
 
 let config: OceanNodeConfig
 // Lazy load configuration
