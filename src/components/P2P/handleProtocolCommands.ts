@@ -15,12 +15,12 @@ import {
   StatusHandler,
   EncryptHandler,
   QueryHandler,
-  GetDdoHandler
+  GetDdoHandler,
+  FindDdoHandler
 } from '../core/handlers/handler.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { getConfig } from '../../utils/index.js'
 import { Database } from '../database/index.js'
-import { FindDdoHandler } from '../core/handlers/findDdoHandler.js'
 
 export class ReadableString extends Readable {
   private sent = false
