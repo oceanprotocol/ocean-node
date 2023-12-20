@@ -1,5 +1,5 @@
 import diff from 'hyperdiff'
-import { P2PCommandResponse } from '../../@types/index'
+import { P2PCommandResponse, TypesenseSearchResponse } from '../../@types/index'
 import EventEmitter from 'node:events'
 import clone from 'lodash.clonedeep'
 
@@ -73,6 +73,10 @@ type DDOCache = {
   dht: Map<string, FindDDOResponse>
 }
 
+// republish any ddos we are providing to the network every 4 hours
+// (we can put smaller interval for testing purposes)
+const REPUBLISH_INTERVAL_HOURS = 1000 * 60 * 60 * 4 // 4 hours
+
 let index = 0
 
 export class OceanP2P extends EventEmitter {
@@ -122,6 +126,7 @@ export class OceanP2P extends EventEmitter {
 
     this._interval = setInterval(this._pollPeers.bind(this), this._options.pollInterval)
     this._libp2p.handle(this._protocol, handleProtocolCommands.bind(this))
+    setInterval(this.republishStoredDDOS.bind(this), REPUBLISH_INTERVAL_HOURS)
 
     this._idx = index++
 
@@ -452,6 +457,7 @@ export class OceanP2P extends EventEmitter {
           'Could not find any Ocean peers. Nobody is listening at the moment, skipping...'
         )
         // save it for retry later
+        // https://github.com/libp2p/js-libp2p-kad-dht/issues/98
         if (!this._pendingAdvertise.includes(did)) {
           this._pendingAdvertise.push(did)
         }
@@ -477,6 +483,56 @@ export class OceanP2P extends EventEmitter {
       P2P_CONSOLE_LOGGER.error('getProvidersForDid()' + e.message)
     }
     return peersFound
+  }
+
+  // republish the ddos we have
+  // related: https://github.com/libp2p/go-libp2p-kad-dht/issues/323
+  async republishStoredDDOS() {
+    try {
+      if (!this.getDatabase()) {
+        P2P_CONSOLE_LOGGER.logMessage(
+          `republishStoredDDOS() attempt aborted because there is no database!`,
+          true
+        )
+        return
+      }
+      const db = this.getDatabase().ddo
+      const searchParameters = {
+        q: '*',
+        query_by: 'metadata.name'
+      }
+
+      const result: TypesenseSearchResponse[] = await db.search(searchParameters)
+      if (result && result.length > 0 && result[0].found) {
+        P2P_CONSOLE_LOGGER.logMessage(
+          `Will republish cid for ${result[0].found} documents`,
+          true
+        )
+        result[0].hits.forEach((hit: any) => {
+          const ddo = hit.document
+          this.advertiseDid(ddo.id)
+          // populate hash table if not exists
+          // (even if no peers are listening, it still goes to the pending publish table)
+          if (!this._ddoDHT.dht.has(ddo.id)) {
+            this._ddoDHT.dht.set(ddo.id, {
+              id: ddo.id,
+              lastUpdateTx: ddo.event ? ddo.event.tx : '', // some missing event? probably just bad test data
+              lastUpdateTime: ddo.metadata.updated,
+              provider: this.getPeerId()
+            })
+          }
+          // todo check stuff like purgatory
+        })
+      } else {
+        P2P_CONSOLE_LOGGER.logMessage('There is nothing to republish, skipping...', true)
+      }
+    } catch (err) {
+      P2P_CONSOLE_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `Caught "${err.message}" on republishStoredDDOS()`,
+        true
+      )
+    }
   }
 
   /**
@@ -527,7 +583,7 @@ export class OceanP2P extends EventEmitter {
           // populate hash table
           this._ddoDHT.dht.set(ddo.id, {
             id: ddo.id,
-            lastUpdateTx: ddo.event.tx, // check if we're getting these from the right place
+            lastUpdateTx: ddo.event ? ddo.event.tx : '', // check if we're getting these from the right place
             lastUpdateTime: ddo.metadata.updated,
             provider: peerId
           })
