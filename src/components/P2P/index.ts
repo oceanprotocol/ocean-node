@@ -37,7 +37,7 @@ import { dcutr } from '@libp2p/dcutr'
 import { kadDHT } from '@libp2p/kad-dht'
 import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 
-import { cidFromRawString } from '../../utils/index.js'
+import { EVENTS, cidFromRawString } from '../../utils/index.js'
 import { Stream, Transform } from 'stream'
 import { Database } from '../database'
 import { OceanNodeConfig, FindDDOResponse } from '../../@types/OceanNode'
@@ -52,6 +52,7 @@ import {
   newCustomDBTransport,
   getLoggerLevelEmoji
 } from '../../utils/logging/Logger.js'
+import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer'
 
 // just use the default logger with default transports
 // Bellow is just an example usage, only logging to console here
@@ -101,6 +102,12 @@ export class OceanP2P extends EventEmitter {
       updated: new Date().getTime(),
       dht: new Map<string, FindDDOResponse>()
     }
+
+    // listen for indexer events and advertise did
+    INDEXER_DDO_EVENT_EMITTER.addListener(EVENTS.METADATA_CREATED, (did) => {
+      P2P_CONSOLE_LOGGER.info(`Listened "${EVENTS.METADATA_CREATED}"`)
+      this.advertiseDid(did)
+    })
   }
 
   async start(options: any = null) {
@@ -214,7 +221,7 @@ export class OceanP2P extends EventEmitter {
         }
       }
       const node = await createLibp2p(options)
-      const x = await node.start()
+      await node.start()
       node.addEventListener('peer:connect', (evt: any) => {
         handlePeerConnect(evt)
       })
@@ -335,10 +342,9 @@ export class OceanP2P extends EventEmitter {
       stream: null
     }
     let peerId: PeerId
-    let peer
     try {
       peerId = peerIdFromString(peerName)
-      peer = await this._libp2p.peerStore.get(peerId)
+      await this._libp2p.peerStore.get(peerId)
     } catch (e) {
       P2P_CONSOLE_LOGGER.logMessageWithEmoji(
         'Invalid peer (for id): ' + peerId,
@@ -440,13 +446,14 @@ export class OceanP2P extends EventEmitter {
     const peersFound = []
     try {
       const f = await this._libp2p.contentRouting.findProviders(cid, {
-        queryFuncTimeout: 5000
+        queryFuncTimeout: 20000 // 20 seconds
+        // on timeout the query ends with an abort signal => CodeError: Query aborted
       })
       for await (const value of f) {
         peersFound.push(value)
       }
     } catch (e) {
-      console.error(e)
+      P2P_CONSOLE_LOGGER.error(e.message)
     }
     return peersFound
   }
