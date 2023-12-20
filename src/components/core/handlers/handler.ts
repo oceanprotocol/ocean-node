@@ -1,7 +1,7 @@
 import { Database, NonceDatabase } from '../../database/index.js'
 import { OceanNodeConfig, P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { OceanP2P } from '../../P2P/index.js'
-import { NonceCommand, GetFeesCommand } from '../../../utils/constants.js'
+import { NonceCommand, GetFeesCommand, Command } from '../../../utils/constants.js'
 import {
   DB_CONSOLE_LOGGER,
   getDefaultResponse,
@@ -10,6 +10,7 @@ import {
 import { Readable } from 'stream'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { logger, calculateFee } from './utils/feesHandler.js'
+import { status } from './utils/statusHandler.js'
 
 export abstract class Handler {
   private config: OceanNodeConfig
@@ -158,6 +159,40 @@ export class FeesHandler extends Handler {
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
+    }
+  }
+}
+
+export class StatusHandler extends Handler {
+  public constructor(task: any, config: OceanNodeConfig) {
+    super(task, config, null)
+    if (!this.isCommand(task)) {
+      throw new Error(`Task has not Command type. It has ${typeof task}`)
+    }
+  }
+
+  isCommand(obj: any): obj is Command {
+    return typeof obj === 'object' && obj !== null && 'command' in obj
+  }
+
+  async handle(): Promise<P2PCommandResponse> {
+    try {
+      const statusResult = await status(this.getConfig(), this.getTask().node)
+      if (!statusResult) {
+        return {
+          stream: null,
+          status: { httpStatus: 404, error: 'Status Not Found' }
+        }
+      }
+      return {
+        stream: Readable.from(JSON.stringify(statusResult)),
+        status: { httpStatus: 200 }
+      }
+    } catch (error) {
+      return {
+        stream: null,
+        status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
+      }
     }
   }
 }

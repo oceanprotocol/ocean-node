@@ -13,7 +13,7 @@ import {
   getProviderWallet,
   getProviderWalletAddress
 } from '../../../components/core/handlers/utils/feesHandler.js'
-import { FeesHandler } from '../../../components/core/handlers/aHandler.js'
+import { FeesHandler } from '../../../components/core/handlers/handler.js'
 import { OceanNodeConfig, P2PCommandResponse } from '../../../@types'
 import { Service } from '../../../@types/DDO/Service.js'
 import { DDOExample } from '../../data/ddo.js'

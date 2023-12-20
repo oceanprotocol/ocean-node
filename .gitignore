@@ -134,3 +134,6 @@ typesense-data
 
 # IDEA
 .idea
+
+# VS CODE
+.vscode
