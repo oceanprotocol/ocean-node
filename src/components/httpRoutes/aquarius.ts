@@ -10,7 +10,7 @@ import {
   LOG_LEVELS_STR,
   LOGGER_MODULE_NAMES
 } from '../../utils/logging/Logger.js'
-import { QueryHandler } from '../core/handlers/queryHandler.js'
+import { QueryHandler } from '../core/handlers/handler.js'
 
 export const aquariusRoutes = express.Router()
 const logger: CustomNodeLogger = getCustomLoggerForModule(
