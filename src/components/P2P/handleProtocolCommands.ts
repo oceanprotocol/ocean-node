@@ -5,7 +5,6 @@ import StreamConcat from 'stream-concat'
 // export function handleProtocolCommands (sourceStream:any,sinkStream:any) {
 
 import { DownloadHandler } from '../core/handlers/downloadHandler.js'
-import { DownloadUrlHandler } from '../core/handlers/downloadUrlHandler.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
 import { P2P_CONSOLE_LOGGER } from './index.js'
@@ -77,7 +76,7 @@ export async function handleProtocolCommands(connection: any) {
         response = await new DownloadHandler(task, config, db).handle()
         break
       case PROTOCOL_COMMANDS.DOWNLOAD_URL:
-        response = await new DownloadUrlHandler(task, config).handle()
+        response = await new DownloadHandler(task, config, db).handleDownloadUrlCommand()
         break
       case PROTOCOL_COMMANDS.GET_DDO:
         response = await new GetDdoHandler(task, db).handle()
@@ -150,7 +149,7 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
         response = await new DownloadHandler(task, config, db).handle()
         break
       case PROTOCOL_COMMANDS.DOWNLOAD_URL:
-        response = await new DownloadUrlHandler(task, config).handle()
+        response = await new DownloadHandler(task, config, db).handleDownloadUrlCommand()
         break
       case PROTOCOL_COMMANDS.GET_DDO:
         response = await new GetDdoHandler(task, db).handle()

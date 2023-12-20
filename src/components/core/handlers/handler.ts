@@ -43,4 +43,8 @@ export abstract class Handler {
     }
     return this.p2pNode
   }
+
+  setTask(task: any): void {
+    this.task = task
+  }
 }
