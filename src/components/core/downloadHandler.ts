@@ -109,6 +109,20 @@ export async function handleDownload(
   const config = node.getConfig()
   const { rpc } = config.supportedNetworks[ddo.chainId]
 
+  if (!rpc) {
+    P2P_CONSOLE_LOGGER.logMessage(
+      `Cannot proceed with download. RPC not configured for this chain ${ddo.chainId}`,
+      true
+    )
+    return {
+      stream: null,
+      status: {
+        httpStatus: 500
+      },
+      error: `Cannot proceed with download. RPC not configured for this chain ${ddo.chainId}`
+    }
+  }
+
   let provider
   try {
     provider = new JsonRpcProvider(rpc)
