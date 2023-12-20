@@ -433,7 +433,8 @@ export class OceanP2P extends EventEmitter {
       const x = this._peers.length
       if (x > 0) {
         const cid = await cidFromRawString(did)
-        await this._libp2p.contentRouting.provide(cid)
+        const multiAddrs = this._libp2p.components.addressManager.getAddresses()
+        await this._libp2p.contentRouting.provide(cid, multiAddrs)
       }
     } catch (e) {
       P2P_CONSOLE_LOGGER.error('advertiseDid():' + e.message)
