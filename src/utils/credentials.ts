@@ -14,8 +14,8 @@ export function findCredential(
           credentialValues.includes(consumerCredentials.values[0])
         )
       }
-      return false
     }
+    return false
   })
 }
 
