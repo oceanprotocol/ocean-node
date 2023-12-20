@@ -339,7 +339,7 @@ export class FindDdoHandler extends Handler {
   public constructor(task: any, config: OceanNodeConfig, database: Database) {
     super(task, config, database)
     if (!this.isFindDdoCommand(task)) {
-      throw new Error(`Task has not QueryCommand type. It has ${typeof task}`)
+      throw new Error(`Task has not FindDDOCommand type. It has ${typeof task}`)
     }
   }
 

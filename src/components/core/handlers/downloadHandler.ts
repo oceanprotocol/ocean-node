@@ -153,8 +153,12 @@ export class DownloadHandler extends Handler {
       true
     )
     // 1. Get the DDO
+    const findDdoTask: any = {
+      command: PROTOCOL_COMMANDS.FIND_DDO,
+      id: task.documentId
+    }
     const ddo = await new FindDdoHandler(
-      task,
+      findDdoTask,
       this.getConfig(),
       this.getDatabase()
     ).findAndFormatDdo(task.documentId)
