@@ -1,7 +1,12 @@
 import { Database, NonceDatabase } from '../../database/index.js'
 import { OceanNodeConfig, P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { OceanP2P } from '../../P2P/index.js'
-import { NonceCommand, GetFeesCommand, Command } from '../../../utils/constants.js'
+import {
+  NonceCommand,
+  GetFeesCommand,
+  Command,
+  EncryptCommand
+} from '../../../utils/constants.js'
 import {
   DB_CONSOLE_LOGGER,
   getDefaultResponse,
@@ -11,6 +16,8 @@ import { Readable } from 'stream'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { logger, calculateFee } from './utils/feesHandler.js'
 import { status } from './utils/statusHandler.js'
+import * as base58 from 'base58-js'
+import { encrypt } from '../../../utils/crypt.js'
 
 export abstract class Handler {
   private config: OceanNodeConfig
@@ -186,6 +193,52 @@ export class StatusHandler extends Handler {
       }
       return {
         stream: Readable.from(JSON.stringify(statusResult)),
+        status: { httpStatus: 200 }
+      }
+    } catch (error) {
+      return {
+        stream: null,
+        status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
+      }
+    }
+  }
+}
+
+export class EncryptHandler extends Handler {
+  public constructor(task: any) {
+    super(task, null, null)
+    if (!this.isEncryptCommand(task)) {
+      throw new Error(`Task has not EncryptCommand type. It has ${typeof task}`)
+    }
+  }
+
+  isEncryptCommand(obj: any): obj is EncryptCommand {
+    return (
+      typeof obj === 'object' &&
+      obj !== null &&
+      'command' in obj &&
+      'blob' in obj &&
+      'encoding' in obj &&
+      'encryptionType' in obj
+    )
+  }
+
+  async handle(): Promise<P2PCommandResponse> {
+    try {
+      // prepare an empty array in case if
+      let blobData: Uint8Array = new Uint8Array()
+      if (this.getTask().encoding === 'string') {
+        // get bytes from basic blob
+        blobData = Uint8Array.from(Buffer.from(this.getTask().blob))
+      }
+      if (this.getTask().encoding === 'base58') {
+        // get bytes from a blob that is encoded in standard base58
+        blobData = base58.base58_to_binary(this.getTask().blob)
+      }
+      // do encrypt magic
+      const encryptedData = await encrypt(blobData, this.getTask().encryptionType)
+      return {
+        stream: Readable.from(encryptedData.toString('hex')),
         status: { httpStatus: 200 }
       }
     } catch (error) {
