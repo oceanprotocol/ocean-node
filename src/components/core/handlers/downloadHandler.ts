@@ -11,7 +11,7 @@ import { P2P_CONSOLE_LOGGER } from '../../P2P/index.js'
 import { validateOrderTransaction } from '../validateTransaction.js'
 import { AssetUtils } from '../../../utils/asset.js'
 import { Service } from '../../../@types/DDO/Service.js'
-import { findAndFormatDdo } from './ddoHandler.js'
+// import { findAndFormatDdo } from './findDdoHandler.js'
 import { checkFee } from './utils/feesHandler.js'
 import { decrypt } from '../../../utils/crypt.js'
 import { Database } from '../../database/index.js'
@@ -19,6 +19,7 @@ import crypto from 'crypto'
 import * as ethCrypto from 'eth-crypto'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { Storage } from '../../storage/index.js'
+import { FindDdoHandler } from './findDdoHandler.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export class DownloadHandler extends Handler {
@@ -154,7 +155,11 @@ export class DownloadHandler extends Handler {
       true
     )
     // 1. Get the DDO
-    const ddo = await findAndFormatDdo(node, task.documentId)
+    const ddo = await new FindDdoHandler(
+      task,
+      this.getConfig(),
+      this.getDatabase()
+    ).findAndFormatDdo(task.documentId)
 
     if (ddo) {
       P2P_CONSOLE_LOGGER.logMessage('DDO for asset found: ' + ddo, true)

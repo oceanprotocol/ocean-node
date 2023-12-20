@@ -9,7 +9,6 @@ import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
 import { P2P_CONSOLE_LOGGER } from './index.js'
 
-import { findDDO } from '../core/handlers/ddoHandler.js'
 import {
   NonceHandler,
   FeesHandler,
@@ -21,6 +20,7 @@ import {
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { getConfig } from '../../utils/index.js'
 import { Database } from '../database/index.js'
+import { FindDdoHandler } from '../core/handlers/findDdoHandler.js'
 
 export class ReadableString extends Readable {
   private sent = false
@@ -96,7 +96,7 @@ export async function handleProtocolCommands(connection: any) {
         response = await new StatusHandler(task, config).handle()
         break
       case PROTOCOL_COMMANDS.FIND_DDO:
-        response = await findDDO(this, task)
+        response = await new FindDdoHandler(task, config, db).handle()
         break
       case PROTOCOL_COMMANDS.GET_FEES:
         response = await new FeesHandler(task).handle()
@@ -169,7 +169,7 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
         response = await new StatusHandler(task, config).handle()
         break
       case PROTOCOL_COMMANDS.FIND_DDO:
-        response = await findDDO(this, task)
+        response = await new FindDdoHandler(task, config, db).handle()
         break
       case PROTOCOL_COMMANDS.GET_FEES:
         response = await new FeesHandler(task).handle()
