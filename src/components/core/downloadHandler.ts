@@ -17,6 +17,7 @@ import { findAndFormatDdo } from './ddoHandler.js'
 import { checkFee } from './feesHandler.js'
 import { decrypt } from '../../utils/crypt.js'
 import { Storage } from '../../components/storage/index.js'
+import { checkCredentials } from '../../utils/credentials'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownload(
@@ -66,48 +67,15 @@ export async function handleDownload(
   }
 
   // check credentials
-  if (ddo.credentials) {
-    const consumerCredentials = {
-      type: 'address',
-      values: [task.consumerAddress]
-    }
-
-    // check allow access
-    if (Array.isArray(ddo.credentials.allow) && ddo.credentials.allow.length > 0) {
-      const allowCredential = ddo.credentials.allow.find(
-        (credential) =>
-          credential.type === consumerCredentials.type &&
-          credential.values.includes(consumerCredentials.values[0])
-      )
-      if (!allowCredential) {
-        P2P_CONSOLE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
-        return {
-          stream: null,
-          status: {
-            httpStatus: 500
-          },
-          error: `Error: Access to asset ${ddo.id} was denied`
-        }
-      }
-    }
-
-    // check deny access
-    if (Array.isArray(ddo.credentials.deny) && ddo.credentials.deny.length > 0) {
-      const denyCredential = ddo.credentials.deny.find(
-        (credential) =>
-          credential.type === consumerCredentials.type &&
-          credential.values.includes(consumerCredentials.values[0])
-      )
-      if (denyCredential) {
-        P2P_CONSOLE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
-        return {
-          stream: null,
-          status: {
-            httpStatus: 500
-          },
-          error: `Error: Access to asset ${ddo.id} was denied`
-        }
-      }
+  const accessGranted = checkCredentials(ddo.credentials, task.consumerAddress)
+  if (!accessGranted) {
+    P2P_CONSOLE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
+    return {
+      stream: null,
+      status: {
+        httpStatus: 500
+      },
+      error: `Error: Access to asset ${ddo.id} was denied`
     }
   }
 
