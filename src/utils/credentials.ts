@@ -5,22 +5,18 @@ export function findCredential(
   consumerCredentials: Credential
 ) {
   return credentials.find((credential) => {
-    const credentialType = String(credential?.type).toLowerCase()
-    const credentialValues = credential.values.map((v) => String(v).toLowerCase())
-    return (
-      credentialType === consumerCredentials.type &&
-      credentialValues.includes(consumerCredentials.values[0])
-    )
+    if (Array.isArray(credential?.values)) {
+      if (credential.values.length > 0) {
+        const credentialType = String(credential?.type).toLowerCase()
+        const credentialValues = credential.values.map((v) => String(v).toLowerCase())
+        return (
+          credentialType === consumerCredentials.type &&
+          credentialValues.includes(consumerCredentials.values[0])
+        )
+      }
+      return false
+    }
   })
-}
-
-export function hasCredential(credentials: Credential[]) {
-  return (
-    Array.isArray(credentials) &&
-    credentials.length > 0 &&
-    Array.isArray(credentials?.values) &&
-    credentials.values.length > 0
-  )
 }
 
 /**
@@ -34,12 +30,18 @@ export function checkCredentials(credentials: Credentials, consumerAddress: stri
     values: [String(consumerAddress).toLowerCase()]
   }
   // check deny access
-  if (hasCredential(credentials?.deny)) {
-    return !!findCredential(credentials.deny, consumerCredentials)
+  if (Array.isArray(credentials?.deny) && credentials.deny.length > 0) {
+    const accessDeny = findCredential(credentials.deny, consumerCredentials)
+    if (accessDeny) {
+      return false
+    }
   }
   // check allow access
-  if (hasCredential(credentials?.allow)) {
-    return !findCredential(credentials.allow, consumerCredentials)
+  if (Array.isArray(credentials?.allow) && credentials.allow.length > 0) {
+    const accessAllow = findCredential(credentials.allow, consumerCredentials)
+    if (!accessAllow) {
+      return false
+    }
   }
   return true
 }

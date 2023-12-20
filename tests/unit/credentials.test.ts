@@ -21,14 +21,8 @@ describe('credentials', () => {
     const accessGranted = checkCredentials(credentials, consumerAddress)
     expect(accessGranted).to.equal(true)
   })
-  it('should allow access with empty values in allow and deny lists', async () => {
+  it('should allow access with empty values in deny lists', async () => {
     const credentials: Credentials = {
-      allow: [
-        {
-          type: 'address',
-          values: []
-        }
-      ],
       deny: [
         {
           type: 'address',
@@ -40,18 +34,25 @@ describe('credentials', () => {
     const accessGranted = checkCredentials(credentials, consumerAddress)
     expect(accessGranted).to.equal(true)
   })
+  it('should deny access with empty values in allow lists', async () => {
+    const credentials: Credentials = {
+      allow: [
+        {
+          type: 'address',
+          values: []
+        }
+      ]
+    }
+    const consumerAddress = '0x123'
+    const accessGranted = checkCredentials(credentials, consumerAddress)
+    expect(accessGranted).to.equal(false)
+  })
   it('should allow access with address in allow list', async () => {
     const credentials: Credentials = {
       allow: [
         {
           type: 'address',
           values: ['0x123']
-        }
-      ],
-      deny: [
-        {
-          type: 'address',
-          values: []
         }
       ]
     }
@@ -61,12 +62,6 @@ describe('credentials', () => {
   })
   it('should allow access with address not in deny list', async () => {
     const credentials: Credentials = {
-      allow: [
-        {
-          type: 'address',
-          values: []
-        }
-      ],
       deny: [
         {
           type: 'address',
@@ -95,7 +90,7 @@ describe('credentials', () => {
     }
     const consumerAddress = '0x123'
     const accessGranted = checkCredentials(credentials, consumerAddress)
-    expect(accessGranted).to.equal(true)
+    expect(accessGranted).to.equal(false)
   })
   it('should deny access with address not in allow list', async () => {
     const credentials: Credentials = {
@@ -114,6 +109,6 @@ describe('credentials', () => {
     }
     const consumerAddress = '0x123'
     const accessGranted = checkCredentials(credentials, consumerAddress)
-    expect(accessGranted).to.equal(true)
+    expect(accessGranted).to.equal(false)
   })
 })
