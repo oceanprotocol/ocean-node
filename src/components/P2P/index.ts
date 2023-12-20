@@ -86,6 +86,7 @@ export class OceanP2P extends EventEmitter {
   _publicKey: Uint8Array
   _privateKey: Uint8Array
   _analyzeRemoteResponse: Transform
+  _pendingAdvertise: string[] = []
   private _ddoDHT: DDOCache
   private _handleMessage: any
   private _interval: NodeJS.Timeout
@@ -404,7 +405,17 @@ export class OceanP2P extends EventEmitter {
     const newPeers = (await node.services.pubsub.getSubscribers(this._topic)).sort()
 
     if (this._emitChanges(newPeers)) {
+      const addedNew = newPeers.length > this._peers.length
       this._peers = newPeers
+
+      // retry any pending stuff
+      if (addedNew) {
+        this._pendingAdvertise.forEach((did: string) => {
+          P2P_CONSOLE_LOGGER.info('Retry pending advertise...')
+          this.advertiseDid(did)
+        })
+        this._pendingAdvertise = []
+      }
     }
   }
 
@@ -434,7 +445,16 @@ export class OceanP2P extends EventEmitter {
       if (x > 0) {
         const cid = await cidFromRawString(did)
         const multiAddrs = this._libp2p.components.addressManager.getAddresses()
+        // console.log('multiaddrs: ', multiAddrs)
         await this._libp2p.contentRouting.provide(cid, multiAddrs)
+      } else {
+        P2P_CONSOLE_LOGGER.warn(
+          'Could not find any Ocean peers. Nobody is listening at the moment, skipping...'
+        )
+        // save it for retry later
+        if (!this._pendingAdvertise.includes(did)) {
+          this._pendingAdvertise.push(did)
+        }
       }
     } catch (e) {
       P2P_CONSOLE_LOGGER.error('advertiseDid():' + e.message)
