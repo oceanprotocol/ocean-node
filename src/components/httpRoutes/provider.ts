@@ -1,8 +1,8 @@
 import express from 'express'
-import { getNonce } from '../core/handlers/aHandler.js'
+import { getNonce } from '../core/handlers/utils/nonceHandler.js'
 import { streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
-import { calculateFee } from '../core/handlers/feesHandler.js'
+import { calculateFee } from '../core/handlers/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO'
 import {
   CustomNodeLogger,
