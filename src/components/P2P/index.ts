@@ -201,8 +201,8 @@ export class OceanP2P extends EventEmitter {
             maxOutboundStreams: config.p2pConfig.dhtMaxOutboundStreams,
 
             clientMode: false, // this should be true for edge devices
-            kBucketSize: 20
-            // protocolPrefix: '/ocean/nodes/1.0.0'
+            kBucketSize: 20,
+            protocolPrefix: '/ocean/nodes/1.0.0'
             // randomWalk: {
             //  enabled: true,            // Allows to disable discovery (enabled by default)
             //  interval: 300e3,
@@ -436,7 +436,7 @@ export class OceanP2P extends EventEmitter {
         await this._libp2p.contentRouting.provide(cid)
       }
     } catch (e) {
-      P2P_CONSOLE_LOGGER.error(e)
+      P2P_CONSOLE_LOGGER.error('advertiseDid():' + e.message)
     }
   }
 
@@ -453,7 +453,7 @@ export class OceanP2P extends EventEmitter {
         peersFound.push(value)
       }
     } catch (e) {
-      P2P_CONSOLE_LOGGER.error(e.message)
+      P2P_CONSOLE_LOGGER.error('getProvidersForDid()' + e.message)
     }
     return peersFound
   }
