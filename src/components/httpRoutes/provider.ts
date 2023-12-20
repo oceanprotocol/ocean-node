@@ -1,5 +1,5 @@
 import express from 'express'
-import { getNonce } from '../core/handlers/nonceHandler.js'
+import { getNonce } from '../core/handlers/handler.js'
 import { streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { calculateFee } from '../core/handlers/feesHandler.js'
