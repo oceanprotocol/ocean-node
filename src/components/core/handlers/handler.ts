@@ -1,4 +1,7 @@
-import { P2PCommandResponse } from '../../../@types/index.js'
+import { Database, NonceDatabase } from '../../database/index.js'
+import { OceanNodeConfig, P2PCommandResponse } from '../../../@types/OceanNode.js'
+import { OceanP2P } from '../../P2P/index.js'
+import { ethers } from 'ethers'
 
 import {
   CustomNodeLogger,
@@ -9,10 +12,6 @@ import {
   getCustomLoggerForModule
 } from '../../../utils/logging/Logger.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
-import { OceanP2P } from '../../P2P/index.js'
-import { Database, NonceDatabase } from '../../database/index.js'
-import { ethers } from 'ethers'
-import { Handler } from './aHandler.js'
 import { NonceCommand } from '../../../utils/constants.js'
 
 export const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
@@ -20,6 +19,54 @@ export const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOG_LEVELS_STR.LEVEL_INFO,
   defaultConsoleTransport
 )
+
+export abstract class Handler {
+  private config: OceanNodeConfig
+  // Put database separately because of async constructor
+  // that Database class has
+  private db: Database
+  private task: any
+  private p2pNode: OceanP2P
+  public constructor(task: any, config?: OceanNodeConfig, db?: Database) {
+    this.config = config
+    this.db = db
+    this.task = task
+    if (this.config && this.db) {
+      this.p2pNode = new OceanP2P(this.db, this.config)
+    }
+  }
+
+  abstract handle(): Promise<P2PCommandResponse>
+  getDatabase(): Database | null {
+    if (!this.db) {
+      return null
+    }
+    return this.db
+  }
+
+  getTask(): any {
+    return this.task
+  }
+
+  getConfig(): OceanNodeConfig | null {
+    if (!this.config) {
+      return null
+    }
+    return this.config
+  }
+
+  getP2PNode(): OceanP2P | null {
+    if (!this.p2pNode) {
+      return null
+    }
+    return this.p2pNode
+  }
+
+  setTask(task: any): void {
+    this.task = task
+  }
+}
+
 function getDefaultErrorResponse(errorMessage: string): P2PCommandResponse {
   return {
     stream: null,

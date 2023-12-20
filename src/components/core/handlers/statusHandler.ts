@@ -14,7 +14,7 @@ import {
   getCustomLoggerForModule
 } from '../../../utils/logging/Logger.js'
 import { Readable } from 'stream'
-import { Handler } from './aHandler.js'
+import { Handler } from './handler.js'
 import { Command } from '../../../utils/constants.js'
 import os from 'os'
 

@@ -4,11 +4,10 @@ import {
   PROTOCOL_COMMANDS,
   DownloadURLCommand
 } from '../../../utils/constants.js'
-import { Handler } from './aHandler.js'
+import { Handler, checkNonce, NonceResponse } from './handler.js'
 import { OceanNodeConfig, P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { P2P_CONSOLE_LOGGER } from '../../P2P/index.js'
 import { validateOrderTransaction } from '../validateTransaction.js'
-import { checkNonce, NonceResponse } from './nonceHandler.js'
 import { AssetUtils } from '../../../utils/asset.js'
 import { Service } from '../../../@types/DDO/Service.js'
 import { findAndFormatDdo } from './ddoHandler.js'
