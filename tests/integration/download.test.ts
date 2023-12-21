@@ -296,4 +296,28 @@ describe('Download Tests', () => {
     assert(response.status.httpStatus === 200, 'http status not 200')
     expect(response.stream).to.be.instanceOf(Readable)
   })
+
+  it('should not allow to download the asset with different consumer address', async function () {
+    const downloadTask = {
+      fileIndex: 0,
+      documentId: assetDID,
+      serviceId,
+      transferTxId: orderTxId,
+      nonce: Date.now().toString(),
+      consumerAddress: '0xBE5449a6A97aD46c8558A3356267Ee5D2731ab57',
+      signature: ''
+    }
+    const config = await getConfig()
+    const dbconn = await new Database(config.dbConfig)
+    const p2pNode = new OceanP2P(dbconn, config)
+    assert(p2pNode, 'Failed to instantiate OceanP2P')
+    const response = await handleDownload(downloadTask, p2pNode)
+    console.log(response)
+    assert(response.stream === null, 'stream not null')
+    assert(response.status.httpStatus === 500, 'http status not 500')
+    assert(
+      response.error === `Error: Access to asset ${assetDID} was denied`,
+      'error contains access denied'
+    )
+  })
 })
