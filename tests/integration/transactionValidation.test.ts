@@ -314,6 +314,7 @@ describe('validateOrderTransaction Function with Orders', () => {
       'Invalid reuse order transaction validation message.'
     )
   })
+
   it('should reject reuse an order with invald user address', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
 
