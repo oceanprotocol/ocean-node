@@ -24,6 +24,8 @@ import { getEventFromTx } from '../../utils/util.js'
 import { delay, waitToIndex, signMessage } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
+import { createFee } from '../../components/core/feesHandler.js'
+import { DDO } from '../../@types/DDO/DDO.js'
 
 describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
@@ -239,6 +241,13 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const paymentCollector = await dataTokenContract.getPaymentCollector()
     assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
 
+    const feeData = await createFee(
+      resolvedDDO as DDO,
+      0,
+      'null',
+      resolvedDDO.services[0]
+    )
+
     // sign provider data
     providerData = JSON.stringify({ timeout })
     message = solidityPackedKeccak256(
@@ -265,14 +274,14 @@ describe('Indexer stores a new metadata events and orders.', () => {
       consumerAddress,
       serviceIndex,
       {
-        providerFeeAddress,
-        providerFeeToken,
-        providerFeeAmount,
-        v: signedMessage.v,
-        r: signedMessage.r,
-        s: signedMessage.s,
-        providerData: hexlify(toUtf8Bytes(providerData)),
-        validUntil: providerValidUntil
+        providerFeeAddress: feeData.providerFeeAddress,
+        providerFeeToken: feeData.providerFeeToken,
+        providerFeeAmount: feeData.providerFeeAmount,
+        v: feeData.v,
+        r: feeData.r,
+        s: feeData.s,
+        providerData: feeData.providerData,
+        validUntil: feeData.validUntil
       },
       {
         consumeMarketFeeAddress,
@@ -307,17 +316,24 @@ describe('Indexer stores a new metadata events and orders.', () => {
   it('should detect OrderReused event', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
 
+    const feeData = await createFee(
+      resolvedDDO as DDO,
+      0,
+      'null',
+      resolvedDDO.services[0]
+    )
+
     const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
       orderTxId,
       {
-        providerFeeAddress,
-        providerFeeToken,
-        providerFeeAmount,
-        v: signedMessage.v,
-        r: signedMessage.r,
-        s: signedMessage.s,
-        providerData: hexlify(toUtf8Bytes(providerData)),
-        validUntil: providerValidUntil
+        providerFeeAddress: feeData.providerFeeAddress,
+        providerFeeToken: feeData.providerFeeToken,
+        providerFeeAmount: feeData.providerFeeAmount,
+        v: feeData.v,
+        r: feeData.r,
+        s: feeData.s,
+        providerData: feeData.providerData,
+        validUntil: feeData.validUntil
       },
       {
         consumeMarketFeeAddress,
