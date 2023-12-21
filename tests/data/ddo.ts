@@ -44,12 +44,32 @@ export const genericDDO = {
       id: '0',
       type: 'access',
       description: 'Download service',
-      files: '',
+      files: [
+        {
+          url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
+          contentType: 'text/js',
+          encoding: 'UTF-8'
+        }
+      ],
       datatokenAddress: '0x0',
       serviceEndpoint: 'http://172.15.0.4:8030',
       timeout: 0
     }
-  ]
+  ],
+  credentials: {
+    allow: [
+      {
+        type: 'address',
+        values: ['0xBE5449a6A97aD46c8558A3356267Ee5D2731ab5e']
+      }
+    ],
+    deny: [
+      {
+        type: 'address',
+        values: ['0x123']
+      }
+    ]
+  }
 }
 
 export const DDOExample = {

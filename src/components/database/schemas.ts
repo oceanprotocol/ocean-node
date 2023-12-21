@@ -6,6 +6,7 @@ export type Schemas = {
   nonceSchemas: Schema
   indexerSchemas: Schema
   logSchemas: Schema
+  orderSchema: Schema
 }
 export const schemas: Schemas = {
   ddoSchemas: [
@@ -34,6 +35,22 @@ export const schemas: Schemas = {
       { name: 'message', type: 'string' },
       { name: 'moduleName', type: 'string', optional: true },
       { name: 'meta', type: 'string', optional: true }
+    ]
+  },
+  orderSchema: {
+    name: 'order',
+    enable_nested_fields: true,
+    fields: [
+      { name: 'type', type: 'string', enum: ['startOrder', 'reuseOrder'] },
+      { name: 'timestamp', type: 'int64' },
+      { name: 'consumer', type: 'string' },
+      { name: 'payer', type: 'string' },
+      {
+        name: 'startOrderId',
+        type: 'string',
+        optional: true,
+        dependencies: { type: ['reuseOrder'] }
+      }
     ]
   }
 }
