@@ -38,8 +38,8 @@ export interface OceanNodeConfig {
   hasHttp: boolean
   dbConfig: OceanNodeDBConfig
   httpPort: number
-  supportedNetworks: RPCS
   feeStrategy: FeeStrategy
+  supportedNetworks?: RPCS
 }
 
 export interface P2PCommandResponse {

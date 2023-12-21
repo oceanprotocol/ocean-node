@@ -15,6 +15,19 @@ export const PROTOCOL_COMMANDS = {
   FIND_DDO: 'findDDO',
   GET_FEES: 'getFees'
 }
+// more visible, keep then close to make sure we always update both
+export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
+  PROTOCOL_COMMANDS.DOWNLOAD,
+  PROTOCOL_COMMANDS.DOWNLOAD_URL,
+  PROTOCOL_COMMANDS.ECHO,
+  PROTOCOL_COMMANDS.ENCRYPT,
+  PROTOCOL_COMMANDS.NONCE,
+  PROTOCOL_COMMANDS.GET_DDO,
+  PROTOCOL_COMMANDS.QUERY,
+  PROTOCOL_COMMANDS.STATUS,
+  PROTOCOL_COMMANDS.FIND_DDO,
+  PROTOCOL_COMMANDS.GET_FEES
+]
 
 export interface Command {
   command: string
@@ -74,18 +87,6 @@ export interface BroadcastCommand {
   message: any // the message to broadcast
 }
 
-export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
-  PROTOCOL_COMMANDS.DOWNLOAD_URL,
-  PROTOCOL_COMMANDS.ECHO,
-  PROTOCOL_COMMANDS.ENCRYPT,
-  PROTOCOL_COMMANDS.NONCE,
-  PROTOCOL_COMMANDS.GET_DDO,
-  PROTOCOL_COMMANDS.QUERY,
-  PROTOCOL_COMMANDS.STATUS,
-  PROTOCOL_COMMANDS.FIND_DDO,
-  PROTOCOL_COMMANDS.GET_FEES
-]
-
 export const MetadataStates = {
   ACTIVE: 0,
   END_OF_LIFE: 1,
@@ -100,6 +101,7 @@ export const EVENTS = {
   METADATA_UPDATED: 'MetadataUpdated',
   METADATA_STATE: 'MetadataState',
   ORDER_STARTED: 'OrderStarted',
+  ORDER_REUSED: 'OrderReused',
   TOKEN_URI_UPDATE: 'TokenURIUpdate',
   EXCHANGE_CREATED: 'ExchangeCreated',
   EXCHANGE_RATE_CHANGED: 'ExchangeRateChanged',
@@ -122,6 +124,10 @@ export const EVENT_HASHES: Hashes = {
   '0xe1c4fa794edfa8f619b8257a077398950357b9c6398528f94480307352f9afcc': {
     type: EVENTS.ORDER_STARTED,
     text: 'OrderStarted(address,address,uint256,uint256,uint256,address,uint256)'
+  },
+  '0x526e31449ea46e2aecf9b480c8d7dfa191348ef74ffdf75b445a6ab726daa6ff': {
+    type: EVENTS.ORDER_REUSED,
+    text: 'OrderReused(bytes32,address,uint256,uint256)'
   },
   '0x6de6cd3982065cbd31e789e3109106f4d76d1c8a46e85262045cf947fb3fd4ed': {
     type: EVENTS.TOKEN_URI_UPDATE,

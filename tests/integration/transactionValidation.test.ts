@@ -19,11 +19,13 @@ import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Fa
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getEventFromTx } from '../../utils/util.js'
-import { signMessage } from './testUtils.js'
+import { delay, signMessage, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import { Database } from '../../components/database/index.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
 import { AssetUtils } from '../../utils/asset.js'
+import { createFee } from '../../components/core/feesHandler.js'
+import { DDO } from '../../@types/DDO/DDO.js'
 
 describe('validateOrderTransaction Function with Orders', () => {
   let database: Database
@@ -47,6 +49,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     r: string
     s: string
   }
+  let resolvedDDO: any
 
   const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
   const providerFeeAddress = ZeroAddress // publisherAddress
@@ -151,6 +154,12 @@ describe('validateOrderTransaction Function with Orders', () => {
     assert(trxReceipt, 'set metadata failed')
   })
 
+  delay(30000)
+
+  it('should get the active state', async () => {
+    resolvedDDO = await waitToIndex(genericDDO.id, database)
+  })
+
   it('should start an order and validate the transaction', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
     dataTokenContract = new Contract(
@@ -161,16 +170,23 @@ describe('validateOrderTransaction Function with Orders', () => {
     const paymentCollector = await dataTokenContract.getPaymentCollector()
     assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
 
+    const feeData = await createFee(
+      resolvedDDO as DDO,
+      0,
+      'null',
+      resolvedDDO.services[0]
+    )
+
     // sign provider data
     providerData = JSON.stringify({ timeout })
     message = solidityPackedKeccak256(
       ['bytes', 'address', 'address', 'uint256', 'uint256'],
       [
         hexlify(toUtf8Bytes(providerData)),
-        providerFeeAddress,
-        providerFeeToken,
-        providerFeeAmount,
-        providerValidUntil
+        feeData.providerFeeAddress,
+        feeData.providerFeeToken,
+        feeData.providerFeeAmount,
+        feeData.validUntil
       ]
     )
     signedMessage = await signMessage(message, publisherAddress, provider)
@@ -187,14 +203,14 @@ describe('validateOrderTransaction Function with Orders', () => {
       consumerAddress,
       serviceId,
       {
-        providerFeeAddress,
-        providerFeeToken,
-        providerFeeAmount,
-        v: signedMessage.v,
-        r: signedMessage.r,
-        s: signedMessage.s,
-        providerData: hexlify(toUtf8Bytes(providerData)),
-        validUntil: providerValidUntil
+        providerFeeAddress: feeData.providerFeeAddress,
+        providerFeeToken: feeData.providerFeeToken,
+        providerFeeAmount: feeData.providerFeeAmount,
+        v: feeData.v,
+        r: feeData.r,
+        s: feeData.s,
+        providerData: feeData.providerData,
+        validUntil: feeData.validUntil
       },
       {
         consumeMarketFeeAddress,
@@ -228,17 +244,24 @@ describe('validateOrderTransaction Function with Orders', () => {
   it('should reuse an order and validate the transaction', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
 
+    const feeData = await createFee(
+      resolvedDDO as DDO,
+      0,
+      'null',
+      resolvedDDO.services[0]
+    )
+
     const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
       orderTxId,
       {
-        providerFeeAddress,
-        providerFeeToken,
-        providerFeeAmount,
-        v: signedMessage.v,
-        r: signedMessage.r,
-        s: signedMessage.s,
-        providerData: hexlify(toUtf8Bytes(providerData)),
-        validUntil: providerValidUntil
+        providerFeeAddress: feeData.providerFeeAddress,
+        providerFeeToken: feeData.providerFeeToken,
+        providerFeeAmount: feeData.providerFeeAmount,
+        v: feeData.v,
+        r: feeData.r,
+        s: feeData.s,
+        providerData: feeData.providerData,
+        validUntil: feeData.validUntil
       },
       {
         consumeMarketFeeAddress,
@@ -273,17 +296,24 @@ describe('validateOrderTransaction Function with Orders', () => {
   it('should reject reuse an order with invald serviceId', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
 
+    const feeData = await createFee(
+      resolvedDDO as DDO,
+      0,
+      'null',
+      resolvedDDO.services[0]
+    )
+
     const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
       orderTxId,
       {
-        providerFeeAddress,
-        providerFeeToken,
-        providerFeeAmount,
-        v: signedMessage.v,
-        r: signedMessage.r,
-        s: signedMessage.s,
-        providerData: hexlify(toUtf8Bytes(providerData)),
-        validUntil: providerValidUntil
+        providerFeeAddress: feeData.providerFeeAddress,
+        providerFeeToken: feeData.providerFeeToken,
+        providerFeeAmount: feeData.providerFeeAmount,
+        v: feeData.v,
+        r: feeData.r,
+        s: feeData.s,
+        providerData: feeData.providerData,
+        validUntil: feeData.validUntil
       },
       {
         consumeMarketFeeAddress,
@@ -314,20 +344,28 @@ describe('validateOrderTransaction Function with Orders', () => {
       'Invalid reuse order transaction validation message.'
     )
   })
+
   it('should reject reuse an order with invald user address', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
+
+    const feeData = await createFee(
+      resolvedDDO as DDO,
+      0,
+      'null',
+      resolvedDDO.services[0]
+    )
 
     const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
       orderTxId,
       {
-        providerFeeAddress,
-        providerFeeToken,
-        providerFeeAmount,
-        v: signedMessage.v,
-        r: signedMessage.r,
-        s: signedMessage.s,
-        providerData: hexlify(toUtf8Bytes(providerData)),
-        validUntil: providerValidUntil
+        providerFeeAddress: feeData.providerFeeAddress,
+        providerFeeToken: feeData.providerFeeToken,
+        providerFeeAmount: feeData.providerFeeAmount,
+        v: feeData.v,
+        r: feeData.r,
+        s: feeData.s,
+        providerData: feeData.providerData,
+        validUntil: feeData.validUntil
       },
       {
         consumeMarketFeeAddress,
