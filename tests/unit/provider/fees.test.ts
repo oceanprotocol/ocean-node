@@ -12,8 +12,8 @@ import {
   getProviderFeeToken,
   getProviderWallet,
   getProviderWalletAddress
-} from '../../../components/core/handlers/utils/feesHandler.js'
-import { FeesHandler } from '../../../components/core/handler.js'
+} from '../../../components/core/utils/feesHandler.js'
+import { FeesHandler } from '../../../components/core/feesHandler.js'
 import { OceanNodeConfig, P2PCommandResponse } from '../../../@types'
 import { Service } from '../../../@types/DDO/Service.js'
 import { DDOExample } from '../../data/ddo.js'
@@ -23,6 +23,8 @@ import {
   tearDownEnvironment
 } from '../../utils/utils.js'
 import { ethers } from 'ethers'
+import { Database } from '../../../components/database/index.js'
+import { OceanP2P } from '../../../components/P2P/index.js'
 
 const service: Service = {
   id: '24654b91482a3351050510ff72694d88edae803cf31a5da993da963ba0087648', // matches the service ID on the example DDO
@@ -132,11 +134,22 @@ describe('Ocean Node fees', () => {
     const providerFeeToken = await getProviderFeeToken(chainId)
     const providerAmount = await getProviderFeeAmount()
 
-    const data: P2PCommandResponse = await new FeesHandler({
+    const config = await getConfig()
+    config.supportedNetworks[8996] = {
+      chainId: 8996,
+      network: 'development',
+      rpc: 'http://127.0.0.1:8545',
+      chunkSize: 100
+    }
+
+    const dbconn = await new Database(config.dbConfig)
+    const p2pNode = new OceanP2P(dbconn, config)
+
+    const data: P2PCommandResponse = await new FeesHandler(p2pNode).handle({
       ddo: asset,
       serviceId: service.id,
       command: PROTOCOL_COMMANDS.GET_FEES
-    }).handle()
+    })
     expect(data.status.httpStatus).to.equal(200)
     const { stream } = data
     if (stream) {

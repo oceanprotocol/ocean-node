@@ -5,22 +5,16 @@ import StreamConcat from 'stream-concat'
 // export function handleProtocolCommands (sourceStream:any,sinkStream:any) {
 
 import { DownloadHandler } from '../core/downloadHandler.js'
-import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { PROTOCOL_COMMANDS, HANDLERS_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
 import { P2P_CONSOLE_LOGGER } from './index.js'
-
-import {
-  NonceHandler,
-  FeesHandler,
-  StatusHandler,
-  EncryptHandler,
-  QueryHandler,
-  GetDdoHandler,
-  FindDdoHandler
-} from '../core/handler.js'
+import { NonceHandler } from '../core/nonceHandler.js'
+import { FeesHandler } from '../core/feesHandler.js'
+import { StatusHandler } from '../core/statusHandler.js'
+import { EncryptHandler } from '../core/encryptHandler.js'
+import { QueryHandler } from '../core/queryHandler.js'
+import { GetDdoHandler, FindDdoHandler } from '../core/ddoHandler.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { getConfig } from '../../utils/index.js'
-import { Database } from '../database/index.js'
 
 export class ReadableString extends Readable {
   private sent = false
@@ -38,9 +32,6 @@ export class ReadableString extends Readable {
     }
   }
 }
-
-const config = await getConfig()
-const db = await new Database(config.dbConfig)
 
 export async function handleProtocolCommands(connection: any) {
   P2P_CONSOLE_LOGGER.logMessage(
@@ -68,6 +59,22 @@ export async function handleProtocolCommands(connection: any) {
   }
   P2P_CONSOLE_LOGGER.logMessage('Performing task: ' + JSON.stringify(task), true)
 
+  const handlersClasses = [
+    DownloadHandler,
+    EncryptHandler,
+    GetDdoHandler,
+    QueryHandler,
+    NonceHandler,
+    StatusHandler,
+    FindDdoHandler,
+    FeesHandler
+  ]
+  const handlers: Record<string, any> = {}
+  handlersClasses.forEach((HandlerClass, index) => {
+    const handlerInstance = new HandlerClass(this)
+    handlers[HANDLERS_COMMANDS[index]] = handlerInstance
+  })
+
   let response: P2PCommandResponse = null
   try {
     switch (task.command) {
@@ -75,31 +82,28 @@ export async function handleProtocolCommands(connection: any) {
         status = { httpStatus: 200 }
         break
       case PROTOCOL_COMMANDS.DOWNLOAD:
-        response = await new DownloadHandler(task, config, db).handle()
-        break
-      case PROTOCOL_COMMANDS.DOWNLOAD_URL:
-        response = await new DownloadHandler(task, config, db).handleDownloadUrlCommand()
+        response = await handlers[PROTOCOL_COMMANDS.DOWNLOAD].handle(task)
         break
       case PROTOCOL_COMMANDS.GET_DDO:
-        response = await new GetDdoHandler(task, db).handle()
+        response = await handlers[PROTOCOL_COMMANDS.GET_DDO].handle(task)
         break
       case PROTOCOL_COMMANDS.QUERY:
-        response = await new QueryHandler(task, db).handle()
+        response = await handlers[PROTOCOL_COMMANDS.QUERY].handle(task)
         break
       case PROTOCOL_COMMANDS.ENCRYPT:
-        response = await new EncryptHandler(task).handle()
+        response = await handlers[PROTOCOL_COMMANDS.ENCRYPT].handle(task)
         break
       case PROTOCOL_COMMANDS.NONCE:
-        response = await new NonceHandler(task, db).handle()
+        response = await handlers[PROTOCOL_COMMANDS.NONCE].handle(task)
         break
       case PROTOCOL_COMMANDS.STATUS:
-        response = await new StatusHandler(task, config).handle()
+        response = await handlers[PROTOCOL_COMMANDS.STATUS].handle(task)
         break
       case PROTOCOL_COMMANDS.FIND_DDO:
-        response = await new FindDdoHandler(task, config, db).handle()
+        response = await handlers[PROTOCOL_COMMANDS.FIND_DDO].handle(task)
         break
       case PROTOCOL_COMMANDS.GET_FEES:
-        response = await new FeesHandler(task).handle()
+        response = await handlers[PROTOCOL_COMMANDS.GET_FEES].handle(task)
         break
       default:
         status = { httpStatus: 501, error: 'Unknown command' }
@@ -142,37 +146,50 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
   let response: P2PCommandResponse = null
 
   P2P_CONSOLE_LOGGER.logMessage('Performing task: ' + JSON.stringify(task), true)
+  const handlersClasses = [
+    DownloadHandler,
+    EncryptHandler,
+    GetDdoHandler,
+    QueryHandler,
+    NonceHandler,
+    StatusHandler,
+    FindDdoHandler,
+    FeesHandler
+  ]
+  const handlers: Record<string, any> = {}
+  handlersClasses.forEach((HandlerClass, index) => {
+    const handlerInstance = new HandlerClass(this)
+    handlers[HANDLERS_COMMANDS[index]] = handlerInstance
+  })
+
   try {
     switch (task.command) {
       case PROTOCOL_COMMANDS.ECHO:
         status = { httpStatus: 200 }
         break
       case PROTOCOL_COMMANDS.DOWNLOAD:
-        response = await new DownloadHandler(task, config, db).handle()
-        break
-      case PROTOCOL_COMMANDS.DOWNLOAD_URL:
-        response = await new DownloadHandler(task, config, db).handleDownloadUrlCommand()
+        response = await handlers[PROTOCOL_COMMANDS.DOWNLOAD].handle(task)
         break
       case PROTOCOL_COMMANDS.GET_DDO:
-        response = await new GetDdoHandler(task, db).handle()
+        response = await handlers[PROTOCOL_COMMANDS.GET_DDO].handle(task)
         break
       case PROTOCOL_COMMANDS.QUERY:
-        response = await new QueryHandler(task, db).handle()
+        response = await handlers[PROTOCOL_COMMANDS.QUERY].handle(task)
         break
       case PROTOCOL_COMMANDS.ENCRYPT:
-        response = await new EncryptHandler(task).handle()
+        response = await handlers[PROTOCOL_COMMANDS.ENCRYPT].handle(task)
         break
       case PROTOCOL_COMMANDS.NONCE:
-        response = await new NonceHandler(task, db).handle()
+        response = await handlers[PROTOCOL_COMMANDS.NONCE].handle(task)
         break
       case PROTOCOL_COMMANDS.STATUS:
-        response = await new StatusHandler(task, config).handle()
+        response = await handlers[PROTOCOL_COMMANDS.STATUS].handle(task)
         break
       case PROTOCOL_COMMANDS.FIND_DDO:
-        response = await new FindDdoHandler(task, config, db).handle()
+        response = await handlers[PROTOCOL_COMMANDS.FIND_DDO].handle(task)
         break
       case PROTOCOL_COMMANDS.GET_FEES:
-        response = await new FeesHandler(task).handle()
+        response = await handlers[PROTOCOL_COMMANDS.GET_FEES].handle(task)
         break
       default:
         status = { httpStatus: 501, error: 'Unknown command' }

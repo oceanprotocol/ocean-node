@@ -12,7 +12,7 @@ import {
   LOGGER_MODULE_NAMES
 } from '../../utils/logging/Logger.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { EncryptHandler } from '../core/handler.js'
+import { EncryptHandler } from '../core/encryptHandler.js'
 
 export const providerRoutes = express.Router()
 const logger: CustomNodeLogger = getCustomLoggerForModule(
@@ -28,12 +28,12 @@ providerRoutes.post('/encrypt', async (req, res) => {
       res.status(400).send('Missing required body')
       return
     }
-    const result = await new EncryptHandler({
+    const result = await new EncryptHandler(req.oceanNode.getP2PNode()).handle({
       blob: data,
       encoding: 'string',
       encryptionType: 'ECIES',
       command: PROTOCOL_COMMANDS.ENCRYPT
-    }).handle()
+    })
     if (result.stream) {
       const encryptedData = await streamToString(result.stream as Readable)
       res.status(200).send(encryptedData)

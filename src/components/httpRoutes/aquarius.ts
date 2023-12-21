@@ -9,7 +9,8 @@ import {
   LOG_LEVELS_STR,
   LOGGER_MODULE_NAMES
 } from '../../utils/logging/Logger.js'
-import { GetDdoHandler, QueryHandler } from '../core/handler.js'
+import { GetDdoHandler } from '../core/ddoHandler.js'
+import { QueryHandler } from '../core/queryHandler.js'
 
 export const aquariusRoutes = express.Router()
 const logger: CustomNodeLogger = getCustomLoggerForModule(
@@ -26,13 +27,10 @@ aquariusRoutes.get('/assets/ddo/:did', async (req, res) => {
       return
     }
     const node = req.oceanNode.getP2PNode()
-    const result = await new GetDdoHandler(
-      {
-        id: did,
-        command: PROTOCOL_COMMANDS.GET_DDO
-      },
-      node.getDatabase()
-    ).handle()
+    const result = await new GetDdoHandler(node).handle({
+      id: did,
+      command: PROTOCOL_COMMANDS.GET_DDO
+    })
     if (result.stream) {
       const ddo = JSON.parse(await streamToString(result.stream as Readable))
       res.json(ddo)
@@ -53,13 +51,10 @@ aquariusRoutes.get('/assets/metadata/:did', async (req, res) => {
       return
     }
     const node = req.oceanNode.getP2PNode()
-    const result = await new GetDdoHandler(
-      {
-        id: did,
-        command: PROTOCOL_COMMANDS.GET_DDO
-      },
-      node.getDatabase()
-    ).handle()
+    const result = await new GetDdoHandler(node).handle({
+      id: did,
+      command: PROTOCOL_COMMANDS.GET_DDO
+    })
     if (result.stream) {
       const ddo = JSON.parse(await streamToString(result.stream as Readable))
       res.json(ddo.metadata)
@@ -80,13 +75,10 @@ aquariusRoutes.post('/assets/metadata/query', async (req, res) => {
       return
     }
     const node = req.oceanNode.getP2PNode()
-    const result = await new QueryHandler(
-      {
-        query,
-        command: PROTOCOL_COMMANDS.QUERY
-      },
-      node.getDatabase()
-    ).handle()
+    const result = await new QueryHandler(node).handle({
+      query,
+      command: PROTOCOL_COMMANDS.QUERY
+    })
     if (result.stream) {
       const queryResult = JSON.parse(await streamToString(result.stream as Readable))
       res.json(queryResult)
@@ -130,13 +122,10 @@ aquariusRoutes.get('/state/ddo', async (req, res) => {
       return
     }
     const node = req.oceanNode.getP2PNode()
-    const result = await new QueryHandler(
-      {
-        query,
-        command: PROTOCOL_COMMANDS.QUERY
-      },
-      node.getDatabase()
-    ).handle()
+    const result = await new QueryHandler(node).handle({
+      query,
+      command: PROTOCOL_COMMANDS.QUERY
+    })
     if (result.stream) {
       const queryResult = JSON.parse(await streamToString(result.stream as Readable))
       if (queryResult[0].found) {

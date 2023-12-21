@@ -26,8 +26,6 @@ downloadRoute.get(
     }
     logger.logMessage(`Download request received: ${JSON.stringify(req.query)}`, true)
     try {
-      const config = req.oceanNode.getConfig()
-      const db = req.oceanNode.getDatabase()
       const {
         fileIndex,
         documentId,
@@ -48,7 +46,9 @@ downloadRoute.get(
         signature: signature as string
       }
 
-      const response = await new DownloadHandler(downloadTask, config, db).handle()
+      const response = await new DownloadHandler(req.oceanNode.getP2PNode()).handle(
+        downloadTask
+      )
       if (response.stream) {
         res.status(response.status.httpStatus)
         res.set(response.status.headers)

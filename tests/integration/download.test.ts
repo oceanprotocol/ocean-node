@@ -26,7 +26,7 @@ import { getConfig } from '../../utils/config.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { ProviderFeeData } from '../../@types/Fees'
 import { encrypt } from '../../utils/crypt.js'
-import { createFee } from '../../components/core/handlers/utils/feesHandler.js'
+import { createFee } from '../../components/core/utils/feesHandler.js'
 
 describe('Download Tests', () => {
   let database: Database
@@ -287,7 +287,7 @@ describe('Download Tests', () => {
       consumerAddress,
       signature
     }
-    const response = await new DownloadHandler(downloadTask, config, dbconn).handle()
+    const response = await new DownloadHandler(p2pNode).handle(downloadTask)
 
     assert(response)
     assert(response.stream, 'stream not present')
