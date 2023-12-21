@@ -1,19 +1,6 @@
 import express, { Request, Response } from 'express'
 import { handleDownload } from '../core/downloadHandler.js'
-import { Readable } from 'stream'
-import {
-  LOGGER_MODULE_NAMES,
-  CustomNodeLogger,
-  getCustomLoggerForModule,
-  LOG_LEVELS_STR,
-  defaultConsoleTransport
-} from '../../utils/logging/Logger.js'
-
-const logger: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.HTTP,
-  LOG_LEVELS_STR.LEVEL_INFO, // Info level
-  defaultConsoleTransport // console only Transport
-)
+import { HTTP_LOGGER } from './index.js'
 
 export const downloadRoute = express.Router()
 downloadRoute.get(
@@ -24,7 +11,10 @@ downloadRoute.get(
       res.sendStatus(400)
       return
     }
-    logger.logMessage(`Download request received: ${JSON.stringify(req.query)}`, true)
+    HTTP_LOGGER.logMessage(
+      `Download request received: ${JSON.stringify(req.query)}`,
+      true
+    )
     try {
       const node = req.oceanNode.getP2PNode()
       const {
@@ -56,7 +46,7 @@ downloadRoute.get(
         res.status(response.status.httpStatus).send(response.error)
       }
     } catch (error) {
-      logger.logMessage(`Error: ${error}`, true)
+      HTTP_LOGGER.logMessage(`Error: ${error}`, true)
       res.status(500).send(error)
     }
     // res.sendStatus(200)
