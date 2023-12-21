@@ -94,7 +94,7 @@ export class OceanP2P extends EventEmitter {
   constructor(config: OceanNodeConfig, db?: Database) {
     super()
     this._config = config
-    if (db) {
+    if (db && config.dbConfig.url) {
       this.db = db
       const customLogTransport = newCustomDBTransport(this.db)
       P2P_CONSOLE_LOGGER.addTransport(customLogTransport)

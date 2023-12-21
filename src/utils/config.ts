@@ -275,6 +275,7 @@ export async function getConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       ),
       connectionsDialTimeout: getIntEnvValue(process.env.P2P_connectionsDialTimeout, 10e3) // 10 seconds
     },
+    // Only enable provider if we have a DB_URL
     hasProvider: !!getEnvValue(process.env.DB_URL, ''),
     httpPort: getIntEnvValue(process.env.HTTP_API_PORT, 8000),
     dbConfig: {
