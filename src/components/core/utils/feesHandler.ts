@@ -64,21 +64,21 @@ export async function createFee(
   const providerFeeAmount: number = await getProviderFeeAmount() // TODO check decimals on contract?
 
   /** https://github.com/ethers-io/ethers.js/issues/468
-     * 
-     * Also, keep in mind that signMessage can take in a string, 
-     * which is treated as a UTF-8 string, or an ArrayLike, which is treated like binary data. 
-     * A hash as a string is a 66 character string, which is likely not what you want, 
-     * you probable want the 32 byte array. So you probably want something more like:
-     * 
-       * // 66 byte string, which represents 32 bytes of data
-      let messageHash = ethers.utils.solidityKeccak256( ...stuff here... );
-  
-      // 32 bytes of data in Uint8Array
-      let messageHashBinary = ethers.utils.arrayify(messageHash);
-  
-      // To sign the 32 bytes of data, make sure you pass in the data
-      let signature = await wallet.signMessage(messageHashBinary);
-       */
+   * 
+   * Also, keep in mind that signMessage can take in a string, 
+   * which is treated as a UTF-8 string, or an ArrayLike, which is treated like binary data. 
+   * A hash as a string is a 66 character string, which is likely not what you want, 
+   * you probable want the 32 byte array. So you probably want something more like:
+   * 
+     * // 66 byte string, which represents 32 bytes of data
+    let messageHash = ethers.utils.solidityKeccak256( ...stuff here... );
+
+    // 32 bytes of data in Uint8Array
+    let messageHashBinary = ethers.utils.arrayify(messageHash);
+
+    // To sign the 32 bytes of data, make sure you pass in the data
+    let signature = await wallet.signMessage(messageHashBinary);
+     */
 
   const messageHash = ethers.solidityPackedKeccak256(
     ['bytes', 'address', 'address', 'uint256', 'uint256'],

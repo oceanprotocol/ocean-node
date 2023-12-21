@@ -137,7 +137,7 @@ jobs:
             [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" ] && break
           done
       - name: integration tests
-        run: npm run test:integration:cover
+        run: npm run test:integration:complete
         env:
           PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
           NODE1_PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}

@@ -106,12 +106,14 @@ describe('Should run a complete node flow.', () => {
 
   it('should get node status', async () => {
     const oceanNodeConfig = oceanNode.getConfig()
+    console.log('oceanNodeConfig: ', oceanNodeConfig)
 
     const statusCommand = {
       command: PROTOCOL_COMMANDS.STATUS,
       node: oceanNodeConfig.keys.peerId.toString()
     }
     const response = await new StatusHandler(oceanNode.getP2PNode()).handle(statusCommand)
+    console.log('resp: ', response)
     assert(response.status.httpStatus === 200, 'http status not 200')
     const resp = await streamToString(response.stream as Readable)
     const status = JSON.parse(resp)
