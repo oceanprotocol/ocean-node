@@ -74,7 +74,7 @@ describe('Indexer stores a new published DDO', () => {
     }
     config = await getConfig()
     database = await new Database(dbConfig)
-    oceanNode = await new OceanNode(config)
+    oceanNode = await new OceanNode(config, database)
 
     indexer = new OceanIndexer(database, mockSupportedNetworks)
 
