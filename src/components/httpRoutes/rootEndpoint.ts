@@ -1,20 +1,5 @@
 import express from 'express'
-import { streamToString } from '../../utils/util.js'
-import { Readable } from 'stream'
-import {
-  CustomNodeLogger,
-  defaultConsoleTransport,
-  getCustomLoggerForModule,
-  LOG_LEVELS_STR,
-  LOGGER_MODULE_NAMES
-} from '../../utils/logging/Logger.js'
-
 export const rootEndpointRoutes = express.Router()
-const logger: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.HTTP,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
-)
 
 rootEndpointRoutes.get('/', async (req, res) => {
   res.json({
