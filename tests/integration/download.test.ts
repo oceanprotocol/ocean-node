@@ -309,7 +309,7 @@ describe('Download Tests', () => {
     }
     const config = await getConfig()
     const dbconn = await new Database(config.dbConfig)
-    const p2pNode = new OceanP2P(dbconn, config)
+    const p2pNode = new OceanP2P(config, dbconn)
     assert(p2pNode, 'Failed to instantiate OceanP2P')
     const response = await handleDownload(downloadTask, p2pNode)
     console.log(response)

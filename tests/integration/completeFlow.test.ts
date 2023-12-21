@@ -289,7 +289,7 @@ describe('Should run a complete node flow.', () => {
       chunkSize: 100
     }
     database = await new Database(config.dbConfig)
-    const p2pNode = new OceanP2P(database, config)
+    const p2pNode = new OceanP2P(config, database)
     assert(p2pNode, 'Failed to instantiate OceanP2P')
 
     const wallet = new ethers.Wallet(
