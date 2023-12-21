@@ -378,7 +378,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     expect(parseInt(result[2].toString())).to.equal(2)
     const resolvedDDO = await waitToIndex(assetDID, database)
     // Expect a short version of the DDO
-    expect(Object.keys(resolvedDDO).length).to.equal(3)
+    expect(Object.keys(resolvedDDO).length).to.equal(4)
     expect(
       'id' in resolvedDDO && 'nftAddress' in resolvedDDO && 'nft' in resolvedDDO
     ).to.equal(true)
