@@ -1,9 +1,9 @@
 import { JsonRpcProvider } from 'ethers'
-import { DownloadTask } from '../../utils/constants.js'
+import { DownloadTask, DownloadURLCommand } from '../../utils/constants.js'
 import { Handler } from './handler.js'
 import { checkNonce, NonceResponse } from './utils/nonceHandler.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
-import { P2P_CONSOLE_LOGGER } from '../P2P/index.js'
+import { P2P_CONSOLE_LOGGER, OceanP2P } from '../P2P/index.js'
 import { validateOrderTransaction } from './validateTransaction.js'
 import { AssetUtils } from '../../utils/asset.js'
 import { Service } from '../../@types/DDO/Service.js'
@@ -14,15 +14,16 @@ import crypto from 'crypto'
 import * as ethCrypto from 'eth-crypto'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { Storage } from '../storage/index.js'
+import { checkCredentials } from '../../utils/credentials.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(
-  task: any,
-  config: any
+  node: OceanP2P,
+  task: DownloadURLCommand
 ): Promise<P2PCommandResponse> {
   const encryptFile = !!task.aes_encrypted_key
   P2P_CONSOLE_LOGGER.logMessage(
-    'DownloadUrlCommand requires file encryption? ' + encryptFile,
+    'DownloadCommand requires file encryption? ' + encryptFile,
     true
   )
 
@@ -44,7 +45,7 @@ export async function handleDownloadUrlCommand(
       // we parse the string into the object again
       const encryptedObject = ethCrypto.cipher.parse(task.aes_encrypted_key)
       // get the key from configuration
-      const nodePrivateKey = Buffer.from(config.keys.privateKey).toString('hex')
+      const nodePrivateKey = Buffer.from(node.getConfig().keys.privateKey).toString('hex')
       const decrypted = await ethCrypto.decryptWithPrivateKey(
         nodePrivateKey,
         encryptedObject
@@ -126,7 +127,6 @@ export class DownloadHandler extends Handler {
         `Task has nor DownloadCommand type, nor DownloadUrlCommand type. It has ${typeof task}`
       )
     }
-    const node = this.getP2PNode()
     P2P_CONSOLE_LOGGER.logMessage(
       'Download Request recieved with arguments: ' +
         task.fileIndex +
@@ -139,6 +139,7 @@ export class DownloadHandler extends Handler {
       true
     )
     // 1. Get the DDO
+    const node = this.getP2PNode()
     const ddo = await new FindDdoHandler(node).findAndFormatDdo(task.documentId)
 
     if (ddo) {
@@ -157,7 +158,34 @@ export class DownloadHandler extends Handler {
       }
     }
 
-    // 2. Validate nonce and signature
+    // 2. Validate ddo and credentials
+    if (!ddo.chainId || !ddo.nftAddress || !ddo.metadata) {
+      P2P_CONSOLE_LOGGER.logMessage('Error: DDO malformed or disabled', true)
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500
+        },
+        error: 'Error: DDO malformed or disabled'
+      }
+    }
+
+    // check credentials
+    if (ddo.credentials) {
+      const accessGranted = checkCredentials(ddo.credentials, task.consumerAddress)
+      if (!accessGranted) {
+        P2P_CONSOLE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500
+          },
+          error: `Error: Access to asset ${ddo.id} was denied`
+        }
+      }
+    }
+
+    // 3. Validate nonce and signature
     const nonceCheckResult: NonceResponse = await checkNonce(
       node,
       task.consumerAddress,
@@ -212,6 +240,20 @@ export class DownloadHandler extends Handler {
     // 5. Call the validateOrderTransaction function to check order transaction
     const config = node.getConfig()
     const { rpc } = config.supportedNetworks[ddo.chainId]
+
+    if (!rpc) {
+      P2P_CONSOLE_LOGGER.logMessage(
+        `Cannot proceed with download. RPC not configured for this chain ${ddo.chainId}`,
+        true
+      )
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500
+        },
+        error: `Cannot proceed with download. RPC not configured for this chain ${ddo.chainId}`
+      }
+    }
 
     let provider
     try {
@@ -268,14 +310,10 @@ export class DownloadHandler extends Handler {
       const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
       const decryptedFileArray = JSON.parse(decryptedFilesString)
       // 7. Proceed to download the file
-
-      return await handleDownloadUrlCommand(
-        {
-          fileObject: decryptedFileArray.files[task.fileIndex],
-          aes_encrypted_key: task.aes_encrypted_key
-        },
-        node.getConfig()
-      )
+      return await handleDownloadUrlCommand(node, {
+        fileObject: decryptedFileArray.files[task.fileIndex],
+        aes_encrypted_key: task.aes_encrypted_key
+      })
     } catch (e) {
       P2P_CONSOLE_LOGGER.logMessage('decryption error' + e, true)
       return {

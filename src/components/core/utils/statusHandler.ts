@@ -69,18 +69,20 @@ export async function status(
   status.http = config.hasHttp
   status.p2p = config.hasP2P
 
-  for (const [key, supportedNetwork] of Object.entries(config.supportedNetworks)) {
-    const provider: OceanNodeProvider = {
-      chainId: key,
-      network: supportedNetwork.network
+  if (config.supportedNetworks) {
+    for (const [key, supportedNetwork] of Object.entries(config.supportedNetworks)) {
+      const provider: OceanNodeProvider = {
+        chainId: key,
+        network: supportedNetwork.network
+      }
+      status.provider.push(provider)
+      const indexer: OceanNodeIndexer = {
+        chainId: key,
+        network: supportedNetwork.network,
+        block: '0'
+      }
+      status.indexer.push(indexer)
     }
-    status.provider.push(provider)
-    const indexer: OceanNodeIndexer = {
-      chainId: key,
-      network: supportedNetwork.network,
-      block: '0'
-    }
-    status.indexer.push(indexer)
   }
   return status
 }

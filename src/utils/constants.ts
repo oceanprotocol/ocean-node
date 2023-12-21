@@ -43,7 +43,7 @@ export interface Command {
   node?: string // if not present it means current node
 }
 
-export interface DownloadURLCommand extends Command {
+export interface DownloadURLCommand {
   fileObject: any
   aes_encrypted_key?: string // if not present it means download without encryption
 }
