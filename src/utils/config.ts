@@ -277,7 +277,7 @@ export async function getConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     hasProvider: true,
     httpPort: getIntEnvValue(process.env.HTTP_API_PORT, 8000),
     dbConfig: {
-      url: getEnvValue(process.env.DB_URL, 'http://localhost:8108/?apiKey=xyz')
+      url: getEnvValue(process.env.DB_URL, '')
     },
     supportedNetworks,
     feeStrategy: getOceanNodeFees(supportedNetworks, isStartup)
