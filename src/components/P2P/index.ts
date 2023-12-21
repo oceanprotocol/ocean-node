@@ -107,12 +107,6 @@ export class OceanP2P extends EventEmitter {
       updated: new Date().getTime(),
       dht: new Map<string, FindDDOResponse>()
     }
-
-    // listen for indexer events and advertise did
-    INDEXER_DDO_EVENT_EMITTER.addListener(EVENTS.METADATA_CREATED, (did) => {
-      P2P_CONSOLE_LOGGER.info(`Listened "${EVENTS.METADATA_CREATED}"`)
-      this.advertiseDid(did)
-    })
   }
 
   async start(options: any = null) {
@@ -130,12 +124,15 @@ export class OceanP2P extends EventEmitter {
 
     this._idx = index++
 
-    // await this.advertiseProviderAddress()
-
     this._analyzeRemoteResponse = new Transform({
       transform(chunk, encoding, callback) {
         callback(null, chunk.toString().toUpperCase())
       }
+    })
+    // listen for indexer events and advertise did
+    INDEXER_DDO_EVENT_EMITTER.addListener(EVENTS.METADATA_CREATED, (did) => {
+      P2P_CONSOLE_LOGGER.info(`Listened "${EVENTS.METADATA_CREATED}"`)
+      this.advertiseDid(did)
     })
   }
 
