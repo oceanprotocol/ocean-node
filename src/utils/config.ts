@@ -193,7 +193,7 @@ function getOceanNodeFees(supportedNetworks: RPCS, isStartup?: boolean): FeeStra
  * @param hasDefault if true we ignore if not set
  * @returns boolean
  */
-function existsEnvironmentVariable(envVariable: any, log = false): boolean {
+export function existsEnvironmentVariable(envVariable: any, log = false): boolean {
   const { name, value, required } = envVariable
   if (!value) {
     if (log) {
@@ -211,6 +211,7 @@ function existsEnvironmentVariable(envVariable: any, log = false): boolean {
   }
   return true
 }
+
 export async function getConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
   const privateKey = process.env.PRIVATE_KEY
   if (!privateKey || privateKey.length !== 66) {
@@ -225,12 +226,8 @@ export async function getConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
   }
 
   if (
-    // these will not be required in the future
-    !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.IPFS_GATEWAY, isStartup) ||
-    !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY, isStartup)
-    // have some defaults for these ones:
-    // ENVIRONMENT_VARIABLES.FEE_TOKENS
-    // ENVIRONMENT_VARIABLES.FEE_AMOUNT
+    !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.FEE_TOKENS, isStartup) ||
+    !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.FEE_AMOUNT, isStartup)
   ) {
     return null
   }

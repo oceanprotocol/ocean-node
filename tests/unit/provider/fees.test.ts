@@ -6,8 +6,8 @@ import {
 } from '../../../utils/index.js'
 import { ProviderFeeData } from '../../../@types/Fees'
 import {
-  checkFee,
   createFee,
+  checkFee,
   getProviderFeeAmount,
   getProviderFeeToken,
   getProviderWallet,

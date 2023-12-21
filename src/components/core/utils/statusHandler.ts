@@ -11,8 +11,11 @@ import {
   OceanNodeStatus,
   OceanNodeProvider,
   OceanNodeIndexer,
-  OceanNodeConfig
+  OceanNodeConfig,
+  StorageTypes
 } from '../../../@types/OceanNode.js'
+import { existsEnvironmentVariable } from '../../../utils/index.js'
+import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
 
 export const STATUS_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.CORE,
@@ -43,6 +46,7 @@ export async function status(
     p2p: undefined,
     provider: [],
     indexer: [],
+    supportedStorage: undefined,
     uptime: process.uptime(),
     platform: {
       cpus: os.cpus().length,
@@ -63,11 +67,19 @@ export async function status(
     // get current node ID
     status.id = config.keys.peerId.toString()
   }
+
+  const supportedStorageTypes: StorageTypes = {
+    url: true,
+    arwave: existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY),
+    ipfs: existsEnvironmentVariable(ENVIRONMENT_VARIABLES.IPFS_GATEWAY)
+  }
+
   status.version = process.env.npm_package_version
   status.publicKey = Buffer.from(config.keys.publicKey).toString('hex')
   status.address = config.keys.ethAddress
   status.http = config.hasHttp
   status.p2p = config.hasP2P
+  status.supportedStorage = supportedStorageTypes
 
   if (config.supportedNetworks) {
     for (const [key, supportedNetwork] of Object.entries(config.supportedNetworks)) {
