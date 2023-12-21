@@ -36,7 +36,7 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { createFee } from '../../components/core/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 
-describe('Indexer stores a new published DDO', () => {
+describe('Should run a complete node flow.', () => {
   let config: OceanNodeConfig
   let database: Database
   let oceanNode: OceanNode
@@ -74,7 +74,7 @@ describe('Indexer stores a new published DDO', () => {
     }
     config = await getConfig()
     database = await new Database(dbConfig)
-    oceanNode = await new OceanNode(config)
+    oceanNode = await new OceanNode(config, database)
 
     indexer = new OceanIndexer(database, mockSupportedNetworks)
 
