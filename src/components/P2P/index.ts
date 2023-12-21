@@ -514,15 +514,12 @@ export class OceanP2P extends EventEmitter {
           // populate hash table if not exists
           // (even if no peers are listening, it still goes to the pending publish table)
           if (!this._ddoDHT.dht.has(ddo.id)) {
-            this._ddoDHT.dht.set(ddo.id, {
-              id: ddo.id,
-              lastUpdateTx: ddo.event ? ddo.event.tx : '', // some missing event? probably just bad test data
-              lastUpdateTime: ddo.metadata.updated,
-              provider: this.getPeerId()
-            })
+            this.cacheDDO(ddo)
           }
           // todo check stuff like purgatory
         })
+        // update time
+        this._ddoDHT.updated = new Date().getTime()
       } else {
         P2P_CONSOLE_LOGGER.logMessage('There is nothing to republish, skipping...', true)
       }
@@ -533,6 +530,16 @@ export class OceanP2P extends EventEmitter {
         true
       )
     }
+  }
+
+  // cache a ddos object
+  cacheDDO(ddo: any) {
+    this._ddoDHT.dht.set(ddo.id, {
+      id: ddo.id,
+      lastUpdateTx: ddo.event ? ddo.event.tx : '', // some missing event? probably just bad test data
+      lastUpdateTime: ddo.metadata.updated,
+      provider: this.getPeerId()
+    })
   }
 
   /**
@@ -574,19 +581,13 @@ export class OceanP2P extends EventEmitter {
         true
       )
       const db = this.getDatabase().ddo
-      const peerId = this.getPeerId()
       list.forEach(async (ddo: any) => {
         // if already added before, create() will return null, but still advertise it
         try {
           await db.create(ddo)
           await this.advertiseDid(ddo.id)
           // populate hash table
-          this._ddoDHT.dht.set(ddo.id, {
-            id: ddo.id,
-            lastUpdateTx: ddo.event ? ddo.event.tx : '', // check if we're getting these from the right place
-            lastUpdateTime: ddo.metadata.updated,
-            provider: peerId
-          })
+          this.cacheDDO(ddo)
           count++
         } catch (e) {
           P2P_CONSOLE_LOGGER.log(
