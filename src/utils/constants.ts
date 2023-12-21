@@ -46,6 +46,7 @@ export interface Command {
 export interface DownloadURLCommand {
   fileObject: any
   aes_encrypted_key?: string // if not present it means download without encryption
+  node?: string // if not present it means current node
 }
 
 export interface DownloadTask {
