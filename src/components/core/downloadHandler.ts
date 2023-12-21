@@ -3,6 +3,7 @@ import { JsonRpcProvider } from 'ethers'
 import {
   DownloadTask,
   DownloadURLCommand,
+  ENVIRONMENT_VARIABLES,
   PROTOCOL_COMMANDS
 } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
@@ -16,7 +17,8 @@ import { Service } from '../../@types/DDO/Service'
 import { findAndFormatDdo } from './ddoHandler.js'
 import { checkFee } from './feesHandler.js'
 import { decrypt } from '../../utils/crypt.js'
-import { Storage } from '../../components/storage/index.js'
+import { ArweaveStorage, IpfsStorage, Storage } from '../../components/storage/index.js'
+import { existsEnvironmentVariable } from '../../utils/index.js'
 import { checkCredentials } from '../../utils/credentials.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
@@ -237,6 +239,41 @@ export async function handleDownloadURLCommand(
   try {
     // Determine the type of storage and get a readable stream
     const storage = Storage.getStorageClass(task.fileObject)
+    if (
+      storage instanceof ArweaveStorage &&
+      !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY)
+    ) {
+      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+        'Failure executing downloadURL task: Oean-node does not support arweave storage type files! ',
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return {
+        stream: null,
+        status: {
+          httpStatus: 501,
+          error: 'Error: Oean-node does not support arweave storage type files!'
+        }
+      }
+    } else if (
+      storage instanceof IpfsStorage &&
+      !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.IPFS_GATEWAY)
+    ) {
+      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+        'Failure executing downloadURL task: Oean-node does not support ipfs storage type files! ',
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return {
+        stream: null,
+        status: {
+          httpStatus: 501,
+          error: 'Error: Oean-node does not support ipfs storage type files!'
+        }
+      }
+    }
     const inputStream = await storage.getReadableStream()
     const headers: any = {}
     for (const [key, value] of Object.entries(inputStream.headers)) {
