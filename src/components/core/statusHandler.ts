@@ -57,7 +57,8 @@ export async function status(nodeId?: string): Promise<OceanNodeStatus> {
       platform: os.platform(),
       release: os.release(),
       osType: os.type(),
-      osVersion: os.version()
+      osVersion: os.version(),
+      node: process.version
     }
   }
   if (nodeId && nodeId !== undefined) {
