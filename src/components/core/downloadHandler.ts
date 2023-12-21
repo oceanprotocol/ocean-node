@@ -17,6 +17,7 @@ import { findAndFormatDdo } from './ddoHandler.js'
 import { checkFee } from './feesHandler.js'
 import { decrypt } from '../../utils/crypt.js'
 import { Storage } from '../../components/storage/index.js'
+import { checkCredentials } from '../../utils/credentials.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownload(
@@ -53,7 +54,34 @@ export async function handleDownload(
     }
   }
 
-  // 2. Validate nonce and signature
+  // 2. Validate ddo and credentials
+  if (!ddo.chainId || !ddo.nftAddress || !ddo.metadata) {
+    P2P_CONSOLE_LOGGER.logMessage('Error: DDO malformed or disabled', true)
+    return {
+      stream: null,
+      status: {
+        httpStatus: 500
+      },
+      error: 'Error: DDO malformed or disabled'
+    }
+  }
+
+  // check credentials
+  if (ddo.credentials) {
+    const accessGranted = checkCredentials(ddo.credentials, task.consumerAddress)
+    if (!accessGranted) {
+      P2P_CONSOLE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500
+        },
+        error: `Error: Access to asset ${ddo.id} was denied`
+      }
+    }
+  }
+
+  // 3. Validate nonce and signature
   const nonceCheckResult: NonceResponse = await checkNonce(
     node,
     task.consumerAddress,
@@ -108,6 +136,20 @@ export async function handleDownload(
   // 5. Call the validateOrderTransaction function to check order transaction
   const config = node.getConfig()
   const { rpc } = config.supportedNetworks[ddo.chainId]
+
+  if (!rpc) {
+    P2P_CONSOLE_LOGGER.logMessage(
+      `Cannot proceed with download. RPC not configured for this chain ${ddo.chainId}`,
+      true
+    )
+    return {
+      stream: null,
+      status: {
+        httpStatus: 500
+      },
+      error: `Cannot proceed with download. RPC not configured for this chain ${ddo.chainId}`
+    }
+  }
 
   let provider
   try {

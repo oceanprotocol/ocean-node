@@ -7,16 +7,10 @@ import { AssetUtils } from '../../utils/asset.js'
 import { OceanNodeConfig, P2PCommandResponse } from '../../@types'
 import { OceanP2P } from '../P2P/index'
 import { Readable } from 'stream'
-import {
-  CustomNodeLogger,
-  GENERIC_EMOJIS,
-  LOGGER_MODULE_NAMES,
-  LOG_LEVELS_STR,
-  defaultConsoleTransport,
-  getCustomLoggerForModule
-} from '../../utils/logging/Logger.js'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { verifyMessage } from '../../utils/blockchain.js'
 import { getConfig } from '../../utils/config.js'
+import { PROVIDER_LOGGER } from '../Provider/index.js'
 
 let config: OceanNodeConfig
 // Lazy load configuration
@@ -26,12 +20,7 @@ async function getConfiguration(): Promise<OceanNodeConfig> {
   }
   return config
 }
-// this should be actually part of provider, so lets put this as module name
-const logger: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.PROVIDER,
-  LOG_LEVELS_STR.LEVEL_INFO, // Info level
-  [defaultConsoleTransport] // console only Transport
-)
+
 /**
  * We could turn other core Command handlers into something like this:
  */
@@ -48,7 +37,7 @@ export class FeesHandler extends CommandHandler {
   async handleCommand(command: Command): Promise<P2PCommandResponse> {
     try {
       const task = command as GetFeesCommand
-      logger.logMessage(
+      PROVIDER_LOGGER.logMessage(
         `Try to calculate fees for DDO with id: ${task.ddo.id} and serviceId: ${task.serviceId}`,
         true
       )
@@ -61,7 +50,7 @@ export class FeesHandler extends CommandHandler {
         }
       } else {
         const error = `Unable to calculate fees (null) for DDO with id: ${task.ddo.id} and serviceId: ${task.serviceId}`
-        logger.logMessageWithEmoji(
+        PROVIDER_LOGGER.logMessageWithEmoji(
           error,
           true,
           GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -76,7 +65,7 @@ export class FeesHandler extends CommandHandler {
         }
       }
     } catch (error) {
-      logger.logMessageWithEmoji(
+      PROVIDER_LOGGER.logMessageWithEmoji(
         error.message,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,

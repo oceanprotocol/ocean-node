@@ -3,18 +3,14 @@ import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
 import { Database } from './components/database/index.js'
 import express, { Express } from 'express'
-import { OceanNode } from './OceanNode.js'
+import { OCEAN_NODE_LOGGER, OceanNode } from './OceanNode.js'
 import swaggerUi from 'swagger-ui-express'
 import { httpRoutes } from './components/httpRoutes/index.js'
 import { getConfig } from './utils/index.js'
 
 import {
-  CustomNodeLogger,
   GENERIC_EMOJIS,
-  LOGGER_MODULE_NAMES,
   LOG_LEVELS_STR,
-  defaultConsoleTransport,
-  getCustomLoggerForModule,
   newCustomDBTransport
 } from './utils/logging/Logger.js'
 import fs from 'fs'
@@ -23,11 +19,6 @@ import fs from 'fs'
 // Bellow is just an example usage, only logging to console here, we can customize any transports
 // we could create just one logger per module/component, and export/import it between files of the same component/module
 // we can also have different log levels, going to different files
-const logger: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.OCEAN_NODE,
-  LOG_LEVELS_STR.LEVEL_INFO, // Info level
-  defaultConsoleTransport // console only Transport
-)
 
 const app: Express = express()
 // const port = getRandomInt(6000,6500)
@@ -47,14 +38,14 @@ function loadInitialDDOS(): any[] {
   const dir: string = './data/'
   for (let i = 1; i < 6; i++) {
     const fileName = `${dir}DDO_example_${i}.json`
-    logger.logMessage(`Loading test DDO from ${fileName}`, true)
+    OCEAN_NODE_LOGGER.logMessage(`Loading test DDO from ${fileName}`, true)
     try {
       // eslint-disable-next-line security/detect-non-literal-fs-filename
       const rawData = fs.readFileSync(fileName, 'utf8')
       const jsonData = JSON.parse(rawData)
       ddos.push(jsonData)
     } catch (err) {
-      logger.log(
+      OCEAN_NODE_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_WARN,
         `Error loading test DDO from ${fileName}`,
         true
@@ -69,7 +60,7 @@ const isStartup: boolean = true
 // and we are always running though the same process.env checks
 // (we must start accessing the config from the OceanNode class only once we refactor)
 console.log('\n\n\n\n')
-logger.logMessageWithEmoji(
+OCEAN_NODE_LOGGER.logMessageWithEmoji(
   '[ Starting Ocean Node ]',
   true,
   GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
@@ -87,7 +78,7 @@ let dbconn = null
 if (config.dbConfig?.url) {
   dbconn = await new Database(config.dbConfig)
   const customLogTransport = newCustomDBTransport(dbconn)
-  logger.addTransport(customLogTransport)
+  OCEAN_NODE_LOGGER.addTransport(customLogTransport)
 } else {
   config.hasIndexer = false
   config.hasProvider = false
@@ -140,7 +131,7 @@ if (config.hasHttp) {
   )
   app.use('/', httpRoutes)
   app.listen(config.httpPort, () => {
-    logger.logMessage(`HTTP port: ${config.httpPort}`, true)
+    OCEAN_NODE_LOGGER.logMessage(`HTTP port: ${config.httpPort}`, true)
   })
 }
 // Singleton might still useful inside the running node process

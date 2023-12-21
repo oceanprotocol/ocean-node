@@ -64,12 +64,12 @@ function getSupportedChains(): RPCS {
   if (!process.env.RPCS || !JSON.parse(process.env.RPCS)) {
     // missing or invalid RPC list
     CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
-      'Missing or Invalid RPCS env variable format ..',
+      'Missing or Invalid RPCS env variable format, Running node without the  Indexer component ..',
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
     )
-    return
+    return null
   }
   const supportedNetworks: RPCS = JSON.parse(process.env.RPCS)
   return supportedNetworks
@@ -251,7 +251,8 @@ export async function getConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
 
   const config: OceanNodeConfig = {
     keys,
-    hasIndexer: !!getEnvValue(process.env.DB_URL, ''),
+    // Only enable indexer if we have a DB_URL and supportedNetworks
+    hasIndexer: !!(!!getEnvValue(process.env.DB_URL, '') && !!supportedNetworks),
     hasHttp: true,
     hasP2P: true,
     p2pConfig: {

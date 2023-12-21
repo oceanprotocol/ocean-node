@@ -24,8 +24,10 @@ import { getEventFromTx } from '../../utils/util.js'
 import { delay, waitToIndex, signMessage } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
+import { createFee } from '../../components/core/feesHandler.js'
+import { DDO } from '../../@types/DDO/DDO.js'
 
-describe('Indexer stores a new published DDO', () => {
+describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
   let indexer: OceanIndexer
   let provider: JsonRpcProvider
@@ -156,7 +158,7 @@ describe('Indexer stores a new published DDO', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(50000)
+  delay(30000)
 
   it('should store the ddo in the database and return it ', async () => {
     resolvedDDO = await waitToIndex(assetDID, database)
@@ -186,7 +188,7 @@ describe('Indexer stores a new published DDO', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(50000)
+  delay(30000)
 
   it('should detect update event and store the udpdated ddo in the database', async () => {
     const updatedDDO = await waitToIndex(assetDID, database)
@@ -219,7 +221,7 @@ describe('Indexer stores a new published DDO', () => {
     assert(trxReceipt, 'set metada state failed')
   })
 
-  delay(100000)
+  delay(30000)
 
   it('should get the active state', async () => {
     const retrievedDDO = await waitToIndex(assetDID, database)
@@ -238,6 +240,13 @@ describe('Indexer stores a new published DDO', () => {
     )
     const paymentCollector = await dataTokenContract.getPaymentCollector()
     assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
+
+    const feeData = await createFee(
+      resolvedDDO as DDO,
+      0,
+      'null',
+      resolvedDDO.services[0]
+    )
 
     // sign provider data
     providerData = JSON.stringify({ timeout })
@@ -265,14 +274,14 @@ describe('Indexer stores a new published DDO', () => {
       consumerAddress,
       serviceIndex,
       {
-        providerFeeAddress,
-        providerFeeToken,
-        providerFeeAmount,
-        v: signedMessage.v,
-        r: signedMessage.r,
-        s: signedMessage.s,
-        providerData: hexlify(toUtf8Bytes(providerData)),
-        validUntil: providerValidUntil
+        providerFeeAddress: feeData.providerFeeAddress,
+        providerFeeToken: feeData.providerFeeToken,
+        providerFeeAmount: feeData.providerFeeAmount,
+        v: feeData.v,
+        r: feeData.r,
+        s: feeData.s,
+        providerData: feeData.providerData,
+        validUntil: feeData.validUntil
       },
       {
         consumeMarketFeeAddress,
@@ -290,7 +299,7 @@ describe('Indexer stores a new published DDO', () => {
     expect(parseInt(orderEvent.args[3].toString())).to.equal(serviceIndex) // serviceIndex
   })
 
-  delay(50000)
+  delay(30000)
 
   it('should get number of orders', async () => {
     const retrievedDDO = await waitToIndex(assetDID, database)
@@ -307,17 +316,24 @@ describe('Indexer stores a new published DDO', () => {
   it('should detect OrderReused event', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
 
+    const feeData = await createFee(
+      resolvedDDO as DDO,
+      0,
+      'null',
+      resolvedDDO.services[0]
+    )
+
     const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
       orderTxId,
       {
-        providerFeeAddress,
-        providerFeeToken,
-        providerFeeAmount,
-        v: signedMessage.v,
-        r: signedMessage.r,
-        s: signedMessage.s,
-        providerData: hexlify(toUtf8Bytes(providerData)),
-        validUntil: providerValidUntil
+        providerFeeAddress: feeData.providerFeeAddress,
+        providerFeeToken: feeData.providerFeeToken,
+        providerFeeAmount: feeData.providerFeeAmount,
+        v: feeData.v,
+        r: feeData.r,
+        s: feeData.s,
+        providerData: feeData.providerData,
+        validUntil: feeData.validUntil
       },
       {
         consumeMarketFeeAddress,
@@ -334,7 +350,7 @@ describe('Indexer stores a new published DDO', () => {
     expect(reusedOrderEvent.args[0]).to.equal(orderTxId)
   })
 
-  delay(50000)
+  delay(30000)
 
   it('should increase number of orders', async () => {
     const retrievedDDO = await waitToIndex(assetDID, database)
@@ -355,14 +371,14 @@ describe('Indexer stores a new published DDO', () => {
     assert(trxReceipt, 'set metada state failed')
   })
 
-  delay(100000)
+  delay(30000)
 
   it('should have a short version of ddo', async () => {
     const result = await nftContract.getMetaData()
     expect(parseInt(result[2].toString())).to.equal(2)
     const resolvedDDO = await waitToIndex(assetDID, database)
     // Expect a short version of the DDO
-    expect(Object.keys(resolvedDDO).length).to.equal(3)
+    expect(Object.keys(resolvedDDO).length).to.equal(4)
     expect(
       'id' in resolvedDDO && 'nftAddress' in resolvedDDO && 'nft' in resolvedDDO
     ).to.equal(true)

@@ -2,14 +2,9 @@ import { parentPort, workerData } from 'worker_threads'
 import { getDeployedContractBlock, getNetworkHeight, processBlocks } from './utils.js'
 import { Blockchain } from '../../utils/blockchain.js'
 import { BlocksEvents, SupportedNetwork } from '../../@types/blockchain.js'
-import {
-  CustomNodeLogger,
-  LOGGER_MODULE_NAMES,
-  LOG_LEVELS_STR,
-  defaultConsoleTransport,
-  getCustomLoggerForModule
-} from '../../utils/logging/Logger.js'
+import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { sleep } from '../../utils/util.js'
+import { INDEXER_LOGGER } from './index.js'
 
 interface ThreadData {
   rpcDetails: SupportedNetwork
@@ -20,12 +15,6 @@ let { rpcDetails, lastIndexedBlock } = workerData as ThreadData
 
 const blockchain = new Blockchain(rpcDetails.rpc, rpcDetails.chainId)
 const provider = blockchain.getProvider()
-
-export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.INDEXER,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
-)
 
 export async function proccesNetworkData(): Promise<void> {
   while (true) {
