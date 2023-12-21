@@ -2,23 +2,15 @@ import express, { Request, Response } from 'express'
 import { P2PCommandResponse } from '../../@types'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 
-import {
-  LOGGER_MODULE_NAMES,
-  CustomNodeLogger,
-  getCustomLoggerForModule,
-  getDefaultLevel
-} from '../../utils/logging/Logger.js'
+import { getDefaultLevel } from '../../utils/logging/Logger.js'
 
 import {
   validateBroadcastParameters,
   validateCommandAPIParameters
 } from './validateCommands.js'
+import { HTTP_LOGGER } from '../httpRoutes/index.js'
 
 export const broadcastCommandRoute = express.Router()
-
-// just use the default logger with default transports
-// Bellow is just an example usage
-const logger: CustomNodeLogger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP)
 
 broadcastCommandRoute.post(
   '/broadcastCommand',
@@ -30,7 +22,7 @@ broadcastCommandRoute.post(
       return
     }
 
-    logger.log(getDefaultLevel(), `broadcastCommand received ${req.body}`, true)
+    HTTP_LOGGER.log(getDefaultLevel(), `broadcastCommand received ${req.body}`, true)
 
     await req.oceanNode.getP2PNode().broadcast(JSON.stringify(req.body))
     res.sendStatus(200)
@@ -92,7 +84,7 @@ directCommandRoute.post(
       res.end()
     }
 
-    logger.logMessage('Sending command : ' + JSON.stringify(req.body), true)
+    HTTP_LOGGER.logMessage('Sending command : ' + JSON.stringify(req.body), true)
 
     // TODO NOTES: We are sending all "/directCommand" requests to the P2P component as "req.oceanNode.getP2PNode()"
     // even if we do not need any P2P functionality at all (as all our handlers are "inside" P2P)

@@ -7,24 +7,13 @@ import { homedir } from 'os'
 import { EVENTS, EVENT_HASHES } from '../../utils/index.js'
 import { BlocksEvents, NetworkEvent, ProcessingEvents } from '../../@types/blockchain.js'
 import {
-  CustomNodeLogger,
-  LOGGER_MODULE_NAMES,
-  LOG_LEVELS_STR,
-  defaultConsoleTransport,
-  getCustomLoggerForModule
-} from '../../utils/logging/Logger.js'
-import {
   processMetadataEvents,
   processOrderStartedEvent,
   processOrderReusedEvent,
   processMetadataStateEvent
 } from './eventProcessor.js'
-
-export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.INDEXER,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
-)
+import { INDEXER_LOGGER } from './index.js'
+import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 
 export const getDeployedContractBlock = async (network: number) => {
   let deployedBlock: number
