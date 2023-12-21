@@ -28,12 +28,12 @@ import { genericDDO } from '../data/ddo.js'
 import { PROTOCOL_COMMANDS, getConfig } from '../../utils/index.js'
 import { validateOrderTransaction } from '../../components/core/validateTransaction.js'
 import { decrypt, encrypt } from '../../utils/crypt.js'
-import { handleDownload } from '../../components/core/downloadHandler.js'
-import { handleStatusCommand } from '../../components/core/statusHandler.js'
+import { DownloadHandler } from '../../components/core/downloadHandler.js'
+import { StatusHandler } from '../../components/core/statusHandler.js'
 
 import { Readable } from 'stream'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import { createFee } from '../../components/core/feesHandler.js'
+import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 
 describe('Should run a complete node flow.', () => {
@@ -111,7 +111,7 @@ describe('Should run a complete node flow.', () => {
       command: PROTOCOL_COMMANDS.STATUS,
       node: oceanNodeConfig.keys.peerId.toString()
     }
-    const response = await handleStatusCommand(statusCommand)
+    const response = await new StatusHandler(oceanNode.getP2PNode()).handle(statusCommand)
     assert(response.status.httpStatus === 200, 'http status not 200')
     const resp = await streamToString(response.stream as Readable)
     const status = JSON.parse(resp)
@@ -313,8 +313,7 @@ describe('Should run a complete node flow.', () => {
       consumerAddress,
       signature
     }
-
-    const response = await handleDownload(downloadTask, p2pNode)
+    const response = await new DownloadHandler(p2pNode).handle(downloadTask)
 
     assert(response)
     assert(response.stream, 'stream not present')
