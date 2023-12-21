@@ -36,7 +36,7 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { createFee } from '../../components/core/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 
-describe('Indexer stores a new published DDO', () => {
+describe('Should run a complete node flow.', () => {
   let config: OceanNodeConfig
   let database: Database
   let oceanNode: OceanNode

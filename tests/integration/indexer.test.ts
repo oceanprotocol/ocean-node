@@ -25,7 +25,7 @@ import { delay, waitToIndex, signMessage } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
 
-describe('Indexer stores a new published DDO', () => {
+describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
   let indexer: OceanIndexer
   let provider: JsonRpcProvider
@@ -156,7 +156,7 @@ describe('Indexer stores a new published DDO', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(50000)
+  delay(30000)
 
   it('should store the ddo in the database and return it ', async () => {
     resolvedDDO = await waitToIndex(assetDID, database)
@@ -186,7 +186,7 @@ describe('Indexer stores a new published DDO', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(50000)
+  delay(30000)
 
   it('should detect update event and store the udpdated ddo in the database', async () => {
     const updatedDDO = await waitToIndex(assetDID, database)
@@ -219,7 +219,7 @@ describe('Indexer stores a new published DDO', () => {
     assert(trxReceipt, 'set metada state failed')
   })
 
-  delay(100000)
+  delay(30000)
 
   it('should get the active state', async () => {
     const retrievedDDO = await waitToIndex(assetDID, database)
@@ -290,7 +290,7 @@ describe('Indexer stores a new published DDO', () => {
     expect(parseInt(orderEvent.args[3].toString())).to.equal(serviceIndex) // serviceIndex
   })
 
-  delay(50000)
+  delay(30000)
 
   it('should get number of orders', async () => {
     const retrievedDDO = await waitToIndex(assetDID, database)
@@ -334,7 +334,7 @@ describe('Indexer stores a new published DDO', () => {
     expect(reusedOrderEvent.args[0]).to.equal(orderTxId)
   })
 
-  delay(50000)
+  delay(30000)
 
   it('should increase number of orders', async () => {
     const retrievedDDO = await waitToIndex(assetDID, database)
@@ -355,7 +355,7 @@ describe('Indexer stores a new published DDO', () => {
     assert(trxReceipt, 'set metada state failed')
   })
 
-  delay(100000)
+  delay(30000)
 
   it('should have a short version of ddo', async () => {
     const result = await nftContract.getMetaData()
