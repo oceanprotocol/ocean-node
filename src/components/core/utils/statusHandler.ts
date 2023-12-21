@@ -6,13 +6,13 @@ import {
   GENERIC_EMOJIS,
   defaultConsoleTransport,
   getCustomLoggerForModule
-} from '../../../../utils/logging/Logger.js'
+} from '../../../utils/logging/Logger.js'
 import {
   OceanNodeStatus,
   OceanNodeProvider,
   OceanNodeIndexer,
   OceanNodeConfig
-} from '../../../../@types/OceanNode.js'
+} from '../../../@types/OceanNode.js'
 
 export const STATUS_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.CORE,

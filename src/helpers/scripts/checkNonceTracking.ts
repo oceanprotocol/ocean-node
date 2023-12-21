@@ -11,7 +11,7 @@ import {
 } from '../../utils/logging/Logger.js'
 
 import { ethers } from 'ethers'
-import { checkNonce } from '../../components/core/handlers/utils/nonceHandler.js'
+import { checkNonce } from '../../components/core/utils/nonceHandler.js'
 import { getConfig } from '../../utils/config.js'
 import { OceanNode } from '../../OceanNode.js'
 import { OceanP2P } from '../../components/P2P/index.js'

@@ -1,6 +1,6 @@
-import { Database, NonceDatabase } from '../../database/index.js'
-import { OceanNodeConfig, P2PCommandResponse } from '../../../@types/OceanNode.js'
-import { OceanP2P, P2P_CONSOLE_LOGGER } from '../../P2P/index.js'
+import { Database, NonceDatabase } from '../database/index.js'
+import { OceanNodeConfig, P2PCommandResponse } from '../../@types/OceanNode.js'
+import { OceanP2P, P2P_CONSOLE_LOGGER } from '../P2P/index.js'
 import {
   NonceCommand,
   GetFeesCommand,
@@ -10,7 +10,7 @@ import {
   GetDdoCommand,
   FindDDOCommand,
   PROTOCOL_COMMANDS
-} from '../../../utils/constants.js'
+} from '../../utils/constants.js'
 import {
   DB_CONSOLE_LOGGER,
   getDefaultResponse,
@@ -19,8 +19,8 @@ import {
 import { logger, calculateFee } from './utils/feesHandler.js'
 import { status } from './utils/statusHandler.js'
 import * as base58 from 'base58-js'
-import { encrypt } from '../../../utils/crypt.js'
-import { FindDDOResponse } from '../../../@types/index.js'
+import { encrypt } from '../../utils/crypt.js'
+import { FindDDOResponse } from '../../@types/index.js'
 import { Readable } from 'stream'
 import {
   hasCachedDDO,
@@ -29,9 +29,9 @@ import {
   formatService
 } from './utils/findDdoHandler.js'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
-import { sleep, readStream } from '../../../utils/util.js'
-import { DDO } from '../../../@types/DDO/DDO.js'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { sleep, readStream } from '../../utils/util.js'
+import { DDO } from '../../@types/DDO/DDO.js'
 
 export abstract class Handler {
   private config: OceanNodeConfig

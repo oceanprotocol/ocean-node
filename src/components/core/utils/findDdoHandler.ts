@@ -1,10 +1,8 @@
-import { OceanP2P, CACHE_TTL, P2P_CONSOLE_LOGGER } from '../../../P2P/index.js'
-import { FindDDOCommand, PROTOCOL_COMMANDS } from '../../../../utils/constants.js'
-import { LOG_LEVELS_STR } from '../../../../utils/logging/Logger.js'
-import { FindDDOResponse, P2PCommandResponse } from '../../../../@types/index.js'
-import { readStream } from '../../../../utils/util.js'
-import { DDO } from '../../../../@types/DDO/DDO.js'
-import { Service } from '../../../../@types/DDO/Service.js'
+import { OceanP2P, CACHE_TTL, P2P_CONSOLE_LOGGER } from '../../P2P/index.js'
+import { FindDDOCommand } from '../../../utils/constants.js'
+import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
+import { FindDDOResponse } from '../../../@types/index.js'
+import { Service } from '../../../@types/DDO/Service.js'
 
 /**
  * Check if the specified ddo is cached and if the cached version is recent enough

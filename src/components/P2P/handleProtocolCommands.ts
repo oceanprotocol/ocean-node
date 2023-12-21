@@ -4,7 +4,7 @@ import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import StreamConcat from 'stream-concat'
 // export function handleProtocolCommands (sourceStream:any,sinkStream:any) {
 
-import { DownloadHandler } from '../core/handlers/downloadHandler.js'
+import { DownloadHandler } from '../core/downloadHandler.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
 import { P2P_CONSOLE_LOGGER } from './index.js'
@@ -17,7 +17,7 @@ import {
   QueryHandler,
   GetDdoHandler,
   FindDdoHandler
-} from '../core/handlers/handler.js'
+} from '../core/handler.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { getConfig } from '../../utils/index.js'
 import { Database } from '../database/index.js'

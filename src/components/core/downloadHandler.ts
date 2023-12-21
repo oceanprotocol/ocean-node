@@ -3,21 +3,21 @@ import {
   DownloadTask,
   PROTOCOL_COMMANDS,
   DownloadURLCommand
-} from '../../../utils/constants.js'
+} from '../../utils/constants.js'
 import { Handler, FindDdoHandler } from './handler.js'
 import { checkNonce, NonceResponse } from './utils/nonceHandler.js'
-import { OceanNodeConfig, P2PCommandResponse } from '../../../@types/OceanNode.js'
-import { P2P_CONSOLE_LOGGER } from '../../P2P/index.js'
-import { validateOrderTransaction } from '../validateTransaction.js'
-import { AssetUtils } from '../../../utils/asset.js'
-import { Service } from '../../../@types/DDO/Service.js'
+import { OceanNodeConfig, P2PCommandResponse } from '../../@types/OceanNode.js'
+import { P2P_CONSOLE_LOGGER } from '../P2P/index.js'
+import { validateOrderTransaction } from './validateTransaction.js'
+import { AssetUtils } from '../../utils/asset.js'
+import { Service } from '../../@types/DDO/Service.js'
 import { checkFee } from './utils/feesHandler.js'
-import { decrypt } from '../../../utils/crypt.js'
-import { Database } from '../../database/index.js'
+import { decrypt } from '../../utils/crypt.js'
+import { Database } from '../database/index.js'
 import crypto from 'crypto'
 import * as ethCrypto from 'eth-crypto'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
-import { Storage } from '../../storage/index.js'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { Storage } from '../storage/index.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export class DownloadHandler extends Handler {

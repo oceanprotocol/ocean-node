@@ -1,18 +1,18 @@
 import { ethers } from 'ethers'
-import { FeeTokens, ProviderFeeData } from '../../../../@types/Fees'
-import { DDO } from '../../../../@types/DDO/DDO'
-import { Service } from '../../../../@types/DDO/Service'
-import { AssetUtils } from '../../../../utils/asset.js'
-import { verifyMessage } from '../../../../utils/blockchain.js'
-import { OceanNodeConfig } from '../../../../@types'
-import { getConfig } from '../../../../utils/config.js'
+import { FeeTokens, ProviderFeeData } from '../../../@types/Fees'
+import { DDO } from '../../../@types/DDO/DDO'
+import { Service } from '../../../@types/DDO/Service'
+import { AssetUtils } from '../../../utils/asset.js'
+import { verifyMessage } from '../../../utils/blockchain.js'
+import { OceanNodeConfig } from '../../../@types'
+import { getConfig } from '../../../utils/config.js'
 import {
   CustomNodeLogger,
   LOGGER_MODULE_NAMES,
   LOG_LEVELS_STR,
   defaultConsoleTransport,
   getCustomLoggerForModule
-} from '../../../../utils/logging/Logger.js'
+} from '../../../utils/logging/Logger.js'
 
 let config: OceanNodeConfig
 // Lazy load configuration

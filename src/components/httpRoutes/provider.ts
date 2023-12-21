@@ -1,8 +1,8 @@
 import express from 'express'
-import { getNonce } from '../core/handlers/utils/nonceHandler.js'
+import { getNonce } from '../core/utils/nonceHandler.js'
 import { streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
-import { calculateFee } from '../core/handlers/utils/feesHandler.js'
+import { calculateFee } from '../core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO'
 import {
   CustomNodeLogger,
@@ -12,7 +12,7 @@ import {
   LOGGER_MODULE_NAMES
 } from '../../utils/logging/Logger.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { EncryptHandler } from '../core/handlers/handler.js'
+import { EncryptHandler } from '../core/handler.js'
 
 export const providerRoutes = express.Router()
 const logger: CustomNodeLogger = getCustomLoggerForModule(
