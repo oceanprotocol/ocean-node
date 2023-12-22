@@ -50,9 +50,9 @@ export async function handleDownload(
     return {
       stream: null,
       status: {
-        httpStatus: 500
-      },
-      error: 'No DDO found for asset'
+        httpStatus: 500,
+        error: 'No DDO found for asset'
+      }
     }
   }
 
@@ -62,9 +62,9 @@ export async function handleDownload(
     return {
       stream: null,
       status: {
-        httpStatus: 500
-      },
-      error: 'Error: DDO malformed or disabled'
+        httpStatus: 500,
+        error: 'Error: DDO malformed or disabled'
+      }
     }
   }
 
@@ -76,9 +76,9 @@ export async function handleDownload(
       return {
         stream: null,
         status: {
-          httpStatus: 500
-        },
-        error: `Error: Access to asset ${ddo.id} was denied`
+          httpStatus: 500,
+          error: `Error: Access to asset ${ddo.id} was denied`
+        }
       }
     }
   }
@@ -101,9 +101,9 @@ export async function handleDownload(
     return {
       stream: null,
       status: {
-        httpStatus: 500
-      },
-      error: nonceCheckResult.error
+        httpStatus: 500,
+        error: nonceCheckResult.error
+      }
     }
   }
 
@@ -116,9 +116,9 @@ export async function handleDownload(
       return {
         stream: null,
         status: {
-          httpStatus: 500
-        },
-        error: 'ERROR checking fees'
+          httpStatus: 500,
+          error: 'ERROR checking fees'
+        }
       }
     }
     if (feeValidation) {
@@ -128,9 +128,9 @@ export async function handleDownload(
       return {
         stream: null,
         status: {
-          httpStatus: 500
-        },
-        error: 'Invalid provider fee transaction'
+          httpStatus: 500,
+          error: 'Invalid provider fee transaction'
+        }
       }
     }
   }
@@ -147,9 +147,9 @@ export async function handleDownload(
     return {
       stream: null,
       status: {
-        httpStatus: 500
-      },
-      error: `Cannot proceed with download. RPC not configured for this chain ${ddo.chainId}`
+        httpStatus: 500,
+        error: `Cannot proceed with download. RPC not configured for this chain ${ddo.chainId}`
+      }
     }
   }
 
@@ -160,9 +160,9 @@ export async function handleDownload(
     return {
       stream: null,
       status: {
-        httpStatus: 500
-      },
-      error: 'JsonRpcProvider ERROR'
+        httpStatus: 500,
+        error: 'JsonRpcProvider ERROR'
+      }
     }
   }
 
@@ -192,9 +192,9 @@ export async function handleDownload(
     return {
       stream: null,
       status: {
-        httpStatus: 500
-      },
-      error: paymentValidation.message
+        httpStatus: 500,
+        error: paymentValidation.message
+      }
     }
   }
 
@@ -218,9 +218,9 @@ export async function handleDownload(
     return {
       stream: null,
       status: {
-        httpStatus: 500
-      },
-      error: 'Failed to decrypt'
+        httpStatus: 500,
+        error: 'Failed to decrypt'
+      }
     }
   }
 }
