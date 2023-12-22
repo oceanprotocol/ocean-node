@@ -1,11 +1,11 @@
 import express from 'express'
 import { streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
-import { handleGetDdoCommand } from '../core/ddoHandler.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { handleQueryCommand } from '../core/queryHandler.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { HTTP_LOGGER } from './index.js'
+import { GetDdoHandler } from '../core/ddoHandler.js'
+import { QueryHandler } from '../core/queryHandler.js'
 
 export const aquariusRoutes = express.Router()
 
@@ -17,7 +17,7 @@ aquariusRoutes.get('/assets/ddo/:did', async (req, res) => {
       return
     }
     const node = req.oceanNode.getP2PNode()
-    const result = await handleGetDdoCommand(node, {
+    const result = await new GetDdoHandler(node).handle({
       id: did,
       command: PROTOCOL_COMMANDS.GET_DDO
     })
@@ -41,7 +41,7 @@ aquariusRoutes.get('/assets/metadata/:did', async (req, res) => {
       return
     }
     const node = req.oceanNode.getP2PNode()
-    const result = await handleGetDdoCommand(node, {
+    const result = await new GetDdoHandler(node).handle({
       id: did,
       command: PROTOCOL_COMMANDS.GET_DDO
     })
@@ -65,7 +65,7 @@ aquariusRoutes.post('/assets/metadata/query', async (req, res) => {
       return
     }
     const node = req.oceanNode.getP2PNode()
-    const result = await handleQueryCommand(node, {
+    const result = await new QueryHandler(node).handle({
       query,
       command: PROTOCOL_COMMANDS.QUERY
     })
@@ -112,7 +112,7 @@ aquariusRoutes.get('/state/ddo', async (req, res) => {
       return
     }
     const node = req.oceanNode.getP2PNode()
-    const result = await handleQueryCommand(node, {
+    const result = await new QueryHandler(node).handle({
       query,
       command: PROTOCOL_COMMANDS.QUERY
     })

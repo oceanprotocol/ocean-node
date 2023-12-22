@@ -1,12 +1,12 @@
 import express from 'express'
-import { getNonce } from '../core/nonceHandler.js'
+import { getNonce } from '../core/utils/nonceHandler.js'
 import { streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
-import { calculateFee } from '../core/feesHandler.js'
+import { calculateFee } from '../core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { handleEncryptCommand } from '../core/encryptHandler.js'
+import { EncryptHandler } from '../core/encryptHandler.js'
 import { HTTP_LOGGER } from './index.js'
 
 export const providerRoutes = express.Router()
@@ -18,7 +18,7 @@ providerRoutes.post('/encrypt', async (req, res) => {
       res.status(400).send('Missing required body')
       return
     }
-    const result = await handleEncryptCommand({
+    const result = await new EncryptHandler(req.oceanNode.getP2PNode()).handle({
       blob: data,
       encoding: 'string',
       encryptionType: 'ECIES',
