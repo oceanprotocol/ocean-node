@@ -22,6 +22,7 @@
     "test:unit:storage": "npm run mocha -- './dist/test/unit/storage.test.js'",
     "test:integration": "npm run build-tests && npm run mocha -- './dist/test/integration/**/*.test.js'",
     "test:integration:complete": "npm run build-tests && npm run mocha -- './dist/test/integration/completeFlow.test.js'",
+    "test:integration:validation": "npm run build-tests && npm run mocha -- './dist/test/integration/transactionValidation.test.js'",
     "test:unit:cover": "nyc --report-dir coverage/unit npm run test:unit",
     "test:integration:cover": "nyc --report-dir coverage/integration --no-clean npm run test:integration",
     "logs": "./scripts/logs.sh"
