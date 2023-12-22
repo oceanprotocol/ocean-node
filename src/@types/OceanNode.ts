@@ -15,7 +15,7 @@ export interface OceanNodeKeys {
 }
 
 export interface OceanNodeP2PConfig {
-  bootstrapNodes: string[] | []
+  bootstrapNodes: string[]
   ipV4BindAddress: string | null
   ipV4BindTcpPort: number | null
   ipV4BindWsPort: number | null
