@@ -249,7 +249,6 @@ describe('validateOrderTransaction Function with Orders', () => {
       'null',
       resolvedDDO.services[0]
     )
-    console.log('feeData: ', feeData)
 
     // sign provider data
     providerData = JSON.stringify({ timeout })
