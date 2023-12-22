@@ -12,7 +12,6 @@ describe('OceanP2P Test', () => {
     process.env.PRIVATE_KEY = process.env.NODE1_PRIVATE_KEY
     config1 = await getConfig()
     config1.p2pConfig.ipV4BindTcpPort = 0
-    config1.p2pConfig.bootstrapNodes = []
     node1 = new OceanP2P(null, config1)
     await node1.start()
     assert(node1, 'Failed to create P2P Node instance')
@@ -21,7 +20,6 @@ describe('OceanP2P Test', () => {
     process.env.PRIVATE_KEY = process.env.NODE2_PRIVATE_KEY
     config2 = await getConfig()
     config2.p2pConfig.ipV4BindTcpPort = 0
-    config2.p2pConfig.bootstrapNodes = []
     node2 = new OceanP2P(null, config2)
     await node2.start()
     assert(node2, 'Failed to create P2P Node instance')
