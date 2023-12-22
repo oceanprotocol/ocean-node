@@ -340,7 +340,7 @@ export class OceanP2P extends EventEmitter {
   ): Promise<P2PCommandResponse> {
     P2P_CONSOLE_LOGGER.logMessage('SendTo() node ' + peerName + ' task: ' + message, true)
 
-    const status: P2PCommandResponse = {
+    const response: P2PCommandResponse = {
       status: { httpStatus: 200, error: '' },
       stream: null
     }
@@ -355,9 +355,9 @@ export class OceanP2P extends EventEmitter {
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
-      status.status.httpStatus = 404
-      status.status.error = 'Invalid peer'
-      return status
+      response.status.httpStatus = 404
+      response.status.error = 'Invalid peer'
+      return response
     }
 
     let stream
@@ -367,12 +367,12 @@ export class OceanP2P extends EventEmitter {
 
       stream = await this._libp2p.dialProtocol(peerId, this._protocol)
     } catch (e) {
-      status.status.httpStatus = 404
-      status.status.error = 'Cannot connect to peer'
-      return status
+      response.status.httpStatus = 404
+      response.status.error = 'Cannot connect to peer'
+      return response
     }
 
-    status.stream = stream
+    response.stream = stream
     pipe(
       // Source data
       [uint8ArrayFromString(message)],
@@ -383,23 +383,23 @@ export class OceanP2P extends EventEmitter {
       // Sink function
       sink
     )
-    return status
+    return response
   }
 
   // when the target is this node
   async sendToSelf(message: string, sink: any): Promise<P2PCommandResponse> {
-    const status: P2PCommandResponse = {
+    const response: P2PCommandResponse = {
       status: { httpStatus: 200, error: '' },
       stream: null
     }
     // direct message to self
     // create a writable stream
     // const outputStream = new Stream.Writable()
-    status.stream = new Stream.Writable()
+    response.stream = new Stream.Writable()
     // read from input stream to output one and move on
     await handleDirectProtocolCommand.call(this, message, sink)
 
-    return status
+    return response
   }
 
   async _pollPeers() {

@@ -93,24 +93,26 @@ directCommandRoute.post(
     // probably the handlers should be on the OceanNode level, and if they need P2P connectivity we pass them the getP2PNode()
     // (we kinda do it already on most handlers anyway)
 
-    let status: P2PCommandResponse = null
+    let response: P2PCommandResponse = null
     // send to this peer (we might not need P2P connectivity)
     if (!req.body.node || req.oceanNode.getP2PNode().isTargetPeerSelf(req.body.node)) {
       // send to this node
-      status = await req.oceanNode.getP2PNode().sendToSelf(JSON.stringify(req.body), sink)
+      response = await req.oceanNode
+        .getP2PNode()
+        .sendToSelf(JSON.stringify(req.body), sink)
       // TODO: we can just call the handler directly here, once we have them
       // moving some of the logic from "handleProtocolCommands()" and "handleDirectProtocolCommands()" to the OceanNode
       // status = req.oceanNode.getHandler(req.body.command).handle()
     } else {
       // send to another peer
-      status = await req.oceanNode
+      response = await req.oceanNode
         .getP2PNode()
         .sendTo(req.body.node as string, JSON.stringify(req.body), sink)
     }
 
-    if (status.stream == null) {
-      res.status(status.status.httpStatus)
-      res.write(status.status.error)
+    if (response.stream == null) {
+      res.status(response.status.httpStatus)
+      res.write(response.status.error)
       res.end()
     }
   }

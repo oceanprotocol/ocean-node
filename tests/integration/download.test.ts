@@ -314,7 +314,7 @@ describe('Download Tests', () => {
     assert(response.stream === null, 'stream not null')
     assert(response.status.httpStatus === 500, 'http status not 500')
     assert(
-      response.error === `Error: Access to asset ${assetDID} was denied`,
+      response.status.error === `Error: Access to asset ${assetDID} was denied`,
       'error contains access denied'
     )
   })

@@ -168,6 +168,7 @@ export class DownloadHandler extends Handler {
         `Task has nor DownloadCommand type, nor DownloadUrlCommand type. It has ${typeof task}`
       )
     }
+    const node = this.getP2PNode()
     P2P_CONSOLE_LOGGER.logMessage(
       'Download Request recieved with arguments: ' +
         task.fileIndex +
@@ -180,7 +181,6 @@ export class DownloadHandler extends Handler {
       true
     )
     // 1. Get the DDO
-    const node = this.getP2PNode()
     const ddo = await new FindDdoHandler(node).findAndFormatDdo(task.documentId)
 
     if (ddo) {
@@ -193,9 +193,9 @@ export class DownloadHandler extends Handler {
       return {
         stream: null,
         status: {
-          httpStatus: 500
-        },
-        error: 'No DDO found for asset'
+          httpStatus: 500,
+          error: 'No DDO found for asset'
+        }
       }
     }
 
@@ -205,9 +205,9 @@ export class DownloadHandler extends Handler {
       return {
         stream: null,
         status: {
-          httpStatus: 500
-        },
-        error: 'Error: DDO malformed or disabled'
+          httpStatus: 500,
+          error: 'Error: DDO malformed or disabled'
+        }
       }
     }
 
@@ -219,9 +219,9 @@ export class DownloadHandler extends Handler {
         return {
           stream: null,
           status: {
-            httpStatus: 500
-          },
-          error: `Error: Access to asset ${ddo.id} was denied`
+            httpStatus: 500,
+            error: `Error: Access to asset ${ddo.id} was denied`
+          }
         }
       }
     }
@@ -244,9 +244,9 @@ export class DownloadHandler extends Handler {
       return {
         stream: null,
         status: {
-          httpStatus: 500
-        },
-        error: nonceCheckResult.error
+          httpStatus: 500,
+          error: nonceCheckResult.error
+        }
       }
     }
 
@@ -259,9 +259,9 @@ export class DownloadHandler extends Handler {
         return {
           stream: null,
           status: {
-            httpStatus: 500
-          },
-          error: 'ERROR checking fees'
+            httpStatus: 500,
+            error: 'ERROR checking fees'
+          }
         }
       }
       if (feeValidation) {
@@ -271,9 +271,9 @@ export class DownloadHandler extends Handler {
         return {
           stream: null,
           status: {
-            httpStatus: 500
-          },
-          error: 'Invalid provider fee transaction'
+            httpStatus: 500,
+            error: 'Invalid provider fee transaction'
+          }
         }
       }
     }
@@ -290,9 +290,9 @@ export class DownloadHandler extends Handler {
       return {
         stream: null,
         status: {
-          httpStatus: 500
-        },
-        error: `Cannot proceed with download. RPC not configured for this chain ${ddo.chainId}`
+          httpStatus: 500,
+          error: `Cannot proceed with download. RPC not configured for this chain ${ddo.chainId}`
+        }
       }
     }
 
@@ -303,9 +303,9 @@ export class DownloadHandler extends Handler {
       return {
         stream: null,
         status: {
-          httpStatus: 500
-        },
-        error: 'JsonRpcProvider ERROR'
+          httpStatus: 500,
+          error: 'JsonRpcProvider ERROR'
+        }
       }
     }
 
@@ -335,9 +335,9 @@ export class DownloadHandler extends Handler {
       return {
         stream: null,
         status: {
-          httpStatus: 500
-        },
-        error: paymentValidation.message
+          httpStatus: 500,
+          error: paymentValidation.message
+        }
       }
     }
 
@@ -360,9 +360,9 @@ export class DownloadHandler extends Handler {
       return {
         stream: null,
         status: {
-          httpStatus: 500
-        },
-        error: 'Failed to decrypt'
+          httpStatus: 500,
+          error: 'Failed to decrypt'
+        }
       }
     }
   }

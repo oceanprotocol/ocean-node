@@ -42,10 +42,14 @@ export interface OceanNodeConfig {
   supportedNetworks?: RPCS
 }
 
-export interface P2PCommandResponse {
-  status: any
-  stream: Stream | null
+export interface P2PStatusResponse {
+  httpStatus: number
   error?: string
+  headers?: any
+}
+export interface P2PCommandResponse {
+  status: P2PStatusResponse
+  stream: Stream | null
 }
 
 export interface OceanNodeProvider {

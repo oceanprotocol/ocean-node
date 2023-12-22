@@ -208,12 +208,12 @@ export class FindDdoHandler extends Handler {
                 // problem here is that even if we get the P2PCommandResponse right after await(), we still don't know
                 // exactly when the chunks are written/processed/received on the sink function
                 // so, better to wait/sleep some small amount of time before proceeding to the next one
-                const status: P2PCommandResponse = await node.sendTo(
+                const response: P2PCommandResponse = await node.sendTo(
                   peer,
                   JSON.stringify(getCommand),
                   sink
                 )
-                if (status.status.httpStatus !== 200) {
+                if (response.status.httpStatus !== 200) {
                   providerIds.pop() // move to the next one
                   processed++
                 }
