@@ -58,7 +58,8 @@ export async function status(
       platform: os.platform(),
       release: os.release(),
       osType: os.type(),
-      osVersion: os.version()
+      osVersion: os.version(),
+      node: process.version
     }
   }
   if (nodeId && nodeId !== undefined) {
