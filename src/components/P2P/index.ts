@@ -127,7 +127,6 @@ export class OceanP2P extends EventEmitter {
   }
 
   async createNode(config: OceanNodeConfig): Promise<Libp2p | null> {
-    const bootstrapers = config.p2pConfig.bootstrapNodes
     try {
       this._publicAddress = config.keys.peerId.toString()
       this._publicKey = config.keys.publicKey
@@ -153,7 +152,7 @@ export class OceanP2P extends EventEmitter {
         ],
         peerDiscovery: [
           bootstrap({
-            list: bootstrapers
+            list: config.p2pConfig.bootstrapNodes
           }),
           pubsubPeerDiscovery({
             interval: config.p2pConfig.pubsubPeerDiscoveryInterval,
