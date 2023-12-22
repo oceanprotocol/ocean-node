@@ -71,6 +71,13 @@ export class FeesHandler extends CommandHandler {
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error: error.message
+        }
+      }
     }
   }
 }
