@@ -5,7 +5,6 @@ import { P2PCommandResponse } from '../@types/OceanNode'
 // Add all the supported commands
 export const PROTOCOL_COMMANDS = {
   DOWNLOAD: 'download',
-  DOWNLOAD_URL: 'downloadURL',
   ECHO: 'echo',
   ENCRYPT: 'encrypt',
   GET_DDO: 'getDDO',
@@ -18,7 +17,6 @@ export const PROTOCOL_COMMANDS = {
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.DOWNLOAD,
-  PROTOCOL_COMMANDS.DOWNLOAD_URL,
   PROTOCOL_COMMANDS.ECHO,
   PROTOCOL_COMMANDS.ENCRYPT,
   PROTOCOL_COMMANDS.NONCE,
@@ -29,14 +27,26 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.GET_FEES
 ]
 
+export const HANDLERS_COMMANDS = [
+  PROTOCOL_COMMANDS.DOWNLOAD,
+  PROTOCOL_COMMANDS.ENCRYPT,
+  PROTOCOL_COMMANDS.GET_DDO,
+  PROTOCOL_COMMANDS.QUERY,
+  PROTOCOL_COMMANDS.NONCE,
+  PROTOCOL_COMMANDS.STATUS,
+  PROTOCOL_COMMANDS.FIND_DDO,
+  PROTOCOL_COMMANDS.GET_FEES
+]
+
 export interface Command {
   command: string
   node?: string // if not present it means current node
 }
 
-export interface DownloadURLCommand extends Command {
+export interface DownloadURLCommand {
   fileObject: any
   aes_encrypted_key?: string // if not present it means download without encryption
+  node?: string // if not present it means current node
 }
 
 export interface DownloadTask {
@@ -160,11 +170,15 @@ export const ENVIRONMENT_VARIABLES = {
   RPCS: { name: 'RPCS', value: process.env.RPCS, required: false },
   DB_URL: { name: 'DB_URL', value: process.env.DB_URL, required: false },
   // these 2 bellow will change in the future (not required, just remove functionality)
-  IPFS_GATEWAY: { name: 'IPFS_GATEWAY', value: process.env.IPFS_GATEWAY, required: true },
+  IPFS_GATEWAY: {
+    name: 'IPFS_GATEWAY',
+    value: process.env.IPFS_GATEWAY,
+    required: false
+  },
   ARWEAVE_GATEWAY: {
     name: 'ARWEAVE_GATEWAY',
     value: process.env.ARWEAVE_GATEWAY,
-    required: true
+    required: false
   },
   LOAD_INITIAL_DDOS: {
     name: 'LOAD_INITIAL_DDOS',

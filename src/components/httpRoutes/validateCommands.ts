@@ -27,21 +27,7 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
   }
   // direct commands
   if (SUPPORTED_PROTOCOL_COMMANDS.includes(command)) {
-    // downloadURL
-    if (command === PROTOCOL_COMMANDS.DOWNLOAD_URL) {
-      // only mandatory is the url
-      if (!requestBody.url) {
-        return {
-          valid: false,
-          reason: 'Missing required parameter: "url"',
-          status: 400
-        }
-      }
-      // note: PROTOCOL_COMMANDS.ECHO is always fine
-    } else if (
-      command === PROTOCOL_COMMANDS.FIND_DDO ||
-      command === PROTOCOL_COMMANDS.GET_DDO
-    ) {
+    if (command === PROTOCOL_COMMANDS.FIND_DDO || command === PROTOCOL_COMMANDS.GET_DDO) {
       // message is DDO identifier
       if (!requestBody.id || !requestBody.id.startsWith('did:op')) {
         return {
@@ -101,7 +87,9 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
     } else if (command === PROTOCOL_COMMANDS.GET_FEES) {
       if (!requestBody.ddo || !requestBody.serviceId) {
         return {
-          valid: true
+          valid: false,
+          status: 400,
+          reason: 'Missing required parameter(s): "ddo","serviceId"'
         }
       }
     }

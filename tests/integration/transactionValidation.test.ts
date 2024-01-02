@@ -23,8 +23,7 @@ import { delay, signMessage, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import { Database } from '../../components/database/index.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
-import { AssetUtils } from '../../utils/asset.js'
-import { createFee } from '../../components/core/feesHandler.js'
+import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 
 describe('validateOrderTransaction Function with Orders', () => {
@@ -251,6 +250,20 @@ describe('validateOrderTransaction Function with Orders', () => {
       resolvedDDO.services[0]
     )
 
+    // sign provider data
+    providerData = JSON.stringify({ timeout })
+    message = solidityPackedKeccak256(
+      ['bytes', 'address', 'address', 'uint256', 'uint256'],
+      [
+        hexlify(toUtf8Bytes(providerData)),
+        feeData.providerFeeAddress,
+        feeData.providerFeeToken,
+        feeData.providerFeeAmount,
+        feeData.validUntil
+      ]
+    )
+    signedMessage = await signMessage(message, publisherAddress, provider)
+
     const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
       orderTxId,
       {
@@ -302,6 +315,20 @@ describe('validateOrderTransaction Function with Orders', () => {
       'null',
       resolvedDDO.services[0]
     )
+
+    // sign provider data
+    providerData = JSON.stringify({ timeout })
+    message = solidityPackedKeccak256(
+      ['bytes', 'address', 'address', 'uint256', 'uint256'],
+      [
+        hexlify(toUtf8Bytes(providerData)),
+        feeData.providerFeeAddress,
+        feeData.providerFeeToken,
+        feeData.providerFeeAmount,
+        feeData.validUntil
+      ]
+    )
+    signedMessage = await signMessage(message, publisherAddress, provider)
 
     const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
       orderTxId,

@@ -24,7 +24,7 @@ import { getEventFromTx } from '../../utils/util.js'
 import { delay, waitToIndex, signMessage } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
-import { createFee } from '../../components/core/feesHandler.js'
+import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 
 describe('Indexer stores a new metadata events and orders.', () => {

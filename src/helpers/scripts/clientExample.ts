@@ -224,7 +224,6 @@ async function testDownloadCommand(
   fileSecrets?: FileSecrets
 ): Promise<string> {
   const payload: DownloadURLCommand = {
-    command: 'downloadURL',
     // node: '16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL', // IF not present use own node
     // own node A is: "16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo",
     // other node B is: 16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL

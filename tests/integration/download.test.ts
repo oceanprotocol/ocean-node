@@ -9,8 +9,6 @@ import {
   getAddress,
   hexlify,
   ZeroAddress,
-  toUtf8Bytes,
-  solidityPackedKeccak256,
   parseUnits
 } from 'ethers'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
@@ -20,7 +18,7 @@ import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { genericDDO } from '../data/ddo.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
-import { handleDownload } from '../../components/core/downloadHandler.js'
+import { DownloadHandler } from '../../components/core/downloadHandler.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getEventFromTx, sleep } from '../../utils/util.js'
 import { waitToIndex, delay } from './testUtils.js'
@@ -28,7 +26,7 @@ import { getConfig } from '../../utils/config.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { ProviderFeeData } from '../../@types/Fees'
 import { encrypt } from '../../utils/crypt.js'
-import { createFee } from '../../components/core/feesHandler.js'
+import { createFee } from '../../components/core/utils/feesHandler.js'
 
 describe('Download Tests', () => {
   let database: Database
@@ -289,7 +287,7 @@ describe('Download Tests', () => {
       consumerAddress,
       signature
     }
-    const response = await handleDownload(downloadTask, p2pNode)
+    const response = await new DownloadHandler(p2pNode).handle(downloadTask)
 
     assert(response)
     assert(response.stream, 'stream not present')
@@ -311,12 +309,12 @@ describe('Download Tests', () => {
     const dbconn = await new Database(config.dbConfig)
     const p2pNode = new OceanP2P(config, dbconn)
     assert(p2pNode, 'Failed to instantiate OceanP2P')
-    const response = await handleDownload(downloadTask, p2pNode)
+    const response = await new DownloadHandler(p2pNode).handle(downloadTask)
     console.log(response)
     assert(response.stream === null, 'stream not null')
     assert(response.status.httpStatus === 500, 'http status not 500')
     assert(
-      response.error === `Error: Access to asset ${assetDID} was denied`,
+      response.status.error === `Error: Access to asset ${assetDID} was denied`,
       'error contains access denied'
     )
   })

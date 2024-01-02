@@ -42,10 +42,14 @@ export interface OceanNodeConfig {
   supportedNetworks?: RPCS
 }
 
-export interface P2PCommandResponse {
-  status: any
-  stream: Stream | null
+export interface P2PStatusResponse {
+  httpStatus: number
   error?: string
+  headers?: any
+}
+export interface P2PCommandResponse {
+  status: P2PStatusResponse
+  stream: Stream | null
 }
 
 export interface OceanNodeProvider {
@@ -59,6 +63,12 @@ export interface OceanNodeIndexer {
   block?: string // mark it as optional until the functionality is done
 }
 
+export interface StorageTypes {
+  ipfs: boolean
+  arwave: boolean
+  url: boolean
+}
+
 export interface OceanNodeStatus {
   id: string
   publicKey: string
@@ -68,6 +78,7 @@ export interface OceanNodeStatus {
   p2p: boolean
   provider: OceanNodeProvider[]
   indexer: OceanNodeIndexer[]
+  supportedStorage: StorageTypes
   platform: any
   uptime?: number // seconds since start
 }
