@@ -225,13 +225,6 @@ export async function getConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     return null
   }
 
-  if (
-    !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.FEE_TOKENS, isStartup) ||
-    !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.FEE_AMOUNT, isStartup)
-  ) {
-    return null
-  }
-
   const supportedNetworks = getSupportedChains()
   // Notes: we need to have this config on the class and use always that, otherwise we're processing
   // all this info every time we call getConfig(), and also loggin too much
