@@ -36,7 +36,7 @@ describe('OceanP2P Test', () => {
 })
 
 describe('OceanP2P Test without DB_URL set', () => {
-  let envBefore: OverrideEnvConfig[]
+  let envBefore: OverrideEnvConfig[] | undefined
   let config: OceanNodeConfig
 
   before(async () => {
@@ -53,5 +53,9 @@ describe('OceanP2P Test without DB_URL set', () => {
     assert(p2pConfig.dbConfig.url === '', 'P2P Node config should not have DB URL set')
     assert(p2pConfig.hasIndexer === false, 'P2P Node should not have indexer enabled')
     assert(p2pConfig.hasProvider === false, 'P2P Node should not have provider enabled')
+  })
+
+  after(async () => {
+    tearDownEnvironment(envBefore)
   })
 })
