@@ -87,7 +87,9 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
     } else if (command === PROTOCOL_COMMANDS.GET_FEES) {
       if (!requestBody.ddo || !requestBody.serviceId) {
         return {
-          valid: true
+          valid: false,
+          status: 400,
+          reason: 'Missing required parameter(s): "ddo","serviceId"'
         }
       }
     }
