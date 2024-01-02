@@ -27,8 +27,6 @@ describe('OceanP2P Test', () => {
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
-    console.log('config', config)
-    console.log('config.dbConfig', dbConfig)
     const db = await new Database(dbConfig)
     const p2pNode = new OceanP2P(config, db)
     assert(p2pNode, 'Failed to create P2P Node instance')
