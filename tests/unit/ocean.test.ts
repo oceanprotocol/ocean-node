@@ -1,4 +1,3 @@
-import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { OceanNode } from '../../OceanNode.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanP2P } from '../../components/P2P/index.js'
@@ -18,10 +17,13 @@ const ORIGINAL_ARWEAVE_GATEWAY = process.env.ARWEAVE_GATEWAY
 const ORIGINAL_RPCS = process.env.RPCS
 // '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com", "80001": "https://rpc-mumbai.maticvigil.com" }'
 
-describe('Status command tests', () => {
-  let oceanNode: OceanNode
-  let config: OceanNodeConfig
-  let db: Database
+describe('Status command tests', async () => {
+  const config = await getConfig()
+  const db = await new Database(config.dbConfig)
+  const oceanNode = new OceanNode(config, db)
+  const oceanP2P = new OceanP2P(db, config)
+  const oceanIndexer = new OceanIndexer(db, config.supportedNetworks)
+  const oceanProvider = new OceanProvider(db)
   before(() => {
     // dummy private key from barge
     process.env.PRIVATE_KEY =
@@ -40,10 +42,7 @@ describe('Status command tests', () => {
     process.env.RPCS = ORIGINAL_RPCS
   })
 
-  it('Ocean Node instance', async () => {
-    config = await getConfig()
-    db = await new Database(config.dbConfig)
-    oceanNode = new OceanNode(config, db)
+  it('Ocean Node instance', () => {
     expect(oceanNode).to.be.instanceOf(OceanNode)
     expect(oceanNode.getConfig().keys.privateKey).to.eql(config.keys.privateKey)
     expect(oceanNode.getConfig().supportedNetworks).to.eql({
@@ -57,19 +56,16 @@ describe('Status command tests', () => {
     expect(oceanNode.getConfig().hasProvider).to.eql(true)
   })
   it('Ocean P2P should be initialized correctly', async () => {
-    const oceanP2P = new OceanP2P(db, config)
     oceanNode.addP2PNode(oceanP2P)
     expect(oceanNode.getP2PNode().getConfig()).to.eql(config)
     expect(oceanNode.getP2PNode().getDatabase()).to.eql(db)
   })
   it('Ocean Indexer should be initialized correctly', async () => {
-    const oceanIndexer = new OceanIndexer(db, config.supportedNetworks)
     oceanNode.addIndexer(oceanIndexer)
     expect(oceanNode.getIndexer().getSupportedNetworks()).to.eql(config.supportedNetworks)
     expect(oceanNode.getIndexer().getDatabase()).to.eql(db)
   })
   it('Ocean Provider should be initialized correctly', async () => {
-    const oceanProvider = new OceanProvider(db)
     oceanNode.addProvider(oceanProvider)
     expect(oceanNode.getProvider().getDatabase()).to.eql(db)
   })
