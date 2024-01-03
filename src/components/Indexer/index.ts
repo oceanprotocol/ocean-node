@@ -10,8 +10,13 @@ import {
 } from '../../utils/logging/Logger.js'
 import { EVENTS } from '../../utils/index.js'
 import EventEmitter from 'node:events'
-import { ReindexItem } from "./reindexThread.js";
+import { ReindexItem } from './reindexThread.js'
 
+export const REINDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
+  LOGGER_MODULE_NAMES.INDEXER,
+  LOG_LEVELS_STR.LEVEL_INFO,
+  defaultConsoleTransport
+)
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
   LOG_LEVELS_STR.LEVEL_INFO,
@@ -78,26 +83,32 @@ export class OceanIndexer {
   }
 
   public async reindexThread(): Promise<void> {
-    this.reindex = new Worker('./dist/components/Indexer/reindexThread.js')
+    const supportedNetworks: RPCS = {}
+    for (const network of this.supportedChains) {
+      const rpcDetails: SupportedNetwork = this.networks[network]
+      if (rpcDetails) {
+        supportedNetworks[network] = rpcDetails
+      }
+    }
+    this.reindex = new Worker('./dist/components/Indexer/reindexThread.js', {
+      workerData: { supportedNetworks }
+    })
     this.reindex.on('error', (err: Error) => {
-      INDEXER_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_ERROR,
-          `Error in reindex worker: ${err.message}`,
-          true
+      REINDEXER_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `Error in reindex worker: ${err.message}`,
+        true
       )
     })
 
     this.reindex.on('exit', (code: number) => {
-      INDEXER_LOGGER.logMessage(
-          `Reindex worker exited with code: ${code}`,
-          true
-      )
+      REINDEXER_LOGGER.logMessage(`Reindex worker exited with code: ${code}`, true)
     })
     this.reindex.postMessage({ method: 'process-reindex' })
   }
 
-  public async addReindexQueueItem(reindexItem: ReindexItem): Promise<void> {
-    this.reindex.postMessage({ method: 'add-queue-reindex', reindexItem })
+  public async addReindexItem(reindexItem: ReindexItem): Promise<void> {
+    this.reindex.postMessage({ method: 'add-reindex-item', reindexItem })
   }
 
   public async getLastIndexedBlock(network: number): Promise<number> {

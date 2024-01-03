@@ -2,7 +2,7 @@ import { Handler } from './handler.js'
 import { ReindexCommand } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
-import {OceanNodeSingleton} from "../../index.js";
+import { OceanNodeSingleton } from '../../index.js'
 
 export class ReindexHandler extends Handler {
   isReindexCommand(obj: any): obj is ReindexCommand {
@@ -20,24 +20,26 @@ export class ReindexHandler extends Handler {
       if (!this.isReindexCommand(task)) {
         throw new Error(`Task has not ReindexCommand type. It has ${typeof task}`)
       }
-      const txId: string = String(task.txId)
-      if (!txId) {
+      const txId: string = String(task.txId).toLowerCase()
+      if (!/^0x([A-Fa-f0-9]{64})$/.test(txId)) {
         return {
           stream: null,
           status: { httpStatus: 400, error: 'Invalid parameter txId' }
         }
       }
-      const chainId: number = Number(task.chainId)
-      if (isNaN(chainId)) {
+      const chainId: string = String(task.chainId)
+      if (!chainId) {
         return {
           stream: null,
           status: { httpStatus: 400, error: 'Invalid parameter chainId' }
         }
       }
-      const eventIndex: number = isNaN(Number(task.eventIndex))
-        ? undefined
-        : Number(task.eventIndex)
-      await OceanNodeSingleton.getIndexer().addReindexQueueItem({ txId, chainId, eventIndex })
+      const eventIndex: number = Number(task.eventIndex)
+      await OceanNodeSingleton.getIndexer().addReindexItem({
+        txId,
+        chainId,
+        eventIndex
+      })
       return {
         stream: Readable.from(JSON.stringify('Added to reindex queue successfully')),
         status: { httpStatus: 200 }
