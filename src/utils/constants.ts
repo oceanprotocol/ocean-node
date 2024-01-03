@@ -78,7 +78,7 @@ export interface QueryCommand extends Command {
 
 export interface ReindexCommand extends Command {
   txId: string
-  chainId: string
+  chainId: number
   eventIndex?: number
 }
 

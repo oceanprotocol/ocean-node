@@ -15,7 +15,7 @@ import { EncryptHandler } from '../core/encryptHandler.js'
 import { QueryHandler } from '../core/queryHandler.js'
 import { GetDdoHandler, FindDdoHandler } from '../core/ddoHandler.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { ReindexHandler } from '../core/reindexHandler.js';
+import { ReindexHandler } from '../core/reindexHandler.js'
 
 export class ReadableString extends Readable {
   private sent = false

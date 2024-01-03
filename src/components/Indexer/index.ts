@@ -10,6 +10,7 @@ import {
 } from '../../utils/logging/Logger.js'
 import { EVENTS } from '../../utils/index.js'
 import EventEmitter from 'node:events'
+import { ReindexItem } from "./reindexThread.js";
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
@@ -23,12 +24,14 @@ export class OceanIndexer {
   private db: Database
   private networks: RPCS
   private supportedChains: string[]
+  private reindex: Worker
 
   constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
     this.networks = supportedNetworks
     this.supportedChains = Object.keys(supportedNetworks)
     this.startThreads()
+    this.reindexThread()
   }
 
   public async startThreads(): Promise<void> {
@@ -72,6 +75,29 @@ export class OceanIndexer {
 
       worker.postMessage({ method: 'start-crawling' })
     }
+  }
+
+  public async reindexThread(): Promise<void> {
+    this.reindex = new Worker('./dist/components/Indexer/reindexThread.js')
+    this.reindex.on('error', (err: Error) => {
+      INDEXER_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_ERROR,
+          `Error in reindex worker: ${err.message}`,
+          true
+      )
+    })
+
+    this.reindex.on('exit', (code: number) => {
+      INDEXER_LOGGER.logMessage(
+          `Reindex worker exited with code: ${code}`,
+          true
+      )
+    })
+    this.reindex.postMessage({ method: 'process-reindex' })
+  }
+
+  public async addReindexQueueItem(reindexItem: ReindexItem): Promise<void> {
+    this.reindex.postMessage({ method: 'add-queue-reindex', reindexItem })
   }
 
   public async getLastIndexedBlock(network: number): Promise<number> {
