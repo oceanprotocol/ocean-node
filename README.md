@@ -39,6 +39,7 @@ git checkout feature/nodes
 export HTTP_API_PORT=8000
 export PRIVATE_KEY=0x.....
 export RPCS="{ \"1\":{ \"rpc\":\"https://rpc.eth.gateway.fm\", \"chainId\": 1, \"network\": \"mainet\", \"chunkSize\": 100 }, \"137\": { \"rpc\": \"https://polygon.meowrpc.com\", \"chainId\": 137, \"network\": \"polygon\", \"chunkSize\": 100 }, \"80001\": { \"rpc\": \"https://rpc-mumbai.maticvigil.com\", \"chainId\": 80001, \"network\": \"polygon-mumbai\", \"chunkSize\": 100 }}"
+export DB_URL="http://localhost:8108/?apiKey=xyz"
 ```
 
 For downloading the file from IPFS or ARWEAVE, please export the following env variables;
