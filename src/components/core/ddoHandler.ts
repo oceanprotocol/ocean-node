@@ -49,15 +49,8 @@ export class GetDdoHandler extends Handler {
 }
 
 export class FindDdoHandler extends Handler {
-  // isFindDdoCommand(obj: any): obj is FindDDOCommand {
-  //   return typeof obj === 'object' && obj !== null && 'command' in obj && 'id' in obj
-  // }
-
   async handle(task: FindDDOCommand): Promise<P2PCommandResponse> {
     try {
-      // if (!this.isFindDdoCommand(task)) {
-      //   throw new Error(`Task has not FindDDOCommand type. It has ${typeof task}`)
-      // }
       const node = this.getP2PNode()
       let updatedCache = false
       // result list

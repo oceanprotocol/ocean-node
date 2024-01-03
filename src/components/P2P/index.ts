@@ -8,8 +8,7 @@ import {
   handlePeerConnect,
   handlePeerDiscovery,
   handlePeerDisconnect,
-  handleProtocolCommands,
-  handleDirectProtocolCommand
+  handleProtocolCommands
 } from './handlers.js'
 
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
@@ -38,7 +37,7 @@ import { kadDHT } from '@libp2p/kad-dht'
 import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 
 import { EVENTS, cidFromRawString } from '../../utils/index.js'
-import { Stream, Transform } from 'stream'
+import { Transform } from 'stream'
 import { Database } from '../database'
 import { OceanNodeConfig, FindDDOResponse } from '../../@types/OceanNode'
 
@@ -387,20 +386,20 @@ export class OceanP2P extends EventEmitter {
   }
 
   // when the target is this node
-  async sendToSelf(message: string, sink: any): Promise<P2PCommandResponse> {
-    const response: P2PCommandResponse = {
-      status: { httpStatus: 200, error: '' },
-      stream: null
-    }
-    // direct message to self
-    // create a writable stream
-    // const outputStream = new Stream.Writable()
-    response.stream = new Stream.Writable()
-    // read from input stream to output one and move on
-    await handleDirectProtocolCommand.call(this, message, sink)
+  // async sendToSelf(message: string, sink: any): Promise<P2PCommandResponse> {
+  //   const response: P2PCommandResponse = {
+  //     status: { httpStatus: 200, error: '' },
+  //     stream: null
+  //   }
+  //   // direct message to self
+  //   // create a writable stream
+  //   // const outputStream = new Stream.Writable()
+  //   response.stream = new Stream.Writable()
+  //   // read from input stream to output one and move on
+  //   await handleDirectProtocolCommand.call(this, message, sink)
 
-    return response
-  }
+  //   return response
+  // }
 
   async _pollPeers() {
     const node = <any>this._libp2p

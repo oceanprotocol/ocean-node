@@ -3,8 +3,8 @@ import { Command, ICommandHandler } from '../../utils/constants.js'
 import { OceanP2P } from '../P2P/index.js'
 
 export abstract class Handler implements ICommandHandler {
-  private p2pNode: OceanP2P
-  public constructor(p2pNode: OceanP2P) {
+  private p2pNode?: OceanP2P
+  public constructor(p2pNode?: OceanP2P) {
     this.p2pNode = p2pNode
   }
 
