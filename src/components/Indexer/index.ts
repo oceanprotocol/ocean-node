@@ -35,9 +35,9 @@ export class OceanIndexer {
     return this.networks
   }
 
-  // public getDatabase(): Database {
-  //   return this.db
-  // }
+  public getDatabase(): Database {
+    return this.db
+  }
 
   public async startThreads(): Promise<void> {
     for (const network of this.supportedChains) {
