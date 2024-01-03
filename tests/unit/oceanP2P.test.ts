@@ -39,16 +39,9 @@ describe('OceanP2P Test', () => {
 })
 
 describe('OceanP2P Test without DB_URL set', () => {
-  let envBefore: OverrideEnvConfig[] | undefined
-  let config: OceanNodeConfig
-
-  before(async () => {
-    envBefore = await setupEnvironment('../.env.test', getEnvOverrides())
-    // avoid overriding the local environment, use the .env.test
-    config = await getConfig()
-  })
-
   it('Start instance of OceanP2P without a database URL', async () => {
+    const config = await getConfig()
+    assert(config.dbConfig.url === '', 'DB URL should not be set')
     const p2pNode = new OceanP2P(config)
     assert(p2pNode, 'Failed to create P2P Node instance')
     const p2pConfig = p2pNode.getConfig()
@@ -56,9 +49,5 @@ describe('OceanP2P Test without DB_URL set', () => {
     assert(p2pConfig.dbConfig.url === '', 'P2P Node config should not have DB URL set')
     assert(p2pConfig.hasIndexer === false, 'P2P Node should not have indexer enabled')
     assert(p2pConfig.hasProvider === false, 'P2P Node should not have provider enabled')
-  })
-
-  after(async () => {
-    tearDownEnvironment(envBefore)
   })
 })
