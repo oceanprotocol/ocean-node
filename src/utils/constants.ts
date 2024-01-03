@@ -5,6 +5,7 @@ import { P2PCommandResponse } from '../@types/OceanNode'
 // Add all the supported commands
 export const PROTOCOL_COMMANDS = {
   DOWNLOAD: 'download',
+  DOWNLOAD_URL: 'downloadURL', // we still use this
   ECHO: 'echo',
   ENCRYPT: 'encrypt',
   GET_DDO: 'getDDO',
@@ -39,17 +40,16 @@ export const HANDLERS_COMMANDS = [
 ]
 
 export interface Command {
-  command: string
+  command: string // command name
   node?: string // if not present it means current node
 }
 
-export interface DownloadURLCommand {
+export interface DownloadURLCommand extends Command {
   fileObject: any
   aes_encrypted_key?: string // if not present it means download without encryption
-  node?: string // if not present it means current node
 }
 
-export interface DownloadTask {
+export interface DownloadCommand extends Command {
   fileIndex: number
   documentId: string
   serviceId: string
@@ -68,6 +68,8 @@ export interface DDOCommand extends Command {
 }
 export interface GetDdoCommand extends DDOCommand {}
 export interface FindDDOCommand extends DDOCommand {}
+
+export interface StatusCommand extends Command {}
 
 export interface QueryCommand extends Command {
   query: Record<string, any>
@@ -89,7 +91,7 @@ export interface GetFeesCommand extends Command {
 }
 
 export interface ICommandHandler {
-  handleCommand(command: Command): Promise<P2PCommandResponse>
+  handle(command: Command): Promise<P2PCommandResponse>
 }
 
 export interface BroadcastCommand {

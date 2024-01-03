@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express'
 import { DownloadHandler } from '../core/downloadHandler.js'
 import { HTTP_LOGGER } from './index.js'
+import { DownloadCommand, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 
 export const downloadRoute = express.Router()
 downloadRoute.get(
@@ -26,14 +27,15 @@ downloadRoute.get(
         signature
       } = req.query
 
-      const downloadTask = {
+      const downloadTask: DownloadCommand = {
         fileIndex: Number(fileIndex),
         documentId: documentId as string,
         serviceId: serviceId as string,
         transferTxId: transferTxId as string,
         nonce: nonce as string,
         consumerAddress: consumerAddress as string,
-        signature: signature as string
+        signature: signature as string,
+        command: PROTOCOL_COMMANDS.DOWNLOAD
       }
 
       const response = await new DownloadHandler(req.oceanNode.getP2PNode()).handle(

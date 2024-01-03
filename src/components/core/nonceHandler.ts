@@ -10,15 +10,9 @@ import {
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 
 export class NonceHandler extends Handler {
-  isNonceCommand(obj: any): obj is NonceCommand {
-    return typeof obj === 'object' && obj !== null && 'command' in obj && 'address' in obj
-  }
-
-  async handle(task: any): Promise<P2PCommandResponse> {
+  async handle(task: NonceCommand): Promise<P2PCommandResponse> {
     const db: NonceDatabase = this.getP2PNode().getDatabase().nonce
-    if (!this.isNonceCommand(task)) {
-      throw new Error(`Task has not NonceCommand type. It has ${typeof task}`)
-    }
+
     const { address } = task
     try {
       const nonce = await db.retrieve(address)

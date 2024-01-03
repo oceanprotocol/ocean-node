@@ -26,15 +26,8 @@ const MAX_RESPONSE_WAIT_TIME_SECONDS = 60
 const MAX_WAIT_TIME_SECONDS_GET_DDO = 5
 
 export class GetDdoHandler extends Handler {
-  isGetDdoCommand(obj: any): obj is GetDdoCommand {
-    return typeof obj === 'object' && obj !== null && 'command' in obj && 'id' in obj
-  }
-
-  async handle(task: any): Promise<P2PCommandResponse> {
+  async handle(task: GetDdoCommand): Promise<P2PCommandResponse> {
     try {
-      if (!this.isGetDdoCommand(task)) {
-        throw new Error(`Task has not QueryCommand type. It has ${typeof task}`)
-      }
       const ddo = await this.getP2PNode().getDatabase().ddo.retrieve(task.id)
       if (!ddo) {
         return {
@@ -56,15 +49,15 @@ export class GetDdoHandler extends Handler {
 }
 
 export class FindDdoHandler extends Handler {
-  isFindDdoCommand(obj: any): obj is FindDDOCommand {
-    return typeof obj === 'object' && obj !== null && 'command' in obj && 'id' in obj
-  }
+  // isFindDdoCommand(obj: any): obj is FindDDOCommand {
+  //   return typeof obj === 'object' && obj !== null && 'command' in obj && 'id' in obj
+  // }
 
-  async handle(task: any): Promise<P2PCommandResponse> {
+  async handle(task: FindDDOCommand): Promise<P2PCommandResponse> {
     try {
-      if (!this.isFindDdoCommand(task)) {
-        throw new Error(`Task has not FindDDOCommand type. It has ${typeof task}`)
-      }
+      // if (!this.isFindDdoCommand(task)) {
+      //   throw new Error(`Task has not FindDDOCommand type. It has ${typeof task}`)
+      // }
       const node = this.getP2PNode()
       let updatedCache = false
       // result list

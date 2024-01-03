@@ -2,7 +2,7 @@ import { JsonRpcProvider } from 'ethers'
 import { Handler } from './handler.js'
 import { checkNonce, NonceResponse } from './utils/nonceHandler.js'
 import {
-  DownloadTask,
+  DownloadCommand,
   DownloadURLCommand,
   ENVIRONMENT_VARIABLES,
   PROTOCOL_COMMANDS
@@ -146,28 +146,9 @@ export async function handleDownloadUrlCommand(
 }
 
 export class DownloadHandler extends Handler {
-  isDownloadCommand(obj: any): obj is DownloadTask {
-    return (
-      typeof obj === 'object' &&
-      obj !== null &&
-      'fileIndex' in obj &&
-      'documentId' in obj &&
-      'serviceId' in obj &&
-      'transferTxId' in obj &&
-      'nonce' in obj &&
-      'consumerAddress' in obj &&
-      'signature' in obj
-    )
-  }
-
   // No encryption here yet
 
-  async handle(task: any): Promise<P2PCommandResponse> {
-    if (!this.isDownloadCommand(task)) {
-      throw new Error(
-        `Task has nor DownloadCommand type, nor DownloadUrlCommand type. It has ${typeof task}`
-      )
-    }
+  async handle(task: DownloadCommand): Promise<P2PCommandResponse> {
     const node = this.getP2PNode()
     P2P_CONSOLE_LOGGER.logMessage(
       'Download Request recieved with arguments: ' +
@@ -353,7 +334,8 @@ export class DownloadHandler extends Handler {
       // 7. Proceed to download the file
       return await handleDownloadUrlCommand(node, {
         fileObject: decryptedFileArray.files[task.fileIndex],
-        aes_encrypted_key: task.aes_encrypted_key
+        aes_encrypted_key: task.aes_encrypted_key,
+        command: PROTOCOL_COMMANDS.DOWNLOAD_URL
       })
     } catch (e) {
       P2P_CONSOLE_LOGGER.logMessage('decryption error' + e, true)
