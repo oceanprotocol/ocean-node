@@ -2,6 +2,7 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { OceanNode } from '../../OceanNode.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanP2P } from '../../components/P2P/index.js'
+import { OceanProvider } from '../../components/Provider/index.js'
 import { Database } from '../../components/database/index.js'
 import { getConfig } from '../../utils/index.js'
 
@@ -55,16 +56,21 @@ describe('Status command tests', () => {
     expect(oceanNode.getConfig().hasIndexer).to.eql(true)
     expect(oceanNode.getConfig().hasProvider).to.eql(true)
   })
-  it('Ocean P2P should be initialised correctly', async () => {
+  it('Ocean P2P should be initialized correctly', async () => {
     const oceanP2P = oceanNode.getP2PNode()
     expect(oceanP2P).to.be.instanceOf(OceanP2P)
     expect(oceanP2P.getConfig()).to.eql(config)
     expect(oceanP2P.getDatabase()).to.eql(db)
   })
-  it('Ocean Indexer should be initialised correctly', async () => {
+  it('Ocean Indexer should be initialized correctly', async () => {
     const oceanIndexer = oceanNode.getIndexer()
     expect(oceanIndexer).to.be.instanceOf(OceanIndexer)
     expect(oceanIndexer.getSupportedNetworks()).to.eql(config.supportedNetworks)
     expect(oceanIndexer.getDatabase()).to.eql(db)
+  })
+  it('Ocean Provider should be initialized correctly', async () => {
+    const oceanProvider = oceanNode.getProvider()
+    expect(oceanProvider).to.be.instanceOf(OceanProvider)
+    expect(oceanProvider.getDatabase()).to.eql(db)
   })
 })
