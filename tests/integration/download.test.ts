@@ -258,8 +258,10 @@ describe('Download Tests', () => {
       rpc: 'http://127.0.0.1:8545',
       chunkSize: 100
     }
-
-    const dbconn = await new Database(config.dbConfig)
+    const dbConfig = {
+      url: 'http://localhost:8108/?apiKey=xyz'
+    }
+    const dbconn = await new Database(dbConfig)
     const p2pNode = new OceanP2P(config, dbconn)
     assert(p2pNode, 'Failed to instantiate OceanP2P')
 
@@ -306,7 +308,10 @@ describe('Download Tests', () => {
       signature: ''
     }
     const config = await getConfig()
-    const dbconn = await new Database(config.dbConfig)
+    const dbConfig = {
+      url: 'http://localhost:8108/?apiKey=xyz'
+    }
+    const dbconn = await new Database(dbConfig)
     const p2pNode = new OceanP2P(config, dbconn)
     assert(p2pNode, 'Failed to instantiate OceanP2P')
     const response = await new DownloadHandler(p2pNode).handle(downloadTask)

@@ -290,7 +290,10 @@ describe('Should run a complete node flow.', () => {
       rpc: 'http://127.0.0.1:8545',
       chunkSize: 100
     }
-    database = await new Database(config.dbConfig)
+    const dbConfig = {
+      url: 'http://localhost:8108/?apiKey=xyz'
+    }
+    database = await new Database(dbConfig)
     const p2pNode = new OceanP2P(config, database)
     assert(p2pNode, 'Failed to instantiate OceanP2P')
 
