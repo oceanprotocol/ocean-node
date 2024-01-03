@@ -68,8 +68,6 @@ describe('validateOrderTransaction Function with Orders', () => {
     publisherAddress = await publisherAccount.getAddress()
     consumerAddress = await consumerAccount.getAddress()
 
-    console.log('publisher address', publisherAddress)
-
     const data = getOceanArtifactsAdresses()
 
     const dbConfig = {
@@ -157,7 +155,6 @@ describe('validateOrderTransaction Function with Orders', () => {
 
   it('should get the active state', async () => {
     resolvedDDO = await waitToIndex(genericDDO.id, database)
-    console.log('resolvedDDO', resolvedDDO)
   })
 
   it('should start an order and validate the transaction', async function () {
@@ -170,7 +167,6 @@ describe('validateOrderTransaction Function with Orders', () => {
     const paymentCollector = await dataTokenContract.getPaymentCollector()
     assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
 
-    console.log('resolvedDDO', resolvedDDO)
     const feeData = await createFee(
       resolvedDDO as DDO,
       0,
@@ -245,7 +241,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   it('should reuse an order and validate the transaction', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
 
-    console.log('resolvedDDO', resolvedDDO)
     const feeData = await createFee(
       resolvedDDO as DDO,
       0,
@@ -312,7 +307,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   it('should reject reuse an order with invald serviceId', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
 
-    console.log('resolvedDDO', resolvedDDO)
     const feeData = await createFee(
       resolvedDDO as DDO,
       0,
@@ -379,7 +373,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   it('should reject reuse an order with invald user address', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
 
-    console.log('resolvedDDO', resolvedDDO)
     const feeData = await createFee(
       resolvedDDO as DDO,
       0,

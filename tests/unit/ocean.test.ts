@@ -35,10 +35,7 @@ describe('Status command tests', () => {
 
   it('Ocean Node instance', async () => {
     const config = await getConfig()
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
-    }
-    const db = await new Database(dbConfig)
+    const db = await new Database(config.dbConfig)
     const oceanNode = new OceanNode(config, db)
     expect(oceanNode).to.be.instanceOf(OceanNode)
     expect(oceanNode.getConfig().keys.privateKey).to.eql(config.keys.privateKey)

@@ -135,9 +135,6 @@ describe('Ocean Node fees', () => {
     const providerAmount = await getProviderFeeAmount()
 
     const config = await getConfig()
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
-    }
     config.supportedNetworks[8996] = {
       chainId: 8996,
       network: 'development',
@@ -145,7 +142,7 @@ describe('Ocean Node fees', () => {
       chunkSize: 100
     }
 
-    const dbconn = await new Database(dbConfig)
+    const dbconn = await new Database(config.dbConfig)
     const p2pNode = new OceanP2P(config, dbconn)
 
     const data: P2PCommandResponse = await new FeesHandler(p2pNode).handle({
