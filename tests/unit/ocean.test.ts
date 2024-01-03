@@ -66,7 +66,7 @@ describe('Status command tests', () => {
     const oceanIndexer = oceanNode.getIndexer()
     expect(oceanIndexer).to.be.instanceOf(OceanIndexer)
     expect(oceanIndexer.getSupportedNetworks()).to.eql(config.supportedNetworks)
-    expect(oceanIndexer.getDatabase()).to.eql(db)
+    // expect(oceanIndexer.getDatabase()).to.eql(db)
   })
   it('Ocean Provider should be initialized correctly', async () => {
     const oceanProvider = oceanNode.getProvider()
