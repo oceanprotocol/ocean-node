@@ -39,6 +39,11 @@ git checkout feature/nodes
 export HTTP_API_PORT=8000
 export PRIVATE_KEY=0x.....
 export RPCS="{ \"1\":{ \"rpc\":\"https://rpc.eth.gateway.fm\", \"chainId\": 1, \"network\": \"mainet\", \"chunkSize\": 100 }, \"137\": { \"rpc\": \"https://polygon.meowrpc.com\", \"chainId\": 137, \"network\": \"polygon\", \"chunkSize\": 100 }, \"80001\": { \"rpc\": \"https://rpc-mumbai.maticvigil.com\", \"chainId\": 80001, \"network\": \"polygon-mumbai\", \"chunkSize\": 100 }}"
+```
+
+You need to define a database URL if you want to run a database as part of your node. This is required for the tests to pass.
+
+```bash
 export DB_URL="http://localhost:8108/?apiKey=xyz"
 ```
 
