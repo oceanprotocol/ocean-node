@@ -1,8 +1,11 @@
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { OceanNode } from '../../OceanNode.js'
+import { OceanIndexer } from '../../components/Indexer/index.js'
+import { OceanP2P } from '../../components/P2P/index.js'
 import { Database } from '../../components/database/index.js'
 import { getConfig } from '../../utils/index.js'
 
-import { expect, assert } from 'chai'
+import { expect } from 'chai'
 
 // avoid override local setup / env variables
 const ORIGINAL_PRIVATE_KEY = process.env.PRIVATE_KEY
@@ -15,6 +18,9 @@ const ORIGINAL_RPCS = process.env.RPCS
 // '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com", "80001": "https://rpc-mumbai.maticvigil.com" }'
 
 describe('Status command tests', () => {
+  let oceanNode: OceanNode
+  let config: OceanNodeConfig
+  let db: Database
   before(() => {
     // dummy private key from barge
     process.env.PRIVATE_KEY =
@@ -34,9 +40,9 @@ describe('Status command tests', () => {
   })
 
   it('Ocean Node instance', async () => {
-    const config = await getConfig()
-    const db = await new Database(config.dbConfig)
-    const oceanNode = new OceanNode(config, db)
+    config = await getConfig()
+    db = await new Database(config.dbConfig)
+    oceanNode = new OceanNode(config, db)
     expect(oceanNode).to.be.instanceOf(OceanNode)
     expect(oceanNode.getConfig().keys.privateKey).to.eql(config.keys.privateKey)
     expect(oceanNode.getConfig().supportedNetworks).to.eql({
@@ -45,14 +51,20 @@ describe('Status command tests', () => {
       '80001': 'https://rpc-mumbai.maticvigil.com'
     })
     expect(oceanNode.getDatabase()).to.not.eql(null)
-    if (config.hasP2P) {
-      expect(oceanNode.getP2PNode()).to.not.eql(null)
-    }
-    if (config.hasIndexer) {
-      expect(oceanNode.getIndexer()).to.not.eql(null)
-    }
-    if (config.hasProvider) {
-      expect(oceanNode.getProvider()).to.not.eql(null)
-    }
+    expect(oceanNode.getConfig().hasP2P).to.eql(true)
+    expect(oceanNode.getConfig().hasIndexer).to.eql(true)
+    expect(oceanNode.getConfig().hasProvider).to.eql(true)
+  })
+  it('Ocean P2P should be initialised correctly', async () => {
+    const oceanP2P = oceanNode.getP2PNode()
+    expect(oceanP2P).to.be.instanceOf(OceanP2P)
+    expect(oceanP2P.getConfig()).to.eql(config)
+    expect(oceanP2P.getDatabase()).to.eql(db)
+  })
+  it('Ocean Indexer should be initialised correctly', async () => {
+    const oceanIndexer = oceanNode.getIndexer()
+    expect(oceanIndexer).to.be.instanceOf(OceanIndexer)
+    expect(oceanIndexer.getSupportedNetworks()).to.eql(config.supportedNetworks)
+    expect(oceanIndexer.getDatabase()).to.eql(db)
   })
 })

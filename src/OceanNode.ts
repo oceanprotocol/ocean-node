@@ -42,6 +42,17 @@ export class OceanNode {
     private provider?: OceanProvider,
     private indexer?: OceanIndexer
   ) {
+    if (this.config.hasP2P) {
+      this.addP2PNode(new OceanP2P(this.db, this.config))
+    }
+
+    if (this.config.hasIndexer) {
+      this.addIndexer(new OceanIndexer(this.db, this.config.supportedNetworks))
+    }
+
+    if (this.config.hasProvider) {
+      this.addProvider(new OceanProvider(this.db))
+    }
     // TODO: Implement handlers classes and change above
     this.registerHandler(PROTOCOL_COMMANDS.DOWNLOAD, null)
     this.registerHandler(PROTOCOL_COMMANDS.ENCRYPT, null)
