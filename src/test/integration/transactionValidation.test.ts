@@ -316,20 +316,6 @@ describe('validateOrderTransaction Function with Orders', () => {
       resolvedDDO.services[0]
     )
 
-    // sign provider data
-    providerData = JSON.stringify({ timeout })
-    message = solidityPackedKeccak256(
-      ['bytes', 'address', 'address', 'uint256', 'uint256'],
-      [
-        hexlify(toUtf8Bytes(providerData)),
-        feeData.providerFeeAddress,
-        feeData.providerFeeToken,
-        feeData.providerFeeAmount,
-        feeData.validUntil
-      ]
-    )
-    signedMessage = await signMessage(message, publisherAddress, provider)
-
     const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
       orderTxId,
       {
