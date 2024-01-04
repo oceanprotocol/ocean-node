@@ -35,7 +35,7 @@ export class ReindexHandler extends Handler {
         }
       }
       const eventIndex: number = Number(task.eventIndex)
-      await OceanNodeSingleton.getIndexer().addReindexItem({
+      await OceanNodeSingleton.getIndexer().addReindexTask({
         txId,
         chainId,
         eventIndex

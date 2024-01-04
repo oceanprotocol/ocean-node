@@ -10,10 +10,10 @@ import {
 } from '../../utils/logging/Logger.js'
 import { EVENTS } from '../../utils/index.js'
 import EventEmitter from 'node:events'
-import { ReindexItem } from './reindexThread.js'
+import { ReindexTask } from './reindexThread.js'
 
 export const REINDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.INDEXER,
+  LOGGER_MODULE_NAMES.REINDEXER,
   LOG_LEVELS_STR.LEVEL_INFO,
   defaultConsoleTransport
 )
@@ -93,6 +93,17 @@ export class OceanIndexer {
     this.reindex = new Worker('./dist/components/Indexer/reindexThread.js', {
       workerData: { supportedNetworks }
     })
+    this.reindex.on('message', (event: any) => {
+      if (
+          event.method === EVENTS.METADATA_CREATED ||
+          event.method === EVENTS.METADATA_UPDATED ||
+          event.method === EVENTS.METADATA_STATE ||
+          event.method === EVENTS.ORDER_STARTED ||
+          event.method === EVENTS.ORDER_REUSED
+      ) {
+        this.createOrUpdateDDO(event.network, event.data, event.method)
+      }
+    })
     this.reindex.on('error', (err: Error) => {
       REINDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
@@ -100,15 +111,14 @@ export class OceanIndexer {
         true
       )
     })
-
     this.reindex.on('exit', (code: number) => {
       REINDEXER_LOGGER.logMessage(`Reindex worker exited with code: ${code}`, true)
     })
     this.reindex.postMessage({ method: 'process-reindex' })
   }
 
-  public async addReindexItem(reindexItem: ReindexItem): Promise<void> {
-    this.reindex.postMessage({ method: 'add-reindex-item', reindexItem })
+  public async addReindexTask(reindexTask: ReindexTask): Promise<void> {
+    this.reindex.postMessage({ method: 'add-reindex-task', reindexTask })
   }
 
   public async getLastIndexedBlock(network: number): Promise<number> {
