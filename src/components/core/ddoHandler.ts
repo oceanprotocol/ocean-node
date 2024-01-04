@@ -18,6 +18,7 @@ import { sleep, readStream } from '../../utils/util.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { FindDDOResponse } from '../../@types/index.js'
 import { P2P_CONSOLE_LOGGER } from '../P2P/index.js'
+import { TypesenseError } from '../database/typesense.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -31,22 +32,22 @@ export class GetDdoHandler extends Handler {
   }
 
   async handle(task: any): Promise<P2PCommandResponse> {
+    if (!this.isGetDdoCommand(task)) {
+      throw new Error(`Task has not QueryCommand type. It has ${typeof task}`)
+    }
     try {
-      if (!this.isGetDdoCommand(task)) {
-        throw new Error(`Task has not QueryCommand type. It has ${typeof task}`)
-      }
       const ddo = await this.getP2PNode().getDatabase().ddo.retrieve(task.id)
-      if (!ddo) {
-        return {
-          stream: null,
-          status: { httpStatus: 404, error: 'Not found' }
-        }
-      }
       return {
         stream: Readable.from(JSON.stringify(ddo)),
         status: { httpStatus: 200 }
       }
     } catch (error) {
+      if (error instanceof TypesenseError && error.httpStatus === 404) {
+        return {
+          stream: null,
+          status: { httpStatus: 404, error: `Not found. ${error.message}` }
+        }
+      }
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
@@ -289,7 +290,7 @@ export class FindDdoHandler extends Handler {
       return ddo as DDO
     } catch (error) {
       P2P_CONSOLE_LOGGER.logMessage(
-        `Unable to find DDO locally. Proceeding to call findDDO`,
+        `Unable to find DDO locally with ${error.message}. Proceeding to call findDDO`,
         true
       )
     }
