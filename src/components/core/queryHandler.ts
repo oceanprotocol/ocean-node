@@ -2,6 +2,7 @@ import { Handler } from './handler.js'
 import { QueryCommand } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
+import { TypesenseError } from '../database/typesense.js'
 
 export class QueryHandler extends Handler {
   isQueryCommand(obj: any): obj is QueryCommand {
@@ -9,10 +10,10 @@ export class QueryHandler extends Handler {
   }
 
   async handle(task: any): Promise<P2PCommandResponse> {
+    if (!this.isQueryCommand(task)) {
+      throw new Error(`Task has not QueryCommand type. It has ${typeof task}`)
+    }
     try {
-      if (!this.isQueryCommand(task)) {
-        throw new Error(`Task has not QueryCommand type. It has ${typeof task}`)
-      }
       let result = await this.getP2PNode().getDatabase().ddo.search(task.query)
       if (!result) {
         result = []
@@ -22,6 +23,12 @@ export class QueryHandler extends Handler {
         status: { httpStatus: 200 }
       }
     } catch (error) {
+      if (error instanceof TypesenseError && error.httpStatus === 404) {
+        return {
+          stream: null,
+          status: { httpStatus: 404, error: `Not found. ${error.message}` }
+        }
+      }
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
