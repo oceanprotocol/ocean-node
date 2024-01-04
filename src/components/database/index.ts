@@ -47,7 +47,7 @@ export class OrderDatabase {
       results.push(result)
       return results
     } catch (error) {
-      return null
+      return error
     }
   }
 
@@ -65,7 +65,7 @@ export class OrderDatabase {
         .documents()
         .create({ id: orderId, type, timestamp, consumer, payer, startOrderId })
     } catch (error) {
-      return null
+      return error
     }
   }
 
@@ -76,7 +76,7 @@ export class OrderDatabase {
         .documents()
         .retrieve(orderId)
     } catch (error) {
-      return null
+      return error
     }
   }
 
@@ -100,7 +100,7 @@ export class OrderDatabase {
           .documents()
           .create({ id: orderId, type, timestamp, consumer, payer, startOrderId })
       }
-      return null
+      return error
     }
   }
 
@@ -108,7 +108,7 @@ export class OrderDatabase {
     try {
       return await this.provider.collections(this.schema.name).documents().delete(orderId)
     } catch (error) {
-      return null
+      return error
     }
   }
 }
@@ -150,7 +150,7 @@ export class DdoDatabase {
       }
       return results
     } catch (error) {
-      return null
+      return error
     }
   }
 
@@ -161,7 +161,7 @@ export class DdoDatabase {
         .documents()
         .create({ ...ddo })
     } catch (error) {
-      return null
+      return error
     }
   }
 
@@ -172,7 +172,7 @@ export class DdoDatabase {
         .documents()
         .retrieve(id)
     } catch (error) {
-      return null
+      return error
     }
   }
 
@@ -189,7 +189,7 @@ export class DdoDatabase {
           .documents()
           .create({ ...ddo })
       }
-      return null
+      return error
     }
   }
 
@@ -197,7 +197,7 @@ export class DdoDatabase {
     try {
       return await this.provider.collections(this.schemas[0].name).documents().delete(did)
     } catch (error) {
-      return null
+      return error
     }
   }
 }
@@ -232,7 +232,7 @@ export class NonceDatabase {
         .documents()
         .create({ id: address, nonce })
     } catch (error) {
-      return null
+      return error
     }
   }
 
@@ -243,7 +243,7 @@ export class NonceDatabase {
         .documents()
         .retrieve(address)
     } catch (error) {
-      return null
+      return error
     }
   }
 
@@ -260,7 +260,7 @@ export class NonceDatabase {
           .documents()
           .create({ id: address, nonce })
       }
-      return null
+      return error
     }
   }
 
@@ -268,7 +268,7 @@ export class NonceDatabase {
     try {
       return await this.provider.collections(this.schema.name).documents().delete(address)
     } catch (error) {
-      return null
+      return error
     }
   }
 }
@@ -311,7 +311,7 @@ export class IndexerDatabase {
         .documents()
         .create({ id: network.toString(), lastIndexedBlock })
     } catch (error) {
-      return null
+      return error
     }
   }
 
@@ -322,7 +322,7 @@ export class IndexerDatabase {
         .documents()
         .retrieve(network.toString())
     } catch (error) {
-      return null
+      return error
     }
   }
 
@@ -339,7 +339,7 @@ export class IndexerDatabase {
           .documents()
           .create({ id: network.toString(), lastIndexedBlock })
       }
-      return null
+      return error
     }
   }
 
@@ -350,7 +350,7 @@ export class IndexerDatabase {
         .documents()
         .delete(network.toString())
     } catch (error) {
-      return null
+      return error
     }
   }
 }
