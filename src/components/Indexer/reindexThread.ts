@@ -20,7 +20,6 @@ async function processReindex(): Promise<void> {
   while (true) {
     while (REINDEX_QUEUE.length > 0) {
       const reindexTask = REINDEX_QUEUE.pop()
-      console.log('log', reindexTask)
       try {
         const network = supportedNetworks[reindexTask.chainId]
         if (network) {
@@ -35,7 +34,6 @@ async function processReindex(): Promise<void> {
             const log = receipt.logs[reindexTask.eventIndex]
             const logs = log ? [log] : receipt.logs
             const events = await processChunkLogs(logs, provider, network.chainId)
-            console.log(events)
             const eventKeys = Object.keys(events)
             eventKeys.forEach((eventType) => {
               REINDEXER_LOGGER.logMessage(
