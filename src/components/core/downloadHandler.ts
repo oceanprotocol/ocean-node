@@ -8,7 +8,7 @@ import {
   PROTOCOL_COMMANDS
 } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
-import { P2P_CONSOLE_LOGGER, OceanP2P } from '../P2P/index.js'
+import { OceanP2P } from '../P2P/index.js'
 import { checkFee } from './utils/feesHandler.js'
 import { decrypt } from '../../utils/crypt.js'
 import { FindDdoHandler } from './ddoHandler.js'
@@ -21,6 +21,7 @@ import { Service } from '../../@types/DDO/Service'
 import { ArweaveStorage, IpfsStorage, Storage } from '../../components/storage/index.js'
 import { existsEnvironmentVariable } from '../../utils/index.js'
 import { checkCredentials } from '../../utils/credentials.js'
+import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(

@@ -3,7 +3,7 @@ import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
 import { Database } from './components/database/index.js'
 import express, { Express } from 'express'
-import { OCEAN_NODE_LOGGER, OceanNode } from './OceanNode.js'
+import { OceanNode } from './OceanNode.js'
 import swaggerUi from 'swagger-ui-express'
 import { httpRoutes } from './components/httpRoutes/index.js'
 import { getConfig } from './utils/index.js'
@@ -14,11 +14,7 @@ import {
   newCustomDBTransport
 } from './utils/logging/Logger.js'
 import fs from 'fs'
-
-// just use the default logger with default transports
-// Bellow is just an example usage, only logging to console here, we can customize any transports
-// we could create just one logger per module/component, and export/import it between files of the same component/module
-// we can also have different log levels, going to different files
+import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
 
 const app: Express = express()
 // const port = getRandomInt(6000,6500)

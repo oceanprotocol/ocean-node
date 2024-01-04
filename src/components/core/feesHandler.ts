@@ -4,7 +4,7 @@ import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { calculateFee } from './utils/feesHandler.js'
 import { Readable } from 'stream'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { PROVIDER_LOGGER } from '../Provider/index.js'
+import { PROVIDER_LOGGER } from '../../utils/logging/common.js'
 
 export class FeesHandler extends Handler {
   async handle(task: GetFeesCommand): Promise<P2PCommandResponse> {

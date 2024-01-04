@@ -8,8 +8,7 @@ import {
   validateBroadcastParameters,
   validateCommandAPIParameters
 } from './validateCommands.js'
-import { HTTP_LOGGER } from '../httpRoutes/index.js'
-import { Stream } from 'node:stream'
+import { HTTP_LOGGER } from '../../utils/logging/common.js'
 
 export const broadcastCommandRoute = express.Router()
 

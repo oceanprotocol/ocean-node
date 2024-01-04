@@ -17,7 +17,7 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { sleep, readStream } from '../../utils/util.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { FindDDOResponse } from '../../@types/index.js'
-import { P2P_CONSOLE_LOGGER } from '../P2P/index.js'
+import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available

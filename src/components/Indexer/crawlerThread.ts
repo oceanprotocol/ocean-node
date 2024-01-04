@@ -4,7 +4,7 @@ import { Blockchain } from '../../utils/blockchain.js'
 import { BlocksEvents, SupportedNetwork } from '../../@types/blockchain.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { sleep } from '../../utils/util.js'
-import { INDEXER_LOGGER } from './index.js'
+import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 
 interface ThreadData {
   rpcDetails: SupportedNetwork

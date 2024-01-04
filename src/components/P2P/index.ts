@@ -42,24 +42,14 @@ import { Database } from '../database'
 import { OceanNodeConfig, FindDDOResponse } from '../../@types/OceanNode'
 
 import {
-  CustomNodeLogger,
   GENERIC_EMOJIS,
-  LOGGER_MODULE_NAMES,
   LOG_LEVELS_STR,
-  defaultConsoleTransport,
-  getCustomLoggerForModule,
   newCustomDBTransport,
   getLoggerLevelEmoji
 } from '../../utils/logging/Logger.js'
 import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
-
-// just use the default logger with default transports
-// Bellow is just an example usage, only logging to console here
-export const P2P_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.P2P,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
-)
+import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common.js'
+import { CoreHandlersRegistry } from '../core/coreHandlersRegistry.js'
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
@@ -96,10 +86,13 @@ export class OceanP2P extends EventEmitter {
   private _idx: number
   private db: Database
   private _config: OceanNodeConfig
+  // handlers
+  private coreHandlers: CoreHandlersRegistry
   constructor(db: Database, config: OceanNodeConfig) {
     super()
     this.db = db
     this._config = config
+    this.coreHandlers = new CoreHandlersRegistry(this)
     const customLogTransport = newCustomDBTransport(this.db)
     P2P_CONSOLE_LOGGER.addTransport(customLogTransport)
     this._ddoDHT = {
@@ -561,6 +554,10 @@ export class OceanP2P extends EventEmitter {
 
   getDDOCache(): DDOCache {
     return this._ddoDHT
+  }
+
+  getCoreHandlers(): CoreHandlersRegistry {
+    return this.coreHandlers
   }
 
   /**

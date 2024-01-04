@@ -1,5 +1,5 @@
-import { INDEXER_LOGGER } from '../../components/Indexer/index.js'
 import { Database } from '../../components/database/index.js'
+import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { sleep } from '../../utils/util.js'
 
 import { JsonRpcSigner, JsonRpcProvider, getBytes } from 'ethers'
