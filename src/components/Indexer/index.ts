@@ -95,11 +95,11 @@ export class OceanIndexer {
     })
     this.reindex.on('message', (event: any) => {
       if (
-          event.method === EVENTS.METADATA_CREATED ||
-          event.method === EVENTS.METADATA_UPDATED ||
-          event.method === EVENTS.METADATA_STATE ||
-          event.method === EVENTS.ORDER_STARTED ||
-          event.method === EVENTS.ORDER_REUSED
+        event.method === EVENTS.METADATA_CREATED ||
+        event.method === EVENTS.METADATA_UPDATED ||
+        event.method === EVENTS.METADATA_STATE ||
+        event.method === EVENTS.ORDER_STARTED ||
+        event.method === EVENTS.ORDER_REUSED
       ) {
         this.createOrUpdateDDO(event.network, event.data, event.method)
       }

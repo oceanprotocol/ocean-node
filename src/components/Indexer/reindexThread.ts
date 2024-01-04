@@ -2,7 +2,7 @@ import { parentPort, workerData } from 'worker_threads'
 import { sleep } from '../../utils/util.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { Blockchain } from '../../utils/blockchain.js'
-import {REINDEXER_LOGGER} from './index.js'
+import { REINDEXER_LOGGER } from './index.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { processChunkLogs } from './utils.js'
 
@@ -39,8 +39,8 @@ async function processReindex(): Promise<void> {
             const eventKeys = Object.keys(events)
             eventKeys.forEach((eventType) => {
               REINDEXER_LOGGER.logMessage(
-                  `Network: ${network.network} storing event type  ${eventType} `,
-                  true
+                `Network: ${network.network} storing event type  ${eventType} `,
+                true
               )
               parentPort.postMessage({
                 method: eventType,
@@ -51,11 +51,7 @@ async function processReindex(): Promise<void> {
           }
         }
       } catch (error) {
-        REINDEXER_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_ERROR,
-          `Error: ${error.message} `,
-          true
-        )
+        REINDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error.message} `, true)
       }
     }
     await sleep(10000)
