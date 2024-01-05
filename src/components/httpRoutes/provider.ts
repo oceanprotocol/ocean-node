@@ -52,7 +52,12 @@ providerRoutes.get('/initialize', async (req, res) => {
     const serviceId = String(req.query.serviceId)
 
     const node = req.oceanNode.getP2PNode()
-    const ddo = (await node.getDatabase().ddo.retrieve(did)) as DDO
+    let ddo = null
+    try {
+      ddo = (await node.getDatabase().ddo.retrieve(did)) as DDO
+    } catch (err) {
+      HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_INFO, `DDO not found with DID: ${did}`, true)
+    }
 
     if (!ddo) {
       res.status(400).send('Cannot resolve DID')

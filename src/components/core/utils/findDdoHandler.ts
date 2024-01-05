@@ -55,7 +55,16 @@ export async function findDDOLocally(
   node: OceanP2P,
   id: string
 ): Promise<FindDDOResponse> | undefined {
-  const ddo = await node.getDatabase().ddo.retrieve(id)
+  let ddo = null
+  try {
+    ddo = await node.getDatabase().ddo.retrieve(id)
+  } catch (err) {
+    P2P_CONSOLE_LOGGER.log(
+      LOG_LEVELS_STR.LEVEL_INFO,
+      `DDO not found with DID: ${id}`,
+      true
+    )
+  }
   if (ddo) {
     // node has ddo
 
