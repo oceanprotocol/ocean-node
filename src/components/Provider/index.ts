@@ -5,7 +5,7 @@ import {
   LOG_LEVELS_STR,
   defaultConsoleTransport
 } from '../../utils/logging/Logger.js'
-import { Database } from '../database'
+import { Database } from '../database/index.js'
 
 // this should be actually part of provider, so lets put this as module name
 export const PROVIDER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
@@ -17,5 +17,9 @@ export class OceanProvider {
   private db: Database
   constructor(db: Database) {
     this.db = db
+  }
+
+  public getDatabase(): Database {
+    return this.db
   }
 }
