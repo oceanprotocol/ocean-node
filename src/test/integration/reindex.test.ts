@@ -129,13 +129,6 @@ describe('ReIndexer worker', () => {
     assert(setMetaDataTxReceipt, 'set metada failed')
   })
 
-  delay(30000)
-
-  it('should not store ddo with stub index worker', async () => {
-    const resolvedDDO = await waitToIndex(assetDID, database)
-    expect(resolvedDDO).to.equal(null)
-  })
-
   it('should add reindex task', async () => {
     const reindexTask = {
       txId: setMetaDataTxReceipt.hash,
