@@ -21,6 +21,14 @@ export class OceanIndexer {
     this.startThreads()
   }
 
+  public getSupportedNetworks(): RPCS {
+    return this.networks
+  }
+
+  public getDatabase(): Database {
+    return this.db
+  }
+
   public async startThreads(): Promise<void> {
     for (const network of this.supportedChains) {
       const chainId = parseInt(network)

@@ -5,4 +5,8 @@ export class OceanProvider {
   constructor(db: Database) {
     this.db = db
   }
+
+  public getDatabase(): Database {
+    return this.db
+  }
 }
