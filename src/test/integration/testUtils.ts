@@ -13,13 +13,14 @@ export const delay = (interval: number) => {
 export const waitToIndex = async (did: string, database: Database): Promise<any> => {
   let tries = 0
   do {
+    let ddo = null
     try {
-      const ddo = await database.ddo.retrieve(did)
-      if (ddo) {
-        return ddo
-      }
+      ddo = await database.ddo.retrieve(did)
     } catch (e) {
       INDEXER_LOGGER.logMessage(`Error could not retrieve the DDO ${did}: ${e}`)
+    }
+    if (ddo) {
+      return ddo
     }
     sleep(1500)
     tries++

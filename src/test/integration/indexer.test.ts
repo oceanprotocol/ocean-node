@@ -26,6 +26,7 @@ import { genericDDO } from '../data/ddo.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
+import { TypesenseError } from '../../components/database/typesense.js'
 
 describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
@@ -51,6 +52,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   let orderEvent: any
   let reusedOrderEvent: any
   let initialOrderCount: number
+  let error: TypesenseError
   const timeout = 0
   const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
   const providerFeeAddress = ZeroAddress // publisherAddress
@@ -382,5 +384,15 @@ describe('Indexer stores a new metadata events and orders.', () => {
     expect(
       'id' in resolvedDDO && 'nftAddress' in resolvedDDO && 'nft' in resolvedDDO
     ).to.equal(true)
+  })
+
+  it('should throw an error for unexistent DID', async () => {
+    try {
+      await database.ddo.retrieve('did:op:123')
+    } catch (err) {
+      error = err
+    }
+    expect(error).to.be.instanceOf(TypesenseError)
+    expect(error.httpStatus).to.eql(404)
   })
 })

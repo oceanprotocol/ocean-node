@@ -96,7 +96,12 @@ export const processMetadataStateEvent = async (
       .update(getAddress(event.address) + chainId.toString(10))
       .digest('hex')
   try {
-    let ddo = await dbconn.ddo.retrieve(did)
+    let ddo = null
+    try {
+      ddo = await dbconn.ddo.retrieve(did)
+    } catch (err) {
+      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
+    }
     if (!ddo) {
       INDEXER_LOGGER.logMessage(
         `Detected MetadataState changed for ${did}, but it does not exists.`
@@ -190,7 +195,12 @@ export const processOrderStartedEvent = async (
       .update(getAddress(nftAddress) + chainId.toString(10))
       .digest('hex')
   try {
-    const ddo = await dbconn.ddo.retrieve(did)
+    let ddo = null
+    try {
+      ddo = await dbconn.ddo.retrieve(did)
+    } catch (err) {
+      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
+    }
     if (!ddo) {
       INDEXER_LOGGER.logMessage(
         `Detected OrderStarted changed for ${did}, but it does not exists.`
@@ -250,7 +260,12 @@ export const processOrderReusedEvent = async (
       .update(getAddress(nftAddress) + chainId.toString(10))
       .digest('hex')
   try {
-    const ddo = await dbconn.ddo.retrieve(did)
+    let ddo = null
+    try {
+      ddo = await dbconn.ddo.retrieve(did)
+    } catch (err) {
+      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
+    }
     if (!ddo) {
       INDEXER_LOGGER.logMessage(
         `Detected OrderReused changed for ${did}, but it does not exists.`

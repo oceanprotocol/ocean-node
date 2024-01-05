@@ -166,14 +166,7 @@ export class DdoDatabase {
   }
 
   async retrieve(id: string) {
-    try {
-      return await this.provider
-        .collections(this.schemas[0].name)
-        .documents()
-        .retrieve(id)
-    } catch (error) {
-      return error
-    }
+    return await this.provider.collections(this.schemas[0].name).documents().retrieve(id)
   }
 
   async update(ddo: Record<string, any>) {
