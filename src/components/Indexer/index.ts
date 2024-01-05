@@ -76,7 +76,6 @@ export class OceanIndexer {
 
   public async getLastIndexedBlock(network: number): Promise<number> {
     const dbconn = this.db.indexer
-    console.log('1. dbconn', dbconn)
     try {
       const indexer = await dbconn.retrieve(network)
       return indexer?.lastIndexedBlock
@@ -96,7 +95,6 @@ export class OceanIndexer {
     method: string
   ): Promise<void> {
     const dbconn = this.db.ddo
-    console.log('2. dbconn', dbconn)
     try {
       const saveDDO = await dbconn.update({ ...ddo })
       INDEXER_LOGGER.logMessage(
@@ -120,7 +118,6 @@ export class OceanIndexer {
     block: number
   ): Promise<void> {
     const dbconn = this.db.indexer
-    console.log('3. dbconn', dbconn)
     try {
       const updatedIndex = await dbconn.update(network, block)
       INDEXER_LOGGER.logMessage(
