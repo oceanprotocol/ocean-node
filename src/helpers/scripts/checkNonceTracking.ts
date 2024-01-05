@@ -24,10 +24,7 @@ const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
 )
 
 const config = await getConfig()
-const dbConfig = {
-  url: 'http://localhost:8108/?apiKey=xyz'
-}
-const dbconn = await new Database(dbConfig) // carefull! db constructor is async
+const dbconn = await new Database(config.dbConfig) // carefull! db constructor is async
 const p2pNode = new OceanP2P(config, dbconn)
 const oceanNode = new OceanNode(config, dbconn, p2pNode, null, null)
 
