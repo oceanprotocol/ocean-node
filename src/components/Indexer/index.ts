@@ -25,11 +25,12 @@ export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
 
+export let reindex: Worker
+
 export class OceanIndexer {
   private db: Database
   private networks: RPCS
   private supportedChains: string[]
-  private reindex: Worker
 
   constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
@@ -98,10 +99,10 @@ export class OceanIndexer {
         supportedNetworks[network] = rpcDetails
       }
     }
-    this.reindex = new Worker('./dist/components/Indexer/reindexThread.js', {
+    reindex = new Worker('./dist/components/Indexer/reindexThread.js', {
       workerData: { supportedNetworks }
     })
-    this.reindex.on('message', (event: any) => {
+    reindex.on('message', (event: any) => {
       if (
         event.method === EVENTS.METADATA_CREATED ||
         event.method === EVENTS.METADATA_UPDATED ||
@@ -112,21 +113,21 @@ export class OceanIndexer {
         this.createOrUpdateDDO(event.network, event.data, event.method)
       }
     })
-    this.reindex.on('error', (err: Error) => {
+    reindex.on('error', (err: Error) => {
       REINDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
         `Error in reindex worker: ${err.message}`,
         true
       )
     })
-    this.reindex.on('exit', (code: number) => {
+    reindex.on('exit', (code: number) => {
       REINDEXER_LOGGER.logMessage(`Reindex worker exited with code: ${code}`, true)
     })
-    this.reindex.postMessage({ method: 'process-reindex' })
+    reindex.postMessage({ method: 'process-reindex' })
   }
 
-  public async addReindexTask(reindexTask: ReindexTask): Promise<void> {
-    this.reindex.postMessage({ method: 'add-reindex-task', reindexTask })
+  static async addReindexTask(reindexTask: ReindexTask): Promise<void> {
+    reindex.postMessage({ method: 'add-reindex-task', reindexTask })
   }
 
   public async getLastIndexedBlock(network: number): Promise<number> {

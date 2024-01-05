@@ -141,7 +141,7 @@ describe('ReIndexer worker', () => {
       txId: setMetaDataTxReceipt.hash,
       chainId: '8996'
     }
-    await indexer.addReindexTask(reindexTask)
+    await OceanIndexer.addReindexTask(reindexTask)
   })
 
   delay(30000)

@@ -2,7 +2,7 @@ import { Handler } from './handler.js'
 import { ReindexCommand } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
-import { OceanNodeSingleton } from '../../index.js'
+import { OceanIndexer } from "../Indexer/index.js";
 
 export class ReindexHandler extends Handler {
   isReindexCommand(obj: any): obj is ReindexCommand {
@@ -35,7 +35,7 @@ export class ReindexHandler extends Handler {
         }
       }
       const eventIndex: number = Number(task.eventIndex)
-      await OceanNodeSingleton.getIndexer().addReindexTask({
+      await OceanIndexer.addReindexTask({
         txId,
         chainId,
         eventIndex
