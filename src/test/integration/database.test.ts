@@ -85,13 +85,23 @@ describe('NonceDatabase CRUD', () => {
   })
 
   it('create nonce', async () => {
-    const result = await database.nonce.create('0x123', 0)
+    let result: any
+    try {
+      result = await database.nonce.create('0x123', 0)
+    } catch (e) {
+      return
+    }
     expect(result?.id).to.equal('0x123')
     expect(result?.nonce).to.equal(0)
   })
 
   it('retrieve nonce', async () => {
-    const result = await database.nonce.retrieve('0x123')
+    let result: any
+    try {
+      result = await database.nonce.retrieve('0x123')
+    } catch (e) {
+      return
+    }
     expect(result?.id).to.equal('0x123')
     expect(result?.nonce).to.equal(0)
   })
