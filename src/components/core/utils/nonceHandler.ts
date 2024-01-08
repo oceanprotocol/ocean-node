@@ -88,8 +88,14 @@ async function updateNonce(
 ): Promise<NonceResponse> {
   // update nonce on db
   // it will create if none exists yet
+  DB_CONSOLE_LOGGER.logMessage(`arrived updateNonce...`)
   const response = await db.update(address, nonce)
   if (!(response instanceof DatabaseError)) {
+    return {
+      valid: response != null,
+      error: response == null ? 'error updating nonce to: ' + nonce : null
+    }
+  } else {
     DB_CONSOLE_LOGGER.logMessageWithEmoji(
       response.message,
       true,
@@ -99,11 +105,6 @@ async function updateNonce(
     return {
       valid: false,
       error: response.message
-    }
-  } else {
-    return {
-      valid: response != null,
-      error: response == null ? 'error updating nonce to: ' + nonce : null
     }
   }
 }
@@ -116,52 +117,40 @@ export async function checkNonce(
   signature: string,
   ddoId: string = null
 ): Promise<NonceResponse> {
-  try {
-    // get nonce from db
-    const db: NonceDatabase = node.getDatabase().nonce
-    let previousNonce = 0 // if none exists
-    const response = await db.retrieve(consumer)
-    if (!(response instanceof DatabaseError)) {
-      previousNonce = response.nonce
-    } else {
-      DB_CONSOLE_LOGGER.logMessageWithEmoji(
-        response.message,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
-      return {
-        valid: false,
-        error: response.message
-      }
-    }
-
-    // check if bigger than previous stored one and validate signature
-    const validate = validateNonceAndSignature(
-      nonce,
-      previousNonce, // will return 0 if none exists
-      consumer,
-      signature,
-      ddoId
-    )
-    if (validate.valid) {
-      const updateStatus = await updateNonce(db, consumer, nonce)
-      return updateStatus
-    }
-    return validate
-    // return validation status and possible error msg
-  } catch (err) {
+  // get nonce from db
+  const db: NonceDatabase = node.getDatabase().nonce
+  let previousNonce = 0 // if none exists
+  const response = await db.retrieve(consumer)
+  DB_CONSOLE_LOGGER.logMessage(`${response} type: ${typeof response}`)
+  if (!(response instanceof DatabaseError)) {
+    previousNonce = response.nonce
+  } else {
     DB_CONSOLE_LOGGER.logMessageWithEmoji(
-      'Failure executing nonce task: ' + err.message,
+      'Cannot retrieve existing nonce: ' + response.message,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
     )
     return {
       valid: false,
-      error: err.message
+      error: response.message
     }
   }
+
+  // check if bigger than previous stored one and validate signature
+  const validate = validateNonceAndSignature(
+    nonce,
+    previousNonce, // will return 0 if none exists
+    consumer,
+    signature,
+    ddoId
+  )
+  if (validate.valid) {
+    const updateStatus = await updateNonce(db, consumer, nonce)
+    return updateStatus
+  }
+  return validate
+  // return validation status and possible error msg
 }
 
 /**
