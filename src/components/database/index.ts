@@ -151,6 +151,13 @@ export class DdoDatabase {
       }
       return results
     } catch (error) {
+      const errorMsg = `Error when searching by query ${query}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -162,6 +169,13 @@ export class DdoDatabase {
         .documents()
         .create({ ...ddo })
     } catch (error) {
+      const errorMsg = `Error when creating DDO entry ${ddo.id}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -173,6 +187,13 @@ export class DdoDatabase {
         .documents()
         .retrieve(id)
     } catch (error) {
+      const errorMsg = `Error when retrieving DDO entry ${id}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -184,12 +205,13 @@ export class DdoDatabase {
         .documents()
         .update(ddo.id, ddo)
     } catch (error) {
-      if (error instanceof TypesenseError && error.httpStatus === 404) {
-        return await this.provider
-          .collections(this.schemas[0].name)
-          .documents()
-          .create({ ...ddo })
-      }
+      const errorMsg = `Error when updating DDO entry ${ddo.id}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -198,6 +220,13 @@ export class DdoDatabase {
     try {
       return await this.provider.collections(this.schemas[0].name).documents().delete(did)
     } catch (error) {
+      const errorMsg = `Error when deleting DDO entry ${did}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
