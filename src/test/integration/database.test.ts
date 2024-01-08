@@ -1,4 +1,3 @@
-import { DatabaseError } from '../../components/database/error.js'
 import { Database } from '../../components/database/index.js'
 import { expect } from 'chai'
 
@@ -87,34 +86,26 @@ describe('NonceDatabase CRUD', () => {
 
   it('create nonce', async () => {
     const result = await database.nonce.create('0x123', 0)
-    if (!(result instanceof DatabaseError)) {
-      expect(result?.id).to.equal('0x123')
-      expect(result?.nonce).to.equal(0)
-    }
+    expect(result?.id).to.equal('0x123')
+    expect(result?.nonce).to.equal(0)
   })
 
   it('retrieve nonce', async () => {
     const result = await database.nonce.retrieve('0x123')
-    if (!(result instanceof DatabaseError)) {
-      expect(result?.id).to.equal('0x123')
-      expect(result?.nonce).to.equal(0)
-    }
+    expect(result?.id).to.equal('0x123')
+    expect(result?.nonce).to.equal(0)
   })
 
   it('update nonce', async () => {
     const result = await database.nonce.update('0x123', 1)
-    if (!(result instanceof DatabaseError)) {
-      expect(result?.id).to.equal('0x123')
-      expect(result?.nonce).to.equal(1)
-    }
+    expect(result?.id).to.equal('0x123')
+    expect(result?.nonce).to.equal(1)
   })
 
   it('delete nonce', async () => {
     const result = await database.nonce.delete('0x123')
-    if (!(result instanceof DatabaseError)) {
-      expect(result?.id).to.equal('0x123')
-      expect(result?.nonce).to.equal(1)
-    }
+    expect(result?.id).to.equal('0x123')
+    expect(result?.nonce).to.equal(1)
   })
 })
 
