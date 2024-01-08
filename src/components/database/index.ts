@@ -226,7 +226,7 @@ export class NonceDatabase {
   }
 
   async retrieve(address: string) {
-    await this.provider.collections(this.schema.name).documents().retrieve(address)
+    return await this.provider.collections(this.schema.name).documents().retrieve(address)
   }
 
   async update(address: string, nonce: number) {

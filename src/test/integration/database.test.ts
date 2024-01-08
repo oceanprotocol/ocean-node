@@ -102,6 +102,7 @@ describe('NonceDatabase CRUD', () => {
     } catch (e) {
       return
     }
+    console.log('result: ', result)
     expect(result?.id).to.equal('0x123')
     expect(result?.nonce).to.equal(0)
   })
