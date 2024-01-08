@@ -47,7 +47,7 @@ export class CoreHandlersRegistry {
   private static instance: CoreHandlersRegistry
   // map of handlers registered
   private coreHandlers: Map<string, Handler> = new Map<string, Handler>()
-  private readonly node: OceanP2P
+  // private readonly node: OceanP2P
   private constructor(node: OceanP2P) {
     // implement core handlers
     this.registerCoreHandler(PROTOCOL_COMMANDS.DOWNLOAD, new DownloadHandler(node))
