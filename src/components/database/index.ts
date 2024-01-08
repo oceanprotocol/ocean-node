@@ -219,25 +219,14 @@ export class NonceDatabase {
   }
 
   async create(address: string, nonce: number) {
-    try {
-      return await this.provider
-        .collections(this.schema.name)
-        .documents()
-        .create({ id: address, nonce })
-    } catch (error) {
-      return error
-    }
+    return await this.provider
+      .collections(this.schema.name)
+      .documents()
+      .create({ id: address, nonce })
   }
 
   async retrieve(address: string) {
-    try {
-      return await this.provider
-        .collections(this.schema.name)
-        .documents()
-        .retrieve(address)
-    } catch (error) {
-      return error
-    }
+    await this.provider.collections(this.schema.name).documents().retrieve(address)
   }
 
   async update(address: string, nonce: number) {

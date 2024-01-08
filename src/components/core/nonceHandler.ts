@@ -8,6 +8,7 @@ import {
   DB_CONSOLE_LOGGER
 } from './utils/nonceHandler.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { TypesenseError } from '../database/typesense.js'
 
 export class NonceHandler extends Handler {
   isNonceCommand(obj: any): obj is NonceCommand {
@@ -20,32 +21,39 @@ export class NonceHandler extends Handler {
       throw new Error(`Task has not NonceCommand type. It has ${typeof task}`)
     }
     const { address } = task
+    let nonce: any
     try {
-      const nonce = await db.retrieve(address)
-      if (nonce !== null) {
-        return getDefaultResponse(nonce.nonce)
-      }
-      // did not found anything, try add it and return default
-      const setFirst = await db.create(address, 0)
-      if (setFirst) {
-        return getDefaultResponse(0)
-      }
-      return getDefaultErrorResponse(
-        `Unable to retrieve nonce neither set first default for: ${address}`
-      )
+      nonce = await db.retrieve(address)
     } catch (err) {
       // did not found anything, try add it and return default
-      if (err.message.indexOf(address) > -1) {
-        return getDefaultErrorResponse(err.message)
-      } else {
+      if (err instanceof TypesenseError && err.httpStatus === 404) {
         DB_CONSOLE_LOGGER.logMessageWithEmoji(
-          'Failure executing nonce task: ' + err.message,
+          `Nonce not found in the db: ${err.message}. Trying to add it...`,
           true,
           GENERIC_EMOJIS.EMOJI_CROSS_MARK,
           LOG_LEVELS_STR.LEVEL_ERROR
         )
-        return getDefaultErrorResponse(err.message)
+        let setFirst: any
+        try {
+          setFirst = await db.create(address, 0)
+        } catch (err) {
+          DB_CONSOLE_LOGGER.logMessageWithEmoji(
+            `Failure adding the nonce in db: ${err.message}.`,
+            true,
+            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+            LOG_LEVELS_STR.LEVEL_ERROR
+          )
+        }
+        if (setFirst) {
+          return getDefaultResponse(0)
+        }
+        return getDefaultErrorResponse(
+          `Unable to retrieve nonce neither set first default for: ${address}`
+        )
       }
+    }
+    if (nonce !== null) {
+      return getDefaultResponse(nonce.nonce)
     }
   }
 }

@@ -11,6 +11,7 @@ import {
   getCustomLoggerForModule
 } from '../../../utils/logging/Logger.js'
 import { NonceDatabase } from '../../database/index.js'
+import { TypesenseError } from '../../database/typesense.js'
 
 export const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.DATABASE,
@@ -52,32 +53,39 @@ export async function getNonce(
 ): Promise<P2PCommandResponse> {
   // get nonce from db
   const db: NonceDatabase = node.getDatabase().nonce
+  let nonce: any
   try {
-    const nonce = await db.retrieve(address)
-    if (nonce !== null) {
-      return getDefaultResponse(nonce.nonce)
-    }
-    // // did not found anything, try add it and return default
-    const setFirst = await db.create(address, 0)
-    if (setFirst) {
-      return getDefaultResponse(0)
-    }
-    return getDefaultErrorResponse(
-      `Unable to retrieve nonce neither set first default for: ${address}`
-    )
+    nonce = await db.retrieve(address)
   } catch (err) {
     // did not found anything, try add it and return default
-    if (err.message.indexOf(address) > -1) {
-      return getDefaultErrorResponse(err.message)
-    } else {
+    if (err instanceof TypesenseError && err.httpStatus === 404) {
       DB_CONSOLE_LOGGER.logMessageWithEmoji(
-        'Failure executing nonce task: ' + err.message,
+        `Nonce not found in the db: ${err.message}. Trying to add it...`,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
-      return getDefaultErrorResponse(err.message)
+      let setFirst: any
+      try {
+        setFirst = await db.create(address, 0)
+      } catch (err) {
+        DB_CONSOLE_LOGGER.logMessageWithEmoji(
+          `Failure adding the nonce in db: ${err.message}.`,
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEL_ERROR
+        )
+      }
+      if (setFirst) {
+        return getDefaultResponse(0)
+      }
+      return getDefaultErrorResponse(
+        `Unable to retrieve nonce neither set first default for: ${address}`
+      )
     }
+  }
+  if (nonce !== null) {
+    return getDefaultResponse(nonce.nonce)
   }
 }
 
@@ -117,40 +125,43 @@ export async function checkNonce(
   signature: string,
   ddoId: string = null
 ): Promise<NonceResponse> {
+  // get nonce from db
+  const db: NonceDatabase = node.getDatabase().nonce
+  let previousNonce = 0 // if none exists
+  let existingNonce: any
   try {
-    // get nonce from db
-    const db: NonceDatabase = node.getDatabase().nonce
-    let previousNonce = 0 // if none exists
-    const existingNonce = await db.retrieve(consumer)
-    if (existingNonce !== null) {
-      previousNonce = existingNonce.nonce
-    }
-    // check if bigger than previous stored one and validate signature
-    const validate = validateNonceAndSignature(
-      nonce,
-      previousNonce, // will return 0 if none exists
-      consumer,
-      signature,
-      ddoId
-    )
-    if (validate.valid) {
-      const updateStatus = await updateNonce(db, consumer, nonce)
-      return updateStatus
-    }
-    return validate
-    // return validation status and possible error msg
+    existingNonce = await db.retrieve(consumer)
   } catch (err) {
+    const errorMsg = 'Error retrieving existing nonce: ' + err.message
     DB_CONSOLE_LOGGER.logMessageWithEmoji(
-      'Failure executing nonce task: ' + err.message,
+      errorMsg,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
     )
     return {
       valid: false,
-      error: err.message
+      error: errorMsg
     }
   }
+  if (existingNonce !== null) {
+    previousNonce = existingNonce.nonce
+  }
+  // check if bigger than previous stored one and validate signature
+  const validate = validateNonceAndSignature(
+    nonce,
+    previousNonce, // will return 0 if none exists
+    consumer,
+    signature,
+    ddoId
+  )
+  if (validate.valid) {
+    // errors treated internally
+    const updateStatus = await updateNonce(db, consumer, nonce)
+    return updateStatus
+  }
+  // return validation status and possible errors
+  return validate
 }
 
 /**
