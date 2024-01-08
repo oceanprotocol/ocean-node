@@ -8,6 +8,7 @@ import {
   DB_CONSOLE_LOGGER
 } from './utils/nonceHandler.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { DatabaseError } from '../database/error.js'
 
 export class NonceHandler extends Handler {
   isNonceCommand(obj: any): obj is NonceCommand {
@@ -22,7 +23,7 @@ export class NonceHandler extends Handler {
     const { address } = task
     try {
       const nonce = await db.retrieve(address)
-      if (nonce !== null) {
+      if (nonce !== null && !(nonce instanceof DatabaseError)) {
         return getDefaultResponse(nonce.nonce)
       }
       // did not found anything, try add it and return default

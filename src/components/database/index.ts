@@ -233,11 +233,17 @@ export class NonceDatabase {
         .documents()
         .create({ id: address, nonce })
     } catch (error) {
-      DATABASE_LOGGER.logMessage(
-        `Error when creating new nonce entry ${nonce} for address ${address}`,
-        true
-      )
-      return new DatabaseError(error.message)
+      const errorMsg =
+        `Error when creating new nonce entry ${nonce} for address ${address}: ` +
+        error.message
+      DATABASE_LOGGER.logMessage(errorMsg, true)
+      let status: number
+      if (error instanceof TypesenseError) {
+        status = error.httpStatus
+      }
+      return status !== 0
+        ? new DatabaseError(errorMsg, status)
+        : new DatabaseError(errorMsg)
     }
   }
 
@@ -248,11 +254,16 @@ export class NonceDatabase {
         .documents()
         .retrieve(address)
     } catch (error) {
-      DATABASE_LOGGER.logMessage(
-        `Error when retrieving nonce entry for address ${address}`,
-        true
-      )
-      return new DatabaseError(error.message)
+      const errorMsg =
+        `Error when retrieving nonce entry for address ${address}: ` + error.message
+      DATABASE_LOGGER.logMessage(errorMsg, true)
+      let status: number
+      if (error instanceof TypesenseError) {
+        status = error.httpStatus
+      }
+      return status !== 0
+        ? new DatabaseError(errorMsg, status)
+        : new DatabaseError(errorMsg)
     }
   }
 
@@ -269,11 +280,17 @@ export class NonceDatabase {
           .documents()
           .create({ id: address, nonce })
       }
-      DATABASE_LOGGER.logMessage(
-        `Error when updating nonce entry ${nonce} for address ${address}`,
-        true
-      )
-      return new DatabaseError(error.message)
+      const errorMsg =
+        `Error when updating nonce entry ${nonce} for address ${address}: ` +
+        error.message
+      DATABASE_LOGGER.logMessage(errorMsg, true)
+      let status: number
+      if (error instanceof TypesenseError) {
+        status = error.httpStatus
+      }
+      return status !== 0
+        ? new DatabaseError(errorMsg, status)
+        : new DatabaseError(errorMsg)
     }
   }
 
@@ -281,11 +298,16 @@ export class NonceDatabase {
     try {
       return await this.provider.collections(this.schema.name).documents().delete(address)
     } catch (error) {
-      DATABASE_LOGGER.logMessage(
-        `Error when deleting nonce entry for address ${address}`,
-        true
-      )
-      return new DatabaseError(error.message)
+      const errorMsg =
+        `Error when deleting nonce entry for address ${address}: ` + error.message
+      DATABASE_LOGGER.logMessage(errorMsg, true)
+      let status: number
+      if (error instanceof TypesenseError) {
+        status = error.httpStatus
+      }
+      return status !== 0
+        ? new DatabaseError(errorMsg, status)
+        : new DatabaseError(errorMsg)
     }
   }
 }
