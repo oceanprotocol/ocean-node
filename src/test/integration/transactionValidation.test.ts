@@ -68,8 +68,6 @@ describe('validateOrderTransaction Function with Orders', () => {
     publisherAddress = await publisherAccount.getAddress()
     consumerAddress = await consumerAccount.getAddress()
 
-    console.log('publisher address', publisherAddress)
-
     const data = getOceanArtifactsAdresses()
 
     const dbConfig = {

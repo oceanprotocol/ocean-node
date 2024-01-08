@@ -12,7 +12,7 @@ describe('OceanP2P Test', () => {
     process.env.PRIVATE_KEY = process.env.NODE1_PRIVATE_KEY
     config1 = await getConfig()
     config1.p2pConfig.ipV4BindTcpPort = 0
-    node1 = new OceanP2P(null, config1)
+    node1 = new OceanP2P(config1, null)
     await node1.start()
     assert(node1, 'Failed to create P2P Node instance')
   })
@@ -20,7 +20,7 @@ describe('OceanP2P Test', () => {
     process.env.PRIVATE_KEY = process.env.NODE2_PRIVATE_KEY
     config2 = await getConfig()
     config2.p2pConfig.ipV4BindTcpPort = 0
-    node2 = new OceanP2P(null, config2)
+    node2 = new OceanP2P(config2, null)
     await node2.start()
     assert(node2, 'Failed to create P2P Node instance')
   })
@@ -62,5 +62,28 @@ describe('OceanP2P Test', () => {
       peers2.includes(config1.keys.peerId.toString()),
       'Node1 not found in node2 peer list'
     )
+  })
+})
+
+describe('OceanP2P Test without DB_URL set', () => {
+  let originalDBURL: string | undefined
+
+  before(async () => {
+    originalDBURL = process.env.DB_URL
+    process.env.DB_URL = ''
+  })
+  it('Start instance of OceanP2P without a database URL', async () => {
+    const config = await getConfig()
+    assert(config.dbConfig.url === '', 'DB URL should not be set')
+    const p2pNode = new OceanP2P(config)
+    assert(p2pNode, 'Failed to create P2P Node instance')
+    const p2pConfig = p2pNode.getConfig()
+    assert(p2pConfig, 'Failed to get P2P Node config')
+    assert(p2pConfig.dbConfig.url === '', 'P2P Node config should not have DB URL set')
+    assert(p2pConfig.hasIndexer === false, 'P2P Node should not have indexer enabled')
+    assert(p2pConfig.hasProvider === false, 'P2P Node should not have provider enabled')
+  })
+  after(async () => {
+    process.env.DB_URL = originalDBURL
   })
 })

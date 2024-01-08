@@ -241,7 +241,8 @@ export async function getConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
 
   const config: OceanNodeConfig = {
     keys,
-    hasIndexer: !!supportedNetworks,
+    // Only enable indexer if we have a DB_URL and supportedNetworks
+    hasIndexer: !!(!!getEnvValue(process.env.DB_URL, '') && !!supportedNetworks),
     hasHttp: true,
     hasP2P: true,
     p2pConfig: {
@@ -276,10 +277,11 @@ export async function getConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       ),
       connectionsDialTimeout: getIntEnvValue(process.env.P2P_connectionsDialTimeout, 10e3) // 10 seconds
     },
-    hasProvider: true,
+    // Only enable provider if we have a DB_URL
+    hasProvider: !!getEnvValue(process.env.DB_URL, ''),
     httpPort: getIntEnvValue(process.env.HTTP_API_PORT, 8000),
     dbConfig: {
-      url: getEnvValue(process.env.DB_URL, 'http://localhost:8108/?apiKey=xyz')
+      url: getEnvValue(process.env.DB_URL, '')
     },
     supportedNetworks,
     feeStrategy: getOceanNodeFees(supportedNetworks, isStartup)
