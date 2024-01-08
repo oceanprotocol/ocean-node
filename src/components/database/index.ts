@@ -10,6 +10,7 @@ import {
   LOGGER_MODULE_NAMES,
   newCustomDBTransport
 } from '../../utils/logging/Logger.js'
+import { DatabaseError } from './error.js'
 
 export const DATABASE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.DATABASE,
@@ -232,7 +233,11 @@ export class NonceDatabase {
         .documents()
         .create({ id: address, nonce })
     } catch (error) {
-      return null
+      DATABASE_LOGGER.logMessage(
+        `Error when creating new nonce entry ${nonce} for address ${address}`,
+        true
+      )
+      return new DatabaseError(error.message)
     }
   }
 
@@ -243,7 +248,11 @@ export class NonceDatabase {
         .documents()
         .retrieve(address)
     } catch (error) {
-      return null
+      DATABASE_LOGGER.logMessage(
+        `Error when retrieving nonce entry for address ${address}`,
+        true
+      )
+      return new DatabaseError(error.message)
     }
   }
 
@@ -260,7 +269,11 @@ export class NonceDatabase {
           .documents()
           .create({ id: address, nonce })
       }
-      return null
+      DATABASE_LOGGER.logMessage(
+        `Error when updating nonce entry ${nonce} for address ${address}`,
+        true
+      )
+      return new DatabaseError(error.message)
     }
   }
 
@@ -268,7 +281,11 @@ export class NonceDatabase {
     try {
       return await this.provider.collections(this.schema.name).documents().delete(address)
     } catch (error) {
-      return null
+      DATABASE_LOGGER.logMessage(
+        `Error when deleting nonce entry for address ${address}`,
+        true
+      )
+      return new DatabaseError(error.message)
     }
   }
 }
