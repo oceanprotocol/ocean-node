@@ -119,6 +119,12 @@ export class OrderDatabase {
         .documents()
         .update(orderId, { type, timestamp, consumer, payer, startOrderId })
     } catch (error) {
+      if (error instanceof TypesenseError && error.httpStatus === 404) {
+        return await this.provider
+          .collections(this.schema.name)
+          .documents()
+          .create({ id: orderId, type, timestamp, consumer, payer, startOrderId })
+      }
       const errorMsg =
         `Error when updating order entry ${orderId} at timestamp ${timestamp} by payer ${payer} for consumer ${consumer}: ` +
         error.message
@@ -239,6 +245,12 @@ export class DdoDatabase {
         .documents()
         .update(ddo.id, ddo)
     } catch (error) {
+      if (error instanceof TypesenseError && error.httpStatus === 404) {
+        return await this.provider
+          .collections(this.schemas[0].name)
+          .documents()
+          .create({ ...ddo })
+      }
       const errorMsg = `Error when updating DDO entry ${ddo.id}: ` + error.message
       DATABASE_LOGGER.logMessageWithEmoji(
         errorMsg,
@@ -409,6 +421,15 @@ export class IndexerDatabase {
         .documents()
         .create({ id: network.toString(), lastIndexedBlock })
     } catch (error) {
+      const errorMsg =
+        `Error when creating indexer entry on network ${network.toString()} with last indexed block ${lastIndexedBlock}: ` +
+        error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -420,6 +441,15 @@ export class IndexerDatabase {
         .documents()
         .retrieve(network.toString())
     } catch (error) {
+      const errorMsg =
+        `Error when retrieving indexer entry on network ${network.toString()}: ` +
+        error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -437,6 +467,15 @@ export class IndexerDatabase {
           .documents()
           .create({ id: network.toString(), lastIndexedBlock })
       }
+      const errorMsg =
+        `Error when updating indexer entry on network ${network.toString()} with last indexed block ${lastIndexedBlock}: ` +
+        error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -448,6 +487,15 @@ export class IndexerDatabase {
         .documents()
         .delete(network.toString())
     } catch (error) {
+      const errorMsg =
+        `Error when deleting indexer entry on network ${network.toString()}: ` +
+        error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -490,7 +538,13 @@ export class LogDatabase {
         .documents()
         .create(logEntry)
     } catch (error) {
-      console.error('Error inserting log entry:', error)
+      const errorMsg = `Error when inserting log entry: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -499,7 +553,13 @@ export class LogDatabase {
     try {
       return await this.provider.collections(this.schema.name).documents().retrieve(id)
     } catch (error) {
-      console.error('Error retrieving log entry:', error)
+      const errorMsg = `Error when retrieving log entry: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -534,7 +594,13 @@ export class LogDatabase {
         .search(searchParameters)
       return result.hits.map((hit) => hit.document)
     } catch (error) {
-      console.error('Error retrieving log entries:', error)
+      const errorMsg = `Error when retrieving mutliple log entries: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
