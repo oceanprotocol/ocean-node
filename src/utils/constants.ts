@@ -5,7 +5,6 @@ import { P2PCommandResponse } from '../@types/OceanNode'
 // Add all the supported commands
 export const PROTOCOL_COMMANDS = {
   DOWNLOAD: 'download',
-  DOWNLOAD_URL: 'downloadURL',
   ECHO: 'echo',
   ENCRYPT: 'encrypt',
   GET_DDO: 'getDDO',
@@ -18,7 +17,6 @@ export const PROTOCOL_COMMANDS = {
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.DOWNLOAD,
-  PROTOCOL_COMMANDS.DOWNLOAD_URL,
   PROTOCOL_COMMANDS.ECHO,
   PROTOCOL_COMMANDS.ENCRYPT,
   PROTOCOL_COMMANDS.NONCE,
@@ -29,14 +27,26 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.GET_FEES
 ]
 
+export const HANDLERS_COMMANDS = [
+  PROTOCOL_COMMANDS.DOWNLOAD,
+  PROTOCOL_COMMANDS.ENCRYPT,
+  PROTOCOL_COMMANDS.GET_DDO,
+  PROTOCOL_COMMANDS.QUERY,
+  PROTOCOL_COMMANDS.NONCE,
+  PROTOCOL_COMMANDS.STATUS,
+  PROTOCOL_COMMANDS.FIND_DDO,
+  PROTOCOL_COMMANDS.GET_FEES
+]
+
 export interface Command {
   command: string
   node?: string // if not present it means current node
 }
 
-export interface DownloadURLCommand extends Command {
+export interface DownloadURLCommand {
   fileObject: any
   aes_encrypted_key?: string // if not present it means download without encryption
+  node?: string // if not present it means current node
 }
 
 export interface DownloadTask {

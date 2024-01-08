@@ -1,5 +1,5 @@
 import express, { Request, Response } from 'express'
-import { handleDownload } from '../core/downloadHandler.js'
+import { DownloadHandler } from '../core/downloadHandler.js'
 import { HTTP_LOGGER } from './index.js'
 
 export const downloadRoute = express.Router()
@@ -16,7 +16,6 @@ downloadRoute.get(
       true
     )
     try {
-      const node = req.oceanNode.getP2PNode()
       const {
         fileIndex,
         documentId,
@@ -37,13 +36,15 @@ downloadRoute.get(
         signature: signature as string
       }
 
-      const response = await handleDownload(downloadTask, node)
+      const response = await new DownloadHandler(req.oceanNode.getP2PNode()).handle(
+        downloadTask
+      )
       if (response.stream) {
         res.status(response.status.httpStatus)
         res.set(response.status.headers)
         response.stream.pipe(res)
       } else {
-        res.status(response.status.httpStatus).send(response.error)
+        res.status(response.status.httpStatus).send(response.status.error)
       }
     } catch (error) {
       HTTP_LOGGER.logMessage(`Error: ${error}`, true)

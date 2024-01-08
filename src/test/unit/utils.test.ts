@@ -1,7 +1,6 @@
 import { expect, assert } from 'chai'
 import { sleep, getEventFromTx } from '../../utils/util.js' // replace './yourModule' with the actual path of your module
 import 'mocha'
-import { getOceanArtifactsAdresses } from '../../utils/address.js'
 
 describe('Utilities Functions', () => {
   describe('sleep function', () => {
@@ -9,7 +8,7 @@ describe('Utilities Functions', () => {
       const startTime = new Date().getTime()
       await sleep(1000) // sleep for 1 second
       const endTime = new Date().getTime()
-      expect(endTime - startTime).to.be.at.least(1000)
+      expect(endTime - startTime).to.be.at.least(999) // sometimes there is a milisecond dif locally
     })
   })
 

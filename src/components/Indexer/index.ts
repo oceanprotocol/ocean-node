@@ -9,12 +9,15 @@ import {
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
 import { EVENTS } from '../../utils/index.js'
+import EventEmitter from 'node:events'
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
   LOG_LEVELS_STR.LEVEL_INFO,
   defaultConsoleTransport
 )
+// emmit events for node
+export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
 
 export class OceanIndexer {
   private db: Database
@@ -26,6 +29,14 @@ export class OceanIndexer {
     this.networks = supportedNetworks
     this.supportedChains = Object.keys(supportedNetworks)
     this.startThreads()
+  }
+
+  public getSupportedNetworks(): RPCS {
+    return this.networks
+  }
+
+  public getDatabase(): Database {
+    return this.db
   }
 
   public async startThreads(): Promise<void> {
@@ -97,6 +108,10 @@ export class OceanIndexer {
       INDEXER_LOGGER.logMessage(
         `Saved or updated DDO  : ${saveDDO.id} from network: ${network} `
       )
+      // emit event
+      if (method === EVENTS.METADATA_CREATED) {
+        INDEXER_DDO_EVENT_EMITTER.emit(EVENTS.METADATA_CREATED, saveDDO.id)
+      }
     } catch (err) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,

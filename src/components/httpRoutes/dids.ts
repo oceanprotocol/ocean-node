@@ -1,5 +1,4 @@
 import express, { Request, Response } from 'express'
-import { Get, Route } from 'tsoa'
 
 export const advertiseDidRoute = express.Router()
 advertiseDidRoute.post(
