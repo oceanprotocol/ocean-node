@@ -257,10 +257,6 @@ export class NonceDatabase {
       const errorMsg =
         `Error when retrieving nonce entry for address ${address}: ` + error.message
       DATABASE_LOGGER.logMessage(errorMsg, true)
-      DATABASE_LOGGER.logMessage(
-        'error status: ' + error.httpStatus + ' ' + typeof error,
-        true
-      )
       let status: number
       if (error instanceof TypesenseError) {
         status = error.httpStatus
