@@ -12,11 +12,6 @@ import { EVENTS } from '../../utils/index.js'
 import EventEmitter from 'node:events'
 import { ReindexTask } from './reindexThread.js'
 
-export const REINDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.REINDEXER,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
-)
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
   LOG_LEVELS_STR.LEVEL_INFO,
@@ -113,14 +108,14 @@ export class OceanIndexer {
       }
     })
     OceanIndexer.reindex.on('error', (err: Error) => {
-      REINDEXER_LOGGER.log(
+      INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
         `Error in reindex worker: ${err.message}`,
         true
       )
     })
     OceanIndexer.reindex.on('exit', (code: number) => {
-      REINDEXER_LOGGER.logMessage(`Reindex worker exited with code: ${code}`, true)
+      INDEXER_LOGGER.logMessage(`Reindex worker exited with code: ${code}`, true)
     })
     OceanIndexer.reindex.postMessage({ method: 'process-reindex' })
   }

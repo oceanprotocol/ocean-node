@@ -2,7 +2,7 @@ import { parentPort, workerData } from 'worker_threads'
 import { sleep } from '../../utils/util.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { Blockchain } from '../../utils/blockchain.js'
-import { REINDEXER_LOGGER } from './index.js'
+import { INDEXER_LOGGER } from './index.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { processChunkLogs } from './utils.js'
 
@@ -23,7 +23,7 @@ async function processReindex(): Promise<void> {
       try {
         const network = supportedNetworks[reindexTask.chainId]
         if (network) {
-          REINDEXER_LOGGER.logMessage(
+          INDEXER_LOGGER.logMessage(
             `network: ${network.network} processing reindex ${reindexTask.txId} tx ...`,
             true
           )
@@ -36,7 +36,7 @@ async function processReindex(): Promise<void> {
             const events = await processChunkLogs(logs, provider, network.chainId)
             const eventKeys = Object.keys(events)
             eventKeys.forEach((eventType) => {
-              REINDEXER_LOGGER.logMessage(
+              INDEXER_LOGGER.logMessage(
                 `Network: ${network.network} storing event type  ${eventType} `,
                 true
               )
@@ -49,7 +49,7 @@ async function processReindex(): Promise<void> {
           }
         }
       } catch (error) {
-        REINDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error.message} `, true)
+        INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error.message} `, true)
       }
     }
     await sleep(10000)
