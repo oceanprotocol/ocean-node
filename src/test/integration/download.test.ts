@@ -309,7 +309,7 @@ describe('Download Tests', () => {
     const p2pNode = new OceanP2P(dbconn, config)
     assert(p2pNode, 'Failed to instantiate OceanP2P')
     const response = await new DownloadHandler(p2pNode).handle(downloadTask)
-    console.log(response)
+    console.log('resp download: ', response)
     assert(response.stream === null, 'stream not null')
     assert(response.status.httpStatus === 500, 'http status not 500')
     assert(
