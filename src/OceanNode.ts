@@ -8,7 +8,6 @@ import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
 import { ReadableString } from './components/P2P/handleProtocolCommands.js'
 import StreamConcat from 'stream-concat'
 import { pipe } from 'it-pipe'
-import { SUPPORTED_PROTOCOL_COMMANDS } from './utils/constants.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import { Handler } from './components/core/handler.js'
 
@@ -82,7 +81,7 @@ export class OceanNode {
     try {
       const task = JSON.parse(message)
       const handler: Handler = this.coreHandlers.getHandler(task.command)
-      if (handler === null || !SUPPORTED_PROTOCOL_COMMANDS.includes(task.command)) {
+      if (handler === null) {
         status = {
           httpStatus: 501,
           error: 'Unknown command or unexisting handler for command: ' + task.command

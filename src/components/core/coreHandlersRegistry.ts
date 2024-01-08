@@ -1,12 +1,9 @@
-import { pipe } from 'it-pipe'
 import {
   Command,
   PROTOCOL_COMMANDS,
   SUPPORTED_PROTOCOL_COMMANDS
 } from '../../utils/constants.js'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { OCEAN_NODE_LOGGER } from '../../utils/logging/common.js'
-import { ReadableString } from '../P2P/handleProtocolCommands.js'
 import { GetDdoHandler, FindDdoHandler } from './ddoHandler.js'
 import { DownloadHandler } from './downloadHandler.js'
 import { EchoHandler } from './echoHandler.js'
@@ -17,8 +14,6 @@ import { NonceHandler } from './nonceHandler.js'
 import { QueryHandler } from './queryHandler.js'
 import { StatusHandler } from './statusHandler.js'
 import { OceanP2P } from '../P2P/index.js'
-import { P2PCommandResponse } from '../../@types/OceanNode.js'
-import StreamConcat from 'stream-concat'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
