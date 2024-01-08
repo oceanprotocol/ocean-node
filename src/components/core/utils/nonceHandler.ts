@@ -86,24 +86,24 @@ async function updateNonce(
   address: string,
   nonce: number
 ): Promise<NonceResponse> {
-  try {
-    // update nonce on db
-    // it will create if none exists yet
-    const resp = await db.update(address, nonce)
-    return {
-      valid: resp != null,
-      error: resp == null ? 'error updating nonce to: ' + nonce : null
-    }
-  } catch (err) {
+  // update nonce on db
+  // it will create if none exists yet
+  const response = await db.update(address, nonce)
+  if (!(response instanceof DatabaseError)) {
     DB_CONSOLE_LOGGER.logMessageWithEmoji(
-      'Failure executing nonce task: ' + err.message,
+      response.message,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
     )
     return {
       valid: false,
-      error: err.message
+      error: response.message
+    }
+  } else {
+    return {
+      valid: response != null,
+      error: response == null ? 'error updating nonce to: ' + nonce : null
     }
   }
 }
