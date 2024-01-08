@@ -49,7 +49,6 @@ import {
 } from '../../utils/logging/Logger.js'
 import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common.js'
-import { CoreHandlersRegistry } from '../core/coreHandlersRegistry.js'
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
@@ -86,13 +85,11 @@ export class OceanP2P extends EventEmitter {
   private _idx: number
   private db: Database
   private _config: OceanNodeConfig
-  // handlers
-  private coreHandlers: CoreHandlersRegistry
+
   constructor(db: Database, config: OceanNodeConfig) {
     super()
     this.db = db
     this._config = config
-    this.coreHandlers = new CoreHandlersRegistry(this)
     const customLogTransport = newCustomDBTransport(this.db)
     P2P_CONSOLE_LOGGER.addTransport(customLogTransport)
     this._ddoDHT = {
@@ -554,10 +551,6 @@ export class OceanP2P extends EventEmitter {
 
   getDDOCache(): DDOCache {
     return this._ddoDHT
-  }
-
-  getCoreHandlers(): CoreHandlersRegistry {
-    return this.coreHandlers
   }
 
   /**

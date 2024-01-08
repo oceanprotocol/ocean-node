@@ -7,6 +7,7 @@ import { Command } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import StreamConcat from 'stream-concat'
+import { CoreHandlersRegistry } from '../core/coreHandlersRegistry.js'
 
 export class ReadableString extends Readable {
   private sent = false
@@ -51,7 +52,7 @@ export async function handleProtocolCommands(connection: any) {
   P2P_CONSOLE_LOGGER.logMessage('Performing task: ' + JSON.stringify(task), true)
   // we get the handler from the running instance
   // no need to create a new instance of Handler on every request
-  const handler = this.getCoreHandlers().getHandlerForTask(task)
+  const handler = CoreHandlersRegistry.getInstance(this).getHandler(task.command)
   let response: P2PCommandResponse = null
   if (handler === null) {
     status = { httpStatus: 501, error: `No handler found for command: ${task.command}` }

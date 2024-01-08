@@ -43,10 +43,12 @@ export class HandlerFactory {
 
 // this should be used as singleton
 export class CoreHandlersRegistry {
+  // eslint-disable-next-line no-use-before-define
+  private static instance: CoreHandlersRegistry
   // map of handlers registered
   private coreHandlers: Map<string, Handler> = new Map<string, Handler>()
   private readonly node: OceanP2P
-  public constructor(node: OceanP2P) {
+  private constructor(node: OceanP2P) {
     // implement core handlers
     this.registerCoreHandler(PROTOCOL_COMMANDS.DOWNLOAD, new DownloadHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.ENCRYPT, new EncryptHandler(node))
@@ -57,6 +59,13 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(PROTOCOL_COMMANDS.FIND_DDO, new FindDdoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.GET_FEES, new FeesHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.ECHO, new EchoHandler(node))
+  }
+
+  public static getInstance(node: OceanP2P): CoreHandlersRegistry {
+    if (!CoreHandlersRegistry.instance) {
+      this.instance = new CoreHandlersRegistry(node)
+    }
+    return this.instance
   }
 
   // supported commands:

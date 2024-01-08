@@ -22,7 +22,7 @@ export class OceanNode {
     private provider?: OceanProvider,
     private indexer?: OceanIndexer
   ) {
-    this.coreHandlers = new CoreHandlersRegistry(this.node)
+    this.coreHandlers = CoreHandlersRegistry.getInstance(this.node)
   }
 
   public addP2PNode(_node: OceanP2P) {
