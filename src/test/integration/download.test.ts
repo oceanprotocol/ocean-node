@@ -209,7 +209,6 @@ describe('Download Tests', () => {
     const asset: any = resolvedDDO
     this.timeout(65000) // Extend default Mocha test timeout
 
-    console.log('should start an order and then download the asset')
     const dataTokenContract = new Contract(
       datatokenAddress,
       ERC20Template.abi,
@@ -276,8 +275,7 @@ describe('Download Tests', () => {
     )
     const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await wallet.signMessage(messageHashBytes)
-    console.log('2. feeTx', feeTx)
-    console.log('consumerAddress', consumerAddress)
+
     const downloadTask = {
       fileIndex: 0,
       documentId: assetDID,
@@ -288,6 +286,7 @@ describe('Download Tests', () => {
       signature
     }
     const response = await new DownloadHandler(p2pNode).handle(downloadTask)
+    console.log('resp download test: ', response)
 
     assert(response)
     assert(response.stream, 'stream not present')

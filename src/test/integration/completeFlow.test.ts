@@ -316,6 +316,7 @@ describe('Should run a complete node flow.', () => {
       signature
     }
     const response = await new DownloadHandler(p2pNode).handle(downloadTask)
+    console.log('resp: ', response)
 
     assert(response)
     assert(response.stream, 'stream not present')

@@ -300,6 +300,7 @@ export class FindDdoHandler extends Handler {
         command: PROTOCOL_COMMANDS.FIND_DDO
       }
       const response: P2PCommandResponse = await this.handle(task)
+      P2P_CONSOLE_LOGGER.logMessage(`Response for FindDDO command: ${response}`, true)
 
       if (response && response?.status?.httpStatus === 200 && response?.stream) {
         const streamData = await readStream(response.stream)
