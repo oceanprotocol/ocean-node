@@ -292,47 +292,47 @@ export class FindDdoHandler extends Handler {
         `Unable to find DDO locally. Proceeding to call findDDO`,
         true
       )
-      try {
-        const task: FindDDOCommand = {
-          id: ddoId,
-          command: PROTOCOL_COMMANDS.FIND_DDO
-        }
-        const response: P2PCommandResponse = await this.handle(task)
-
-        if (response && response?.status?.httpStatus === 200 && response?.stream) {
-          const streamData = await readStream(response.stream)
-          const ddoList = JSON.parse(streamData)
-
-          // Assuming the first DDO in the list is the one we want
-          const ddoData = ddoList[0]
-          if (!ddoData) {
-            return null
-          }
-
-          // Format each service according to the Service interface
-          const formattedServices = ddoData.services.map(formatService)
-
-          // Map the DDO data to the DDO interface
-          const ddo: DDO = {
-            '@context': ddoData['@context'],
-            id: ddoData.id,
-            version: ddoData.version,
-            nftAddress: ddoData.nftAddress,
-            chainId: ddoData.chainId,
-            metadata: ddoData.metadata,
-            services: formattedServices,
-            credentials: ddoData.credentials,
-            event: ddoData.event
-          }
-
-          return ddo
-        }
-
-        return null
-      } catch (error) {
-        P2P_CONSOLE_LOGGER.logMessage(`Error getting DDO: ${error}`, true)
-        return null
+    }
+    try {
+      const task: FindDDOCommand = {
+        id: ddoId,
+        command: PROTOCOL_COMMANDS.FIND_DDO
       }
+      const response: P2PCommandResponse = await this.handle(task)
+
+      if (response && response?.status?.httpStatus === 200 && response?.stream) {
+        const streamData = await readStream(response.stream)
+        const ddoList = JSON.parse(streamData)
+
+        // Assuming the first DDO in the list is the one we want
+        const ddoData = ddoList[0]
+        if (!ddoData) {
+          return null
+        }
+
+        // Format each service according to the Service interface
+        const formattedServices = ddoData.services.map(formatService)
+
+        // Map the DDO data to the DDO interface
+        const ddo: DDO = {
+          '@context': ddoData['@context'],
+          id: ddoData.id,
+          version: ddoData.version,
+          nftAddress: ddoData.nftAddress,
+          chainId: ddoData.chainId,
+          metadata: ddoData.metadata,
+          services: formattedServices,
+          credentials: ddoData.credentials,
+          event: ddoData.event
+        }
+
+        return ddo
+      }
+
+      return null
+    } catch (error) {
+      P2P_CONSOLE_LOGGER.logMessage(`Error getting DDO: ${error}`, true)
+      return null
     }
   }
 }

@@ -11,7 +11,6 @@ import {
   getCustomLoggerForModule
 } from '../../../utils/logging/Logger.js'
 import { NonceDatabase } from '../../database/index.js'
-import { DatabaseError } from '../../database/error.js'
 
 export const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.DATABASE,
@@ -46,16 +45,6 @@ export type NonceResponse = {
   error?: string
 }
 
-export async function createDefault(node: OceanP2P, address: string) {
-  // create default nonce entry
-  const db: NonceDatabase = node.getDatabase().nonce
-  const setFirst = await db.create(address, 0)
-  if (!(setFirst instanceof DatabaseError)) {
-    return getDefaultResponse(0)
-  }
-  return getDefaultErrorResponse(setFirst.message)
-}
-
 // get stored nonce for an address ( 0 if not found)
 export async function getNonce(
   node: OceanP2P,
@@ -63,20 +52,32 @@ export async function getNonce(
 ): Promise<P2PCommandResponse> {
   // get nonce from db
   const db: NonceDatabase = node.getDatabase().nonce
-  const response = await db.retrieve(address)
-  if (!(response instanceof DatabaseError)) {
-    return getDefaultResponse(response.nonce)
-  } else if (response instanceof DatabaseError && response.status === 404) {
-    // did not found anything, try add it and return default
-    createDefault(node, address)
-  } else {
-    DB_CONSOLE_LOGGER.logMessageWithEmoji(
-      response.message,
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_ERROR
+  try {
+    const nonce = await db.retrieve(address)
+    if (nonce !== null) {
+      return getDefaultResponse(nonce.nonce)
+    }
+    // // did not found anything, try add it and return default
+    const setFirst = await db.create(address, 0)
+    if (setFirst) {
+      return getDefaultResponse(0)
+    }
+    return getDefaultErrorResponse(
+      `Unable to retrieve nonce neither set first default for: ${address}`
     )
-    return getDefaultErrorResponse(response.message)
+  } catch (err) {
+    // did not found anything, try add it and return default
+    if (err.message.indexOf(address) > -1) {
+      return getDefaultErrorResponse(err.message)
+    } else {
+      DB_CONSOLE_LOGGER.logMessageWithEmoji(
+        'Failure executing nonce task: ' + err.message,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return getDefaultErrorResponse(err.message)
+    }
   }
 }
 
@@ -86,25 +87,24 @@ async function updateNonce(
   address: string,
   nonce: number
 ): Promise<NonceResponse> {
-  // update nonce on db
-  // it will create if none exists yet
-  DB_CONSOLE_LOGGER.logMessage(`arrived updateNonce...`)
-  const response = await db.update(address, nonce)
-  if (!(response instanceof DatabaseError)) {
+  try {
+    // update nonce on db
+    // it will create if none exists yet
+    const resp = await db.update(address, nonce)
     return {
-      valid: response != null,
-      error: response == null ? 'error updating nonce to: ' + nonce : null
+      valid: resp != null,
+      error: resp == null ? 'error updating nonce to: ' + nonce : null
     }
-  } else {
+  } catch (err) {
     DB_CONSOLE_LOGGER.logMessageWithEmoji(
-      response.message,
+      'Failure executing nonce task: ' + err.message,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
     )
     return {
       valid: false,
-      error: response.message
+      error: err.message
     }
   }
 }
@@ -117,40 +117,40 @@ export async function checkNonce(
   signature: string,
   ddoId: string = null
 ): Promise<NonceResponse> {
-  // get nonce from db
-  const db: NonceDatabase = node.getDatabase().nonce
-  let previousNonce = 0 // if none exists
-  const response = await db.retrieve(consumer)
-  DB_CONSOLE_LOGGER.logMessage(`${response} type: ${typeof response}`)
-  if (!(response instanceof DatabaseError)) {
-    previousNonce = response.nonce
-  } else {
+  try {
+    // get nonce from db
+    const db: NonceDatabase = node.getDatabase().nonce
+    let previousNonce = 0 // if none exists
+    const existingNonce = await db.retrieve(consumer)
+    if (existingNonce !== null) {
+      previousNonce = existingNonce.nonce
+    }
+    // check if bigger than previous stored one and validate signature
+    const validate = validateNonceAndSignature(
+      nonce,
+      previousNonce, // will return 0 if none exists
+      consumer,
+      signature,
+      ddoId
+    )
+    if (validate.valid) {
+      const updateStatus = await updateNonce(db, consumer, nonce)
+      return updateStatus
+    }
+    return validate
+    // return validation status and possible error msg
+  } catch (err) {
     DB_CONSOLE_LOGGER.logMessageWithEmoji(
-      'Cannot retrieve existing nonce: ' + response.message,
+      'Failure executing nonce task: ' + err.message,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
     )
     return {
       valid: false,
-      error: response.message
+      error: err.message
     }
   }
-
-  // check if bigger than previous stored one and validate signature
-  const validate = validateNonceAndSignature(
-    nonce,
-    previousNonce, // will return 0 if none exists
-    consumer,
-    signature,
-    ddoId
-  )
-  if (validate.valid) {
-    const updateStatus = await updateNonce(db, consumer, nonce)
-    return updateStatus
-  }
-  return validate
-  // return validation status and possible error msg
 }
 
 /**

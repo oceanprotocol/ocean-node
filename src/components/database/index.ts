@@ -8,9 +8,9 @@ import {
   getCustomLoggerForModule,
   LOG_LEVELS_STR,
   LOGGER_MODULE_NAMES,
-  newCustomDBTransport
+  newCustomDBTransport,
+  GENERIC_EMOJIS
 } from '../../utils/logging/Logger.js'
-import { DatabaseError } from './error.js'
 
 export const DATABASE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.DATABASE,
@@ -236,14 +236,13 @@ export class NonceDatabase {
       const errorMsg =
         `Error when creating new nonce entry ${nonce} for address ${address}: ` +
         error.message
-      DATABASE_LOGGER.logMessage(errorMsg, true)
-      let status: number
-      if (error instanceof TypesenseError) {
-        status = error.httpStatus
-      }
-      return status !== 0
-        ? new DatabaseError(errorMsg, status)
-        : new DatabaseError(errorMsg)
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
     }
   }
 
@@ -256,14 +255,13 @@ export class NonceDatabase {
     } catch (error) {
       const errorMsg =
         `Error when retrieving nonce entry for address ${address}: ` + error.message
-      DATABASE_LOGGER.logMessage(errorMsg, true)
-      let status: number
-      if (error instanceof TypesenseError) {
-        status = error.httpStatus
-      }
-      return status !== 0
-        ? new DatabaseError(errorMsg, status)
-        : new DatabaseError(errorMsg)
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
     }
   }
 
@@ -283,14 +281,13 @@ export class NonceDatabase {
       const errorMsg =
         `Error when updating nonce entry ${nonce} for address ${address}: ` +
         error.message
-      DATABASE_LOGGER.logMessage(errorMsg, true)
-      let status: number
-      if (error instanceof TypesenseError) {
-        status = error.httpStatus
-      }
-      return status !== 0
-        ? new DatabaseError(errorMsg, status)
-        : new DatabaseError(errorMsg)
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
     }
   }
 
@@ -300,14 +297,13 @@ export class NonceDatabase {
     } catch (error) {
       const errorMsg =
         `Error when deleting nonce entry for address ${address}: ` + error.message
-      DATABASE_LOGGER.logMessage(errorMsg, true)
-      let status: number
-      if (error instanceof TypesenseError) {
-        status = error.httpStatus
-      }
-      return status !== 0
-        ? new DatabaseError(errorMsg, status)
-        : new DatabaseError(errorMsg)
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
     }
   }
 }
