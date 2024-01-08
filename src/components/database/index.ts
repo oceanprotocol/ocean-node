@@ -48,6 +48,14 @@ export class OrderDatabase {
       results.push(result)
       return results
     } catch (error) {
+      const errorMsg =
+        `Error when searching order entry by query ${query}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -66,6 +74,15 @@ export class OrderDatabase {
         .documents()
         .create({ id: orderId, type, timestamp, consumer, payer, startOrderId })
     } catch (error) {
+      const errorMsg =
+        `Error when creating order entry ${orderId} at timestamp ${timestamp} by payer ${payer} for consumer ${consumer}: ` +
+        error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -77,6 +94,13 @@ export class OrderDatabase {
         .documents()
         .retrieve(orderId)
     } catch (error) {
+      const errorMsg = `Error when retrieving order ${orderId}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -95,12 +119,15 @@ export class OrderDatabase {
         .documents()
         .update(orderId, { type, timestamp, consumer, payer, startOrderId })
     } catch (error) {
-      if (error instanceof TypesenseError && error.httpStatus === 404) {
-        return await this.provider
-          .collections(this.schema.name)
-          .documents()
-          .create({ id: orderId, type, timestamp, consumer, payer, startOrderId })
-      }
+      const errorMsg =
+        `Error when updating order entry ${orderId} at timestamp ${timestamp} by payer ${payer} for consumer ${consumer}: ` +
+        error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -109,6 +136,13 @@ export class OrderDatabase {
     try {
       return await this.provider.collections(this.schema.name).documents().delete(orderId)
     } catch (error) {
+      const errorMsg = `Error when deleting order ${orderId}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
