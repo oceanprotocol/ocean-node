@@ -1,22 +1,12 @@
 import { Worker } from 'node:worker_threads'
 import { Database } from '../database/index.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
-import {
-  CustomNodeLogger,
-  LOGGER_MODULE_NAMES,
-  LOG_LEVELS_STR,
-  defaultConsoleTransport,
-  getCustomLoggerForModule
-} from '../../utils/logging/Logger.js'
+import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { EVENTS } from '../../utils/index.js'
 import EventEmitter from 'node:events'
+import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { ReindexTask } from './crawlerThread.js'
 
-export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.INDEXER,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
-)
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
 

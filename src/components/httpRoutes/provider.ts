@@ -7,7 +7,7 @@ import { DDO } from '../../@types/DDO/DDO'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { EncryptHandler } from '../core/encryptHandler.js'
-import { HTTP_LOGGER } from './index.js'
+import { HTTP_LOGGER } from '../../utils/logging/common.js'
 
 export const providerRoutes = express.Router()
 

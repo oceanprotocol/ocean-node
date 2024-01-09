@@ -2,20 +2,8 @@ import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { convertTypesenseConfig, Typesense, TypesenseError } from './typesense.js'
 import { Schema, schemas } from './schemas.js'
 import { TypesenseSearchParams } from '../../@types/index.js'
-import {
-  CustomNodeLogger,
-  defaultConsoleTransport,
-  getCustomLoggerForModule,
-  LOG_LEVELS_STR,
-  LOGGER_MODULE_NAMES,
-  newCustomDBTransport
-} from '../../utils/logging/Logger.js'
-
-export const DATABASE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.DATABASE,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
-)
+import { newCustomDBTransport } from '../../utils/logging/Logger.js'
+import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 
 export class OrderDatabase {
   private provider: Typesense

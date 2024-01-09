@@ -1,7 +1,7 @@
-import { LOG_LEVELS_STR } from '../utils/logging/Logger.js'
+import { LOG_LEVELS_STR } from './logging/Logger.js'
 import { Readable, Stream } from 'stream'
 import { Interface } from 'ethers'
-import { PROVIDER_LOGGER } from '../components/Provider/index.js'
+import { PROVIDER_LOGGER } from './logging/common.js'
 
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))

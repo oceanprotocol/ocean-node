@@ -10,7 +10,7 @@ import { base58btc } from 'multiformats/bases/base58'
 // import { Wallet, ethers } from 'ethers'
 
 import pkg from 'secp256k1'
-import { DownloadURLCommand } from '../../utils/constants.js'
+import { DownloadURLCommand, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 
 // Replace with any other file, works with a local path or URL
 // '/var/log/syslog'
@@ -227,7 +227,8 @@ async function testDownloadCommand(
     // node: '16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL', // IF not present use own node
     // own node A is: "16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo",
     // other node B is: 16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL
-    fileObject: EXAMPLE_FILE // http://example.com'
+    fileObject: EXAMPLE_FILE, // http://example.com'
+    command: PROTOCOL_COMMANDS.DOWNLOAD_URL
     // "aes_encrypted_key": encryptedAESKeyAndIV
   }
 

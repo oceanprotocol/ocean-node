@@ -2,21 +2,9 @@ import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { OceanP2P } from '../../P2P/index.js'
 import { ethers } from 'ethers'
-import {
-  CustomNodeLogger,
-  GENERIC_EMOJIS,
-  LOGGER_MODULE_NAMES,
-  LOG_LEVELS_STR,
-  defaultConsoleTransport,
-  getCustomLoggerForModule
-} from '../../../utils/logging/Logger.js'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { NonceDatabase } from '../../database/index.js'
-
-export const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.DATABASE,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
-)
+import { DB_CONSOLE_LOGGER } from '../../../utils/logging/common.js'
 
 export function getDefaultErrorResponse(errorMessage: string): P2PCommandResponse {
   return {

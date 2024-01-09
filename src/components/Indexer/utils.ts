@@ -12,8 +12,8 @@ import {
   processOrderReusedEvent,
   processMetadataStateEvent
 } from './eventProcessor.js'
-import { INDEXER_LOGGER } from './index.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 
 export const getDeployedContractBlock = async (network: number) => {
   let deployedBlock: number

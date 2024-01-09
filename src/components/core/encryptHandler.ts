@@ -6,22 +6,8 @@ import { Readable } from 'stream'
 import { encrypt } from '../../utils/crypt.js'
 
 export class EncryptHandler extends Handler {
-  isEncryptCommand(obj: any): obj is EncryptCommand {
-    return (
-      typeof obj === 'object' &&
-      obj !== null &&
-      'command' in obj &&
-      'blob' in obj &&
-      'encoding' in obj &&
-      'encryptionType' in obj
-    )
-  }
-
-  async handle(task: any): Promise<P2PCommandResponse> {
+  async handle(task: EncryptCommand): Promise<P2PCommandResponse> {
     try {
-      if (!this.isEncryptCommand(task)) {
-        throw new Error(`Task has not EncryptCommand type. It has ${typeof task}`)
-      }
       // prepare an empty array in case if
       let blobData: Uint8Array = new Uint8Array()
       if (task.encoding === 'string') {

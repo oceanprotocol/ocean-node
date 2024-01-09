@@ -2,13 +2,13 @@ import { JsonRpcProvider } from 'ethers'
 import { Handler } from './handler.js'
 import { checkNonce, NonceResponse } from './utils/nonceHandler.js'
 import {
-  DownloadTask,
+  DownloadCommand,
   DownloadURLCommand,
   ENVIRONMENT_VARIABLES,
   PROTOCOL_COMMANDS
 } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
-import { P2P_CONSOLE_LOGGER, OceanP2P } from '../P2P/index.js'
+import { OceanP2P } from '../P2P/index.js'
 import { checkFee } from './utils/feesHandler.js'
 import { decrypt } from '../../utils/crypt.js'
 import { FindDdoHandler } from './ddoHandler.js'
@@ -21,6 +21,7 @@ import { Service } from '../../@types/DDO/Service'
 import { ArweaveStorage, IpfsStorage, Storage } from '../../components/storage/index.js'
 import { existsEnvironmentVariable } from '../../utils/index.js'
 import { checkCredentials } from '../../utils/credentials.js'
+import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(
@@ -146,28 +147,9 @@ export async function handleDownloadUrlCommand(
 }
 
 export class DownloadHandler extends Handler {
-  isDownloadCommand(obj: any): obj is DownloadTask {
-    return (
-      typeof obj === 'object' &&
-      obj !== null &&
-      'fileIndex' in obj &&
-      'documentId' in obj &&
-      'serviceId' in obj &&
-      'transferTxId' in obj &&
-      'nonce' in obj &&
-      'consumerAddress' in obj &&
-      'signature' in obj
-    )
-  }
-
   // No encryption here yet
 
-  async handle(task: any): Promise<P2PCommandResponse> {
-    if (!this.isDownloadCommand(task)) {
-      throw new Error(
-        `Task has nor DownloadCommand type, nor DownloadUrlCommand type. It has ${typeof task}`
-      )
-    }
+  async handle(task: DownloadCommand): Promise<P2PCommandResponse> {
     const node = this.getP2PNode()
     P2P_CONSOLE_LOGGER.logMessage(
       'Download Request recieved with arguments: ' +
@@ -353,7 +335,8 @@ export class DownloadHandler extends Handler {
       // 7. Proceed to download the file
       return await handleDownloadUrlCommand(node, {
         fileObject: decryptedFileArray.files[task.fileIndex],
-        aes_encrypted_key: task.aes_encrypted_key
+        aes_encrypted_key: task.aes_encrypted_key,
+        command: PROTOCOL_COMMANDS.DOWNLOAD_URL
       })
     } catch (e) {
       P2P_CONSOLE_LOGGER.logMessage('decryption error' + e, true)

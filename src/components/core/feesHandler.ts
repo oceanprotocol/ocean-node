@@ -4,24 +4,11 @@ import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { calculateFee } from './utils/feesHandler.js'
 import { Readable } from 'stream'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { PROVIDER_LOGGER } from '../Provider/index.js'
+import { PROVIDER_LOGGER } from '../../utils/logging/common.js'
 
 export class FeesHandler extends Handler {
-  isGetFeesCommand(obj: any): obj is GetFeesCommand {
-    return (
-      typeof obj === 'object' &&
-      obj !== null &&
-      'command' in obj &&
-      'ddo' in obj &&
-      'serviceId' in obj
-    )
-  }
-
-  async handle(task: any): Promise<P2PCommandResponse> {
+  async handle(task: GetFeesCommand): Promise<P2PCommandResponse> {
     try {
-      if (!this.isGetFeesCommand(task)) {
-        throw new Error(`Task has not GetFeesCommand type. It has ${typeof task}`)
-      }
       PROVIDER_LOGGER.logMessage(
         `Try to calculate fees for DDO with id: ${task.ddo.id} and serviceId: ${task.serviceId}`,
         true

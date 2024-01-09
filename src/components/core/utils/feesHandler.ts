@@ -6,13 +6,6 @@ import { AssetUtils } from '../../../utils/asset.js'
 import { verifyMessage } from '../../../utils/blockchain.js'
 import { OceanNodeConfig } from '../../../@types'
 import { getConfig } from '../../../utils/config.js'
-import {
-  CustomNodeLogger,
-  LOGGER_MODULE_NAMES,
-  LOG_LEVELS_STR,
-  defaultConsoleTransport,
-  getCustomLoggerForModule
-} from '../../../utils/logging/Logger.js'
 
 let config: OceanNodeConfig
 // Lazy load configuration
@@ -22,13 +15,6 @@ async function getConfiguration(): Promise<OceanNodeConfig> {
   }
   return config
 }
-
-// this should be actually part of provider, so lets put this as module name
-export const logger: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.PROVIDER,
-  LOG_LEVELS_STR.LEVEL_INFO, // Info level
-  [defaultConsoleTransport] // console only Transport
-)
 
 // equiv to get_provider_fees
 // *** NOTE: provider.py => get_provider_fees ***

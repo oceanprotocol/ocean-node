@@ -15,7 +15,7 @@ import { getConfig } from '../../utils/config.js'
 import { Database } from '../database/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { MetadataStates } from '../../utils/constants.js'
-import { INDEXER_LOGGER } from './index.js'
+import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 
 let config: OceanNodeConfig
 // Lazy load configuration
