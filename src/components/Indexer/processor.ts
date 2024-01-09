@@ -19,9 +19,14 @@ import { INDEXER_LOGGER } from './index.js'
 
 class BaseEventProcessor {
   protected config: OceanNodeConfig
+  protected dbConn: Database
 
   constructor() {
     this.config = null
+    this.dbConn = null
+    this.getConfiguration().then(async () => {
+      this.dbConn = await this.getDatabase()
+    })
   }
 
   protected async getConfiguration(): Promise<OceanNodeConfig> {
@@ -29,6 +34,13 @@ class BaseEventProcessor {
       this.config = await getConfig()
     }
     return this.config
+  }
+
+  protected async getDatabase(): Promise<Database> {
+    if (!this.dbConn) {
+      this.dbConn = new Database(this.config.dbConfig)
+    }
+    return this.dbConn
   }
 
   protected getTokenInfo(services: any[]): any[] {
@@ -104,7 +116,6 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
     )
     const metadataState = parseInt(decodedEventData.args[1].toString())
     INDEXER_LOGGER.logMessage(`Processed new metadata state ${metadataState} `, true)
-    const dbconn = await new Database(await (await this.getConfiguration()).dbConfig)
     INDEXER_LOGGER.logMessage(
       `NFT address in processing MetadataState: ${event.address} `,
       true
@@ -115,7 +126,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
         .update(getAddress(event.address) + chainId.toString(10))
         .digest('hex')
     try {
-      let ddo = await dbconn.ddo.retrieve(did)
+      let ddo = await this.dbConn.ddo.retrieve(did)
       if (!ddo) {
         INDEXER_LOGGER.logMessage(
           `Detected MetadataState changed for ${did}, but it does not exists.`
@@ -197,8 +208,6 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
       `Processed new order for service index ${serviceIndex} at ${timestamp}`,
       true
     )
-    const config = await this.getConfiguration()
-    const dbconn = await new Database(config.dbConfig)
     const datatokenContract = new Contract(
       event.address,
       ERC20Template.abi,
@@ -211,7 +220,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         .update(getAddress(nftAddress) + chainId.toString(10))
         .digest('hex')
     try {
-      const ddo = await dbconn.ddo.retrieve(did)
+      const ddo = await this.dbConn.ddo.retrieve(did)
       if (!ddo) {
         INDEXER_LOGGER.logMessage(
           `Detected OrderStarted changed for ${did}, but it does not exists.`
@@ -227,7 +236,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
           orders: 1
         }
       }
-      await dbconn.order.create(
+      await this.dbConn.order.create(
         event.transactionHash,
         'startOrder',
         timestamp,
@@ -259,8 +268,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
     const timestamp = parseInt(decodedEventData.args[2].toString())
     const payer = decodedEventData.args[1].toString()
     INDEXER_LOGGER.logMessage(`Processed reused order at ${timestamp}`, true)
-    const config = await this.getConfiguration()
-    const dbconn = await new Database(config.dbConfig)
+
     const datatokenContract = new Contract(
       event.address,
       ERC20Template.abi,
@@ -273,7 +281,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         .update(getAddress(nftAddress) + chainId.toString(10))
         .digest('hex')
     try {
-      const ddo = await dbconn.ddo.retrieve(did)
+      const ddo = await this.dbConn.ddo.retrieve(did)
       if (!ddo) {
         INDEXER_LOGGER.logMessage(
           `Detected OrderReused changed for ${did}, but it does not exists.`
@@ -283,14 +291,14 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
       ddo.stats.orders += 1
 
       try {
-        const startOrder = await dbconn.order.retrieve(startOrderId)
+        const startOrder = await this.dbConn.order.retrieve(startOrderId)
         if (!startOrder) {
           INDEXER_LOGGER.logMessage(
             `Detected OrderReused changed for order ${startOrderId}, but it does not exists.`
           )
           return
         }
-        await dbconn.order.create(
+        await this.dbConn.order.create(
           event.transactionHash,
           'reuseOrder',
           timestamp,
