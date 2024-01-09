@@ -12,6 +12,7 @@ export interface OverrideEnvConfig {
   newValue: any // value of the var
   originalValue: any // original value
   override: boolean // override the default/existing value?
+  required: boolean // is required variable?
 }
 // set env vars first
 // envFilePath should be relative to current directory
@@ -27,8 +28,11 @@ export async function setupEnvironment(
   dotenv.config({ path: pathEnv, encoding: 'utf8', debug: true })
   if (overrideVars && overrideVars.length > 0) {
     overrideVars.forEach((element: OverrideEnvConfig) => {
-      if (element.override) {
-        element.originalValue = process.env[element.name]
+      if (
+        element.override ||
+        (element.required && process.env[element.name] === undefined) // if override OR not set but required
+      ) {
+        element.originalValue = process.env[element.name] // save original value
         process.env[element.name] = element.newValue
       }
     })

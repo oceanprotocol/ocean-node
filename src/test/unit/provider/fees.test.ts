@@ -42,13 +42,15 @@ function getEnvOverrides(): OverrideEnvConfig[] {
       newValue:
         '{ "1": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48", "137": "0x282d8efCe846A88B159800bd4130ad77443Fa1A1", "80001": "0xd8992Ed72C445c35Cb4A2be468568Ed1079357c8", "56": "0xDCe07662CA8EbC241316a15B611c89711414Dd1a" }',
       override: true,
-      originalValue: ENVIRONMENT_VARIABLES.FEE_TOKENS.value
+      originalValue: ENVIRONMENT_VARIABLES.FEE_TOKENS.value,
+      required: ENVIRONMENT_VARIABLES.FEE_TOKENS.required
     },
     {
       name: ENVIRONMENT_VARIABLES.FEE_AMOUNT.name,
       newValue: '{ "amount": 1, "unit": "MB" }',
       override: true,
-      originalValue: ENVIRONMENT_VARIABLES.FEE_AMOUNT.value
+      originalValue: ENVIRONMENT_VARIABLES.FEE_AMOUNT.value,
+      required: ENVIRONMENT_VARIABLES.FEE_AMOUNT.required
     }
   ]
 }

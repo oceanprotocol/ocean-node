@@ -176,6 +176,17 @@ export const ENVIRONMENT_VARIABLES = {
     required: false
   },
   PRIVATE_KEY: { name: 'PRIVATE_KEY', value: process.env.PRIVATE_KEY, required: true },
+  // used on test environments (ci)
+  NODE1_PRIVATE_KEY: {
+    name: 'NODE1_PRIVATE_KEY',
+    value: process.env.NODE1_PRIVATE_KEY,
+    required: false
+  },
+  NODE2_PRIVATE_KEY: {
+    name: 'NODE2_PRIVATE_KEY',
+    value: process.env.NODE2_PRIVATE_KEY,
+    required: false
+  },
   RPCS: { name: 'RPCS', value: process.env.RPCS, required: false },
   DB_URL: { name: 'DB_URL', value: process.env.DB_URL, required: false },
   // these 2 bellow will change in the future (not required, just remove functionality)
