@@ -8,7 +8,8 @@ import {
   getCustomLoggerForModule,
   LOG_LEVELS_STR,
   LOGGER_MODULE_NAMES,
-  newCustomDBTransport
+  newCustomDBTransport,
+  GENERIC_EMOJIS
 } from '../../utils/logging/Logger.js'
 
 export const DATABASE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
@@ -47,6 +48,14 @@ export class OrderDatabase {
       results.push(result)
       return results
     } catch (error) {
+      const errorMsg =
+        `Error when searching order entry by query ${query}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -65,6 +74,15 @@ export class OrderDatabase {
         .documents()
         .create({ id: orderId, type, timestamp, consumer, payer, startOrderId })
     } catch (error) {
+      const errorMsg =
+        `Error when creating order entry ${orderId} at timestamp ${timestamp} by payer ${payer} for consumer ${consumer}: ` +
+        error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -76,6 +94,13 @@ export class OrderDatabase {
         .documents()
         .retrieve(orderId)
     } catch (error) {
+      const errorMsg = `Error when retrieving order ${orderId}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -100,6 +125,15 @@ export class OrderDatabase {
           .documents()
           .create({ id: orderId, type, timestamp, consumer, payer, startOrderId })
       }
+      const errorMsg =
+        `Error when updating order entry ${orderId} at timestamp ${timestamp} by payer ${payer} for consumer ${consumer}: ` +
+        error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -108,6 +142,13 @@ export class OrderDatabase {
     try {
       return await this.provider.collections(this.schema.name).documents().delete(orderId)
     } catch (error) {
+      const errorMsg = `Error when deleting order ${orderId}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -150,6 +191,13 @@ export class DdoDatabase {
       }
       return results
     } catch (error) {
+      const errorMsg = `Error when searching by query ${query}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -161,6 +209,13 @@ export class DdoDatabase {
         .documents()
         .create({ ...ddo })
     } catch (error) {
+      const errorMsg = `Error when creating DDO entry ${ddo.id}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -172,6 +227,13 @@ export class DdoDatabase {
         .documents()
         .retrieve(id)
     } catch (error) {
+      const errorMsg = `Error when retrieving DDO entry ${id}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -189,6 +251,13 @@ export class DdoDatabase {
           .documents()
           .create({ ...ddo })
       }
+      const errorMsg = `Error when updating DDO entry ${ddo.id}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -197,6 +266,13 @@ export class DdoDatabase {
     try {
       return await this.provider.collections(this.schemas[0].name).documents().delete(did)
     } catch (error) {
+      const errorMsg = `Error when deleting DDO entry ${did}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -232,6 +308,15 @@ export class NonceDatabase {
         .documents()
         .create({ id: address, nonce })
     } catch (error) {
+      const errorMsg =
+        `Error when creating new nonce entry ${nonce} for address ${address}: ` +
+        error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -243,6 +328,14 @@ export class NonceDatabase {
         .documents()
         .retrieve(address)
     } catch (error) {
+      const errorMsg =
+        `Error when retrieving nonce entry for address ${address}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -260,6 +353,15 @@ export class NonceDatabase {
           .documents()
           .create({ id: address, nonce })
       }
+      const errorMsg =
+        `Error when updating nonce entry ${nonce} for address ${address}: ` +
+        error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -268,6 +370,14 @@ export class NonceDatabase {
     try {
       return await this.provider.collections(this.schema.name).documents().delete(address)
     } catch (error) {
+      const errorMsg =
+        `Error when deleting nonce entry for address ${address}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -311,6 +421,15 @@ export class IndexerDatabase {
         .documents()
         .create({ id: network.toString(), lastIndexedBlock })
     } catch (error) {
+      const errorMsg =
+        `Error when creating indexer entry on network ${network.toString()} with last indexed block ${lastIndexedBlock}: ` +
+        error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -322,6 +441,15 @@ export class IndexerDatabase {
         .documents()
         .retrieve(network.toString())
     } catch (error) {
+      const errorMsg =
+        `Error when retrieving indexer entry on network ${network.toString()}: ` +
+        error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -339,6 +467,15 @@ export class IndexerDatabase {
           .documents()
           .create({ id: network.toString(), lastIndexedBlock })
       }
+      const errorMsg =
+        `Error when updating indexer entry on network ${network.toString()} with last indexed block ${lastIndexedBlock}: ` +
+        error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -350,6 +487,15 @@ export class IndexerDatabase {
         .documents()
         .delete(network.toString())
     } catch (error) {
+      const errorMsg =
+        `Error when deleting indexer entry on network ${network.toString()}: ` +
+        error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -392,7 +538,13 @@ export class LogDatabase {
         .documents()
         .create(logEntry)
     } catch (error) {
-      console.error('Error inserting log entry:', error)
+      const errorMsg = `Error when inserting log entry: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -401,7 +553,13 @@ export class LogDatabase {
     try {
       return await this.provider.collections(this.schema.name).documents().retrieve(id)
     } catch (error) {
-      console.error('Error retrieving log entry:', error)
+      const errorMsg = `Error when retrieving log entry: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
@@ -436,7 +594,13 @@ export class LogDatabase {
         .search(searchParameters)
       return result.hits.map((hit) => hit.document)
     } catch (error) {
-      console.error('Error retrieving log entries:', error)
+      const errorMsg = `Error when retrieving mutliple log entries: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return null
     }
   }
