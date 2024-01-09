@@ -143,7 +143,7 @@ describe('Ocean Node fees', () => {
     }
 
     const dbconn = await new Database(config.dbConfig)
-    const p2pNode = new OceanP2P(dbconn, config)
+    const p2pNode = new OceanP2P(config, dbconn)
 
     const data: P2PCommandResponse = await new FeesHandler(p2pNode).handle({
       ddo: asset,
