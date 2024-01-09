@@ -258,9 +258,8 @@ describe('Download Tests', () => {
       rpc: 'http://127.0.0.1:8545',
       chunkSize: 100
     }
-
     const dbconn = await new Database(config.dbConfig)
-    const p2pNode = new OceanP2P(dbconn, config)
+    const p2pNode = new OceanP2P(config, dbconn)
     assert(p2pNode, 'Failed to instantiate OceanP2P')
 
     const wallet = new ethers.Wallet(
@@ -307,7 +306,7 @@ describe('Download Tests', () => {
     }
     const config = await getConfig()
     const dbconn = await new Database(config.dbConfig)
-    const p2pNode = new OceanP2P(dbconn, config)
+    const p2pNode = new OceanP2P(config, dbconn)
     assert(p2pNode, 'Failed to instantiate OceanP2P')
     const response = await new DownloadHandler(p2pNode).handle(downloadTask)
     console.log(response)

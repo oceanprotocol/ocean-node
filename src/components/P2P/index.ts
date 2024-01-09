@@ -97,12 +97,17 @@ export class OceanP2P extends EventEmitter {
   private _idx: number
   private db: Database
   private _config: OceanNodeConfig
-  constructor(db: Database, config: OceanNodeConfig) {
+  constructor(config: OceanNodeConfig, db?: Database) {
     super()
-    this.db = db
     this._config = config
-    const customLogTransport = newCustomDBTransport(this.db)
-    P2P_CONSOLE_LOGGER.addTransport(customLogTransport)
+    if (db && config.dbConfig.url) {
+      this.db = db
+      const customLogTransport = newCustomDBTransport(this.db)
+      P2P_CONSOLE_LOGGER.addTransport(customLogTransport)
+    } else {
+      this._config.hasIndexer = false
+      this._config.hasProvider = false
+    }
     this._ddoDHT = {
       updated: new Date().getTime(),
       dht: new Map<string, FindDDOResponse>()
@@ -137,18 +142,6 @@ export class OceanP2P extends EventEmitter {
   }
 
   async createNode(config: OceanNodeConfig): Promise<Libp2p | null> {
-    const bootstrapers = [
-      '/ip4/104.131.131.82/tcp/4001/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ',
-      '/dnsaddr/bootstrap.libp2p.io/ipfs/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN',
-      '/dnsaddr/bootstrap.libp2p.io/ipfs/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa',
-      // '/ip4/127.0.0.12/tcp/49100/p2p/12D3KooWLktGvbzuDK7gv1kS4pq6DNWxmxEREKVtBEhVFQmDNni7'
-      '/ip4/35.198.125.13/tcp/8000/p2p/16Uiu2HAmKZuuY2Lx3JiY938rJWZrYQh6kjBZCNrh3ALkodtwFRdF', // paulo
-      '/ip4/34.159.64.236/tcp/8000/p2p/16Uiu2HAmAy1GcZGhzFT3cbARTmodg9c3M4EAmtBZyDgu5cSL1NPr', // jaime
-      '/ip4/34.107.3.14/tcp/8000/p2p/16Uiu2HAm4DWmX56ZX2bKjvARJQZPMUZ9xsdtAfrMmd7P8czcN4UT', // maria
-      '/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb',
-      '/dnsaddr/bootstrap.libp2p.io/p2p/QmZa1sAxajnQjVM8WjWXoMbmPd7NsWhfKsPkErzpm9wGkp',
-      '/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt'
-    ]
     try {
       this._publicAddress = config.keys.peerId.toString()
       this._publicKey = config.keys.publicKey
@@ -174,7 +167,7 @@ export class OceanP2P extends EventEmitter {
         ],
         peerDiscovery: [
           bootstrap({
-            list: bootstrapers
+            list: config.p2pConfig.bootstrapNodes
           }),
           pubsubPeerDiscovery({
             interval: config.p2pConfig.pubsubPeerDiscoveryInterval,
@@ -263,7 +256,6 @@ export class OceanP2P extends EventEmitter {
         // hole punching errors are non-fatal
         console.error(err)
       })
-
       return node
     } catch (e) {
       P2P_CONSOLE_LOGGER.logMessageWithEmoji(

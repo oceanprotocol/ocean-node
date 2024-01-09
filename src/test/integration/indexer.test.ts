@@ -42,6 +42,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   let assetDID: string
   let resolvedDDO: Record<string, any>
   let genericAsset: any
+  let setMetaDataTxReceipt: any
   let orderTxId: string
   let reuseOrderTxId: string
   let dataTokenContractWithNewSigner: any
@@ -154,8 +155,8 @@ describe('Indexer stores a new metadata events and orders.', () => {
       '0x' + hash,
       []
     )
-    const trxReceipt = await setMetaDataTx.wait()
-    assert(trxReceipt, 'set metada failed')
+    setMetaDataTxReceipt = await setMetaDataTx.wait()
+    assert(setMetaDataTxReceipt, 'set metada failed')
   })
 
   delay(30000)
@@ -382,5 +383,18 @@ describe('Indexer stores a new metadata events and orders.', () => {
     expect(
       'id' in resolvedDDO && 'nftAddress' in resolvedDDO && 'nft' in resolvedDDO
     ).to.equal(true)
+  })
+
+  it('should add reindex task', async () => {
+    const reindexTask = {
+      txId: setMetaDataTxReceipt.hash,
+      chainId: '8996'
+    }
+    await OceanIndexer.addReindexTask(reindexTask)
+  })
+
+  it('should store ddo reindex', async () => {
+    const resolvedDDO = await waitToIndex(assetDID, database)
+    expect(resolvedDDO.id).to.equal(genericAsset.id)
   })
 })
