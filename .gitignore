@@ -128,3 +128,12 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Typesense
+typesense-data
+
+# IDEA
+.idea
+
+# VS CODE
+.vscode

@@ -1,0 +1,193 @@
+{
+  "info": {
+    "_postman_id": "ff8f2614-8d77-40e4-9031-9ca2ed9f7973",
+    "name": "Ocean Node",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "8000 - getP2pPeers",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "8001 - getP2pPeers",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "8000 - getOceanPeers",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "8001 - getOceanPeers",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "8000 - getPeer",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://127.0.0.1:8000/getP2pPeer?peerId=16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL",
+          "protocol": "http",
+          "host": ["127", "0", "0", "1"],
+          "port": "8000",
+          "path": ["getP2pPeer"],
+          "query": [
+            {
+              "key": "peerId",
+              "value": "16Uiu2HAmQU8YmsACkFjkaFqEECLN3Csu6JgoU3hw9EsPmk7i9TFL"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "8000 - advertiseDid",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "8001 - advertiseDid",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "8000 - getProvidersForDid",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "8001 - getProvidersForDid",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "8000 - directCommand (findDDO)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "default"
+          }
+        ]
+      },
+      "body": {
+        "mode": "raw",
+        "raw": "{\n    \"command\": \"findDDO\",\n    \"id\": \"did:op:0ebed8226ada17fde24b6bf2b95d27f8f05fcce09139ff5cec31f6d81a7cd2ea\"\n}"
+      },
+      "url": {
+        "raw": "http://127.0.0.1:8000/directCommand",
+        "protocol": "http",
+        "host": ["127", "0", "0", "1"],
+        "port": "8000",
+        "path": ["directCommand"]
+      },
+      "response": []
+    },
+    {
+      "name": "8001 - directCommand (findDDO)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "default"
+          }
+        ]
+      },
+      "body": {
+        "mode": "raw",
+        "raw": "{\n    \"command\": \"findDDO\",\n    \"id\": \"did:op:0ebed8226ada17fde24b6bf2b95d27f8f05fcce09139ff5cec31f6d81a7cd2ea\",   \"node\": \"16Uiu2HAkvfXgYiFhsHRJvcdtmMs3aopgoRphb5xnXMh3dxCRuuX\"\n}"
+      },
+      "url": {
+        "raw": "http://127.0.0.1:8001/directCommand",
+        "protocol": "http",
+        "host": ["127", "0", "0", "1"],
+        "port": "8001",
+        "path": ["directCommand"]
+      },
+      "response": []
+    },
+    {
+      "name": "8000 - directCommand",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "default"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"command\":\"downloadURL\",\n    \"node\": \"16Uiu2HAkxiemC25d2iZWTkVRQmZr9L9h3RNGnhiUWXEonmsPEC8y\",\n    \"url\": \"http://example.com\",\n    \"aes_encrypted_key\":  \"0x1234567890abcdef\"\n}"
+        },
+        "url": {
+          "raw": "http://127.0.0.1:8000/directCommand",
+          "protocol": "http",
+          "host": ["127", "0", "0", "1"],
+          "port": "8000",
+          "path": ["directCommand"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "8001 - directCommand",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "default"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"command\":\"downloadURL\",\n    \"node\": \"16Uiu2HAkvfXgYiFhsHRJvcdtmMs3aopgoRphb5xnXMh3dxCRuuX\",\n    \"url\": \"http://example.com\",\n    \"aes_encrypted_key\":  \"0x1234567890abcdef\"\n}"
+        },
+        "url": {
+          "raw": "http://127.0.0.1:8001/directCommand",
+          "protocol": "http",
+          "host": ["127", "0", "0", "1"],
+          "port": "8001",
+          "path": ["directCommand"]
+        }
+      },
+      "response": []
+    }
+  ]
+}

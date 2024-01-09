@@ -1,0 +1,94 @@
+{
+    "@context": [
+      "https://w3id.org/did/v1"
+    ],
+    "id": "did:op:6353fefbd3a78dc871e1ba0a93455bbec074cb8bf74ec74bfeb1c2ea4e1a072f",
+    "nftAddress": "0x5684686Fed10643d85462869C90d9Ee0034F1269",
+    "version": "4.1.0",
+    "chainId": 137,
+    "metadata": {
+      "created": "2022-12-30T08:35:56Z",
+      "updated": "2022-12-30T08:35:56Z",
+      "type": "dataset",
+      "name": "Yields data of DeFi protocols",
+      "description": "The data of yields of different protocols, from different sources (lending, pools, ...) in different chains\nIt's aggregated daily and updated weekly.\n",
+      "tags": [
+        "yield",
+        "pools",
+        "defi",
+        "lending",
+        "borrowing"
+      ],
+      "author": "Yield",
+      "license": "https://market.oceanprotocol.com/terms",
+      "additionalInformation": {
+        "termsAndConditions": true
+      }
+    },
+    "services": [
+      {
+        "id": "9d2fe374799e91e8760d3cb79c7c9308dc5502eec976a280db11a79e538db413",
+        "type": "access",
+        "files": "0x048cce1d06e86d810dac5c557dffbbb9f618e2df96a4e8d494f09db49fea172bb203cd8cbb3d7aa87811e98e6ce930d7f5ada4daea96a2d4c283c78ebf77489659c68ed9c12cb21109cd326ce5dc927854ecd5da4cfb265caa2cbc028f7757d619a60b0a180bd8c4f0789df89856f03fc3d4657601b34098b6bee415568dba9c37011a19634c1782ae2b703ceccd3868fdafd94222758c96fc06b67186e8a6fbd68cea35cdc09541a39419d794ab9a863ad51707b9dfd7577b3905b00d46016e5f8835d7f501903ebef586396dac47258c35156e3e5c5ae4e0cc1932fd4ac620fbbecb6fef0e8f95379988ba30df12760353b44358da6e15344259a93d47114980bd6c8f347be9c2dfb8db062b2f4189e43c9b9b4348720a6e77501eda3bbf1ba6b6e443b9456d75c0d84ad53e5662abd1635d2785ed303407beaa686be97ba7640dd58ca088d49ec5b66380dc4cbdf2e5f69b42",
+        "datatokenAddress": "0x64C21f89628877498BB9A5597610A99775f37CC6",
+        "serviceEndpoint": "https://v4.provider.polygon.oceanprotocol.com",
+        "timeout": 604800
+      }
+    ],
+    "event": {
+      "tx": "0xfc3fee47b45ec9f8fd9f88249dfb99f15ffb7647112490525b7f9d5c166e9ab6",
+      "block": 39311700,
+      "from": "0xf37c5887cE2F825D6ee6cb7499E325B9FBd8C1aD",
+      "contract": "0x5684686Fed10643d85462869C90d9Ee0034F1269",
+      "datetime": "2023-02-15T07:03:24"
+    },
+    "nft": {
+      "address": "0x5684686Fed10643d85462869C90d9Ee0034F1269",
+      "name": "Ocean Data NFT",
+      "symbol": "OCEAN-NFT",
+      "state": 0,
+      "tokenURI": "data:application/json;base64,eyJuYW1lIjoiT2NlYW4gRGF0YSBORlQiLCJzeW1ib2wiOiJPQ0VBTi1ORlQiLCJkZXNjcmlwdGlvbiI6IlRoaXMgTkZUIHJlcHJlc2VudHMgYW4gYXNzZXQgaW4gdGhlIE9jZWFuIFByb3RvY29sIHY0IGVjb3N5c3RlbS5cblxuVmlldyBvbiBPY2VhbiBNYXJrZXQ6IGh0dHBzOi8vbWFya2V0Lm9jZWFucHJvdG9jb2wuY29tL2Fzc2V0L2RpZDpvcDo2MzUzZmVmYmQzYTc4ZGM4NzFlMWJhMGE5MzQ1NWJiZWMwNzRjYjhiZjc0ZWM3NGJmZWIxYzJlYTRlMWEwNzJmIiwiZXh0ZXJuYWxfdXJsIjoiaHR0cHM6Ly9tYXJrZXQub2NlYW5wcm90b2NvbC5jb20vYXNzZXQvZGlkOm9wOjYzNTNmZWZiZDNhNzhkYzg3MWUxYmEwYTkzNDU1YmJlYzA3NGNiOGJmNzRlYzc0YmZlYjFjMmVhNGUxYTA3MmYiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiMTQxNDE0IiwiaW1hZ2VfZGF0YSI6ImRhdGE6aW1hZ2Uvc3ZnK3htbCwlM0Nzdmcgdmlld0JveD0nMCAwIDk5IDk5JyBmaWxsPSd1bmRlZmluZWQnIHhtbG5zPSdodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyclM0UlM0NwYXRoIGZpbGw9JyUyM2ZmNDA5Mjc3JyBkPSdNMCw5OUwwLDI1QzgsMjUgMTYsMjUgMjUsMjVDMzMsMjQgNDAsMjQgNDgsMjRDNTUsMjMgNjIsMjMgNzEsMjRDNzksMjQgODksMjQgOTksMjRMOTksOTlaJy8lM0UlM0NwYXRoIGZpbGw9JyUyM2ZmNDA5MmJiJyBkPSdNMCw5OUwwLDQ1QzcsNDQgMTQsNDMgMjMsNDRDMzEsNDQgNDIsNDcgNTEsNDlDNTksNTAgNjUsNTEgNzMsNTBDODAsNDggODksNDYgOTksNDRMOTksOTlaJyUzRSUzQy9wYXRoJTNFJTNDcGF0aCBmaWxsPSclMjNmZjQwOTJmZicgZD0nTTAsOTlMMCw2OUM3LDczIDE0LDc4IDIzLDc5QzMxLDc5IDQwLDc2IDQ5LDc0QzU3LDcxIDY2LDcwIDc1LDcxQzgzLDcxIDkxLDczIDk5LDc1TDk5LDk5WiclM0UlM0MvcGF0aCUzRSUzQy9zdmclM0UifQ==",
+      "owner": "0xf37c5887cE2F825D6ee6cb7499E325B9FBd8C1aD",
+      "created": "2022-12-30T08:36:29"
+    },
+    "purgatory": {
+      "state": false
+    },
+    "datatokens": [
+      {
+        "address": "0x64C21f89628877498BB9A5597610A99775f37CC6",
+        "name": "Lachrymose Starfish Token",
+        "symbol": "LACSTA-50",
+        "serviceId": "9d2fe374799e91e8760d3cb79c7c9308dc5502eec976a280db11a79e538db413"
+      }
+    ],
+    "stats": {
+      "allocated": 1754443,
+      "orders": 39,
+      "price": {
+        "value": 1000,
+        "tokenAddress": "0x282d8efCe846A88B159800bd4130ad77443Fa1A1",
+        "tokenSymbol": "mOCEAN"
+      }
+    },
+    "accessDetails": {
+      "templateId": 2,
+      "publisherMarketOrderFee": "0",
+      "type": "fixed",
+      "addressOrId": "0xd77a9f1f721d760e27709ce95a0f4b38d9638877930baba77aa6ae7b9f30d136",
+      "price": "1000",
+      "isPurchasable": true,
+      "baseToken": {
+        "address": "0x282d8efce846a88b159800bd4130ad77443fa1a1",
+        "name": "Ocean Token (PoS)",
+        "symbol": "mOCEAN",
+        "decimals": 18
+      },
+      "datatoken": {
+        "address": "0x64c21f89628877498bb9a5597610a99775f37cc6",
+        "name": "Lachrymose Starfish Token",
+        "symbol": "LACSTA-50"
+      }
+    }
+  }
+  
