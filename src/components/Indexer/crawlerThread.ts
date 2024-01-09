@@ -109,7 +109,11 @@ async function processReindex(): Promise<void> {
         })
       }
     } catch (error) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `REINDEX Error: ${error.message} `, true)
+      INDEXER_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `REINDEX Error: ${error.message} `,
+        true
+      )
     }
   }
 }
