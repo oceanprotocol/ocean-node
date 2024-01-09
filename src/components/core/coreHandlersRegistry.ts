@@ -14,6 +14,7 @@ import { NonceHandler } from './nonceHandler.js'
 import { QueryHandler } from './queryHandler.js'
 import { StatusHandler } from './statusHandler.js'
 import { OceanP2P } from '../P2P/index.js'
+import { ReindexHandler } from './reindexHandler.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -59,6 +60,7 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(PROTOCOL_COMMANDS.FIND_DDO, new FindDdoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.GET_FEES, new FeesHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.ECHO, new EchoHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.REINDEX, new ReindexHandler(node))
   }
 
   public static getInstance(node: OceanP2P): CoreHandlersRegistry {

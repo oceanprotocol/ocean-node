@@ -6,6 +6,7 @@ import { P2PCommandResponse } from '../@types/OceanNode'
 export const PROTOCOL_COMMANDS = {
   DOWNLOAD: 'download',
   DOWNLOAD_URL: 'downloadURL', // we still use this
+  REINDEX: 'reIndex',
   ECHO: 'echo',
   ENCRYPT: 'encrypt',
   GET_DDO: 'getDDO',
@@ -18,22 +19,12 @@ export const PROTOCOL_COMMANDS = {
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.DOWNLOAD,
+  PROTOCOL_COMMANDS.REINDEX,
   PROTOCOL_COMMANDS.ECHO,
   PROTOCOL_COMMANDS.ENCRYPT,
   PROTOCOL_COMMANDS.NONCE,
   PROTOCOL_COMMANDS.GET_DDO,
   PROTOCOL_COMMANDS.QUERY,
-  PROTOCOL_COMMANDS.STATUS,
-  PROTOCOL_COMMANDS.FIND_DDO,
-  PROTOCOL_COMMANDS.GET_FEES
-]
-
-export const HANDLERS_COMMANDS = [
-  PROTOCOL_COMMANDS.DOWNLOAD,
-  PROTOCOL_COMMANDS.ENCRYPT,
-  PROTOCOL_COMMANDS.GET_DDO,
-  PROTOCOL_COMMANDS.QUERY,
-  PROTOCOL_COMMANDS.NONCE,
   PROTOCOL_COMMANDS.STATUS,
   PROTOCOL_COMMANDS.FIND_DDO,
   PROTOCOL_COMMANDS.GET_FEES
@@ -73,6 +64,12 @@ export interface StatusCommand extends Command {}
 
 export interface QueryCommand extends Command {
   query: Record<string, any>
+}
+
+export interface ReindexCommand extends Command {
+  txId: string
+  chainId: number
+  eventIndex?: number
 }
 
 export interface EncryptCommand extends Command {

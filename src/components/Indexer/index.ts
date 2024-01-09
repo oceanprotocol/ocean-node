@@ -5,6 +5,7 @@ import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { EVENTS } from '../../utils/index.js'
 import EventEmitter from 'node:events'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
+import { ReindexTask } from './crawlerThread.js'
 
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
@@ -13,6 +14,7 @@ export class OceanIndexer {
   private db: Database
   private networks: RPCS
   private supportedChains: string[]
+  private static workers: Record<string, Worker> = {}
 
   constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
@@ -69,6 +71,14 @@ export class OceanIndexer {
       })
 
       worker.postMessage({ method: 'start-crawling' })
+      OceanIndexer.workers[network] = worker
+    }
+  }
+
+  static async addReindexTask(reindexTask: ReindexTask): Promise<void> {
+    const worker = OceanIndexer.workers[reindexTask.chainId]
+    if (worker) {
+      worker.postMessage({ method: 'add-reindex-task', reindexTask })
     }
   }
 
