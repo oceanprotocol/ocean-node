@@ -15,6 +15,7 @@ import { EncryptHandler } from '../core/encryptHandler.js'
 import { QueryHandler } from '../core/queryHandler.js'
 import { GetDdoHandler, FindDdoHandler } from '../core/ddoHandler.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { ReindexHandler } from '../core/reindexHandler.js'
 
 export class ReadableString extends Readable {
   private sent = false
@@ -61,6 +62,7 @@ export async function handleProtocolCommands(connection: any) {
 
   const handlersClasses = [
     DownloadHandler,
+    ReindexHandler,
     EncryptHandler,
     GetDdoHandler,
     QueryHandler,
@@ -83,6 +85,9 @@ export async function handleProtocolCommands(connection: any) {
         break
       case PROTOCOL_COMMANDS.DOWNLOAD:
         response = await handlers[PROTOCOL_COMMANDS.DOWNLOAD].handle(task)
+        break
+      case PROTOCOL_COMMANDS.REINDEX:
+        response = await handlers[PROTOCOL_COMMANDS.REINDEX].handle(task)
         break
       case PROTOCOL_COMMANDS.GET_DDO:
         response = await handlers[PROTOCOL_COMMANDS.GET_DDO].handle(task)
@@ -148,6 +153,7 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
   P2P_CONSOLE_LOGGER.logMessage('Performing task: ' + JSON.stringify(task), true)
   const handlersClasses = [
     DownloadHandler,
+    ReindexHandler,
     EncryptHandler,
     GetDdoHandler,
     QueryHandler,
@@ -169,6 +175,9 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
         break
       case PROTOCOL_COMMANDS.DOWNLOAD:
         response = await handlers[PROTOCOL_COMMANDS.DOWNLOAD].handle(task)
+        break
+      case PROTOCOL_COMMANDS.REINDEX:
+        response = await handlers[PROTOCOL_COMMANDS.REINDEX].handle(task)
         break
       case PROTOCOL_COMMANDS.GET_DDO:
         response = await handlers[PROTOCOL_COMMANDS.GET_DDO].handle(task)

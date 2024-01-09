@@ -92,6 +92,14 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
           reason: 'Missing required parameter(s): "ddo","serviceId"'
         }
       }
+    } else if (command === PROTOCOL_COMMANDS.REINDEX) {
+      if (!requestBody.txId || !requestBody.chainId) {
+        return {
+          valid: false,
+          status: 400,
+          reason: 'Missing required parameter(s): "txId","chainId"'
+        }
+      }
     }
     // only once is enough :-)
     return {

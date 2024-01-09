@@ -9,6 +9,7 @@ export const LOGGER_MODULE_NAMES = {
   HTTP: 'http',
   P2P: 'p2p',
   INDEXER: 'indexer',
+  REINDEXER: 'reindexer',
   PROVIDER: 'provider',
   DATABASE: 'database',
   CONFIG: 'config',
