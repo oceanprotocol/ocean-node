@@ -98,7 +98,7 @@ async function processReindex(): Promise<void> {
         const eventKeys = Object.keys(events)
         eventKeys.forEach((eventType) => {
           INDEXER_LOGGER.logMessage(
-            `Network: ${rpcDetails.network} storing event type  ${eventType} `,
+            `REINDEX Network: ${rpcDetails.network} storing event type  ${eventType} `,
             true
           )
           parentPort.postMessage({
@@ -109,7 +109,7 @@ async function processReindex(): Promise<void> {
         })
       }
     } catch (error) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error.message} `, true)
+      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `REINDEX Error: ${error.message} `, true)
     }
   }
 }

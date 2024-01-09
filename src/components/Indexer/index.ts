@@ -24,7 +24,7 @@ export class OceanIndexer {
   private db: Database
   private networks: RPCS
   private supportedChains: string[]
-  private static workers: Record<string, Worker>
+  private static workers: Record<string, Worker> = {}
 
   constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
