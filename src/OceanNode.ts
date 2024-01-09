@@ -44,6 +44,7 @@ export class OceanNode {
   ) {
     // TODO: Implement handlers classes and change above
     this.registerHandler(PROTOCOL_COMMANDS.DOWNLOAD, null)
+    this.registerHandler(PROTOCOL_COMMANDS.REINDEX, null)
     this.registerHandler(PROTOCOL_COMMANDS.ENCRYPT, null)
     this.registerHandler(PROTOCOL_COMMANDS.NONCE, null)
     this.registerHandler(PROTOCOL_COMMANDS.GET_DDO, null)
