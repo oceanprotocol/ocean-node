@@ -10,7 +10,7 @@ import {
 } from '../../utils/logging/Logger.js'
 import { EVENTS } from '../../utils/index.js'
 import EventEmitter from 'node:events'
-import { ReindexTask } from './reindexThread.js'
+import { ReindexTask } from './crawlerThread.js'
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.INDEXER,
@@ -24,14 +24,13 @@ export class OceanIndexer {
   private db: Database
   private networks: RPCS
   private supportedChains: string[]
-  private static reindex: Worker
+  private static workers: Record<string, Worker>
 
   constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
     this.networks = supportedNetworks
     this.supportedChains = Object.keys(supportedNetworks)
     this.startThreads()
-    this.reindexThread()
   }
 
   public getSupportedNetworks(): RPCS {
@@ -82,46 +81,15 @@ export class OceanIndexer {
       })
 
       worker.postMessage({ method: 'start-crawling' })
+      OceanIndexer.workers[network] = worker
     }
-  }
-
-  public async reindexThread(): Promise<void> {
-    const supportedNetworks: RPCS = {}
-    for (const network of this.supportedChains) {
-      const rpcDetails: SupportedNetwork = this.networks[network]
-      if (rpcDetails) {
-        supportedNetworks[network] = rpcDetails
-      }
-    }
-    OceanIndexer.reindex = new Worker('./dist/components/Indexer/reindexThread.js', {
-      workerData: { supportedNetworks }
-    })
-    OceanIndexer.reindex.on('message', (event: any) => {
-      if (
-        event.method === EVENTS.METADATA_CREATED ||
-        event.method === EVENTS.METADATA_UPDATED ||
-        event.method === EVENTS.METADATA_STATE ||
-        event.method === EVENTS.ORDER_STARTED ||
-        event.method === EVENTS.ORDER_REUSED
-      ) {
-        this.createOrUpdateDDO(event.network, event.data, event.method)
-      }
-    })
-    OceanIndexer.reindex.on('error', (err: Error) => {
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `Error in reindex worker: ${err.message}`,
-        true
-      )
-    })
-    OceanIndexer.reindex.on('exit', (code: number) => {
-      INDEXER_LOGGER.logMessage(`Reindex worker exited with code: ${code}`, true)
-    })
-    OceanIndexer.reindex.postMessage({ method: 'process-reindex' })
   }
 
   static async addReindexTask(reindexTask: ReindexTask): Promise<void> {
-    OceanIndexer.reindex.postMessage({ method: 'add-reindex-task', reindexTask })
+    const worker = OceanIndexer.workers[reindexTask.chainId]
+    if (worker) {
+      worker.postMessage({ method: 'add-reindex-task', reindexTask })
+    }
   }
 
   public async getLastIndexedBlock(network: number): Promise<number> {
