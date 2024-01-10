@@ -26,3 +26,12 @@ export interface StorageReadable {
   httpStatus?: number
   headers?: [any]
 }
+
+export interface FileInfoRequest {
+  type?: 'url' | 'ipfs' | 'arweave'
+  did?: string
+  hash?: string
+  url?: string
+  transactionId?: string
+  serviceId?: string
+}
