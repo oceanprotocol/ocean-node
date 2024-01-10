@@ -1,12 +1,5 @@
 import os from 'os'
-import {
-  CustomNodeLogger,
-  LOGGER_MODULE_NAMES,
-  LOG_LEVELS_STR,
-  GENERIC_EMOJIS,
-  defaultConsoleTransport,
-  getCustomLoggerForModule
-} from '../../../utils/logging/Logger.js'
+import { LOG_LEVELS_STR, GENERIC_EMOJIS } from '../../../utils/logging/Logger.js'
 import {
   OceanNodeStatus,
   OceanNodeProvider,
@@ -16,12 +9,7 @@ import {
 } from '../../../@types/OceanNode.js'
 import { existsEnvironmentVariable } from '../../../utils/index.js'
 import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
-
-export const STATUS_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.CORE,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
-)
+import { STATUS_CONSOLE_LOGGER } from '../../../utils/logging/common.js'
 
 export async function status(
   config: OceanNodeConfig,

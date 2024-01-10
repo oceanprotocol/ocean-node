@@ -1,4 +1,4 @@
-import { expect, assert, config, should } from 'chai'
+import { expect, assert } from 'chai'
 import { createHash } from 'crypto'
 import {
   JsonRpcProvider,
@@ -8,8 +8,6 @@ import {
   getAddress,
   hexlify,
   ZeroAddress,
-  solidityPackedKeccak256,
-  toUtf8Bytes,
   parseUnits
 } from 'ethers'
 import fs from 'fs'
@@ -23,11 +21,10 @@ import { OceanNode } from '../../OceanNode.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { getEventFromTx, streamToString } from '../../utils/util.js'
-import { delay, signMessage, waitToIndex } from './testUtils.js'
+import { delay, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import { PROTOCOL_COMMANDS, getConfig } from '../../utils/index.js'
-import { validateOrderTransaction } from '../../components/core/validateTransaction.js'
-import { decrypt, encrypt } from '../../utils/crypt.js'
+import { encrypt } from '../../utils/crypt.js'
 import { DownloadHandler } from '../../components/core/downloadHandler.js'
 import { StatusHandler } from '../../components/core/statusHandler.js'
 
@@ -316,7 +313,8 @@ describe('Should run a complete node flow.', () => {
       transferTxId: orderTxId,
       nonce,
       consumerAddress,
-      signature
+      signature,
+      command: PROTOCOL_COMMANDS.DOWNLOAD
     }
     const response = await new DownloadHandler(p2pNode).handle(downloadTask)
 

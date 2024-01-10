@@ -3,20 +3,11 @@ import { convertTypesenseConfig, Typesense, TypesenseError } from './typesense.j
 import { Schema, schemas } from './schemas.js'
 import { TypesenseSearchParams } from '../../@types/index.js'
 import {
-  CustomNodeLogger,
-  defaultConsoleTransport,
-  getCustomLoggerForModule,
   LOG_LEVELS_STR,
-  LOGGER_MODULE_NAMES,
   newCustomDBTransport,
   GENERIC_EMOJIS
 } from '../../utils/logging/Logger.js'
-
-export const DATABASE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.DATABASE,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
-)
+import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 
 export class OrderDatabase {
   private provider: Typesense
