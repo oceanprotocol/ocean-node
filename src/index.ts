@@ -56,7 +56,7 @@ function loadInitialDDOS(): any[] {
   return ddos
 }
 
-export function loadDDOSchemas(): any[] {
+function loadDDOSchemas(): any[] {
   const schemas: any[] = []
   const dir: string = './src/components/Indexer/shaclSchemas/v4/'
   fs.readdir(dir, (err, files) => {

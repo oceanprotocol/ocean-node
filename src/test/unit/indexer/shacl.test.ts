@@ -1,5 +1,6 @@
+import fs from 'fs'
+import { getSchemasFromTtl } from 'shacl-jsonschema-converter'
 import { expect } from 'chai'
-import { loadDDOSchemas } from '../..'
 // avoid override local setup / env variables
 const ORIGINAL_PRIVATE_KEY = process.env.PRIVATE_KEY
 // '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
@@ -10,7 +11,23 @@ const ORIGINAL_ARWEAVE_GATEWAY = process.env.ARWEAVE_GATEWAY
 const ORIGINAL_RPCS = process.env.RPCS
 // '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com", "80001": "https://rpc-mumbai.maticvigil.com" }'
 
-describe('Ocean Node tests', async () => {
+describe('Shacl schema tests', async () => {
+  const loadDDOSchemas = () => {
+    const schemas: any[] = []
+    const dir: string = './src/components/Indexer/shaclSchemas/v4/'
+    fs.readdir(dir, (err, files) => {
+      if (err) {
+        console.error('Error reading directory for shacl schemas:', err)
+        return
+      }
+      files.forEach((file) => {
+        console.log(`Loading schemas from ${file}`, true)
+        const jsonSchema = getSchemasFromTtl(file)
+        schemas.push(jsonSchema)
+      })
+    })
+    return schemas
+  }
   before(() => {
     // dummy private key from barge
     process.env.PRIVATE_KEY =
