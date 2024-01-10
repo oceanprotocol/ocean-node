@@ -1,40 +1,20 @@
 import { OceanP2P } from './components/P2P/index.js'
 import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
-import { OceanNodeConfig } from './@types/OceanNode.js'
+import { OceanNodeConfig, P2PCommandResponse } from './@types/OceanNode.js'
 import { Database } from './components/database/index.js'
-import {
-  Command,
-  PROTOCOL_COMMANDS,
-  SUPPORTED_PROTOCOL_COMMANDS
-} from './utils/constants.js'
-import {
-  CustomNodeLogger,
-  LOGGER_MODULE_NAMES,
-  LOG_LEVELS_STR,
-  defaultConsoleTransport,
-  getCustomLoggerForModule
-} from './utils/logging/Logger.js'
-
-export const OCEAN_NODE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.OCEAN_NODE,
-  LOG_LEVELS_STR.LEVEL_INFO, // Info level
-  defaultConsoleTransport // console only Transport
-)
-
-// placeholder, replace with final handler class
-abstract class Handler {
-  // eslint-disable-next-line no-useless-constructor
-  public constructor() {}
-}
-
-export type HandlerRegistry = {
-  handlerName: string // name of the handler
-  handlerImpl: Handler // class that implements it
-}
+import { CoreHandlersRegistry } from './components/core/coreHandlersRegistry.js'
+import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
+import { ReadableString } from './components/P2P/handleProtocolCommands.js'
+import StreamConcat from 'stream-concat'
+import { pipe } from 'it-pipe'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
+import { Handler } from './components/core/handler.js'
 
 export class OceanNode {
-  private coreHandlers: Map<string, Handler> = new Map<string, Handler>()
+  // handlers
+  private coreHandlers: CoreHandlersRegistry
+  // eslint-disable-next-line no-useless-constructor
   public constructor(
     private config: OceanNodeConfig,
     private db: Database,
@@ -42,28 +22,7 @@ export class OceanNode {
     private provider?: OceanProvider,
     private indexer?: OceanIndexer
   ) {
-    // TODO: Implement handlers classes and change above
-    this.registerHandler(PROTOCOL_COMMANDS.DOWNLOAD, null)
-    this.registerHandler(PROTOCOL_COMMANDS.REINDEX, null)
-    this.registerHandler(PROTOCOL_COMMANDS.ENCRYPT, null)
-    this.registerHandler(PROTOCOL_COMMANDS.NONCE, null)
-    this.registerHandler(PROTOCOL_COMMANDS.GET_DDO, null)
-    this.registerHandler(PROTOCOL_COMMANDS.QUERY, null)
-    this.registerHandler(PROTOCOL_COMMANDS.STATUS, null)
-    this.registerHandler(PROTOCOL_COMMANDS.FIND_DDO, null)
-    this.registerHandler(PROTOCOL_COMMANDS.GET_FEES, null)
-    /**
-   * 
-  PROTOCOL_COMMANDS.DOWNLOAD_URL,
-  PROTOCOL_COMMANDS.ECHO,
-  PROTOCOL_COMMANDS.ENCRYPT,
-  PROTOCOL_COMMANDS.NONCE,
-  PROTOCOL_COMMANDS.GET_DDO,
-  PROTOCOL_COMMANDS.QUERY,
-  PROTOCOL_COMMANDS.STATUS,
-  PROTOCOL_COMMANDS.FIND_DDO,
-  PROTOCOL_COMMANDS.GET_FEES
-   */
+    this.coreHandlers = CoreHandlersRegistry.getInstance(this.node)
   }
 
   public addP2PNode(_node: OceanP2P) {
@@ -98,58 +57,74 @@ export class OceanNode {
     return this.db
   }
 
-  // any new Handlers just need to call this method
-  private registerHandler(handlerName: string, handlerObj: Handler) {
-    if (!this.coreHandlers.has(handlerName)) {
-      this.coreHandlers.set(handlerName, handlerObj)
-    }
+  public getCoreHandlers(): CoreHandlersRegistry {
+    return this.coreHandlers
   }
 
-  // or this one
-  public registerCoreHandler(handler: HandlerRegistry) {
-    if (
-      !this.coreHandlers.has(handler.handlerName) &&
-      handler.handlerImpl instanceof Handler
-    ) {
-      this.coreHandlers.set(handler.handlerName, handler.handlerImpl)
-    }
-  }
+  /**
+   * Use this method to direct calls to the node as node cannot dial into itself
+   * @param message command message
+   * @param sink transform function
+   */
+  async handleDirectProtocolCommand(
+    message: string,
+    sink: any
+  ): Promise<P2PCommandResponse> {
+    OCEAN_NODE_LOGGER.logMessage('Incoming direct command for ocean peer', true)
+    let status = null
+    // let statusStream
+    let sendStream = null
+    let response: P2PCommandResponse = null
 
-  // pass the handler name from the SUPPORTED_PROTOCOL_COMMANDS keys
-  public getHandler(handlerName: string): Handler {
-    if (!SUPPORTED_PROTOCOL_COMMANDS.includes(handlerName)) {
-      const msg = `Invalid handler "${handlerName}". No known associated protocol command!`
-      OCEAN_NODE_LOGGER.error(msg)
-      throw new Error(msg)
-    } else if (!this.coreHandlers.has(handlerName)) {
-      const msg = `No handler registered for "${handlerName}". Did you forgot to call "registerHandler()" ?`
-      // TODO: we can also just log the warning and create a new handler ourselfes here
-      OCEAN_NODE_LOGGER.error(msg)
-      throw new Error(msg)
-    }
-    return this.coreHandlers.get(handlerName)
-  }
+    OCEAN_NODE_LOGGER.logMessage('Performing task: ' + message, true)
 
-  public getHandlerForTask(task: Command): Handler | undefined {
-    return this.getHandler(task.command)
-  }
-
-  public hasHandlerFor(handlerName: string): boolean {
-    return this.coreHandlers.has(handlerName)
-  }
-}
-
-export class HandlerFactory {
-  static buildHandlerForTask(task: Command): HandlerRegistry {
-    if (SUPPORTED_PROTOCOL_COMMANDS.includes(task.command)) {
-      return {
-        handlerName: task.command,
-        handlerImpl: undefined // TODO: create instance, new HandlerImplXYZ(...)
+    try {
+      const task = JSON.parse(message)
+      const handler: Handler = this.coreHandlers.getHandler(task.command)
+      if (handler === null) {
+        status = {
+          httpStatus: 501,
+          error: 'Unknown command or unexisting handler for command: ' + task.command
+        }
+      } else {
+        response = await handler.handle(task)
       }
-    } else {
-      const msg = `Invalid handler "${task.command}". No known associated protocol command!`
-      OCEAN_NODE_LOGGER.error(msg)
-      throw new Error(msg)
+
+      if (response) {
+        // eslint-disable-next-line prefer-destructuring
+        status = response.status
+        sendStream = response.stream
+      }
+
+      const statusStream = new ReadableString(JSON.stringify(status))
+      if (sendStream == null) {
+        pipe(statusStream, sink)
+      } else {
+        const combinedStream = new StreamConcat([statusStream, sendStream], {
+          highWaterMark: JSON.stringify(status).length
+          // the size of the buffer is important!
+        })
+        pipe(combinedStream, sink)
+      }
+
+      return (
+        response || {
+          status,
+          stream: null
+        }
+      )
+    } catch (err) {
+      OCEAN_NODE_LOGGER.logMessageWithEmoji(
+        'handleDirectProtocolCommands Error: ' + err.message,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+
+      return {
+        status: { httpStatus: 500, error: err.message },
+        stream: null
+      }
     }
   }
 }

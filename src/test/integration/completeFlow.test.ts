@@ -328,7 +328,8 @@ describe('Should run a complete node flow.', () => {
       transferTxId: orderTxId,
       nonce,
       consumerAddress,
-      signature
+      signature,
+      command: PROTOCOL_COMMANDS.DOWNLOAD
     }
     const response = await new DownloadHandler(p2pNode).handle(downloadTask)
 

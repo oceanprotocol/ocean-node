@@ -27,6 +27,7 @@ import { OceanP2P } from '../../components/P2P/index.js'
 import { ProviderFeeData } from '../../@types/Fees'
 import { encrypt } from '../../utils/crypt.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
+import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 
 describe('Download Tests', () => {
   let database: Database
@@ -284,10 +285,11 @@ describe('Download Tests', () => {
       transferTxId: orderTxId,
       nonce,
       consumerAddress,
-      signature
+      signature,
+      command: PROTOCOL_COMMANDS.DOWNLOAD
     }
     const response = await new DownloadHandler(p2pNode).handle(downloadTask)
-
+    console.log('response: ', response)
     assert(response)
     assert(response.stream, 'stream not present')
     assert(response.status.httpStatus === 200, 'http status not 200')
@@ -302,7 +304,8 @@ describe('Download Tests', () => {
       transferTxId: orderTxId,
       nonce: Date.now().toString(),
       consumerAddress: '0xBE5449a6A97aD46c8558A3356267Ee5D2731ab57',
-      signature: ''
+      signature: '',
+      command: PROTOCOL_COMMANDS.DOWNLOAD
     }
     const config = await getConfig()
     const dbconn = await new Database(config.dbConfig)

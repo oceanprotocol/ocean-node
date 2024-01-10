@@ -5,21 +5,8 @@ import { Readable } from 'stream'
 import { OceanIndexer } from '../Indexer/index.js'
 
 export class ReindexHandler extends Handler {
-  isReindexCommand(obj: any): obj is ReindexCommand {
-    return (
-      typeof obj === 'object' &&
-      obj !== null &&
-      'command' in obj &&
-      'txId' in obj &&
-      'chainId' in obj
-    )
-  }
-
-  async handle(task: any): Promise<P2PCommandResponse> {
+  async handle(task: ReindexCommand): Promise<P2PCommandResponse> {
     try {
-      if (!this.isReindexCommand(task)) {
-        throw new Error(`Task has not ReindexCommand type. It has ${typeof task}`)
-      }
       const txId: string = String(task.txId).toLowerCase()
       if (!/^0x([A-Fa-f0-9]{64})$/.test(txId)) {
         return {
