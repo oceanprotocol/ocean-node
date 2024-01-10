@@ -10,6 +10,8 @@ import { BlocksEvents, SupportedNetwork } from '../../@types/blockchain.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { sleep } from '../../utils/util.js'
 import { INDEXER_LOGGER } from './index.js'
+import { Database } from '../database/index.js'
+import { getConfig } from '../../utils/index.js'
 
 export interface ReindexTask {
   txId: string
@@ -18,7 +20,8 @@ export interface ReindexTask {
 }
 
 const REINDEX_QUEUE: ReindexTask[] = []
-
+const config = await getConfig()
+const dbConn = new Database(config.dbConfig)
 interface ThreadData {
   rpcDetails: SupportedNetwork
   lastIndexedBlock: number
@@ -29,6 +32,21 @@ let { rpcDetails, lastIndexedBlock } = workerData as ThreadData
 const blockchain = new Blockchain(rpcDetails.rpc, rpcDetails.chainId)
 const provider = blockchain.getProvider()
 
+async function updateLastIndexedBlockNumber(block: number): Promise<void> {
+  try {
+    const updatedIndex = await dbConn.indexer.update(rpcDetails.chainId, block)
+    INDEXER_LOGGER.logMessage(
+      `New last indexed block : ${updatedIndex.lastIndexedBlock}`,
+      true
+    )
+  } catch (err) {
+    INDEXER_LOGGER.log(
+      LOG_LEVELS_STR.LEVEL_ERROR,
+      'Error retrieving last indexed block',
+      true
+    )
+  }
+}
 export async function proccesNetworkData(): Promise<void> {
   while (true) {
     const networkHeight = await getNetworkHeight(provider)
@@ -60,13 +78,14 @@ export async function proccesNetworkData(): Promise<void> {
           startBlock,
           blocksToProcess
         )
-        parentPort.postMessage({
-          method: 'store-last-indexed-block',
-          network: rpcDetails.chainId,
-          data: processedBlocks.lastBlock
-        })
+        // parentPort.postMessage({
+        //   method: 'store-last-indexed-block',
+        //   network: rpcDetails.chainId,
+        //   data: processedBlocks.lastBlock
+        // })
+        updateLastIndexedBlockNumber(processedBlocks.lastBlock)
         lastIndexedBlock = processedBlocks.lastBlock
-        await storeFoundEvents(processedBlocks.foundEvents)
+        // await storeFoundEvents(processedBlocks.foundEvents)
       } catch (error) {
         INDEXER_LOGGER.log(
           LOG_LEVELS_STR.LEVEL_ERROR,
@@ -94,19 +113,7 @@ async function processReindex(): Promise<void> {
       if (receipt) {
         const log = receipt.logs[reindexTask.eventIndex]
         const logs = log ? [log] : receipt.logs
-        const events = await processChunkLogs(logs, provider, rpcDetails.chainId)
-        const eventKeys = Object.keys(events)
-        eventKeys.forEach((eventType) => {
-          INDEXER_LOGGER.logMessage(
-            `REINDEX Network: ${rpcDetails.network} storing event type  ${eventType} `,
-            true
-          )
-          parentPort.postMessage({
-            method: eventType,
-            network: rpcDetails.chainId,
-            data: events[eventType]
-          })
-        })
+        await processChunkLogs(logs, provider, rpcDetails.chainId)
       }
     } catch (error) {
       INDEXER_LOGGER.log(
@@ -118,20 +125,20 @@ async function processReindex(): Promise<void> {
   }
 }
 
-export async function storeFoundEvents(events: BlocksEvents): Promise<void> {
-  const eventKeys = Object.keys(events)
-  eventKeys.forEach((eventType) => {
-    INDEXER_LOGGER.logMessage(
-      `Network: ${rpcDetails.network} storing event type  ${eventType} `,
-      true
-    )
-    parentPort.postMessage({
-      method: eventType,
-      network: rpcDetails.chainId,
-      data: events[eventType]
-    })
-  })
-}
+// export async function storeFoundEvents(events: BlocksEvents): Promise<void> {
+//   const eventKeys = Object.keys(events)
+//   eventKeys.forEach((eventType) => {
+//     INDEXER_LOGGER.logMessage(
+//       `Network: ${rpcDetails.network} storing event type  ${eventType} `,
+//       true
+//     )
+//     parentPort.postMessage({
+//       method: eventType,
+//       network: rpcDetails.chainId,
+//       data: events[eventType]
+//     })
+//   })
+// }
 parentPort.on('message', (message) => {
   if (message.method === 'start-crawling') {
     proccesNetworkData()
