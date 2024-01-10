@@ -2,14 +2,18 @@ import { assert } from 'chai'
 import { getConfig } from '../../utils/config.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { delay } from '../integration/testUtils.js'
+import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 
 describe('OceanP2P Test', () => {
   let node1: OceanP2P
   let node2: OceanP2P
   let config1: any
   let config2: any
+
+  const envKeyOriginal = ENVIRONMENT_VARIABLES.PRIVATE_KEY.value
+
   it('Start instance of OceanP2P node1', async () => {
-    process.env.PRIVATE_KEY = process.env.NODE1_PRIVATE_KEY
+    process.env.PRIVATE_KEY = ENVIRONMENT_VARIABLES.NODE1_PRIVATE_KEY.value
     config1 = await getConfig()
     config1.p2pConfig.ipV4BindTcpPort = 0
     node1 = new OceanP2P(config1, null)
@@ -17,7 +21,7 @@ describe('OceanP2P Test', () => {
     assert(node1, 'Failed to create P2P Node instance')
   })
   it('Start instance of OceanP2P node2', async () => {
-    process.env.PRIVATE_KEY = process.env.NODE2_PRIVATE_KEY
+    process.env.PRIVATE_KEY = ENVIRONMENT_VARIABLES.NODE2_PRIVATE_KEY.value
     config2 = await getConfig()
     config2.p2pConfig.ipV4BindTcpPort = 0
     node2 = new OceanP2P(config2, null)
@@ -62,6 +66,10 @@ describe('OceanP2P Test', () => {
       peers2.includes(config1.keys.peerId.toString()),
       'Node1 not found in node2 peer list'
     )
+  })
+
+  after(() => {
+    process.env.PRIVATE_KEY = envKeyOriginal
   })
 })
 

@@ -18,9 +18,11 @@ import { OceanNodeConfig, P2PCommandResponse } from '../../../@types'
 import { Service } from '../../../@types/DDO/Service.js'
 import { DDOExample } from '../../data/ddo.js'
 import {
+  buildEnvOverrideConfig,
   OverrideEnvConfig,
   setupEnvironment,
-  tearDownEnvironment
+  tearDownEnvironment,
+  TEST_ENV_CONFIG_FILE
 } from '../../utils/utils.js'
 import { ethers } from 'ethers'
 import { Database } from '../../../components/database/index.js'
@@ -34,33 +36,23 @@ const service: Service = {
   serviceEndpoint: '',
   timeout: 0
 }
-// we're gonna override these
-function getEnvOverrides(): OverrideEnvConfig[] {
-  return [
-    {
-      name: ENVIRONMENT_VARIABLES.FEE_TOKENS.name,
-      newValue:
-        '{ "1": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48", "137": "0x282d8efCe846A88B159800bd4130ad77443Fa1A1", "80001": "0xd8992Ed72C445c35Cb4A2be468568Ed1079357c8", "56": "0xDCe07662CA8EbC241316a15B611c89711414Dd1a" }',
-      override: true,
-      originalValue: ENVIRONMENT_VARIABLES.FEE_TOKENS.value,
-      required: ENVIRONMENT_VARIABLES.FEE_TOKENS.required
-    },
-    {
-      name: ENVIRONMENT_VARIABLES.FEE_AMOUNT.name,
-      newValue: '{ "amount": 1, "unit": "MB" }',
-      override: true,
-      originalValue: ENVIRONMENT_VARIABLES.FEE_AMOUNT.value,
-      required: ENVIRONMENT_VARIABLES.FEE_AMOUNT.required
-    }
-  ]
-}
 
 describe('Ocean Node fees', () => {
   let config: OceanNodeConfig
   let envBefore: OverrideEnvConfig[] | undefined
 
   before(async () => {
-    envBefore = await setupEnvironment('../.env.test', getEnvOverrides())
+    // we're gonna override these
+    envBefore = await setupEnvironment(
+      TEST_ENV_CONFIG_FILE,
+      buildEnvOverrideConfig(
+        [ENVIRONMENT_VARIABLES.FEE_TOKENS, ENVIRONMENT_VARIABLES.FEE_AMOUNT],
+        [
+          '{ "1": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48", "137": "0x282d8efCe846A88B159800bd4130ad77443Fa1A1", "80001": "0xd8992Ed72C445c35Cb4A2be468568Ed1079357c8", "56": "0xDCe07662CA8EbC241316a15B611c89711414Dd1a" }',
+          '{ "amount": 1, "unit": "MB" }'
+        ]
+      )
+    )
     // avoid overriding the local environment, use the .env.test
     config = await getConfig()
   })

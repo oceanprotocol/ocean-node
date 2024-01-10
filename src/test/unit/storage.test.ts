@@ -4,7 +4,6 @@ import {
   ArweaveStorage,
   IpfsStorage
 } from '../../components/storage/index.js'
-import { StorageReadable } from '../../@types/fileObject.js'
 
 import { expect } from 'chai'
 

@@ -156,10 +156,16 @@ export const EVENT_HASHES: Hashes = {
   }
 }
 
+// this type should also move to the types folder (once we move command types)
+export interface EnvVariable {
+  name: string
+  value: any
+  required: boolean
+}
 // usefull to keep track of what all the env variables we are using
 // (faster to read than README and we can easily use the constants if needed)
 // required means its not mandatory OR we have defaults
-export const ENVIRONMENT_VARIABLES = {
+export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   HTTP_API_PORT: {
     name: 'HTTP_API_PORT',
     value: process.env.HTTP_API_PORT,
