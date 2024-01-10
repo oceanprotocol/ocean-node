@@ -61,6 +61,7 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(PROTOCOL_COMMANDS.GET_FEES, new FeesHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.ECHO, new EchoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.REINDEX, new ReindexHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.NONCE, new NonceHandler(node))
   }
 
   public static getInstance(node: OceanP2P): CoreHandlersRegistry {
