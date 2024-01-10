@@ -12,9 +12,10 @@ const ORIGINAL_RPCS = process.env.RPCS
 // '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com", "80001": "https://rpc-mumbai.maticvigil.com" }'
 
 describe('Shacl schema tests', async () => {
+  // Implement also here to avoid importing index.ts
   const loadDDOSchemas = () => {
     const schemas: any[] = []
-    const dir: string = './src/components/Indexer/shaclSchemas/v4/'
+    const dir: string = './dist/components/Indexer/shaclSchemas/v4/'
     fs.readdir(dir, (err, files) => {
       if (err) {
         console.error('Error reading directory for shacl schemas:', err)
