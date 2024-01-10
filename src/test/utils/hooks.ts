@@ -1,11 +1,18 @@
-// test/hooks.js
+// Global hooks for mocha tests.
+// beforeAll() and afterAll() are called before starting the tests
+// and after finishing them respectively.
 
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { setupEnvironment, OverrideEnvConfig, tearDownEnvironment } from './utils.js'
 
-// current environment
+// current process.env environment
 let previousConfiguration: OverrideEnvConfig[] = []
 
+// if you want to override some variables, just use the
+// OverrideEnvConfig type and build an array to pass to setupEnvironment() (on before() function)
+// this function returns the new configuration together with any variables that were overrided
+// at the end call tearDownEnvironment() with the previously saved configuration (on after() function)
+// example of override configuration:
 function getEnvOverrides(): OverrideEnvConfig[] {
   return [
     {
@@ -44,12 +51,9 @@ previousConfiguration = getEnvOverrides()
 
 export const mochaHooks = {
   beforeAll() {
-    console.log('key: ', process.env.PRIVATE_KEY)
-    console.log('RPCS: ', process.env.RPCS)
     // if it exists will use it, otherwise nothing happens
     // in any case it WILL NOT override the existing configuration
     setupEnvironment('../.env.test', getEnvOverrides()).then((overrides) => {
-      console.log('overrides: ', overrides)
       previousConfiguration = overrides
     })
   },
