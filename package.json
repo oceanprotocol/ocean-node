@@ -66,6 +66,7 @@
     "it-pipe": "^3.0.1",
     "libp2p": "^1.0.10",
     "lodash.clonedeep": "^4.5.0",
+    "shacl-jsonschema-converter": "^0.1.3",
     "sinon": "^17.0.1",
     "stream-concat": "^1.0.0",
     "swagger-ui-express": "^5.0.0",
