@@ -13,7 +13,7 @@ import { FeesHandler } from '../core/feesHandler.js'
 import { StatusHandler } from '../core/statusHandler.js'
 import { EncryptHandler } from '../core/encryptHandler.js'
 import { QueryHandler } from '../core/queryHandler.js'
-import { GetDdoHandler, FindDdoHandler } from '../core/ddoHandler.js'
+import { GetDdoHandler, FindDdoHandler, DecryptDdoHandler } from '../core/ddoHandler.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { ReindexHandler } from '../core/reindexHandler.js'
 
@@ -64,6 +64,7 @@ export async function handleProtocolCommands(connection: any) {
     DownloadHandler,
     ReindexHandler,
     EncryptHandler,
+    DecryptDdoHandler,
     GetDdoHandler,
     QueryHandler,
     NonceHandler,
@@ -88,6 +89,9 @@ export async function handleProtocolCommands(connection: any) {
         break
       case PROTOCOL_COMMANDS.REINDEX:
         response = await handlers[PROTOCOL_COMMANDS.REINDEX].handle(task)
+        break
+      case PROTOCOL_COMMANDS.DECRYPT_DDO:
+        response = await handlers[PROTOCOL_COMMANDS.DECRYPT_DDO].handle(task)
         break
       case PROTOCOL_COMMANDS.GET_DDO:
         response = await handlers[PROTOCOL_COMMANDS.GET_DDO].handle(task)
@@ -155,6 +159,7 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
     DownloadHandler,
     ReindexHandler,
     EncryptHandler,
+    DecryptDdoHandler,
     GetDdoHandler,
     QueryHandler,
     NonceHandler,
@@ -181,6 +186,9 @@ export async function handleDirectProtocolCommand(message: string, sink: any) {
         break
       case PROTOCOL_COMMANDS.GET_DDO:
         response = await handlers[PROTOCOL_COMMANDS.GET_DDO].handle(task)
+        break
+      case PROTOCOL_COMMANDS.DECRYPT_DDO:
+        response = await handlers[PROTOCOL_COMMANDS.DECRYPT_DDO].handle(task)
         break
       case PROTOCOL_COMMANDS.QUERY:
         response = await handlers[PROTOCOL_COMMANDS.QUERY].handle(task)

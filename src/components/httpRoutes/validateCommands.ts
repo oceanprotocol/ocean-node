@@ -100,6 +100,20 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
           reason: 'Missing required parameter(s): "txId","chainId"'
         }
       }
+    } else if (command === PROTOCOL_COMMANDS.DECRYPT_DDO) {
+      if (
+        !requestBody.decrypterAddress ||
+        !requestBody.chainId ||
+        !requestBody.nonce ||
+        !requestBody.signature
+      ) {
+        return {
+          valid: false,
+          status: 400,
+          reason:
+            'Missing required parameter(s): "decrypterAddress","chainId","nonce","signature"'
+        }
+      }
     }
     // only once is enough :-)
     return {

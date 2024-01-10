@@ -8,6 +8,7 @@ export const PROTOCOL_COMMANDS = {
   REINDEX: 'reIndex',
   ECHO: 'echo',
   ENCRYPT: 'encrypt',
+  DECRYPT_DDO: 'decryptDDO',
   GET_DDO: 'getDDO',
   QUERY: 'query',
   NONCE: 'nonce',
@@ -22,6 +23,7 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.ECHO,
   PROTOCOL_COMMANDS.ENCRYPT,
   PROTOCOL_COMMANDS.NONCE,
+  PROTOCOL_COMMANDS.DECRYPT_DDO,
   PROTOCOL_COMMANDS.GET_DDO,
   PROTOCOL_COMMANDS.QUERY,
   PROTOCOL_COMMANDS.STATUS,
@@ -33,6 +35,7 @@ export const HANDLERS_COMMANDS = [
   PROTOCOL_COMMANDS.DOWNLOAD,
   PROTOCOL_COMMANDS.REINDEX,
   PROTOCOL_COMMANDS.ENCRYPT,
+  PROTOCOL_COMMANDS.DECRYPT_DDO,
   PROTOCOL_COMMANDS.GET_DDO,
   PROTOCOL_COMMANDS.QUERY,
   PROTOCOL_COMMANDS.NONCE,
@@ -80,6 +83,18 @@ export interface ReindexCommand extends Command {
   txId: string
   chainId: number
   eventIndex?: number
+}
+
+export interface DecryptDDOCommand extends Command {
+  decrypterAddress: string
+  chainId: number
+  transactionId?: string
+  dataNftAddress?: string
+  encryptedDocument?: string
+  flags?: number
+  documentHash?: string
+  nonce: string
+  signature: string
 }
 
 export interface EncryptCommand extends Command {
