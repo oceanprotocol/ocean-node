@@ -6,7 +6,7 @@ import fs from 'fs'
 import * as shaclEngine from 'shacl-engine'
 import { createHash } from 'crypto'
 import { getAddress, isAddress } from 'ethers'
-import { P2P_CONSOLE_LOGGER } from '../../P2P/index.js'
+// import { P2P_CONSOLE_LOGGER } from '../../P2P/index.js'
 import { resolve } from 'path'
 import Quad from 'rdf-ext/lib/Quad.js'
 
@@ -15,13 +15,13 @@ const ALLOWED_VERSIONS = ['4.3.0', '4.5.0']
 
 function getSchema(version: string = CURRENT_VERSION): string {
   if (!ALLOWED_VERSIONS.includes(version)) {
-    P2P_CONSOLE_LOGGER.logMessage(`Can't find schema ${version}`, true)
+    // P2P_CONSOLE_LOGGER.logMessage(`Can't find schema ${version}`, true)
     return
   }
   const path = `../../../../schemas/v4/${version}.ttl`
   const schemaFilePath = resolve(__dirname, path)
   if (!schemaFilePath) {
-    P2P_CONSOLE_LOGGER.logMessage(`Can't find schema ${version}`, true)
+    // P2P_CONSOLE_LOGGER.logMessage(`Can't find schema ${version}`, true)
     return
   }
   return schemaFilePath
@@ -115,9 +115,9 @@ async function validateObject(
     dataset.add(quad)
   })
 
-  fileStream.on('error', (error: Error) => {
-    P2P_CONSOLE_LOGGER.logMessage(`Error reading RDF file: ${error}`, true)
-  })
+  // fileStream.on('error', (error: Error) => {
+  //   // P2P_CONSOLE_LOGGER.logMessage(`Error reading RDF file: ${error}`, true)
+  // })
 
   // create a validator instance for the shapes in the given dataset
   const validator = new shaclEngine.Validator(dataset, {
@@ -128,7 +128,7 @@ async function validateObject(
   // run the validation process
   const report = await validator.validate({ dataset })
   if (!report) {
-    P2P_CONSOLE_LOGGER.logMessage(`Validation report does not exist`, true)
+    // P2P_CONSOLE_LOGGER.logMessage(`Validation report does not exist`, true)
     return [false, { error: 'Validation report does not exist' }]
   }
   const errors = parseReportToErrors(report.results)
