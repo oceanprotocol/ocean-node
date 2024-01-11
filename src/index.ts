@@ -58,7 +58,7 @@ function loadInitialDDOS(): any[] {
 
 function loadDDOSchemas(): any[] {
   const schemas: any[] = []
-  const dir: string = './src/components/Indexer/shaclSchemas/v4/'
+  const dir: string = './schemas/'
   fs.readdir(dir, (err, files) => {
     if (err) {
       console.error('Error reading directory for shacl schemas:', err)
