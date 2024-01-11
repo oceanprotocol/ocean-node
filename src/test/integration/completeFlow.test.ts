@@ -340,8 +340,6 @@ describe('Should run a complete node flow.', () => {
   })
 
   after(() => {
-    if (previousConfiguration) {
-      tearDownEnvironment(previousConfiguration)
-    }
+    tearDownEnvironment(previousConfiguration)
   })
 })

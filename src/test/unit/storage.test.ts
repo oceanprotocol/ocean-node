@@ -6,6 +6,12 @@ import {
 } from '../../components/storage/index.js'
 
 import { expect } from 'chai'
+import {
+  OverrideEnvConfig,
+  buildEnvOverrideConfig,
+  tearDownEnvironment
+} from '../utils/utils.js'
+import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 
 describe('URL Storage tests', () => {
   let file: any = {
@@ -144,9 +150,13 @@ describe('IPFS Storage tests', () => {
     hash: 'Qxchjkflsejdfklgjhfkgjkdjoiderj'
   }
   let error: Error
+  let previousConfiguration: OverrideEnvConfig[]
 
   before(() => {
-    process.env.IPFS_GATEWAY = 'https://ipfs.io'
+    previousConfiguration = buildEnvOverrideConfig(
+      [ENVIRONMENT_VARIABLES.IPFS_GATEWAY],
+      ['https://ipfs.io']
+    )
   })
 
   it('Storage instance', () => {
@@ -166,6 +176,10 @@ describe('IPFS Storage tests', () => {
     }
     expect(error.message).to.eql('Error validationg the IPFS file: Missing CID')
   })
+
+  after(() => {
+    tearDownEnvironment(previousConfiguration)
+  })
 })
 
 describe('Arweave Storage tests', () => {
@@ -175,9 +189,13 @@ describe('Arweave Storage tests', () => {
   }
 
   let error: Error
+  let previousConfiguration: OverrideEnvConfig[]
+
   before(() => {
-    process.env.ARWEAVE_GATEWAY =
-      'https://snaznabndfe3.arweave.net/nnLNdp6nuTb8mJ-qOgbUEx-9SBtBXQc_jejYOWzYEkM'
+    previousConfiguration = buildEnvOverrideConfig(
+      [ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY],
+      ['https://snaznabndfe3.arweave.net/nnLNdp6nuTb8mJ-qOgbUEx-9SBtBXQc_jejYOWzYEkM']
+    )
   })
 
   it('Storage instance', () => {
@@ -198,5 +216,9 @@ describe('Arweave Storage tests', () => {
     expect(error.message).to.eql(
       'Error validationg the Arweave file: Missing transaction ID'
     )
+  })
+
+  after(() => {
+    tearDownEnvironment(previousConfiguration)
   })
 })
