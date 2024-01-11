@@ -7,7 +7,6 @@ import { OCEAN_NODE_LOGGER, OceanNode } from './OceanNode.js'
 import swaggerUi from 'swagger-ui-express'
 import { httpRoutes } from './components/httpRoutes/index.js'
 import { getConfig } from './utils/index.js'
-import { getSchemasFromTtl } from 'shacl-jsonschema-converter'
 
 import {
   GENERIC_EMOJIS,
@@ -55,23 +54,6 @@ function loadInitialDDOS(): any[] {
   }
   return ddos
 }
-
-function loadDDOSchemas(): any[] {
-  const schemas: any[] = []
-  const dir: string = './schemas/'
-  fs.readdir(dir, (err, files) => {
-    if (err) {
-      console.error('Error reading directory for shacl schemas:', err)
-      return
-    }
-    files.forEach((file) => {
-      OCEAN_NODE_LOGGER.logMessage(`Loading schemas from ${file}`, true)
-      const jsonSchema = getSchemasFromTtl(file)
-      schemas.push(jsonSchema)
-    })
-  })
-  return schemas
-}
 // (*) optional flag
 const isStartup: boolean = true
 // this is to avoid too much verbose logging, cause we're calling getConfig() from many parts
@@ -112,8 +94,6 @@ if (config.hasP2P) {
 }
 if (config.hasIndexer && dbconn) {
   indexer = new OceanIndexer(dbconn, config.supportedNetworks)
-  // load Schacl schemas for DDO validation
-  loadDDOSchemas()
   // if we set this var
   // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
   // store and advertise DDOs
