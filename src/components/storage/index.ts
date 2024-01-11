@@ -8,6 +8,26 @@ import {
 import axios from 'axios'
 import urlJoin from 'url-join'
 
+async function fetchFileMetadata(
+  url: string
+): Promise<{ contentLength: string; contentType: string }> {
+  try {
+    // First try with HEAD request
+    const response = await axios.head(url)
+    return {
+      contentLength: response.headers['content-length'] || '',
+      contentType: response.headers['content-type'] || ''
+    }
+  } catch (error) {
+    // Fallback to GET request
+    const response = await axios.get(url, { method: 'GET', responseType: 'stream' })
+    return {
+      contentLength: response.headers['content-length'] || '',
+      contentType: response.headers['content-type'] || ''
+    }
+  }
+}
+
 export abstract class Storage {
   private file: any
   public constructor(file: any) {
@@ -105,26 +125,21 @@ export class UrlStorage extends Storage {
       throw new Error('URL is required for type url')
     }
 
-    const file = this.getFile()
-
-    // Initial file info structure
-    const fileInfo = {
-      valid: false,
-      contentLength: '',
-      contentType: '',
-      name: file.name || '',
-      type: file.type,
-      checksumType: '',
-      checksum: ''
-    }
-
     try {
-      // get file info...
-    } catch (error) {
-      // Handle errors (e.g., file not accessible)
-    }
+      const { url } = fileInfoRequest
+      const { contentLength, contentType } = await fetchFileMetadata(url)
 
-    return fileInfo
+      return {
+        valid: true,
+        contentLength,
+        contentType,
+        name: new URL(url).pathname.split('/').pop() || '',
+        type: 'url'
+        // Add checksum logic if required
+      }
+    } catch (error) {
+      console.log(error)
+    }
   }
 }
 
@@ -180,26 +195,22 @@ export class ArweaveStorage extends Storage {
       throw new Error('Transaction ID is required for type arweave')
     }
 
-    const file = this.getFile()
-
-    // Initial file info structure
-    const fileInfo = {
-      valid: false,
-      contentLength: '',
-      contentType: '',
-      name: file.name || '',
-      type: file.type,
-      checksumType: '',
-      checksum: ''
-    }
-
     try {
-      // get file info...
+      const url = urlJoin(process.env.ARWEAVE_GATEWAY, fileInfoRequest.transactionId)
+      const { contentLength, contentType } = await fetchFileMetadata(url)
+
+      return {
+        valid: true,
+        contentLength,
+        contentType,
+        name: '', // Modify this based on how you get the name from Arweave
+        type: 'arweave'
+        // Add checksum logic if required
+      }
     } catch (error) {
       // Handle errors (e.g., file not accessible)
+      console.log(error)
     }
-
-    return fileInfo
   }
 }
 
@@ -256,25 +267,24 @@ export class IpfsStorage extends Storage {
       throw new Error('Hash is required for type ipfs')
     }
 
-    const file = this.getFile()
-
-    // Initial file info structure
-    const fileInfo = {
-      valid: false,
-      contentLength: '',
-      contentType: '',
-      name: file.name || '',
-      type: file.type,
-      checksumType: '',
-      checksum: ''
-    }
-
     try {
-      // get file info...
+      const url = urlJoin(
+        process.env.IPFS_GATEWAY,
+        urlJoin('/ipfs', fileInfoRequest.hash)
+      )
+
+      const { contentLength, contentType } = await fetchFileMetadata(url)
+
+      return {
+        valid: true,
+        contentLength,
+        contentType,
+        name: '', // Modify this based on how you get the name from IPFS
+        type: 'ipfs'
+        // Add checksum logic if required
+      }
     } catch (error) {
       // Handle errors (e.g., file not accessible)
     }
-
-    return fileInfo
   }
 }
