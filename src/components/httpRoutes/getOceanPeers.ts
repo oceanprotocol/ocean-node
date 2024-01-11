@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express'
 import { getDefaultLevel } from '../../utils/logging/Logger.js'
-import { P2P_CONSOLE_LOGGER } from '../P2P/index.js'
+import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common.js'
 
 export const getOceanPeersRoute = express.Router()
 getOceanPeersRoute.get(

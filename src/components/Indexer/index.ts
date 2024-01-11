@@ -1,20 +1,9 @@
 import { Worker } from 'node:worker_threads'
 import { Database } from '../database/index.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
-import {
-  CustomNodeLogger,
-  LOGGER_MODULE_NAMES,
-  LOG_LEVELS_STR,
-  defaultConsoleTransport,
-  getCustomLoggerForModule
-} from '../../utils/logging/Logger.js'
 import { ReindexTask } from './crawlerThread.js'
-
-export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.INDEXER,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
-)
+import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 
 export class OceanIndexer {
   private db: Database

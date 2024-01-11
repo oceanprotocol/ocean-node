@@ -1,7 +1,7 @@
 import { BroadcastCommand } from '../../utils/constants.js'
 import { LOG_LEVELS_STR, getLoggerLevelEmoji } from '../../utils/logging/Logger.js'
+import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common.js'
 
-import { P2P_CONSOLE_LOGGER } from '../P2P/index.js'
 export function handleBroadcasts(topic: string, _message: any) {
   // can only register one handler for the protocol
 

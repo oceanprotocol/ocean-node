@@ -12,7 +12,7 @@ import {
   OrderReusedEventProcessor,
   OrderStartedEventProcessor
 } from './processor.js'
-import { INDEXER_LOGGER } from './index.js'
+import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 
 export const getDeployedContractBlock = async (network: number) => {
   let deployedBlock: number
