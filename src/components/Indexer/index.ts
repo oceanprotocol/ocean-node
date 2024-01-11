@@ -8,7 +8,6 @@ import {
   defaultConsoleTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
-import { EVENTS } from '../../utils/index.js'
 import { ReindexTask } from './crawlerThread.js'
 
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
@@ -46,21 +45,6 @@ export class OceanIndexer {
       const worker = new Worker('./dist/components/Indexer/crawlerThread.js', {
         workerData: { rpcDetails, lastIndexedBlock }
       })
-
-      // worker.on('message', (event: any) => {
-      //   if (event.method === 'store-last-indexed-block') {
-      //     this.updateLastIndexedBlockNumber(event.network, event.data)
-      //   }
-      //   if (
-      //     event.method === EVENTS.METADATA_CREATED ||
-      //     event.method === EVENTS.METADATA_UPDATED ||
-      //     event.method === EVENTS.METADATA_STATE ||
-      //     event.method === EVENTS.ORDER_STARTED ||
-      //     event.method === EVENTS.ORDER_REUSED
-      //   ) {
-      //     this.createOrUpdateDDO(event.network, event.data, event.method)
-      //   }
-      // })
 
       worker.on('error', (err: Error) => {
         INDEXER_LOGGER.log(

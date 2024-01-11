@@ -52,7 +52,7 @@ import {
   newCustomDBTransport,
   getLoggerLevelEmoji
 } from '../../utils/logging/Logger.js'
-import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
+import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/processor.js'
 
 // just use the default logger with default transports
 // Bellow is just an example usage, only logging to console here

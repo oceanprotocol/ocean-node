@@ -7,13 +7,12 @@ import { homedir } from 'os'
 import { EVENTS, EVENT_HASHES } from '../../utils/index.js'
 import { BlocksEvents, NetworkEvent, ProcessingEvents } from '../../@types/blockchain.js'
 import {
-  processMetadataEvents,
-  processOrderStartedEvent,
-  processOrderReusedEvent,
-  processMetadataStateEvent
-} from './eventProcessor.js'
+  MetadataEventProcessor,
+  MetadataStateEventProcessor,
+  OrderReusedEventProcessor,
+  OrderStartedEventProcessor
+} from './processor.js'
 import { INDEXER_LOGGER } from './index.js'
-import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 
 export const getDeployedContractBlock = async (network: number) => {
   let deployedBlock: number
@@ -91,10 +90,20 @@ export const processChunkLogs = async (
         (event.type === EVENTS.METADATA_CREATED || event.type === EVENTS.METADATA_UPDATED)
       ) {
         INDEXER_LOGGER.logMessage(`-- ${event.type} triggered`, true)
-        storeEvents[event.type] = await processMetadataEvents(log, chainId, provider)
+        const metadataEventProccessor = new MetadataEventProcessor(chainId)
+        storeEvents[event.type] = await metadataEventProccessor.processEvent(
+          log,
+          chainId,
+          provider
+        )
       } else if (event && event.type === EVENTS.METADATA_STATE) {
         INDEXER_LOGGER.logMessage(`-- ${event.type} triggered`, true)
-        storeEvents[event.type] = await processMetadataStateEvent(log, chainId, provider)
+        const metadataStateEventProcessor = new MetadataStateEventProcessor(chainId)
+        storeEvents[event.type] = await metadataStateEventProcessor.processEvent(
+          log,
+          chainId,
+          provider
+        )
       } else if (event && event.type === EVENTS.EXCHANGE_CREATED) {
         INDEXER_LOGGER.logMessage('-- EXCHANGE_CREATED -- ', true)
         storeEvents[event.type] = await procesExchangeCreated()
@@ -103,10 +112,20 @@ export const processChunkLogs = async (
         storeEvents[event.type] = await processExchangeRateChanged()
       } else if (event && event.type === EVENTS.ORDER_STARTED) {
         INDEXER_LOGGER.logMessage(`-- ${event.type} triggered`, true)
-        storeEvents[event.type] = await procesOrderStarted(log, provider, chainId)
+        const orderStartedEventProcessor = new OrderStartedEventProcessor(chainId)
+        storeEvents[event.type] = await orderStartedEventProcessor.processEvent(
+          log,
+          chainId,
+          provider
+        )
       } else if (event && event.type === EVENTS.ORDER_REUSED) {
         INDEXER_LOGGER.logMessage(`-- ${event.type} triggered`, true)
-        storeEvents[event.type] = await processOrderReused(log, provider, chainId)
+        const orderReusedEventProcessor = new OrderReusedEventProcessor(chainId)
+        storeEvents[event.type] = await orderReusedEventProcessor.processEvent(
+          log,
+          chainId,
+          provider
+        )
       } else if (event && event.type === EVENTS.TOKEN_URI_UPDATE) {
         INDEXER_LOGGER.logMessage('-- TOKEN_URI_UPDATE -- ', true)
         storeEvents[event.type] = await processTokenUriUpadate()
@@ -124,30 +143,6 @@ const procesExchangeCreated = async (): Promise<string> => {
 
 const processExchangeRateChanged = async (): Promise<string> => {
   return 'EXCHANGE_RATE_CHANGED'
-}
-
-const procesOrderStarted = async (
-  log: ethers.Log,
-  provider: JsonRpcApiProvider,
-  chainId: number
-): Promise<any> => {
-  try {
-    return await processOrderStartedEvent(log, chainId, provider)
-  } catch (e) {
-    INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error proccessing order: ${e}`)
-  }
-}
-
-const processOrderReused = async (
-  log: ethers.Log,
-  provider: JsonRpcApiProvider,
-  chainId: number
-): Promise<any> => {
-  try {
-    return await processOrderReusedEvent(log, chainId, provider)
-  } catch (e) {
-    INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error proccessing order reused: ${e}`)
-  }
 }
 
 const processTokenUriUpadate = async (): Promise<string> => {

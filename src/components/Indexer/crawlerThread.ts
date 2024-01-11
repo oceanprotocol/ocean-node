@@ -78,14 +78,8 @@ export async function proccesNetworkData(): Promise<void> {
           startBlock,
           blocksToProcess
         )
-        // parentPort.postMessage({
-        //   method: 'store-last-indexed-block',
-        //   network: rpcDetails.chainId,
-        //   data: processedBlocks.lastBlock
-        // })
         updateLastIndexedBlockNumber(processedBlocks.lastBlock)
         lastIndexedBlock = processedBlocks.lastBlock
-        // await storeFoundEvents(processedBlocks.foundEvents)
       } catch (error) {
         INDEXER_LOGGER.log(
           LOG_LEVELS_STR.LEVEL_ERROR,
@@ -125,20 +119,6 @@ async function processReindex(): Promise<void> {
   }
 }
 
-// export async function storeFoundEvents(events: BlocksEvents): Promise<void> {
-//   const eventKeys = Object.keys(events)
-//   eventKeys.forEach((eventType) => {
-//     INDEXER_LOGGER.logMessage(
-//       `Network: ${rpcDetails.network} storing event type  ${eventType} `,
-//       true
-//     )
-//     parentPort.postMessage({
-//       method: eventType,
-//       network: rpcDetails.chainId,
-//       data: events[eventType]
-//     })
-//   })
-// }
 parentPort.on('message', (message) => {
   if (message.method === 'start-crawling') {
     proccesNetworkData()

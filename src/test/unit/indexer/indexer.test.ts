@@ -27,8 +27,6 @@ describe('OceanIndexer', () => {
     }
 
     stub(oceanIndexer as any, 'startThreads').callsFake(() => {
-      oceanIndexer.updateLastIndexedBlockNumber = stub()
-
       oceanIndexer.getLastIndexedBlock = stub().resolves(0)
       oceanIndexer.startThreads = async () => {
         try {
