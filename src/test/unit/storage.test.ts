@@ -211,28 +211,28 @@ describe('URL Storage getFileInfo tests', () => {
       url: 'https://stock-api.oceanprotocol.com/stock/stock.json',
       method: 'get'
     })
+  })
 
-    it('Successfully retrieves file info for a URL', async () => {
-      const fileInfoRequest: FileInfoRequest = {
-        type: 'url',
-        url: 'https://stock-api.oceanprotocol.com/stock/stock.json'
-      }
-      const fileInfo = await storage.getFileInfo(fileInfoRequest)
-      // expect(fileInfo.valid).to.be.true
-      assert(fileInfo.valid, 'File info is valid')
-      // expect(fileInfo.contentLength).to.equal('12345')
-      expect(fileInfo.contentType).to.equal('application/json')
-      expect(fileInfo.name).to.equal('stock.json')
-      expect(fileInfo.type).to.equal('url')
-    })
+  it('Successfully retrieves file info for a URL', async () => {
+    const fileInfoRequest: FileInfoRequest = {
+      type: 'url',
+      url: 'https://stock-api.oceanprotocol.com/stock/stock.json'
+    }
+    const fileInfo = await storage.getFileInfo(fileInfoRequest)
 
-    it('Throws error when URL is missing in request', async () => {
-      const fileInfoRequest: FileInfoRequest = { type: 'url' }
-      try {
-        await storage.getFileInfo(fileInfoRequest)
-      } catch (err) {
-        expect(err.message).to.equal('URL is required for type url')
-      }
-    })
+    assert(fileInfo.valid, 'File info is valid')
+    expect(fileInfo.contentLength).to.equal('1063628')
+    expect(fileInfo.contentType).to.equal('application/json; charset=utf-8')
+    expect(fileInfo.name).to.equal('stock.json')
+    expect(fileInfo.type).to.equal('url')
+  })
+
+  it('Throws error when URL is missing in request', async () => {
+    const fileInfoRequest: FileInfoRequest = { type: 'url' }
+    try {
+      await storage.getFileInfo(fileInfoRequest)
+    } catch (err) {
+      expect(err.message).to.equal('URL is required for type url')
+    }
   })
 })
