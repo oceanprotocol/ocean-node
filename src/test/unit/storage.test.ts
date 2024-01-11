@@ -4,7 +4,8 @@ import {
   ArweaveStorage,
   IpfsStorage
 } from '../../components/storage/index.js'
-import { StorageReadable } from '../../@types/fileObject.js'
+import axios from 'axios'
+import { StorageReadable, FileInfoRequest } from '../../@types/fileObject.js'
 
 import { expect } from 'chai'
 
@@ -199,5 +200,38 @@ describe('Arweave Storage tests', () => {
     expect(error.message).to.eql(
       'Error validationg the Arweave file: Missing transaction ID'
     )
+  })
+})
+
+describe('URL Storage getFileInfo tests', () => {
+  let storage: UrlStorage
+  beforeEach(() => {
+    storage = new UrlStorage({
+      type: 'url',
+      url: 'https://stock-api.oceanprotocol.com/stock/stock.json',
+      method: 'get'
+    })
+
+    it('Successfully retrieves file info for a URL', async () => {
+      const fileInfoRequest: FileInfoRequest = {
+        type: 'url',
+        url: 'https://stock-api.oceanprotocol.com/stock/stock.json'
+      }
+      const fileInfo = await storage.getFileInfo(fileInfoRequest)
+      // expect(fileInfo.valid).to.be.true
+      expect(fileInfo.contentLength).to.equal('12345')
+      expect(fileInfo.contentType).to.equal('application/json')
+      expect(fileInfo.name).to.equal('file.json')
+      expect(fileInfo.type).to.equal('url')
+    })
+
+    it('Throws error when URL is missing in request', async () => {
+      const fileInfoRequest: FileInfoRequest = { type: 'url' }
+      try {
+        await storage.getFileInfo(fileInfoRequest)
+      } catch (err) {
+        expect(err.message).to.equal('URL is required for type url')
+      }
+    })
   })
 })
