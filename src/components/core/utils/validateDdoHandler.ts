@@ -1,13 +1,14 @@
-import * as rdflib from 'rdflib'
 import rdfDataModel from '@rdfjs/data-model'
 import rdfDataset from '@rdfjs/dataset'
 import toNT from '@rdfjs/to-ntriples'
-import fromFile from 'rdf-utils-fs/fromFile.js'
-import Validator from 'shacl-engine/Validator.js'
+import fs from 'fs'
+// @ts-ignore
+import * as shaclEngine from 'shacl-engine'
 import { createHash } from 'crypto'
 import { getAddress, isAddress } from 'ethers'
 import { INDEXER_LOGGER } from '../../Indexer/index.js'
 import { resolve } from 'path'
+import Quad from 'rdf-ext/lib/Quad.js'
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.3.0', '4.5.0']
@@ -109,12 +110,20 @@ async function validateObject(
   const filename = new URL(schemaFilePath, import.meta.url)
   const dataset = rdfDataset.dataset()
 
-  for await (const quad of fromFile(filename.pathname)) {
+  const fileStream = fs.createReadStream(filename.pathname)
+  fileStream.on('data', (quad: Quad) => {
     dataset.add(quad)
-  }
+  })
+
+  fileStream.on('error', (error: Error) => {
+    INDEXER_LOGGER.logMessage(`Error reading RDF file: ${error}`, true)
+  })
 
   // create a validator instance for the shapes in the given dataset
-  const validator = new Validator(dataset, { coverage: true, factory: rdfDataModel })
+  const validator = new shaclEngine.Validator(dataset, {
+    coverage: true,
+    factory: rdfDataModel
+  })
 
   // run the validation process
   const report = await validator.validate({ dataset })
