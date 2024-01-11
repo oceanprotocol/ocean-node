@@ -236,3 +236,41 @@ describe('URL Storage getFileInfo tests', () => {
     }
   })
 })
+
+describe('Arweave Storage getFileInfo tests', () => {
+  let storage: ArweaveStorage
+
+  beforeEach(() => {
+    storage = new ArweaveStorage({
+      type: 'arweave',
+      transactionId: '0x2563ed54abc0001bcaef'
+    })
+  })
+
+  it('Successfully retrieves file info for an Arweave transaction', async () => {
+    const fileInfoRequest: FileInfoRequest = {
+      type: 'arweave',
+      transactionId: '0x2563ed54abc0001bcaef'
+    }
+    const fileInfo = await storage.getFileInfo(fileInfoRequest)
+
+    assert(fileInfo.valid, 'File info is valid')
+    assert(fileInfo.type === 'arweave', 'Type is incorrect')
+    assert(fileInfo.contentType === 'application/pdf', 'Content type is incorrect')
+    console.log('fileInfo.name', fileInfo.name)
+    console.log('fileInfo.type', fileInfo.type)
+    console.log('fileInfo.contentLength', fileInfo.contentLength)
+    console.log('fileInfo.contentType', fileInfo.contentType)
+    console.log('fileInfo.checksum', fileInfo.checksum)
+    // Add additional expectations based on mocked axios response
+  })
+
+  it('Throws error when transaction ID is missing in request', async () => {
+    const fileInfoRequest: FileInfoRequest = { type: 'arweave' }
+    try {
+      await storage.getFileInfo(fileInfoRequest)
+    } catch (err) {
+      expect(err.message).to.equal('Transaction ID is required for type arweave')
+    }
+  })
+})
