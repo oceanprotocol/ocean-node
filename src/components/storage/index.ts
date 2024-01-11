@@ -2,7 +2,8 @@ import {
   UrlFileObject,
   IpfsFileObject,
   ArweaveFileObject,
-  StorageReadable
+  StorageReadable,
+  FileInfoRequest
 } from '../../@types/fileObject.js'
 import axios from 'axios'
 import urlJoin from 'url-join'
@@ -16,6 +17,8 @@ export abstract class Storage {
   abstract validate(): [boolean, string]
 
   abstract getDownloadUrl(): string
+
+  abstract getFileInfo(fileInfoRequest: FileInfoRequest): Promise<any>
 
   getFile(): any {
     return this.file
@@ -90,6 +93,39 @@ export class UrlStorage extends Storage {
       headers: response.headers as any
     }
   }
+
+  async getFileInfo(fileInfoRequest: FileInfoRequest): Promise<any> {
+    if (!fileInfoRequest.type && !fileInfoRequest.did) {
+      throw new Error('Either type or did must be provided')
+    }
+    if (!fileInfoRequest.type && !fileInfoRequest.serviceId) {
+      throw new Error('serviceId is required when type is not provided')
+    }
+    if (fileInfoRequest.type === 'url' && !fileInfoRequest.url) {
+      throw new Error('URL is required for type url')
+    }
+
+    const file = this.getFile()
+
+    // Initial file info structure
+    const fileInfo = {
+      valid: false,
+      contentLength: '',
+      contentType: '',
+      name: file.name || '',
+      type: file.type,
+      checksumType: '',
+      checksum: ''
+    }
+
+    try {
+      // get file info...
+    } catch (error) {
+      // Handle errors (e.g., file not accessible)
+    }
+
+    return fileInfo
+  }
 }
 
 export class ArweaveStorage extends Storage {
@@ -131,6 +167,39 @@ export class ArweaveStorage extends Storage {
       stream: response.data,
       headers: response.headers as any
     }
+  }
+
+  async getFileInfo(fileInfoRequest: FileInfoRequest): Promise<any> {
+    if (!fileInfoRequest.type && !fileInfoRequest.did) {
+      throw new Error('Either type or did must be provided')
+    }
+    if (!fileInfoRequest.type && !fileInfoRequest.serviceId) {
+      throw new Error('serviceId is required when type is not provided')
+    }
+    if (fileInfoRequest.type === 'arweave' && !fileInfoRequest.transactionId) {
+      throw new Error('Transaction ID is required for type arweave')
+    }
+
+    const file = this.getFile()
+
+    // Initial file info structure
+    const fileInfo = {
+      valid: false,
+      contentLength: '',
+      contentType: '',
+      name: file.name || '',
+      type: file.type,
+      checksumType: '',
+      checksum: ''
+    }
+
+    try {
+      // get file info...
+    } catch (error) {
+      // Handle errors (e.g., file not accessible)
+    }
+
+    return fileInfo
   }
 }
 
@@ -174,5 +243,38 @@ export class IpfsStorage extends Storage {
       stream: response.data,
       headers: response.headers as any
     }
+  }
+
+  async getFileInfo(fileInfoRequest: FileInfoRequest): Promise<any> {
+    if (!fileInfoRequest.type && !fileInfoRequest.did) {
+      throw new Error('Either type or did must be provided')
+    }
+    if (!fileInfoRequest.type && !fileInfoRequest.serviceId) {
+      throw new Error('serviceId is required when type is not provided')
+    }
+    if (fileInfoRequest.type === 'ipfs' && !fileInfoRequest.hash) {
+      throw new Error('Hash is required for type ipfs')
+    }
+
+    const file = this.getFile()
+
+    // Initial file info structure
+    const fileInfo = {
+      valid: false,
+      contentLength: '',
+      contentType: '',
+      name: file.name || '',
+      type: file.type,
+      checksumType: '',
+      checksum: ''
+    }
+
+    try {
+      // get file info...
+    } catch (error) {
+      // Handle errors (e.g., file not accessible)
+    }
+
+    return fileInfo
   }
 }
