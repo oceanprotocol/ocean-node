@@ -3,9 +3,9 @@ import { streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { HTTP_LOGGER } from './index.js'
 import { GetDdoHandler } from '../core/ddoHandler.js'
 import { QueryHandler } from '../core/queryHandler.js'
+import { HTTP_LOGGER } from '../../utils/logging/common.js'
 
 export const aquariusRoutes = express.Router()
 
