@@ -7,7 +7,7 @@ import { Readable } from 'stream'
 export class StatusHandler extends Handler {
   async handle(task: StatusCommand): Promise<P2PCommandResponse> {
     try {
-      const statusResult = await status(this.getP2PNode().getConfig(), task.node)
+      const statusResult = await status(this.getP2PNode(), task.node)
       if (!statusResult) {
         return {
           stream: null,

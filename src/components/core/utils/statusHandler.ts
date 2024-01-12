@@ -10,13 +10,16 @@ import {
 import { existsEnvironmentVariable } from '../../../utils/index.js'
 import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
 import { STATUS_CONSOLE_LOGGER } from '../../../utils/logging/common.js'
+import { OceanP2P } from '../../P2P/index.js'
 
 export async function status(
-  config: OceanNodeConfig,
+  oceanNode: OceanP2P,
   nodeId?: string
 ): Promise<OceanNodeStatus> {
   STATUS_CONSOLE_LOGGER.logMessage('Command status started execution...', true)
-  if (!config) {
+  const config = oceanNode.getConfig()
+  const { indexer: indexerDatabase } = oceanNode.getDatabase()
+  if (!oceanNode) {
     STATUS_CONSOLE_LOGGER.logMessageWithEmoji(
       'Config object not found. Cannot proceed with status command.',
       true,
@@ -80,10 +83,13 @@ export async function status(
         status.provider.push(provider)
       }
       if (config.hasIndexer) {
+        const { lastIndexedBlock } = await indexerDatabase.retrieve(
+          supportedNetwork.chainId
+        )
         const indexer: OceanNodeIndexer = {
           chainId: key,
           network: supportedNetwork.network,
-          block: '0'
+          block: lastIndexedBlock?.toString() || '0'
         }
         status.indexer.push(indexer)
       }
