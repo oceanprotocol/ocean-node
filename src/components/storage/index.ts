@@ -11,20 +11,39 @@ import urlJoin from 'url-join'
 async function fetchFileMetadata(
   url: string
 ): Promise<{ contentLength: string; contentType: string }> {
+  let contentLength: string = ''
+  let contentType: string = ''
   try {
     // First try with HEAD request
     const response = await axios.head(url)
-    return {
-      contentLength: response.headers['content-length'] || '',
-      contentType: response.headers['content-type'] || ''
-    }
+
+    contentLength = response.headers['content-length']
+    contentType = response.headers['content-type']
   } catch (error) {
     // Fallback to GET request
     const response = await axios.get(url, { method: 'GET', responseType: 'stream' })
-    return {
-      contentLength: response.headers['content-length'] || '',
-      contentType: response.headers['content-type'] || ''
+
+    contentLength = response.headers['content-length']
+    contentType = response.headers['content-type']
+  }
+
+  if (!contentLength) {
+    try {
+      const response = await axios.get(url, { responseType: 'stream' })
+      let totalSize = 0
+
+      for await (const chunk of response.data) {
+        totalSize += chunk.length
+      }
+      contentLength = totalSize.toString()
+    } catch (error) {
+      console.error('Error downloading file:', error)
+      contentLength = 'Unknown'
     }
+  }
+  return {
+    contentLength,
+    contentType
   }
 }
 
@@ -197,11 +216,12 @@ export class ArweaveStorage extends Storage {
 
     try {
       const url = urlJoin(process.env.ARWEAVE_GATEWAY, fileInfoRequest.transactionId)
+
       const { contentLength, contentType } = await fetchFileMetadata(url)
 
       return {
         valid: true,
-        contentLength,
+        contentLength: contentLength || 'Unknown',
         contentType,
         name: '', // Modify this based on how you get the name from Arweave
         type: 'arweave'

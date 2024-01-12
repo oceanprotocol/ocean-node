@@ -177,9 +177,14 @@ describe('Arweave Storage tests', () => {
   }
 
   let error: Error
+  let arweaveGateway: string
   before(() => {
+    arweaveGateway = process.env.ARWEAVE_GATEWAY
     process.env.ARWEAVE_GATEWAY =
       'https://snaznabndfe3.arweave.net/nnLNdp6nuTb8mJ-qOgbUEx-9SBtBXQc_jejYOWzYEkM'
+  })
+  after(() => {
+    process.env.ARWEAVE_GATEWAY = arweaveGateway
   })
 
   it('Storage instance', () => {
@@ -221,7 +226,7 @@ describe('URL Storage getFileInfo tests', () => {
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
 
     assert(fileInfo.valid, 'File info is valid')
-    expect(fileInfo.contentLength).to.equal('1063628')
+    expect(fileInfo.contentLength).to.equal('1069668')
     expect(fileInfo.contentType).to.equal('application/json; charset=utf-8')
     expect(fileInfo.name).to.equal('stock.json')
     expect(fileInfo.type).to.equal('url')
@@ -250,18 +255,17 @@ describe('Arweave Storage getFileInfo tests', () => {
   it('Successfully retrieves file info for an Arweave transaction', async () => {
     const fileInfoRequest: FileInfoRequest = {
       type: 'arweave',
-      transactionId: '0x2563ed54abc0001bcaef'
+      transactionId: 'gPPDyusRh2ZyFl-sQ2ODK6hAwCRBAOwp0OFKr0n23QE'
     }
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
 
     assert(fileInfo.valid, 'File info is valid')
     assert(fileInfo.type === 'arweave', 'Type is incorrect')
-    assert(fileInfo.contentType === 'application/pdf', 'Content type is incorrect')
-    console.log('fileInfo.name', fileInfo.name)
-    console.log('fileInfo.type', fileInfo.type)
-    console.log('fileInfo.contentLength', fileInfo.contentLength)
-    console.log('fileInfo.contentType', fileInfo.contentType)
-    console.log('fileInfo.checksum', fileInfo.checksum)
+    assert(
+      fileInfo.contentType === 'text/csv; charset=utf-8',
+      'Content type is incorrect'
+    )
+    assert(fileInfo.contentLength === '680782', 'Content length is incorrect')
     // Add additional expectations based on mocked axios response
   })
 
