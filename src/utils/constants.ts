@@ -156,16 +156,33 @@ export const EVENT_HASHES: Hashes = {
   }
 }
 
+// this type should also move to the types folder (once we move command types)
+export interface EnvVariable {
+  name: string
+  value: any
+  required: boolean
+}
 // usefull to keep track of what all the env variables we are using
 // (faster to read than README and we can easily use the constants if needed)
 // required means its not mandatory OR we have defaults
-export const ENVIRONMENT_VARIABLES = {
+export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   HTTP_API_PORT: {
     name: 'HTTP_API_PORT',
     value: process.env.HTTP_API_PORT,
     required: false
   },
   PRIVATE_KEY: { name: 'PRIVATE_KEY', value: process.env.PRIVATE_KEY, required: true },
+  // used on test environments (ci)
+  NODE1_PRIVATE_KEY: {
+    name: 'NODE1_PRIVATE_KEY',
+    value: process.env.NODE1_PRIVATE_KEY,
+    required: false
+  },
+  NODE2_PRIVATE_KEY: {
+    name: 'NODE2_PRIVATE_KEY',
+    value: process.env.NODE2_PRIVATE_KEY,
+    required: false
+  },
   RPCS: { name: 'RPCS', value: process.env.RPCS, required: false },
   DB_URL: { name: 'DB_URL', value: process.env.DB_URL, required: false },
   // these 2 bellow will change in the future (not required, just remove functionality)
