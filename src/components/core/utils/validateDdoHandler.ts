@@ -27,7 +27,7 @@ export const SCHEMA_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   defaultConsoleTransport
 )
 
-function getSchema(version: string = CURRENT_VERSION): string {
+export function getSchema(version: string = CURRENT_VERSION): string {
   if (!ALLOWED_VERSIONS.includes(version)) {
     SCHEMA_CONSOLE_LOGGER.logMessage(`Can't find schema ${version}`, true)
     return

@@ -1,4 +1,4 @@
-import { incorrectDDO, DDOExample } from '../../data/ddo.js'
+import { incorrectDDO, DDOExample, ddov5 } from '../../data/ddo.js'
 import { validateObject } from '../../../components/core/utils/validateDdoHandler.js'
 
 import { expect } from 'chai'
@@ -32,12 +32,12 @@ describe('Schema validation tests', async () => {
     process.env.RPCS = ORIGINAL_RPCS
   })
 
-  it('should pass the validation', async () => {
+  it('should pass the validation on version 4.1.0', async () => {
     const validationResult = await validateObject(DDOExample, 137, DDOExample.nftAddress)
     expect(validationResult[0]).to.eql(true)
     expect(validationResult[1]).to.eql({})
   })
-  it('should not pass the validation', async () => {
+  it('should not pass the validation on version 4.1.0', async () => {
     const validationResult = await validateObject(
       incorrectDDO,
       8996,
@@ -48,5 +48,10 @@ describe('Schema validation tests', async () => {
       metadata: 'Metadata is missing or invalid.',
       id: 'did is not valid for chain Id and nft address'
     })
+  })
+  it('4.5.0 should pass the validation without service', async () => {
+    const validationResult = await validateObject(ddov5, 137, ddov5.nftAddress)
+    expect(validationResult[0]).to.eql(true)
+    expect(validationResult[1]).to.eql({})
   })
 })
