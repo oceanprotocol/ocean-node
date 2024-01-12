@@ -17,17 +17,17 @@ export async function status(
   nodeId?: string
 ): Promise<OceanNodeStatus> {
   STATUS_CONSOLE_LOGGER.logMessage('Command status started execution...', true)
-  const config = oceanNode.getConfig()
-  const { indexer: indexerDatabase } = oceanNode.getDatabase()
   if (!oceanNode) {
     STATUS_CONSOLE_LOGGER.logMessageWithEmoji(
-      'Config object not found. Cannot proceed with status command.',
+      'Node object not found. Cannot proceed with status command.',
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
     )
     return
   }
+  const config = oceanNode.getConfig()
+  const { indexer: indexerDatabase } = oceanNode.getDatabase()
   const status: OceanNodeStatus = {
     id: undefined,
     publicKey: undefined,
