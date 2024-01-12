@@ -83,13 +83,22 @@ export async function status(
         status.provider.push(provider)
       }
       if (config.hasIndexer) {
-        const { lastIndexedBlock } = await indexerDatabase.retrieve(
-          supportedNetwork.chainId
-        )
+        let blockNr = '0'
+        try {
+          const { lastIndexedBlock } = await indexerDatabase.retrieve(
+            supportedNetwork.chainId
+          )
+          blockNr = lastIndexedBlock.toString()
+        } catch (error) {
+          STATUS_CONSOLE_LOGGER.log(
+            LOG_LEVELS_STR.LEVEL_ERROR,
+            `Error fetching last indexed block for network ${supportedNetwork.network}`
+          )
+        }
         const indexer: OceanNodeIndexer = {
           chainId: key,
           network: supportedNetwork.network,
-          block: lastIndexedBlock?.toString() || '0'
+          block: blockNr
         }
         status.indexer.push(indexer)
       }
