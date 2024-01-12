@@ -2,11 +2,12 @@ import rdfDataModel from '@rdfjs/data-model'
 import rdfDataset from '@rdfjs/dataset'
 import toNT from '@rdfjs/to-ntriples'
 import fs from 'fs'
+import { fileURLToPath } from 'url'
+import { dirname, resolve } from 'path'
 // @ts-ignore
 import * as shaclEngine from 'shacl-engine'
 import { createHash } from 'crypto'
 import { getAddress, isAddress } from 'ethers'
-import { resolve } from 'path'
 import Quad from 'rdf-ext/lib/Quad.js'
 import {
   CustomNodeLogger,
@@ -17,7 +18,7 @@ import {
 } from '../../../utils/logging/Logger.js'
 
 const CURRENT_VERSION = '4.5.0'
-const ALLOWED_VERSIONS = ['4.3.0', '4.5.0']
+const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
 
 // Project cannot be buildt if the logger is imported, so created one locally
 export const SCHEMA_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
@@ -32,7 +33,12 @@ function getSchema(version: string = CURRENT_VERSION): string {
     return
   }
   const path = `../../../../schemas/v4/${version}.ttl`
-  const schemaFilePath = resolve(__dirname, path)
+  // Use fileURLToPath to convert the URL to a file path
+  const currentModulePath = fileURLToPath(import.meta.url)
+
+  // Use dirname to get the directory name
+  const currentDirectory = dirname(currentModulePath)
+  const schemaFilePath = resolve(currentDirectory, path)
   if (!schemaFilePath) {
     SCHEMA_CONSOLE_LOGGER.logMessage(`Can't find schema ${version}`, true)
     return
@@ -86,10 +92,7 @@ export async function validateObject(
   ddoCopy['@type'] = 'DDO'
   const extraErrors: Record<string, string> = {}
 
-  if (
-    !('context' in obj) ||
-    !(Array.isArray(obj.context) || typeof obj.context === 'object')
-  ) {
+  if (!('@context' in obj) || !Array.isArray(obj['@context'])) {
     extraErrors['@context'] = 'Context is missing or invalid.'
   }
 
@@ -134,7 +137,6 @@ export async function validateObject(
 
   // create a validator instance for the shapes in the given dataset
   const validator = new shaclEngine.Validator(dataset, {
-    coverage: true,
     factory: rdfDataModel
   })
 
@@ -147,7 +149,17 @@ export async function validateObject(
   const errors = parseReportToErrors(report.results)
 
   if (extraErrors) {
-    return [false, { ...errors, ...extraErrors }]
+    // Merge errors and extraErrors without overwriting existing keys
+    const mergedErrors = { ...errors, ...extraErrors }
+
+    // Check if there are any new errors introduced
+    const newErrorsIntroduced = Object.keys(mergedErrors).some(
+      (key) => !Object.prototype.hasOwnProperty.call(errors, key)
+    )
+
+    if (newErrorsIntroduced) {
+      return [false, mergedErrors]
+    }
   }
 
   return [report.conforms, errors]

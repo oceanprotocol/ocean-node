@@ -160,3 +160,10 @@ export const DDOExample = {
     }
   }
 }
+export const incorrectDDO = {
+  '@context': ['https://w3id.org/did/v1'],
+  id: '',
+  version: '4.1.0',
+  chainId: 8996,
+  nftAddress: '0x0'
+}
