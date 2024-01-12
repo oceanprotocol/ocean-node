@@ -148,7 +148,7 @@ describe('IPFS Storage tests', () => {
   let error: Error
 
   before(() => {
-    process.env.IPFS_GATEWAY = 'https://ipfs.io'
+    process.env.IPFS_GATEWAY = 'https://ipfs.oceanprotocol.com'
   })
 
   it('Storage instance', () => {
@@ -275,6 +275,40 @@ describe('Arweave Storage getFileInfo tests', () => {
       await storage.getFileInfo(fileInfoRequest)
     } catch (err) {
       expect(err.message).to.equal('Transaction ID is required for type arweave')
+    }
+  })
+})
+
+describe('IPFS Storage getFileInfo tests', () => {
+  let storage: IpfsStorage
+
+  beforeEach(() => {
+    storage = new IpfsStorage({
+      type: 'ipfs',
+      hash: 'QmRhsp7eghZtW4PktPC2wAHdKoy2LiF1n6UXMKmAhqQJUA'
+    })
+  })
+
+  it('Successfully retrieves file info for an IPFS hash', async () => {
+    const fileInfoRequest: FileInfoRequest = {
+      type: 'ipfs',
+      hash: 'QmRhsp7eghZtW4PktPC2wAHdKoy2LiF1n6UXMKmAhqQJUA'
+    }
+    const fileInfo = await storage.getFileInfo(fileInfoRequest)
+    assert(fileInfo.valid, 'File info is valid')
+
+    // expect(fileInfo.contentLength).to.equal('1063628') // Example value
+    // expect(fileInfo.contentType).to.equal('application/json; charset=utf-8') // Example value
+    // expect(fileInfo.name).to.equal('...'); // Add logic to determine name
+    expect(fileInfo.type).to.equal('ipfs')
+  })
+
+  it('Throws error when hash is missing in request', async () => {
+    const fileInfoRequest: FileInfoRequest = { type: 'ipfs' }
+    try {
+      await storage.getFileInfo(fileInfoRequest)
+    } catch (err) {
+      expect(err.message).to.equal('Hash is required for type ipfs')
     }
   })
 })

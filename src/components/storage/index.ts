@@ -223,9 +223,9 @@ export class ArweaveStorage extends Storage {
         valid: true,
         contentLength: contentLength || 'Unknown',
         contentType,
-        name: '', // Modify this based on how you get the name from Arweave
+        name: '',
         type: 'arweave'
-        // Add checksum logic if required
+        // Add checksum logic
       }
     } catch (error) {
       // Handle errors (e.g., file not accessible)
@@ -299,9 +299,9 @@ export class IpfsStorage extends Storage {
         valid: true,
         contentLength,
         contentType,
-        name: '', // Modify this based on how you get the name from IPFS
+        name: '',
         type: 'ipfs'
-        // Add checksum logic if required
+        // Add checksum logic
       }
     } catch (error) {
       // Handle errors (e.g., file not accessible)
