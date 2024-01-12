@@ -26,13 +26,14 @@ class BaseEventProcessor {
   protected dbConn: Database
   protected networkId: number
 
-  constructor(chainId: number) {
-    this.config = null
-    this.dbConn = null
+  constructor(
+    chainId: number,
+    databaseInstance?: Database,
+    configObject?: OceanNodeConfig
+  ) {
     this.networkId = chainId
-    this.getConfiguration().then(async () => {
-      this.dbConn = await this.getDatabase()
-    })
+    this.dbConn = databaseInstance || null
+    this.config = configObject || null
   }
 
   protected async getConfiguration(): Promise<OceanNodeConfig> {
@@ -44,7 +45,8 @@ class BaseEventProcessor {
 
   protected async getDatabase(): Promise<Database> {
     if (!this.dbConn) {
-      this.dbConn = new Database(this.config.dbConfig)
+      const { dbConfig } = await this.getConfiguration()
+      this.dbConn = new Database(dbConfig)
     }
     return this.dbConn
   }
@@ -78,7 +80,8 @@ class BaseEventProcessor {
 
   public async createOrUpdateDDO(ddo: any, method: string): Promise<void> {
     try {
-      const saveDDO = await this.dbConn.ddo.update({ ...ddo })
+      const { ddo } = await this.getDatabase()
+      const saveDDO = await ddo.update({ ...ddo })
       INDEXER_LOGGER.logMessage(
         `Saved or updated DDO  : ${saveDDO.id} from network: ${this.networkId} `
       )
@@ -151,7 +154,8 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
         .update(getAddress(event.address) + chainId.toString(10))
         .digest('hex')
     try {
-      let ddo = await this.dbConn.ddo.retrieve(did)
+      const { ddo: ddoDatabase } = await this.getDatabase()
+      let ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
         INDEXER_LOGGER.logMessage(
           `Detected MetadataState changed for ${did}, but it does not exists.`
@@ -245,7 +249,8 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         .update(getAddress(nftAddress) + chainId.toString(10))
         .digest('hex')
     try {
-      const ddo = await this.dbConn.ddo.retrieve(did)
+      const { ddo: ddoDatabase, order: orderDatabase } = await this.getDatabase()
+      const ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
         INDEXER_LOGGER.logMessage(
           `Detected OrderStarted changed for ${did}, but it does not exists.`
@@ -261,7 +266,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
           orders: 1
         }
       }
-      await this.dbConn.order.create(
+      await orderDatabase.create(
         event.transactionHash,
         'startOrder',
         timestamp,
@@ -306,7 +311,8 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         .update(getAddress(nftAddress) + chainId.toString(10))
         .digest('hex')
     try {
-      const ddo = await this.dbConn.ddo.retrieve(did)
+      const { ddo: ddoDatabase, order: orderDatabase } = await this.getDatabase()
+      const ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
         INDEXER_LOGGER.logMessage(
           `Detected OrderReused changed for ${did}, but it does not exists.`
@@ -316,14 +322,14 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
       ddo.stats.orders += 1
 
       try {
-        const startOrder = await this.dbConn.order.retrieve(startOrderId)
+        const startOrder = await orderDatabase.retrieve(startOrderId)
         if (!startOrder) {
           INDEXER_LOGGER.logMessage(
             `Detected OrderReused changed for order ${startOrderId}, but it does not exists.`
           )
           return
         }
-        await this.dbConn.order.create(
+        await orderDatabase.create(
           event.transactionHash,
           'reuseOrder',
           timestamp,

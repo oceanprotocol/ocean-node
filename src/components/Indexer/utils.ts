@@ -13,6 +13,46 @@ import {
   OrderStartedEventProcessor
 } from './processor.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
+let metadataEventProccessor: MetadataEventProcessor
+let metadataStateEventProcessor: MetadataStateEventProcessor
+let orderReusedEventProcessor: OrderReusedEventProcessor
+let orderStartedEventProcessor: OrderStartedEventProcessor
+
+async function getMetadataEventProcessor(
+  chainId: number
+): Promise<MetadataEventProcessor> {
+  if (!metadataEventProccessor) {
+    metadataEventProccessor = new MetadataEventProcessor(chainId)
+  }
+  return metadataEventProccessor
+}
+
+async function getMetadataStateEventProcessor(
+  chainId: number
+): Promise<MetadataStateEventProcessor> {
+  if (!metadataStateEventProcessor) {
+    metadataStateEventProcessor = new MetadataStateEventProcessor(chainId)
+  }
+  return metadataStateEventProcessor
+}
+
+async function getOrderReusedEventProcessor(
+  chainId: number
+): Promise<OrderReusedEventProcessor> {
+  if (!orderReusedEventProcessor) {
+    orderReusedEventProcessor = new OrderReusedEventProcessor(chainId)
+  }
+  return orderReusedEventProcessor
+}
+
+async function getOrderStartedEventProcessor(
+  chainId: number
+): Promise<OrderStartedEventProcessor> {
+  if (!orderStartedEventProcessor) {
+    orderStartedEventProcessor = new OrderStartedEventProcessor(chainId)
+  }
+  return orderStartedEventProcessor
+}
 
 export const getDeployedContractBlock = async (network: number) => {
   let deployedBlock: number
@@ -90,20 +130,12 @@ export const processChunkLogs = async (
         (event.type === EVENTS.METADATA_CREATED || event.type === EVENTS.METADATA_UPDATED)
       ) {
         INDEXER_LOGGER.logMessage(`-- ${event.type} triggered`, true)
-        const metadataEventProccessor = new MetadataEventProcessor(chainId)
-        storeEvents[event.type] = await metadataEventProccessor.processEvent(
-          log,
-          chainId,
-          provider
-        )
+        const processor = await getMetadataEventProcessor(chainId)
+        storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
       } else if (event && event.type === EVENTS.METADATA_STATE) {
         INDEXER_LOGGER.logMessage(`-- ${event.type} triggered`, true)
-        const metadataStateEventProcessor = new MetadataStateEventProcessor(chainId)
-        storeEvents[event.type] = await metadataStateEventProcessor.processEvent(
-          log,
-          chainId,
-          provider
-        )
+        const processor = await getMetadataStateEventProcessor(chainId)
+        storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
       } else if (event && event.type === EVENTS.EXCHANGE_CREATED) {
         INDEXER_LOGGER.logMessage('-- EXCHANGE_CREATED -- ', true)
         storeEvents[event.type] = await procesExchangeCreated()
@@ -112,20 +144,12 @@ export const processChunkLogs = async (
         storeEvents[event.type] = await processExchangeRateChanged()
       } else if (event && event.type === EVENTS.ORDER_STARTED) {
         INDEXER_LOGGER.logMessage(`-- ${event.type} triggered`, true)
-        const orderStartedEventProcessor = new OrderStartedEventProcessor(chainId)
-        storeEvents[event.type] = await orderStartedEventProcessor.processEvent(
-          log,
-          chainId,
-          provider
-        )
+        const processor = await getOrderStartedEventProcessor(chainId)
+        storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
       } else if (event && event.type === EVENTS.ORDER_REUSED) {
         INDEXER_LOGGER.logMessage(`-- ${event.type} triggered`, true)
-        const orderReusedEventProcessor = new OrderReusedEventProcessor(chainId)
-        storeEvents[event.type] = await orderReusedEventProcessor.processEvent(
-          log,
-          chainId,
-          provider
-        )
+        const processor = await getOrderReusedEventProcessor(chainId)
+        storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
       } else if (event && event.type === EVENTS.TOKEN_URI_UPDATE) {
         INDEXER_LOGGER.logMessage('-- TOKEN_URI_UPDATE -- ', true)
         storeEvents[event.type] = await processTokenUriUpadate()
