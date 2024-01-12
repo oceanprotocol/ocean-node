@@ -6,22 +6,35 @@ import fs from 'fs'
 import * as shaclEngine from 'shacl-engine'
 import { createHash } from 'crypto'
 import { getAddress, isAddress } from 'ethers'
-// import { P2P_CONSOLE_LOGGER } from '../../P2P/index.js'
 import { resolve } from 'path'
 import Quad from 'rdf-ext/lib/Quad.js'
+import {
+  CustomNodeLogger,
+  LOGGER_MODULE_NAMES,
+  LOG_LEVELS_STR,
+  defaultConsoleTransport,
+  getCustomLoggerForModule
+} from '../../../utils/logging/Logger.js'
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.3.0', '4.5.0']
 
+// Project cannot be buildt if the logger is imported, so created one locally
+export const SCHEMA_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
+  LOGGER_MODULE_NAMES.CORE,
+  LOG_LEVELS_STR.LEVEL_INFO,
+  defaultConsoleTransport
+)
+
 function getSchema(version: string = CURRENT_VERSION): string {
   if (!ALLOWED_VERSIONS.includes(version)) {
-    // P2P_CONSOLE_LOGGER.logMessage(`Can't find schema ${version}`, true)
+    SCHEMA_CONSOLE_LOGGER.logMessage(`Can't find schema ${version}`, true)
     return
   }
   const path = `../../../../schemas/v4/${version}.ttl`
   const schemaFilePath = resolve(__dirname, path)
   if (!schemaFilePath) {
-    // P2P_CONSOLE_LOGGER.logMessage(`Can't find schema ${version}`, true)
+    SCHEMA_CONSOLE_LOGGER.logMessage(`Can't find schema ${version}`, true)
     return
   }
   return schemaFilePath
@@ -64,7 +77,7 @@ function makeDid(nftAddress: string, chainId: string): string {
       .digest('hex')
   )
 }
-async function validateObject(
+export async function validateObject(
   obj: Record<string, any>,
   chainId: number,
   nftAddress: string
@@ -115,9 +128,9 @@ async function validateObject(
     dataset.add(quad)
   })
 
-  // fileStream.on('error', (error: Error) => {
-  //   // P2P_CONSOLE_LOGGER.logMessage(`Error reading RDF file: ${error}`, true)
-  // })
+  fileStream.on('error', (error: Error) => {
+    SCHEMA_CONSOLE_LOGGER.logMessage(`Error reading RDF file: ${error}`, true)
+  })
 
   // create a validator instance for the shapes in the given dataset
   const validator = new shaclEngine.Validator(dataset, {
@@ -128,7 +141,7 @@ async function validateObject(
   // run the validation process
   const report = await validator.validate({ dataset })
   if (!report) {
-    // P2P_CONSOLE_LOGGER.logMessage(`Validation report does not exist`, true)
+    SCHEMA_CONSOLE_LOGGER.logMessage(`Validation report does not exist`, true)
     return [false, { error: 'Validation report does not exist' }]
   }
   const errors = parseReportToErrors(report.results)
