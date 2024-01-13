@@ -19,6 +19,11 @@ import { sleep, readStream } from '../../utils/util.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { FindDDOResponse } from '../../@types/index.js'
 import { P2P_CONSOLE_LOGGER } from '../P2P/index.js'
+import { Blockchain } from '../../utils/blockchain.js'
+import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
+import { getOceanArtifactsAdresses } from '../../utils/address.js'
+import { getNFTFactory } from '../Indexer/utils.js'
+import { ethers, getAddress, Signer } from 'ethers'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -44,6 +49,94 @@ export class DecryptDdoHandler extends Handler {
       if (!this.isDecryptDdoCommand(task)) {
         throw new Error(`Task has not isDecryptDdoCommand type. It has ${typeof task}`)
       }
+
+      let decrypterAddress: string
+      try {
+        decrypterAddress = getAddress(task.decrypterAddress)
+      } catch (error) {
+        P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: 'Decrypt DDO: invalid parameter decrypterAddress'
+          }
+        }
+      }
+
+      const chainId = String(task.chainId)
+      const node = this.getP2PNode()
+      const config = node.getConfig()
+      const supportedNetwork = config.supportedNetworks[chainId]
+
+      // check if supported chainId
+      if (!supportedNetwork) {
+        P2P_CONSOLE_LOGGER.logMessage(
+          `Decrypt DDO: Unsupported chain id ${chainId}`,
+          true
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: `Decrypt DDO: Unsupported chain id ${chainId}`
+          }
+        }
+      }
+
+      if (!config.authorizedDecrypters.includes(decrypterAddress)) {
+        P2P_CONSOLE_LOGGER.logMessage('Decrypt DDO: Decrypter not authorized', true)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: 'Decrypt DDO: Decrypter not authorized'
+          }
+        }
+      }
+
+      try {
+        const blockchain = new Blockchain(supportedNetwork.rpc, supportedNetwork.chainId)
+        const provider = blockchain.getProvider()
+        const signer = await provider.getSigner()
+        const artifactsAddresses = getOceanArtifactsAdresses()
+        const factoryAddress = artifactsAddresses[supportedNetwork.network]
+          ? artifactsAddresses[supportedNetwork.network].ERC721Factory
+          : null
+        const factoryContract = new ethers.Contract(
+          factoryAddress,
+          ERC721Factory.abi,
+          signer
+        )
+        const dataNftAddress = getAddress(task.dataNftAddress)
+        const factoryListAddress = await factoryContract.erc721List(dataNftAddress)
+        // console.log('factoryContract', isDatatokenDeployed)
+        // console.log('artifactsAdresses', artifactsAdresses)
+
+        if (dataNftAddress !== factoryListAddress) {
+          P2P_CONSOLE_LOGGER.logMessage(
+            'Decrypt DDO: Asset not deployed by the data NFT factory',
+            true
+          )
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: 'Decrypt DDO: Asset not deployed by the data NFT factory'
+            }
+          }
+        }
+      } catch (error) {
+        P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: 'Decrypt DDO: error'
+          }
+        }
+      }
+
       // const ddo = await this.getP2PNode().getDatabase().ddo.retrieve(task.id)
       // return {
       //   stream: null,

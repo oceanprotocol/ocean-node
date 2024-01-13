@@ -19,12 +19,19 @@ import { encrypt } from '../../utils/crypt.js'
 import { delay, waitToIndex } from './testUtils.js'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
+import { DecryptDdoHandler } from '../../components/core/ddoHandler.js'
+import { DecryptDDOCommand, getConfig } from '../../utils/index.js'
+import { OceanP2P } from '../../components/P2P/index.js'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
 describe('Should encrypt and decrypt DDO', () => {
+  let config: OceanNodeConfig
   let database: Database
+  let p2pNode: OceanP2P
   let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let publisherAccount: Signer
+  let publisherAddress: string
   let factoryContract: Contract
   let nftContract: Contract
   let dataNftAddress: string
@@ -43,24 +50,28 @@ describe('Should encrypt and decrypt DDO', () => {
   }
 
   before(async () => {
-    // will be used later
-    // const dbConfig = {
-    //   url: 'http://localhost:8108/?apiKey=xyz'
-    // }
-    // database = await new Database(dbConfig)
-    // indexer = new OceanIndexer(database, mockSupportedNetworks)
-    const address = getOceanArtifactsAdresses()
+    const artifactsAddresses = getOceanArtifactsAdresses()
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    process.env.PRIVATE_KEY =
-      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
-    process.env.RPCS = JSON.stringify(mockSupportedNetworks)
     publisherAccount = (await provider.getSigner(0)) as Signer
+    publisherAddress = await publisherAccount.getAddress()
     genericAsset = genericDDO
     factoryContract = new ethers.Contract(
-      address.development.ERC721Factory,
+      artifactsAddresses.development.ERC721Factory,
       ERC721Factory.abi,
       publisherAccount
     )
+    process.env.PRIVATE_KEY =
+      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
+    process.env.RPCS = JSON.stringify(mockSupportedNetworks)
+    process.env.AUTHORIZED_DECRYPTERS = JSON.stringify([publisherAddress])
+    const dbConfig = {
+      url: 'http://localhost:8108/?apiKey=xyz'
+    }
+    config = await getConfig()
+    database = await new Database(dbConfig)
+    p2pNode = new OceanP2P(config, database)
+    // will be used later
+    // indexer = new OceanIndexer(database, mockSupportedNetworks)
   })
 
   it('should publish a dataset', async function () {
@@ -71,17 +82,12 @@ describe('Should encrypt and decrypt DDO', () => {
         templateIndex: 1,
         tokenURI: 'https://oceanprotocol.com/nft/',
         transferable: true,
-        owner: await publisherAccount.getAddress()
+        owner: publisherAddress
       },
       {
         strings: ['ERC20B1', 'ERC20DT1Symbol'],
         templateIndex: 1,
-        addresses: [
-          await publisherAccount.getAddress(),
-          ZeroAddress,
-          ZeroAddress,
-          ZeroAddress
-        ],
+        addresses: [publisherAddress, ZeroAddress, ZeroAddress, ZeroAddress],
         uints: [1000, 0],
         bytess: []
       }
@@ -130,8 +136,8 @@ describe('Should encrypt and decrypt DDO', () => {
       []
     )
     const txReceipt = await setMetaDataTx.wait()
-    console.log(txReceipt)
-    console.log(setMetaDataTx)
+    // console.log(txReceipt)
+    // console.log(setMetaDataTx)
     assert(txReceipt, 'set metada failed')
   })
 
@@ -144,7 +150,57 @@ describe('Should encrypt and decrypt DDO', () => {
     // expect(resolvedDDO.id).to.equal(genericAsset.id)
   })
 
+  it('should return unsupported chain id', async () => {
+    const decryptDDOTask: DecryptDDOCommand = {
+      command: 'decryptDDO',
+      decrypterAddress: publisherAddress,
+      chainId: 123,
+      nonce: 'string',
+      signature: 'string'
+    }
+    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    expect(response.status.httpStatus).to.equal(400)
+    expect(response.status.error).to.equal(
+      `Decrypt DDO: Unsupported chain id ${decryptDDOTask.chainId}`
+    )
+  })
+
+  it('should return decrypter not authorized', async () => {
+    const decryptDDOTask: DecryptDDOCommand = {
+      command: 'decryptDDO',
+      decrypterAddress: ZeroAddress,
+      chainId,
+      nonce: 'string',
+      signature: 'string'
+    }
+    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    expect(response.status.httpStatus).to.equal(400)
+    expect(response.status.error).to.equal('Decrypt DDO: Decrypter not authorized')
+  })
+
+  it('should return asset not deployed by the data NFT factory', async () => {
+    const decryptDDOTask: DecryptDDOCommand = {
+      command: 'decryptDDO',
+      decrypterAddress: publisherAddress,
+      chainId,
+      dataNftAddress: publisherAddress,
+      nonce: 'string',
+      signature: 'string'
+    }
+    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    expect(response.status.httpStatus).to.equal(400)
+    expect(response.status.error).to.equal(
+      'Decrypt DDO: Asset not deployed by the data NFT factory'
+    )
+  })
+
   it('should decrypt ddo and return it', async () => {
-    // should decrypt ddo and return it
+    // const decryptDDOTask = {
+    //   decrypterAddress: 'string',
+    //   chainId: 'number',
+    //   nonce: 'string',
+    //   signature: 'string'
+    // }
+    // const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
   })
 })
