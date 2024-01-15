@@ -21,10 +21,14 @@ async function fetchFileMetadata(
     contentType = response.headers['content-type']
   } catch (error) {
     // Fallback to GET request
-    const response = await axios.get(url, { method: 'GET', responseType: 'stream' })
+    try {
+      const response = await axios.get(url, { method: 'GET', responseType: 'stream' })
 
-    contentLength = response.headers['content-length']
-    contentType = response.headers['content-type']
+      contentLength = response.headers['content-length']
+      contentType = response.headers['content-type']
+    } catch (error) {
+      console.error('Error downloading file:', error)
+    }
   }
 
   if (!contentLength) {
@@ -278,12 +282,15 @@ export class IpfsStorage extends Storage {
 
   async getFileInfo(fileInfoRequest: FileInfoRequest): Promise<any> {
     if (!fileInfoRequest.type && !fileInfoRequest.did) {
+      console.log('Either type or did must be provided')
       throw new Error('Either type or did must be provided')
     }
     if (!fileInfoRequest.type && !fileInfoRequest.serviceId) {
+      console.log('serviceId is required when type is not provided')
       throw new Error('serviceId is required when type is not provided')
     }
     if (fileInfoRequest.type === 'ipfs' && !fileInfoRequest.hash) {
+      console.log('Hash is required for type ipfs')
       throw new Error('Hash is required for type ipfs')
     }
 

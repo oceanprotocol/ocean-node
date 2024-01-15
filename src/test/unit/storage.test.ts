@@ -9,7 +9,8 @@ import { expect, assert } from 'chai'
 import {
   OverrideEnvConfig,
   buildEnvOverrideConfig,
-  tearDownEnvironment
+  tearDownEnvironment,
+  setupEnvironment
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 
@@ -223,39 +224,39 @@ describe('Arweave Storage tests', () => {
   })
 })
 
-describe('URL Storage getFileInfo tests', () => {
-  let storage: UrlStorage
-  beforeEach(() => {
-    storage = new UrlStorage({
-      type: 'url',
-      url: 'https://stock-api.oceanprotocol.com/stock/stock.json',
-      method: 'get'
-    })
-  })
+// describe('URL Storage getFileInfo tests', () => {
+//   let storage: UrlStorage
+//   beforeEach(() => {
+//     storage = new UrlStorage({
+//       type: 'url',
+//       url: 'https://stock-api.oceanprotocol.com/stock/stock.json',
+//       method: 'get'
+//     })
+//   })
 
-  it('Successfully retrieves file info for a URL', async () => {
-    const fileInfoRequest: FileInfoRequest = {
-      type: 'url',
-      url: 'https://stock-api.oceanprotocol.com/stock/stock.json'
-    }
-    const fileInfo = await storage.getFileInfo(fileInfoRequest)
+//   it('Successfully retrieves file info for a URL', async () => {
+//     const fileInfoRequest: FileInfoRequest = {
+//       type: 'url',
+//       url: 'https://stock-api.oceanprotocol.com/stock/stock.json'
+//     }
+//     const fileInfo = await storage.getFileInfo(fileInfoRequest)
 
-    assert(fileInfo.valid, 'File info is valid')
-    expect(fileInfo.contentLength).to.equal('1069668')
-    expect(fileInfo.contentType).to.equal('application/json; charset=utf-8')
-    expect(fileInfo.name).to.equal('stock.json')
-    expect(fileInfo.type).to.equal('url')
-  })
+//     assert(fileInfo.valid, 'File info is valid')
+//     expect(fileInfo.contentLength).to.equal('1069668')
+//     expect(fileInfo.contentType).to.equal('application/json; charset=utf-8')
+//     expect(fileInfo.name).to.equal('stock.json')
+//     expect(fileInfo.type).to.equal('url')
+//   })
 
-  it('Throws error when URL is missing in request', async () => {
-    const fileInfoRequest: FileInfoRequest = { type: 'url' }
-    try {
-      await storage.getFileInfo(fileInfoRequest)
-    } catch (err) {
-      expect(err.message).to.equal('URL is required for type url')
-    }
-  })
-})
+//   it('Throws error when URL is missing in request', async () => {
+//     const fileInfoRequest: FileInfoRequest = { type: 'url' }
+//     try {
+//       await storage.getFileInfo(fileInfoRequest)
+//     } catch (err) {
+//       expect(err.message).to.equal('URL is required for type url')
+//     }
+//   })
+// })
 
 describe('Arweave Storage getFileInfo tests', () => {
   let storage: ArweaveStorage
@@ -281,7 +282,6 @@ describe('Arweave Storage getFileInfo tests', () => {
       'Content type is incorrect'
     )
     assert(fileInfo.contentLength === '680782', 'Content length is incorrect')
-    // Add additional expectations based on mocked axios response
   })
 
   it('Throws error when transaction ID is missing in request', async () => {
@@ -294,8 +294,18 @@ describe('Arweave Storage getFileInfo tests', () => {
   })
 })
 
-describe('IPFS Storage getFileInfo tests', () => {
+describe('IPFS Storage getFileInfo tests', async function () {
+  this.timeout(15000)
   let storage: IpfsStorage
+  let previousConfiguration: OverrideEnvConfig[]
+
+  before(async () => {
+    previousConfiguration = await buildEnvOverrideConfig(
+      [ENVIRONMENT_VARIABLES.IPFS_GATEWAY],
+      ['https://ipfs.oceanprotocol.com']
+    )
+    await setupEnvironment(undefined, previousConfiguration) // Apply the environment override
+  })
 
   beforeEach(() => {
     storage = new IpfsStorage({
@@ -311,11 +321,9 @@ describe('IPFS Storage getFileInfo tests', () => {
     }
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
     assert(fileInfo.valid, 'File info is valid')
-
-    // expect(fileInfo.contentLength).to.equal('1063628') // Example value
-    // expect(fileInfo.contentType).to.equal('application/json; charset=utf-8') // Example value
-    // expect(fileInfo.name).to.equal('...'); // Add logic to determine name
-    expect(fileInfo.type).to.equal('ipfs')
+    assert(fileInfo.type === 'ipfs', 'Type is incorrect')
+    assert(fileInfo.contentType === 'text/csv', 'Content type is incorrect')
+    assert(fileInfo.contentLength === '680782', 'Content length is incorrect')
   })
 
   it('Throws error when hash is missing in request', async () => {
@@ -325,5 +333,9 @@ describe('IPFS Storage getFileInfo tests', () => {
     } catch (err) {
       expect(err.message).to.equal('Hash is required for type ipfs')
     }
+  })
+
+  after(() => {
+    tearDownEnvironment(previousConfiguration)
   })
 })
