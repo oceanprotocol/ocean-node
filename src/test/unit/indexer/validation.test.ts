@@ -50,6 +50,15 @@ describe('Schema validation tests', async () => {
       id: 'did is not valid for chain Id and nft address'
     })
   })
+  it('should not pass due to missing context on version 4.1.0', async () => {
+    const copy = incorrectDDO
+    delete copy['@context']
+    const validationResult = await validateObject(copy, 8996, copy.nftAddress)
+    expect(validationResult[0]).to.eql(false)
+    expect(validationResult[1]).to.eql({
+      '@context': 'Context is missing or invalid.'
+    })
+  })
   it('4.5.0 should pass the validation without service', async () => {
     const validationResult = await validateObject(ddov5, 137, ddov5.nftAddress)
     expect(validationResult[0]).to.eql(true)
