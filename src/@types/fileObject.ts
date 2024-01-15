@@ -35,3 +35,11 @@ export interface FileInfoRequest {
   transactionId?: string
   serviceId?: string
 }
+
+export interface FileInfoResponse {
+  valid: boolean
+  contentLength: string
+  contentType: string
+  name: string
+  type: string
+}

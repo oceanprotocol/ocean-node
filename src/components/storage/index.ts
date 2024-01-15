@@ -4,7 +4,8 @@ import {
   IpfsFileObject,
   ArweaveFileObject,
   StorageReadable,
-  FileInfoRequest
+  FileInfoRequest,
+  FileInfoResponse
 } from '../../@types/fileObject.js'
 import { AssetUtils } from '../../utils/asset.js'
 import { decrypt } from '../../utils/crypt.js'
@@ -91,7 +92,7 @@ export abstract class Storage {
 
   abstract getDownloadUrl(): string
 
-  abstract getFileInfo(fileInfoRequest: FileInfoRequest): Promise<any>
+  abstract getFileInfo(fileInfoRequest: FileInfoRequest): Promise<FileInfoResponse[]>
 
   getFile(): any {
     return this.file
@@ -167,7 +168,10 @@ export class UrlStorage extends Storage {
     }
   }
 
-  async getFileInfo(fileInfoRequest: FileInfoRequest, p2pNode?: OceanP2P): Promise<any> {
+  async getFileInfo(
+    fileInfoRequest: FileInfoRequest,
+    p2pNode?: OceanP2P
+  ): Promise<FileInfoResponse[]> {
     if (!fileInfoRequest.type && !fileInfoRequest.did) {
       throw new Error('Either type or did must be provided')
     }
@@ -177,11 +181,19 @@ export class UrlStorage extends Storage {
     if (fileInfoRequest.type === 'url' && !fileInfoRequest.url) {
       throw new Error('URL is required for type url')
     }
+    const response: FileInfoResponse[] = []
 
     try {
-      let url = ''
       if (fileInfoRequest.url) {
-        url = fileInfoRequest.url
+        const { url } = fileInfoRequest
+        const { contentLength, contentType } = await fetchFileMetadata(url)
+        response.push({
+          valid: true,
+          contentLength,
+          contentType,
+          name: new URL(url).pathname.split('/').pop() || '',
+          type: 'url'
+        })
       } else {
         const filesArray = await getFileEndpoint(
           fileInfoRequest.did,
@@ -189,25 +201,27 @@ export class UrlStorage extends Storage {
           p2pNode
         )
 
-        if (filesArray.length === 1 && 'url' in filesArray[0]) {
-          url = filesArray[0].url
-          console.log('url', url)
+        if (!filesArray || filesArray.length === 0) {
+          throw new Error('Empty files array')
+        } else if (filesArray.length >= 1) {
+          for (const file of filesArray) {
+            if ('url' in file && file.type === 'url') {
+              const { contentLength, contentType } = await fetchFileMetadata(file.url)
+              response.push({
+                valid: true,
+                contentLength,
+                contentType,
+                name: new URL(file.url).pathname.split('/').pop() || '',
+                type: file.type
+              })
+            }
+          }
         }
-      }
-
-      const { contentLength, contentType } = await fetchFileMetadata(url)
-
-      return {
-        valid: true,
-        contentLength,
-        contentType,
-        name: new URL(url).pathname.split('/').pop() || '',
-        type: 'url'
-        // Add checksum logic if required
       }
     } catch (error) {
       console.log(error)
     }
+    return response
   }
 }
 
@@ -252,7 +266,10 @@ export class ArweaveStorage extends Storage {
     }
   }
 
-  async getFileInfo(fileInfoRequest: FileInfoRequest, p2pNode?: OceanP2P): Promise<any> {
+  async getFileInfo(
+    fileInfoRequest: FileInfoRequest,
+    p2pNode?: OceanP2P
+  ): Promise<FileInfoResponse[]> {
     if (!fileInfoRequest.type && !fileInfoRequest.did) {
       throw new Error('Either type or did must be provided')
     }
@@ -263,10 +280,19 @@ export class ArweaveStorage extends Storage {
       throw new Error('Transaction ID is required for type arweave')
     }
 
+    const response: FileInfoResponse[] = []
+
     try {
-      let url = ''
       if (fileInfoRequest.transactionId) {
-        url = urlJoin(process.env.ARWEAVE_GATEWAY, fileInfoRequest.transactionId)
+        const url = urlJoin(process.env.ARWEAVE_GATEWAY, fileInfoRequest.transactionId)
+        const { contentLength, contentType } = await fetchFileMetadata(url)
+        response.push({
+          valid: true,
+          contentLength,
+          contentType,
+          name: new URL(url).pathname.split('/').pop() || '',
+          type: 'arweave'
+        })
       } else {
         const filesArray = await getFileEndpoint(
           fileInfoRequest.did,
@@ -274,22 +300,27 @@ export class ArweaveStorage extends Storage {
           p2pNode
         )
 
-        if (filesArray.length === 1 && 'transactionId' in filesArray[0]) {
-          url = urlJoin(process.env.ARWEAVE_GATEWAY, filesArray[0].transactionId)
-          console.log('url', url)
+        if (!filesArray || filesArray.length === 0) {
+          throw new Error('Empty files array')
+        } else if (filesArray.length >= 1) {
+          for (const file of filesArray) {
+            if ('transactionId' in file && file.type === 'arweave') {
+              const { contentLength, contentType } = await fetchFileMetadata(
+                urlJoin(process.env.ARWEAVE_GATEWAY, file.transactionId)
+              )
+              response.push({
+                valid: true,
+                contentLength,
+                contentType,
+                name: '',
+                type: file.type
+              })
+            }
+          }
         }
       }
 
-      const { contentLength, contentType } = await fetchFileMetadata(url)
-
-      return {
-        valid: true,
-        contentLength: contentLength || 'Unknown',
-        contentType,
-        name: '',
-        type: 'arweave'
-        // Add checksum logic
-      }
+      return response
     } catch (error) {
       // Handle errors (e.g., file not accessible)
       console.log(error)
@@ -339,7 +370,10 @@ export class IpfsStorage extends Storage {
     }
   }
 
-  async getFileInfo(fileInfoRequest: FileInfoRequest, p2pNode?: OceanP2P): Promise<any> {
+  async getFileInfo(
+    fileInfoRequest: FileInfoRequest,
+    p2pNode?: OceanP2P
+  ): Promise<FileInfoResponse[]> {
     if (!fileInfoRequest.type && !fileInfoRequest.did) {
       console.log('Either type or did must be provided')
       throw new Error('Either type or did must be provided')
@@ -353,10 +387,22 @@ export class IpfsStorage extends Storage {
       throw new Error('Hash is required for type ipfs')
     }
 
+    const response: FileInfoResponse[] = []
+
     try {
-      let url = ''
       if (fileInfoRequest.hash) {
-        url = urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', fileInfoRequest.hash))
+        const url = urlJoin(
+          process.env.IPFS_GATEWAY,
+          urlJoin('/ipfs', fileInfoRequest.hash)
+        )
+        const { contentLength, contentType } = await fetchFileMetadata(url)
+        response.push({
+          valid: true,
+          contentLength,
+          contentType,
+          name: '',
+          type: 'ipfs'
+        })
       } else {
         const filesArray = await getFileEndpoint(
           fileInfoRequest.did,
@@ -364,22 +410,27 @@ export class IpfsStorage extends Storage {
           p2pNode
         )
 
-        if (filesArray.length === 1 && 'hash' in filesArray[0]) {
-          url = urlJoin(process.env.ARWEAVE_GATEWAY, filesArray[0].hash)
-          console.log('url', url)
+        if (!filesArray || filesArray.length === 0) {
+          throw new Error('Empty files array')
+        } else if (filesArray.length >= 1) {
+          for (const file of filesArray) {
+            if ('hash' in file && file.type === 'ipfs') {
+              const { contentLength, contentType } = await fetchFileMetadata(
+                urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', file.hash))
+              )
+              response.push({
+                valid: true,
+                contentLength,
+                contentType,
+                name: '',
+                type: file.type
+              })
+            }
+          }
         }
       }
 
-      const { contentLength, contentType } = await fetchFileMetadata(url)
-
-      return {
-        valid: true,
-        contentLength,
-        contentType,
-        name: '',
-        type: 'ipfs'
-        // Add checksum logic
-      }
+      return response
     } catch (error) {
       // Handle errors (e.g., file not accessible)
     }

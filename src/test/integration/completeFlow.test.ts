@@ -251,11 +251,11 @@ describe('Should run a complete node flow.', () => {
     const fileInfo = await storage.getFileInfo(fileInfoRequest, p2pNode)
     console.log('fileInfo', fileInfo)
 
-    assert(fileInfo.valid, 'File info is valid')
-    expect(fileInfo.contentLength).to.equal('417')
-    expect(fileInfo.contentType).to.equal('text/plain; charset=utf-8')
-    expect(fileInfo.name).to.equal('algo.js')
-    expect(fileInfo.type).to.equal('url')
+    assert(fileInfo[0].valid, 'File info is valid')
+    expect(fileInfo[0].contentLength).to.equal('417')
+    expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
+    expect(fileInfo[0].name).to.equal('algo.js')
+    expect(fileInfo[0].type).to.equal('url')
   })
 
   it('should start an order', async function () {

@@ -241,11 +241,11 @@ describe('URL Storage getFileInfo tests', () => {
     }
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
 
-    assert(fileInfo.valid, 'File info is valid')
-    expect(fileInfo.contentLength).to.equal('1064680')
-    expect(fileInfo.contentType).to.equal('application/json; charset=utf-8')
-    expect(fileInfo.name).to.equal('stock.json')
-    expect(fileInfo.type).to.equal('url')
+    assert(fileInfo[0].valid, 'File info is valid')
+    expect(fileInfo[0].contentLength).to.equal('1064680')
+    expect(fileInfo[0].contentType).to.equal('application/json; charset=utf-8')
+    expect(fileInfo[0].name).to.equal('stock.json')
+    expect(fileInfo[0].type).to.equal('url')
   })
 
   it('Throws error when URL is missing in request', async () => {
@@ -275,13 +275,13 @@ describe('Arweave Storage getFileInfo tests', () => {
     }
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
 
-    assert(fileInfo.valid, 'File info is valid')
-    assert(fileInfo.type === 'arweave', 'Type is incorrect')
+    assert(fileInfo[0].valid, 'File info is valid')
+    assert(fileInfo[0].type === 'arweave', 'Type is incorrect')
     assert(
-      fileInfo.contentType === 'text/csv; charset=utf-8',
+      fileInfo[0].contentType === 'text/csv; charset=utf-8',
       'Content type is incorrect'
     )
-    assert(fileInfo.contentLength === '680782', 'Content length is incorrect')
+    assert(fileInfo[0].contentLength === '680782', 'Content length is incorrect')
   })
 
   it('Throws error when transaction ID is missing in request', async () => {
@@ -320,10 +320,10 @@ describe('IPFS Storage getFileInfo tests', async function () {
       hash: 'QmRhsp7eghZtW4PktPC2wAHdKoy2LiF1n6UXMKmAhqQJUA'
     }
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
-    assert(fileInfo.valid, 'File info is valid')
-    assert(fileInfo.type === 'ipfs', 'Type is incorrect')
-    assert(fileInfo.contentType === 'text/csv', 'Content type is incorrect')
-    assert(fileInfo.contentLength === '680782', 'Content length is incorrect')
+    assert(fileInfo[0].valid, 'File info is valid')
+    assert(fileInfo[0].type === 'ipfs', 'Type is incorrect')
+    assert(fileInfo[0].contentType === 'text/csv', 'Content type is incorrect')
+    assert(fileInfo[0].contentLength === '680782', 'Content length is incorrect')
   })
 
   it('Throws error when hash is missing in request', async () => {
