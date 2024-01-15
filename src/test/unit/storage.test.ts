@@ -224,39 +224,39 @@ describe('Arweave Storage tests', () => {
   })
 })
 
-// describe('URL Storage getFileInfo tests', () => {
-//   let storage: UrlStorage
-//   beforeEach(() => {
-//     storage = new UrlStorage({
-//       type: 'url',
-//       url: 'https://stock-api.oceanprotocol.com/stock/stock.json',
-//       method: 'get'
-//     })
-//   })
+describe('URL Storage getFileInfo tests', () => {
+  let storage: UrlStorage
+  beforeEach(() => {
+    storage = new UrlStorage({
+      type: 'url',
+      url: 'https://stock-api.oceanprotocol.com/stock/stock.json',
+      method: 'get'
+    })
+  })
 
-//   it('Successfully retrieves file info for a URL', async () => {
-//     const fileInfoRequest: FileInfoRequest = {
-//       type: 'url',
-//       url: 'https://stock-api.oceanprotocol.com/stock/stock.json'
-//     }
-//     const fileInfo = await storage.getFileInfo(fileInfoRequest)
+  it('Successfully retrieves file info for a URL', async () => {
+    const fileInfoRequest: FileInfoRequest = {
+      type: 'url',
+      url: 'https://stock-api.oceanprotocol.com/stock/stock.json'
+    }
+    const fileInfo = await storage.getFileInfo(fileInfoRequest)
 
-//     assert(fileInfo.valid, 'File info is valid')
-//     expect(fileInfo.contentLength).to.equal('1069668')
-//     expect(fileInfo.contentType).to.equal('application/json; charset=utf-8')
-//     expect(fileInfo.name).to.equal('stock.json')
-//     expect(fileInfo.type).to.equal('url')
-//   })
+    assert(fileInfo.valid, 'File info is valid')
+    expect(fileInfo.contentLength).to.equal('1064680')
+    expect(fileInfo.contentType).to.equal('application/json; charset=utf-8')
+    expect(fileInfo.name).to.equal('stock.json')
+    expect(fileInfo.type).to.equal('url')
+  })
 
-//   it('Throws error when URL is missing in request', async () => {
-//     const fileInfoRequest: FileInfoRequest = { type: 'url' }
-//     try {
-//       await storage.getFileInfo(fileInfoRequest)
-//     } catch (err) {
-//       expect(err.message).to.equal('URL is required for type url')
-//     }
-//   })
-// })
+  it('Throws error when URL is missing in request', async () => {
+    const fileInfoRequest: FileInfoRequest = { type: 'url' }
+    try {
+      await storage.getFileInfo(fileInfoRequest)
+    } catch (err) {
+      expect(err.message).to.equal('URL is required for type url')
+    }
+  })
+})
 
 describe('Arweave Storage getFileInfo tests', () => {
   let storage: ArweaveStorage

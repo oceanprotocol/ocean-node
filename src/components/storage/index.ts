@@ -1,3 +1,4 @@
+import { Service } from '../../@types/DDO/Service.js'
 import {
   UrlFileObject,
   IpfsFileObject,
@@ -5,8 +6,37 @@ import {
   StorageReadable,
   FileInfoRequest
 } from '../../@types/fileObject.js'
+import { AssetUtils } from '../../utils/asset.js'
+import { decrypt } from '../../utils/crypt.js'
+import { OceanP2P } from '../P2P/index.js'
+import { FindDdoHandler } from '../core/ddoHandler.js'
 import axios from 'axios'
 import urlJoin from 'url-join'
+
+async function getFileEndpoint(
+  did: string,
+  serviceId: string,
+  node: OceanP2P
+): Promise<string[]> {
+  // 1. Get the DDO
+  const ddo = await new FindDdoHandler(node).findAndFormatDdo(did)
+  console.log('ddo', ddo)
+  // 2. Get the service
+  const service: Service = AssetUtils.getServiceById(ddo, serviceId)
+  console.log('service', service)
+  // 3. Decrypt the url
+  const decryptedUrlBytes = await decrypt(
+    Uint8Array.from(Buffer.from(service.files, 'hex')),
+    'ECIES'
+  )
+  console.log('decryptedUrlBytes', decryptedUrlBytes)
+  // Convert the decrypted bytes back to a string
+  const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
+  console.log('decryptedFilesString', decryptedFilesString)
+  const decryptedFileArray = JSON.parse(decryptedFilesString)
+  console.log('decryptedFileArray', decryptedFileArray)
+  return decryptedFileArray.files
+}
 
 async function fetchFileMetadata(
   url: string
@@ -149,7 +179,22 @@ export class UrlStorage extends Storage {
     }
 
     try {
-      const { url } = fileInfoRequest
+      let url = ''
+      if (fileInfoRequest.url) {
+        url = fileInfoRequest.url
+      } else {
+        const filesArray = await getFileEndpoint(
+          fileInfoRequest.did,
+          fileInfoRequest.serviceId,
+          null
+        )
+        console.log('filesArray', filesArray)
+        if (filesArray.length === 1) {
+          url = filesArray[0]
+          console.log('url', url)
+        }
+      }
+
       const { contentLength, contentType } = await fetchFileMetadata(url)
 
       return {
