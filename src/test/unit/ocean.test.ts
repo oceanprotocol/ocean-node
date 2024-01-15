@@ -3,43 +3,46 @@ import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { OceanProvider } from '../../components/Provider/index.js'
 import { Database } from '../../components/database/index.js'
-import { getConfig } from '../../utils/index.js'
+import { ENVIRONMENT_VARIABLES, getConfig } from '../../utils/index.js'
 
 import { expect } from 'chai'
+import {
+  OverrideEnvConfig,
+  buildEnvOverrideConfig,
+  setupEnvironment,
+  tearDownEnvironment
+} from '../utils/utils.js'
 
-// avoid override local setup / env variables
-const ORIGINAL_PRIVATE_KEY = process.env.PRIVATE_KEY
-// '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
-const ORIGINAL_IPFS_GATEWAY = process.env.IPFS_GATEWAY
-// 'https://ipfs.io/'
-const ORIGINAL_ARWEAVE_GATEWAY = process.env.ARWEAVE_GATEWAY
-// 'https://arweave.net/'
-const ORIGINAL_RPCS = process.env.RPCS
-// '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com", "80001": "https://rpc-mumbai.maticvigil.com" }'
+let envOverrides: OverrideEnvConfig[]
 
 describe('Status command tests', async () => {
+  // need to do it first
+  envOverrides = buildEnvOverrideConfig(
+    [
+      ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+      ENVIRONMENT_VARIABLES.IPFS_GATEWAY,
+      ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY,
+      ENVIRONMENT_VARIABLES.RPCS
+    ],
+    [
+      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+      'https://ipfs.io/',
+      'https://arweave.net/',
+      '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com", "80001": "https://rpc-mumbai.maticvigil.com" }'
+    ]
+  )
+  envOverrides = await setupEnvironment(null, envOverrides)
+  // because of this
   const config = await getConfig()
   const db = await new Database(config.dbConfig)
   const oceanNode = new OceanNode(config, db)
   const oceanP2P = new OceanP2P(config, db)
   const oceanIndexer = new OceanIndexer(db, config.supportedNetworks)
   const oceanProvider = new OceanProvider(db)
-  before(() => {
-    // dummy private key from barge
-    process.env.PRIVATE_KEY =
-      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
-    process.env.IPFS_GATEWAY = 'https://ipfs.io/'
-    process.env.ARWEAVE_GATEWAY = 'https://arweave.net/'
-    process.env.RPCS =
-      '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com", "80001": "https://rpc-mumbai.maticvigil.com" }'
-  })
 
   after(() => {
     // Restore original local setup / env variables after test
-    process.env.PRIVATE_KEY = ORIGINAL_PRIVATE_KEY
-    process.env.IPFS_GATEWAY = ORIGINAL_IPFS_GATEWAY
-    process.env.ARWEAVE_GATEWAY = ORIGINAL_ARWEAVE_GATEWAY
-    process.env.RPCS = ORIGINAL_RPCS
+    tearDownEnvironment(envOverrides)
   })
 
   it('Ocean Node instance', () => {

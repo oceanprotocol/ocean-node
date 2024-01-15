@@ -4,10 +4,21 @@ import {
   ArweaveStorage,
   IpfsStorage
 } from '../../components/storage/index.js'
+<<<<<<< HEAD
 import axios from 'axios'
 import { StorageReadable, FileInfoRequest } from '../../@types/fileObject.js'
 
 import { expect, assert } from 'chai'
+=======
+
+import { expect } from 'chai'
+import {
+  OverrideEnvConfig,
+  buildEnvOverrideConfig,
+  tearDownEnvironment
+} from '../utils/utils.js'
+import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+>>>>>>> 27c14d288d127273fa0a868190ac6e53d221dcaa
 
 describe('URL Storage tests', () => {
   let file: any = {
@@ -146,9 +157,13 @@ describe('IPFS Storage tests', () => {
     hash: 'Qxchjkflsejdfklgjhfkgjkdjoiderj'
   }
   let error: Error
+  let previousConfiguration: OverrideEnvConfig[]
 
   before(() => {
-    process.env.IPFS_GATEWAY = 'https://ipfs.oceanprotocol.com'
+    previousConfiguration = buildEnvOverrideConfig(
+      [ENVIRONMENT_VARIABLES.IPFS_GATEWAY],
+      ['https://ipfs.oceanprotocol.com']
+    )
   })
 
   it('Storage instance', () => {
@@ -168,6 +183,10 @@ describe('IPFS Storage tests', () => {
     }
     expect(error.message).to.eql('Error validationg the IPFS file: Missing CID')
   })
+
+  after(() => {
+    tearDownEnvironment(previousConfiguration)
+  })
 })
 
 describe('Arweave Storage tests', () => {
@@ -177,11 +196,21 @@ describe('Arweave Storage tests', () => {
   }
 
   let error: Error
+<<<<<<< HEAD
   let arweaveGateway: string
   before(() => {
     arweaveGateway = process.env.ARWEAVE_GATEWAY
     process.env.ARWEAVE_GATEWAY =
       'https://snaznabndfe3.arweave.net/nnLNdp6nuTb8mJ-qOgbUEx-9SBtBXQc_jejYOWzYEkM'
+=======
+  let previousConfiguration: OverrideEnvConfig[]
+
+  before(() => {
+    previousConfiguration = buildEnvOverrideConfig(
+      [ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY],
+      ['https://snaznabndfe3.arweave.net/nnLNdp6nuTb8mJ-qOgbUEx-9SBtBXQc_jejYOWzYEkM']
+    )
+>>>>>>> 27c14d288d127273fa0a868190ac6e53d221dcaa
   })
   after(() => {
     process.env.ARWEAVE_GATEWAY = arweaveGateway
@@ -205,6 +234,10 @@ describe('Arweave Storage tests', () => {
     expect(error.message).to.eql(
       'Error validationg the Arweave file: Missing transaction ID'
     )
+  })
+
+  after(() => {
+    tearDownEnvironment(previousConfiguration)
   })
 })
 
