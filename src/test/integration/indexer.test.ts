@@ -76,14 +76,14 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
-    database = await new Database(dbConfig)
-    indexer = new OceanIndexer(database, mockSupportedNetworks)
-
-    const data = getOceanArtifactsAdresses()
-
-    provider = new JsonRpcProvider('http://127.0.0.1:8545')
+    process.env.DB_URL = 'http://localhost:8108/?apiKey=xyz'
+    process.env.RPCS = JSON.stringify(mockSupportedNetworks)
     process.env.PRIVATE_KEY =
       '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
+    database = await new Database(dbConfig)
+    indexer = new OceanIndexer(database, mockSupportedNetworks)
+    const data = getOceanArtifactsAdresses()
+    provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccount = (await provider.getSigner(1)) as Signer
     genericAsset = genericDDO
@@ -163,7 +163,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should store the ddo in the database and return it ', async () => {
     resolvedDDO = await waitToIndex(assetDID, database)
-    console.log('resolvedDDO', resolvedDDO)
     expect(resolvedDDO.id).to.equal(genericAsset.id)
   })
 

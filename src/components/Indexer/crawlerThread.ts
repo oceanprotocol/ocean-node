@@ -12,6 +12,7 @@ import { sleep } from '../../utils/util.js'
 import { Database } from '../database/index.js'
 import { getConfig } from '../../utils/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
 export interface ReindexTask {
   txId: string
@@ -20,8 +21,23 @@ export interface ReindexTask {
 }
 
 const REINDEX_QUEUE: ReindexTask[] = []
-const config = await getConfig()
-const dbConn = new Database(config.dbConfig)
+let config: OceanNodeConfig
+async function getConfiguration(): Promise<OceanNodeConfig> {
+  if (!config) {
+    config = await getConfig()
+  }
+  return config
+}
+
+let dbConn: Database
+async function getDatabase(): Promise<Database> {
+  if (!dbConn) {
+    const { dbConfig } = await getConfiguration()
+    dbConn = new Database(dbConfig)
+  }
+  return dbConn
+}
+
 interface ThreadData {
   rpcDetails: SupportedNetwork
   lastIndexedBlock: number
@@ -34,7 +50,8 @@ const provider = blockchain.getProvider()
 
 async function updateLastIndexedBlockNumber(block: number): Promise<void> {
   try {
-    const updatedIndex = await dbConn.indexer.update(rpcDetails.chainId, block)
+    const { indexer } = await getDatabase()
+    const updatedIndex = await indexer.update(rpcDetails.chainId, block)
     INDEXER_LOGGER.logMessage(
       `New last indexed block : ${updatedIndex.lastIndexedBlock}`,
       true
@@ -42,7 +59,7 @@ async function updateLastIndexedBlockNumber(block: number): Promise<void> {
   } catch (err) {
     INDEXER_LOGGER.log(
       LOG_LEVELS_STR.LEVEL_ERROR,
-      'Error retrieving last indexed block',
+      `Error updating last indexed block ${err.message}`,
       true
     )
   }

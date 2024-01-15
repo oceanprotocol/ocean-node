@@ -88,6 +88,7 @@ describe('Should run a complete node flow.', () => {
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     process.env.PRIVATE_KEY =
       '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
+    process.env.DB_URL = 'http://localhost:8108/?apiKey=xyz'
     process.env.RPCS = JSON.stringify(mockSupportedNetworks)
     publisherAccount = (await provider.getSigner(0)) as Signer
     publisherAddress = await publisherAccount.getAddress()

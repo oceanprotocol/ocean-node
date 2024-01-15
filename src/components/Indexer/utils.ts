@@ -103,7 +103,7 @@ export const processBlocks = async (
       foundEvents: events
     }
   } catch (error) {
-    throw new Error('error processing chunk of blocks events')
+    throw new Error(` Error processing chunk of blocks events ${error.message}`)
   }
 }
 

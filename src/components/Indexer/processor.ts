@@ -69,8 +69,8 @@ class BaseEventProcessor {
     transactionHash: string,
     abi: any
   ): Promise<ethers.LogDescription> {
-    const receipt = await provider.getTransactionReceipt(transactionHash)
     const iface = new Interface(abi)
+    const receipt = await provider.getTransactionReceipt(transactionHash)
     const eventObj = {
       topics: receipt.logs[0].topics as string[],
       data: receipt.logs[0].data
@@ -80,8 +80,8 @@ class BaseEventProcessor {
 
   public async createOrUpdateDDO(ddo: any, method: string): Promise<void> {
     try {
-      const { ddo } = await this.getDatabase()
-      const saveDDO = await ddo.update({ ...ddo })
+      const { ddo: ddoDatabase } = await this.getDatabase()
+      const saveDDO = await ddoDatabase.update({ ...ddo })
       INDEXER_LOGGER.logMessage(
         `Saved or updated DDO  : ${saveDDO.id} from network: ${this.networkId} `
       )
@@ -140,7 +140,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
-      ERC20Template.abi
+      ERC721Template.abi
     )
     const metadataState = parseInt(decodedEventData.args[1].toString())
     INDEXER_LOGGER.logMessage(`Processed new metadata state ${metadataState} `, true)
