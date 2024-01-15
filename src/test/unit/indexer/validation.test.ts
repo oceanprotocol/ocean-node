@@ -51,7 +51,7 @@ describe('Schema validation tests', async () => {
     })
   })
   it('should not pass due to missing context on version 4.1.0', async () => {
-    const copy = incorrectDDO
+    const copy = DDOExample
     delete copy['@context']
     const validationResult = await validateObject(copy, 8996, copy.nftAddress)
     expect(validationResult[0]).to.eql(false)
