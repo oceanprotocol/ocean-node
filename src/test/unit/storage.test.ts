@@ -4,21 +4,14 @@ import {
   ArweaveStorage,
   IpfsStorage
 } from '../../components/storage/index.js'
-<<<<<<< HEAD
-import axios from 'axios'
-import { StorageReadable, FileInfoRequest } from '../../@types/fileObject.js'
-
+import { FileInfoRequest } from '../../@types/fileObject.js'
 import { expect, assert } from 'chai'
-=======
-
-import { expect } from 'chai'
 import {
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   tearDownEnvironment
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
->>>>>>> 27c14d288d127273fa0a868190ac6e53d221dcaa
 
 describe('URL Storage tests', () => {
   let file: any = {
@@ -196,13 +189,6 @@ describe('Arweave Storage tests', () => {
   }
 
   let error: Error
-<<<<<<< HEAD
-  let arweaveGateway: string
-  before(() => {
-    arweaveGateway = process.env.ARWEAVE_GATEWAY
-    process.env.ARWEAVE_GATEWAY =
-      'https://snaznabndfe3.arweave.net/nnLNdp6nuTb8mJ-qOgbUEx-9SBtBXQc_jejYOWzYEkM'
-=======
   let previousConfiguration: OverrideEnvConfig[]
 
   before(() => {
@@ -210,10 +196,6 @@ describe('Arweave Storage tests', () => {
       [ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY],
       ['https://snaznabndfe3.arweave.net/nnLNdp6nuTb8mJ-qOgbUEx-9SBtBXQc_jejYOWzYEkM']
     )
->>>>>>> 27c14d288d127273fa0a868190ac6e53d221dcaa
-  })
-  after(() => {
-    process.env.ARWEAVE_GATEWAY = arweaveGateway
   })
 
   it('Storage instance', () => {
