@@ -1,9 +1,7 @@
 import {
   CustomNodeLogger,
   getCustomLoggerForModule,
-  LOGGER_MODULE_NAMES,
-  LOG_LEVELS_STR,
-  defaultConsoleTransport
+  LOGGER_MODULE_NAMES
 } from './Logger.js'
 
 // TODO gather all the logger instances used here
@@ -12,67 +10,44 @@ import {
 // 1
 // Ocean Node
 export const OCEAN_NODE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.OCEAN_NODE,
-  LOG_LEVELS_STR.LEVEL_INFO, // Info level
-  defaultConsoleTransport // console only Transport
+  LOGGER_MODULE_NAMES.OCEAN_NODE
 )
 // 2
-// DB , console only
-export const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.DATABASE,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
+// Core stuff
+export const CORE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
+  LOGGER_MODULE_NAMES.CORE
 )
 // 3
-// Status
-export const STATUS_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.CORE,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
+// DB
+export const DATABASE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
+  LOGGER_MODULE_NAMES.DATABASE
 )
 // 4
-// DB, console + db
-export const DATABASE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.DATABASE,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
-)
-// 5
 // http
 // use this logger instance on all HTTP related stuff
 export const HTTP_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.HTTP,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
+  LOGGER_MODULE_NAMES.HTTP
 )
-// 6
+// 5
 // indexer
 export const INDEXER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.INDEXER,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
+  LOGGER_MODULE_NAMES.INDEXER
 )
-// 7
+// 6
 // P2P
 // just use the default logger with default transports
 // Bellow is just an example usage, only logging to console here
 export const P2P_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.P2P,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
+  LOGGER_MODULE_NAMES.P2P
 )
-// 8
+// 7
 // provider
 // this should be actually part of provider, so lets put this as module name
 export const PROVIDER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.PROVIDER,
-  LOG_LEVELS_STR.LEVEL_INFO, // Info level
-  defaultConsoleTransport // console only Transport
+  LOGGER_MODULE_NAMES.PROVIDER
 )
-// 9
+// 8
 // config
 export const CONFIG_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.CONFIG,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
+  LOGGER_MODULE_NAMES.CONFIG
 )

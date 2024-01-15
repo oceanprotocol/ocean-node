@@ -9,16 +9,16 @@ import {
 } from '../../../@types/OceanNode.js'
 import { existsEnvironmentVariable } from '../../../utils/index.js'
 import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
-import { STATUS_CONSOLE_LOGGER } from '../../../utils/logging/common.js'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanP2P } from '../../P2P/index.js'
 
 export async function status(
   oceanNode: OceanP2P,
   nodeId?: string
 ): Promise<OceanNodeStatus> {
-  STATUS_CONSOLE_LOGGER.logMessage('Command status started execution...', true)
+  CORE_LOGGER.logMessage('Command status started execution...', true)
   if (!oceanNode) {
-    STATUS_CONSOLE_LOGGER.logMessageWithEmoji(
+    CORE_LOGGER.logMessageWithEmoji(
       'Node object not found. Cannot proceed with status command.',
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -90,7 +90,7 @@ export async function status(
           )
           blockNr = lastIndexedBlock.toString()
         } catch (error) {
-          STATUS_CONSOLE_LOGGER.log(
+          CORE_LOGGER.log(
             LOG_LEVELS_STR.LEVEL_ERROR,
             `Error fetching last indexed block for network ${supportedNetwork.network}`
           )

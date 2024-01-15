@@ -44,7 +44,6 @@ import { OceanNodeConfig, FindDDOResponse } from '../../@types/OceanNode'
 import {
   GENERIC_EMOJIS,
   LOG_LEVELS_STR,
-  newCustomDBTransport,
   getLoggerLevelEmoji
 } from '../../utils/logging/Logger.js'
 import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
@@ -90,8 +89,6 @@ export class OceanP2P extends EventEmitter {
     this._config = config
     if (db && config.dbConfig.url) {
       this.db = db
-      const customLogTransport = newCustomDBTransport(this.db)
-      P2P_CONSOLE_LOGGER.addTransport(customLogTransport)
     } else {
       this._config.hasIndexer = false
       this._config.hasProvider = false

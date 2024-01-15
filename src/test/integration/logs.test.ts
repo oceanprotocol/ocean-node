@@ -2,11 +2,9 @@ import { Database } from '../../components/database/index.js'
 import { expect, assert } from 'chai'
 import {
   CustomNodeLogger,
-  LOG_LEVELS_STR,
   CustomOceanNodesTransport,
   getCustomLoggerForModule,
-  LOGGER_MODULE_NAMES,
-  defaultConsoleTransport
+  LOGGER_MODULE_NAMES
 } from '../../utils/logging/Logger.js'
 
 describe('LogDatabase CRUD', () => {
@@ -29,11 +27,7 @@ describe('LogDatabase CRUD', () => {
     // Initialize logger with the custom transport that writes to the LogDatabase
     const customLogTransport = new CustomOceanNodesTransport({ dbInstance: database })
 
-    logger = getCustomLoggerForModule(
-      LOGGER_MODULE_NAMES.HTTP,
-      LOG_LEVELS_STR.LEVEL_INFO, // Info level
-      defaultConsoleTransport // console only Transport
-    )
+    logger = await getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP)
     logger.addTransport(customLogTransport)
   })
 
