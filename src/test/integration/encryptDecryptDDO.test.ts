@@ -38,6 +38,7 @@ describe('Should encrypt and decrypt DDO', () => {
   let datatokenAddress: string
   let genericAsset: any
   let assetDID: string
+  const nonce = Date.now().toString()
 
   const chainId = 8996
   const mockSupportedNetworks: RPCS = {
@@ -74,7 +75,7 @@ describe('Should encrypt and decrypt DDO', () => {
     // indexer = new OceanIndexer(database, mockSupportedNetworks)
   })
 
-  it('should publish a dataset', async function () {
+  it('should publish a dataset', async () => {
     const tx = await (factoryContract as any).createNftWithErc20(
       {
         name: '72120Bundle',
@@ -155,14 +156,25 @@ describe('Should encrypt and decrypt DDO', () => {
       command: 'decryptDDO',
       decrypterAddress: publisherAddress,
       chainId: 123,
-      nonce: 'string',
+      nonce,
       signature: 'string'
     }
     const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
-    expect(response.status.error).to.equal(
-      `Decrypt DDO: Unsupported chain id ${decryptDDOTask.chainId}`
-    )
+    expect(response.status.error).to.equal('Decrypt DDO: Unsupported chain id')
+  })
+
+  it('should return error duplicate nonce', async () => {
+    const decryptDDOTask: DecryptDDOCommand = {
+      command: 'decryptDDO',
+      decrypterAddress: publisherAddress,
+      chainId: 123,
+      nonce,
+      signature: 'string'
+    }
+    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    expect(response.status.httpStatus).to.equal(400)
+    expect(response.status.error).to.equal(`Decrypt DDO: duplicate nonce`)
   })
 
   it('should return decrypter not authorized', async () => {
@@ -170,7 +182,7 @@ describe('Should encrypt and decrypt DDO', () => {
       command: 'decryptDDO',
       decrypterAddress: ZeroAddress,
       chainId,
-      nonce: 'string',
+      nonce: Date.now().toString(),
       signature: 'string'
     }
     const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
@@ -184,7 +196,7 @@ describe('Should encrypt and decrypt DDO', () => {
       decrypterAddress: publisherAddress,
       chainId,
       dataNftAddress: publisherAddress,
-      nonce: 'string',
+      nonce: Date.now().toString(),
       signature: 'string'
     }
     const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)

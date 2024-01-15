@@ -64,8 +64,41 @@ export class DecryptDdoHandler extends Handler {
         }
       }
 
-      const chainId = String(task.chainId)
+      const nonce = Number(task.nonce)
+      if (isNaN(nonce)) {
+        P2P_CONSOLE_LOGGER.logMessage(
+          `Decrypt DDO: error ${task.nonce} value is not a number`,
+          true
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: `Decrypt DDO: nonce value is not a number`
+          }
+        }
+      }
+
       const node = this.getP2PNode()
+      const dbNonce = node.getDatabase().nonce
+      const existingNonce = await dbNonce.retrieve(decrypterAddress)
+
+      if (existingNonce && existingNonce.nonce === nonce) {
+        P2P_CONSOLE_LOGGER.logMessage(
+          `Decrypt DDO: error ${task.nonce} duplicate nonce`,
+          true
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: `Decrypt DDO: duplicate nonce`
+          }
+        }
+      }
+
+      await dbNonce.update(decrypterAddress, nonce)
+      const chainId = String(task.chainId)
       const config = node.getConfig()
       const supportedNetwork = config.supportedNetworks[chainId]
 
@@ -79,7 +112,7 @@ export class DecryptDdoHandler extends Handler {
           stream: null,
           status: {
             httpStatus: 400,
-            error: `Decrypt DDO: Unsupported chain id ${chainId}`
+            error: `Decrypt DDO: Unsupported chain id`
           }
         }
       }
