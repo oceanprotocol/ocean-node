@@ -52,6 +52,7 @@ describe('Schema validation tests', async () => {
   })
   it('should not pass due to invalid did for chainId and NFT on version 4.1.0', async () => {
     const copy = DDOExample
+    delete copy['@context']
     const validationResult = await validateObject(copy, 137, copy.nftAddress)
     expect(validationResult[0]).to.eql(false)
     expect(validationResult[1]).to.eql({
