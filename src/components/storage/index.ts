@@ -17,7 +17,7 @@ async function getFileEndpoint(
   did: string,
   serviceId: string,
   node: OceanP2P
-): Promise<UrlFileObject[]> {
+): Promise<UrlFileObject[] | ArweaveFileObject[] | IpfsFileObject[]> {
   // 1. Get the DDO
   const ddo = await new FindDdoHandler(node).findAndFormatDdo(did)
   console.log('ddo', ddo)
@@ -188,8 +188,8 @@ export class UrlStorage extends Storage {
           fileInfoRequest.serviceId,
           p2pNode
         )
-        console.log('filesArray', filesArray)
-        if (filesArray.length === 1) {
+
+        if (filesArray.length === 1 && 'url' in filesArray[0]) {
           url = filesArray[0].url
           console.log('url', url)
         }
@@ -252,7 +252,7 @@ export class ArweaveStorage extends Storage {
     }
   }
 
-  async getFileInfo(fileInfoRequest: FileInfoRequest): Promise<any> {
+  async getFileInfo(fileInfoRequest: FileInfoRequest, p2pNode?: OceanP2P): Promise<any> {
     if (!fileInfoRequest.type && !fileInfoRequest.did) {
       throw new Error('Either type or did must be provided')
     }
@@ -264,7 +264,21 @@ export class ArweaveStorage extends Storage {
     }
 
     try {
-      const url = urlJoin(process.env.ARWEAVE_GATEWAY, fileInfoRequest.transactionId)
+      let url = ''
+      if (fileInfoRequest.transactionId) {
+        url = urlJoin(process.env.ARWEAVE_GATEWAY, fileInfoRequest.transactionId)
+      } else {
+        const filesArray = await getFileEndpoint(
+          fileInfoRequest.did,
+          fileInfoRequest.serviceId,
+          p2pNode
+        )
+
+        if (filesArray.length === 1 && 'transactionId' in filesArray[0]) {
+          url = urlJoin(process.env.ARWEAVE_GATEWAY, filesArray[0].transactionId)
+          console.log('url', url)
+        }
+      }
 
       const { contentLength, contentType } = await fetchFileMetadata(url)
 
@@ -325,7 +339,7 @@ export class IpfsStorage extends Storage {
     }
   }
 
-  async getFileInfo(fileInfoRequest: FileInfoRequest): Promise<any> {
+  async getFileInfo(fileInfoRequest: FileInfoRequest, p2pNode?: OceanP2P): Promise<any> {
     if (!fileInfoRequest.type && !fileInfoRequest.did) {
       console.log('Either type or did must be provided')
       throw new Error('Either type or did must be provided')
@@ -340,10 +354,21 @@ export class IpfsStorage extends Storage {
     }
 
     try {
-      const url = urlJoin(
-        process.env.IPFS_GATEWAY,
-        urlJoin('/ipfs', fileInfoRequest.hash)
-      )
+      let url = ''
+      if (fileInfoRequest.hash) {
+        url = urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', fileInfoRequest.hash))
+      } else {
+        const filesArray = await getFileEndpoint(
+          fileInfoRequest.did,
+          fileInfoRequest.serviceId,
+          p2pNode
+        )
+
+        if (filesArray.length === 1 && 'hash' in filesArray[0]) {
+          url = urlJoin(process.env.ARWEAVE_GATEWAY, filesArray[0].hash)
+          console.log('url', url)
+        }
+      }
 
       const { contentLength, contentType } = await fetchFileMetadata(url)
 
