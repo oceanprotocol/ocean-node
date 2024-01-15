@@ -1,35 +1,36 @@
 import { incorrectDDO, DDOExample, ddov5 } from '../../data/ddo.js'
 import { validateObject } from '../../../components/core/utils/validateDdoHandler.js'
+import { ENVIRONMENT_VARIABLES } from '../../../utils/index.js'
 
 import { expect } from 'chai'
-
-// avoid override local setup / env variables
-const ORIGINAL_PRIVATE_KEY = process.env.PRIVATE_KEY
-// '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
-const ORIGINAL_IPFS_GATEWAY = process.env.IPFS_GATEWAY
-// 'https://ipfs.io/'
-const ORIGINAL_ARWEAVE_GATEWAY = process.env.ARWEAVE_GATEWAY
-// 'https://arweave.net/'
-const ORIGINAL_RPCS = process.env.RPCS
-// '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com", "80001": "https://rpc-mumbai.maticvigil.com" }'
+import {
+  setupEnvironment,
+  tearDownEnvironment,
+  buildEnvOverrideConfig,
+  OverrideEnvConfig
+} from '../../utils/utils.js'
 
 describe('Schema validation tests', async () => {
-  before(() => {
-    // dummy private key from barge
-    process.env.PRIVATE_KEY =
-      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
-    process.env.IPFS_GATEWAY = 'https://ipfs.io/'
-    process.env.ARWEAVE_GATEWAY = 'https://arweave.net/'
-    process.env.RPCS =
+  let envOverrides: OverrideEnvConfig[]
+  envOverrides = buildEnvOverrideConfig(
+    [
+      ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+      ENVIRONMENT_VARIABLES.IPFS_GATEWAY,
+      ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY,
+      ENVIRONMENT_VARIABLES.RPCS
+    ],
+    [
+      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+      'https://ipfs.io/',
+      'https://arweave.net/',
       '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com", "80001": "https://rpc-mumbai.maticvigil.com" }'
-  })
+    ]
+  )
+  envOverrides = await setupEnvironment(null, envOverrides)
 
   after(() => {
     // Restore original local setup / env variables after test
-    process.env.PRIVATE_KEY = ORIGINAL_PRIVATE_KEY
-    process.env.IPFS_GATEWAY = ORIGINAL_IPFS_GATEWAY
-    process.env.ARWEAVE_GATEWAY = ORIGINAL_ARWEAVE_GATEWAY
-    process.env.RPCS = ORIGINAL_RPCS
+    tearDownEnvironment(envOverrides)
   })
 
   it('should pass the validation on version 4.1.0', async () => {
