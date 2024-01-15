@@ -10,21 +10,24 @@ import {
 import { existsEnvironmentVariable } from '../../../utils/index.js'
 import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
 import { STATUS_CONSOLE_LOGGER } from '../../../utils/logging/common.js'
+import { OceanP2P } from '../../P2P/index.js'
 
 export async function status(
-  config: OceanNodeConfig,
+  oceanNode: OceanP2P,
   nodeId?: string
 ): Promise<OceanNodeStatus> {
   STATUS_CONSOLE_LOGGER.logMessage('Command status started execution...', true)
-  if (!config) {
+  if (!oceanNode) {
     STATUS_CONSOLE_LOGGER.logMessageWithEmoji(
-      'Config object not found. Cannot proceed with status command.',
+      'Node object not found. Cannot proceed with status command.',
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
     )
     return
   }
+  const config = oceanNode.getConfig()
+  const { indexer: indexerDatabase } = oceanNode.getDatabase()
   const status: OceanNodeStatus = {
     id: undefined,
     publicKey: undefined,
@@ -72,17 +75,33 @@ export async function status(
 
   if (config.supportedNetworks) {
     for (const [key, supportedNetwork] of Object.entries(config.supportedNetworks)) {
-      const provider: OceanNodeProvider = {
-        chainId: key,
-        network: supportedNetwork.network
+      if (config.hasProvider) {
+        const provider: OceanNodeProvider = {
+          chainId: key,
+          network: supportedNetwork.network
+        }
+        status.provider.push(provider)
       }
-      status.provider.push(provider)
-      const indexer: OceanNodeIndexer = {
-        chainId: key,
-        network: supportedNetwork.network,
-        block: '0'
+      if (config.hasIndexer) {
+        let blockNr = '0'
+        try {
+          const { lastIndexedBlock } = await indexerDatabase.retrieve(
+            supportedNetwork.chainId
+          )
+          blockNr = lastIndexedBlock.toString()
+        } catch (error) {
+          STATUS_CONSOLE_LOGGER.log(
+            LOG_LEVELS_STR.LEVEL_ERROR,
+            `Error fetching last indexed block for network ${supportedNetwork.network}`
+          )
+        }
+        const indexer: OceanNodeIndexer = {
+          chainId: key,
+          network: supportedNetwork.network,
+          block: blockNr
+        }
+        status.indexer.push(indexer)
       }
-      status.indexer.push(indexer)
     }
   }
   return status

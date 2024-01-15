@@ -23,7 +23,7 @@ import { RPCS } from '../../@types/blockchain.js'
 import { getEventFromTx, streamToString } from '../../utils/util.js'
 import { delay, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
-import { PROTOCOL_COMMANDS, getConfig } from '../../utils/index.js'
+import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS, getConfig } from '../../utils/index.js'
 import { encrypt } from '../../utils/crypt.js'
 import { DownloadHandler } from '../../components/core/downloadHandler.js'
 import { StatusHandler } from '../../components/core/statusHandler.js'
@@ -32,6 +32,11 @@ import { Readable } from 'stream'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
+import {
+  OverrideEnvConfig,
+  setupEnvironment,
+  tearDownEnvironment
+} from '../utils/utils.js'
 
 describe('Should run a complete node flow.', () => {
   let config: OceanNodeConfig
@@ -65,6 +70,8 @@ describe('Should run a complete node flow.', () => {
   }
   const serviceId = '0'
 
+  let previousConfiguration: OverrideEnvConfig[]
+
   before(async () => {
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
@@ -86,10 +93,17 @@ describe('Should run a complete node flow.', () => {
     )
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    process.env.PRIVATE_KEY =
-      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
-    process.env.DB_URL = 'http://localhost:8108/?apiKey=xyz'
-    process.env.RPCS = JSON.stringify(mockSupportedNetworks)
+    // override and save configuration
+    previousConfiguration = await setupEnvironment(null, [
+      {
+        name: ENVIRONMENT_VARIABLES.RPCS.name,
+        newValue: JSON.stringify(mockSupportedNetworks),
+        override: true,
+        originalValue: ENVIRONMENT_VARIABLES.RPCS.value,
+        required: ENVIRONMENT_VARIABLES.RPCS.required
+      }
+    ])
+
     publisherAccount = (await provider.getSigner(0)) as Signer
     publisherAddress = await publisherAccount.getAddress()
     consumerAccount = (await provider.getSigner(1)) as Signer
@@ -323,5 +337,9 @@ describe('Should run a complete node flow.', () => {
     assert(response.stream, 'stream not present')
     assert(response.status.httpStatus === 200, 'http status not 200')
     expect(response.stream).to.be.instanceOf(Readable)
+  })
+
+  after(() => {
+    tearDownEnvironment(previousConfiguration)
   })
 })
