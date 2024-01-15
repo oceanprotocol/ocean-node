@@ -17,7 +17,7 @@ async function getFileEndpoint(
   did: string,
   serviceId: string,
   node: OceanP2P
-): Promise<string[]> {
+): Promise<UrlFileObject[]> {
   // 1. Get the DDO
   const ddo = await new FindDdoHandler(node).findAndFormatDdo(did)
   console.log('ddo', ddo)
@@ -167,7 +167,7 @@ export class UrlStorage extends Storage {
     }
   }
 
-  async getFileInfo(fileInfoRequest: FileInfoRequest): Promise<any> {
+  async getFileInfo(fileInfoRequest: FileInfoRequest, p2pNode?: OceanP2P): Promise<any> {
     if (!fileInfoRequest.type && !fileInfoRequest.did) {
       throw new Error('Either type or did must be provided')
     }
@@ -186,11 +186,11 @@ export class UrlStorage extends Storage {
         const filesArray = await getFileEndpoint(
           fileInfoRequest.did,
           fileInfoRequest.serviceId,
-          null
+          p2pNode
         )
         console.log('filesArray', filesArray)
         if (filesArray.length === 1) {
-          url = filesArray[0]
+          url = filesArray[0].url
           console.log('url', url)
         }
       }

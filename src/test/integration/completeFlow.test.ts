@@ -37,6 +37,8 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
+import { FileInfoRequest } from '../../@types/fileObject.js'
+import { UrlStorage } from '../../components/storage/index.js'
 
 describe('Should run a complete node flow.', () => {
   let config: OceanNodeConfig
@@ -58,6 +60,7 @@ describe('Should run a complete node flow.', () => {
   let orderTxId: string
   let assetDID: string
   let genericAsset: any
+  let storage: UrlStorage
 
   const chainId = 8996
   const mockSupportedNetworks: RPCS = {
@@ -115,6 +118,11 @@ describe('Should run a complete node flow.', () => {
       ERC721Factory.abi,
       publisherAccount
     )
+    storage = new UrlStorage({
+      type: 'url',
+      url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
+      method: 'get'
+    })
   })
 
   it('should get node status', async () => {
@@ -234,6 +242,21 @@ describe('Should run a complete node flow.', () => {
   //     'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js'
   //   )
   // })
+
+  it('should get file info with did', async () => {
+    const fileInfoRequest: FileInfoRequest = {
+      did: assetDID,
+      serviceId
+    }
+    const fileInfo = await storage.getFileInfo(fileInfoRequest, p2pNode)
+    console.log('fileInfo', fileInfo)
+
+    assert(fileInfo.valid, 'File info is valid')
+    expect(fileInfo.contentLength).to.equal('417')
+    expect(fileInfo.contentType).to.equal('text/plain; charset=utf-8')
+    expect(fileInfo.name).to.equal('algo.js')
+    expect(fileInfo.type).to.equal('url')
+  })
 
   it('should start an order', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
