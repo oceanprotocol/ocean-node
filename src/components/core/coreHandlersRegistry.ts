@@ -6,6 +6,7 @@ import {
 import { OCEAN_NODE_LOGGER } from '../../utils/logging/common.js'
 import { GetDdoHandler, FindDdoHandler } from './ddoHandler.js'
 import { DownloadHandler } from './downloadHandler.js'
+import { FileInfoHandler } from './fileInfoHandler.js'
 import { EchoHandler } from './echoHandler.js'
 import { EncryptHandler } from './encryptHandler.js'
 import { FeesHandler } from './feesHandler.js'
@@ -62,6 +63,7 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(PROTOCOL_COMMANDS.ECHO, new EchoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.REINDEX, new ReindexHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.NONCE, new NonceHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.FILE_INFO, new FileInfoHandler(node))
   }
 
   public static getInstance(node: OceanP2P): CoreHandlersRegistry {
