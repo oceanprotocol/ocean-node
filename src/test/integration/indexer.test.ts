@@ -82,8 +82,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const data = getOceanArtifactsAdresses()
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    process.env.PRIVATE_KEY =
-      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
     publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccount = (await provider.getSigner(1)) as Signer
     genericAsset = genericDDO

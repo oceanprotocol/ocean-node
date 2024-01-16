@@ -19,7 +19,7 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { sleep, readStream } from '../../utils/util.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { FindDDOResponse } from '../../@types/index.js'
-import { P2P_CONSOLE_LOGGER } from '../P2P/index.js'
+import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common.js'
 import { Blockchain } from '../../utils/blockchain.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
@@ -288,15 +288,8 @@ export class DecryptDdoHandler extends Handler {
 }
 
 export class GetDdoHandler extends Handler {
-  isGetDdoCommand(obj: any): obj is GetDdoCommand {
-    return typeof obj === 'object' && obj !== null && 'command' in obj && 'id' in obj
-  }
-
-  async handle(task: any): Promise<P2PCommandResponse> {
+  async handle(task: GetDdoCommand): Promise<P2PCommandResponse> {
     try {
-      if (!this.isGetDdoCommand(task)) {
-        throw new Error(`Task has not QueryCommand type. It has ${typeof task}`)
-      }
       const ddo = await this.getP2PNode().getDatabase().ddo.retrieve(task.id)
       if (!ddo) {
         return {
@@ -318,15 +311,8 @@ export class GetDdoHandler extends Handler {
 }
 
 export class FindDdoHandler extends Handler {
-  isFindDdoCommand(obj: any): obj is FindDDOCommand {
-    return typeof obj === 'object' && obj !== null && 'command' in obj && 'id' in obj
-  }
-
-  async handle(task: any): Promise<P2PCommandResponse> {
+  async handle(task: FindDDOCommand): Promise<P2PCommandResponse> {
     try {
-      if (!this.isFindDdoCommand(task)) {
-        throw new Error(`Task has not FindDDOCommand type. It has ${typeof task}`)
-      }
       const node = this.getP2PNode()
       let updatedCache = false
       // result list

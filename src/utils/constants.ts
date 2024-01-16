@@ -5,6 +5,7 @@ import { P2PCommandResponse } from '../@types/OceanNode'
 // Add all the supported commands
 export const PROTOCOL_COMMANDS = {
   DOWNLOAD: 'download',
+  DOWNLOAD_URL: 'downloadURL', // we still use this
   REINDEX: 'reIndex',
   ECHO: 'echo',
   ENCRYPT: 'encrypt',
@@ -31,31 +32,17 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.GET_FEES
 ]
 
-export const HANDLERS_COMMANDS = [
-  PROTOCOL_COMMANDS.DOWNLOAD,
-  PROTOCOL_COMMANDS.REINDEX,
-  PROTOCOL_COMMANDS.ENCRYPT,
-  PROTOCOL_COMMANDS.DECRYPT_DDO,
-  PROTOCOL_COMMANDS.GET_DDO,
-  PROTOCOL_COMMANDS.QUERY,
-  PROTOCOL_COMMANDS.NONCE,
-  PROTOCOL_COMMANDS.STATUS,
-  PROTOCOL_COMMANDS.FIND_DDO,
-  PROTOCOL_COMMANDS.GET_FEES
-]
-
 export interface Command {
-  command: string
+  command: string // command name
   node?: string // if not present it means current node
 }
 
-export interface DownloadURLCommand {
+export interface DownloadURLCommand extends Command {
   fileObject: any
   aes_encrypted_key?: string // if not present it means download without encryption
-  node?: string // if not present it means current node
 }
 
-export interface DownloadTask {
+export interface DownloadCommand extends Command {
   fileIndex: number
   documentId: string
   serviceId: string
@@ -74,6 +61,8 @@ export interface DDOCommand extends Command {
 }
 export interface GetDdoCommand extends DDOCommand {}
 export interface FindDDOCommand extends DDOCommand {}
+
+export interface StatusCommand extends Command {}
 
 export interface QueryCommand extends Command {
   query: Record<string, any>
@@ -113,7 +102,7 @@ export interface GetFeesCommand extends Command {
 }
 
 export interface ICommandHandler {
-  handleCommand(command: Command): Promise<P2PCommandResponse>
+  handle(command: Command): Promise<P2PCommandResponse>
 }
 
 export interface BroadcastCommand {
@@ -181,16 +170,33 @@ export const EVENT_HASHES: Hashes = {
   }
 }
 
+// this type should also move to the types folder (once we move command types)
+export interface EnvVariable {
+  name: string
+  value: any
+  required: boolean
+}
 // usefull to keep track of what all the env variables we are using
 // (faster to read than README and we can easily use the constants if needed)
 // required means its not mandatory OR we have defaults
-export const ENVIRONMENT_VARIABLES = {
+export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   HTTP_API_PORT: {
     name: 'HTTP_API_PORT',
     value: process.env.HTTP_API_PORT,
     required: false
   },
   PRIVATE_KEY: { name: 'PRIVATE_KEY', value: process.env.PRIVATE_KEY, required: true },
+  // used on test environments (ci)
+  NODE1_PRIVATE_KEY: {
+    name: 'NODE1_PRIVATE_KEY',
+    value: process.env.NODE1_PRIVATE_KEY,
+    required: false
+  },
+  NODE2_PRIVATE_KEY: {
+    name: 'NODE2_PRIVATE_KEY',
+    value: process.env.NODE2_PRIVATE_KEY,
+    required: false
+  },
   RPCS: { name: 'RPCS', value: process.env.RPCS, required: false },
   DB_URL: { name: 'DB_URL', value: process.env.DB_URL, required: false },
   // these 2 bellow will change in the future (not required, just remove functionality)

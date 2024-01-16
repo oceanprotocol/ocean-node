@@ -3,11 +3,7 @@ import { Typesense, convertTypesenseConfig } from '../../components/database/typ
 import {
   getLoggerLevelEmoji,
   GENERIC_EMOJIS,
-  LOG_LEVELS_STR,
-  CustomNodeLogger,
-  LOGGER_MODULE_NAMES,
-  defaultConsoleTransport,
-  getCustomLoggerForModule
+  LOG_LEVELS_STR
 } from '../../utils/logging/Logger.js'
 
 import { ethers } from 'ethers'
@@ -16,12 +12,7 @@ import { getConfig } from '../../utils/config.js'
 import { OceanNode } from '../../OceanNode.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { Database } from '../../components/database/index.js'
-
-const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.DATABASE,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
-)
+import { DB_CONSOLE_LOGGER } from '../../utils/logging/common.js'
 
 const config = await getConfig()
 const dbconn = await new Database(config.dbConfig) // carefull! db constructor is async

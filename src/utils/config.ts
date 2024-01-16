@@ -4,15 +4,7 @@ import { keys } from '@libp2p/crypto'
 import { ENVIRONMENT_VARIABLES, hexStringToByteArray } from '../utils/index.js'
 import type { PeerId } from '@libp2p/interface/peer-id'
 
-import {
-  CustomNodeLogger,
-  defaultConsoleTransport,
-  GENERIC_EMOJIS,
-  getCustomLoggerForModule,
-  getLoggerLevelEmoji,
-  LOG_LEVELS_STR,
-  LOGGER_MODULE_NAMES
-} from '../utils/logging/Logger.js'
+import { LOG_LEVELS_STR, GENERIC_EMOJIS, getLoggerLevelEmoji } from './logging/Logger.js'
 import { RPCS } from '../@types/blockchain'
 import { getAddress, Wallet } from 'ethers'
 import { FeeAmount, FeeStrategy, FeeTokens } from '../@types/Fees'
@@ -20,12 +12,7 @@ import {
   getOceanArtifactsAdresses,
   OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN
 } from '../utils/address.js'
-
-const CONFIG_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.CONFIG,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
-)
+import { CONFIG_CONSOLE_LOGGER } from './logging/common.js'
 
 export async function getPeerIdFromPrivateKey(
   privateKey: string

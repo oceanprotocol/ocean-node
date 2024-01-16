@@ -27,6 +27,7 @@ import { OceanP2P } from '../../components/P2P/index.js'
 import { ProviderFeeData } from '../../@types/Fees'
 import { encrypt } from '../../utils/crypt.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
+import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 
 describe('Download Tests', () => {
   let database: Database
@@ -74,7 +75,6 @@ describe('Download Tests', () => {
     const data = getOceanArtifactsAdresses()
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    //    process.env.PRIVATE_KEY =      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
     consumerAccount = (await provider.getSigner(1)) as Signer
     publisherAccount = (await provider.getSigner(0)) as Signer
     publisherAddress = await publisherAccount.getAddress()
@@ -284,10 +284,11 @@ describe('Download Tests', () => {
       transferTxId: orderTxId,
       nonce,
       consumerAddress,
-      signature
+      signature,
+      command: PROTOCOL_COMMANDS.DOWNLOAD
     }
     const response = await new DownloadHandler(p2pNode).handle(downloadTask)
-
+    console.log('response: ', response)
     assert(response)
     assert(response.stream, 'stream not present')
     assert(response.status.httpStatus === 200, 'http status not 200')
@@ -302,7 +303,8 @@ describe('Download Tests', () => {
       transferTxId: orderTxId,
       nonce: Date.now().toString(),
       consumerAddress: '0xBE5449a6A97aD46c8558A3356267Ee5D2731ab57',
-      signature: ''
+      signature: '',
+      command: PROTOCOL_COMMANDS.DOWNLOAD
     }
     const config = await getConfig()
     const dbconn = await new Database(config.dbConfig)
