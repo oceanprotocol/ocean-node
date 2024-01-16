@@ -36,6 +36,7 @@ export interface FileInfoRequest {
   transactionId?: string
   serviceId?: string
   checksum?: boolean
+  fileIndex?: number
 }
 
 export interface FileInfoResponse {

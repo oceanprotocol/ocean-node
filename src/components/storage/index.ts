@@ -126,6 +126,10 @@ export abstract class Storage {
 
       if (!filesArray || filesArray.length === 0) {
         throw new Error('Empty files array')
+      } else if (fileInfoRequest.fileIndex) {
+        const fileObject = filesArray[fileInfoRequest.fileIndex]
+        const fileInfo = await this.fetchSpecificFileMetadata(fileObject)
+        response.push(fileInfo)
       } else {
         for (const fileObject of filesArray) {
           const fileInfo = await this.fetchSpecificFileMetadata(fileObject)
