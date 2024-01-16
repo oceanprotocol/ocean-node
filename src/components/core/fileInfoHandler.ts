@@ -5,7 +5,31 @@ import { FileInfoCommand } from '../../utils'
 import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common'
 import { ArweaveStorage, IpfsStorage, UrlStorage } from '../storage'
 import { Handler } from './handler'
+import { OceanP2P } from '../P2P'
+import { decrypt } from '../../utils/crypt'
+import { Service } from '../../@types/DDO/Service'
+import { FindDdoHandler } from './ddoHandler'
+import { AssetUtils } from '../../utils/asset'
 
+async function getFile(
+  did: string,
+  serviceId: string,
+  node: OceanP2P
+): Promise<UrlFileObject[] | ArweaveFileObject[] | IpfsFileObject[]> {
+  // 1. Get the DDO
+  const ddo = await new FindDdoHandler(node).findAndFormatDdo(did)
+  // 2. Get the service
+  const service: Service = AssetUtils.getServiceById(ddo, serviceId)
+  // 3. Decrypt the url
+  const decryptedUrlBytes = await decrypt(
+    Uint8Array.from(Buffer.from(service.files, 'hex')),
+    'ECIES'
+  )
+  // Convert the decrypted bytes back to a string
+  const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
+  const decryptedFileArray = JSON.parse(decryptedFilesString)
+  return decryptedFileArray.files
+}
 export class FileInfoHandler extends Handler {
   // No encryption here yet
 
@@ -27,7 +51,7 @@ export class FileInfoHandler extends Handler {
             ? new IpfsStorage(task.file as IpfsFileObject)
             : null
 
-        const fileInfo = await storage.getFileInfo(task, p2pNode)
+        const fileInfo = await storage.getFileInfo(task)
         P2P_CONSOLE_LOGGER.logMessage(
           'File Info Response: ' + JSON.stringify(fileInfo, null, 2),
           true
@@ -39,11 +63,8 @@ export class FileInfoHandler extends Handler {
           }
         }
       } else if (task.did && task.serviceId) {
-        // const fileInfo = await this.getFileInfo(task, p2pNode)
-        // P2P_CONSOLE_LOGGER.logMessage(
-        //   'File Info Response: ' + JSON.stringify(fileInfo, null, 2),
-        //   true
-        // )
+        const file = await getFile(task.did, task.serviceId, p2pNode)
+
         // return {
         //   stream: Readable.from(JSON.stringify(fileInfo)),
         //   status: {

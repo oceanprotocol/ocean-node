@@ -7,75 +7,9 @@ import {
   FileInfoRequest,
   FileInfoResponse
 } from '../../@types/fileObject.js'
-import { AssetUtils } from '../../utils/asset.js'
-import { decrypt } from '../../utils/crypt.js'
-import { OceanP2P } from '../P2P/index.js'
-import { FindDdoHandler } from '../core/ddoHandler.js'
+import { fetchFileMetadata } from '../../utils/asset.js'
 import axios from 'axios'
 import urlJoin from 'url-join'
-
-async function getFileEndpoint(
-  did: string,
-  serviceId: string,
-  node: OceanP2P
-): Promise<UrlFileObject[] | ArweaveFileObject[] | IpfsFileObject[]> {
-  // 1. Get the DDO
-  const ddo = await new FindDdoHandler(node).findAndFormatDdo(did)
-  // 2. Get the service
-  const service: Service = AssetUtils.getServiceById(ddo, serviceId)
-  // 3. Decrypt the url
-  const decryptedUrlBytes = await decrypt(
-    Uint8Array.from(Buffer.from(service.files, 'hex')),
-    'ECIES'
-  )
-  // Convert the decrypted bytes back to a string
-  const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
-  const decryptedFileArray = JSON.parse(decryptedFilesString)
-  return decryptedFileArray.files
-}
-
-async function fetchFileMetadata(
-  url: string
-): Promise<{ contentLength: string; contentType: string }> {
-  let contentLength: string = ''
-  let contentType: string = ''
-  try {
-    // First try with HEAD request
-    const response = await axios.head(url)
-
-    contentLength = response.headers['content-length']
-    contentType = response.headers['content-type']
-  } catch (error) {
-    // Fallback to GET request
-    try {
-      const response = await axios.get(url, { method: 'GET', responseType: 'stream' })
-
-      contentLength = response.headers['content-length']
-      contentType = response.headers['content-type']
-    } catch (error) {
-      console.error('Error downloading file:', error.message)
-    }
-  }
-
-  if (!contentLength) {
-    try {
-      const response = await axios.get(url, { responseType: 'stream' })
-      let totalSize = 0
-
-      for await (const chunk of response.data) {
-        totalSize += chunk.length
-      }
-      contentLength = totalSize.toString()
-    } catch (error) {
-      console.error('Error downloading file:', error)
-      contentLength = 'Unknown'
-    }
-  }
-  return {
-    contentLength,
-    contentType
-  }
-}
 
 export abstract class Storage {
   private file: any
@@ -106,10 +40,7 @@ export abstract class Storage {
     }
   }
 
-  async getFileInfo(
-    fileInfoRequest: FileInfoRequest,
-    p2pNode?: OceanP2P
-  ): Promise<FileInfoResponse[]> {
+  async getFileInfo(fileInfoRequest: FileInfoRequest): Promise<FileInfoResponse[]> {
     if (!fileInfoRequest.type && !fileInfoRequest.did) {
       throw new Error('Either type or did must be provided')
     }
@@ -120,21 +51,13 @@ export abstract class Storage {
     const response: FileInfoResponse[] = []
 
     try {
-      const filesArray = fileInfoRequest.type
-        ? [this.file]
-        : await getFileEndpoint(fileInfoRequest.did, fileInfoRequest.serviceId, p2pNode)
+      const file = this.getFile()
 
-      if (!filesArray || filesArray.length === 0) {
-        throw new Error('Empty files array')
-      } else if (fileInfoRequest.fileIndex) {
-        const fileObject = filesArray[fileInfoRequest.fileIndex]
-        const fileInfo = await this.fetchSpecificFileMetadata(fileObject)
-        response.push(fileInfo)
+      if (!file) {
+        throw new Error('Empty file object')
       } else {
-        for (const fileObject of filesArray) {
-          const fileInfo = await this.fetchSpecificFileMetadata(fileObject)
-          response.push(fileInfo)
-        }
+        const fileInfo = await this.fetchSpecificFileMetadata(file)
+        response.push(fileInfo)
       }
     } catch (error) {
       console.log(error)
