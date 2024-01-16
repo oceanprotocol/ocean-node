@@ -35,24 +35,8 @@ const MAX_RESPONSE_WAIT_TIME_SECONDS = 60
 const MAX_WAIT_TIME_SECONDS_GET_DDO = 5
 
 export class DecryptDdoHandler extends Handler {
-  isDecryptDdoCommand(obj: any): obj is DecryptDDOCommand {
-    return (
-      typeof obj === 'object' &&
-      obj !== null &&
-      'command' in obj &&
-      'decrypterAddress' in obj &&
-      'chainId' in obj &&
-      'nonce' in obj &&
-      'signature' in obj
-    )
-  }
-
-  async handle(task: any): Promise<P2PCommandResponse> {
+  async handle(task: DecryptDDOCommand): Promise<P2PCommandResponse> {
     try {
-      if (!this.isDecryptDdoCommand(task)) {
-        throw new Error(`Task has not isDecryptDdoCommand type. It has ${typeof task}`)
-      }
-
       let decrypterAddress: string
       try {
         decrypterAddress = ethers.getAddress(task.decrypterAddress)
