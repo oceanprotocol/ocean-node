@@ -8,7 +8,7 @@ import {
   ZeroAddress
 } from 'ethers'
 import { assert, expect } from 'chai'
-import { getEventFromTx } from '../../utils/util.js'
+import { getEventFromTx, streamToString } from '../../utils/util.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import { RPCS } from '../../@types/blockchain.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
@@ -23,6 +23,7 @@ import { DecryptDdoHandler } from '../../components/core/ddoHandler.js'
 import { DecryptDDOCommand, getConfig } from '../../utils/index.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { Readable } from 'stream'
 
 describe('Should encrypt and decrypt DDO', () => {
   let config: OceanNodeConfig
@@ -38,6 +39,8 @@ describe('Should encrypt and decrypt DDO', () => {
   let datatokenAddress: string
   let genericAsset: any
   let assetDID: string
+  let txReceiptEncryptDDO: any
+  let encryptedMetaData: any
   const nonce = Date.now().toString()
 
   const chainId = 8996
@@ -118,14 +121,12 @@ describe('Should encrypt and decrypt DDO', () => {
     genericAsset.services[0].datatokenAddress = datatokenAddress
     assetDID = genericAsset.id
 
-    const stringDDO = JSON.stringify(genericAsset)
-    const bytes = Buffer.from(stringDDO)
-    const metadata = hexlify(bytes)
+    const metadata = hexlify(Buffer.from(JSON.stringify(genericAsset)))
     const hash = createHash('sha256').update(metadata).digest('hex')
 
     const genericAssetData = Uint8Array.from(Buffer.from(JSON.stringify(genericAsset)))
     const encryptedData = await encrypt(genericAssetData, 'ECIES')
-    const encryptedMetaData = hexlify(encryptedData)
+    encryptedMetaData = hexlify(encryptedData)
 
     const setMetaDataTx = await nftContract.setMetaData(
       0,
@@ -136,19 +137,8 @@ describe('Should encrypt and decrypt DDO', () => {
       '0x' + hash,
       []
     )
-    const txReceipt = await setMetaDataTx.wait()
-    // console.log(txReceipt)
-    // console.log(setMetaDataTx)
-    assert(txReceipt, 'set metada failed')
-  })
-
-  // delay(30000)
-
-  it('should store the ddo in the database and return it', async () => {
-    // will be used later
-    // const resolvedDDO = await waitToIndex(assetDID, database)
-    // console.log('resolvedDDO', resolvedDDO)
-    // expect(resolvedDDO.id).to.equal(genericAsset.id)
+    txReceiptEncryptDDO = await setMetaDataTx.wait()
+    assert(txReceiptEncryptDDO, 'set metada failed')
   })
 
   it('should return unsupported chain id', async () => {
@@ -206,13 +196,75 @@ describe('Should encrypt and decrypt DDO', () => {
     )
   })
 
-  it('should decrypt ddo and return it', async () => {
-    // const decryptDDOTask = {
-    //   decrypterAddress: 'string',
-    //   chainId: 'number',
-    //   nonce: 'string',
-    //   signature: 'string'
-    // }
-    // const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+  it('should return failed to process transaction id', async () => {
+    const decryptDDOTask: DecryptDDOCommand = {
+      command: 'decryptDDO',
+      decrypterAddress: publisherAddress,
+      chainId,
+      transactionId: 'string',
+      dataNftAddress,
+      nonce: Date.now().toString(),
+      signature: 'string'
+    }
+    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    expect(response.status.httpStatus).to.equal(400)
+    expect(response.status.error).to.equal(
+      'Decrypt DDO: Failed to process transaction id'
+    )
+  })
+
+  it('should return failed to convert input args to bytes', async () => {
+    const decryptDDOTask: DecryptDDOCommand = {
+      command: 'decryptDDO',
+      decrypterAddress: publisherAddress,
+      chainId,
+      encryptedDocument: '1234',
+      flags: 1,
+      documentHash: '1234',
+      dataNftAddress,
+      nonce: Date.now().toString(),
+      signature: 'string'
+    }
+    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    expect(response.status.httpStatus).to.equal(400)
+    expect(response.status.error).to.equal(
+      'Decrypt DDO: Failed to convert input args to bytes'
+    )
+  })
+
+  it('should decrypt ddo with transactionId and return it', async () => {
+    const decryptDDOTask: DecryptDDOCommand = {
+      command: 'decryptDDO',
+      decrypterAddress: publisherAddress,
+      chainId,
+      transactionId: txReceiptEncryptDDO.hash,
+      dataNftAddress,
+      nonce: Date.now().toString(),
+      signature: 'string'
+    }
+    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    expect(response.status.httpStatus).to.equal(200)
+    const decryptedStringDDO = await streamToString(response.stream as Readable)
+    const stringDDO = JSON.stringify(genericAsset)
+    expect(decryptedStringDDO).to.equal(stringDDO)
+  })
+
+  it('should decrypt ddo with encryptedDocument, flags, documentHash and return it', async () => {
+    const decryptDDOTask: DecryptDDOCommand = {
+      command: 'decryptDDO',
+      decrypterAddress: publisherAddress,
+      chainId,
+      encryptedDocument: encryptedMetaData,
+      flags: 2,
+      documentHash: '0x1234',
+      dataNftAddress,
+      nonce: Date.now().toString(),
+      signature: 'string'
+    }
+    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    expect(response.status.httpStatus).to.equal(200)
+    const decryptedStringDDO = await streamToString(response.stream as Readable)
+    const stringDDO = JSON.stringify(genericAsset)
+    expect(decryptedStringDDO).to.equal(stringDDO)
   })
 })

@@ -3,7 +3,8 @@ import {
   GetDdoCommand,
   FindDDOCommand,
   DecryptDDOCommand,
-  PROTOCOL_COMMANDS
+  PROTOCOL_COMMANDS,
+  MetadataStates
 } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
 import { Readable } from 'stream'
@@ -22,8 +23,9 @@ import { P2P_CONSOLE_LOGGER } from '../P2P/index.js'
 import { Blockchain } from '../../utils/blockchain.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
-import { getNFTFactory } from '../Indexer/utils.js'
-import { ethers, getAddress, Signer } from 'ethers'
+import { ethers } from 'ethers'
+import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
+import { decrypt } from '../../utils/crypt.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -52,13 +54,13 @@ export class DecryptDdoHandler extends Handler {
 
       let decrypterAddress: string
       try {
-        decrypterAddress = getAddress(task.decrypterAddress)
+        decrypterAddress = ethers.getAddress(task.decrypterAddress)
       } catch (error) {
         P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
         return {
           stream: null,
           status: {
-            httpStatus: 500,
+            httpStatus: 400,
             error: 'Decrypt DDO: invalid parameter decrypterAddress'
           }
         }
@@ -128,61 +130,143 @@ export class DecryptDdoHandler extends Handler {
         }
       }
 
-      try {
-        const blockchain = new Blockchain(supportedNetwork.rpc, supportedNetwork.chainId)
-        const provider = blockchain.getProvider()
-        const signer = await provider.getSigner()
-        const artifactsAddresses = getOceanArtifactsAdresses()
-        const factoryAddress = artifactsAddresses[supportedNetwork.network]
-          ? artifactsAddresses[supportedNetwork.network].ERC721Factory
-          : null
-        const factoryContract = new ethers.Contract(
-          factoryAddress,
-          ERC721Factory.abi,
-          signer
-        )
-        const dataNftAddress = getAddress(task.dataNftAddress)
-        const factoryListAddress = await factoryContract.erc721List(dataNftAddress)
-        // console.log('factoryContract', isDatatokenDeployed)
-        // console.log('artifactsAdresses', artifactsAdresses)
+      const blockchain = new Blockchain(supportedNetwork.rpc, supportedNetwork.chainId)
+      const provider = blockchain.getProvider()
+      const signer = await provider.getSigner()
+      const artifactsAddresses = getOceanArtifactsAdresses()
+      const factoryAddress = ethers.getAddress(
+        artifactsAddresses[supportedNetwork.network].ERC721Factory
+      )
+      const factoryContract = new ethers.Contract(
+        factoryAddress,
+        ERC721Factory.abi,
+        signer
+      )
+      const dataNftAddress = ethers.getAddress(task.dataNftAddress)
+      const factoryListAddress = await factoryContract.erc721List(dataNftAddress)
+      // console.log('factoryContract', isDatatokenDeployed)
+      // console.log('artifactsAdresses', artifactsAdresses)
 
-        if (dataNftAddress !== factoryListAddress) {
-          P2P_CONSOLE_LOGGER.logMessage(
-            'Decrypt DDO: Asset not deployed by the data NFT factory',
-            true
-          )
+      if (dataNftAddress !== factoryListAddress) {
+        P2P_CONSOLE_LOGGER.logMessage(
+          'Decrypt DDO: Asset not deployed by the data NFT factory',
+          true
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: 'Decrypt DDO: Asset not deployed by the data NFT factory'
+          }
+        }
+      }
+
+      const transactionId = task.transactionId ? String(task.transactionId) : ''
+      let encryptedDocument: Uint8Array
+      let flags: number
+      let documentHash: Uint8Array
+
+      if (transactionId) {
+        try {
+          const receipt = await provider.getTransactionReceipt(transactionId)
+          if (!receipt.logs.length) {
+            throw new Error('receipt logs 0')
+          }
+          const abiInterface = new ethers.Interface(ERC721Template.abi)
+          const eventObject = {
+            topics: receipt.logs[0].topics as string[],
+            data: receipt.logs[0].data
+          }
+          const eventData = abiInterface.parseLog(eventObject)
+          if (eventData.name !== 'MetadataCreated') {
+            throw new Error(`event name ${eventData.name}`)
+          }
+          flags = parseInt(eventData.args[3], 16)
+          encryptedDocument = ethers.getBytes(eventData.args[4])
+          documentHash = ethers.getBytes(eventData.args[5])
+        } catch (error) {
+          P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
           return {
             stream: null,
             status: {
               httpStatus: 400,
-              error: 'Decrypt DDO: Asset not deployed by the data NFT factory'
+              error: 'Decrypt DDO: Failed to process transaction id'
             }
           }
         }
-      } catch (error) {
-        P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+      } else {
+        try {
+          encryptedDocument = ethers.getBytes(task.encryptedDocument)
+          flags = Number(task.flags)
+          documentHash = ethers.getBytes(task.documentHash)
+        } catch (error) {
+          P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: 'Decrypt DDO: Failed to convert input args to bytes'
+            }
+          }
+        }
+      }
+      console.log('encryptedDocument', encryptedDocument)
+      console.log('flags', flags)
+      console.log('documentHash', documentHash)
+
+      const templateContract = new ethers.Contract(
+        dataNftAddress,
+        ERC721Template.abi,
+        signer
+      )
+      const metaData = await templateContract.getMetaData()
+      const metaDataState = metaData[2]
+      if (
+        [
+          MetadataStates.END_OF_LIFE,
+          MetadataStates.DEPRECATED,
+          MetadataStates.REVOKED
+        ].includes(metaDataState)
+      ) {
+        P2P_CONSOLE_LOGGER.logMessage(
+          `Decrypt DDO: error metadata state ${metaDataState}`,
+          true
+        )
         return {
           stream: null,
           status: {
-            httpStatus: 500,
-            error: 'Decrypt DDO: error'
+            httpStatus: 400,
+            error: 'Decrypt DDO: invalid metadata state'
           }
         }
       }
 
-      // const ddo = await this.getP2PNode().getDatabase().ddo.retrieve(task.id)
-      // return {
-      //   stream: null,
-      //   status: { httpStatus: 404, error: 'Not found' }
-      // }
+      let decryptedDocument: Buffer
+      // check if DDO is ECIES encrypted
+      if (flags & 2) {
+        try {
+          decryptedDocument = await decrypt(encryptedDocument, 'ECIES')
+        } catch (error) {
+          P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: 'Decrypt DDO: Failed to decrypt'
+            }
+          }
+        }
+      }
+
       return {
-        stream: Readable.from(JSON.stringify('isDecryptDdoCommand')),
+        stream: Readable.from(decryptedDocument.toString()),
         status: { httpStatus: 200 }
       }
     } catch (error) {
+      P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
       return {
         stream: null,
-        status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
+        status: { httpStatus: 500, error: 'Decrypt DDO: Unknown error: ' }
       }
     }
   }
