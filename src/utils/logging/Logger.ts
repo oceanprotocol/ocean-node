@@ -3,8 +3,6 @@ import Transport from 'winston-transport'
 import DailyRotateFile from 'winston-daily-rotate-file'
 import fs from 'fs'
 import { Database } from '../../components/database/index.js'
-import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import { exit } from 'process'
 
 // all the types of modules/components
 export const LOGGER_MODULE_NAMES = {
@@ -129,15 +127,10 @@ export class CustomOceanNodesTransport extends Transport {
 }
 
 let INSTANCE_COUNT = 0
-let nodeConfig: OceanNodeConfig
 let customDBTransport: CustomOceanNodesTransport = null
-// Lazy load configuration
-async function getConfiguration(): Promise<OceanNodeConfig> {
-  if (!nodeConfig) {
-    nodeConfig = await (await import('../config.js')).getConfig(true)
-  }
-  return nodeConfig
-}
+
+export const MAX_LOGGER_INSTANCES = 10
+export const NUM_LOGGER_INSTANCES = INSTANCE_COUNT
 
 // if not set, then gets default 'development' level & colors
 export function isDevelopmentEnvironment(): boolean {
@@ -320,15 +313,15 @@ export class CustomNodeLogger {
   constructor(options?: CustomNodeLoggerOptions) {
     INSTANCE_COUNT++
 
-    if (INSTANCE_COUNT === 10) {
+    if (INSTANCE_COUNT === MAX_LOGGER_INSTANCES) {
       // after 10 instances we get warnings about possible memory leaks
       this.logger.warn(
         `You already have ${INSTANCE_COUNT} instances of Logger. Please consider reusing some of them!`
       )
-    } else if (INSTANCE_COUNT > 10) {
+    } else if (INSTANCE_COUNT > MAX_LOGGER_INSTANCES) {
       INSTANCE_COUNT--
       throw new Error(
-        'You have reached the maximum number of Logger instances considered safe (10). Please consider reusing some of them!'
+        `You have reached the maximum number of Logger instances considered safe (${MAX_LOGGER_INSTANCES}). Please consider reusing some of them!`
       )
     }
     if (!options) {
