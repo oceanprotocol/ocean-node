@@ -91,11 +91,12 @@ export async function validateObject(
   const ddoCopy = obj
   ddoCopy['@type'] = 'DDO'
   const extraErrors: Record<string, string> = {}
-
-  if (!('@context' in obj) || !Array.isArray(obj['@context'])) {
-    extraErrors['@context'] = 'Context is missing or invalid.'
+  if (!('@context' in obj)) {
+    extraErrors['@context'] = 'Context is missing.'
   }
-
+  if ('@context' in obj && !Array.isArray(obj['@context'])) {
+    extraErrors['@context'] = 'Context is not an array.'
+  }
   if (!('metadata' in obj)) {
     extraErrors.metadata = 'Metadata is missing or invalid.'
   }

@@ -51,20 +51,20 @@ describe('Schema validation tests', async () => {
     })
   })
   it('should not pass due to invalid did for chainId and NFT on version 4.1.0', async () => {
+    DDOExample['@context'] = ['https://w3id.org/did/v1']
+    const validationResult = await validateObject(DDOExample, 8996, DDOExample.nftAddress)
+    expect(validationResult[0]).to.eql(false)
+    expect(validationResult[1]).to.eql({
+      id: 'did is not valid for chain Id and nft address'
+    })
+  })
+  it('should not pass due to missing context on version 4.1.0', async () => {
     const copy = DDOExample
     delete copy['@context']
     const validationResult = await validateObject(copy, 137, copy.nftAddress)
     expect(validationResult[0]).to.eql(false)
     expect(validationResult[1]).to.eql({
-      '@context': 'Context is missing or invalid.'
-    })
-  })
-  it('should not pass due to invalid did for chainId and NFT on version 4.1.0', async () => {
-    const copy = DDOExample
-    const validationResult = await validateObject(copy, 8996, copy.nftAddress)
-    expect(validationResult[0]).to.eql(false)
-    expect(validationResult[1]).to.eql({
-      id: 'did is not valid for chain Id and nft address'
+      '@context': 'Context is missing.'
     })
   })
   it('4.5.0 should pass the validation without service', async () => {
