@@ -23,9 +23,10 @@ import { P2P_CONSOLE_LOGGER } from '../P2P/index.js'
 import { Blockchain } from '../../utils/blockchain.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
-import { ethers } from 'ethers'
+import { ethers, hexlify } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { decrypt } from '../../utils/crypt.js'
+import { createHash } from 'crypto'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -164,7 +165,7 @@ export class DecryptDdoHandler extends Handler {
       const transactionId = task.transactionId ? String(task.transactionId) : ''
       let encryptedDocument: Uint8Array
       let flags: number
-      let documentHash: Uint8Array
+      let documentHash: string
 
       if (transactionId) {
         try {
@@ -183,7 +184,7 @@ export class DecryptDdoHandler extends Handler {
           }
           flags = parseInt(eventData.args[3], 16)
           encryptedDocument = ethers.getBytes(eventData.args[4])
-          documentHash = ethers.getBytes(eventData.args[5])
+          documentHash = eventData.args[5]
         } catch (error) {
           P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
           return {
@@ -198,7 +199,7 @@ export class DecryptDdoHandler extends Handler {
         try {
           encryptedDocument = ethers.getBytes(task.encryptedDocument)
           flags = Number(task.flags)
-          documentHash = ethers.getBytes(task.documentHash)
+          documentHash = task.documentHash
         } catch (error) {
           P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
           return {
@@ -210,9 +211,6 @@ export class DecryptDdoHandler extends Handler {
           }
         }
       }
-      console.log('encryptedDocument', encryptedDocument)
-      console.log('flags', flags)
-      console.log('documentHash', documentHash)
 
       const templateContract = new ethers.Contract(
         dataNftAddress,
@@ -254,6 +252,23 @@ export class DecryptDdoHandler extends Handler {
               httpStatus: 400,
               error: 'Decrypt DDO: Failed to decrypt'
             }
+          }
+        }
+      }
+
+      // checksum matches
+      const decryptedDocumentHash =
+        '0x' + createHash('sha256').update(hexlify(decryptedDocument)).digest('hex')
+      if (decryptedDocumentHash !== documentHash) {
+        P2P_CONSOLE_LOGGER.logMessage(
+          `Decrypt DDO: error checksum does not match ${decryptedDocumentHash} with ${documentHash}`,
+          true
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: 'Decrypt DDO: checksum does not match'
           }
         }
       }

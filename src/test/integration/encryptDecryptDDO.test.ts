@@ -41,6 +41,7 @@ describe('Should encrypt and decrypt DDO', () => {
   let assetDID: string
   let txReceiptEncryptDDO: any
   let encryptedMetaData: any
+  let documentHash: any
   const nonce = Date.now().toString()
 
   const chainId = 8996
@@ -122,7 +123,7 @@ describe('Should encrypt and decrypt DDO', () => {
     assetDID = genericAsset.id
 
     const metadata = hexlify(Buffer.from(JSON.stringify(genericAsset)))
-    const hash = createHash('sha256').update(metadata).digest('hex')
+    documentHash = '0x' + createHash('sha256').update(metadata).digest('hex')
 
     const genericAssetData = Uint8Array.from(Buffer.from(JSON.stringify(genericAsset)))
     const encryptedData = await encrypt(genericAssetData, 'ECIES')
@@ -134,7 +135,7 @@ describe('Should encrypt and decrypt DDO', () => {
       '0x123',
       '0x02',
       encryptedMetaData,
-      '0x' + hash,
+      documentHash,
       []
     )
     txReceiptEncryptDDO = await setMetaDataTx.wait()
@@ -232,6 +233,23 @@ describe('Should encrypt and decrypt DDO', () => {
     )
   })
 
+  it('should return checksum does not match', async () => {
+    const decryptDDOTask: DecryptDDOCommand = {
+      command: 'decryptDDO',
+      decrypterAddress: publisherAddress,
+      chainId,
+      encryptedDocument: encryptedMetaData,
+      flags: 2,
+      documentHash: '0x1234',
+      dataNftAddress,
+      nonce: Date.now().toString(),
+      signature: 'string'
+    }
+    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    expect(response.status.httpStatus).to.equal(400)
+    expect(response.status.error).to.equal('Decrypt DDO: checksum does not match')
+  })
+
   it('should decrypt ddo with transactionId and return it', async () => {
     const decryptDDOTask: DecryptDDOCommand = {
       command: 'decryptDDO',
@@ -256,7 +274,7 @@ describe('Should encrypt and decrypt DDO', () => {
       chainId,
       encryptedDocument: encryptedMetaData,
       flags: 2,
-      documentHash: '0x1234',
+      documentHash,
       dataNftAddress,
       nonce: Date.now().toString(),
       signature: 'string'
