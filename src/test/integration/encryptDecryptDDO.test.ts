@@ -171,7 +171,7 @@ describe('Should encrypt and decrypt DDO', () => {
   it('should return decrypter not authorized', async () => {
     const decryptDDOTask: DecryptDDOCommand = {
       command: 'decryptDDO',
-      decrypterAddress: ZeroAddress,
+      decrypterAddress: '0x0000000000000000000000000000000000000001',
       chainId,
       nonce: Date.now().toString(),
       signature: '0x123'
