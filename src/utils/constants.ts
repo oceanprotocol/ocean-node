@@ -63,7 +63,7 @@ export interface FileInfoCommand extends Command {
   url?: string
   transactionId?: string
   serviceId?: string
-  fileIndex?: string
+  fileIndex?: number
   file?: UrlFileObject[] | ArweaveFileObject[] | IpfsFileObject[]
   checksum?: boolean
 }

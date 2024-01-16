@@ -32,8 +32,10 @@ export interface FileInfoRequest {
   did?: string
   hash?: string
   url?: string
+  file?: UrlFileObject[] | ArweaveFileObject[] | IpfsFileObject[]
   transactionId?: string
   serviceId?: string
+  checksum?: boolean
 }
 
 export interface FileInfoResponse {

@@ -42,7 +42,6 @@ async function fetchFileMetadata(
   try {
     // First try with HEAD request
     const response = await axios.head(url)
-    console.log('HEAD response:', response.status, response.headers)
 
     contentLength = response.headers['content-length']
     contentType = response.headers['content-type']
@@ -54,7 +53,7 @@ async function fetchFileMetadata(
       contentLength = response.headers['content-length']
       contentType = response.headers['content-type']
     } catch (error) {
-      console.error('Error downloading file:', error)
+      console.error('Error downloading file:', error.message)
     }
   }
 
@@ -87,8 +86,7 @@ export abstract class Storage {
   abstract validate(): [boolean, string]
 
   abstract getDownloadUrl(): string
-
-  abstract getFileInfo(fileInfoRequest: FileInfoRequest): Promise<FileInfoResponse[]>
+  abstract fetchSpecificFileMetadata(fileObject: any): Promise<FileInfoResponse>
 
   getFile(): any {
     return this.file
@@ -106,6 +104,38 @@ export abstract class Storage {
       default:
         throw new Error(`Invalid storage type: ${type}`)
     }
+  }
+
+  async getFileInfo(
+    fileInfoRequest: FileInfoRequest,
+    p2pNode?: OceanP2P
+  ): Promise<FileInfoResponse[]> {
+    if (!fileInfoRequest.type && !fileInfoRequest.did) {
+      throw new Error('Either type or did must be provided')
+    }
+    if (!fileInfoRequest.type && !fileInfoRequest.serviceId) {
+      throw new Error('serviceId is required when type is not provided')
+    }
+
+    const response: FileInfoResponse[] = []
+
+    try {
+      const filesArray = fileInfoRequest.type
+        ? [this.file]
+        : await getFileEndpoint(fileInfoRequest.did, fileInfoRequest.serviceId, p2pNode)
+
+      if (!filesArray || filesArray.length === 0) {
+        throw new Error('Empty files array')
+      } else {
+        for (const fileObject of filesArray) {
+          const fileInfo = await this.fetchSpecificFileMetadata(fileObject)
+          response.push(fileInfo)
+        }
+      }
+    } catch (error) {
+      console.log(error)
+    }
+    return response
   }
 }
 
@@ -164,60 +194,16 @@ export class UrlStorage extends Storage {
     }
   }
 
-  async getFileInfo(
-    fileInfoRequest: FileInfoRequest,
-    p2pNode?: OceanP2P
-  ): Promise<FileInfoResponse[]> {
-    if (!fileInfoRequest.type && !fileInfoRequest.did) {
-      throw new Error('Either type or did must be provided')
+  async fetchSpecificFileMetadata(fileObject: UrlFileObject): Promise<FileInfoResponse> {
+    const { url } = fileObject
+    const { contentLength, contentType } = await fetchFileMetadata(url)
+    return {
+      valid: true,
+      contentLength,
+      contentType,
+      name: new URL(url).pathname.split('/').pop() || '',
+      type: 'url'
     }
-    if (!fileInfoRequest.type && !fileInfoRequest.serviceId) {
-      throw new Error('serviceId is required when type is not provided')
-    }
-    if (fileInfoRequest.type === 'url' && !fileInfoRequest.url) {
-      throw new Error('URL is required for type url')
-    }
-    const response: FileInfoResponse[] = []
-
-    try {
-      if (fileInfoRequest.url) {
-        const { url } = fileInfoRequest
-        const { contentLength, contentType } = await fetchFileMetadata(url)
-        response.push({
-          valid: true,
-          contentLength,
-          contentType,
-          name: new URL(url).pathname.split('/').pop() || '',
-          type: 'url'
-        })
-      } else {
-        const filesArray = await getFileEndpoint(
-          fileInfoRequest.did,
-          fileInfoRequest.serviceId,
-          p2pNode
-        )
-
-        if (!filesArray || filesArray.length === 0) {
-          throw new Error('Empty files array')
-        } else if (filesArray.length >= 1) {
-          for (const file of filesArray) {
-            if ('url' in file && file.type === 'url') {
-              const { contentLength, contentType } = await fetchFileMetadata(file.url)
-              response.push({
-                valid: true,
-                contentLength,
-                contentType,
-                name: new URL(file.url).pathname.split('/').pop() || '',
-                type: file.type
-              })
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.log(error)
-    }
-    return response
   }
 }
 
@@ -262,73 +248,17 @@ export class ArweaveStorage extends Storage {
     }
   }
 
-  async getFileInfo(
-    fileInfoRequest: FileInfoRequest,
-    p2pNode?: OceanP2P
-  ): Promise<FileInfoResponse[]> {
-    if (!fileInfoRequest.type && !fileInfoRequest.did) {
-      throw new Error('Either type or did must be provided')
-    }
-    if (!fileInfoRequest.type && !fileInfoRequest.serviceId) {
-      throw new Error('serviceId is required when type is not provided')
-    }
-    if (fileInfoRequest.type === 'arweave' && !fileInfoRequest.transactionId) {
-      throw new Error('Transaction ID is required for type arweave')
-    }
-
-    const response: FileInfoResponse[] = []
-
-    try {
-      if (fileInfoRequest.transactionId) {
-        const metadataUrl = urlJoin(
-          process.env.ARWEAVE_GATEWAY,
-          fileInfoRequest.transactionId,
-          'metadata'
-        )
-        // Fetch and parse metadata to get the file name
-        const metadataResponse = await axios.get(metadataUrl)
-        console.log('Metadata response.data.name:', metadataResponse.data.name)
-
-        const url = urlJoin(process.env.ARWEAVE_GATEWAY, fileInfoRequest.transactionId)
-        const { contentLength, contentType } = await fetchFileMetadata(url)
-        response.push({
-          valid: true,
-          contentLength,
-          contentType,
-          name: new URL(url).pathname.split('/').pop() || '',
-          type: 'arweave'
-        })
-      } else {
-        const filesArray = await getFileEndpoint(
-          fileInfoRequest.did,
-          fileInfoRequest.serviceId,
-          p2pNode
-        )
-
-        if (!filesArray || filesArray.length === 0) {
-          throw new Error('Empty files array')
-        } else if (filesArray.length >= 1) {
-          for (const file of filesArray) {
-            if ('transactionId' in file && file.type === 'arweave') {
-              const { contentLength, contentType } = await fetchFileMetadata(
-                urlJoin(process.env.ARWEAVE_GATEWAY, file.transactionId)
-              )
-              response.push({
-                valid: true,
-                contentLength,
-                contentType,
-                name: '',
-                type: file.type
-              })
-            }
-          }
-        }
-      }
-
-      return response
-    } catch (error) {
-      // Handle errors (e.g., file not accessible)
-      console.log(error)
+  async fetchSpecificFileMetadata(
+    fileObject: ArweaveFileObject
+  ): Promise<FileInfoResponse> {
+    const url = urlJoin(process.env.ARWEAVE_GATEWAY, fileObject.transactionId)
+    const { contentLength, contentType } = await fetchFileMetadata(url)
+    return {
+      valid: true,
+      contentLength,
+      contentType,
+      name: new URL(url).pathname.split('/').pop() || '',
+      type: 'arweave'
     }
   }
 }
@@ -375,69 +305,15 @@ export class IpfsStorage extends Storage {
     }
   }
 
-  async getFileInfo(
-    fileInfoRequest: FileInfoRequest,
-    p2pNode?: OceanP2P
-  ): Promise<FileInfoResponse[]> {
-    if (!fileInfoRequest.type && !fileInfoRequest.did) {
-      console.log('Either type or did must be provided')
-      throw new Error('Either type or did must be provided')
-    }
-    if (!fileInfoRequest.type && !fileInfoRequest.serviceId) {
-      console.log('serviceId is required when type is not provided')
-      throw new Error('serviceId is required when type is not provided')
-    }
-    if (fileInfoRequest.type === 'ipfs' && !fileInfoRequest.hash) {
-      console.log('Hash is required for type ipfs')
-      throw new Error('Hash is required for type ipfs')
-    }
-
-    const response: FileInfoResponse[] = []
-
-    try {
-      if (fileInfoRequest.hash) {
-        const url = urlJoin(
-          process.env.IPFS_GATEWAY,
-          urlJoin('/ipfs', fileInfoRequest.hash)
-        )
-        const { contentLength, contentType } = await fetchFileMetadata(url)
-        response.push({
-          valid: true,
-          contentLength,
-          contentType,
-          name: '',
-          type: 'ipfs'
-        })
-      } else {
-        const filesArray = await getFileEndpoint(
-          fileInfoRequest.did,
-          fileInfoRequest.serviceId,
-          p2pNode
-        )
-
-        if (!filesArray || filesArray.length === 0) {
-          throw new Error('Empty files array')
-        } else if (filesArray.length >= 1) {
-          for (const file of filesArray) {
-            if ('hash' in file && file.type === 'ipfs') {
-              const { contentLength, contentType } = await fetchFileMetadata(
-                urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', file.hash))
-              )
-              response.push({
-                valid: true,
-                contentLength,
-                contentType,
-                name: '',
-                type: file.type
-              })
-            }
-          }
-        }
-      }
-
-      return response
-    } catch (error) {
-      // Handle errors (e.g., file not accessible)
+  async fetchSpecificFileMetadata(fileObject: IpfsFileObject): Promise<FileInfoResponse> {
+    const url = urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', fileObject.hash))
+    const { contentLength, contentType } = await fetchFileMetadata(url)
+    return {
+      valid: true,
+      contentLength,
+      contentType,
+      name: '',
+      type: 'ipfs'
     }
   }
 }

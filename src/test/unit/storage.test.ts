@@ -264,7 +264,7 @@ describe('Arweave Storage getFileInfo tests', () => {
   beforeEach(() => {
     storage = new ArweaveStorage({
       type: 'arweave',
-      transactionId: '0x2563ed54abc0001bcaef'
+      transactionId: 'gPPDyusRh2ZyFl-sQ2ODK6hAwCRBAOwp0OFKr0n23QE'
     })
   })
 
