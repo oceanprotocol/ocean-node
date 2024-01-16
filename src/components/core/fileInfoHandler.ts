@@ -9,7 +9,8 @@ import { OceanP2P } from '../P2P'
 import { decrypt } from '../../utils/crypt'
 import { Service } from '../../@types/DDO/Service'
 import { FindDdoHandler } from './ddoHandler'
-import { AssetUtils } from '../../utils/asset'
+import { AssetUtils, fetchFileMetadata } from '../../utils/asset'
+import urlJoin from 'url-join'
 
 async function getFile(
   did: string,
@@ -30,6 +31,26 @@ async function getFile(
   const decryptedFileArray = JSON.parse(decryptedFilesString)
   return decryptedFileArray.files
 }
+
+async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFileObject) {
+  const url =
+    file.type === 'url'
+      ? (file as UrlFileObject).url
+      : file.type === 'arweave'
+      ? urlJoin(process.env.ARWEAVE_GATEWAY, (file as ArweaveFileObject).transactionId)
+      : file.type === 'ipfs'
+      ? (file as IpfsFileObject).hash
+      : null
+
+  const { contentLength, contentType } = await fetchFileMetadata(url)
+  return {
+    valid: true,
+    contentLength,
+    contentType,
+    name: new URL(url).pathname.split('/').pop() || '',
+    type: file.type
+  }
+}
 export class FileInfoHandler extends Handler {
   // No encryption here yet
 
@@ -40,6 +61,7 @@ export class FileInfoHandler extends Handler {
         true
       )
       const p2pNode = this.getP2PNode()
+      let fileInfo = []
 
       if (task.file && task.type) {
         const storage =
@@ -51,26 +73,19 @@ export class FileInfoHandler extends Handler {
             ? new IpfsStorage(task.file as IpfsFileObject)
             : null
 
-        const fileInfo = await storage.getFileInfo(task)
-        P2P_CONSOLE_LOGGER.logMessage(
-          'File Info Response: ' + JSON.stringify(fileInfo, null, 2),
-          true
-        )
-        return {
-          stream: Readable.from(JSON.stringify(fileInfo)),
-          status: {
-            httpStatus: 200
+        fileInfo = await storage.getFileInfo(task)
+      } else if (task.did && task.serviceId) {
+        const fileArray = await getFile(task.did, task.serviceId, p2pNode)
+
+        if (task.fileIndex) {
+          const fileMetadata = formatMetadata(fileArray[task.fileIndex])
+          fileInfo.push(fileMetadata)
+        } else {
+          for (const file of fileArray) {
+            const fileMetadata = formatMetadata(file)
+            fileInfo.push(fileMetadata)
           }
         }
-      } else if (task.did && task.serviceId) {
-        const file = await getFile(task.did, task.serviceId, p2pNode)
-
-        // return {
-        //   stream: Readable.from(JSON.stringify(fileInfo)),
-        //   status: {
-        //     httpStatus: 200
-        //   }
-        // }
       } else {
         const errorMessage =
           'Invalid arguments. Please provide either file && Type OR did && serviceId'
@@ -81,6 +96,17 @@ export class FileInfoHandler extends Handler {
             httpStatus: 400,
             error: errorMessage
           }
+        }
+      }
+
+      P2P_CONSOLE_LOGGER.logMessage(
+        'File Info Response: ' + JSON.stringify(fileInfo, null, 2),
+        true
+      )
+      return {
+        stream: Readable.from(JSON.stringify(fileInfo)),
+        status: {
+          httpStatus: 200
         }
       }
     } catch (error) {
