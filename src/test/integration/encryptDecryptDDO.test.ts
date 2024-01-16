@@ -148,7 +148,7 @@ describe('Should encrypt and decrypt DDO', () => {
       decrypterAddress: publisherAddress,
       chainId: 123,
       nonce,
-      signature: 'string'
+      signature: '0x123'
     }
     const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
@@ -161,7 +161,7 @@ describe('Should encrypt and decrypt DDO', () => {
       decrypterAddress: publisherAddress,
       chainId: 123,
       nonce,
-      signature: 'string'
+      signature: '0x123'
     }
     const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
@@ -174,7 +174,7 @@ describe('Should encrypt and decrypt DDO', () => {
       decrypterAddress: ZeroAddress,
       chainId,
       nonce: Date.now().toString(),
-      signature: 'string'
+      signature: '0x123'
     }
     const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
@@ -188,7 +188,7 @@ describe('Should encrypt and decrypt DDO', () => {
       chainId,
       dataNftAddress: publisherAddress,
       nonce: Date.now().toString(),
-      signature: 'string'
+      signature: '0x123'
     }
     const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
@@ -205,7 +205,7 @@ describe('Should encrypt and decrypt DDO', () => {
       transactionId: 'string',
       dataNftAddress,
       nonce: Date.now().toString(),
-      signature: 'string'
+      signature: '0x123'
     }
     const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
@@ -219,12 +219,12 @@ describe('Should encrypt and decrypt DDO', () => {
       command: 'decryptDDO',
       decrypterAddress: publisherAddress,
       chainId,
-      encryptedDocument: '1234',
+      encryptedDocument: '123',
       flags: 1,
-      documentHash: '1234',
+      documentHash: '123',
       dataNftAddress,
       nonce: Date.now().toString(),
-      signature: 'string'
+      signature: '0x123'
     }
     const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
@@ -240,10 +240,10 @@ describe('Should encrypt and decrypt DDO', () => {
       chainId,
       encryptedDocument: encryptedMetaData,
       flags: 2,
-      documentHash: '0x1234',
+      documentHash: '0x123',
       dataNftAddress,
       nonce: Date.now().toString(),
-      signature: 'string'
+      signature: '0x123'
     }
     const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
@@ -258,7 +258,7 @@ describe('Should encrypt and decrypt DDO', () => {
       transactionId: txReceiptEncryptDDO.hash,
       dataNftAddress,
       nonce: Date.now().toString(),
-      signature: 'string'
+      signature: '0x123'
     }
     const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(200)
@@ -277,7 +277,7 @@ describe('Should encrypt and decrypt DDO', () => {
       documentHash,
       dataNftAddress,
       nonce: Date.now().toString(),
-      signature: 'string'
+      signature: '0x123'
     }
     const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(200)
