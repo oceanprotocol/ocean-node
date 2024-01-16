@@ -67,6 +67,16 @@ describe('Schema validation tests', async () => {
       '@context': 'Context is missing.'
     })
   })
+  it('should not pass due to invalid ISO timestamp format on version 4.1.0', async () => {
+    DDOExample['@context'] = ['https://w3id.org/did/v1']
+    const copy = DDOExample
+    copy.metadata.created = 'timestamp'
+    const validationResult = await validateObject(copy, 137, copy.nftAddress)
+    expect(validationResult[0]).to.eql(false)
+    expect(validationResult[1]).to.eql({
+      metadata: `created is not in ISO format.`
+    })
+  })
   it('4.5.0 should pass the validation without service', async () => {
     const validationResult = await validateObject(ddov5, 137, ddov5.nftAddress)
     expect(validationResult[0]).to.eql(true)
