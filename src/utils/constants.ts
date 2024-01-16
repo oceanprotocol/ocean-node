@@ -59,12 +59,9 @@ export interface DownloadCommand extends Command {
 export interface FileInfoCommand extends Command {
   type?: 'url' | 'ipfs' | 'arweave'
   did?: string
-  hash?: string
-  url?: string
-  transactionId?: string
   serviceId?: string
   fileIndex?: number
-  file?: UrlFileObject[] | ArweaveFileObject[] | IpfsFileObject[]
+  file?: UrlFileObject | ArweaveFileObject | IpfsFileObject
   checksum?: boolean
 }
 // group these 2
