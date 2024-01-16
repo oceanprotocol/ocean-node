@@ -229,7 +229,7 @@ describe('URL Storage getFileInfo tests', () => {
   beforeEach(() => {
     storage = new UrlStorage({
       type: 'url',
-      url: 'https://stock-api.oceanprotocol.com/stock/stock.json',
+      url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
       method: 'get'
     })
   })
@@ -237,14 +237,14 @@ describe('URL Storage getFileInfo tests', () => {
   it('Successfully retrieves file info for a URL', async () => {
     const fileInfoRequest: FileInfoRequest = {
       type: 'url',
-      url: 'https://stock-api.oceanprotocol.com/stock/stock.json'
+      url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv'
     }
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
 
     assert(fileInfo[0].valid, 'File info is valid')
-    expect(fileInfo[0].contentLength).to.equal('1064680')
-    expect(fileInfo[0].contentType).to.equal('application/json; charset=utf-8')
-    expect(fileInfo[0].name).to.equal('stock.json')
+    expect(fileInfo[0].contentLength).to.equal('13873')
+    expect(fileInfo[0].contentType).to.equal('text/plain')
+    expect(fileInfo[0].name).to.equal('organizations-100.csv')
     expect(fileInfo[0].type).to.equal('url')
   })
 

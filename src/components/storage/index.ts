@@ -21,21 +21,16 @@ async function getFileEndpoint(
 ): Promise<UrlFileObject[] | ArweaveFileObject[] | IpfsFileObject[]> {
   // 1. Get the DDO
   const ddo = await new FindDdoHandler(node).findAndFormatDdo(did)
-  console.log('ddo', ddo)
   // 2. Get the service
   const service: Service = AssetUtils.getServiceById(ddo, serviceId)
-  console.log('service', service)
   // 3. Decrypt the url
   const decryptedUrlBytes = await decrypt(
     Uint8Array.from(Buffer.from(service.files, 'hex')),
     'ECIES'
   )
-  console.log('decryptedUrlBytes', decryptedUrlBytes)
   // Convert the decrypted bytes back to a string
   const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
-  console.log('decryptedFilesString', decryptedFilesString)
   const decryptedFileArray = JSON.parse(decryptedFilesString)
-  console.log('decryptedFileArray', decryptedFileArray)
   return decryptedFileArray.files
 }
 
@@ -47,6 +42,7 @@ async function fetchFileMetadata(
   try {
     // First try with HEAD request
     const response = await axios.head(url)
+    console.log('HEAD response:', response.status, response.headers)
 
     contentLength = response.headers['content-length']
     contentType = response.headers['content-type']
@@ -284,6 +280,15 @@ export class ArweaveStorage extends Storage {
 
     try {
       if (fileInfoRequest.transactionId) {
+        const metadataUrl = urlJoin(
+          process.env.ARWEAVE_GATEWAY,
+          fileInfoRequest.transactionId,
+          'metadata'
+        )
+        // Fetch and parse metadata to get the file name
+        const metadataResponse = await axios.get(metadataUrl)
+        console.log('Metadata response.data.name:', metadataResponse.data.name)
+
         const url = urlJoin(process.env.ARWEAVE_GATEWAY, fileInfoRequest.transactionId)
         const { contentLength, contentType } = await fetchFileMetadata(url)
         response.push({
