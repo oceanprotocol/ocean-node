@@ -30,12 +30,7 @@ export interface StorageReadable {
 export interface FileInfoRequest {
   type?: 'url' | 'ipfs' | 'arweave'
   did?: string
-  hash?: string
-  url?: string
-  file?: UrlFileObject[] | ArweaveFileObject[] | IpfsFileObject[]
-  transactionId?: string
   serviceId?: string
-  checksum?: boolean
   fileIndex?: number
 }
 

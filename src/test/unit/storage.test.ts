@@ -236,8 +236,7 @@ describe('URL Storage getFileInfo tests', () => {
 
   it('Successfully retrieves file info for a URL', async () => {
     const fileInfoRequest: FileInfoRequest = {
-      type: 'url',
-      url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv'
+      type: 'url'
     }
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
 
@@ -270,8 +269,7 @@ describe('Arweave Storage getFileInfo tests', () => {
 
   it('Successfully retrieves file info for an Arweave transaction', async () => {
     const fileInfoRequest: FileInfoRequest = {
-      type: 'arweave',
-      transactionId: 'gPPDyusRh2ZyFl-sQ2ODK6hAwCRBAOwp0OFKr0n23QE'
+      type: 'arweave'
     }
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
 
@@ -316,8 +314,7 @@ describe('IPFS Storage getFileInfo tests', async function () {
 
   it('Successfully retrieves file info for an IPFS hash', async () => {
     const fileInfoRequest: FileInfoRequest = {
-      type: 'ipfs',
-      hash: 'QmRhsp7eghZtW4PktPC2wAHdKoy2LiF1n6UXMKmAhqQJUA'
+      type: 'ipfs'
     }
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
     assert(fileInfo[0].valid, 'File info is valid')
