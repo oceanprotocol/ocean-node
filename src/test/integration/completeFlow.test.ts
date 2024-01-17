@@ -211,6 +211,7 @@ describe('Should run a complete node flow.', () => {
     genericAsset.services[0].datatokenAddress = datatokenAddress
 
     assetDID = genericAsset.id
+    console.log('assetDID', assetDID)
 
     const files = {
       datatokenAddress: '0x0',

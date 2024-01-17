@@ -39,3 +39,12 @@ export interface FileInfoResponse {
   name: string
   type: string
 }
+
+export interface FileInfoHttpRequest {
+  type?: 'ipfs' | 'url' | 'arweave'
+  did?: string
+  hash?: string
+  url?: string
+  transactionId?: string
+  serviceId?: string
+}
