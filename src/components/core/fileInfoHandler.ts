@@ -1,16 +1,20 @@
 import { Readable } from 'stream'
-import { P2PCommandResponse } from '../../@types'
-import { ArweaveFileObject, IpfsFileObject, UrlFileObject } from '../../@types/fileObject'
-import { FileInfoCommand } from '../../utils'
-import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common'
-import { ArweaveStorage, IpfsStorage, UrlStorage } from '../storage'
-import { Handler } from './handler'
-import { OceanP2P } from '../P2P'
-import { decrypt } from '../../utils/crypt'
-import { Service } from '../../@types/DDO/Service'
-import { FindDdoHandler } from './ddoHandler'
-import { AssetUtils, fetchFileMetadata } from '../../utils/asset'
 import urlJoin from 'url-join'
+import { P2PCommandResponse } from '../../@types'
+import {
+  ArweaveFileObject,
+  IpfsFileObject,
+  UrlFileObject
+} from '../../@types/fileObject.js'
+import { FileInfoCommand } from '../../utils'
+import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common.js'
+import { ArweaveStorage, IpfsStorage, UrlStorage } from '../storage/index.js'
+import { Handler } from './handler.js'
+import { OceanP2P } from '../P2P'
+import { decrypt } from '../../utils/crypt.js'
+import { Service } from '../../@types/DDO/Service.js'
+import { FindDdoHandler } from './ddoHandler.js'
+import { AssetUtils, fetchFileMetadata } from '../../utils/asset.js'
 
 async function getFile(
   did: string,
