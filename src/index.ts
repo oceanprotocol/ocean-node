@@ -8,12 +8,7 @@ import swaggerUi from 'swagger-ui-express'
 import { httpRoutes } from './components/httpRoutes/index.js'
 import { getConfig } from './utils/index.js'
 
-import {
-  GENERIC_EMOJIS,
-  LOG_LEVELS_STR,
-  configureCustomDBTransport,
-  isDevelopmentEnvironment
-} from './utils/logging/Logger.js'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import fs from 'fs'
 import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
 
