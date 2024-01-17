@@ -97,11 +97,11 @@ export async function validateObject(
   if (!chainId) {
     extraErrors.chainId = 'chainId is missing or invalid.'
   }
+
   try {
-    if (!getAddress(nftAddress)) {
-      extraErrors.nftAddress = 'nftAddress is missing or invalid.'
-    }
+    getAddress(nftAddress)
   } catch (err) {
+    extraErrors.nftAddress = 'nftAddress is missing or invalid.'
     CORE_LOGGER.logMessage(`Error when retrieving address ${nftAddress}: ${err}`, true)
   }
 
