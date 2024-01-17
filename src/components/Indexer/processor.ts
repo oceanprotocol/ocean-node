@@ -103,7 +103,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
   async processEvent(
     event: ethers.Log,
     chainId: number,
-    provider: JsonRpcApiProvider
+    provider: JsonRpcApiProvider,
+    eventName: string
   ): Promise<void> {
     try {
       const decodedEventData = await this.getEventData(
@@ -119,7 +120,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
         true
       )
-      this.createOrUpdateDDO(ddo, EVENTS.ORDER_REUSED)
+      this.createOrUpdateDDO(ddo, eventName)
     } catch (error) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
