@@ -7,7 +7,7 @@ import { dirname, resolve } from 'path'
 // @ts-ignore
 import * as shaclEngine from 'shacl-engine'
 import { createHash } from 'crypto'
-import { getAddress, isAddress } from 'ethers'
+import { getAddress } from 'ethers'
 import { readFile } from 'node:fs/promises'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
@@ -97,9 +97,12 @@ export async function validateObject(
   if (!chainId) {
     extraErrors.chainId = 'chainId is missing or invalid.'
   }
-
-  if (!nftAddress || nftAddress === '' || !isAddress(nftAddress.toLowerCase())) {
-    extraErrors.nftAddress = 'nftAddress is missing or invalid.'
+  try {
+    if (!getAddress(nftAddress)) {
+      extraErrors.nftAddress = 'nftAddress is missing or invalid.'
+    }
+  } catch (err) {
+    CORE_LOGGER.logMessage(`Error when retrieving address ${nftAddress}: ${err}`, true)
   }
 
   if (!(makeDid(nftAddress, chainId.toString(10)) === obj.id)) {
