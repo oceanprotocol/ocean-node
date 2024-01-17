@@ -3,6 +3,12 @@ import { getConfig } from '../../utils/config.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { delay } from '../integration/testUtils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import {
+  TEST_ENV_CONFIG_FILE,
+  buildEnvOverrideConfig,
+  setupEnvironment,
+  tearDownEnvironment
+} from '../utils/utils.js'
 
 describe('OceanP2P Test', () => {
   let node1: OceanP2P
@@ -10,10 +16,24 @@ describe('OceanP2P Test', () => {
   let config1: any
   let config2: any
 
-  const envKeyOriginal = ENVIRONMENT_VARIABLES.PRIVATE_KEY.value
+  const envOverrides = buildEnvOverrideConfig(
+    [
+      ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+      ENVIRONMENT_VARIABLES.NODE1_PRIVATE_KEY,
+      ENVIRONMENT_VARIABLES.NODE2_PRIVATE_KEY
+    ],
+    [
+      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+      '0xcb345bd2b11264d523ddaf383094e2675c420a17511c3102a53817f13474a7ff',
+      '0x3634cc4a3d2694a1186a7ce545f149e022eea103cc254d18d08675104bb4b5ac'
+    ]
+  )
+  before(() => {
+    setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
+  })
 
   it('Start instance of OceanP2P node1', async () => {
-    process.env.PRIVATE_KEY = ENVIRONMENT_VARIABLES.NODE1_PRIVATE_KEY.value
+    process.env.PRIVATE_KEY = process.env.NODE1_PRIVATE_KEY
     config1 = await getConfig()
     config1.p2pConfig.ipV4BindTcpPort = 0
     node1 = new OceanP2P(config1, null)
@@ -21,7 +41,7 @@ describe('OceanP2P Test', () => {
     assert(node1, 'Failed to create P2P Node instance')
   })
   it('Start instance of OceanP2P node2', async () => {
-    process.env.PRIVATE_KEY = ENVIRONMENT_VARIABLES.NODE2_PRIVATE_KEY.value
+    process.env.PRIVATE_KEY = process.env.NODE2_PRIVATE_KEY
     config2 = await getConfig()
     config2.p2pConfig.ipV4BindTcpPort = 0
     node2 = new OceanP2P(config2, null)
@@ -69,7 +89,7 @@ describe('OceanP2P Test', () => {
   })
 
   after(() => {
-    process.env.PRIVATE_KEY = envKeyOriginal
+    tearDownEnvironment(envOverrides)
   })
 })
 
