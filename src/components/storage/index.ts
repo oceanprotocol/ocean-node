@@ -1,4 +1,3 @@
-import { Service } from '../../@types/DDO/Service.js'
 import {
   UrlFileObject,
   IpfsFileObject,
@@ -41,11 +40,8 @@ export abstract class Storage {
   }
 
   async getFileInfo(fileInfoRequest: FileInfoRequest): Promise<FileInfoResponse[]> {
-    if (!fileInfoRequest.type && !fileInfoRequest.did) {
-      throw new Error('Either type or did must be provided')
-    }
-    if (!fileInfoRequest.type && !fileInfoRequest.serviceId) {
-      throw new Error('serviceId is required when type is not provided')
+    if (!fileInfoRequest.type) {
+      throw new Error('Storage type is not provided')
     }
 
     const response: FileInfoResponse[] = []

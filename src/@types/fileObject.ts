@@ -28,9 +28,7 @@ export interface StorageReadable {
 }
 
 export interface FileInfoRequest {
-  type?: 'url' | 'ipfs' | 'arweave'
-  did?: string
-  serviceId?: string
+  type: 'url' | 'ipfs' | 'arweave'
   fileIndex?: number
 }
 

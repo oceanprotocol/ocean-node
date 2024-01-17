@@ -25,18 +25,26 @@ async function getFile(
   const ddo = await new FindDdoHandler(node).findAndFormatDdo(did)
   // 2. Get the service
   const service: Service = AssetUtils.getServiceById(ddo, serviceId)
+
   // 3. Decrypt the url
   const decryptedUrlBytes = await decrypt(
     Uint8Array.from(Buffer.from(service.files, 'hex')),
     'ECIES'
   )
+  P2P_CONSOLE_LOGGER.logMessage(`URL decrypted for Service ID: ${serviceId}`)
+
   // Convert the decrypted bytes back to a string
   const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
   const decryptedFileArray = JSON.parse(decryptedFilesString)
+
   return decryptedFileArray.files
 }
 
 async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFileObject) {
+  P2P_CONSOLE_LOGGER.logMessage(
+    `Starting formatMetadata for file: ${JSON.stringify(file)}`
+  )
+
   const url =
     file.type === 'url'
       ? (file as UrlFileObject).url
@@ -47,6 +55,8 @@ async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFile
       : null
 
   const { contentLength, contentType } = await fetchFileMetadata(url)
+  P2P_CONSOLE_LOGGER.logMessage(`Metadata for file: ${contentLength} ${contentType}`)
+
   return {
     valid: true,
     contentLength,
@@ -56,8 +66,6 @@ async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFile
   }
 }
 export class FileInfoHandler extends Handler {
-  // No encryption here yet
-
   async handle(task: FileInfoCommand): Promise<P2PCommandResponse> {
     try {
       P2P_CONSOLE_LOGGER.logMessage(
@@ -77,16 +85,19 @@ export class FileInfoHandler extends Handler {
             ? new IpfsStorage(task.file as IpfsFileObject)
             : null
 
-        fileInfo = await storage.getFileInfo(task)
+        fileInfo = await storage.getFileInfo({
+          type: task.type,
+          fileIndex: task.fileIndex
+        })
       } else if (task.did && task.serviceId) {
         const fileArray = await getFile(task.did, task.serviceId, p2pNode)
 
         if (task.fileIndex) {
-          const fileMetadata = formatMetadata(fileArray[task.fileIndex])
+          const fileMetadata = await formatMetadata(fileArray[task.fileIndex])
           fileInfo.push(fileMetadata)
         } else {
           for (const file of fileArray) {
-            const fileMetadata = formatMetadata(file)
+            const fileMetadata = await formatMetadata(file)
             fileInfo.push(fileMetadata)
           }
         }
@@ -107,6 +118,7 @@ export class FileInfoHandler extends Handler {
         'File Info Response: ' + JSON.stringify(fileInfo, null, 2),
         true
       )
+
       return {
         stream: Readable.from(JSON.stringify(fileInfo)),
         status: {
