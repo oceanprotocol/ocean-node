@@ -41,6 +41,6 @@ logRoutes.get('/log/:id', async (req, res) => {
       res.status(404).send('Log not found')
     }
   } catch (error) {
-    res.status(500).send('Internal Server Error')
+    res.status(500).send('Internal Server Error' + error.message)
   }
 })

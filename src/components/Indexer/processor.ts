@@ -17,6 +17,8 @@ import { Database } from '../database/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { EVENTS, MetadataStates } from '../../utils/constants.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
+import { DDO } from '../../@types/DDO/DDO.js'
+import axios from 'axios'
 
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
@@ -78,12 +80,12 @@ class BaseEventProcessor {
     return iface.parseLog(eventObj)
   }
 
-  public async createOrUpdateDDO(ddo: any, method: string): Promise<void> {
+  protected async createOrUpdateDDO(ddo: any, method: string): Promise<void> {
     try {
       const { ddo: ddoDatabase } = await this.getDatabase()
       const saveDDO = await ddoDatabase.update({ ...ddo })
       INDEXER_LOGGER.logMessage(
-        `Saved or updated DDO  : ${saveDDO.id} from network: ${this.networkId} `
+        `Saved or updated DDO  : ${saveDDO.id} from network: ${this.networkId} triggered by: ${method} `
       )
       // emit event
       if (method === EVENTS.METADATA_CREATED) {
@@ -96,6 +98,62 @@ class BaseEventProcessor {
         true
       )
     }
+  }
+
+  protected async decryptDDO(
+    decryptorURL: string,
+    flag: string,
+    eventCreator: string,
+    contractAddress: string,
+    chainId: number,
+    txId: string,
+    metadataHash: string
+  ): Promise<any> {
+    let ddo
+    const { nonce: nonceDatabase } = await this.getDatabase()
+    const { keys } = await this.getConfiguration()
+    const nodeId = keys.peerId.toString()
+    const nonce = await nonceDatabase.retrieve(eventCreator)
+    const wallet: ethers.Wallet = new ethers.Wallet(
+      Buffer.from(keys.privateKey).toString('hex')
+    )
+    const message = String(txId + keys.ethAddress + chainId.toString() + nonce.toString())
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await wallet.signMessage(messageHashBytes)
+    const payload = {
+      transactionId: txId,
+      chainId,
+      decrypterAddress: keys.ethAddress,
+      dataNftAddress: contractAddress,
+      signature,
+      nonce: nonce.toString()
+    }
+    if (nodeId === decryptorURL) {
+      // currentNode created event decrypt locally
+    } else {
+      try {
+        const response = await axios({
+          method: 'get',
+          url: `${decryptorURL}/api/services/decrypt`,
+          data: payload
+        })
+        if (response.status !== 201) {
+          const message = `Provider exception on decrypt DDO. Status: ${response.status}, ${response.statusText}`
+          INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
+          throw new Error(message)
+        }
+        ddo = response.data.decode('utf-8')
+      } catch (err) {
+        const message = `Provider exception on decrypt DDO. Status: ${err.message}`
+        INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
+        throw new Error(message)
+      }
+    }
+    return ddo
   }
 }
 
@@ -111,6 +169,20 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         event.transactionHash,
         ERC721Template.abi
       )
+      // console.log('createdBY ', decodedEventData.args[0])
+      // console.log('flags ', decodedEventData.args[3])
+      // console.log('decryptor url', decodedEventData.args[2])
+      // const ddo = await this.decryptDDO(
+      //   decodedEventData.args[4],
+      //   decodedEventData.args[2],
+      //   decodedEventData.args[3],
+      //   decodedEventData.args[0],
+      //   event.address,
+      //   chainId,
+      //   event.transactionHash,
+      //   decodedEventData.args[5]
+      // )
+      // console.log('data', decodedEventData.args[4])
       const byteArray = getBytes(decodedEventData.args[4])
       const utf8String = toUtf8String(byteArray)
       const ddo = JSON.parse(utf8String)
@@ -119,7 +191,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
         true
       )
-      this.createOrUpdateDDO(ddo, EVENTS.ORDER_REUSED)
+      this.createOrUpdateDDO(ddo, EVENTS.METADATA_CREATED)
     } catch (error) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
