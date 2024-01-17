@@ -1,35 +1,22 @@
 import rdfDataModel from '@rdfjs/data-model'
 import rdfDataset from '@rdfjs/dataset'
 import toNT from '@rdfjs/to-ntriples'
-import fs from 'fs'
+import { Parser, Quad } from 'n3'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
 // @ts-ignore
 import * as shaclEngine from 'shacl-engine'
 import { createHash } from 'crypto'
 import { getAddress, isAddress } from 'ethers'
-import Quad from 'rdf-ext/lib/Quad.js'
-import {
-  CustomNodeLogger,
-  LOGGER_MODULE_NAMES,
-  LOG_LEVELS_STR,
-  defaultConsoleTransport,
-  getCustomLoggerForModule
-} from '../../../utils/logging/Logger.js'
+import { readFile } from 'node:fs/promises'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
 
-// Project cannot be buildt if the logger is imported, so created one locally
-export const SCHEMA_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
-  LOGGER_MODULE_NAMES.CORE,
-  LOG_LEVELS_STR.LEVEL_INFO,
-  defaultConsoleTransport
-)
-
 export function getSchema(version: string = CURRENT_VERSION): string {
   if (!ALLOWED_VERSIONS.includes(version)) {
-    SCHEMA_CONSOLE_LOGGER.logMessage(`Can't find schema ${version}`, true)
+    CORE_LOGGER.logMessage(`Can't find schema ${version}`, true)
     return
   }
   const path = `../../../../schemas/v4/${version}.ttl`
@@ -40,7 +27,7 @@ export function getSchema(version: string = CURRENT_VERSION): string {
   const currentDirectory = dirname(currentModulePath)
   const schemaFilePath = resolve(currentDirectory, path)
   if (!schemaFilePath) {
-    SCHEMA_CONSOLE_LOGGER.logMessage(`Can't find schema ${version}`, true)
+    CORE_LOGGER.logMessage(`Can't find schema ${version}`, true)
     return
   }
   return schemaFilePath
@@ -126,16 +113,16 @@ export async function validateObject(
   const schemaFilePath = getSchema(version)
   const filename = new URL(schemaFilePath, import.meta.url)
   const dataset = rdfDataset.dataset()
-
-  const fileStream = fs.createReadStream(filename.pathname)
-  fileStream.on('data', (quad: Quad) => {
-    dataset.add(quad)
-  })
-
-  fileStream.on('error', (error: Error) => {
-    SCHEMA_CONSOLE_LOGGER.logMessage(`Error reading RDF file: ${error}`, true)
-  })
-
+  try {
+    const contents = await readFile(filename, { encoding: 'utf8' })
+    const parser = new Parser()
+    const quads = parser.parse(contents)
+    quads.forEach((quad: Quad) => {
+      dataset.add(quad)
+    })
+  } catch (err) {
+    CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
+  }
   // create a validator instance for the shapes in the given dataset
   const validator = new shaclEngine.Validator(dataset, {
     factory: rdfDataModel
@@ -144,8 +131,9 @@ export async function validateObject(
   // run the validation process
   const report = await validator.validate({ dataset })
   if (!report) {
-    SCHEMA_CONSOLE_LOGGER.logMessage(`Validation report does not exist`, true)
-    return [false, { error: 'Validation report does not exist' }]
+    const errorMsg = 'Validation report does not exist'
+    CORE_LOGGER.logMessage(errorMsg, true)
+    return [false, { error: errorMsg }]
   }
   const errors = parseReportToErrors(report.results)
 
