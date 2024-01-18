@@ -25,7 +25,7 @@ export const DB_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
 )
 // 3
 // Status
-export const STATUS_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
+export const CORE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.CORE,
   LOG_LEVELS_STR.LEVEL_INFO,
   defaultConsoleTransport

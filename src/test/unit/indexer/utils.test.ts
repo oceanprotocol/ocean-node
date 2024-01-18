@@ -13,7 +13,7 @@ import {
   processChunkLogs
 } from '../../../components/Indexer/utils.js'
 
-describe('Your Test Suite', () => {
+describe('Utils', () => {
   let provider: ethers.JsonRpcProvider
 
   before(async () => {
@@ -72,6 +72,6 @@ describe('Your Test Suite', () => {
       }
     ]
 
-    const result = await processChunkLogs(logs, provider, 80001)
+    await processChunkLogs(logs, provider, 80001)
   })
 })

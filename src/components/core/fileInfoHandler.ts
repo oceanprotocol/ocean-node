@@ -21,23 +21,29 @@ async function getFile(
   serviceId: string,
   node: OceanP2P
 ): Promise<UrlFileObject[] | ArweaveFileObject[] | IpfsFileObject[]> {
-  // 1. Get the DDO
-  const ddo = await new FindDdoHandler(node).findAndFormatDdo(did)
-  // 2. Get the service
-  const service: Service = AssetUtils.getServiceById(ddo, serviceId)
+  try {
+    // 1. Get the DDO
+    const ddo = await new FindDdoHandler(node).findAndFormatDdo(did)
+    // 2. Get the service
+    const service: Service = AssetUtils.getServiceById(ddo, serviceId)
 
-  // 3. Decrypt the url
-  const decryptedUrlBytes = await decrypt(
-    Uint8Array.from(Buffer.from(service.files, 'hex')),
-    'ECIES'
-  )
-  P2P_CONSOLE_LOGGER.logMessage(`URL decrypted for Service ID: ${serviceId}`)
+    // 3. Decrypt the url
+    const decryptedUrlBytes = await decrypt(
+      Uint8Array.from(Buffer.from(service.files, 'hex')),
+      'ECIES'
+    )
+    P2P_CONSOLE_LOGGER.logMessage(`URL decrypted for Service ID: ${serviceId}`)
 
-  // Convert the decrypted bytes back to a string
-  const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
-  const decryptedFileArray = JSON.parse(decryptedFilesString)
+    // Convert the decrypted bytes back to a string
+    const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
+    const decryptedFileArray = JSON.parse(decryptedFilesString)
 
-  return decryptedFileArray.files
+    return decryptedFileArray.files
+  } catch (error) {
+    const msg = 'Error occured while requesting the files: ' + error.message
+    P2P_CONSOLE_LOGGER.error(msg)
+    throw new Error(msg)
+  }
 }
 
 async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFileObject) {
@@ -113,7 +119,6 @@ export class FileInfoHandler extends Handler {
           }
         }
       }
-
       P2P_CONSOLE_LOGGER.logMessage(
         'File Info Response: ' + JSON.stringify(fileInfo, null, 2),
         true
