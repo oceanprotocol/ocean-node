@@ -21,7 +21,7 @@ import { Service } from '../../@types/DDO/Service'
 import { ArweaveStorage, IpfsStorage, Storage } from '../../components/storage/index.js'
 import { existsEnvironmentVariable } from '../../utils/index.js'
 import { checkCredentials } from '../../utils/credentials.js'
-import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common.js'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(
@@ -29,10 +29,7 @@ export async function handleDownloadUrlCommand(
   task: DownloadURLCommand
 ): Promise<P2PCommandResponse> {
   const encryptFile = !!task.aes_encrypted_key
-  P2P_CONSOLE_LOGGER.logMessage(
-    'DownloadCommand requires file encryption? ' + encryptFile,
-    true
-  )
+  CORE_LOGGER.logMessage('DownloadCommand requires file encryption? ' + encryptFile, true)
 
   try {
     // Determine the type of storage and get a readable stream
@@ -41,7 +38,7 @@ export async function handleDownloadUrlCommand(
       storage instanceof ArweaveStorage &&
       !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY)
     ) {
-      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+      CORE_LOGGER.logMessageWithEmoji(
         'Failure executing downloadURL task: Oean-node does not support arweave storage type files! ',
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -58,7 +55,7 @@ export async function handleDownloadUrlCommand(
       storage instanceof IpfsStorage &&
       !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.IPFS_GATEWAY)
     ) {
-      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+      CORE_LOGGER.logMessageWithEmoji(
         'Failure executing downloadURL task: Oean-node does not support ipfs storage type files! ',
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -133,7 +130,7 @@ export async function handleDownloadUrlCommand(
       }
     }
   } catch (err) {
-    P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+    CORE_LOGGER.logMessageWithEmoji(
       'Failure executing downloadURL task: ' + err.message,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -151,7 +148,7 @@ export class DownloadHandler extends Handler {
 
   async handle(task: DownloadCommand): Promise<P2PCommandResponse> {
     const node = this.getP2PNode()
-    P2P_CONSOLE_LOGGER.logMessage(
+    CORE_LOGGER.logMessage(
       'Download Request recieved with arguments: ' +
         task.fileIndex +
         task.documentId +
@@ -166,9 +163,9 @@ export class DownloadHandler extends Handler {
     const ddo = await new FindDdoHandler(node).findAndFormatDdo(task.documentId)
 
     if (ddo) {
-      P2P_CONSOLE_LOGGER.logMessage('DDO for asset found: ' + ddo, true)
+      CORE_LOGGER.logMessage('DDO for asset found: ' + ddo, true)
     } else {
-      P2P_CONSOLE_LOGGER.logMessage(
+      CORE_LOGGER.logMessage(
         'No DDO for asset found. Cannot proceed with download.',
         true
       )
@@ -183,7 +180,7 @@ export class DownloadHandler extends Handler {
 
     // 2. Validate ddo and credentials
     if (!ddo.chainId || !ddo.nftAddress || !ddo.metadata) {
-      P2P_CONSOLE_LOGGER.logMessage('Error: DDO malformed or disabled', true)
+      CORE_LOGGER.logMessage('Error: DDO malformed or disabled', true)
       return {
         stream: null,
         status: {
@@ -197,7 +194,7 @@ export class DownloadHandler extends Handler {
     if (ddo.credentials) {
       const accessGranted = checkCredentials(ddo.credentials, task.consumerAddress)
       if (!accessGranted) {
-        P2P_CONSOLE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
+        CORE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
         return {
           stream: null,
           status: {
@@ -218,7 +215,7 @@ export class DownloadHandler extends Handler {
     )
 
     if (!nonceCheckResult.valid) {
-      P2P_CONSOLE_LOGGER.logMessage(
+      CORE_LOGGER.logMessage(
         'Invalid nonce or signature, unable to proceed with download: ' +
           nonceCheckResult.error,
         true
@@ -248,7 +245,7 @@ export class DownloadHandler extends Handler {
       }
       if (feeValidation) {
         // Log the provider fee response for debugging purposes
-        P2P_CONSOLE_LOGGER.logMessage(`Valid provider fee transaction`, true)
+        CORE_LOGGER.logMessage(`Valid provider fee transaction`, true)
       } else {
         return {
           stream: null,
@@ -265,7 +262,7 @@ export class DownloadHandler extends Handler {
     const { rpc } = config.supportedNetworks[ddo.chainId]
 
     if (!rpc) {
-      P2P_CONSOLE_LOGGER.logMessage(
+      CORE_LOGGER.logMessage(
         `Cannot proceed with download. RPC not configured for this chain ${ddo.chainId}`,
         true
       )
@@ -305,12 +302,12 @@ export class DownloadHandler extends Handler {
     )
 
     if (paymentValidation.isValid) {
-      P2P_CONSOLE_LOGGER.logMessage(
+      CORE_LOGGER.logMessage(
         `Valid payment transaction. Result: ${paymentValidation.message}`,
         true
       )
     } else {
-      P2P_CONSOLE_LOGGER.logMessage(
+      CORE_LOGGER.logMessage(
         `Invalid payment transaction: ${paymentValidation.message}`,
         true
       )
@@ -339,7 +336,7 @@ export class DownloadHandler extends Handler {
         command: PROTOCOL_COMMANDS.DOWNLOAD_URL
       })
     } catch (e) {
-      P2P_CONSOLE_LOGGER.logMessage('decryption error' + e, true)
+      CORE_LOGGER.logMessage('decryption error' + e, true)
       return {
         stream: null,
         status: {
