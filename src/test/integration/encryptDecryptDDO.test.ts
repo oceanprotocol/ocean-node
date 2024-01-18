@@ -177,7 +177,7 @@ describe('Should encrypt and decrypt DDO', () => {
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(400)
+    expect(response.status.httpStatus).to.equal(403)
     expect(response.status.error).to.equal('Decrypt DDO: Decrypter not authorized')
   })
 
