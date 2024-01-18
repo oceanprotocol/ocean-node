@@ -26,7 +26,7 @@ providerRoutes.post('/decrypt', async (req, res) => {
     }
   } catch (error) {
     HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
-    res.status(500).send('Internal Server Error')
+    res.status(500).send(`Internal Server error: ${error.message}`)
   }
 })
 

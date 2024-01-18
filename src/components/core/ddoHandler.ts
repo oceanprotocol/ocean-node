@@ -131,8 +131,6 @@ export class DecryptDdoHandler extends Handler {
       )
       const dataNftAddress = ethers.getAddress(task.dataNftAddress)
       const factoryListAddress = await factoryContract.erc721List(dataNftAddress)
-      // console.log('factoryContract', isDatatokenDeployed)
-      // console.log('artifactsAdresses', artifactsAdresses)
 
       if (dataNftAddress !== factoryListAddress) {
         P2P_CONSOLE_LOGGER.logMessage(
@@ -287,7 +285,7 @@ export class DecryptDdoHandler extends Handler {
       P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
       return {
         stream: null,
-        status: { httpStatus: 500, error: 'Decrypt DDO: Unknown error: ' }
+        status: { httpStatus: 500, error: `Decrypt DDO: Unknown error ${error}` }
       }
     }
   }
