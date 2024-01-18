@@ -109,7 +109,7 @@ export class DecryptDdoHandler extends Handler {
         return {
           stream: null,
           status: {
-            httpStatus: 400,
+            httpStatus: 403,
             error: 'Decrypt DDO: Decrypter not authorized'
           }
         }
@@ -208,6 +208,26 @@ export class DecryptDdoHandler extends Handler {
           MetadataStates.END_OF_LIFE,
           MetadataStates.DEPRECATED,
           MetadataStates.REVOKED
+        ].includes(metaDataState)
+      ) {
+        P2P_CONSOLE_LOGGER.logMessage(
+          `Decrypt DDO: error metadata state ${metaDataState}`,
+          true
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 403,
+            error: 'Decrypt DDO: invalid metadata state'
+          }
+        }
+      }
+
+      if (
+        ![
+          MetadataStates.ACTIVE,
+          MetadataStates.ORDERING_DISABLED,
+          MetadataStates.UNLISTED
         ].includes(metaDataState)
       ) {
         P2P_CONSOLE_LOGGER.logMessage(
