@@ -4,7 +4,12 @@ import {
   SUPPORTED_PROTOCOL_COMMANDS
 } from '../../utils/constants.js'
 import { OCEAN_NODE_LOGGER } from '../../utils/logging/common.js'
-import { GetDdoHandler, FindDdoHandler, DecryptDdoHandler, ValidateDDOHandler } from './ddoHandler.js'
+import {
+  GetDdoHandler,
+  FindDdoHandler,
+  DecryptDdoHandler,
+  ValidateDDOHandler
+} from './ddoHandler.js'
 import { DownloadHandler } from './downloadHandler.js'
 import { EchoHandler } from './echoHandler.js'
 import { EncryptHandler } from './encryptHandler.js'
