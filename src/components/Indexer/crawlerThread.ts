@@ -6,11 +6,11 @@ import {
   processChunkLogs
 } from './utils.js'
 import { Blockchain } from '../../utils/blockchain.js'
-import { SupportedNetwork } from '../../@types/blockchain.js'
+import { BlocksEvents, SupportedNetwork } from '../../@types/blockchain.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { sleep } from '../../utils/util.js'
 import { Database } from '../database/index.js'
-import { getConfig } from '../../utils/index.js'
+import { EVENTS, getConfig } from '../../utils/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
@@ -96,6 +96,7 @@ export async function proccesNetworkData(): Promise<void> {
           blocksToProcess
         )
         updateLastIndexedBlockNumber(processedBlocks.lastBlock)
+        await checkNewlyIndexedAssets(processBlocks)
         lastIndexedBlock = processedBlocks.lastBlock
       } catch (error) {
         INDEXER_LOGGER.log(
@@ -134,6 +135,19 @@ async function processReindex(): Promise<void> {
       )
     }
   }
+}
+
+export async function checkNewlyIndexedAssets(events: BlocksEvents): Promise<void> {
+  const eventKeys = Object.keys(events)
+  eventKeys.forEach((eventType) => {
+    if (eventType === EVENTS.METADATA_CREATED) {
+      parentPort.postMessage({
+        method: eventType,
+        network: rpcDetails.chainId,
+        data: events[eventType]
+      })
+    }
+  })
 }
 
 parentPort.on('message', (message) => {

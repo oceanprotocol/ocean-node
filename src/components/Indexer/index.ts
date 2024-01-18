@@ -1,10 +1,14 @@
+import EventEmitter from 'node:events'
 import { Worker } from 'node:worker_threads'
 import { Database } from '../database/index.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
 import { ReindexTask } from './crawlerThread.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
+import { EVENTS } from '../../utils/index.js'
 
+// emmit events for node
+export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
 export class OceanIndexer {
   private db: Database
   private networks: RPCS
@@ -35,6 +39,12 @@ export class OceanIndexer {
         workerData: { rpcDetails, lastIndexedBlock }
       })
 
+      worker.on('message', (event: any) => {
+        if (event.method === EVENTS.METADATA_CREATED) {
+          this.advertiseDDO(event.network, event.data, event.method)
+        }
+      })
+
       worker.on('error', (err: Error) => {
         INDEXER_LOGGER.log(
           LOG_LEVELS_STR.LEVEL_ERROR,
@@ -59,6 +69,15 @@ export class OceanIndexer {
     const worker = OceanIndexer.workers[reindexTask.chainId]
     if (worker) {
       worker.postMessage({ method: 'add-reindex-task', reindexTask })
+    }
+  }
+
+  public async advertiseDDO(network: number, ddo: any, method: string): Promise<void> {
+    if (method === EVENTS.METADATA_CREATED) {
+      INDEXER_LOGGER.logMessage(
+        `Advertising new DDO : ${ddo.id} from network: ${network} `
+      )
+      INDEXER_DDO_EVENT_EMITTER.emit(EVENTS.METADATA_CREATED, ddo.id)
     }
   }
 

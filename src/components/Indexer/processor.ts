@@ -1,4 +1,3 @@
-import EventEmitter from 'node:events'
 import {
   Contract,
   Interface,
@@ -17,9 +16,6 @@ import { Database } from '../database/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { EVENTS, MetadataStates } from '../../utils/constants.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
-
-// emmit events for node
-export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
 
 class BaseEventProcessor {
   protected config: OceanNodeConfig
@@ -78,21 +74,18 @@ class BaseEventProcessor {
     return iface.parseLog(eventObj)
   }
 
-  public async createOrUpdateDDO(ddo: any, method: string): Promise<void> {
+  public async createOrUpdateDDO(ddo: any, method: string): Promise<any> {
     try {
       const { ddo: ddoDatabase } = await this.getDatabase()
       const saveDDO = await ddoDatabase.update({ ...ddo })
       INDEXER_LOGGER.logMessage(
-        `Saved or updated DDO  : ${saveDDO.id} from network: ${this.networkId} `
+        `Saved or updated DDO  : ${saveDDO.id} from network: ${this.networkId} triggered by: ${method}`
       )
-      // emit event
-      if (method === EVENTS.METADATA_CREATED) {
-        INDEXER_DDO_EVENT_EMITTER.emit(EVENTS.METADATA_CREATED, saveDDO.id)
-      }
+      return saveDDO
     } catch (err) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
-        `Error retrieving & storing DDO: ${err}`,
+        `Error found on ${this.networkId} triggered by: ${method} while creating or updating DDO: ${err}`,
         true
       )
     }
@@ -105,7 +98,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     chainId: number,
     provider: JsonRpcApiProvider,
     eventName: string
-  ): Promise<void> {
+  ): Promise<any> {
     try {
       const decodedEventData = await this.getEventData(
         provider,
@@ -120,7 +113,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
         true
       )
-      this.createOrUpdateDDO(ddo, eventName)
+      const saveDDO = this.createOrUpdateDDO(ddo, eventName)
+      return saveDDO
     } catch (error) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
@@ -136,7 +130,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
     event: ethers.Log,
     chainId: number,
     provider: JsonRpcApiProvider
-  ): Promise<void> {
+  ): Promise<any> {
     INDEXER_LOGGER.logMessage(`Processing metadata state event...`, true)
     const decodedEventData = await this.getEventData(
       provider,
@@ -212,7 +206,8 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
       INDEXER_LOGGER.logMessage(
         `Found did ${did} for state updating on network ${chainId}`
       )
-      this.createOrUpdateDDO(ddo, EVENTS.METADATA_STATE)
+      const savedDDO = this.createOrUpdateDDO(ddo, EVENTS.METADATA_STATE)
+      return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
     }
@@ -224,7 +219,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
     event: ethers.Log,
     chainId: number,
     provider: JsonRpcApiProvider
-  ): Promise<void> {
+  ): Promise<any> {
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
@@ -277,7 +272,8 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
       INDEXER_LOGGER.logMessage(
         `Found did ${did} for order starting on network ${chainId}`
       )
-      this.createOrUpdateDDO(ddo, EVENTS.ORDER_STARTED)
+      const savedDDO = this.createOrUpdateDDO(ddo, EVENTS.ORDER_STARTED)
+      return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
     }
@@ -289,7 +285,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
     event: ethers.Log,
     chainId: number,
     provider: JsonRpcApiProvider
-  ): Promise<void> {
+  ): Promise<any> {
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
@@ -346,7 +342,8 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         )
       }
 
-      this.createOrUpdateDDO(ddo, EVENTS.ORDER_REUSED)
+      const savedDDO = this.createOrUpdateDDO(ddo, EVENTS.ORDER_REUSED)
+      return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
     }
