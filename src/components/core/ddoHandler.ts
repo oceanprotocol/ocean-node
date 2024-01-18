@@ -204,7 +204,7 @@ export class DecryptDdoHandler extends Handler {
         signer
       )
       const metaData = await templateContract.getMetaData()
-      const metaDataState = metaData[2]
+      const metaDataState = Number(metaData[2])
       if (
         [
           MetadataStates.END_OF_LIFE,
