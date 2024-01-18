@@ -261,7 +261,7 @@ describe('Should encrypt and decrypt DDO', () => {
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(200)
+    expect(response.status.httpStatus).to.equal(201)
     const decryptedStringDDO = await streamToString(response.stream as Readable)
     const stringDDO = JSON.stringify(genericAsset)
     expect(decryptedStringDDO).to.equal(stringDDO)
@@ -280,7 +280,7 @@ describe('Should encrypt and decrypt DDO', () => {
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(200)
+    expect(response.status.httpStatus).to.equal(201)
     const decryptedStringDDO = await streamToString(response.stream as Readable)
     const stringDDO = JSON.stringify(genericAsset)
     expect(decryptedStringDDO).to.equal(stringDDO)

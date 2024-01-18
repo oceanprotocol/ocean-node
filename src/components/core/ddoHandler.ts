@@ -279,7 +279,7 @@ export class DecryptDdoHandler extends Handler {
 
       return {
         stream: Readable.from(decryptedDocument.toString()),
-        status: { httpStatus: 200 }
+        status: { httpStatus: 201 }
       }
     } catch (error) {
       P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
