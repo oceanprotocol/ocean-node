@@ -14,7 +14,8 @@ export const PROTOCOL_COMMANDS = {
   NONCE: 'nonce',
   STATUS: 'status',
   FIND_DDO: 'findDDO',
-  GET_FEES: 'getFees'
+  GET_FEES: 'getFees',
+  VALIDATE_DDO: 'validateDDO'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -27,7 +28,8 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.QUERY,
   PROTOCOL_COMMANDS.STATUS,
   PROTOCOL_COMMANDS.FIND_DDO,
-  PROTOCOL_COMMANDS.GET_FEES
+  PROTOCOL_COMMANDS.GET_FEES,
+  PROTOCOL_COMMANDS.VALIDATE_DDO
 ]
 
 export interface Command {
@@ -59,6 +61,10 @@ export interface DDOCommand extends Command {
 }
 export interface GetDdoCommand extends DDOCommand {}
 export interface FindDDOCommand extends DDOCommand {}
+export interface ValidateDDOCommand extends DDOCommand {
+  chainId: number
+  nftAddress: string
+}
 
 export interface StatusCommand extends Command {}
 

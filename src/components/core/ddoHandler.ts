@@ -2,6 +2,7 @@ import { Handler } from './handler.js'
 import {
   GetDdoCommand,
   FindDDOCommand,
+  ValidateDDOCommand,
   PROTOCOL_COMMANDS
 } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
@@ -18,6 +19,7 @@ import { sleep, readStream } from '../../utils/util.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { FindDDOResponse } from '../../@types/index.js'
 import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common.js'
+import { validateObject } from './utils/validateDdoHandler.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -319,6 +321,36 @@ export class FindDdoHandler extends Handler {
     } catch (error) {
       P2P_CONSOLE_LOGGER.logMessage(`Error getting DDO: ${error}`, true)
       return null
+    }
+  }
+}
+
+export class ValidateDDOHandler extends Handler {
+  async handle(task: ValidateDDOCommand): Promise<P2PCommandResponse> {
+    try {
+      const ddo = await this.getP2PNode().getDatabase().ddo.retrieve(task.id)
+      if (!ddo) {
+        return {
+          stream: null,
+          status: { httpStatus: 404, error: 'Not found' }
+        }
+      }
+      const validation = await validateObject(ddo, task.chainId, task.nftAddress)
+      if (validation[0] === false) {
+        return {
+          stream: null,
+          status: { httpStatus: 400, error: `Validation error: ${validation[1]}` }
+        }
+      }
+      return {
+        stream: Readable.from(JSON.stringify({})),
+        status: { httpStatus: 200 }
+      }
+    } catch (error) {
+      return {
+        stream: null,
+        status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
+      }
     }
   }
 }

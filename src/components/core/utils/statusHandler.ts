@@ -4,7 +4,6 @@ import {
   OceanNodeStatus,
   OceanNodeProvider,
   OceanNodeIndexer,
-  OceanNodeConfig,
   StorageTypes
 } from '../../../@types/OceanNode.js'
 import { existsEnvironmentVariable } from '../../../utils/index.js'
