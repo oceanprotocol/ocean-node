@@ -12,10 +12,12 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import { Handler } from './components/core/handler.js'
 
 export class OceanNode {
+  // eslint-disable-next-line no-use-before-define
+  private static instance: OceanNode
   // handlers
   private coreHandlers: CoreHandlersRegistry
   // eslint-disable-next-line no-useless-constructor
-  public constructor(
+  private constructor(
     private config: OceanNodeConfig,
     private db: Database,
     private node?: OceanP2P,
@@ -23,6 +25,20 @@ export class OceanNode {
     private indexer?: OceanIndexer
   ) {
     this.coreHandlers = CoreHandlersRegistry.getInstance(this.node)
+  }
+
+  // Singleton instance
+  public static getInstance(
+    config: OceanNodeConfig,
+    db: Database,
+    node?: OceanP2P,
+    provider?: OceanProvider,
+    indexer?: OceanIndexer
+  ): OceanNode {
+    if (!OceanNode.instance) {
+      this.instance = new OceanNode(config, db, node, provider, indexer)
+    }
+    return this.instance
   }
 
   public addP2PNode(_node: OceanP2P) {

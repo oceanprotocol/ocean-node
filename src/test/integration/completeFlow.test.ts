@@ -79,7 +79,7 @@ describe('Should run a complete node flow.', () => {
     config = await getConfig()
     database = await new Database(dbConfig)
     p2pNode = new OceanP2P(config, database)
-    oceanNode = await new OceanNode(config, database)
+    oceanNode = await OceanNode.getInstance(config, database)
 
     indexer = new OceanIndexer(database, mockSupportedNetworks)
 

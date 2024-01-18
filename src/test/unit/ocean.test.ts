@@ -35,7 +35,7 @@ describe('Status command tests', async () => {
   // because of this
   const config = await getConfig()
   const db = await new Database(config.dbConfig)
-  const oceanNode = new OceanNode(config, db)
+  const oceanNode = OceanNode.getInstance(config, db)
   const oceanP2P = new OceanP2P(config, db)
   const oceanIndexer = new OceanIndexer(db, config.supportedNetworks)
   const oceanProvider = new OceanProvider(db)

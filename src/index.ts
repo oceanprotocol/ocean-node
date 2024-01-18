@@ -103,8 +103,8 @@ if (config.hasProvider && dbconn) {
   provider = new OceanProvider(dbconn)
 }
 
-// global
-const oceanNode = new OceanNode(config, dbconn, node, provider, indexer)
+// Singleton instance across application
+const oceanNode = OceanNode.getInstance(config, dbconn, node, provider, indexer)
 
 if (config.hasHttp) {
   app.use(express.raw())
@@ -126,5 +126,3 @@ if (config.hasHttp) {
     OCEAN_NODE_LOGGER.logMessage(`HTTP port: ${config.httpPort}`, true)
   })
 }
-// Singleton might still useful inside the running node process
-export const OceanNodeSingleton = oceanNode
