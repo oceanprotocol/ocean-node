@@ -18,7 +18,7 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { sleep, readStream } from '../../utils/util.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { FindDDOResponse } from '../../@types/index.js'
-import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common.js'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { validateObject } from './utils/validateDdoHandler.js'
 
 const MAX_NUM_PROVIDERS = 5
@@ -60,10 +60,7 @@ export class FindDdoHandler extends Handler {
       // if we have the result cached recently we return that result
       if (hasCachedDDO(task, node)) {
         // 'found cached DDO'
-        P2P_CONSOLE_LOGGER.logMessage(
-          'Found local cached version for DDO id: ' + task.id,
-          true
-        )
+        CORE_LOGGER.logMessage('Found local cached version for DDO id: ' + task.id, true)
         resultList.push(node.getDDOCache().dht.get(task.id))
         return {
           stream: Readable.from(JSON.stringify(resultList, null, 4)),
@@ -107,7 +104,7 @@ export class FindDdoHandler extends Handler {
             }
             resultList.push(ddoInfo)
 
-            P2P_CONSOLE_LOGGER.logMessage(
+            CORE_LOGGER.logMessage(
               `Succesfully processed DDO info, id: ${ddo.id} from remote peer: ${peer}`,
               true
             )
@@ -128,7 +125,7 @@ export class FindDdoHandler extends Handler {
           }
           processed++
         } catch (err) {
-          P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+          CORE_LOGGER.logMessageWithEmoji(
             'FindDDO: Error on sink function: ' + err.message,
             true,
             GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -141,11 +138,7 @@ export class FindDdoHandler extends Handler {
 
       // if something goes really bad then exit after 60 secs
       const fnTimeout = setTimeout(() => {
-        P2P_CONSOLE_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_DEBUG,
-          'FindDDO: Timeout reached: ',
-          true
-        )
+        CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_DEBUG, 'FindDDO: Timeout reached: ', true)
         return {
           stream: Readable.from(JSON.stringify(sortFindDDOResults(resultList), null, 4)),
           status: { httpStatus: 200 }
@@ -210,7 +203,7 @@ export class FindDdoHandler extends Handler {
                 processed++
               }
               // 'sleep 5 seconds...'
-              P2P_CONSOLE_LOGGER.logMessage(
+              CORE_LOGGER.logMessage(
                 `Sleeping for: ${MAX_WAIT_TIME_SECONDS_GET_DDO} seconds, while getting DDO info remote peer...`,
                 true
               )
@@ -255,7 +248,7 @@ export class FindDdoHandler extends Handler {
       }
     } catch (error) {
       // 'FindDDO big error: '
-      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+      CORE_LOGGER.logMessageWithEmoji(
         `Error: '${error.message}' was caught while getting DDO info for id: ${task.id}`,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -276,7 +269,7 @@ export class FindDdoHandler extends Handler {
       const ddo = await node.getDatabase().ddo.retrieve(ddoId)
       return ddo as DDO
     } catch (error) {
-      P2P_CONSOLE_LOGGER.logMessage(
+      CORE_LOGGER.logMessage(
         `Unable to find DDO locally. Proceeding to call findDDO`,
         true
       )
@@ -319,7 +312,7 @@ export class FindDdoHandler extends Handler {
 
       return null
     } catch (error) {
-      P2P_CONSOLE_LOGGER.logMessage(`Error getting DDO: ${error}`, true)
+      CORE_LOGGER.logMessage(`Error getting DDO: ${error}`, true)
       return null
     }
   }

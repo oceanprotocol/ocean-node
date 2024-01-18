@@ -4,7 +4,7 @@ import { OceanP2P } from '../../P2P/index.js'
 import { ethers } from 'ethers'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { NonceDatabase } from '../../database/index.js'
-import { DB_CONSOLE_LOGGER } from '../../../utils/logging/common.js'
+import { DATABASE_LOGGER } from '../../../utils/logging/common.js'
 
 export function getDefaultErrorResponse(errorMessage: string): P2PCommandResponse {
   return {
@@ -58,7 +58,7 @@ export async function getNonce(
     if (err.message.indexOf(address) > -1) {
       return getDefaultErrorResponse(err.message)
     } else {
-      DB_CONSOLE_LOGGER.logMessageWithEmoji(
+      DATABASE_LOGGER.logMessageWithEmoji(
         'Failure executing nonce task: ' + err.message,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -84,7 +84,7 @@ async function updateNonce(
       error: resp == null ? 'error updating nonce to: ' + nonce : null
     }
   } catch (err) {
-    DB_CONSOLE_LOGGER.logMessageWithEmoji(
+    DATABASE_LOGGER.logMessageWithEmoji(
       'Failure executing nonce task: ' + err.message,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -128,7 +128,7 @@ export async function checkNonce(
     return validate
     // return validation status and possible error msg
   } catch (err) {
-    DB_CONSOLE_LOGGER.logMessageWithEmoji(
+    DATABASE_LOGGER.logMessageWithEmoji(
       'Failure executing nonce task: ' + err.message,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,

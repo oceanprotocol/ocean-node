@@ -4,8 +4,9 @@ import { Schema, schemas } from './schemas.js'
 import { TypesenseSearchParams } from '../../@types/index.js'
 import {
   LOG_LEVELS_STR,
-  newCustomDBTransport,
-  GENERIC_EMOJIS
+  configureCustomDBTransport,
+  GENERIC_EMOJIS,
+  isDevelopmentEnvironment
 } from '../../utils/logging/Logger.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 
@@ -608,7 +609,10 @@ export class Database {
     return (async (): Promise<Database> => {
       // add this DB transport too
       // once we create a DB instance, the logger will be using this transport as well
-      DATABASE_LOGGER.addTransport(newCustomDBTransport(this))
+      // we cannot have this the other way around because of the dependencies cycle
+      if (!isDevelopmentEnvironment()) {
+        configureCustomDBTransport(this, DATABASE_LOGGER)
+      }
 
       this.ddo = await new DdoDatabase(config, schemas.ddoSchemas)
       this.nonce = await new NonceDatabase(config, schemas.nonceSchemas)

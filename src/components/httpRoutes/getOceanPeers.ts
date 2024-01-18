@@ -1,13 +1,13 @@
 import express, { Request, Response } from 'express'
 import { getDefaultLevel } from '../../utils/logging/Logger.js'
-import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common.js'
+import { P2P_LOGGER } from '../../utils/logging/common.js'
 
 export const getOceanPeersRoute = express.Router()
 getOceanPeersRoute.get(
   '/getOceanPeers',
   async (req: Request, res: Response): Promise<void> => {
     const peers = await req.oceanNode.getP2PNode().getPeers()
-    P2P_CONSOLE_LOGGER.log(getDefaultLevel(), `getOceanPeers: ${peers}`, true)
+    P2P_LOGGER.log(getDefaultLevel(), `getOceanPeers: ${peers}`, true)
     res.json(peers)
   }
 )

@@ -12,7 +12,7 @@ import { getConfig } from '../../utils/config.js'
 import { OceanNode } from '../../OceanNode.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { Database } from '../../components/database/index.js'
-import { DB_CONSOLE_LOGGER } from '../../utils/logging/common.js'
+import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 
 const config = await getConfig()
 const dbconn = await new Database(config.dbConfig) // carefull! db constructor is async
@@ -38,7 +38,7 @@ const typesense = new Typesense(convertTypesenseConfig(url))
 async function createNonceCollection(): Promise<any> {
   try {
     const resultNonce = await typesense.collections().create(nonceSchema)
-    DB_CONSOLE_LOGGER.logMessageWithEmoji(
+    DATABASE_LOGGER.logMessageWithEmoji(
       'Successfully created collection ' +
         nonceSchema.name +
         ' at ' +
@@ -48,7 +48,7 @@ async function createNonceCollection(): Promise<any> {
     )
     return resultNonce
   } catch (err) {
-    DB_CONSOLE_LOGGER.logMessageWithEmoji(
+    DATABASE_LOGGER.logMessageWithEmoji(
       'Error creating "nonce" collection: ' + err.message,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -62,7 +62,7 @@ async function dropCollection(name: string) {
   try {
     await typesense.collections(name).delete()
   } catch (err) {
-    DB_CONSOLE_LOGGER.logMessageWithEmoji(
+    DATABASE_LOGGER.logMessageWithEmoji(
       `Error deleting "${name}" collection: ` + err.message,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -72,7 +72,7 @@ async function dropCollection(name: string) {
 }
 
 async function createCollections() {
-  DB_CONSOLE_LOGGER.logMessage('Creating initial DB collections', true)
+  DATABASE_LOGGER.logMessage('Creating initial DB collections', true)
   const numCollectionsToLoad = 1
   let loaded = 0
   try {
@@ -89,7 +89,7 @@ async function createCollections() {
 
       if (existsNonceCollection) {
         // this one already exists
-        DB_CONSOLE_LOGGER.logMessageWithEmoji(
+        DATABASE_LOGGER.logMessageWithEmoji(
           '"nonce" collection already exists, skipping it...',
           true,
           getLoggerLevelEmoji(LOG_LEVELS_STR.LEVEL_WARN),
@@ -107,14 +107,14 @@ async function createCollections() {
       if (res) loaded++
     }
   } catch (err) {
-    DB_CONSOLE_LOGGER.logMessageWithEmoji(
+    DATABASE_LOGGER.logMessageWithEmoji(
       `Error on createCollections: ` + err.message,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_WARN
     )
   } finally {
-    DB_CONSOLE_LOGGER.logMessageWithEmoji(
+    DATABASE_LOGGER.logMessageWithEmoji(
       `Done loading initial DB collections (${loaded} / ${numCollectionsToLoad}) `,
       true,
       GENERIC_EMOJIS.EMOJI_CHECK_MARK
@@ -156,7 +156,7 @@ async function doNonceTrackingFlow() {
   await createNonceData(address, firstNonce)
   // get previously stored from DB
   const previousNonce = await getNonceData(address)
-  DB_CONSOLE_LOGGER.logMessage(
+  DATABASE_LOGGER.logMessage(
     `previous stored nonce for ${address}: ${previousNonce}`,
     true
   )
@@ -166,7 +166,7 @@ async function doNonceTrackingFlow() {
   )
   const nextNonce = previousNonce + 1
   const signature = await wallet.signMessage(String(nextNonce))
-  DB_CONSOLE_LOGGER.logMessage(
+  DATABASE_LOGGER.logMessage(
     'Next nonce: ' + nextNonce + ' signature: ' + signature,
     true
   )
@@ -177,7 +177,7 @@ async function doNonceTrackingFlow() {
     nextNonce,
     signature
   )
-  DB_CONSOLE_LOGGER.logMessage(
+  DATABASE_LOGGER.logMessage(
     'checkNonce => is valid nonce and signature?: ' + checkNonceresult.valid,
     true
   )
