@@ -220,5 +220,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   },
   FEE_TOKENS: { name: 'FEE_TOKENS', value: process.env.FEE_TOKENS, required: false },
   FEE_AMOUNT: { name: 'FEE_AMOUNT', value: process.env.FEE_AMOUNT, required: false },
-  ADDRESS_FILE: { name: 'ADDRESS_FILE', value: process.env.ADDRESS_FILE, required: false }
+  ADDRESS_FILE: {
+    name: 'ADDRESS_FILE',
+    value: process.env.ADDRESS_FILE,
+    required: false
+  },
+  // node specific
+  NODE_ENV: { name: 'NODE_ENV', value: process.env.NODE_ENV, required: false }
 }

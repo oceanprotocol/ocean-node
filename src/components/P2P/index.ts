@@ -44,11 +44,10 @@ import { OceanNodeConfig, FindDDOResponse } from '../../@types/OceanNode'
 import {
   GENERIC_EMOJIS,
   LOG_LEVELS_STR,
-  newCustomDBTransport,
   getLoggerLevelEmoji
 } from '../../utils/logging/Logger.js'
 import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
-import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common.js'
+import { P2P_LOGGER } from '../../utils/logging/common.js'
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
@@ -90,8 +89,6 @@ export class OceanP2P extends EventEmitter {
     this._config = config
     if (db && config.dbConfig.url) {
       this.db = db
-      const customLogTransport = newCustomDBTransport(this.db)
-      P2P_CONSOLE_LOGGER.addTransport(customLogTransport)
     } else {
       this._config.hasIndexer = false
       this._config.hasProvider = false
@@ -124,7 +121,7 @@ export class OceanP2P extends EventEmitter {
     })
     // listen for indexer events and advertise did
     INDEXER_DDO_EVENT_EMITTER.addListener(EVENTS.METADATA_CREATED, (did) => {
-      P2P_CONSOLE_LOGGER.info(`Listened "${EVENTS.METADATA_CREATED}"`)
+      P2P_LOGGER.info(`Listened "${EVENTS.METADATA_CREATED}"`)
       this.advertiseDid(did)
     })
   }
@@ -246,7 +243,7 @@ export class OceanP2P extends EventEmitter {
       })
       return node
     } catch (e) {
-      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+      P2P_LOGGER.logMessageWithEmoji(
         'Unable to create node: ' + e.message,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -273,8 +270,8 @@ export class OceanP2P extends EventEmitter {
   }
 
   async broadcast(_message: any) {
-    P2P_CONSOLE_LOGGER.logMessage('Broadcasting:', true)
-    P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+    P2P_LOGGER.logMessage('Broadcasting:', true)
+    P2P_LOGGER.logMessageWithEmoji(
       _message,
       true,
       getLoggerLevelEmoji(LOG_LEVELS_STR.LEVEL_INFO),
@@ -318,7 +315,7 @@ export class OceanP2P extends EventEmitter {
     message: string,
     sink: any
   ): Promise<P2PCommandResponse> {
-    P2P_CONSOLE_LOGGER.logMessage('SendTo() node ' + peerName + ' task: ' + message, true)
+    P2P_LOGGER.logMessage('SendTo() node ' + peerName + ' task: ' + message, true)
 
     const response: P2PCommandResponse = {
       status: { httpStatus: 200, error: '' },
@@ -329,7 +326,7 @@ export class OceanP2P extends EventEmitter {
       peerId = peerIdFromString(peerName)
       await this._libp2p.peerStore.get(peerId)
     } catch (e) {
-      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+      P2P_LOGGER.logMessageWithEmoji(
         'Invalid peer (for id): ' + peerId,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -393,7 +390,7 @@ export class OceanP2P extends EventEmitter {
       // retry any pending stuff
       if (addedNew) {
         this._pendingAdvertise.forEach((did: string) => {
-          P2P_CONSOLE_LOGGER.info('Retry pending advertise...')
+          P2P_LOGGER.info('Retry pending advertise...')
           this.advertiseDid(did)
         })
         this._pendingAdvertise = []
@@ -421,7 +418,7 @@ export class OceanP2P extends EventEmitter {
   }
 
   async advertiseDid(did: string) {
-    P2P_CONSOLE_LOGGER.logMessage('Advertising ' + did, true)
+    P2P_LOGGER.logMessage('Advertising ' + did, true)
     try {
       const x = this._peers.length
       if (x > 0) {
@@ -430,7 +427,7 @@ export class OceanP2P extends EventEmitter {
         // console.log('multiaddrs: ', multiAddrs)
         await this._libp2p.contentRouting.provide(cid, multiAddrs)
       } else {
-        P2P_CONSOLE_LOGGER.warn(
+        P2P_LOGGER.warn(
           'Could not find any Ocean peers. Nobody is listening at the moment, skipping...'
         )
         // save it for retry later
@@ -440,12 +437,12 @@ export class OceanP2P extends EventEmitter {
         }
       }
     } catch (e) {
-      P2P_CONSOLE_LOGGER.error('advertiseDid():' + e.message)
+      P2P_LOGGER.error('advertiseDid():' + e.message)
     }
   }
 
   async getProvidersForDid(did: string) {
-    P2P_CONSOLE_LOGGER.logMessage('Fetching providers for ' + did, true)
+    P2P_LOGGER.logMessage('Fetching providers for ' + did, true)
     const cid = await cidFromRawString(did)
     const peersFound = []
     try {
@@ -457,7 +454,7 @@ export class OceanP2P extends EventEmitter {
         peersFound.push(value)
       }
     } catch (e) {
-      P2P_CONSOLE_LOGGER.error('getProvidersForDid()' + e.message)
+      P2P_LOGGER.error('getProvidersForDid()' + e.message)
     }
     return peersFound
   }
@@ -467,7 +464,7 @@ export class OceanP2P extends EventEmitter {
   async republishStoredDDOS() {
     try {
       if (!this.getDatabase()) {
-        P2P_CONSOLE_LOGGER.logMessage(
+        P2P_LOGGER.logMessage(
           `republishStoredDDOS() attempt aborted because there is no database!`,
           true
         )
@@ -481,10 +478,7 @@ export class OceanP2P extends EventEmitter {
 
       const result: TypesenseSearchResponse[] = await db.search(searchParameters)
       if (result && result.length > 0 && result[0].found) {
-        P2P_CONSOLE_LOGGER.logMessage(
-          `Will republish cid for ${result[0].found} documents`,
-          true
-        )
+        P2P_LOGGER.logMessage(`Will republish cid for ${result[0].found} documents`, true)
         result[0].hits.forEach((hit: any) => {
           const ddo = hit.document
           this.advertiseDid(ddo.id)
@@ -498,10 +492,10 @@ export class OceanP2P extends EventEmitter {
         // update time
         this._ddoDHT.updated = new Date().getTime()
       } else {
-        P2P_CONSOLE_LOGGER.logMessage('There is nothing to republish, skipping...', true)
+        P2P_LOGGER.logMessage('There is nothing to republish, skipping...', true)
       }
     } catch (err) {
-      P2P_CONSOLE_LOGGER.log(
+      P2P_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
         `Caught "${err.message}" on republishStoredDDOS()`,
         true
@@ -553,7 +547,7 @@ export class OceanP2P extends EventEmitter {
   async storeAndAdvertiseDDOS(list: any[]): Promise<boolean> {
     try {
       let count = 0
-      P2P_CONSOLE_LOGGER.logMessage(
+      P2P_LOGGER.logMessage(
         `Trying to store and advertise ${list.length} initial DDOS`,
         true
       )
@@ -567,7 +561,7 @@ export class OceanP2P extends EventEmitter {
           this.cacheDDO(ddo)
           count++
         } catch (e) {
-          P2P_CONSOLE_LOGGER.log(
+          P2P_LOGGER.log(
             LOG_LEVELS_STR.LEVEL_ERROR,
             `Caught "${e.message}" on storeAndAdvertiseDDOS()`,
             true
@@ -579,7 +573,7 @@ export class OceanP2P extends EventEmitter {
       }
       return count === list.length
     } catch (err) {
-      P2P_CONSOLE_LOGGER.log(
+      P2P_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
         `Caught "${err.message}" on storeAndAdvertiseDDOS()`,
         true

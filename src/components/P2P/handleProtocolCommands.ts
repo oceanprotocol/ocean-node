@@ -2,7 +2,7 @@ import { pipe } from 'it-pipe'
 import { Readable } from 'stream'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 
-import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common.js'
+import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { Command } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
@@ -27,11 +27,11 @@ export class ReadableString extends Readable {
 }
 
 export async function handleProtocolCommands(connection: any) {
-  P2P_CONSOLE_LOGGER.logMessage(
+  P2P_LOGGER.logMessage(
     'Incoming connection from peer ' + connection.connection.remotePeer,
     true
   )
-  P2P_CONSOLE_LOGGER.logMessage('Using ' + connection.connection.remoteAddr, true)
+  P2P_LOGGER.logMessage('Using ' + connection.connection.remoteAddr, true)
   let status = null
   let task: Command
   let statusStream
@@ -49,7 +49,7 @@ export async function handleProtocolCommands(connection: any) {
     }
     break
   }
-  P2P_CONSOLE_LOGGER.logMessage('Performing task: ' + JSON.stringify(task), true)
+  P2P_LOGGER.logMessage('Performing task: ' + JSON.stringify(task), true)
   // we get the handler from the running instance
   // no need to create a new instance of Handler on every request
   const handler = CoreHandlersRegistry.getInstance(this).getHandler(task.command)
@@ -73,7 +73,7 @@ export async function handleProtocolCommands(connection: any) {
         pipe(combinedStream, connection.stream.sink)
       }
     } catch (err) {
-      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+      P2P_LOGGER.logMessageWithEmoji(
         'handleProtocolCommands Error: ' + err.message,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
