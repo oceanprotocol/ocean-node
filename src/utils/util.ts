@@ -8,12 +8,7 @@ export function sleep(ms: number) {
 }
 
 export async function streamToObject(stream: Readable): Promise<any> {
-  const chunks: Buffer[] = []
-  for await (const chunk of stream) {
-    chunks.push(Buffer.from(chunk))
-  }
-  const buffer = Buffer.concat(chunks)
-  const jsonString = buffer.toString()
+  const jsonString = await streamToString(stream)
   try {
     return JSON.parse(jsonString)
   } catch (error) {
