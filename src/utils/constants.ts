@@ -61,9 +61,7 @@ export interface DownloadCommand extends Command {
 export interface DDOCommand extends Command {
   id: string
 }
-
 export interface GetDdoCommand extends DDOCommand {}
-
 export interface FindDDOCommand extends DDOCommand {}
 export interface ValidateDDOCommand extends DDOCommand {
   chainId: number
@@ -231,6 +229,8 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.ADDRESS_FILE,
     required: false
   },
+  // node specific
+  NODE_ENV: { name: 'NODE_ENV', value: process.env.NODE_ENV, required: false },
   AUTHORIZED_DECRYPTERS: {
     name: 'AUTHORIZED_DECRYPTERS',
     value: process.env.AUTHORIZED_DECRYPTERS,

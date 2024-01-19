@@ -20,7 +20,7 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { sleep, readStream } from '../../utils/util.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { FindDDOResponse } from '../../@types/index.js'
-import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common.js'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { Blockchain } from '../../utils/blockchain.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
@@ -44,7 +44,7 @@ export class DecryptDdoHandler extends Handler {
       try {
         decrypterAddress = ethers.getAddress(task.decrypterAddress)
       } catch (error) {
-        P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+          CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
         return {
           stream: null,
           status: {
@@ -56,7 +56,7 @@ export class DecryptDdoHandler extends Handler {
 
       const nonce = Number(task.nonce)
       if (isNaN(nonce)) {
-        P2P_CONSOLE_LOGGER.logMessage(
+          CORE_LOGGER.logMessage(
           `Decrypt DDO: error ${task.nonce} value is not a number`,
           true
         )
@@ -74,7 +74,7 @@ export class DecryptDdoHandler extends Handler {
       const existingNonce = await dbNonce.retrieve(decrypterAddress)
 
       if (existingNonce && existingNonce.nonce === nonce) {
-        P2P_CONSOLE_LOGGER.logMessage(
+          CORE_LOGGER.logMessage(
           `Decrypt DDO: error ${task.nonce} duplicate nonce`,
           true
         )
@@ -94,7 +94,7 @@ export class DecryptDdoHandler extends Handler {
 
       // check if supported chainId
       if (!supportedNetwork) {
-        P2P_CONSOLE_LOGGER.logMessage(
+          CORE_LOGGER.logMessage(
           `Decrypt DDO: Unsupported chain id ${chainId}`,
           true
         )
@@ -108,7 +108,7 @@ export class DecryptDdoHandler extends Handler {
       }
 
       if (!config.authorizedDecrypters.includes(decrypterAddress)) {
-        P2P_CONSOLE_LOGGER.logMessage('Decrypt DDO: Decrypter not authorized', true)
+          CORE_LOGGER.logMessage('Decrypt DDO: Decrypter not authorized', true)
         return {
           stream: null,
           status: {
@@ -134,7 +134,7 @@ export class DecryptDdoHandler extends Handler {
       const factoryListAddress = await factoryContract.erc721List(dataNftAddress)
 
       if (dataNftAddress !== factoryListAddress) {
-        P2P_CONSOLE_LOGGER.logMessage(
+          CORE_LOGGER.logMessage(
           'Decrypt DDO: Asset not deployed by the data NFT factory',
           true
         )
@@ -171,7 +171,7 @@ export class DecryptDdoHandler extends Handler {
           encryptedDocument = ethers.getBytes(eventData.args[4])
           documentHash = eventData.args[5]
         } catch (error) {
-          P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+            CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
           return {
             stream: null,
             status: {
@@ -186,7 +186,7 @@ export class DecryptDdoHandler extends Handler {
           flags = Number(task.flags)
           documentHash = task.documentHash
         } catch (error) {
-          P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+            CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
           return {
             stream: null,
             status: {
@@ -211,7 +211,7 @@ export class DecryptDdoHandler extends Handler {
           MetadataStates.REVOKED
         ].includes(metaDataState)
       ) {
-        P2P_CONSOLE_LOGGER.logMessage(
+          CORE_LOGGER.logMessage(
           `Decrypt DDO: error metadata state ${metaDataState}`,
           true
         )
@@ -231,7 +231,7 @@ export class DecryptDdoHandler extends Handler {
           MetadataStates.UNLISTED
         ].includes(metaDataState)
       ) {
-        P2P_CONSOLE_LOGGER.logMessage(
+          CORE_LOGGER.logMessage(
           `Decrypt DDO: error metadata state ${metaDataState}`,
           true
         )
@@ -250,7 +250,7 @@ export class DecryptDdoHandler extends Handler {
         try {
           decryptedDocument = await decrypt(encryptedDocument, 'ECIES')
         } catch (error) {
-          P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+            CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
           return {
             stream: null,
             status: {
@@ -271,7 +271,7 @@ export class DecryptDdoHandler extends Handler {
             }
           )
         } catch (error) {
-          P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+            CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
           return {
             stream: null,
             status: {
@@ -286,7 +286,7 @@ export class DecryptDdoHandler extends Handler {
       const decryptedDocumentHash =
         '0x' + createHash('sha256').update(hexlify(decryptedDocument)).digest('hex')
       if (decryptedDocumentHash !== documentHash) {
-        P2P_CONSOLE_LOGGER.logMessage(
+          CORE_LOGGER.logMessage(
           `Decrypt DDO: error checksum does not match ${decryptedDocumentHash} with ${documentHash}`,
           true
         )
@@ -313,7 +313,7 @@ export class DecryptDdoHandler extends Handler {
           throw new Error('address does not match')
         }
       } catch (error) {
-        P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error signature ${error}`, true)
+          CORE_LOGGER.logMessage(`Decrypt DDO: error signature ${error}`, true)
         return {
           stream: null,
           status: {
@@ -328,7 +328,7 @@ export class DecryptDdoHandler extends Handler {
         status: { httpStatus: 201 }
       }
     } catch (error) {
-      P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+        CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
       return {
         stream: null,
         status: { httpStatus: 500, error: `Decrypt DDO: Unknown error ${error}` }
@@ -370,10 +370,7 @@ export class FindDdoHandler extends Handler {
       // if we have the result cached recently we return that result
       if (hasCachedDDO(task, node)) {
         // 'found cached DDO'
-        P2P_CONSOLE_LOGGER.logMessage(
-          'Found local cached version for DDO id: ' + task.id,
-          true
-        )
+        CORE_LOGGER.logMessage('Found local cached version for DDO id: ' + task.id, true)
         resultList.push(node.getDDOCache().dht.get(task.id))
         return {
           stream: Readable.from(JSON.stringify(resultList, null, 4)),
@@ -417,7 +414,7 @@ export class FindDdoHandler extends Handler {
             }
             resultList.push(ddoInfo)
 
-            P2P_CONSOLE_LOGGER.logMessage(
+            CORE_LOGGER.logMessage(
               `Succesfully processed DDO info, id: ${ddo.id} from remote peer: ${peer}`,
               true
             )
@@ -438,7 +435,7 @@ export class FindDdoHandler extends Handler {
           }
           processed++
         } catch (err) {
-          P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+          CORE_LOGGER.logMessageWithEmoji(
             'FindDDO: Error on sink function: ' + err.message,
             true,
             GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -451,11 +448,7 @@ export class FindDdoHandler extends Handler {
 
       // if something goes really bad then exit after 60 secs
       const fnTimeout = setTimeout(() => {
-        P2P_CONSOLE_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_DEBUG,
-          'FindDDO: Timeout reached: ',
-          true
-        )
+        CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_DEBUG, 'FindDDO: Timeout reached: ', true)
         return {
           stream: Readable.from(JSON.stringify(sortFindDDOResults(resultList), null, 4)),
           status: { httpStatus: 200 }
@@ -520,7 +513,7 @@ export class FindDdoHandler extends Handler {
                 processed++
               }
               // 'sleep 5 seconds...'
-              P2P_CONSOLE_LOGGER.logMessage(
+              CORE_LOGGER.logMessage(
                 `Sleeping for: ${MAX_WAIT_TIME_SECONDS_GET_DDO} seconds, while getting DDO info remote peer...`,
                 true
               )
@@ -565,7 +558,7 @@ export class FindDdoHandler extends Handler {
       }
     } catch (error) {
       // 'FindDDO big error: '
-      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+      CORE_LOGGER.logMessageWithEmoji(
         `Error: '${error.message}' was caught while getting DDO info for id: ${task.id}`,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -586,7 +579,7 @@ export class FindDdoHandler extends Handler {
       const ddo = await node.getDatabase().ddo.retrieve(ddoId)
       return ddo as DDO
     } catch (error) {
-      P2P_CONSOLE_LOGGER.logMessage(
+      CORE_LOGGER.logMessage(
         `Unable to find DDO locally. Proceeding to call findDDO`,
         true
       )
@@ -629,7 +622,7 @@ export class FindDdoHandler extends Handler {
 
       return null
     } catch (error) {
-      P2P_CONSOLE_LOGGER.logMessage(`Error getting DDO: ${error}`, true)
+      CORE_LOGGER.logMessage(`Error getting DDO: ${error}`, true)
       return null
     }
   }

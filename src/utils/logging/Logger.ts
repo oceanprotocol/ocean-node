@@ -84,23 +84,69 @@ export const LOG_COLORS = {
   http: 'magenta'
 }
 
+// for a custom logger transport
+interface CustomOceanNodesTransportOptions extends Transport.TransportStreamOptions {
+  dbInstance: Database
+  collectionName?: string
+  moduleName?: string
+}
+
+export class CustomOceanNodesTransport extends Transport {
+  private dbInstance: Database
+
+  constructor(options: CustomOceanNodesTransportOptions) {
+    super(options)
+    this.dbInstance = options.dbInstance
+  }
+
+  async log(info: LogEntry, callback: () => void): Promise<void> {
+    setImmediate(() => {
+      this.emit('logged', info)
+    })
+
+    // Prepare the document to be logged
+    const document = {
+      level: info.level,
+      message: info.message,
+      moduleName: info.moduleName || 'undefined',
+      timestamp: Date.now(), // Storing the current timestamp as a Unix epoch timestamp (number)
+      meta: JSON.stringify(info.meta) // Ensure meta is a string
+    }
+
+    try {
+      // Use the insertLog method of the LogDatabase instance
+      await this.dbInstance.logs.insertLog(document)
+    } catch (error) {
+      // Handle the error according to your needs
+      console.error('Error writing to Typesense:', error)
+      // Implement retry logic or other error handling as needed
+    }
+
+    callback()
+  }
+}
+
 let INSTANCE_COUNT = 0
+let customDBTransport: CustomOceanNodesTransport = null
+
+export const MAX_LOGGER_INSTANCES = 10
+export const NUM_LOGGER_INSTANCES = INSTANCE_COUNT
 
 // if not set, then gets default 'development' level & colors
-export const isDevelopment = (): boolean => {
+export function isDevelopmentEnvironment(): boolean {
   const env = process.env.NODE_ENV || 'development'
-  return env.toLowerCase().startsWith('dev')
+  return env === 'development'
 }
 
 export const getDefaultLevel = (): string => {
-  return isDevelopment() ? 'debug' : 'info'
+  return isDevelopmentEnvironment() ? 'debug' : 'info'
 }
 
-if (isDevelopment()) {
+if (isDevelopmentEnvironment()) {
   winston.addColors(LOG_COLORS)
 }
 
-export const format: winston.Logform.Format = winston.format.combine(
+const format: winston.Logform.Format = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   winston.format.printf(
     (info: any) => `${info.timestamp} ${info.level}: ${info.message}`
@@ -108,10 +154,9 @@ export const format: winston.Logform.Format = winston.format.combine(
   winston.format.prettyPrint()
 )
 
-export const consoleColorFormatting: winston.Logform.Format | Record<string, any> =
-  isDevelopment()
-    ? { format: winston.format.combine(format, winston.format.colorize({ all: true })) }
-    : {}
+const consoleColorFormatting: winston.Logform.Format | Record<string, any> = {
+  format: winston.format.combine(format, winston.format.colorize({ all: true }))
+}
 
 // ex: we caa also have a simpler format for console only
 // format: winston.format.combine(
@@ -119,50 +164,27 @@ export const consoleColorFormatting: winston.Logform.Format | Record<string, any
 //     winston.format.simple()
 //   )
 
-// combine different transports of the same type in one transport
-export const developmentTransports: winston.transports.FileTransportInstance[] =
-  isDevelopment()
-    ? [
-        new winston.transports.File({
-          filename: 'error.log',
-          dirname: 'logs/',
-          level: 'error',
-          handleExceptions: true
-        }),
-
-        new winston.transports.File({
-          filename: 'all.log',
-          dirname: 'logs/',
-          handleExceptions: true
-          // we can also set a custom
-          // format: winston.format.json()
-        })
-      ]
-    : []
-
 export const defaultConsoleTransport = new winston.transports.Console({
   ...consoleColorFormatting
 })
 
-export const defaultTransports: (
-  | winston.transports.FileTransportInstance
-  | winston.transports.ConsoleTransportInstance
-)[] = [...developmentTransports, defaultConsoleTransport]
-
-function getDefaultOptions(): winston.LoggerOptions {
-  return {
+function getDefaultOptions(moduleName: string): winston.LoggerOptions {
+  const defaultOpts: winston.LoggerOptions = {
     level: getDefaultLevel(),
     levels: LOG_LEVELS_NUM,
     format,
-    transports: defaultTransports,
+    transports: [buildCustomFileTransport(moduleName), defaultConsoleTransport],
     exceptionHandlers: [
       new winston.transports.File({ dirname: 'logs/', filename: EXCEPTIONS_HANDLER })
     ]
   }
+  return defaultOpts
 }
 
 export function buildDefaultLogger(): Logger {
-  const logger: winston.Logger = winston.createLogger(getDefaultOptions())
+  const logger: winston.Logger = winston.createLogger(
+    getDefaultOptions(LOGGER_MODULE_NAMES.ALL_COMBINED)
+  )
   INSTANCE_COUNT++
   return logger
 }
@@ -203,6 +225,20 @@ export function buildCustomFileTransport(
   return new winston.transports.File({
     ...options
   })
+}
+
+export function getDefaultLoggerTransports(
+  moduleOrComponentName: string
+): winston.transport[] {
+  // always log to file
+  const transports: winston.transport[] = [
+    buildCustomFileTransport(moduleOrComponentName)
+  ]
+  // only log to console if development
+  if (isDevelopmentEnvironment()) {
+    transports.push(defaultConsoleTransport)
+  }
+  return transports
 }
 
 /**
@@ -275,10 +311,23 @@ export class CustomNodeLogger {
   loggerOptions: CustomNodeLoggerOptions
 
   constructor(options?: CustomNodeLoggerOptions) {
+    INSTANCE_COUNT++
+
+    if (INSTANCE_COUNT === MAX_LOGGER_INSTANCES) {
+      // after 10 instances we get warnings about possible memory leaks
+      this.logger.warn(
+        `You already have ${INSTANCE_COUNT} instances of Logger. Please consider reusing some of them!`
+      )
+    } else if (INSTANCE_COUNT > MAX_LOGGER_INSTANCES) {
+      INSTANCE_COUNT--
+      throw new Error(
+        `You have reached the maximum number of Logger instances considered safe (${MAX_LOGGER_INSTANCES}). Please consider reusing some of them!`
+      )
+    }
     if (!options) {
       this.logger = buildDefaultLogger()
       this.loggerOptions = {
-        ...getDefaultOptions(),
+        ...getDefaultOptions(LOGGER_MODULE_NAMES.ALL_COMBINED),
         moduleName: LOGGER_MODULE_NAMES.ALL_COMBINED
       }
       this.logger.log(
@@ -287,15 +336,7 @@ export class CustomNodeLogger {
       )
     } else {
       this.logger = winston.createLogger({ ...options })
-      INSTANCE_COUNT++
       this.loggerOptions = options
-    }
-
-    if (INSTANCE_COUNT >= 10) {
-      // after 10 instances we get warnings about possible memory leaks
-      this.logger.warn(
-        `You already have ${INSTANCE_COUNT} instances of Logger. Please consider reusing some of them!`
-      )
     }
   }
 
@@ -309,6 +350,15 @@ export class CustomNodeLogger {
 
   getTransports(): Array<Transport> {
     return this.logger.transports
+  }
+
+  hasDBTransports(): boolean {
+    const dbTransports: Array<Transport> = this.logger.transports.filter(
+      (transport: winston.transport) => {
+        return transport instanceof CustomOceanNodesTransport
+      }
+    )
+    return dbTransports.length > 0
   }
 
   getLogger(): winston.Logger {
@@ -345,12 +395,25 @@ export class CustomNodeLogger {
     this.log(LOG_LEVELS_STR.LEVEL_SILLY, message, true)
   }
 
+  verbose(message: string): void {
+    this.log(LOG_LEVELS_STR.LEVEL_VERBOSE, message, true)
+  }
+
   // wrapper function for logging with custom logger
   log(
     level: string = LOG_LEVELS_STR.LEVEL_INFO,
     message: string,
     includeModuleName: boolean = false
   ) {
+    // lazy check db custom transport, needed beacause of dependency cycles
+    if (
+      customDBTransport !== null && // if null then what?
+      !isDevelopmentEnvironment() &&
+      !this.hasDBTransport()
+    ) {
+      this.addTransport(customDBTransport)
+    }
+
     this.getLogger().log(
       level,
       includeModuleName ? this.buildMessage(message) : message,
@@ -360,10 +423,10 @@ export class CustomNodeLogger {
 
   logMessage(message: string, includeModuleName: boolean = false) {
     const level = this.getLoggerLevel() || getDefaultLevel()
-    this.getLogger().log(
+    this.log(
       level,
       includeModuleName ? this.buildMessage(message) : message,
-      { moduleName: this.getModuleName().toUpperCase() }
+      includeModuleName
     )
   }
 
@@ -387,7 +450,7 @@ export class CustomNodeLogger {
       msg = getLoggerLevelEmoji(this.getLoggerLevel()).concat(' ').concat(msg)
     }
 
-    this.getLogger().log(level, msg, { moduleName: this.getModuleName().toUpperCase() })
+    this.log(level, msg, includeModuleName)
   }
 
   // prefix the message with the module/component name (optional)
@@ -399,13 +462,21 @@ export class CustomNodeLogger {
 
     return message
   }
+
+  hasDBTransport(): boolean {
+    const transports: winston.transport[] = this.getTransports().filter(
+      (transport: winston.transport) => {
+        return transport instanceof CustomOceanNodesTransport
+      }
+    )
+    return transports.length > 0
+  }
 }
 
 // kind of a factory function for different modules/components
 export function getCustomLoggerForModule(
   moduleOrComponentName?: string,
-  logLevel?: string,
-  loggerTransports?: winston.transport | winston.transport[]
+  logLevel?: string
 ): CustomNodeLogger {
   if (!moduleOrComponentName) {
     moduleOrComponentName = LOGGER_MODULE_NAMES.ALL_COMBINED
@@ -413,14 +484,11 @@ export function getCustomLoggerForModule(
 
   const logger: CustomNodeLogger = new CustomNodeLogger(
     /* pass any custom options here */ {
-      level: logLevel || LOG_LEVELS_STR.LEVEL_HTTP,
+      level: logLevel || LOG_LEVELS_STR.LEVEL_INFO,
       levels: LOG_LEVELS_NUM,
       moduleName: moduleOrComponentName,
       defaultMeta: { component: moduleOrComponentName.toUpperCase() },
-      transports: loggerTransports || [
-        buildCustomFileTransport(moduleOrComponentName),
-        defaultConsoleTransport
-      ],
+      transports: getDefaultLoggerTransports(moduleOrComponentName),
       exceptionHandlers: [
         new winston.transports.File({
           dirname: 'logs/',
@@ -433,48 +501,13 @@ export function getCustomLoggerForModule(
   return logger
 }
 
-// for a custom logger transport
-interface CustomOceanNodesTransportOptions extends Transport.TransportStreamOptions {
-  dbInstance: Database
-  collectionName?: string
-  moduleName?: string
-}
-
-export class CustomOceanNodesTransport extends Transport {
-  private dbInstance: Database
-
-  constructor(options: CustomOceanNodesTransportOptions) {
-    super(options)
-    this.dbInstance = options.dbInstance
+export function configureCustomDBTransport(
+  dbConnection: Database,
+  logger: CustomNodeLogger
+) {
+  if (!customDBTransport) {
+    customDBTransport = new CustomOceanNodesTransport({ dbInstance: dbConnection })
   }
-
-  async log(info: LogEntry, callback: () => void): Promise<void> {
-    setImmediate(() => {
-      this.emit('logged', info)
-    })
-
-    // Prepare the document to be logged
-    const document = {
-      level: info.level,
-      message: info.message,
-      moduleName: info.moduleName || 'undefined',
-      timestamp: Date.now(), // Storing the current timestamp as a Unix epoch timestamp (number)
-      meta: JSON.stringify(info.meta) // Ensure meta is a string
-    }
-
-    try {
-      // Use the insertLog method of the LogDatabase instance
-      await this.dbInstance.logs.insertLog(document)
-    } catch (error) {
-      // Handle the error according to your needs
-      console.error('Error writing to Typesense:', error)
-      // Implement retry logic or other error handling as needed
-    }
-
-    callback()
-  }
-}
-
-export function newCustomDBTransport(dbConnection: Database) {
-  return new CustomOceanNodesTransport({ dbInstance: dbConnection })
+  logger.addTransport(customDBTransport)
+  return logger
 }
