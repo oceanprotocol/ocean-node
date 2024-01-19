@@ -48,6 +48,7 @@ import {
 } from '../../utils/logging/Logger.js'
 import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
+import { CoreHandlersRegistry } from '../core/coreHandlersRegistry'
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
@@ -84,6 +85,7 @@ export class OceanP2P extends EventEmitter {
   private _idx: number
   private db: Database
   private _config: OceanNodeConfig
+  private coreHandlers: CoreHandlersRegistry
   constructor(config: OceanNodeConfig, db?: Database) {
     super()
     this._config = config
@@ -99,6 +101,16 @@ export class OceanP2P extends EventEmitter {
     }
   }
 
+  setCoreHandlers(coreHandlers: CoreHandlersRegistry) {
+    if (!this.coreHandlers) {
+      this.coreHandlers = coreHandlers
+    }
+  }
+
+  getCoreHandlers() {
+    return this.coreHandlers
+  }
+
   async start(options: any = null) {
     this._topic = 'oceanprotocol'
     this._libp2p = await this.createNode(this._config)
@@ -110,6 +122,7 @@ export class OceanP2P extends EventEmitter {
 
     this._interval = setInterval(this._pollPeers.bind(this), this._options.pollInterval)
     this._libp2p.handle(this._protocol, handleProtocolCommands.bind(this))
+
     setInterval(this.republishStoredDDOS.bind(this), REPUBLISH_INTERVAL_HOURS)
 
     this._idx = index++

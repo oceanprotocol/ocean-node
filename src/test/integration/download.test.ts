@@ -28,6 +28,7 @@ import { ProviderFeeData } from '../../@types/Fees'
 import { encrypt } from '../../utils/crypt.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { OceanNode } from '../../OceanNode.js'
 
 describe('Download Tests', () => {
   let database: Database
@@ -259,8 +260,8 @@ describe('Download Tests', () => {
       chunkSize: 100
     }
     const dbconn = await new Database(config.dbConfig)
-    const p2pNode = new OceanP2P(config, dbconn)
-    assert(p2pNode, 'Failed to instantiate OceanP2P')
+    const oceanNode = OceanNode.getInstance(config, dbconn)
+    assert(oceanNode, 'Failed to instantiate OceanNode')
 
     const wallet = new ethers.Wallet(
       '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
@@ -287,7 +288,7 @@ describe('Download Tests', () => {
       signature,
       command: PROTOCOL_COMMANDS.DOWNLOAD
     }
-    const response = await new DownloadHandler(p2pNode).handle(downloadTask)
+    const response = await new DownloadHandler(oceanNode).handle(downloadTask)
     console.log('response: ', response)
     assert(response)
     assert(response.stream, 'stream not present')
@@ -308,9 +309,9 @@ describe('Download Tests', () => {
     }
     const config = await getConfig()
     const dbconn = await new Database(config.dbConfig)
-    const p2pNode = new OceanP2P(config, dbconn)
-    assert(p2pNode, 'Failed to instantiate OceanP2P')
-    const response = await new DownloadHandler(p2pNode).handle(downloadTask)
+    const oceanNode = OceanNode.getInstance(config, dbconn)
+    assert(oceanNode, 'Failed to instantiate OceanNode')
+    const response = await new DownloadHandler(oceanNode).handle(downloadTask)
     console.log(response)
     assert(response.stream === null, 'stream not null')
     assert(response.status.httpStatus === 500, 'http status not 500')

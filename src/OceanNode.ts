@@ -19,18 +19,21 @@ export class OceanNode {
   // eslint-disable-next-line no-useless-constructor
   private constructor(
     private config: OceanNodeConfig,
-    private db: Database,
+    private db?: Database,
     private node?: OceanP2P,
     private provider?: OceanProvider,
     private indexer?: OceanIndexer
   ) {
-    this.coreHandlers = CoreHandlersRegistry.getInstance(this.node)
+    this.coreHandlers = CoreHandlersRegistry.getInstance(this)
+    if (node) {
+      node.setCoreHandlers(this.coreHandlers)
+    }
   }
 
   // Singleton instance
   public static getInstance(
     config: OceanNodeConfig,
-    db: Database,
+    db?: Database,
     node?: OceanP2P,
     provider?: OceanProvider,
     indexer?: OceanIndexer

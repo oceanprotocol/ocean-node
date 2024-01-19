@@ -69,7 +69,7 @@ export class DecryptDdoHandler extends Handler {
         }
       }
 
-      const node = this.getP2PNode()
+      const node = this.getOceanNode()
       const dbNonce = node.getDatabase().nonce
       const existingNonce = await dbNonce.retrieve(decrypterAddress)
 
@@ -328,7 +328,7 @@ export class DecryptDdoHandler extends Handler {
 export class GetDdoHandler extends Handler {
   async handle(task: GetDdoCommand): Promise<P2PCommandResponse> {
     try {
-      const ddo = await this.getP2PNode().getDatabase().ddo.retrieve(task.id)
+      const ddo = await this.getOceanNode().getDatabase().ddo.retrieve(task.id)
       if (!ddo) {
         return {
           stream: null,
@@ -351,7 +351,7 @@ export class GetDdoHandler extends Handler {
 export class FindDdoHandler extends Handler {
   async handle(task: FindDDOCommand): Promise<P2PCommandResponse> {
     try {
-      const node = this.getP2PNode()
+      const node = this.getOceanNode().getP2PNode()
       let updatedCache = false
       // result list
       const resultList: FindDDOResponse[] = []
@@ -561,7 +561,7 @@ export class FindDdoHandler extends Handler {
 
   // Function to use findDDO and get DDO in desired format
   async findAndFormatDdo(ddoId: string): Promise<DDO | null> {
-    const node = this.getP2PNode()
+    const node = this.getOceanNode()
     // First try to find the DDO Locally
     try {
       const ddo = await node.getDatabase().ddo.retrieve(ddoId)
@@ -619,7 +619,7 @@ export class FindDdoHandler extends Handler {
 export class ValidateDDOHandler extends Handler {
   async handle(task: ValidateDDOCommand): Promise<P2PCommandResponse> {
     try {
-      const ddo = await this.getP2PNode().getDatabase().ddo.retrieve(task.id)
+      const ddo = await this.getOceanNode().getDatabase().ddo.retrieve(task.id)
       if (!ddo) {
         return {
           stream: null,

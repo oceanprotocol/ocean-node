@@ -5,7 +5,8 @@ import {
   DownloadCommand,
   DownloadURLCommand,
   ENVIRONMENT_VARIABLES,
-  PROTOCOL_COMMANDS
+  PROTOCOL_COMMANDS,
+  SUPPORTED_PROTOCOL_COMMANDS
 } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { OceanP2P } from '../P2P/index.js'
@@ -22,10 +23,11 @@ import { ArweaveStorage, IpfsStorage, Storage } from '../../components/storage/i
 import { existsEnvironmentVariable } from '../../utils/index.js'
 import { checkCredentials } from '../../utils/credentials.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
+import { OceanNode } from '../../OceanNode.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(
-  node: OceanP2P,
+  node: OceanNode,
   task: DownloadURLCommand
 ): Promise<P2PCommandResponse> {
   const encryptFile = !!task.aes_encrypted_key
@@ -147,7 +149,7 @@ export class DownloadHandler extends Handler {
   // No encryption here yet
 
   async handle(task: DownloadCommand): Promise<P2PCommandResponse> {
-    const node = this.getP2PNode()
+    const node = this.getOceanNode()
     CORE_LOGGER.logMessage(
       'Download Request recieved with arguments: ' +
         task.fileIndex +
@@ -160,7 +162,10 @@ export class DownloadHandler extends Handler {
       true
     )
     // 1. Get the DDO
-    const ddo = await new FindDdoHandler(node).findAndFormatDdo(task.documentId)
+    const handler: FindDdoHandler = node
+      .getCoreHandlers()
+      .getHandler(PROTOCOL_COMMANDS.FIND_DDO) as FindDdoHandler
+    const ddo = await handler.findAndFormatDdo(task.documentId)
 
     if (ddo) {
       CORE_LOGGER.logMessage('DDO for asset found: ' + ddo, true)
@@ -207,7 +212,7 @@ export class DownloadHandler extends Handler {
 
     // 3. Validate nonce and signature
     const nonceCheckResult: NonceResponse = await checkNonce(
-      node,
+      node.getDatabase().nonce,
       task.consumerAddress,
       parseInt(task.nonce),
       task.signature,

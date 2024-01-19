@@ -16,20 +16,23 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { genericDDO } from '../data/ddo.js'
 import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
-import { delay, waitToIndex } from './testUtils.js'
 import { Database } from '../../components/database/index.js'
-import { OceanIndexer } from '../../components/Indexer/index.js'
 import { DecryptDdoHandler } from '../../components/core/ddoHandler.js'
-import { DecryptDDOCommand, getConfig } from '../../utils/index.js'
-import { OceanP2P } from '../../components/P2P/index.js'
+import { DecryptDDOCommand, ENVIRONMENT_VARIABLES, getConfig } from '../../utils/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
+import { OceanNode } from '../../OceanNode.js'
+import {
+  buildEnvOverrideConfig,
+  OverrideEnvConfig,
+  setupEnvironment,
+  tearDownEnvironment
+} from '../utils/utils.js'
 
 describe('Should encrypt and decrypt DDO', () => {
   let config: OceanNodeConfig
   let database: Database
-  let p2pNode: OceanP2P
-  let indexer: OceanIndexer
+  let oceanNode: OceanNode
   let provider: JsonRpcProvider
   let publisherAccount: Signer
   let publisherAddress: string
@@ -38,7 +41,6 @@ describe('Should encrypt and decrypt DDO', () => {
   let dataNftAddress: string
   let datatokenAddress: string
   let genericAsset: any
-  let assetDID: string
   let txReceiptEncryptDDO: any
   let encryptedMetaData: any
   let documentHash: any
@@ -54,6 +56,8 @@ describe('Should encrypt and decrypt DDO', () => {
     }
   }
 
+  let previousConfiguration: OverrideEnvConfig[]
+
   before(async () => {
     const artifactsAddresses = getOceanArtifactsAdresses()
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
@@ -65,16 +69,32 @@ describe('Should encrypt and decrypt DDO', () => {
       ERC721Factory.abi,
       publisherAccount
     )
-    process.env.PRIVATE_KEY =
-      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
-    process.env.RPCS = JSON.stringify(mockSupportedNetworks)
-    process.env.AUTHORIZED_DECRYPTERS = JSON.stringify([publisherAddress])
+
+    previousConfiguration = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig(
+        [
+          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+          ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS
+        ],
+        [
+          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+          JSON.stringify(mockSupportedNetworks),
+          JSON.stringify([publisherAddress])
+        ]
+      )
+    )
+    // WE SHOULD STOP DOING THIS!!! It breaks local env and other tests!
+    // process.env.PRIVATE_KEY =
+    // '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
+    // use setupEnvironment / tearDownEnvironment instead (But only if its really needed to override some stuff)
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
     config = await getConfig()
     database = await new Database(dbConfig)
-    p2pNode = new OceanP2P(config, database)
+    oceanNode = OceanNode.getInstance(config, database)
     // will be used later
     // indexer = new OceanIndexer(database, mockSupportedNetworks)
   })
@@ -120,7 +140,7 @@ describe('Should encrypt and decrypt DDO', () => {
         .digest('hex')
     genericAsset.nftAddress = dataNftAddress
     genericAsset.services[0].datatokenAddress = datatokenAddress
-    assetDID = genericAsset.id
+    // assetDID = genericAsset.id
 
     const metadata = hexlify(Buffer.from(JSON.stringify(genericAsset)))
     documentHash = '0x' + createHash('sha256').update(metadata).digest('hex')
@@ -150,7 +170,7 @@ describe('Should encrypt and decrypt DDO', () => {
       nonce,
       signature: '0x123'
     }
-    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
     expect(response.status.error).to.equal('Decrypt DDO: Unsupported chain id')
   })
@@ -163,7 +183,7 @@ describe('Should encrypt and decrypt DDO', () => {
       nonce,
       signature: '0x123'
     }
-    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
     expect(response.status.error).to.equal(`Decrypt DDO: duplicate nonce`)
   })
@@ -176,7 +196,7 @@ describe('Should encrypt and decrypt DDO', () => {
       nonce: Date.now().toString(),
       signature: '0x123'
     }
-    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(403)
     expect(response.status.error).to.equal('Decrypt DDO: Decrypter not authorized')
   })
@@ -190,7 +210,7 @@ describe('Should encrypt and decrypt DDO', () => {
       nonce: Date.now().toString(),
       signature: '0x123'
     }
-    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
     expect(response.status.error).to.equal(
       'Decrypt DDO: Asset not deployed by the data NFT factory'
@@ -207,7 +227,7 @@ describe('Should encrypt and decrypt DDO', () => {
       nonce: Date.now().toString(),
       signature: '0x123'
     }
-    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
     expect(response.status.error).to.equal(
       'Decrypt DDO: Failed to process transaction id'
@@ -226,7 +246,7 @@ describe('Should encrypt and decrypt DDO', () => {
       nonce: Date.now().toString(),
       signature: '0x123'
     }
-    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
     expect(response.status.error).to.equal(
       'Decrypt DDO: Failed to convert input args to bytes'
@@ -245,7 +265,7 @@ describe('Should encrypt and decrypt DDO', () => {
       nonce: Date.now().toString(),
       signature: '0x123'
     }
-    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
     expect(response.status.error).to.equal('Decrypt DDO: checksum does not match')
   })
@@ -260,7 +280,7 @@ describe('Should encrypt and decrypt DDO', () => {
       nonce: Date.now().toString(),
       signature: '0x123'
     }
-    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
     expect(response.status.error).to.equal(
       'Decrypt DDO: invalid signature or does not match'
@@ -292,7 +312,7 @@ describe('Should encrypt and decrypt DDO', () => {
       nonce,
       signature
     }
-    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(201)
     const decryptedStringDDO = await streamToString(response.stream as Readable)
     const stringDDO = JSON.stringify(genericAsset)
@@ -320,10 +340,14 @@ describe('Should encrypt and decrypt DDO', () => {
       nonce,
       signature
     }
-    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(201)
     const decryptedStringDDO = await streamToString(response.stream as Readable)
     const stringDDO = JSON.stringify(genericAsset)
     expect(decryptedStringDDO).to.equal(stringDDO)
+  })
+
+  after(() => {
+    tearDownEnvironment(previousConfiguration)
   })
 })

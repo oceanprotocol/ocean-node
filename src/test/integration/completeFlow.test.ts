@@ -18,7 +18,6 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
-import { OceanP2P } from '../../components/P2P/index.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { getEventFromTx, streamToString } from '../../utils/util.js'
 import { delay, waitToIndex } from './testUtils.js'
@@ -42,7 +41,6 @@ describe('Should run a complete node flow.', () => {
   let config: OceanNodeConfig
   let database: Database
   let oceanNode: OceanNode
-  let p2pNode: OceanP2P
   let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let factoryContract: Contract
@@ -76,9 +74,20 @@ describe('Should run a complete node flow.', () => {
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
+
+    // override and save configuration (always before calling getConfig())
+    previousConfiguration = await setupEnvironment(null, [
+      {
+        name: ENVIRONMENT_VARIABLES.RPCS.name,
+        newValue: JSON.stringify(mockSupportedNetworks),
+        override: true,
+        originalValue: ENVIRONMENT_VARIABLES.RPCS.value,
+        required: ENVIRONMENT_VARIABLES.RPCS.required
+      }
+    ])
+
     config = await getConfig()
     database = await new Database(dbConfig)
-    p2pNode = new OceanP2P(config, database)
     oceanNode = await OceanNode.getInstance(config, database)
 
     indexer = new OceanIndexer(database, mockSupportedNetworks)
@@ -93,16 +102,6 @@ describe('Should run a complete node flow.', () => {
     )
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    // override and save configuration
-    previousConfiguration = await setupEnvironment(null, [
-      {
-        name: ENVIRONMENT_VARIABLES.RPCS.name,
-        newValue: JSON.stringify(mockSupportedNetworks),
-        override: true,
-        originalValue: ENVIRONMENT_VARIABLES.RPCS.value,
-        required: ENVIRONMENT_VARIABLES.RPCS.required
-      }
-    ])
 
     publisherAccount = (await provider.getSigner(0)) as Signer
     publisherAddress = await publisherAccount.getAddress()
@@ -124,7 +123,7 @@ describe('Should run a complete node flow.', () => {
       command: PROTOCOL_COMMANDS.STATUS,
       node: oceanNodeConfig.keys.peerId.toString()
     }
-    const response = await new StatusHandler(p2pNode).handle(statusCommand)
+    const response = await new StatusHandler(oceanNode).handle(statusCommand)
     assert(response.status.httpStatus === 200, 'http status not 200')
     const resp = await streamToString(response.stream as Readable)
     const status = JSON.parse(resp)
@@ -306,8 +305,8 @@ describe('Should run a complete node flow.', () => {
       chunkSize: 100
     }
     database = await new Database(config.dbConfig)
-    const p2pNode = new OceanP2P(config, database)
-    assert(p2pNode, 'Failed to instantiate OceanP2P')
+    const oceanNode = OceanNode.getInstance(config, database)
+    assert(oceanNode, 'Failed to instantiate OceanNode')
 
     const wallet = new ethers.Wallet(
       '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
@@ -331,7 +330,7 @@ describe('Should run a complete node flow.', () => {
       signature,
       command: PROTOCOL_COMMANDS.DOWNLOAD
     }
-    const response = await new DownloadHandler(p2pNode).handle(downloadTask)
+    const response = await new DownloadHandler(oceanNode).handle(downloadTask)
 
     assert(response)
     assert(response.stream, 'stream not present')

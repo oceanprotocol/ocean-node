@@ -172,7 +172,7 @@ async function doNonceTrackingFlow() {
   )
 
   const checkNonceresult = await checkNonce(
-    oceanNode.getP2PNode(),
+    oceanNode.getDatabase().nonce,
     address,
     nextNonce,
     signature

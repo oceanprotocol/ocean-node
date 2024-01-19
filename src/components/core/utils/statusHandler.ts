@@ -9,10 +9,10 @@ import {
 import { existsEnvironmentVariable } from '../../../utils/index.js'
 import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { OceanP2P } from '../../P2P/index.js'
+import { OceanNode } from '../../../OceanNode.js'
 
 export async function status(
-  oceanNode: OceanP2P,
+  oceanNode: OceanNode,
   nodeId?: string
 ): Promise<OceanNodeStatus> {
   CORE_LOGGER.logMessage('Command status started execution...', true)

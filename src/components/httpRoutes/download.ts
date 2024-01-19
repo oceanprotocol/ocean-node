@@ -38,9 +38,7 @@ downloadRoute.get(
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
 
-      const response = await new DownloadHandler(req.oceanNode.getP2PNode()).handle(
-        downloadTask
-      )
+      const response = await new DownloadHandler(req.oceanNode).handle(downloadTask)
       if (response.stream) {
         res.status(response.status.httpStatus)
         res.set(response.status.headers)

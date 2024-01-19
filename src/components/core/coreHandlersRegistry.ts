@@ -20,6 +20,7 @@ import { QueryHandler } from './queryHandler.js'
 import { StatusHandler } from './statusHandler.js'
 import { OceanP2P } from '../P2P/index.js'
 import { ReindexHandler } from './reindexHandler.js'
+import { OceanNode } from '../../OceanNode.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -55,7 +56,7 @@ export class CoreHandlersRegistry {
   private coreHandlers: Map<string, Handler> = new Map<string, Handler>()
 
   // private readonly node: OceanP2P
-  private constructor(node: OceanP2P) {
+  private constructor(node: OceanNode) {
     // implement core handlers
     this.registerCoreHandler(PROTOCOL_COMMANDS.DOWNLOAD, new DownloadHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.DECRYPT_DDO, new DecryptDdoHandler(node))
@@ -71,7 +72,7 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(PROTOCOL_COMMANDS.VALIDATE_DDO, new ValidateDDOHandler(node))
   }
 
-  public static getInstance(node: OceanP2P): CoreHandlersRegistry {
+  public static getInstance(node: OceanNode): CoreHandlersRegistry {
     if (!CoreHandlersRegistry.instance) {
       this.instance = new CoreHandlersRegistry(node)
     }

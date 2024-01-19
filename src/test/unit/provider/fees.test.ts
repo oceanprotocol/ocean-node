@@ -26,7 +26,7 @@ import {
 } from '../../utils/utils.js'
 import { ethers } from 'ethers'
 import { Database } from '../../../components/database/index.js'
-import { OceanP2P } from '../../../components/P2P/index.js'
+import { OceanNode } from '../../../OceanNode.js'
 
 const service: Service = {
   id: '24654b91482a3351050510ff72694d88edae803cf31a5da993da963ba0087648', // matches the service ID on the example DDO
@@ -137,9 +137,9 @@ describe('Ocean Node fees', () => {
     }
 
     const dbconn = await new Database(config.dbConfig)
-    const p2pNode = new OceanP2P(config, dbconn)
+    const oceanNode = OceanNode.getInstance(config, dbconn)
 
-    const data: P2PCommandResponse = await new FeesHandler(p2pNode).handle({
+    const data: P2PCommandResponse = await new FeesHandler(oceanNode).handle({
       ddo: asset,
       serviceId: service.id,
       command: PROTOCOL_COMMANDS.GET_FEES
