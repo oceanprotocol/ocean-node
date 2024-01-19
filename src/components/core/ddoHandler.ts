@@ -28,6 +28,7 @@ import { ethers, hexlify } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { decrypt } from '../../utils/crypt.js'
 import { createHash } from 'crypto'
+import lzma from 'lzma-native'
 import { validateObject } from './utils/validateDdoHandler.js'
 
 const MAX_NUM_PROVIDERS = 5
@@ -260,6 +261,27 @@ export class DecryptDdoHandler extends Handler {
         }
       }
 
+      if (flags & 1) {
+        try {
+          lzma.decompress(
+            decryptedDocument,
+            { synchronous: true },
+            (decompressedResult) => {
+              decryptedDocument = decompressedResult
+            }
+          )
+        } catch (error) {
+          P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: 'Decrypt DDO: Failed to lzma decompress'
+            }
+          }
+        }
+      }
+
       // checksum matches
       const decryptedDocumentHash =
         '0x' + createHash('sha256').update(hexlify(decryptedDocument)).digest('hex')
@@ -273,6 +295,30 @@ export class DecryptDdoHandler extends Handler {
           status: {
             httpStatus: 400,
             error: 'Decrypt DDO: checksum does not match'
+          }
+        }
+      }
+
+      // check signature
+      try {
+        const message = String(
+          transactionId + dataNftAddress + decrypterAddress + chainId + nonce
+        )
+        const messageHash = ethers.solidityPackedKeccak256(
+          ['bytes'],
+          [ethers.hexlify(ethers.toUtf8Bytes(message))]
+        )
+        const addressSignature = ethers.verifyMessage(messageHash, task.signature)
+        if (addressSignature !== decrypterAddress) {
+          throw new Error('address does not match')
+        }
+      } catch (error) {
+        P2P_CONSOLE_LOGGER.logMessage(`Decrypt DDO: error signature ${error}`, true)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: 'Decrypt DDO: invalid signature or does not match'
           }
         }
       }

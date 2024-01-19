@@ -250,7 +250,7 @@ describe('Should encrypt and decrypt DDO', () => {
     expect(response.status.error).to.equal('Decrypt DDO: checksum does not match')
   })
 
-  it('should decrypt ddo with transactionId and return it', async () => {
+  it('should return checksum does not match', async () => {
     const decryptDDOTask: DecryptDDOCommand = {
       command: 'decryptDDO',
       decrypterAddress: publisherAddress,
@@ -261,6 +261,38 @@ describe('Should encrypt and decrypt DDO', () => {
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
+    expect(response.status.httpStatus).to.equal(400)
+    expect(response.status.error).to.equal(
+      'Decrypt DDO: invalid signature or does not match'
+    )
+  })
+
+  it('should decrypt ddo with transactionId and return it', async () => {
+    const nonce = Date.now().toString()
+    const wallet = new ethers.Wallet(process.env.PRIVATE_KEY)
+    const message = String(
+      txReceiptEncryptDDO.hash +
+        dataNftAddress +
+        publisherAddress +
+        chainId.toString() +
+        nonce
+    )
+    const messageHash = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const signature = await wallet.signMessage(messageHash)
+
+    const decryptDDOTask: DecryptDDOCommand = {
+      command: 'decryptDDO',
+      decrypterAddress: publisherAddress,
+      chainId,
+      transactionId: txReceiptEncryptDDO.hash,
+      dataNftAddress,
+      nonce,
+      signature
+    }
+    const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(201)
     const decryptedStringDDO = await streamToString(response.stream as Readable)
     const stringDDO = JSON.stringify(genericAsset)
@@ -268,6 +300,15 @@ describe('Should encrypt and decrypt DDO', () => {
   })
 
   it('should decrypt ddo with encryptedDocument, flags, documentHash and return it', async () => {
+    const nonce = Date.now().toString()
+    const wallet = new ethers.Wallet(process.env.PRIVATE_KEY)
+    const message = String(dataNftAddress + publisherAddress + chainId.toString() + nonce)
+    const messageHash = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const signature = await wallet.signMessage(messageHash)
+
     const decryptDDOTask: DecryptDDOCommand = {
       command: 'decryptDDO',
       decrypterAddress: publisherAddress,
@@ -276,8 +317,8 @@ describe('Should encrypt and decrypt DDO', () => {
       flags: 2,
       documentHash,
       dataNftAddress,
-      nonce: Date.now().toString(),
-      signature: '0x123'
+      nonce,
+      signature
     }
     const response = await new DecryptDdoHandler(p2pNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(201)
