@@ -7,7 +7,7 @@ import {
   UrlFileObject
 } from '../../@types/fileObject.js'
 import { FileInfoCommand } from '../../utils'
-import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common.js'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { ArweaveStorage, IpfsStorage, UrlStorage } from '../storage/index.js'
 import { Handler } from './handler.js'
 import { OceanP2P } from '../P2P'
@@ -32,7 +32,7 @@ async function getFile(
       Uint8Array.from(Buffer.from(service.files, 'hex')),
       'ECIES'
     )
-    P2P_CONSOLE_LOGGER.logMessage(`URL decrypted for Service ID: ${serviceId}`)
+    CORE_LOGGER.logMessage(`URL decrypted for Service ID: ${serviceId}`)
 
     // Convert the decrypted bytes back to a string
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
@@ -41,15 +41,13 @@ async function getFile(
     return decryptedFileArray.files
   } catch (error) {
     const msg = 'Error occured while requesting the files: ' + error.message
-    P2P_CONSOLE_LOGGER.error(msg)
+    CORE_LOGGER.error(msg)
     throw new Error(msg)
   }
 }
 
 async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFileObject) {
-  P2P_CONSOLE_LOGGER.logMessage(
-    `Starting formatMetadata for file: ${JSON.stringify(file)}`
-  )
+  CORE_LOGGER.logMessage(`Starting formatMetadata for file: ${JSON.stringify(file)}`)
 
   const url =
     file.type === 'url'
@@ -61,7 +59,7 @@ async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFile
       : null
 
   const { contentLength, contentType } = await fetchFileMetadata(url)
-  P2P_CONSOLE_LOGGER.logMessage(`Metadata for file: ${contentLength} ${contentType}`)
+  CORE_LOGGER.logMessage(`Metadata for file: ${contentLength} ${contentType}`)
 
   return {
     valid: true,
@@ -74,7 +72,7 @@ async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFile
 export class FileInfoHandler extends Handler {
   async handle(task: FileInfoCommand): Promise<P2PCommandResponse> {
     try {
-      P2P_CONSOLE_LOGGER.logMessage(
+      CORE_LOGGER.logMessage(
         'File Info Request recieved with arguments: ' + JSON.stringify(task, null, 2),
         true
       )
@@ -110,7 +108,7 @@ export class FileInfoHandler extends Handler {
       } else {
         const errorMessage =
           'Invalid arguments. Please provide either file && Type OR did && serviceId'
-        P2P_CONSOLE_LOGGER.error(errorMessage)
+        CORE_LOGGER.error(errorMessage)
         return {
           stream: null,
           status: {
@@ -119,7 +117,7 @@ export class FileInfoHandler extends Handler {
           }
         }
       }
-      P2P_CONSOLE_LOGGER.logMessage(
+      CORE_LOGGER.logMessage(
         'File Info Response: ' + JSON.stringify(fileInfo, null, 2),
         true
       )
@@ -131,7 +129,7 @@ export class FileInfoHandler extends Handler {
         }
       }
     } catch (error) {
-      P2P_CONSOLE_LOGGER.error(error.message)
+      CORE_LOGGER.error(error.message)
       return {
         stream: null,
         status: {
