@@ -226,7 +226,7 @@ describe('Arweave Storage tests', () => {
 
 describe('URL Storage getFileInfo tests', () => {
   let storage: UrlStorage
-  beforeEach(() => {
+  before(() => {
     storage = new UrlStorage({
       type: 'url',
       url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
@@ -260,7 +260,7 @@ describe('URL Storage getFileInfo tests', () => {
 describe('Arweave Storage getFileInfo tests', () => {
   let storage: ArweaveStorage
 
-  beforeEach(() => {
+  before(() => {
     storage = new ArweaveStorage({
       type: 'arweave',
       transactionId: 'gPPDyusRh2ZyFl-sQ2ODK6hAwCRBAOwp0OFKr0n23QE'
@@ -303,9 +303,7 @@ describe('IPFS Storage getFileInfo tests', async function () {
       ['https://ipfs.oceanprotocol.com']
     )
     await setupEnvironment(undefined, previousConfiguration) // Apply the environment override
-  })
 
-  beforeEach(() => {
     storage = new IpfsStorage({
       type: 'ipfs',
       hash: 'QmRhsp7eghZtW4PktPC2wAHdKoy2LiF1n6UXMKmAhqQJUA'
