@@ -9,6 +9,7 @@ export const PROTOCOL_COMMANDS = {
   REINDEX: 'reIndex',
   ECHO: 'echo',
   ENCRYPT: 'encrypt',
+  DECRYPT_DDO: 'decryptDDO',
   GET_DDO: 'getDDO',
   QUERY: 'query',
   NONCE: 'nonce',
@@ -24,6 +25,7 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.ECHO,
   PROTOCOL_COMMANDS.ENCRYPT,
   PROTOCOL_COMMANDS.NONCE,
+  PROTOCOL_COMMANDS.DECRYPT_DDO,
   PROTOCOL_COMMANDS.GET_DDO,
   PROTOCOL_COMMANDS.QUERY,
   PROTOCOL_COMMANDS.STATUS,
@@ -76,6 +78,18 @@ export interface ReindexCommand extends Command {
   txId: string
   chainId: number
   eventIndex?: number
+}
+
+export interface DecryptDDOCommand extends Command {
+  decrypterAddress: string
+  chainId: number
+  transactionId?: string
+  dataNftAddress?: string
+  encryptedDocument?: string
+  flags?: number
+  documentHash?: string
+  nonce: string
+  signature: string
 }
 
 export interface EncryptCommand extends Command {
@@ -168,6 +182,7 @@ export interface EnvVariable {
   value: any
   required: boolean
 }
+
 // usefull to keep track of what all the env variables we are using
 // (faster to read than README and we can easily use the constants if needed)
 // required means its not mandatory OR we have defaults
@@ -215,5 +230,10 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     required: false
   },
   // node specific
-  NODE_ENV: { name: 'NODE_ENV', value: process.env.NODE_ENV, required: false }
+  NODE_ENV: { name: 'NODE_ENV', value: process.env.NODE_ENV, required: false },
+  AUTHORIZED_DECRYPTERS: {
+    name: 'AUTHORIZED_DECRYPTERS',
+    value: process.env.AUTHORIZED_DECRYPTERS,
+    required: false
+  }
 }
