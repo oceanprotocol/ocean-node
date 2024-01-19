@@ -211,7 +211,7 @@ describe('Should encrypt and decrypt DDO', () => {
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(400)
+    expect(response.status.httpStatus).to.equal(403)
     expect(response.status.error).to.equal(
       'Decrypt DDO: Asset not deployed by the data NFT factory'
     )
