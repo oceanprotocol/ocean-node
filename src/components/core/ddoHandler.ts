@@ -44,7 +44,7 @@ export class DecryptDdoHandler extends Handler {
       try {
         decrypterAddress = ethers.getAddress(task.decrypterAddress)
       } catch (error) {
-          CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+        CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
         return {
           stream: null,
           status: {
@@ -56,7 +56,7 @@ export class DecryptDdoHandler extends Handler {
 
       const nonce = Number(task.nonce)
       if (isNaN(nonce)) {
-          CORE_LOGGER.logMessage(
+        CORE_LOGGER.logMessage(
           `Decrypt DDO: error ${task.nonce} value is not a number`,
           true
         )
@@ -74,10 +74,7 @@ export class DecryptDdoHandler extends Handler {
       const existingNonce = await dbNonce.retrieve(decrypterAddress)
 
       if (existingNonce && existingNonce.nonce === nonce) {
-          CORE_LOGGER.logMessage(
-          `Decrypt DDO: error ${task.nonce} duplicate nonce`,
-          true
-        )
+        CORE_LOGGER.logMessage(`Decrypt DDO: error ${task.nonce} duplicate nonce`, true)
         return {
           stream: null,
           status: {
@@ -94,10 +91,7 @@ export class DecryptDdoHandler extends Handler {
 
       // check if supported chainId
       if (!supportedNetwork) {
-          CORE_LOGGER.logMessage(
-          `Decrypt DDO: Unsupported chain id ${chainId}`,
-          true
-        )
+        CORE_LOGGER.logMessage(`Decrypt DDO: Unsupported chain id ${chainId}`, true)
         return {
           stream: null,
           status: {
@@ -108,7 +102,7 @@ export class DecryptDdoHandler extends Handler {
       }
 
       if (!config.authorizedDecrypters.includes(decrypterAddress)) {
-          CORE_LOGGER.logMessage('Decrypt DDO: Decrypter not authorized', true)
+        CORE_LOGGER.logMessage('Decrypt DDO: Decrypter not authorized', true)
         return {
           stream: null,
           status: {
@@ -134,7 +128,7 @@ export class DecryptDdoHandler extends Handler {
       const factoryListAddress = await factoryContract.erc721List(dataNftAddress)
 
       if (dataNftAddress !== factoryListAddress) {
-          CORE_LOGGER.logMessage(
+        CORE_LOGGER.logMessage(
           'Decrypt DDO: Asset not deployed by the data NFT factory',
           true
         )
@@ -171,7 +165,7 @@ export class DecryptDdoHandler extends Handler {
           encryptedDocument = ethers.getBytes(eventData.args[4])
           documentHash = eventData.args[5]
         } catch (error) {
-            CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+          CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
           return {
             stream: null,
             status: {
@@ -186,7 +180,7 @@ export class DecryptDdoHandler extends Handler {
           flags = Number(task.flags)
           documentHash = task.documentHash
         } catch (error) {
-            CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+          CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
           return {
             stream: null,
             status: {
@@ -211,10 +205,7 @@ export class DecryptDdoHandler extends Handler {
           MetadataStates.REVOKED
         ].includes(metaDataState)
       ) {
-          CORE_LOGGER.logMessage(
-          `Decrypt DDO: error metadata state ${metaDataState}`,
-          true
-        )
+        CORE_LOGGER.logMessage(`Decrypt DDO: error metadata state ${metaDataState}`, true)
         return {
           stream: null,
           status: {
@@ -231,10 +222,7 @@ export class DecryptDdoHandler extends Handler {
           MetadataStates.UNLISTED
         ].includes(metaDataState)
       ) {
-          CORE_LOGGER.logMessage(
-          `Decrypt DDO: error metadata state ${metaDataState}`,
-          true
-        )
+        CORE_LOGGER.logMessage(`Decrypt DDO: error metadata state ${metaDataState}`, true)
         return {
           stream: null,
           status: {
@@ -250,7 +238,7 @@ export class DecryptDdoHandler extends Handler {
         try {
           decryptedDocument = await decrypt(encryptedDocument, 'ECIES')
         } catch (error) {
-            CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+          CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
           return {
             stream: null,
             status: {
@@ -271,7 +259,7 @@ export class DecryptDdoHandler extends Handler {
             }
           )
         } catch (error) {
-            CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+          CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
           return {
             stream: null,
             status: {
@@ -286,7 +274,7 @@ export class DecryptDdoHandler extends Handler {
       const decryptedDocumentHash =
         '0x' + createHash('sha256').update(hexlify(decryptedDocument)).digest('hex')
       if (decryptedDocumentHash !== documentHash) {
-          CORE_LOGGER.logMessage(
+        CORE_LOGGER.logMessage(
           `Decrypt DDO: error checksum does not match ${decryptedDocumentHash} with ${documentHash}`,
           true
         )
@@ -313,7 +301,7 @@ export class DecryptDdoHandler extends Handler {
           throw new Error('address does not match')
         }
       } catch (error) {
-          CORE_LOGGER.logMessage(`Decrypt DDO: error signature ${error}`, true)
+        CORE_LOGGER.logMessage(`Decrypt DDO: error signature ${error}`, true)
         return {
           stream: null,
           status: {
@@ -328,7 +316,7 @@ export class DecryptDdoHandler extends Handler {
         status: { httpStatus: 201 }
       }
     } catch (error) {
-        CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+      CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
       return {
         stream: null,
         status: { httpStatus: 500, error: `Decrypt DDO: Unknown error ${error}` }
