@@ -1,5 +1,32 @@
 import { TypesenseCollectionCreateSchema } from '../../@types/index.js'
-import { readJsonSchemas } from '../../index.js'
+import fs from 'fs'
+import path from 'path'
+import { OCEAN_NODE_LOGGER } from '../../utils/logging/common.js'
+import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+// import { readJsonSchemas } from '../../index.js'
+
+export function readJsonSchemas(): any[] {
+  const jsonDocuments: any[] = []
+  const pathToSchemaDir: string = '../../../schemas/v4'
+  const jsonFiles = fs
+    .readdirSync(pathToSchemaDir)
+    .filter((file) => path.extname(file) === '.json')
+  jsonFiles.forEach((file) => {
+    try {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
+      const fileData = fs.readFileSync(path.join(pathToSchemaDir, file), 'utf-8')
+      const jsonFile = JSON.parse(fileData.toString())
+      jsonDocuments.push(jsonFile)
+    } catch (err) {
+      OCEAN_NODE_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_WARN,
+        `Error loading DDO schema from ${path.join(pathToSchemaDir, file)}`,
+        true
+      )
+    }
+  })
+  return jsonDocuments
+}
 
 export type Schema = TypesenseCollectionCreateSchema
 export type Schemas = {
