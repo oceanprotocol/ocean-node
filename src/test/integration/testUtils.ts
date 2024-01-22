@@ -15,7 +15,6 @@ export const waitToIndex = async (did: string, database: Database): Promise<any>
   do {
     try {
       const ddo = await database.ddo.retrieve(did)
-      console.log('ddo', ddo)
       if (ddo) {
         return ddo
       }

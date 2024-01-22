@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { stub } from 'sinon'
 import { describe, it } from 'mocha'
-import { OceanIndexer } from '../../../components/Indexer/index.js' // Adjust the import path accordingly
+import { OceanIndexer } from '../../../components/Indexer/index.js'
 import { RPCS } from '../../../@types/blockchain'
 
 class MockDatabase {
@@ -27,8 +27,6 @@ describe('OceanIndexer', () => {
     }
 
     stub(oceanIndexer as any, 'startThreads').callsFake(() => {
-      oceanIndexer.updateLastIndexedBlockNumber = stub()
-
       oceanIndexer.getLastIndexedBlock = stub().resolves(0)
       oceanIndexer.startThreads = async () => {
         try {
