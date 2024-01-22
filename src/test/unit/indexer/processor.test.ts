@@ -6,7 +6,14 @@ import {
   OrderStartedEventProcessor,
   OrderReusedEventProcessor
 } from '../../../components/Indexer/processor.js'
-import { Database } from '../../../components/database/index.js'
+import {
+  Database,
+  DdoDatabase,
+  IndexerDatabase,
+  LogDatabase,
+  NonceDatabase,
+  OrderDatabase
+} from '../../../components/database/index.js'
 import { RPCS } from '../../../@types/blockchain.js'
 import {
   Block,
@@ -17,20 +24,69 @@ import {
   TransactionResponse
 } from 'ethers'
 import { EVENTS } from '../../../utils/constants.js'
+import { stub } from 'sinon'
+import { ddo } from '../../data/ddo.js'
 
-let database: Database
+class MockDatabase {
+  ddo = {
+    // eslint-disable-next-line no-undef
+    retrieve: stub().resolves({
+      '@context': ['https://w3id.org/did/v1'],
+      id: 'did:op:12b17ee47536dc342f67a5fab2f014ddeb10be04018bc6bc53953655e2f7f8ff',
+      version: '4.1.0',
+      chainId: 8996,
+      nftAddress: '0x181e8a7f8767808bea51F61044E27C5F8bf7C939',
+      metadata: {
+        created: '2021-12-20T14:35:20Z',
+        updated: '2021-12-20T14:35:20Z',
+        type: 'dataset',
+        name: 'dataset-name',
+        description: 'Ocean protocol test dataset description',
+        author: 'oceanprotocol-team',
+        license: 'MIT',
+        tags: ['white-papers'],
+        additionalInformation: { 'test-key': 'test-value' },
+        links: ['http://data.ceda.ac.uk/badc/ukcp09/']
+      },
+      services: [
+        {
+          id: '0',
+          type: 'access',
+          description: 'Download service',
+          files: [Array],
+          datatokenAddress: '0x0',
+          serviceEndpoint: 'http://172.15.0.4:8030',
+          timeout: 0
+        }
+      ],
+      credentials: { allow: [[Object]], deny: [[Object]] }
+    }),
+    search: stub(),
+    update: stub().resolves({ id: 'didtest' }),
+    create: stub(),
+    delete: stub(),
+    provider: stub(),
+    schemas: stub(),
+    config: stub()
+  }
+
+  order = {
+    create: stub()
+  }
+}
 let provider: JsonRpcProvider
+let database: MockDatabase
 
 describe('should test processor classes', () => {
   beforeEach(async () => {
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
-    database = await new Database(dbConfig)
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
+    database = new MockDatabase()
   })
   it('should process metadat created event', async () => {
-    const processor = new MetadataEventProcessor(8996, database)
+    const processor = new MetadataEventProcessor(8996, database as any)
     const event: Log = {
       provider,
       transactionHash:
@@ -73,7 +129,7 @@ describe('should test processor classes', () => {
   })
 
   it('should process metadata state event', async () => {
-    const processor = new MetadataStateEventProcessor(8996, database)
+    const processor = new MetadataStateEventProcessor(8996, database as any)
     const event: Log = {
       provider,
       transactionHash:
@@ -109,7 +165,7 @@ describe('should test processor classes', () => {
     assert(ddo, 'DDO not indexed')
   })
   it('should process order started event', async () => {
-    const processor = new OrderStartedEventProcessor(8996, database)
+    const processor = new OrderStartedEventProcessor(8996, database as any)
     const event: Log = {
       provider,
       transactionHash:
