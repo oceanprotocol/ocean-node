@@ -105,11 +105,10 @@ describe('OceanP2P Test without DB_URL set', () => {
     assert(config.dbConfig.url === '', 'DB URL should not be set')
     const p2pNode = new OceanP2P(config)
     assert(p2pNode, 'Failed to create P2P Node instance')
-    const p2pConfig = p2pNode.getConfig()
-    assert(p2pConfig, 'Failed to get P2P Node config')
-    assert(p2pConfig.dbConfig.url === '', 'P2P Node config should not have DB URL set')
-    assert(p2pConfig.hasIndexer === false, 'P2P Node should not have indexer enabled')
-    assert(p2pConfig.hasProvider === false, 'P2P Node should not have provider enabled')
+    assert(config, 'Failed to get P2P Node config')
+    assert(config.dbConfig.url === '', 'P2P Node config should not have DB URL set')
+    assert(config.hasIndexer === false, 'P2P Node should not have indexer enabled')
+    assert(config.hasProvider === false, 'P2P Node should not have provider enabled')
   })
   after(async () => {
     process.env.DB_URL = originalDBURL

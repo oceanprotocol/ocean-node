@@ -83,18 +83,13 @@ export class OceanP2P extends EventEmitter {
   private _handleMessage: any
   private _interval: NodeJS.Timeout
   private _idx: number
-  private db: Database
-  private _config: OceanNodeConfig
+  private readonly db: Database
+  private readonly _config: OceanNodeConfig
   private coreHandlers: CoreHandlersRegistry
   constructor(config: OceanNodeConfig, db?: Database) {
     super()
     this._config = config
-    if (db && config.dbConfig.url) {
-      this.db = db
-    } else {
-      this._config.hasIndexer = false
-      this._config.hasProvider = false
-    }
+    this.db = db
     this._ddoDHT = {
       updated: new Date().getTime(),
       dht: new Map<string, FindDDOResponse>()
@@ -541,10 +536,6 @@ export class OceanP2P extends EventEmitter {
 
   getDatabase(): Database {
     return this.db
-  }
-
-  getConfig(): OceanNodeConfig {
-    return this._config
   }
 
   getDDOCache(): DDOCache {

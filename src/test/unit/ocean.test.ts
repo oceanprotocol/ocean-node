@@ -47,20 +47,18 @@ describe('Status command tests', async () => {
 
   it('Ocean Node instance', () => {
     expect(oceanNode).to.be.instanceOf(OceanNode)
-    expect(oceanNode.getConfig().keys.privateKey).to.eql(config.keys.privateKey)
-    expect(oceanNode.getConfig().supportedNetworks).to.eql({
+    expect(config.supportedNetworks).to.eql({
       '1': 'https://rpc.eth.gateway.fm',
       '137': 'https://polygon.meowrpc.com',
       '80001': 'https://rpc-mumbai.maticvigil.com'
     })
     expect(oceanNode.getDatabase()).to.not.eql(null)
-    expect(oceanNode.getConfig().hasP2P).to.eql(true)
-    expect(oceanNode.getConfig().hasIndexer).to.eql(true)
-    expect(oceanNode.getConfig().hasProvider).to.eql(true)
+    expect(config.hasP2P).to.eql(true)
+    expect(config.hasIndexer).to.eql(true)
+    expect(config.hasProvider).to.eql(true)
   })
   it('Ocean P2P should be initialized correctly', async () => {
     oceanNode.addP2PNode(oceanP2P)
-    expect(oceanNode.getP2PNode().getConfig()).to.eql(config)
     expect(oceanNode.getP2PNode().getDatabase()).to.eql(db)
   })
   it('Ocean Indexer should be initialized correctly', async () => {

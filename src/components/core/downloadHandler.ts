@@ -86,7 +86,8 @@ export async function handleDownloadUrlCommand(
       // we parse the string into the object again
       const encryptedObject = ethCrypto.cipher.parse(task.aes_encrypted_key)
       // get the key from configuration
-      const nodePrivateKey = Buffer.from(node.getConfig().keys.privateKey).toString('hex')
+      const config = node.getConfig()
+      const nodePrivateKey = Buffer.from(config.keys.privateKey).toString('hex')
       const decrypted = await ethCrypto.decryptWithPrivateKey(
         nodePrivateKey,
         encryptedObject
