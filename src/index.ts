@@ -31,9 +31,18 @@ export function readJsonSchemas(): any[] {
     .readdirSync(pathToSchemaDir)
     .filter((file) => path.extname(file) === '.json')
   jsonFiles.forEach((file) => {
-    const fileData = fs.readFileSync(path.join(pathToSchemaDir, file))
-    const jsonFile = JSON.parse(fileData.toString())
-    jsonDocuments.push(jsonFile)
+    try {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
+      const fileData = fs.readFileSync(path.join(pathToSchemaDir, file), 'utf-8')
+      const jsonFile = JSON.parse(fileData.toString())
+      jsonDocuments.push(jsonFile)
+    } catch (err) {
+      OCEAN_NODE_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_WARN,
+        `Error loading DDO schema from ${path.join(pathToSchemaDir, file)}`,
+        true
+      )
+    }
   })
   return jsonDocuments
 }
