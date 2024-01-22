@@ -3,7 +3,7 @@ import { streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { GetDdoHandler } from '../core/ddoHandler.js'
+import { GetDdoHandler, ValidateDDOHandler } from '../core/ddoHandler.js'
 import { QueryHandler } from '../core/queryHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 
@@ -123,6 +123,43 @@ aquariusRoutes.get('/state/ddo', async (req, res) => {
       } else {
         res.status(404).send('Not found')
       }
+    } else {
+      res.status(result.status.httpStatus).send(result.status.error)
+    }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send('Internal Server Error')
+  }
+})
+
+aquariusRoutes.post('/assets/ddo/validate', async (req, res) => {
+  try {
+    if (!req.body || req.body === undefined) {
+      res.status(400).send('Missing DDO object')
+      return
+    }
+    const ddo = JSON.parse(req.body)
+
+    if (!ddo.version) {
+      res.status(400).send('Missing DDO version')
+      return
+    }
+
+    if (!ddo.version) {
+      res.status(400).send('Missing DDO version')
+      return
+    }
+
+    const node = req.oceanNode.getP2PNode()
+    const result = await new ValidateDDOHandler(node).handle({
+      id: ddo.id,
+      chainId: ddo.chainId,
+      nftAddress: ddo.nftAddress,
+      command: PROTOCOL_COMMANDS.VALIDATE_DDO
+    })
+    if (result.stream) {
+      const queryResult = JSON.parse(await streamToString(result.stream as Readable))
+      res.json(queryResult)
     } else {
       res.status(result.status.httpStatus).send(result.status.error)
     }
