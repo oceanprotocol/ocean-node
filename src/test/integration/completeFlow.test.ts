@@ -35,6 +35,7 @@ import { DDO } from '../../@types/DDO/DDO.js'
 import {
   OverrideEnvConfig,
   buildEnvOverrideConfig,
+  getMockSupportedNetworks,
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
@@ -61,14 +62,7 @@ describe('Should run a complete node flow.', () => {
   let genericAsset: any
 
   const chainId = 8996
-  const mockSupportedNetworks: RPCS = {
-    '8996': {
-      chainId: 8996,
-      network: 'development',
-      rpc: 'http://127.0.0.1:8545',
-      chunkSize: 100
-    }
-  }
+  const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const serviceId = '0'
 
   let previousConfiguration: OverrideEnvConfig[]
@@ -118,7 +112,7 @@ describe('Should run a complete node flow.', () => {
   })
 
   it('should get node status', async () => {
-    const oceanNodeConfig = oceanNode.getConfig()
+    const oceanNodeConfig = await getConfig()
 
     const statusCommand = {
       command: PROTOCOL_COMMANDS.STATUS,
@@ -209,7 +203,6 @@ describe('Should run a complete node flow.', () => {
     genericAsset.services[0].datatokenAddress = datatokenAddress
 
     assetDID = genericAsset.id
-    console.log('assetDID', assetDID)
 
     const files = {
       datatokenAddress: '0x0',
@@ -349,12 +342,6 @@ describe('Should run a complete node flow.', () => {
     this.timeout(65000)
 
     const config = await getConfig()
-    config.supportedNetworks[8996] = {
-      chainId: 8996,
-      network: 'development',
-      rpc: 'http://127.0.0.1:8545',
-      chunkSize: 100
-    }
     database = await new Database(config.dbConfig)
     const oceanNode = OceanNode.getInstance(config, database)
     assert(oceanNode, 'Failed to instantiate OceanNode')

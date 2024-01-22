@@ -23,12 +23,18 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 import { getEventFromTx, sleep } from '../../utils/util.js'
 import { waitToIndex, delay } from './testUtils.js'
 import { getConfig } from '../../utils/config.js'
-import { OceanP2P } from '../../components/P2P/index.js'
 import { ProviderFeeData } from '../../@types/Fees.js'
 import { encrypt } from '../../utils/crypt.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
-import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { OceanNode } from '../../OceanNode.js'
+import {
+  OverrideEnvConfig,
+  buildEnvOverrideConfig,
+  getMockSupportedNetworks,
+  setupEnvironment,
+  tearDownEnvironment
+} from '../utils/utils.js'
 
 describe('Download Tests', () => {
   let database: Database
@@ -57,14 +63,9 @@ describe('Download Tests', () => {
   const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
   const consumeMarketFeeToken = feeToken // token address for the feeAmount,
 
-  const mockSupportedNetworks: RPCS = {
-    '8996': {
-      chainId: 8996,
-      network: 'development',
-      rpc: 'http://127.0.0.1:8545',
-      chunkSize: 100
-    }
-  }
+  const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+
+  let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
     const dbConfig = {
@@ -85,6 +86,13 @@ describe('Download Tests', () => {
       data.development.ERC721Factory,
       ERC721Factory.abi,
       publisherAccount
+    )
+    previousConfiguration = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig(
+        [ENVIRONMENT_VARIABLES.RPCS],
+        [JSON.stringify(mockSupportedNetworks)]
+      )
     )
   })
 
@@ -210,7 +218,6 @@ describe('Download Tests', () => {
     const asset: any = resolvedDDO
     this.timeout(65000) // Extend default Mocha test timeout
 
-    console.log('should start an order and then download the asset')
     const dataTokenContract = new Contract(
       datatokenAddress,
       ERC20Template.abi,
@@ -253,12 +260,6 @@ describe('Download Tests', () => {
     assert(orderTxId, 'transaction id not found')
 
     const config = await getConfig()
-    config.supportedNetworks[8996] = {
-      chainId: 8996,
-      network: 'development',
-      rpc: 'http://127.0.0.1:8545',
-      chunkSize: 100
-    }
     const dbconn = await new Database(config.dbConfig)
     const oceanNode = OceanNode.getInstance(config, dbconn)
     assert(oceanNode, 'Failed to instantiate OceanNode')
@@ -319,5 +320,9 @@ describe('Download Tests', () => {
       response.status.error === `Error: Access to asset ${assetDID} was denied`,
       'error contains access denied'
     )
+  })
+
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
   })
 })

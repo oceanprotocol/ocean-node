@@ -6,7 +6,7 @@ import {
   OceanNodeIndexer,
   StorageTypes
 } from '../../../@types/OceanNode.js'
-import { existsEnvironmentVariable } from '../../../utils/index.js'
+import { existsEnvironmentVariable, getConfig } from '../../../utils/index.js'
 import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
@@ -25,7 +25,7 @@ export async function status(
     )
     return
   }
-  const config = oceanNode.getConfig()
+  const config = await getConfig()
   const { indexer: indexerDatabase } = oceanNode.getDatabase()
   const status: OceanNodeStatus = {
     id: undefined,

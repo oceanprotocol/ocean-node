@@ -56,10 +56,6 @@ export class OceanNode {
     this.indexer = _indexer
   }
 
-  public getConfig(): OceanNodeConfig {
-    return this.config
-  }
-
   public getP2PNode(): OceanP2P | undefined {
     return this.node
   }

@@ -3,6 +3,7 @@ import dotenv from 'dotenv'
 import { fileURLToPath } from 'url'
 import { ENVIRONMENT_VARIABLES, EnvVariable } from '../../utils/constants.js'
 import { CONFIG_CONSOLE_LOGGER } from '../../utils/logging/common.js'
+import { RPCS } from '../../@types/blockchain.js'
 
 // __dirname and __filename are not defined in ES module scope
 const __filename = fileURLToPath(import.meta.url)
@@ -109,4 +110,16 @@ export async function tearDownEnvironment(overrideVars?: OverrideEnvConfig[]) {
       }
     })
   }
+}
+
+export function getMockSupportedNetworks(): RPCS {
+  const mockSupportedNetworks: RPCS = {
+    '8996': {
+      chainId: 8996,
+      network: 'development',
+      rpc: 'http://127.0.0.1:8545',
+      chunkSize: 100
+    }
+  }
+  return mockSupportedNetworks
 }
