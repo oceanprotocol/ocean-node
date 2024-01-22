@@ -143,7 +143,7 @@ describe('Should run a complete node flow.', () => {
       file: storage,
       type: 'url' as 'url'
     }
-    const response = await new FileInfoHandler(p2pNode).handle(fileInfoTask)
+    const response = await new FileInfoHandler(oceanNode).handle(fileInfoTask)
 
     assert(response)
     assert(response.stream, 'stream not present')
@@ -270,7 +270,7 @@ describe('Should run a complete node flow.', () => {
       did: assetDID,
       serviceId
     }
-    const response = await new FileInfoHandler(p2pNode).handle(fileInfoTask)
+    const response = await new FileInfoHandler(oceanNode).handle(fileInfoTask)
 
     assert(response)
     assert(response.stream, 'stream not present')

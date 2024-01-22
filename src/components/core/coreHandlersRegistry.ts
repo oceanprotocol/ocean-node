@@ -19,7 +19,6 @@ import { Handler } from './handler.js'
 import { NonceHandler } from './nonceHandler.js'
 import { QueryHandler } from './queryHandler.js'
 import { StatusHandler } from './statusHandler.js'
-import { OceanP2P } from '../P2P/index.js'
 import { ReindexHandler } from './reindexHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 
