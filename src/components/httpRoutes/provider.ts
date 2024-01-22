@@ -8,8 +8,27 @@ import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { EncryptHandler } from '../core/encryptHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
+import { DecryptDdoHandler } from '../core/ddoHandler.js'
 
 export const providerRoutes = express.Router()
+
+providerRoutes.post('/decrypt', async (req, res) => {
+  try {
+    const result = await new DecryptDdoHandler(req.oceanNode.getP2PNode()).handle({
+      ...req.body,
+      command: PROTOCOL_COMMANDS.DECRYPT_DDO
+    })
+    if (result.stream) {
+      const decryptedData = await streamToString(result.stream as Readable)
+      res.status(201).send(decryptedData)
+    } else {
+      res.status(result.status.httpStatus).send(result.status.error)
+    }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send(`Internal Server error: ${error.message}`)
+  }
+})
 
 providerRoutes.post('/encrypt', async (req, res) => {
   try {

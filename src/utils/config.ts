@@ -6,11 +6,11 @@ import type { PeerId } from '@libp2p/interface/peer-id'
 
 import { LOG_LEVELS_STR, GENERIC_EMOJIS, getLoggerLevelEmoji } from './logging/Logger.js'
 import { RPCS } from '../@types/blockchain'
-import { Wallet } from 'ethers'
-import { FeeStrategy, FeeTokens, FeeAmount } from '../@types/Fees'
+import { getAddress, Wallet } from 'ethers'
+import { FeeAmount, FeeStrategy, FeeTokens } from '../@types/Fees'
 import {
-  OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN,
-  getOceanArtifactsAdresses
+  getOceanArtifactsAdresses,
+  OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN
 } from '../utils/address.js'
 import { CONFIG_CONSOLE_LOGGER } from './logging/common.js'
 
@@ -62,6 +62,42 @@ function getSupportedChains(): RPCS {
   return supportedNetworks
 }
 
+function getAuthorizedDecrypters(): string[] {
+  if (
+    !process.env.AUTHORIZED_DECRYPTERS ||
+    !JSON.parse(process.env.AUTHORIZED_DECRYPTERS)
+  ) {
+    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+      'Missing or Invalid AUTHORIZED_DECRYPTERS env variable format',
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
+    return []
+  }
+  const authorizedDecrypters: string[] = JSON.parse(process.env.AUTHORIZED_DECRYPTERS)
+  if (!Array.isArray(authorizedDecrypters)) {
+    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+      'Missing or Invalid AUTHORIZED_DECRYPTERS env variable format',
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
+    return []
+  }
+  try {
+    return authorizedDecrypters.map((address) => getAddress(address))
+  } catch (error) {
+    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+      'Missing or Invalid AUTHORIZED_DECRYPTERS env variable format',
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
+    return []
+  }
+}
+
 /**
  * get default values for provider fee tokens
  * @param supportedNetworks chains that we support
@@ -102,6 +138,7 @@ function getDefaultFeeTokens(supportedNetworks: RPCS): FeeTokens[] {
   })
   return nodeFeesTokens
 }
+
 // parse fees structure from .env
 /**
  *
@@ -227,6 +264,7 @@ export async function getConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
   }
 
   const config: OceanNodeConfig = {
+    authorizedDecrypters: getAuthorizedDecrypters(),
     keys,
     // Only enable indexer if we have a DB_URL and supportedNetworks
     hasIndexer: !!(!!getEnvValue(process.env.DB_URL, '') && !!supportedNetworks),

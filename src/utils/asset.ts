@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { DDO } from '../@types/DDO/DDO'
 import { Service } from '../@types/DDO/Service'
 
@@ -20,5 +21,47 @@ export const AssetUtils = {
   getServiceById(asset: DDO, id: string): Service | null {
     const services = asset.services.filter((service: Service) => service.id === id)
     return services.length ? services[0] : null
+  }
+}
+
+export async function fetchFileMetadata(
+  url: string
+): Promise<{ contentLength: string; contentType: string }> {
+  let contentLength: string = ''
+  let contentType: string = ''
+  try {
+    // First try with HEAD request
+    const response = await axios.head(url)
+
+    contentLength = response.headers['content-length']
+    contentType = response.headers['content-type']
+  } catch (error) {
+    // Fallback to GET request
+    try {
+      const response = await axios.get(url, { method: 'GET', responseType: 'stream' })
+
+      contentLength = response.headers['content-length']
+      contentType = response.headers['content-type']
+    } catch (error) {
+      contentLength = 'Unknown'
+    }
+  }
+
+  if (!contentLength) {
+    try {
+      const response = await axios.get(url, { responseType: 'stream' })
+      let totalSize = 0
+
+      for await (const chunk of response.data) {
+        totalSize += chunk.length
+      }
+      contentLength = totalSize.toString()
+    } catch (error) {
+      contentLength = 'Unknown'
+    }
+  }
+  return {
+    contentLength,
+    contentType
   }
 }

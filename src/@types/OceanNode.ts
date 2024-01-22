@@ -31,6 +31,7 @@ export interface OceanNodeP2PConfig {
 }
 
 export interface OceanNodeConfig {
+  authorizedDecrypters: string[]
   keys: OceanNodeKeys
   hasP2P: boolean
   p2pConfig: OceanNodeP2PConfig | null
