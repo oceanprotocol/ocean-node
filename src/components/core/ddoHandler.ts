@@ -2,6 +2,9 @@ import { Handler } from './handler.js'
 import {
   GetDdoCommand,
   FindDDOCommand,
+  DecryptDDOCommand,
+  MetadataStates,
+  ValidateDDOCommand,
   PROTOCOL_COMMANDS
 } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
@@ -17,13 +20,310 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { sleep, readStream } from '../../utils/util.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { FindDDOResponse } from '../../@types/index.js'
-import { P2P_CONSOLE_LOGGER } from '../../utils/logging/common.js'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
+import { Blockchain } from '../../utils/blockchain.js'
+import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
+import { getOceanArtifactsAdresses } from '../../utils/address.js'
+import { ethers, hexlify } from 'ethers'
+import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
+import { decrypt } from '../../utils/crypt.js'
+import { createHash } from 'crypto'
+import lzma from 'lzma-native'
+import { validateObject } from './utils/validateDdoHandler.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
 const MAX_RESPONSE_WAIT_TIME_SECONDS = 60
 // wait time for reading the next getDDO command
 const MAX_WAIT_TIME_SECONDS_GET_DDO = 5
+
+export class DecryptDdoHandler extends Handler {
+  async handle(task: DecryptDDOCommand): Promise<P2PCommandResponse> {
+    try {
+      let decrypterAddress: string
+      try {
+        decrypterAddress = ethers.getAddress(task.decrypterAddress)
+      } catch (error) {
+        CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: 'Decrypt DDO: invalid parameter decrypterAddress'
+          }
+        }
+      }
+
+      const nonce = Number(task.nonce)
+      if (isNaN(nonce)) {
+        CORE_LOGGER.logMessage(
+          `Decrypt DDO: error ${task.nonce} value is not a number`,
+          true
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: `Decrypt DDO: nonce value is not a number`
+          }
+        }
+      }
+
+      const node = this.getP2PNode()
+      const dbNonce = node.getDatabase().nonce
+      const existingNonce = await dbNonce.retrieve(decrypterAddress)
+
+      if (existingNonce && existingNonce.nonce === nonce) {
+        CORE_LOGGER.logMessage(`Decrypt DDO: error ${task.nonce} duplicate nonce`, true)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: `Decrypt DDO: duplicate nonce`
+          }
+        }
+      }
+
+      await dbNonce.update(decrypterAddress, nonce)
+      const chainId = String(task.chainId)
+      const config = node.getConfig()
+      const supportedNetwork = config.supportedNetworks[chainId]
+
+      // check if supported chainId
+      if (!supportedNetwork) {
+        CORE_LOGGER.logMessage(`Decrypt DDO: Unsupported chain id ${chainId}`, true)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: `Decrypt DDO: Unsupported chain id`
+          }
+        }
+      }
+
+      if (!config.authorizedDecrypters.includes(decrypterAddress)) {
+        CORE_LOGGER.logMessage('Decrypt DDO: Decrypter not authorized', true)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 403,
+            error: 'Decrypt DDO: Decrypter not authorized'
+          }
+        }
+      }
+
+      const blockchain = new Blockchain(supportedNetwork.rpc, supportedNetwork.chainId)
+      const provider = blockchain.getProvider()
+      const signer = await provider.getSigner()
+      const artifactsAddresses = getOceanArtifactsAdresses()
+      const factoryAddress = ethers.getAddress(
+        artifactsAddresses[supportedNetwork.network].ERC721Factory
+      )
+      const factoryContract = new ethers.Contract(
+        factoryAddress,
+        ERC721Factory.abi,
+        signer
+      )
+      const dataNftAddress = ethers.getAddress(task.dataNftAddress)
+      const factoryListAddress = await factoryContract.erc721List(dataNftAddress)
+
+      if (dataNftAddress !== factoryListAddress) {
+        CORE_LOGGER.logMessage(
+          'Decrypt DDO: Asset not deployed by the data NFT factory',
+          true
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: 'Decrypt DDO: Asset not deployed by the data NFT factory'
+          }
+        }
+      }
+
+      const transactionId = task.transactionId ? String(task.transactionId) : ''
+      let encryptedDocument: Uint8Array
+      let flags: number
+      let documentHash: string
+
+      if (transactionId) {
+        try {
+          const receipt = await provider.getTransactionReceipt(transactionId)
+          if (!receipt.logs.length) {
+            throw new Error('receipt logs 0')
+          }
+          const abiInterface = new ethers.Interface(ERC721Template.abi)
+          const eventObject = {
+            topics: receipt.logs[0].topics as string[],
+            data: receipt.logs[0].data
+          }
+          const eventData = abiInterface.parseLog(eventObject)
+          if (eventData.name !== 'MetadataCreated') {
+            throw new Error(`event name ${eventData.name}`)
+          }
+          flags = parseInt(eventData.args[3], 16)
+          encryptedDocument = ethers.getBytes(eventData.args[4])
+          documentHash = eventData.args[5]
+        } catch (error) {
+          CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: 'Decrypt DDO: Failed to process transaction id'
+            }
+          }
+        }
+      } else {
+        try {
+          encryptedDocument = ethers.getBytes(task.encryptedDocument)
+          flags = Number(task.flags)
+          documentHash = task.documentHash
+        } catch (error) {
+          CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: 'Decrypt DDO: Failed to convert input args to bytes'
+            }
+          }
+        }
+      }
+
+      const templateContract = new ethers.Contract(
+        dataNftAddress,
+        ERC721Template.abi,
+        signer
+      )
+      const metaData = await templateContract.getMetaData()
+      const metaDataState = Number(metaData[2])
+      if (
+        [
+          MetadataStates.END_OF_LIFE,
+          MetadataStates.DEPRECATED,
+          MetadataStates.REVOKED
+        ].includes(metaDataState)
+      ) {
+        CORE_LOGGER.logMessage(`Decrypt DDO: error metadata state ${metaDataState}`, true)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 403,
+            error: 'Decrypt DDO: invalid metadata state'
+          }
+        }
+      }
+
+      if (
+        ![
+          MetadataStates.ACTIVE,
+          MetadataStates.ORDERING_DISABLED,
+          MetadataStates.UNLISTED
+        ].includes(metaDataState)
+      ) {
+        CORE_LOGGER.logMessage(`Decrypt DDO: error metadata state ${metaDataState}`, true)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: 'Decrypt DDO: invalid metadata state'
+          }
+        }
+      }
+
+      let decryptedDocument: Buffer
+      // check if DDO is ECIES encrypted
+      if (flags & 2) {
+        try {
+          decryptedDocument = await decrypt(encryptedDocument, 'ECIES')
+        } catch (error) {
+          CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: 'Decrypt DDO: Failed to decrypt'
+            }
+          }
+        }
+      }
+
+      if (flags & 1) {
+        try {
+          lzma.decompress(
+            decryptedDocument,
+            { synchronous: true },
+            (decompressedResult) => {
+              decryptedDocument = decompressedResult
+            }
+          )
+        } catch (error) {
+          CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: 'Decrypt DDO: Failed to lzma decompress'
+            }
+          }
+        }
+      }
+
+      // checksum matches
+      const decryptedDocumentHash =
+        '0x' + createHash('sha256').update(hexlify(decryptedDocument)).digest('hex')
+      if (decryptedDocumentHash !== documentHash) {
+        CORE_LOGGER.logMessage(
+          `Decrypt DDO: error checksum does not match ${decryptedDocumentHash} with ${documentHash}`,
+          true
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: 'Decrypt DDO: checksum does not match'
+          }
+        }
+      }
+
+      // check signature
+      try {
+        const message = String(
+          transactionId + dataNftAddress + decrypterAddress + chainId + nonce
+        )
+        const messageHash = ethers.solidityPackedKeccak256(
+          ['bytes'],
+          [ethers.hexlify(ethers.toUtf8Bytes(message))]
+        )
+        const addressSignature = ethers.verifyMessage(messageHash, task.signature)
+        if (addressSignature !== decrypterAddress) {
+          throw new Error('address does not match')
+        }
+      } catch (error) {
+        CORE_LOGGER.logMessage(`Decrypt DDO: error signature ${error}`, true)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: 'Decrypt DDO: invalid signature or does not match'
+          }
+        }
+      }
+
+      return {
+        stream: Readable.from(decryptedDocument.toString()),
+        status: { httpStatus: 201 }
+      }
+    } catch (error) {
+      CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
+      return {
+        stream: null,
+        status: { httpStatus: 500, error: `Decrypt DDO: Unknown error ${error}` }
+      }
+    }
+  }
+}
 
 export class GetDdoHandler extends Handler {
   async handle(task: GetDdoCommand): Promise<P2PCommandResponse> {
@@ -58,10 +358,7 @@ export class FindDdoHandler extends Handler {
       // if we have the result cached recently we return that result
       if (hasCachedDDO(task, node)) {
         // 'found cached DDO'
-        P2P_CONSOLE_LOGGER.logMessage(
-          'Found local cached version for DDO id: ' + task.id,
-          true
-        )
+        CORE_LOGGER.logMessage('Found local cached version for DDO id: ' + task.id, true)
         resultList.push(node.getDDOCache().dht.get(task.id))
         return {
           stream: Readable.from(JSON.stringify(resultList, null, 4)),
@@ -105,7 +402,7 @@ export class FindDdoHandler extends Handler {
             }
             resultList.push(ddoInfo)
 
-            P2P_CONSOLE_LOGGER.logMessage(
+            CORE_LOGGER.logMessage(
               `Succesfully processed DDO info, id: ${ddo.id} from remote peer: ${peer}`,
               true
             )
@@ -126,7 +423,7 @@ export class FindDdoHandler extends Handler {
           }
           processed++
         } catch (err) {
-          P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+          CORE_LOGGER.logMessageWithEmoji(
             'FindDDO: Error on sink function: ' + err.message,
             true,
             GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -139,11 +436,7 @@ export class FindDdoHandler extends Handler {
 
       // if something goes really bad then exit after 60 secs
       const fnTimeout = setTimeout(() => {
-        P2P_CONSOLE_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_DEBUG,
-          'FindDDO: Timeout reached: ',
-          true
-        )
+        CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_DEBUG, 'FindDDO: Timeout reached: ', true)
         return {
           stream: Readable.from(JSON.stringify(sortFindDDOResults(resultList), null, 4)),
           status: { httpStatus: 200 }
@@ -208,7 +501,7 @@ export class FindDdoHandler extends Handler {
                 processed++
               }
               // 'sleep 5 seconds...'
-              P2P_CONSOLE_LOGGER.logMessage(
+              CORE_LOGGER.logMessage(
                 `Sleeping for: ${MAX_WAIT_TIME_SECONDS_GET_DDO} seconds, while getting DDO info remote peer...`,
                 true
               )
@@ -253,7 +546,7 @@ export class FindDdoHandler extends Handler {
       }
     } catch (error) {
       // 'FindDDO big error: '
-      P2P_CONSOLE_LOGGER.logMessageWithEmoji(
+      CORE_LOGGER.logMessageWithEmoji(
         `Error: '${error.message}' was caught while getting DDO info for id: ${task.id}`,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -274,7 +567,7 @@ export class FindDdoHandler extends Handler {
       const ddo = await node.getDatabase().ddo.retrieve(ddoId)
       return ddo as DDO
     } catch (error) {
-      P2P_CONSOLE_LOGGER.logMessage(
+      CORE_LOGGER.logMessage(
         `Unable to find DDO locally. Proceeding to call findDDO`,
         true
       )
@@ -317,8 +610,38 @@ export class FindDdoHandler extends Handler {
 
       return null
     } catch (error) {
-      P2P_CONSOLE_LOGGER.logMessage(`Error getting DDO: ${error}`, true)
+      CORE_LOGGER.logMessage(`Error getting DDO: ${error}`, true)
       return null
+    }
+  }
+}
+
+export class ValidateDDOHandler extends Handler {
+  async handle(task: ValidateDDOCommand): Promise<P2PCommandResponse> {
+    try {
+      const ddo = await this.getP2PNode().getDatabase().ddo.retrieve(task.id)
+      if (!ddo) {
+        return {
+          stream: null,
+          status: { httpStatus: 404, error: 'Not found' }
+        }
+      }
+      const validation = await validateObject(ddo, task.chainId, task.nftAddress)
+      if (validation[0] === false) {
+        return {
+          stream: null,
+          status: { httpStatus: 400, error: `Validation error: ${validation[1]}` }
+        }
+      }
+      return {
+        stream: Readable.from(JSON.stringify({})),
+        status: { httpStatus: 200 }
+      }
+    } catch (error) {
+      return {
+        stream: null,
+        status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
+      }
     }
   }
 }

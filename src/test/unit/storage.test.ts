@@ -4,12 +4,13 @@ import {
   ArweaveStorage,
   IpfsStorage
 } from '../../components/storage/index.js'
-
-import { expect } from 'chai'
+import { FileInfoRequest } from '../../@types/fileObject.js'
+import { expect, assert } from 'chai'
 import {
   OverrideEnvConfig,
   buildEnvOverrideConfig,
-  tearDownEnvironment
+  tearDownEnvironment,
+  setupEnvironment
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 
@@ -155,7 +156,7 @@ describe('IPFS Storage tests', () => {
   before(() => {
     previousConfiguration = buildEnvOverrideConfig(
       [ENVIRONMENT_VARIABLES.IPFS_GATEWAY],
-      ['https://ipfs.io']
+      ['https://ipfs.oceanprotocol.com']
     )
   })
 
@@ -216,6 +217,117 @@ describe('Arweave Storage tests', () => {
     expect(error.message).to.eql(
       'Error validationg the Arweave file: Missing transaction ID'
     )
+  })
+
+  after(() => {
+    tearDownEnvironment(previousConfiguration)
+  })
+})
+
+describe('URL Storage getFileInfo tests', () => {
+  let storage: UrlStorage
+  before(() => {
+    storage = new UrlStorage({
+      type: 'url',
+      url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
+      method: 'get'
+    })
+  })
+
+  it('Successfully retrieves file info for a URL', async () => {
+    const fileInfoRequest: FileInfoRequest = {
+      type: 'url'
+    }
+    const fileInfo = await storage.getFileInfo(fileInfoRequest)
+
+    assert(fileInfo[0].valid, 'File info is valid')
+    expect(fileInfo[0].contentLength).to.equal('13873')
+    expect(fileInfo[0].contentType).to.equal('text/plain')
+    expect(fileInfo[0].name).to.equal('organizations-100.csv')
+    expect(fileInfo[0].type).to.equal('url')
+  })
+
+  it('Throws error when URL is missing in request', async () => {
+    const fileInfoRequest: FileInfoRequest = { type: 'url' }
+    try {
+      await storage.getFileInfo(fileInfoRequest)
+    } catch (err) {
+      expect(err.message).to.equal('URL is required for type url')
+    }
+  })
+})
+
+describe('Arweave Storage getFileInfo tests', () => {
+  let storage: ArweaveStorage
+
+  before(() => {
+    storage = new ArweaveStorage({
+      type: 'arweave',
+      transactionId: 'gPPDyusRh2ZyFl-sQ2ODK6hAwCRBAOwp0OFKr0n23QE'
+    })
+  })
+
+  it('Successfully retrieves file info for an Arweave transaction', async () => {
+    const fileInfoRequest: FileInfoRequest = {
+      type: 'arweave'
+    }
+    const fileInfo = await storage.getFileInfo(fileInfoRequest)
+
+    assert(fileInfo[0].valid, 'File info is valid')
+    assert(fileInfo[0].type === 'arweave', 'Type is incorrect')
+    assert(
+      fileInfo[0].contentType === 'text/csv; charset=utf-8',
+      'Content type is incorrect'
+    )
+    assert(fileInfo[0].contentLength === '680782', 'Content length is incorrect')
+  })
+
+  it('Throws error when transaction ID is missing in request', async () => {
+    const fileInfoRequest: FileInfoRequest = { type: 'arweave' }
+    try {
+      await storage.getFileInfo(fileInfoRequest)
+    } catch (err) {
+      expect(err.message).to.equal('Transaction ID is required for type arweave')
+    }
+  })
+})
+
+describe('IPFS Storage getFileInfo tests', async function () {
+  this.timeout(15000)
+  let storage: IpfsStorage
+  let previousConfiguration: OverrideEnvConfig[]
+
+  before(async () => {
+    previousConfiguration = await buildEnvOverrideConfig(
+      [ENVIRONMENT_VARIABLES.IPFS_GATEWAY],
+      ['https://ipfs.oceanprotocol.com']
+    )
+    await setupEnvironment(undefined, previousConfiguration) // Apply the environment override
+
+    storage = new IpfsStorage({
+      type: 'ipfs',
+      hash: 'QmRhsp7eghZtW4PktPC2wAHdKoy2LiF1n6UXMKmAhqQJUA'
+    })
+  })
+
+  it('Successfully retrieves file info for an IPFS hash', async () => {
+    const fileInfoRequest: FileInfoRequest = {
+      type: 'ipfs'
+    }
+    const fileInfo = await storage.getFileInfo(fileInfoRequest)
+    assert(fileInfo[0].valid, 'File info is valid')
+    assert(fileInfo[0].type === 'ipfs', 'Type is incorrect')
+    assert(fileInfo[0].contentType === 'text/csv', 'Content type is incorrect')
+    assert(fileInfo[0].contentLength === '680782', 'Content length is incorrect')
+  })
+
+  it('Throws error when hash is missing in request', async () => {
+    const fileInfoRequest: FileInfoRequest = { type: 'ipfs' }
+    try {
+      await storage.getFileInfo(fileInfoRequest)
+    } catch (err) {
+      expect(err.message).to.equal('Hash is required for type ipfs')
+    }
   })
 
   after(() => {

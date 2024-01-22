@@ -4,8 +4,14 @@ import {
   SUPPORTED_PROTOCOL_COMMANDS
 } from '../../utils/constants.js'
 import { OCEAN_NODE_LOGGER } from '../../utils/logging/common.js'
-import { GetDdoHandler, FindDdoHandler } from './ddoHandler.js'
+import {
+  GetDdoHandler,
+  FindDdoHandler,
+  DecryptDdoHandler,
+  ValidateDDOHandler
+} from './ddoHandler.js'
 import { DownloadHandler } from './downloadHandler.js'
+import { FileInfoHandler } from './fileInfoHandler.js'
 import { EchoHandler } from './echoHandler.js'
 import { EncryptHandler } from './encryptHandler.js'
 import { FeesHandler } from './feesHandler.js'
@@ -48,12 +54,14 @@ export class CoreHandlersRegistry {
   private static instance: CoreHandlersRegistry
   // map of handlers registered
   private coreHandlers: Map<string, Handler> = new Map<string, Handler>()
+
   // private readonly node: OceanP2P
   private constructor(node: OceanP2P) {
     // implement core handlers
     this.registerCoreHandler(PROTOCOL_COMMANDS.DOWNLOAD, new DownloadHandler(node))
-    this.registerCoreHandler(PROTOCOL_COMMANDS.ENCRYPT, new EncryptHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.DECRYPT_DDO, new DecryptDdoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.NONCE, new NonceHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.ENCRYPT, new EncryptHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.GET_DDO, new GetDdoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.QUERY, new QueryHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.STATUS, new StatusHandler(node))
@@ -61,7 +69,8 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(PROTOCOL_COMMANDS.GET_FEES, new FeesHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.ECHO, new EchoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.REINDEX, new ReindexHandler(node))
-    this.registerCoreHandler(PROTOCOL_COMMANDS.NONCE, new NonceHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.FILE_INFO, new FileInfoHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.VALIDATE_DDO, new ValidateDDOHandler(node))
   }
 
   public static getInstance(node: OceanP2P): CoreHandlersRegistry {
@@ -80,7 +89,8 @@ export class CoreHandlersRegistry {
   // PROTOCOL_COMMANDS.QUERY,
   // PROTOCOL_COMMANDS.STATUS,
   // PROTOCOL_COMMANDS.FIND_DDO,
-  // PROTOCOL_COMMANDS.GET_FEES
+  // PROTOCOL_COMMANDS.GET_FEES,
+  // PROTOCOL_COMMANDS.VALIDATE_DDO
 
   // private method for registering the core handlers
   private registerCoreHandler(handlerName: string, handlerObj: Handler) {

@@ -26,3 +26,25 @@ export interface StorageReadable {
   httpStatus?: number
   headers?: [any]
 }
+
+export interface FileInfoRequest {
+  type: 'url' | 'ipfs' | 'arweave'
+  fileIndex?: number
+}
+
+export interface FileInfoResponse {
+  valid: boolean
+  contentLength: string
+  contentType: string
+  name: string
+  type: string
+}
+
+export interface FileInfoHttpRequest {
+  type?: 'ipfs' | 'url' | 'arweave'
+  did?: string
+  hash?: string
+  url?: string
+  transactionId?: string
+  serviceId?: string
+}

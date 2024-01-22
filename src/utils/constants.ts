@@ -1,5 +1,6 @@
 import { Hashes } from '../@types/blockchain'
 import { DDO } from '../@types/DDO/DDO'
+import { ArweaveFileObject, IpfsFileObject, UrlFileObject } from '../@types/fileObject'
 import { P2PCommandResponse } from '../@types/OceanNode'
 
 // Add all the supported commands
@@ -9,12 +10,15 @@ export const PROTOCOL_COMMANDS = {
   REINDEX: 'reIndex',
   ECHO: 'echo',
   ENCRYPT: 'encrypt',
+  DECRYPT_DDO: 'decryptDDO',
   GET_DDO: 'getDDO',
   QUERY: 'query',
   NONCE: 'nonce',
   STATUS: 'status',
   FIND_DDO: 'findDDO',
-  GET_FEES: 'getFees'
+  GET_FEES: 'getFees',
+  FILE_INFO: 'fileInfo',
+  VALIDATE_DDO: 'validateDDO'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -23,11 +27,14 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.ECHO,
   PROTOCOL_COMMANDS.ENCRYPT,
   PROTOCOL_COMMANDS.NONCE,
+  PROTOCOL_COMMANDS.DECRYPT_DDO,
   PROTOCOL_COMMANDS.GET_DDO,
   PROTOCOL_COMMANDS.QUERY,
   PROTOCOL_COMMANDS.STATUS,
   PROTOCOL_COMMANDS.FIND_DDO,
-  PROTOCOL_COMMANDS.GET_FEES
+  PROTOCOL_COMMANDS.GET_FEES,
+  PROTOCOL_COMMANDS.FILE_INFO,
+  PROTOCOL_COMMANDS.VALIDATE_DDO
 ]
 
 export interface Command {
@@ -53,12 +60,24 @@ export interface DownloadCommand extends Command {
   aes_encrypted_key?: string // if not present it means download without encryption
 }
 
+export interface FileInfoCommand extends Command {
+  type?: 'url' | 'ipfs' | 'arweave'
+  did?: string
+  serviceId?: string
+  fileIndex?: number
+  file?: UrlFileObject | ArweaveFileObject | IpfsFileObject
+  checksum?: boolean
+}
 // group these 2
 export interface DDOCommand extends Command {
   id: string
 }
 export interface GetDdoCommand extends DDOCommand {}
 export interface FindDDOCommand extends DDOCommand {}
+export interface ValidateDDOCommand extends DDOCommand {
+  chainId: number
+  nftAddress: string
+}
 
 export interface StatusCommand extends Command {}
 
@@ -70,6 +89,18 @@ export interface ReindexCommand extends Command {
   txId: string
   chainId: number
   eventIndex?: number
+}
+
+export interface DecryptDDOCommand extends Command {
+  decrypterAddress: string
+  chainId: number
+  transactionId?: string
+  dataNftAddress?: string
+  encryptedDocument?: string
+  flags?: number
+  documentHash?: string
+  nonce: string
+  signature: string
 }
 
 export interface EncryptCommand extends Command {
@@ -162,6 +193,7 @@ export interface EnvVariable {
   value: any
   required: boolean
 }
+
 // usefull to keep track of what all the env variables we are using
 // (faster to read than README and we can easily use the constants if needed)
 // required means its not mandatory OR we have defaults
@@ -203,5 +235,16 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   },
   FEE_TOKENS: { name: 'FEE_TOKENS', value: process.env.FEE_TOKENS, required: false },
   FEE_AMOUNT: { name: 'FEE_AMOUNT', value: process.env.FEE_AMOUNT, required: false },
-  ADDRESS_FILE: { name: 'ADDRESS_FILE', value: process.env.ADDRESS_FILE, required: false }
+  ADDRESS_FILE: {
+    name: 'ADDRESS_FILE',
+    value: process.env.ADDRESS_FILE,
+    required: false
+  },
+  // node specific
+  NODE_ENV: { name: 'NODE_ENV', value: process.env.NODE_ENV, required: false },
+  AUTHORIZED_DECRYPTERS: {
+    name: 'AUTHORIZED_DECRYPTERS',
+    value: process.env.AUTHORIZED_DECRYPTERS,
+    required: false
+  }
 }
