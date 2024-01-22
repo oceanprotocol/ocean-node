@@ -96,7 +96,7 @@ export async function proccesNetworkData(): Promise<void> {
           blocksToProcess
         )
         updateLastIndexedBlockNumber(processedBlocks.lastBlock)
-        await checkNewlyIndexedAssets(processBlocks)
+        await checkNewlyIndexedAssets(processedBlocks.foundEvents)
         lastIndexedBlock = processedBlocks.lastBlock
       } catch (error) {
         INDEXER_LOGGER.log(
