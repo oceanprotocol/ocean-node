@@ -1,6 +1,7 @@
 import { TypesenseCollectionCreateSchema } from '../../@types/index.js'
 import fs from 'fs'
-import path from 'path'
+import path, { dirname, resolve } from 'path'
+import { fileURLToPath } from 'url'
 import { OCEAN_NODE_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 // import { readJsonSchemas } from '../../index.js'
@@ -8,8 +9,13 @@ import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 export function readJsonSchemas(): any[] {
   const jsonDocuments: any[] = []
   const pathToSchemaDir: string = '../../../schemas/v4'
+  const currentModulePath = fileURLToPath(import.meta.url)
+
+  // Use dirname to get the directory name
+  const currentDirectory = dirname(currentModulePath)
+  const schemaFilePath = resolve(currentDirectory, pathToSchemaDir)
   const jsonFiles = fs
-    .readdirSync(pathToSchemaDir)
+    .readdirSync(schemaFilePath)
     .filter((file) => path.extname(file) === '.json')
   jsonFiles.forEach((file) => {
     try {
