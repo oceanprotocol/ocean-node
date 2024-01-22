@@ -1,15 +1,14 @@
+import EventEmitter from 'node:events'
 import { Worker } from 'node:worker_threads'
 import { Database } from '../database/index.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
-import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { EVENTS } from '../../utils/index.js'
-import EventEmitter from 'node:events'
-import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { ReindexTask } from './crawlerThread.js'
+import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { INDEXER_LOGGER } from '../../utils/logging/common.js'
+import { EVENTS } from '../../utils/index.js'
 
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
-
 export class OceanIndexer {
   private db: Database
   private networks: RPCS
@@ -41,17 +40,8 @@ export class OceanIndexer {
       })
 
       worker.on('message', (event: any) => {
-        if (event.method === 'store-last-indexed-block') {
-          this.updateLastIndexedBlockNumber(event.network, event.data)
-        }
-        if (
-          event.method === EVENTS.METADATA_CREATED ||
-          event.method === EVENTS.METADATA_UPDATED ||
-          event.method === EVENTS.METADATA_STATE ||
-          event.method === EVENTS.ORDER_STARTED ||
-          event.method === EVENTS.ORDER_REUSED
-        ) {
-          this.createOrUpdateDDO(event.network, event.data, event.method)
+        if (event.method === EVENTS.METADATA_CREATED) {
+          this.advertiseDDO(event.network, event.data, event.method)
         }
       })
 
@@ -82,6 +72,11 @@ export class OceanIndexer {
     }
   }
 
+  public async advertiseDDO(network: number, ddo: any, method: string): Promise<void> {
+    INDEXER_LOGGER.logMessage(`Advertising new DDO : ${ddo.id} from network: ${network} `)
+    INDEXER_DDO_EVENT_EMITTER.emit(method, ddo.id)
+  }
+
   public async getLastIndexedBlock(network: number): Promise<number> {
     const dbconn = this.db.indexer
     try {
@@ -94,50 +89,6 @@ export class OceanIndexer {
         true
       )
       return null
-    }
-  }
-
-  public async createOrUpdateDDO(
-    network: number,
-    ddo: any,
-    method: string
-  ): Promise<void> {
-    const dbconn = this.db.ddo
-    try {
-      const saveDDO = await dbconn.update({ ...ddo })
-      INDEXER_LOGGER.logMessage(
-        `Saved or updated DDO  : ${saveDDO.id} from network: ${network} `
-      )
-      // emit event
-      if (method === EVENTS.METADATA_CREATED) {
-        INDEXER_DDO_EVENT_EMITTER.emit(EVENTS.METADATA_CREATED, saveDDO.id)
-      }
-    } catch (err) {
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `Error retrieving & storing DDO: ${err}`,
-        true
-      )
-    }
-  }
-
-  public async updateLastIndexedBlockNumber(
-    network: number,
-    block: number
-  ): Promise<void> {
-    const dbconn = this.db.indexer
-    try {
-      const updatedIndex = await dbconn.update(network, block)
-      INDEXER_LOGGER.logMessage(
-        `New last indexed block : ${updatedIndex.lastIndexedBlock}`,
-        true
-      )
-    } catch (err) {
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        'Error retrieving last indexed block',
-        true
-      )
     }
   }
 }
