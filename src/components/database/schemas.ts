@@ -19,14 +19,14 @@ export function readJsonSchemas(): any[] {
   jsonFiles.forEach((file) => {
     try {
       // eslint-disable-next-line security/detect-non-literal-fs-filename
-      const fileData = fs.readFileSync(path.join(pathToSchemaDir, file), 'utf-8')
+      const fileData = fs.readFileSync(path.join(schemaFilePath, file), 'utf-8')
       const jsonFile = JSON.parse(fileData.toString())
       DATABASE_LOGGER.logMessage(`schema ${jsonFile}`)
       jsonDocuments.push(jsonFile)
     } catch (err) {
       DATABASE_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_WARN,
-        `Error loading DDO schema from ${path.join(pathToSchemaDir, file)}`,
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `Error loading DDO schema from ${path.join(pathToSchemaDir, file)}: ${err}`,
         true
       )
     }
