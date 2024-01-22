@@ -161,7 +161,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should store the ddo in the database and return it ', async () => {
     resolvedDDO = await waitToIndex(assetDID, database)
-    console.log('resolvedDDO', resolvedDDO)
     expect(resolvedDDO.id).to.equal(genericAsset.id)
   })
 
