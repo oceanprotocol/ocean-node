@@ -10,6 +10,7 @@ import { getConfig } from './utils/index.js'
 
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import fs from 'fs'
+import path from 'path'
 import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
 
 const app: Express = express()
@@ -21,6 +22,20 @@ declare global {
       oceanNode: OceanNode
     }
   }
+}
+
+export function readJsonSchemas(): any[] {
+  const jsonDocuments: any[] = []
+  const pathToSchemaDir: string = '../schemas/v4'
+  const jsonFiles = fs
+    .readdirSync(pathToSchemaDir)
+    .filter((file) => path.extname(file) === '.json')
+  jsonFiles.forEach((file) => {
+    const fileData = fs.readFileSync(path.join(pathToSchemaDir, file))
+    const jsonFile = JSON.parse(fileData.toString())
+    jsonDocuments.push(jsonFile)
+  })
+  return jsonDocuments
 }
 
 // we have 5 json examples
@@ -70,6 +85,7 @@ let dbconn = null
 if (config.dbConfig?.url) {
   // once we create a database instance, we check the environment and possibly add the DB transport
   // after that, all loggers will eventually have it too (if in production/staging environments)
+  // it creates dinamically DDO schemas
   dbconn = await new Database(config.dbConfig)
 } else {
   config.hasIndexer = false

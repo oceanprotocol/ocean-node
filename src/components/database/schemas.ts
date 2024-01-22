@@ -1,4 +1,5 @@
 import { TypesenseCollectionCreateSchema } from '../../@types/index.js'
+import { readJsonSchemas } from '../../index.js'
 
 export type Schema = TypesenseCollectionCreateSchema
 export type Schemas = {
@@ -8,24 +9,9 @@ export type Schemas = {
   logSchemas: Schema
   orderSchema: Schema
 }
+const ddoSchemas = readJsonSchemas()
 export const schemas: Schemas = {
-  ddoSchemas: [
-    {
-      name: 'op_ddo_v5_1',
-      enable_nested_fields: true,
-      fields: [{ name: '.*', type: 'auto', optional: true }] // optional: true for turning the full version DDO into short one for states DEPRECATED and REVOKED
-    },
-    {
-      name: 'op_ddo_v3',
-      enable_nested_fields: true,
-      fields: [{ name: '.*', type: 'auto', optional: true }] // optional: true for turning the full version DDO into short one for states DEPRECATED and REVOKED
-    },
-    {
-      name: 'op_ddo_v1',
-      enable_nested_fields: true,
-      fields: [{ name: '.*', type: 'auto', optional: true }] // optional: true for turning the full version DDO into short one for states DEPRECATED and REVOKED
-    }
-  ],
+  ddoSchemas,
   nonceSchemas: {
     name: 'nonce',
     enable_nested_fields: true,
