@@ -11,6 +11,7 @@ import {
   ValidateDDOHandler
 } from './ddoHandler.js'
 import { DownloadHandler } from './downloadHandler.js'
+import { FileInfoHandler } from './fileInfoHandler.js'
 import { EchoHandler } from './echoHandler.js'
 import { EncryptHandler } from './encryptHandler.js'
 import { FeesHandler } from './feesHandler.js'
@@ -68,6 +69,7 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(PROTOCOL_COMMANDS.GET_FEES, new FeesHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.ECHO, new EchoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.REINDEX, new ReindexHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.FILE_INFO, new FileInfoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.VALIDATE_DDO, new ValidateDDOHandler(node))
   }
 

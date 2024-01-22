@@ -7,6 +7,7 @@ import { providerRoutes } from './provider.js'
 import { aquariusRoutes } from './aquarius.js'
 import { rootEndpointRoutes } from './rootEndpoint.js'
 import { downloadRoute } from './download.js'
+import { fileInfoRoute } from './fileInfo.js'
 export * from './getOceanPeers.js'
 
 export const httpRoutes = express.Router()
@@ -20,6 +21,7 @@ httpRoutes.use(broadcastCommandRoute)
 httpRoutes.use(directCommandRoute)
 httpRoutes.use(logRoutes)
 httpRoutes.use(downloadRoute)
+httpRoutes.use(fileInfoRoute)
 httpRoutes.use('/api/services/', providerRoutes)
 httpRoutes.use('/api/aquarius/', aquariusRoutes)
 httpRoutes.use(rootEndpointRoutes)

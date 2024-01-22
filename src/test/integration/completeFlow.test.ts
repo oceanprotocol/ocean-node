@@ -20,7 +20,7 @@ import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { RPCS } from '../../@types/blockchain.js'
-import { getEventFromTx, streamToString } from '../../utils/util.js'
+import { getEventFromTx, streamToString, streamToObject } from '../../utils/util.js'
 import { delay, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS, getConfig } from '../../utils/index.js'
@@ -30,6 +30,7 @@ import { StatusHandler } from '../../components/core/statusHandler.js'
 
 import { Readable } from 'stream'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { UrlFileObject } from '../../@types/fileObject.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import {
@@ -37,6 +38,7 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
+import { FileInfoHandler } from '../../components/core/fileInfoHandler.js'
 
 describe('Should run a complete node flow.', () => {
   let config: OceanNodeConfig
@@ -131,6 +133,33 @@ describe('Should run a complete node flow.', () => {
     assert(status.id === oceanNodeConfig.keys.peerId.toString(), 'peer id not matching ')
   })
 
+  it('should get file info before publishing', async () => {
+    const storage: UrlFileObject = {
+      type: 'url',
+      url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
+      method: 'get'
+    }
+    const fileInfoTask = {
+      command: PROTOCOL_COMMANDS.FILE_INFO,
+      file: storage,
+      type: 'url' as 'url'
+    }
+    const response = await new FileInfoHandler(p2pNode).handle(fileInfoTask)
+
+    assert(response)
+    assert(response.stream, 'stream not present')
+    assert(response.status.httpStatus === 200, 'http status not 200')
+    expect(response.stream).to.be.instanceOf(Readable)
+
+    const fileInfo = await streamToObject(response.stream as Readable)
+
+    assert(fileInfo[0].valid, 'File info is valid')
+    expect(fileInfo[0].contentLength).to.equal('417')
+    expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
+    expect(fileInfo[0].name).to.equal('algo.js')
+    expect(fileInfo[0].type).to.equal('url')
+  })
+
   it('should publish a dataset', async function () {
     this.timeout(15000) // Extend default Mocha test timeout
     const tx = await factoryContract.createNftWithErc20(
@@ -182,6 +211,7 @@ describe('Should run a complete node flow.', () => {
     genericAsset.services[0].datatokenAddress = datatokenAddress
 
     assetDID = genericAsset.id
+    console.log('assetDID', assetDID)
 
     const files = {
       datatokenAddress: '0x0',
@@ -234,6 +264,28 @@ describe('Should run a complete node flow.', () => {
   //     'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js'
   //   )
   // })
+
+  it('should get file info with did', async () => {
+    const fileInfoTask = {
+      command: PROTOCOL_COMMANDS.FILE_INFO,
+      did: assetDID,
+      serviceId
+    }
+    const response = await new FileInfoHandler(p2pNode).handle(fileInfoTask)
+
+    assert(response)
+    assert(response.stream, 'stream not present')
+    assert(response.status.httpStatus === 200, 'http status not 200')
+    expect(response.stream).to.be.instanceOf(Readable)
+
+    const fileInfo = await streamToObject(response.stream as Readable)
+
+    assert(fileInfo[0].valid, 'File info is valid')
+    expect(fileInfo[0].contentLength).to.equal('417')
+    expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
+    expect(fileInfo[0].name).to.equal('algo.js')
+    expect(fileInfo[0].type).to.equal('url')
+  })
 
   it('should start an order', async function () {
     this.timeout(15000) // Extend default Mocha test timeout

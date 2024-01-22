@@ -7,6 +7,15 @@ export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+export async function streamToObject(stream: Readable): Promise<any> {
+  const jsonString = await streamToString(stream)
+  try {
+    return JSON.parse(jsonString)
+  } catch (error) {
+    throw new Error('Invalid JSON in stream')
+  }
+}
+
 export async function streamToString(stream: Readable) {
   const chunks = []
   for await (const chunk of stream) {
