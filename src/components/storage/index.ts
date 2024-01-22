@@ -2,8 +2,11 @@ import {
   UrlFileObject,
   IpfsFileObject,
   ArweaveFileObject,
-  StorageReadable
+  StorageReadable,
+  FileInfoRequest,
+  FileInfoResponse
 } from '../../@types/fileObject.js'
+import { fetchFileMetadata } from '../../utils/asset.js'
 import axios from 'axios'
 import urlJoin from 'url-join'
 
@@ -16,6 +19,7 @@ export abstract class Storage {
   abstract validate(): [boolean, string]
 
   abstract getDownloadUrl(): string
+  abstract fetchSpecificFileMetadata(fileObject: any): Promise<FileInfoResponse>
 
   getFile(): any {
     return this.file
@@ -33,6 +37,28 @@ export abstract class Storage {
       default:
         throw new Error(`Invalid storage type: ${type}`)
     }
+  }
+
+  async getFileInfo(fileInfoRequest: FileInfoRequest): Promise<FileInfoResponse[]> {
+    if (!fileInfoRequest.type) {
+      throw new Error('Storage type is not provided')
+    }
+
+    const response: FileInfoResponse[] = []
+
+    try {
+      const file = this.getFile()
+
+      if (!file) {
+        throw new Error('Empty file object')
+      } else {
+        const fileInfo = await this.fetchSpecificFileMetadata(file)
+        response.push(fileInfo)
+      }
+    } catch (error) {
+      console.log(error)
+    }
+    return response
   }
 }
 
@@ -90,6 +116,18 @@ export class UrlStorage extends Storage {
       headers: response.headers as any
     }
   }
+
+  async fetchSpecificFileMetadata(fileObject: UrlFileObject): Promise<FileInfoResponse> {
+    const { url } = fileObject
+    const { contentLength, contentType } = await fetchFileMetadata(url)
+    return {
+      valid: true,
+      contentLength,
+      contentType,
+      name: new URL(url).pathname.split('/').pop() || '',
+      type: 'url'
+    }
+  }
 }
 
 export class ArweaveStorage extends Storage {
@@ -130,6 +168,20 @@ export class ArweaveStorage extends Storage {
       httpStatus: response.status,
       stream: response.data,
       headers: response.headers as any
+    }
+  }
+
+  async fetchSpecificFileMetadata(
+    fileObject: ArweaveFileObject
+  ): Promise<FileInfoResponse> {
+    const url = urlJoin(process.env.ARWEAVE_GATEWAY, fileObject.transactionId)
+    const { contentLength, contentType } = await fetchFileMetadata(url)
+    return {
+      valid: true,
+      contentLength,
+      contentType,
+      name: new URL(url).pathname.split('/').pop() || '',
+      type: 'arweave'
     }
   }
 }
@@ -173,6 +225,18 @@ export class IpfsStorage extends Storage {
       httpStatus: response.status,
       stream: response.data,
       headers: response.headers as any
+    }
+  }
+
+  async fetchSpecificFileMetadata(fileObject: IpfsFileObject): Promise<FileInfoResponse> {
+    const url = urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', fileObject.hash))
+    const { contentLength, contentType } = await fetchFileMetadata(url)
+    return {
+      valid: true,
+      contentLength,
+      contentType,
+      name: '',
+      type: 'ipfs'
     }
   }
 }

@@ -1,5 +1,6 @@
 import { Hashes } from '../@types/blockchain'
 import { DDO } from '../@types/DDO/DDO'
+import { ArweaveFileObject, IpfsFileObject, UrlFileObject } from '../@types/fileObject'
 import { P2PCommandResponse } from '../@types/OceanNode'
 
 // Add all the supported commands
@@ -16,6 +17,7 @@ export const PROTOCOL_COMMANDS = {
   STATUS: 'status',
   FIND_DDO: 'findDDO',
   GET_FEES: 'getFees',
+  FILE_INFO: 'fileInfo',
   VALIDATE_DDO: 'validateDDO'
 }
 // more visible, keep then close to make sure we always update both
@@ -31,6 +33,7 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.STATUS,
   PROTOCOL_COMMANDS.FIND_DDO,
   PROTOCOL_COMMANDS.GET_FEES,
+  PROTOCOL_COMMANDS.FILE_INFO,
   PROTOCOL_COMMANDS.VALIDATE_DDO
 ]
 
@@ -57,6 +60,14 @@ export interface DownloadCommand extends Command {
   aes_encrypted_key?: string // if not present it means download without encryption
 }
 
+export interface FileInfoCommand extends Command {
+  type?: 'url' | 'ipfs' | 'arweave'
+  did?: string
+  serviceId?: string
+  fileIndex?: number
+  file?: UrlFileObject | ArweaveFileObject | IpfsFileObject
+  checksum?: boolean
+}
 // group these 2
 export interface DDOCommand extends Command {
   id: string
