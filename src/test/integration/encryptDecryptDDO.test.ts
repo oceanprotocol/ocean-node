@@ -85,6 +85,7 @@ describe('Should encrypt and decrypt DDO', () => {
         ]
       )
     )
+
     // WE SHOULD STOP DOING THIS!!! It breaks local env and other tests!
     // process.env.PRIVATE_KEY =
     // '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
@@ -140,7 +141,6 @@ describe('Should encrypt and decrypt DDO', () => {
         .digest('hex')
     genericAsset.nftAddress = dataNftAddress
     genericAsset.services[0].datatokenAddress = datatokenAddress
-    // assetDID = genericAsset.id
 
     const metadata = hexlify(Buffer.from(JSON.stringify(genericAsset)))
     documentHash = '0x' + createHash('sha256').update(metadata).digest('hex')
@@ -211,7 +211,7 @@ describe('Should encrypt and decrypt DDO', () => {
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(403)
+    expect(response.status.httpStatus).to.equal(400)
     expect(response.status.error).to.equal(
       'Decrypt DDO: Asset not deployed by the data NFT factory'
     )

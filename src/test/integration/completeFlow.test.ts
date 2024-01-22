@@ -34,6 +34,7 @@ import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import {
   OverrideEnvConfig,
+  buildEnvOverrideConfig,
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
@@ -78,15 +79,13 @@ describe('Should run a complete node flow.', () => {
     }
 
     // override and save configuration (always before calling getConfig())
-    previousConfiguration = await setupEnvironment(null, [
-      {
-        name: ENVIRONMENT_VARIABLES.RPCS.name,
-        newValue: JSON.stringify(mockSupportedNetworks),
-        override: true,
-        originalValue: ENVIRONMENT_VARIABLES.RPCS.value,
-        required: ENVIRONMENT_VARIABLES.RPCS.required
-      }
-    ])
+    previousConfiguration = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig(
+        [ENVIRONMENT_VARIABLES.RPCS],
+        [JSON.stringify(mockSupportedNetworks)]
+      )
+    )
 
     config = await getConfig()
     database = await new Database(dbConfig)
@@ -390,7 +389,7 @@ describe('Should run a complete node flow.', () => {
     expect(response.stream).to.be.instanceOf(Readable)
   })
 
-  after(() => {
-    tearDownEnvironment(previousConfiguration)
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
   })
 })
