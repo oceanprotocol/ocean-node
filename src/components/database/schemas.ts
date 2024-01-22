@@ -21,7 +21,6 @@ export function readJsonSchemas(): any[] {
       // eslint-disable-next-line security/detect-non-literal-fs-filename
       const fileData = fs.readFileSync(path.join(schemaFilePath, file), 'utf-8')
       const jsonFile = JSON.parse(fileData.toString())
-      DATABASE_LOGGER.logMessage(`schema ${jsonFile}`)
       jsonDocuments.push(jsonFile)
     } catch (err) {
       DATABASE_LOGGER.log(
