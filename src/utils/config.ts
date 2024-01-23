@@ -14,6 +14,7 @@ import {
 } from '../utils/address.js'
 import { CONFIG_LOGGER } from './logging/common.js'
 
+// usefull for lazy loading and avoid boilerplate on other places
 let previousConfiguration: OceanNodeConfig = null
 
 export async function getPeerIdFromPrivateKey(
@@ -238,7 +239,18 @@ export function existsEnvironmentVariable(envVariable: any, log = false): boolea
   return true
 }
 
-export async function getConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
+// lazy access ocean node config, when we don't need updated values from process.env
+// this only goes through .env processing once (more suitable for a running node instance)
+export async function getConfiguration(): Promise<OceanNodeConfig> {
+  if (!previousConfiguration) {
+    previousConfiguration = await getEnvConfig()
+  }
+  return previousConfiguration
+}
+// we can use this function every time we want to have access to the actual environment variables
+// and eventually detect config changes (could be more handly on test suites)
+// if we don't need updated values, we can just use the lazy version above "getConfiguration()"
+export async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
   const privateKey = process.env.PRIVATE_KEY
   if (!privateKey || privateKey.length !== 66) {
     // invalid private key

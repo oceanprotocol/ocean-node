@@ -8,13 +8,13 @@ import {
 
 import { ethers } from 'ethers'
 import { checkNonce } from '../../components/core/utils/nonceHandler.js'
-import { getConfig } from '../../utils/config.js'
+import { getEnvConfig } from '../../utils/config.js'
 import { OceanNode } from '../../OceanNode.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { Database } from '../../components/database/index.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 
-const config = await getConfig()
+const config = await getEnvConfig()
 const dbconn = await new Database(config.dbConfig) // carefull! db constructor is async
 const p2pNode = new OceanP2P(config, dbconn)
 const oceanNode = OceanNode.getInstance(dbconn, p2pNode, null, null)

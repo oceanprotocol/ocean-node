@@ -22,7 +22,7 @@ import { DownloadHandler } from '../../components/core/downloadHandler.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getEventFromTx, sleep } from '../../utils/util.js'
 import { waitToIndex, delay } from './testUtils.js'
-import { getConfig } from '../../utils/config.js'
+import { getEnvConfig } from '../../utils/config.js'
 import { ProviderFeeData } from '../../@types/Fees.js'
 import { encrypt } from '../../utils/crypt.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
@@ -259,7 +259,7 @@ describe('Download Tests', () => {
     orderTxId = orderTxReceipt.hash
     assert(orderTxId, 'transaction id not found')
 
-    const config = await getConfig()
+    const config = await getEnvConfig()
     const dbconn = await new Database(config.dbConfig)
     const oceanNode = OceanNode.getInstance(dbconn)
     assert(oceanNode, 'Failed to instantiate OceanNode')
@@ -308,7 +308,7 @@ describe('Download Tests', () => {
       signature: '',
       command: PROTOCOL_COMMANDS.DOWNLOAD
     }
-    const config = await getConfig()
+    const config = await getEnvConfig()
     const dbconn = await new Database(config.dbConfig)
     const oceanNode = OceanNode.getInstance(dbconn)
     assert(oceanNode, 'Failed to instantiate OceanNode')

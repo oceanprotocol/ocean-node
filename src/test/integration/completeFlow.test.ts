@@ -22,7 +22,11 @@ import { RPCS } from '../../@types/blockchain.js'
 import { getEventFromTx, streamToString, streamToObject } from '../../utils/util.js'
 import { delay, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
-import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS, getConfig } from '../../utils/index.js'
+import {
+  ENVIRONMENT_VARIABLES,
+  PROTOCOL_COMMANDS,
+  getEnvConfig
+} from '../../utils/index.js'
 import { encrypt } from '../../utils/crypt.js'
 import { DownloadHandler } from '../../components/core/downloadHandler.js'
 import { StatusHandler } from '../../components/core/statusHandler.js'
@@ -81,7 +85,7 @@ describe('Should run a complete node flow.', () => {
       )
     )
 
-    config = await getConfig()
+    config = await getEnvConfig()
     database = await new Database(dbConfig)
     oceanNode = await OceanNode.getInstance(database)
 
@@ -112,7 +116,7 @@ describe('Should run a complete node flow.', () => {
   })
 
   it('should get node status', async () => {
-    const oceanNodeConfig = await getConfig()
+    const oceanNodeConfig = await getEnvConfig()
 
     const statusCommand = {
       command: PROTOCOL_COMMANDS.STATUS,
@@ -341,7 +345,7 @@ describe('Should run a complete node flow.', () => {
   it('should download triger download file', async function () {
     this.timeout(65000)
 
-    const config = await getConfig()
+    const config = await getEnvConfig()
     database = await new Database(config.dbConfig)
     const oceanNode = OceanNode.getInstance(database)
     assert(oceanNode, 'Failed to instantiate OceanNode')

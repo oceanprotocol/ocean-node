@@ -30,7 +30,7 @@ import { decrypt } from '../../utils/crypt.js'
 import { createHash } from 'crypto'
 import lzma from 'lzma-native'
 import { validateObject } from './utils/validateDdoHandler.js'
-import { getConfig } from '../../utils/config.js'
+import { getConfiguration } from '../../utils/config.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -87,7 +87,7 @@ export class DecryptDdoHandler extends Handler {
 
       await dbNonce.update(decrypterAddress, nonce)
       const chainId = String(task.chainId)
-      const config = await getConfig()
+      const config = await getConfiguration()
       const supportedNetwork = config.supportedNetworks[chainId]
 
       // check if supported chainId

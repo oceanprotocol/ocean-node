@@ -1,5 +1,5 @@
 import { Database } from '../../components/database/index.js'
-import { ENVIRONMENT_VARIABLES, getConfig } from '../../utils/index.js'
+import { ENVIRONMENT_VARIABLES, getEnvConfig } from '../../utils/index.js'
 
 import { expect } from 'chai'
 import {
@@ -48,7 +48,7 @@ describe('Logger instances and transports tests', async () => {
     )
     expect(process.env.NODE_ENV).to.be.equal('production')
     // will build the DB transport layer
-    const config = await getConfig()
+    const config = await getEnvConfig()
     const DB = new Database(config.dbConfig)
     // Could generate Typesene error if DB is not running, but does not matter for this test
     OCEAN_NODE_LOGGER.logMessage('Should build DB transport layer')

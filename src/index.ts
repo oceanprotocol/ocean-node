@@ -6,7 +6,7 @@ import express, { Express } from 'express'
 import { OceanNode } from './OceanNode.js'
 import swaggerUi from 'swagger-ui-express'
 import { httpRoutes } from './components/httpRoutes/index.js'
-import { getConfig } from './utils/index.js'
+import { getEnvConfig } from './utils/index.js'
 
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import fs from 'fs'
@@ -58,7 +58,7 @@ OCEAN_NODE_LOGGER.logMessageWithEmoji(
   GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
   LOG_LEVELS_STR.LEVEL_INFO
 )
-const config = await getConfig(isStartup)
+const config = await getEnvConfig(isStartup)
 if (!config) {
   process.exit(1)
 }

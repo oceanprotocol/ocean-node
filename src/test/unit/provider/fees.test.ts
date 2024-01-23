@@ -2,7 +2,8 @@ import { expect } from 'chai'
 import {
   ENVIRONMENT_VARIABLES,
   PROTOCOL_COMMANDS,
-  getConfig
+  getConfiguration,
+  getEnvConfig
 } from '../../../utils/index.js'
 import { ProviderFeeData } from '../../../@types/Fees'
 import {
@@ -54,12 +55,13 @@ describe('Ocean Node fees', () => {
       )
     )
     // avoid overriding the local environment, use the .env.test
-    config = await getConfig()
+    config = await getEnvConfig()
   })
 
   it('should get provider wallet address', async () => {
     const address = await getProviderWalletAddress()
-    expect(address).to.be.equal(config.keys.ethAddress)
+    const nodeConfig = await getConfiguration()
+    expect(address).to.be.equal(nodeConfig.keys.ethAddress)
   })
 
   it('should create provider fees data', async () => {
@@ -128,7 +130,7 @@ describe('Ocean Node fees', () => {
     const providerFeeToken = await getProviderFeeToken(chainId)
     const providerAmount = await getProviderFeeAmount()
 
-    const config = await getConfig()
+    const config = await getEnvConfig()
     config.supportedNetworks[8996] = {
       chainId: 8996,
       network: 'development',
@@ -173,7 +175,7 @@ describe('Ocean Node fees', () => {
   it('should return some defaults for fees token', async () => {
     process.env[ENVIRONMENT_VARIABLES.FEE_TOKENS.name] = undefined
     process.env[ENVIRONMENT_VARIABLES.FEE_AMOUNT.name] = undefined
-    const conf = await getConfig()
+    const conf = await getEnvConfig()
     expect(Object.keys(conf.feeStrategy.feeTokens).length).to.be.gte(1)
     expect(conf.feeStrategy.feeAmount.amount).to.be.gte(0)
   })

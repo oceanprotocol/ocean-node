@@ -18,7 +18,11 @@ import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
 import { Database } from '../../components/database/index.js'
 import { DecryptDdoHandler } from '../../components/core/ddoHandler.js'
-import { DecryptDDOCommand, ENVIRONMENT_VARIABLES, getConfig } from '../../utils/index.js'
+import {
+  DecryptDDOCommand,
+  ENVIRONMENT_VARIABLES,
+  getEnvConfig
+} from '../../utils/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
 import { OceanNode } from '../../OceanNode.js'
@@ -93,7 +97,7 @@ describe('Should encrypt and decrypt DDO', () => {
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
-    config = await getConfig()
+    config = await getEnvConfig()
     database = await new Database(dbConfig)
     oceanNode = OceanNode.getInstance(database)
     // will be used later
