@@ -7,7 +7,7 @@ import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 
 export function readJsonSchemas(): any[] {
   const jsonDocuments: any[] = []
-  const pathToSchemaDir: string = '../../../schemas/v4'
+  const pathToSchemaDir: string = '../../../schemas'
   const currentModulePath = fileURLToPath(import.meta.url)
 
   // Use dirname to get the directory name
