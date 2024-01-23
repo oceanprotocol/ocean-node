@@ -127,7 +127,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
         true
       )
-      const previousDdo = await (await this.getDatabase()).ddo.retrieve(ddo.did)
+      const previousDdo = await (await this.getDatabase()).ddo.retrieve(ddo.id)
       if (eventName === 'MetadataCreated') {
         if (previousDdo && previousDdo.nft.state === MetadataStates.ACTIVE) {
           INDEXER_LOGGER.logMessage(
@@ -140,7 +140,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       if (eventName === 'MetadataUpdated') {
         if (!previousDdo) {
           INDEXER_LOGGER.logMessage(
-            `Previous DDO with did ${ddo.did} was not found the database. Maybe it was deleted/hidden to some violation issues`,
+            `Previous DDO with did ${ddo.id} was not found the database. Maybe it was deleted/hidden to some violation issues`,
             true
           )
           return
