@@ -100,52 +100,85 @@ class BaseEventProcessor {
     contractAddress: string,
     chainId: number,
     txId: string,
-    metadataHash: string
+    metadataHash: string,
+    metadata: any
   ): Promise<any> {
     let ddo
-    const { nonce: nonceDatabase } = await this.getDatabase()
-    const { keys } = await this.getConfiguration()
-    const nodeId = keys.peerId.toString()
-    const nonce = await nonceDatabase.retrieve(eventCreator)
-    const wallet: ethers.Wallet = new ethers.Wallet(
-      Buffer.from(keys.privateKey).toString('hex')
-    )
-    const message = String(txId + keys.ethAddress + chainId.toString() + nonce.toString())
-    const consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
-    )
-    const messageHashBytes = ethers.toBeArray(consumerMessage)
-    const signature = await wallet.signMessage(messageHashBytes)
-    const payload = {
-      transactionId: txId,
-      chainId,
-      decrypterAddress: keys.ethAddress,
-      dataNftAddress: contractAddress,
-      signature,
-      nonce: nonce.toString()
-    }
-    if (nodeId === decryptorURL) {
-      // currentNode created event decrypt locally
-    } else {
-      try {
-        const response = await axios({
-          method: 'get',
-          url: `${decryptorURL}/api/services/decrypt`,
-          data: payload
-        })
-        if (response.status !== 201) {
-          const message = `Provider exception on decrypt DDO. Status: ${response.status}, ${response.statusText}`
+    if (flag === '0x02') {
+      INDEXER_LOGGER.logMessage(
+        `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} ecnrypted by: ${decryptorURL}`
+      )
+      const nonce = Date.now().toString()
+      console.log('nonce == ', nonce)
+
+      const { keys } = await this.getConfiguration()
+      console.log('keys == ', keys)
+
+      const nodeId = keys.peerId.toString()
+      console.log('nodeId == ', nodeId)
+
+      const wallet: ethers.Wallet = new ethers.Wallet(
+        Buffer.from(keys.privateKey).toString('hex')
+      )
+      const message = String(
+        txId + keys.ethAddress + chainId.toString() + nonce.toString()
+      )
+      const consumerMessage = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      )
+      const messageHashBytes = ethers.toBeArray(consumerMessage)
+      const signature = await wallet.signMessage(messageHashBytes)
+      console.log('signature == ', signature)
+
+      const payload = {
+        transactionId: txId,
+        chainId,
+        decrypterAddress: keys.ethAddress,
+        dataNftAddress: contractAddress,
+        signature,
+        nonce: nonce.toString()
+      }
+      console.log('payload == ', payload)
+
+      if (nodeId === decryptorURL) {
+        const message = `Logic not yet available !!!`
+        INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
+      } else {
+        try {
+          const response = await axios({
+            method: 'post',
+            url: `${decryptorURL}/api/services/decrypt`,
+            data: payload
+          })
+          console.log('response == ', response)
+          if (response.status !== 201) {
+            const message = `Provider exception on decrypt DDO. Status: ${response.status}, ${response.statusText}`
+            INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
+            throw new Error(message)
+          }
+          const encodedResponse = createHash('sha256').update(response.data).digest('hex')
+          if (encodedResponse !== metadataHash) {
+            const msg = `Hash check failed: response=${response.data}, encoded response=${encodedResponse}\n metadata hash=${metadataHash}`
+            INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, msg)
+            throw new Error(msg)
+          }
+          ddo = response.data.decode('utf-8')
+        } catch (err) {
+          const message = `Provider exception on decrypt DDO. Status: ${err.message}`
           INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
           throw new Error(message)
         }
-        ddo = response.data.decode('utf-8')
-      } catch (err) {
-        const message = `Provider exception on decrypt DDO. Status: ${err.message}`
-        INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
-        throw new Error(message)
       }
+    } else {
+      INDEXER_LOGGER.logMessage(
+        `Decompressing DDO  from network: ${this.networkId} created by: ${eventCreator} ecnrypted by: ${decryptorURL}`
+      )
+      const byteArray = getBytes(metadata)
+      const utf8String = toUtf8String(byteArray)
+      ddo = JSON.parse(utf8String)
     }
+
     return ddo
   }
 }
@@ -163,23 +196,16 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         event.transactionHash,
         ERC721Template.abi
       )
-      // console.log('createdBY ', decodedEventData.args[0])
-      // console.log('flags ', decodedEventData.args[3])
-      // console.log('decryptor url', decodedEventData.args[2])
-      // const ddo = await this.decryptDDO(
-      //   decodedEventData.args[4],
-      //   decodedEventData.args[2],
-      //   decodedEventData.args[3],
-      //   decodedEventData.args[0],
-      //   event.address,
-      //   chainId,
-      //   event.transactionHash,
-      //   decodedEventData.args[5]
-      // )
-      // console.log('data', decodedEventData.args[4])
-      const byteArray = getBytes(decodedEventData.args[4])
-      const utf8String = toUtf8String(byteArray)
-      const ddo = JSON.parse(utf8String)
+      const ddo = await this.decryptDDO(
+        decodedEventData.args[2],
+        decodedEventData.args[3],
+        decodedEventData.args[0],
+        event.address,
+        chainId,
+        event.transactionHash,
+        decodedEventData.args[5],
+        decodedEventData.args[4]
+      )
       ddo.datatokens = this.getTokenInfo(ddo.services)
       INDEXER_LOGGER.logMessage(
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,

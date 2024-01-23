@@ -84,6 +84,7 @@ describe('Should run a complete node flow.', () => {
     oceanNode = await new OceanNode(config, database)
 
     indexer = new OceanIndexer(database, mockSupportedNetworks)
+    process.env.AUTHORIZED_DECRYPTERS = JSON.stringify(config.authorizedDecrypters)
 
     const data = JSON.parse(
       // eslint-disable-next-line security/detect-non-literal-fs-filename
@@ -196,7 +197,7 @@ describe('Should run a complete node flow.', () => {
     assert(datatokenAddress, 'find datatoken created failed')
   })
 
-  it('should encrypt files, set metadata and save ', async () => {
+  it('should encrypt files, encrypt DDO, set metadata and save ', async () => {
     nftContract = new ethers.Contract(
       dataNftAddress,
       ERC721Template.abi,
@@ -229,18 +230,20 @@ describe('Should run a complete node flow.', () => {
 
     genericAsset.services[0].files = encryptedData
 
-    const stringDDO = JSON.stringify(genericAsset)
-    const bytes = Buffer.from(stringDDO)
-    const metadata = hexlify(bytes)
-    const hash = createHash('sha256').update(metadata).digest('hex')
+    const metadata = hexlify(Buffer.from(JSON.stringify(genericAsset)))
+    const documentHash = '0x' + createHash('sha256').update(metadata).digest('hex')
+
+    const genericAssetData = Uint8Array.from(Buffer.from(JSON.stringify(genericAsset)))
+    const encryptedDDO = await encrypt(genericAssetData, 'ECIES')
+    const encryptedMetaData = hexlify(encryptedDDO)
 
     const setMetaDataTx = await nftContract.setMetaData(
       0,
-      'http://v4.provider.oceanprotocol.com',
+      'http://127.0.0.1:8001',
       '0x123',
       '0x02',
-      metadata,
-      '0x' + hash,
+      encryptedMetaData,
+      documentHash,
       []
     )
     const trxReceipt = await setMetaDataTx.wait()
