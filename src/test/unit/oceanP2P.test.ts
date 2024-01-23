@@ -1,5 +1,5 @@
 import { assert } from 'chai'
-import { getEnvConfig } from '../../utils/config.js'
+import { getConfiguration } from '../../utils/config.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { delay } from '../integration/testUtils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
@@ -34,7 +34,7 @@ describe('OceanP2P Test', () => {
 
   it('Start instance of OceanP2P node1', async () => {
     process.env.PRIVATE_KEY = process.env.NODE1_PRIVATE_KEY
-    config1 = await getEnvConfig()
+    config1 = await getConfiguration(true)
     config1.p2pConfig.ipV4BindTcpPort = 0
     node1 = new OceanP2P(config1, null)
     await node1.start()
@@ -42,7 +42,7 @@ describe('OceanP2P Test', () => {
   })
   it('Start instance of OceanP2P node2', async () => {
     process.env.PRIVATE_KEY = process.env.NODE2_PRIVATE_KEY
-    config2 = await getEnvConfig()
+    config2 = await getConfiguration(true)
     config2.p2pConfig.ipV4BindTcpPort = 0
     node2 = new OceanP2P(config2, null)
     await node2.start()
@@ -101,7 +101,7 @@ describe('OceanP2P Test without DB_URL set', () => {
     process.env.DB_URL = ''
   })
   it('Start instance of OceanP2P without a database URL', async () => {
-    const config = await getEnvConfig()
+    const config = await getConfiguration(true)
     assert(config.dbConfig.url === '', 'DB URL should not be set')
     const p2pNode = new OceanP2P(config)
     assert(p2pNode, 'Failed to create P2P Node instance')

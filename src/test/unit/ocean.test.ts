@@ -3,7 +3,7 @@ import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { OceanProvider } from '../../components/Provider/index.js'
 import { Database } from '../../components/database/index.js'
-import { ENVIRONMENT_VARIABLES, getEnvConfig } from '../../utils/index.js'
+import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
 
 import { expect } from 'chai'
 import {
@@ -33,7 +33,7 @@ describe('Status command tests', async () => {
   )
   envOverrides = await setupEnvironment(null, envOverrides)
   // because of this
-  const config = await getEnvConfig()
+  const config = await getConfiguration(true)
   const db = await new Database(config.dbConfig)
   const oceanNode = OceanNode.getInstance(db)
   const oceanP2P = new OceanP2P(config, db)

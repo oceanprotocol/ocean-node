@@ -25,7 +25,7 @@ import { genericDDO } from '../data/ddo.js'
 import {
   ENVIRONMENT_VARIABLES,
   PROTOCOL_COMMANDS,
-  getEnvConfig
+  getConfiguration
 } from '../../utils/index.js'
 import { encrypt } from '../../utils/crypt.js'
 import { DownloadHandler } from '../../components/core/downloadHandler.js'
@@ -85,7 +85,7 @@ describe('Should run a complete node flow.', () => {
       )
     )
 
-    config = await getEnvConfig()
+    config = await getConfiguration(true)
     database = await new Database(dbConfig)
     oceanNode = await OceanNode.getInstance(database)
 
@@ -116,7 +116,7 @@ describe('Should run a complete node flow.', () => {
   })
 
   it('should get node status', async () => {
-    const oceanNodeConfig = await getEnvConfig()
+    const oceanNodeConfig = await getConfiguration(true)
 
     const statusCommand = {
       command: PROTOCOL_COMMANDS.STATUS,
@@ -345,7 +345,7 @@ describe('Should run a complete node flow.', () => {
   it('should download triger download file', async function () {
     this.timeout(65000)
 
-    const config = await getEnvConfig()
+    const config = await getConfiguration(true)
     database = await new Database(config.dbConfig)
     const oceanNode = OceanNode.getInstance(database)
     assert(oceanNode, 'Failed to instantiate OceanNode')

@@ -21,7 +21,7 @@ import { DecryptDdoHandler } from '../../components/core/ddoHandler.js'
 import {
   DecryptDDOCommand,
   ENVIRONMENT_VARIABLES,
-  getEnvConfig
+  getConfiguration
 } from '../../utils/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
@@ -97,7 +97,7 @@ describe('Should encrypt and decrypt DDO', () => {
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
-    config = await getEnvConfig()
+    config = await getConfiguration(true)
     database = await new Database(dbConfig)
     oceanNode = OceanNode.getInstance(database)
     // will be used later

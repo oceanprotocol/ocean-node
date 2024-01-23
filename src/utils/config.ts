@@ -242,17 +242,16 @@ export function existsEnvironmentVariable(envVariable: any, log = false): boolea
 // lazy access ocean node config, when we don't need updated values from process.env
 // this only goes through .env processing once (more suitable for a running node instance)
 export async function getConfiguration(
-  forceReload: boolean = false
+  forceReload: boolean = false,
+  isStartup: boolean = false
 ): Promise<OceanNodeConfig> {
   if (!previousConfiguration || forceReload) {
-    previousConfiguration = await getEnvConfig()
+    previousConfiguration = await getEnvConfig(isStartup)
   }
   return previousConfiguration
 }
-// we can use this function every time we want to have access to the actual environment variables
-// and eventually detect config changes (could be more handly on test suites)
-// if we don't need updated values, we can just use the lazy version above "getConfiguration()"
-export async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
+// we can just use the lazy version above "getConfiguration()" and specify if we want to reload from .env variables
+async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
   const privateKey = process.env.PRIVATE_KEY
   if (!privateKey || privateKey.length !== 66) {
     // invalid private key
