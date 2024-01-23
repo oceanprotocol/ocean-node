@@ -15,6 +15,7 @@ import { getConfig } from '../../utils/config.js'
 import { Database } from '../database/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { EVENTS, MetadataStates } from '../../utils/constants.js'
+import { getNFTFactory, getContractAddress } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 
 class BaseEventProcessor {
@@ -100,6 +101,19 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     eventName: string
   ): Promise<any> {
     try {
+      const nftFactoryAddress = getContractAddress(chainId, 'ERC721Factory')
+      const nftFactoryContract = await getNFTFactory(provider, nftFactoryAddress)
+      if (
+        getAddress(await nftFactoryContract.erc721List(event.address)) !==
+        getAddress(event.address)
+      ) {
+        INDEXER_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_ERROR,
+          `NFT not deployed by OPF factory`,
+          true
+        )
+        return
+      }
       const decodedEventData = await this.getEventData(
         provider,
         event.transactionHash,
@@ -113,6 +127,37 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
         true
       )
+      const previousDdo = await (await this.getDatabase()).ddo.retrieve(ddo.did)
+      if (eventName === 'MetadataCreated') {
+        if (previousDdo && previousDdo.nft.state === MetadataStates.ACTIVE) {
+          INDEXER_LOGGER.logMessage(
+            `DDO ${ddo.did} is already registered as active`,
+            true
+          )
+          return
+        }
+      }
+      if (eventName === 'MetadataUpdated') {
+        if (!previousDdo) {
+          INDEXER_LOGGER.logMessage(
+            `Previous DDO with did ${ddo.did} was not found the database. Maybe it was deleted/hidden to some violation issues`,
+            true
+          )
+          return
+        }
+        const [isUpdateable, error] = this.isUpdateable(
+          previousDdo,
+          event.transactionHash,
+          event.blockNumber
+        )
+        if (!isUpdateable) {
+          INDEXER_LOGGER.logMessage(
+            `Error encountered when checking if the asset is eligiable for update: ${error}`,
+            true
+          )
+          return
+        }
+      }
       const saveDDO = this.createOrUpdateDDO(ddo, eventName)
       return saveDDO
     } catch (error) {
@@ -122,6 +167,26 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         true
       )
     }
+  }
+
+  isUpdateable(previousDdo: any, txHash: string, block: number): [boolean, string] {
+    let errorMsg: string
+    const ddoTxId = previousDdo.event.tx
+    // do not update if we have the same txid
+    if (txHash === ddoTxId) {
+      errorMsg = `Previous DDO has the same tx id, no need to update: event-txid=${txHash} <> asset-event-txid=${ddoTxId}`
+      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_DEBUG, errorMsg, true)
+      return [false, errorMsg]
+    }
+    const ddoBlock = previousDdo.event.block
+    // do not update if we have the same block
+    if (block === ddoBlock) {
+      errorMsg = `Asset was updated later (block: ${ddoBlock}) vs transaction block: ${block}`
+      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_DEBUG, errorMsg, true)
+      return [false, errorMsg]
+    }
+
+    return [true, '']
   }
 }
 

@@ -54,19 +54,32 @@ async function getOrderStartedEventProcessor(
   return orderStartedEventProcessor
 }
 
+export const getAddressFile = (chainId: number) => {
+  return process.env.ADDRESS_FILE || chainId === 8996
+    ? JSON.parse(
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        fs.readFileSync(
+          process.env.ADDRESS_FILE ||
+            `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
+          'utf8'
+        )
+      )
+    : localAdressFile
+}
+
+export const getContractAddress = (chainId: number, contractName: string): string => {
+  const addressFile = getAddressFile(chainId)
+  const networkKeys = Object.keys(addressFile)
+  for (const key of networkKeys) {
+    if (addressFile[key].chainId === chainId && contractName in addressFile[key]) {
+      return getAddress(addressFile[key][contractName])
+    }
+  }
+}
+
 export const getDeployedContractBlock = async (network: number) => {
   let deployedBlock: number
-  const addressFile =
-    process.env.ADDRESS_FILE || network === 8996
-      ? JSON.parse(
-          // eslint-disable-next-line security/detect-non-literal-fs-filename
-          fs.readFileSync(
-            process.env.ADDRESS_FILE ||
-              `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-            'utf8'
-          )
-        )
-      : localAdressFile
+  const addressFile = getAddressFile(network)
   const networkKeys = Object.keys(addressFile)
   networkKeys.forEach((key) => {
     if (addressFile[key].chainId === network) {
