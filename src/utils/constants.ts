@@ -74,6 +74,7 @@ export interface DDOCommand extends Command {
 }
 export interface GetDdoCommand extends DDOCommand {}
 export interface FindDDOCommand extends DDOCommand {}
+export interface GetEnvironments extends Command {}
 export interface ValidateDDOCommand extends DDOCommand {
   chainId: number
   nftAddress: string
