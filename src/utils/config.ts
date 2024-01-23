@@ -241,8 +241,10 @@ export function existsEnvironmentVariable(envVariable: any, log = false): boolea
 
 // lazy access ocean node config, when we don't need updated values from process.env
 // this only goes through .env processing once (more suitable for a running node instance)
-export async function getConfiguration(): Promise<OceanNodeConfig> {
-  if (!previousConfiguration) {
+export async function getConfiguration(
+  forceReload: boolean = false
+): Promise<OceanNodeConfig> {
+  if (!previousConfiguration || forceReload) {
     previousConfiguration = await getEnvConfig()
   }
   return previousConfiguration

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url'
 import { ENVIRONMENT_VARIABLES, EnvVariable } from '../../utils/constants.js'
 import { CONFIG_LOGGER } from '../../utils/logging/common.js'
 import { RPCS } from '../../@types/blockchain.js'
+import { getConfiguration } from '../../utils/config.js'
 
 // __dirname and __filename are not defined in ES module scope
 const __filename = fileURLToPath(import.meta.url)
@@ -81,6 +82,8 @@ export async function setupEnvironment(
     dotenv.config({ path: pathEnv, encoding: 'utf8', debug: true }) // override is false by default
   }
 
+  let forceReload = false
+
   if (overrideVars && overrideVars.length > 0) {
     overrideVars.forEach((element: OverrideEnvConfig) => {
       if (
@@ -90,8 +93,12 @@ export async function setupEnvironment(
         CONFIG_LOGGER.debug('Overriding environment variable: ' + element.name)
         element.originalValue = process.env[element.name] // save original value
         process.env[element.name] = element.newValue
+        forceReload = true
       }
     })
+  }
+  if (forceReload) {
+    await getConfiguration(true)
   }
   return overrideVars
 }
@@ -100,6 +107,7 @@ export async function setupEnvironment(
  * @param overrideVars any variables we overrided for testing purposes
  */
 export async function tearDownEnvironment(overrideVars?: OverrideEnvConfig[]) {
+  let forceReload = false
   // restore the environment
   if (overrideVars && overrideVars.length > 0) {
     overrideVars.forEach((element: OverrideEnvConfig) => {
@@ -107,8 +115,12 @@ export async function tearDownEnvironment(overrideVars?: OverrideEnvConfig[]) {
         // only restore what we have explicilty touched
         CONFIG_LOGGER.debug('Restoring environment variable: ' + element.name)
         process.env[element.name] = element.originalValue
+        forceReload = true
       }
     })
+  }
+  if (forceReload) {
+    await getConfiguration(true)
   }
 }
 
