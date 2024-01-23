@@ -3,7 +3,7 @@
 // and after finishing them respectively.
 
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
-import { CONFIG_CONSOLE_LOGGER } from '../../utils/logging/common.js'
+import { CONFIG_LOGGER } from '../../utils/logging/common.js'
 import {
   setupEnvironment,
   OverrideEnvConfig,
@@ -64,7 +64,7 @@ export const mochaHooks = {
       const initialVariable: OverrideEnvConfig = initialConfiguration.get(varName)
       if (initialVariable.originalValue !== currentEnvVariable.originalValue) {
         // reset it to the original
-        CONFIG_CONSOLE_LOGGER.debug('Restoring environment variable: ' + varName)
+        CONFIG_LOGGER.debug('Restoring environment variable: ' + varName)
         process.env[varName] = initialVariable.originalValue
       }
     })

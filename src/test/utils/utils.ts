@@ -2,7 +2,7 @@ import path from 'path'
 import dotenv from 'dotenv'
 import { fileURLToPath } from 'url'
 import { ENVIRONMENT_VARIABLES, EnvVariable } from '../../utils/constants.js'
-import { CONFIG_CONSOLE_LOGGER } from '../../utils/logging/common.js'
+import { CONFIG_LOGGER } from '../../utils/logging/common.js'
 import { RPCS } from '../../@types/blockchain.js'
 
 // __dirname and __filename are not defined in ES module scope
@@ -77,7 +77,7 @@ export async function setupEnvironment(
   // configure some env variables
   if (envFilePath) {
     const pathEnv = path.resolve(__dirname, envFilePath)
-    CONFIG_CONSOLE_LOGGER.debug('Setting up environment with variables from: ' + pathEnv)
+    CONFIG_LOGGER.debug('Setting up environment with variables from: ' + pathEnv)
     dotenv.config({ path: pathEnv, encoding: 'utf8', debug: true }) // override is false by default
   }
 
@@ -87,7 +87,7 @@ export async function setupEnvironment(
         element.override ||
         (element.required && process.env[element.name] === undefined) // if override OR not set but required to run
       ) {
-        CONFIG_CONSOLE_LOGGER.debug('Overriding environment variable: ' + element.name)
+        CONFIG_LOGGER.debug('Overriding environment variable: ' + element.name)
         element.originalValue = process.env[element.name] // save original value
         process.env[element.name] = element.newValue
       }
@@ -105,7 +105,7 @@ export async function tearDownEnvironment(overrideVars?: OverrideEnvConfig[]) {
     overrideVars.forEach((element: OverrideEnvConfig) => {
       if (element.override && element.newValue !== element.originalValue) {
         // only restore what we have explicilty touched
-        CONFIG_CONSOLE_LOGGER.debug('Restoring environment variable: ' + element.name)
+        CONFIG_LOGGER.debug('Restoring environment variable: ' + element.name)
         process.env[element.name] = element.originalValue
       }
     })
