@@ -471,14 +471,14 @@ export class OceanP2P extends EventEmitter {
   // related: https://github.com/libp2p/go-libp2p-kad-dht/issues/323
   async republishStoredDDOS() {
     try {
-      if (!this.getDatabase()) {
+      if (!this.db) {
         P2P_LOGGER.logMessage(
           `republishStoredDDOS() attempt aborted because there is no database!`,
           true
         )
         return
       }
-      const db = this.getDatabase().ddo
+      const db = this.db.ddo
       const searchParameters = {
         q: '*',
         query_by: 'metadata.name'
@@ -534,10 +534,6 @@ export class OceanP2P extends EventEmitter {
     return this._config.keys.peerId.toString()
   }
 
-  getDatabase(): Database {
-    return this.db
-  }
-
   getDDOCache(): DDOCache {
     return this._ddoDHT
   }
@@ -555,7 +551,7 @@ export class OceanP2P extends EventEmitter {
         `Trying to store and advertise ${list.length} initial DDOS`,
         true
       )
-      const db = this.getDatabase().ddo
+      const db = this.db.ddo
       list.forEach(async (ddo: any) => {
         // if already added before, create() will return null, but still advertise it
         try {

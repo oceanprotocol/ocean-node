@@ -104,7 +104,7 @@ if (config.hasProvider && dbconn) {
 }
 
 // Singleton instance across application
-const oceanNode = OceanNode.getInstance(config, dbconn, node, provider, indexer)
+const oceanNode = OceanNode.getInstance(dbconn, node, provider, indexer)
 
 if (config.hasHttp) {
   app.use(express.raw())

@@ -17,7 +17,7 @@ import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 const config = await getConfig()
 const dbconn = await new Database(config.dbConfig) // carefull! db constructor is async
 const p2pNode = new OceanP2P(config, dbconn)
-const oceanNode = OceanNode.getInstance(config, dbconn, p2pNode, null, null)
+const oceanNode = OceanNode.getInstance(dbconn, p2pNode, null, null)
 
 // before running this: "setup-db": "docker-compose -f typesense-compose.yml -p ocean-node up -d",
 // nonce schema (address => nonce)

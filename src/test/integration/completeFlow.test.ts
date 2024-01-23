@@ -83,7 +83,7 @@ describe('Should run a complete node flow.', () => {
 
     config = await getConfig()
     database = await new Database(dbConfig)
-    oceanNode = await OceanNode.getInstance(config, database)
+    oceanNode = await OceanNode.getInstance(database)
 
     indexer = new OceanIndexer(database, mockSupportedNetworks)
 
@@ -343,7 +343,7 @@ describe('Should run a complete node flow.', () => {
 
     const config = await getConfig()
     database = await new Database(config.dbConfig)
-    const oceanNode = OceanNode.getInstance(config, database)
+    const oceanNode = OceanNode.getInstance(database)
     assert(oceanNode, 'Failed to instantiate OceanNode')
 
     const wallet = new ethers.Wallet(

@@ -35,7 +35,7 @@ describe('Status command tests', async () => {
   // because of this
   const config = await getConfig()
   const db = await new Database(config.dbConfig)
-  const oceanNode = OceanNode.getInstance(config, db)
+  const oceanNode = OceanNode.getInstance(db)
   const oceanP2P = new OceanP2P(config, db)
   const oceanIndexer = new OceanIndexer(db, config.supportedNetworks)
   const oceanProvider = new OceanProvider(db)
@@ -59,7 +59,8 @@ describe('Status command tests', async () => {
   })
   it('Ocean P2P should be initialized correctly', async () => {
     oceanNode.addP2PNode(oceanP2P)
-    expect(oceanNode.getP2PNode().getDatabase()).to.eql(db)
+    expect(oceanNode.getP2PNode()).to.not.eql(null)
+    expect(OceanNode.getInstance(db).getP2PNode()).to.not.eql(null)
   })
   it('Ocean Indexer should be initialized correctly', async () => {
     oceanNode.addIndexer(oceanIndexer)

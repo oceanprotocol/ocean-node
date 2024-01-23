@@ -1,7 +1,7 @@
 import { OceanP2P } from './components/P2P/index.js'
 import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
-import { OceanNodeConfig, P2PCommandResponse } from './@types/OceanNode.js'
+import { P2PCommandResponse } from './@types/OceanNode.js'
 import { Database } from './components/database/index.js'
 import { CoreHandlersRegistry } from './components/core/coreHandlersRegistry.js'
 import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
@@ -18,7 +18,6 @@ export class OceanNode {
   private coreHandlers: CoreHandlersRegistry
   // eslint-disable-next-line no-useless-constructor
   private constructor(
-    private config: OceanNodeConfig,
     private db?: Database,
     private node?: OceanP2P,
     private provider?: OceanProvider,
@@ -32,14 +31,13 @@ export class OceanNode {
 
   // Singleton instance
   public static getInstance(
-    config: OceanNodeConfig,
     db?: Database,
     node?: OceanP2P,
     provider?: OceanProvider,
     indexer?: OceanIndexer
   ): OceanNode {
     if (!OceanNode.instance) {
-      this.instance = new OceanNode(config, db, node, provider, indexer)
+      this.instance = new OceanNode(db, node, provider, indexer)
     }
     return this.instance
   }

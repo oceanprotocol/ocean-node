@@ -261,7 +261,7 @@ describe('Download Tests', () => {
 
     const config = await getConfig()
     const dbconn = await new Database(config.dbConfig)
-    const oceanNode = OceanNode.getInstance(config, dbconn)
+    const oceanNode = OceanNode.getInstance(dbconn)
     assert(oceanNode, 'Failed to instantiate OceanNode')
 
     const wallet = new ethers.Wallet(
@@ -310,7 +310,7 @@ describe('Download Tests', () => {
     }
     const config = await getConfig()
     const dbconn = await new Database(config.dbConfig)
-    const oceanNode = OceanNode.getInstance(config, dbconn)
+    const oceanNode = OceanNode.getInstance(dbconn)
     assert(oceanNode, 'Failed to instantiate OceanNode')
     const response = await new DownloadHandler(oceanNode).handle(downloadTask)
     console.log(response)
