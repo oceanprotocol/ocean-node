@@ -12,12 +12,10 @@ export class QueryHandler extends Handler {
 
       for (const version of versions) {
         // Modify this line to query the specific collection based on version
-        const result = await this.getP2PNode()
-          .getDatabase()
-          .ddo.searchByVersion(version, task.query)
-        if (result && result.length) {
-          aggregatedResults = aggregatedResults.concat(result)
-        }
+        const result = await this.getP2PNode().getDatabase().ddo.search(task.query)
+        // if (result && result.length) {
+        //   aggregatedResults = aggregatedResults.concat(result)
+        // }
       }
 
       if (aggregatedResults.length === 0) {
