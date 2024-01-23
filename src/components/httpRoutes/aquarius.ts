@@ -158,8 +158,8 @@ aquariusRoutes.post('/assets/ddo/validate', async (req, res) => {
       command: PROTOCOL_COMMANDS.VALIDATE_DDO
     })
     if (result.stream) {
-      const queryResult = JSON.parse(await streamToString(result.stream as Readable))
-      res.json(queryResult)
+      const validationResult = JSON.parse(await streamToString(result.stream as Readable))
+      res.json(validationResult)
     } else {
       res.status(result.status.httpStatus).send(result.status.error)
     }
