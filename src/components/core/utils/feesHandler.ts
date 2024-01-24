@@ -4,17 +4,7 @@ import { DDO } from '../../../@types/DDO/DDO'
 import { Service } from '../../../@types/DDO/Service'
 import { AssetUtils } from '../../../utils/asset.js'
 import { verifyMessage } from '../../../utils/blockchain.js'
-import { OceanNodeConfig } from '../../../@types'
-import { getConfig } from '../../../utils/config.js'
-
-let config: OceanNodeConfig
-// Lazy load configuration
-async function getConfiguration(): Promise<OceanNodeConfig> {
-  if (!config) {
-    config = await getConfig()
-  }
-  return config
-}
+import { getConfiguration } from '../../../utils/config.js'
 
 // equiv to get_provider_fees
 // *** NOTE: provider.py => get_provider_fees ***

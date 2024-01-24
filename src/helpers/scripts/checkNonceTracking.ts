@@ -8,16 +8,16 @@ import {
 
 import { ethers } from 'ethers'
 import { checkNonce } from '../../components/core/utils/nonceHandler.js'
-import { getConfig } from '../../utils/config.js'
+import { getConfiguration } from '../../utils/config.js'
 import { OceanNode } from '../../OceanNode.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { Database } from '../../components/database/index.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 
-const config = await getConfig()
+const config = await getConfiguration()
 const dbconn = await new Database(config.dbConfig) // carefull! db constructor is async
 const p2pNode = new OceanP2P(config, dbconn)
-const oceanNode = new OceanNode(config, dbconn, p2pNode, null, null)
+const oceanNode = OceanNode.getInstance(dbconn, p2pNode, null, null)
 
 // before running this: "setup-db": "docker-compose -f typesense-compose.yml -p ocean-node up -d",
 // nonce schema (address => nonce)
@@ -172,7 +172,7 @@ async function doNonceTrackingFlow() {
   )
 
   const checkNonceresult = await checkNonce(
-    oceanNode.getP2PNode(),
+    oceanNode.getDatabase().nonce,
     address,
     nextNonce,
     signature

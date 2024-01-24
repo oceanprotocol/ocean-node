@@ -2,7 +2,7 @@ import { expect } from 'chai'
 import {
   ENVIRONMENT_VARIABLES,
   PROTOCOL_COMMANDS,
-  getConfig
+  getConfiguration
 } from '../../../utils/index.js'
 import { ProviderFeeData } from '../../../@types/Fees'
 import {
@@ -26,7 +26,7 @@ import {
 } from '../../utils/utils.js'
 import { ethers } from 'ethers'
 import { Database } from '../../../components/database/index.js'
-import { OceanP2P } from '../../../components/P2P/index.js'
+import { OceanNode } from '../../../OceanNode.js'
 
 const service: Service = {
   id: '24654b91482a3351050510ff72694d88edae803cf31a5da993da963ba0087648', // matches the service ID on the example DDO
@@ -54,7 +54,7 @@ describe('Ocean Node fees', () => {
       )
     )
     // avoid overriding the local environment, use the .env.test
-    config = await getConfig()
+    config = await getConfiguration(true)
   })
 
   it('should get provider wallet address', async () => {
@@ -128,7 +128,7 @@ describe('Ocean Node fees', () => {
     const providerFeeToken = await getProviderFeeToken(chainId)
     const providerAmount = await getProviderFeeAmount()
 
-    const config = await getConfig()
+    const config = await getConfiguration(true)
     config.supportedNetworks[8996] = {
       chainId: 8996,
       network: 'development',
@@ -137,9 +137,9 @@ describe('Ocean Node fees', () => {
     }
 
     const dbconn = await new Database(config.dbConfig)
-    const p2pNode = new OceanP2P(config, dbconn)
+    const oceanNode = OceanNode.getInstance(dbconn)
 
-    const data: P2PCommandResponse = await new FeesHandler(p2pNode).handle({
+    const data: P2PCommandResponse = await new FeesHandler(oceanNode).handle({
       ddo: asset,
       serviceId: service.id,
       command: PROTOCOL_COMMANDS.GET_FEES
@@ -173,7 +173,7 @@ describe('Ocean Node fees', () => {
   it('should return some defaults for fees token', async () => {
     process.env[ENVIRONMENT_VARIABLES.FEE_TOKENS.name] = undefined
     process.env[ENVIRONMENT_VARIABLES.FEE_AMOUNT.name] = undefined
-    const conf = await getConfig()
+    const conf = await getConfiguration(true)
     expect(Object.keys(conf.feeStrategy.feeTokens).length).to.be.gte(1)
     expect(conf.feeStrategy.feeAmount.amount).to.be.gte(0)
   })

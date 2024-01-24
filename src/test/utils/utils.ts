@@ -2,7 +2,9 @@ import path from 'path'
 import dotenv from 'dotenv'
 import { fileURLToPath } from 'url'
 import { ENVIRONMENT_VARIABLES, EnvVariable } from '../../utils/constants.js'
-import { CONFIG_CONSOLE_LOGGER } from '../../utils/logging/common.js'
+import { CONFIG_LOGGER } from '../../utils/logging/common.js'
+import { RPCS } from '../../@types/blockchain.js'
+import { getConfiguration } from '../../utils/config.js'
 
 // __dirname and __filename are not defined in ES module scope
 const __filename = fileURLToPath(import.meta.url)
@@ -76,9 +78,11 @@ export async function setupEnvironment(
   // configure some env variables
   if (envFilePath) {
     const pathEnv = path.resolve(__dirname, envFilePath)
-    CONFIG_CONSOLE_LOGGER.debug('Setting up environment with variables from: ' + pathEnv)
+    CONFIG_LOGGER.debug('Setting up environment with variables from: ' + pathEnv)
     dotenv.config({ path: pathEnv, encoding: 'utf8', debug: true }) // override is false by default
   }
+
+  let forceReload = false
 
   if (overrideVars && overrideVars.length > 0) {
     overrideVars.forEach((element: OverrideEnvConfig) => {
@@ -86,11 +90,15 @@ export async function setupEnvironment(
         element.override ||
         (element.required && process.env[element.name] === undefined) // if override OR not set but required to run
       ) {
-        CONFIG_CONSOLE_LOGGER.debug('Overriding environment variable: ' + element.name)
+        CONFIG_LOGGER.debug('Overriding environment variable: ' + element.name)
         element.originalValue = process.env[element.name] // save original value
         process.env[element.name] = element.newValue
+        forceReload = true
       }
     })
+  }
+  if (forceReload) {
+    await getConfiguration(true)
   }
   return overrideVars
 }
@@ -99,14 +107,31 @@ export async function setupEnvironment(
  * @param overrideVars any variables we overrided for testing purposes
  */
 export async function tearDownEnvironment(overrideVars?: OverrideEnvConfig[]) {
+  let forceReload = false
   // restore the environment
   if (overrideVars && overrideVars.length > 0) {
     overrideVars.forEach((element: OverrideEnvConfig) => {
       if (element.override && element.newValue !== element.originalValue) {
         // only restore what we have explicilty touched
-        CONFIG_CONSOLE_LOGGER.debug('Restoring environment variable: ' + element.name)
+        CONFIG_LOGGER.debug('Restoring environment variable: ' + element.name)
         process.env[element.name] = element.originalValue
+        forceReload = true
       }
     })
   }
+  if (forceReload) {
+    await getConfiguration(true)
+  }
+}
+
+export function getMockSupportedNetworks(): RPCS {
+  const mockSupportedNetworks: RPCS = {
+    '8996': {
+      chainId: 8996,
+      network: 'development',
+      rpc: 'http://127.0.0.1:8545',
+      chunkSize: 100
+    }
+  }
+  return mockSupportedNetworks
 }
