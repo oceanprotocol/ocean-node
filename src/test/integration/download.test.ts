@@ -22,12 +22,19 @@ import { DownloadHandler } from '../../components/core/downloadHandler.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getEventFromTx, sleep } from '../../utils/util.js'
 import { waitToIndex, delay } from './testUtils.js'
-import { getConfig } from '../../utils/config.js'
-import { OceanP2P } from '../../components/P2P/index.js'
-import { ProviderFeeData } from '../../@types/Fees'
+import { getConfiguration } from '../../utils/config.js'
+import { ProviderFeeData } from '../../@types/Fees.js'
 import { encrypt } from '../../utils/crypt.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
-import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { OceanNode } from '../../OceanNode.js'
+import {
+  OverrideEnvConfig,
+  buildEnvOverrideConfig,
+  getMockSupportedNetworks,
+  setupEnvironment,
+  tearDownEnvironment
+} from '../utils/utils.js'
 
 describe('Download Tests', () => {
   let database: Database
@@ -56,14 +63,9 @@ describe('Download Tests', () => {
   const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
   const consumeMarketFeeToken = feeToken // token address for the feeAmount,
 
-  const mockSupportedNetworks: RPCS = {
-    '8996': {
-      chainId: 8996,
-      network: 'development',
-      rpc: 'http://127.0.0.1:8545',
-      chunkSize: 100
-    }
-  }
+  const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+
+  let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
     const dbConfig = {
@@ -84,6 +86,13 @@ describe('Download Tests', () => {
       data.development.ERC721Factory,
       ERC721Factory.abi,
       publisherAccount
+    )
+    previousConfiguration = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig(
+        [ENVIRONMENT_VARIABLES.RPCS],
+        [JSON.stringify(mockSupportedNetworks)]
+      )
     )
   })
 
@@ -209,7 +218,6 @@ describe('Download Tests', () => {
     const asset: any = resolvedDDO
     this.timeout(65000) // Extend default Mocha test timeout
 
-    console.log('should start an order and then download the asset')
     const dataTokenContract = new Contract(
       datatokenAddress,
       ERC20Template.abi,
@@ -251,16 +259,10 @@ describe('Download Tests', () => {
     orderTxId = orderTxReceipt.hash
     assert(orderTxId, 'transaction id not found')
 
-    const config = await getConfig()
-    config.supportedNetworks[8996] = {
-      chainId: 8996,
-      network: 'development',
-      rpc: 'http://127.0.0.1:8545',
-      chunkSize: 100
-    }
+    const config = await getConfiguration(true)
     const dbconn = await new Database(config.dbConfig)
-    const p2pNode = new OceanP2P(config, dbconn)
-    assert(p2pNode, 'Failed to instantiate OceanP2P')
+    const oceanNode = OceanNode.getInstance(dbconn)
+    assert(oceanNode, 'Failed to instantiate OceanNode')
 
     const wallet = new ethers.Wallet(
       '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
@@ -287,7 +289,7 @@ describe('Download Tests', () => {
       signature,
       command: PROTOCOL_COMMANDS.DOWNLOAD
     }
-    const response = await new DownloadHandler(p2pNode).handle(downloadTask)
+    const response = await new DownloadHandler(oceanNode).handle(downloadTask)
     console.log('response: ', response)
     assert(response)
     assert(response.stream, 'stream not present')
@@ -306,11 +308,11 @@ describe('Download Tests', () => {
       signature: '',
       command: PROTOCOL_COMMANDS.DOWNLOAD
     }
-    const config = await getConfig()
+    const config = await getConfiguration(true)
     const dbconn = await new Database(config.dbConfig)
-    const p2pNode = new OceanP2P(config, dbconn)
-    assert(p2pNode, 'Failed to instantiate OceanP2P')
-    const response = await new DownloadHandler(p2pNode).handle(downloadTask)
+    const oceanNode = OceanNode.getInstance(dbconn)
+    assert(oceanNode, 'Failed to instantiate OceanNode')
+    const response = await new DownloadHandler(oceanNode).handle(downloadTask)
     console.log(response)
     assert(response.stream === null, 'stream not null')
     assert(response.status.httpStatus === 500, 'http status not 500')
@@ -318,5 +320,9 @@ describe('Download Tests', () => {
       response.status.error === `Error: Access to asset ${assetDID} was denied`,
       'error contains access denied'
     )
+  })
+
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
   })
 })
