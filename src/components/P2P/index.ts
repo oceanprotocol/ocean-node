@@ -48,6 +48,7 @@ import {
 } from '../../utils/logging/Logger.js'
 import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
+import { CoreHandlersRegistry } from '../core/coreHandlersRegistry'
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
@@ -82,21 +83,27 @@ export class OceanP2P extends EventEmitter {
   private _handleMessage: any
   private _interval: NodeJS.Timeout
   private _idx: number
-  private db: Database
-  private _config: OceanNodeConfig
+  private readonly db: Database
+  private readonly _config: OceanNodeConfig
+  private coreHandlers: CoreHandlersRegistry
   constructor(config: OceanNodeConfig, db?: Database) {
     super()
     this._config = config
-    if (db && config.dbConfig.url) {
-      this.db = db
-    } else {
-      this._config.hasIndexer = false
-      this._config.hasProvider = false
-    }
+    this.db = db
     this._ddoDHT = {
       updated: new Date().getTime(),
       dht: new Map<string, FindDDOResponse>()
     }
+  }
+
+  setCoreHandlers(coreHandlers: CoreHandlersRegistry) {
+    if (!this.coreHandlers) {
+      this.coreHandlers = coreHandlers
+    }
+  }
+
+  getCoreHandlers() {
+    return this.coreHandlers
   }
 
   async start(options: any = null) {
@@ -110,6 +117,7 @@ export class OceanP2P extends EventEmitter {
 
     this._interval = setInterval(this._pollPeers.bind(this), this._options.pollInterval)
     this._libp2p.handle(this._protocol, handleProtocolCommands.bind(this))
+
     setInterval(this.republishStoredDDOS.bind(this), REPUBLISH_INTERVAL_HOURS)
 
     this._idx = index++
@@ -463,14 +471,14 @@ export class OceanP2P extends EventEmitter {
   // related: https://github.com/libp2p/go-libp2p-kad-dht/issues/323
   async republishStoredDDOS() {
     try {
-      if (!this.getDatabase()) {
+      if (!this.db) {
         P2P_LOGGER.logMessage(
           `republishStoredDDOS() attempt aborted because there is no database!`,
           true
         )
         return
       }
-      const db = this.getDatabase().ddo
+      const db = this.db.ddo
       const searchParameters = {
         q: '*',
         query_by: 'metadata.name'
@@ -526,14 +534,6 @@ export class OceanP2P extends EventEmitter {
     return this._config.keys.peerId.toString()
   }
 
-  getDatabase(): Database {
-    return this.db
-  }
-
-  getConfig(): OceanNodeConfig {
-    return this._config
-  }
-
   getDDOCache(): DDOCache {
     return this._ddoDHT
   }
@@ -545,13 +545,20 @@ export class OceanP2P extends EventEmitter {
    * @returns  boolean from counter
    */
   async storeAndAdvertiseDDOS(list: any[]): Promise<boolean> {
+    if (!this.db) {
+      P2P_LOGGER.logMessage(
+        `storeAndAdvertiseDDOS() attempt aborted because there is no database!`,
+        true
+      )
+      return false
+    }
     try {
       let count = 0
       P2P_LOGGER.logMessage(
         `Trying to store and advertise ${list.length} initial DDOS`,
         true
       )
-      const db = this.getDatabase().ddo
+      const db = this.db.ddo
       list.forEach(async (ddo: any) => {
         // if already added before, create() will return null, but still advertise it
         try {

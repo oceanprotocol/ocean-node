@@ -7,16 +7,11 @@ import { DDO } from '../../@types/DDO/DDO.js'
 export class QueryHandler extends Handler {
   async handle(task: QueryCommand): Promise<P2PCommandResponse> {
     try {
-      let aggregatedResults: DDO[] = []
-      const versions = await getSchemaVersions()
-
-      for (const version of versions) {
-        // Modify this line to query the specific collection based on version
-        const result = await this.getP2PNode().getDatabase().ddo.search(task.query)
-        // if (result && result.length) {
-        //   aggregatedResults = aggregatedResults.concat(result)
-        // }
+      let result = await this.getOceanNode().getDatabase().ddo.search(task.query)
+      if (!result) {
+        result = []
       }
+      let aggregatedResults: any = []
 
       if (aggregatedResults.length === 0) {
         aggregatedResults = []

@@ -1,6 +1,5 @@
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
-import { OceanP2P } from '../../P2P/index.js'
 import { ethers } from 'ethers'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { NonceDatabase } from '../../database/index.js'
@@ -35,11 +34,10 @@ export type NonceResponse = {
 
 // get stored nonce for an address ( 0 if not found)
 export async function getNonce(
-  node: OceanP2P,
+  db: NonceDatabase,
   address: string
 ): Promise<P2PCommandResponse> {
   // get nonce from db
-  const db: NonceDatabase = node.getDatabase().nonce
   try {
     const nonce = await db.retrieve(address)
     if (nonce !== null) {
@@ -99,7 +97,7 @@ async function updateNonce(
 
 // get stored nonce for an address, update it on db, validate signature
 export async function checkNonce(
-  node: OceanP2P,
+  db: NonceDatabase,
   consumer: string,
   nonce: number,
   signature: string,
@@ -107,7 +105,6 @@ export async function checkNonce(
 ): Promise<NonceResponse> {
   try {
     // get nonce from db
-    const db: NonceDatabase = node.getDatabase().nonce
     let previousNonce = 0 // if none exists
     const existingNonce = await db.retrieve(consumer)
     if (existingNonce !== null) {

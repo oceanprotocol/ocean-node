@@ -30,6 +30,7 @@ import { decrypt } from '../../utils/crypt.js'
 import { createHash } from 'crypto'
 import lzma from 'lzma-native'
 import { validateObject } from './utils/validateDdoHandler.js'
+import { getConfiguration } from '../../utils/config.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -69,7 +70,7 @@ export class DecryptDdoHandler extends Handler {
         }
       }
 
-      const node = this.getP2PNode()
+      const node = this.getOceanNode()
       const dbNonce = node.getDatabase().nonce
       const existingNonce = await dbNonce.retrieve(decrypterAddress)
 
@@ -86,7 +87,7 @@ export class DecryptDdoHandler extends Handler {
 
       await dbNonce.update(decrypterAddress, nonce)
       const chainId = String(task.chainId)
-      const config = node.getConfig()
+      const config = await getConfiguration()
       const supportedNetwork = config.supportedNetworks[chainId]
 
       // check if supported chainId
@@ -328,7 +329,7 @@ export class DecryptDdoHandler extends Handler {
 export class GetDdoHandler extends Handler {
   async handle(task: GetDdoCommand): Promise<P2PCommandResponse> {
     try {
-      const ddo = await this.getP2PNode().getDatabase().ddo.retrieve(task.id)
+      const ddo = await this.getOceanNode().getDatabase().ddo.retrieve(task.id)
       if (!ddo) {
         return {
           stream: null,
@@ -351,15 +352,16 @@ export class GetDdoHandler extends Handler {
 export class FindDdoHandler extends Handler {
   async handle(task: FindDDOCommand): Promise<P2PCommandResponse> {
     try {
-      const node = this.getP2PNode()
+      const node = this.getOceanNode()
+      const p2pNode = node.getP2PNode()
       let updatedCache = false
       // result list
       const resultList: FindDDOResponse[] = []
       // if we have the result cached recently we return that result
-      if (hasCachedDDO(task, node)) {
+      if (hasCachedDDO(task, p2pNode)) {
         // 'found cached DDO'
         CORE_LOGGER.logMessage('Found local cached version for DDO id: ' + task.id, true)
-        resultList.push(node.getDDOCache().dht.get(task.id))
+        resultList.push(p2pNode.getDDOCache().dht.get(task.id))
         return {
           stream: Readable.from(JSON.stringify(resultList, null, 4)),
           status: { httpStatus: 200 }
@@ -407,17 +409,18 @@ export class FindDdoHandler extends Handler {
               true
             )
             // is it cached?
-            if (node.getDDOCache().dht.has(ddo.id)) {
-              const localValue: FindDDOResponse = node.getDDOCache().dht.get(ddo.id)
+            const ddoCache = p2pNode.getDDOCache()
+            if (ddoCache.dht.has(ddo.id)) {
+              const localValue: FindDDOResponse = ddoCache.dht.get(ddo.id)
               if (
                 new Date(ddoInfo.lastUpdateTime) > new Date(localValue.lastUpdateTime)
               ) {
                 // update cached version
-                node.getDDOCache().dht.set(ddo.id, ddoInfo)
+                ddoCache.dht.set(ddo.id, ddoInfo)
               }
             } else {
               // just add it to the list
-              node.getDDOCache().dht.set(ddo.id, ddoInfo)
+              ddoCache.dht.set(ddo.id, ddoInfo)
             }
             updatedCache = true
           }
@@ -454,12 +457,12 @@ export class FindDdoHandler extends Handler {
       }
 
       // check other providers for this ddo
-      const providers = await node.getProvidersForDid(task.id)
+      const providers = await p2pNode.getProvidersForDid(task.id)
       // check if includes self and exclude from check list
       if (providers.length > 0) {
         // exclude this node from the providers list if present
         const filteredProviders = providers.filter((provider: any) => {
-          return provider.id.toString() !== node.getPeerId()
+          return provider.id.toString() !== p2pNode.getPeerId()
         })
 
         // work with the filtered list only
@@ -487,7 +490,7 @@ export class FindDdoHandler extends Handler {
                 // problem here is that even if we get the P2PCommandResponse right after await(), we still don't know
                 // exactly when the chunks are written/processed/received on the sink function
                 // so, better to wait/sleep some small amount of time before proceeding to the next one
-                const response: P2PCommandResponse = await node.sendTo(
+                const response: P2PCommandResponse = await p2pNode.sendTo(
                   peer,
                   JSON.stringify(getCommand),
                   sink
@@ -515,7 +518,7 @@ export class FindDdoHandler extends Handler {
           } while (processed < toProcess)
 
           if (updatedCache) {
-            node.getDDOCache().updated = new Date().getTime()
+            p2pNode.getDDOCache().updated = new Date().getTime()
           }
 
           // house cleaning
@@ -561,7 +564,7 @@ export class FindDdoHandler extends Handler {
 
   // Function to use findDDO and get DDO in desired format
   async findAndFormatDdo(ddoId: string): Promise<DDO | null> {
-    const node = this.getP2PNode()
+    const node = this.getOceanNode()
     // First try to find the DDO Locally
     try {
       const ddo = await node.getDatabase().ddo.retrieve(ddoId)
@@ -619,7 +622,7 @@ export class FindDdoHandler extends Handler {
 export class ValidateDDOHandler extends Handler {
   async handle(task: ValidateDDOCommand): Promise<P2PCommandResponse> {
     try {
-      const ddo = await this.getP2PNode().getDatabase().ddo.retrieve(task.id)
+      const ddo = await this.getOceanNode().getDatabase().ddo.retrieve(task.id)
       if (!ddo) {
         return {
           stream: null,

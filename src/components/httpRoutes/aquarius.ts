@@ -16,8 +16,8 @@ aquariusRoutes.get('/assets/ddo/:did', async (req, res) => {
       res.status(400).send('Missing or invalid required parameter: "did"')
       return
     }
-    const node = req.oceanNode.getP2PNode()
-    const result = await new GetDdoHandler(node).handle({
+
+    const result = await new GetDdoHandler(req.oceanNode).handle({
       id: did,
       command: PROTOCOL_COMMANDS.GET_DDO
     })
@@ -40,8 +40,8 @@ aquariusRoutes.get('/assets/metadata/:did', async (req, res) => {
       res.status(400).send('Missing or invalid required parameter: "did"')
       return
     }
-    const node = req.oceanNode.getP2PNode()
-    const result = await new GetDdoHandler(node).handle({
+
+    const result = await new GetDdoHandler(req.oceanNode).handle({
       id: did,
       command: PROTOCOL_COMMANDS.GET_DDO
     })
@@ -64,8 +64,8 @@ aquariusRoutes.post('/assets/metadata/query', async (req, res) => {
       res.status(400).send('Missing required body')
       return
     }
-    const node = req.oceanNode.getP2PNode()
-    const result = await new QueryHandler(node).handle({
+
+    const result = await new QueryHandler(req.oceanNode).handle({
       query,
       command: PROTOCOL_COMMANDS.QUERY
     })
@@ -111,8 +111,8 @@ aquariusRoutes.get('/state/ddo', async (req, res) => {
         .send('Missing or invalid required parameters: "did", "chainId", "nft"')
       return
     }
-    const node = req.oceanNode.getP2PNode()
-    const result = await new QueryHandler(node).handle({
+
+    const result = await new QueryHandler(req.oceanNode).handle({
       query,
       command: PROTOCOL_COMMANDS.QUERY
     })

@@ -12,8 +12,6 @@ import {
   solidityPackedKeccak256,
   parseUnits
 } from 'ethers'
-import fs from 'fs'
-import { homedir } from 'os'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
@@ -26,6 +24,7 @@ import { genericDDO } from '../data/ddo.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
+import { getMockSupportedNetworks } from '../utils/utils.js'
 
 describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
@@ -63,14 +62,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   const consumeMarketFeeToken = feeToken // token address for the feeAmount,
   const providerValidUntil = 0
 
-  const mockSupportedNetworks: RPCS = {
-    '8996': {
-      chainId: 8996,
-      network: 'development',
-      rpc: 'http://127.0.0.1:8545',
-      chunkSize: 100
-    }
-  }
+  const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
   before(async () => {
     const dbConfig = {
@@ -161,7 +153,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should store the ddo in the database and return it ', async () => {
     resolvedDDO = await waitToIndex(assetDID, database)
-    console.log('resolvedDDO', resolvedDDO)
     expect(resolvedDDO.id).to.equal(genericAsset.id)
   })
 

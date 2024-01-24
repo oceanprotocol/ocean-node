@@ -12,7 +12,10 @@ import {
   getOceanArtifactsAdresses,
   OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN
 } from '../utils/address.js'
-import { CONFIG_CONSOLE_LOGGER } from './logging/common.js'
+import { CONFIG_LOGGER } from './logging/common.js'
+
+// usefull for lazy loading and avoid boilerplate on other places
+let previousConfiguration: OceanNodeConfig = null
 
 export async function getPeerIdFromPrivateKey(
   privateKey: string
@@ -50,7 +53,7 @@ function getIntEnvValue(env: any, defaultValue: number) {
 function getSupportedChains(): RPCS {
   if (!process.env.RPCS || !JSON.parse(process.env.RPCS)) {
     // missing or invalid RPC list
-    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+    CONFIG_LOGGER.logMessageWithEmoji(
       'Missing or Invalid RPCS env variable format, Running node without the  Indexer component ..',
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -67,7 +70,7 @@ function getAuthorizedDecrypters(): string[] {
     !process.env.AUTHORIZED_DECRYPTERS ||
     !JSON.parse(process.env.AUTHORIZED_DECRYPTERS)
   ) {
-    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+    CONFIG_LOGGER.logMessageWithEmoji(
       'Missing or Invalid AUTHORIZED_DECRYPTERS env variable format',
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -77,7 +80,7 @@ function getAuthorizedDecrypters(): string[] {
   }
   const authorizedDecrypters: string[] = JSON.parse(process.env.AUTHORIZED_DECRYPTERS)
   if (!Array.isArray(authorizedDecrypters)) {
-    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+    CONFIG_LOGGER.logMessageWithEmoji(
       'Missing or Invalid AUTHORIZED_DECRYPTERS env variable format',
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -88,7 +91,7 @@ function getAuthorizedDecrypters(): string[] {
   try {
     return authorizedDecrypters.map((address) => getAddress(address))
   } catch (error) {
-    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+    CONFIG_LOGGER.logMessageWithEmoji(
       'Missing or Invalid AUTHORIZED_DECRYPTERS env variable format',
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -148,7 +151,7 @@ function getDefaultFeeTokens(supportedNetworks: RPCS): FeeTokens[] {
  */
 function getOceanNodeFees(supportedNetworks: RPCS, isStartup?: boolean): FeeStrategy {
   const logError = () => {
-    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+    CONFIG_LOGGER.logMessageWithEmoji(
       'Error parsing Fee Strategy! Please check "FEE_TOKENS" and "FEE_AMOUNT" env variables. Will use defaults...',
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -161,7 +164,7 @@ function getOceanNodeFees(supportedNetworks: RPCS, isStartup?: boolean): FeeStra
     // if not exists, just use defaults
     if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.FEE_AMOUNT)) {
       if (isStartup) {
-        CONFIG_CONSOLE_LOGGER.log(
+        CONFIG_LOGGER.log(
           LOG_LEVELS_STR.LEVEL_WARN,
           `Missing "${ENVIRONMENT_VARIABLES.FEE_AMOUNT.name}" env variable. Will use defaults...`,
           true
@@ -175,7 +178,7 @@ function getOceanNodeFees(supportedNetworks: RPCS, isStartup?: boolean): FeeStra
     if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.FEE_TOKENS)) {
       // try to get first for artifacts address if available
       if (isStartup) {
-        CONFIG_CONSOLE_LOGGER.log(
+        CONFIG_LOGGER.log(
           LOG_LEVELS_STR.LEVEL_WARN,
           `Missing "${ENVIRONMENT_VARIABLES.FEE_TOKENS.name}" env variable. Will use defaults...`,
           true
@@ -221,7 +224,7 @@ export function existsEnvironmentVariable(envVariable: any, log = false): boolea
   const { name, value, required } = envVariable
   if (!value) {
     if (log) {
-      CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+      CONFIG_LOGGER.logMessageWithEmoji(
         `Invalid or missing "${name}" env variable...`,
         true,
         required
@@ -236,11 +239,23 @@ export function existsEnvironmentVariable(envVariable: any, log = false): boolea
   return true
 }
 
-export async function getConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
+// lazy access ocean node config, when we don't need updated values from process.env
+// this only goes through .env processing once (more suitable for a running node instance)
+export async function getConfiguration(
+  forceReload: boolean = false,
+  isStartup: boolean = false
+): Promise<OceanNodeConfig> {
+  if (!previousConfiguration || forceReload) {
+    previousConfiguration = await getEnvConfig(isStartup)
+  }
+  return previousConfiguration
+}
+// we can just use the lazy version above "getConfiguration()" and specify if we want to reload from .env variables
+async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
   const privateKey = process.env.PRIVATE_KEY
   if (!privateKey || privateKey.length !== 66) {
     // invalid private key
-    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+    CONFIG_LOGGER.logMessageWithEmoji(
       'Invalid PRIVATE_KEY env variable..',
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
@@ -256,7 +271,7 @@ export async function getConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
   const keys = await getPeerIdFromPrivateKey(privateKey)
   // do not log this information everytime we call getConfig()
   if (isStartup) {
-    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+    CONFIG_LOGGER.logMessageWithEmoji(
       'Starting node with peerID: ' + keys.peerId,
       true,
       GENERIC_EMOJIS.EMOJI_CHECK_MARK
@@ -311,5 +326,17 @@ export async function getConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     supportedNetworks,
     feeStrategy: getOceanNodeFees(supportedNetworks, isStartup)
   }
+
+  if (!previousConfiguration) {
+    previousConfiguration = config
+  } else if (configChanged(previousConfiguration, config)) {
+    CONFIG_LOGGER.warn(
+      'Detected Ocean Node Configuration change... This might have unintended effects'
+    )
+  }
   return config
+}
+
+function configChanged(previous: OceanNodeConfig, current: OceanNodeConfig): boolean {
+  return JSON.stringify(previous) !== JSON.stringify(current)
 }
