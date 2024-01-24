@@ -12,6 +12,7 @@ export class GetEnvironmentsHandler extends Handler {
         'File Info Request recieved with arguments: ' + JSON.stringify(task, null, 2),
         true
       )
+      const response: any[] = []
       const config = await getConfiguration()
       const { c2dClusters } = config
       for (const cluster of c2dClusters) {
@@ -20,7 +21,6 @@ export class GetEnvironmentsHandler extends Handler {
           true
         )
       }
-      const response: any[] = []
 
       CORE_LOGGER.logMessage(
         'File Info Response: ' + JSON.stringify(response, null, 2),
