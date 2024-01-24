@@ -139,6 +139,25 @@ Now, back in your nodes terminal, you can run the tests
 npm run test:integration
 ```
 
+## Unit and integration .environments
+
+Whenever possible, we should avoid overriding .env variables, as it might affect local configuration and other tests
+Avoid doing things like:
+
+```bash
+process.env.PRIVATE_KEY = '0xc594c6e5def4bab63ac29ee...'
+```
+
+If we really need to change/override existing .env config:
+use:
+
+```bash
+setupEnvironment() / tearDownEnvironment()
+```
+
+instead (on before() and after() hooks respectively),
+Any config changes will not be permanent and the environment is preserved between tests
+
 ## Additional tests / helper scripts
 
 There are a couple of helper scripts to help test additional functionality and components integration. These can be found under 'src/helpers/scripts'

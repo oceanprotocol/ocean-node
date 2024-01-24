@@ -1,6 +1,5 @@
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
-import { OceanP2P } from '../../P2P/index.js'
 import { ethers } from 'ethers'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { NonceDatabase } from '../../database/index.js'

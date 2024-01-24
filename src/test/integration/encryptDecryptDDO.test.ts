@@ -90,10 +90,6 @@ describe('Should encrypt and decrypt DDO', () => {
       )
     )
 
-    // WE SHOULD STOP DOING THIS!!! It breaks local env and other tests!
-    // process.env.PRIVATE_KEY =
-    // '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
-    // use setupEnvironment / tearDownEnvironment instead (But only if its really needed to override some stuff)
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
