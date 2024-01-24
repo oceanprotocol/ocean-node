@@ -6,13 +6,13 @@ import {
   OceanNodeIndexer,
   StorageTypes
 } from '../../../@types/OceanNode.js'
-import { existsEnvironmentVariable } from '../../../utils/index.js'
+import { existsEnvironmentVariable, getConfiguration } from '../../../utils/index.js'
 import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { OceanP2P } from '../../P2P/index.js'
+import { OceanNode } from '../../../OceanNode.js'
 
 export async function status(
-  oceanNode: OceanP2P,
+  oceanNode: OceanNode,
   nodeId?: string
 ): Promise<OceanNodeStatus> {
   CORE_LOGGER.logMessage('Command status started execution...', true)
@@ -25,7 +25,7 @@ export async function status(
     )
     return
   }
-  const config = oceanNode.getConfig()
+  const config = await getConfiguration()
   const { indexer: indexerDatabase } = oceanNode.getDatabase()
   const status: OceanNodeStatus = {
     id: undefined,

@@ -6,7 +6,7 @@ import { Readable } from 'stream'
 export class QueryHandler extends Handler {
   async handle(task: QueryCommand): Promise<P2PCommandResponse> {
     try {
-      let result = await this.getP2PNode().getDatabase().ddo.search(task.query)
+      let result = await this.getOceanNode().getDatabase().ddo.search(task.query)
       if (!result) {
         result = []
       }

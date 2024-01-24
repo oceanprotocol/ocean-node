@@ -1,5 +1,5 @@
 import { assert } from 'chai'
-import { getConfig } from '../../utils/config.js'
+import { getConfiguration } from '../../utils/config.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { delay } from '../integration/testUtils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
@@ -34,7 +34,7 @@ describe('OceanP2P Test', () => {
 
   it('Start instance of OceanP2P node1', async () => {
     process.env.PRIVATE_KEY = process.env.NODE1_PRIVATE_KEY
-    config1 = await getConfig()
+    config1 = await getConfiguration(true)
     config1.p2pConfig.ipV4BindTcpPort = 0
     node1 = new OceanP2P(config1, null)
     await node1.start()
@@ -42,7 +42,7 @@ describe('OceanP2P Test', () => {
   })
   it('Start instance of OceanP2P node2', async () => {
     process.env.PRIVATE_KEY = process.env.NODE2_PRIVATE_KEY
-    config2 = await getConfig()
+    config2 = await getConfiguration(true)
     config2.p2pConfig.ipV4BindTcpPort = 0
     node2 = new OceanP2P(config2, null)
     await node2.start()
@@ -101,15 +101,14 @@ describe('OceanP2P Test without DB_URL set', () => {
     process.env.DB_URL = ''
   })
   it('Start instance of OceanP2P without a database URL', async () => {
-    const config = await getConfig()
+    const config = await getConfiguration(true)
     assert(config.dbConfig.url === '', 'DB URL should not be set')
     const p2pNode = new OceanP2P(config)
     assert(p2pNode, 'Failed to create P2P Node instance')
-    const p2pConfig = p2pNode.getConfig()
-    assert(p2pConfig, 'Failed to get P2P Node config')
-    assert(p2pConfig.dbConfig.url === '', 'P2P Node config should not have DB URL set')
-    assert(p2pConfig.hasIndexer === false, 'P2P Node should not have indexer enabled')
-    assert(p2pConfig.hasProvider === false, 'P2P Node should not have provider enabled')
+    assert(config, 'Failed to get P2P Node config')
+    assert(config.dbConfig.url === '', 'P2P Node config should not have DB URL set')
+    assert(config.hasIndexer === false, 'P2P Node should not have indexer enabled')
+    assert(config.hasProvider === false, 'P2P Node should not have provider enabled')
   })
   after(async () => {
     process.env.DB_URL = originalDBURL

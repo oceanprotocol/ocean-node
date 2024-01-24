@@ -14,7 +14,7 @@ export const providerRoutes = express.Router()
 
 providerRoutes.post('/decrypt', async (req, res) => {
   try {
-    const result = await new DecryptDdoHandler(req.oceanNode.getP2PNode()).handle({
+    const result = await new DecryptDdoHandler(req.oceanNode).handle({
       ...req.body,
       command: PROTOCOL_COMMANDS.DECRYPT_DDO
     })
@@ -37,7 +37,7 @@ providerRoutes.post('/encrypt', async (req, res) => {
       res.status(400).send('Missing required body')
       return
     }
-    const result = await new EncryptHandler(req.oceanNode.getP2PNode()).handle({
+    const result = await new EncryptHandler(req.oceanNode).handle({
       blob: data,
       encoding: 'string',
       encryptionType: 'ECIES',
@@ -70,8 +70,8 @@ providerRoutes.get('/initialize', async (req, res) => {
     const consumerAddress = String(req.query.consumerAddress)
     const serviceId = String(req.query.serviceId)
 
-    const node = req.oceanNode.getP2PNode()
-    const ddo = (await node.getDatabase().ddo.retrieve(did)) as DDO
+    const DB = req.oceanNode.getDatabase()
+    const ddo = (await DB.ddo.retrieve(did)) as DDO
 
     if (!ddo) {
       res.status(400).send('Cannot resolve DID')
@@ -91,7 +91,7 @@ providerRoutes.get('/initialize', async (req, res) => {
     }
 
     const datatoken = service.datatokenAddress
-    const nonceResult = await getNonce(node, consumerAddress)
+    const nonceResult = await getNonce(DB.nonce, consumerAddress)
     const nonce = nonceResult.stream
       ? await streamToString(nonceResult.stream as Readable)
       : nonceResult.stream
@@ -116,8 +116,8 @@ providerRoutes.get('/nonce', async (req, res) => {
       res.status(400).send('Missing required parameter: "userAddress"')
       return
     }
-    const node = req.oceanNode.getP2PNode()
-    const result = await getNonce(node, userAddress)
+    const nonceDB = req.oceanNode.getDatabase().nonce
+    const result = await getNonce(nonceDB, userAddress)
     if (result.stream) {
       res.json({ nonce: await streamToString(result.stream as Readable) })
     } else {

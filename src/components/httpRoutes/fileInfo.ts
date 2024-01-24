@@ -86,9 +86,7 @@ fileInfoRoute.post(
         }
       }
 
-      const response = await new FileInfoHandler(req.oceanNode.getP2PNode()).handle(
-        fileInfoTask
-      )
+      const response = await new FileInfoHandler(req.oceanNode).handle(fileInfoTask)
       if (response.stream) {
         res.status(response.status.httpStatus)
         res.set(response.status.headers)

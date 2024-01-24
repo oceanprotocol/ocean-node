@@ -10,16 +10,16 @@ import { FileInfoCommand } from '../../utils'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { ArweaveStorage, IpfsStorage, UrlStorage } from '../storage/index.js'
 import { Handler } from './handler.js'
-import { OceanP2P } from '../P2P'
 import { decrypt } from '../../utils/crypt.js'
 import { Service } from '../../@types/DDO/Service.js'
 import { FindDdoHandler } from './ddoHandler.js'
 import { AssetUtils, fetchFileMetadata } from '../../utils/asset.js'
+import { OceanNode } from '../../OceanNode.js'
 
 async function getFile(
   did: string,
   serviceId: string,
-  node: OceanP2P
+  node: OceanNode
 ): Promise<UrlFileObject[] | ArweaveFileObject[] | IpfsFileObject[]> {
   try {
     // 1. Get the DDO
@@ -76,7 +76,7 @@ export class FileInfoHandler extends Handler {
         'File Info Request recieved with arguments: ' + JSON.stringify(task, null, 2),
         true
       )
-      const p2pNode = this.getP2PNode()
+      const oceanNode = this.getOceanNode()
       let fileInfo = []
 
       if (task.file && task.type) {
@@ -94,7 +94,7 @@ export class FileInfoHandler extends Handler {
           fileIndex: task.fileIndex
         })
       } else if (task.did && task.serviceId) {
-        const fileArray = await getFile(task.did, task.serviceId, p2pNode)
+        const fileArray = await getFile(task.did, task.serviceId, oceanNode)
 
         if (task.fileIndex) {
           const fileMetadata = await formatMetadata(fileArray[task.fileIndex])
