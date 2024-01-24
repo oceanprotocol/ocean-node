@@ -1,8 +1,8 @@
 import { Readable } from 'stream'
-import { P2PCommandResponse } from '../../../@types'
-import { CORE_LOGGER } from '../../../utils/logging/common'
-import { Handler } from '../handler'
-import { GetEnvironments } from '../../../utils'
+import { P2PCommandResponse } from '../../@types'
+import { CORE_LOGGER } from '../../utils/logging/common'
+import { Handler } from './handler'
+import { GetEnvironments } from '../../utils/constants.js'
 
 export class GetEnvironmentsHandler extends Handler {
   async handle(task: GetEnvironments): Promise<P2PCommandResponse> {
@@ -11,7 +11,7 @@ export class GetEnvironmentsHandler extends Handler {
         'File Info Request recieved with arguments: ' + JSON.stringify(task, null, 2),
         true
       )
-      const p2pNode = this.getP2PNode()
+      const oceanNode = await this.getOceanNode()
       const response: any[] = []
 
       CORE_LOGGER.logMessage(
