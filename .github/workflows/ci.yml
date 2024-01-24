@@ -133,10 +133,11 @@ jobs:
       - run: docker image ls
       - name: Delete default runner images
         run: |
+          docker image rm node:16
+          docker image rm node:16-alpine
           docker image rm node:18
           docker image rm node:18-alpine
-          docker image rm buildpack-deps:buster
-          docker image rm buildpack-deps:bullseye
+          docker image rm node:20
           docker image rm debian:10
           docker image rm debian:11
           docker image rm moby/buildkit:latest
@@ -150,6 +151,7 @@ jobs:
       - name: integration tests
         run: npm run test:integration:cover
         env:
+          OPERATOR_SERVICE_URL: '["http://172.15.0.13:31000/"]'
           PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
           NODE1_PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
           NODE2_PRIVATE_KEY: ${{ secrets.NODE2_PRIVATE_KEY }}
