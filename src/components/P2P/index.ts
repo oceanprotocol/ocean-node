@@ -545,6 +545,13 @@ export class OceanP2P extends EventEmitter {
    * @returns  boolean from counter
    */
   async storeAndAdvertiseDDOS(list: any[]): Promise<boolean> {
+    if (!this.db) {
+      P2P_LOGGER.logMessage(
+        `storeAndAdvertiseDDOS() attempt aborted because there is no database!`,
+        true
+      )
+      return false
+    }
     try {
       let count = 0
       P2P_LOGGER.logMessage(
