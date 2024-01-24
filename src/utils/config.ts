@@ -13,7 +13,7 @@ import {
   OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN
 } from '../utils/address.js'
 import { CONFIG_CONSOLE_LOGGER } from './logging/common.js'
-import { create256Hash } from './crypt'
+import { create256Hash } from './crypt.js'
 
 export async function getPeerIdFromPrivateKey(
   privateKey: string
