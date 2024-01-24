@@ -54,6 +54,12 @@ export IPFS_GATEWAY='https://ipfs.io/'
 export ARWEAVE_GATEWAY='https://arweave.net/'
 ```
 
+For configuring a C2D (Compute to Data) cluster(s), please set the following environment variable (array of 1 or multiple cluster URLS):
+
+```bash
+export OPERATOR_SERVICE_URL=[\"http://example.c2d.cluster1.com\",\"http://example.cd2.cluster2.com\"]
+```
+
 Then start the node:
 
 ```bash
