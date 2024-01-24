@@ -19,86 +19,60 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
   const command: string = requestBody.command as string
 
   if (!command) {
-    return {
-      valid: false,
-      reason: 'Invalid Request: "command" is mandatory!',
-      status: 400
-    }
+    return buildInvalidRequestMessage('Invalid Request: "command" is mandatory!')
   }
   // direct commands
   if (SUPPORTED_PROTOCOL_COMMANDS.includes(command)) {
     if (command === PROTOCOL_COMMANDS.FIND_DDO || command === PROTOCOL_COMMANDS.GET_DDO) {
       // message is DDO identifier
       if (!requestBody.id || !requestBody.id.startsWith('did:op')) {
-        return {
-          valid: false,
-          reason: 'Missing or invalid required parameter: "id"',
-          status: 400
-        }
+        return buildInvalidRequestMessage('Missing or invalid required parameter: "id"')
       }
       // nonce
     } else if (command === PROTOCOL_COMMANDS.NONCE) {
       // needs a valid and mandatory address
       if (!requestBody.address || !isAddress(requestBody.address)) {
-        return {
-          valid: false,
-          reason: !requestBody.address
+        return buildInvalidRequestMessage(
+          !requestBody.address
             ? 'Missing required parameter: "address"'
-            : 'Parameter : "address" is not a valid web3 address',
-          status: 400
-        }
+            : 'Parameter : "address" is not a valid web3 address'
+        )
       }
     } else if (command === PROTOCOL_COMMANDS.QUERY) {
       if (!requestBody.query) {
-        return {
-          valid: false,
-          reason: 'Missing required parameter: "query"',
-          status: 400
-        }
+        return buildInvalidRequestMessage('Missing required parameter: "query"')
       }
     } else if (command === PROTOCOL_COMMANDS.ENCRYPT) {
       if (!requestBody.blob) {
-        return {
-          valid: false,
-          reason: 'Missing required parameter: "blob"',
-          status: 400
-        }
+        return buildInvalidRequestMessage('Missing required parameter: "blob"')
       }
       if (!requestBody.encoding) {
         requestBody.encoding = 'string'
       }
       if (!['string', 'base58'].includes(requestBody.encoding)) {
-        return {
-          valid: false,
-          reason: 'Invalid parameter: "encoding" must be String | Base58',
-          status: 400
-        }
+        return buildInvalidRequestMessage(
+          'Invalid parameter: "encoding" must be String | Base58'
+        )
       }
       if (!requestBody.encryptionType) {
         requestBody.encoding = 'ECIES'
       }
       if (!['AES', 'ECIES'].includes(requestBody.encryptionType)) {
-        return {
-          valid: false,
-          reason: 'Invalid parameter: "encryptionType" must be AES | ECIES',
-          status: 400
-        }
+        return buildInvalidRequestMessage(
+          'Invalid parameter: "encryptionType" must be AES | ECIES'
+        )
       }
     } else if (command === PROTOCOL_COMMANDS.GET_FEES) {
       if (!requestBody.ddo || !requestBody.serviceId) {
-        return {
-          valid: false,
-          status: 400,
-          reason: 'Missing required parameter(s): "ddo","serviceId"'
-        }
+        return buildInvalidRequestMessage(
+          'Missing required parameter(s): "ddo","serviceId"'
+        )
       }
     } else if (command === PROTOCOL_COMMANDS.REINDEX) {
       if (!requestBody.txId || !requestBody.chainId) {
-        return {
-          valid: false,
-          status: 400,
-          reason: 'Missing required parameter(s): "txId","chainId"'
-        }
+        return buildInvalidRequestMessage(
+          'Missing required parameter(s): "txId","chainId"'
+        )
       }
     } else if (command === PROTOCOL_COMMANDS.DECRYPT_DDO) {
       if (
@@ -107,12 +81,23 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
         !requestBody.nonce ||
         !requestBody.signature
       ) {
-        return {
-          valid: false,
-          status: 400,
-          reason:
-            'Missing required parameter(s): "decrypterAddress","chainId","nonce","signature"'
-        }
+        return buildInvalidRequestMessage(
+          'Missing required parameter(s): "decrypterAddress","chainId","nonce","signature"'
+        )
+      }
+    } else if (command === PROTOCOL_COMMANDS.DOWNLOAD) {
+      if (
+        !requestBody.fileIndex ||
+        !requestBody.documentId ||
+        !requestBody.serviceId ||
+        !requestBody.transferTxId ||
+        !requestBody.nonnce ||
+        !requestBody.consumerAddress ||
+        !requestBody.signature
+      ) {
+        return buildInvalidRequestMessage(
+          'Missing required parameter(s): "fileIndex","documentId", "serviceId","transferTxId", "nonce","consumerAddress", "signature"'
+        )
       }
     }
     // only once is enough :-)
@@ -120,9 +105,14 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
       valid: true
     }
   }
+  return buildInvalidRequestMessage(`Invalid or unrecognized command: "${command}"`)
+}
+
+// aux function as we are repeating same block of code all the time, only thing that changes is reason msg
+function buildInvalidRequestMessage(cause: string): ValidateParams {
   return {
     valid: false,
-    reason: `Invalid or unrecognized command: "${command}"`,
-    status: 400
+    status: 400,
+    reason: cause
   }
 }
