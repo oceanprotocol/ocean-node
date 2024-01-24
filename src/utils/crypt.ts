@@ -50,3 +50,8 @@ export async function decrypt(data: Uint8Array, algorithm: string): Promise<Buff
   }
   return decryptedData
 }
+// this can be handy as we do this kind of hash in multiple places
+export function create256Hash(input: string): string {
+  const result = crypto.createHash('sha256').update(input).digest('hex')
+  return '0x' + result
+}

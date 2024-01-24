@@ -1,4 +1,4 @@
-import type { OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
+import type { C2DClusterInfo, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
 import { ENVIRONMENT_VARIABLES, hexStringToByteArray } from '../utils/index.js'
@@ -13,6 +13,7 @@ import {
   OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN
 } from '../utils/address.js'
 import { CONFIG_CONSOLE_LOGGER } from './logging/common.js'
+import { create256Hash } from './crypt'
 
 export async function getPeerIdFromPrivateKey(
   privateKey: string
@@ -211,6 +212,28 @@ function getOceanNodeFees(supportedNetworks: RPCS, isStartup?: boolean): FeeStra
   }
 }
 
+// get C2D environments
+function getC2DClusterEnvironment(): C2DClusterInfo[] {
+  const clusters: C2DClusterInfo[] = []
+  try {
+    const clustersURLS: string[] = JSON.parse(
+      process.env.OPERATOR_SERVICE_URL
+    ) as string[]
+
+    for (const theURL of clustersURLS) {
+      clusters.push({ url: theURL, hash: create256Hash(theURL) })
+    }
+  } catch (error) {
+    CONFIG_CONSOLE_LOGGER.logMessageWithEmoji(
+      `Invalid or missing "${ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL.name}" env variable => ${process.env.OPERATOR_SERVICE_URL}...`,
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
+    return clusters
+  }
+}
+
 /**
  * checks if a var is defined on env
  * @param envVariable check utils/constants ENVIRONMENT_VARIABLES
@@ -309,7 +332,8 @@ export async function getConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       url: getEnvValue(process.env.DB_URL, '')
     },
     supportedNetworks,
-    feeStrategy: getOceanNodeFees(supportedNetworks, isStartup)
+    feeStrategy: getOceanNodeFees(supportedNetworks, isStartup),
+    c2dClusters: getC2DClusterEnvironment()
   }
   return config
 }
