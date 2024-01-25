@@ -12,10 +12,11 @@ import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getDatabase } from '../../utils/database.js'
-import { EVENTS, MetadataStates } from '../../utils/constants.js'
+import { EVENTS, MetadataStates, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
-import { DDO } from '../../@types/DDO/DDO.js'
 import axios from 'axios'
+import { getConfiguration } from '../../utils/index.js'
+import { OceanNode } from '../../OceanNode.js'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -86,7 +87,7 @@ class BaseEventProcessor {
       const nonce = Date.now().toString()
       console.log('nonce == ', nonce)
 
-      const { keys } = await this.getConfiguration()
+      const { keys } = await getConfiguration()
       console.log('keys == ', keys)
 
       const nodeId = keys.peerId.toString()
@@ -117,9 +118,17 @@ class BaseEventProcessor {
       console.log('payload == ', payload)
 
       if (nodeId === decryptorURL) {
-        const message = `Logic not yet available !!!`
-        INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
+        const node = OceanNode.getInstance()
+        console.log(
+          'has handlers node',
+          node.getCoreHandlers().hasHandlerFor(PROTOCOL_COMMANDS.DECRYPT_DDO)
+        )
       } else {
+        const node = OceanNode.getInstance()
+        console.log(
+          'has handlers node',
+          node.getCoreHandlers().hasHandlerFor(PROTOCOL_COMMANDS.DECRYPT_DDO)
+        )
         try {
           const response = await axios({
             method: 'post',
