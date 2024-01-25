@@ -5,41 +5,50 @@ import { fileURLToPath } from 'url'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 
-export function readJsonSchemas(): any[] {
-  const jsonDocuments: any[] = []
+export function readJsonSchemas(): TypesenseCollectionCreateSchema[] {
+  const jsonDocuments: TypesenseCollectionCreateSchema[] = []
   const pathToSchemaDir: string = '../../../schemas'
   const currentModulePath = fileURLToPath(import.meta.url)
 
-  // Use dirname to get the directory name
-  const currentDirectory = dirname(currentModulePath)
-  const schemaFilePath = resolve(currentDirectory, pathToSchemaDir)
-  const jsonFiles = fs
-    .readdirSync(schemaFilePath)
-    .filter((file) => path.extname(file) === '.json')
+  try {
+    const currentDirectory = dirname(currentModulePath)
+    const schemaFilePath = resolve(currentDirectory, pathToSchemaDir)
+    const jsonFiles = fs
+      .readdirSync(schemaFilePath)
+      .filter((file) => path.extname(file) === '.json')
 
-  if (!jsonFiles || jsonFiles === undefined) {
-    DATABASE_LOGGER.log(
-      LOG_LEVELS_STR.LEVEL_ERROR,
-      `JSON mappings could not be read. Possibly the JSON format mappings for Typesense DB are missing or invalid.`,
-      true
-    )
-    return []
-  }
-  jsonFiles.forEach((file) => {
-    try {
-      // eslint-disable-next-line security/detect-non-literal-fs-filename
-      const fileData = fs.readFileSync(path.join(schemaFilePath, file), 'utf-8')
-      const jsonFile = JSON.parse(fileData.toString())
-      jsonDocuments.push(jsonFile)
-    } catch (err) {
+    if (jsonFiles.length === 0) {
       DATABASE_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
-        `Error loading DDO schema from ${path.join(pathToSchemaDir, file)}: ${err}`,
+        `No JSON files found in the schemas directory ${schemaFilePath}.`,
         true
       )
+      return []
+    } else {
+      jsonFiles.forEach((file) => {
+        try {
+          // eslint-disable-next-line security/detect-non-literal-fs-filename
+          const fileData = fs.readFileSync(path.join(schemaFilePath, file), 'utf-8')
+          const jsonFile = JSON.parse(fileData.toString())
+          jsonDocuments.push(jsonFile)
+        } catch (err) {
+          DATABASE_LOGGER.log(
+            LOG_LEVELS_STR.LEVEL_ERROR,
+            `Error loading DDO schema from ${path.join(pathToSchemaDir, file)}: ${err}`,
+            true
+          )
+        }
+      })
+      return jsonDocuments
     }
-  })
-  return jsonDocuments
+  } catch (error) {
+    DATABASE_LOGGER.log(
+      LOG_LEVELS_STR.LEVEL_ERROR,
+      `JSON mappings could not be read.
+      Error: ${error}`,
+      true
+    )
+  }
 }
 
 export type Schema = TypesenseCollectionCreateSchema
