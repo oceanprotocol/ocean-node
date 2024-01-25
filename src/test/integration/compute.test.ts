@@ -32,7 +32,7 @@ describe('Compute', () => {
     const response = await new GetEnvironmentsHandler(oceanNode).handle(
       getEnvironmentsTask
     )
-    console.log('Response: ', response)
+
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
