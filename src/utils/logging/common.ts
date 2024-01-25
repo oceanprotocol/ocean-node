@@ -48,6 +48,6 @@ export const PROVIDER_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
 )
 // 8
 // config
-export const CONFIG_CONSOLE_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
+export const CONFIG_LOGGER: CustomNodeLogger = getCustomLoggerForModule(
   LOGGER_MODULE_NAMES.CONFIG
 )

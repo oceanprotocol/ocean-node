@@ -6,6 +6,6 @@ import { getNonce } from './utils/nonceHandler.js'
 export class NonceHandler extends Handler {
   async handle(task: NonceCommand): Promise<P2PCommandResponse> {
     const { address } = task
-    return getNonce(this.getP2PNode(), address)
+    return getNonce(this.getOceanNode().getDatabase().nonce, address)
   }
 }

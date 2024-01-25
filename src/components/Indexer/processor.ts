@@ -11,41 +11,16 @@ import { createHash } from 'crypto'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-import { getConfig } from '../../utils/config.js'
-import { Database } from '../database/index.js'
-import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { getDatabase } from '../../utils/database.js'
 import { EVENTS, MetadataStates } from '../../utils/constants.js'
 import { getNFTFactory, getContractAddress } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 
 class BaseEventProcessor {
-  protected config: OceanNodeConfig
-  protected dbConn: Database
   protected networkId: number
 
-  constructor(
-    chainId: number,
-    databaseInstance?: Database,
-    configObject?: OceanNodeConfig
-  ) {
+  constructor(chainId: number) {
     this.networkId = chainId
-    this.dbConn = databaseInstance || null
-    this.config = configObject || null
-  }
-
-  protected async getConfiguration(): Promise<OceanNodeConfig> {
-    if (!this.config) {
-      this.config = await getConfig()
-    }
-    return this.config
-  }
-
-  protected async getDatabase(): Promise<Database> {
-    if (!this.dbConn) {
-      const { dbConfig } = await this.getConfiguration()
-      this.dbConn = new Database(dbConfig)
-    }
-    return this.dbConn
   }
 
   protected getTokenInfo(services: any[]): any[] {
@@ -77,7 +52,7 @@ class BaseEventProcessor {
 
   public async createOrUpdateDDO(ddo: any, method: string): Promise<any> {
     try {
-      const { ddo: ddoDatabase } = await this.getDatabase()
+      const { ddo: ddoDatabase } = await getDatabase()
       const saveDDO = await ddoDatabase.update({ ...ddo })
       INDEXER_LOGGER.logMessage(
         `Saved or updated DDO  : ${saveDDO.id} from network: ${this.networkId} triggered by: ${method}`
@@ -214,7 +189,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
         .update(getAddress(event.address) + chainId.toString(10))
         .digest('hex')
     try {
-      const { ddo: ddoDatabase } = await this.getDatabase()
+      const { ddo: ddoDatabase } = await getDatabase()
       let ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
         INDEXER_LOGGER.logMessage(
@@ -310,7 +285,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         .update(getAddress(nftAddress) + chainId.toString(10))
         .digest('hex')
     try {
-      const { ddo: ddoDatabase, order: orderDatabase } = await this.getDatabase()
+      const { ddo: ddoDatabase, order: orderDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
         INDEXER_LOGGER.logMessage(
@@ -373,7 +348,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         .update(getAddress(nftAddress) + chainId.toString(10))
         .digest('hex')
     try {
-      const { ddo: ddoDatabase, order: orderDatabase } = await this.getDatabase()
+      const { ddo: ddoDatabase, order: orderDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
         INDEXER_LOGGER.logMessage(
