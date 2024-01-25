@@ -4,6 +4,7 @@ import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { FindDDOResponse } from '../../../@types/index.js'
 import { Service } from '../../../@types/DDO/Service.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { OceanNode } from '../../../OceanNode.js'
 
 /**
  * Check if the specified ddo is cached and if the cached version is recent enough
@@ -53,28 +54,29 @@ export function sortFindDDOResults(resultList: FindDDOResponse[]): FindDDORespon
  * @returns ddo info
  */
 export async function findDDOLocally(
-  node: OceanP2P,
+  node: OceanNode,
   id: string
 ): Promise<FindDDOResponse> | undefined {
   const ddo = await node.getDatabase().ddo.retrieve(id)
   if (ddo) {
     // node has ddo
+    const p2pNode: OceanP2P = node.getP2PNode()
 
     const ddoInfo: FindDDOResponse = {
       id: ddo.id,
       lastUpdateTx: ddo.event.tx,
       lastUpdateTime: ddo.metadata.updated,
-      provider: node.getPeerId()
+      provider: p2pNode.getPeerId()
     }
     // not in the cache yet
-    if (!node.getDDOCache().dht.has(ddo.id)) {
-      node.getDDOCache().dht.set(ddo.id, ddoInfo)
+    if (!p2pNode.getDDOCache().dht.has(ddo.id)) {
+      p2pNode.getDDOCache().dht.set(ddo.id, ddoInfo)
     } else {
       // it has, just check wich one is newer
-      const localCachedData: FindDDOResponse = node.getDDOCache().dht.get(ddo.id)
+      const localCachedData: FindDDOResponse = p2pNode.getDDOCache().dht.get(ddo.id)
       // update localCachedData if newer
       if (new Date(ddoInfo.lastUpdateTime) > new Date(localCachedData.lastUpdateTime)) {
-        node.getDDOCache().dht.set(ddo.id, ddoInfo)
+        p2pNode.getDDOCache().dht.set(ddo.id, ddoInfo)
       }
     }
     return ddoInfo

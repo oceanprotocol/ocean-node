@@ -127,19 +127,31 @@ jobs:
       - name: Run Barge
         working-directory: ${{ github.workspace }}/barge
         run: |
-          bash -x start_ocean.sh --no-dashboard 2>&1 > start_ocean.log &
+          bash -x start_ocean.sh --no-dashboard --with-c2d 2>&1 > start_ocean.log &
       - run: npm ci
       - run: npm run build
-      - name: Wait for contracts deployment
+      - run: docker image ls
+      - name: Delete default runner images
+        run: |
+          docker image rm node:16
+          docker image rm node:16-alpine
+          docker image rm node:18
+          docker image rm node:18-alpine
+          docker image rm node:20
+          docker image rm debian:10
+          docker image rm debian:11
+          docker image rm moby/buildkit:latest
+      - name: Wait for contracts deployment and C2D cluster to be ready
         working-directory: ${{ github.workspace }}/barge
         run: |
           for i in $(seq 1 250); do
             sleep 10
-            [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" ] && break
-          done
+            [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" -a -f "$HOME/.ocean/ocean-c2d/ready" ] && break
+            done
       - name: integration tests
         run: npm run test:integration:cover
         env:
+          OPERATOR_SERVICE_URL: '["http://172.15.0.13:31000/"]'
           PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
           NODE1_PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
           NODE2_PRIVATE_KEY: ${{ secrets.NODE2_PRIVATE_KEY }}

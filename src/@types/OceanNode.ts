@@ -14,6 +14,11 @@ export interface OceanNodeKeys {
   ethAddress: string
 }
 
+export interface C2DClusterInfo {
+  url: string
+  hash: string
+}
+
 export interface OceanNodeP2PConfig {
   bootstrapNodes: string[]
   ipV4BindAddress: string | null
@@ -42,6 +47,7 @@ export interface OceanNodeConfig {
   httpPort: number
   feeStrategy: FeeStrategy
   supportedNetworks?: RPCS
+  c2dClusters: C2DClusterInfo[]
 }
 
 export interface P2PStatusResponse {

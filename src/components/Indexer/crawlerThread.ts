@@ -9,10 +9,9 @@ import { Blockchain } from '../../utils/blockchain.js'
 import { BlocksEvents, SupportedNetwork } from '../../@types/blockchain.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { sleep } from '../../utils/util.js'
-import { Database } from '../database/index.js'
-import { EVENTS, getConfig } from '../../utils/index.js'
+import { EVENTS } from '../../utils/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
-import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { getDatabase } from '../../utils/database.js'
 
 export interface ReindexTask {
   txId: string
@@ -21,22 +20,6 @@ export interface ReindexTask {
 }
 
 const REINDEX_QUEUE: ReindexTask[] = []
-let config: OceanNodeConfig
-async function getConfiguration(): Promise<OceanNodeConfig> {
-  if (!config) {
-    config = await getConfig()
-  }
-  return config
-}
-
-let dbConn: Database
-async function getDatabase(): Promise<Database> {
-  if (!dbConn) {
-    const { dbConfig } = await getConfiguration()
-    dbConn = new Database(dbConfig)
-  }
-  return dbConn
-}
 
 interface ThreadData {
   rpcDetails: SupportedNetwork

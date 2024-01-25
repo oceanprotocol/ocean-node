@@ -54,6 +54,12 @@ export IPFS_GATEWAY='https://ipfs.io/'
 export ARWEAVE_GATEWAY='https://arweave.net/'
 ```
 
+For configuring a C2D (Compute to Data) cluster(s), please set the following environment variable (array of 1 or multiple cluster URLS):
+
+```bash
+export OPERATOR_SERVICE_URL=[\"http://example.c2d.cluster1.com\",\"http://example.cd2.cluster2.com\"]
+```
+
 Then start the node:
 
 ```bash
@@ -138,6 +144,25 @@ Now, back in your nodes terminal, you can run the tests
 ```bash
 npm run test:integration
 ```
+
+## Unit and integration .environments
+
+Whenever possible, we should avoid overriding .env variables, as it might affect local configuration and other tests
+Avoid doing things like:
+
+```bash
+process.env.PRIVATE_KEY = '0xc594c6e5def4bab63ac29ee...'
+```
+
+If we really need to change/override existing .env config:
+use:
+
+```bash
+setupEnvironment() / tearDownEnvironment()
+```
+
+instead (on before() and after() hooks respectively),
+Any config changes will not be permanent and the environment is preserved between tests
 
 ## Additional tests / helper scripts
 
