@@ -190,6 +190,17 @@ describe('Should run a complete node flow.', () => {
 
     assert(dataNftAddress, 'find nft created failed')
     assert(datatokenAddress, 'find datatoken created failed')
+    // for testing purpose
+    genericAsset.event.tx = txReceipt.transactionHash
+    genericAsset.event.block = txReceipt.blockNumber
+    genericAsset.event.from = txReceipt.from
+    genericAsset.event.contract = txReceipt.contractAddress
+    genericAsset.event.datetime = '2023-02-15T16:42:22'
+
+    genericAsset.nft.address = dataNftAddress
+    genericAsset.nft.owner = txReceipt.from
+    genericAsset.nft.state = 0
+    genericAsset.nft.created = '2022-12-30T08:40:43'
   })
 
   it('should encrypt files, set metadata and save ', async () => {
