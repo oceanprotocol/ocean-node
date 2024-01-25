@@ -102,7 +102,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
         true
       )
-      const previousDdo = await (await this.getDatabase()).ddo.retrieve(ddo.id)
+      const previousDdo = await (await getDatabase()).ddo.retrieve(ddo.id)
       if (eventName === 'MetadataCreated') {
         if (previousDdo && previousDdo.nft.state === MetadataStates.ACTIVE) {
           INDEXER_LOGGER.logMessage(
