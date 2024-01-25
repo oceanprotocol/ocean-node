@@ -145,11 +145,6 @@ aquariusRoutes.post('/assets/ddo/validate', async (req, res) => {
       return
     }
 
-    if (!ddo.version) {
-      res.status(400).send('Missing DDO version')
-      return
-    }
-
     const node = req.oceanNode.getP2PNode()
     const result = await new ValidateDDOHandler(node).handle({
       id: ddo.id,
