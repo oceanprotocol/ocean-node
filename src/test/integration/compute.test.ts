@@ -5,6 +5,8 @@ import { Database } from '../../components/database/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { Readable } from 'stream'
+import { streamToObject } from '../../utils/util.js'
 
 describe('Compute', () => {
   let config: OceanNodeConfig
@@ -15,11 +17,6 @@ describe('Compute', () => {
     config = await getConfiguration(true) // Force reload the configuration
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
-
-    // Ensure that c2dClusters is loaded
-    if (!config.c2dClusters || config.c2dClusters.length === 0) {
-      throw new Error('Failed to load c2dClusters configuration')
-    }
   })
 
   it('Sets up compute envs', async () => {
@@ -36,5 +33,29 @@ describe('Compute', () => {
       getEnvironmentsTask
     )
     console.log('Response: ', response)
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response.stream, 'Failed to get stream')
+    expect(response.stream).to.be.instanceOf(Readable)
+
+    const computeEnvironments = await streamToObject(response.stream as Readable)
+
+    for (const computeEnvironment of computeEnvironments) {
+      assert(computeEnvironment.id, 'id missing in computeEnvironments')
+      assert(
+        computeEnvironment.consumerAddress,
+        'consumerAddress missing in computeEnvironments'
+      )
+      assert(computeEnvironment.lastSeen, 'lastSeen missing in computeEnvironments')
+      assert(computeEnvironment.id.startsWith('0x'), 'id should start with 0x')
+      assert(computeEnvironment.cpuNumber > 0, 'cpuNumber missing in computeEnvironments')
+      assert(computeEnvironment.ramGB > 0, 'ramGB missing in computeEnvironments')
+      assert(computeEnvironment.diskGB > 0, 'diskGB missing in computeEnvironments')
+      assert(computeEnvironment.maxJobs > 0, 'maxJobs missing in computeEnvironments')
+      assert(
+        computeEnvironment.maxJobDuration > 0,
+        'maxJobDuration missing in computeEnvironments'
+      )
+    }
   })
 })
