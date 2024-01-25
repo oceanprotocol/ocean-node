@@ -233,8 +233,8 @@ function getC2DClusterEnvironment(): C2DClusterInfo[] {
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
     )
-    return clusters
   }
+  return clusters
 }
 
 /**
