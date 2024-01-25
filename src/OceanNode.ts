@@ -1,7 +1,7 @@
 import { OceanP2P } from './components/P2P/index.js'
 import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
-import { OceanNodeConfig, P2PCommandResponse } from './@types/OceanNode.js'
+import { P2PCommandResponse } from './@types/OceanNode.js'
 import { Database } from './components/database/index.js'
 import { CoreHandlersRegistry } from './components/core/coreHandlersRegistry.js'
 import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
@@ -12,17 +12,34 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import { Handler } from './components/core/handler.js'
 
 export class OceanNode {
+  // eslint-disable-next-line no-use-before-define
+  private static instance: OceanNode
   // handlers
   private coreHandlers: CoreHandlersRegistry
   // eslint-disable-next-line no-useless-constructor
-  public constructor(
-    private config: OceanNodeConfig,
-    private db: Database,
+  private constructor(
+    private db?: Database,
     private node?: OceanP2P,
     private provider?: OceanProvider,
     private indexer?: OceanIndexer
   ) {
-    this.coreHandlers = CoreHandlersRegistry.getInstance(this.node)
+    this.coreHandlers = CoreHandlersRegistry.getInstance(this)
+    if (node) {
+      node.setCoreHandlers(this.coreHandlers)
+    }
+  }
+
+  // Singleton instance
+  public static getInstance(
+    db?: Database,
+    node?: OceanP2P,
+    provider?: OceanProvider,
+    indexer?: OceanIndexer
+  ): OceanNode {
+    if (!OceanNode.instance) {
+      this.instance = new OceanNode(db, node, provider, indexer)
+    }
+    return this.instance
   }
 
   public addP2PNode(_node: OceanP2P) {
@@ -35,10 +52,6 @@ export class OceanNode {
 
   public addIndexer(_indexer: OceanIndexer) {
     this.indexer = _indexer
-  }
-
-  public getConfig(): OceanNodeConfig {
-    return this.config
   }
 
   public getP2PNode(): OceanP2P | undefined {

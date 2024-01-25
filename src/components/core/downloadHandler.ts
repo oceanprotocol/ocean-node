@@ -8,7 +8,6 @@ import {
   PROTOCOL_COMMANDS
 } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
-import { OceanP2P } from '../P2P/index.js'
 import { checkFee } from './utils/feesHandler.js'
 import { decrypt } from '../../utils/crypt.js'
 import { FindDdoHandler } from './ddoHandler.js'
@@ -19,13 +18,14 @@ import { validateOrderTransaction } from './validateTransaction.js'
 import { AssetUtils } from '../../utils/asset.js'
 import { Service } from '../../@types/DDO/Service'
 import { ArweaveStorage, IpfsStorage, Storage } from '../../components/storage/index.js'
-import { existsEnvironmentVariable } from '../../utils/index.js'
+import { existsEnvironmentVariable, getConfiguration } from '../../utils/index.js'
 import { checkCredentials } from '../../utils/credentials.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
+import { OceanNode } from '../../OceanNode.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(
-  node: OceanP2P,
+  node: OceanNode,
   task: DownloadURLCommand
 ): Promise<P2PCommandResponse> {
   const encryptFile = !!task.aes_encrypted_key
@@ -84,7 +84,8 @@ export async function handleDownloadUrlCommand(
       // we parse the string into the object again
       const encryptedObject = ethCrypto.cipher.parse(task.aes_encrypted_key)
       // get the key from configuration
-      const nodePrivateKey = Buffer.from(node.getConfig().keys.privateKey).toString('hex')
+      const config = await getConfiguration()
+      const nodePrivateKey = Buffer.from(config.keys.privateKey).toString('hex')
       const decrypted = await ethCrypto.decryptWithPrivateKey(
         nodePrivateKey,
         encryptedObject
@@ -147,7 +148,7 @@ export class DownloadHandler extends Handler {
   // No encryption here yet
 
   async handle(task: DownloadCommand): Promise<P2PCommandResponse> {
-    const node = this.getP2PNode()
+    const node = this.getOceanNode()
     CORE_LOGGER.logMessage(
       'Download Request recieved with arguments: ' +
         task.fileIndex +
@@ -160,7 +161,10 @@ export class DownloadHandler extends Handler {
       true
     )
     // 1. Get the DDO
-    const ddo = await new FindDdoHandler(node).findAndFormatDdo(task.documentId)
+    const handler: FindDdoHandler = node
+      .getCoreHandlers()
+      .getHandler(PROTOCOL_COMMANDS.FIND_DDO) as FindDdoHandler
+    const ddo = await handler.findAndFormatDdo(task.documentId)
 
     if (ddo) {
       CORE_LOGGER.logMessage('DDO for asset found: ' + ddo, true)
@@ -207,7 +211,7 @@ export class DownloadHandler extends Handler {
 
     // 3. Validate nonce and signature
     const nonceCheckResult: NonceResponse = await checkNonce(
-      node,
+      node.getDatabase().nonce,
       task.consumerAddress,
       parseInt(task.nonce),
       task.signature,
@@ -258,7 +262,7 @@ export class DownloadHandler extends Handler {
     }
 
     // 5. Call the validateOrderTransaction function to check order transaction
-    const config = node.getConfig()
+    const config = await getConfiguration()
     const { rpc } = config.supportedNetworks[ddo.chainId]
 
     if (!rpc) {

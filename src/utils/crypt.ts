@@ -1,6 +1,6 @@
 import eciesjs from 'eciesjs'
 import crypto from 'crypto'
-import { getConfig } from './config.js'
+import { getConfiguration } from './config.js'
 
 /**
  * This method encrypts data according to a given algorithm using node keys
@@ -9,7 +9,7 @@ import { getConfig } from './config.js'
  */
 export async function encrypt(data: Uint8Array, algorithm: string): Promise<Buffer> {
   let encryptedData: Buffer
-  const config = await getConfig()
+  const config = await getConfiguration()
   const { privateKey, publicKey } = config.keys
   if (algorithm === 'AES') {
     // use first 16 bytes of public key as an initialisation vector
@@ -34,7 +34,7 @@ export async function encrypt(data: Uint8Array, algorithm: string): Promise<Buff
  */
 export async function decrypt(data: Uint8Array, algorithm: string): Promise<Buffer> {
   let decryptedData: Buffer
-  const config = await getConfig()
+  const config = await getConfiguration()
   const { privateKey, publicKey } = config.keys
   if (algorithm === 'AES') {
     // use first 16 bytes of public key as an initialisation vector
@@ -49,4 +49,9 @@ export async function decrypt(data: Uint8Array, algorithm: string): Promise<Buff
     decryptedData = eciesjs.decrypt(sk.secret, data)
   }
   return decryptedData
+}
+// this can be handy as we do this kind of hash in multiple places
+export function create256Hash(input: string): string {
+  const result = crypto.createHash('sha256').update(input).digest('hex')
+  return '0x' + result
 }
