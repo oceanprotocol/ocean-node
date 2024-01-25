@@ -26,29 +26,22 @@ export function readJsonSchemas(): TypesenseCollectionCreateSchema[] {
       return []
     } else {
       jsonFiles.forEach((file) => {
-        try {
-          // eslint-disable-next-line security/detect-non-literal-fs-filename
-          const fileData = fs.readFileSync(path.join(schemaFilePath, file), 'utf-8')
-          const jsonFile = JSON.parse(fileData.toString())
-          jsonDocuments.push(jsonFile)
-        } catch (err) {
-          DATABASE_LOGGER.log(
-            LOG_LEVELS_STR.LEVEL_ERROR,
-            `Error loading DDO schema from ${path.join(pathToSchemaDir, file)}: ${err}`,
-            true
-          )
-        }
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        const fileData = fs.readFileSync(path.join(schemaFilePath, file), 'utf-8')
+        const jsonFile = JSON.parse(fileData.toString())
+        jsonDocuments.push(jsonFile)
       })
       return jsonDocuments
     }
   } catch (error) {
     DATABASE_LOGGER.log(
       LOG_LEVELS_STR.LEVEL_ERROR,
-      `JSON mappings could not be read.
+      `JSON mappings could not be loaded in database.
       Error: ${error}`,
       true
     )
   }
+  return []
 }
 
 export type Schema = TypesenseCollectionCreateSchema
