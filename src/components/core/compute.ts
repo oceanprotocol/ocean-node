@@ -1,9 +1,10 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../@types'
-import { CORE_LOGGER } from '../../utils/logging/common'
-import { Handler } from './handler'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
+import { Handler } from './handler.js'
 import { GetEnvironments } from '../../utils/constants.js'
 import { getConfiguration } from '../../utils/config.js'
+import axios from 'axios'
 
 export class GetEnvironmentsHandler extends Handler {
   async handle(task: GetEnvironments): Promise<P2PCommandResponse> {
@@ -20,6 +21,9 @@ export class GetEnvironmentsHandler extends Handler {
           `Requesting environment from Operator URL: ${cluster.url}`,
           true
         )
+        const url = `${cluster.url}/api/v1/operator/environments?chain_id=${task.chainId}`
+        const { data } = await axios.get(url)
+        console.log('Data: ', data)
       }
 
       CORE_LOGGER.logMessage(
