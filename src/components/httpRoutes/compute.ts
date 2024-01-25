@@ -16,7 +16,7 @@ computeRoutes.get('/api/services/computeEnvironments', async (req, res) => {
     )
     const chainId = parseInt(req.query.chainId as string)
 
-    if (isNaN(chainId) || chainId <= 0) {
+    if (isNaN(chainId) || chainId < 1) {
       HTTP_LOGGER.logMessage(
         `Invalid chainId: ${chainId} on GET computeEnvironments request`,
         true
@@ -26,7 +26,8 @@ computeRoutes.get('/api/services/computeEnvironments', async (req, res) => {
 
     const getEnvironmentsTask = {
       command: PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS,
-      chainId
+      chainId,
+      node: req.query.node as string
     }
     const response = await new GetEnvironmentsHandler().handle(getEnvironmentsTask) // get compute environments
     const computeEnvironments = await streamToObject(response.stream as Readable)
