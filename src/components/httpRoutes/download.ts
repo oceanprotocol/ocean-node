@@ -1,7 +1,8 @@
 import express, { Request, Response } from 'express'
 import { DownloadHandler } from '../core/downloadHandler.js'
-import { DownloadCommand, PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
+import { DownloadCommand } from '../../@types/commands.js'
 
 export const downloadRoute = express.Router()
 downloadRoute.get(

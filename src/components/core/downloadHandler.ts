@@ -1,12 +1,7 @@
 import { JsonRpcProvider } from 'ethers'
 import { Handler } from './handler.js'
 import { checkNonce, NonceResponse } from './utils/nonceHandler.js'
-import {
-  DownloadCommand,
-  DownloadURLCommand,
-  ENVIRONMENT_VARIABLES,
-  PROTOCOL_COMMANDS
-} from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { checkFee } from './utils/feesHandler.js'
 import { decrypt } from '../../utils/crypt.js'
@@ -22,6 +17,7 @@ import { existsEnvironmentVariable, getConfiguration } from '../../utils/index.j
 import { checkCredentials } from '../../utils/credentials.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { OceanNode } from '../../OceanNode.js'
+import { DownloadCommand, DownloadURLCommand } from '../../@types/commands.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(
