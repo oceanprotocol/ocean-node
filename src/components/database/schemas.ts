@@ -16,6 +16,15 @@ export function readJsonSchemas(): any[] {
   const jsonFiles = fs
     .readdirSync(schemaFilePath)
     .filter((file) => path.extname(file) === '.json')
+
+  if (!jsonFiles || jsonFiles === undefined) {
+    DATABASE_LOGGER.log(
+      LOG_LEVELS_STR.LEVEL_ERROR,
+      `JSON mappings could not be read. Possibly the JSON format mappings for Typesense DB are missing or invalid.`,
+      true
+    )
+    return []
+  }
   jsonFiles.forEach((file) => {
     try {
       // eslint-disable-next-line security/detect-non-literal-fs-filename

@@ -10,7 +10,6 @@ import { getConfiguration } from './utils/index.js'
 
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import fs from 'fs'
-import path from 'path'
 import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
 
 const app: Express = express()
