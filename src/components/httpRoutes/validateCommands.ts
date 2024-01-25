@@ -36,6 +36,21 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
           status: 400
         }
       }
+    } else if (command === PROTOCOL_COMMANDS.VALIDATE_DDO) {
+      if (!requestBody.id || !requestBody.id.startsWith('did:op')) {
+        return {
+          valid: false,
+          reason: 'Missing or invalid required parameter: "id"',
+          status: 400
+        }
+      }
+      if (!requestBody.chainId || !requestBody.nftAddress) {
+        return {
+          valid: false,
+          status: 400,
+          reason: 'Missing required parameter(s): "chainId", "nftAddress"'
+        }
+      }
     }
     // nonce
     else if (command === PROTOCOL_COMMANDS.NONCE) {
