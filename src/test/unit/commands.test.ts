@@ -14,4 +14,11 @@ describe('Commands and handlers', async () => {
       )
     }
   })
+
+  it('Check that supported commands and handlers match', async () => {
+    // To make sure we do not forget to register anything on supported commands
+    const node: OceanNode = OceanNode.getInstance()
+    const handlers: Handler[] = node.getCoreHandlers().getExistingHandlers()
+    expect(SUPPORTED_PROTOCOL_COMMANDS.length).to.be.equal(handlers.length)
+  })
 })

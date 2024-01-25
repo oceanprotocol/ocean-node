@@ -53,7 +53,7 @@ export class CoreHandlersRegistry {
   // eslint-disable-next-line no-use-before-define
   private static instance: CoreHandlersRegistry
   // map of handlers registered
-  private coreHandlers: Map<string, Handler> = new Map<string, Handler>()
+  private readonly coreHandlers: Map<string, Handler> = new Map<string, Handler>()
 
   // private readonly node: OceanP2P
   private constructor(node: OceanNode) {
@@ -132,5 +132,9 @@ export class CoreHandlersRegistry {
 
   public hasHandlerFor(handlerName: string): boolean {
     return this.coreHandlers.has(handlerName)
+  }
+
+  public getExistingHandlers(): Handler[] {
+    return Array.from(this.coreHandlers.values())
   }
 }
