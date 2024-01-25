@@ -145,7 +145,7 @@ aquariusRoutes.post('/assets/ddo/validate', async (req, res) => {
       return
     }
 
-    const node = req.oceanNode.getP2PNode()
+    const node = req.oceanNode
     const result = await new ValidateDDOHandler(node).handle({
       id: ddo.id,
       chainId: ddo.chainId,
