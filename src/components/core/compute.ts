@@ -21,9 +21,13 @@ export class GetEnvironmentsHandler extends Handler {
           `Requesting environment from Operator URL: ${cluster.url}`,
           true
         )
-        const url = `${cluster.url}/api/v1/operator/environments?chain_id=${task.chainId}`
+        const url = `${cluster.url}api/v1/operator/environments?chain_id=${task.chainId}`
         const { data } = await axios.get(url)
-        console.log('Data: ', data)
+        const { hash } = cluster
+        for (const item of data) {
+          item.id = hash + '-' + item.id
+        }
+        response.push(...data)
       }
 
       CORE_LOGGER.logMessage(
