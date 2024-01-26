@@ -1,8 +1,7 @@
 import { Handler } from './handler.js'
-import { QueryCommand } from '../../utils/index.js'
+import { QueryCommand } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
-import { DDO } from '../../@types/DDO/DDO.js'
 
 export class QueryHandler extends Handler {
   async handle(task: QueryCommand): Promise<P2PCommandResponse> {
@@ -11,14 +10,8 @@ export class QueryHandler extends Handler {
       if (!result) {
         result = []
       }
-      let aggregatedResults: any = []
-
-      if (aggregatedResults.length === 0) {
-        aggregatedResults = []
-      }
-
       return {
-        stream: Readable.from(JSON.stringify(aggregatedResults)),
+        stream: Readable.from(JSON.stringify(result)),
         status: { httpStatus: 200 }
       }
     } catch (error) {
