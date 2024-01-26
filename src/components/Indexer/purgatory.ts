@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { PurgatoryAccounts, PurgatoryAssets } from '../../@types/purgatory.js'
+import { PurgatoryAccounts, PurgatoryAssets } from '../../@types/Purgatory.js'
 import { Database } from '../database/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
