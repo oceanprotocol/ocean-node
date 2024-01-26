@@ -14,6 +14,7 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 import { getDatabase } from '../../utils/database.js'
 import { EVENTS, MetadataStates } from '../../utils/constants.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
+import { getPurgatory } from '../../utils/purgatory.js'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -88,6 +89,17 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
         true
       )
+      const from = decodedEventData.args[0]
+      const purgatory = await getPurgatory()
+      if (purgatory.isBannedAsset(ddo.id) || purgatory.isBannedAccount(from)) {
+        ddo.purgatory = {
+          state: true
+        }
+      } else {
+        ddo.purgatory = {
+          state: false
+        }
+      }
       const saveDDO = this.createOrUpdateDDO(ddo, eventName)
       return saveDDO
     } catch (error) {
