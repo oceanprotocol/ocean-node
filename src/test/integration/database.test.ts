@@ -1,3 +1,4 @@
+import { assert } from 'console'
 import { Database } from '../../components/database/index.js'
 import { expect } from 'chai'
 
@@ -46,6 +47,18 @@ describe('DdoDatabase CRUD', () => {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
     database = await new Database(dbConfig)
+  })
+
+  it('creates ddo schema as an array', async () => {
+    const ddoSchemas = database.ddo.getSchemas()
+    // check if it is an array
+    assert(Array.isArray(ddoSchemas))
+    assert(ddoSchemas.length > 1)
+    for (const ddoSchema of ddoSchemas) {
+      assert(ddoSchema.name)
+      assert(ddoSchema.fields)
+      assert(ddoSchema.fields.length > 0)
+    }
   })
 
   it('create ddo', async () => {

@@ -67,18 +67,3 @@ export async function fetchFileMetadata(
     contentType
   }
 }
-
-export async function getSchemaVersions(): Promise<string[]> {
-  const schemaDir = path.join(__dirname, '../../schemas/v4')
-  try {
-    const files = await fs.readdir(schemaDir)
-    const versionPattern = /\.(\d+\.\d+\.\d+)\.ttl$/ // Regex to extract version number
-    const versions = files
-      .map((file) => versionPattern.exec(file)?.[1])
-      .filter((version): version is string => !!version)
-    return versions
-  } catch (error) {
-    console.error('Error reading schema versions:', error)
-    return []
-  }
-}

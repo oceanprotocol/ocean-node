@@ -171,6 +171,10 @@ export class DdoDatabase {
     })() as unknown as DdoDatabase
   }
 
+  getSchemas(): Schema[] {
+    return this.schemas
+  }
+
   async search(query: Record<string, any>) {
     try {
       const results = []

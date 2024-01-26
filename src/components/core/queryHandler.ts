@@ -1,5 +1,5 @@
 import { Handler } from './handler.js'
-import { QueryCommand, getSchemaVersions } from '../../utils/index.js'
+import { QueryCommand } from '../../utils/index.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
 import { DDO } from '../../@types/DDO/DDO.js'
