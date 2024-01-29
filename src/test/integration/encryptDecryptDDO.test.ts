@@ -67,6 +67,7 @@ describe('Should encrypt and decrypt DDO', () => {
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
     publisherAddress = await publisherAccount.getAddress()
+    console.log('publisherAddress ', publisherAddress)
     genericAsset = genericDDO
     factoryContract = new ethers.Contract(
       artifactsAddresses.development.ERC721Factory,
@@ -297,6 +298,7 @@ describe('Should encrypt and decrypt DDO', () => {
         chainId.toString() +
         nonce
     )
+    console.log('message', message)
     const messageHash = ethers.solidityPackedKeccak256(
       ['bytes'],
       [ethers.hexlify(ethers.toUtf8Bytes(message))]
@@ -327,12 +329,7 @@ describe('Should encrypt and decrypt DDO', () => {
       ['bytes'],
       [ethers.hexlify(ethers.toUtf8Bytes(message))]
     )
-    console.log('publisherAddress == ', publisherAddress)
-    console.log('wallet address == ', await wallet.getAddress())
     const signature = await wallet.signMessage(messageHash)
-
-    const addressSignature = ethers.verifyMessage(message, signature)
-    console.log('addressSignature == ', addressSignature)
 
     const decryptDDOTask: DecryptDDOCommand = {
       command: 'decryptDDO',

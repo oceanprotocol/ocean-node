@@ -97,13 +97,6 @@ class BaseEventProcessor {
 
       const wallet: ethers.Wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string)
 
-      // const message = String(
-      //   txId + contractAddress + keys.ethAddress + chainId.toString() + nonce
-      // )
-      // const consumerMessage = ethers.solidityPackedKeccak256(
-      //   ['bytes'],
-      //   [ethers.hexlify(ethers.toUtf8Bytes(message))]
-      // )
       const message = String(
         txId + contractAddress + keys.ethAddress + chainId.toString() + nonce
       )
@@ -111,12 +104,7 @@ class BaseEventProcessor {
         ['bytes'],
         [ethers.hexlify(ethers.toUtf8Bytes(message))]
       )
-      const messageHashBytes = ethers.toBeArray(consumerMessage)
-      const signature = await wallet.signMessage(messageHashBytes)
-      console.log('keys.ethAddress == ', keys.ethAddress)
-      console.log('wallet address == ', await wallet.getAddress())
-      const addressSignature = ethers.verifyMessage(consumerMessage, signature)
-      console.log('addressSignature == ', addressSignature)
+      const signature = await wallet.signMessage(consumerMessage)
 
       if (nodeId === decryptorURL) {
         const node = OceanNode.getInstance(await getDatabase())
@@ -131,12 +119,17 @@ class BaseEventProcessor {
           signature,
           nonce: nonce.toString()
         }
-        const response = await node
-          .getCoreHandlers()
-          .getHandler(PROTOCOL_COMMANDS.DECRYPT_DDO)
-          .handle(decryptDDOTask)
-        console.log('response status == ', response.status)
-        ddo = await streamToString(response.stream as Readable)
+        try {
+          const response = await node
+            .getCoreHandlers()
+            .getHandler(PROTOCOL_COMMANDS.DECRYPT_DDO)
+            .handle(decryptDDOTask)
+          ddo = JSON.parse(await streamToString(response.stream as Readable))
+        } catch (error) {
+          const message = `Node exception on decrypt DDO. Status: ${error.message}`
+          INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
+          throw new Error(message)
+        }
       } else {
         try {
           const payload = {
@@ -147,13 +140,11 @@ class BaseEventProcessor {
             signature,
             nonce: nonce.toString()
           }
-          console.log('payload == ', payload)
           const response = await axios({
             method: 'post',
             url: `${decryptorURL}/api/services/decrypt`,
             data: payload
           })
-          console.log('response == ', response)
           if (response.status !== 201) {
             const message = `Provider exception on decrypt DDO. Status: ${response.status}, ${response.statusText}`
             INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)

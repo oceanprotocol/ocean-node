@@ -293,14 +293,11 @@ export class DecryptDdoHandler extends Handler {
         const message = String(
           transactionId + dataNftAddress + decrypterAddress + chainId + nonce
         )
-
         const messageHash = ethers.solidityPackedKeccak256(
           ['bytes'],
           [ethers.hexlify(ethers.toUtf8Bytes(message))]
         )
         const addressSignature = ethers.verifyMessage(messageHash, task.signature)
-        console.log('DDO_HANDLER addressSignature', addressSignature)
-        console.log('DDO_HANDLER decrypterAddress', decrypterAddress)
         if (addressSignature !== decrypterAddress) {
           throw new Error('address does not match')
         }
