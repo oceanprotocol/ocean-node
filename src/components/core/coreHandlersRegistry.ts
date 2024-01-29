@@ -130,4 +130,8 @@ export class CoreHandlersRegistry {
   public hasHandlerFor(handlerName: string): boolean {
     return this.coreHandlers.has(handlerName)
   }
+
+  public getRegisteredCommands(): string[] {
+    return Array.from(this.coreHandlers.keys())
+  }
 }
