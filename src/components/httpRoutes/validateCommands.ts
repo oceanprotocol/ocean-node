@@ -23,13 +23,26 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
   }
   // direct commands
   if (SUPPORTED_PROTOCOL_COMMANDS.includes(command)) {
-    if (command === PROTOCOL_COMMANDS.FIND_DDO || command === PROTOCOL_COMMANDS.GET_DDO) {
+    if (
+      command === PROTOCOL_COMMANDS.FIND_DDO ||
+      command === PROTOCOL_COMMANDS.GET_DDO ||
+      command === PROTOCOL_COMMANDS.VALIDATE_DDO
+    ) {
       // message is DDO identifier
       if (!requestBody.id || !requestBody.id.startsWith('did:op')) {
         return buildInvalidRequestMessage('Missing or invalid required parameter: "id"')
       }
-      // nonce
-    } else if (command === PROTOCOL_COMMANDS.NONCE) {
+      if (
+        command === PROTOCOL_COMMANDS.VALIDATE_DDO &&
+        (!requestBody.chainId || !requestBody.nftAddress)
+      ) {
+        return buildInvalidRequestMessage(
+          'Missing required parameter(s): "chainId", "nftAddress"'
+        )
+      }
+    }
+    // nonce
+    else if (command === PROTOCOL_COMMANDS.NONCE) {
       // needs a valid and mandatory address
       if (!requestBody.address || !isAddress(requestBody.address)) {
         return buildInvalidRequestMessage(
