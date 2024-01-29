@@ -18,11 +18,7 @@ import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
 import { Database } from '../../components/database/index.js'
 import { DecryptDdoHandler } from '../../components/core/ddoHandler.js'
-import {
-  DecryptDDOCommand,
-  ENVIRONMENT_VARIABLES,
-  getConfiguration
-} from '../../utils/index.js'
+import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
 import { OceanNode } from '../../OceanNode.js'
@@ -32,6 +28,7 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
+import { DecryptDDOCommand } from '../../@types/commands.js'
 
 describe('Should encrypt and decrypt DDO', () => {
   let config: OceanNodeConfig

@@ -1,12 +1,5 @@
 import { Handler } from './handler.js'
-import {
-  GetDdoCommand,
-  FindDDOCommand,
-  DecryptDDOCommand,
-  MetadataStates,
-  ValidateDDOCommand,
-  PROTOCOL_COMMANDS
-} from '../../utils/constants.js'
+import { MetadataStates, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
 import { Readable } from 'stream'
 import {
@@ -31,6 +24,12 @@ import { createHash } from 'crypto'
 import lzma from 'lzma-native'
 import { validateObject } from './utils/validateDdoHandler.js'
 import { getConfiguration } from '../../utils/config.js'
+import {
+  GetDdoCommand,
+  FindDDOCommand,
+  DecryptDDOCommand,
+  ValidateDDOCommand
+} from '../../@types/commands.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -624,6 +623,12 @@ export class ValidateDDOHandler extends Handler {
     try {
       const ddo = await this.getOceanNode().getDatabase().ddo.retrieve(task.id)
       if (!ddo) {
+        CORE_LOGGER.logMessageWithEmoji(
+          `DDO ${task.id} was not found the database.`,
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEL_ERROR
+        )
         return {
           stream: null,
           status: { httpStatus: 404, error: 'Not found' }
@@ -631,6 +636,12 @@ export class ValidateDDOHandler extends Handler {
       }
       const validation = await validateObject(ddo, task.chainId, task.nftAddress)
       if (validation[0] === false) {
+        CORE_LOGGER.logMessageWithEmoji(
+          `Validation failed with error: ${validation[1]}`,
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEL_ERROR
+        )
         return {
           stream: null,
           status: { httpStatus: 400, error: `Validation error: ${validation[1]}` }
@@ -641,6 +652,12 @@ export class ValidateDDOHandler extends Handler {
         status: { httpStatus: 200 }
       }
     } catch (error) {
+      CORE_LOGGER.logMessageWithEmoji(
+        `Error occurred on validateDDO command: ${error}`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }

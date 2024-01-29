@@ -1,8 +1,4 @@
-import {
-  Command,
-  PROTOCOL_COMMANDS,
-  SUPPORTED_PROTOCOL_COMMANDS
-} from '../../utils/constants.js'
+import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { OCEAN_NODE_LOGGER } from '../../utils/logging/common.js'
 import {
   GetDdoHandler,
@@ -21,6 +17,8 @@ import { QueryHandler } from './queryHandler.js'
 import { StatusHandler } from './statusHandler.js'
 import { ReindexHandler } from './reindexHandler.js'
 import { OceanNode } from '../../OceanNode.js'
+import { Command } from '../../@types/commands.js'
+import { GetEnvironmentsHandler } from './compute.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -71,6 +69,10 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(PROTOCOL_COMMANDS.REINDEX, new ReindexHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.FILE_INFO, new FileInfoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.VALIDATE_DDO, new ValidateDDOHandler(node))
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS,
+      new GetEnvironmentsHandler(node)
+    )
   }
 
   public static getInstance(node: OceanNode): CoreHandlersRegistry {
@@ -132,5 +134,9 @@ export class CoreHandlersRegistry {
 
   public hasHandlerFor(handlerName: string): boolean {
     return this.coreHandlers.has(handlerName)
+  }
+
+  public getRegisteredCommands(): string[] {
+    return Array.from(this.coreHandlers.keys())
   }
 }
