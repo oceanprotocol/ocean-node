@@ -12,18 +12,14 @@ import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getDatabase } from '../../utils/database.js'
-import {
-  DecryptDDOCommand,
-  EVENTS,
-  MetadataStates,
-  PROTOCOL_COMMANDS
-} from '../../utils/constants.js'
+import { EVENTS, MetadataStates, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import axios from 'axios'
 import { getConfiguration } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { streamToString } from '../../utils/util.js'
 import { Readable } from 'node:stream'
+import { DecryptDDOCommand } from '../../@types/commands.js'
 
 class BaseEventProcessor {
   protected networkId: number
