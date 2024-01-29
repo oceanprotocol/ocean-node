@@ -194,10 +194,19 @@ export class DdoDatabase {
     }
   }
 
-  async create(ddo: Record<string, any>) {
+  async create(ddo: Record<string, any>): Promise<any> {
     try {
+      // Find the schema based on the DDO version
+      const schema = this.schemas.find(
+        (s) => s.name === `op_ddo_v${ddo.version.replace(/\./g, '_')}`
+      )
+      if (!schema) {
+        throw new Error(`Schema for version ${ddo.version} not found`)
+      }
+
+      // Use the matched schema to create the document
       return await this.provider
-        .collections(this.schemas[0].name)
+        .collections(schema.name)
         .documents()
         .create({ ...ddo })
     } catch (error) {
