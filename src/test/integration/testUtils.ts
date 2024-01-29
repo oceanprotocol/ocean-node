@@ -7,7 +7,7 @@ import { JsonRpcSigner, JsonRpcProvider, getBytes } from 'ethers'
 export const delay = (interval: number) => {
   return it('should delay', (done) => {
     setTimeout(() => done(), interval)
-  }).timeout(interval + 100)
+  }).timeout(interval + 1500)
 }
 
 export const waitToIndex = async (did: string, database: Database): Promise<any> => {
