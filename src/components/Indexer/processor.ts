@@ -95,10 +95,15 @@ class BaseEventProcessor {
       const { keys } = await getConfiguration()
       const nodeId = keys.peerId.toString()
 
-      const wallet: ethers.Wallet = new ethers.Wallet(
-        Buffer.from(keys.privateKey).toString('hex')
-      )
+      const wallet: ethers.Wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string)
 
+      // const message = String(
+      //   txId + contractAddress + keys.ethAddress + chainId.toString() + nonce
+      // )
+      // const consumerMessage = ethers.solidityPackedKeccak256(
+      //   ['bytes'],
+      //   [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      // )
       const message = String(
         txId + contractAddress + keys.ethAddress + chainId.toString() + nonce
       )
@@ -106,15 +111,12 @@ class BaseEventProcessor {
         ['bytes'],
         [ethers.hexlify(ethers.toUtf8Bytes(message))]
       )
-
       const messageHashBytes = ethers.toBeArray(consumerMessage)
       const signature = await wallet.signMessage(messageHashBytes)
-
+      console.log('keys.ethAddress == ', keys.ethAddress)
+      console.log('wallet address == ', await wallet.getAddress())
       const addressSignature = ethers.verifyMessage(consumerMessage, signature)
       console.log('addressSignature == ', addressSignature)
-      console.log('keys.ethAddress == ', keys.ethAddress)
-      console.log('contractAddress == ', contractAddress)
-      console.log('wallet address == ', await wallet.getAddress())
 
       if (nodeId === decryptorURL) {
         const node = OceanNode.getInstance(await getDatabase())
