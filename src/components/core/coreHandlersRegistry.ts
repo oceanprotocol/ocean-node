@@ -21,6 +21,7 @@ import { QueryHandler } from './queryHandler.js'
 import { StatusHandler } from './statusHandler.js'
 import { ReindexHandler } from './reindexHandler.js'
 import { OceanNode } from '../../OceanNode.js'
+import { GetEnvironmentsHandler } from './compute.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -71,6 +72,10 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(PROTOCOL_COMMANDS.REINDEX, new ReindexHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.FILE_INFO, new FileInfoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.VALIDATE_DDO, new ValidateDDOHandler(node))
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS,
+      new GetEnvironmentsHandler(node)
+    )
   }
 
   public static getInstance(node: OceanNode): CoreHandlersRegistry {
