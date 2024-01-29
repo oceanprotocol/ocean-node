@@ -72,25 +72,27 @@ describe('Should run a complete node flow.', () => {
   let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
-    }
-
     // override and save configuration (always before calling getConfig())
     previousConfiguration = await setupEnvironment(
       null,
       buildEnvOverrideConfig(
-        [ENVIRONMENT_VARIABLES.RPCS],
-        [JSON.stringify(mockSupportedNetworks)]
+        [
+          ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.DB_URL,
+          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS
+        ],
+        [
+          JSON.stringify(mockSupportedNetworks),
+          'http://localhost:8108/?apiKey=xyz',
+          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'])
+        ]
       )
     )
-
     config = await getConfiguration(true)
-    database = await new Database(dbConfig)
+    database = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(database)
 
     indexer = new OceanIndexer(database, mockSupportedNetworks)
-    process.env.AUTHORIZED_DECRYPTERS = JSON.stringify(config.authorizedDecrypters)
 
     const data = JSON.parse(
       // eslint-disable-next-line security/detect-non-literal-fs-filename
@@ -234,7 +236,7 @@ describe('Should run a complete node flow.', () => {
 
     const setMetaDataTx = await nftContract.setMetaData(
       0,
-      'http://127.0.0.1:8001',
+      '16Uiu2HAmN211yBiE6dF5xu8GFXV1jqZQzK5MbzBuQDspfa6qNgXF',
       '0x123',
       '0x02',
       encryptedMetaData,

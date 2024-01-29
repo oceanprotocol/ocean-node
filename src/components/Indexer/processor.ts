@@ -12,11 +12,18 @@ import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getDatabase } from '../../utils/database.js'
-import { EVENTS, MetadataStates, PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import {
+  DecryptDDOCommand,
+  EVENTS,
+  MetadataStates,
+  PROTOCOL_COMMANDS
+} from '../../utils/constants.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import axios from 'axios'
 import { getConfiguration } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
+import { streamToString } from '../../utils/util.js'
+import { Readable } from 'node:stream'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -84,52 +91,61 @@ class BaseEventProcessor {
       INDEXER_LOGGER.logMessage(
         `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} ecnrypted by: ${decryptorURL}`
       )
-      const nonce = Date.now().toString()
-      console.log('nonce == ', nonce)
-
+      const nonce = Number(Date.now().toString())
       const { keys } = await getConfiguration()
-      console.log('keys == ', keys)
-
       const nodeId = keys.peerId.toString()
-      console.log('nodeId == ', nodeId)
 
       const wallet: ethers.Wallet = new ethers.Wallet(
         Buffer.from(keys.privateKey).toString('hex')
       )
+
       const message = String(
-        txId + keys.ethAddress + chainId.toString() + nonce.toString()
+        txId + contractAddress + keys.ethAddress + chainId.toString() + nonce
       )
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
         [ethers.hexlify(ethers.toUtf8Bytes(message))]
       )
+
       const messageHashBytes = ethers.toBeArray(consumerMessage)
       const signature = await wallet.signMessage(messageHashBytes)
-      console.log('signature == ', signature)
 
-      const payload = {
-        transactionId: txId,
-        chainId,
-        decrypterAddress: keys.ethAddress,
-        dataNftAddress: contractAddress,
-        signature,
-        nonce: nonce.toString()
-      }
-      console.log('payload == ', payload)
+      const addressSignature = ethers.verifyMessage(consumerMessage, signature)
+      console.log('addressSignature == ', addressSignature)
+      console.log('keys.ethAddress == ', keys.ethAddress)
+      console.log('contractAddress == ', contractAddress)
+      console.log('wallet address == ', await wallet.getAddress())
 
       if (nodeId === decryptorURL) {
-        const node = OceanNode.getInstance()
-        console.log(
-          'has handlers node',
-          node.getCoreHandlers().hasHandlerFor(PROTOCOL_COMMANDS.DECRYPT_DDO)
-        )
+        const node = OceanNode.getInstance(await getDatabase())
+        const decryptDDOTask: DecryptDDOCommand = {
+          command: PROTOCOL_COMMANDS.DECRYPT_DDO,
+          transactionId: txId,
+          decrypterAddress: keys.ethAddress,
+          chainId,
+          encryptedDocument: metadata,
+          documentHash: metadataHash,
+          dataNftAddress: contractAddress,
+          signature,
+          nonce: nonce.toString()
+        }
+        const response = await node
+          .getCoreHandlers()
+          .getHandler(PROTOCOL_COMMANDS.DECRYPT_DDO)
+          .handle(decryptDDOTask)
+        console.log('response status == ', response.status)
+        ddo = await streamToString(response.stream as Readable)
       } else {
-        const node = OceanNode.getInstance()
-        console.log(
-          'has handlers node',
-          node.getCoreHandlers().hasHandlerFor(PROTOCOL_COMMANDS.DECRYPT_DDO)
-        )
         try {
+          const payload = {
+            transactionId: txId,
+            chainId,
+            decrypterAddress: keys.ethAddress,
+            dataNftAddress: contractAddress,
+            signature,
+            nonce: nonce.toString()
+          }
+          console.log('payload == ', payload)
           const response = await axios({
             method: 'post',
             url: `${decryptorURL}/api/services/decrypt`,

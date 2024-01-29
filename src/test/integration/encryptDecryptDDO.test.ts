@@ -327,7 +327,12 @@ describe('Should encrypt and decrypt DDO', () => {
       ['bytes'],
       [ethers.hexlify(ethers.toUtf8Bytes(message))]
     )
+    console.log('publisherAddress == ', publisherAddress)
+    console.log('wallet address == ', await wallet.getAddress())
     const signature = await wallet.signMessage(messageHash)
+
+    const addressSignature = ethers.verifyMessage(message, signature)
+    console.log('addressSignature == ', addressSignature)
 
     const decryptDDOTask: DecryptDDOCommand = {
       command: 'decryptDDO',
