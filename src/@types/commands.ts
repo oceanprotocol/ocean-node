@@ -44,6 +44,10 @@ export interface ValidateDDOCommand extends DDOCommand {
   nftAddress: string
 }
 
+export interface GetEnvironmentsCommand extends Command {
+  chainId: number
+}
+
 export interface StatusCommand extends Command {}
 
 export interface QueryCommand extends Command {

@@ -18,7 +18,8 @@ export const PROTOCOL_COMMANDS = {
   FIND_DDO: 'findDDO',
   GET_FEES: 'getFees',
   FILE_INFO: 'fileInfo',
-  VALIDATE_DDO: 'validateDDO'
+  VALIDATE_DDO: 'validateDDO',
+  GET_COMPUTE_ENVIRONMENTS: 'getComputeEnvironments'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -34,7 +35,8 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.FIND_DDO,
   PROTOCOL_COMMANDS.GET_FEES,
   PROTOCOL_COMMANDS.FILE_INFO,
-  PROTOCOL_COMMANDS.VALIDATE_DDO
+  PROTOCOL_COMMANDS.VALIDATE_DDO,
+  PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS
 ]
 
 export const MetadataStates = {
