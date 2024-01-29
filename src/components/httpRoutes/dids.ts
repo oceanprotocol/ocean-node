@@ -1,6 +1,8 @@
 import express, { Request, Response } from 'express'
+import { sendMissingP2PResponse, hasP2PInterface } from './index.js'
 
 export const advertiseDidRoute = express.Router()
+
 advertiseDidRoute.post(
   '/advertiseDid',
   express.urlencoded({ extended: true, type: '*/*' }),
@@ -9,8 +11,12 @@ advertiseDidRoute.post(
       res.sendStatus(400)
       return
     }
-    await req.oceanNode.getP2PNode().advertiseDid(req.query.did as string)
-    res.sendStatus(200)
+    if (hasP2PInterface) {
+      await req.oceanNode.getP2PNode().advertiseDid(req.query.did as string)
+      res.sendStatus(200)
+    } else {
+      sendMissingP2PResponse(res)
+    }
   }
 )
 
@@ -23,9 +29,13 @@ getProvidersForDidRoute.get(
       res.sendStatus(400)
       return
     }
-    const providers = await req.oceanNode
-      .getP2PNode()
-      .getProvidersForDid(req.query.did as string)
-    res.json(providers)
+    if (hasP2PInterface) {
+      const providers = await req.oceanNode
+        .getP2PNode()
+        .getProvidersForDid(req.query.did as string)
+      res.json(providers)
+    } else {
+      sendMissingP2PResponse(res)
+    }
   }
 )
