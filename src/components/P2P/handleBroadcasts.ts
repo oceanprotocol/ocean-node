@@ -1,4 +1,4 @@
-import { BroadcastCommand } from '../../utils/constants.js'
+import { BroadcastCommand } from '../../@types/commands.js'
 import { LOG_LEVELS_STR, getLoggerLevelEmoji } from '../../utils/logging/Logger.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
 

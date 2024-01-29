@@ -1,8 +1,4 @@
-import {
-  Command,
-  PROTOCOL_COMMANDS,
-  SUPPORTED_PROTOCOL_COMMANDS
-} from '../../utils/constants.js'
+import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { OCEAN_NODE_LOGGER } from '../../utils/logging/common.js'
 import {
   GetDdoHandler,
@@ -21,6 +17,7 @@ import { QueryHandler } from './queryHandler.js'
 import { StatusHandler } from './statusHandler.js'
 import { ReindexHandler } from './reindexHandler.js'
 import { OceanNode } from '../../OceanNode.js'
+import { Command } from '../../@types/commands.js'
 import { GetEnvironmentsHandler } from './compute.js'
 
 export type HandlerRegistry = {
