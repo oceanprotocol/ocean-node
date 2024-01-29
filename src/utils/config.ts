@@ -237,6 +237,35 @@ function getC2DClusterEnvironment(): C2DClusterInfo[] {
   return clusters
 }
 
+// connect interfaces (p2p or/and http)
+function getNodeInterfaces(isStartup: boolean = false) {
+  let interfaces: string[] = ['P2P', 'HTTP']
+  if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.INTERFACES)) {
+    if (isStartup) {
+      CONFIG_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_WARN,
+        `Missing "${ENVIRONMENT_VARIABLES.INTERFACES.name}" env variable. Will use defaults...`,
+        true
+      )
+    }
+  } else {
+    try {
+      interfaces = JSON.parse(process.env.INTERFACES) as string[]
+    } catch (err) {
+      CONFIG_LOGGER.logMessageWithEmoji(
+        `Invalid "${ENVIRONMENT_VARIABLES.INTERFACES.name}" env variable => ${process.env.INTERFACES}. Will use defaults...`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+    }
+  }
+  // make it case insensitive
+  return interfaces.map((iface: string) => {
+    return iface.toUpperCase()
+  })
+}
+
 /**
  * checks if a var is defined on env
  * @param envVariable check utils/constants ENVIRONMENT_VARIABLES
@@ -301,13 +330,16 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     )
   }
 
+  // http and/or p2p connections
+  const interfaces = getNodeInterfaces(isStartup)
+
   const config: OceanNodeConfig = {
     authorizedDecrypters: getAuthorizedDecrypters(),
     keys,
     // Only enable indexer if we have a DB_URL and supportedNetworks
     hasIndexer: !!(!!getEnvValue(process.env.DB_URL, '') && !!supportedNetworks),
-    hasHttp: true,
-    hasP2P: true,
+    hasHttp: interfaces.includes('HTTP'),
+    hasP2P: interfaces.includes('P2P'),
     p2pConfig: {
       bootstrapNodes: [
         '/ip4/104.131.131.82/tcp/4001/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ',
