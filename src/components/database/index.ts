@@ -223,22 +223,38 @@ export class DdoDatabase {
     }
   }
 
-  async retrieve(id: string) {
-    try {
-      return await this.provider
-        .collections(this.schemas[0].name)
-        .documents()
-        .retrieve(id)
-    } catch (error) {
-      const errorMsg = `Error when retrieving DDO entry ${id}: ` + error.message
+  async retrieve(id: string): Promise<any> {
+    let ddo = null
+    for (const schema of this.schemas) {
+      try {
+        ddo = await this.provider.collections(schema.name).documents().retrieve(id)
+        if (ddo) {
+          break
+        }
+      } catch (error) {
+        if (!(error instanceof TypesenseError && error.httpStatus === 404)) {
+          // Log error other than not found
+          DATABASE_LOGGER.logMessageWithEmoji(
+            `Error when retrieving DDO entry ${id} from schema ${schema.name}: ` +
+              error.message,
+            true,
+            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+            LOG_LEVELS_STR.LEVEL_ERROR
+          )
+        }
+      }
+    }
+
+    if (!ddo) {
       DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
+        `DDO entry with ID ${id} not found in any schema.`,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
-      return null
     }
+
+    return ddo
   }
 
   async update(ddo: Record<string, any>) {
