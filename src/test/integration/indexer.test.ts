@@ -140,7 +140,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       0,
       'http://v4.provider.oceanprotocol.com',
       '0x123',
-      '0x02',
+      '0x01',
       metadata,
       '0x' + hash,
       []
@@ -169,7 +169,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       0,
       'http://v4.provider.oceanprotocol.com',
       '0x123',
-      '0x02',
+      '0x01',
       metadata,
       '0x' + hash,
       []
