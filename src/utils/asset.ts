@@ -1,6 +1,4 @@
 import axios from 'axios'
-import { promises as fs } from 'fs'
-import * as path from 'path'
 import { DDO } from '../@types/DDO/DDO'
 import { Service } from '../@types/DDO/Service'
 
