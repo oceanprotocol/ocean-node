@@ -91,7 +91,10 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       )
       const from = decodedEventData.args[0]
       const purgatory = await getPurgatory()
-      if (purgatory.isBannedAsset(ddo.id) || purgatory.isBannedAccount(from)) {
+      if (
+        (await purgatory.isBannedAsset(ddo.id)) ||
+        (await purgatory.isBannedAccount(from))
+      ) {
         ddo.purgatory = {
           state: true
         }
