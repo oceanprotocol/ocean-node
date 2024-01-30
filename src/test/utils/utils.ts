@@ -16,7 +16,7 @@ export const TEST_ENV_CONFIG_FILE = '../.env.test'
 export interface OverrideEnvConfig {
   name: string // name of the var
   newValue: any // new value of the var
-  originalValue: any // original value of the var (could be udefined)
+  originalValue: any // original value of the var (could be undefined)
   override: boolean // override the default/existing value?
   required: boolean // is a required variable?
 }
@@ -113,8 +113,12 @@ export async function tearDownEnvironment(overrideVars?: OverrideEnvConfig[]) {
     overrideVars.forEach((element: OverrideEnvConfig) => {
       if (element.override && element.newValue !== element.originalValue) {
         // only restore what we have explicilty touched
-        CONFIG_LOGGER.debug('Restoring environment variable: ' + element.name)
-        process.env[element.name] = element.originalValue
+        CONFIG_LOGGER.debug('Restoring environment variable: ' + element.originalValue)
+        if (element.originalValue) {
+          process.env[element.name] = element.originalValue
+        } else {
+          delete process.env[element.name]
+        }
         forceReload = true
       }
     })
