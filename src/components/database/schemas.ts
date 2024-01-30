@@ -1,4 +1,48 @@
 import { TypesenseCollectionCreateSchema } from '../../@types/index.js'
+import fs from 'fs'
+import path, { dirname, resolve } from 'path'
+import { fileURLToPath } from 'url'
+import { DATABASE_LOGGER } from '../../utils/logging/common.js'
+import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+
+export function readJsonSchemas(): TypesenseCollectionCreateSchema[] {
+  const jsonDocuments: TypesenseCollectionCreateSchema[] = []
+  const pathToSchemaDir: string = '../../../schemas'
+  const currentModulePath = fileURLToPath(import.meta.url)
+
+  try {
+    const currentDirectory = dirname(currentModulePath)
+    const schemaFilePath = resolve(currentDirectory, pathToSchemaDir)
+    const jsonFiles = fs
+      .readdirSync(schemaFilePath)
+      .filter((file) => path.extname(file) === '.json')
+
+    if (jsonFiles.length === 0) {
+      DATABASE_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `No JSON files found in the schemas directory ${schemaFilePath}.`,
+        true
+      )
+      return []
+    } else {
+      jsonFiles.forEach((file) => {
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        const fileData = fs.readFileSync(path.join(schemaFilePath, file), 'utf-8')
+        const jsonFile = JSON.parse(fileData.toString())
+        jsonDocuments.push(jsonFile)
+      })
+      return jsonDocuments
+    }
+  } catch (error) {
+    DATABASE_LOGGER.log(
+      LOG_LEVELS_STR.LEVEL_ERROR,
+      `JSON mappings could not be loaded in database.
+      Error: ${error}`,
+      true
+    )
+  }
+  return []
+}
 
 export type Schema = TypesenseCollectionCreateSchema
 export type Schemas = {
@@ -8,14 +52,9 @@ export type Schemas = {
   logSchemas: Schema
   orderSchema: Schema
 }
+const ddoSchemas = readJsonSchemas()
 export const schemas: Schemas = {
-  ddoSchemas: [
-    {
-      name: 'ddo_v0.1',
-      enable_nested_fields: true,
-      fields: [{ name: '.*', type: 'auto', optional: true }] // optional: true for turning the full version DDO into short one for states DEPRECATED and REVOKED
-    }
-  ],
+  ddoSchemas,
   nonceSchemas: {
     name: 'nonce',
     enable_nested_fields: true,
