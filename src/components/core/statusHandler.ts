@@ -1,7 +1,7 @@
 import { Handler } from './handler.js'
 import { status } from './utils/statusHandler.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
-import { StatusCommand } from '../../utils/constants.js'
+import { StatusCommand } from '../../@types/commands.js'
 import { Readable } from 'stream'
 
 export class StatusHandler extends Handler {

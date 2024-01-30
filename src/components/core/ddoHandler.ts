@@ -1,12 +1,5 @@
 import { Handler } from './handler.js'
-import {
-  GetDdoCommand,
-  FindDDOCommand,
-  DecryptDDOCommand,
-  MetadataStates,
-  ValidateDDOCommand,
-  PROTOCOL_COMMANDS
-} from '../../utils/constants.js'
+import { MetadataStates, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
 import { Readable } from 'stream'
 import {
@@ -31,6 +24,12 @@ import { createHash } from 'crypto'
 import lzma from 'lzma-native'
 import { validateObject } from './utils/validateDdoHandler.js'
 import { getConfiguration } from '../../utils/config.js'
+import {
+  GetDdoCommand,
+  FindDDOCommand,
+  DecryptDDOCommand,
+  ValidateDDOCommand
+} from '../../@types/commands.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available

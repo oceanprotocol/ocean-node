@@ -1,6 +1,6 @@
 import { Handler } from './handler.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
-import { EncryptCommand } from '../../utils/constants.js'
+import { EncryptCommand } from '../../@types/commands.js'
 import * as base58 from 'base58-js'
 import { Readable } from 'stream'
 import { encrypt } from '../../utils/crypt.js'

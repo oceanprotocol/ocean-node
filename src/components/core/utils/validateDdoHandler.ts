@@ -19,7 +19,7 @@ export function getSchema(version: string = CURRENT_VERSION): string {
     CORE_LOGGER.logMessage(`Can't find schema ${version}`, true)
     return
   }
-  const path = `../../../../schemas/v4/${version}.ttl`
+  const path = `../../../../schemas/${version}.ttl`
   // Use fileURLToPath to convert the URL to a file path
   const currentModulePath = fileURLToPath(import.meta.url)
 

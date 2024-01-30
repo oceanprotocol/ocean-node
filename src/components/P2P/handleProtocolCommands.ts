@@ -3,7 +3,7 @@ import { Readable } from 'stream'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 
 import { P2P_LOGGER } from '../../utils/logging/common.js'
-import { Command } from '../../utils/constants.js'
+import { Command } from '../../@types/commands.js'
 import { P2PCommandResponse } from '../../@types/OceanNode'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import StreamConcat from 'stream-concat'

@@ -1,6 +1,6 @@
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { OceanNode } from '../../OceanNode.js'
-import { Command, ICommandHandler } from '../../utils/constants.js'
+import { Command, ICommandHandler } from '../../@types/commands.js'
 
 export abstract class Handler implements ICommandHandler {
   private nodeInstance?: OceanNode

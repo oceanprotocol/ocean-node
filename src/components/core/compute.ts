@@ -2,12 +2,12 @@ import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../@types'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { Handler } from './handler.js'
-import { GetEnvironments } from '../../utils/constants.js'
+import { GetEnvironmentsCommand } from '../../@types/commands.js'
 import { getConfiguration } from '../../utils/config.js'
 import axios from 'axios'
 
 export class GetEnvironmentsHandler extends Handler {
-  async handle(task: GetEnvironments): Promise<P2PCommandResponse> {
+  async handle(task: GetEnvironmentsCommand): Promise<P2PCommandResponse> {
     try {
       CORE_LOGGER.logMessage(
         'File Info Request recieved with arguments: ' + JSON.stringify(task, null, 2),
