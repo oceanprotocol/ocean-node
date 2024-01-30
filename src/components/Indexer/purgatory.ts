@@ -36,7 +36,7 @@ export class Purgatory {
   }
 
   async parsePurgatoryAssets(): Promise<Array<PurgatoryAssets>> {
-    if ('ASSET_PURGATORY_URL' in process.env) {
+    if (!('ASSET_PURGATORY_URL' in process.env)) {
       INDEXER_LOGGER.logMessage(`Invalid env var name for purgatory file URL.`, true)
       return
     }
