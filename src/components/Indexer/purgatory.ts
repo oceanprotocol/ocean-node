@@ -44,7 +44,7 @@ export class Purgatory {
       const response = await axios({
         method: 'get',
         url: process.env.ASSET_PURGATORY_URL,
-        timeout: 5
+        timeout: 1000
       })
       if (response.status !== 200) {
         INDEXER_LOGGER.log(
@@ -87,7 +87,7 @@ export class Purgatory {
       const response = await axios({
         method: 'get',
         url: process.env.ACCOUNT_PURGATORY_URL,
-        timeout: 5
+        timeout: 1000
       })
       if (response.status !== 200) {
         INDEXER_LOGGER.log(
