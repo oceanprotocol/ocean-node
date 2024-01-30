@@ -1,5 +1,5 @@
 import { P2PCommandResponse } from '../../@types'
-import { Command } from '../../utils/constants.js'
+import { Command } from '../../@types/commands.js'
 import { ReadableString } from '../P2P/handleProtocolCommands.js'
 import { Handler } from './handler.js'
 

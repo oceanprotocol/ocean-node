@@ -10,7 +10,8 @@ import { base58btc } from 'multiformats/bases/base58'
 // import { Wallet, ethers } from 'ethers'
 
 import pkg from 'secp256k1'
-import { DownloadURLCommand, PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { DownloadURLCommand } from '../../@types/commands.js'
 
 // Replace with any other file, works with a local path or URL
 // '/var/log/syslog'

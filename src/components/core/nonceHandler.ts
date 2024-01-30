@@ -1,6 +1,6 @@
 import { Handler } from './handler.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
-import { NonceCommand } from '../../utils/constants.js'
+import { NonceCommand } from '../../@types/commands.js'
 import { getNonce } from './utils/nonceHandler.js'
 
 export class NonceHandler extends Handler {

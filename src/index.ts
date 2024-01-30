@@ -70,6 +70,7 @@ let dbconn = null
 if (config.dbConfig?.url) {
   // once we create a database instance, we check the environment and possibly add the DB transport
   // after that, all loggers will eventually have it too (if in production/staging environments)
+  // it creates dinamically DDO schemas
   dbconn = await new Database(config.dbConfig)
 } else {
   config.hasIndexer = false

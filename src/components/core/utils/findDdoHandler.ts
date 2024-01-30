@@ -1,5 +1,5 @@
 import { OceanP2P, CACHE_TTL } from '../../P2P/index.js'
-import { FindDDOCommand } from '../../../utils/constants.js'
+import { FindDDOCommand } from '../../../@types/commands.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { FindDDOResponse } from '../../../@types/index.js'
 import { Service } from '../../../@types/DDO/Service.js'

@@ -6,7 +6,7 @@ import {
   IpfsFileObject,
   UrlFileObject
 } from '../../@types/fileObject.js'
-import { FileInfoCommand } from '../../utils'
+import { FileInfoCommand } from '../../@types/commands.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { ArweaveStorage, IpfsStorage, UrlStorage } from '../storage/index.js'
 import { Handler } from './handler.js'

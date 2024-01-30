@@ -1,5 +1,5 @@
 import { Handler } from './handler.js'
-import { QueryCommand } from '../../utils/constants.js'
+import { QueryCommand } from '../../@types/commands.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
 

@@ -1,5 +1,5 @@
 import { Handler } from './handler.js'
-import { ReindexCommand } from '../../utils/constants.js'
+import { ReindexCommand } from '../../@types/commands.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
 import { OceanIndexer } from '../Indexer/index.js'
