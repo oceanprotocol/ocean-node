@@ -1,6 +1,5 @@
-import { assert } from 'console'
 import { Database } from '../../components/database/index.js'
-import { expect } from 'chai'
+import { expect, assert } from 'chai'
 
 describe('Database', () => {
   let database: Database
