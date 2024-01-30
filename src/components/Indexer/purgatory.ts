@@ -62,7 +62,7 @@ export class Purgatory {
         Data: ${response.data[0]}`
       )
       const purgatoryAssets: Array<PurgatoryAssets> = []
-      for (const asset of JSON.parse(response.data)) {
+      for (const asset of response.data) {
         if (asset && 'did' in asset) {
           purgatoryAssets.push({ did: asset.did, reason: asset.reason })
         }
@@ -105,7 +105,7 @@ export class Purgatory {
         `PURGATORY: Successfully retrieved new purgatory list from ACCOUNT_PURGATORY_URL env var.
         Data: ${response.data[0]}`
       )
-      for (const account of JSON.parse(response.data)) {
+      for (const account of response.data) {
         if (account && 'address' in account) {
           purgatoryAccounts.push({ address: account.address, reason: account.reason })
         }
