@@ -260,9 +260,7 @@ export class DdoDatabase {
   async update(ddo: Record<string, any>) {
     try {
       // Find the schema based on the DDO version
-      const schema = this.schemas.find(
-        (s) => s.name === `op_ddo_v${ddo.version.replace(/\./g, '_')}`
-      )
+      const schema = this.schemas.find((s) => s.name === `op_ddo_v${ddo.version}`)
       if (!schema) {
         throw new Error(`Schema for version ${ddo.version} not found`)
       }
@@ -286,17 +284,36 @@ export class DdoDatabase {
   }
 
   async delete(did: string) {
-    try {
-      return await this.provider.collections(this.schemas[0].name).documents().delete(did)
-    } catch (error) {
-      const errorMsg = `Error when deleting DDO entry ${did}: ` + error.message
+    let isDeleted = false
+    for (const schema of this.schemas) {
+      try {
+        const response = await this.provider
+          .collections(schema.name)
+          .documents()
+          .delete(did)
+        isDeleted = true
+        return response
+      } catch (error) {
+        if (!(error instanceof TypesenseError && error.httpStatus === 404)) {
+          // Log error other than not found
+          DATABASE_LOGGER.logMessageWithEmoji(
+            `Error when deleting DDO entry ${did} from schema ${schema.name}: ` +
+              error.message,
+            true,
+            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+            LOG_LEVELS_STR.LEVEL_ERROR
+          )
+        }
+      }
+    }
+
+    if (!isDeleted) {
       DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
+        `DDO entry with ID ${did} not found in any schema or could not be deleted.`,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
-      return null
     }
   }
 }
