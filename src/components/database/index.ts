@@ -243,10 +243,14 @@ export class DdoDatabase {
 
   async update(ddo: Record<string, any>) {
     try {
-      return await this.provider
-        .collections(this.schemas[0].name)
-        .documents()
-        .update(ddo.id, ddo)
+      // Find the schema based on the DDO version
+      const schema = this.schemas.find(
+        (s) => s.name === `op_ddo_v${ddo.version.replace(/\./g, '_')}`
+      )
+      if (!schema) {
+        throw new Error(`Schema for version ${ddo.version} not found`)
+      }
+      return await this.provider.collections(schema.name).documents().update(ddo.id, ddo)
     } catch (error) {
       if (error instanceof TypesenseError && error.httpStatus === 404) {
         return await this.provider
