@@ -5,10 +5,34 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 
 export class Purgatory {
-  db: Database
+  private db: Database
+  private bannedAccounts: Array<PurgatoryAccounts>
+  private bannedAssets: Array<PurgatoryAssets>
 
   constructor(db: Database) {
     this.db = db
+    this.bannedAccounts = []
+    this.bannedAssets = []
+  }
+
+  getDb(): Database {
+    return this.db
+  }
+
+  getBannedAccounts(): Array<PurgatoryAccounts> {
+    return this.bannedAccounts
+  }
+
+  getBannedAssets(): Array<PurgatoryAssets> {
+    return this.bannedAssets
+  }
+
+  setBannedAccounts(newBannedAccounts: Array<PurgatoryAccounts>): void {
+    this.bannedAccounts = newBannedAccounts
+  }
+
+  setBannedAssets(newBannedAssets: Array<PurgatoryAssets>): void {
+    this.bannedAssets = newBannedAssets
   }
 
   async parsePurgatoryAssets(): Promise<Array<PurgatoryAssets>> {
@@ -42,6 +66,7 @@ export class Purgatory {
           purgatoryAssets.push({ did: asset.did, reason: asset.reason })
         }
       }
+      this.setBannedAssets(purgatoryAssets)
       return purgatoryAssets
     } catch (err) {
       INDEXER_LOGGER.log(
@@ -83,6 +108,7 @@ export class Purgatory {
           purgatoryAccounts.push({ address: account.address, reason: account.reason })
         }
       }
+      this.setBannedAccounts(purgatoryAccounts)
       return purgatoryAccounts
     } catch (err) {
       INDEXER_LOGGER.log(
@@ -94,7 +120,12 @@ export class Purgatory {
   }
 
   async isBannedAccount(refAddress: string): Promise<boolean> {
-    const purgatoryAccounts = await this.parsePurgatoryAccounts()
+    let purgatoryAccounts = []
+    if (this.getBannedAccounts()) {
+      purgatoryAccounts = this.getBannedAccounts()
+    } else {
+      purgatoryAccounts = await this.parsePurgatoryAccounts()
+    }
     for (const acc of purgatoryAccounts) {
       if (acc.address.toLowerCase() === refAddress.toLowerCase()) {
         return true
@@ -104,7 +135,12 @@ export class Purgatory {
   }
 
   async isBannedAsset(refDid: string): Promise<boolean> {
-    const purgatoryAssets = await this.parsePurgatoryAssets()
+    let purgatoryAssets = []
+    if (this.getBannedAccounts()) {
+      purgatoryAssets = this.getBannedAssets()
+    } else {
+      purgatoryAssets = await this.parsePurgatoryAssets()
+    }
     for (const asset of purgatoryAssets) {
       if (asset.did === refDid) {
         return true
