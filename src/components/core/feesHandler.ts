@@ -1,5 +1,5 @@
 import { Handler } from './handler.js'
-import { GetFeesCommand } from '../../utils/constants.js'
+import { GetFeesCommand } from '../../@types/commands.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { calculateFee } from './utils/feesHandler.js'
 import { Readable } from 'stream'
