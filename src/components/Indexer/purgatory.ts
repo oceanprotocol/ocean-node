@@ -59,7 +59,7 @@ export class Purgatory {
       }
       INDEXER_LOGGER.logMessage(
         `PURGATORY: Successfully retrieved new purgatory list from ASSET_PURGATORY_URL env var.
-        Data: ${response.data}`
+        Data: ${response.data[0]}`
       )
       const purgatoryAssets: Array<PurgatoryAssets> = []
       for (const asset of JSON.parse(response.data)) {
@@ -103,7 +103,7 @@ export class Purgatory {
       }
       INDEXER_LOGGER.logMessage(
         `PURGATORY: Successfully retrieved new purgatory list from ACCOUNT_PURGATORY_URL env var.
-        Data: ${response.data}`
+        Data: ${response.data[0]}`
       )
       for (const account of JSON.parse(response.data)) {
         if (account && 'address' in account) {
