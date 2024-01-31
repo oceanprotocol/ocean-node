@@ -201,7 +201,12 @@ export class DdoDatabase {
   async create(ddo: Record<string, any>) {
     try {
       // Find the schema based on the DDO version OR use the short DDO schema when state !== 0
-      const schemaName = ddo.nft.state === 0 ? `op_ddo_v${ddo.version}` : 'op_ddo_short'
+      let schemaName: string
+      if (ddo.version) {
+        schemaName = `op_ddo_v${ddo.version}`
+      } else if (ddo.nft?.state !== 0) {
+        schemaName = 'op_ddo_short'
+      }
       const schema = this.schemas.find((s) => s.name === schemaName)
       if (!schema) {
         throw new Error(`Schema for version ${ddo.version} not found`)
@@ -258,7 +263,12 @@ export class DdoDatabase {
 
   async update(ddo: Record<string, any>) {
     // Find the schema based on the DDO version OR use the short DDO schema when state !== 0
-    const schemaName = ddo.nft.state === 0 ? `op_ddo_v${ddo.version}` : 'op_ddo_short'
+    let schemaName: string
+    if (ddo.version) {
+      schemaName = `op_ddo_v${ddo.version}`
+    } else if (ddo.nft?.state !== 0) {
+      schemaName = 'op_ddo_short'
+    }
     const schema = this.schemas.find((s) => s.name === schemaName)
 
     if (!schema) {
@@ -269,7 +279,7 @@ export class DdoDatabase {
     } catch (error) {
       if (error instanceof TypesenseError && error.httpStatus === 404) {
         // No DDO was found to update so we will create a new one.
-        // First we must the old version if it exist in another collection
+        // First we must delete the old version if it exist in another collection
         await this.delete(ddo.id)
 
         return await this.provider
