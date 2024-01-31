@@ -256,17 +256,21 @@ export class DdoDatabase {
   }
 
   async update(ddo: Record<string, any>) {
+    // Find the schema based on the DDO version
+    const schema = this.schemas.find((s) => s.name === `op_ddo_v${ddo.version}`)
+    if (!schema) {
+      throw new Error(`Schema for version ${ddo.version} not found`)
+    }
     try {
-      // Find the schema based on the DDO version
-      const schema = this.schemas.find((s) => s.name === `op_ddo_v${ddo.version}`)
-      if (!schema) {
-        throw new Error(`Schema for version ${ddo.version} not found`)
-      }
       return await this.provider.collections(schema.name).documents().update(ddo.id, ddo)
     } catch (error) {
       if (error instanceof TypesenseError && error.httpStatus === 404) {
+        // No DDO was found to update so we will create a new one.
+        // First we must the old version if it exist in another collection
+        await this.delete(ddo.id)
+
         return await this.provider
-          .collections(this.schemas[0].name)
+          .collections(schema.name)
           .documents()
           .create({ ...ddo })
       }
