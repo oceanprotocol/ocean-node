@@ -396,7 +396,3 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
 function configChanged(previous: OceanNodeConfig, current: OceanNodeConfig): boolean {
   return JSON.stringify(previous) !== JSON.stringify(current)
 }
-
-export async function getPeerId(): Promise<string> {
-  return (await getConfiguration()).keys.peerId.toString()
-}
