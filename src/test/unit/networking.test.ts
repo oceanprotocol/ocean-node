@@ -11,12 +11,13 @@ describe('Test available network interfaces', async () => {
     const envSet = process.env.INTERFACES
     const config = await getConfiguration()
     const { hasP2P, hasHttp } = config
+    const database = await getDatabase()
     if (!envSet) {
       expect(hasP2P).to.be.equal(true)
       expect(hasHttp).to.be.equal(true)
-      expect(OceanNode.getInstance(await getDatabase()).getP2PNode()).to.be.instanceOf(
-        OceanP2P
-      )
+      expect(
+        OceanNode.getInstance(database, new OceanP2P(config, database)).getP2PNode()
+      ).to.be.instanceOf(OceanP2P)
     } else {
       try {
         let interfaces = JSON.parse(process.env.INTERFACES) as string[]
