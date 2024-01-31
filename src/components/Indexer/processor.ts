@@ -13,6 +13,7 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getDatabase } from '../../utils/database.js'
 import { EVENTS, MetadataStates } from '../../utils/constants.js'
+import { getNFTFactory, getContractAddress } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getPurgatory } from '../../utils/purgatory.js'
 
@@ -76,6 +77,19 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     eventName: string
   ): Promise<any> {
     try {
+      const nftFactoryAddress = getContractAddress(chainId, 'ERC721Factory')
+      const nftFactoryContract = await getNFTFactory(provider, nftFactoryAddress)
+      if (
+        getAddress(await nftFactoryContract.erc721List(event.address)) !==
+        getAddress(event.address)
+      ) {
+        INDEXER_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_ERROR,
+          `NFT not deployed by OPF factory`,
+          true
+        )
+        return
+      }
       const decodedEventData = await this.getEventData(
         provider,
         event.transactionHash,
@@ -89,6 +103,37 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
         true
       )
+      const previousDdo = await (await getDatabase()).ddo.retrieve(ddo.id)
+      if (eventName === 'MetadataCreated') {
+        if (previousDdo && previousDdo.nft.state === MetadataStates.ACTIVE) {
+          INDEXER_LOGGER.logMessage(
+            `DDO ${ddo.did} is already registered as active`,
+            true
+          )
+          return
+        }
+      }
+      if (eventName === 'MetadataUpdated') {
+        if (!previousDdo) {
+          INDEXER_LOGGER.logMessage(
+            `Previous DDO with did ${ddo.id} was not found the database. Maybe it was deleted/hidden to some violation issues`,
+            true
+          )
+          return
+        }
+        const [isUpdateable, error] = this.isUpdateable(
+          previousDdo,
+          event.transactionHash,
+          event.blockNumber
+        )
+        if (!isUpdateable) {
+          INDEXER_LOGGER.logMessage(
+            `Error encountered when checking if the asset is eligiable for update: ${error}`,
+            true
+          )
+          return
+        }
+      }
       const from = decodedEventData.args[0]
       const purgatory = await getPurgatory()
       if (
@@ -102,9 +147,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         ddo.purgatory = {
           state: false
         }
+        const saveDDO = this.createOrUpdateDDO(ddo, eventName)
+        return saveDDO
       }
-      const saveDDO = this.createOrUpdateDDO(ddo, eventName)
-      return saveDDO
     } catch (error) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
@@ -112,6 +157,26 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         true
       )
     }
+  }
+
+  isUpdateable(previousDdo: any, txHash: string, block: number): [boolean, string] {
+    let errorMsg: string
+    const ddoTxId = previousDdo.event.tx
+    // do not update if we have the same txid
+    if (txHash === ddoTxId) {
+      errorMsg = `Previous DDO has the same tx id, no need to update: event-txid=${txHash} <> asset-event-txid=${ddoTxId}`
+      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_DEBUG, errorMsg, true)
+      return [false, errorMsg]
+    }
+    const ddoBlock = previousDdo.event.block
+    // do not update if we have the same block
+    if (block === ddoBlock) {
+      errorMsg = `Asset was updated later (block: ${ddoBlock}) vs transaction block: ${block}`
+      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_DEBUG, errorMsg, true)
+      return [false, errorMsg]
+    }
+
+    return [true, '']
   }
 }
 
