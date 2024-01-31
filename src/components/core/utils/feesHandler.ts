@@ -5,7 +5,28 @@ import { Service } from '../../../@types/DDO/Service'
 import { AssetUtils } from '../../../utils/asset.js'
 import { verifyMessage } from '../../../utils/blockchain.js'
 import { getConfiguration } from '../../../utils/config.js'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { LOG_LEVELS_STR } from '../../../utils/logging/Logger'
+import axios from 'axios'
 
+async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
+  try {
+    let envs: Array<Object>
+    const clustersURLS: string[] = JSON.parse(
+      process.env.OPERATOR_SERVICE_URL
+    ) as string[]
+    for (const cluster of clustersURLS) {
+      const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
+      const { data } = await axios.get(url)
+      envs.push({
+        url: data
+      })
+    }
+    return envs
+  } catch (error) {
+    CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error identifying C2D envs: ${error}`)
+  }
+}
 // equiv to get_provider_fees
 // *** NOTE: provider.py => get_provider_fees ***
 export async function createFee(
@@ -16,11 +37,45 @@ export async function createFee(
   // provider: OceanProvider // this node provider
 ): Promise<ProviderFeeData> | undefined {
   // create providerData struct
-  const providerData = {
-    environment: computeEnv, //  null for us now
-    timestamp: Date.now(),
-    dt: service.datatokenAddress,
-    id: service.id
+  const now = new Date().getTime()
+  const validUntilDate = new Date(validUntil)
+  const seconds: number = validUntilDate.getTime() - now
+
+  const envs = await getC2DEnvs(asset)
+  const clustersURLS: string[] = JSON.parse(process.env.OPERATOR_SERVICE_URL) as string[]
+  let foundEnv: Object = null
+
+  for (const env of envs) {
+    for (const cluster of clustersURLS) {
+      if (env.url === cluster) {
+        foundEnv = env.url.filter((item: any) => item.id === computeEnv)[0]
+      }
+    }
+  }
+
+  let providerData = null
+  //  TODO check decimals on contract?
+  let providerFeeAmount: number = null
+  // from env FEE_TOKENS
+  const providerFeeToken: string = await getProviderFeeToken(asset.chainId)
+  if (foundEnv) {
+    providerData = {
+      environment: foundEnv,
+      timestamp: Date.now(),
+      dt: service.datatokenAddress,
+      id: service.id
+    }
+
+    providerFeeAmount = parseFloat(seconds * parseFloat(foundEnv.priceMin)) / 60
+  } else {
+    providerData = {
+      environment: computeEnv, //  null for us now
+      timestamp: Date.now(),
+      dt: service.datatokenAddress,
+      id: service.id
+    }
+    // from env FEE_AMOUNT
+    providerFeeAmount = await getProviderFeeAmount()
   }
 
   // *** NOTE: provider.py ***
@@ -32,12 +87,6 @@ export async function createFee(
   // }
   const providerWallet = await getProviderWallet(String(asset.chainId))
   const providerFeeAddress: string = providerWallet.address
-
-  // from env FEE_TOKENS
-  const providerFeeToken: string = await getProviderFeeToken(asset.chainId)
-
-  // from env FEE_AMOUNT
-  const providerFeeAmount: number = await getProviderFeeAmount() // TODO check decimals on contract?
 
   /** https://github.com/ethers-io/ethers.js/issues/468
    * 
