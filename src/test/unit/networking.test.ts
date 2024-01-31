@@ -12,7 +12,7 @@ describe('Test available network interfaces', async () => {
       expect(hasHttp).to.be.equal(true)
     } else {
       try {
-        let interfaces = JSON.parse(process.env.INTERFACES) as string[]
+        let interfaces = JSON.parse(envSet) as string[]
         interfaces = interfaces.map((iface: string) => {
           return iface.toUpperCase()
         })
