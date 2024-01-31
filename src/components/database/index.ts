@@ -201,9 +201,7 @@ export class DdoDatabase {
   async create(ddo: Record<string, any>) {
     try {
       // Find the schema based on the DDO version
-      const schema = this.schemas.find(
-        (s) => s.name === `op_ddo_v${ddo.version.replace(/\./g, '_')}`
-      )
+      const schema = this.schemas.find((s) => s.name === `op_ddo_v${ddo.version}`)
       if (!schema) {
         throw new Error(`Schema for version ${ddo.version} not found`)
       }

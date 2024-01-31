@@ -72,11 +72,8 @@ describe('DdoDatabase CRUD', () => {
 
   it('update ddo', async () => {
     const newMetadataName = 'new metadata name'
-    const result = await database.ddo.update({
-      metadata: {
-        name: newMetadataName
-      }
-    })
+    ddo.metadata.name = newMetadataName
+    const result = await database.ddo.update(ddo)
     expect(result?.metadata.name).to.equal(newMetadataName)
   })
 
