@@ -6,7 +6,7 @@ import { AssetUtils } from '../../../utils/asset.js'
 import { verifyMessage } from '../../../utils/blockchain.js'
 import { getConfiguration } from '../../../utils/config.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { LOG_LEVELS_STR } from '../../../utils/logging/Logger'
+import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import axios from 'axios'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 
@@ -137,6 +137,8 @@ export async function calculateComputeProviderFee(
 
   return providerFee
 }
+
+export async function validateComputeProviderFee(tx: string, computeEnv: string) {}
 // equiv to get_provider_fees
 // *** NOTE: provider.py => get_provider_fees ***
 export async function createFee(
