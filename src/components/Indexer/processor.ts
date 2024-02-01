@@ -113,7 +113,7 @@ class BaseEventProcessor {
             decrypterAddress: keys.ethAddress,
             dataNftAddress: contractAddress,
             signature,
-            nonce: nonce.toString()
+            nonce
           }
           const response = await axios({
             method: 'post',
@@ -149,7 +149,7 @@ class BaseEventProcessor {
             documentHash: metadataHash,
             dataNftAddress: contractAddress,
             signature,
-            nonce: nonce.toString()
+            nonce
           }
           try {
             const response = await node
@@ -210,7 +210,7 @@ class BaseEventProcessor {
               documentHash: metadataHash,
               dataNftAddress: contractAddress,
               signature,
-              nonce: nonce.toString()
+              nonce
             }
             const response = await p2pNode.sendTo(
               decryptorURL,
