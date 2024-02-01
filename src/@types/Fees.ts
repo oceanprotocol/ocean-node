@@ -16,7 +16,7 @@ export type FeeStrategy = {
 export interface ProviderFeeData {
   providerFeeAddress: string
   providerFeeToken: string
-  providerFeeAmount: number
+  providerFeeAmount: number | BigInt
   providerData: any
   v: any
   r: any
