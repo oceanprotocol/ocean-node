@@ -8,17 +8,19 @@ import {
   toUtf8String
 } from 'ethers'
 import { createHash } from 'crypto'
+import { Readable } from 'node:stream'
+import { isWebUri } from 'valid-url'
+import axios from 'axios'
+import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getDatabase } from '../../utils/database.js'
 import { EVENTS, MetadataStates, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
-import axios from 'axios'
 import { getConfiguration } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { streamToString } from '../../utils/util.js'
-import { Readable } from 'node:stream'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 
 class BaseEventProcessor {
@@ -102,31 +104,7 @@ class BaseEventProcessor {
       )
       const signature = await wallet.signMessage(consumerMessage)
 
-      if (nodeId === decryptorURL) {
-        const node = OceanNode.getInstance(await getDatabase())
-        const decryptDDOTask: DecryptDDOCommand = {
-          command: PROTOCOL_COMMANDS.DECRYPT_DDO,
-          transactionId: txId,
-          decrypterAddress: keys.ethAddress,
-          chainId,
-          encryptedDocument: metadata,
-          documentHash: metadataHash,
-          dataNftAddress: contractAddress,
-          signature,
-          nonce: nonce.toString()
-        }
-        try {
-          const response = await node
-            .getCoreHandlers()
-            .getHandler(PROTOCOL_COMMANDS.DECRYPT_DDO)
-            .handle(decryptDDOTask)
-          ddo = JSON.parse(await streamToString(response.stream as Readable))
-        } catch (error) {
-          const message = `Node exception on decrypt DDO. Status: ${error.message}`
-          INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
-          throw new Error(message)
-        }
-      } else {
+      if (isWebUri(decryptorURL)) {
         try {
           const payload = {
             transactionId: txId,
@@ -157,6 +135,93 @@ class BaseEventProcessor {
           const message = `Provider exception on decrypt DDO. Status: ${err.message}`
           INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
           throw new Error(message)
+        }
+      } else {
+        const node = OceanNode.getInstance(await getDatabase())
+        if (nodeId === decryptorURL) {
+          const decryptDDOTask: DecryptDDOCommand = {
+            command: PROTOCOL_COMMANDS.DECRYPT_DDO,
+            transactionId: txId,
+            decrypterAddress: keys.ethAddress,
+            chainId,
+            encryptedDocument: metadata,
+            documentHash: metadataHash,
+            dataNftAddress: contractAddress,
+            signature,
+            nonce: nonce.toString()
+          }
+          try {
+            const response = await node
+              .getCoreHandlers()
+              .getHandler(PROTOCOL_COMMANDS.DECRYPT_DDO)
+              .handle(decryptDDOTask)
+            ddo = JSON.parse(await streamToString(response.stream as Readable))
+          } catch (error) {
+            const message = `Node exception on decrypt DDO. Status: ${error.message}`
+            INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
+            throw new Error(message)
+          }
+        } else {
+          try {
+            const p2pNode = await node.getP2PNode()
+            let isBinaryContent = false
+            const sink = async function (source: any) {
+              let first = true
+              for await (const chunk of source) {
+                if (first) {
+                  first = false
+                  try {
+                    const str = uint8ArrayToString(chunk.subarray()) // Obs: we need to specify the length of the subarrays
+                    const decoded = JSON.parse(str)
+                    if ('headers' in decoded) {
+                      if (str.toLowerCase().includes('application/octet-stream')) {
+                        isBinaryContent = true
+                      }
+                    }
+                    if (decoded.httpStatus !== 200) {
+                      INDEXER_LOGGER.logMessage(
+                        `Error in sink method  : ${decoded.httpStatus} errro: ${decoded.error}`
+                      )
+                      throw new Error('Error in sink method', decoded.error)
+                    }
+                  } catch (e) {
+                    INDEXER_LOGGER.logMessage(
+                      `Error in sink method  } error: ${e.message}`
+                    )
+                    throw new Error(`Error in sink method ${e.message}`)
+                  }
+                } else {
+                  if (isBinaryContent) {
+                    return chunk.subarray()
+                  } else {
+                    const str = uint8ArrayToString(chunk.subarray())
+                    return str
+                  }
+                }
+              }
+            }
+            const message = {
+              command: PROTOCOL_COMMANDS.DECRYPT_DDO,
+              transactionId: txId,
+              decrypterAddress: keys.ethAddress,
+              chainId,
+              encryptedDocument: metadata,
+              documentHash: metadataHash,
+              dataNftAddress: contractAddress,
+              signature,
+              nonce: nonce.toString()
+            }
+            const response = await p2pNode.sendTo(
+              decryptorURL,
+              JSON.stringify(message),
+              sink
+            )
+            ddo = JSON.parse(await streamToString(response.stream as Readable))
+          } catch (error) {
+            const message = `Node exception on decrypt DDO. Status: ${error.message}`
+            INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
+            throw new Error(message)
+          }
         }
       }
     } else {

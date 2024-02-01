@@ -165,8 +165,13 @@ function validateNonceAndSignature(
       [ethers.hexlify(ethers.toUtf8Bytes(message))]
     )
     const messageHashBytes = ethers.toBeArray(consumerMessage)
-    const recoveredAddress = ethers.verifyMessage(messageHashBytes, signature)
-    if (ethers.getAddress(recoveredAddress) === ethers.getAddress(consumer)) {
+    const addressFromHashSignature = ethers.verifyMessage(consumerMessage, signature)
+    const addressFromBytesSignature = ethers.verifyMessage(messageHashBytes, signature)
+
+    if (
+      ethers.getAddress(addressFromHashSignature) === ethers.getAddress(consumer) ||
+      ethers.getAddress(addressFromBytesSignature) === ethers.getAddress(consumer)
+    ) {
       // update nonce on DB, return OK
       return {
         valid: true
