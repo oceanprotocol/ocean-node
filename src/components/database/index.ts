@@ -614,11 +614,11 @@ export class Database {
         configureCustomDBTransport(this, DATABASE_LOGGER)
       }
 
-      this.ddo = await new DdoDatabase(config, schemas.ddoSchemas)
-      this.nonce = await new NonceDatabase(config, schemas.nonceSchemas)
-      this.indexer = await new IndexerDatabase(config, schemas.indexerSchemas)
-      this.logs = await new LogDatabase(config, schemas.logSchemas)
-      this.order = await new OrderDatabase(config, schemas.orderSchema)
+      this.ddo = await new DdoDatabase(this.config, schemas.ddoSchemas)
+      this.nonce = await new NonceDatabase(this.config, schemas.nonceSchemas)
+      this.indexer = await new IndexerDatabase(this.config, schemas.indexerSchemas)
+      this.logs = await new LogDatabase(this.config, schemas.logSchemas)
+      this.order = await new OrderDatabase(this.config, schemas.orderSchema)
       return this
     })() as unknown as Database
   }
