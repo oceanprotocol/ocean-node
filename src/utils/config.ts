@@ -67,20 +67,7 @@ function getSupportedChains(): RPCS {
 }
 
 function getAuthorizedDecrypters(): string[] {
-  if (
-    !process.env.AUTHORIZED_DECRYPTERS ||
-    !JSON.parse(process.env.AUTHORIZED_DECRYPTERS)
-  ) {
-    CONFIG_LOGGER.logMessageWithEmoji(
-      'Missing or Invalid AUTHORIZED_DECRYPTERS env variable format',
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_ERROR
-    )
-    return []
-  }
-  const authorizedDecrypters: string[] = JSON.parse(process.env.AUTHORIZED_DECRYPTERS)
-  if (!Array.isArray(authorizedDecrypters)) {
+  if (!process.env.AUTHORIZED_DECRYPTERS) {
     CONFIG_LOGGER.logMessageWithEmoji(
       'Missing or Invalid AUTHORIZED_DECRYPTERS env variable format',
       true,
@@ -90,6 +77,16 @@ function getAuthorizedDecrypters(): string[] {
     return []
   }
   try {
+    const authorizedDecrypters: string[] = JSON.parse(process.env.AUTHORIZED_DECRYPTERS)
+    if (!Array.isArray(authorizedDecrypters)) {
+      CONFIG_LOGGER.logMessageWithEmoji(
+        'Missing or Invalid AUTHORIZED_DECRYPTERS env variable format',
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return []
+    }
     return authorizedDecrypters.map((address) => getAddress(address))
   } catch (error) {
     CONFIG_LOGGER.logMessageWithEmoji(
