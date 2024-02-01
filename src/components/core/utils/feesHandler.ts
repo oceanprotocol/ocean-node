@@ -19,12 +19,25 @@ async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
       const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
       const { data } = await axios.get(url)
       envs.push({
-        url: data
+        url: JSON.parse(data)
       })
     }
     return envs
   } catch (error) {
     CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error identifying C2D envs: ${error}`)
+  }
+}
+
+async function getEnv(asset: DDO, computeEnv: string): Promise<any> {
+  const envs = await getC2DEnvs(asset)
+  const clustersURLS: string[] = JSON.parse(process.env.OPERATOR_SERVICE_URL) as string[]
+
+  for (const cluster of clustersURLS) {
+    for (const env of envs) {
+      if (env.url === cluster) {
+        return env.url.filter((item: any) => item.id === computeEnv)[0]
+      }
+    }
   }
 }
 // equiv to get_provider_fees
@@ -38,35 +51,23 @@ export async function createFee(
 ): Promise<ProviderFeeData> | undefined {
   // create providerData struct
   const now = new Date().getTime()
-  const validUntilDate = new Date(validUntil)
-  const seconds: number = validUntilDate.getTime() - now
-
-  const envs = await getC2DEnvs(asset)
-  const clustersURLS: string[] = JSON.parse(process.env.OPERATOR_SERVICE_URL) as string[]
-  let foundEnv: Object = null
-
-  for (const env of envs) {
-    for (const cluster of clustersURLS) {
-      if (env.url === cluster) {
-        foundEnv = env.url.filter((item: any) => item.id === computeEnv)[0]
-      }
-    }
-  }
-
+  const validUntilDateTime = new Date(validUntil).getTime()
+  const seconds: number = validUntilDateTime - now
+  const env = await getEnv(asset, computeEnv)
   let providerData = null
   //  TODO check decimals on contract?
   let providerFeeAmount: number = null
   // from env FEE_TOKENS
   const providerFeeToken: string = await getProviderFeeToken(asset.chainId)
-  if (foundEnv) {
+  if (env) {
     providerData = {
-      environment: foundEnv,
+      environment: env.id,
       timestamp: Date.now(),
       dt: service.datatokenAddress,
       id: service.id
     }
 
-    providerFeeAmount = parseFloat(seconds * parseFloat(foundEnv.priceMin)) / 60
+    providerFeeAmount = (seconds * parseFloat(env.priceMin)) / 60
   } else {
     providerData = {
       environment: computeEnv, //  null for us now
