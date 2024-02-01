@@ -306,8 +306,10 @@ export class DdoDatabase {
           .collections(schema.name)
           .documents()
           .delete(did)
-        isDeleted = true
-        return response
+        if (response.id === did) {
+          isDeleted = true
+          return response
+        }
       } catch (error) {
         if (!(error instanceof TypesenseError && error.httpStatus === 404)) {
           // Log error other than not found
