@@ -48,6 +48,8 @@ export interface OceanNodeConfig {
   feeStrategy: FeeStrategy
   supportedNetworks?: RPCS
   c2dClusters: C2DClusterInfo[]
+  accountPurgatoryUrl: string
+  assetPurgatoryUrl: string
 }
 
 export interface P2PStatusResponse {

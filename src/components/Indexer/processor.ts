@@ -15,13 +15,21 @@ import { getDatabase } from '../../utils/database.js'
 import { EVENTS, MetadataStates } from '../../utils/constants.js'
 import { getNFTFactory, getContractAddress } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
-import { getPurgatory } from '../../utils/purgatory.js'
+import { Purgatory } from './purgatory.js'
 
 class BaseEventProcessor {
   protected networkId: number
+  protected purgatory: Purgatory
 
   constructor(chainId: number) {
     this.networkId = chainId
+    this.initPurgatory()
+  }
+
+  async initPurgatory() {
+    if (this.purgatory === null) {
+      this.purgatory = new Purgatory(await getDatabase())
+    }
   }
 
   protected getTokenInfo(services: any[]): any[] {
@@ -135,10 +143,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         }
       }
       const from = decodedEventData.args[0]
-      const purgatory = await getPurgatory()
       if (
-        (await purgatory.isBannedAsset(ddo.id)) ||
-        (await purgatory.isBannedAccount(from))
+        (await this.purgatory.isBannedAsset(ddo.id)) ||
+        (await this.purgatory.isBannedAccount(from))
       ) {
         ddo.purgatory = {
           state: true

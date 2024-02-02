@@ -348,7 +348,15 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     },
     supportedNetworks,
     feeStrategy: getOceanNodeFees(supportedNetworks, isStartup),
-    c2dClusters: getC2DClusterEnvironment()
+    c2dClusters: getC2DClusterEnvironment(),
+    accountPurgatoryUrl: getEnvValue(
+      process.env.ACCOUNT_PURGATORY_URL,
+      'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json'
+    ),
+    assetPurgatoryUrl: getEnvValue(
+      process.env.ASSET_PURGATORY_URL,
+      'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json'
+    )
   }
 
   if (!previousConfiguration) {
