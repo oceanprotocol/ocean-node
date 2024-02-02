@@ -1,5 +1,5 @@
 import { Handler } from './handler.js'
-import { MetadataStates, PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { EVENTS, MetadataStates, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types'
 import { Readable } from 'stream'
 import {
@@ -158,7 +158,7 @@ export class DecryptDdoHandler extends Handler {
             data: receipt.logs[0].data
           }
           const eventData = abiInterface.parseLog(eventObject)
-          if (eventData.name !== 'MetadataCreated') {
+          if (eventData.name !== EVENTS.METADATA_CREATED) {
             throw new Error(`event name ${eventData.name}`)
           }
           flags = parseInt(eventData.args[3], 16)

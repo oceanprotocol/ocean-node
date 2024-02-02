@@ -30,6 +30,7 @@ let { rpcDetails, lastIndexedBlock } = workerData as ThreadData
 
 const blockchain = new Blockchain(rpcDetails.rpc, rpcDetails.chainId)
 const provider = blockchain.getProvider()
+const signer = blockchain.getSigner()
 
 async function updateLastIndexedBlockNumber(block: number): Promise<void> {
   try {
@@ -73,6 +74,7 @@ export async function proccesNetworkData(): Promise<void> {
 
       try {
         const processedBlocks = await processBlocks(
+          signer,
           provider,
           rpcDetails.chainId,
           startBlock,
@@ -103,12 +105,11 @@ async function processReindex(): Promise<void> {
   while (REINDEX_QUEUE.length > 0) {
     const reindexTask = REINDEX_QUEUE.pop()
     try {
-      const provider = blockchain.getProvider()
       const receipt = await provider.getTransactionReceipt(reindexTask.txId)
       if (receipt) {
         const log = receipt.logs[reindexTask.eventIndex]
         const logs = log ? [log] : receipt.logs
-        await processChunkLogs(logs, provider, rpcDetails.chainId)
+        await processChunkLogs(logs, signer, provider, rpcDetails.chainId)
       }
     } catch (error) {
       INDEXER_LOGGER.log(

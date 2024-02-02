@@ -2,6 +2,7 @@ import {
   Contract,
   Interface,
   JsonRpcApiProvider,
+  Signer,
   ethers,
   getAddress,
   getBytes,
@@ -72,12 +73,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
   async processEvent(
     event: ethers.Log,
     chainId: number,
+    signer: Signer,
     provider: JsonRpcApiProvider,
     eventName: string
   ): Promise<any> {
     try {
       const nftFactoryAddress = getContractAddress(chainId, 'ERC721Factory')
-      const nftFactoryContract = await getNFTFactory(provider, nftFactoryAddress)
+      const nftFactoryContract = await getNFTFactory(signer, nftFactoryAddress)
+
       if (
         getAddress(await nftFactoryContract.erc721List(event.address)) !==
         getAddress(event.address)
@@ -102,8 +105,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
         true
       )
+
       const previousDdo = await (await getDatabase()).ddo.retrieve(ddo.id)
-      if (eventName === 'MetadataCreated') {
+      if (eventName === EVENTS.METADATA_CREATED) {
         if (previousDdo && previousDdo.nft.state === MetadataStates.ACTIVE) {
           INDEXER_LOGGER.logMessage(
             `DDO ${ddo.did} is already registered as active`,
@@ -112,7 +116,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           return
         }
       }
-      if (eventName === 'MetadataUpdated') {
+
+      if (eventName === EVENTS.METADATA_UPDATED) {
         if (!previousDdo) {
           INDEXER_LOGGER.logMessage(
             `Previous DDO with did ${ddo.id} was not found the database. Maybe it was deleted/hidden to some violation issues`,
