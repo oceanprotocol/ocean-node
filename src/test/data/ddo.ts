@@ -187,3 +187,74 @@ export const ddov5 = {
     links: ['http://data.ceda.ac.uk/badc/ukcp09/']
   }
 }
+
+export const publishAlgoDDO = {
+  '@context': ['https://w3id.org/did/v1'],
+  id: '',
+  nftAddress: '',
+  version: '4.1.0',
+  chainId: 137,
+  metadata: {
+    created: '2023-08-01T17:09:39Z',
+    updated: '2023-08-01T17:09:39Z',
+    type: 'algorithm',
+    name: 'CLi Algo',
+    description: 'Cli algo',
+    author: 'OPF',
+    license: 'https://market.oceanprotocol.com/terms',
+    additionalInformation: {
+      termsAndConditions: true
+    },
+    algorithm: {
+      language: '',
+      version: '0.1',
+      container: {
+        entrypoint: 'node $ALGO',
+        image: 'node',
+        tag: 'latest',
+        checksum:
+          'sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36'
+      }
+    }
+  },
+  services: [
+    {
+      id: 'db164c1b981e4d2974e90e61bda121512e6909c1035c908d68933ae4cfaba6b0',
+      type: 'compute',
+      files: {
+        datatokenAddress: '0x0',
+        nftAddress: '0x0',
+        files: [
+          {
+            type: 'url',
+            url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
+            method: 'GET'
+          }
+        ]
+      },
+      timeout: 86400,
+      compute: {
+        allowRawAlgorithm: false,
+        allowNetworkAccess: true,
+        publisherTrustedAlgorithmPublishers: [] as any[],
+        publisherTrustedAlgorithms: [] as any[]
+      }
+    }
+  ],
+  stats: {
+    allocated: 0,
+    orders: 0,
+    price: {
+      value: '0'
+    }
+  },
+  nft: {
+    address: '',
+    name: 'Ocean Data NFT',
+    symbol: 'OCEAN-NFT',
+    state: 5,
+    tokenURI: '',
+    owner: '',
+    created: ''
+  }
+}
