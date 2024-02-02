@@ -35,7 +35,7 @@ export async function getAlgoChecksums(
 
     for (const file of decryptedFileArray.files) {
       const storage = Storage.getStorageClass(file)
-      const fileInfo = await storage.getFileInfo({ type: file.type })
+      const fileInfo = await storage.getFileInfo({ type: file.type }, true)
       console.log('fileInfo', fileInfo)
       checksums.files = checksums.files.concat(fileInfo[0].contentChecksum)
     }
@@ -52,8 +52,29 @@ export async function getAlgoChecksums(
   }
 }
 
-export function validateAlgoForDataset() {
-  throw new Error('Not implemented')
+export async function validateAlgoForDataset(
+  did: string,
+  serviceId: string,
+  oceanNode: OceanNode
+) {
+  const checksums = {
+    files: '',
+    container: ''
+  }
+  try {
+    const ddo = await new FindDdoHandler(oceanNode).findAndFormatDdo(did)
+    const service = ddo.services.find((service) => service.id === serviceId)
+    if (!service) {
+      throw new Error('Service not found')
+    }
+    if (service.type !== 'compute') {
+      throw new Error('Service type not compute')
+    }
+    return checksums
+  } catch (error) {
+    CORE_LOGGER.error(error.message)
+    return checksums
+  }
 }
 
 export function validateConsumerParameters() {
