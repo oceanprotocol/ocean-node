@@ -1,4 +1,4 @@
-import { getAlgoChecksums } from '../../components/c2d/index.js'
+import { getAlgoChecksums, validateAlgoForDataset } from '../../components/c2d/index.js'
 import {
   Contract,
   ethers,
@@ -9,12 +9,12 @@ import {
   ZeroAddress
 } from 'ethers'
 import { assert, expect } from 'chai'
-import { getEventFromTx, streamToObject, streamToString } from '../../utils/util.js'
+import { getEventFromTx, streamToObject } from '../../utils/util.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import { RPCS } from '../../@types/blockchain.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import { publishAlgoDDO } from '../data/ddo.js'
+import { publishAlgoDDO, publishDatasetDDO } from '../data/ddo.js'
 import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
 import { delay, waitToIndex } from './testUtils.js'
@@ -40,6 +40,7 @@ describe('C2D functions', async () => {
   let dataNftAddress: string
   let datatokenAddress: string
   let algoDDO: any
+  let datasetDDO: any
   let txReceiptEncryptDDO: any
   let encryptedMetaData: any
   let documentHash: any
@@ -61,6 +62,7 @@ describe('C2D functions', async () => {
     publisherAccount = (await provider.getSigner(0)) as Signer
     publisherAddress = await publisherAccount.getAddress()
     algoDDO = { ...publishAlgoDDO }
+    datasetDDO = { ...publishDatasetDDO }
     factoryContract = new ethers.Contract(
       artifactsAddresses.development.ERC721Factory,
       ERC721Factory.abi,
@@ -134,7 +136,7 @@ describe('C2D functions', async () => {
     assert(datatokenAddress, 'find datatoken created failed')
   })
 
-  it('should encrypt files, set metadata and save ', async () => {
+  it('should publish AlgoDDO', async () => {
     nftContract = new ethers.Contract(
       dataNftAddress,
       ERC721Template.abi,
@@ -175,12 +177,74 @@ describe('C2D functions', async () => {
       []
     )
     const txReceipt = await setMetaDataTx.wait()
-    assert(txReceipt, 'set metada failed')
+    assert(txReceipt, 'set metadata failed')
+  })
+
+  it('should publish DatasetDDO', async () => {
+    nftContract = new ethers.Contract(
+      dataNftAddress,
+      ERC721Template.abi,
+      publisherAccount
+    )
+    datasetDDO.id =
+      'did:op:' +
+      createHash('sha256')
+        .update(getAddress(dataNftAddress) + chainId.toString(10))
+        .digest('hex')
+    datasetDDO.nftAddress = dataNftAddress
+    datasetDDO.services[0].datatokenAddress = datatokenAddress
+
+    const files = {
+      datatokenAddress: '0x0',
+      nftAddress: '0x0',
+      files: [
+        {
+          type: 'url',
+          url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
+          method: 'GET'
+        }
+      ]
+    }
+    const filesData = Uint8Array.from(Buffer.from(JSON.stringify(files)))
+    datasetDDO.services[0].files = await encrypt(filesData, 'ECIES')
+
+    datasetDDO.services[0].compute = {
+      allowRawAlgorithm: false,
+      allowNetworkAccess: true,
+      publisherTrustedAlgorithmPublishers: ['0x234', '0x235'],
+      publisherTrustedAlgorithms: [
+        {
+          did: 'did:op:123',
+          filesChecksum: '100',
+          containerSectionChecksum: '200'
+        },
+        {
+          did: 'did:op:124',
+          filesChecksum: '110',
+          containerSectionChecksum: '210'
+        }
+      ]
+    }
+
+    const metadata = hexlify(Buffer.from(JSON.stringify(datasetDDO)))
+    const hash = createHash('sha256').update(metadata).digest('hex')
+
+    const setMetaDataTx = await nftContract.setMetaData(
+      0,
+      'http://v4.provider.oceanprotocol.com',
+      '0x123',
+      '0x02',
+      metadata,
+      '0x' + hash,
+      []
+    )
+    const txReceipt = await setMetaDataTx.wait()
+    assert(txReceipt, 'set metadata failed')
   })
 
   delay(30000)
 
-  it('get algorithm checksums', async () => {
+  it('should getAlgoChecksums', async () => {
     const ddo = await waitToIndex(algoDDO.id, database)
     const checksums = await getAlgoChecksums(ddo.id, ddo.services[0].id, oceanNode)
     expect(checksums.files).to.equal(
@@ -189,5 +253,25 @@ describe('C2D functions', async () => {
     expect(checksums.container).to.equal(
       'ba8885fcc7d366f058d6c3bb0b7bfe191c5f85cb6a4ee3858895342436c23504'
     )
+  })
+
+  it('should validateAlgoForDataset', async () => {
+    // {
+    //   "datasets": [
+    //   {
+    //     "documentId": "0x1111",
+    //     "serviceId": 0,
+    //   },
+    //   {
+    //     "documentId": "0x2222",
+    //     "serviceId": 0,
+    //   },
+    // ],
+    //     "algorithm": {"documentId": "0x3333"}
+    //   "consumerAddress":"0x990922334",
+    // }
+    const ddo = await waitToIndex(algoDDO.id, database)
+    const result = await validateAlgoForDataset(ddo.id, ddo.services[0].id, oceanNode)
+    expect(result).to.equal('')
   })
 })
