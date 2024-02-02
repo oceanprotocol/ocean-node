@@ -23,13 +23,13 @@ class BaseEventProcessor {
 
   constructor(chainId: number) {
     this.networkId = chainId
-    this.initPurgatory()
+    if (this.purgatory === null) {
+      this.initPurgatory()
+    }
   }
 
   async initPurgatory() {
-    if (this.purgatory === null) {
-      this.purgatory = new Purgatory(await getDatabase())
-    }
+    this.purgatory = new Purgatory(await getDatabase())
   }
 
   protected getTokenInfo(services: any[]): any[] {

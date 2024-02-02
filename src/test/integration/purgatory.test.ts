@@ -12,10 +12,10 @@ describe('Purgatory test', () => {
     }
     database = await new Database(dbConfig)
     // // these are the default URLs
-    // process.env.ASSET_PURGATORY_URL =
-    //   'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json'
-    // process.env.ACCOUNT_PURGATORY_URL =
-    //   'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json'
+    process.env.ASSET_PURGATORY_URL =
+      'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json'
+    process.env.ACCOUNT_PURGATORY_URL =
+      'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json'
     purgatory = new Purgatory(database)
   })
 
