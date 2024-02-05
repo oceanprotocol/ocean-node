@@ -136,17 +136,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       }
       const from = decodedEventData.args[0]
       const purgatory = Purgatory.getInstance(await getDatabase())
-      if (
-        (await purgatory.isBannedAsset(ddo.id)) ||
-        (await purgatory.isBannedAccount(from))
-      ) {
-        ddo.purgatory = {
-          state: true
-        }
-      } else {
-        ddo.purgatory = {
-          state: false
-        }
+      const updatedDDO = await this.updatePurgatoryStateDdo(ddo, from, purgatory)
+      if (updatedDDO.purgatory.state === false) {
+        // TODO: insert in a different collection for purgatory DDOs
         const saveDDO = this.createOrUpdateDDO(ddo, eventName)
         return saveDDO
       }
@@ -157,6 +149,26 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         true
       )
     }
+  }
+
+  async updatePurgatoryStateDdo(
+    ddo: any,
+    owner: string,
+    purgatory: Purgatory
+  ): Promise<any> {
+    if (
+      (await purgatory.isBannedAsset(ddo.id)) ||
+      (await purgatory.isBannedAccount(owner))
+    ) {
+      ddo.purgatory = {
+        state: true
+      }
+    } else {
+      ddo.purgatory = {
+        state: false
+      }
+    }
+    return ddo
   }
 
   isUpdateable(previousDdo: any, txHash: string, block: number): [boolean, string] {
