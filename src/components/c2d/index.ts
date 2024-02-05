@@ -118,6 +118,76 @@ export async function validateAlgoForDataset(
   }
 }
 
-export function validateConsumerParameters() {
-  throw new Error('Not implemented')
+function checkString(value: any) {
+  return typeof value === 'string' || value instanceof String
+}
+
+function checkTypeString(value: any) {
+  return ['text', 'number', 'boolean', 'select'].includes(value)
+}
+
+function checkBoolean(value: any) {
+  return typeof value === 'boolean' || value instanceof Boolean
+}
+
+function checkNumber(value: any) {
+  return typeof value === 'number' || value instanceof Number
+}
+
+export function validateConsumerParameters(consumerParameters: any) {
+  const validation = {
+    valid: true,
+    message: ''
+  }
+  try {
+    for (const consumerParameter of consumerParameters) {
+      if (!checkString(consumerParameter.name)) {
+        throw new Error("value of 'name' parameter is not a string")
+      }
+      if (!checkString(consumerParameter.type)) {
+        throw new Error("value of 'type' parameter is not a string")
+      }
+      if (!checkTypeString(consumerParameter.type)) {
+        throw new Error("'type' parameter is not text, number, boolean, select")
+      }
+      if (!checkString(consumerParameter.label)) {
+        throw new Error("value of 'label' parameter is not a string")
+      }
+      if (!checkBoolean(consumerParameter.required)) {
+        throw new Error("value of 'required' parameter is not a boolean")
+      }
+      if (!checkString(consumerParameter.description)) {
+        throw new Error("value of 'description' parameter is not a string")
+      }
+      if (
+        !checkBoolean(consumerParameter.default) &&
+        !checkNumber(consumerParameter.default) &&
+        !checkString(consumerParameter.default)
+      ) {
+        throw new Error("value of 'description' parameter is not a string")
+      }
+      if (
+        !checkString(consumerParameter.default) &&
+        consumerParameter.type === 'select'
+      ) {
+        throw new Error("value of 'default' parameter is not a string")
+      }
+      if (consumerParameter.options) {
+        if (!Array.isArray(consumerParameter.options)) {
+          throw new Error("value of 'options' must be an array")
+        }
+        for (const option of consumerParameter.options) {
+          if (Object.keys(option).length !== 1) {
+            throw new Error("object of 'option' must containing a single key")
+          }
+        }
+      }
+    }
+    return validation
+  } catch (error) {
+    CORE_LOGGER.error(error.message)
+    validation.valid = false
+    validation.message = error.message
+    return validation
+  }
 }

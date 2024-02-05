@@ -1,4 +1,8 @@
-import { getAlgoChecksums, validateAlgoForDataset } from '../../components/c2d/index.js'
+import {
+  getAlgoChecksums,
+  validateAlgoForDataset,
+  validateConsumerParameters
+} from '../../components/c2d/index.js'
 import {
   Contract,
   ethers,
@@ -289,5 +293,52 @@ describe('C2D functions', async () => {
       oceanNode
     )
     expect(result).to.equal(true)
+  })
+
+  it('should validateConsumerParameters', async () => {
+    const consumerParameters = [
+      {
+        name: 'hometown',
+        type: 'text',
+        label: 'Hometown',
+        required: true,
+        description: 'What is your hometown?',
+        default: 'Nowhere'
+      },
+      {
+        name: 'age',
+        type: 'number',
+        label: 'Age',
+        required: false,
+        description: 'Please fill your age',
+        default: 0
+      },
+      {
+        name: 'developer',
+        type: 'boolean',
+        label: 'Developer',
+        required: false,
+        description: 'Are you a developer?',
+        default: false
+      },
+      {
+        name: 'languagePreference',
+        type: 'select',
+        label: 'Language',
+        required: false,
+        description: 'Do you like NodeJs or Python',
+        default: 'nodejs',
+        options: [
+          {
+            nodejs: 'I love NodeJs'
+          },
+          {
+            python: 'I love Python'
+          }
+        ]
+      }
+    ]
+    const result = await validateConsumerParameters(consumerParameters)
+    expect(result.valid).to.equal(true)
   })
 })
