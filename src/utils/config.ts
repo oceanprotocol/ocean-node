@@ -248,6 +248,9 @@ function getNodeInterfaces(isStartup: boolean = false) {
   } else {
     try {
       interfaces = JSON.parse(process.env.INTERFACES) as string[]
+      if (interfaces.length === 0) {
+        return ['P2P', 'HTTP']
+      }
     } catch (err) {
       CONFIG_LOGGER.logMessageWithEmoji(
         `Invalid "${ENVIRONMENT_VARIABLES.INTERFACES.name}" env variable => ${process.env.INTERFACES}. Will use defaults...`,
@@ -270,7 +273,11 @@ function getNodeInterfaces(isStartup: boolean = false) {
  * @returns boolean
  */
 export function existsEnvironmentVariable(envVariable: any, log = false): boolean {
-  const { name, value, required } = envVariable
+  let { name, value, required } = envVariable
+  // extra check in case we change environment with tests (get the latest)
+  if (process.env[name] !== value) {
+    value = process.env[name]
+  }
   if (!value) {
     if (log) {
       CONFIG_LOGGER.logMessageWithEmoji(
