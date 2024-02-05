@@ -7,6 +7,7 @@ import { verifyMessage } from '../../../utils/blockchain.js'
 import { getConfiguration } from '../../../utils/config.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
+import { findEventByKey } from '../../Indexer/utils.js'
 import axios from 'axios'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 
@@ -138,7 +139,58 @@ export async function calculateComputeProviderFee(
   return providerFee
 }
 
-export async function validateComputeProviderFee(tx: string, computeEnv: string) {}
+async function getEventData(
+  provider: JsonRpcApiProvider,
+  transactionHash: string,
+  abi: any
+): Promise<ethers.LogDescription> {
+  const iface = new ethers.Interface(abi)
+  const receipt = await provider.getTransactionReceipt(transactionHash)
+  const eventObj = {
+    topics: receipt.logs[0].topics as string[],
+    data: receipt.logs[0].data
+  }
+  return iface.parseLog(eventObj)
+}
+
+export async function validateComputeProviderFee(
+  provider: JsonRpcApiProvider,
+  tx: string,
+  computeEnv: string, // with hash
+  asset: DDO,
+  service: Service,
+  validUntil: number
+): Promise<[boolean, ProviderFeeData | {}]> {
+  const txReceipt = await provider.getTransactionReceipt(tx)
+  const { logs } = txReceipt
+  const timestampNow = new Date().getTime()
+  for (const log of logs) {
+    const event = findEventByKey(log.topics[0])
+    if (event && event.type === 'ProviderFee') {
+      const decodedEventData = await getEventData(provider, tx, ERC20Template.abi)
+      const validUntilContract = parseInt(decodedEventData.args[7].toString())
+      if (timestampNow >= validUntilContract) {
+        // provider fee expired -> reuse order
+        CORE_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_INFO,
+          `Provider fees for this env have expired -> reuse order.`,
+          true
+        )
+        const envId = computeEnv.split('-')[1]
+        const newProviderFee = await calculateComputeProviderFee(
+          asset,
+          validUntil,
+          envId,
+          service,
+          provider
+        )
+        return [false, newProviderFee]
+      } else {
+        return [true, {}]
+      }
+    }
+  }
+}
 // equiv to get_provider_fees
 // *** NOTE: provider.py => get_provider_fees ***
 export async function createFee(

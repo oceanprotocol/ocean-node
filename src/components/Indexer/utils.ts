@@ -120,7 +120,7 @@ export const processBlocks = async (
   }
 }
 
-function findEventByKey(keyToFind: string): NetworkEvent {
+export function findEventByKey(keyToFind: string): NetworkEvent {
   for (const [key, value] of Object.entries(EVENT_HASHES)) {
     if (key === keyToFind) {
       return value
