@@ -25,6 +25,7 @@ export async function checkEnvironmentExists(envId: string, oceanNode: OceanNode
     if (response.status.httpStatus === 200) {
       const computeEnvironments = await streamToObject(response.stream as Readable)
       for (const computeEnvironment of computeEnvironments) {
+        console.log('envId', envId)
         console.log('computeEnvironment', computeEnvironment)
         if (computeEnvironment.id === envId) {
           return true
