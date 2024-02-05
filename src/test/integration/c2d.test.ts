@@ -1,4 +1,5 @@
 import {
+  checkEnvironmentExists,
   getAlgoChecksums,
   validateAlgoForDataset,
   validateConsumerParameters
@@ -166,7 +167,7 @@ describe('C2D functions', async () => {
       0,
       'http://v4.provider.oceanprotocol.com',
       '0x123',
-      '0x02',
+      '0x00',
       metadata,
       '0x' + hash,
       []
@@ -251,7 +252,7 @@ describe('C2D functions', async () => {
       0,
       'http://v4.provider.oceanprotocol.com',
       '0x123',
-      '0x02',
+      '0x00',
       metadata,
       '0x' + hash,
       []
@@ -260,7 +261,7 @@ describe('C2D functions', async () => {
     assert(txReceipt, 'set metadata failed')
   })
 
-  delay(30000)
+  delay(50000)
 
   it('should getAlgoChecksums', async () => {
     const algoDDOTest = await waitToIndex(algoDDO.id, database)
@@ -340,5 +341,11 @@ describe('C2D functions', async () => {
     ]
     const result = await validateConsumerParameters(consumerParameters)
     expect(result.valid).to.equal(true)
+  })
+
+  it('should checkEnvironmentExists', async () => {
+    const envId = {}
+    const result = await checkEnvironmentExists(envId, oceanNode)
+    expect(result).to.equal(true)
   })
 })

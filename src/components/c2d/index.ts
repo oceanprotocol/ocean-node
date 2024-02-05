@@ -4,9 +4,35 @@ import { createHash } from 'crypto'
 import { FindDdoHandler } from '../core/ddoHandler.js'
 import { decrypt } from '../../utils/crypt.js'
 import { Storage } from '../storage/index.js'
+import { getConfiguration } from '../../utils/config.js'
+import { GetEnvironmentsHandler } from '../core/compute.js'
+import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { streamToObject } from '../../utils/util.js'
+import { Readable } from 'stream'
 
-export function checkEnvironmentExists() {
-  throw new Error('Not implemented')
+export async function checkEnvironmentExists(env: any, oceanNode: OceanNode) {
+  const config = await getConfiguration()
+  const { supportedNetworks } = config
+  for (const supportedNetwork of Object.keys(supportedNetworks)) {
+    console.log('supportedNetwork', supportedNetwork)
+    const getEnvironmentsTask = {
+      command: PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS,
+      chainId: parseInt(supportedNetwork)
+    }
+    const response = await new GetEnvironmentsHandler(oceanNode).handle(
+      getEnvironmentsTask
+    )
+    if (response.status.httpStatus === 200) {
+      const computeEnvironments = await streamToObject(response.stream as Readable)
+      for (const computeEnvironment of computeEnvironments) {
+        console.log('computeEnvironment', computeEnvironment)
+        if (computeEnvironment.id === env.id) {
+          return true
+        }
+      }
+    }
+  }
+  return false
 }
 
 export async function getAlgoChecksums(
