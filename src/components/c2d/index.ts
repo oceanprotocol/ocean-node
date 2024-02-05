@@ -14,7 +14,6 @@ export async function checkEnvironmentExists(envId: string, oceanNode: OceanNode
   const config = await getConfiguration()
   const { supportedNetworks } = config
   for (const supportedNetwork of Object.keys(supportedNetworks)) {
-    console.log('supportedNetwork', supportedNetwork)
     const getEnvironmentsTask = {
       command: PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS,
       chainId: parseInt(supportedNetwork)
