@@ -344,7 +344,8 @@ describe('C2D functions', async () => {
   })
 
   it('should checkEnvironmentExists', async () => {
-    const envId = {}
+    const envId =
+      '0x12c67122f93c331b9dba0d25465d358c65d31f67a58c4675916ef1c7bbf4588d-ocean-compute'
     const result = await checkEnvironmentExists(envId, oceanNode)
     expect(result).to.equal(true)
   })

@@ -10,7 +10,7 @@ import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { streamToObject } from '../../utils/util.js'
 import { Readable } from 'stream'
 
-export async function checkEnvironmentExists(env: any, oceanNode: OceanNode) {
+export async function checkEnvironmentExists(envId: string, oceanNode: OceanNode) {
   const config = await getConfiguration()
   const { supportedNetworks } = config
   for (const supportedNetwork of Object.keys(supportedNetworks)) {
@@ -26,7 +26,7 @@ export async function checkEnvironmentExists(env: any, oceanNode: OceanNode) {
       const computeEnvironments = await streamToObject(response.stream as Readable)
       for (const computeEnvironment of computeEnvironments) {
         console.log('computeEnvironment', computeEnvironment)
-        if (computeEnvironment.id === env.id) {
+        if (computeEnvironment.id === envId) {
           return true
         }
       }
