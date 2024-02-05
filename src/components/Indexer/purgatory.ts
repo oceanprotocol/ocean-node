@@ -9,6 +9,7 @@ export class Purgatory {
   private db: Database
   private bannedAccounts: Array<PurgatoryAccounts>
   private bannedAssets: Array<PurgatoryAssets>
+  static instance: any
 
   constructor(db: Database) {
     if (
@@ -150,5 +151,12 @@ export class Purgatory {
       }
     }
     return false
+  }
+
+  static getInstance(db: Database) {
+    if (!Purgatory.instance) {
+      Purgatory.instance = new Purgatory(db)
+    }
+    return Purgatory.instance
   }
 }

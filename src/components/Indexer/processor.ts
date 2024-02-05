@@ -17,26 +17,12 @@ import { getNFTFactory, getContractAddress } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
 
-const purgatory = new Purgatory(await getDatabase())
-
 class BaseEventProcessor {
   protected networkId: number
-  protected purgatory: Purgatory
 
   constructor(chainId: number) {
     this.networkId = chainId
-    if (this.purgatory === null) {
-      INDEXER_LOGGER.logMessage(`this purgatory is null: ${this.purgatory}`)
-      // this.initPurgatory()
-      INDEXER_LOGGER.logMessage(
-        `this purgatory after creating instance: ${this.purgatory}`
-      )
-    }
   }
-
-  // async initPurgatory() {
-  //   this.purgatory = new Purgatory(await getDatabase())
-  // }
 
   protected getTokenInfo(services: any[]): any[] {
     const datatokens: any[] = []
@@ -149,6 +135,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         }
       }
       const from = decodedEventData.args[0]
+      const purgatory = Purgatory.getInstance(await getDatabase())
       if (
         (await purgatory.isBannedAsset(ddo.id)) ||
         (await purgatory.isBannedAccount(from))

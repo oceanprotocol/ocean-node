@@ -16,7 +16,7 @@ describe('Purgatory test', () => {
       'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json'
     process.env.ACCOUNT_PURGATORY_URL =
       'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json'
-    purgatory = new Purgatory(database)
+    purgatory = Purgatory.getInstance(database)
   })
 
   it('instance Purgatory', async () => {
