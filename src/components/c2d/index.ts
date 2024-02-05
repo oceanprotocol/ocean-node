@@ -1,10 +1,8 @@
 import { OceanNode } from '../../OceanNode.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { createHash } from 'crypto'
-import { getAddress } from 'ethers'
 import { FindDdoHandler } from '../core/ddoHandler.js'
 import { decrypt } from '../../utils/crypt.js'
-import { fetchFileMetadata } from '../../utils/asset.js'
 import { Storage } from '../storage/index.js'
 
 export function checkEnvironmentExists() {
