@@ -3,6 +3,7 @@ import { PurgatoryAccounts, PurgatoryAssets } from '../../@types/Purgatory.js'
 import { Database } from '../database/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { existsEnvironmentVariable } from '../../utils/config.js'
 
 export class Purgatory {
   private db: Database
@@ -10,6 +11,16 @@ export class Purgatory {
   private bannedAssets: Array<PurgatoryAssets>
 
   constructor(db: Database) {
+    if (
+      !existsEnvironmentVariable('ASSET_PURGATORY_URL', true) ||
+      !existsEnvironmentVariable('ACCOUNT_PURGATORY_URL', true)
+    ) {
+      INDEXER_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `Cannot instantiate Purgatory due to missing env ASSET_PURGATORY_URL or ACCOUNT_PURGATORY_URL.`
+      )
+      return
+    }
     this.db = db
     this.bannedAccounts = []
     this.bannedAssets = []
@@ -36,10 +47,6 @@ export class Purgatory {
   }
 
   async parsePurgatoryAssets(): Promise<Array<PurgatoryAssets>> {
-    if (!('ASSET_PURGATORY_URL' in process.env)) {
-      INDEXER_LOGGER.logMessage(`Invalid env var name for purgatory file URL.`, true)
-      return
-    }
     try {
       const response = await axios({
         method: 'get',
@@ -79,10 +86,6 @@ export class Purgatory {
 
   async parsePurgatoryAccounts(): Promise<Array<PurgatoryAccounts>> {
     const purgatoryAccounts: Array<PurgatoryAccounts> = []
-    if (!('ACCOUNT_PURGATORY_URL' in process.env)) {
-      INDEXER_LOGGER.logMessage(`Invalid env var name for purgatory file URL.`, true)
-      return
-    }
     try {
       const response = await axios({
         method: 'get',
