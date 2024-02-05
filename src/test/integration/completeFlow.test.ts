@@ -72,21 +72,26 @@ describe('Should run a complete node flow.', () => {
   let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
-    }
-
     // override and save configuration (always before calling getConfig())
     previousConfiguration = await setupEnvironment(
       null,
       buildEnvOverrideConfig(
-        [ENVIRONMENT_VARIABLES.RPCS],
-        [JSON.stringify(mockSupportedNetworks)]
+        [
+          ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+          ENVIRONMENT_VARIABLES.DB_URL,
+          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS
+        ],
+        [
+          JSON.stringify(mockSupportedNetworks),
+          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+          'http://localhost:8108/?apiKey=xyz',
+          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'])
+        ]
       )
     )
-
     config = await getConfiguration(true)
-    database = await new Database(dbConfig)
+    database = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(database)
 
     indexer = new OceanIndexer(database, mockSupportedNetworks)
@@ -206,7 +211,7 @@ describe('Should run a complete node flow.', () => {
     }
   })
 
-  it('should encrypt files, set metadata and save ', async () => {
+  it('should encrypt files, encrypt DDO, set metadata and save ', async () => {
     nftContract = new ethers.Contract(
       dataNftAddress,
       ERC721Template.abi,
@@ -238,18 +243,20 @@ describe('Should run a complete node flow.', () => {
 
     genericAsset.services[0].files = encryptedData
 
-    const stringDDO = JSON.stringify(genericAsset)
-    const bytes = Buffer.from(stringDDO)
-    const metadata = hexlify(bytes)
-    const hash = createHash('sha256').update(metadata).digest('hex')
+    const metadata = hexlify(Buffer.from(JSON.stringify(genericAsset)))
+    const documentHash = '0x' + createHash('sha256').update(metadata).digest('hex')
+
+    const genericAssetData = Uint8Array.from(Buffer.from(JSON.stringify(genericAsset)))
+    const encryptedDDO = await encrypt(genericAssetData, 'ECIES')
+    const encryptedMetaData = hexlify(encryptedDDO)
 
     const setMetaDataTx = await nftContract.setMetaData(
       0,
-      'http://v4.provider.oceanprotocol.com',
+      '16Uiu2HAmN211yBiE6dF5xu8GFXV1jqZQzK5MbzBuQDspfa6qNgXF',
       '0x123',
       '0x02',
-      metadata,
-      '0x' + hash,
+      encryptedMetaData,
+      documentHash,
       []
     )
     const trxReceipt = await setMetaDataTx.wait()

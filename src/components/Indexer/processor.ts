@@ -8,14 +8,22 @@ import {
   toUtf8String
 } from 'ethers'
 import { createHash } from 'crypto'
+import { Readable } from 'node:stream'
+import { isWebUri } from 'valid-url'
+import axios from 'axios'
+import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getDatabase } from '../../utils/database.js'
-import { EVENTS, MetadataStates } from '../../utils/constants.js'
+import { PROTOCOL_COMMANDS, EVENTS, MetadataStates } from '../../utils/constants.js'
 import { getNFTFactory, getContractAddress } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
+import { getConfiguration } from '../../utils/index.js'
+import { OceanNode } from '../../OceanNode.js'
+import { streamToString } from '../../utils/util.js'
+import { DecryptDDOCommand } from '../../@types/commands.js'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -51,7 +59,7 @@ class BaseEventProcessor {
     return iface.parseLog(eventObj)
   }
 
-  public async createOrUpdateDDO(ddo: any, method: string): Promise<any> {
+  protected async createOrUpdateDDO(ddo: any, method: string): Promise<any> {
     try {
       const { ddo: ddoDatabase } = await getDatabase()
       const saveDDO = await ddoDatabase.update({ ...ddo })
@@ -66,6 +74,168 @@ class BaseEventProcessor {
         true
       )
     }
+  }
+
+  protected async decryptDDO(
+    decryptorURL: string,
+    flag: string,
+    eventCreator: string,
+    contractAddress: string,
+    chainId: number,
+    txId: string,
+    metadataHash: string,
+    metadata: any
+  ): Promise<any> {
+    let ddo
+    if (flag === '0x02') {
+      INDEXER_LOGGER.logMessage(
+        `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} ecnrypted by: ${decryptorURL}`
+      )
+      const nonce = Date.now().toString()
+      const { keys } = await getConfiguration()
+      const nodeId = keys.peerId.toString()
+
+      const wallet: ethers.Wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string)
+
+      const message = String(
+        txId + contractAddress + keys.ethAddress + chainId.toString() + nonce
+      )
+      const consumerMessage = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      )
+      const signature = await wallet.signMessage(consumerMessage)
+
+      if (isWebUri(decryptorURL)) {
+        try {
+          const payload = {
+            transactionId: txId,
+            chainId,
+            decrypterAddress: keys.ethAddress,
+            dataNftAddress: contractAddress,
+            signature,
+            nonce
+          }
+          const response = await axios({
+            method: 'post',
+            url: `${decryptorURL}/api/services/decrypt`,
+            data: payload
+          })
+          if (response.status !== 201) {
+            const message = `Provider exception on decrypt DDO. Status: ${response.status}, ${response.statusText}`
+            INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
+            throw new Error(message)
+          }
+          const encodedResponse = createHash('sha256').update(response.data).digest('hex')
+          if (encodedResponse !== metadataHash) {
+            const msg = `Hash check failed: response=${response.data}, encoded response=${encodedResponse}\n metadata hash=${metadataHash}`
+            INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, msg)
+            throw new Error(msg)
+          }
+          ddo = response.data.decode('utf-8')
+        } catch (err) {
+          const message = `Provider exception on decrypt DDO. Status: ${err.message}`
+          INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
+          throw new Error(message)
+        }
+      } else {
+        const node = OceanNode.getInstance(await getDatabase())
+        if (nodeId === decryptorURL) {
+          const decryptDDOTask: DecryptDDOCommand = {
+            command: PROTOCOL_COMMANDS.DECRYPT_DDO,
+            transactionId: txId,
+            decrypterAddress: keys.ethAddress,
+            chainId,
+            encryptedDocument: metadata,
+            documentHash: metadataHash,
+            dataNftAddress: contractAddress,
+            signature,
+            nonce
+          }
+          try {
+            const response = await node
+              .getCoreHandlers()
+              .getHandler(PROTOCOL_COMMANDS.DECRYPT_DDO)
+              .handle(decryptDDOTask)
+            ddo = JSON.parse(await streamToString(response.stream as Readable))
+          } catch (error) {
+            const message = `Node exception on decrypt DDO. Status: ${error.message}`
+            INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
+            throw new Error(message)
+          }
+        } else {
+          try {
+            const p2pNode = await node.getP2PNode()
+            let isBinaryContent = false
+            const sink = async function (source: any) {
+              let first = true
+              for await (const chunk of source) {
+                if (first) {
+                  first = false
+                  try {
+                    const str = uint8ArrayToString(chunk.subarray()) // Obs: we need to specify the length of the subarrays
+                    const decoded = JSON.parse(str)
+                    if ('headers' in decoded) {
+                      if (str.toLowerCase().includes('application/octet-stream')) {
+                        isBinaryContent = true
+                      }
+                    }
+                    if (decoded.httpStatus !== 200) {
+                      INDEXER_LOGGER.logMessage(
+                        `Error in sink method  : ${decoded.httpStatus} errro: ${decoded.error}`
+                      )
+                      throw new Error('Error in sink method', decoded.error)
+                    }
+                  } catch (e) {
+                    INDEXER_LOGGER.logMessage(
+                      `Error in sink method  } error: ${e.message}`
+                    )
+                    throw new Error(`Error in sink method ${e.message}`)
+                  }
+                } else {
+                  if (isBinaryContent) {
+                    return chunk.subarray()
+                  } else {
+                    const str = uint8ArrayToString(chunk.subarray())
+                    return str
+                  }
+                }
+              }
+            }
+            const message = {
+              command: PROTOCOL_COMMANDS.DECRYPT_DDO,
+              transactionId: txId,
+              decrypterAddress: keys.ethAddress,
+              chainId,
+              encryptedDocument: metadata,
+              documentHash: metadataHash,
+              dataNftAddress: contractAddress,
+              signature,
+              nonce
+            }
+            const response = await p2pNode.sendTo(
+              decryptorURL,
+              JSON.stringify(message),
+              sink
+            )
+            ddo = JSON.parse(await streamToString(response.stream as Readable))
+          } catch (error) {
+            const message = `Node exception on decrypt DDO. Status: ${error.message}`
+            INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
+            throw new Error(message)
+          }
+        }
+      }
+    } else {
+      INDEXER_LOGGER.logMessage(
+        `Decompressing DDO  from network: ${this.networkId} created by: ${eventCreator} ecnrypted by: ${decryptorURL}`
+      )
+      const byteArray = getBytes(metadata)
+      const utf8String = toUtf8String(byteArray)
+      ddo = JSON.parse(utf8String)
+    }
+
+    return ddo
   }
 }
 
@@ -95,9 +265,16 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         event.transactionHash,
         ERC721Template.abi
       )
-      const byteArray = getBytes(decodedEventData.args[4])
-      const utf8String = toUtf8String(byteArray)
-      const ddo = JSON.parse(utf8String)
+      const ddo = await this.decryptDDO(
+        decodedEventData.args[2],
+        decodedEventData.args[3],
+        decodedEventData.args[0],
+        event.address,
+        chainId,
+        event.transactionHash,
+        decodedEventData.args[5],
+        decodedEventData.args[4]
+      )
       ddo.datatokens = this.getTokenInfo(ddo.services)
       INDEXER_LOGGER.logMessage(
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
