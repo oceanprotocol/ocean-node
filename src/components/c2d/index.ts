@@ -12,8 +12,8 @@ export function checkEnvironmentExists() {
 }
 
 export async function getAlgoChecksums(
-  did: string,
-  serviceId: string,
+  algoDID: string,
+  algoServiceId: string,
   oceanNode: OceanNode
 ) {
   const checksums = {
@@ -21,13 +21,18 @@ export async function getAlgoChecksums(
     container: ''
   }
   try {
-    const ddo = await new FindDdoHandler(oceanNode).findAndFormatDdo(did)
-    const service = ddo.services.find((service) => service.id === serviceId)
-    if (!service) {
-      throw new Error('Service not found')
+    const algoDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(algoDID)
+    if (!algoDDO) {
+      throw new Error('Algorithm DDO not found')
+    }
+    const algorithmService = algoDDO.services.find(
+      (service) => service.id === algoServiceId
+    )
+    if (!algorithmService) {
+      throw new Error('Algorithm service not found')
     }
     const decryptedUrlBytes = await decrypt(
-      Uint8Array.from(Buffer.from(service.files, 'hex')),
+      Uint8Array.from(Buffer.from(algorithmService.files, 'hex')),
       'ECIES'
     )
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
@@ -36,13 +41,12 @@ export async function getAlgoChecksums(
     for (const file of decryptedFileArray.files) {
       const storage = Storage.getStorageClass(file)
       const fileInfo = await storage.getFileInfo({ type: file.type }, true)
-      console.log('fileInfo', fileInfo)
       checksums.files = checksums.files.concat(fileInfo[0].contentChecksum)
     }
     checksums.container = createHash('sha256')
       .update(
-        ddo.metadata.algorithm.container.entrypoint +
-          ddo.metadata.algorithm.container.checksum
+        algoDDO.metadata.algorithm.container.entrypoint +
+          algoDDO.metadata.algorithm.container.checksum
       )
       .digest('hex')
     return checksums
@@ -53,27 +57,64 @@ export async function getAlgoChecksums(
 }
 
 export async function validateAlgoForDataset(
-  did: string,
-  serviceId: string,
+  algoDID: string,
+  algoChecksums: {
+    files: string
+    container: string
+  },
+  datasetDID: string,
+  datasetServiceId: string,
   oceanNode: OceanNode
 ) {
-  const checksums = {
-    files: '',
-    container: ''
-  }
   try {
-    const ddo = await new FindDdoHandler(oceanNode).findAndFormatDdo(did)
-    const service = ddo.services.find((service) => service.id === serviceId)
-    if (!service) {
-      throw new Error('Service not found')
+    const datasetDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(datasetDID)
+    if (!datasetDDO) {
+      throw new Error('Dataset DDO not found')
     }
-    if (service.type !== 'compute') {
-      throw new Error('Service type not compute')
+    const datasetService = datasetDDO.services.find(
+      (service) => service.id === datasetServiceId
+    )
+    if (!datasetService) {
+      throw new Error('Dataset service not found')
     }
-    return checksums
+    const { compute } = datasetService
+    if (datasetService.type !== 'compute' || !compute) {
+      throw new Error('Service not compute')
+    }
+
+    if (algoDID) {
+      if (
+        compute.publisherTrustedAlgorithms === undefined &&
+        compute.publisherTrustedAlgorithmPublishers === undefined
+      ) {
+        return true
+      }
+      if (compute.publisherTrustedAlgorithms) {
+        const trustedAlgo = compute.publisherTrustedAlgorithms.find(
+          (algo) => algo.did === algoDID
+        )
+        if (trustedAlgo) {
+          return (
+            trustedAlgo.filesChecksum === algoChecksums.files &&
+            trustedAlgo.containerSectionChecksum === algoChecksums.container
+          )
+        }
+        return false
+      }
+      if (compute.publisherTrustedAlgorithmPublishers) {
+        const algoDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(algoDID)
+        if (algoDDO) {
+          return compute.publisherTrustedAlgorithmPublishers.includes(algoDDO.nftAddress)
+        }
+        return false
+      }
+      return true
+    }
+
+    return compute.allowRawAlgorithm
   } catch (error) {
     CORE_LOGGER.error(error.message)
-    return checksums
+    return false
   }
 }
 
