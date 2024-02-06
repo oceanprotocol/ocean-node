@@ -5,10 +5,10 @@ import {
   IpfsFileObject,
   UrlFileObject
 } from '../../@types/fileObject'
-import { PROTOCOL_COMMANDS } from '../../utils/constants'
-import { FileInfoHandler } from '../core/fileInfoHandler'
-import { HTTP_LOGGER } from '../../utils/logging/common'
-import { FileInfoCommand } from '../../@types/commands'
+import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { FileInfoHandler } from '../core/fileInfoHandler.js'
+import { HTTP_LOGGER } from '../../utils/logging/common.js'
+import { FileInfoCommand } from '../../@types/commands.js'
 
 export const fileInfoRoute = express.Router()
 fileInfoRoute.use(express.json()) // Ensure JSON parsing middleware is used

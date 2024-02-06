@@ -115,7 +115,9 @@ export class CustomOceanNodesTransport extends Transport {
 
     try {
       // Use the insertLog method of the LogDatabase instance
-      await this.dbInstance.logs.insertLog(document)
+      if (this.dbInstance) {
+        await this.dbInstance.logs.insertLog(document)
+      }
     } catch (error) {
       // Handle the error according to your needs
       console.error('Error writing to Typesense:', error)
@@ -508,6 +510,8 @@ export function configureCustomDBTransport(
   if (!customDBTransport) {
     customDBTransport = new CustomOceanNodesTransport({ dbInstance: dbConnection })
   }
-  logger.addTransport(customDBTransport)
+  if (!logger.hasDBTransport()) {
+    logger.addTransport(customDBTransport)
+  }
   return logger
 }

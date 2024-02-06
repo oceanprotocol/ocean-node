@@ -41,6 +41,12 @@ export PRIVATE_KEY=0x.....
 export RPCS="{ \"1\":{ \"rpc\":\"https://rpc.eth.gateway.fm\", \"chainId\": 1, \"network\": \"mainet\", \"chunkSize\": 100 }, \"137\": { \"rpc\": \"https://polygon.meowrpc.com\", \"chainId\": 137, \"network\": \"polygon\", \"chunkSize\": 100 }, \"80001\": { \"rpc\": \"https://rpc-mumbai.maticvigil.com\", \"chainId\": 80001, \"network\": \"polygon-mumbai\", \"chunkSize\": 100 }}"
 ```
 
+Network interfaces supported by the node ('http' and/or 'p2p'). By default, if not specified otherwise, both are supported. Case insensitive.
+
+```bash
+export INTERFACES=[\"HTTP\",\"P2P\"]
+```
+
 You need to define a database URL if you want to run a database as part of your node. This is required for the tests to pass.
 
 ```bash

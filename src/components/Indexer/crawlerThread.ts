@@ -91,7 +91,7 @@ export async function proccesNetworkData(): Promise<void> {
         )
         chunkSize = Math.floor(chunkSize / 2)
         INDEXER_LOGGER.logMessage(
-          `network: ${rpcDetails.network} Reducing chink size  ${chunkSize} `,
+          `network: ${rpcDetails.network} Reducing chunk size  ${chunkSize} `,
           true
         )
       }

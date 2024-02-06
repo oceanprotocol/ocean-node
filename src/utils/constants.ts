@@ -160,5 +160,10 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'OPERATOR_SERVICE_URL',
     value: process.env.OPERATOR_SERVICE_URL,
     required: false // without provider we don't have it
+  },
+  INTERFACES: {
+    name: 'INTERFACES',
+    value: process.env.INTERFACES,
+    required: false // without a value set, its both p2p2 and http
   }
 }

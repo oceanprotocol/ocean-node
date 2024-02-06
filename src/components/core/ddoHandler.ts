@@ -30,6 +30,7 @@ import {
   DecryptDDOCommand,
   ValidateDDOCommand
 } from '../../@types/commands.js'
+import { hasP2PInterface } from '../httpRoutes/index.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -367,6 +368,18 @@ export class FindDdoHandler extends Handler {
     try {
       const node = this.getOceanNode()
       const p2pNode = node.getP2PNode()
+
+      // if not P2P node just look on local DB
+      if (!hasP2PInterface || !p2pNode) {
+        // Checking locally only...
+        const ddoInf = await findDDOLocally(node, task.id)
+        const result = ddoInf ? [ddoInf] : []
+        return {
+          stream: Readable.from(JSON.stringify(result, null, 4)),
+          status: { httpStatus: 200 }
+        }
+      }
+
       let updatedCache = false
       // result list
       const resultList: FindDDOResponse[] = []
