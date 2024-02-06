@@ -56,6 +56,8 @@ export const genericDDO = {
       timeout: 0
     }
   ],
+  nft: { state: 0 },
+  event: {},
   credentials: {
     allow: [
       {

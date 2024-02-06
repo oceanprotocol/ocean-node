@@ -210,17 +210,8 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
             `DDO became non-visible from ${ddo.nft.state} to ${metadataState}`
           )
           shortVersion = {
-            '@context': null,
             id: ddo.id,
-            version: null,
             chainId,
-            metadata: null,
-            services: null,
-            event: null,
-            stats: null,
-            purgatory: null,
-            datatokens: null,
-            accessDetails: null,
             nftAddress: ddo.nftAddress,
             nft: {
               state: metadataState

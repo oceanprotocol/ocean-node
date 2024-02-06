@@ -179,28 +179,47 @@ export class DdoDatabase {
   getDDOSchema(ddo: Record<string, any>): Schema {
     // Find the schema based on the DDO version OR use the short DDO schema when state !== 0
     let schemaName: string
-    if (ddo.version) {
-      schemaName = `op_ddo_v${ddo.version}`
-    } else if (ddo.nft?.state !== 0) {
+    if (ddo.nft?.state !== 0) {
       schemaName = 'op_ddo_short'
+    } else if (ddo.version) {
+      schemaName = `op_ddo_v${ddo.version}`
     }
     const schema = this.schemas.find((s) => s.name === schemaName)
+    DATABASE_LOGGER.logMessageWithEmoji(
+      `Returning schema: ${schemaName}`,
+      true,
+      GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
+      LOG_LEVELS_STR.LEVEL_INFO
+    )
     return schema
   }
 
   async validateDDO(ddo: Record<string, any>): Promise<boolean> {
-    const validation = await validateObject(ddo, ddo.chainId, ddo.nftAddress)
-    if (validation[0] === true) {
+    if (ddo.nft?.state !== 0) {
+      // Skipping validation for short DDOs as it currently doesn't work
+      // TODO: DDO validation needs to be updated to consider the fields required by the schema
+      // See github issue: https://github.com/oceanprotocol/ocean-node/issues/256
       return true
     } else {
-      DATABASE_LOGGER.logMessageWithEmoji(
-        `Validation of DDO with schema version ${ddo.version} failed with errors: ` +
-          JSON.stringify(validation[1]),
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
-      return false
+      const validation = await validateObject(ddo, ddo.chainId, ddo.nftAddress)
+      if (validation[0] === true) {
+        DATABASE_LOGGER.logMessageWithEmoji(
+          `Validation of DDO with did: ${ddo.id} has passed`,
+          true,
+          GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
+          LOG_LEVELS_STR.LEVEL_INFO
+        )
+        return true
+      } else {
+        DATABASE_LOGGER.logMessageWithEmoji(
+          `Validation of DDO with schema version ${ddo.version} failed with errors: ` +
+            JSON.stringify(validation[1]),
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEL_ERROR
+        )
+        return false
+      }
     }
   }
 

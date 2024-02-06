@@ -75,6 +75,7 @@ export async function validateObject(
   chainId: number,
   nftAddress: string
 ): Promise<[boolean, Record<string, string>]> {
+  CORE_LOGGER.logMessage(`Validating object: ` + JSON.stringify(obj), true)
   const extraErrors: Record<string, string> = {}
   if (!('@context' in obj)) {
     extraErrors['@context'] = 'Context is missing.'
@@ -141,6 +142,11 @@ export async function validateObject(
       (key) => !Object.prototype.hasOwnProperty.call(errors, key)
     )
     if (newErrorsIntroduced) {
+      CORE_LOGGER.logMessage(
+        `validateObject found new errors introduced: ${JSON.stringify(mergedErrors)}`,
+        true
+      )
+
       return [false, mergedErrors]
     }
   }
