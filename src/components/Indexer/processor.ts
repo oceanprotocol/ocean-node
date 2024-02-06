@@ -318,7 +318,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
 
       const saveDDO = this.createOrUpdateDDO(ddo, eventName)
       return saveDDO
-
     } catch (error) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
@@ -328,37 +327,34 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     }
   }
 
-  isRemoteDDO(ddo: any): boolean{
-    let keys;
+  isRemoteDDO(ddo: any): boolean {
+    let keys
     try {
-      keys = Object.keys(ddo);
+      keys = Object.keys(ddo)
     } catch (e) {
-      return false;
+      return false
     }
 
-    if (keys.length === 1 && keys[0] === "remote") {
-      return true;
+    if (keys.length === 1 && keys[0] === 'remote') {
+      return true
     }
 
-    return false;
+    return false
   }
 
-  async processDDO(ddo: any){
-    let response = ddo;
+  async processDDO(ddo: any) {
+    let response = ddo
 
-    if(this.isRemoteDDO(ddo)){
-      INDEXER_LOGGER.logMessage(
-          'DDO is remote',
-          true
-      )
+    if (this.isRemoteDDO(ddo)) {
+      INDEXER_LOGGER.logMessage('DDO is remote', true)
       const storage = Storage.getStorageClass(ddo.remote)
       const result = await storage.getReadableStream()
-      response = JSON.parse(await streamToString(result.stream as Readable))
 
-      //@todo: check encryption
+      response = JSON.parse(await streamToString(result.stream as Readable))
+      // @todo: check encryption
     }
 
-    return response;
+    return response
   }
 
   isUpdateable(previousDdo: any, txHash: string, block: number): [boolean, string] {
