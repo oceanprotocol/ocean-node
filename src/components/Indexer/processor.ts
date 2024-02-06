@@ -89,7 +89,7 @@ class BaseEventProcessor {
     let ddo
     if (flag === '0x02') {
       INDEXER_LOGGER.logMessage(
-        `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} ecnrypted by: ${decryptorURL}`
+        `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
       )
       const nonce = Date.now().toString()
       const { keys } = await getConfiguration()

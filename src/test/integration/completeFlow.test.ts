@@ -44,6 +44,11 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 import { FileInfoHandler } from '../../components/core/fileInfoHandler.js'
+import {
+  DEVELOPMENT_CHAIN_ID,
+  getOceanArtifactsAdresses,
+  getOceanArtifactsAdressesByChainId
+} from '../../utils/address.js'
 
 describe('Should run a complete node flow.', () => {
   let config: OceanNodeConfig
@@ -96,14 +101,10 @@ describe('Should run a complete node flow.', () => {
 
     indexer = new OceanIndexer(database, mockSupportedNetworks)
 
-    const data = JSON.parse(
-      // eslint-disable-next-line security/detect-non-literal-fs-filename
-      fs.readFileSync(
-        process.env.ADDRESS_FILE ||
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-        'utf8'
-      )
-    )
+    let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+    if (!network) {
+      network = getOceanArtifactsAdresses().development
+    }
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
 
@@ -114,7 +115,7 @@ describe('Should run a complete node flow.', () => {
 
     genericAsset = genericDDO
     factoryContract = new ethers.Contract(
-      data.development.ERC721Factory,
+      network.ERC721Factory,
       ERC721Factory.abi,
       publisherAccount
     )
