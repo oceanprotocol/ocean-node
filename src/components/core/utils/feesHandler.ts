@@ -472,7 +472,7 @@ export async function getProviderKey(): Promise<string> {
  */
 export async function getProviderFeeToken(chainId: number): Promise<string> {
   CORE_LOGGER.logMessage(
-    `fee tokens: ${(await getConfiguration()).feeStrategy.feeTokens}`
+    `fee tokens: ${JSON.stringify((await getConfiguration()).feeStrategy.feeTokens)}`
   )
   const result = (await getConfiguration()).feeStrategy.feeTokens.filter(
     (token: FeeTokens) => Number(token.chain) === chainId
