@@ -25,7 +25,11 @@ import { waitToIndex, delay } from './testUtils.js'
 import { getConfiguration } from '../../utils/config.js'
 import { ProviderFeeData } from '../../@types/Fees.js'
 import { encrypt } from '../../utils/crypt.js'
-import { createFee, getC2DEnvs } from '../../components/core/utils/feesHandler.js'
+import {
+  calculateComputeProviderFee,
+  createFee,
+  getC2DEnvs
+} from '../../components/core/utils/feesHandler.js'
 import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { OceanNode } from '../../OceanNode.js'
 import {
@@ -36,6 +40,7 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 import { DDO } from '../../@types/DDO/DDO.js'
+import { env } from 'process'
 
 describe('Compute provider fees', async () => {
   let database: Database
@@ -190,6 +195,20 @@ describe('Compute provider fees', async () => {
   it('should get compute envs', async () => {
     computeEnvs = await getC2DEnvs(resolvedDDO as DDO)
     assert(computeEnvs, 'compute envs could not be retrieved')
-    console.log('computeEnvs: ', computeEnvs)
+    const envs =
+      computeEnvs[0][
+        'http://172.15.0.13:31000/api/v1/operator/environments?chain_id=8996'
+      ]
+    // expect 2 envs
+    expect(envs.length === 2)
+    console.log('env: ', env[0])
+    const providerFees = await calculateComputeProviderFee(
+      resolvedDDO as DDO,
+      0,
+      env[0],
+      resolvedDDO.service[0],
+      provider
+    )
+    console.log('provide fee: ', providerFees)
   })
 })
