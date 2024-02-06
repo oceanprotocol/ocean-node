@@ -13,7 +13,7 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 
 export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
   try {
-    const envs: Array<any> = null
+    const envs: Array<any> = []
     const clustersURLS: string[] = JSON.parse(
       process.env.OPERATOR_SERVICE_URL
     ) as string[]
