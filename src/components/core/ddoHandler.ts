@@ -648,20 +648,24 @@ export class FindDdoHandler extends Handler {
 export class ValidateDDOHandler extends Handler {
   async handle(task: ValidateDDOCommand): Promise<P2PCommandResponse> {
     try {
-      const ddo = await this.getOceanNode().getDatabase().ddo.retrieve(task.id)
-      if (!ddo) {
-        CORE_LOGGER.logMessageWithEmoji(
-          `DDO ${task.id} was not found the database.`,
-          true,
-          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-          LOG_LEVELS_STR.LEVEL_ERROR
-        )
-        return {
-          stream: null,
-          status: { httpStatus: 404, error: 'Not found' }
-        }
-      }
-      const validation = await validateObject(ddo, task.chainId, task.nftAddress)
+      // const ddo = await this.getOceanNode().getDatabase().ddo.retrieve(task.ddo.id)
+      // if (!ddo) {
+      //   CORE_LOGGER.logMessageWithEmoji(
+      //     `DDO ${task.id} was not found the database.`,
+      //     true,
+      //     GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      //     LOG_LEVELS_STR.LEVEL_ERROR
+      //   )
+      //   return {
+      //     stream: null,
+      //     status: { httpStatus: 404, error: 'Not found' }
+      //   }
+      // }
+      const validation = await validateObject(
+        task.ddo,
+        task.ddo.chainId,
+        task.ddo.nftAddress
+      )
       if (validation[0] === false) {
         CORE_LOGGER.logMessageWithEmoji(
           `Validation failed with error: ${validation[1]}`,
