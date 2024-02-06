@@ -22,7 +22,7 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { decrypt } from '../../utils/crypt.js'
 import { createHash } from 'crypto'
 import lzma from 'lzma-native'
-import { validateObject } from './utils/validateDdoHandler.js'
+import { getValidationSignature, validateObject } from './utils/validateDdoHandler.js'
 import { getConfiguration } from '../../utils/config.js'
 import {
   GetDdoCommand,
@@ -678,8 +678,11 @@ export class ValidateDDOHandler extends Handler {
           status: { httpStatus: 400, error: `Validation error: ${validation[1]}` }
         }
       }
+
+      // TODO check this fn
+      const hash = await getValidationSignature(JSON.stringify(task.ddo))
       return {
-        stream: Readable.from(JSON.stringify({})),
+        stream: Readable.from(JSON.stringify(hash)),
         status: { httpStatus: 200 }
       }
     } catch (error) {
