@@ -471,9 +471,13 @@ export async function getProviderKey(): Promise<string> {
  * @returns the token address
  */
 export async function getProviderFeeToken(chainId: number): Promise<string> {
+  CORE_LOGGER.logMessage(
+    `fee tokens: ${(await getConfiguration()).feeStrategy.feeTokens}`
+  )
   const result = (await getConfiguration()).feeStrategy.feeTokens.filter(
     (token: FeeTokens) => Number(token.chain) === chainId
   )
+  CORE_LOGGER.logMessage(`result: ${result}`)
   return result.length ? result[0].token : ethers.ZeroAddress
 }
 
