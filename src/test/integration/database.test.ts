@@ -25,6 +25,7 @@ describe('DdoDatabase CRUD', () => {
     nftAddress: '0xBB1081DbF3227bbB233Db68f7117114baBb43656',
     version: '4.1.0',
     chainId: 137,
+    nft: { state: 0 },
     metadata: {
       created: '2022-12-30T08:40:06Z',
       updated: '2022-12-30T08:40:06Z',
