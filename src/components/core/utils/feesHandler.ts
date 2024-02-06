@@ -9,6 +9,7 @@ import { CORE_LOGGER, INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { findEventByKey } from '../../Indexer/utils.js'
 import axios from 'axios'
+import { getOceanArtifactsAdresses } from '../../../utils/address.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 
 export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
@@ -474,6 +475,10 @@ export async function getProviderFeeToken(chainId: number): Promise<string> {
   CORE_LOGGER.logMessage(
     `fee tokens: ${JSON.stringify((await getConfiguration()).feeStrategy.feeTokens)}`
   )
+  if (chainId === 8996) {
+    const artifacts = getOceanArtifactsAdresses()
+    return artifacts.development.Ocean
+  }
   const result = (await getConfiguration()).feeStrategy.feeTokens.filter(
     (token: FeeTokens) => Number(token.chain) === chainId
   )

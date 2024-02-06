@@ -56,7 +56,7 @@ describe('Compute provider fees', async () => {
   const data = getOceanArtifactsAdresses()
   const oceanToken = data.development.Ocean
 
-  const previousConfiguration = await setupEnvironment(
+  await setupEnvironment(
     null,
     buildEnvOverrideConfig(
       [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.FEE_TOKENS],
@@ -193,8 +193,8 @@ describe('Compute provider fees', async () => {
     console.log('provider fees: ', providerFees)
   })
 
-  after(() => {
-    // Restore original local setup / env variables after test
-    tearDownEnvironment(previousConfiguration)
-  })
+  // after(() => {
+  //   // Restore original local setup / env variables after test
+  //   tearDownEnvironment(previousConfiguration)
+  // })
 })
