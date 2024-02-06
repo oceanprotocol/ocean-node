@@ -35,17 +35,16 @@ export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
 }
 
 async function getEnv(asset: DDO, computeEnv: string): Promise<any> {
-  const envs = await getC2DEnvs(asset)
+  const computeEnvs = await getC2DEnvs(asset)
   const clustersURLS: string[] = JSON.parse(process.env.OPERATOR_SERVICE_URL) as string[]
 
   for (const cluster of clustersURLS) {
+    const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
+    const envs = computeEnvs[0][url]
     for (const env of envs) {
-      if (env.url === cluster) {
-        INDEXER_LOGGER.logMessage(`cluster: ${cluster} and env.url: ${env.url}`)
-        INDEXER_LOGGER.logMessage(
-          `env2 : ${env.url.filter((item: any) => item.id === computeEnv)[0]}`
-        )
-        return env.url.filter((item: any) => item.id === computeEnv)[0]
+      if (env.id === computeEnv) {
+        INDEXER_LOGGER.logMessage(`cluster: ${cluster} and env: ${env}`)
+        return env
       }
     }
   }
