@@ -213,7 +213,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
             '@context': null,
             id: ddo.id,
             version: null,
-            chainId: null,
+            chainId,
             metadata: null,
             services: null,
             event: null,

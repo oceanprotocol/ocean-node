@@ -75,8 +75,6 @@ export async function validateObject(
   chainId: number,
   nftAddress: string
 ): Promise<[boolean, Record<string, string>]> {
-  const ddoCopy = obj
-  ddoCopy['@type'] = 'DDO'
   const extraErrors: Record<string, string> = {}
   if (!('@context' in obj)) {
     extraErrors['@context'] = 'Context is missing.'
@@ -87,7 +85,6 @@ export async function validateObject(
   if (!('metadata' in obj)) {
     extraErrors.metadata = 'Metadata is missing or invalid.'
   }
-
   ;['created', 'updated'].forEach((attr) => {
     if ('metadata' in obj && attr in obj.metadata && !isIsoFormat(obj.metadata[attr])) {
       extraErrors.metadata = `${attr} is not in ISO format.`
@@ -108,9 +105,6 @@ export async function validateObject(
   if (!(makeDid(nftAddress, chainId.toString(10)) === obj.id)) {
     extraErrors.id = 'did is not valid for chain Id and nft address'
   }
-
-  // @context key is reserved in JSON-LD format
-  ddoCopy['@context'] = { '@vocab': 'http://schema.org/' }
 
   const version = obj.version || CURRENT_VERSION
   const schemaFilePath = getSchema(version)
@@ -139,20 +133,16 @@ export async function validateObject(
     return [false, { error: errorMsg }]
   }
   const errors = parseReportToErrors(report.results)
-
   if (extraErrors) {
     // Merge errors and extraErrors without overwriting existing keys
     const mergedErrors = { ...errors, ...extraErrors }
-
     // Check if there are any new errors introduced
     const newErrorsIntroduced = Object.keys(mergedErrors).some(
       (key) => !Object.prototype.hasOwnProperty.call(errors, key)
     )
-
     if (newErrorsIntroduced) {
       return [false, mergedErrors]
     }
   }
-
   return [report.conforms, errors]
 }

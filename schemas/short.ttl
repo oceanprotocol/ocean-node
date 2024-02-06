@@ -20,3 +20,9 @@ schema:DDOShape
         sh:minCount 1 ;
         sh:maxCount 1 ;
     ] ;
+    sh:property [
+        sh:path schema:chainId;
+        sh:datatype xsd:integer ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+    ] ;

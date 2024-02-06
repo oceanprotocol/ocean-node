@@ -9,6 +9,7 @@ import {
   isDevelopmentEnvironment
 } from '../../utils/logging/Logger.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
+import { validateObject } from '../core/utils/validateDdoHandler.js'
 
 export class OrderDatabase {
   private provider: Typesense
@@ -187,6 +188,21 @@ export class DdoDatabase {
     return schema
   }
 
+  async validateDDO(ddo: Record<string, any>): Promise<boolean> {
+    const validation = await validateObject(ddo, ddo.chainId, ddo.nftAddress)
+    if (validation[0] === true) {
+      return true
+    } else {
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Validation of DDO with schema version ${ddo.version} failed`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return false
+    }
+  }
+
   async search(query: Record<string, any>) {
     try {
       const results = []
@@ -211,15 +227,20 @@ export class DdoDatabase {
   }
 
   async create(ddo: Record<string, any>) {
+    const schema = this.getDDOSchema(ddo)
+    if (!schema) {
+      throw new Error(`Schema for version ${ddo.version} not found`)
+    }
     try {
-      const schema = this.getDDOSchema(ddo)
-      if (!schema) {
-        throw new Error(`Schema for version ${ddo.version} not found`)
+      const validation = await this.validateDDO(ddo)
+      if (validation === true) {
+        return await this.provider
+          .collections(schema.name)
+          .documents()
+          .create({ ...ddo })
+      } else {
+        throw new Error(`Validation of DDO with schema version ${ddo.version} failed`)
       }
-      return await this.provider
-        .collections(schema.name)
-        .documents()
-        .create({ ...ddo })
     } catch (error) {
       const errorMsg = `Error when creating DDO entry ${ddo.id}: ` + error.message
       DATABASE_LOGGER.logMessageWithEmoji(
@@ -268,22 +289,28 @@ export class DdoDatabase {
 
   async update(ddo: Record<string, any>) {
     const schema = this.getDDOSchema(ddo)
-
     if (!schema) {
       throw new Error(`Schema for version ${ddo.version} not found`)
     }
     try {
-      return await this.provider.collections(schema.name).documents().update(ddo.id, ddo)
+      const validation = await this.validateDDO(ddo)
+      if (validation === true) {
+        return await this.provider
+          .collections(schema.name)
+          .documents()
+          .update(ddo.id, ddo)
+      } else {
+        throw new Error(
+          `Validation of DDO with schema version ${ddo.version} failed with errors`
+        )
+      }
     } catch (error) {
       if (error instanceof TypesenseError && error.httpStatus === 404) {
         // No DDO was found to update so we will create a new one.
         // First we must delete the old version if it exist in another collection
         await this.delete(ddo.id)
 
-        return await this.provider
-          .collections(schema.name)
-          .documents()
-          .create({ ...ddo })
+        return await this.create(ddo)
       }
       const errorMsg = `Error when updating DDO entry ${ddo.id}: ` + error.message
       DATABASE_LOGGER.logMessageWithEmoji(
