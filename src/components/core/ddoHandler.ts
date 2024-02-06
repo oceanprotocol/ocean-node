@@ -296,8 +296,17 @@ export class DecryptDdoHandler extends Handler {
           ['bytes'],
           [ethers.hexlify(ethers.toUtf8Bytes(message))]
         )
-        const addressSignature = ethers.verifyMessage(messageHash, task.signature)
-        if (addressSignature !== decrypterAddress) {
+        const addressFromHashSignature = ethers.verifyMessage(messageHash, task.signature)
+        const messageHashBytes = ethers.toBeArray(messageHash)
+        const addressFromBytesSignature = ethers.verifyMessage(
+          messageHashBytes,
+          task.signature
+        )
+
+        if (
+          addressFromHashSignature !== decrypterAddress &&
+          addressFromBytesSignature !== decrypterAddress
+        ) {
           throw new Error('address does not match')
         }
       } catch (error) {
