@@ -5,7 +5,7 @@ import { Service } from '../../../@types/DDO/Service'
 import { AssetUtils } from '../../../utils/asset.js'
 import { verifyMessage } from '../../../utils/blockchain.js'
 import { getConfiguration } from '../../../utils/config.js'
-import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { CORE_LOGGER, INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { findEventByKey } from '../../Indexer/utils.js'
 import axios from 'axios'
@@ -20,6 +20,7 @@ export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
     for (const cluster of clustersURLS) {
       const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
       const { data } = await axios.get(url)
+      INDEXER_LOGGER.logMessage(`env: ${data}`)
       envs.push({
         url: JSON.parse(data)
       })
