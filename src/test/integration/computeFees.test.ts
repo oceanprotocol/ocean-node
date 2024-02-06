@@ -53,8 +53,16 @@ describe('Compute provider fees', async () => {
   let computeEnvs: Array<any>
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+  const data = getOceanArtifactsAdresses()
+  const oceanToken = data.development.Ocean
 
-  let previousConfiguration: OverrideEnvConfig[]
+  const previousConfiguration = await setupEnvironment(
+    null,
+    buildEnvOverrideConfig(
+      [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.FEE_TOKENS],
+      [JSON.stringify(mockSupportedNetworks), JSON.stringify({ 8996: oceanToken })]
+    )
+  )
 
   before(async () => {
     const dbConfig = {
@@ -62,9 +70,6 @@ describe('Compute provider fees', async () => {
     }
     database = await new Database(dbConfig)
     indexer = new OceanIndexer(database, mockSupportedNetworks)
-
-    const data = getOceanArtifactsAdresses()
-    const oceanToken = data.development.Ocean
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     consumerAccount = (await provider.getSigner(1)) as Signer
@@ -77,18 +82,6 @@ describe('Compute provider fees', async () => {
       ERC721Factory.abi,
       publisherAccount
     )
-    previousConfiguration = await setupEnvironment(
-      null,
-      buildEnvOverrideConfig(
-        [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.FEE_TOKENS],
-        [JSON.stringify(mockSupportedNetworks), JSON.stringify({ 8996: oceanToken })]
-      )
-    )
-  })
-
-  after(() => {
-    // Restore original local setup / env variables after test
-    tearDownEnvironment(previousConfiguration)
   })
 
   it('should publish a dataset', async () => {
@@ -198,5 +191,10 @@ describe('Compute provider fees', async () => {
     )
     assert(providerFees, 'provider fees were not fetched')
     console.log('provider fees: ', providerFees)
+  })
+
+  after(() => {
+    // Restore original local setup / env variables after test
+    tearDownEnvironment(previousConfiguration)
   })
 })
