@@ -205,7 +205,7 @@ describe('Compute provider fees', async () => {
     const providerFees = await calculateComputeProviderFee(
       resolvedDDO as DDO,
       0,
-      env[0],
+      envs[0].id,
       resolvedDDO.service[0],
       provider
     )
