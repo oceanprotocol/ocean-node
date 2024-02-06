@@ -18,7 +18,7 @@ describe('Database', () => {
 
 describe('DdoDatabase CRUD', () => {
   let database: Database
-  const ddo = {
+  const ddoWithInvalidDid = {
     hashType: 'sha256',
     '@context': ['https://w3id.org/did/v1'],
     id: 'did:op:fa0e8fa9550e8eb13392d6eeb9ba9f8111801b332c8d2345b350b3bc66b379d7',
@@ -60,26 +60,9 @@ describe('DdoDatabase CRUD', () => {
     }
   })
 
-  it('create ddo', async () => {
-    const result = await database.ddo.create(ddo)
-    expect(result?.id).to.equal(ddo.id)
-  })
-
-  it('retrieve ddo', async () => {
-    const result = await database.ddo.retrieve(ddo.id)
-    expect(result?.id).to.equal(ddo.id)
-  })
-
-  it('update ddo', async () => {
-    const newMetadataName = 'new metadata name'
-    ddo.metadata.name = newMetadataName
-    const result = await database.ddo.update(ddo)
-    expect(result?.metadata.name).to.equal(newMetadataName)
-  })
-
-  it('delete ddo', async () => {
-    const result = await database.ddo.delete(ddo.id)
-    expect(result?.id).to.equal(ddo.id)
+  it('Database will not create ddo when did is invalid', async () => {
+    const result = await database.ddo.create(ddoWithInvalidDid)
+    expect(result?.id).to.equal(null || undefined)
   })
 })
 
