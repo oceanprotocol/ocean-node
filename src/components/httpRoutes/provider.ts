@@ -45,6 +45,9 @@ providerRoutes.post('/encrypt', async (req, res) => {
     })
     if (result.stream) {
       const encryptedData = await streamToString(result.stream as Readable)
+      // There is an issue here with the format of the response
+      // Error: invalid arrayify value.. on setMetadata()
+      // when using Ocean CLI to publish encrypted asset)
       res.status(200).send(encryptedData)
     } else {
       res.status(result.status.httpStatus).send(result.status.error)
