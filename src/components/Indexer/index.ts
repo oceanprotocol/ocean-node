@@ -73,8 +73,9 @@ export class OceanIndexer {
   }
 
   public async advertiseDDO(network: number, ddo: any, method: string): Promise<void> {
-    INDEXER_LOGGER.logMessage(`Advertising new DDO :  from network: ${network} `)
-    INDEXER_DDO_EVENT_EMITTER.emit(method, '')
+    const id = ddo?.id ?? ''
+    INDEXER_LOGGER.logMessage(`Advertising new DDO :${id}  from network: ${network} `)
+    INDEXER_DDO_EVENT_EMITTER.emit(method, id)
   }
 
   public async getLastIndexedBlock(network: number): Promise<number> {
