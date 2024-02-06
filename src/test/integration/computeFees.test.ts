@@ -201,7 +201,7 @@ describe('Compute provider fees', async () => {
       ]
     // expect 2 envs
     expect(envs.length === 2)
-    console.log('env: ', env[0])
+    console.log('env: ', envs[0])
     const providerFees = await calculateComputeProviderFee(
       resolvedDDO as DDO,
       0,
