@@ -20,9 +20,9 @@ export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
     for (const cluster of clustersURLS) {
       const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
       const { data } = await axios.get(url)
-      INDEXER_LOGGER.logMessage(`env: ${data}`)
+      INDEXER_LOGGER.logMessage(`env 0: ${data[0]} and env 1: ${data[1]}`)
       envs.push({
-        url: JSON.parse(data)
+        url: data[0]
       })
     }
     return envs
