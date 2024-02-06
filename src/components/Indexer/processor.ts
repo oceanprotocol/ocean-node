@@ -85,7 +85,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       )
       const byteArray = getBytes(decodedEventData.args[4])
       const utf8String = toUtf8String(byteArray)
-
       const ddo = await this.getDdo(utf8String)
       ddo.datatokens = this.getTokenInfo(ddo.services)
 
@@ -126,12 +125,16 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     let response = ddo;
 
     if(this.isRemoteDdo(ddo)){
+
+      INDEXER_LOGGER.logMessage(
+          'DDO is remote',
+          true
+      )
       const storage = Storage.getStorageClass(ddo.remote)
       const result = await storage.getReadableStream()
+      response = JSON.parse(await streamToString(result.stream as Readable))
 
-      response = JSON.parse(await streamToString(result.stream as Readable));
-
-      //@todo: check encryption and IPF file
+      //@todo: check encryption
     }
 
     return response;
