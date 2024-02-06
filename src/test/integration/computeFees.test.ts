@@ -1,5 +1,4 @@
 import { expect, assert } from 'chai'
-import { Readable } from 'stream'
 import { createHash } from 'crypto'
 import {
   JsonRpcProvider,
@@ -8,8 +7,7 @@ import {
   ethers,
   getAddress,
   hexlify,
-  ZeroAddress,
-  parseUnits
+  ZeroAddress
 } from 'ethers'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
@@ -18,20 +16,15 @@ import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { genericDDO } from '../data/ddo.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
-import { DownloadHandler } from '../../components/core/downloadHandler.js'
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-import { getEventFromTx, sleep } from '../../utils/util.js'
+import { getEventFromTx } from '../../utils/util.js'
 import { waitToIndex, delay } from './testUtils.js'
-import { getConfiguration } from '../../utils/config.js'
 import { ProviderFeeData } from '../../@types/Fees.js'
 import { encrypt } from '../../utils/crypt.js'
 import {
   calculateComputeProviderFee,
-  createFee,
   getC2DEnvs
 } from '../../components/core/utils/feesHandler.js'
-import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { OceanNode } from '../../OceanNode.js'
+import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import {
   OverrideEnvConfig,
   buildEnvOverrideConfig,
@@ -40,7 +33,6 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 import { DDO } from '../../@types/DDO/DDO.js'
-import { env } from 'process'
 
 describe('Compute provider fees', async () => {
   let database: Database
@@ -58,17 +50,7 @@ describe('Compute provider fees', async () => {
   let consumerAccount: Signer
   let consumerAddress: string
   let datatokenAddress: string
-  let orderTxId: string
-  let dataTokenContractWithNewSigner: any
-  let feeTx: string
-  let feeData: ProviderFeeData | undefined
   let computeEnvs: Array<any>
-
-  const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
-  const serviceId = '0' // dummy index
-  const consumeMarketFeeAddress = ZeroAddress // marketplace fee Collector
-  const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
-  const consumeMarketFeeToken = feeToken // token address for the feeAmount,
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
@@ -82,6 +64,7 @@ describe('Compute provider fees', async () => {
     indexer = new OceanIndexer(database, mockSupportedNetworks)
 
     const data = getOceanArtifactsAdresses()
+    const oceanToken = data.development.Ocean
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     consumerAccount = (await provider.getSigner(1)) as Signer
@@ -97,10 +80,15 @@ describe('Compute provider fees', async () => {
     previousConfiguration = await setupEnvironment(
       null,
       buildEnvOverrideConfig(
-        [ENVIRONMENT_VARIABLES.RPCS],
-        [JSON.stringify(mockSupportedNetworks)]
+        [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.FEE_TOKENS],
+        [JSON.stringify(mockSupportedNetworks), JSON.stringify({ 8996: oceanToken })]
       )
     )
+  })
+
+  after(() => {
+    // Restore original local setup / env variables after test
+    tearDownEnvironment(previousConfiguration)
   })
 
   it('should publish a dataset', async () => {
@@ -201,8 +189,6 @@ describe('Compute provider fees', async () => {
       ]
     // expect 2 envs
     expect(envs.length === 2)
-    console.log('env: ', envs[0])
-    console.log('ddo: ', resolvedDDO)
     const providerFees = await calculateComputeProviderFee(
       resolvedDDO as DDO,
       0,
@@ -210,6 +196,7 @@ describe('Compute provider fees', async () => {
       resolvedDDO.services[0],
       provider
     )
-    console.log('provide fee: ', providerFees)
+    assert(providerFees, 'provider fees were not fetched')
+    console.log('provider fees: ', providerFees)
   })
 })

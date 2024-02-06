@@ -43,7 +43,6 @@ async function getEnv(asset: DDO, computeEnv: string): Promise<any> {
     const envs = computeEnvs[0][url]
     for (const env of envs) {
       if (env.id === computeEnv) {
-        INDEXER_LOGGER.logMessage(`cluster: ${cluster} and env: ${env}`)
         return env
       }
     }
