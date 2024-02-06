@@ -1,7 +1,7 @@
 import fs from 'fs'
 import { homedir } from 'os'
 import addresses from '@oceanprotocol/contracts/addresses/address.json' assert { type: 'json' }
-import { CORE_LOGGER } from './logging/common'
+import { CORE_LOGGER } from './logging/common.js'
 
 /**
  * Get the artifacts address from the address.json file
