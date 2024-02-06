@@ -14,6 +14,7 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 import { getDatabase } from '../../utils/database.js'
 import { EVENTS, MetadataStates } from '../../utils/constants.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
+import axios from "axios";
 
 class BaseEventProcessor {
   protected networkId: number
@@ -82,14 +83,45 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       )
       const byteArray = getBytes(decodedEventData.args[4])
       const utf8String = toUtf8String(byteArray)
-      const ddo = JSON.parse(utf8String)
+      let ddo = JSON.parse(utf8String)
+
+      INDEXER_LOGGER.logMessage(
+          JSON.stringify(ddo),
+          true
+      )
+
+      if(isRemoteDdo(ddo)){
+        switch (ddo.remote.type) {
+          case 'url':
+            const {data} = await axios.get(ddo.remote.url, {method:ddo.remote.method});
+
+            INDEXER_LOGGER.logMessage(
+                ddo.remote.url,
+                true
+            )
+            INDEXER_LOGGER.logMessage(
+                'aaaa'+JSON.stringify(data),
+                true
+            )
+            ddo = data;
+            break;
+          case 'ipfs':
+            break;
+
+        }
+
+
+      }
+
       ddo.datatokens = this.getTokenInfo(ddo.services)
       INDEXER_LOGGER.logMessage(
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
         true
       )
+
       const saveDDO = this.createOrUpdateDDO(ddo, eventName)
       return saveDDO
+
     } catch (error) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
@@ -98,6 +130,21 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       )
     }
   }
+}
+
+function isRemoteDdo(ddo: any){
+    let keys;
+    try {
+      keys = Object.keys(ddo);
+    } catch (e) {
+      return false;
+    }
+
+    if (keys.length === 1 && keys[0] === "remote") {
+      return true;
+    }
+
+    return false;
 }
 
 export class MetadataStateEventProcessor extends BaseEventProcessor {
