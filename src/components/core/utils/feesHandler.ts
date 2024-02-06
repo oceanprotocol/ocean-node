@@ -80,7 +80,6 @@ export async function calculateComputeProviderFee(
   if (providerFeeToken === '0x0000000000000000000000000000000000000000') {
     providerFeeAmount = 0
   }
-  providerFeeAmount = (seconds * parseFloat(env.priceMin)) / 60
 
   // from env FEE_TOKENS
   if (
@@ -92,6 +91,7 @@ export async function calculateComputeProviderFee(
       ERC20Template.abi,
       await provider.getSigner()
     )
+    providerFeeAmount = (seconds * parseFloat(env.priceMin)) / 60
     const decimals = await datatokenContract.decimals()
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(), decimals)
   }
@@ -472,9 +472,6 @@ export async function getProviderKey(): Promise<string> {
  * @returns the token address
  */
 export async function getProviderFeeToken(chainId: number): Promise<string> {
-  CORE_LOGGER.logMessage(
-    `fee tokens: ${JSON.stringify((await getConfiguration()).feeStrategy.feeTokens)}`
-  )
   if (chainId === 8996) {
     const artifacts = getOceanArtifactsAdresses()
     return artifacts.development.Ocean
@@ -482,7 +479,6 @@ export async function getProviderFeeToken(chainId: number): Promise<string> {
   const result = (await getConfiguration()).feeStrategy.feeTokens.filter(
     (token: FeeTokens) => Number(token.chain) === chainId
   )
-  CORE_LOGGER.logMessage(`result: ${result}`)
   return result.length ? result[0].token : ethers.ZeroAddress
 }
 
