@@ -1,17 +1,20 @@
 import { expect, assert } from 'chai'
 import { Database } from '../../components/database/index.js'
 import { Purgatory } from '../../components/Indexer/purgatory.js'
+import { getConfiguration } from '../../utils/config.js'
 
-describe('Purgatory test', () => {
+describe('Purgatory test', async () => {
   let database: Database
   let purgatory: Purgatory
+  const config = await getConfiguration()
 
   before(async () => {
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
     database = await new Database(dbConfig)
-    purgatory = await Purgatory.getInstance(database)
+
+    purgatory = await Purgatory.getInstance(database, config)
   })
 
   it('instance Purgatory', async () => {

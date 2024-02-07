@@ -325,7 +325,10 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         }
       }
       const from = decodedEventData.args[0]
-      const purgatory = await Purgatory.getInstance(await getDatabase())
+      const purgatory = Purgatory.getInstance(
+        await getDatabase(),
+        await getConfiguration()
+      )
       const updatedDDO = await this.updatePurgatoryStateDdo(ddo, from, purgatory)
       if (updatedDDO.purgatory.state === false) {
         // TODO: insert in a different collection for purgatory DDOs

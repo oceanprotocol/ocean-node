@@ -3,18 +3,17 @@ import { PurgatoryAccounts, PurgatoryAssets } from '../../@types/Purgatory.js'
 import { Database } from '../database/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { getConfiguration } from '../../utils/config.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
 export class Purgatory {
   private db: Database
+  private config: OceanNodeConfig
   private bannedAccounts: Array<PurgatoryAccounts>
   private bannedAssets: Array<PurgatoryAssets>
   static instance: any
-  static config: OceanNodeConfig
 
-  constructor(db: Database) {
-    if (!Purgatory.config.accountPurgatoryUrl || !Purgatory.config.assetPurgatoryUrl) {
+  constructor(db: Database, config: OceanNodeConfig) {
+    if (!config.accountPurgatoryUrl || !config.assetPurgatoryUrl) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
         `Cannot instantiate Purgatory due to missing env ASSET_PURGATORY_URL or ACCOUNT_PURGATORY_URL.`
@@ -22,12 +21,17 @@ export class Purgatory {
       return
     }
     this.db = db
+    this.config = config
     this.bannedAccounts = []
     this.bannedAssets = []
   }
 
   getDb(): Database {
     return this.db
+  }
+
+  getConfig(): OceanNodeConfig {
+    return this.config
   }
 
   getBannedAccounts(): Array<PurgatoryAccounts> {
@@ -50,7 +54,7 @@ export class Purgatory {
     try {
       const response = await axios({
         method: 'get',
-        url: Purgatory.config.assetPurgatoryUrl,
+        url: this.config.assetPurgatoryUrl,
         timeout: 1000
       })
       if (response.status !== 200) {
@@ -89,7 +93,7 @@ export class Purgatory {
     try {
       const response = await axios({
         method: 'get',
-        url: Purgatory.config.accountPurgatoryUrl,
+        url: this.config.accountPurgatoryUrl,
         timeout: 1000
       })
       if (response.status !== 200) {
@@ -152,11 +156,10 @@ export class Purgatory {
     return false
   }
 
-  static async getInstance(db: Database) {
+  static getInstance(db: Database, config: OceanNodeConfig) {
     if (!Purgatory.instance) {
-      Purgatory.instance = new Purgatory(db)
+      Purgatory.instance = new Purgatory(db, config)
     }
-    Purgatory.config = await getConfiguration()
     return Purgatory.instance
   }
 }
