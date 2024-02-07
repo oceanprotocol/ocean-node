@@ -61,7 +61,7 @@ export async function calculateComputeProviderFee(
   CORE_LOGGER.logMessage(`now: ${now}`)
   const validUntilDateTime = new Date(validUntil).getTime()
   CORE_LOGGER.logMessage(`validUntil: ${validUntilDateTime}`)
-  const seconds: number = validUntilDateTime - now
+  const seconds: number = now - validUntilDateTime
   CORE_LOGGER.logMessage(`seconds: ${seconds}`)
   const env = await getEnv(asset, computeEnv)
 
