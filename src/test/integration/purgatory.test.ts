@@ -11,7 +11,7 @@ describe('Purgatory test', () => {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
     database = await new Database(dbConfig)
-    purgatory = Purgatory.getInstance(database)
+    purgatory = await Purgatory.getInstance(database)
   })
 
   it('instance Purgatory', async () => {

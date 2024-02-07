@@ -3,7 +3,7 @@ import { PurgatoryAccounts, PurgatoryAssets } from '../../@types/Purgatory.js'
 import { Database } from '../database/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { existsEnvironmentVariable, getConfiguration } from '../../utils/config.js'
+import { getConfiguration } from '../../utils/config.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
 export class Purgatory {
@@ -11,11 +11,10 @@ export class Purgatory {
   private bannedAccounts: Array<PurgatoryAccounts>
   private bannedAssets: Array<PurgatoryAssets>
   static instance: any
-  private config: OceanNodeConfig
+  static config: OceanNodeConfig
 
   constructor(db: Database) {
-    this.initConfig()
-    if (!this.config.accountPurgatoryUrl || !this.config.assetPurgatoryUrl) {
+    if (!Purgatory.config.accountPurgatoryUrl || !Purgatory.config.assetPurgatoryUrl) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
         `Cannot instantiate Purgatory due to missing env ASSET_PURGATORY_URL or ACCOUNT_PURGATORY_URL.`
@@ -25,10 +24,6 @@ export class Purgatory {
     this.db = db
     this.bannedAccounts = []
     this.bannedAssets = []
-  }
-
-  async initConfig() {
-    this.config = await getConfiguration()
   }
 
   getDb(): Database {
@@ -55,7 +50,7 @@ export class Purgatory {
     try {
       const response = await axios({
         method: 'get',
-        url: this.config.assetPurgatoryUrl,
+        url: Purgatory.config.assetPurgatoryUrl,
         timeout: 1000
       })
       if (response.status !== 200) {
@@ -94,7 +89,7 @@ export class Purgatory {
     try {
       const response = await axios({
         method: 'get',
-        url: this.config.accountPurgatoryUrl,
+        url: Purgatory.config.accountPurgatoryUrl,
         timeout: 1000
       })
       if (response.status !== 200) {
@@ -157,10 +152,11 @@ export class Purgatory {
     return false
   }
 
-  static getInstance(db: Database) {
+  static async getInstance(db: Database) {
     if (!Purgatory.instance) {
       Purgatory.instance = new Purgatory(db)
     }
+    Purgatory.config = await getConfiguration()
     return Purgatory.instance
   }
 }
