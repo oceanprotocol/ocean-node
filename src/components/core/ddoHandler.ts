@@ -22,7 +22,7 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { decrypt } from '../../utils/crypt.js'
 import { createHash } from 'crypto'
 import lzma from 'lzma-native'
-import { validateObject } from './utils/validateDdoHandler.js'
+import { getValidationSignature, validateObject } from './utils/validateDdoHandler.js'
 import { getConfiguration } from '../../utils/config.js'
 import {
   GetDdoCommand,
@@ -31,6 +31,7 @@ import {
   ValidateDDOCommand
 } from '../../@types/commands.js'
 import { hasP2PInterface } from '../httpRoutes/index.js'
+import { getProviderWallet } from './utils/feesHandler'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -669,8 +670,10 @@ export class ValidateDDOHandler extends Handler {
           status: { httpStatus: 400, error: `Validation error: ${validation[1]}` }
         }
       }
+
+      const signature = getValidationSignature(ddo)
       return {
-        stream: Readable.from(JSON.stringify({})),
+        stream: Readable.from(JSON.stringify(signature)),
         status: { httpStatus: 200 }
       }
     } catch (error) {

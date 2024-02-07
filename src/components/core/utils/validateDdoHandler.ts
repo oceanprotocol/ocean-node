@@ -7,9 +7,11 @@ import { dirname, resolve } from 'path'
 // @ts-ignore
 import * as shaclEngine from 'shacl-engine'
 import { createHash } from 'crypto'
-import { getAddress } from 'ethers'
+import { ethers, getAddress } from 'ethers'
 import { readFile } from 'node:fs/promises'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { create256Hash } from '../../../utils/crypt.js'
+import { getProviderWallet } from './feesHandler.js'
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
@@ -70,12 +72,13 @@ function makeDid(nftAddress: string, chainId: string): string {
       .digest('hex')
   )
 }
+
 export async function validateObject(
   obj: Record<string, any>,
   chainId: number,
   nftAddress: string
 ): Promise<[boolean, Record<string, string>]> {
-  const ddoCopy = obj
+  const ddoCopy = JSON.parse(JSON.stringify(obj))
   ddoCopy['@type'] = 'DDO'
   const extraErrors: Record<string, string> = {}
   if (!('@context' in obj)) {
@@ -155,4 +158,26 @@ export async function validateObject(
   }
 
   return [report.conforms, errors]
+}
+
+export async function getValidationSignature(ddo: any): Promise<any> {
+  try {
+    const hashedDDO = create256Hash(JSON.stringify(ddo))
+    const providerWallet = await getProviderWallet()
+    const messageHash = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(hashedDDO))]
+    )
+    const signed32Bytes = await providerWallet.signMessage(
+      new Uint8Array(ethers.toBeArray(messageHash))
+    )
+    const signatureSplitted = ethers.Signature.from(signed32Bytes)
+    const v = signatureSplitted.v <= 1 ? signatureSplitted.v + 27 : signatureSplitted.v
+    const r = ethers.hexlify(signatureSplitted.r) // 32 bytes
+    const s = ethers.hexlify(signatureSplitted.s)
+    return { hash: hashedDDO, publicKey: providerWallet.address, r, s, v }
+  } catch (error) {
+    console.error(error)
+    return { hash: '', publicKey: '', r: '', s: '', v: '' }
+  }
 }
