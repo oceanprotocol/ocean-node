@@ -1,7 +1,4 @@
 import { Hashes } from '../@types/blockchain'
-import { DDO } from '../@types/DDO/DDO'
-import { ArweaveFileObject, IpfsFileObject, UrlFileObject } from '../@types/fileObject'
-import { P2PCommandResponse } from '../@types/OceanNode'
 
 // Add all the supported commands
 export const PROTOCOL_COMMANDS = {
@@ -163,5 +160,10 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'OPERATOR_SERVICE_URL',
     value: process.env.OPERATOR_SERVICE_URL,
     required: false // without provider we don't have it
+  },
+  INTERFACES: {
+    name: 'INTERFACES',
+    value: process.env.INTERFACES,
+    required: false // without a value set, its both p2p2 and http
   }
 }

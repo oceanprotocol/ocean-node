@@ -1,14 +1,20 @@
 import express, { Request, Response } from 'express'
 import { getDefaultLevel } from '../../utils/logging/Logger.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
+import { hasP2PInterface, sendMissingP2PResponse } from './index.js'
 
 export const getOceanPeersRoute = express.Router()
+
 getOceanPeersRoute.get(
   '/getOceanPeers',
   async (req: Request, res: Response): Promise<void> => {
-    const peers = await req.oceanNode.getP2PNode().getPeers()
-    P2P_LOGGER.log(getDefaultLevel(), `getOceanPeers: ${peers}`, true)
-    res.json(peers)
+    if (hasP2PInterface) {
+      const peers = await req.oceanNode.getP2PNode().getPeers()
+      P2P_LOGGER.log(getDefaultLevel(), `getOceanPeers: ${peers}`, true)
+      res.json(peers)
+    } else {
+      sendMissingP2PResponse(res)
+    }
   }
 )
 
@@ -16,8 +22,12 @@ export const getP2PPeersRoute = express.Router()
 getP2PPeersRoute.get(
   '/getP2PPeers',
   async (req: Request, res: Response): Promise<void> => {
-    const peers = await req.oceanNode.getP2PNode().getAllPeerStore()
-    res.json(peers)
+    if (hasP2PInterface) {
+      const peers = await req.oceanNode.getP2PNode().getAllPeerStore()
+      res.json(peers)
+    } else {
+      sendMissingP2PResponse(res)
+    }
   }
 )
 
@@ -30,9 +40,13 @@ getP2PPeersRoute.get(
       res.sendStatus(400)
       return
     }
-    const peers = await req.oceanNode
-      .getP2PNode()
-      .getPeerDetails(String(req.query.peerId))
-    res.json(peers)
+    if (hasP2PInterface) {
+      const peers = await req.oceanNode
+        .getP2PNode()
+        .getPeerDetails(String(req.query.peerId))
+      res.json(peers)
+    } else {
+      sendMissingP2PResponse(res)
+    }
   }
 )

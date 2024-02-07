@@ -165,7 +165,13 @@ async function doNonceTrackingFlow() {
     '0xbee525d70c715bee6ca15ea5113e544d13cc1bb2817e07113d0af7755ddb6391'
   )
   const nextNonce = previousNonce + 1
-  const signature = await wallet.signMessage(String(nextNonce))
+
+  const consumerMessage = ethers.solidityPackedKeccak256(
+    ['bytes'],
+    [ethers.hexlify(ethers.toUtf8Bytes(String(nextNonce)))]
+  )
+  const messageHashBytes = ethers.toBeArray(consumerMessage)
+  const signature = await wallet.signMessage(messageHashBytes)
   DATABASE_LOGGER.logMessage(
     'Next nonce: ' + nextNonce + ' signature: ' + signature,
     true

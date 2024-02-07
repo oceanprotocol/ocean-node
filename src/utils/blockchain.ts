@@ -8,7 +8,7 @@ export class Blockchain {
   public constructor(rpc: string, chaindId: number) {
     this.chainId = chaindId
     this.provider = new ethers.JsonRpcProvider(rpc)
-    this.signer = new ethers.Wallet(process.env.PRIVATE_KEY.substring(2))
+    this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
   }
 
   public getSigner(): Signer {

@@ -15,9 +15,11 @@ import {
 
 describe('Utils', () => {
   let provider: ethers.JsonRpcProvider
+  let signer: ethers.Wallet
 
   before(async () => {
     provider = new ethers.JsonRpcProvider('https://rpc-mumbai.maticvigil.com')
+    signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider)
   })
 
   it('should get deployed contract block', async () => {
@@ -33,7 +35,13 @@ describe('Utils', () => {
   it('should process blocks', async () => {
     const startIndex = 100
     const count = 5
-    const processedBlocks = await processBlocks(provider, 80001, startIndex, count)
+    const processedBlocks = await processBlocks(
+      signer,
+      provider,
+      80001,
+      startIndex,
+      count
+    )
     expect(processedBlocks.lastBlock).to.be.a('number')
   })
 
@@ -72,6 +80,6 @@ describe('Utils', () => {
       }
     ]
 
-    await processChunkLogs(logs, provider, 80001)
+    await processChunkLogs(logs, signer, provider, 80001)
   })
 })
