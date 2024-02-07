@@ -42,7 +42,5 @@ export function manualParseUnits(amount: string, decimals: number) {
 
   // Multiply the amount by 10^decimals
   const multipliedAmount = amountFloat * Math.pow(10, decimals)
-
-  // Return the rounded amount as a BigInt
   return BigInt(multipliedAmount)
 }
