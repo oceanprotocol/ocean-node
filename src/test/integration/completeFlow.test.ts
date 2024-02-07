@@ -244,8 +244,8 @@ describe('Should run a complete node flow.', () => {
 
     genericAsset.services[0].files = encryptedData
 
-    const metadata = hexlify(Buffer.from(JSON.stringify(genericAsset)))
-    const documentHash = '0x' + createHash('sha256').update(metadata).digest('hex')
+    const documentHash =
+      '0x' + createHash('sha256').update(JSON.stringify(genericAsset)).digest('hex')
 
     const genericAssetData = Uint8Array.from(Buffer.from(JSON.stringify(genericAsset)))
     const encryptedDDO = await encrypt(genericAssetData, 'ECIES')
