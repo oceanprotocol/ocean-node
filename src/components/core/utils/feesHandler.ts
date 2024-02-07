@@ -58,8 +58,11 @@ export async function calculateComputeProviderFee(
   provider: JsonRpcApiProvider
 ): Promise<ProviderFeeData> | undefined {
   const now = new Date().getTime()
+  CORE_LOGGER.logMessage(`now: ${now}`)
   const validUntilDateTime = new Date(validUntil).getTime()
+  CORE_LOGGER.logMessage(`validUntil: ${validUntilDateTime}`)
   const seconds: number = validUntilDateTime - now
+  CORE_LOGGER.logMessage(`seconds: ${seconds}`)
   const env = await getEnv(asset, computeEnv)
 
   if (!env) {
@@ -92,6 +95,7 @@ export async function calculateComputeProviderFee(
       await provider.getSigner()
     )
     providerFeeAmount = (seconds * parseFloat(env.priceMin)) / 60
+    CORE_LOGGER.logMessage(`price min: ${env.priceMin}`)
     const decimals = await datatokenContract.decimals()
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(), decimals)
   }
@@ -160,6 +164,7 @@ async function getEventData(
   return iface.parseLog(eventObj)
 }
 
+// TODO tests in initializeCompute issue
 export async function validateComputeProviderFee(
   provider: JsonRpcApiProvider,
   tx: string,
