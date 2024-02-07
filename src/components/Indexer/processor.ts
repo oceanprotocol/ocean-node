@@ -24,6 +24,7 @@ import { getConfiguration } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
+import { create256Hash } from '../../utils/crypt.js'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -87,7 +88,7 @@ class BaseEventProcessor {
     metadata: any
   ): Promise<any> {
     let ddo
-    if (flag === '0x02') {
+    if (parseInt(flag) === 2) {
       INDEXER_LOGGER.logMessage(
         `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
       )
@@ -121,18 +122,25 @@ class BaseEventProcessor {
             url: `${decryptorURL}/api/services/decrypt`,
             data: payload
           })
-          if (response.status !== 201) {
-            const message = `Provider exception on decrypt DDO. Status: ${response.status}, ${response.statusText}`
+          if (response.status !== 200) {
+            const message = `bProvider exception on decrypt DDO. Status: ${response.status}, ${response.statusText}`
             INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
             throw new Error(message)
           }
-          const encodedResponse = createHash('sha256').update(response.data).digest('hex')
-          if (encodedResponse !== metadataHash) {
-            const msg = `Hash check failed: response=${response.data}, encoded response=${encodedResponse}\n metadata hash=${metadataHash}`
+
+          let responseHash
+          if (response.data instanceof Object) {
+            responseHash = create256Hash(JSON.stringify(response.data))
+            ddo = response.data
+          } else {
+            ddo = JSON.parse(response.data)
+            responseHash = create256Hash(ddo)
+          }
+          if (responseHash !== metadataHash) {
+            const msg = `Hash check failed: response=${ddo}, decrypted ddo hash=${responseHash}\n metadata hash=${metadataHash}`
             INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, msg)
             throw new Error(msg)
           }
-          ddo = response.data.decode('utf-8')
         } catch (err) {
           const message = `Provider exception on decrypt DDO. Status: ${err.message}`
           INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
@@ -277,6 +285,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         decodedEventData.args[5],
         decodedEventData.args[4]
       )
+      INDEXER_LOGGER.logMessage(`Got ${ddo}`, true)
       ddo.datatokens = this.getTokenInfo(ddo.services)
       INDEXER_LOGGER.logMessage(
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,

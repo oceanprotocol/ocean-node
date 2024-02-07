@@ -143,19 +143,23 @@ export const processChunkLogs = async (
 
       if (event && Object.values(EVENTS).includes(event.type)) {
         // only log & process the ones we support
-        INDEXER_LOGGER.logMessage(`-- ${event.type} -- triggered`, true)
+        INDEXER_LOGGER.logMessage(
+          `-- ${event.type} -- triggered for ${log.transactionHash}`,
+          true
+        )
         if (
           event.type === EVENTS.METADATA_CREATED ||
           event.type === EVENTS.METADATA_UPDATED
         ) {
           const processor = await getMetadataEventProcessor(chainId)
-          storeEvents[event.type] = await processor.processEvent(
+          const rets = await processor.processEvent(
             log,
             chainId,
             signer,
             provider,
             event.type
           )
+          if (rets) storeEvents[event.type] = rets
         } else if (event.type === EVENTS.METADATA_STATE) {
           const processor = await getMetadataStateEventProcessor(chainId)
           storeEvents[event.type] = await processor.processEvent(log, chainId, provider)

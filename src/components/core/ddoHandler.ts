@@ -19,8 +19,7 @@ import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Fa
 import { getOceanArtifactsAdressesByChainId } from '../../utils/address.js'
 import { ethers, hexlify } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import { decrypt } from '../../utils/crypt.js'
-import { createHash } from 'crypto'
+import { decrypt, create256Hash } from '../../utils/crypt.js'
 import lzma from 'lzma-native'
 import { getValidationSignature, validateObject } from './utils/validateDdoHandler.js'
 import { getConfiguration } from '../../utils/config.js'
@@ -102,7 +101,10 @@ export class DecryptDdoHandler extends Handler {
         }
       }
 
-      if (!config.authorizedDecrypters.includes(decrypterAddress)) {
+      if (
+        config.authorizedDecrypters.length > 0 &&
+        !config.authorizedDecrypters.includes(decrypterAddress)
+      ) {
         CORE_LOGGER.logMessage('Decrypt DDO: Decrypter not authorized', true)
         return {
           stream: null,
@@ -277,8 +279,7 @@ export class DecryptDdoHandler extends Handler {
       }
 
       // checksum matches
-      const decryptedDocumentHash =
-        '0x' + createHash('sha256').update(hexlify(decryptedDocument)).digest('hex')
+      const decryptedDocumentHash = create256Hash(decryptedDocument.toString())
       if (decryptedDocumentHash !== documentHash) {
         CORE_LOGGER.logMessage(
           `Decrypt DDO: error checksum does not match ${decryptedDocumentHash} with ${documentHash}`,
@@ -678,8 +679,6 @@ export class ValidateDDOHandler extends Handler {
           status: { httpStatus: 400, error: `Validation error: ${validation[1]}` }
         }
       }
-
-      // TODO check this fn
       const hash = await getValidationSignature(JSON.stringify(task.ddo))
       return {
         stream: Readable.from(JSON.stringify(hash)),

@@ -49,10 +49,17 @@ async function updateLastIndexedBlockNumber(block: number): Promise<void> {
   }
 }
 export async function proccesNetworkData(): Promise<void> {
+  const deployedBlock = await getDeployedContractBlock(rpcDetails.chainId)
+  if (deployedBlock == null && lastIndexedBlock == null) {
+    INDEXER_LOGGER.logMessage(
+      `chain: ${rpcDetails.chainId} Both deployed block and last indexed block are null. Cannot proceed further on this chain`,
+      true
+    )
+    return
+  }
+
   while (true) {
     const networkHeight = await getNetworkHeight(provider)
-
-    const deployedBlock = await getDeployedContractBlock(rpcDetails.chainId)
 
     const startBlock =
       lastIndexedBlock && lastIndexedBlock > deployedBlock

@@ -76,7 +76,7 @@ export async function validateObject(
   chainId: number,
   nftAddress: string
 ): Promise<[boolean, Record<string, string>]> {
-  const ddoCopy = obj
+  const ddoCopy = JSON.parse(JSON.stringify(obj))
   ddoCopy['@type'] = 'DDO'
   const extraErrors: Record<string, string> = {}
   if (!('@context' in obj)) {

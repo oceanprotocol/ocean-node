@@ -20,7 +20,8 @@ providerRoutes.post('/decrypt', async (req, res) => {
     })
     if (result.stream) {
       const decryptedData = await streamToString(result.stream as Readable)
-      res.status(201).send(decryptedData)
+      res.header('Content-Type', 'text/plain')
+      res.status(200).send(decryptedData)
     } else {
       res.status(result.status.httpStatus).send(result.status.error)
     }
