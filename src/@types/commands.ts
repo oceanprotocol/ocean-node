@@ -39,9 +39,10 @@ export interface DDOCommand extends Command {
 }
 export interface GetDdoCommand extends DDOCommand {}
 export interface FindDDOCommand extends DDOCommand {}
-export interface ValidateDDOCommand extends DDOCommand {
-  chainId: number
-  nftAddress: string
+// this one gets the raw ddo
+// https://github.com/oceanprotocol/ocean-node/issues/47
+export interface ValidateDDOCommand extends Command {
+  ddo: DDO
 }
 
 export interface GetEnvironmentsCommand extends Command {

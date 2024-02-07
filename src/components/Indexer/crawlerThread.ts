@@ -30,6 +30,7 @@ let { rpcDetails, lastIndexedBlock } = workerData as ThreadData
 
 const blockchain = new Blockchain(rpcDetails.rpc, rpcDetails.chainId)
 const provider = blockchain.getProvider()
+const signer = blockchain.getSigner()
 
 async function updateLastIndexedBlockNumber(block: number): Promise<void> {
   try {
@@ -48,10 +49,17 @@ async function updateLastIndexedBlockNumber(block: number): Promise<void> {
   }
 }
 export async function proccesNetworkData(): Promise<void> {
+  const deployedBlock = await getDeployedContractBlock(rpcDetails.chainId)
+  if (deployedBlock == null && lastIndexedBlock == null) {
+    INDEXER_LOGGER.logMessage(
+      `chain: ${rpcDetails.chainId} Both deployed block and last indexed block are null. Cannot proceed further on this chain`,
+      true
+    )
+    return
+  }
+
   while (true) {
     const networkHeight = await getNetworkHeight(provider)
-
-    const deployedBlock = await getDeployedContractBlock(rpcDetails.chainId)
 
     const startBlock =
       lastIndexedBlock && lastIndexedBlock > deployedBlock
@@ -73,6 +81,7 @@ export async function proccesNetworkData(): Promise<void> {
 
       try {
         const processedBlocks = await processBlocks(
+          signer,
           provider,
           rpcDetails.chainId,
           startBlock,
@@ -89,7 +98,7 @@ export async function proccesNetworkData(): Promise<void> {
         )
         chunkSize = Math.floor(chunkSize / 2)
         INDEXER_LOGGER.logMessage(
-          `network: ${rpcDetails.network} Reducing chink size  ${chunkSize} `,
+          `network: ${rpcDetails.network} Reducing chunk size  ${chunkSize} `,
           true
         )
       }
@@ -103,12 +112,11 @@ async function processReindex(): Promise<void> {
   while (REINDEX_QUEUE.length > 0) {
     const reindexTask = REINDEX_QUEUE.pop()
     try {
-      const provider = blockchain.getProvider()
       const receipt = await provider.getTransactionReceipt(reindexTask.txId)
       if (receipt) {
         const log = receipt.logs[reindexTask.eventIndex]
         const logs = log ? [log] : receipt.logs
-        await processChunkLogs(logs, provider, rpcDetails.chainId)
+        await processChunkLogs(logs, signer, provider, rpcDetails.chainId)
       }
     } catch (error) {
       INDEXER_LOGGER.log(
