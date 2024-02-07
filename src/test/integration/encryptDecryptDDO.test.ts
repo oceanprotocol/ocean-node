@@ -147,8 +147,8 @@ describe('Should encrypt and decrypt DDO', () => {
     genericAsset.nftAddress = dataNftAddress
     genericAsset.services[0].datatokenAddress = datatokenAddress
 
-    const metadata = hexlify(Buffer.from(JSON.stringify(genericAsset)))
-    documentHash = '0x' + createHash('sha256').update(metadata).digest('hex')
+    documentHash =
+      '0x' + createHash('sha256').update(JSON.stringify(genericAsset)).digest('hex')
 
     const genericAssetData = Uint8Array.from(Buffer.from(JSON.stringify(genericAsset)))
     const encryptedData = await encrypt(genericAssetData, 'ECIES')
@@ -283,6 +283,7 @@ describe('Should encrypt and decrypt DDO', () => {
       transactionId: txReceiptEncryptDDO.hash,
       dataNftAddress,
       nonce: Date.now().toString(),
+      documentHash,
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
