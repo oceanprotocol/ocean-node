@@ -3,19 +3,19 @@ import { PurgatoryAccounts, PurgatoryAssets } from '../../@types/Purgatory.js'
 import { Database } from '../database/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { existsEnvironmentVariable } from '../../utils/config.js'
+import { existsEnvironmentVariable, getConfiguration } from '../../utils/config.js'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
 export class Purgatory {
   private db: Database
   private bannedAccounts: Array<PurgatoryAccounts>
   private bannedAssets: Array<PurgatoryAssets>
   static instance: any
+  private config: OceanNodeConfig
 
   constructor(db: Database) {
-    if (
-      !existsEnvironmentVariable('ASSET_PURGATORY_URL', true) ||
-      !existsEnvironmentVariable('ACCOUNT_PURGATORY_URL', true)
-    ) {
+    this.initConfig()
+    if (!this.config.accountPurgatoryUrl || !this.config.assetPurgatoryUrl) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
         `Cannot instantiate Purgatory due to missing env ASSET_PURGATORY_URL or ACCOUNT_PURGATORY_URL.`
@@ -25,6 +25,10 @@ export class Purgatory {
     this.db = db
     this.bannedAccounts = []
     this.bannedAssets = []
+  }
+
+  async initConfig() {
+    this.config = await getConfiguration()
   }
 
   getDb(): Database {
@@ -51,7 +55,7 @@ export class Purgatory {
     try {
       const response = await axios({
         method: 'get',
-        url: process.env.ASSET_PURGATORY_URL,
+        url: this.config.assetPurgatoryUrl,
         timeout: 1000
       })
       if (response.status !== 200) {
@@ -90,7 +94,7 @@ export class Purgatory {
     try {
       const response = await axios({
         method: 'get',
-        url: process.env.ACCOUNT_PURGATORY_URL,
+        url: this.config.accountPurgatoryUrl,
         timeout: 1000
       })
       if (response.status !== 200) {
