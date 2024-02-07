@@ -12,7 +12,6 @@ import axios from 'axios'
 import { getOceanArtifactsAdresses } from '../../../utils/address.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { manualParseUnits } from '../../../utils/conversions.js'
-import BigNumber from 'bignumber.js'
 
 export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
   try {
@@ -79,7 +78,7 @@ export async function calculateComputeProviderFee(
   const providerWallet = await getProviderWallet(String(asset.chainId))
   const providerFeeAddress: string = providerWallet.address
   let providerFeeAmount: number = null
-  let providerFeeAmountFormatted: BigInt = null
+  let providerFeeAmountFormatted: bigint = null
 
   const providerFeeToken: string = await getProviderFeeToken(asset.chainId)
   if (providerFeeToken === '0x0000000000000000000000000000000000000000') {
@@ -103,7 +102,10 @@ export async function calculateComputeProviderFee(
         env.priceMin
       }\n amount: ${providerFeeAmount.toString()}\n decimals: ${decimals}`
     )
-    providerFeeAmountFormatted = manualParseUnits(providerFeeAmount.toString(), decimals)
+    providerFeeAmountFormatted = manualParseUnits(
+      providerFeeAmount.toString(),
+      decimals
+    ).value
   }
   env.feeToken = providerFeeToken
 

@@ -38,7 +38,38 @@ export function getRandomInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min) + min) // The maximum is exclusive and the minimum is inclusive
 }
 
-export function manualParseUnits(amount: string, decimals: number): BigInt {
-  const amountBigNumber = new BigNumber(amount).times(new BigNumber(10).pow(decimals))
-  return amountBigNumber
+export interface BigDecimal {
+  value: bigint
+  decimals: number
+}
+
+export function manualParseUnits(amount: string, decimals: number): BigDecimal {
+  let [integer, fraction = ''] = amount.split('.')
+
+  const negative = integer.startsWith('-')
+  if (negative) {
+    integer = integer.slice(1)
+  }
+
+  // If the fraction is longer than allowed, round it off
+  if (fraction.length > decimals) {
+    const unitIndex = decimals
+    const unit = Number(fraction[unitIndex])
+
+    if (unit >= 5) {
+      const fractionBigInt = BigInt(fraction.slice(0, decimals)) + 1n
+      fraction = fractionBigInt.toString().padStart(decimals, '0')
+    } else {
+      fraction = fraction.slice(0, decimals)
+    }
+  } else {
+    fraction = fraction.padEnd(decimals, '0')
+  }
+
+  const parsedValue = BigInt(`${negative ? '-' : ''}${integer}${fraction}`)
+
+  return {
+    value: parsedValue,
+    decimals
+  }
 }
