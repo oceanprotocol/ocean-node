@@ -95,8 +95,12 @@ export async function calculateComputeProviderFee(
       await provider.getSigner()
     )
     providerFeeAmount = (seconds * parseFloat(env.priceMin)) / 60
-    CORE_LOGGER.logMessage(`price min: ${env.priceMin}`)
     const decimals = await datatokenContract.decimals()
+    CORE_LOGGER.logMessage(
+      `price min: ${
+        env.priceMin
+      }\n amount: ${providerFeeAmount.toString()}\n decimals: ${decimals}`
+    )
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(), decimals)
   }
   env.feeToken = providerFeeToken
