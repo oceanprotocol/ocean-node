@@ -12,8 +12,6 @@ import {
   ZeroAddress
 } from 'ethers'
 import { createHash } from 'crypto'
-import fs from 'fs'
-import { homedir } from 'os'
 import { validateOrderTransaction } from '../../components/core/validateTransaction.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
@@ -22,7 +20,11 @@ import { getEventFromTx } from '../../utils/util.js'
 import { delay, signMessage, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import { Database } from '../../components/database/index.js'
-import { getOceanArtifactsAdresses } from '../../utils/address.js'
+import {
+  DEVELOPMENT_CHAIN_ID,
+  getOceanArtifactsAdresses,
+  getOceanArtifactsAdressesByChainId
+} from '../../utils/address.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 
@@ -68,7 +70,10 @@ describe('validateOrderTransaction Function with Orders', () => {
     publisherAddress = await publisherAccount.getAddress()
     consumerAddress = await consumerAccount.getAddress()
 
-    const data = getOceanArtifactsAdresses()
+    let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+    if (!artifactsAddresses) {
+      artifactsAddresses = getOceanArtifactsAdresses().development
+    }
 
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
@@ -77,7 +82,7 @@ describe('validateOrderTransaction Function with Orders', () => {
 
     // Initialize the factory contract
     factoryContract = new ethers.Contract(
-      data.development.ERC721Factory,
+      artifactsAddresses.ERC721Factory,
       ERC721Factory.abi,
       publisherAccount
     )

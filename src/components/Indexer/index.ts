@@ -1,5 +1,5 @@
 import EventEmitter from 'node:events'
-import { Worker } from 'node:worker_threads'
+import { Worker, workerData } from 'node:worker_threads'
 import { Database } from '../database/index.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
 import { ReindexTask } from './crawlerThread.js'
@@ -30,13 +30,38 @@ export class OceanIndexer {
     return this.db
   }
 
+  public getSupportedNetwork(chainId: number): SupportedNetwork {
+    let network: SupportedNetwork
+    // the following will us to quickly define rpc
+    //  export RPCS="{ \"8996\": \"http://127.0.0.1:8545\"}
+    if (typeof this.networks[chainId] === 'string') {
+      network = {
+        chainId,
+        network: String(chainId),
+        rpc: String(this.networks[chainId])
+      }
+    } else {
+      network = this.networks[chainId]
+    }
+    // set some defaults if needed
+    if (!network.chunkSize) network.chunkSize = 1
+    return network
+  }
+
   public async startThreads(): Promise<void> {
     for (const network of this.supportedChains) {
       const chainId = parseInt(network)
-      const rpcDetails: SupportedNetwork = this.networks[network]
+      const rpcDetails: SupportedNetwork = this.getSupportedNetwork(chainId)
       const lastIndexedBlock = await this.getLastIndexedBlock(chainId)
+      const workerData = { rpcDetails, lastIndexedBlock }
+      INDEXER_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_INFO,
+        `Starting worker for network ${network} with ${JSON.stringify(workerData)}`,
+        true
+      )
+
       const worker = new Worker('./dist/components/Indexer/crawlerThread.js', {
-        workerData: { rpcDetails, lastIndexedBlock }
+        workerData
       })
 
       worker.on('message', (event: any) => {

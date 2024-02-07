@@ -1,7 +1,4 @@
 import { Hashes } from '../@types/blockchain'
-import { DDO } from '../@types/DDO/DDO'
-import { ArweaveFileObject, IpfsFileObject, UrlFileObject } from '../@types/fileObject'
-import { P2PCommandResponse } from '../@types/OceanNode'
 
 // Add all the supported commands
 export const PROTOCOL_COMMANDS = {

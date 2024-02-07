@@ -21,7 +21,7 @@ export class EncryptHandler extends Handler {
       // do encrypt magic
       const encryptedData = await encrypt(blobData, task.encryptionType)
       return {
-        stream: Readable.from(encryptedData.toString('hex')),
+        stream: Readable.from('0x' + encryptedData.toString('hex')),
         status: { httpStatus: 200 }
       }
     } catch (error) {

@@ -21,7 +21,11 @@ import { RPCS } from '../../@types/blockchain.js'
 import { getEventFromTx } from '../../utils/util.js'
 import { delay, waitToIndex, signMessage } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
-import { getOceanArtifactsAdresses } from '../../utils/address.js'
+import {
+  DEVELOPMENT_CHAIN_ID,
+  getOceanArtifactsAdresses,
+  getOceanArtifactsAdressesByChainId
+} from '../../utils/address.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { getMockSupportedNetworks } from '../utils/utils.js'
@@ -71,14 +75,17 @@ describe('Indexer stores a new metadata events and orders.', () => {
     database = await new Database(dbConfig)
     indexer = new OceanIndexer(database, mockSupportedNetworks)
 
-    const data = getOceanArtifactsAdresses()
+    let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+    if (!artifactsAddresses) {
+      artifactsAddresses = getOceanArtifactsAdresses().development
+    }
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccount = (await provider.getSigner(1)) as Signer
     genericAsset = genericDDO
     factoryContract = new ethers.Contract(
-      data.development.ERC721Factory,
+      artifactsAddresses.ERC721Factory,
       ERC721Factory.abi,
       publisherAccount
     )
