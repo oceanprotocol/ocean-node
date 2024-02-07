@@ -36,3 +36,13 @@ export function getRandomInt(min: number, max: number) {
   max = Math.floor(max)
   return Math.floor(Math.random() * (max - min) + min) // The maximum is exclusive and the minimum is inclusive
 }
+
+export function manualParseUnits(amount: string, decimals: number) {
+  const amountFloat = parseFloat(amount)
+
+  // Multiply the amount by 10^decimals
+  const multipliedAmount = amountFloat * Math.pow(10, decimals)
+
+  // Return the rounded amount as a BigInt
+  return BigInt(multipliedAmount)
+}
