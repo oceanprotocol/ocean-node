@@ -191,10 +191,18 @@ describe('Compute provider fees', async () => {
     )
     assert(providerFees, 'provider fees were not fetched')
     console.log('provider fees: ', providerFees)
-  })
+    assert(providerFees.providerFeeAmount === 0n) // for this env, price min is 0
+    assert(providerFees.providerFeeToken === oceanToken)
 
-  // after(() => {
-  //   // Restore original local setup / env variables after test
-  //   tearDownEnvironment(previousConfiguration)
-  // })
+    const paidProviderFees = await calculateComputeProviderFee(
+      resolvedDDO as DDO,
+      0,
+      envs[1].id,
+      resolvedDDO.services[0],
+      provider
+    )
+
+    assert(paidProviderFees, 'paid provider fees were not fetched')
+    console.log('paid provider fees: ', paidProviderFees)
+  })
 })
