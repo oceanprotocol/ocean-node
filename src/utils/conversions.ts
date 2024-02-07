@@ -3,6 +3,7 @@ import { sha256 } from 'multiformats/hashes/sha2'
 import * as multiFormatRaw from 'multiformats/codecs/raw'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
+import BigNumber from 'bignumber.js'
 
 export function hexStringToByteArray(hexString: any) {
   if (hexString.length % 2 !== 0) {
@@ -38,6 +39,6 @@ export function getRandomInt(min: number, max: number) {
 }
 
 export function manualParseUnits(amount: string, decimals: number): BigInt {
-  const amountFloat = BigInt(Math.floor(parseFloat(amount) * 10 ** decimals))
-  return amountFloat
+  const amountBigNumber = new BigNumber(amount).times(new BigNumber(10).pow(decimals))
+  return amountBigNumber
 }

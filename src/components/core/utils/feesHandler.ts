@@ -12,6 +12,7 @@ import axios from 'axios'
 import { getOceanArtifactsAdresses } from '../../../utils/address.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { manualParseUnits } from '../../../utils/conversions.js'
+import BigNumber from 'bignumber.js'
 
 export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
   try {
