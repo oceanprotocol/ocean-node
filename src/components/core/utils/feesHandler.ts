@@ -108,7 +108,7 @@ export async function calculateComputeProviderFee(
       }\n amount: ${providerFeeAmount.toString()}\n decimals: ${decimals}`
     )
     providerFeeAmountFormatted = new BigNumber(
-      formatUnits(new BigNumber(providerFeeAmount).toString(10), decimals)
+      formatUnits(providerFeeAmount.toString(10), decimals)
     )
   }
   env.feeToken = providerFeeToken
