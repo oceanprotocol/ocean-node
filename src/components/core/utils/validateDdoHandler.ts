@@ -72,6 +72,7 @@ function makeDid(nftAddress: string, chainId: string): string {
       .digest('hex')
   )
 }
+
 export async function validateObject(
   obj: Record<string, any>,
   chainId: number,
@@ -174,7 +175,7 @@ export async function getValidationSignature(ddo: string): Promise<any> {
     const s = ethers.hexlify(signatureSplitted.s)
     return { hash: hashedDDO, publicKey: providerWallet.address, r, s, v }
   } catch (error) {
-    console.error(error)
+    CORE_LOGGER.logMessage(`Validation signature error: ${error}`, true)
     return { hash: '', publicKey: '', r: '', s: '', v: '' }
   }
 }
