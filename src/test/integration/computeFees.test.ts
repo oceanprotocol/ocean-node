@@ -181,9 +181,9 @@ describe('Compute provider fees', async () => {
         'http://172.15.0.13:31000/api/v1/operator/environments?chain_id=8996'
       ]
     // expect 2 envs
-    expect(envs.length === 2)
-    assert(envs[1].id === 'ocean-compute-env2')
-    assert(envs[1].priceMin === '1.2')
+    expect(envs.length === 2, 'incorrect length')
+    assert(envs[1].id === 'ocean-compute-env2', 'env id is incorrect')
+    assert(envs[1].priceMin === '1.2', 'price min is incorrect')
     const providerFees = await calculateComputeProviderFee(
       resolvedDDO as DDO,
       0,
