@@ -36,14 +36,8 @@ export function getRandomInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min) + min) // The maximum is exclusive and the minimum is inclusive
 }
 
-export interface BigDecimal {
-  value: bigint
-  decimals: number
-}
-
 export function manualParseUnits(amount: string, decimals: number): BigInt {
   const [integerPart, fractionalPart] = amount.split('.')
-
   // Ensure the fractional part is padded with zeros up to the desired decimals
   const paddedFractionalPart = fractionalPart.padEnd(decimals, '0').slice(0, decimals)
 

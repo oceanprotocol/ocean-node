@@ -43,8 +43,10 @@ async function getEnv(asset: DDO, computeEnv: string): Promise<any> {
   for (const cluster of clustersURLS) {
     const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
     const envs = computeEnvs[0][url]
+    CORE_LOGGER.logMessage(`envs from getEnv: ${JSON.stringify(envs)}`)
     for (const env of envs) {
       if (env.id === computeEnv) {
+        CORE_LOGGER.logMessage(`env id: ${env.id}, computeEnv: ${computeEnv}`)
         return env
       }
     }
@@ -65,6 +67,7 @@ export async function calculateComputeProviderFee(
   const seconds: number = (now - validUntilDateTime) / 1000
   CORE_LOGGER.logMessage(`seconds: ${seconds}`)
   const env = await getEnv(asset, computeEnv)
+  CORE_LOGGER.logMessage(`env from calculate: ${JSON.stringify(env)}`)
 
   if (!env) {
     CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Env could not be found.`, true)
