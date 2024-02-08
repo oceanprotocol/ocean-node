@@ -1,8 +1,8 @@
 export interface SupportedNetwork {
   chainId: number
-  network: string
   rpc: string
-  chunkSize: number
+  network?: string
+  chunkSize?: number
 }
 
 export interface RPCS {
