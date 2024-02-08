@@ -9,6 +9,7 @@ import {
   isDevelopmentEnvironment
 } from '../../utils/logging/Logger.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
+import { validateObject } from '../core/utils/validateDdoHandler.js'
 
 export class OrderDatabase {
   private provider: Typesense
@@ -171,6 +172,57 @@ export class DdoDatabase {
     })() as unknown as DdoDatabase
   }
 
+  getSchemas(): Schema[] {
+    return this.schemas
+  }
+
+  getDDOSchema(ddo: Record<string, any>): Schema {
+    // Find the schema based on the DDO version OR use the short DDO schema when state !== 0
+    let schemaName: string
+    if (ddo.nft?.state !== 0) {
+      schemaName = 'op_ddo_short'
+    } else if (ddo.version) {
+      schemaName = `op_ddo_v${ddo.version}`
+    }
+    const schema = this.schemas.find((s) => s.name === schemaName)
+    DATABASE_LOGGER.logMessageWithEmoji(
+      `Returning schema: ${schemaName}`,
+      true,
+      GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
+      LOG_LEVELS_STR.LEVEL_INFO
+    )
+    return schema
+  }
+
+  async validateDDO(ddo: Record<string, any>): Promise<boolean> {
+    if (ddo.nft?.state !== 0) {
+      // Skipping validation for short DDOs as it currently doesn't work
+      // TODO: DDO validation needs to be updated to consider the fields required by the schema
+      // See github issue: https://github.com/oceanprotocol/ocean-node/issues/256
+      return true
+    } else {
+      const validation = await validateObject(ddo, ddo.chainId, ddo.nftAddress)
+      if (validation[0] === true) {
+        DATABASE_LOGGER.logMessageWithEmoji(
+          `Validation of DDO with did: ${ddo.id} has passed`,
+          true,
+          GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
+          LOG_LEVELS_STR.LEVEL_INFO
+        )
+        return true
+      } else {
+        DATABASE_LOGGER.logMessageWithEmoji(
+          `Validation of DDO with schema version ${ddo.version} failed with errors: ` +
+            JSON.stringify(validation[1]),
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEL_ERROR
+        )
+        return false
+      }
+    }
+  }
+
   async search(query: Record<string, any>) {
     try {
       const results = []
@@ -195,11 +247,20 @@ export class DdoDatabase {
   }
 
   async create(ddo: Record<string, any>) {
+    const schema = this.getDDOSchema(ddo)
+    if (!schema) {
+      throw new Error(`Schema for version ${ddo.version} not found`)
+    }
     try {
-      return await this.provider
-        .collections(this.schemas[0].name)
-        .documents()
-        .create({ ...ddo })
+      const validation = await this.validateDDO(ddo)
+      if (validation === true) {
+        return await this.provider
+          .collections(schema.name)
+          .documents()
+          .create({ ...ddo })
+      } else {
+        throw new Error(`Validation of DDO with schema version ${ddo.version} failed`)
+      }
     } catch (error) {
       const errorMsg = `Error when creating DDO entry ${ddo.id}: ` + error.message
       DATABASE_LOGGER.logMessageWithEmoji(
@@ -212,36 +273,64 @@ export class DdoDatabase {
     }
   }
 
-  async retrieve(id: string) {
-    try {
-      return await this.provider
-        .collections(this.schemas[0].name)
-        .documents()
-        .retrieve(id)
-    } catch (error) {
-      const errorMsg = `Error when retrieving DDO entry ${id}: ` + error.message
+  async retrieve(id: string): Promise<any> {
+    let ddo = null
+    for (const schema of this.schemas) {
+      try {
+        ddo = await this.provider.collections(schema.name).documents().retrieve(id)
+        if (ddo) {
+          break
+        }
+      } catch (error) {
+        if (!(error instanceof TypesenseError && error.httpStatus === 404)) {
+          // Log error other than not found
+          DATABASE_LOGGER.logMessageWithEmoji(
+            `Error when retrieving DDO entry ${id} from schema ${schema.name}: ` +
+              error.message,
+            true,
+            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+            LOG_LEVELS_STR.LEVEL_ERROR
+          )
+        }
+      }
+    }
+
+    if (!ddo) {
       DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
+        `DDO entry with ID ${id} not found in any schema.`,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
-      return null
     }
+
+    return ddo
   }
 
   async update(ddo: Record<string, any>) {
+    const schema = this.getDDOSchema(ddo)
+    if (!schema) {
+      throw new Error(`Schema for version ${ddo.version} not found`)
+    }
     try {
-      return await this.provider
-        .collections(this.schemas[0].name)
-        .documents()
-        .update(ddo.id, ddo)
+      const validation = await this.validateDDO(ddo)
+      if (validation === true) {
+        return await this.provider
+          .collections(schema.name)
+          .documents()
+          .update(ddo.id, ddo)
+      } else {
+        throw new Error(
+          `Validation of DDO with schema version ${ddo.version} failed with errors`
+        )
+      }
     } catch (error) {
       if (error instanceof TypesenseError && error.httpStatus === 404) {
-        return await this.provider
-          .collections(this.schemas[0].name)
-          .documents()
-          .create({ ...ddo })
+        // No DDO was found to update so we will create a new one.
+        // First we must delete the old version if it exist in another collection
+        await this.delete(ddo.id)
+
+        return await this.create(ddo)
       }
       const errorMsg = `Error when updating DDO entry ${ddo.id}: ` + error.message
       DATABASE_LOGGER.logMessageWithEmoji(
@@ -255,17 +344,38 @@ export class DdoDatabase {
   }
 
   async delete(did: string) {
-    try {
-      return await this.provider.collections(this.schemas[0].name).documents().delete(did)
-    } catch (error) {
-      const errorMsg = `Error when deleting DDO entry ${did}: ` + error.message
+    let isDeleted = false
+    for (const schema of this.schemas) {
+      try {
+        const response = await this.provider
+          .collections(schema.name)
+          .documents()
+          .delete(did)
+        if (response.id === did) {
+          isDeleted = true
+          return response
+        }
+      } catch (error) {
+        if (!(error instanceof TypesenseError && error.httpStatus === 404)) {
+          // Log error other than not found
+          DATABASE_LOGGER.logMessageWithEmoji(
+            `Error when deleting DDO entry ${did} from schema ${schema.name}: ` +
+              error.message,
+            true,
+            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+            LOG_LEVELS_STR.LEVEL_ERROR
+          )
+        }
+      }
+    }
+
+    if (!isDeleted) {
       DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
+        `DDO entry with ID ${did} not found in any schema or could not be deleted.`,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
-      return null
     }
   }
 }

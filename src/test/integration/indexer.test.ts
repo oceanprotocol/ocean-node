@@ -380,7 +380,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   delay(30000)
 
-  it('should have a short version of ddo', async () => {
+  it('Deprecated asset should have a short version of ddo', async () => {
     const result = await nftContract.getMetaData()
     expect(parseInt(result[2].toString())).to.equal(2)
     const resolvedDDO = await waitToIndex(assetDID, database)
