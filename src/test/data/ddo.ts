@@ -187,3 +187,18 @@ export const ddov5 = {
     links: ['http://data.ceda.ac.uk/badc/ukcp09/']
   }
 }
+
+export const remoteDDOTypeURLNotEncrypted = {
+    remote:  {
+        type: 'url',
+        url: '',
+        method: 'GET'
+    }
+};
+
+export const remoteDDOTypeIPFSNotEncrypted = {
+  remote:  {
+    type: 'ipfs',
+    hash: ''
+  }
+};
