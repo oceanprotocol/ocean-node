@@ -157,39 +157,9 @@ export async function validateObject(
   return [report.conforms, errors]
 }
 
-/**
- * TODO double check this, not sure if is correct
- * TODO create a ValidationSignature type for the response
- * @param raw DDO
- * @returns hash
- */
-export async function getValidationSignature(rawDDO: string): Promise<any> {
-  let values = {}
+export async function getValidationSignature(ddo: string): Promise<any> {
   try {
-    const hashedRaw = create256Hash(rawDDO)
-    const wallet = new ethers.Wallet(process.env.PRIVATE_KEY)
-
-    const message = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(hashedRaw))]
-    )
-    const signed = await wallet.signMessage(message)
-    const signatureSplitted = ethers.Signature.from(signed)
-    const v = signatureSplitted.v <= 1 ? signatureSplitted.v + 27 : signatureSplitted.v
-    const r = ethers.hexlify(signatureSplitted.r) // 32 bytes
-    const s = ethers.hexlify(signatureSplitted.s)
-
-    values = { hash: hashedRaw, publicKey: wallet.address, r, s, v }
-  } catch (error) {
-    console.error(error)
-    values = { hash: '', publicKey: '', r: '', s: '', v: '' }
-  }
-  return values
-}
-
-export async function getValidationSignature(ddo: any): Promise<any> {
-  try {
-    const hashedDDO = create256Hash(JSON.stringify(ddo))
+    const hashedDDO = create256Hash(ddo)
     const providerWallet = await getProviderWallet()
     const messageHash = ethers.solidityPackedKeccak256(
       ['bytes'],

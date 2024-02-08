@@ -99,7 +99,7 @@ function getAuthorizedDecrypters(): string[] {
   }
 }
 
-function getAllowedValidators(): string[] {
+export function getAllowedValidators(): string[] {
   try {
     const allowedValidators: string[] = JSON.parse(process.env.ALLOWED_VALIDATORS)
     if (!Array.isArray(allowedValidators)) {

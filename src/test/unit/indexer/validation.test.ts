@@ -98,7 +98,9 @@ describe('Schema validation tests', async () => {
     )
     expect(validationResult[0]).to.eql(true)
     expect(validationResult[1]).to.eql({})
-    const signatureResult = await getValidationSignature(ddoValidationSignature)
+    const signatureResult = await getValidationSignature(
+      JSON.stringify(ddoValidationSignature)
+    )
     expect(signatureResult).to.eql({
       hash: '0xa291d25eb3dd0c8487dc2d55baa629184e7b668ed1c579198a434eca9c663ac4',
       publicKey: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260',
