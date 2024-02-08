@@ -66,6 +66,7 @@ export async function calculateComputeProviderFee(
   CORE_LOGGER.logMessage(`validUntil: ${validUntilDateTime}`)
   const seconds: number = (now - validUntilDateTime) / 1000
   CORE_LOGGER.logMessage(`seconds: ${seconds}`)
+  CORE_LOGGER.logMessage(`computeEnv: ${computeEnv}`)
   const env = await getEnv(asset, computeEnv)
   CORE_LOGGER.logMessage(`env from calculate: ${JSON.stringify(env)}`)
 
@@ -78,6 +79,7 @@ export async function calculateComputeProviderFee(
     dt: service.datatokenAddress,
     id: service.id
   }
+  CORE_LOGGER.logMessage(`providerData: ${providerData}`)
   const providerWallet = await getProviderWallet(String(asset.chainId))
   const providerFeeAddress: string = providerWallet.address
   let providerFeeAmount: number = null
