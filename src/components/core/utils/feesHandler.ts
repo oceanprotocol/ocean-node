@@ -78,7 +78,7 @@ export async function calculateComputeProviderFee(
   const providerWallet = await getProviderWallet(String(asset.chainId))
   const providerFeeAddress: string = providerWallet.address
   let providerFeeAmount: number = null
-  let providerFeeAmountFormatted: bigint = null
+  let providerFeeAmountFormatted: BigInt = null
 
   const providerFeeToken: string = await getProviderFeeToken(asset.chainId)
   if (providerFeeToken === '0x0000000000000000000000000000000000000000') {
