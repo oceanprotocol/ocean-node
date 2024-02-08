@@ -41,33 +41,43 @@ export interface BigDecimal {
   decimals: number
 }
 
-export function manualParseUnits(amount: string, decimals: number): BigDecimal {
-  let [integer, fraction = ''] = amount.split('.')
+export function manualParseUnits(amount: string, decimals: number): BigInt {
+  const [integerPart, fractionalPart] = amount.split('.')
 
-  const negative = integer.startsWith('-')
-  if (negative) {
-    integer = integer.slice(1)
-  }
+  // Ensure the fractional part is padded with zeros up to the desired decimals
+  const paddedFractionalPart = fractionalPart.padEnd(decimals, '0').slice(0, decimals)
 
-  // If the fraction is longer than allowed, round it off
-  if (fraction.length > decimals) {
-    const unitIndex = decimals
-    const unit = Number(fraction[unitIndex])
+  // Combine the integer and padded fractional parts
+  const formattedAmount = integerPart + paddedFractionalPart
 
-    if (unit >= 5) {
-      const fractionBigInt = BigInt(fraction.slice(0, decimals)) + 1n
-      fraction = fractionBigInt.toString().padStart(decimals, '0')
-    } else {
-      fraction = fraction.slice(0, decimals)
-    }
-  } else {
-    fraction = fraction.padEnd(decimals, '0')
-  }
+  // Return the formatted amount as a BigInt
+  return BigInt(formattedAmount)
+  // let [integer, fraction = ''] = amount.split('.')
 
-  const parsedValue = BigInt(`${negative ? '-' : ''}${integer}${fraction}`)
+  // const negative = integer.startsWith('-')
+  // if (negative) {
+  //   integer = integer.slice(1)
+  // }
 
-  return {
-    value: parsedValue,
-    decimals
-  }
+  // // If the fraction is longer than allowed, round it off
+  // if (fraction.length > decimals) {
+  //   const unitIndex = decimals
+  //   const unit = Number(fraction[unitIndex])
+
+  //   if (unit >= 5) {
+  //     const fractionBigInt = BigInt(fraction.slice(0, decimals)) + 1n
+  //     fraction = fractionBigInt.toString().padStart(decimals, '0')
+  //   } else {
+  //     fraction = fraction.slice(0, decimals)
+  //   }
+  // } else {
+  //   fraction = fraction.padEnd(decimals, '0')
+  // }
+
+  // const parsedValue = BigInt(`${negative ? '-' : ''}${integer}${fraction}`)
+
+  // return {
+  //   value: parsedValue,
+  //   decimals
+  // }
 }

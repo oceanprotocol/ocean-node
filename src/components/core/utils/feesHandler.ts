@@ -102,10 +102,7 @@ export async function calculateComputeProviderFee(
         env.priceMin
       }\n amount: ${providerFeeAmount.toString()}\n decimals: ${decimals}`
     )
-    providerFeeAmountFormatted = manualParseUnits(
-      providerFeeAmount.toString(),
-      decimals
-    ).value
+    providerFeeAmountFormatted = manualParseUnits(providerFeeAmount.toString(), decimals)
   }
   env.feeToken = providerFeeToken
 
