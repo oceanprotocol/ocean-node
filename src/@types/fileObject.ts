@@ -36,7 +36,7 @@ export interface FileInfoResponse {
   valid: boolean
   contentLength: string
   contentType: string
-  contentChecksum: string
+  contentChecksum?: string
   name: string
   type: string
 }

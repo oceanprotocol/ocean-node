@@ -33,11 +33,11 @@ export interface ConsumerParameter {
    * Field default value. For select types, string key of default option.
    * @type {string}
    */
-  default: string
+  default: string | boolean | number
 
   /**
    * For select types, a list of options.
    * @type {string}
    */
-  options?: string
+  options?: Array<Record<any, any>>
 }

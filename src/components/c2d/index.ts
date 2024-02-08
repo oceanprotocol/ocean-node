@@ -9,6 +9,7 @@ import { GetEnvironmentsHandler } from '../core/compute.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { streamToObject } from '../../utils/util.js'
 import { Readable } from 'stream'
+import { ConsumerParameter } from '../../@types/DDO/ConsumerParameter.js'
 
 export async function checkEnvironmentExists(envId: string, oceanNode: OceanNode) {
   const config = await getConfiguration()
@@ -156,13 +157,18 @@ function checkNumber(value: any) {
   return typeof value === 'number' || value instanceof Number
 }
 
-export function validateConsumerParameters(consumerParameters: any) {
+export function validateConsumerParameters(consumerParameters: ConsumerParameter[]) {
   const validation = {
     valid: true,
     message: ''
   }
   try {
     for (const consumerParameter of consumerParameters) {
+      for (const key of ['name', 'type', 'label', 'required', 'description', 'default']) {
+        if (consumerParameter[key as keyof ConsumerParameter] === undefined) {
+          throw new Error(`${key} parameter is required`)
+        }
+      }
       if (!checkString(consumerParameter.name)) {
         throw new Error("value of 'name' parameter is not a string")
       }

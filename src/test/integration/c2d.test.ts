@@ -31,6 +31,7 @@ import { Readable } from 'stream'
 import { UrlFileObject } from '../../@types/fileObject.js'
 import { FileInfoHandler } from '../../components/core/fileInfoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
+import { ConsumerParameter } from '../../@types/DDO/ConsumerParameter'
 
 describe('C2D functions', async () => {
   let config: OceanNodeConfig
@@ -261,8 +262,6 @@ describe('C2D functions', async () => {
     assert(txReceipt, 'set metadata failed')
   })
 
-  delay(50000)
-
   it('should getAlgoChecksums', async () => {
     const algoDDOTest = await waitToIndex(algoDDO.id, database)
     const algoChecksums = await getAlgoChecksums(
@@ -297,7 +296,7 @@ describe('C2D functions', async () => {
   })
 
   it('should validateConsumerParameters', async () => {
-    const consumerParameters = [
+    const consumerParameters: ConsumerParameter[] = [
       {
         name: 'hometown',
         type: 'text',
