@@ -165,7 +165,14 @@ export const processChunkLogs = async (
               'MetadataValidated',
               new Interface(ERC20Template.abi)
             )
-            console.log('metadataProofs', metadataProofs)
+            if (!metadataProofs) {
+              INDEXER_LOGGER.log(
+                LOG_LEVELS_STR.LEVEL_ERROR,
+                `Metadata Proof validator not allowed`,
+                true
+              )
+              continue
+            }
             const validators = metadataProofs.map((metadataProof) =>
               getAddress(metadataProof.args[0].toString())
             )
