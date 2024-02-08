@@ -194,6 +194,9 @@ describe('Compute provider fees', async () => {
     assert(providerFees.providerFeeAmount === 0n) // for this env, price min is 0
     assert(providerFees.providerFeeToken === oceanToken)
 
+    assert(envs[1].id === 'ocean-compute-env2')
+    assert(envs[1].priceMin === '1.2')
+
     const paidProviderFees = await calculateComputeProviderFee(
       resolvedDDO as DDO,
       0,
