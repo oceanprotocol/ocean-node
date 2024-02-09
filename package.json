@@ -1,8 +1,14 @@
 {
-  "name": "nodes-play",
+  "name": "Ocean-Node",
   "version": "1.0.0",
-  "description": "",
+  "description": "Ocean Node is used to run all core services in the Ocean stack",
+  "author": "Ocean Protocol Foundation",
+  "license": "Apache-2.0",
+  "type": "module",
   "main": "index.js",
+  "bugs": {
+    "url": "https://github.com/oceanprotocol/ocean-node/issues"
+  },
   "scripts": {
     "build": "npm run clean && npm run build:tsc",
     "build:swagger": "tsoa spec",
@@ -26,9 +32,6 @@
     "test:integration:cover": "nyc --report-dir coverage/integration --no-clean npm run test:integration",
     "logs": "./scripts/logs.sh"
   },
-  "author": "",
-  "type": "module",
-  "license": "ISC",
   "dependencies": {
     "@chainsafe/libp2p-gossipsub": "^11.0.1",
     "@chainsafe/libp2p-noise": "^14.1.0",
