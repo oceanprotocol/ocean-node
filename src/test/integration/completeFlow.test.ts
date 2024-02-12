@@ -372,8 +372,8 @@ describe('Should run a complete node flow.', () => {
   it('should download triger download file', async function () {
     this.timeout(65000)
 
-    const config = await getConfiguration(true)
-    database = await new Database(config.dbConfig)
+    // const config = await getConfiguration(true)
+    // database = await new Database(config.dbConfig)
     const oceanNode = OceanNode.getInstance(database)
     assert(oceanNode, 'Failed to instantiate OceanNode')
 

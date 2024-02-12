@@ -57,6 +57,7 @@ export async function validateOrderTransaction(
       message: errorMsg
     }
   }
+  CORE_LOGGER.logMessage(`tx receipt #1: ${txReceiptMined}`)
 
   if (userAddress.toLowerCase() !== txReceiptMined.from.toLowerCase()) {
     return {
@@ -82,6 +83,7 @@ export async function validateOrderTransaction(
         message: errorMsg
       }
     }
+    CORE_LOGGER.logMessage(`tx receipt #2: ${txReceiptMined}`)
   }
 
   const OrderStartedEvent = fetchEventFromTransaction(
