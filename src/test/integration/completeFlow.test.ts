@@ -8,7 +8,8 @@ import {
   getAddress,
   hexlify,
   ZeroAddress,
-  parseUnits
+  parseUnits,
+  MaxUint256
 } from 'ethers'
 import fs from 'fs'
 import { homedir } from 'os'
@@ -327,10 +328,7 @@ describe('Should run a complete node flow.', () => {
       )
 
       // call the mint function on the dataTokenContract
-      const approveTx = await dataTokenContract.approve(
-        consumerAddress,
-        parseUnits('1000', 18)
-      )
+      const approveTx = await dataTokenContract.approve(datatokenAddress, MaxUint256)
       await approveTx.wait()
       const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
       await mintTx.wait()
@@ -371,9 +369,6 @@ describe('Should run a complete node flow.', () => {
 
   it('should download triger download file', async function () {
     this.timeout(65000)
-
-    // const config = await getConfiguration(true)
-    // database = await new Database(config.dbConfig)
     const oceanNode = OceanNode.getInstance(database)
     assert(oceanNode, 'Failed to instantiate OceanNode')
 
