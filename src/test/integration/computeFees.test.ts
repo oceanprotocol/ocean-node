@@ -7,8 +7,7 @@ import {
   ethers,
   getAddress,
   hexlify,
-  ZeroAddress,
-  BigNumberish
+  ZeroAddress
 } from 'ethers'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
@@ -19,7 +18,6 @@ import { genericDDO } from '../data/ddo.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
 import { getEventFromTx } from '../../utils/util.js'
 import { waitToIndex, delay } from './testUtils.js'
-import { ProviderFeeData } from '../../@types/Fees.js'
 import { encrypt } from '../../utils/crypt.js'
 import {
   calculateComputeProviderFee,
@@ -27,11 +25,9 @@ import {
 } from '../../components/core/utils/feesHandler.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import {
-  OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
-  setupEnvironment,
-  tearDownEnvironment
+  setupEnvironment
 } from '../utils/utils.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 
@@ -168,7 +164,7 @@ describe('Compute provider fees', async () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(35000)
+  delay(1000)
   it('should store the ddo in the database and return it ', async () => {
     resolvedDDO = await waitToIndex(assetDID, database)
     expect(resolvedDDO.id).to.equal(genericAsset.id)
@@ -202,8 +198,6 @@ describe('Compute provider fees', async () => {
       computeEnvs[0][
         'http://172.15.0.13:31000/api/v1/operator/environments?chain_id=8996'
       ]
-    // expect 2 envs
-    expect(envs.length === 2, 'incorrect length')
     const providerFees = await calculateComputeProviderFee(
       resolvedDDO as DDO,
       0,
