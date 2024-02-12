@@ -187,6 +187,7 @@ describe('Compute provider fees', async () => {
       provider
     )
     assert(providerFees, 'provider fees were not fetched')
+    console.log('provider fees', providerFees)
     assert(providerFees.providerFeeToken === oceanToken)
     assert(providerFees.providerFeeAmount, 'provider fee amount is not fetched')
   })
