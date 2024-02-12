@@ -116,11 +116,6 @@ export async function calculateComputeProviderFee(
     )
 
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
-
-    // formatUnits(
-    //   BigInt(Math.round(providerFeeAmount).toString(10)),
-    //   decimals
-    // )
     CORE_LOGGER.logMessage(`provider fee amount: ${providerFeeAmountFormatted}`)
   }
   env.feeToken = providerFeeToken
@@ -131,7 +126,7 @@ export async function calculateComputeProviderFee(
       ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(providerData))),
       ethers.getAddress(providerFeeAddress),
       ethers.getAddress(providerFeeToken),
-      providerFeeAmount,
+      providerFeeAmountFormatted,
       validUntil
     ]
   )
