@@ -18,12 +18,17 @@ async function fetchTransactionReceipt(
 ): Promise<TransactionReceipt> {
   while (retries > 0) {
     try {
+      CORE_LOGGER.logMessage(`fetching tx hash retry ${retries}....`)
       const txReceipt = await provider.getTransactionReceipt(txId)
+      CORE_LOGGER.logMessage(`txReceipt: ${txReceipt}`)
       if (txReceipt) {
         return txReceipt
       }
+      CORE_LOGGER.logMessage(`txReceipt not found #${retries}: ${txReceipt}`)
       await sleep(30000)
+      CORE_LOGGER.logMessage(`waited already #${retries}: ${txReceipt}`)
       retries--
+      CORE_LOGGER.logMessage(`decreased no of retries #${retries}`)
     } catch (error) {
       const errorMsg = `Error fetching transaction receipt: ${error}`
       CORE_LOGGER.logMessage(errorMsg)
