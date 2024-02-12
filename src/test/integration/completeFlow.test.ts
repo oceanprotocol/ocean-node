@@ -321,8 +321,6 @@ describe('Should run a complete node flow.', () => {
       )
 
       // call the mint function on the dataTokenContract
-      const approveTx = await dataTokenContract.approve(datatokenAddress, MaxUint256)
-      await approveTx.wait()
       const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
       await mintTx.wait()
       const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)

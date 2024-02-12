@@ -26,7 +26,7 @@ async function fetchTransactionReceipt(
         txReceiptMined = txReceipt
         return txReceiptMined
       } else {
-        await delay(3000)
+        await delay(30000)
         retries--
       }
     } catch (error) {
