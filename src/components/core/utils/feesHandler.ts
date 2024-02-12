@@ -1,4 +1,4 @@
-import { JsonRpcApiProvider, ethers, Contract, formatUnits } from 'ethers'
+import { JsonRpcApiProvider, ethers, Contract, formatUnits, BigNumberish } from 'ethers'
 import { FeeTokens, ProviderFeeData } from '../../../@types/Fees'
 import { DDO } from '../../../@types/DDO/DDO'
 import { Service } from '../../../@types/DDO/Service'
@@ -83,7 +83,7 @@ export async function calculateComputeProviderFee(
   const providerWallet = await getProviderWallet(String(asset.chainId))
   const providerFeeAddress: string = providerWallet.address
   let providerFeeAmount: number = null
-  let providerFeeAmountFormatted: BigNumber = null
+  let providerFeeAmountFormatted: BigInt
 
   const providerFeeToken: string = await getProviderFeeToken(asset.chainId)
   if (providerFeeToken === '0x0000000000000000000000000000000000000000') {
@@ -107,7 +107,10 @@ export async function calculateComputeProviderFee(
         env.priceMin
       }\n amount: ${providerFeeAmount.toString()}\n decimals: ${decimals}`
     )
-    providerFeeAmountFormatted = new BigNumber(providerFeeAmount.toString(10), decimals)
+
+    providerFeeAmountFormatted = BigInt(
+      formatUnits(BigInt(providerFeeAmount.toString(10)), decimals)
+    )
   }
   env.feeToken = providerFeeToken
 
