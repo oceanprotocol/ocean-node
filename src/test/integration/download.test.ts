@@ -61,7 +61,7 @@ describe('Download Tests', () => {
   let feeTx: string
   let feeData: ProviderFeeData | undefined
 
-  const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
+  const feeToken = getOceanArtifactsAdressesByChainId(chainId).Ocean
   const serviceId = '0' // dummy index
   const consumeMarketFeeAddress = ZeroAddress // marketplace fee Collector
   const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
