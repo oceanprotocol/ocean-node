@@ -70,12 +70,8 @@ export async function calculateComputeProviderFee(
   const now = new Date().getTime()
   CORE_LOGGER.logMessage(`now: ${now}`)
   const validUntilDateTime = new Date(validUntil).getTime()
-  CORE_LOGGER.logMessage(`validUntil: ${validUntilDateTime}`)
   const seconds: number = (now - validUntilDateTime) / 1000
-  CORE_LOGGER.logMessage(`seconds: ${seconds}`)
-  CORE_LOGGER.logMessage(`computeEnv: ${computeEnv}`)
   const env = await getEnv(asset, computeEnv)
-  CORE_LOGGER.logMessage(`env from calculate: ${JSON.stringify(env)}`)
 
   if (!env) {
     CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Env could not be found.`, true)
@@ -109,11 +105,6 @@ export async function calculateComputeProviderFee(
     )
     providerFeeAmount = (seconds * parseFloat(env.priceMin)) / 60
     const decimals = await datatokenContract.decimals()
-    CORE_LOGGER.logMessage(
-      `price min: ${
-        env.priceMin
-      }\n amount: ${providerFeeAmount.toString()}\n decimals: ${decimals}`
-    )
 
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
     CORE_LOGGER.logMessage(`provider fee amount: ${providerFeeAmountFormatted}`)
@@ -131,13 +122,11 @@ export async function calculateComputeProviderFee(
     ]
   )
 
-  CORE_LOGGER.logMessage(`messageHash: ${messageHash}`)
-
   const signed32Bytes = await providerWallet.signMessage(
     new Uint8Array(ethers.toBeArray(messageHash))
   ) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
   // OR just ethCrypto.sign(pk, signable_hash)
-  CORE_LOGGER.logMessage(`signed32Bytes: ${signed32Bytes}`)
+
   // *** NOTE: provider.py ***
   // signed = keys.ecdsa_sign(message_hash=signable_hash, private_key=pk)
 
@@ -151,7 +140,6 @@ export async function calculateComputeProviderFee(
   //     signed32Bytes
   //   )
   // )
-  CORE_LOGGER.logMessage(`signatureSplitted: ${signatureSplitted}`)
 
   // # make it compatible with last openzepellin https://github.com/OpenZeppelin/openzeppelin-contracts/pull/1622
   const v = signatureSplitted.v <= 1 ? signatureSplitted.v + 27 : signatureSplitted.v
@@ -161,7 +149,7 @@ export async function calculateComputeProviderFee(
   const providerFee: ProviderFeeData = {
     providerFeeAddress: ethers.getAddress(providerFeeAddress),
     providerFeeToken: ethers.getAddress(providerFeeToken),
-    providerFeeAmount: providerFeeAmountFormatted.toString(10),
+    providerFeeAmount: providerFeeAmountFormatted,
     providerData: ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(providerData))),
     v,
     r, // 32 bytes => get it back: Buffer.from(providerFee.r).toString('hex'))
