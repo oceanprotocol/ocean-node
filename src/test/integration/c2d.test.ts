@@ -25,13 +25,24 @@ import { encrypt } from '../../utils/crypt.js'
 import { delay, waitToIndex } from './testUtils.js'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
-import { getConfiguration, PROTOCOL_COMMANDS } from '../../utils/index.js'
+import {
+  ENVIRONMENT_VARIABLES,
+  getConfiguration,
+  PROTOCOL_COMMANDS
+} from '../../utils/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
 import { UrlFileObject } from '../../@types/fileObject.js'
 import { FileInfoHandler } from '../../components/core/fileInfoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { ConsumerParameter } from '../../@types/DDO/ConsumerParameter'
+import {
+  OverrideEnvConfig,
+  buildEnvOverrideConfig,
+  getMockSupportedNetworks,
+  setupEnvironment,
+  tearDownEnvironment
+} from '../utils/utils.js'
 
 describe('C2D functions', async () => {
   let config: OceanNodeConfig
@@ -46,14 +57,9 @@ describe('C2D functions', async () => {
   let datasetDDO: any
 
   const chainId = 8996
-  const mockSupportedNetworks: RPCS = {
-    '8996': {
-      chainId: 8996,
-      network: 'development',
-      rpc: 'http://127.0.0.1:8545',
-      chunkSize: 100
-    }
-  }
+  const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+
+  let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
     const artifactsAddresses = getOceanArtifactsAdresses()
@@ -67,15 +73,26 @@ describe('C2D functions', async () => {
       ERC721Factory.abi,
       publisherAccount
     )
-    process.env.PRIVATE_KEY =
-      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
-    process.env.RPCS = JSON.stringify(mockSupportedNetworks)
-    process.env.AUTHORIZED_DECRYPTERS = JSON.stringify([publisherAddress])
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
-    }
+    // override and save configuration (always before calling getConfig())
+    previousConfiguration = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig(
+        [
+          ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+          ENVIRONMENT_VARIABLES.DB_URL,
+          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS
+        ],
+        [
+          JSON.stringify(mockSupportedNetworks),
+          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+          'http://localhost:8108/?apiKey=xyz',
+          JSON.stringify([publisherAddress])
+        ]
+      )
+    )
     config = await getConfiguration(true)
-    database = await new Database(dbConfig)
+    database = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(database)
     indexer = new OceanIndexer(database, mockSupportedNetworks)
   })
@@ -346,5 +363,9 @@ describe('C2D functions', async () => {
     const envId = '0x123'
     const result = await checkEnvironmentExists(envId, oceanNode)
     expect(result).to.equal(false)
+  })
+
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
   })
 })
