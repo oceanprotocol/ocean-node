@@ -51,7 +51,7 @@ export async function validateOrderTransaction(
   const contractInterface = new Interface(ERC20Template.abi)
   let txReceiptMined = await fetchTransactionReceipt(txId, provider)
 
-  if (txReceiptMined) {
+  if (!txReceiptMined) {
     const errorMsg = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
     CORE_LOGGER.logMessage(errorMsg)
     return {
@@ -59,7 +59,6 @@ export async function validateOrderTransaction(
       message: errorMsg
     }
   }
-  CORE_LOGGER.logMessage(`tx receipt #1: ${txReceiptMined}`)
 
   if (userAddress.toLowerCase() !== txReceiptMined.from.toLowerCase()) {
     return {
