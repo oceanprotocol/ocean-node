@@ -21,10 +21,6 @@ export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
     for (const cluster of clustersURLS) {
       const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
       const { data } = await axios.get(url)
-      INDEXER_LOGGER.logMessage(
-        `env 0: ${JSON.stringify(data[0])} and env 1: ${JSON.stringify(data[1])}`
-      )
-
       envs.push({
         [`${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`]: data
       })
@@ -42,10 +38,8 @@ async function getEnv(asset: DDO, computeEnv: string): Promise<any> {
   for (const cluster of clustersURLS) {
     const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
     const envs = computeEnvs[0][url]
-    CORE_LOGGER.logMessage(`envs from getEnv: ${JSON.stringify(envs)}`)
     for (const env of envs) {
       if (env.id === computeEnv) {
-        CORE_LOGGER.logMessage(`env id: ${env.id}, computeEnv: ${computeEnv}`)
         return env
       }
     }
@@ -60,7 +54,6 @@ export async function calculateComputeProviderFee(
   provider: JsonRpcApiProvider
 ): Promise<ProviderFeeData> | undefined {
   const now = new Date().getTime()
-  CORE_LOGGER.logMessage(`now: ${now}`)
   const validUntilDateTime = new Date(validUntil).getTime()
   const seconds: number = (now - validUntilDateTime) / 1000
   const env = await getEnv(asset, computeEnv)
@@ -74,7 +67,6 @@ export async function calculateComputeProviderFee(
     dt: service.datatokenAddress,
     id: service.id
   }
-  CORE_LOGGER.logMessage(`providerData: ${providerData}`)
   const providerWallet = await getProviderWallet(String(asset.chainId))
   const providerFeeAddress: string = providerWallet.address
   let providerFeeAmount: number = null
@@ -99,7 +91,6 @@ export async function calculateComputeProviderFee(
     const decimals = await datatokenContract.decimals()
 
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
-    CORE_LOGGER.logMessage(`provider fee amount: ${providerFeeAmountFormatted}`)
   }
   env.feeToken = providerFeeToken
 
