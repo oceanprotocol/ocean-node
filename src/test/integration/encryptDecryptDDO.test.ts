@@ -11,7 +11,11 @@ import { assert, expect } from 'chai'
 import { getEventFromTx, streamToString } from '../../utils/util.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import { RPCS } from '../../@types/blockchain.js'
-import { getOceanArtifactsAdresses } from '../../utils/address.js'
+import {
+  DEVELOPMENT_CHAIN_ID,
+  getOceanArtifactsAdresses,
+  getOceanArtifactsAdressesByChainId
+} from '../../utils/address.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { genericDDO } from '../data/ddo.js'
 import { createHash } from 'crypto'
@@ -60,13 +64,17 @@ describe('Should encrypt and decrypt DDO', () => {
   let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
-    const artifactsAddresses = getOceanArtifactsAdresses()
+    let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+    if (!artifactsAddresses) {
+      artifactsAddresses = getOceanArtifactsAdresses().development
+    }
+
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
     publisherAddress = await publisherAccount.getAddress()
     genericAsset = genericDDO
     factoryContract = new ethers.Contract(
-      artifactsAddresses.development.ERC721Factory,
+      artifactsAddresses.ERC721Factory,
       ERC721Factory.abi,
       publisherAccount
     )
@@ -139,8 +147,8 @@ describe('Should encrypt and decrypt DDO', () => {
     genericAsset.nftAddress = dataNftAddress
     genericAsset.services[0].datatokenAddress = datatokenAddress
 
-    const metadata = hexlify(Buffer.from(JSON.stringify(genericAsset)))
-    documentHash = '0x' + createHash('sha256').update(metadata).digest('hex')
+    documentHash =
+      '0x' + createHash('sha256').update(JSON.stringify(genericAsset)).digest('hex')
 
     const genericAssetData = Uint8Array.from(Buffer.from(JSON.stringify(genericAsset)))
     const encryptedData = await encrypt(genericAssetData, 'ECIES')
@@ -275,6 +283,7 @@ describe('Should encrypt and decrypt DDO', () => {
       transactionId: txReceiptEncryptDDO.hash,
       dataNftAddress,
       nonce: Date.now().toString(),
+      documentHash,
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)

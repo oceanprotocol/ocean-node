@@ -1,6 +1,7 @@
 import { Database } from '../../components/database/index.js'
 import { expect, assert } from 'chai'
 import {
+  configureCustomDBTransport,
   CustomNodeLogger,
   CustomOceanNodesTransport,
   getCustomLoggerForModule,
@@ -25,10 +26,9 @@ describe('LogDatabase CRUD', () => {
     }
     database = await new Database(dbConfig)
     // Initialize logger with the custom transport that writes to the LogDatabase
-    const customLogTransport = new CustomOceanNodesTransport({ dbInstance: database })
 
     logger = await getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP)
-    logger.addTransport(customLogTransport)
+    configureCustomDBTransport(database, logger)
   })
 
   it('insert log', async () => {
