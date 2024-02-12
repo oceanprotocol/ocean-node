@@ -9,26 +9,21 @@ interface ValidateTransactionResponse {
   message: string
 }
 
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 async function fetchTransactionReceipt(
   txId: string,
   provider: JsonRpcProvider,
   retries: number = 3
 ): Promise<TransactionReceipt> {
-  let txReceiptMined
   while (retries > 0) {
     try {
       const txReceipt = await provider.getTransactionReceipt(txId)
       if (txReceipt) {
-        txReceiptMined = txReceipt
-        return txReceiptMined
-      } else {
-        await delay(30000)
-        retries--
+        return txReceipt
       }
+      await sleep(30000)
+      retries--
     } catch (error) {
       const errorMsg = `Error fetching transaction receipt: ${error}`
       CORE_LOGGER.logMessage(errorMsg)
