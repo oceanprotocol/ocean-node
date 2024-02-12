@@ -1,11 +1,4 @@
-import {
-  JsonRpcApiProvider,
-  ethers,
-  Contract,
-  formatUnits,
-  BigNumberish,
-  parseUnits
-} from 'ethers'
+import { JsonRpcApiProvider, ethers, Contract, BigNumberish, parseUnits } from 'ethers'
 import { FeeTokens, ProviderFeeData } from '../../../@types/Fees'
 import { DDO } from '../../../@types/DDO/DDO'
 import { Service } from '../../../@types/DDO/Service'
@@ -17,7 +10,6 @@ import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { findEventByKey } from '../../Indexer/utils.js'
 import axios from 'axios'
 import { getOceanArtifactsAdresses } from '../../../utils/address.js'
-import { BigNumber } from 'bignumber.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 
 export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {

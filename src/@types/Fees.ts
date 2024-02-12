@@ -1,4 +1,3 @@
-import BigNumber from 'bignumber.js'
 import { BigNumberish } from 'ethers'
 
 export type FeeTokens = {
@@ -19,7 +18,7 @@ export type FeeStrategy = {
 export interface ProviderFeeData {
   providerFeeAddress: string
   providerFeeToken: string
-  providerFeeAmount: number | BigInt | BigNumber | string | BigNumberish
+  providerFeeAmount: number | BigNumberish
   providerData: any
   v: any
   r: any

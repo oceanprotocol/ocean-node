@@ -7,7 +7,8 @@ import {
   ethers,
   getAddress,
   hexlify,
-  ZeroAddress
+  ZeroAddress,
+  BigNumberish
 } from 'ethers'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
@@ -173,7 +174,7 @@ describe('Compute provider fees', async () => {
     expect(resolvedDDO.id).to.equal(genericAsset.id)
   })
 
-  it('should get compute envs', async () => {
+  it('should get provider fees for compute', async () => {
     computeEnvs = await getC2DEnvs(resolvedDDO as DDO)
     assert(computeEnvs, 'compute envs could not be retrieved')
     const envs =
@@ -182,8 +183,6 @@ describe('Compute provider fees', async () => {
       ]
     // expect 2 envs
     expect(envs.length === 2, 'incorrect length')
-    // assert(envs[1].id === 'ocean-compute-env2', 'env id is incorrect')
-    // assert(envs[1].priceMin === '1.2', 'price min is incorrect')
     const providerFees = await calculateComputeProviderFee(
       resolvedDDO as DDO,
       0,
@@ -191,8 +190,9 @@ describe('Compute provider fees', async () => {
       resolvedDDO.services[0],
       provider
     )
-    // assert(providerFees, 'provider fees were not fetched')
+    assert(providerFees, 'provider fees were not fetched')
     console.log('provider fees: ', providerFees)
-    // assert(providerFees.providerFeeToken === oceanToken)
+    assert(providerFees.providerFeeToken === oceanToken)
+    assert(providerFees.providerFeeAmount, 'provider fee amount is not fetched')
   })
 })
