@@ -76,7 +76,7 @@ export async function validateOrderTransaction(
   if (orderReusedEvent && orderReusedEvent?.length > 0) {
     const reusedTxId = orderReusedEvent[0].args[0]
     txReceiptMined = await fetchTransactionReceipt(reusedTxId, provider)
-    if (txReceiptMined) {
+    if (!txReceiptMined) {
       const errorMsg = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
       CORE_LOGGER.logMessage(errorMsg)
       return {
