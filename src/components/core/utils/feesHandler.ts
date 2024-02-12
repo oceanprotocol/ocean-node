@@ -33,11 +33,14 @@ export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
 
 async function getEnv(asset: DDO, computeEnv: string): Promise<any> {
   const computeEnvs = await getC2DEnvs(asset)
+  CORE_LOGGER.logMessage(`compute envs: ${computeEnvs}`)
   const clustersURLS: string[] = JSON.parse(process.env.OPERATOR_SERVICE_URL) as string[]
 
   for (const cluster of clustersURLS) {
     const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
+
     const envs = computeEnvs[0][url]
+    CORE_LOGGER.logMessage(`envs: ${JSON.stringify(envs)}`)
     for (const env of envs) {
       if (env.id === computeEnv) {
         return env
@@ -57,6 +60,7 @@ export async function calculateComputeProviderFee(
   const validUntilDateTime = new Date(validUntil).getTime()
   const seconds: number = (now - validUntilDateTime) / 1000
   const env = await getEnv(asset, computeEnv)
+  CORE_LOGGER.logMessage(`env: ${JSON.stringify(env)}`)
 
   if (!env) {
     CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Env could not be found.`, true)
@@ -73,7 +77,6 @@ export async function calculateComputeProviderFee(
   let providerFeeAmountFormatted: BigNumberish
 
   const providerFeeToken: string = await getProviderFeeTokenByArtifacts(asset.chainId)
-  CORE_LOGGER.logMessage(`provider fee token: ${providerFeeToken}`)
 
   if (providerFeeToken === '0x0000000000000000000000000000000000000000') {
     providerFeeAmount = 0
@@ -90,9 +93,11 @@ export async function calculateComputeProviderFee(
       await provider.getSigner()
     )
     providerFeeAmount = (seconds * parseFloat(env.priceMin)) / 60
+    CORE_LOGGER.logMessage(`provider fee amount: ${providerFeeAmount}`)
     const decimals = await datatokenContract.decimals()
 
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
+    CORE_LOGGER.logMessage(`provider fee amount formatted: ${providerFeeAmountFormatted}`)
   }
   env.feeToken = providerFeeToken
 
