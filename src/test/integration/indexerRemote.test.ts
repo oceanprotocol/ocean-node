@@ -15,10 +15,11 @@ import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { getEventFromTx } from '../../utils/util.js'
-import { delay, waitToIndex, signMessage } from './testUtils.js'
-import { genericDDO } from '../data/ddo.js'
+import {delay, waitToIndex, signMessage, deleteAsset} from './testUtils.js'
+import { genericDDO, remoteDDOTypeIPFSNotEncrypted } from '../data/ddo.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
 import { getMockSupportedNetworks } from '../utils/utils.js'
+
 
 describe('Indexer stores a new metadata events and orders.', () => {
     let database: Database
@@ -62,6 +63,11 @@ describe('Indexer stores a new metadata events and orders.', () => {
         expect(database).to.be.instanceOf(Database)
     })
 
+    // for testing purpose
+    it('delete test asset ', async () => {
+        await deleteAsset('did:op:1', database)
+    })
+
     it('should publish a dataset', async () => {
         const tx = await factoryContract.createNftWithErc20(
             {
@@ -97,14 +103,8 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
     it('should set metadata and save ', async () => {
         nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, publisherAccount)
-        genericAsset.id =
-            'did:op:' +
-            createHash('sha256')
-                .update(getAddress(nftAddress) + chainId.toString(10))
-                .digest('hex')
-        genericAsset.nftAddress = nftAddress
-        assetDID = genericAsset.id
-        const stringDDO = JSON.stringify(genericAsset)
+
+        const stringDDO = JSON.stringify(remoteDDOTypeIPFSNotEncrypted)
         const bytes = Buffer.from(stringDDO)
         const metadata = hexlify(bytes)
         const hash = createHash('sha256').update(metadata).digest('hex')
@@ -120,24 +120,20 @@ describe('Indexer stores a new metadata events and orders.', () => {
         )
         setMetaDataTxReceipt = await setMetaDataTx.wait()
         assert(setMetaDataTxReceipt, 'set metada failed')
-        // for testing purpose
-        genericAsset.event.tx = setMetaDataTxReceipt.transactionHash
-        genericAsset.event.block = setMetaDataTxReceipt.blockNumber
-        genericAsset.event.from = setMetaDataTxReceipt.from
-        genericAsset.event.contract = setMetaDataTxReceipt.contractAddress
-        genericAsset.event.datetime = '2023-02-15T16:42:22'
 
-        genericAsset.nft.address = nftAddress
-        genericAsset.nft.owner = setMetaDataTxReceipt.from
-        genericAsset.nft.state = 0
-        genericAsset.nft.created = '2022-12-30T08:40:43'
     })
 
     delay(30000)
 
     it('should store the ddo in the database and return it ', async () => {
-        resolvedDDO = await waitToIndex(assetDID, database)
-        expect(resolvedDDO.id).to.equal(genericAsset.id)
+        resolvedDDO = await waitToIndex('did:op:1', database)
+        expect(resolvedDDO.id).to.equal('did:op:1')
+    })
+
+    // for testing purpose
+    it('delete asset ', async () => {
+        const deleted = await deleteAsset('did:op:1', database)
+        assert(deleted, 'not deleted')
     })
 
 })

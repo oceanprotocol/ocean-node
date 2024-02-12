@@ -267,16 +267,24 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       )
 
       const decryptedDDO = await this.decryptDDO(
-        decodedEventData.args[2],
-        decodedEventData.args[3],
-        decodedEventData.args[0],
-        event.address,
-        chainId,
-        event.transactionHash,
-        decodedEventData.args[5],
-        decodedEventData.args[4]
+          decodedEventData.args[2],
+          decodedEventData.args[3],
+          decodedEventData.args[0],
+          event.address,
+          chainId,
+          event.transactionHash,
+          decodedEventData.args[5],
+          decodedEventData.args[4]
       )
-      const ddo = await this.processDDO(decryptedDDO)
+      const ddo = await this.processDDO(
+          decryptedDDO,
+          decodedEventData.args[3],
+          decodedEventData.args[0],
+          event.address,
+          chainId,
+          event.transactionHash,
+          decodedEventData.args[5],
+      )
       ddo.datatokens = this.getTokenInfo(ddo.services)
 
       INDEXER_LOGGER.logMessage(
@@ -342,16 +350,47 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     return false
   }
 
-  async processDDO(ddo: any) {
+  isRemoteDDOEncrypted(ddo: any): boolean {
+    if (ddo?.remote?.encryptMethod) {
+      return true
+    }
+
+    return false
+  }
+
+  async processDDO(
+      ddo: any,
+      decryptorURL: string,
+      eventCreator: string,
+      contractAddress: string,
+      chainId: number,
+      txId: string,
+      metadataHash: string
+  ) {
     let response = ddo
 
     if (this.isRemoteDDO(ddo)) {
       INDEXER_LOGGER.logMessage('DDO is remote', true)
+
       const storage = Storage.getStorageClass(ddo.remote)
       const result = await storage.getReadableStream()
 
-      response = JSON.parse(await streamToString(result.stream as Readable))
-      // @todo: check encryption
+      if (this.isRemoteDDOEncrypted(ddo)) {
+        const encryptedDDO = await streamToString(result.stream as Readable)
+
+        return await this.decryptDDO(
+            decryptorURL,
+            '0x02',
+            eventCreator,
+            contractAddress,
+            chainId,
+            txId,
+            metadataHash,
+            encryptedDDO
+        )
+      }
+
+      return JSON.parse(await streamToString(result.stream as Readable))
     }
 
     return response

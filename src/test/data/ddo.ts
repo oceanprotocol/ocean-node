@@ -199,6 +199,6 @@ export const remoteDDOTypeURLNotEncrypted = {
 export const remoteDDOTypeIPFSNotEncrypted = {
   remote:  {
     type: 'ipfs',
-    hash: ''
+    hash: 'Qmb5gHKvDSFAiL98yo592CGzw95mdfZ5MLM8sVZppDxBx6'
   }
 };
