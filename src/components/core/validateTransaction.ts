@@ -20,13 +20,15 @@ async function fetchTransactionReceipt(
     try {
       CORE_LOGGER.logMessage(`fetching tx hash retry ${retries}....`)
       const txReceipt = await provider.getTransactionReceipt(txId)
-      CORE_LOGGER.logMessage(`txReceipt: ${txReceipt}`)
+      CORE_LOGGER.logMessage(`txReceipt: ${JSON.stringify(txReceipt)}`)
       if (txReceipt) {
         return txReceipt
       }
-      CORE_LOGGER.logMessage(`txReceipt not found #${retries}: ${txReceipt}`)
+      CORE_LOGGER.logMessage(
+        `txReceipt not found #${retries}: ${JSON.stringify(txReceipt)}`
+      )
       await sleep(30000)
-      CORE_LOGGER.logMessage(`waited already #${retries}: ${txReceipt}`)
+      CORE_LOGGER.logMessage(`waited already #${retries}: ${JSON.stringify(txReceipt)}`)
       retries--
       CORE_LOGGER.logMessage(`decreased no of retries #${retries}`)
     } catch (error) {
