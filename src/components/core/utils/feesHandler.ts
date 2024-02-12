@@ -5,7 +5,7 @@ import { Service } from '../../../@types/DDO/Service'
 import { AssetUtils } from '../../../utils/asset.js'
 import { verifyMessage } from '../../../utils/blockchain.js'
 import { getConfiguration } from '../../../utils/config.js'
-import { CORE_LOGGER, INDEXER_LOGGER } from '../../../utils/logging/common.js'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { findEventByKey } from '../../Indexer/utils.js'
 import axios from 'axios'
@@ -72,7 +72,7 @@ export async function calculateComputeProviderFee(
   let providerFeeAmount: number
   let providerFeeAmountFormatted: BigNumberish
 
-  const providerFeeToken: string = await getOceanTokenAddress(asset.chainId)
+  const providerFeeToken: string = await getProviderFeeTokenByArtifacts(asset.chainId)
   CORE_LOGGER.logMessage(`provider fee token: ${providerFeeToken}`)
 
   if (providerFeeToken === '0x0000000000000000000000000000000000000000') {
@@ -478,12 +478,9 @@ export async function getProviderFeeToken(chainId: number): Promise<string> {
   return result.length ? result[0].token : ethers.ZeroAddress
 }
 
-export async function getOceanTokenAddress(chainId: number): Promise<string> {
-  if (chainId === 8966) {
-    CORE_LOGGER.logMessage(`chainId: ${chainId}`)
-    const artifacts = getOceanArtifactsAdresses()
-    CORE_LOGGER.logMessage(`artifacts: ${JSON.stringify(artifacts)}`)
-    return artifacts.development.Ocean
+export async function getProviderFeeTokenByArtifacts(chainId: number): Promise<string> {
+  if (chainId === 8996) {
+    return getOceanArtifactsAdresses().development.Ocean
   }
   return await getProviderFeeToken(chainId)
 }
