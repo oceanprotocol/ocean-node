@@ -90,7 +90,7 @@ export async function calculateComputeProviderFee(
   const providerWallet = await getProviderWallet(String(asset.chainId))
   const providerFeeAddress: string = providerWallet.address
   let providerFeeAmount: number = null
-  let providerFeeAmountFormatted: BigInt
+  let providerFeeAmountFormatted: string
 
   const providerFeeToken: string = await getProviderFeeToken(asset.chainId)
   if (providerFeeToken === '0x0000000000000000000000000000000000000000') {
@@ -115,10 +115,11 @@ export async function calculateComputeProviderFee(
       }\n amount: ${providerFeeAmount.toString()}\n decimals: ${decimals}`
     )
 
-    providerFeeAmountFormatted = parseUnits(
-      BigInt(Math.round(providerFeeAmount).toString(10)).toString(),
+    providerFeeAmountFormatted = formatUnits(
+      BigInt(Math.round(providerFeeAmount).toString(10)),
       decimals
     )
+    CORE_LOGGER.logMessage(`provider fee amount: ${providerFeeAmountFormatted}`)
   }
   env.feeToken = providerFeeToken
 
