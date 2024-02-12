@@ -470,10 +470,10 @@ export async function getProviderKey(): Promise<string> {
  * @returns the token address
  */
 export async function getProviderFeeToken(chainId: number): Promise<string> {
-  if (chainId === 8996) {
-    const artifacts = getOceanArtifactsAdresses()
-    return artifacts.development.Ocean
-  }
+  // if (chainId === 8996) {
+  //   const artifacts = getOceanArtifactsAdresses()
+  //   return artifacts.development.Ocean
+  // }
   const result = (await getConfiguration()).feeStrategy.feeTokens.filter(
     (token: FeeTokens) => Number(token.chain) === chainId
   )

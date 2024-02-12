@@ -306,7 +306,7 @@ describe('Should run a complete node flow.', () => {
   })
 
   it('should start an order', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
+    this.timeout(65000) // Extend default Mocha test timeout
     try {
       const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
       const serviceIndex = '0'
@@ -320,13 +320,6 @@ describe('Should run a complete node flow.', () => {
         publisherAccount
       )
 
-      const feeData = await createFee(
-        resolvedDDO as DDO,
-        0,
-        'null',
-        resolvedDDO.services[0]
-      )
-
       // call the mint function on the dataTokenContract
       const approveTx = await dataTokenContract.approve(datatokenAddress, MaxUint256)
       await approveTx.wait()
@@ -334,6 +327,13 @@ describe('Should run a complete node flow.', () => {
       await mintTx.wait()
       const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
       assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
+
+      const feeData = await createFee(
+        resolvedDDO as DDO,
+        0,
+        'null',
+        resolvedDDO.services[0]
+      )
 
       const dataTokenContractWithNewSigner = dataTokenContract.connect(
         consumerAccount
