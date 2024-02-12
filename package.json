@@ -30,7 +30,6 @@
     "test:integration:complete": "npm run build-tests && npm run mocha ./dist/test/integration/completeFlow.test.js",
     "test:unit:cover": "nyc --report-dir coverage/unit npm run test:unit",
     "test:integration:cover": "nyc --report-dir coverage/integration --no-clean npm run test:integration",
-    "test:integration:download": "npm run build-tests && npm run mocha ./dist/test/integration/download.test.js",
     "logs": "./scripts/logs.sh"
   },
   "dependencies": {
