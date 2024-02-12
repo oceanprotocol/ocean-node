@@ -69,10 +69,12 @@ export async function calculateComputeProviderFee(
   }
   const providerWallet = await getProviderWallet(String(asset.chainId))
   const providerFeeAddress: string = providerWallet.address
-  let providerFeeAmount: number = null
+  let providerFeeAmount: number
   let providerFeeAmountFormatted: BigNumberish
 
   const providerFeeToken: string = await getOceanTokenAddress(asset.chainId)
+  CORE_LOGGER.logMessage(`provider fee token: ${providerFeeToken}`)
+
   if (providerFeeToken === '0x0000000000000000000000000000000000000000') {
     providerFeeAmount = 0
   }
@@ -478,7 +480,9 @@ export async function getProviderFeeToken(chainId: number): Promise<string> {
 
 export async function getOceanTokenAddress(chainId: number): Promise<string> {
   if (chainId === 8966) {
+    CORE_LOGGER.logMessage(`chainId: ${chainId}`)
     const artifacts = getOceanArtifactsAdresses()
+    CORE_LOGGER.logMessage(`artifacts: ${JSON.stringify(artifacts)}`)
     return artifacts.development.Ocean
   }
   return await getProviderFeeToken(chainId)

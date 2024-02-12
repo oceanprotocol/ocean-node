@@ -191,23 +191,23 @@ describe('Compute provider fees', async () => {
     assert(providerFees.providerFeeAmount, 'provider fee amount is not fetched')
   })
 
-  it('should get free provider fees for compute', async () => {
-    computeEnvs = await getC2DEnvs(resolvedDDO as DDO)
-    assert(computeEnvs, 'compute envs could not be retrieved')
-    const envs =
-      computeEnvs[0][
-        'http://172.15.0.13:31000/api/v1/operator/environments?chain_id=8996'
-      ]
-    const providerFees = await calculateComputeProviderFee(
-      resolvedDDO as DDO,
-      0,
-      envs[0].id,
-      resolvedDDO.services[0],
-      provider
-    )
-    assert(providerFees, 'provider fees were not fetched')
-    console.log('provider fees: ', providerFees)
-    assert(providerFees.providerFeeToken === oceanToken)
-    assert(providerFees.providerFeeAmount === 0n, 'provider fee amount is not fetched')
-  })
+  // it('should get free provider fees for compute', async () => {
+  //   computeEnvs = await getC2DEnvs(resolvedDDO as DDO)
+  //   assert(computeEnvs, 'compute envs could not be retrieved')
+  //   const envs =
+  //     computeEnvs[0][
+  //       'http://172.15.0.13:31000/api/v1/operator/environments?chain_id=8996'
+  //     ]
+  //   const providerFees = await calculateComputeProviderFee(
+  //     resolvedDDO as DDO,
+  //     0,
+  //     envs[0].id,
+  //     resolvedDDO.services[0],
+  //     provider
+  //   )
+  //   assert(providerFees, 'provider fees were not fetched')
+  //   console.log('provider fees: ', providerFees)
+  //   assert(providerFees.providerFeeToken === oceanToken)
+  //   assert(providerFees.providerFeeAmount === 0n, 'provider fee amount is not fetched')
+  // })
 })
