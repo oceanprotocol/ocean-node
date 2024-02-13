@@ -1,5 +1,5 @@
-import {ConsumerParameter} from "../@types/DDO/ConsumerParameter";
-import {CORE_LOGGER} from "./logging/common";
+import {ConsumerParameter} from "../@types/DDO/ConsumerParameter.js";
+import {CORE_LOGGER} from "./logging/common.js";
 
 function checkString(value: any) {
     return typeof value === 'string' || value instanceof String
