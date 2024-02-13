@@ -24,6 +24,7 @@ import { getConfiguration } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
+import {decrypt} from "../../utils/crypt";
 
 class BaseEventProcessor {
   protected networkId: number
@@ -276,15 +277,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           decodedEventData.args[5],
           decodedEventData.args[4]
       )
-      const ddo = await this.processDDO(
-          decryptedDDO,
-          decodedEventData.args[3],
-          decodedEventData.args[0],
-          event.address,
-          chainId,
-          event.transactionHash,
-          decodedEventData.args[5],
-      )
+      const ddo = await this.processDDO(decryptedDDO)
       ddo.datatokens = this.getTokenInfo(ddo.services)
 
       INDEXER_LOGGER.logMessage(
@@ -351,22 +344,13 @@ export class MetadataEventProcessor extends BaseEventProcessor {
   }
 
   isRemoteDDOEncrypted(ddo: any): boolean {
-    if (ddo?.remote?.encryptMethod) {
+    if (ddo?.remote?.encrypedBy) {
       return true
     }
-
     return false
   }
 
-  async processDDO(
-      ddo: any,
-      decryptorURL: string,
-      eventCreator: string,
-      contractAddress: string,
-      chainId: number,
-      txId: string,
-      metadataHash: string
-  ) {
+  async processDDO(ddo: any) {
     let response = ddo
 
     if (this.isRemoteDDO(ddo)) {
@@ -375,22 +359,25 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       const storage = Storage.getStorageClass(ddo.remote)
       const result = await storage.getReadableStream()
 
-      if (this.isRemoteDDOEncrypted(ddo)) {
-        const encryptedDDO = await streamToString(result.stream as Readable)
+      const streamToStringDDO = await streamToString(result.stream as Readable);
 
-        return await this.decryptDDO(
-            decryptorURL,
-            '0x02',
-            eventCreator,
-            contractAddress,
-            chainId,
-            txId,
-            metadataHash,
-            encryptedDDO
+      if (!this.isRemoteDDOEncrypted(ddo)) {
+        return JSON.parse(streamToStringDDO)
+      } else {
+        INDEXER_LOGGER.logMessage('DDO remote in encrypted', true)
+        const { keys } = await getConfiguration()
+        const nodeId = keys.peerId.toString()
+
+        if (ddo.remote.encryptedBy !== nodeId) {
+          throw Error(`Decrypt error: ${ddo.remote.encryptedBy} !== ${nodeId}`);
+        }
+
+        const decryptedDDOBytes = await decrypt(
+            Uint8Array.from(Buffer.from(streamToStringDDO, 'hex')),
+            ddo.remote.encryptedMethod
         )
+        return JSON.parse(Buffer.from(decryptedDDOBytes).toString())
       }
-
-      return JSON.parse(await streamToString(result.stream as Readable))
     }
 
     return response
