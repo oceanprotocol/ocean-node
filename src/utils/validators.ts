@@ -49,12 +49,12 @@ export function validateConsumerParameters(
             `value ${sentObjectValue} of key ${sentObjectKey} parameter is not a text`
           )
         }
-        if (consumerParameter.type === 'number' && !checkString(sentObjectValue)) {
+        if (consumerParameter.type === 'number' && !checkNumber(sentObjectValue)) {
           throw new Error(
             `value ${sentObjectValue} of key ${sentObjectKey} parameter is not a number`
           )
         }
-        if (consumerParameter.type === 'boolean' && !checkString(sentObjectValue)) {
+        if (consumerParameter.type === 'boolean' && !checkBoolean(sentObjectValue)) {
           throw new Error(
             `value ${sentObjectValue} of key ${sentObjectKey} parameter is not a boolean`
           )
