@@ -33,14 +33,12 @@ export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
 
 async function getEnv(asset: DDO, computeEnv: string): Promise<any> {
   const computeEnvs = await getC2DEnvs(asset)
-  CORE_LOGGER.logMessage(`compute envs: ${computeEnvs}`)
   const clustersURLS: string[] = JSON.parse(process.env.OPERATOR_SERVICE_URL) as string[]
 
   for (const cluster of clustersURLS) {
     const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
 
     const envs = computeEnvs[0][url]
-    CORE_LOGGER.logMessage(`envs: ${JSON.stringify(envs)}`)
     for (const env of envs) {
       if (env.id === computeEnv) {
         return env
@@ -93,7 +91,6 @@ export async function calculateComputeProviderFee(
       await provider.getSigner()
     )
     providerFeeAmount = (seconds * parseFloat(env.priceMin)) / 60
-    CORE_LOGGER.logMessage(`provider fee amount: ${providerFeeAmount}`)
     const decimals = await datatokenContract.decimals()
 
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
@@ -122,14 +119,6 @@ export async function calculateComputeProviderFee(
 
   // For Solidity, we need the expanded-format of a signature
   const signatureSplitted = ethers.Signature.from(signed32Bytes)
-  // console.log(
-  //   'verify message:',
-  //   await verifyMessage(
-  //     ethers.toBeArray(signableHash), // 32 bytes again
-  //     providerWallet.address,
-  //     signed32Bytes
-  //   )
-  // )
 
   // # make it compatible with last openzepellin https://github.com/OpenZeppelin/openzeppelin-contracts/pull/1622
   const v = signatureSplitted.v <= 1 ? signatureSplitted.v + 27 : signatureSplitted.v
@@ -163,8 +152,7 @@ async function getEventData(
   }
   return iface.parseLog(eventObj)
 }
-
-// TODO tests in initializeCompute issue
+// It will be used in #230 for initializeCompute
 export async function validateComputeProviderFee(
   provider: JsonRpcApiProvider,
   tx: string,
@@ -212,7 +200,6 @@ export async function createFee(
   service: Service
   // provider: OceanProvider // this node provider
 ): Promise<ProviderFeeData> | undefined {
-  // create providerData struct
   // create providerData struct
   const providerData = {
     environment: computeEnv, //  null for us now

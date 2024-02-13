@@ -18,19 +18,15 @@ async function fetchTransactionReceipt(
 ): Promise<TransactionReceipt> {
   while (retries > 0) {
     try {
-      CORE_LOGGER.logMessage(`fetching tx hash retry ${retries}....`)
       const txReceipt = await provider.getTransactionReceipt(txId)
-      CORE_LOGGER.logMessage(`txReceipt: ${JSON.stringify(txReceipt)}`)
       if (txReceipt) {
         return txReceipt
       }
-      CORE_LOGGER.logMessage(
-        `txReceipt not found #${retries}: ${JSON.stringify(txReceipt)}`
-      )
-      await sleep(30000)
-      CORE_LOGGER.logMessage(`waited already #${retries}: ${JSON.stringify(txReceipt)}`)
+      if (retries > 1) {
+        // If it's not the last retry, sleep before the next retry
+        await sleep(30000)
+      }
       retries--
-      CORE_LOGGER.logMessage(`decreased no of retries #${retries}`)
     } catch (error) {
       const errorMsg = `Error fetching transaction receipt: ${error}`
       CORE_LOGGER.logMessage(errorMsg)
@@ -84,7 +80,6 @@ export async function validateOrderTransaction(
         message: errorMsg
       }
     }
-    CORE_LOGGER.logMessage(`tx receipt #2: ${txReceiptMined}`)
   }
 
   const OrderStartedEvent = fetchEventFromTransaction(
