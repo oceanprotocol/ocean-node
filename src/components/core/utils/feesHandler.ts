@@ -71,7 +71,7 @@ export async function calculateComputeProviderFee(
   }
   const providerData = {
     environment: env.id,
-    timestamp: Date.now(),
+    timestamp: new Date().getTime() / 1000,
     dt: service.datatokenAddress,
     id: service.id
   }
