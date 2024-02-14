@@ -163,7 +163,7 @@ export async function validateComputeProviderFee(
 ): Promise<[boolean, ProviderFeeData | {}]> {
   const txReceipt = await provider.getTransactionReceipt(tx)
   const { logs } = txReceipt
-  const timestampNow = new Date().getTime()
+  const timestampNow = new Date().getTime() / 1000
   for (const log of logs) {
     const event = findEventByKey(log.topics[0])
     if (event && event.type === 'ProviderFee') {
