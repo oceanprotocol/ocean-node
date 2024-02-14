@@ -9,7 +9,7 @@ export class Purgatory {
   private bannedAssets: Array<PurgatoryAssets>
   private accountPurgatoryUrl: string
   private assetPurgatoryUrl: string
-  private static instance: Purgatory
+  private static instance: any
 
   constructor(accountPurgatoryUrl: string, assetPurgatoryUrl: string) {
     this.accountPurgatoryUrl = accountPurgatoryUrl

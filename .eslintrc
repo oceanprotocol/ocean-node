@@ -1,6 +1,5 @@
 {
   "parser": "@typescript-eslint/parser",
-  "no-use-before-define": ["error", { "variables": false }],
   "parserOptions": {
     "sourceType": "module",
     "ecmaFeatures": {
