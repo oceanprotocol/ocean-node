@@ -9,9 +9,6 @@ import { GetEnvironmentsHandler } from '../core/compute.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { streamToObject } from '../../utils/util.js'
 import { Readable } from 'stream'
-import { ConsumerParameter } from '../../@types/DDO/ConsumerParameter.js'
-import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json'
-import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json'
 
 export async function checkEnvironmentExists(envId: string, oceanNode: OceanNode) {
   const config = await getConfiguration()

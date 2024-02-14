@@ -22,7 +22,7 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { publishAlgoDDO, publishDatasetDDO } from '../data/ddo.js'
 import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
-import { delay, waitToIndex } from './testUtils.js'
+import { waitToIndex } from './testUtils.js'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import {
