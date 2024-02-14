@@ -4,20 +4,23 @@ export interface HeadersObject {
   [key: string]: string
 }
 
-export interface UrlFileObject {
+export interface BaseFileObject {
   type: string
+  encryptedBy: string
+  encryptMethod: 'aes' | 'ecies' | ''
+}
+
+export interface UrlFileObject extends BaseFileObject {
   url: string
   method: string
   headers?: [HeadersObject]
 }
 
-export interface IpfsFileObject {
-  type: string
+export interface IpfsFileObject extends BaseFileObject {
   hash: string
 }
 
-export interface ArweaveFileObject {
-  type: string
+export interface ArweaveFileObject extends BaseFileObject {
   transactionId: string
 }
 

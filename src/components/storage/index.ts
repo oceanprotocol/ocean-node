@@ -11,14 +11,12 @@ import axios from 'axios'
 import urlJoin from 'url-join'
 
 export abstract class Storage {
-  private file: any
-  private encryptMethod: 'aes' | 'ecies' | ''
-  private encryptedBy: string
+  private file: UrlFileObject | IpfsFileObject | ArweaveFileObject
 
-  public constructor(file: any) {
+  public constructor(file: UrlFileObject | IpfsFileObject | ArweaveFileObject) {
     this.file = file
-    this.encryptMethod = ''
-    this.encryptedBy = ''
+    this.file.encryptMethod = ''
+    this.file.encryptedBy = ''
   }
 
   abstract validate(): [boolean, string]
@@ -66,16 +64,19 @@ export abstract class Storage {
     return response
   }
 
-  encrypt(encryptionType: 'aes' | 'ecies' = 'aes') {}
+  encrypt(encryptionType: 'aes' | 'ecies' = 'aes', nodeId: string) {
+    this.file.encryptMethod = encryptionType
+    this.file.encryptedBy = nodeId
+  }
 
   decrypt(encryptionType: 'aes' | 'ecies' = 'aes') {}
 
   isEncrypted(): boolean {
-    return this.encryptedBy !== '' && this.encryptMethod !== ''
+    return this.file.encryptedBy !== '' && this.file.encryptMethod !== ''
   }
 
   canDecrypt(nodeId: string): boolean {
-    return this.encryptedBy === nodeId && this.encryptMethod !== ''
+    return this.file.encryptedBy === nodeId && this.file.encryptMethod !== ''
   }
 }
 
@@ -89,7 +90,7 @@ export class UrlStorage extends Storage {
   }
 
   validate(): [boolean, string] {
-    const file: UrlFileObject = this.getFile()
+    const file: UrlFileObject = this.getFile() as UrlFileObject
     if (!file.url || !file.method) {
       return [false, 'URL or method are missing']
     }
@@ -161,7 +162,7 @@ export class ArweaveStorage extends Storage {
     if (!process.env.ARWEAVE_GATEWAY) {
       return [false, 'Arweave gateway is not provided!']
     }
-    const file: ArweaveFileObject = this.getFile()
+    const file: ArweaveFileObject = this.getFile() as ArweaveFileObject
     if (!file.transactionId) {
       return [false, 'Missing transaction ID']
     }
@@ -217,7 +218,7 @@ export class IpfsStorage extends Storage {
     if (!process.env.IPFS_GATEWAY) {
       return [false, 'IPFS gateway is not provided!']
     }
-    const file: IpfsFileObject = this.getFile()
+    const file: IpfsFileObject = this.getFile() as IpfsFileObject
     if (!file.hash) {
       return [false, 'Missing CID']
     }
