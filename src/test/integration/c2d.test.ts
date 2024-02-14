@@ -1,5 +1,5 @@
 import {
-  checkEnvironmentExists,
+  checkC2DEnvExists,
   getAlgoChecksums,
   validateAlgoForDataset
 } from '../../components/c2d/index.js'
@@ -389,9 +389,9 @@ describe('C2D functions', async () => {
     expect(result.valid).to.equal(true)
   })
 
-  it('should checkEnvironmentExists', async () => {
+  it('should checkC2DEnvExists', async () => {
     const envId = '0x123'
-    const result = await checkEnvironmentExists(envId, oceanNode)
+    const result = await checkC2DEnvExists(envId, oceanNode)
     expect(result).to.equal(false)
   })
 

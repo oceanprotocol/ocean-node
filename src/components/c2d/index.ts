@@ -10,7 +10,7 @@ import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { streamToObject } from '../../utils/util.js'
 import { Readable } from 'stream'
 
-export async function checkEnvironmentExists(envId: string, oceanNode: OceanNode) {
+export async function checkC2DEnvExists(envId: string, oceanNode: OceanNode) {
   const config = await getConfiguration()
   const { supportedNetworks } = config
   for (const supportedNetwork of Object.keys(supportedNetworks)) {
