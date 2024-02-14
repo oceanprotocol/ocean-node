@@ -1,10 +1,11 @@
-import { ethers } from 'ethers'
+import { JsonRpcProvider, ethers, parseUnits } from 'ethers'
 import { FeeTokens, ProviderFeeData } from '../../../@types/Fees'
 import { DDO } from '../../../@types/DDO/DDO'
 import { Service } from '../../../@types/DDO/Service'
 import { AssetUtils } from '../../../utils/asset.js'
-import { verifyMessage } from '../../../utils/blockchain.js'
+import { getDatatokenDecimals, verifyMessage } from '../../../utils/blockchain.js'
 import { getConfiguration } from '../../../utils/config.js'
+import { RPC } from '@chainsafe/libp2p-gossipsub/dist/src/message/rpc'
 
 // equiv to get_provider_fees
 // *** NOTE: provider.py => get_provider_fees ***
@@ -32,12 +33,30 @@ export async function createFee(
   // }
   const providerWallet = await getProviderWallet(String(asset.chainId))
   const providerFeeAddress: string = providerWallet.address
+  let providerFeeAmount
 
   // from env FEE_TOKENS
   const providerFeeToken: string = await getProviderFeeToken(asset.chainId)
 
+  if (providerFeeToken === '0x0000000000000000000000000000000000000000') {
+    providerFeeAmount = 0
+  }
+
+  // from env FEE_TOKENS
+  if (
+    providerFeeToken &&
+    providerFeeToken !== '0x0000000000000000000000000000000000000000'
+  ) {
+    const networkUrl = (await getConfiguration()).supportedNetworks[
+      asset.chainId.toString()
+    ].rpc
+    const provider = new JsonRpcProvider(networkUrl)
+    const decimals = await getDatatokenDecimals(providerFeeToken, provider)
+    providerFeeAmount = parseUnits((await getProviderFeeAmount()).toString(10), decimals)
+  }
+
   // from env FEE_AMOUNT
-  const providerFeeAmount: number = await getProviderFeeAmount() // TODO check decimals on contract?
+  // const providerFeeAmount: number = await getProviderFeeAmount() // TODO check decimals on contract?
 
   /** https://github.com/ethers-io/ethers.js/issues/468
    * 
