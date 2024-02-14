@@ -102,9 +102,18 @@ function getAuthorizedDecrypters(): string[] {
 export function getAllowedValidators(): string[] {
   try {
     const allowedValidators: string[] = JSON.parse(process.env.ALLOWED_VALIDATORS)
+    if (!allowedValidators) {
+      CONFIG_LOGGER.logMessageWithEmoji(
+        'Missing ALLOWED_VALIDATORS env variable format',
+        true,
+        getLoggerLevelEmoji(LOG_LEVELS_STR.LEVEL_WARN),
+        LOG_LEVELS_STR.LEVEL_WARN
+      )
+      return []
+    }
     if (!Array.isArray(allowedValidators)) {
       CONFIG_LOGGER.logMessageWithEmoji(
-        'Missing or Invalid ALLOWED_VALIDATORS env variable format',
+        'Invalid ALLOWED_VALIDATORS env variable format',
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
