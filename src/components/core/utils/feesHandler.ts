@@ -1,4 +1,11 @@
-import { JsonRpcApiProvider, ethers, Contract, BigNumberish, parseUnits } from 'ethers'
+import {
+  JsonRpcApiProvider,
+  ethers,
+  Contract,
+  BigNumberish,
+  parseUnits,
+  ZeroAddress
+} from 'ethers'
 import { FeeTokens, ProviderFeeData } from '../../../@types/Fees'
 import { DDO } from '../../../@types/DDO/DDO'
 import { Service } from '../../../@types/DDO/Service'
@@ -58,7 +65,6 @@ export async function calculateComputeProviderFee(
   const validUntilDateTime = new Date(validUntil).getTime()
   const seconds: number = (now - validUntilDateTime) / 1000
   const env = await getEnv(asset, computeEnv)
-  CORE_LOGGER.logMessage(`env: ${JSON.stringify(env)}`)
 
   if (!env) {
     CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Env could not be found.`, true)
@@ -76,15 +82,12 @@ export async function calculateComputeProviderFee(
 
   const providerFeeToken: string = await getProviderFeeTokenByArtifacts(asset.chainId)
 
-  if (providerFeeToken === '0x0000000000000000000000000000000000000000') {
+  if (providerFeeToken === ZeroAddress) {
     providerFeeAmount = 0
   }
 
   // from env FEE_TOKENS
-  if (
-    providerFeeToken &&
-    providerFeeToken !== '0x0000000000000000000000000000000000000000'
-  ) {
+  if (providerFeeToken && providerFeeToken !== ZeroAddress) {
     const datatokenContract = new Contract(
       providerFeeToken,
       ERC20Template.abi,
@@ -94,7 +97,6 @@ export async function calculateComputeProviderFee(
     const decimals = await datatokenContract.decimals()
 
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
-    CORE_LOGGER.logMessage(`provider fee amount formatted: ${providerFeeAmountFormatted}`)
   }
   env.feeToken = providerFeeToken
 
