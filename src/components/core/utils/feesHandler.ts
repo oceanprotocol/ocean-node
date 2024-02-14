@@ -42,7 +42,6 @@ export async function createFee(
     providerFeeAmount = 0
   }
 
-  // from env FEE_TOKENS
   if (
     providerFeeToken &&
     providerFeeToken !== '0x0000000000000000000000000000000000000000'
@@ -52,11 +51,9 @@ export async function createFee(
     ].rpc
     const provider = new JsonRpcProvider(networkUrl)
     const decimals = await getDatatokenDecimals(providerFeeToken, provider)
+    // from env FEE_AMOUNT
     providerFeeAmount = parseUnits((await getProviderFeeAmount()).toString(10), decimals)
   }
-
-  // from env FEE_AMOUNT
-  // const providerFeeAmount: number = await getProviderFeeAmount() // TODO check decimals on contract?
 
   /** https://github.com/ethers-io/ethers.js/issues/468
    * 
