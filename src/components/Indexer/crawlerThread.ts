@@ -1,5 +1,6 @@
 import { parentPort, workerData } from 'worker_threads'
 import {
+  getCrawlingInterval,
   getDeployedContractBlock,
   getNetworkHeight,
   processBlocks,
@@ -58,6 +59,9 @@ export async function proccesNetworkData(): Promise<void> {
     return
   }
 
+  // we can override the default value of 30 secs
+  const interval = getCrawlingInterval()
+
   while (true) {
     const networkHeight = await getNetworkHeight(provider)
 
@@ -104,7 +108,7 @@ export async function proccesNetworkData(): Promise<void> {
       }
     }
     processReindex()
-    await sleep(30000)
+    await sleep(interval)
   }
 }
 

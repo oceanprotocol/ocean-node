@@ -65,8 +65,23 @@ export class OceanIndexer {
       })
 
       worker.on('message', (event: any) => {
-        if (event.method === EVENTS.METADATA_CREATED) {
-          this.advertiseDDO(event.network, event.data, event.method)
+        if (event.data) {
+          if (
+            event.method === EVENTS.METADATA_CREATED ||
+            event.method === EVENTS.METADATA_UPDATED
+          ) {
+            // will emit the metadata created/updated event and advertise it to the other peers (on create only)
+            INDEXER_LOGGER.logMessage(
+              `Emiting "${event.method}" for DDO : ${event.data.id} from network: ${network} `
+            )
+            INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
+          }
+        } else {
+          INDEXER_LOGGER.log(
+            LOG_LEVELS_STR.LEVEL_ERROR,
+            'Missing event data (ddo) on postMessage. Something is wrong!',
+            true
+          )
         }
       })
 
@@ -95,11 +110,6 @@ export class OceanIndexer {
     if (worker) {
       worker.postMessage({ method: 'add-reindex-task', reindexTask })
     }
-  }
-
-  public async advertiseDDO(network: number, ddo: any, method: string): Promise<void> {
-    INDEXER_LOGGER.logMessage(`Advertising new DDO : ${ddo.id} from network: ${network} `)
-    INDEXER_DDO_EVENT_EMITTER.emit(method, ddo.id)
   }
 
   public async getLastIndexedBlock(network: number): Promise<number> {

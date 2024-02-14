@@ -4,7 +4,12 @@ import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Fa
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import fs from 'fs'
 import { homedir } from 'os'
-import { EVENTS, EVENT_HASHES } from '../../utils/index.js'
+import {
+  ENVIRONMENT_VARIABLES,
+  EVENTS,
+  EVENT_HASHES,
+  existsEnvironmentVariable
+} from '../../utils/index.js'
 import { BlocksEvents, NetworkEvent, ProcessingEvents } from '../../@types/blockchain.js'
 import {
   MetadataEventProcessor,
@@ -230,4 +235,16 @@ function getContractDefinition(contractName: string): any {
     default:
       return ERC721Factory.abi
   }
+}
+
+// default in seconds
+const DEFAULT_INDEXER_CRAWLING_INTERVAL = 1000 * 30 // 30 seconds
+export const getCrawlingInterval = (): number => {
+  if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.INDEXER_INTERVAL)) {
+    const number: any = process.env.INDEXER_INTERVAL
+    if (!isNaN(number) && number > 0) {
+      return number
+    }
+  }
+  return DEFAULT_INDEXER_CRAWLING_INTERVAL
 }
