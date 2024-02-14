@@ -29,16 +29,12 @@ export const waitToIndex = async (did: string, database: Database): Promise<any>
 }
 
 export const deleteAsset = async (did: string, database: Database): Promise<any> => {
-
   try {
     return await database.ddo.delete(did)
-
   } catch (e) {
     INDEXER_LOGGER.logMessage(`Error could not delete the DDO ${did}: ${e}`)
     return false
   }
-
-  return true
 }
 
 export async function signMessage(

@@ -9,6 +9,11 @@ import {
 import { fetchFileMetadata } from '../../utils/asset.js'
 import axios from 'axios'
 import urlJoin from 'url-join'
+import { INDEXER_LOGGER } from "../../utils/logging/common";
+import { getConfiguration } from "../../utils";
+import { decrypt } from "../../utils/crypt";
+import { streamToString } from "../../utils/util";
+import { Readable } from "node:stream";
 
 export abstract class Storage {
   private file: any
@@ -23,6 +28,30 @@ export abstract class Storage {
 
   getFile(): any {
     return this.file
+  }
+
+  async processStream(stream: Readable): Promise<Readable> {
+
+    if (!this.file?.encryptedBy || this.file?.encryptedMethod){
+      return stream;
+    }
+    INDEXER_LOGGER.logMessage('Stream in encrypted', true)
+
+    const streamString = await streamToString(stream as Readable);
+    const { keys } = await getConfiguration()
+    const nodeId = keys.peerId.toString()
+
+    if (this.file?.encryptedBy !== nodeId) {
+      throw Error(`Decrypt stream error: ${this.file?.encryptedBy} !== ${nodeId}`);
+    }
+
+    const decryptedData = decrypt(
+        Uint8Array.from(Buffer.from(streamString, 'hex')),
+        this.file?.encryptedMethod
+    )
+
+    return Readable.from([decryptedData])
+
   }
 
   static getStorageClass(file: any): UrlStorage | IpfsStorage | ArweaveStorage {
@@ -112,7 +141,7 @@ export class UrlStorage extends Storage {
     })
     return {
       httpStatus: response.status,
-      stream: response.data,
+      stream: await this.processStream(response.data),
       headers: response.headers as any
     }
   }
@@ -166,7 +195,7 @@ export class ArweaveStorage extends Storage {
 
     return {
       httpStatus: response.status,
-      stream: response.data,
+      stream: await this.processStream(response.data),
       headers: response.headers as any
     }
   }
@@ -223,7 +252,7 @@ export class IpfsStorage extends Storage {
 
     return {
       httpStatus: response.status,
-      stream: response.data,
+      stream: await this.processStream(response.data),
       headers: response.headers as any
     }
   }

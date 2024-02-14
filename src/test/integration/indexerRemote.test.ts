@@ -5,7 +5,6 @@ import {
     Signer,
     Contract,
     ethers,
-    getAddress,
     hexlify,
     ZeroAddress,
 } from 'ethers'
@@ -15,7 +14,7 @@ import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { getEventFromTx } from '../../utils/util.js'
-import {delay, waitToIndex, signMessage, deleteAsset} from './testUtils.js'
+import {delay, waitToIndex, deleteAsset} from './testUtils.js'
 import { genericDDO, remoteDDOTypeIPFSNotEncrypted } from '../data/ddo.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
 import { getMockSupportedNetworks } from '../utils/utils.js'
@@ -31,8 +30,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
     let consumerAccount: Signer
     let nftAddress: string
     let datatokenAddress: string
-    const chainId = 8996
-    let assetDID: string
     let resolvedDDO: Record<string, any>
     let genericAsset: any
     let setMetaDataTxReceipt: any
@@ -137,4 +134,3 @@ describe('Indexer stores a new metadata events and orders.', () => {
     })
 
 })
-
