@@ -12,8 +12,13 @@ import urlJoin from 'url-join'
 
 export abstract class Storage {
   private file: any
+  private encryptMethod: 'aes' | 'ecies' | ''
+  private encryptedBy: string
+
   public constructor(file: any) {
     this.file = file
+    this.encryptMethod = ''
+    this.encryptedBy = ''
   }
 
   abstract validate(): [boolean, string]
@@ -59,6 +64,18 @@ export abstract class Storage {
       console.log(error)
     }
     return response
+  }
+
+  encrypt(encryptionType: 'aes' | 'ecies' = 'aes') {}
+
+  decrypt(encryptionType: 'aes' | 'ecies' = 'aes') {}
+
+  isEncrypted(): boolean {
+    return this.encryptedBy !== '' && this.encryptMethod !== ''
+  }
+
+  canDecrypt(nodeId: string): boolean {
+    return this.encryptedBy === nodeId && this.encryptMethod !== ''
   }
 }
 
