@@ -23,9 +23,11 @@ import { C2DClusterInfo } from '../../../@types'
 export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
   try {
     const envs: Array<any> = []
-    const clustersURLS: string[] = JSON.parse(
-      process.env.OPERATOR_SERVICE_URL
-    ) as string[]
+    const clustersURLS: string[] = []
+    const clustersInfo: C2DClusterInfo[] = (await getConfiguration()).c2dClusters
+    for (const c of clustersInfo) {
+      clustersURLS.push(c.url)
+    }
     for (const cluster of clustersURLS) {
       const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
       const { data } = await axios.get(url)
