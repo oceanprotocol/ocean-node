@@ -18,6 +18,7 @@ import { findEventByKey } from '../../Indexer/utils.js'
 import axios from 'axios'
 import { getOceanArtifactsAdresses } from '../../../utils/address.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import { C2DClusterInfo } from '../../../@types'
 
 export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
   try {
@@ -40,7 +41,11 @@ export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
 
 async function getEnv(asset: DDO, computeEnv: string): Promise<any> {
   const computeEnvs = await getC2DEnvs(asset)
-  const clustersURLS: string[] = JSON.parse(process.env.OPERATOR_SERVICE_URL) as string[]
+  const clustersURLS: string[] = []
+  const clustersInfo: C2DClusterInfo[] = (await getConfiguration()).c2dClusters
+  for (const c of clustersInfo) {
+    clustersURLS.push(c.url)
+  }
 
   for (const cluster of clustersURLS) {
     const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
