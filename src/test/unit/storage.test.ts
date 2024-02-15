@@ -373,6 +373,8 @@ describe('IPFS Storage getFileInfo tests', async function () {
 
 describe('URL Storage getFileInfo tests', () => {
   let storage: UrlStorage
+  let nodeId: string
+
   before(() => {
     storage = new UrlStorage({
       type: 'url',
@@ -395,7 +397,7 @@ describe('URL Storage getFileInfo tests', () => {
 
   it('encrypt method should correctly encrypt data', async () => {
     const { keys } = await getConfiguration()
-    const nodeId = keys.peerId.toString()
+    nodeId = keys.peerId.toString()
     // Perform encryption
     const encryptResponse = await storage.encrypt('AES', nodeId)
     assert(encryptResponse.httpStatus === 200, 'Response is not 200')
@@ -414,6 +416,8 @@ describe('URL Storage getFileInfo tests', () => {
     expect(fileInfo[0].contentType).to.equal('text/plain')
     expect(fileInfo[0].name).to.equal('organizations-100.csv')
     expect(fileInfo[0].type).to.equal('url')
+    expect(fileInfo[0].encryptedBy).to.equal(nodeId)
+    expect(fileInfo[0].encryptMethod).to.equal('AES')
   })
 
   it('Throws error when URL is missing in request', async () => {

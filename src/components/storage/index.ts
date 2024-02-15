@@ -206,7 +206,9 @@ export class UrlStorage extends Storage {
       contentLength,
       contentType,
       name: new URL(url).pathname.split('/').pop() || '',
-      type: 'url'
+      type: 'url',
+      encryptedBy: fileObject.encryptedBy,
+      encryptMethod: fileObject.encryptMethod
     }
   }
 }
@@ -262,7 +264,9 @@ export class ArweaveStorage extends Storage {
       contentLength,
       contentType,
       name: new URL(url).pathname.split('/').pop() || '',
-      type: 'arweave'
+      type: 'arweave',
+      encryptedBy: fileObject.encryptedBy,
+      encryptMethod: fileObject.encryptMethod
     }
   }
 }
@@ -317,7 +321,9 @@ export class IpfsStorage extends Storage {
       contentLength,
       contentType,
       name: '',
-      type: 'ipfs'
+      type: 'ipfs',
+      encryptedBy: fileObject.encryptedBy,
+      encryptMethod: fileObject.encryptMethod
     }
   }
 }
