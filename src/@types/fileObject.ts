@@ -7,7 +7,7 @@ export interface HeadersObject {
 export interface BaseFileObject {
   type: string
   encryptedBy?: string
-  encryptMethod?: 'aes' | 'ecies' | ''
+  encryptMethod?: 'AES' | 'ECIES' | ''
 }
 
 export interface UrlFileObject extends BaseFileObject {

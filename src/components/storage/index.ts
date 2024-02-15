@@ -9,6 +9,8 @@ import {
 import { fetchFileMetadata } from '../../utils/asset.js'
 import axios from 'axios'
 import urlJoin from 'url-join'
+import { encrypt as encryptData } from '../../utils/crypt.js'
+import { Readable } from 'stream'
 
 export abstract class Storage {
   private file: UrlFileObject | IpfsFileObject | ArweaveFileObject
@@ -20,7 +22,7 @@ export abstract class Storage {
   }
 
   abstract validate(): [boolean, string]
-
+  abstract getReadableStream(): Promise<StorageReadable>
   abstract getDownloadUrl(): string
   abstract fetchSpecificFileMetadata(fileObject: any): Promise<FileInfoResponse>
 
@@ -64,9 +66,31 @@ export abstract class Storage {
     return response
   }
 
-  encrypt(encryptionType: 'aes' | 'ecies' = 'aes', nodeId: string) {
+  async encrypt(encryptionType: 'AES' | 'ECIES' = 'AES', nodeId: string) {
     this.file.encryptMethod = encryptionType
     this.file.encryptedBy = nodeId
+    const readableStream = await this.getReadableStream()
+
+    // Convert the readable stream to a buffer
+    const chunks: Buffer[] = []
+    for await (const chunk of readableStream.stream) {
+      chunks.push(chunk)
+    }
+    const buffer = Buffer.concat(chunks)
+
+    // Encrypt the buffer using the encrypt function
+    const encryptedBuffer = await encryptData(
+      new Uint8Array(buffer),
+      this.file.encryptMethod
+    )
+
+    // Convert the encrypted buffer back into a stream
+    const encryptedStream = Readable.from(encryptedBuffer)
+
+    return {
+      ...readableStream,
+      stream: encryptedStream
+    }
   }
 
   decrypt(encryptionType: 'aes' | 'ecies' = 'aes') {}
