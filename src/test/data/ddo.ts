@@ -189,15 +189,15 @@ export const ddov5 = {
 }
 
 export const remoteDDOTypeURLNotEncrypted = {
-    remote: {
-        type: 'url',
-        url: '',
-        method: 'GET'
-    }
+  remote: {
+    type: 'url',
+    url: '',
+    method: 'GET'
+  }
 }
 
 export const remoteDDOTypeIPFSNotEncrypted = {
-  remote:  {
+  remote: {
     type: 'ipfs',
     hash: 'Qmb5gHKvDSFAiL98yo592CGzw95mdfZ5MLM8sVZppDxBx6'
   }

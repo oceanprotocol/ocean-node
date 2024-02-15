@@ -267,14 +267,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       )
 
       const decryptedDDO = await this.decryptDDO(
-          decodedEventData.args[2],
-          decodedEventData.args[3],
-          decodedEventData.args[0],
-          event.address,
-          chainId,
-          event.transactionHash,
-          decodedEventData.args[5],
-          decodedEventData.args[4]
+        decodedEventData.args[2],
+        decodedEventData.args[3],
+        decodedEventData.args[0],
+        event.address,
+        chainId,
+        event.transactionHash,
+        decodedEventData.args[5],
+        decodedEventData.args[4]
       )
       const ddo = await this.processDDO(decryptedDDO)
       ddo.datatokens = this.getTokenInfo(ddo.services)
@@ -343,17 +343,16 @@ export class MetadataEventProcessor extends BaseEventProcessor {
   }
 
   async processDDO(ddo: any) {
-    let response = ddo
+    const response = ddo
 
     if (this.isRemoteDDO(ddo)) {
       INDEXER_LOGGER.logMessage('DDO is remote', true)
 
       const storage = Storage.getStorageClass(ddo.remote)
       const result = await storage.getReadableStream()
-      const streamToStringDDO = await streamToString(result.stream as Readable);
+      const streamToStringDDO = await streamToString(result.stream as Readable)
 
       return JSON.parse(streamToStringDDO)
-
     }
 
     return response
