@@ -9,7 +9,7 @@ import {
 import { fetchFileMetadata } from '../../utils/asset.js'
 import axios from 'axios'
 import urlJoin from 'url-join'
-import { encrypt as encryptData } from '../../utils/crypt.js'
+import { encrypt as encryptData, decrypt as decryptData } from '../../utils/crypt.js'
 import { Readable } from 'stream'
 
 export abstract class Storage {
@@ -93,7 +93,34 @@ export abstract class Storage {
     }
   }
 
-  decrypt(encryptionType: 'aes' | 'ecies' = 'aes') {}
+  async decrypt(encryptionType: 'aes' | 'ecies' = 'aes', nodeId: string) {
+    if (!this.canDecrypt(nodeId)) {
+      throw new Error('Node is not authorized to decrypt this file')
+    }
+
+    const readableStream = await this.getReadableStream()
+
+    // Convert the readable stream to a buffer
+    const chunks: Buffer[] = []
+    for await (const chunk of readableStream.stream) {
+      chunks.push(chunk)
+    }
+    const buffer = Buffer.concat(chunks)
+
+    // Decrypt the buffer using your existing function
+    const decryptedBuffer = await decryptData(
+      new Uint8Array(buffer),
+      encryptionType.toUpperCase()
+    )
+
+    // Convert the decrypted buffer back into a stream
+    const decryptedStream = Readable.from(decryptedBuffer)
+
+    return {
+      ...readableStream,
+      stream: decryptedStream
+    }
+  }
 
   isEncrypted(): boolean {
     return this.file.encryptedBy !== '' && this.file.encryptMethod !== ''
