@@ -64,7 +64,7 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
       }
       if (!['AES', 'ECIES'].includes(requestBody.encryptionType)) {
         return buildInvalidRequestMessage(
-            'Invalid parameter: "encryptionType" must be AES | ECIES'
+          'Invalid parameter: "encryptionType" must be AES | ECIES'
         )
       }
     } else if (command === PROTOCOL_COMMANDS.ENCRYPT) {
