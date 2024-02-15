@@ -2,7 +2,6 @@ import { CID } from 'multiformats/cid'
 import { sha256 } from 'multiformats/hashes/sha2'
 import * as multiFormatRaw from 'multiformats/codecs/raw'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
-import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 
 export function hexStringToByteArray(hexString: any) {
   if (hexString.length % 2 !== 0) {
