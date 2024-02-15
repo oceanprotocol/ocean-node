@@ -79,6 +79,11 @@ export interface EncryptCommand extends Command {
   encryptionType: string
 }
 
+export interface EncryptFileCommand extends Command {
+  encryptionType: 'AES' | 'ECIES'
+  files: UrlFileObject | ArweaveFileObject | IpfsFileObject
+}
+
 export interface NonceCommand extends Command {
   address: string // consumer address
 }

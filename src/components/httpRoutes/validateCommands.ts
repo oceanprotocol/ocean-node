@@ -55,6 +55,18 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
       if (!requestBody.query) {
         return buildInvalidRequestMessage('Missing required parameter: "query"')
       }
+    } else if (command === PROTOCOL_COMMANDS.ENCRYPT_FILE) {
+      if (!requestBody.files) {
+        return buildInvalidRequestMessage('Missing required parameter: "files"')
+      }
+      if (!requestBody.encryptionType) {
+        requestBody.encoding = 'AES'
+      }
+      if (!['AES', 'ECIES'].includes(requestBody.encryptionType)) {
+        return buildInvalidRequestMessage(
+            'Invalid parameter: "encryptionType" must be AES | ECIES'
+        )
+      }
     } else if (command === PROTOCOL_COMMANDS.ENCRYPT) {
       if (!requestBody.blob) {
         return buildInvalidRequestMessage('Missing required parameter: "blob"')
