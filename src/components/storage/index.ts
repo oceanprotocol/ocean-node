@@ -6,14 +6,14 @@ import {
   FileInfoRequest,
   FileInfoResponse
 } from '../../@types/fileObject.js'
-import { fetchFileMetadata } from '../../utils/asset.js'
 import axios from 'axios'
 import urlJoin from 'url-join'
-import { INDEXER_LOGGER } from '../../utils/logging/common'
-import { getConfiguration } from '../../utils'
-import { decrypt } from '../../utils/crypt'
-import { streamToString } from '../../utils/util'
 import { Readable } from 'node:stream'
+import { fetchFileMetadata } from '../../utils/asset.js'
+import { getConfiguration } from '../../utils/index.js'
+import { decrypt } from '../../utils/crypt.js'
+import { streamToString } from '../../utils/util.js'
+import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 
 export abstract class Storage {
   private file: any
@@ -34,6 +34,7 @@ export abstract class Storage {
     if (!this.file?.encryptedBy || this.file?.encryptedMethod) {
       return stream
     }
+
     INDEXER_LOGGER.logMessage('Stream in encrypted', true)
 
     const streamString = await streamToString(stream as Readable)
