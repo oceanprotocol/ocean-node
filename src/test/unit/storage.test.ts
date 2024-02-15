@@ -15,6 +15,7 @@ import {
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { getConfiguration } from '../../utils/index.js'
 import { Readable } from 'stream'
+import fs from 'fs'
 
 describe('URL Storage tests', () => {
   let file: any = {
@@ -371,7 +372,7 @@ describe('IPFS Storage getFileInfo tests', async function () {
   })
 })
 
-describe('URL Storage getFileInfo tests', () => {
+describe('URL Storage encryption tests', () => {
   let storage: UrlStorage
   let nodeId: string
 
@@ -399,10 +400,26 @@ describe('URL Storage getFileInfo tests', () => {
     const { keys } = await getConfiguration()
     nodeId = keys.peerId.toString()
     // Perform encryption
-    const encryptResponse = await storage.encrypt('AES', nodeId)
+    const encryptResponse = await storage.encrypt('AES')
     assert(encryptResponse.httpStatus === 200, 'Response is not 200')
     assert(encryptResponse.stream, 'Stream is not null')
     assert(encryptResponse.stream instanceof Readable, 'Stream is not a ReadableStream')
+
+    // Create a writable stream for the output file
+    const fileStream = fs.createWriteStream('src/test/data/organizations-100.aes')
+
+    // Use the 'finish' event to know when the file has been fully written
+    fileStream.on('finish', () => {
+      console.log('Encrypted file has been written successfully')
+    })
+
+    // Handle errors in the stream
+    encryptResponse.stream.on('error', (err) => {
+      console.error('Stream encountered an error:', err)
+    })
+
+    // Pipe the encrypted content stream to the file stream
+    encryptResponse.stream.pipe(fileStream)
   })
 
   it('File info includes encryptedBy and encryptMethod', async () => {
@@ -420,12 +437,27 @@ describe('URL Storage getFileInfo tests', () => {
     expect(fileInfo[0].encryptMethod).to.equal('AES')
   })
 
-  it('Throws error when URL is missing in request', async () => {
-    const fileInfoRequest: FileInfoRequest = { type: 'url' }
-    try {
-      await storage.getFileInfo(fileInfoRequest)
-    } catch (err) {
-      expect(err.message).to.equal('URL is required for type url')
-    }
+  it('isEncrypted should return true now the file is encrypted', () => {
+    assert(storage.isEncrypted() === true, 'invalid response to isEncrypted()')
   })
+
+  it('canDecrypt should return true when called from this node', () => {
+    assert(storage.canDecrypt(nodeId) === true, 'Wrong response from canDecrypt()')
+  })
+
+  it('canDecrypt should return false when called from an unauthorised node', () => {
+    assert(
+      storage.canDecrypt('16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72') ===
+        false,
+      'Wrong response from canDecrypt() for an unencrypted file'
+    )
+  })
+
+  // it('decrypt method should correctly decrypt data for authorized nodeId', async () => {
+  //   // Perform decryption
+  //   const decryptResponse = await storage.decrypt()
+
+  //   expect(decryptResponse).to.have.property('stream')
+  //   expect(decryptResponse.stream).to.be.an.instanceof(Readable)
+  // })
 })

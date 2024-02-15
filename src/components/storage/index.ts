@@ -11,6 +11,7 @@ import axios from 'axios'
 import urlJoin from 'url-join'
 import { encrypt as encryptData, decrypt as decryptData } from '../../utils/crypt.js'
 import { Readable } from 'stream'
+import { getConfiguration } from '../../utils/index.js'
 
 export abstract class Storage {
   private file: UrlFileObject | IpfsFileObject | ArweaveFileObject
@@ -64,7 +65,10 @@ export abstract class Storage {
     return response
   }
 
-  async encrypt(encryptionType: 'AES' | 'ECIES' = 'AES', nodeId: string) {
+  async encrypt(encryptionType: 'AES' | 'ECIES' = 'AES') {
+    const { keys } = await getConfiguration()
+    const nodeId = keys.peerId.toString()
+
     this.file.encryptMethod = encryptionType
     this.file.encryptedBy = nodeId
     const readableStream = await this.getReadableStream()
@@ -91,11 +95,15 @@ export abstract class Storage {
     }
   }
 
-  async decrypt(encryptionType: 'aes' | 'ecies' = 'aes', nodeId: string) {
+  async decrypt() {
+    const { keys } = await getConfiguration()
+    const nodeId = keys.peerId.toString()
+
     if (!this.canDecrypt(nodeId)) {
       throw new Error('Node is not authorized to decrypt this file')
     }
 
+    const { encryptMethod } = this.file
     const readableStream = await this.getReadableStream()
 
     // Convert the readable stream to a buffer
@@ -108,7 +116,7 @@ export abstract class Storage {
     // Decrypt the buffer using your existing function
     const decryptedBuffer = await decryptData(
       new Uint8Array(buffer),
-      encryptionType.toUpperCase()
+      encryptMethod.toUpperCase()
     )
 
     // Convert the decrypted buffer back into a stream
