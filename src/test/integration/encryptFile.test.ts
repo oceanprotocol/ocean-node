@@ -5,7 +5,7 @@ import { OceanNode } from '../../OceanNode.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
-import { streamToObject } from '../../utils/util.js'
+import { streamToString } from '../../utils/util.js'
 import { EncryptFileHandler } from '../../components/core/encryptHandler.js'
 import { EncryptFileCommand } from '../../@types/commands'
 
@@ -31,11 +31,13 @@ describe('Encrypt File', () => {
       }
     }
     const response = await new EncryptFileHandler(oceanNode).handle(encryptFileTask)
-    console.log('response', response)
 
-    // assert(response, 'Failed to get response')
-    // assert(response.status.httpStatus === 200, 'Failed to get 200 response')
-    // assert(response.stream, 'Failed to get stream')
-    // expect(response.stream).to.be.instanceOf(Readable)
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response.stream, 'Failed to get stream')
+    expect(response.stream).to.be.instanceOf(Readable)
+
+    const encryptedContent = await streamToString(response.stream as Readable)
+    console.log('encryptedContent', encryptedContent)
   })
 })
