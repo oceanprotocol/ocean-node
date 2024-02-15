@@ -36,8 +36,22 @@ describe('Encrypt File', () => {
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
+  })
 
-    const encryptedContent = await streamToString(response.stream as Readable)
-    console.log('encryptedContent', encryptedContent)
+  it('should return unknown file type', async () => {
+    const encryptFileTask: EncryptFileCommand = {
+      command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
+      encryptionType: 'AES',
+      files: {
+        type: 'Unknown',
+        url: 'Unknown',
+        method: 'Unknown'
+      }
+    }
+    const response = await new EncryptFileHandler(oceanNode).handle(encryptFileTask)
+
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 400, 'Failed to get 200 response')
+    expect(response.status.error).to.be.equal('Unknown file type')
   })
 })

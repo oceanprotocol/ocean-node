@@ -77,8 +77,8 @@ export class EncryptFileHandler extends Handler {
         }
       }
       return {
-        stream: Readable.from('Unknown file type'),
-        status: { httpStatus: 400 }
+        stream: null,
+        status: { httpStatus: 400, error: 'Unknown file type' }
       }
     } catch (error) {
       return {
