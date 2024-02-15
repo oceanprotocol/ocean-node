@@ -8,9 +8,21 @@ import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { getEventFromTx } from '../../utils/util.js'
 import { delay, waitToIndex, deleteAsset } from './testUtils.js'
-import { genericDDO, remoteDDOTypeIPFSNotEncrypted } from '../data/ddo.js'
+import {
+  genericDDO,
+  remoteDDOTypeIPFSNotEncrypted,
+  remoteDDOTypeIPFSEncrypted
+} from '../data/ddo.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
-import { getMockSupportedNetworks } from '../utils/utils.js'
+import {
+  getMockSupportedNetworks,
+  setupEnvironment,
+  OverrideEnvConfig,
+  buildEnvOverrideConfig
+} from '../utils/utils.js'
+import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
+import { INDEXER_LOGGER } from '../../utils/logging/common.js'
+import { decrypt } from '../../utils/crypt.js'
 
 describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
@@ -27,8 +39,17 @@ describe('Indexer stores a new metadata events and orders.', () => {
   let setMetaDataTxReceipt: any
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+  let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
+    previousConfiguration = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig(
+        [ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS],
+        [JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'])]
+      )
+    )
+
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -54,7 +75,10 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   // for testing purpose
   it('delete test asset ', async () => {
-    await deleteAsset('did:op:1', database)
+    await deleteAsset(
+      'did:op:b5f14a64dcffba08daed511826d21a46146dc468186683c6895e4db153757c14',
+      database
+    )
   })
 
   it('should publish a dataset', async () => {
@@ -90,10 +114,10 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(datatokenAddress, 'find datatoken created failed')
   })
 
-  it('should set metadata and save ', async () => {
+  it('should set metadata and save (the remote DDO is encrypted) ', async () => {
     nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, publisherAccount)
 
-    const stringDDO = JSON.stringify(remoteDDOTypeIPFSNotEncrypted)
+    const stringDDO = JSON.stringify(remoteDDOTypeIPFSEncrypted)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
     const hash = createHash('sha256').update(metadata).digest('hex')
@@ -114,13 +138,21 @@ describe('Indexer stores a new metadata events and orders.', () => {
   delay(30000)
 
   it('should store the ddo in the database and return it ', async () => {
-    resolvedDDO = await waitToIndex('did:op:1', database)
-    expect(resolvedDDO.id).to.equal('did:op:1')
+    resolvedDDO = await waitToIndex(
+      'did:op:b5f14a64dcffba08daed511826d21a46146dc468186683c6895e4db153757c14',
+      database
+    )
+    expect(resolvedDDO.id).to.equal(
+      'did:op:b5f14a64dcffba08daed511826d21a46146dc468186683c6895e4db153757c14'
+    )
   })
 
   // for testing purpose
   it('delete asset ', async () => {
-    const deleted = await deleteAsset('did:op:1', database)
+    const deleted = await deleteAsset(
+      'did:op:b5f14a64dcffba08daed511826d21a46146dc468186683c6895e4db153757c14',
+      database
+    )
     assert(deleted, 'not deleted')
   })
 })

@@ -9,6 +9,7 @@ import {
 import axios from 'axios'
 import urlJoin from 'url-join'
 import { Readable } from 'node:stream'
+import { ethers } from 'ethers'
 import { fetchFileMetadata } from '../../utils/asset.js'
 import { getConfiguration } from '../../utils/index.js'
 import { decrypt } from '../../utils/crypt.js'
@@ -31,13 +32,13 @@ export abstract class Storage {
   }
 
   async processStream(stream: Readable): Promise<Readable> {
-    if (!this.file?.encryptedBy || this.file?.encryptedMethod) {
+    if (!this.file?.encryptedBy || !this.file?.encryptedMethod) {
+      INDEXER_LOGGER.logMessage('Stream is NOT encrypted', true)
       return stream
     }
 
-    INDEXER_LOGGER.logMessage('Stream in encrypted', true)
+    INDEXER_LOGGER.logMessage('Stream is encrypted', true)
 
-    const streamString = await streamToString(stream as Readable)
     const { keys } = await getConfiguration()
     const nodeId = keys.peerId.toString()
 
@@ -45,10 +46,9 @@ export abstract class Storage {
       throw Error(`Decrypt stream error: ${this.file?.encryptedBy} !== ${nodeId}`)
     }
 
-    const decryptedData = decrypt(
-      Uint8Array.from(Buffer.from(streamString, 'hex')),
-      this.file?.encryptedMethod
-    )
+    const streamString = await streamToString(stream as Readable)
+    const encryptedData = ethers.getBytes(streamString)
+    const decryptedData = await decrypt(encryptedData, this.file.encryptedMethod)
 
     return Readable.from([decryptedData])
   }
@@ -133,11 +133,13 @@ export class UrlStorage extends Storage {
 
   async getReadableStream(): Promise<StorageReadable> {
     const input = this.getDownloadUrl()
+
     const response = await axios({
       method: 'get',
       url: input,
       responseType: 'stream'
     })
+
     return {
       httpStatus: response.status,
       stream: await this.processStream(response.data),
