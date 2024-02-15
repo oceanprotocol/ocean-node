@@ -121,11 +121,25 @@ export abstract class Storage {
   }
 
   isEncrypted(): boolean {
-    return this.file.encryptedBy !== '' && this.file.encryptMethod !== ''
+    if (
+      this.file.encryptedBy &&
+      (this.file.encryptMethod === 'AES' || this.file.encryptMethod === 'ECIES')
+    ) {
+      return true
+    } else {
+      return false
+    }
   }
 
   canDecrypt(nodeId: string): boolean {
-    return this.file.encryptedBy === nodeId && this.file.encryptMethod !== ''
+    if (
+      this.file.encryptedBy === nodeId &&
+      (this.file.encryptMethod === 'AES' || this.file.encryptMethod === 'ECIES')
+    ) {
+      return true
+    } else {
+      return false
+    }
   }
 }
 

@@ -254,6 +254,18 @@ describe('URL Storage getFileInfo tests', () => {
     })
   })
 
+  it('isEncrypted should return false for an encrypted file', () => {
+    assert(storage.isEncrypted() === false, 'invalid response to isEncrypted()')
+  })
+
+  it('canDecrypt should return false when the file is not encrypted', () => {
+    assert(
+      storage.canDecrypt('16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72') ===
+        false,
+      'Wrong response from canDecrypt() for an unencrypted file'
+    )
+  })
+
   it('Successfully retrieves file info for a URL', async () => {
     const fileInfoRequest: FileInfoRequest = {
       type: 'url'
