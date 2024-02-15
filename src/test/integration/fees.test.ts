@@ -3,8 +3,8 @@ import {
   ENVIRONMENT_VARIABLES,
   PROTOCOL_COMMANDS,
   getConfiguration
-} from '../../../utils/index.js'
-import { ProviderFeeData } from '../../../@types/Fees'
+} from '../../utils/index.js'
+import { ProviderFeeData } from '../../@types/Fees.js'
 import {
   createFee,
   checkFee,
@@ -12,11 +12,11 @@ import {
   getProviderFeeToken,
   getProviderWallet,
   getProviderWalletAddress
-} from '../../../components/core/utils/feesHandler.js'
-import { FeesHandler } from '../../../components/core/feesHandler.js'
-import { OceanNodeConfig, P2PCommandResponse } from '../../../@types'
-import { Service } from '../../../@types/DDO/Service.js'
-import { DDOExample } from '../../data/ddo.js'
+} from '../../components/core/utils/feesHandler.js'
+import { FeesHandler } from '../../components/core/feesHandler.js'
+import { OceanNodeConfig, P2PCommandResponse } from '../../@types/index.js'
+import { Service } from '../../@types/DDO/Service.js'
+import { DDOExample } from '../data/ddo.js'
 import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,
@@ -24,12 +24,12 @@ import {
   tearDownEnvironment,
   TEST_ENV_CONFIG_FILE,
   getMockSupportedNetworks
-} from '../../utils/utils.js'
+} from '../utils/utils.js'
 import { ethers } from 'ethers'
-import { Database } from '../../../components/database/index.js'
-import { OceanNode } from '../../../OceanNode.js'
-import { getOceanArtifactsAdresses } from '../../../utils/address.js'
-import { RPCS } from '../../../@types/blockchain.js'
+import { Database } from '../../components/database/index.js'
+import { OceanNode } from '../../OceanNode.js'
+import { getOceanArtifactsAdresses } from '../../utils/address.js'
+import { RPCS } from '../../@types/blockchain.js'
 
 const service: Service = {
   id: '24654b91482a3351050510ff72694d88edae803cf31a5da993da963ba0087648', // matches the service ID on the example DDO
@@ -45,6 +45,7 @@ describe('Ocean Node fees', () => {
   let envBefore: OverrideEnvConfig[] | undefined
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const data = getOceanArtifactsAdresses()
+
   const oceanToken = data.development.Ocean
 
   before(async () => {
