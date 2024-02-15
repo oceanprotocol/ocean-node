@@ -13,6 +13,8 @@ import {
   setupEnvironment
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { getConfiguration } from '../../utils/index.js'
+import { Readable } from 'stream'
 
 describe('URL Storage tests', () => {
   let file: any = {
@@ -366,5 +368,60 @@ describe('IPFS Storage getFileInfo tests', async function () {
 
   after(() => {
     tearDownEnvironment(previousConfiguration)
+  })
+})
+
+describe('URL Storage getFileInfo tests', () => {
+  let storage: UrlStorage
+  before(() => {
+    storage = new UrlStorage({
+      type: 'url',
+      url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
+      method: 'get'
+    })
+  })
+
+  it('isEncrypted should return false for an encrypted file', () => {
+    assert(storage.isEncrypted() === false, 'invalid response to isEncrypted()')
+  })
+
+  it('canDecrypt should return false when the file is not encrypted', () => {
+    assert(
+      storage.canDecrypt('16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72') ===
+        false,
+      'Wrong response from canDecrypt() for an unencrypted file'
+    )
+  })
+
+  it('encrypt method should correctly encrypt data', async () => {
+    const { keys } = await getConfiguration()
+    const nodeId = keys.peerId.toString()
+    // Perform encryption
+    const encryptResponse = await storage.encrypt('AES', nodeId)
+    assert(encryptResponse.httpStatus === 200, 'Response is not 200')
+    assert(encryptResponse.stream, 'Stream is not null')
+    assert(encryptResponse.stream instanceof Readable, 'Stream is not a ReadableStream')
+  })
+
+  it('File info includes encryptedBy and encryptMethod', async () => {
+    const fileInfoRequest: FileInfoRequest = {
+      type: 'url'
+    }
+    const fileInfo = await storage.getFileInfo(fileInfoRequest)
+
+    assert(fileInfo[0].valid, 'File info is valid')
+    expect(fileInfo[0].contentLength).to.equal('13873')
+    expect(fileInfo[0].contentType).to.equal('text/plain')
+    expect(fileInfo[0].name).to.equal('organizations-100.csv')
+    expect(fileInfo[0].type).to.equal('url')
+  })
+
+  it('Throws error when URL is missing in request', async () => {
+    const fileInfoRequest: FileInfoRequest = { type: 'url' }
+    try {
+      await storage.getFileInfo(fileInfoRequest)
+    } catch (err) {
+      expect(err.message).to.equal('URL is required for type url')
+    }
   })
 })
