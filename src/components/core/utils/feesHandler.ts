@@ -1,11 +1,10 @@
-import { JsonRpcProvider, ethers, parseUnits } from 'ethers'
+import { JsonRpcProvider, ZeroAddress, ethers, parseUnits } from 'ethers'
 import { FeeTokens, ProviderFeeData } from '../../../@types/Fees'
 import { DDO } from '../../../@types/DDO/DDO'
 import { Service } from '../../../@types/DDO/Service'
 import { AssetUtils } from '../../../utils/asset.js'
 import { getDatatokenDecimals, verifyMessage } from '../../../utils/blockchain.js'
 import { getConfiguration } from '../../../utils/config.js'
-import { RPC } from '@chainsafe/libp2p-gossipsub/dist/src/message/rpc'
 
 // equiv to get_provider_fees
 // *** NOTE: provider.py => get_provider_fees ***
@@ -38,14 +37,11 @@ export async function createFee(
   // from env FEE_TOKENS
   const providerFeeToken: string = await getProviderFeeToken(asset.chainId)
 
-  if (providerFeeToken === '0x0000000000000000000000000000000000000000') {
+  if (providerFeeToken === ZeroAddress) {
     providerFeeAmount = 0
   }
 
-  if (
-    providerFeeToken &&
-    providerFeeToken !== '0x0000000000000000000000000000000000000000'
-  ) {
+  if (providerFeeToken && providerFeeToken !== ZeroAddress) {
     const networkUrl = (await getConfiguration()).supportedNetworks[
       asset.chainId.toString()
     ].rpc
