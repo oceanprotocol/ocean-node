@@ -24,7 +24,9 @@ describe('URL Storage tests', () => {
         'Content-Type': 'application/json',
         Authorization: 'Bearer auth_token_X'
       }
-    ]
+    ],
+    encryptedBy: '16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72',
+    encryptMethod: 'AES'
   }
   let storage: Storage
   let error: Error
@@ -37,6 +39,24 @@ describe('URL Storage tests', () => {
   })
   it('URL validation passes', () => {
     expect(storage.validate()).to.eql([true, ''])
+  })
+  it('isEncrypted should return true for an encrypted file', () => {
+    assert(storage.isEncrypted() === true, 'invalid response to isEncrypted()')
+  })
+
+  it('canDecrypt should return true for the correct nodeId', () => {
+    assert(
+      storage.canDecrypt('16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72') ===
+        true,
+      "can't decrypt with the correct nodeId"
+    )
+  })
+
+  it('canDecrypt should return false for an incorrect nodeId', () => {
+    assert(
+      storage.canDecrypt('wrongNodeId') === false,
+      'can decrypt with the wrong nodeId'
+    )
   })
   it('URL validation fails on missing URL', () => {
     file = {

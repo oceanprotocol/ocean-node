@@ -17,8 +17,6 @@ export abstract class Storage {
 
   public constructor(file: UrlFileObject | IpfsFileObject | ArweaveFileObject) {
     this.file = file
-    this.file.encryptMethod = ''
-    this.file.encryptedBy = ''
   }
 
   abstract validate(): [boolean, string]
