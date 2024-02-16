@@ -53,6 +53,7 @@ describe('Schema validation tests', async () => {
       DDOExample.nftAddress
     )
     expect(validationResult[0]).to.eql(false)
+    console.log('validation res[1]: ', JSON.stringify(validationResult[1]))
     expect(validationResult[1]).to.eql({
       metadata: 'Metadata is missing or invalid.',
       id: 'did is not valid for chain Id and nft address'
