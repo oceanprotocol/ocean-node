@@ -30,6 +30,7 @@ import {
   ValidateDDOCommand
 } from '../../@types/commands.js'
 import { hasP2PInterface } from '../httpRoutes/index.js'
+import { getProviderWallet } from './utils/feesHandler'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -679,9 +680,9 @@ export class ValidateDDOHandler extends Handler {
           status: { httpStatus: 400, error: `Validation error: ${validation[1]}` }
         }
       }
-      const hash = await getValidationSignature(JSON.stringify(task.ddo))
+      const signature = getValidationSignature(JSON.stringify(task.ddo))
       return {
-        stream: Readable.from(JSON.stringify(hash)),
+        stream: Readable.from(JSON.stringify(signature)),
         status: { httpStatus: 200 }
       }
     } catch (error) {
