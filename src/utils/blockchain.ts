@@ -1,5 +1,6 @@
 import { ethers, Signer, JsonRpcApiProvider, JsonRpcProvider, Contract } from 'ethers'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import { getConfiguration } from './config.js'
 
 export class Blockchain {
   private signer: Signer
@@ -27,9 +28,16 @@ export class Blockchain {
 
 export async function getDatatokenDecimals(
   datatokenAddress: string,
-  account: ethers.Wallet
+  account: ethers.Wallet,
+  chainId: number
 ): Promise<number> {
-  const datatokenContract = new Contract(datatokenAddress, ERC20Template.abi, account)
+  const networkUrl = (await getConfiguration()).supportedNetworks[chainId.toString()].rpc
+  const provider = new JsonRpcProvider(networkUrl)
+  const datatokenContract = new Contract(
+    datatokenAddress,
+    ERC20Template.abi,
+    await provider.getSigner(account.address)
+  )
   return await datatokenContract.decimals()
 }
 

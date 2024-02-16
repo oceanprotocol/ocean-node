@@ -248,7 +248,11 @@ export async function createFee(
     // ].rpc
     // const provider = new JsonRpcProvider(networkUrl)
 
-    const decimals = await getDatatokenDecimals(providerFeeToken, providerWallet)
+    const decimals = await getDatatokenDecimals(
+      providerFeeToken,
+      providerWallet,
+      asset.chainId
+    )
     // from env FEE_AMOUNT
     providerFeeAmount = parseUnits((await getProviderFeeAmount()).toString(10), decimals)
   }
