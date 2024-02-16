@@ -60,6 +60,12 @@ export IPFS_GATEWAY='https://ipfs.io/'
 export ARWEAVE_GATEWAY='https://arweave.net/'
 ```
 
+For configuring allowed validators for verifying an asset signature before indexing, please set the following environment variable (array of 1 or multiple addresses):
+
+```bash
+export ALLOWED_VALIDATORS=[\"0x123\",\"0x456\"]
+```
+
 For configuring a C2D (Compute to Data) cluster(s), please set the following environment variable (array of 1 or multiple cluster URLS):
 
 ```bash

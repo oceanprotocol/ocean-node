@@ -56,6 +56,8 @@ export const genericDDO = {
       timeout: 0
     }
   ],
+  nft: { state: 0 },
+  event: {},
   credentials: {
     allow: [
       {
@@ -169,6 +171,26 @@ export const incorrectDDO = {
 }
 
 export const ddov5 = {
+  '@context': ['https://w3id.org/did/v1'],
+  id: 'did:op:fa0e8fa9550e8eb13392d6eeb9ba9f8111801b332c8d2345b350b3bc66b379d5',
+  version: '4.5.0',
+  chainId: 137,
+  nftAddress: '0xBB1081DbF3227bbB233Db68f7117114baBb43656',
+  metadata: {
+    created: '2021-12-20T14:35:20Z',
+    updated: '2021-12-20T14:35:20Z',
+    type: 'dataset',
+    name: 'dataset-name',
+    description: 'Ocean protocol test dataset description',
+    author: 'oceanprotocol-team',
+    license: 'MIT',
+    tags: ['white-papers'],
+    additionalInformation: { 'test-key': 'test-value' },
+    links: ['http://data.ceda.ac.uk/badc/ukcp09/']
+  }
+}
+
+export const ddoValidationSignature = {
   '@context': ['https://w3id.org/did/v1'],
   id: 'did:op:fa0e8fa9550e8eb13392d6eeb9ba9f8111801b332c8d2345b350b3bc66b379d5',
   version: '4.5.0',

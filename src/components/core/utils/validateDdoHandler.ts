@@ -11,6 +11,7 @@ import { ethers, getAddress } from 'ethers'
 import { readFile } from 'node:fs/promises'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
+import { getProviderWallet } from './feesHandler.js'
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
@@ -71,11 +72,13 @@ function makeDid(nftAddress: string, chainId: string): string {
       .digest('hex')
   )
 }
+
 export async function validateObject(
   obj: Record<string, any>,
   chainId: number,
   nftAddress: string
 ): Promise<[boolean, Record<string, string>]> {
+  CORE_LOGGER.logMessage(`Validating object: ` + JSON.stringify(obj), true)
   const ddoCopy = JSON.parse(JSON.stringify(obj))
   ddoCopy['@type'] = 'DDO'
   const extraErrors: Record<string, string> = {}
@@ -88,7 +91,6 @@ export async function validateObject(
   if (!('metadata' in obj)) {
     extraErrors.metadata = 'Metadata is missing or invalid.'
   }
-
   ;['created', 'updated'].forEach((attr) => {
     if ('metadata' in obj && attr in obj.metadata && !isIsoFormat(obj.metadata[attr])) {
       extraErrors.metadata = `${attr} is not in ISO format.`
@@ -109,9 +111,6 @@ export async function validateObject(
   if (!(makeDid(nftAddress, chainId.toString(10)) === obj.id)) {
     extraErrors.id = 'did is not valid for chain Id and nft address'
   }
-
-  // @context key is reserved in JSON-LD format
-  ddoCopy['@context'] = { '@vocab': 'http://schema.org/' }
 
   const version = obj.version || CURRENT_VERSION
   const schemaFilePath = getSchema(version)
@@ -140,50 +139,43 @@ export async function validateObject(
     return [false, { error: errorMsg }]
   }
   const errors = parseReportToErrors(report.results)
-
   if (extraErrors) {
     // Merge errors and extraErrors without overwriting existing keys
     const mergedErrors = { ...errors, ...extraErrors }
-
     // Check if there are any new errors introduced
     const newErrorsIntroduced = Object.keys(mergedErrors).some(
       (key) => !Object.prototype.hasOwnProperty.call(errors, key)
     )
-
     if (newErrorsIntroduced) {
+      CORE_LOGGER.logMessage(
+        `validateObject found new errors introduced: ${JSON.stringify(mergedErrors)}`,
+        true
+      )
+
       return [false, mergedErrors]
     }
   }
-
   return [report.conforms, errors]
 }
 
-/**
- * TODO double check this, not sure if is correct
- * TODO create a ValidationSignature type for the response
- * @param raw DDO
- * @returns hash
- */
-export async function getValidationSignature(rawDDO: string): Promise<any> {
-  let values = {}
+export async function getValidationSignature(ddo: string): Promise<any> {
   try {
-    const hashedRaw = create256Hash(rawDDO)
-    const wallet = new ethers.Wallet(process.env.PRIVATE_KEY)
-
-    const message = ethers.solidityPackedKeccak256(
+    const hashedDDO = create256Hash(ddo)
+    const providerWallet = await getProviderWallet()
+    const messageHash = ethers.solidityPackedKeccak256(
       ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(hashedRaw))]
+      [ethers.hexlify(ethers.toUtf8Bytes(hashedDDO))]
     )
-    const signed = await wallet.signMessage(message)
-    const signatureSplitted = ethers.Signature.from(signed)
+    const signed32Bytes = await providerWallet.signMessage(
+      new Uint8Array(ethers.toBeArray(messageHash))
+    )
+    const signatureSplitted = ethers.Signature.from(signed32Bytes)
     const v = signatureSplitted.v <= 1 ? signatureSplitted.v + 27 : signatureSplitted.v
     const r = ethers.hexlify(signatureSplitted.r) // 32 bytes
     const s = ethers.hexlify(signatureSplitted.s)
-
-    values = { hash: hashedRaw, publicKey: wallet.address, r, s, v }
+    return { hash: hashedDDO, publicKey: providerWallet.address, r, s, v }
   } catch (error) {
-    console.error(error)
-    values = { hash: '', publicKey: '', r: '', s: '', v: '' }
+    CORE_LOGGER.logMessage(`Validation signature error: ${error}`, true)
+    return { hash: '', publicKey: '', r: '', s: '', v: '' }
   }
-  return values
 }
