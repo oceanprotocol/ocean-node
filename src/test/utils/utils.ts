@@ -6,6 +6,7 @@ import { CONFIG_LOGGER } from '../../utils/logging/common.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { getConfiguration } from '../../utils/config.js'
 
+export const DEFAULT_TEST_TIMEOUT = 20000 // 20 secs MAX
 // __dirname and __filename are not defined in ES module scope
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)

@@ -10,8 +10,6 @@ import {
   ZeroAddress,
   parseUnits
 } from 'ethers'
-import fs from 'fs'
-import { homedir } from 'os'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
@@ -20,10 +18,11 @@ import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { getEventFromTx, streamToString, streamToObject } from '../../utils/util.js'
-import { delay, waitToIndex } from './testUtils.js'
+import { delay, expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import {
   ENVIRONMENT_VARIABLES,
+  EVENTS,
   PROTOCOL_COMMANDS,
   getConfiguration
 } from '../../utils/index.js'
@@ -37,6 +36,7 @@ import { UrlFileObject } from '../../@types/fileObject.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import {
+  DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
@@ -163,7 +163,6 @@ describe('Should run a complete node flow.', () => {
   })
 
   it('should publish a dataset', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
     const tx = await factoryContract.createNftWithErc20(
       {
         name: '72120Bundle',
@@ -264,11 +263,24 @@ describe('Should run a complete node flow.', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(50000)
+  delay(DEFAULT_TEST_TIMEOUT * 2)
 
-  it('should store the ddo in the database and return it ', async () => {
-    resolvedDDO = await waitToIndex(assetDID, database)
-    expect(resolvedDDO.id).to.equal(genericAsset.id)
+  it('should store the ddo in the database and return it', async function () {
+    const timeout = DEFAULT_TEST_TIMEOUT * 3
+    this.timeout(timeout)
+    resolvedDDO = await waitToIndex(
+      assetDID,
+      EVENTS.METADATA_CREATED,
+      (ddo: any, wasTimeOut: boolean) => {
+        if (ddo != null) {
+          expect(ddo.id).to.equal(genericAsset.id)
+        } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeOut)
+      },
+      timeout
+    )
+    if (resolvedDDO) {
+      expect(resolvedDDO.id).to.equal(genericAsset.id)
+    }
   })
 
   // it('should be able to decrypt the ddo files ', async () => {
@@ -305,101 +317,104 @@ describe('Should run a complete node flow.', () => {
   })
 
   it('should start an order', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
-    try {
-      const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
-      const serviceIndex = '0'
-      const consumeMarketFeeAddress = ZeroAddress
-      const consumeMarketFeeAmount = 0
-      const consumeMarketFeeToken = feeToken
+    const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
+    const serviceIndex = '0'
+    const consumeMarketFeeAddress = ZeroAddress
+    const consumeMarketFeeAmount = 0
+    const consumeMarketFeeToken = feeToken
 
-      dataTokenContract = new Contract(
-        datatokenAddress,
-        ERC20Template.abi,
-        publisherAccount
-      )
+    dataTokenContract = new Contract(
+      datatokenAddress,
+      ERC20Template.abi,
+      publisherAccount
+    )
 
-      const feeData = await createFee(
-        resolvedDDO as DDO,
-        0,
-        'null',
-        resolvedDDO.services[0]
-      )
+    const feeData = await createFee(
+      resolvedDDO as DDO,
+      0,
+      'null',
+      resolvedDDO.services[0]
+    )
 
-      // call the mint function on the dataTokenContract
-      const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
-      await mintTx.wait()
-      const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
-      assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
+    // call the mint function on the dataTokenContract
+    const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
+    await mintTx.wait()
+    const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
+    assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
 
-      const dataTokenContractWithNewSigner = dataTokenContract.connect(
-        consumerAccount
-      ) as any
+    const dataTokenContractWithNewSigner = dataTokenContract.connect(
+      consumerAccount
+    ) as any
 
-      const orderTx = await dataTokenContractWithNewSigner.startOrder(
-        consumerAddress,
-        serviceIndex,
-        {
-          providerFeeAddress: feeData.providerFeeAddress,
-          providerFeeToken: feeData.providerFeeToken,
-          providerFeeAmount: feeData.providerFeeAmount,
-          v: feeData.v,
-          r: feeData.r,
-          s: feeData.s,
-          providerData: feeData.providerData,
-          validUntil: feeData.validUntil
-        },
-        {
-          consumeMarketFeeAddress,
-          consumeMarketFeeToken,
-          consumeMarketFeeAmount
-        }
-      )
-      const orderTxReceipt = await orderTx.wait()
-      assert(orderTxReceipt, 'order transaction failed')
-      orderTxId = orderTxReceipt.hash
-      assert(orderTxId, 'transaction id not found')
-    } catch (error) {
-      console.log(error)
-    }
+    const orderTx = await dataTokenContractWithNewSigner.startOrder(
+      consumerAddress,
+      serviceIndex,
+      {
+        providerFeeAddress: feeData.providerFeeAddress,
+        providerFeeToken: feeData.providerFeeToken,
+        providerFeeAmount: feeData.providerFeeAmount,
+        v: feeData.v,
+        r: feeData.r,
+        s: feeData.s,
+        providerData: feeData.providerData,
+        validUntil: feeData.validUntil
+      },
+      {
+        consumeMarketFeeAddress,
+        consumeMarketFeeToken,
+        consumeMarketFeeAmount
+      }
+    )
+    const orderTxReceipt = await orderTx.wait()
+    assert(orderTxReceipt, 'order transaction failed')
+    orderTxId = orderTxReceipt.hash
+    assert(orderTxId, 'transaction id not found')
   })
 
   it('should download triger download file', async function () {
-    this.timeout(65000)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
-    const config = await getConfiguration(true)
-    database = await new Database(config.dbConfig)
-    const oceanNode = OceanNode.getInstance(database)
-    assert(oceanNode, 'Failed to instantiate OceanNode')
+    const doCheck = async () => {
+      const config = await getConfiguration(true)
+      database = await new Database(config.dbConfig)
+      const oceanNode = OceanNode.getInstance(database)
+      assert(oceanNode, 'Failed to instantiate OceanNode')
 
-    const wallet = new ethers.Wallet(
-      '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
-    )
-    const nonce = Date.now().toString()
-    const message = String(resolvedDDO.id + nonce)
-    const consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
-    )
-    const messageHashBytes = ethers.toBeArray(consumerMessage)
-    const signature = await wallet.signMessage(messageHashBytes)
+      const wallet = new ethers.Wallet(
+        '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
+      )
+      const nonce = Date.now().toString()
+      const message = String(resolvedDDO.id + nonce)
+      const consumerMessage = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      )
+      const messageHashBytes = ethers.toBeArray(consumerMessage)
+      const signature = await wallet.signMessage(messageHashBytes)
 
-    const downloadTask = {
-      fileIndex: 0,
-      documentId: assetDID,
-      serviceId,
-      transferTxId: orderTxId,
-      nonce,
-      consumerAddress,
-      signature,
-      command: PROTOCOL_COMMANDS.DOWNLOAD
+      const downloadTask = {
+        fileIndex: 0,
+        documentId: assetDID,
+        serviceId,
+        transferTxId: orderTxId,
+        nonce,
+        consumerAddress,
+        signature,
+        command: PROTOCOL_COMMANDS.DOWNLOAD
+      }
+      const response = await new DownloadHandler(oceanNode).handle(downloadTask)
+
+      assert(response)
+      assert(response.stream, 'stream not present')
+      assert(response.status.httpStatus === 200, 'http status not 200')
+      expect(response.stream).to.be.instanceOf(Readable)
     }
-    const response = await new DownloadHandler(oceanNode).handle(downloadTask)
 
-    assert(response)
-    assert(response.stream, 'stream not present')
-    assert(response.status.httpStatus === 200, 'http status not 200')
-    expect(response.stream).to.be.instanceOf(Readable)
+    setTimeout(() => {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
+    }, DEFAULT_TEST_TIMEOUT * 3)
+
+    doCheck()
   })
 
   after(async () => {

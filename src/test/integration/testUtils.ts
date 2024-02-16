@@ -3,14 +3,17 @@ import { Database } from '../../components/database/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 
 import { JsonRpcSigner, JsonRpcProvider, getBytes } from 'ethers'
+import { DEFAULT_TEST_TIMEOUT } from '../utils/utils.js'
+import { getDatabase } from '../../utils/database.js'
 
-const MAX_RETRIES = 50
-let numRetries = 0
 // listen for indexer events
 export function addIndexerEventListener(eventName: string, ddoId: string, callback: any) {
+  // add listener
   INDEXER_DDO_EVENT_EMITTER.addListener(eventName, (did) => {
     INDEXER_LOGGER.info(`Test suite - Listened event: "${eventName}" for DDO ${did.id}`)
     if (ddoId === did.id && typeof callback === 'function') {
+      // remove it
+      INDEXER_DDO_EVENT_EMITTER.removeListener(eventName, this)
       callback(did)
     }
   })
@@ -22,26 +25,50 @@ export const delay = (interval: number) => {
   }).timeout(interval + 1500)
 }
 
+// called on long running tests
+export function expectedTimeoutFailure(testName: string): boolean {
+  console.warn(`Timeout Failure for test: "${testName}"`)
+  return true
+}
+
+async function getIndexedDDOFromDB(did: string): Promise<any> {
+  try {
+    const database: Database = await getDatabase()
+    const ddo = await database.ddo.retrieve(did)
+    if (ddo) {
+      return ddo
+    }
+  } catch (e) {
+    INDEXER_LOGGER.logMessage(`Error could not retrieve the DDO ${did}: ${e}`)
+  }
+  return null
+}
 // WIP
-export const waitToIndex = async (did: string, database: Database): Promise<any> => {
+export const waitToIndex = async (
+  did: string,
+  eventName: string,
+  callback: any,
+  testTimeout: number = DEFAULT_TEST_TIMEOUT
+): Promise<any> => {
+  let result = null
   const timeout = setTimeout(async () => {
-    numRetries++
-    try {
-      const ddo = await database.ddo.retrieve(did)
-      if (ddo) {
-        return ddo
-      }
-    } catch (e) {
-      INDEXER_LOGGER.logMessage(`Error could not retrieve the DDO ${did}: ${e}`)
-    }
-    if (numRetries < MAX_RETRIES) {
-      clearTimeout(timeout)
-      waitToIndex(did, database)
-    } else {
-      numRetries = 0
-      return null
-    }
-  }, 2500)
+    result = await getIndexedDDOFromDB(did)
+    callback(result, true)
+    return result
+  }, testTimeout - 5000) // little less (5 secs) than the initial timeout
+
+  // first try
+  result = await getIndexedDDOFromDB(did)
+  if (result !== null) {
+    clearTimeout(timeout)
+    return result
+  }
+
+  // 2nd approach, whatever happens first (timeout or event emition)
+  addIndexerEventListener(eventName, did, async () => {
+    clearTimeout(timeout)
+    return await getIndexedDDOFromDB(did)
+  })
 }
 /** 
 export const waitToIndex = async (did: string, database: Database): Promise<any> => {

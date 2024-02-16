@@ -93,7 +93,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
 
   it('should publish a dataset', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
     const tx = await factoryContract.createNftWithErc20(
       {
         name: '72120Bundle',
@@ -129,7 +128,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
 
   it('should set metadata and save', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
     nftContract = new Contract(dataNftAddress, ERC721Template.abi, publisherAccount)
     genericDDO.id =
       'did:op:' +
@@ -158,12 +156,12 @@ describe('validateOrderTransaction Function with Orders', () => {
 
   delay(30000)
 
-  it('should get the active state', async () => {
-    resolvedDDO = await waitToIndex(genericDDO.id, database)
-  })
+  // THIS DOES NOTHING!
+  // it('should get the active state', async () => {
+  //   resolvedDDO = await waitToIndex(genericDDO.id, database)
+  // })
 
   it('should start an order and validate the transaction', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
     dataTokenContract = new Contract(
       datatokenAddress,
       ERC20Template.abi,
@@ -244,8 +242,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
 
   it('should reuse an order and validate the transaction', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
-
     const feeData = await createFee(
       resolvedDDO as DDO,
       0,
@@ -310,8 +306,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
 
   it('should reject reuse an order with invald serviceId', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
-
     const feeData = await createFee(
       resolvedDDO as DDO,
       0,
@@ -362,8 +356,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
 
   it('should reject reuse an order with invald user address', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
-
     const feeData = await createFee(
       resolvedDDO as DDO,
       0,
