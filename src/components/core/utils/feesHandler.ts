@@ -239,9 +239,10 @@ export async function createFee(
   if (providerFeeToken && providerFeeToken !== ZeroAddress) {
     CORE_LOGGER.logMessage(
       `(await getConfiguration()).supportedNetwork: ${JSON.stringify(
-        (await getConfiguration()).supportedNetworks
+        (await getConfiguration()).supportedNetworks[asset.chainId]
       )}`
     )
+    CORE_LOGGER.logMessage(`chain id: ${asset.chainId}`)
     const networkUrl = (await getConfiguration()).supportedNetworks[asset.chainId].rpc
     const provider = new JsonRpcProvider(networkUrl)
     const decimals = await getDatatokenDecimals(providerFeeToken, provider)

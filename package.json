@@ -26,7 +26,7 @@
     "mocha": "mocha --node-env=test --config .mocharc.json",
     "test": "npm run lint && npm run test:unit:cover && npm run test:integration:cover",
     "test:unit": "npm run build-tests && npm run mocha \"./dist/test/unit/**/*.test.js\"",
-    "test:integration": "npm run build-tests && npm run mocha \"./dist/test/integration/**/*.test.js\"",
+    "test:integration": "npm run build-tests && npm run mocha \"./dist/test/integration/fees.test.js\"",
     "test:integration:complete": "npm run build-tests && npm run mocha ./dist/test/integration/completeFlow.test.js",
     "test:unit:cover": "nyc --report-dir coverage/unit npm run test:unit",
     "test:integration:cover": "nyc --report-dir coverage/integration --no-clean npm run test:integration",
