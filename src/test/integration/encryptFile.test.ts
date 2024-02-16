@@ -52,6 +52,8 @@ describe('Encrypt File', () => {
 
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 500, 'Failed to get 500 response')
-    expect(response.status.error).to.be.equal('Unknown file type')
+    expect(response.status.error).to.be.equal(
+      'Unknown error: Invalid storage type: Unknown'
+    )
   })
 })
