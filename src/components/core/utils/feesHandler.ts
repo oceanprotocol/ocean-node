@@ -243,7 +243,9 @@ export async function createFee(
       )}`
     )
     CORE_LOGGER.logMessage(`chain id: ${asset.chainId}`)
-    const networkUrl = (await getConfiguration()).supportedNetworks[asset.chainId].rpc
+    const networkUrl = (await getConfiguration()).supportedNetworks[
+      asset.chainId.toString()
+    ].rpc
     const provider = new JsonRpcProvider(networkUrl)
     const decimals = await getDatatokenDecimals(providerFeeToken, provider)
     // from env FEE_AMOUNT

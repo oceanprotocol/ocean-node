@@ -45,8 +45,7 @@ describe('Ocean Node fees', () => {
   let envBefore: OverrideEnvConfig[] | undefined
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const data = getOceanArtifactsAdresses()
-
-  const oceanToken = data.development.Ocean
+  const oceanToken = data.polygon.Ocean
 
   before(async () => {
     // we're gonna override these
@@ -60,12 +59,11 @@ describe('Ocean Node fees', () => {
         ],
         [
           JSON.stringify(mockSupportedNetworks),
-          JSON.stringify({ 8996: oceanToken }),
+          JSON.stringify({ 137: oceanToken }),
           '{ "amount": 1, "unit": "MB" }'
         ]
       )
     )
-    // '{ "1": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48", "137": "0x282d8efCe846A88B159800bd4130ad77443Fa1A1", "80001": "0xd8992Ed72C445c35Cb4A2be468568Ed1079357c8", "56": "0xDCe07662CA8EbC241316a15B611c89711414Dd1a" }',
     // avoid overriding the local environment, use the .env.test
     config = await getConfiguration(true)
   })
