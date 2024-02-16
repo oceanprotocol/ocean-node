@@ -1,4 +1,4 @@
-import { JsonRpcApiProvider, Signer, ethers, getAddress } from 'ethers'
+import { JsonRpcApiProvider, Signer, ethers, getAddress, Interface } from 'ethers'
 import localAdressFile from '@oceanprotocol/contracts/addresses/address.json' assert { type: 'json' }
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
@@ -8,7 +8,8 @@ import {
   ENVIRONMENT_VARIABLES,
   EVENTS,
   EVENT_HASHES,
-  existsEnvironmentVariable
+  existsEnvironmentVariable,
+  getAllowedValidators
 } from '../../utils/index.js'
 import { BlocksEvents, NetworkEvent, ProcessingEvents } from '../../@types/blockchain.js'
 import {
@@ -18,6 +19,10 @@ import {
   OrderStartedEventProcessor
 } from './processor.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
+import { fetchEventFromTransaction } from '../../utils/util.js'
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+
 let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor
 let orderReusedEventProcessor: OrderReusedEventProcessor
@@ -126,7 +131,7 @@ export const processBlocks = async (
   }
 }
 
-function findEventByKey(keyToFind: string): NetworkEvent {
+export function findEventByKey(keyToFind: string): NetworkEvent {
   for (const [key, value] of Object.entries(EVENT_HASHES)) {
     if (key === keyToFind) {
       return value
@@ -143,6 +148,8 @@ export const processChunkLogs = async (
 ): Promise<BlocksEvents> => {
   const storeEvents: BlocksEvents = {}
   if (logs.length > 0) {
+    const allowedValidators = getAllowedValidators()
+    const checkMetadataValidated = allowedValidators.length > 0
     for (const log of logs) {
       const event = findEventByKey(log.topics[0])
 
@@ -152,6 +159,42 @@ export const processChunkLogs = async (
           `-- ${event.type} -- triggered for ${log.transactionHash}`,
           true
         )
+        if (
+          event.type === EVENTS.METADATA_CREATED ||
+          event.type === EVENTS.METADATA_UPDATED ||
+          event.type === EVENTS.METADATA_STATE
+        ) {
+          if (checkMetadataValidated) {
+            const txReceipt = await provider.getTransactionReceipt(log.transactionHash)
+            const metadataProofs = fetchEventFromTransaction(
+              txReceipt,
+              'MetadataValidated',
+              new Interface(ERC20Template.abi)
+            )
+            if (!metadataProofs) {
+              INDEXER_LOGGER.log(
+                LOG_LEVELS_STR.LEVEL_ERROR,
+                `Metadata Proof validator not allowed`,
+                true
+              )
+              continue
+            }
+            const validators = metadataProofs.map((metadataProof) =>
+              getAddress(metadataProof.args[0].toString())
+            )
+            const allowed = allowedValidators.filter(
+              (allowedValidator) => validators.indexOf(allowedValidator) !== -1
+            )
+            if (!allowed.length) {
+              INDEXER_LOGGER.log(
+                LOG_LEVELS_STR.LEVEL_ERROR,
+                `Metadata Proof validator not allowed`,
+                true
+              )
+              continue
+            }
+          }
+        }
         if (
           event.type === EVENTS.METADATA_CREATED ||
           event.type === EVENTS.METADATA_UPDATED

@@ -8,7 +8,8 @@ import {
   getAddress,
   hexlify,
   ZeroAddress,
-  parseUnits
+  parseUnits,
+  MaxUint256
 } from 'ethers'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
