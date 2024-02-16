@@ -8,7 +8,7 @@ export interface UrlFileObject {
   type: string
   url: string
   method: string
-  headers?: HeadersObject
+  headers?: [HeadersObject]
 }
 
 export interface IpfsFileObject {

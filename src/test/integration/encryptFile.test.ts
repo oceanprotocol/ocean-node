@@ -51,7 +51,7 @@ describe('Encrypt File', () => {
     const response = await new EncryptFileHandler(oceanNode).handle(encryptFileTask)
 
     assert(response, 'Failed to get response')
-    assert(response.status.httpStatus === 400, 'Failed to get 200 response')
+    assert(response.status.httpStatus === 500, 'Failed to get 500 response')
     expect(response.status.error).to.be.equal('Unknown file type')
   })
 })

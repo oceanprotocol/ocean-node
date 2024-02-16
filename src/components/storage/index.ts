@@ -1,14 +1,15 @@
 import {
-  UrlFileObject,
-  IpfsFileObject,
   ArweaveFileObject,
-  StorageReadable,
   FileInfoRequest,
-  FileInfoResponse
+  FileInfoResponse,
+  IpfsFileObject,
+  StorageReadable,
+  UrlFileObject
 } from '../../@types/fileObject.js'
 import { fetchFileMetadata } from '../../utils/asset.js'
 import axios from 'axios'
 import urlJoin from 'url-join'
+import { encrypt } from '../../utils/crypt'
 
 export abstract class Storage {
   private file: any
@@ -20,6 +21,7 @@ export abstract class Storage {
 
   abstract getDownloadUrl(): string
   abstract fetchSpecificFileMetadata(fileObject: any): Promise<FileInfoResponse>
+  abstract encryptContent(encryptionType: 'AES' | 'ECIES'): Promise<Buffer>
 
   getFile(): any {
     return this.file
@@ -128,6 +130,16 @@ export class UrlStorage extends Storage {
       type: 'url'
     }
   }
+
+  async encryptContent(encryptionType: 'AES' | 'ECIES'): Promise<Buffer> {
+    const file = this.getFile()
+    const response = await axios({
+      url: file.url,
+      method: file.method || 'get',
+      headers: file.headers
+    })
+    return await encrypt(response.data, encryptionType)
+  }
 }
 
 export class ArweaveStorage extends Storage {
@@ -184,6 +196,15 @@ export class ArweaveStorage extends Storage {
       type: 'arweave'
     }
   }
+
+  async encryptContent(encryptionType: 'AES' | 'ECIES'): Promise<Buffer> {
+    const file = this.getFile()
+    const response = await axios({
+      url: urlJoin(process.env.ARWEAVE_GATEWAY, file.transactionId),
+      method: 'get'
+    })
+    return await encrypt(response.data, encryptionType)
+  }
 }
 
 export class IpfsStorage extends Storage {
@@ -238,5 +259,14 @@ export class IpfsStorage extends Storage {
       name: '',
       type: 'ipfs'
     }
+  }
+
+  async encryptContent(encryptionType: 'AES' | 'ECIES'): Promise<Buffer> {
+    const file = this.getFile()
+    const response = await axios({
+      url: file.hash,
+      method: 'get'
+    })
+    return await encrypt(response.data, encryptionType)
   }
 }

@@ -7,6 +7,7 @@ import { encrypt } from '../../utils/crypt.js'
 import { ArweaveFileObject, IpfsFileObject, UrlFileObject } from '../../@types/fileObject'
 import urlJoin from 'url-join'
 import axios from 'axios'
+import { ArweaveStorage, IpfsStorage, Storage, UrlStorage } from '../storage'
 
 export class EncryptHandler extends Handler {
   async handle(task: EncryptCommand): Promise<P2PCommandResponse> {
@@ -39,46 +40,11 @@ export class EncryptHandler extends Handler {
 export class EncryptFileHandler extends Handler {
   async handle(task: EncryptFileCommand): Promise<P2PCommandResponse> {
     try {
-      if (task.files.type === 'url') {
-        const file = task.files as UrlFileObject
-        const response = await axios({
-          url: file.url,
-          method: file.method || 'get',
-          headers: file.headers
-        })
-        const encryptedContent = await encrypt(response.data, task.encryptionType)
-        return {
-          stream: Readable.from(encryptedContent),
-          status: { httpStatus: 200 }
-        }
-      }
-      if (task.files.type === 'arweave') {
-        const file = task.files as ArweaveFileObject
-        const response = await axios({
-          url: urlJoin(process.env.ARWEAVE_GATEWAY, file.transactionId),
-          method: 'get'
-        })
-        const encryptedContent = await encrypt(response.data, task.encryptionType)
-        return {
-          stream: Readable.from(encryptedContent),
-          status: { httpStatus: 200 }
-        }
-      }
-      if (task.files.type === 'ipfs') {
-        const file = task.files as IpfsFileObject
-        const response = await axios({
-          url: file.hash,
-          method: 'get'
-        })
-        const encryptedContent = await encrypt(response.data, task.encryptionType)
-        return {
-          stream: Readable.from(encryptedContent),
-          status: { httpStatus: 200 }
-        }
-      }
+      const storage = Storage.getStorageClass(task.files)
+      const encryptedContent = await storage.encryptContent(task.encryptionType)
       return {
-        stream: null,
-        status: { httpStatus: 400, error: 'Unknown file type' }
+        stream: Readable.from(encryptedContent),
+        status: { httpStatus: 200 }
       }
     } catch (error) {
       return {
