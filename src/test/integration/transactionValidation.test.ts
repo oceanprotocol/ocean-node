@@ -88,6 +88,11 @@ describe('validateOrderTransaction Function with Orders', () => {
       ERC721Factory.abi,
       publisherAccount
     )
+    dataTokenContract = new Contract(
+      datatokenAddress,
+      ERC20Template.abi,
+      publisherAccount
+    )
   })
 
   it('Start instance of Database', async () => {
@@ -165,11 +170,6 @@ describe('validateOrderTransaction Function with Orders', () => {
 
   it('should start an order and validate the transaction', async function () {
     const doCheck = async (resolvedDDO: any) => {
-      dataTokenContract = new Contract(
-        datatokenAddress,
-        ERC20Template.abi,
-        publisherAccount
-      )
       const paymentCollector = await dataTokenContract.getPaymentCollector()
       assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
 
@@ -268,6 +268,8 @@ describe('validateOrderTransaction Function with Orders', () => {
       'null',
       resolvedDDO.services[0]
     )
+
+    dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
 
     // sign provider data
     providerData = JSON.stringify({ timeout })
