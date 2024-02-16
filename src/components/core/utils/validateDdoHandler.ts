@@ -73,6 +73,10 @@ function makeDid(nftAddress: string, chainId: string): string {
   )
 }
 
+export async function validateShortVersion(obj: Record<string, any>) {
+  const ddoCopy = JSON.parse(JSON.stringify(obj))
+}
+
 export async function validateObject(
   obj: Record<string, any>,
   chainId: number,
@@ -82,15 +86,6 @@ export async function validateObject(
   const ddoCopy = JSON.parse(JSON.stringify(obj))
   ddoCopy['@type'] = 'DDO'
   const extraErrors: Record<string, string> = {}
-  if (!('@context' in obj)) {
-    extraErrors['@context'] = 'Context is missing.'
-  }
-  if ('@context' in obj && !Array.isArray(obj['@context'])) {
-    extraErrors['@context'] = 'Context is not an array.'
-  }
-  if (!('metadata' in obj)) {
-    extraErrors.metadata = 'Metadata is missing or invalid.'
-  }
   ;['created', 'updated'].forEach((attr) => {
     if ('metadata' in obj && attr in obj.metadata && !isIsoFormat(obj.metadata[attr])) {
       extraErrors.metadata = `${attr} is not in ISO format.`
