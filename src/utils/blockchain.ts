@@ -27,13 +27,9 @@ export class Blockchain {
 
 export async function getDatatokenDecimals(
   datatokenAddress: string,
-  provider: JsonRpcProvider
+  account: ethers.Wallet
 ): Promise<number> {
-  const datatokenContract = new Contract(
-    datatokenAddress,
-    ERC20Template.abi,
-    await provider.getSigner()
-  )
+  const datatokenContract = new Contract(datatokenAddress, ERC20Template.abi, account)
   return await datatokenContract.decimals()
 }
 
