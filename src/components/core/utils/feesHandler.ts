@@ -1,11 +1,206 @@
-import { JsonRpcProvider, ZeroAddress, ethers, parseUnits } from 'ethers'
+import {
+  JsonRpcApiProvider,
+  ethers,
+  Contract,
+  BigNumberish,
+  parseUnits,
+  ZeroAddress,
+  JsonRpcProvider
+} from 'ethers'
 import { FeeTokens, ProviderFeeData } from '../../../@types/Fees'
 import { DDO } from '../../../@types/DDO/DDO'
 import { Service } from '../../../@types/DDO/Service'
 import { AssetUtils } from '../../../utils/asset.js'
 import { getDatatokenDecimals, verifyMessage } from '../../../utils/blockchain.js'
 import { getConfiguration } from '../../../utils/config.js'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
+import { findEventByKey } from '../../Indexer/utils.js'
+import axios from 'axios'
+import { getOceanArtifactsAdresses } from '../../../utils/address.js'
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import { C2DClusterInfo } from '../../../@types'
 
+export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
+  try {
+    const envs: Array<any> = []
+    const clustersURLS: string[] = []
+    const clustersInfo: C2DClusterInfo[] = (await getConfiguration()).c2dClusters
+    for (const c of clustersInfo) {
+      clustersURLS.push(c.url)
+    }
+    for (const cluster of clustersURLS) {
+      const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
+      const { data } = await axios.get(url)
+      envs.push({
+        [`${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`]: data
+      })
+    }
+    return envs
+  } catch (error) {
+    CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error identifying C2D envs: ${error}`)
+  }
+}
+
+async function getEnv(asset: DDO, computeEnv: string): Promise<any> {
+  const computeEnvs = await getC2DEnvs(asset)
+  const clustersURLS: string[] = []
+  const clustersInfo: C2DClusterInfo[] = (await getConfiguration()).c2dClusters
+  for (const c of clustersInfo) {
+    clustersURLS.push(c.url)
+  }
+
+  for (const cluster of clustersURLS) {
+    const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
+
+    const envs = computeEnvs[0][url]
+    for (const env of envs) {
+      if (env.id === computeEnv) {
+        return env
+      }
+    }
+  }
+}
+
+export async function calculateComputeProviderFee(
+  asset: DDO,
+  validUntil: number,
+  computeEnv: string,
+  service: Service,
+  provider: JsonRpcApiProvider
+): Promise<ProviderFeeData> | undefined {
+  const now = new Date().getTime()
+  const validUntilDateTime = new Date(validUntil).getTime()
+  const seconds: number = (now - validUntilDateTime) / 1000
+  const env = await getEnv(asset, computeEnv)
+
+  if (!env) {
+    CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Env could not be found.`, true)
+  }
+  const providerData = {
+    environment: env.id,
+    timestamp: new Date().getTime() / 1000,
+    dt: service.datatokenAddress,
+    id: service.id
+  }
+  const providerWallet = await getProviderWallet(String(asset.chainId))
+  const providerFeeAddress: string = providerWallet.address
+  let providerFeeAmount: number
+  let providerFeeAmountFormatted: BigNumberish
+
+  const providerFeeToken: string = await getProviderFeeTokenByArtifacts(asset.chainId)
+
+  if (providerFeeToken === ZeroAddress) {
+    providerFeeAmount = 0
+  }
+
+  // from env FEE_TOKENS
+  if (providerFeeToken && providerFeeToken !== ZeroAddress) {
+    const datatokenContract = new Contract(
+      providerFeeToken,
+      ERC20Template.abi,
+      await provider.getSigner()
+    )
+    providerFeeAmount = (seconds * parseFloat(env.priceMin)) / 60
+    const decimals = await datatokenContract.decimals()
+
+    providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
+  }
+  env.feeToken = providerFeeToken
+
+  const messageHash = ethers.solidityPackedKeccak256(
+    ['bytes', 'address', 'address', 'uint256', 'uint256'],
+    [
+      ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(providerData))),
+      ethers.getAddress(providerFeeAddress),
+      ethers.getAddress(providerFeeToken),
+      providerFeeAmountFormatted,
+      validUntil
+    ]
+  )
+
+  const signed32Bytes = await providerWallet.signMessage(
+    new Uint8Array(ethers.toBeArray(messageHash))
+  ) // it already does the prefix = "\x19Ethereum Signed Message:\n32"
+  // OR just ethCrypto.sign(pk, signable_hash)
+
+  // *** NOTE: provider.py ***
+  // signed = keys.ecdsa_sign(message_hash=signable_hash, private_key=pk)
+
+  // For Solidity, we need the expanded-format of a signature
+  const signatureSplitted = ethers.Signature.from(signed32Bytes)
+
+  // # make it compatible with last openzepellin https://github.com/OpenZeppelin/openzeppelin-contracts/pull/1622
+  const v = signatureSplitted.v <= 1 ? signatureSplitted.v + 27 : signatureSplitted.v
+  const r = ethers.hexlify(signatureSplitted.r) // 32 bytes
+  const s = ethers.hexlify(signatureSplitted.s)
+
+  const providerFee: ProviderFeeData = {
+    providerFeeAddress: ethers.getAddress(providerFeeAddress),
+    providerFeeToken: ethers.getAddress(providerFeeToken),
+    providerFeeAmount: providerFeeAmountFormatted,
+    providerData: ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(providerData))),
+    v,
+    r, // 32 bytes => get it back: Buffer.from(providerFee.r).toString('hex'))
+    s, // 32 bytes
+    validUntil
+  }
+
+  return providerFee
+}
+
+async function getEventData(
+  provider: JsonRpcApiProvider,
+  transactionHash: string,
+  abi: any
+): Promise<ethers.LogDescription> {
+  const iface = new ethers.Interface(abi)
+  const receipt = await provider.getTransactionReceipt(transactionHash)
+  const eventObj = {
+    topics: receipt.logs[0].topics as string[],
+    data: receipt.logs[0].data
+  }
+  return iface.parseLog(eventObj)
+}
+// It will be used in #230 for initializeCompute
+export async function validateComputeProviderFee(
+  provider: JsonRpcApiProvider,
+  tx: string,
+  computeEnv: string, // with hash
+  asset: DDO,
+  service: Service,
+  validUntil: number
+): Promise<[boolean, ProviderFeeData | {}]> {
+  const txReceipt = await provider.getTransactionReceipt(tx)
+  const { logs } = txReceipt
+  const timestampNow = new Date().getTime() / 1000
+  for (const log of logs) {
+    const event = findEventByKey(log.topics[0])
+    if (event && event.type === 'ProviderFee') {
+      const decodedEventData = await getEventData(provider, tx, ERC20Template.abi)
+      const validUntilContract = parseInt(decodedEventData.args[7].toString())
+      if (timestampNow >= validUntilContract) {
+        // provider fee expired -> reuse order
+        CORE_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_INFO,
+          `Provider fees for this env have expired -> reuse order.`,
+          true
+        )
+        const envId = computeEnv.split('-')[1]
+        const newProviderFee = await calculateComputeProviderFee(
+          asset,
+          validUntil,
+          envId,
+          service,
+          provider
+        )
+        return [false, newProviderFee]
+      } else {
+        return [true, {}]
+      }
+    }
+  }
+}
 // equiv to get_provider_fees
 // *** NOTE: provider.py => get_provider_fees ***
 export async function createFee(
@@ -52,21 +247,21 @@ export async function createFee(
   }
 
   /** https://github.com/ethers-io/ethers.js/issues/468
-   * 
-   * Also, keep in mind that signMessage can take in a string, 
-   * which is treated as a UTF-8 string, or an ArrayLike, which is treated like binary data. 
-   * A hash as a string is a 66 character string, which is likely not what you want, 
-   * you probable want the 32 byte array. So you probably want something more like:
-   * 
-     * // 66 byte string, which represents 32 bytes of data
-    let messageHash = ethers.utils.solidityKeccak256( ...stuff here... );
+ * 
+ * Also, keep in mind that signMessage can take in a string, 
+ * which is treated as a UTF-8 string, or an ArrayLike, which is treated like binary data. 
+ * A hash as a string is a 66 character string, which is likely not what you want, 
+ * you probable want the 32 byte array. So you probably want something more like:
+ * 
+   * // 66 byte string, which represents 32 bytes of data
+  let messageHash = ethers.utils.solidityKeccak256( ...stuff here... );
 
-    // 32 bytes of data in Uint8Array
-    let messageHashBinary = ethers.utils.arrayify(messageHash);
+  // 32 bytes of data in Uint8Array
+  let messageHashBinary = ethers.utils.arrayify(messageHash);
 
-    // To sign the 32 bytes of data, make sure you pass in the data
-    let signature = await wallet.signMessage(messageHashBinary);
-     */
+  // To sign the 32 bytes of data, make sure you pass in the data
+  let signature = await wallet.signMessage(messageHashBinary);
+   */
 
   const messageHash = ethers.solidityPackedKeccak256(
     ['bytes', 'address', 'address', 'uint256', 'uint256'],
@@ -295,6 +490,13 @@ export async function getProviderFeeToken(chainId: number): Promise<string> {
     (token: FeeTokens) => Number(token.chain) === chainId
   )
   return result.length ? result[0].token : ethers.ZeroAddress
+}
+
+export async function getProviderFeeTokenByArtifacts(chainId: number): Promise<string> {
+  if (chainId === 8996) {
+    return getOceanArtifactsAdresses().development.Ocean
+  }
+  return await getProviderFeeToken(chainId)
 }
 
 /**

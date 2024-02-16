@@ -8,7 +8,8 @@ import {
   getAddress,
   hexlify,
   ZeroAddress,
-  parseUnits
+  parseUnits,
+  MaxUint256
 } from 'ethers'
 import fs from 'fs'
 import { homedir } from 'os'
@@ -305,70 +306,63 @@ describe('Should run a complete node flow.', () => {
   })
 
   it('should start an order', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
-    try {
-      const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
-      const serviceIndex = '0'
-      const consumeMarketFeeAddress = ZeroAddress
-      const consumeMarketFeeAmount = 0
-      const consumeMarketFeeToken = feeToken
+    this.timeout(65000) // Extend default Mocha test timeout
+    const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
+    const serviceIndex = '0'
+    const consumeMarketFeeAddress = ZeroAddress
+    const consumeMarketFeeAmount = 0
+    const consumeMarketFeeToken = feeToken
 
-      dataTokenContract = new Contract(
-        datatokenAddress,
-        ERC20Template.abi,
-        publisherAccount
-      )
+    dataTokenContract = new Contract(
+      datatokenAddress,
+      ERC20Template.abi,
+      publisherAccount
+    )
 
-      const feeData = await createFee(
-        resolvedDDO as DDO,
-        0,
-        'null',
-        resolvedDDO.services[0]
-      )
+    // call the mint function on the dataTokenContract
+    const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
+    await mintTx.wait()
+    const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
+    assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
 
-      // call the mint function on the dataTokenContract
-      const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
-      await mintTx.wait()
-      const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
-      assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
+    const feeData = await createFee(
+      resolvedDDO as DDO,
+      0,
+      'null',
+      resolvedDDO.services[0]
+    )
 
-      const dataTokenContractWithNewSigner = dataTokenContract.connect(
-        consumerAccount
-      ) as any
+    const dataTokenContractWithNewSigner = dataTokenContract.connect(
+      consumerAccount
+    ) as any
 
-      const orderTx = await dataTokenContractWithNewSigner.startOrder(
-        consumerAddress,
-        serviceIndex,
-        {
-          providerFeeAddress: feeData.providerFeeAddress,
-          providerFeeToken: feeData.providerFeeToken,
-          providerFeeAmount: feeData.providerFeeAmount,
-          v: feeData.v,
-          r: feeData.r,
-          s: feeData.s,
-          providerData: feeData.providerData,
-          validUntil: feeData.validUntil
-        },
-        {
-          consumeMarketFeeAddress,
-          consumeMarketFeeToken,
-          consumeMarketFeeAmount
-        }
-      )
-      const orderTxReceipt = await orderTx.wait()
-      assert(orderTxReceipt, 'order transaction failed')
-      orderTxId = orderTxReceipt.hash
-      assert(orderTxId, 'transaction id not found')
-    } catch (error) {
-      console.log(error)
-    }
+    const orderTx = await dataTokenContractWithNewSigner.startOrder(
+      consumerAddress,
+      serviceIndex,
+      {
+        providerFeeAddress: feeData.providerFeeAddress,
+        providerFeeToken: feeData.providerFeeToken,
+        providerFeeAmount: feeData.providerFeeAmount,
+        v: feeData.v,
+        r: feeData.r,
+        s: feeData.s,
+        providerData: feeData.providerData,
+        validUntil: feeData.validUntil
+      },
+      {
+        consumeMarketFeeAddress,
+        consumeMarketFeeToken,
+        consumeMarketFeeAmount
+      }
+    )
+    const orderTxReceipt = await orderTx.wait()
+    assert(orderTxReceipt, 'order transaction failed')
+    orderTxId = orderTxReceipt.hash
+    assert(orderTxId, 'transaction id not found')
   })
 
   it('should download triger download file', async function () {
     this.timeout(65000)
-
-    const config = await getConfiguration(true)
-    database = await new Database(config.dbConfig)
     const oceanNode = OceanNode.getInstance(database)
     assert(oceanNode, 'Failed to instantiate OceanNode')
 

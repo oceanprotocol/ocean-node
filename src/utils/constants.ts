@@ -165,5 +165,10 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'INTERFACES',
     value: process.env.INTERFACES,
     required: false // without a value set, its both p2p2 and http
+  },
+  ALLOWED_VALIDATORS: {
+    name: 'ALLOWED_VALIDATORS',
+    value: process.env.ALLOWED_VALIDATORS,
+    required: false
   }
 }
