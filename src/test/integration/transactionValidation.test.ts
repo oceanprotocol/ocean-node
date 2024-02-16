@@ -65,6 +65,14 @@ describe('validateOrderTransaction Function with Orders', () => {
   const providerValidUntil = 0
   const timeout = 0
 
+  function buildDataTokenContract(datatokenAddress: string) {
+    dataTokenContract = new Contract(
+      datatokenAddress,
+      ERC20Template.abi,
+      publisherAccount
+    )
+  }
+
   before(async () => {
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
@@ -86,11 +94,6 @@ describe('validateOrderTransaction Function with Orders', () => {
     factoryContract = new ethers.Contract(
       artifactsAddresses.ERC721Factory,
       ERC721Factory.abi,
-      publisherAccount
-    )
-    dataTokenContract = new Contract(
-      datatokenAddress,
-      ERC20Template.abi,
       publisherAccount
     )
   })
@@ -132,6 +135,8 @@ describe('validateOrderTransaction Function with Orders', () => {
 
     assert(dataNftAddress, 'find nft created failed')
     assert(datatokenAddress, 'find datatoken created failed')
+
+    buildDataTokenContract(datatokenAddress)
   })
 
   it('should set metadata and save', async function () {
@@ -162,11 +167,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
 
   delay(DEFAULT_TEST_TIMEOUT)
-
-  // THIS DOES NOTHING!
-  // it('should get the active state', async () => {
-  //   resolvedDDO = await waitToIndex(genericDDO.id, database)
-  // })
 
   it('should start an order and validate the transaction', async function () {
     const doCheck = async (resolvedDDO: any) => {
