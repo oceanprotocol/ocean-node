@@ -66,11 +66,6 @@ export abstract class Storage {
   }
 
   async encrypt(encryptionType: 'AES' | 'ECIES' = 'AES') {
-    const { keys } = await getConfiguration()
-    const nodeId = keys.peerId.toString()
-
-    this.file.encryptMethod = encryptionType
-    this.file.encryptedBy = nodeId
     const readableStream = await this.getReadableStream()
 
     // Convert the readable stream to a buffer
@@ -81,10 +76,7 @@ export abstract class Storage {
     const buffer = Buffer.concat(chunks)
 
     // Encrypt the buffer using the encrypt function
-    const encryptedBuffer = await encryptData(
-      new Uint8Array(buffer),
-      this.file.encryptMethod
-    )
+    const encryptedBuffer = await encryptData(new Uint8Array(buffer), encryptionType)
 
     // Convert the encrypted buffer back into a stream
     const encryptedStream = Readable.from(encryptedBuffer)

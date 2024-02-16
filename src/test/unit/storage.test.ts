@@ -16,6 +16,9 @@ import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { getConfiguration } from '../../utils/index.js'
 import { Readable } from 'stream'
 import fs from 'fs'
+import { streamToString } from '../../utils/util.js'
+
+let nodeId: string
 
 describe('URL Storage tests', () => {
   let file: any = {
@@ -374,7 +377,6 @@ describe('IPFS Storage getFileInfo tests', async function () {
 
 describe('URL Storage encryption tests', () => {
   let storage: UrlStorage
-  let nodeId: string
 
   before(() => {
     storage = new UrlStorage({
@@ -421,6 +423,31 @@ describe('URL Storage encryption tests', () => {
     // Pipe the encrypted content stream to the file stream
     encryptResponse.stream.pipe(fileStream)
   })
+})
+
+describe('URL Storage encryption tests', () => {
+  let storage: UrlStorage
+
+  before(() => {
+    storage = new UrlStorage({
+      type: 'url',
+      url: 'https://github.com/oceanprotocol/ocean-node/raw/issue-265-encryptFile/src/test/data/organizations-100.aes',
+      method: 'get',
+      encryptedBy: nodeId,
+      encryptMethod: 'AES'
+    })
+  })
+
+  it('isEncrypted should return true for an encrypted file', () => {
+    assert(storage.isEncrypted() === true, 'invalid response to isEncrypted()')
+  })
+
+  it('canDecrypt should return true for this node', () => {
+    assert(
+      storage.canDecrypt(nodeId) === true,
+      'Wrong response from canDecrypt() for an encrypted file'
+    )
+  })
 
   it('File info includes encryptedBy and encryptMethod', async () => {
     const fileInfoRequest: FileInfoRequest = {
@@ -429,20 +456,11 @@ describe('URL Storage encryption tests', () => {
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
 
     assert(fileInfo[0].valid, 'File info is valid')
-    expect(fileInfo[0].contentLength).to.equal('13873')
-    expect(fileInfo[0].contentType).to.equal('text/plain')
-    expect(fileInfo[0].name).to.equal('organizations-100.csv')
+    expect(fileInfo[0].contentType).to.equal('application/octet-stream')
+    expect(fileInfo[0].name).to.equal('organizations-100.aes')
     expect(fileInfo[0].type).to.equal('url')
     expect(fileInfo[0].encryptedBy).to.equal(nodeId)
     expect(fileInfo[0].encryptMethod).to.equal('AES')
-  })
-
-  it('isEncrypted should return true now the file is encrypted', () => {
-    assert(storage.isEncrypted() === true, 'invalid response to isEncrypted()')
-  })
-
-  it('canDecrypt should return true when called from this node', () => {
-    assert(storage.canDecrypt(nodeId) === true, 'Wrong response from canDecrypt()')
   })
 
   it('canDecrypt should return false when called from an unauthorised node', () => {
@@ -453,11 +471,15 @@ describe('URL Storage encryption tests', () => {
     )
   })
 
-  // it('decrypt method should correctly decrypt data for authorized nodeId', async () => {
-  //   // Perform decryption
-  //   const decryptResponse = await storage.decrypt()
+  it('decrypt method should correctly decrypt data for authorized nodeId', async () => {
+    // Perform decryption
+    const decryptResponse = await storage.decrypt()
 
-  //   expect(decryptResponse).to.have.property('stream')
-  //   expect(decryptResponse.stream).to.be.an.instanceof(Readable)
-  // })
+    expect(decryptResponse).to.have.property('stream')
+    expect(decryptResponse.stream).to.be.an.instanceof(Readable)
+
+    const decryptedContent = await streamToString(decryptResponse.stream)
+
+    expect(decryptedContent.length).to.equal(13873)
+  })
 })
