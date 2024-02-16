@@ -170,6 +170,8 @@ describe('validateOrderTransaction Function with Orders', () => {
 
   it('should start an order and validate the transaction', async function () {
     const doCheck = async (resolvedDDO: any) => {
+      buildDataTokenContract(datatokenAddress)
+
       const paymentCollector = await dataTokenContract.getPaymentCollector()
       assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
 
@@ -249,6 +251,7 @@ describe('validateOrderTransaction Function with Orders', () => {
       EVENTS.METADATA_UPDATED,
       (ddo: any, wasTimeout: boolean) => {
         if (ddo) {
+          resolvedDDO = ddo
           doCheck(ddo)
         } else {
           expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
