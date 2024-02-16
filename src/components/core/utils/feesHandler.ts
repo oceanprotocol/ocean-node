@@ -28,7 +28,11 @@ export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
     for (const c of clustersInfo) {
       clustersURLS.push(c.url)
     }
-    for (const cluster of clustersURLS) {
+    for (let cluster of clustersURLS) {
+      // make sure there is a valid url before appending the path
+      if (!cluster.endsWith('/')) {
+        cluster = cluster + '/'
+      }
       const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
       const { data } = await axios.get(url)
       envs.push({
@@ -49,7 +53,10 @@ async function getEnv(asset: DDO, computeEnv: string): Promise<any> {
     clustersURLS.push(c.url)
   }
 
-  for (const cluster of clustersURLS) {
+  for (let cluster of clustersURLS) {
+    if (!cluster.endsWith('/')) {
+      cluster = cluster + '/'
+    }
     const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
 
     const envs = computeEnvs[0][url]

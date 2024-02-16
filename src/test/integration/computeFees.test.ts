@@ -186,6 +186,7 @@ describe('Compute provider fees', async () => {
 
   it('should get provider fees for compute', async () => {
     computeEnvs = await getC2DEnvs(resolvedDDO as DDO)
+    console.log('compute envs:', computeEnvs)
     assert(computeEnvs, 'compute envs could not be retrieved')
     const envs =
       computeEnvs[0][
