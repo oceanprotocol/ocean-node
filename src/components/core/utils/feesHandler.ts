@@ -242,9 +242,7 @@ export async function createFee(
         (await getConfiguration()).supportedNetworks
       )}`
     )
-    const networkUrl = (await getConfiguration()).supportedNetworks[
-      asset.chainId.toString()
-    ].rpc
+    const networkUrl = (await getConfiguration()).supportedNetworks[asset.chainId].rpc
     const provider = new JsonRpcProvider(networkUrl)
     const decimals = await getDatatokenDecimals(providerFeeToken, provider)
     // from env FEE_AMOUNT
