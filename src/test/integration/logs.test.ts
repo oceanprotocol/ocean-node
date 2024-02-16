@@ -1,12 +1,10 @@
 import { Database } from '../../components/database/index.js'
 import { expect, assert } from 'chai'
 import {
-  configureCustomDBTransport,
   CustomNodeLogger,
-  CustomOceanNodesTransport,
-  getCustomLoggerForModule,
-  LOGGER_MODULE_NAMES
+  configureCustomDBTransport
 } from '../../utils/logging/Logger.js'
+import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 
 describe('LogDatabase CRUD', () => {
   let database: Database
@@ -26,9 +24,11 @@ describe('LogDatabase CRUD', () => {
     }
     database = await new Database(dbConfig)
     // Initialize logger with the custom transport that writes to the LogDatabase
-
-    logger = await getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP)
-    configureCustomDBTransport(database, logger)
+    logger = DATABASE_LOGGER
+    // normally this is only added on production environments
+    if (!logger.hasDBTransport()) {
+      configureCustomDBTransport(database, logger)
+    }
   })
 
   it('insert log', async () => {
@@ -133,6 +133,12 @@ describe('LogDatabase CRUD', () => {
     expect(logs?.[0].level).to.equal(newLogEntry.level)
     assert(logs?.[0].message)
     expect(logs?.[0].moduleName).to.equal('HTTP')
+  })
+
+  after(async () => {
+    if (logger.hasDBTransport()) {
+      logger.removeTransport(logger.getDBTransport())
+    }
   })
 })
 
