@@ -17,7 +17,7 @@ import { RPCS } from '../../@types/blockchain.js'
 import { genericDDO } from '../data/ddo.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
 import { getEventFromTx } from '../../utils/util.js'
-import { waitToIndex, delay, expectedTimeoutFailure } from './testUtils.js'
+import { waitToIndex, expectedTimeoutFailure } from './testUtils.js'
 import { encrypt } from '../../utils/crypt.js'
 import {
   calculateComputeProviderFee,
@@ -26,9 +26,11 @@ import {
 import { ENVIRONMENT_VARIABLES, EVENTS } from '../../utils/constants.js'
 import {
   DEFAULT_TEST_TIMEOUT,
+  OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
-  setupEnvironment
+  setupEnvironment,
+  tearDownEnvironment
 } from '../utils/utils.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 
@@ -54,15 +56,16 @@ describe('Compute provider fees', async () => {
   const data = getOceanArtifactsAdresses()
   const oceanToken = data.development.Ocean
 
-  await setupEnvironment(
-    null,
-    buildEnvOverrideConfig(
-      [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.FEE_TOKENS],
-      [JSON.stringify(mockSupportedNetworks), JSON.stringify({ 8996: oceanToken })]
-    )
-  )
+  let envOverrides: OverrideEnvConfig[]
 
   before(async () => {
+    envOverrides = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig(
+        [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.FEE_TOKENS],
+        [JSON.stringify(mockSupportedNetworks), JSON.stringify({ 8996: oceanToken })]
+      )
+    )
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -226,5 +229,9 @@ describe('Compute provider fees', async () => {
     console.log('provider fees: ', providerFees)
     assert(providerFees.providerFeeToken === oceanToken)
     assert(providerFees.providerFeeAmount === 0n, 'provider fee amount is not fetched')
+  })
+
+  after(async () => {
+    await tearDownEnvironment(envOverrides)
   })
 })
