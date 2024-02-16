@@ -22,7 +22,7 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { publishAlgoDDO, publishDatasetDDO } from '../data/ddo.js'
 import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
-import { waitToIndex } from './testUtils.js'
+import { delay, waitToIndex } from './testUtils.js'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import {
@@ -276,6 +276,8 @@ describe('C2D functions', async () => {
     const txReceipt = await setMetaDataTx.wait()
     assert(txReceipt, 'set metadata failed')
   })
+
+  delay(50000)
 
   it('should getAlgoChecksums', async () => {
     console.log('algoDDO.id', algoDDO.id)
