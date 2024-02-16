@@ -280,8 +280,6 @@ describe('C2D functions', async () => {
   delay(50000)
 
   it('should getAlgoChecksums', async () => {
-    console.log('algoDDO.id', algoDDO.id)
-    console.log('datasetDDO.id', datasetDDO.id)
     const algoDDOTest = await waitToIndex(algoDDO.id, database)
     const algoChecksums = await getAlgoChecksums(
       algoDDOTest.id,
