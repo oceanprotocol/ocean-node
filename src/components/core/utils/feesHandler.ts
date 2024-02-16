@@ -238,9 +238,9 @@ export async function createFee(
 
   if (providerFeeToken && providerFeeToken !== ZeroAddress) {
     CORE_LOGGER.logMessage(
-      `(await getConfiguration()).supportedNetwork: ${
+      `(await getConfiguration()).supportedNetwork: ${JSON.stringify(
         (await getConfiguration()).supportedNetworks
-      }`
+      )}`
     )
     const networkUrl = (await getConfiguration()).supportedNetworks[
       asset.chainId.toString()
