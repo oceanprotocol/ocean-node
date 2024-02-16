@@ -62,6 +62,24 @@ describe('C2D functions', async () => {
   let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
+    // override and save configuration (always before calling getConfig())
+    previousConfiguration = await setupEnvironment(
+        null,
+        buildEnvOverrideConfig(
+            [
+              ENVIRONMENT_VARIABLES.RPCS,
+              ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+              ENVIRONMENT_VARIABLES.DB_URL,
+              ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS
+            ],
+            [
+              JSON.stringify(mockSupportedNetworks),
+              '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+              'http://localhost:8108/?apiKey=xyz',
+              JSON.stringify([publisherAddress])
+            ]
+        )
+    )
     const artifactsAddresses = getOceanArtifactsAdresses()
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
@@ -72,24 +90,6 @@ describe('C2D functions', async () => {
       artifactsAddresses.development.ERC721Factory,
       ERC721Factory.abi,
       publisherAccount
-    )
-    // override and save configuration (always before calling getConfig())
-    previousConfiguration = await setupEnvironment(
-      null,
-      buildEnvOverrideConfig(
-        [
-          ENVIRONMENT_VARIABLES.RPCS,
-          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
-          ENVIRONMENT_VARIABLES.DB_URL,
-          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS
-        ],
-        [
-          JSON.stringify(mockSupportedNetworks),
-          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          'http://localhost:8108/?apiKey=xyz',
-          JSON.stringify([publisherAddress])
-        ]
-      )
     )
     config = await getConfiguration(true)
     database = await new Database(config.dbConfig)
