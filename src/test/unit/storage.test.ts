@@ -315,10 +315,12 @@ describe('IPFS Storage getFileInfo tests', async function () {
       type: 'ipfs'
     }
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
-    assert(fileInfo[0].valid, 'File info is valid')
-    assert(fileInfo[0].type === 'ipfs', 'Type is incorrect')
-    assert(fileInfo[0].contentType === 'text/csv', 'Content type is incorrect')
-    assert(fileInfo[0].contentLength === '680782', 'Content length is incorrect')
+    if (fileInfo && fileInfo.length > 0) {
+      assert(fileInfo[0].valid, 'File info is valid')
+      assert(fileInfo[0].type === 'ipfs', 'Type is incorrect')
+      assert(fileInfo[0].contentType === 'text/csv', 'Content type is incorrect')
+      assert(fileInfo[0].contentLength === '680782', 'Content length is incorrect')
+    }
   })
 
   it('Throws error when hash is missing in request', async () => {

@@ -1,10 +1,10 @@
-import { JsonRpcApiProvider, ethers, getAddress } from 'ethers'
+import { JsonRpcApiProvider, Signer, ethers, getAddress, Interface } from 'ethers'
 import localAdressFile from '@oceanprotocol/contracts/addresses/address.json' assert { type: 'json' }
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import fs from 'fs'
 import { homedir } from 'os'
-import { EVENTS, EVENT_HASHES } from '../../utils/index.js'
+import { EVENTS, EVENT_HASHES, getAllowedValidators } from '../../utils/index.js'
 import { BlocksEvents, NetworkEvent, ProcessingEvents } from '../../@types/blockchain.js'
 import {
   MetadataEventProcessor,
@@ -13,6 +13,10 @@ import {
   OrderStartedEventProcessor
 } from './processor.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
+import { fetchEventFromTransaction } from '../../utils/util.js'
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+
 let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor
 let orderReusedEventProcessor: OrderReusedEventProcessor
@@ -96,6 +100,7 @@ export const getNetworkHeight = async (provider: JsonRpcApiProvider) => {
 }
 
 export const processBlocks = async (
+  signer: Signer,
   provider: JsonRpcApiProvider,
   network: number,
   lastIndexedBlock: number,
@@ -109,7 +114,7 @@ export const processBlocks = async (
       toBlock: lastIndexedBlock + count,
       topics: [eventHashes]
     })
-    const events = await processChunkLogs(blockLogs, provider, network)
+    const events = await processChunkLogs(blockLogs, signer, provider, network)
 
     return {
       lastBlock: lastIndexedBlock + count,
@@ -120,7 +125,7 @@ export const processBlocks = async (
   }
 }
 
-function findEventByKey(keyToFind: string): NetworkEvent {
+export function findEventByKey(keyToFind: string): NetworkEvent {
   for (const [key, value] of Object.entries(EVENT_HASHES)) {
     if (key === keyToFind) {
       return value
@@ -131,46 +136,88 @@ function findEventByKey(keyToFind: string): NetworkEvent {
 
 export const processChunkLogs = async (
   logs: readonly ethers.Log[],
+  signer: Signer,
   provider: JsonRpcApiProvider,
   chainId: number
 ): Promise<BlocksEvents> => {
   const storeEvents: BlocksEvents = {}
   if (logs.length > 0) {
+    const allowedValidators = getAllowedValidators()
+    const checkMetadataValidated = allowedValidators.length > 0
     for (const log of logs) {
       const event = findEventByKey(log.topics[0])
-      if (
-        event &&
-        (event.type === EVENTS.METADATA_CREATED || event.type === EVENTS.METADATA_UPDATED)
-      ) {
-        INDEXER_LOGGER.logMessage(`-- ${event.type} triggered`, true)
-        const processor = await getMetadataEventProcessor(chainId)
-        storeEvents[event.type] = await processor.processEvent(
-          log,
-          chainId,
-          provider,
-          event.type
+
+      if (event && Object.values(EVENTS).includes(event.type)) {
+        // only log & process the ones we support
+        INDEXER_LOGGER.logMessage(
+          `-- ${event.type} -- triggered for ${log.transactionHash}`,
+          true
         )
-      } else if (event && event.type === EVENTS.METADATA_STATE) {
-        INDEXER_LOGGER.logMessage(`-- ${event.type} triggered`, true)
-        const processor = await getMetadataStateEventProcessor(chainId)
-        storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
-      } else if (event && event.type === EVENTS.EXCHANGE_CREATED) {
-        INDEXER_LOGGER.logMessage('-- EXCHANGE_CREATED -- ', true)
-        storeEvents[event.type] = await procesExchangeCreated()
-      } else if (event && event.type === EVENTS.EXCHANGE_RATE_CHANGED) {
-        INDEXER_LOGGER.logMessage('-- EXCHANGE_RATE_CHANGED -- ', true)
-        storeEvents[event.type] = await processExchangeRateChanged()
-      } else if (event && event.type === EVENTS.ORDER_STARTED) {
-        INDEXER_LOGGER.logMessage(`-- ${event.type} triggered`, true)
-        const processor = await getOrderStartedEventProcessor(chainId)
-        storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
-      } else if (event && event.type === EVENTS.ORDER_REUSED) {
-        INDEXER_LOGGER.logMessage(`-- ${event.type} triggered`, true)
-        const processor = await getOrderReusedEventProcessor(chainId)
-        storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
-      } else if (event && event.type === EVENTS.TOKEN_URI_UPDATE) {
-        INDEXER_LOGGER.logMessage('-- TOKEN_URI_UPDATE -- ', true)
-        storeEvents[event.type] = await processTokenUriUpadate()
+        if (
+          event.type === EVENTS.METADATA_CREATED ||
+          event.type === EVENTS.METADATA_UPDATED ||
+          event.type === EVENTS.METADATA_STATE
+        ) {
+          if (checkMetadataValidated) {
+            const txReceipt = await provider.getTransactionReceipt(log.transactionHash)
+            const metadataProofs = fetchEventFromTransaction(
+              txReceipt,
+              'MetadataValidated',
+              new Interface(ERC20Template.abi)
+            )
+            if (!metadataProofs) {
+              INDEXER_LOGGER.log(
+                LOG_LEVELS_STR.LEVEL_ERROR,
+                `Metadata Proof validator not allowed`,
+                true
+              )
+              continue
+            }
+            const validators = metadataProofs.map((metadataProof) =>
+              getAddress(metadataProof.args[0].toString())
+            )
+            const allowed = allowedValidators.filter(
+              (allowedValidator) => validators.indexOf(allowedValidator) !== -1
+            )
+            if (!allowed.length) {
+              INDEXER_LOGGER.log(
+                LOG_LEVELS_STR.LEVEL_ERROR,
+                `Metadata Proof validator not allowed`,
+                true
+              )
+              continue
+            }
+          }
+        }
+        if (
+          event.type === EVENTS.METADATA_CREATED ||
+          event.type === EVENTS.METADATA_UPDATED
+        ) {
+          const processor = await getMetadataEventProcessor(chainId)
+          const rets = await processor.processEvent(
+            log,
+            chainId,
+            signer,
+            provider,
+            event.type
+          )
+          if (rets) storeEvents[event.type] = rets
+        } else if (event.type === EVENTS.METADATA_STATE) {
+          const processor = await getMetadataStateEventProcessor(chainId)
+          storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
+        } else if (event.type === EVENTS.EXCHANGE_CREATED) {
+          storeEvents[event.type] = await procesExchangeCreated()
+        } else if (event.type === EVENTS.EXCHANGE_RATE_CHANGED) {
+          storeEvents[event.type] = await processExchangeRateChanged()
+        } else if (event.type === EVENTS.ORDER_STARTED) {
+          const processor = await getOrderStartedEventProcessor(chainId)
+          storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
+        } else if (event.type === EVENTS.ORDER_REUSED) {
+          const processor = await getOrderReusedEventProcessor(chainId)
+          storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
+        } else if (event.type === EVENTS.TOKEN_URI_UPDATE) {
+          storeEvents[event.type] = await processTokenUriUpadate()
+        }
       }
     }
     return storeEvents
@@ -192,28 +239,28 @@ const processTokenUriUpadate = async (): Promise<string> => {
 }
 
 export const getNFTContract = async (
-  provider: JsonRpcApiProvider,
+  signer: Signer,
   address: string
 ): Promise<ethers.Contract> => {
   address = getAddress(address)
-  return getContract(provider, 'ERC721Template', address)
+  return getContract(signer, 'ERC721Template', address)
 }
 
 export const getNFTFactory = async (
-  provider: JsonRpcApiProvider,
+  signer: Signer,
   address: string
 ): Promise<ethers.Contract> => {
   address = getAddress(address)
-  return await getContract(provider, 'ERC721Factory', address)
+  return await getContract(signer, 'ERC721Factory', address)
 }
 
 async function getContract(
-  provider: JsonRpcApiProvider,
+  signer: Signer,
   contractName: string,
   address: string
 ): Promise<ethers.Contract> {
   const abi = getContractDefinition(contractName)
-  return new ethers.Contract(getAddress(address), abi, await provider.getSigner())
+  return new ethers.Contract(getAddress(address), abi, signer) // was provider.getSigner() => thow no account
 }
 
 function getContractDefinition(contractName: string): any {

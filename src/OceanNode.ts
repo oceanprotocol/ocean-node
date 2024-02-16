@@ -42,10 +42,7 @@ export class OceanNode {
     return this.instance
   }
 
-  public addP2PNode(_node: OceanP2P) {
-    this.node = _node
-  }
-
+  // in the future we should remove these 'add' methods as well
   public addProvider(_provider: OceanProvider) {
     this.provider = _provider
   }

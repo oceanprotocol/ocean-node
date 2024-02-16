@@ -41,6 +41,12 @@ export PRIVATE_KEY=0x.....
 export RPCS="{ \"1\":{ \"rpc\":\"https://rpc.eth.gateway.fm\", \"chainId\": 1, \"network\": \"mainet\", \"chunkSize\": 100 }, \"137\": { \"rpc\": \"https://polygon.meowrpc.com\", \"chainId\": 137, \"network\": \"polygon\", \"chunkSize\": 100 }, \"80001\": { \"rpc\": \"https://rpc-mumbai.maticvigil.com\", \"chainId\": 80001, \"network\": \"polygon-mumbai\", \"chunkSize\": 100 }}"
 ```
 
+Network interfaces supported by the node ('http' and/or 'p2p'). By default, if not specified otherwise, both are supported. Case insensitive.
+
+```bash
+export INTERFACES=[\"HTTP\",\"P2P\"]
+```
+
 You need to define a database URL if you want to run a database as part of your node. This is required for the tests to pass.
 
 ```bash
@@ -52,6 +58,12 @@ For downloading the file from IPFS or ARWEAVE, please export the following env v
 ```bash
 export IPFS_GATEWAY='https://ipfs.io/'
 export ARWEAVE_GATEWAY='https://arweave.net/'
+```
+
+For configuring allowed validators for verifying an asset signature before indexing, please set the following environment variable (array of 1 or multiple addresses):
+
+```bash
+export ALLOWED_VALIDATORS=[\"0x123\",\"0x456\"]
 ```
 
 For configuring a C2D (Compute to Data) cluster(s), please set the following environment variable (array of 1 or multiple cluster URLS):

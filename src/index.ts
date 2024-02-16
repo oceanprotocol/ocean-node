@@ -90,7 +90,7 @@ if (config.hasIndexer && dbconn) {
   // if we set this var
   // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
   // store and advertise DDOs
-  if (process.env.LOAD_INITIAL_DDOS) {
+  if (process.env.LOAD_INITIAL_DDOS && config.hasP2P) {
     const list = loadInitialDDOS()
     if (list.length > 0) {
       // we need a timeout here, otherwise we have no peers available

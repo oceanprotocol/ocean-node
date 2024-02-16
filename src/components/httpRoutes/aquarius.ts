@@ -6,6 +6,7 @@ import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { GetDdoHandler, ValidateDDOHandler } from '../core/ddoHandler.js'
 import { QueryHandler } from '../core/queryHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
+import { DDO } from '../../@types/DDO/DDO.js'
 
 export const aquariusRoutes = express.Router()
 
@@ -138,7 +139,7 @@ aquariusRoutes.post('/assets/ddo/validate', async (req, res) => {
       res.status(400).send('Missing DDO object')
       return
     }
-    const ddo = JSON.parse(req.body)
+    const ddo = JSON.parse(req.body) as DDO
 
     if (!ddo.version) {
       res.status(400).send('Missing DDO version')
@@ -147,9 +148,7 @@ aquariusRoutes.post('/assets/ddo/validate', async (req, res) => {
 
     const node = req.oceanNode
     const result = await new ValidateDDOHandler(node).handle({
-      id: ddo.id,
-      chainId: ddo.chainId,
-      nftAddress: ddo.nftAddress,
+      ddo,
       command: PROTOCOL_COMMANDS.VALIDATE_DDO
     })
     if (result.stream) {

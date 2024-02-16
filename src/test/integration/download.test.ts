@@ -17,10 +17,14 @@ import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { genericDDO } from '../data/ddo.js'
-import { getOceanArtifactsAdresses } from '../../utils/address.js'
+import {
+  DEVELOPMENT_CHAIN_ID,
+  getOceanArtifactsAdresses,
+  getOceanArtifactsAdressesByChainId
+} from '../../utils/address.js'
 import { DownloadHandler } from '../../components/core/downloadHandler.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-import { getEventFromTx, sleep } from '../../utils/util.js'
+import { getEventFromTx } from '../../utils/util.js'
 import { waitToIndex, delay } from './testUtils.js'
 import { getConfiguration } from '../../utils/config.js'
 import { ProviderFeeData } from '../../@types/Fees.js'
@@ -57,7 +61,7 @@ describe('Download Tests', () => {
   let feeTx: string
   let feeData: ProviderFeeData | undefined
 
-  const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
+  const feeToken = getOceanArtifactsAdressesByChainId(chainId).Ocean
   const serviceId = '0' // dummy index
   const consumeMarketFeeAddress = ZeroAddress // marketplace fee Collector
   const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
@@ -74,7 +78,10 @@ describe('Download Tests', () => {
     database = await new Database(dbConfig)
     indexer = new OceanIndexer(database, mockSupportedNetworks)
 
-    const data = getOceanArtifactsAdresses()
+    let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+    if (!network) {
+      network = getOceanArtifactsAdresses().development
+    }
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     consumerAccount = (await provider.getSigner(1)) as Signer
@@ -83,7 +90,7 @@ describe('Download Tests', () => {
     consumerAddress = await consumerAccount.getAddress()
     genericAsset = genericDDO
     factoryContract = new ethers.Contract(
-      data.development.ERC721Factory,
+      network.ERC721Factory,
       ERC721Factory.abi,
       publisherAccount
     )
@@ -186,7 +193,6 @@ describe('Download Tests', () => {
   delay(35000)
   it('should store the ddo in the database and return it ', async () => {
     resolvedDDO = await waitToIndex(assetDID, database)
-    console.log('resolvedDDO', resolvedDDO)
     expect(resolvedDDO.id).to.equal(genericAsset.id)
   })
 
