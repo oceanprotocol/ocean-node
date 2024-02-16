@@ -139,7 +139,7 @@ export function getMockSupportedNetworks(): RPCS {
     '137': {
       chainId: 137,
       network: 'polygon',
-      rpc: 'https://1rpc.io/matic',
+      rpc: 'https://polygon-rpc.com',
       chunkSize: 1000
     }
   }
