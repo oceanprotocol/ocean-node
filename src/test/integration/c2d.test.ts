@@ -192,8 +192,7 @@ describe('C2D functions', async () => {
     assert(txReceipt, 'set metadata failed')
   })
 
-  it('should publish DatasetDDO', async function () {
-    this.timeout(65000) // Extend default Mocha test timeout
+  it('should publish DatasetDDO', async () => {
     const tx = await (factoryContract as any).createNftWithErc20(
       {
         name: '72120Bundle',
