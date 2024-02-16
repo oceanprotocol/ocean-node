@@ -9,7 +9,7 @@ import {
 import { fetchFileMetadata } from '../../utils/asset.js'
 import axios from 'axios'
 import urlJoin from 'url-join'
-import { encrypt } from '../../utils/crypt'
+import { encrypt } from '../../utils/crypt.js'
 
 export abstract class Storage {
   private file: any
