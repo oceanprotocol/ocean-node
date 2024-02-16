@@ -4,10 +4,7 @@ import { EncryptCommand, EncryptFileCommand } from '../../@types/commands.js'
 import * as base58 from 'base58-js'
 import { Readable } from 'stream'
 import { encrypt } from '../../utils/crypt.js'
-import { ArweaveFileObject, IpfsFileObject, UrlFileObject } from '../../@types/fileObject'
-import urlJoin from 'url-join'
-import axios from 'axios'
-import { ArweaveStorage, IpfsStorage, Storage, UrlStorage } from '../storage'
+import { Storage } from '../storage/index.js'
 
 export class EncryptHandler extends Handler {
   async handle(task: EncryptCommand): Promise<P2PCommandResponse> {
