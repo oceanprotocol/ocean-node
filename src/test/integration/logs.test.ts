@@ -25,11 +25,9 @@ describe('LogDatabase CRUD', () => {
     }
     database = await new Database(dbConfig)
     // Initialize logger with the custom transport that writes to the LogDatabase
-    logger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.DATABASE)
+    logger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP)
     // normally this is only added on production environments
-    if (!logger.hasDBTransport()) {
-      configureCustomDBTransport(database, logger)
-    }
+    configureCustomDBTransport(database, logger)
   })
 
   it('insert log', async () => {
