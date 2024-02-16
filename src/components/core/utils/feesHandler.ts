@@ -42,6 +42,7 @@ export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
     return envs
   } catch (error) {
     CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error identifying C2D envs: ${error}`)
+    return []
   }
 }
 
@@ -53,19 +54,22 @@ async function getEnv(asset: DDO, computeEnv: string): Promise<any> {
     clustersURLS.push(c.url)
   }
 
-  for (let cluster of clustersURLS) {
-    if (!cluster.endsWith('/')) {
-      cluster = cluster + '/'
-    }
-    const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
+  if (computeEnvs.length > 0) {
+    for (let cluster of clustersURLS) {
+      if (!cluster.endsWith('/')) {
+        cluster = cluster + '/'
+      }
+      const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
 
-    const envs = computeEnvs[0][url]
-    for (const env of envs) {
-      if (env.id === computeEnv) {
-        return env
+      const envs = computeEnvs[0][url]
+      for (const env of envs) {
+        if (env.id === computeEnv) {
+          return env
+        }
       }
     }
   }
+  return null
 }
 
 export async function calculateComputeProviderFee(
