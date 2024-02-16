@@ -2,9 +2,10 @@ import { Database } from '../../components/database/index.js'
 import { expect, assert } from 'chai'
 import {
   CustomNodeLogger,
-  configureCustomDBTransport
+  LOGGER_MODULE_NAMES,
+  configureCustomDBTransport,
+  getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
-import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 
 describe('LogDatabase CRUD', () => {
   let database: Database
@@ -24,7 +25,7 @@ describe('LogDatabase CRUD', () => {
     }
     database = await new Database(dbConfig)
     // Initialize logger with the custom transport that writes to the LogDatabase
-    logger = DATABASE_LOGGER
+    logger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.DATABASE)
     // normally this is only added on production environments
     if (!logger.hasDBTransport()) {
       configureCustomDBTransport(database, logger)
@@ -133,12 +134,6 @@ describe('LogDatabase CRUD', () => {
     expect(logs?.[0].level).to.equal(newLogEntry.level)
     assert(logs?.[0].message)
     expect(logs?.[0].moduleName).to.equal('HTTP')
-  })
-
-  after(async () => {
-    if (logger.hasDBTransport()) {
-      logger.removeTransport(logger.getDBTransport())
-    }
   })
 })
 
