@@ -22,7 +22,7 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { decrypt } from '../../utils/crypt.js'
 import { createHash } from 'crypto'
 import lzma from 'lzma-native'
-import { validateObject } from './utils/validateDdoHandler.js'
+import { isRemoteDDO, validateObject } from './utils/validateDdoHandler.js'
 import { getConfiguration } from '../../utils/config.js'
 import {
   GetDdoCommand,
@@ -30,6 +30,7 @@ import {
   DecryptDDOCommand,
   ValidateDDOCommand
 } from '../../@types/commands.js'
+import { Storage } from '../../components/storage/index.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -320,8 +321,19 @@ export class DecryptDdoHandler extends Handler {
         }
       }
 
+      const decryptedDocumentString = decryptedDocument.toString()
+      const ddoObject = JSON.parse(decryptedDocumentString)
+
+      let stream = Readable.from(decryptedDocumentString)
+
+      if (isRemoteDDO(ddoObject)) {
+        const storage = Storage.getStorageClass(ddoObject.remote)
+        const result = await storage.getReadableStream()
+        stream = result.stream as Readable
+      }
+
       return {
-        stream: Readable.from(decryptedDocument.toString()),
+        stream,
         status: { httpStatus: 201 }
       }
     } catch (error) {

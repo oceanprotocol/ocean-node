@@ -24,6 +24,7 @@ import { getConfiguration } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
+import { isRemoteDDO } from '../core/utils/validateDdoHandler.js'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -327,25 +328,10 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     }
   }
 
-  isRemoteDDO(ddo: any): boolean {
-    let keys
-    try {
-      keys = Object.keys(ddo)
-    } catch (e) {
-      return false
-    }
-
-    if (keys.length === 1 && keys[0] === 'remote') {
-      return true
-    }
-
-    return false
-  }
-
   async processDDO(ddo: any) {
     const response = ddo
 
-    if (this.isRemoteDDO(ddo)) {
+    if (isRemoteDDO(ddo)) {
       INDEXER_LOGGER.logMessage('DDO is remote', true)
 
       const storage = Storage.getStorageClass(ddo.remote)
