@@ -151,6 +151,7 @@ describe('Ocean Node fees', () => {
       serviceId: service.id,
       command: PROTOCOL_COMMANDS.GET_FEES
     })
+    console.log('data log: ', data.status.error)
     expect(data.status.httpStatus).to.equal(200)
     const { stream } = data
     if (stream) {
