@@ -116,6 +116,18 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
       if (!requestBody.chainId) {
         return buildInvalidRequestMessage('Missing required parameter: "chainId"')
       }
+    } else if (command === PROTOCOL_COMMANDS.INITIALIZE_COMPUTE) {
+      if (
+        !requestBody.chaindId ||
+        !requestBody.datasets ||
+        !requestBody.algorithm ||
+        !requestBody.compute ||
+        !requestBody.consumerAddress
+      ) {
+        return buildInvalidRequestMessage(
+          'Missing required parameter(s): "chaindId","datasets", "algorithm","compute", "consumerAddress"'
+        )
+      }
     }
     // only once is enough :-)
     return {

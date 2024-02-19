@@ -14,7 +14,7 @@ import { streamToObject, getEventFromTx } from '../../utils/util.js'
 import { PROTOCOL_COMMANDS, ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { InitializeComputeCommand, Dataset, Algorithm } from '../../@types/commands.js'
 import {
-  InitializeCompute,
+  InitializeComputeHandler,
   GetEnvironmentsHandler
 } from '../../components/core/compute.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
@@ -367,7 +367,9 @@ describe('Compute provider fees', async () => {
       command: PROTOCOL_COMMANDS.INITIALIZE_COMPUTE,
       chainId: 8996
     }
-    const resp = await new InitializeCompute(oceanNode).handle(initializeComputeTask)
+    const resp = await new InitializeComputeHandler(oceanNode).handle(
+      initializeComputeTask
+    )
 
     assert(resp, 'Failed to get response')
     assert(resp.status.httpStatus === 200, 'Failed to get 200 response')

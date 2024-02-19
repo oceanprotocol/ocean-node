@@ -18,7 +18,7 @@ import { StatusHandler } from './statusHandler.js'
 import { ReindexHandler } from './reindexHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { Command } from '../../@types/commands.js'
-import { GetEnvironmentsHandler } from './compute.js'
+import { GetEnvironmentsHandler, InitializeComputeHandler } from './compute.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -72,6 +72,10 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS,
       new GetEnvironmentsHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.INITIALIZE_COMPUTE,
+      new InitializeComputeHandler(node)
     )
   }
 

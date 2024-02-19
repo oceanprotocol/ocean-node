@@ -62,7 +62,7 @@ export class GetEnvironmentsHandler extends Handler {
   }
 }
 
-export class InitializeCompute extends Handler {
+export class InitializeComputeHandler extends Handler {
   validateTimestamp(value: number) {
     // in miliseconds
     const timestampNow = new Date().getTime() / 1000
