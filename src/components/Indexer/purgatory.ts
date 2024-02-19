@@ -141,8 +141,12 @@ export class Purgatory {
   }
 
   static async getInstance(): Promise<Purgatory> {
-    const config = await getConfiguration()
     if (!Purgatory.instance) {
+      const config = await getConfiguration()
+      if (!config.accountPurgatoryUrl && !config.assetPurgatoryUrl) {
+        INDEXER_LOGGER.logMessage(`Purgatory URLs are not provided`)
+        return
+      }
       Purgatory.instance = new Purgatory(
         config.accountPurgatoryUrl,
         config.assetPurgatoryUrl
