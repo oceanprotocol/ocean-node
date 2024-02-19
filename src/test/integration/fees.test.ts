@@ -157,10 +157,10 @@ describe('Ocean Node fees', () => {
     const { stream } = data
     if (stream) {
       const buffer: any[] = []
-      stream.on('data', (data) => {
-        // read streamed data to buffer
-        buffer.push(data)
-      })
+      // stream.on('data', (data) => {
+      //   // read streamed data to buffer
+      //   buffer.push(data)
+      // })
       stream.on('end', () => {
         // check that we got a valid response
         const feesData: ProviderFeeData = JSON.parse(buffer.toString()) as ProviderFeeData
