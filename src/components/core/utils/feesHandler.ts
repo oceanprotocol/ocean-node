@@ -243,7 +243,6 @@ export async function createFee(
     const provider = new JsonRpcProvider(networkUrl)
 
     const decimals = await getDatatokenDecimals(providerFeeToken, provider)
-    CORE_LOGGER.logMessage(`decimals: ${decimals}`)
     // from env FEE_AMOUNT
     providerFeeAmount = parseUnits((await getProviderFeeAmount()).toString(10), decimals)
   }
@@ -396,6 +395,7 @@ export async function createFee(
 
 export async function checkFee(
   txId: string,
+  chainId: number,
   providerFeesData: ProviderFeeData
   // message: string | Uint8Array // the message that was signed (fee structure) ?
 ): Promise<boolean> {
@@ -405,7 +405,12 @@ export async function checkFee(
 
   const wallet = await getProviderWallet()
   const nodeAddress = wallet.address
-  const feeAmount = await getProviderFeeAmount()
+  const networkUrl = (await getConfiguration()).supportedNetworks[chainId.toString()].rpc
+  const provider = new JsonRpcProvider(networkUrl)
+
+  const decimals = await getDatatokenDecimals(providerFeesData.providerFeeToken, provider)
+  // from env FEE_AMOUNT
+  const feeAmount = parseUnits((await getProviderFeeAmount()).toString(10), decimals)
 
   // first check if these are a match
   if (

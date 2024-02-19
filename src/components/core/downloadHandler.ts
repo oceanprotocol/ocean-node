@@ -230,10 +230,10 @@ export class DownloadHandler extends Handler {
     }
 
     // 4. check that the provider fee transaction is valid
-    if (task.feeTx && task.feeData) {
+    if (task.feeTx && task.chainId && task.feeData) {
       let feeValidation
       try {
-        feeValidation = await checkFee(task.feeTx, task.feeData)
+        feeValidation = await checkFee(task.feeTx, task.chainId, task.feeData)
       } catch (e) {
         return {
           stream: null,
