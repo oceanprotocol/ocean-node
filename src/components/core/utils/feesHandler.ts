@@ -253,6 +253,7 @@ export async function createFee(
       providerWallet,
       asset.chainId
     )
+    CORE_LOGGER.logMessage(`decimals: ${decimals}`)
     // from env FEE_AMOUNT
     providerFeeAmount = parseUnits((await getProviderFeeAmount()).toString(10), decimals)
   }

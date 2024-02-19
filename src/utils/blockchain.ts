@@ -31,13 +31,9 @@ export async function getDatatokenDecimals(
   account: ethers.Wallet,
   chainId: number
 ): Promise<number> {
-  const networkUrl = (await getConfiguration()).supportedNetworks[chainId.toString()].rpc
-  const provider = new JsonRpcProvider(networkUrl)
-  const datatokenContract = new Contract(
-    datatokenAddress,
-    ERC20Template.abi,
-    await provider.getSigner(account.address)
-  )
+  // const networkUrl = (await getConfiguration()).supportedNetworks[chainId.toString()].rpc
+  // const provider = new JsonRpcProvider(networkUrl)
+  const datatokenContract = new Contract(datatokenAddress, ERC20Template.abi, account)
   return await datatokenContract.decimals()
 }
 
