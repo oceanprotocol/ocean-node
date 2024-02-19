@@ -26,6 +26,7 @@ export class FeesHandler extends Handler {
           },
           4
         )
+        PROVIDER_LOGGER.logMessage(`serializedFees: ${serializedFees}`)
         return {
           stream: Readable.from(serializedFees),
           status: { httpStatus: 200 }
