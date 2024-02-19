@@ -111,7 +111,7 @@ describe('Ocean Node fees', () => {
         [
           ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(providerData))),
           ethers.getAddress(data.providerFeeAddress), // signer address
-          ethers.getAddress(data.providerFeeToken), // TODO check decimals on contract?
+          ethers.getAddress(data.providerFeeToken),
           data.providerFeeAmount,
           data.validUntil
         ]
@@ -123,7 +123,7 @@ describe('Ocean Node fees', () => {
       )
 
       const txID = await wallet.signMessage(ethers.toBeArray(signableHash))
-      const checkFeeResult = await checkFee(txID, data)
+      const checkFeeResult = await checkFee(txID, chainId, data)
       expect(checkFeeResult).to.be.equal(true)
     }
   })
