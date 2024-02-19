@@ -14,7 +14,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 async function fetchTransactionReceipt(
   txId: string,
   provider: JsonRpcProvider,
-  retries: number = 3
+  retries: number = 2
 ): Promise<TransactionReceipt> {
   while (retries > 0) {
     try {
@@ -23,8 +23,7 @@ async function fetchTransactionReceipt(
         return txReceipt
       }
       if (retries > 1) {
-        // If it's not the last retry, sleep before the next retry
-        await sleep(30000)
+        await sleep(1000)
       }
       retries--
     } catch (error) {
