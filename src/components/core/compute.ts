@@ -9,7 +9,10 @@ import {
 import { getConfiguration } from '../../utils/config.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { streamToString } from '../../utils/util.js'
+import { DDO } from '../../@types/DDO/DDO.js'
 import axios from 'axios'
+import { validateComputeProviderFee } from './utils/feesHandler.js'
+import { JsonRpcProvider } from 'ethers'
 
 export class GetEnvironmentsHandler extends Handler {
   async handle(task: GetEnvironmentsCommand): Promise<P2PCommandResponse> {
@@ -76,7 +79,13 @@ export class InitializeCompute extends Handler {
     return false
   }
 
-  validateOrderForDatasets() {}
+  getServiceById(ddo: DDO, serviceId: string) {
+    try {
+      return ddo.services.filter((service) => service.id === serviceId)[0]
+    } catch (err) {
+      CORE_LOGGER.logMessage(`Service was not found: ${err}`)
+    }
+  }
 
   async handle(task: InitializeComputeCommand): Promise<P2PCommandResponse> {
     try {
@@ -122,8 +131,60 @@ export class InitializeCompute extends Handler {
         }
       }
 
+      const listOfAssest = [...task.datasets, ...[task.algorithm]]
+      const node = this.getOceanNode()
+      let approvedParams: any = {
+        algorithm: {},
+        datasets: []
+      }
+
+      for (const asset of listOfAssest) {
+        if (!asset.transferTxId) {
+          continue
+        }
+        try {
+          const ddo = (await node.getDatabase().ddo.retrieve(asset.documentId)) as DDO
+          if (ddo.id === task.algorithm.documentId) {
+            if (!ddo.metadata.algorithm) {
+              const errorMsg = `DID is not a valid algorithm`
+              CORE_LOGGER.error(errorMsg)
+              return {
+                stream: null,
+                status: {
+                  httpStatus: 400,
+                  error: errorMsg
+                }
+              }
+            }
+          }
+          const service = this.getServiceById(ddo, asset.serviceId)
+          const networkUrl = (await getConfiguration()).supportedNetworks[
+            task.chainId.toString()
+          ].rpc
+          const provider = new JsonRpcProvider(networkUrl)
+
+          const resultValidation = await validateComputeProviderFee(
+            provider,
+            asset.transferTxId,
+            task.compute.env,
+            ddo,
+            service,
+            task.compute.validUntil
+          )
+          if (ddo.metadata.algorithm) {
+            approvedParams = {
+              algorithm: resultValidation[1]
+            }
+          } else {
+            approvedParams.datasets.push(resultValidation[1])
+          }
+        } catch (error) {
+          CORE_LOGGER.logMessage(`Unable to find DDO locally: ${error}`, true)
+        }
+      }
+
       return {
-        stream: Readable.from(JSON.stringify(response)),
+        stream: Readable.from(JSON.stringify(approvedParams)),
         status: {
           httpStatus: 200
         }

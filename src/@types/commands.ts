@@ -49,9 +49,10 @@ export interface GetEnvironmentsCommand extends Command {
   chainId: number
 }
 
-export interface Datasets {
+export interface Dataset {
   documentId: string
   serviceId: string
+  transferTxId?: string
   userdata?: any
 }
 
@@ -70,7 +71,7 @@ export interface Compute {
 }
 
 export interface InitializeComputeCommand extends Command {
-  datasets: [Datasets]
+  datasets: [Dataset]
   algorithm: Algorithm
   compute: Compute
   consumerAddress: string

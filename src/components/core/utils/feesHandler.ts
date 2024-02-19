@@ -161,7 +161,7 @@ async function getEventData(
   }
   return iface.parseLog(eventObj)
 }
-// It will be used in #230 for initializeCompute
+
 export async function validateComputeProviderFee(
   provider: JsonRpcApiProvider,
   tx: string,
@@ -170,34 +170,38 @@ export async function validateComputeProviderFee(
   service: Service,
   validUntil: number
 ): Promise<[boolean, ProviderFeeData | {}]> {
-  const txReceipt = await provider.getTransactionReceipt(tx)
-  const { logs } = txReceipt
-  const timestampNow = new Date().getTime() / 1000
-  for (const log of logs) {
-    const event = findEventByKey(log.topics[0])
-    if (event && event.type === 'ProviderFee') {
-      const decodedEventData = await getEventData(provider, tx, ERC20Template.abi)
-      const validUntilContract = parseInt(decodedEventData.args[7].toString())
-      if (timestampNow >= validUntilContract) {
-        // provider fee expired -> reuse order
-        CORE_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_INFO,
-          `Provider fees for this env have expired -> reuse order.`,
-          true
-        )
-        const envId = computeEnv.split('-')[1]
-        const newProviderFee = await calculateComputeProviderFee(
-          asset,
-          validUntil,
-          envId,
-          service,
-          provider
-        )
-        return [false, newProviderFee]
-      } else {
-        return [true, {}]
+  try {
+    const txReceipt = await provider.getTransactionReceipt(tx)
+    const { logs } = txReceipt
+    const timestampNow = new Date().getTime() / 1000
+    for (const log of logs) {
+      const event = findEventByKey(log.topics[0])
+      if (event && event.type === 'ProviderFee') {
+        const decodedEventData = await getEventData(provider, tx, ERC20Template.abi)
+        const validUntilContract = parseInt(decodedEventData.args[7].toString())
+        if (timestampNow >= validUntilContract) {
+          // provider fee expired -> reuse order
+          CORE_LOGGER.log(
+            LOG_LEVELS_STR.LEVEL_INFO,
+            `Provider fees for this env have expired -> reuse order.`,
+            true
+          )
+          const envId = computeEnv.split('-')[1]
+          const newProviderFee = await calculateComputeProviderFee(
+            asset,
+            validUntil,
+            envId,
+            service,
+            provider
+          )
+          return [false, newProviderFee]
+        } else {
+          return [true, decodedEventData.args]
+        }
       }
     }
+  } catch (err) {
+    CORE_LOGGER.logMessage(`Validation for compute provider fees failed due to: ${err}`)
   }
 }
 // equiv to get_provider_fees
