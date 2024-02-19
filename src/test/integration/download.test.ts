@@ -296,7 +296,6 @@ describe('Download Tests', () => {
       command: PROTOCOL_COMMANDS.DOWNLOAD
     }
     const response = await new DownloadHandler(oceanNode).handle(downloadTask)
-    console.log('response: ', response)
     assert(response)
     assert(response.stream, 'stream not present')
     assert(response.status.httpStatus === 200, 'http status not 200')

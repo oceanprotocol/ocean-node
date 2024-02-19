@@ -16,8 +16,18 @@ export class FeesHandler extends Handler {
 
       const fees = await calculateFee(task.ddo, task.serviceId)
       if (fees) {
+        const serializedFees = JSON.stringify(
+          fees,
+          (key, value) => {
+            if (typeof value === 'bigint') {
+              return value.toString() // Convert BigInt to string
+            }
+            return value
+          },
+          4
+        )
         return {
-          stream: Readable.from(JSON.stringify(fees, null, 4)),
+          stream: Readable.from(serializedFees),
           status: { httpStatus: 200 }
         }
       } else {
