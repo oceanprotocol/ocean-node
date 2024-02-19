@@ -67,8 +67,12 @@ export class OceanIndexer {
       worker.on('message', (event: any) => {
         if (event.data) {
           if (
-            event.method === EVENTS.METADATA_CREATED ||
-            event.method === EVENTS.METADATA_UPDATED
+            [
+              EVENTS.METADATA_CREATED,
+              EVENTS.METADATA_UPDATED,
+              EVENTS.ORDER_STARTED,
+              EVENTS.ORDER_REUSED
+            ].includes(event.method)
           ) {
             // will emit the metadata created/updated event and advertise it to the other peers (on create only)
             INDEXER_LOGGER.logMessage(

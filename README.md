@@ -72,6 +72,12 @@ For configuring a C2D (Compute to Data) cluster(s), please set the following env
 export OPERATOR_SERVICE_URL=[\"http://example.c2d.cluster1.com\",\"http://example.cd2.cluster2.com\"]
 ```
 
+For configuring the Indexer crawling interval in miliseconds (default, if not set, is 30 secs)
+
+```bash
+export INDEXER_INTERVAL=10000
+```
+
 Then start the node:
 
 ```bash
