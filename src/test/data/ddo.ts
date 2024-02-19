@@ -46,7 +46,7 @@ export const genericDDO = {
       description: 'Download service',
       files: [
         {
-          url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
+          url: 'https://raw.githubusercontent.com/tbertinmahieux/MSongsDB/master/Tasks_Demos/CoverSongs/shs_dataset_test.txt',
           contentType: 'text/js',
           encoding: 'UTF-8'
         }
