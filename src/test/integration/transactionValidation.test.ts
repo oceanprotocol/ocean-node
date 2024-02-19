@@ -65,14 +65,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   const providerValidUntil = 0
   const timeout = 0
 
-  function buildDataTokenContract(datatokenAddress: string) {
-    dataTokenContract = new Contract(
-      datatokenAddress,
-      ERC20Template.abi,
-      publisherAccount
-    )
-  }
-
   before(async () => {
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
@@ -135,8 +127,6 @@ describe('validateOrderTransaction Function with Orders', () => {
 
     assert(dataNftAddress, 'find nft created failed')
     assert(datatokenAddress, 'find datatoken created failed')
-
-    buildDataTokenContract(datatokenAddress)
   })
 
   it('should set metadata and save', async function () {
@@ -168,100 +158,100 @@ describe('validateOrderTransaction Function with Orders', () => {
 
   delay(DEFAULT_TEST_TIMEOUT)
 
-  it('should start an order and validate the transaction', async function () {
-    const doCheck = async (resolvedDDO: any) => {
-      buildDataTokenContract(datatokenAddress)
-
-      const paymentCollector = await dataTokenContract.getPaymentCollector()
-      assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
-
-      const feeData = await createFee(
-        resolvedDDO as DDO,
-        0,
-        'null',
-        resolvedDDO.services[0]
-      )
-
-      // sign provider data
-      providerData = JSON.stringify({ timeout })
-      message = solidityPackedKeccak256(
-        ['bytes', 'address', 'address', 'uint256', 'uint256'],
-        [
-          hexlify(toUtf8Bytes(providerData)),
-          feeData.providerFeeAddress,
-          feeData.providerFeeToken,
-          feeData.providerFeeAmount,
-          feeData.validUntil
-        ]
-      )
-      signedMessage = await signMessage(message, publisherAddress, provider)
-
-      // call the mint function on the dataTokenContract
-      const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
-      await mintTx.wait()
-      const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
-      assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
-
-      dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
-
-      const orderTx = await dataTokenContractWithNewSigner.startOrder(
-        consumerAddress,
-        serviceId,
-        {
-          providerFeeAddress: feeData.providerFeeAddress,
-          providerFeeToken: feeData.providerFeeToken,
-          providerFeeAmount: feeData.providerFeeAmount,
-          v: feeData.v,
-          r: feeData.r,
-          s: feeData.s,
-          providerData: feeData.providerData,
-          validUntil: feeData.validUntil
-        },
-        {
-          consumeMarketFeeAddress,
-          consumeMarketFeeToken,
-          consumeMarketFeeAmount
-        }
-      )
-      const orderTxReceipt = await orderTx.wait()
-      assert(orderTxReceipt, 'order transaction failed')
-      orderTxId = orderTxReceipt.hash
-      assert(orderTxId, 'transaction id not found')
-
-      // Use the transaction receipt in validateOrderTransaction
-
-      const validationResult = await validateOrderTransaction(
-        orderTxId,
-        consumerAddress,
-        provider,
-        dataNftAddress,
-        datatokenAddress,
-        parseInt(serviceId),
-        timeout
-      )
-      assert(validationResult.isValid, 'Transaction is not valid.')
-      assert(
-        validationResult.message === 'Transaction is valid.',
-        'Invalid transaction validation message.'
-      )
-    }
-
+  it('should get the active state', async function () {
     resolvedDDO = await waitToIndex(
       genericDDO.id,
       EVENTS.METADATA_UPDATED,
       (ddo: any, wasTimeout: boolean) => {
         if (ddo) {
           resolvedDDO = ddo
-          doCheck(ddo)
         } else {
           expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
         }
       },
       DEFAULT_TEST_TIMEOUT
     )
-    if (resolvedDDO) {
-      doCheck(resolvedDDO)
-    }
+  })
+
+  it('should start an order and validate the transaction', async function () {
+    dataTokenContract = new Contract(
+      datatokenAddress,
+      ERC20Template.abi,
+      publisherAccount
+    )
+
+    const paymentCollector = await dataTokenContract.getPaymentCollector()
+    assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
+
+    const feeData = await createFee(
+      resolvedDDO as DDO,
+      0,
+      'null',
+      resolvedDDO.services[0]
+    )
+
+    // sign provider data
+    providerData = JSON.stringify({ timeout })
+    message = solidityPackedKeccak256(
+      ['bytes', 'address', 'address', 'uint256', 'uint256'],
+      [
+        hexlify(toUtf8Bytes(providerData)),
+        feeData.providerFeeAddress,
+        feeData.providerFeeToken,
+        feeData.providerFeeAmount,
+        feeData.validUntil
+      ]
+    )
+    signedMessage = await signMessage(message, publisherAddress, provider)
+
+    // call the mint function on the dataTokenContract
+    const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
+    await mintTx.wait()
+    const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
+    assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
+
+    dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
+
+    const orderTx = await dataTokenContractWithNewSigner.startOrder(
+      consumerAddress,
+      serviceId,
+      {
+        providerFeeAddress: feeData.providerFeeAddress,
+        providerFeeToken: feeData.providerFeeToken,
+        providerFeeAmount: feeData.providerFeeAmount,
+        v: feeData.v,
+        r: feeData.r,
+        s: feeData.s,
+        providerData: feeData.providerData,
+        validUntil: feeData.validUntil
+      },
+      {
+        consumeMarketFeeAddress,
+        consumeMarketFeeToken,
+        consumeMarketFeeAmount
+      }
+    )
+    const orderTxReceipt = await orderTx.wait()
+    assert(orderTxReceipt, 'order transaction failed')
+    orderTxId = orderTxReceipt.hash
+    assert(orderTxId, 'transaction id not found')
+
+    // Use the transaction receipt in validateOrderTransaction
+
+    const validationResult = await validateOrderTransaction(
+      orderTxId,
+      consumerAddress,
+      provider,
+      dataNftAddress,
+      datatokenAddress,
+      parseInt(serviceId),
+      timeout
+    )
+    assert(validationResult.isValid, 'Transaction is not valid.')
+    assert(
+      validationResult.message === 'Transaction is valid.',
+      'Invalid transaction validation message.'
+    )
   })
 
   it('should reuse an order and validate the transaction', async function () {
@@ -272,6 +262,7 @@ describe('validateOrderTransaction Function with Orders', () => {
       resolvedDDO.services[0]
     )
 
+    // git status
     dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
 
     // sign provider data
