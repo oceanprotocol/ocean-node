@@ -74,6 +74,7 @@ export interface InitializeComputeCommand extends Command {
   algorithm: Algorithm
   compute: Compute
   consumerAddress: string
+  chainId: number
 }
 
 export interface StatusCommand extends Command {}
