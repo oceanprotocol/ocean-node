@@ -13,7 +13,7 @@ const config: ConfigType = {
     logs: '/logs',
     status: '/directCommand'
   },
-  nodeId: process.env.NEXT_PUBLIC_NODE_ID
+  nodeId: process.env.NEXT_PUBLIC_NODE_ID || ''
 }
 
 export default config
