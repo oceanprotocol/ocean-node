@@ -229,7 +229,8 @@ describe('URL Storage getFileInfo tests', () => {
   before(() => {
     storage = new UrlStorage({
       type: 'url',
-      url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
+      url: 'https://raw.githubusercontent.com/tbertinmahieux/MSongsDB/master/Tasks_Demos/CoverSongs/shs_dataset_test.txt',
+      // url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
       method: 'get'
     })
   })
@@ -241,9 +242,9 @@ describe('URL Storage getFileInfo tests', () => {
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
 
     assert(fileInfo[0].valid, 'File info is valid')
-    expect(fileInfo[0].contentLength).to.equal('13873')
-    expect(fileInfo[0].contentType).to.equal('text/plain')
-    expect(fileInfo[0].name).to.equal('organizations-100.csv')
+    expect(fileInfo[0].contentLength).to.equal('138486')
+    expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
+    expect(fileInfo[0].name).to.equal('shs_dataset_test.txt')
     expect(fileInfo[0].type).to.equal('url')
   })
 
