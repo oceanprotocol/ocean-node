@@ -165,7 +165,7 @@ describe('Ocean Node fees', () => {
       })
       stream.on('end', () => {
         // check that we got a valid response
-        const feesData: ProviderFeeData = JSON.parse(buffer.toString()) as ProviderFeeData
+        const feesData: ProviderFeeData = JSON.parse(buffer) as ProviderFeeData
         console.log('fees data json: ', feesData)
         expect(feesData.providerFeeAddress).to.be.equal(address)
         expect(feesData.providerFeeToken).to.be.equal(providerFeeToken)
