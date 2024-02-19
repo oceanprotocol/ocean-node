@@ -140,3 +140,13 @@ export function getMockSupportedNetworks(): RPCS {
   }
   return mockSupportedNetworks
 }
+
+// need to find a better way, but for now does the trick
+// these vars are only set on CI
+export function isRunningContinousIntegrationEnv(): boolean {
+  return (
+    process.env.NODE1_PRIVATE_KEY !== undefined &&
+    process.env.NODE2_PRIVATE_KEY !== undefined &&
+    process.env.NODE3_PRIVATE_KEY !== undefined
+  )
+}
