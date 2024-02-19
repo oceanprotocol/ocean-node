@@ -156,16 +156,10 @@ describe('Ocean Node fees', () => {
     expect(data.status.httpStatus).to.equal(200)
     const { stream } = data
     if (stream) {
-      let buffer = '' // Use a string instead of an array
-      stream.on('data', (data) => {
-        // read streamed data to buffer
-        console.log('data inside stream: ', data)
-        buffer += data.toString() // Concatenate the streamed data
-        console.log('buffer: ', buffer)
-      })
+      const buffer: any[] = []
       stream.on('end', () => {
         // check that we got a valid response
-        const feesData: ProviderFeeData = JSON.parse(buffer) as ProviderFeeData
+        const feesData: ProviderFeeData = JSON.parse(buffer.toString()) as ProviderFeeData
         console.log('fees data json: ', feesData)
         expect(feesData.providerFeeAddress).to.be.equal(address)
         expect(feesData.providerFeeToken).to.be.equal(providerFeeToken)

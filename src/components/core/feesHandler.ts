@@ -20,13 +20,12 @@ export class FeesHandler extends Handler {
           fees,
           (key, value) => {
             if (typeof value === 'bigint') {
-              return value.toString() // Convert BigInt to string
+              return value.toString()
             }
             return value
           },
           4
         )
-        PROVIDER_LOGGER.logMessage(`serializedFees: ${serializedFees}`)
         return {
           stream: Readable.from(serializedFees),
           status: { httpStatus: 200 }
