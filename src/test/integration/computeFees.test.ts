@@ -9,27 +9,36 @@ import {
   hexlify,
   ZeroAddress
 } from 'ethers'
+import { Readable } from 'stream'
+import { streamToObject, getEventFromTx } from '../../utils/util.js'
+import { PROTOCOL_COMMANDS, ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { InitializeComputeCommand, Dataset, Algorithm } from '../../@types/commands.js'
+import {
+  InitializeCompute,
+  GetEnvironmentsHandler
+} from '../../components/core/compute.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
-import { genericDDO } from '../data/ddo.js'
+import { genericComputeDDO, genericAlgorithm } from '../data/ddo.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
-import { getEventFromTx } from '../../utils/util.js'
 import { waitToIndex, delay } from './testUtils.js'
 import { encrypt } from '../../utils/crypt.js'
 import {
   calculateComputeProviderFee,
   getC2DEnvs
 } from '../../components/core/utils/feesHandler.js'
-import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import {
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
   setupEnvironment
 } from '../utils/utils.js'
 import { DDO } from '../../@types/DDO/DDO.js'
+import { ProviderFeeData } from '../../@types/Fees.js'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { OceanNode } from '../../OceanNode.js'
 
 describe('Compute provider fees', async () => {
   let database: Database
@@ -39,15 +48,22 @@ describe('Compute provider fees', async () => {
   let nftContract: Contract
   let publisherAccount: Signer
   let nftAddress: string
+  let nftAddressAlgo: string
   const chainId = 8996
   let assetDID: string
+  let algoDID: string
   let resolvedDDO: Record<string, any>
+  let resolvedAlgo: Record<string, any>
   let genericAsset: any
+  let genericAlgo: any
   let publisherAddress: string
   let consumerAccount: Signer
   let consumerAddress: string
   let datatokenAddress: string
+  let datatokenAddressAlgo: string
   let computeEnvs: Array<any>
+  let computeProviderFess: ProviderFeeData
+  let oceanNode: OceanNode
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const data = getOceanArtifactsAdresses()
@@ -67,13 +83,15 @@ describe('Compute provider fees', async () => {
     }
     database = await new Database(dbConfig)
     indexer = new OceanIndexer(database, mockSupportedNetworks)
+    oceanNode = await OceanNode.getInstance(database)
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     consumerAccount = (await provider.getSigner(1)) as Signer
     publisherAccount = (await provider.getSigner(0)) as Signer
     publisherAddress = await publisherAccount.getAddress()
     consumerAddress = await consumerAccount.getAddress()
-    genericAsset = genericDDO
+    genericAsset = genericComputeDDO
+    genericAlgo = genericAlgorithm
     factoryContract = new ethers.Contract(
       data.development.ERC721Factory,
       ERC721Factory.abi,
@@ -115,6 +133,42 @@ describe('Compute provider fees', async () => {
 
     assert(nftAddress, 'find nft created failed')
     assert(datatokenAddress, 'find datatoken created failed')
+  })
+
+  it('should publish a algorithm', async () => {
+    const tx = await factoryContract.createNftWithErc20(
+      {
+        name: '72120Bundle',
+        symbol: '72Bundle',
+        templateIndex: 1,
+        tokenURI: 'https://oceanprotocol.com/nft/',
+        transferable: true,
+        owner: await publisherAccount.getAddress()
+      },
+      {
+        strings: ['ERC20B1', 'ERC20DT1Symbol'],
+        templateIndex: 1,
+        addresses: [
+          await publisherAccount.getAddress(),
+          ZeroAddress,
+          ZeroAddress,
+          '0x0000000000000000000000000000000000000000'
+        ],
+        uints: [1000, 0],
+        bytess: []
+      }
+    )
+    const txReceipt = await tx.wait()
+    assert(txReceipt, 'transaction failed')
+    const nftEvent = getEventFromTx(txReceipt, 'NFTCreated')
+    const erc20Event = getEventFromTx(txReceipt, 'TokenCreated')
+
+    nftAddressAlgo = nftEvent.args[0]
+    datatokenAddressAlgo = erc20Event.args[0]
+    console.log('### datatokenAddress', datatokenAddress)
+
+    assert(nftAddressAlgo, 'find nft created failed')
+    assert(datatokenAddressAlgo, 'find datatoken created failed')
   })
 
   it('should set metadata and save ', async () => {
@@ -165,9 +219,65 @@ describe('Compute provider fees', async () => {
   })
 
   delay(1000)
+  it('should set metadata and save algo', async () => {
+    // Encrypt the files
+    const files = {
+      datatokenAddress: '0x0',
+      nftAddress: '0x0',
+      files: [
+        {
+          type: 'url',
+          url: 'https://raw.githubusercontent.com/tbertinmahieux/MSongsDB/master/Tasks_Demos/CoverSongs/shs_dataset_test.txt',
+          method: 'GET'
+        }
+      ]
+    }
+
+    const data = Uint8Array.from(Buffer.from(JSON.stringify(files)))
+    const encryptedData = await encrypt(data, 'ECIES')
+    // const encryptedDataString = encryptedData.toString('base64')
+
+    nftContract = new ethers.Contract(
+      nftAddressAlgo,
+      ERC721Template.abi,
+      publisherAccount
+    )
+    genericAlgo.id =
+      'did:op:' +
+      createHash('sha256')
+        .update(getAddress(nftAddress) + chainId.toString(10))
+        .digest('hex')
+    genericAlgo.nftAddress = nftAddressAlgo
+    genericAlgo.services[0].datatokenAddress = datatokenAddressAlgo
+    genericAlgo.services[0].files = encryptedData
+
+    algoDID = genericAlgo.id
+    const stringDDO = JSON.stringify(genericAlgo)
+    const bytes = Buffer.from(stringDDO)
+    const metadata = hexlify(bytes)
+    const hash = createHash('sha256').update(metadata).digest('hex')
+
+    const setMetaDataTx = await nftContract.setMetaData(
+      0,
+      'http://v4.provider.oceanprotocol.com',
+      '0x123',
+      '0x01',
+      metadata,
+      '0x' + hash,
+      []
+    )
+    const trxReceipt = await setMetaDataTx.wait()
+    assert(trxReceipt, 'set metada failed')
+  })
+  delay(1000)
   it('should store the ddo in the database and return it ', async () => {
     resolvedDDO = await waitToIndex(assetDID, database)
     expect(resolvedDDO.id).to.equal(genericAsset.id)
+  })
+
+  it('should store the ddo in the database and return it ', async () => {
+    resolvedAlgo = await waitToIndex(algoDID, database)
+    expect(resolvedAlgo.id).to.equal(genericAlgo.id)
   })
 
   it('should get provider fees for compute', async () => {
@@ -180,16 +290,16 @@ describe('Compute provider fees', async () => {
     // expect 2 envs
     expect(envs.length === 2, 'incorrect length')
     const filteredEnv = envs.filter((env: any) => env.priceMin !== 0)[0]
-    const providerFees = await calculateComputeProviderFee(
+    computeProviderFess = await calculateComputeProviderFee(
       resolvedDDO as DDO,
       0,
       filteredEnv.id,
       resolvedDDO.services[0],
       provider
     )
-    assert(providerFees, 'provider fees were not fetched')
-    assert(providerFees.providerFeeToken === oceanToken)
-    assert(providerFees.providerFeeAmount, 'provider fee amount is not fetched')
+    assert(computeProviderFess, 'provider fees were not fetched')
+    assert(computeProviderFess.providerFeeToken === oceanToken)
+    assert(computeProviderFess.providerFeeAmount, 'provider fee amount is not fetched')
   })
 
   it('should get free provider fees for compute', async () => {
@@ -200,16 +310,68 @@ describe('Compute provider fees', async () => {
         'http://172.15.0.13:31000/api/v1/operator/environments?chain_id=8996'
       ]
     const filteredEnv = envs.filter((env: any) => env.priceMin === 0)[0]
-    const providerFees = await calculateComputeProviderFee(
+    computeProviderFess = await calculateComputeProviderFee(
       resolvedDDO as DDO,
       0,
       filteredEnv.id,
       resolvedDDO.services[0],
       provider
     )
-    assert(providerFees, 'provider fees were not fetched')
-    console.log('provider fees: ', providerFees)
-    assert(providerFees.providerFeeToken === oceanToken)
-    assert(providerFees.providerFeeAmount === 0n, 'provider fee amount is not fetched')
+    assert(computeProviderFess, 'provider fees were not fetched')
+    console.log('provider fees: ', computeProviderFess)
+    assert(computeProviderFess.providerFeeToken === oceanToken)
+    assert(
+      computeProviderFess.providerFeeAmount === 0n,
+      'provider fee amount is not fetched'
+    )
+  })
+
+  it('Initialize compute', async () => {
+    const getEnvironmentsTask = {
+      command: PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS,
+      chainId: 8996
+    }
+    const response = await new GetEnvironmentsHandler(oceanNode).handle(
+      getEnvironmentsTask
+    )
+
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response.stream, 'Failed to get stream')
+    expect(response.stream).to.be.instanceOf(Readable)
+
+    const computeEnvironments = await streamToObject(response.stream as Readable)
+    const firstEnv = computeEnvironments[0].id
+    const { consumerAddress } = computeEnvironments[0]
+    const dataset: Dataset = {
+      documentId: resolvedDDO.id,
+      serviceId: resolvedDDO.services[0].id
+    }
+    const algorithm: Algorithm = {
+      documentId: resolvedAlgo.id,
+      serviceId: resolvedAlgo.services[0].id
+    }
+    const currentDate = new Date()
+    const initializeComputeTask: InitializeComputeCommand = {
+      datasets: [dataset],
+      algorithm,
+      compute: {
+        env: firstEnv,
+        validUntil: new Date(
+          currentDate.getFullYear() + 3,
+          currentDate.getMonth(),
+          currentDate.getDate()
+        ).getTime()
+      },
+      consumerAddress,
+      command: PROTOCOL_COMMANDS.INITIALIZE_COMPUTE,
+      chainId: 8996
+    }
+    const resp = await new InitializeCompute(oceanNode).handle(initializeComputeTask)
+
+    assert(resp, 'Failed to get response')
+    assert(resp.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(resp.stream, 'Failed to get stream')
+    expect(resp.stream).to.be.instanceOf(Readable)
   })
 })

@@ -64,6 +64,7 @@ export class GetEnvironmentsHandler extends Handler {
 
 export class InitializeCompute extends Handler {
   validateTimestamp(value: number) {
+    // in miliseconds
     const timestampNow = new Date().getTime() / 1000
     const validUntil = new Date(value).getTime() / 1000
 
@@ -94,7 +95,6 @@ export class InitializeCompute extends Handler {
           JSON.stringify(task, null, 2),
         true
       )
-      const response: any = {}
 
       const { validUntil } = task.compute
       if (!this.validateTimestamp(validUntil)) {
@@ -145,7 +145,7 @@ export class InitializeCompute extends Handler {
         try {
           const ddo = (await node.getDatabase().ddo.retrieve(asset.documentId)) as DDO
           if (ddo.id === task.algorithm.documentId) {
-            if (!ddo.metadata.algorithm) {
+            if (ddo.metadata.type !== 'algorithm') {
               const errorMsg = `DID is not a valid algorithm`
               CORE_LOGGER.error(errorMsg)
               return {
@@ -171,7 +171,7 @@ export class InitializeCompute extends Handler {
             service,
             task.compute.validUntil
           )
-          if (ddo.metadata.algorithm) {
+          if (ddo.metadata.type === 'algorithm') {
             approvedParams = {
               algorithm: resultValidation[1]
             }

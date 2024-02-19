@@ -59,7 +59,7 @@ export interface Dataset {
 export interface Algorithm {
   documentId: string
   meta?: any
-  serviceId?: string
+  serviceId: string
   transferTxId?: string
   userdata?: any
   algocustomdata?: any
