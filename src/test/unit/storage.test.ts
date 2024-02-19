@@ -230,7 +230,6 @@ describe('URL Storage getFileInfo tests', () => {
     storage = new UrlStorage({
       type: 'url',
       url: 'https://raw.githubusercontent.com/tbertinmahieux/MSongsDB/master/Tasks_Demos/CoverSongs/shs_dataset_test.txt',
-      // url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
       method: 'get'
     })
   })
