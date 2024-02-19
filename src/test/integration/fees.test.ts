@@ -151,7 +151,8 @@ describe('Ocean Node fees', () => {
       serviceId: service.id,
       command: PROTOCOL_COMMANDS.GET_FEES
     })
-    console.log('data log: ', data.status.error)
+    console.log('data log: ', data.status)
+    console.log('data stream: ', data.stream)
     expect(data.status.httpStatus).to.equal(200)
     const { stream } = data
     if (stream) {
@@ -163,6 +164,7 @@ describe('Ocean Node fees', () => {
       stream.on('end', () => {
         // check that we got a valid response
         const feesData: ProviderFeeData = JSON.parse(buffer.toString()) as ProviderFeeData
+        console.log('fees data json: ', feesData)
         expect(feesData.providerFeeAddress).to.be.equal(address)
         expect(feesData.providerFeeToken).to.be.equal(providerFeeToken)
         expect(feesData.providerFeeAmount).to.be.equal(1000000000000000000n)
