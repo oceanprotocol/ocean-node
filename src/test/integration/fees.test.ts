@@ -8,7 +8,6 @@ import { ProviderFeeData } from '../../@types/Fees.js'
 import {
   createFee,
   checkFee,
-  getProviderFeeAmount,
   getProviderFeeToken,
   getProviderWallet,
   getProviderWalletAddress
@@ -78,12 +77,11 @@ describe('Ocean Node fees', () => {
     const address = await getProviderWalletAddress()
     const { chainId } = asset // this chain id is a number
     const providerFeeToken = await getProviderFeeToken(chainId)
-    const providerAmount = await getProviderFeeAmount()
     const data: ProviderFeeData | undefined = await createFee(asset, 0, 'null', service)
     if (data) {
       expect(data.providerFeeAddress).to.be.equal(address)
       expect(data.providerFeeToken).to.be.equal(providerFeeToken)
-      expect(data.providerFeeAmount).to.be.equal(providerAmount)
+      expect(data.providerFeeAmount).to.be.equal(1000000000000000000n) // 1 converted to 18 decimals
     }
   })
 
@@ -93,13 +91,12 @@ describe('Ocean Node fees', () => {
     const { address } = wallet
     const { chainId } = asset // this chain id is a number
     const providerFeeToken = await getProviderFeeToken(chainId)
-    const providerAmount = await getProviderFeeAmount()
 
     const data: ProviderFeeData | undefined = await createFee(asset, 0, 'null', service)
     if (data) {
       expect(data.providerFeeAddress).to.be.equal(address)
       expect(data.providerFeeToken).to.be.equal(providerFeeToken)
-      expect(data.providerFeeAmount).to.be.equal(providerAmount)
+      expect(data.providerFeeAmount).to.be.equal(1000000000000000000n) // 1 converted to 18 decimals
 
       // will sign a new message with this data to simulate the txId and then check it
       const providerDataAsArray = ethers.toBeArray(data.providerData)
@@ -137,7 +134,6 @@ describe('Ocean Node fees', () => {
     const { address } = wallet
     const { chainId } = asset // this chain id is a number
     const providerFeeToken = await getProviderFeeToken(chainId)
-    const providerAmount = await getProviderFeeAmount()
 
     const config = await getConfiguration(true)
     config.supportedNetworks[8996] = {
@@ -168,7 +164,7 @@ describe('Ocean Node fees', () => {
         const feesData: ProviderFeeData = JSON.parse(buffer.toString()) as ProviderFeeData
         expect(feesData.providerFeeAddress).to.be.equal(address)
         expect(feesData.providerFeeToken).to.be.equal(providerFeeToken)
-        expect(feesData.providerFeeAmount).to.be.equal(providerAmount)
+        expect(feesData.providerFeeAmount).to.be.equal(1000000000000000000n)
         expect(feesData.v).to.be.gte(27) // 27 OR 28
         expect(Object.keys(feesData.r).length).to.be.equal(66) // 32 bytes in hex + 0x
         expect(Object.keys(feesData.s).length).to.be.equal(66) // 32 bytes in hex + 0x

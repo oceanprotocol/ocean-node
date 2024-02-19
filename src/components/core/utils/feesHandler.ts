@@ -237,22 +237,12 @@ export async function createFee(
   }
 
   if (providerFeeToken && providerFeeToken !== ZeroAddress) {
-    // CORE_LOGGER.logMessage(
-    //   `(await getConfiguration()).supportedNetwork: ${JSON.stringify(
-    //     (await getConfiguration()).supportedNetworks[asset.chainId]
-    //   )}`
-    // )
-    // CORE_LOGGER.logMessage(`chain id: ${asset.chainId}`)
-    // const networkUrl = (await getConfiguration()).supportedNetworks[
-    //   asset.chainId.toString()
-    // ].rpc
-    // const provider = new JsonRpcProvider(networkUrl)
+    const networkUrl = (await getConfiguration()).supportedNetworks[
+      asset.chainId.toString()
+    ].rpc
+    const provider = new JsonRpcProvider(networkUrl)
 
-    const decimals = await getDatatokenDecimals(
-      providerFeeToken,
-      providerWallet,
-      asset.chainId
-    )
+    const decimals = await getDatatokenDecimals(providerFeeToken, provider)
     CORE_LOGGER.logMessage(`decimals: ${decimals}`)
     // from env FEE_AMOUNT
     providerFeeAmount = parseUnits((await getProviderFeeAmount()).toString(10), decimals)
