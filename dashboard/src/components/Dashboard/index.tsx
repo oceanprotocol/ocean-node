@@ -59,16 +59,16 @@ export default function Dashboard() {
 
   useEffect(() => {
     setLoading(true)
-    fetch(config.apiURL.status, {
+    fetch(`${config.apiUrl}${config.apiRoutes.status}`, {
       headers: {
         Accept: 'application/json',
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
       method: 'POST',
       body: JSON.stringify({
         command: 'status',
-        node: config.nodeId,
-      }),
+        node: config.nodeId
+      })
     })
       .then((res) => res.json())
       .then((data) => {
@@ -82,8 +82,8 @@ export default function Dashboard() {
       id: data?.id,
       dns: 'ns-380.awsdns-47.com',
       ip: '192.0.2.44',
-      indexerData: data?.indexer,
-    },
+      indexerData: data?.indexer
+    }
   ]
 
   const [node, setNode] = useState(nodeData[0])
@@ -91,16 +91,16 @@ export default function Dashboard() {
   const providerData = [
     {
       name: 'POLYGON',
-      url: 'https://polygon-rpc.com',
+      url: 'https://polygon-rpc.com'
     },
     {
       name: 'ETHEREUM',
-      url: 'https://eth.drpc.org',
+      url: 'https://eth.drpc.org'
     },
     {
       name: 'OPTIMISM',
-      url: 'https://mainnet.optimism.io',
-    },
+      url: 'https://mainnet.optimism.io'
+    }
   ]
 
   const Spinner = () => {
@@ -112,9 +112,9 @@ export default function Dashboard() {
   data &&
     Object.keys(data?.platform).forEach((key) => {
       const obj = {
-        key: key,
+        key,
         // @ts-expect-error - error is shown here because the key is used as an index.
-        value: data?.platform[key],
+        value: data?.platform[key]
       }
 
       arrayOfPlatformObjects.push(obj)
@@ -139,9 +139,7 @@ export default function Dashboard() {
                       className={styles.nodeAddress}
                       onClick={() => setNode(node)}
                     >
-                      <div className={styles.node}>
-                        {truncateString(node.id, 12)}
-                      </div>
+                      <div className={styles.node}>{truncateString(node.id, 12)}</div>
                     </div>
                   )
                 })}
@@ -180,10 +178,7 @@ export default function Dashboard() {
           {data?.indexer.map((item) => {
             return (
               <div
-                className={cs([
-                  styles.indexBlock,
-                  item.delayed && styles.delayed,
-                ])}
+                className={cs([styles.indexBlock, item.delayed && styles.delayed])}
                 key={item.block}
               >
                 <h5>{item.network}</h5>
@@ -223,7 +218,7 @@ export default function Dashboard() {
 
   const ObjectModule = ({
     title,
-    data,
+    data
   }: {
     title: string
     data: { key: string; value: string | number }[]

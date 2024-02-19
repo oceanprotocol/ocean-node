@@ -1,19 +1,19 @@
 export type ConfigType = {
-  apiURL: {
+  apiUrl: string
+  apiRoutes: {
     logs: string
     status: string
   }
-  nodeId: string
+  nodeId: string | undefined
 }
 
 const config: ConfigType = {
-  apiURL: {
-    logs: 'http://localhost:8010/proxy/logs',
-    status: 'http://localhost:8010/proxy/directCommand',
+  apiUrl: process.env.NEXT_PUBLIC_API_URL || '',
+  apiRoutes: {
+    logs: '/logs',
+    status: '/directCommand'
   },
-  nodeId:
-    process.env.NEXT_PUBLIC_NODE_ID ||
-    '16Uiu2HAm6G73f3wiPtrmT7BNLqA3PCzQGGtpShu9qNFjAJgAM4R7',
+  nodeId: process.env.NEXT_PUBLIC_NODE_ID
 }
 
 export default config

@@ -10,17 +10,16 @@ export default function DownloadButton() {
   const [isLoading, setLoading] = useState(false)
   const downloadLogs = useCallback(async () => {
     setLoading(true)
-    const data = await fetch(config.apiURL.logs, {
+    const data = await fetch(`${config.apiUrl}${config.apiRoutes.logs}`, {
       headers: {
         Accept: 'application/json',
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
-      method: 'GET',
+      method: 'GET'
     }).then((res) => res.json())
     if (data) {
       const dataStr =
-        'data:application/json;charset=utf-8,' +
-        encodeURIComponent(JSON.stringify(data))
+        'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(data))
       const download = document.createElement('a')
       download.setAttribute('href', dataStr)
       download.setAttribute('download', 'LogsData' + '.json')
@@ -42,12 +41,7 @@ export default function DownloadButton() {
       ) : (
         <>
           <div>Download logs</div>
-          <Image
-            src={DownloadSVG}
-            alt="download button"
-            width={20}
-            height={20}
-          />
+          <Image src={DownloadSVG} alt="download button" width={20} height={20} />
         </>
       )}
     </button>
