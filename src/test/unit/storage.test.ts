@@ -472,7 +472,7 @@ describe('URL Storage encryption tests', () => {
   })
 
   // For this test to work locally, make sure that you're using the correct env value
-  // PRIVATE_KEY="0xee59A16d95042e1B252d4598e2e503837a52eCb1"
+  // PRIVATE_KEY="0x1d751ded5a32226054cd2e71261039b65afb9ee1c746d055dd699b1150a5befc"
   // it('decrypt method should correctly decrypt data for authorized nodeId', async () => {
   //   // Perform decryption
   //   const decryptResponse = await storage.decrypt()
