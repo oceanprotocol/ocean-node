@@ -425,14 +425,21 @@ describe('URL Storage encryption tests', () => {
   })
 })
 
-describe('URL Storage encryption tests', () => {
-  let storage: UrlStorage
+describe('URL Storage encryption tests', async function () {
+  this.timeout(15000)
+  let storage: IpfsStorage
+  let previousConfiguration: OverrideEnvConfig[]
 
-  before(() => {
-    storage = new UrlStorage({
-      type: 'url',
-      url: 'https://github.com/oceanprotocol/ocean-node/raw/issue-265-encryptFile/src/test/data/organizations-100.aes',
-      method: 'get',
+  before(async () => {
+    previousConfiguration = await buildEnvOverrideConfig(
+      [ENVIRONMENT_VARIABLES.IPFS_GATEWAY],
+      ['https://ipfs.oceanprotocol.com']
+    )
+    await setupEnvironment(undefined, previousConfiguration) // Apply the environment override
+
+    storage = new IpfsStorage({
+      type: 'ipfs',
+      hash: 'QmQVPuoXMbVEk7HQBth5pGPPMcgvuq4VSgu2XQmzU5M2Pv',
       encryptedBy: nodeId,
       encryptMethod: 'AES'
     })
@@ -451,14 +458,13 @@ describe('URL Storage encryption tests', () => {
 
   it('File info includes encryptedBy and encryptMethod', async () => {
     const fileInfoRequest: FileInfoRequest = {
-      type: 'url'
+      type: 'ipfs'
     }
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
 
     assert(fileInfo[0].valid, 'File info is valid')
     expect(fileInfo[0].contentType).to.equal('application/octet-stream')
-    expect(fileInfo[0].name).to.equal('organizations-100.aes')
-    expect(fileInfo[0].type).to.equal('url')
+    expect(fileInfo[0].type).to.equal('ipfs')
     expect(fileInfo[0].encryptedBy).to.equal(nodeId)
     expect(fileInfo[0].encryptMethod).to.equal('AES')
   })
@@ -483,5 +489,9 @@ describe('URL Storage encryption tests', () => {
     const decryptedContent = await streamToString(decryptResponse.stream)
 
     expect(decryptedContent.length).to.equal(319508)
+  })
+
+  after(() => {
+    tearDownEnvironment(previousConfiguration)
   })
 })
