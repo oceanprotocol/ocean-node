@@ -314,10 +314,10 @@ describe('Arweave Storage getFileInfo tests', () => {
     assert(fileInfo[0].valid, 'File info is valid')
     assert(fileInfo[0].type === 'arweave', 'Type is incorrect')
     assert(
-      fileInfo[0].contentType === 'text/csv; charset=utf-8',
+      fileInfo[0].contentType === 'text/plain; charset=utf-8',
       'Content type is incorrect'
     )
-    assert(fileInfo[0].contentLength === '680782', 'Content length is incorrect')
+    assert(fileInfo[0].contentLength === '138486', 'Content length is incorrect')
   })
 
   it('Throws error when transaction ID is missing in request', async () => {
@@ -381,7 +381,7 @@ describe('URL Storage encryption tests', () => {
   before(() => {
     storage = new UrlStorage({
       type: 'url',
-      url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
+      url: 'https://raw.githubusercontent.com/tbertinmahieux/MSongsDB/master/Tasks_Demos/CoverSongs/shs_dataset_test.txt',
       method: 'get'
     })
   })
