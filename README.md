@@ -35,9 +35,16 @@ git checkout feature/nodes
 
 ### 5. Open terminal 1 and run a node
 
+Make sure the you are using the same `PRIVATE_KEY` value as the CI for the decryption tests to work locally:
+
+```bash
+export PRIVATE_KEY="0xee59A16d95042e1B252d4598e2e503837a52eCb1"
+```
+
+Set remaining env values:
+
 ```bash
 export HTTP_API_PORT=8000
-export PRIVATE_KEY=0x.....
 export RPCS="{ \"1\":{ \"rpc\":\"https://rpc.eth.gateway.fm\", \"chainId\": 1, \"network\": \"mainet\", \"chunkSize\": 100 }, \"137\": { \"rpc\": \"https://polygon.meowrpc.com\", \"chainId\": 137, \"network\": \"polygon\", \"chunkSize\": 100 }, \"80001\": { \"rpc\": \"https://rpc-mumbai.maticvigil.com\", \"chainId\": 80001, \"network\": \"polygon-mumbai\", \"chunkSize\": 100 }}"
 ```
 

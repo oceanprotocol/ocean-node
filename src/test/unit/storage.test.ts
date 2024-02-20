@@ -356,7 +356,6 @@ describe('IPFS Storage getFileInfo tests', async function () {
     if (fileInfo && fileInfo.length > 0) {
       assert(fileInfo[0].valid, 'File info is valid')
       assert(fileInfo[0].type === 'ipfs', 'Type is incorrect')
-      console.log(`content type: ${fileInfo[0].contentType}`)
       assert(fileInfo[0].contentType === 'text/csv', 'Content type is incorrect')
       assert(fileInfo[0].contentLength === '680782', 'Content length is incorrect')
     }
@@ -472,8 +471,8 @@ describe('URL Storage encryption tests', () => {
     )
   })
 
-  // Decryption won't work on the CI unless the file has been encrypted with the same account that we're using in the CI
-
+  // For this test to work locally, make sure that you're using the correct env value
+  // PRIVATE_KEY="0xee59A16d95042e1B252d4598e2e503837a52eCb1"
   // it('decrypt method should correctly decrypt data for authorized nodeId', async () => {
   //   // Perform decryption
   //   const decryptResponse = await storage.decrypt()
