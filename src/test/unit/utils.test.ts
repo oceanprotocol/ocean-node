@@ -1,5 +1,5 @@
 import { expect, assert } from 'chai'
-import { sleep, getEventFromTx } from '../../utils/util.js' // replace './yourModule' with the actual path of your module
+import { sleep, getEventFromTx, isValidUrl } from '../../utils/util.js' // replace './yourModule' with the actual path of your module
 import 'mocha'
 
 describe('Utilities Functions', () => {
@@ -9,6 +9,22 @@ describe('Utilities Functions', () => {
       await sleep(1000) // sleep for 1 second
       const endTime = new Date().getTime()
       expect(endTime - startTime).to.be.at.least(999) // sometimes there is a milisecond dif locally
+    })
+
+    it('should handle/validate multiple URLS', () => {
+      assert.isTrue(isValidUrl('https://localhost:80'))
+      assert.isFalse(isValidUrl(''))
+      assert.isTrue(
+        isValidUrl(
+          'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json'
+        )
+      )
+      assert.isTrue(
+        isValidUrl(
+          'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json'
+        )
+      )
+      assert.isFalse(isValidUrl('http://hello world!'))
     })
   })
 
