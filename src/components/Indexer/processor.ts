@@ -20,6 +20,7 @@ import { getDatabase } from '../../utils/database.js'
 import { PROTOCOL_COMMANDS, EVENTS, MetadataStates } from '../../utils/constants.js'
 import { getNFTFactory, getContractAddress } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
+import { Purgatory } from './purgatory.js'
 import { getConfiguration } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { streamToString } from '../../utils/util.js'
@@ -323,8 +324,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           return
         }
       }
-      const saveDDO = this.createOrUpdateDDO(ddo, eventName)
-      return saveDDO
+      const from = decodedEventData.args[0]
+      const purgatory = await Purgatory.getInstance()
+      const updatedDDO = await this.updatePurgatoryStateDdo(ddo, from, purgatory)
+      if (updatedDDO.purgatory.state === false) {
+        // TODO: insert in a different collection for purgatory DDOs
+        const saveDDO = this.createOrUpdateDDO(ddo, eventName)
+        return saveDDO
+      }
     } catch (error) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
@@ -332,6 +339,26 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         true
       )
     }
+  }
+
+  async updatePurgatoryStateDdo(
+    ddo: any,
+    owner: string,
+    purgatory: Purgatory
+  ): Promise<any> {
+    if (
+      (await purgatory.isBannedAsset(ddo.id)) ||
+      (await purgatory.isBannedAccount(owner))
+    ) {
+      ddo.purgatory = {
+        state: true
+      }
+    } else {
+      ddo.purgatory = {
+        state: false
+      }
+    }
+    return ddo
   }
 
   isUpdateable(previousDdo: any, txHash: string, block: number): [boolean, string] {
