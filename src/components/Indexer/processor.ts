@@ -325,7 +325,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         }
       }
       const from = decodedEventData.args[0]
+      // always call, but only create instance once
       const purgatory = await Purgatory.getInstance()
+      // if purgatory is disabled just return false
       const updatedDDO = await this.updatePurgatoryStateDdo(ddo, from, purgatory)
       if (updatedDDO.purgatory.state === false) {
         // TODO: insert in a different collection for purgatory DDOs
@@ -346,12 +348,12 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     owner: string,
     purgatory: Purgatory
   ): Promise<any> {
-    if (
-      (await purgatory.isBannedAsset(ddo.id)) ||
-      (await purgatory.isBannedAccount(owner))
-    ) {
+    if (purgatory.isEnabled()) {
+      const state: boolean =
+        (await purgatory.isBannedAsset(ddo.id)) ||
+        (await purgatory.isBannedAccount(owner))
       ddo.purgatory = {
-        state: true
+        state
       }
     } else {
       ddo.purgatory = {
