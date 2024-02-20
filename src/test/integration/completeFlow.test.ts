@@ -19,7 +19,7 @@ import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { getEventFromTx, streamToString, streamToObject } from '../../utils/util.js'
-import { delay, expectedTimeoutFailure, waitToIndex } from './testUtils.js'
+import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import {
   ENVIRONMENT_VARIABLES,
@@ -264,24 +264,18 @@ describe('Should run a complete node flow.', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(DEFAULT_TEST_TIMEOUT * 2)
-
   it('should store the ddo in the database and return it', async function () {
-    const timeout = DEFAULT_TEST_TIMEOUT * 3
+    const timeout = DEFAULT_TEST_TIMEOUT
     this.timeout(timeout)
-    resolvedDDO = await waitToIndex(
+    const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.METADATA_CREATED,
-      (ddo: any, wasTimeOut: boolean) => {
-        if (ddo != null) {
-          expect(ddo.id).to.equal(genericAsset.id)
-        } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeOut)
-      },
       timeout
     )
+    resolvedDDO = ddo
     if (resolvedDDO) {
       expect(resolvedDDO.id).to.equal(genericAsset.id)
-    }
+    } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
   // it('should be able to decrypt the ddo files ', async () => {

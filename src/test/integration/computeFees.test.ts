@@ -169,22 +169,17 @@ describe('Compute provider fees', async () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  // delay(1000)
   it('should store the ddo in the database and return it ', async function () {
-    resolvedDDO = await waitToIndex(
+    const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.METADATA_CREATED,
-      (ddo: any, wasTimeout: boolean) => {
-        if (ddo) {
-          expect(ddo.id).to.equal(genericAsset.id)
-        } else {
-          expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
-        }
-      },
       DEFAULT_TEST_TIMEOUT
     )
+    resolvedDDO = ddo
     if (resolvedDDO) {
       expect(resolvedDDO.id).to.equal(genericAsset.id)
+    } else {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     }
   })
 

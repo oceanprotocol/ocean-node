@@ -17,7 +17,7 @@ import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Fa
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getEventFromTx } from '../../utils/util.js'
-import { delay, expectedTimeoutFailure, signMessage, waitToIndex } from './testUtils.js'
+import { expectedTimeoutFailure, signMessage, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import { Database } from '../../components/database/index.js'
 import {
@@ -27,11 +27,13 @@ import {
 } from '../../utils/address.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
-import { DEFAULT_TEST_TIMEOUT } from '../utils/utils.js'
+import { DEFAULT_TEST_TIMEOUT, getMockSupportedNetworks } from '../utils/utils.js'
 import { EVENTS } from '../../utils/constants.js'
+import { OceanIndexer } from '../../components/Indexer/index.js'
 
 describe('validateOrderTransaction Function with Orders', () => {
   let database: Database
+  let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let factoryContract: Contract
   let nftContract: Contract
@@ -81,6 +83,9 @@ describe('validateOrderTransaction Function with Orders', () => {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
     database = await new Database(dbConfig)
+
+    // need to make sure there is an indexer running on the test suite
+    indexer = new OceanIndexer(database, getMockSupportedNetworks())
 
     // Initialize the factory contract
     factoryContract = new ethers.Contract(
@@ -156,21 +161,19 @@ describe('validateOrderTransaction Function with Orders', () => {
     assert(trxReceipt, 'set metadata failed')
   })
 
-  delay(DEFAULT_TEST_TIMEOUT)
-
   it('should get the active state', async function () {
-    resolvedDDO = await waitToIndex(
+    const { ddo, wasTimeout } = await waitToIndex(
       genericDDO.id,
-      EVENTS.METADATA_UPDATED,
-      (ddo: any, wasTimeout: boolean) => {
-        if (ddo) {
-          resolvedDDO = ddo
-        } else {
-          expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
-        }
-      },
-      DEFAULT_TEST_TIMEOUT
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT,
+      true
     )
+    resolvedDDO = ddo
+    if (resolvedDDO) {
+      expect(resolvedDDO.id).to.be.equal(genericDDO.id)
+    } else {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    }
   })
 
   it('should start an order and validate the transaction', async function () {
@@ -182,6 +185,8 @@ describe('validateOrderTransaction Function with Orders', () => {
 
     const paymentCollector = await dataTokenContract.getPaymentCollector()
     assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
+
+    console.log('resolved ddo ', resolvedDDO)
 
     const feeData = await createFee(
       resolvedDDO as DDO,

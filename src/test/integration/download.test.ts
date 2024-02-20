@@ -25,7 +25,7 @@ import {
 import { DownloadHandler } from '../../components/core/downloadHandler.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getEventFromTx } from '../../utils/util.js'
-import { waitToIndex, delay, expectedTimeoutFailure } from './testUtils.js'
+import { waitToIndex, expectedTimeoutFailure } from './testUtils.js'
 import { getConfiguration } from '../../utils/config.js'
 import { ProviderFeeData } from '../../@types/Fees.js'
 import { encrypt } from '../../utils/crypt.js'
@@ -195,22 +195,18 @@ describe('Download Tests', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(DEFAULT_TEST_TIMEOUT)
   it('should store the ddo in the database and return it', async function () {
-    const timeout = DEFAULT_TEST_TIMEOUT * 2
-    resolvedDDO = await waitToIndex(
+    const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.METADATA_CREATED,
-      (ddo: any, wasTimeOut: boolean) => {
-        if (ddo != null) {
-          expect(ddo.id).to.equal(genericAsset.id)
-        } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
-      },
-      timeout
+      DEFAULT_TEST_TIMEOUT
     )
 
+    resolvedDDO = ddo
     if (resolvedDDO) {
       expect(resolvedDDO.id).to.equal(genericAsset.id)
+    } else {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     }
   })
 
@@ -236,11 +232,9 @@ describe('Download Tests', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(35000)
-
   it('should start an order and then download the asset', async function () {
     const asset: any = resolvedDDO
-    this.timeout(65000) // Extend default Mocha test timeout
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2) // Extend default Mocha test timeout
 
     const dataTokenContract = new Contract(
       datatokenAddress,

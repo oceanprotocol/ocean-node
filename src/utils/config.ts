@@ -429,3 +429,9 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
 function configChanged(previous: OceanNodeConfig, current: OceanNodeConfig): boolean {
   return JSON.stringify(previous) !== JSON.stringify(current)
 }
+
+// useful for debugging purposes
+export async function printCurrentConfig() {
+  const conf = await getConfiguration(true)
+  console.log(JSON.stringify(conf), null, 4)
+}
