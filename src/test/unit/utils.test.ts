@@ -1,5 +1,5 @@
 import { expect, assert } from 'chai'
-import { sleep, getEventFromTx, isValidUrl } from '../../utils/util.js' // replace './yourModule' with the actual path of your module
+import { sleep, getEventFromTx, isValidUrl } from '../../utils/util.js'
 import 'mocha'
 
 describe('Utilities Functions', () => {
