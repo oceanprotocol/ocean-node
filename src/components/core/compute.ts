@@ -1,6 +1,6 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../@types'
-import { C2DEnvironment } from '../../@types/C2D.js'
+import { ComputeEnvironment } from '../../@types/C2D.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { Handler } from './handler.js'
 import { GetEnvironmentsCommand } from '../../@types/commands.js'
@@ -14,7 +14,7 @@ export class GetEnvironmentsHandler extends Handler {
         'File Info Request recieved with arguments: ' + JSON.stringify(task, null, 2),
         true
       )
-      const response: C2DEnvironment[] = []
+      const response: ComputeEnvironment[] = []
       const config = await getConfiguration()
       const { c2dClusters } = config
 

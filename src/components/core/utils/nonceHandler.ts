@@ -187,3 +187,17 @@ function validateNonceAndSignature(
     error: 'nonce: ' + nonce + ' is not a valid nonce'
   }
 }
+
+export async function sign(message: string, privateKey: string): Promise<string> {
+  /** Signs a message with a private key */
+  const wallet = new ethers.Wallet(privateKey)
+  // message to sign
+  // sign message/nonce
+  const consumerMessage = ethers.solidityPackedKeccak256(
+    ['bytes'],
+    [ethers.hexlify(ethers.toUtf8Bytes(message))]
+  )
+  const messageHashBytes = ethers.toBeArray(consumerMessage)
+  const signature = await wallet.signMessage(messageHashBytes)
+  return signature
+}

@@ -1,6 +1,22 @@
 import { OceanNode } from '../../OceanNode.js'
-import type { C2DClusterInfo, C2DEnvironment } from '../../@types/C2D.js'
+import type {
+  C2DClusterInfo,
+  ComputeEnvironment,
+  ComputeAlgorithm,
+  ComputeAsset,
+  ComputeJob,
+  ComputeOutput,
+  ComputeResult,
+  ComputeResultType,
+  OPFK8ComputeOutput,
+  OPFK8ComputeStage,
+  OPFK8ComputeStageAlgorithm,
+  OPFK8ComputeStageInput,
+  OPFK8ComputeWorkflow,
+  OPFK8ComputeStart
+} from '../../@types/C2D.js'
 import { C2DClusterType } from '../../@types/C2D.js'
+import { sign } from '../core/utils/nonceHandler.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import axios from 'axios'
 import { getConfiguration } from '../../utils/config.js'
@@ -57,7 +73,19 @@ export abstract class C2DEngine {
   }
 
   // functions which need to be implemented by all engine types
-  public async getComputeEnvironments(chainId: number): Promise<C2DEnvironment[]> {
+  public async getComputeEnvironments(chainId: number): Promise<ComputeEnvironment[]> {
+    throw new Error(`Not implemented`)
+  }
+
+  public async startComputeJob(
+    assets: ComputeAsset[],
+    algorithm: ComputeAlgorithm,
+    output: ComputeOutput,
+    owner: string,
+    environment: string,
+    validUntil: number,
+    chainId: number
+  ): Promise<string> {
     throw new Error(`Not implemented`)
   }
 }
@@ -70,11 +98,11 @@ export class C2DEngineOPFK8 extends C2DEngine {
 
   public override async getComputeEnvironments(
     chainId: number
-  ): Promise<C2DEnvironment[]> {
+  ): Promise<ComputeEnvironment[]> {
     /**
      * Returns all cluster's compute environments for a specific chainId. Env's id already contains the cluster hash
      */
-    const envs: C2DEnvironment[] = []
+    const envs: ComputeEnvironment[] = []
     const clusterHash = this.getC2DConfig().hash
     const url = `${
       this.getC2DConfig().url
@@ -88,6 +116,74 @@ export class C2DEngineOPFK8 extends C2DEngine {
       return data
     } catch {}
     return envs
+  }
+
+  public override async startComputeJob(
+    assets: ComputeAsset[],
+    algorithm: ComputeAlgorithm,
+    output: ComputeOutput,
+    owner: string,
+    environment: string,
+    validUntil: number,
+    chainId: number
+  ): Promise<string> {
+    // let's build the stage first
+    // start with stage.input
+    const stagesInput: OPFK8ComputeStageInput[] = []
+    let index = 0
+    for (const asset of assets) {
+      if (asset.url)
+        stagesInput.push({
+          index,
+          url: [asset.url]
+        })
+      else
+        stagesInput.push({
+          index,
+          id: asset.documentId
+        })
+      index++
+    }
+    // continue with algorithm
+    const stageAlgorithm: OPFK8ComputeStageAlgorithm = {}
+    if (algorithm.url) stageAlgorithm.url = algorithm.url
+    if (algorithm.documentId) stageAlgorithm.id = algorithm.documentId
+    if (algorithm.meta.rawcode) stageAlgorithm.rawcode = algorithm.meta.rawcode
+    if (algorithm.meta.container) stageAlgorithm.container = algorithm.meta.container
+    const stage: OPFK8ComputeStage = {
+      index: 0,
+      input: stagesInput,
+      algorithm: stageAlgorithm,
+      output
+    }
+    // now, let's build the workflow
+    const workflow: OPFK8ComputeWorkflow = {
+      stages: [stage]
+    }
+    // and the full payload
+    const nonce: number = new Date().getTime()
+    const config = await getConfiguration()
+
+    const providerSignature = await sign(String(nonce), config.keys.privateKey)
+    const payload: OPFK8ComputeStart = {
+      workflow,
+      owner,
+      providerSignature,
+      providerAddress: config.keys.ethAddress,
+      environment,
+      validUntil,
+      nonce,
+      chainId
+    }
+    // and send it to remote op-service
+    const url = `${this.getC2DConfig().url}api/v1/operator/compute`
+    try {
+      const jobId = await axios.post(url, payload)
+      const { hash } = this.getC2DConfig()
+      // we need to prepend cluster hash to jobId
+      return hash + '-' + jobId
+    } catch {}
+    throw new Error(`startCompute Failure`)
   }
 }
 
