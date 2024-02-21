@@ -99,6 +99,13 @@ export IPFS_GATEWAY=''
 export ARWEAVE_GATEWAY=''
 ```
 
+For purgatory checks, please export the following env variables;
+
+```bash
+export ASSET_PURGATORY_URL=\"https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json\"
+export ACCOUNT_PURGATORY_URL=\"https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json\"
+```
+
 For configuring the ocean node fees, please export the following environment variables;
 
 ```bash
