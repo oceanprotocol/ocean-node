@@ -18,10 +18,8 @@ export class GetEnvironmentsHandler extends Handler {
       const { c2dClusters } = config
 
       for (const cluster of c2dClusters) {
-        console.log(cluster)
         const engine = C2DEngine.getC2DClass(cluster)
         const environments = await engine.getComputeEnvironments(task.chainId)
-        console.log(environments)
         for (const env of environments) {
           response.push(env)
         }
