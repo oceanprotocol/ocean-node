@@ -1,10 +1,10 @@
 import { Readable } from 'stream'
-import { P2PCommandResponse } from '../../@types'
+import { P2PCommandResponse, C2DEnvironment } from '../../@types'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { Handler } from './handler.js'
 import { GetEnvironmentsCommand } from '../../@types/commands.js'
 import { getConfiguration } from '../../utils/config.js'
-import axios from 'axios'
+import { C2DEngine } from '../c2d/compute_engines'
 
 export class GetEnvironmentsHandler extends Handler {
   async handle(task: GetEnvironmentsCommand): Promise<P2PCommandResponse> {
@@ -13,21 +13,18 @@ export class GetEnvironmentsHandler extends Handler {
         'File Info Request recieved with arguments: ' + JSON.stringify(task, null, 2),
         true
       )
-      const response: any[] = []
+      const response: C2DEnvironment[] = []
       const config = await getConfiguration()
       const { c2dClusters } = config
+
       for (const cluster of c2dClusters) {
-        CORE_LOGGER.logMessage(
-          `Requesting environment from Operator URL: ${cluster.url}`,
-          true
-        )
-        const url = `${cluster.url}api/v1/operator/environments?chain_id=${task.chainId}`
-        const { data } = await axios.get(url)
-        const { hash } = cluster
-        for (const item of data) {
-          item.id = hash + '-' + item.id
+        console.log(cluster)
+        const engine = C2DEngine.getC2DClass(cluster)
+        const environments = await engine.getComputeEnvironments(task.chainId)
+        console.log(environments)
+        for (const env of environments) {
+          response.push(env)
         }
-        response.push(...data)
       }
 
       CORE_LOGGER.logMessage(

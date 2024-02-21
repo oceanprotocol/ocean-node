@@ -1,4 +1,6 @@
-import type { C2DClusterInfo, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
+import type { OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
+import type { C2DClusterInfo } from '../@types/C2D'
+import { C2DClusterType } from '../@types/C2D'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
 import { ENVIRONMENT_VARIABLES, hexStringToByteArray } from '../utils/index.js'
@@ -248,7 +250,11 @@ function getC2DClusterEnvironment(): C2DClusterInfo[] {
     ) as string[]
 
     for (const theURL of clustersURLS) {
-      clusters.push({ url: theURL, hash: create256Hash(theURL) })
+      clusters.push({
+        url: theURL,
+        hash: create256Hash(theURL),
+        type: C2DClusterType.OPF_K8
+      })
     }
   } catch (error) {
     CONFIG_LOGGER.logMessageWithEmoji(
