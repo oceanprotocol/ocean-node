@@ -4,7 +4,8 @@ import {
   ArweaveFileObject,
   StorageReadable,
   FileInfoRequest,
-  FileInfoResponse
+  FileInfoResponse,
+  EncryptMethod
 } from '../../@types/fileObject.js'
 import { fetchFileMetadata } from '../../utils/asset.js'
 import axios from 'axios'
@@ -65,7 +66,7 @@ export abstract class Storage {
     return response
   }
 
-  async encrypt(encryptionType: 'AES' | 'ECIES' = 'AES') {
+  async encrypt(encryptionType: EncryptMethod = EncryptMethod.AES) {
     const readableStream = await this.getReadableStream()
 
     // Convert the readable stream to a buffer
@@ -123,7 +124,8 @@ export abstract class Storage {
   isEncrypted(): boolean {
     if (
       this.file.encryptedBy &&
-      (this.file.encryptMethod === 'AES' || this.file.encryptMethod === 'ECIES')
+      (this.file.encryptMethod === EncryptMethod.AES ||
+        this.file.encryptMethod === EncryptMethod.ECIES)
     ) {
       return true
     } else {
@@ -134,7 +136,8 @@ export abstract class Storage {
   canDecrypt(nodeId: string): boolean {
     if (
       this.file.encryptedBy === nodeId &&
-      (this.file.encryptMethod === 'AES' || this.file.encryptMethod === 'ECIES')
+      (this.file.encryptMethod === EncryptMethod.AES ||
+        this.file.encryptMethod === EncryptMethod.ECIES)
     ) {
       return true
     } else {

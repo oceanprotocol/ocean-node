@@ -4,7 +4,7 @@ import {
   ArweaveStorage,
   IpfsStorage
 } from '../../components/storage/index.js'
-import { FileInfoRequest } from '../../@types/fileObject.js'
+import { EncryptMethod, FileInfoRequest } from '../../@types/fileObject.js'
 import { expect, assert } from 'chai'
 import {
   OverrideEnvConfig,
@@ -403,7 +403,7 @@ describe('URL Storage encryption tests', () => {
     const { keys } = await getConfiguration()
     nodeId = keys.peerId.toString()
     // Perform encryption
-    const encryptResponse = await storage.encrypt('AES')
+    const encryptResponse = await storage.encrypt(EncryptMethod.AES)
     assert(encryptResponse.httpStatus === 200, 'Response is not 200')
     assert(encryptResponse.stream, 'Stream is not null')
     assert(encryptResponse.stream instanceof Readable, 'Stream is not a ReadableStream')
@@ -442,7 +442,7 @@ describe('URL Storage encryption tests', async function () {
       type: 'ipfs',
       hash: 'QmQVPuoXMbVEk7HQBth5pGPPMcgvuq4VSgu2XQmzU5M2Pv',
       encryptedBy: nodeId,
-      encryptMethod: 'AES'
+      encryptMethod: EncryptMethod.AES
     })
   })
 
@@ -467,7 +467,7 @@ describe('URL Storage encryption tests', async function () {
     expect(fileInfo[0].contentType).to.equal('application/octet-stream')
     expect(fileInfo[0].type).to.equal('ipfs')
     expect(fileInfo[0].encryptedBy).to.equal(nodeId)
-    expect(fileInfo[0].encryptMethod).to.equal('AES')
+    expect(fileInfo[0].encryptMethod).to.equal(EncryptMethod.AES)
   })
 
   it('canDecrypt should return false when called from an unauthorised node', () => {
@@ -477,20 +477,6 @@ describe('URL Storage encryption tests', async function () {
       'Wrong response from canDecrypt() for an unencrypted file'
     )
   })
-
-  // For this test to work locally, make sure that you're using the correct env value
-  // PRIVATE_KEY="0x1d751ded5a32226054cd2e71261039b65afb9ee1c746d055dd699b1150a5befc"
-  // it('decrypt method should correctly decrypt data for authorized nodeId', async () => {
-  //   // Perform decryption
-  //   const decryptResponse = await storage.decrypt()
-
-  //   expect(decryptResponse).to.have.property('stream')
-  //   expect(decryptResponse.stream).to.be.an.instanceof(Readable)
-
-  //   const decryptedContent = await streamToString(decryptResponse.stream)
-
-  //   expect(decryptedContent.length).to.equal(319508)
-  // })
 
   after(() => {
     tearDownEnvironment(previousConfiguration)

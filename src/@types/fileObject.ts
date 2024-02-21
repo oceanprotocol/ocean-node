@@ -4,10 +4,16 @@ export interface HeadersObject {
   [key: string]: string
 }
 
+export enum EncryptMethod {
+  AES = 'AES',
+  ECIES = 'ECIES',
+  NONE = ''
+}
+
 export interface BaseFileObject {
   type: string
   encryptedBy?: string
-  encryptMethod?: 'AES' | 'ECIES' | ''
+  encryptMethod?: EncryptMethod
 }
 
 export interface UrlFileObject extends BaseFileObject {
