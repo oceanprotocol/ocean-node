@@ -1,10 +1,11 @@
 import { Readable } from 'stream'
-import { P2PCommandResponse, C2DEnvironment } from '../../@types'
+import { P2PCommandResponse } from '../../@types'
+import { C2DEnvironment } from '../../@types/C2D.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { Handler } from './handler.js'
 import { GetEnvironmentsCommand } from '../../@types/commands.js'
 import { getConfiguration } from '../../utils/config.js'
-import { C2DEngine } from '../c2d/compute_engines'
+import { C2DEngine } from '../c2d/compute_engines.js'
 
 export class GetEnvironmentsHandler extends Handler {
   async handle(task: GetEnvironmentsCommand): Promise<P2PCommandResponse> {

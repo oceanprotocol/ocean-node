@@ -1,6 +1,6 @@
 import type { OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
-import type { C2DClusterInfo } from '../@types/C2D'
-import { C2DClusterType } from '../@types/C2D'
+import type { C2DClusterInfo } from '../@types/C2D.js'
+import { C2DClusterType } from '../@types/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
 import { ENVIRONMENT_VARIABLES, hexStringToByteArray } from '../utils/index.js'
