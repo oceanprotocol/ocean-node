@@ -4,21 +4,21 @@ export interface HeadersObject {
   [key: string]: string
 }
 
-export interface FileObject {
+export interface BaseFileObject {
   type: string
 }
 
-export interface UrlFileObject extends FileObject {
+export interface UrlFileObject extends BaseFileObject {
   url: string
   method: string
   headers?: [HeadersObject]
 }
 
-export interface IpfsFileObject extends FileObject {
+export interface IpfsFileObject extends BaseFileObject {
   hash: string
 }
 
-export interface ArweaveFileObject extends FileObject {
+export interface ArweaveFileObject extends BaseFileObject {
   transactionId: string
 }
 
