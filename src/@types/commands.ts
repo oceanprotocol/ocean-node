@@ -1,6 +1,12 @@
 import { DDO } from './DDO/DDO'
 import { P2PCommandResponse } from './OceanNode'
-import { ArweaveFileObject, IpfsFileObject, UrlFileObject } from './fileObject'
+import {
+  ArweaveFileObject,
+  FileObject,
+  FileObjectType,
+  IpfsFileObject,
+  UrlFileObject
+} from './fileObject'
 
 export interface Command {
   command: string // command name
@@ -26,7 +32,7 @@ export interface DownloadCommand extends Command {
 }
 
 export interface FileInfoCommand extends Command {
-  type?: 'url' | 'ipfs' | 'arweave'
+  type?: FileObjectType
   did?: string
   serviceId?: string
   fileIndex?: number

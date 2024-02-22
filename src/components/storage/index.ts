@@ -2,6 +2,7 @@ import {
   ArweaveFileObject,
   FileInfoRequest,
   FileInfoResponse,
+  FileObjectType,
   IpfsFileObject,
   StorageReadable,
   UrlFileObject
@@ -30,11 +31,11 @@ export abstract class Storage {
   static getStorageClass(file: any): UrlStorage | IpfsStorage | ArweaveStorage {
     const { type } = file
     switch (type) {
-      case 'url':
+      case FileObjectType.URL:
         return new UrlStorage(file)
-      case 'ipfs':
+      case FileObjectType.IPFS:
         return new IpfsStorage(file)
-      case 'arweave':
+      case FileObjectType.ARWEAVE:
         return new ArweaveStorage(file)
       default:
         throw new Error(`Invalid storage type: ${type}`)

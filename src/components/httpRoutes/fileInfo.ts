@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express'
 import {
   ArweaveFileObject,
   FileInfoHttpRequest,
+  FileObjectType,
   IpfsFileObject,
   UrlFileObject
 } from '../../@types/fileObject'
@@ -61,7 +62,7 @@ fileInfoRoute.post(
         fileInfoTask = {
           command: PROTOCOL_COMMANDS.FILE_INFO,
           file: fileObject,
-          type: fileObject.type as 'url' | 'ipfs' | 'arweave'
+          type: fileObject.type as FileObjectType
         }
       } else if (fileInfoReq.type === 'ipfs' && fileInfoReq.hash) {
         fileObject = {
@@ -72,7 +73,7 @@ fileInfoRoute.post(
         fileInfoTask = {
           command: PROTOCOL_COMMANDS.FILE_INFO,
           file: fileObject,
-          type: fileObject.type as 'url' | 'ipfs' | 'arweave'
+          type: fileObject.type as FileObjectType
         }
       } else if (fileInfoReq.type === 'arweave' && fileInfoReq.transactionId) {
         fileObject = {
@@ -83,7 +84,7 @@ fileInfoRoute.post(
         fileInfoTask = {
           command: PROTOCOL_COMMANDS.FILE_INFO,
           file: fileObject,
-          type: fileObject.type as 'url' | 'ipfs' | 'arweave'
+          type: fileObject.type as FileObjectType
         }
       }
 

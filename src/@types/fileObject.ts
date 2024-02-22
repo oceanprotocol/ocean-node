@@ -4,20 +4,21 @@ export interface HeadersObject {
   [key: string]: string
 }
 
-export interface UrlFileObject {
+export interface FileObject {
   type: string
+}
+
+export interface UrlFileObject extends FileObject {
   url: string
   method: string
   headers?: [HeadersObject]
 }
 
-export interface IpfsFileObject {
-  type: string
+export interface IpfsFileObject extends FileObject {
   hash: string
 }
 
-export interface ArweaveFileObject {
-  type: string
+export interface ArweaveFileObject extends FileObject {
   transactionId: string
 }
 
@@ -27,8 +28,14 @@ export interface StorageReadable {
   headers?: [any]
 }
 
+export enum FileObjectType {
+  URL = 'url',
+  IPFS = 'ipfs',
+  ARWEAVE = 'arweave'
+}
+
 export interface FileInfoRequest {
-  type: 'url' | 'ipfs' | 'arweave'
+  type: FileObjectType
   fileIndex?: number
 }
 
