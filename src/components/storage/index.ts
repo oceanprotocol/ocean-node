@@ -107,10 +107,7 @@ export abstract class Storage {
     const buffer = Buffer.concat(chunks)
 
     // Decrypt the buffer using your existing function
-    const decryptedBuffer = await decryptData(
-      new Uint8Array(buffer),
-      encryptMethod.toUpperCase()
-    )
+    const decryptedBuffer = await decryptData(new Uint8Array(buffer), encryptMethod)
 
     // Convert the decrypted buffer back into a stream
     const decryptedStream = Readable.from(decryptedBuffer)
