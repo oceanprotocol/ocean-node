@@ -2,20 +2,25 @@ import axios from 'axios'
 import { PurgatoryAccounts, PurgatoryAssets } from '../../@types/Purgatory.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { getConfiguration } from '../../utils/config.js'
+import { isValidUrl } from '../../utils/util.js'
+import { getConfiguration } from '../../utils/index.js'
 
 export class Purgatory {
   private bannedAccounts: Array<PurgatoryAccounts>
   private bannedAssets: Array<PurgatoryAssets>
   private accountPurgatoryUrl: string
   private assetPurgatoryUrl: string
-  private static instance: any
+  // eslint-disable-next-line no-use-before-define
+  private static instance: Purgatory
+
+  private enabled: boolean = false
 
   constructor(accountPurgatoryUrl: string, assetPurgatoryUrl: string) {
     this.accountPurgatoryUrl = accountPurgatoryUrl
     this.assetPurgatoryUrl = assetPurgatoryUrl
     this.bannedAccounts = []
     this.bannedAssets = []
+    this.enabled = this.isAccountsPurgatoryEnabled() || this.isAssetsPurgatoryEnabled()
   }
 
   getBannedAccounts(): Array<PurgatoryAccounts> {
@@ -35,84 +40,92 @@ export class Purgatory {
   }
 
   async parsePurgatoryAssets(): Promise<Array<PurgatoryAssets>> {
-    try {
-      const response = await axios({
-        method: 'get',
-        url: this.assetPurgatoryUrl,
-        timeout: 1000
-      })
-      if (response.status !== 200) {
+    const purgatoryAssets: Array<PurgatoryAssets> = []
+    if (this.isAssetsPurgatoryEnabled()) {
+      try {
+        const response = await axios({
+          method: 'get',
+          url: this.assetPurgatoryUrl,
+          timeout: 2000
+        })
+        if (response.status !== 200) {
+          INDEXER_LOGGER.log(
+            LOG_LEVELS_STR.LEVEL_ERROR,
+            `PURGATORY: Failure when retrieving new purgatory list from ASSET_PURGATORY_URL env var.
+                Response: ${response.data}, status: ${
+                  response.status + response.statusText
+                }`,
+            true
+          )
+          return purgatoryAssets
+        }
+        INDEXER_LOGGER.logMessage(
+          `PURGATORY: Successfully retrieved new purgatory list from ASSET_PURGATORY_URL env var.`
+        )
+
+        for (const asset of response.data) {
+          if (asset && 'did' in asset) {
+            purgatoryAssets.push({ did: asset.did, reason: asset.reason })
+          }
+        }
+        this.setBannedAssets(purgatoryAssets)
+        return purgatoryAssets
+      } catch (err) {
         INDEXER_LOGGER.log(
           LOG_LEVELS_STR.LEVEL_ERROR,
-          `PURGATORY: Failure when retrieving new purgatory list from ASSET_PURGATORY_URL env var.
-              Response: ${response.data}, status: ${
-                response.status + response.statusText
-              }`,
+          `Error fetching purgatory list for assets: ${err}`,
           true
         )
-        return
       }
-      INDEXER_LOGGER.logMessage(
-        `PURGATORY: Successfully retrieved new purgatory list from ASSET_PURGATORY_URL env var.`
-      )
-      const purgatoryAssets: Array<PurgatoryAssets> = []
-      for (const asset of response.data) {
-        if (asset && 'did' in asset) {
-          purgatoryAssets.push({ did: asset.did, reason: asset.reason })
-        }
-      }
-      this.setBannedAssets(purgatoryAssets)
-      return purgatoryAssets
-    } catch (err) {
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `Error fetching purgatory list for assets: ${err}`,
-        true
-      )
     }
+
+    return purgatoryAssets
   }
 
   async parsePurgatoryAccounts(): Promise<Array<PurgatoryAccounts>> {
     const purgatoryAccounts: Array<PurgatoryAccounts> = []
-    try {
-      const response = await axios({
-        method: 'get',
-        url: this.accountPurgatoryUrl,
-        timeout: 1000
-      })
-      if (response.status !== 200) {
-        INDEXER_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_ERROR,
-          `PURGATORY: Failure when retrieving new purgatory list from ACCOUNT_PURGATORY_URL env var.
+    if (this.isAccountsPurgatoryEnabled()) {
+      try {
+        const response = await axios({
+          method: 'get',
+          url: this.accountPurgatoryUrl,
+          timeout: 2000 // small increase
+        })
+        if (response.status !== 200) {
+          INDEXER_LOGGER.log(
+            LOG_LEVELS_STR.LEVEL_ERROR,
+            `PURGATORY: Failure when retrieving new purgatory list from ACCOUNT_PURGATORY_URL env var.
               Response: ${response.data}, status: ${
                 response.status + response.statusText
               }`,
+            true
+          )
+          return purgatoryAccounts
+        }
+        INDEXER_LOGGER.logMessage(
+          `PURGATORY: Successfully retrieved new purgatory list from ACCOUNT_PURGATORY_URL env var.`
+        )
+        for (const account of response.data) {
+          if (account && 'address' in account) {
+            purgatoryAccounts.push({ address: account.address, reason: account.reason })
+          }
+        }
+        this.setBannedAccounts(purgatoryAccounts)
+        return purgatoryAccounts
+      } catch (err) {
+        INDEXER_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_ERROR,
+          `Error fetching purgatory list for accounts: ${err}`,
           true
         )
-        return
       }
-      INDEXER_LOGGER.logMessage(
-        `PURGATORY: Successfully retrieved new purgatory list from ACCOUNT_PURGATORY_URL env var.`
-      )
-      for (const account of response.data) {
-        if (account && 'address' in account) {
-          purgatoryAccounts.push({ address: account.address, reason: account.reason })
-        }
-      }
-      this.setBannedAccounts(purgatoryAccounts)
-      return purgatoryAccounts
-    } catch (err) {
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `Error fetching purgatory list for accounts: ${err}`,
-        true
-      )
     }
+    return purgatoryAccounts
   }
 
   async isBannedAccount(refAddress: string): Promise<boolean> {
     let purgatoryAccounts = []
-    if (this.getBannedAccounts()) {
+    if (this.getBannedAccounts().length > 0) {
       purgatoryAccounts = this.getBannedAccounts()
     } else {
       purgatoryAccounts = await this.parsePurgatoryAccounts()
@@ -127,7 +140,7 @@ export class Purgatory {
 
   async isBannedAsset(refDid: string): Promise<boolean> {
     let purgatoryAssets = []
-    if (this.getBannedAccounts()) {
+    if (this.getBannedAssets().length > 0) {
       purgatoryAssets = this.getBannedAssets()
     } else {
       purgatoryAssets = await this.parsePurgatoryAssets()
@@ -140,13 +153,21 @@ export class Purgatory {
     return false
   }
 
+  private isAssetsPurgatoryEnabled(): boolean {
+    return isValidUrl(this.assetPurgatoryUrl)
+  }
+
+  private isAccountsPurgatoryEnabled(): boolean {
+    return isValidUrl(this.accountPurgatoryUrl)
+  }
+
+  isEnabled(): boolean {
+    return this.enabled
+  }
+
   static async getInstance(): Promise<Purgatory> {
     if (!Purgatory.instance) {
       const config = await getConfiguration()
-      if (!config.accountPurgatoryUrl && !config.assetPurgatoryUrl) {
-        INDEXER_LOGGER.logMessage(`Purgatory URLs are not provided`)
-        return
-      }
       Purgatory.instance = new Purgatory(
         config.accountPurgatoryUrl,
         config.assetPurgatoryUrl
