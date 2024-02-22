@@ -10,7 +10,8 @@ import {
   tearDownEnvironment,
   getExistingEnvironment,
   TEST_ENV_CONFIG_FILE,
-  buildEnvOverrideConfig
+  buildEnvOverrideConfig,
+  DEFAULT_TEST_TIMEOUT
 } from './utils.js'
 
 // current process.env environment
@@ -51,6 +52,9 @@ export const mochaHooks = {
     setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides).then((overrides) => {
       envOverrides = overrides
     })
+
+    // just in case the configuration value fails
+    this.timeout(DEFAULT_TEST_TIMEOUT)
   },
 
   afterAll() {

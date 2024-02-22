@@ -716,14 +716,13 @@ export class Database {
   order: OrderDatabase
 
   constructor(private config: OceanNodeDBConfig) {
+    // add this DB transport too
+    // once we create a DB instance, the logger will be using this transport as well
+    // we cannot have this the other way around because of the dependencies cycle
+    if (!isDevelopmentEnvironment()) {
+      configureCustomDBTransport(this, DATABASE_LOGGER)
+    }
     return (async (): Promise<Database> => {
-      // add this DB transport too
-      // once we create a DB instance, the logger will be using this transport as well
-      // we cannot have this the other way around because of the dependencies cycle
-      if (!isDevelopmentEnvironment()) {
-        configureCustomDBTransport(this, DATABASE_LOGGER)
-      }
-
       this.ddo = await new DdoDatabase(this.config, schemas.ddoSchemas)
       this.nonce = await new NonceDatabase(this.config, schemas.nonceSchemas)
       this.indexer = await new IndexerDatabase(this.config, schemas.indexerSchemas)

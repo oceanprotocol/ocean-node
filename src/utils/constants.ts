@@ -170,5 +170,10 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'ALLOWED_VALIDATORS',
     value: process.env.ALLOWED_VALIDATORS,
     required: false
+  },
+  INDEXER_INTERVAL: {
+    name: 'INDEXER_INTERVAL',
+    value: process.env.INDEXER_INTERVAL,
+    required: false // without a value set, it defaults to 30 secs
   }
 }

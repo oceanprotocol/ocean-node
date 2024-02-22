@@ -295,10 +295,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       const previousDdo = await (await getDatabase()).ddo.retrieve(ddo.id)
       if (eventName === EVENTS.METADATA_CREATED) {
         if (previousDdo && previousDdo.nft.state === MetadataStates.ACTIVE) {
-          INDEXER_LOGGER.logMessage(
-            `DDO ${ddo.did} is already registered as active`,
-            true
-          )
+          INDEXER_LOGGER.logMessage(`DDO ${ddo.id} is already registered as active`, true)
           return
         }
       }

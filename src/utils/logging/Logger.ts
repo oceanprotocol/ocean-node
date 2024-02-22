@@ -474,6 +474,15 @@ export class CustomNodeLogger {
     )
     return transports.length > 0
   }
+
+  getDBTransport(): winston.transport | undefined {
+    const transports: winston.transport[] = this.getTransports().filter(
+      (transport: winston.transport) => {
+        return transport instanceof CustomOceanNodesTransport
+      }
+    )
+    return transports.length > 0 ? transports[0] : undefined
+  }
 }
 
 // kind of a factory function for different modules/components
