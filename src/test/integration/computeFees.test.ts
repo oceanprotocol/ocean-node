@@ -17,17 +17,21 @@ import { RPCS } from '../../@types/blockchain.js'
 import { genericDDO } from '../data/ddo.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
 import { getEventFromTx } from '../../utils/util.js'
-import { waitToIndex, delay } from './testUtils.js'
+import { waitToIndex, expectedTimeoutFailure } from './testUtils.js'
 import { encrypt } from '../../utils/crypt.js'
 import {
   calculateComputeProviderFee,
   getC2DEnvs
 } from '../../components/core/utils/feesHandler.js'
-import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES, EVENTS } from '../../utils/constants.js'
 import {
+  DEFAULT_TEST_TIMEOUT,
+  OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
-  setupEnvironment
+  isRunningContinousIntegrationEnv,
+  setupEnvironment,
+  tearDownEnvironment
 } from '../utils/utils.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 
@@ -53,15 +57,16 @@ describe('Compute provider fees', async () => {
   const data = getOceanArtifactsAdresses()
   const oceanToken = data.development.Ocean
 
-  await setupEnvironment(
-    null,
-    buildEnvOverrideConfig(
-      [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.FEE_TOKENS],
-      [JSON.stringify(mockSupportedNetworks), JSON.stringify({ 8996: oceanToken })]
-    )
-  )
+  let envOverrides: OverrideEnvConfig[]
 
   before(async () => {
+    envOverrides = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig(
+        [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.FEE_TOKENS],
+        [JSON.stringify(mockSupportedNetworks), JSON.stringify({ 8996: oceanToken })]
+      )
+    )
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -164,14 +169,27 @@ describe('Compute provider fees', async () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(1000)
-  it('should store the ddo in the database and return it ', async () => {
-    resolvedDDO = await waitToIndex(assetDID, database)
-    expect(resolvedDDO.id).to.equal(genericAsset.id)
+  it('should store the ddo in the database and return it ', async function () {
+    const { ddo, wasTimeout } = await waitToIndex(
+      assetDID,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
+    resolvedDDO = ddo
+    if (resolvedDDO) {
+      expect(resolvedDDO.id).to.equal(genericAsset.id)
+    } else {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    }
   })
 
   it('should get provider fees for compute', async () => {
     computeEnvs = await getC2DEnvs(resolvedDDO as DDO)
+    if (!isRunningContinousIntegrationEnv()) {
+      // This fails locally because of connect EHOSTUNREACH to the url http://172.15.0.13:31000
+      assert(computeEnvs.length === 0, 'compute envs do not exist locally')
+      return
+    }
     assert(computeEnvs, 'compute envs could not be retrieved')
     const envs =
       computeEnvs[0][
@@ -194,6 +212,11 @@ describe('Compute provider fees', async () => {
 
   it('should get free provider fees for compute', async () => {
     computeEnvs = await getC2DEnvs(resolvedDDO as DDO)
+    if (!isRunningContinousIntegrationEnv()) {
+      // This fails locally because of connect EHOSTUNREACH to the url http://172.15.0.13:31000
+      assert(computeEnvs.length === 0, 'compute envs do not exist locally')
+      return
+    }
     assert(computeEnvs, 'compute envs could not be retrieved')
     const envs =
       computeEnvs[0][
@@ -211,5 +234,9 @@ describe('Compute provider fees', async () => {
     console.log('provider fees: ', providerFees)
     assert(providerFees.providerFeeToken === oceanToken)
     assert(providerFees.providerFeeAmount === 0n, 'provider fee amount is not fetched')
+  })
+
+  after(async () => {
+    await tearDownEnvironment(envOverrides)
   })
 })

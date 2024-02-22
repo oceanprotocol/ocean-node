@@ -293,7 +293,6 @@ describe('Arweave Storage getFileInfo tests', () => {
 })
 
 describe('IPFS Storage getFileInfo tests', async function () {
-  this.timeout(15000)
   let storage: IpfsStorage
   let previousConfiguration: OverrideEnvConfig[]
 

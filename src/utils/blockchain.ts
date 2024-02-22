@@ -8,6 +8,7 @@ export class Blockchain {
   public constructor(rpc: string, chaindId: number) {
     this.chainId = chaindId
     this.provider = new ethers.JsonRpcProvider(rpc)
+    // always use this signer, not simply provider.getSigner(0) for instance (as we do on many tests)
     this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
   }
 
