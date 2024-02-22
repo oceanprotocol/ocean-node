@@ -2,7 +2,6 @@ import { DDO } from './DDO/DDO'
 import { P2PCommandResponse } from './OceanNode'
 import {
   ArweaveFileObject,
-  FileObject,
   FileObjectType,
   IpfsFileObject,
   UrlFileObject

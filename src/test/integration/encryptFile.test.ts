@@ -8,6 +8,7 @@ import { Readable } from 'stream'
 import { streamToString } from '../../utils/util.js'
 import { EncryptFileHandler } from '../../components/core/encryptHandler.js'
 import { EncryptFileCommand } from '../../@types/commands'
+import { FileObjectType } from '../../@types/fileObject.js'
 
 describe('Encrypt File', () => {
   let config: OceanNodeConfig
@@ -25,7 +26,7 @@ describe('Encrypt File', () => {
       command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
       encryptionType: 'AES',
       files: {
-        type: 'url',
+        type: FileObjectType.URL,
         url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
         method: 'GET'
       }
