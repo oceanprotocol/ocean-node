@@ -115,7 +115,8 @@ export class CustomOceanNodesTransport extends Transport {
 
     try {
       // Use the insertLog method of the LogDatabase instance
-      if (this.dbInstance) {
+      if (this.dbInstance && this.dbInstance.logs) {
+        // double check before writing
         await this.dbInstance.logs.insertLog(document)
       }
     } catch (error) {

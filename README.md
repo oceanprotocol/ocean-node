@@ -60,6 +60,12 @@ export IPFS_GATEWAY='https://ipfs.io/'
 export ARWEAVE_GATEWAY='https://arweave.net/'
 ```
 
+For configuring allowed validators for verifying an asset signature before indexing, please set the following environment variable (array of 1 or multiple addresses):
+
+```bash
+export ALLOWED_VALIDATORS=[\"0x123\",\"0x456\"]
+```
+
 For configuring a C2D (Compute to Data) cluster(s), please set the following environment variable (array of 1 or multiple cluster URLS):
 
 ```bash
@@ -85,6 +91,13 @@ For downloading the file from IPFS or ARWEAVE, please export the following env v
 ```bash
 export IPFS_GATEWAY=''
 export ARWEAVE_GATEWAY=''
+```
+
+For purgatory checks, please export the following env variables;
+
+```bash
+export ASSET_PURGATORY_URL=\"https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json\"
+export ACCOUNT_PURGATORY_URL=\"https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json\"
 ```
 
 For configuring the ocean node fees, please export the following environment variables;

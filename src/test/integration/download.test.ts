@@ -61,7 +61,7 @@ describe('Download Tests', () => {
   let feeTx: string
   let feeData: ProviderFeeData | undefined
 
-  const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
+  const feeToken = getOceanArtifactsAdressesByChainId(chainId).Ocean
   const serviceId = '0' // dummy index
   const consumeMarketFeeAddress = ZeroAddress // marketplace fee Collector
   const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
@@ -151,7 +151,7 @@ describe('Download Tests', () => {
       files: [
         {
           type: 'url',
-          url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
+          url: 'https://raw.githubusercontent.com/tbertinmahieux/MSongsDB/master/Tasks_Demos/CoverSongs/shs_dataset_test.txt',
           method: 'GET'
         }
       ]
@@ -193,7 +193,6 @@ describe('Download Tests', () => {
   delay(35000)
   it('should store the ddo in the database and return it ', async () => {
     resolvedDDO = await waitToIndex(assetDID, database)
-    console.log('resolvedDDO', resolvedDDO)
     expect(resolvedDDO.id).to.equal(genericAsset.id)
   })
 

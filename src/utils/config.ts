@@ -99,6 +99,33 @@ function getAuthorizedDecrypters(): string[] {
   }
 }
 
+export function getAllowedValidators(): string[] {
+  try {
+    if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS, true)) {
+      return []
+    }
+    const allowedValidators: string[] = JSON.parse(process.env.ALLOWED_VALIDATORS)
+    if (!Array.isArray(allowedValidators)) {
+      CONFIG_LOGGER.logMessageWithEmoji(
+        'Invalid ALLOWED_VALIDATORS env variable format',
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return []
+    }
+    return allowedValidators.map((address) => getAddress(address))
+  } catch (error) {
+    CONFIG_LOGGER.logMessageWithEmoji(
+      'Missing or Invalid address in ALLOWED_VALIDATORS env variable',
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
+    return []
+  }
+}
+
 /**
  * get default values for provider fee tokens
  * @param supportedNetworks chains that we support
@@ -306,6 +333,7 @@ export async function getConfiguration(
   }
   return previousConfiguration
 }
+
 // we can just use the lazy version above "getConfiguration()" and specify if we want to reload from .env variables
 async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
   const privateKey = process.env.PRIVATE_KEY
@@ -339,6 +367,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
 
   const config: OceanNodeConfig = {
     authorizedDecrypters: getAuthorizedDecrypters(),
+    allowedValidators: getAllowedValidators(),
     keys,
     // Only enable indexer if we have a DB_URL and supportedNetworks
     hasIndexer: !!(!!getEnvValue(process.env.DB_URL, '') && !!supportedNetworks),
@@ -384,7 +413,9 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     },
     supportedNetworks,
     feeStrategy: getOceanNodeFees(supportedNetworks, isStartup),
-    c2dClusters: getC2DClusterEnvironment()
+    c2dClusters: getC2DClusterEnvironment(),
+    accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
+    assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, '')
   }
 
   if (!previousConfiguration) {
