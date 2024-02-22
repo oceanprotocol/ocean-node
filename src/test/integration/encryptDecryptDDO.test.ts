@@ -33,6 +33,7 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
 
 describe('Should encrypt and decrypt DDO', () => {
   let config: OceanNodeConfig
@@ -151,7 +152,7 @@ describe('Should encrypt and decrypt DDO', () => {
       '0x' + createHash('sha256').update(JSON.stringify(genericAsset)).digest('hex')
 
     const genericAssetData = Uint8Array.from(Buffer.from(JSON.stringify(genericAsset)))
-    const encryptedData = await encrypt(genericAssetData, 'ECIES')
+    const encryptedData = await encrypt(genericAssetData, EncryptMethod.ECIES)
     encryptedMetaData = hexlify(encryptedData)
 
     const setMetaDataTx = await nftContract.setMetaData(

@@ -48,7 +48,7 @@ export interface FileInfoResponse {
   name: string
   type: string
   encryptedBy?: string
-  encryptMethod?: 'AES' | 'ECIES' | ''
+  encryptMethod?: EncryptMethod
 }
 
 export interface FileInfoHttpRequest {

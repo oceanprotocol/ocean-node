@@ -32,7 +32,7 @@ describe('URL Storage tests', () => {
       }
     ],
     encryptedBy: '16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72',
-    encryptMethod: 'AES'
+    encryptMethod: EncryptMethod.AES
   }
   let storage: Storage
   let error: Error
