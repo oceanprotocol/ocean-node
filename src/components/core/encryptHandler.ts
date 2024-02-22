@@ -41,7 +41,10 @@ export class EncryptFileHandler extends Handler {
       const encryptedContent = await storage.encryptContent(task.encryptionType)
       return {
         stream: Readable.from(encryptedContent),
-        status: { httpStatus: 200 }
+        status: {
+          httpStatus: 200,
+          headers: { 'Content-Type': 'application/octet-stream' }
+        }
       }
     } catch (error) {
       return {
