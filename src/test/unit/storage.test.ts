@@ -4,7 +4,7 @@ import {
   ArweaveStorage,
   IpfsStorage
 } from '../../components/storage/index.js'
-import { FileInfoRequest } from '../../@types/fileObject.js'
+import { FileInfoRequest, FileObjectType } from '../../@types/fileObject.js'
 import { expect, assert } from 'chai'
 import {
   OverrideEnvConfig,
@@ -236,7 +236,7 @@ describe('URL Storage getFileInfo tests', () => {
 
   it('Successfully retrieves file info for a URL', async () => {
     const fileInfoRequest: FileInfoRequest = {
-      type: 'url'
+      type: FileObjectType.URL
     }
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
 
@@ -248,7 +248,7 @@ describe('URL Storage getFileInfo tests', () => {
   })
 
   it('Throws error when URL is missing in request', async () => {
-    const fileInfoRequest: FileInfoRequest = { type: 'url' }
+    const fileInfoRequest: FileInfoRequest = { type: FileObjectType.URL }
     try {
       await storage.getFileInfo(fileInfoRequest)
     } catch (err) {
@@ -269,7 +269,7 @@ describe('Arweave Storage getFileInfo tests', () => {
 
   it('Successfully retrieves file info for an Arweave transaction', async () => {
     const fileInfoRequest: FileInfoRequest = {
-      type: 'arweave'
+      type: FileObjectType.ARWEAVE
     }
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
 
@@ -283,7 +283,7 @@ describe('Arweave Storage getFileInfo tests', () => {
   })
 
   it('Throws error when transaction ID is missing in request', async () => {
-    const fileInfoRequest: FileInfoRequest = { type: 'arweave' }
+    const fileInfoRequest: FileInfoRequest = { type: FileObjectType.ARWEAVE }
     try {
       await storage.getFileInfo(fileInfoRequest)
     } catch (err) {
@@ -312,7 +312,7 @@ describe('IPFS Storage getFileInfo tests', async function () {
 
   it('Successfully retrieves file info for an IPFS hash', async () => {
     const fileInfoRequest: FileInfoRequest = {
-      type: 'ipfs'
+      type: FileObjectType.IPFS
     }
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
     if (fileInfo && fileInfo.length > 0) {
@@ -325,7 +325,7 @@ describe('IPFS Storage getFileInfo tests', async function () {
   })
 
   it('Throws error when hash is missing in request', async () => {
-    const fileInfoRequest: FileInfoRequest = { type: 'ipfs' }
+    const fileInfoRequest: FileInfoRequest = { type: FileObjectType.IPFS }
     try {
       await storage.getFileInfo(fileInfoRequest)
     } catch (err) {

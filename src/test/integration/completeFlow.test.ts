@@ -34,7 +34,7 @@ import { StatusHandler } from '../../components/core/statusHandler.js'
 
 import { Readable } from 'stream'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import { UrlFileObject } from '../../@types/fileObject.js'
+import { FileObjectType, UrlFileObject } from '../../@types/fileObject.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import {
@@ -145,7 +145,7 @@ describe('Should run a complete node flow.', () => {
     const fileInfoTask = {
       command: PROTOCOL_COMMANDS.FILE_INFO,
       file: storage,
-      type: 'url' as 'url'
+      type: FileObjectType.URL
     }
     const response = await new FileInfoHandler(oceanNode).handle(fileInfoTask)
 
