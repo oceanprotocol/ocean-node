@@ -60,9 +60,8 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
         return buildInvalidRequestMessage('Missing required parameter: "files"')
       }
       if (!requestBody.encryptionType) {
-        requestBody.encoding = 'AES'
-      }
-      if (!['AES', 'ECIES'].includes(requestBody.encryptionType)) {
+        requestBody.encryptionType = 'AES' // defaults to AES encryption
+      } else if (!['AES', 'ECIES'].includes(requestBody.encryptionType.toUpperCase())) {
         return buildInvalidRequestMessage(
           'Invalid parameter: "encryptionType" must be AES | ECIES'
         )
@@ -73,16 +72,14 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
       }
       if (!requestBody.encoding) {
         requestBody.encoding = 'string'
-      }
-      if (!['string', 'base58'].includes(requestBody.encoding)) {
+      } else if (!['string', 'base58'].includes(requestBody.encoding.toLowerCase())) {
         return buildInvalidRequestMessage(
           'Invalid parameter: "encoding" must be String | Base58'
         )
       }
       if (!requestBody.encryptionType) {
-        requestBody.encoding = 'ECIES'
-      }
-      if (!['AES', 'ECIES'].includes(requestBody.encryptionType)) {
+        requestBody.encryptionType = 'ECIES' // defaults to ECIES encryption
+      } else if (!['AES', 'ECIES'].includes(requestBody.encryptionType.toUpperCase())) {
         return buildInvalidRequestMessage(
           'Invalid parameter: "encryptionType" must be AES | ECIES'
         )
