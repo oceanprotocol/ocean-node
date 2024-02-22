@@ -10,7 +10,6 @@ import {
 } from 'ethers'
 import { createHash } from 'crypto'
 import { Readable } from 'node:stream'
-import { isWebUri } from 'valid-url'
 import axios from 'axios'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
@@ -23,7 +22,7 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
 import { getConfiguration } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
-import { streamToString } from '../../utils/util.js'
+import { isValidUrl, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 
@@ -108,7 +107,7 @@ class BaseEventProcessor {
       )
       const signature = await wallet.signMessage(consumerMessage)
 
-      if (isWebUri(decryptorURL)) {
+      if (isValidUrl(decryptorURL)) {
         try {
           const payload = {
             transactionId: txId,
