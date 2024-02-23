@@ -150,6 +150,7 @@ export interface OPFK8ComputeWorkflow {
 export interface OPFK8ComputeStart {
   workflow: OPFK8ComputeWorkflow
   owner: string
+  agreementId: string
   providerSignature: string
   providerAddress: string
   environment: string

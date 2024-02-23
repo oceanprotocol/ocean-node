@@ -20,7 +20,6 @@ import { sign } from '../core/utils/nonceHandler.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import axios from 'axios'
 import { getConfiguration } from '../../utils/config.js'
-import { GetEnvironmentsHandler } from '../core/compute.js'
 
 export abstract class C2DEngine {
   private clusterConfig: C2DClusterInfo
@@ -83,9 +82,8 @@ export abstract class C2DEngine {
     output: ComputeOutput,
     owner: string,
     environment: string,
-    validUntil: number,
-    chainId: number
-  ): Promise<string> {
+    validUntil: number
+  ): Promise<ComputeJob[]> {
     throw new Error(`Not implemented`)
   }
 }
@@ -124,9 +122,13 @@ export class C2DEngineOPFK8 extends C2DEngine {
     output: ComputeOutput,
     owner: string,
     environment: string,
-    validUntil: number,
-    chainId: number
-  ): Promise<string> {
+    validUntil: number
+  ): Promise<ComputeJob[]> {
+    // TO DO
+    //  - validate algo & datasets
+    //  - validate providerFees -> will generate chainId & agreementId
+    const chainId = 8996
+    const agreementId = '0x1234'
     // let's build the stage first
     // start with stage.input
     const stagesInput: OPFK8ComputeStageInput[] = []
@@ -148,13 +150,16 @@ export class C2DEngineOPFK8 extends C2DEngine {
     const stageAlgorithm: OPFK8ComputeStageAlgorithm = {}
     if (algorithm.url) stageAlgorithm.url = algorithm.url
     if (algorithm.documentId) stageAlgorithm.id = algorithm.documentId
-    if (algorithm.meta.rawcode) stageAlgorithm.rawcode = algorithm.meta.rawcode
-    if (algorithm.meta.container) stageAlgorithm.container = algorithm.meta.container
+    if ('meta' in algorithm && 'rawcode' in algorithm.meta && algorithm.meta.rawcode)
+      stageAlgorithm.rawcode = algorithm.meta.rawcode
+    if ('meta' in algorithm && 'container' in algorithm.meta && algorithm.meta.container)
+      stageAlgorithm.container = algorithm.meta.container
     const stage: OPFK8ComputeStage = {
       index: 0,
       input: stagesInput,
       algorithm: stageAlgorithm,
-      output
+      output: output || {},
+      compute: {} // TO DO
     }
     // now, let's build the workflow
     const workflow: OPFK8ComputeWorkflow = {
@@ -163,7 +168,6 @@ export class C2DEngineOPFK8 extends C2DEngine {
     // and the full payload
     const nonce: number = new Date().getTime()
     const config = await getConfiguration()
-
     const providerSignature = await sign(String(nonce), config.keys.privateKey)
     const payload: OPFK8ComputeStart = {
       workflow,
@@ -173,16 +177,30 @@ export class C2DEngineOPFK8 extends C2DEngine {
       environment,
       validUntil,
       nonce,
+      agreementId,
       chainId
     }
     // and send it to remote op-service
-    const url = `${this.getC2DConfig().url}api/v1/operator/compute`
+
     try {
-      const jobId = await axios.post(url, payload)
+      const response = await axios({
+        method: 'post',
+        url: `${this.getC2DConfig().url}api/v1/operator/compute`,
+        data: payload
+      })
+      if (response.status !== 200) {
+        const message = `Exception on startCompute. Status: ${response.status}, ${response.statusText}`
+        throw new Error(message)
+      }
+      const jobs: ComputeJob[] = response.data
+      const newResponse = JSON.parse(JSON.stringify(jobs)) as ComputeJob[]
       const { hash } = this.getC2DConfig()
-      // we need to prepend cluster hash to jobId
-      return hash + '-' + jobId
-    } catch {}
+      // we need to prepend cluster hash to each jobId
+      for (let i = 0; i < jobs.length; i++) {
+        newResponse[i].jobId = hash + '-' + jobs[i].jobId
+      }
+      return jobs
+    } catch (e) {}
     throw new Error(`startCompute Failure`)
   }
 }

@@ -189,8 +189,12 @@ function validateNonceAndSignature(
 }
 
 export async function sign(message: string, privateKey: string): Promise<string> {
-  /** Signs a message with a private key */
-  const wallet = new ethers.Wallet(privateKey)
+  /** Signs a message with a private key
+   *
+   * @param message - message to be sign
+   * @param privateKey - private key from node as Uint8Array
+   */
+  const wallet = new ethers.Wallet('0x' + Buffer.from(privateKey).toString('hex'))
   // message to sign
   // sign message/nonce
   const consumerMessage = ethers.solidityPackedKeccak256(

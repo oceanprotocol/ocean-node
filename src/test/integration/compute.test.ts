@@ -1,22 +1,47 @@
 import { expect, assert } from 'chai'
-import { GetEnvironmentsHandler } from '../../components/core/compute.js'
+import {
+  GetComputeEnvironmentsHandler,
+  StartComputeHandler
+} from '../../components/core/compute.js'
+import type { StartComputeCommand } from '../../@types/commands.js'
 import { getConfiguration } from '../../utils/config.js'
 import { Database } from '../../components/database/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
-import { streamToObject } from '../../utils/util.js'
-
+import { waitToIndex, delay } from './testUtils.js'
+import { streamToObject, streamToString } from '../../utils/util.js'
+import { publishAsset } from '../utils/assets.js'
+import {
+  JsonRpcProvider,
+  Signer,
+  Contract,
+  ethers,
+  getAddress,
+  hexlify,
+  ZeroAddress
+} from 'ethers'
+import { computeAsset, algoAsset } from '../data/ddo_compute.js'
 describe('Compute', () => {
   let config: OceanNodeConfig
   let dbconn: Database
   let oceanNode: OceanNode
-
+  let computeAsset1
+  let algoAsset1
+  let provider: any
+  let publisherAccount: any
+  let consumerAccount: any
+  let computeEnvironments: any
+  let publishedComputeDataset: any
+  let publishedAlgoDataset: any
   before(async () => {
     config = await getConfiguration(true) // Force reload the configuration
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
+    provider = new JsonRpcProvider('http://127.0.0.1:8545')
+    consumerAccount = (await provider.getSigner(1)) as Signer
+    publisherAccount = (await provider.getSigner(0)) as Signer
   })
 
   it('Sets up compute envs', async () => {
@@ -29,7 +54,7 @@ describe('Compute', () => {
       command: PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS,
       chainId: 8996
     }
-    const response = await new GetEnvironmentsHandler(oceanNode).handle(
+    const response = await new GetComputeEnvironmentsHandler(oceanNode).handle(
       getEnvironmentsTask
     )
 
@@ -38,7 +63,7 @@ describe('Compute', () => {
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
 
-    const computeEnvironments = await streamToObject(response.stream as Readable)
+    computeEnvironments = await streamToObject(response.stream as Readable)
 
     for (const computeEnvironment of computeEnvironments) {
       assert(computeEnvironment.id, 'id missing in computeEnvironments')
@@ -57,5 +82,61 @@ describe('Compute', () => {
         'maxJobDuration missing in computeEnvironments'
       )
     }
+  })
+
+  // let's publish assets & algos
+  it('should publish compute datasets & algos', async () => {
+    publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
+    publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
+  })
+  it('should start a compute job', async () => {
+    /* consumerAddress: string
+  signature: string
+  nonce: string
+  environment: string
+  algorithm: ComputeAlgorithm
+  dataset: ComputeAsset
+  additionalDatasets?: ComputeAsset[]
+  output?: ComputeOutput */
+    const wallet = new ethers.Wallet(
+      '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
+    )
+    const nonce = Date.now().toString()
+    const message = String(nonce)
+    // sign message/nonce
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await wallet.signMessage(messageHashBytes)
+    const startComputeTask: StartComputeCommand = {
+      command: PROTOCOL_COMMANDS.START_COMPUTE,
+      consumerAddress: await wallet.getAddress(),
+      signature,
+      nonce,
+      environment: computeEnvironments[0].id,
+      dataset: {
+        documentId: publishedComputeDataset.ddo.id,
+        serviceId: publishedComputeDataset.ddo.services[0].id,
+        transferTxId: '0x123'
+      },
+      algorithm: {
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: '0x123',
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      }
+      // additionalDatasets?: ComputeAsset[]
+      // output?: ComputeOutput
+    }
+    const response = await new StartComputeHandler(oceanNode).handle(startComputeTask)
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response.stream, 'Failed to get stream')
+    expect(response.stream).to.be.instanceOf(Readable)
+
+    const jobs = await streamToObject(response.stream as Readable)
+    console.log(jobs)
   })
 })

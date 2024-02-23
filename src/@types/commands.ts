@@ -1,7 +1,7 @@
 import { DDO } from './DDO/DDO'
 import { P2PCommandResponse } from './OceanNode'
 import { ArweaveFileObject, IpfsFileObject, UrlFileObject } from './fileObject'
-
+import type { ComputeAsset, ComputeAlgorithm, ComputeOutput } from './C2D'
 export interface Command {
   command: string // command name
   node?: string // if not present it means current node
@@ -43,10 +43,6 @@ export interface FindDDOCommand extends DDOCommand {}
 // https://github.com/oceanprotocol/ocean-node/issues/47
 export interface ValidateDDOCommand extends Command {
   ddo: DDO
-}
-
-export interface GetEnvironmentsCommand extends Command {
-  chainId: number
 }
 
 export interface StatusCommand extends Command {}
@@ -95,4 +91,19 @@ export interface ICommandHandler {
 export interface BroadcastCommand {
   command: string // the name of the command
   message: any // the message to broadcast
+}
+
+export interface GetComputeEnvironmentsCommand extends Command {
+  chainId: number
+}
+
+export interface StartComputeCommand extends Command {
+  consumerAddress: string
+  signature: string
+  nonce: string
+  environment: string
+  algorithm: ComputeAlgorithm
+  dataset: ComputeAsset
+  additionalDatasets?: ComputeAsset[]
+  output?: ComputeOutput
 }

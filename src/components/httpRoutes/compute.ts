@@ -1,6 +1,9 @@
 import express from 'express'
-import { GetEnvironmentsHandler } from '../core/compute.js'
-import { streamToObject } from '../../utils/util.js'
+import { GetComputeEnvironmentsHandler, StartComputeHandler } from '../core/compute.js'
+import type { ComputeAlgorithm, ComputeAsset, ComputeOutput } from '../../@types/C2D.js'
+import type { StartComputeCommand } from '../../@types/commands.js'
+
+import { streamToObject, streamToString } from '../../utils/util.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { Readable } from 'stream'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
@@ -29,7 +32,7 @@ computeRoutes.get('/api/services/computeEnvironments', async (req, res) => {
       chainId,
       node: req.query.node as string
     }
-    const response = await new GetEnvironmentsHandler().handle(getEnvironmentsTask) // get compute environments
+    const response = await new GetComputeEnvironmentsHandler().handle(getEnvironmentsTask) // get compute environments
     const computeEnvironments = await streamToObject(response.stream as Readable)
 
     // check if computeEnvironments is a valid json object and not empty
@@ -39,6 +42,40 @@ computeRoutes.get('/api/services/computeEnvironments', async (req, res) => {
       HTTP_LOGGER.logMessage(`Compute environments not found`, true)
       res.status(404).send('Compute environments not found')
     }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send('Internal Server Error')
+  }
+})
+
+computeRoutes.post('/api/services/compute', async (req, res) => {
+  try {
+    HTTP_LOGGER.logMessage(
+      `GET computeEnvironments request received with query: ${JSON.stringify(req.query)}`,
+      true
+    )
+
+    const startComputeTask: StartComputeCommand = {
+      command: PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS,
+      node: req.query.node as string,
+      consumerAddress: req.query.consumerAddress as string,
+      signature: req.query.signature as string,
+      nonce: req.query.nonce as string,
+      environment: req.query.environment as string,
+      algorithm: req.query.algorithm as ComputeAlgorithm,
+      dataset: req.query.dataset as unknown as ComputeAsset
+    }
+    if (req.query.additionalDatasets) {
+      startComputeTask.additionalDatasets = req.query
+        .additionalDatasets as unknown as ComputeAsset[]
+    }
+    if (req.query.output) {
+      startComputeTask.output = req.query.output as ComputeOutput
+    }
+
+    const response = await new StartComputeHandler().handle(startComputeTask) // get compute environments
+    const jobId = await streamToString(response.stream as Readable)
+    res.status(200).send(jobId)
   } catch (error) {
     HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')

@@ -16,7 +16,8 @@ export const PROTOCOL_COMMANDS = {
   GET_FEES: 'getFees',
   FILE_INFO: 'fileInfo',
   VALIDATE_DDO: 'validateDDO',
-  GET_COMPUTE_ENVIRONMENTS: 'getComputeEnvironments'
+  GET_COMPUTE_ENVIRONMENTS: 'getComputeEnvironments',
+  START_COMPUTE: 'startCompute'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
