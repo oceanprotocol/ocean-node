@@ -10,7 +10,6 @@ import {
 } from 'ethers'
 import { createHash } from 'crypto'
 import { Readable } from 'node:stream'
-import { isWebUri } from 'valid-url'
 import axios from 'axios'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
@@ -23,7 +22,7 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
 import { getConfiguration } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
-import { streamToString } from '../../utils/util.js'
+import { isValidUrl, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 
@@ -108,7 +107,7 @@ class BaseEventProcessor {
       )
       const signature = await wallet.signMessage(consumerMessage)
 
-      if (isWebUri(decryptorURL)) {
+      if (isValidUrl(decryptorURL)) {
         try {
           const payload = {
             transactionId: txId,
@@ -295,10 +294,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       const previousDdo = await (await getDatabase()).ddo.retrieve(ddo.id)
       if (eventName === EVENTS.METADATA_CREATED) {
         if (previousDdo && previousDdo.nft.state === MetadataStates.ACTIVE) {
-          INDEXER_LOGGER.logMessage(
-            `DDO ${ddo.did} is already registered as active`,
-            true
-          )
+          INDEXER_LOGGER.logMessage(`DDO ${ddo.id} is already registered as active`, true)
           return
         }
       }
@@ -325,7 +321,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         }
       }
       const from = decodedEventData.args[0]
+      // always call, but only create instance once
       const purgatory = await Purgatory.getInstance()
+      // if purgatory is disabled just return false
       const updatedDDO = await this.updatePurgatoryStateDdo(ddo, from, purgatory)
       if (updatedDDO.purgatory.state === false) {
         // TODO: insert in a different collection for purgatory DDOs
@@ -346,12 +344,12 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     owner: string,
     purgatory: Purgatory
   ): Promise<any> {
-    if (
-      (await purgatory.isBannedAsset(ddo.id)) ||
-      (await purgatory.isBannedAccount(owner))
-    ) {
+    if (purgatory.isEnabled()) {
+      const state: boolean =
+        (await purgatory.isBannedAsset(ddo.id)) ||
+        (await purgatory.isBannedAccount(owner))
       ddo.purgatory = {
-        state: true
+        state
       }
     } else {
       ddo.purgatory = {

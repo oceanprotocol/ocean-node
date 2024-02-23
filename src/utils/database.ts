@@ -10,7 +10,7 @@ export async function getDatabase(): Promise<Database> {
   if (!dbConnection) {
     const { dbConfig } = await getConfiguration()
     if (dbConfig && dbConfig.url) {
-      dbConnection = new Database(dbConfig)
+      dbConnection = await new Database(dbConfig)
     }
   }
   return dbConnection
