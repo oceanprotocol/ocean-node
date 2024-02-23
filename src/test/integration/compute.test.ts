@@ -1,9 +1,18 @@
 import { expect, assert } from 'chai'
 import {
-  GetComputeEnvironmentsHandler,
-  StartComputeHandler
+  ComputeGetEnvironmentsHandler,
+  ComputeStartHandler,
+  ComputeStopHandler,
+  ComputeGetStatusHandler,
+  ComputeGetResultHandler
 } from '../../components/core/compute.js'
-import type { StartComputeCommand } from '../../@types/commands.js'
+import type {
+  ComputeGetEnvironmentsCommand,
+  ComputeStartCommand,
+  ComputeStopCommand,
+  ComputeGetResultCommand,
+  ComputeGetStatusCommand
+} from '../../@types/commands.js'
 import { getConfiguration } from '../../utils/config.js'
 import { Database } from '../../components/database/index.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -53,10 +62,10 @@ describe('Compute', () => {
 
   it('Get compute environments', async () => {
     const getEnvironmentsTask = {
-      command: PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS,
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS,
       chainId: 8996
     }
-    const response = await new GetComputeEnvironmentsHandler(oceanNode).handle(
+    const response = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
       getEnvironmentsTask
     )
 
@@ -116,8 +125,8 @@ describe('Compute', () => {
     )
     const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await wallet.signMessage(messageHashBytes)
-    const startComputeTask: StartComputeCommand = {
-      command: PROTOCOL_COMMANDS.START_COMPUTE,
+    const startComputeTask: ComputeStartCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_START,
       consumerAddress: await wallet.getAddress(),
       signature,
       nonce,
@@ -136,7 +145,7 @@ describe('Compute', () => {
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
-    const response = await new StartComputeHandler(oceanNode).handle(startComputeTask)
+    const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')

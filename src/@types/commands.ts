@@ -93,11 +93,11 @@ export interface BroadcastCommand {
   message: any // the message to broadcast
 }
 
-export interface GetComputeEnvironmentsCommand extends Command {
+export interface ComputeGetEnvironmentsCommand extends Command {
   chainId: number
 }
 
-export interface StartComputeCommand extends Command {
+export interface ComputeStartCommand extends Command {
   consumerAddress: string
   signature: string
   nonce: string
@@ -106,4 +106,25 @@ export interface StartComputeCommand extends Command {
   dataset: ComputeAsset
   additionalDatasets?: ComputeAsset[]
   output?: ComputeOutput
+}
+
+export interface ComputeStopCommand extends Command {
+  consumerAddress: string
+  signature: string
+  nonce: string
+  jobId: string
+}
+
+export interface ComputeGetResultCommand extends Command {
+  consumerAddress: string
+  signature: string
+  nonce: string
+  jobId: string
+  index: string
+}
+
+export interface ComputeGetStatusCommand extends Command {
+  consumerAddress?: string
+  did?: string
+  jobId?: string
 }

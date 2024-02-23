@@ -112,7 +112,7 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
           'Missing required parameter(s): "fileIndex","documentId", "serviceId","transferTxId", "nonce","consumerAddress", "signature"'
         )
       }
-    } else if (command === PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS) {
+    } else if (command === PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS) {
       if (!requestBody.chainId) {
         return buildInvalidRequestMessage('Missing required parameter: "chainId"')
       }

@@ -4,14 +4,17 @@ import { ComputeAsset, ComputeEnvironment } from '../../@types/C2D.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { Handler } from './handler.js'
 import {
-  GetComputeEnvironmentsCommand,
-  StartComputeCommand
+  ComputeGetEnvironmentsCommand,
+  ComputeStartCommand,
+  ComputeStopCommand,
+  ComputeGetResultCommand,
+  ComputeGetStatusCommand
 } from '../../@types/commands.js'
 import { getConfiguration } from '../../utils/config.js'
 import { C2DEngine } from '../c2d/compute_engines.js'
 
-export class GetComputeEnvironmentsHandler extends Handler {
-  async handle(task: GetComputeEnvironmentsCommand): Promise<P2PCommandResponse> {
+export class ComputeGetEnvironmentsHandler extends Handler {
+  async handle(task: ComputeGetEnvironmentsCommand): Promise<P2PCommandResponse> {
     try {
       CORE_LOGGER.logMessage(
         'GetComputeEnvironmentsCommand recieved with arguments: ' +
@@ -52,8 +55,8 @@ export class GetComputeEnvironmentsHandler extends Handler {
   }
 }
 
-export class StartComputeHandler extends Handler {
-  async handle(task: StartComputeCommand): Promise<P2PCommandResponse> {
+export class ComputeStartHandler extends Handler {
+  async handle(task: ComputeStartCommand): Promise<P2PCommandResponse> {
     try {
       CORE_LOGGER.logMessage(
         'StartComputeCommand recieved with arguments: ' + JSON.stringify(task, null, 2),
@@ -80,7 +83,11 @@ export class StartComputeHandler extends Handler {
       }
       const assets: ComputeAsset[] = [task.dataset]
       if (task.additionalDatasets) assets.push(...task.additionalDatasets)
-      // TODO - hardcoded values
+      // TODO - hardcoded values.
+      //  - validate algo & datasets
+      //  - validate providerFees -> will generate chainId & agreementId & validUntil
+      const chainId = 8996
+      const agreementId = '0x1234'
       const validUntil = new Date().getTime() + 60
       const response = await engine.startComputeJob(
         assets,
@@ -88,7 +95,9 @@ export class StartComputeHandler extends Handler {
         task.output,
         task.consumerAddress,
         envId,
-        validUntil
+        validUntil,
+        chainId,
+        agreementId
       )
 
       CORE_LOGGER.logMessage(
@@ -110,6 +119,42 @@ export class StartComputeHandler extends Handler {
           httpStatus: 500,
           error: error.message
         }
+      }
+    }
+  }
+}
+
+export class ComputeStopHandler extends Handler {
+  async handle(task: ComputeStopCommand): Promise<P2PCommandResponse> {
+    return {
+      stream: null,
+      status: {
+        httpStatus: 500,
+        error: null
+      }
+    }
+  }
+}
+
+export class ComputeGetStatusHandler extends Handler {
+  async handle(task: ComputeGetStatusCommand): Promise<P2PCommandResponse> {
+    return {
+      stream: null,
+      status: {
+        httpStatus: 500,
+        error: null
+      }
+    }
+  }
+}
+
+export class ComputeGetResultHandler extends Handler {
+  async handle(task: ComputeGetResultCommand): Promise<P2PCommandResponse> {
+    return {
+      stream: null,
+      status: {
+        httpStatus: 500,
+        error: null
       }
     }
   }

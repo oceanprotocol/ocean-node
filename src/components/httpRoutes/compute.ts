@@ -1,7 +1,19 @@
 import express from 'express'
-import { GetComputeEnvironmentsHandler, StartComputeHandler } from '../core/compute.js'
+import {
+  ComputeGetEnvironmentsHandler,
+  ComputeStartHandler,
+  ComputeStopHandler,
+  ComputeGetStatusHandler,
+  ComputeGetResultHandler
+} from '../core/compute.js'
 import type { ComputeAlgorithm, ComputeAsset, ComputeOutput } from '../../@types/C2D.js'
-import type { StartComputeCommand } from '../../@types/commands.js'
+import type {
+  ComputeGetEnvironmentsCommand,
+  ComputeStartCommand,
+  ComputeStopCommand,
+  ComputeGetResultCommand,
+  ComputeGetStatusCommand
+} from '../../@types/commands.js'
 
 import { streamToObject, streamToString } from '../../utils/util.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
@@ -28,11 +40,11 @@ computeRoutes.get('/api/services/computeEnvironments', async (req, res) => {
     }
 
     const getEnvironmentsTask = {
-      command: PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS,
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS,
       chainId,
       node: req.query.node as string
     }
-    const response = await new GetComputeEnvironmentsHandler().handle(getEnvironmentsTask) // get compute environments
+    const response = await new ComputeGetEnvironmentsHandler().handle(getEnvironmentsTask) // get compute environments
     const computeEnvironments = await streamToObject(response.stream as Readable)
 
     // check if computeEnvironments is a valid json object and not empty
@@ -55,8 +67,8 @@ computeRoutes.post('/api/services/compute', async (req, res) => {
       true
     )
 
-    const startComputeTask: StartComputeCommand = {
-      command: PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS,
+    const startComputeTask: ComputeStartCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_START,
       node: req.query.node as string,
       consumerAddress: req.query.consumerAddress as string,
       signature: req.query.signature as string,
@@ -73,7 +85,7 @@ computeRoutes.post('/api/services/compute', async (req, res) => {
       startComputeTask.output = req.query.output as ComputeOutput
     }
 
-    const response = await new StartComputeHandler().handle(startComputeTask) // get compute environments
+    const response = await new ComputeStartHandler().handle(startComputeTask) // get compute environments
     const jobId = await streamToString(response.stream as Readable)
     res.status(200).send(jobId)
   } catch (error) {

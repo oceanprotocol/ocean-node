@@ -82,8 +82,26 @@ export abstract class C2DEngine {
     output: ComputeOutput,
     owner: string,
     environment: string,
-    validUntil: number
+    validUntil: number,
+    chainId: number,
+    agreementId: string
   ): Promise<ComputeJob[]> {
+    throw new Error(`Not implemented`)
+  }
+
+  public async stopComputeJob(jobId: string): Promise<ComputeJob[]> {
+    throw new Error(`Not implemented`)
+  }
+
+  public async getComputeJobStatus(
+    consumerAddress?: string,
+    did?: string,
+    jobId?: string
+  ): Promise<ComputeJob[]> {
+    throw new Error(`Not implemented`)
+  }
+
+  public async getComputeJobResult(jobId: string, index: number): Promise<Buffer> {
     throw new Error(`Not implemented`)
   }
 }
@@ -122,13 +140,10 @@ export class C2DEngineOPFK8 extends C2DEngine {
     output: ComputeOutput,
     owner: string,
     environment: string,
-    validUntil: number
+    validUntil: number,
+    chainId: number,
+    agreementId: string
   ): Promise<ComputeJob[]> {
-    // TO DO
-    //  - validate algo & datasets
-    //  - validate providerFees -> will generate chainId & agreementId
-    const chainId = 8996
-    const agreementId = '0x1234'
     // let's build the stage first
     // start with stage.input
     const stagesInput: OPFK8ComputeStageInput[] = []
@@ -202,6 +217,25 @@ export class C2DEngineOPFK8 extends C2DEngine {
       return jobs
     } catch (e) {}
     throw new Error(`startCompute Failure`)
+  }
+
+  public override async stopComputeJob(jobId: string): Promise<ComputeJob[]> {
+    throw new Error(`Not implemented`)
+  }
+
+  public override async getComputeJobStatus(
+    consumerAddress?: string,
+    did?: string,
+    jobId?: string
+  ): Promise<ComputeJob[]> {
+    throw new Error(`Not implemented`)
+  }
+
+  public override async getComputeJobResult(
+    jobId: string,
+    index: number
+  ): Promise<Buffer> {
+    throw new Error(`Not implemented`)
   }
 }
 
