@@ -36,8 +36,14 @@ export interface StorageReadable {
   headers?: [any]
 }
 
+export enum FileObjectType {
+  URL = 'url',
+  IPFS = 'ipfs',
+  ARWEAVE = 'arweave'
+}
+
 export interface FileInfoRequest {
-  type: 'url' | 'ipfs' | 'arweave'
+  type: FileObjectType
   fileIndex?: number
 }
 

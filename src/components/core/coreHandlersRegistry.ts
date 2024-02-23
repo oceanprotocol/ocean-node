@@ -9,7 +9,7 @@ import {
 import { DownloadHandler } from './downloadHandler.js'
 import { FileInfoHandler } from './fileInfoHandler.js'
 import { EchoHandler } from './echoHandler.js'
-import { EncryptHandler } from './encryptHandler.js'
+import { EncryptHandler, EncryptFileHandler } from './encryptHandler.js'
 import { FeesHandler } from './feesHandler.js'
 import { Handler } from './handler.js'
 import { NonceHandler } from './nonceHandler.js'
@@ -60,6 +60,7 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(PROTOCOL_COMMANDS.DECRYPT_DDO, new DecryptDdoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.NONCE, new NonceHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.ENCRYPT, new EncryptHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.ENCRYPT_FILE, new EncryptFileHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.GET_DDO, new GetDdoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.QUERY, new QueryHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.STATUS, new StatusHandler(node))
