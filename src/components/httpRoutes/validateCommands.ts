@@ -1,5 +1,6 @@
 import { isAddress } from 'ethers'
 import { SUPPORTED_PROTOCOL_COMMANDS, PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
 
 export type ValidateParams = {
   valid: boolean
@@ -68,9 +69,11 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
         )
       }
       if (!requestBody.encryptionType) {
-        requestBody.encoding = 'ECIES'
+        requestBody.encoding = EncryptMethod.ECIES
       }
-      if (!['AES', 'ECIES'].includes(requestBody.encryptionType)) {
+      if (
+        ![EncryptMethod.AES, EncryptMethod.ECIES].includes(requestBody.encryptionType)
+      ) {
         return buildInvalidRequestMessage(
           'Invalid parameter: "encryptionType" must be AES | ECIES'
         )

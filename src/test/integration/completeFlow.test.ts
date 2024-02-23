@@ -33,7 +33,7 @@ import { StatusHandler } from '../../components/core/statusHandler.js'
 
 import { Readable } from 'stream'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import { UrlFileObject } from '../../@types/fileObject.js'
+import { EncryptMethod, UrlFileObject } from '../../@types/fileObject.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import {
@@ -240,7 +240,7 @@ describe('Should run a complete node flow.', () => {
       ]
     }
     const data = Uint8Array.from(Buffer.from(JSON.stringify(files)))
-    const encryptedData = await encrypt(data, 'ECIES')
+    const encryptedData = await encrypt(data, EncryptMethod.ECIES)
 
     genericAsset.services[0].files = encryptedData
 
@@ -248,7 +248,7 @@ describe('Should run a complete node flow.', () => {
       '0x' + createHash('sha256').update(JSON.stringify(genericAsset)).digest('hex')
 
     const genericAssetData = Uint8Array.from(Buffer.from(JSON.stringify(genericAsset)))
-    const encryptedDDO = await encrypt(genericAssetData, 'ECIES')
+    const encryptedDDO = await encrypt(genericAssetData, EncryptMethod.ECIES)
     const encryptedMetaData = hexlify(encryptedDDO)
 
     const setMetaDataTx = await nftContract.setMetaData(
@@ -277,17 +277,6 @@ describe('Should run a complete node flow.', () => {
       expect(resolvedDDO.id).to.equal(genericAsset.id)
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
-
-  // it('should be able to decrypt the ddo files ', async () => {
-  //   const encryptedFilesHex = resolvedDDO.services[0].files
-  //   const encryptedFilesBytes = Uint8Array.from(Buffer.from(encryptedFilesHex, 'hex'))
-  //   const decryptedUrlBytes = await decrypt(encryptedFilesBytes, 'ECIES')
-  //   const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
-  //   const decryptedFileObject = JSON.parse(decryptedFilesString)
-  //   expect(decryptedFileObject[0].url).to.equal(
-  //     'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js'
-  //   )
-  // })
 
   it('should get file info with did', async () => {
     const fileInfoTask = {
