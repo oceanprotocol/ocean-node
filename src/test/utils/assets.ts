@@ -8,6 +8,7 @@ import {
   ZeroAddress
 } from 'ethers'
 import { createHash } from 'crypto'
+import { EncryptMethod } from '../../@types/fileObject.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import {
@@ -69,7 +70,7 @@ export async function publishAsset(genericAsset: any, publisherAccount: Signer) 
   const data = Uint8Array.from(
     Buffer.from(JSON.stringify(genericAsset.services[0].files))
   )
-  const encryptedData = await encrypt(data, 'ECIES')
+  const encryptedData = await encrypt(data, EncryptMethod.ECIES)
   // const encryptedDataString = encryptedData.toString('base64')
 
   const nftContract = new ethers.Contract(
