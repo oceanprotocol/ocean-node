@@ -4,7 +4,11 @@ import {
   ArweaveStorage,
   IpfsStorage
 } from '../../components/storage/index.js'
-import { FileInfoRequest, FileObjectType } from '../../@types/fileObject.js'
+import {
+  FileInfoRequest,
+  FileObjectType,
+  EncryptMethod
+} from '../../@types/fileObject.js'
 import { expect, assert } from 'chai'
 import {
   OverrideEnvConfig,
@@ -13,6 +17,11 @@ import {
   setupEnvironment
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { getConfiguration } from '../../utils/index.js'
+import { Readable } from 'stream'
+import fs from 'fs'
+
+let nodeId: string
 
 describe('URL Storage tests', () => {
   let file: any = {
@@ -24,7 +33,9 @@ describe('URL Storage tests', () => {
         'Content-Type': 'application/json',
         Authorization: 'Bearer auth_token_X'
       }
-    ]
+    ],
+    encryptedBy: '16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72',
+    encryptMethod: EncryptMethod.AES
   }
   let storage: Storage
   let error: Error
@@ -37,6 +48,24 @@ describe('URL Storage tests', () => {
   })
   it('URL validation passes', () => {
     expect(storage.validate()).to.eql([true, ''])
+  })
+  it('isEncrypted should return true for an encrypted file', () => {
+    assert(storage.isEncrypted() === true, 'invalid response to isEncrypted()')
+  })
+
+  it('canDecrypt should return true for the correct nodeId', () => {
+    assert(
+      storage.canDecrypt('16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72') ===
+        true,
+      "can't decrypt with the correct nodeId"
+    )
+  })
+
+  it('canDecrypt should return false for an incorrect nodeId', () => {
+    assert(
+      storage.canDecrypt('wrongNodeId') === false,
+      'can decrypt with the wrong nodeId'
+    )
   })
   it('URL validation fails on missing URL', () => {
     file = {
@@ -234,6 +263,18 @@ describe('URL Storage getFileInfo tests', () => {
     })
   })
 
+  it('isEncrypted should return false for an encrypted file', () => {
+    assert(storage.isEncrypted() === false, 'invalid response to isEncrypted()')
+  })
+
+  it('canDecrypt should return false when the file is not encrypted', () => {
+    assert(
+      storage.canDecrypt('16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72') ===
+        false,
+      'Wrong response from canDecrypt() for an unencrypted file'
+    )
+  })
+
   it('Successfully retrieves file info for a URL', async () => {
     const fileInfoRequest: FileInfoRequest = {
       type: FileObjectType.URL
@@ -257,7 +298,8 @@ describe('URL Storage getFileInfo tests', () => {
   })
 })
 
-describe('Arweave Storage getFileInfo tests', () => {
+describe('Arweave Storage getFileInfo tests', async function () {
+  this.timeout(15000)
   let storage: ArweaveStorage
 
   before(() => {
@@ -293,7 +335,6 @@ describe('Arweave Storage getFileInfo tests', () => {
 })
 
 describe('IPFS Storage getFileInfo tests', async function () {
-  this.timeout(15000)
   let storage: IpfsStorage
   let previousConfiguration: OverrideEnvConfig[]
 
@@ -318,7 +359,6 @@ describe('IPFS Storage getFileInfo tests', async function () {
     if (fileInfo && fileInfo.length > 0) {
       assert(fileInfo[0].valid, 'File info is valid')
       assert(fileInfo[0].type === 'ipfs', 'Type is incorrect')
-      console.log(`content type: ${fileInfo[0].contentType}`)
       assert(fileInfo[0].contentType === 'text/csv', 'Content type is incorrect')
       assert(fileInfo[0].contentLength === '680782', 'Content length is incorrect')
     }
@@ -331,6 +371,113 @@ describe('IPFS Storage getFileInfo tests', async function () {
     } catch (err) {
       expect(err.message).to.equal('Hash is required for type ipfs')
     }
+  })
+
+  after(() => {
+    tearDownEnvironment(previousConfiguration)
+  })
+})
+
+describe('URL Storage encryption tests', () => {
+  let storage: UrlStorage
+
+  before(() => {
+    storage = new UrlStorage({
+      type: 'url',
+      url: 'https://raw.githubusercontent.com/tbertinmahieux/MSongsDB/master/Tasks_Demos/CoverSongs/shs_dataset_test.txt',
+      method: 'get'
+    })
+  })
+
+  it('isEncrypted should return false for an encrypted file', () => {
+    assert(storage.isEncrypted() === false, 'invalid response to isEncrypted()')
+  })
+
+  it('canDecrypt should return false when the file is not encrypted', () => {
+    assert(
+      storage.canDecrypt('16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72') ===
+        false,
+      'Wrong response from canDecrypt() for an unencrypted file'
+    )
+  })
+
+  it('encrypt method should correctly encrypt data', async () => {
+    const { keys } = await getConfiguration()
+    nodeId = keys.peerId.toString()
+    // Perform encryption
+    const encryptResponse = await storage.encrypt(EncryptMethod.AES)
+    assert(encryptResponse.httpStatus === 200, 'Response is not 200')
+    assert(encryptResponse.stream, 'Stream is not null')
+    assert(encryptResponse.stream instanceof Readable, 'Stream is not a ReadableStream')
+
+    // Create a writable stream for the output file
+    const fileStream = fs.createWriteStream('src/test/data/organizations-100.aes')
+
+    // Use the 'finish' event to know when the file has been fully written
+    fileStream.on('finish', () => {
+      console.log('Encrypted file has been written successfully')
+    })
+
+    // Handle errors in the stream
+    encryptResponse.stream.on('error', (err) => {
+      console.error('Stream encountered an error:', err)
+    })
+
+    // Pipe the encrypted content stream to the file stream
+    encryptResponse.stream.pipe(fileStream)
+  })
+})
+
+describe('URL Storage encryption tests', async function () {
+  this.timeout(15000)
+  let storage: IpfsStorage
+  let previousConfiguration: OverrideEnvConfig[]
+
+  before(async () => {
+    previousConfiguration = await buildEnvOverrideConfig(
+      [ENVIRONMENT_VARIABLES.IPFS_GATEWAY],
+      ['https://ipfs.oceanprotocol.com']
+    )
+    await setupEnvironment(undefined, previousConfiguration) // Apply the environment override
+
+    storage = new IpfsStorage({
+      type: 'ipfs',
+      hash: 'QmQVPuoXMbVEk7HQBth5pGPPMcgvuq4VSgu2XQmzU5M2Pv',
+      encryptedBy: nodeId,
+      encryptMethod: EncryptMethod.AES
+    })
+  })
+
+  it('isEncrypted should return true for an encrypted file', () => {
+    assert(storage.isEncrypted() === true, 'invalid response to isEncrypted()')
+  })
+
+  it('canDecrypt should return true for this node', () => {
+    assert(
+      storage.canDecrypt(nodeId) === true,
+      'Wrong response from canDecrypt() for an encrypted file'
+    )
+  })
+
+  it('File info includes encryptedBy and encryptMethod', async () => {
+    const fileInfoRequest: FileInfoRequest = {
+      type: FileObjectType.IPFS
+    }
+    const fileInfo = await storage.getFileInfo(fileInfoRequest)
+
+    assert(fileInfo[0].valid, 'File info is valid')
+    expect(fileInfo[0].contentType).to.equal('application/octet-stream')
+    expect(fileInfo[0].type).to.equal('ipfs')
+    expect(fileInfo[0].encryptedBy).to.equal(nodeId)
+    expect(fileInfo[0].encryptMethod).to.equal(EncryptMethod.AES)
+  })
+
+  it('canDecrypt should return false when called from an unauthorised node', () => {
+    assert(
+      storage.canDecrypt('16Uiu2HAmUWwsSj39eAfi3GG9U2niNKi3FVxh3eTwyRxbs8cwCq72') ===
+        false,
+      'Wrong response from canDecrypt() for an unencrypted file'
+    )
   })
 
   after(() => {

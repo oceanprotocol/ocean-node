@@ -90,3 +90,20 @@ export async function readStream(stream: Stream): Promise<string> {
     })
   })
 }
+
+// basic url check using URL constructor
+export function isValidUrl(
+  urlString: string,
+  hyperTextProtocolOnly: boolean = true
+): boolean {
+  let url
+  try {
+    url = new URL(urlString)
+  } catch (e) {
+    return false
+  }
+  // by default only care about http:// and https://
+  return hyperTextProtocolOnly
+    ? url.protocol === 'http:' || url.protocol === 'https:'
+    : true
+}

@@ -3,6 +3,7 @@ import { P2PCommandResponse } from './OceanNode'
 import {
   ArweaveFileObject,
   FileObjectType,
+  EncryptMethod,
   IpfsFileObject,
   UrlFileObject
 } from './fileObject'
@@ -81,11 +82,11 @@ export interface DecryptDDOCommand extends Command {
 export interface EncryptCommand extends Command {
   blob: string
   encoding: string
-  encryptionType: string
+  encryptionType: EncryptMethod
 }
 
 export interface EncryptFileCommand extends Command {
-  encryptionType: 'AES' | 'ECIES'
+  encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
   files: UrlFileObject | ArweaveFileObject | IpfsFileObject
 }
 
