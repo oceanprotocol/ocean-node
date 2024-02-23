@@ -247,12 +247,13 @@ function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
         process.env.OPERATOR_SERVICE_URL
       ) as string[]
 
-    for (const theURL of clustersURLS) {
-      clusters.push({
-        url: theURL,
-        hash: create256Hash(theURL),
-        type: C2DClusterType.OPF_K8
-      })
+      for (const theURL of clustersURLS) {
+        clusters.push({
+          url: theURL,
+          hash: create256Hash(theURL),
+          type: C2DClusterType.OPF_K8
+        })
+      }
     } catch (error) {
       CONFIG_LOGGER.logMessageWithEmoji(
         `Invalid or missing "${ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL.name}" env variable => ${process.env.OPERATOR_SERVICE_URL}...`,
