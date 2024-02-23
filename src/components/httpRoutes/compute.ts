@@ -69,13 +69,13 @@ computeRoutes.post('/api/services/compute', async (req, res) => {
 
     const startComputeTask: ComputeStartCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_START,
-      node: req.query.node as string,
-      consumerAddress: req.query.consumerAddress as string,
-      signature: req.query.signature as string,
-      nonce: req.query.nonce as string,
-      environment: req.query.environment as string,
-      algorithm: req.query.algorithm as ComputeAlgorithm,
-      dataset: req.query.dataset as unknown as ComputeAsset
+      node: (req.query.node as string) || null,
+      consumerAddress: (req.query.consumerAddress as string) || null,
+      signature: (req.query.signature as string) || null,
+      nonce: (req.query.nonce as string) || null,
+      environment: (req.query.environment as string) || null,
+      algorithm: (req.query.algorithm as ComputeAlgorithm) || null,
+      dataset: (req.query.dataset as unknown as ComputeAsset) || null
     }
     if (req.query.additionalDatasets) {
       startComputeTask.additionalDatasets = req.query
@@ -86,8 +86,8 @@ computeRoutes.post('/api/services/compute', async (req, res) => {
     }
 
     const response = await new ComputeStartHandler().handle(startComputeTask) // get compute environments
-    const jobId = await streamToString(response.stream as Readable)
-    res.status(200).send(jobId)
+    const jobs = await streamToObject(response.stream as Readable)
+    res.status(200).json(jobs)
   } catch (error) {
     HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
