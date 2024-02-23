@@ -1,7 +1,13 @@
 import { DDO } from './DDO/DDO'
 import { P2PCommandResponse } from './OceanNode'
-import { ArweaveFileObject, IpfsFileObject, UrlFileObject } from './fileObject'
 import type { ComputeAsset, ComputeAlgorithm, ComputeOutput } from './C2D'
+import {
+  ArweaveFileObject,
+  EncryptMethod,
+  IpfsFileObject,
+  UrlFileObject
+} from './fileObject'
+
 export interface Command {
   command: string // command name
   node?: string // if not present it means current node
@@ -72,7 +78,7 @@ export interface DecryptDDOCommand extends Command {
 export interface EncryptCommand extends Command {
   blob: string
   encoding: string
-  encryptionType: string
+  encryptionType: EncryptMethod
 }
 
 export interface NonceCommand extends Command {

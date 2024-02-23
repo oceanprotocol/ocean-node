@@ -34,6 +34,7 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 import { DDO } from '../../@types/DDO/DDO.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
 
 describe('Compute provider fees', async () => {
   let database: Database
@@ -137,7 +138,7 @@ describe('Compute provider fees', async () => {
     }
 
     const data = Uint8Array.from(Buffer.from(JSON.stringify(files)))
-    const encryptedData = await encrypt(data, 'ECIES')
+    const encryptedData = await encrypt(data, EncryptMethod.ECIES)
     // const encryptedDataString = encryptedData.toString('base64')
 
     nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, publisherAccount)

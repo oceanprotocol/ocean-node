@@ -44,6 +44,7 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
 
 describe('Download Tests', () => {
   let database: Database
@@ -163,7 +164,7 @@ describe('Download Tests', () => {
     }
 
     const data = Uint8Array.from(Buffer.from(JSON.stringify(files)))
-    const encryptedData = await encrypt(data, 'ECIES')
+    const encryptedData = await encrypt(data, EncryptMethod.ECIES)
     // const encryptedDataString = encryptedData.toString('base64')
 
     nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, publisherAccount)
