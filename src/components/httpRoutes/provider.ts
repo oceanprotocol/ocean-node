@@ -11,6 +11,7 @@ import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { DecryptDdoHandler } from '../core/ddoHandler.js'
 import { DownloadHandler } from '../core/downloadHandler.js'
 import { DownloadCommand } from '../../@types/commands.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
 
 export const providerRoutes = express.Router()
 
@@ -45,7 +46,7 @@ providerRoutes.post(`${SERVICES_API_BASE_PATH}/encrypt`, async (req, res) => {
     const result = await new EncryptHandler(req.oceanNode).handle({
       blob: data,
       encoding: 'string',
-      encryptionType: 'ECIES',
+      encryptionType: EncryptMethod.ECIES,
       command: PROTOCOL_COMMANDS.ENCRYPT
     })
     if (result.stream) {

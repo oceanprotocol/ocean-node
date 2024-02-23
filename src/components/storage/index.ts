@@ -4,20 +4,25 @@ import {
   ArweaveFileObject,
   StorageReadable,
   FileInfoRequest,
-  FileInfoResponse
+  FileInfoResponse,
+  EncryptMethod
 } from '../../@types/fileObject.js'
 import { fetchFileMetadata } from '../../utils/asset.js'
 import axios from 'axios'
 import urlJoin from 'url-join'
+import { encrypt as encryptData, decrypt as decryptData } from '../../utils/crypt.js'
+import { Readable } from 'stream'
+import { getConfiguration } from '../../utils/index.js'
 
 export abstract class Storage {
-  private file: any
-  public constructor(file: any) {
+  private file: UrlFileObject | IpfsFileObject | ArweaveFileObject
+
+  public constructor(file: UrlFileObject | IpfsFileObject | ArweaveFileObject) {
     this.file = file
   }
 
   abstract validate(): [boolean, string]
-
+  abstract getReadableStream(): Promise<StorageReadable>
   abstract getDownloadUrl(): string
   abstract fetchSpecificFileMetadata(fileObject: any): Promise<FileInfoResponse>
 
@@ -60,6 +65,82 @@ export abstract class Storage {
     }
     return response
   }
+
+  async encrypt(encryptionType: EncryptMethod = EncryptMethod.AES) {
+    const readableStream = await this.getReadableStream()
+
+    // Convert the readable stream to a buffer
+    const chunks: Buffer[] = []
+    for await (const chunk of readableStream.stream) {
+      chunks.push(chunk)
+    }
+    const buffer = Buffer.concat(chunks)
+
+    // Encrypt the buffer using the encrypt function
+    const encryptedBuffer = await encryptData(new Uint8Array(buffer), encryptionType)
+
+    // Convert the encrypted buffer back into a stream
+    const encryptedStream = Readable.from(encryptedBuffer)
+
+    return {
+      ...readableStream,
+      stream: encryptedStream
+    }
+  }
+
+  async decrypt() {
+    const { keys } = await getConfiguration()
+    const nodeId = keys.peerId.toString()
+
+    if (!this.canDecrypt(nodeId)) {
+      throw new Error('Node is not authorized to decrypt this file')
+    }
+
+    const { encryptMethod } = this.file
+    const readableStream = await this.getReadableStream()
+
+    // Convert the readable stream to a buffer
+    const chunks: Buffer[] = []
+    for await (const chunk of readableStream.stream) {
+      chunks.push(chunk)
+    }
+    const buffer = Buffer.concat(chunks)
+
+    // Decrypt the buffer using your existing function
+    const decryptedBuffer = await decryptData(new Uint8Array(buffer), encryptMethod)
+
+    // Convert the decrypted buffer back into a stream
+    const decryptedStream = Readable.from(decryptedBuffer)
+
+    return {
+      ...readableStream,
+      stream: decryptedStream
+    }
+  }
+
+  isEncrypted(): boolean {
+    if (
+      this.file.encryptedBy &&
+      (this.file.encryptMethod === EncryptMethod.AES ||
+        this.file.encryptMethod === EncryptMethod.ECIES)
+    ) {
+      return true
+    } else {
+      return false
+    }
+  }
+
+  canDecrypt(nodeId: string): boolean {
+    if (
+      this.file.encryptedBy === nodeId &&
+      (this.file.encryptMethod === EncryptMethod.AES ||
+        this.file.encryptMethod === EncryptMethod.ECIES)
+    ) {
+      return true
+    } else {
+      return false
+    }
+  }
 }
 
 export class UrlStorage extends Storage {
@@ -72,7 +153,7 @@ export class UrlStorage extends Storage {
   }
 
   validate(): [boolean, string] {
-    const file: UrlFileObject = this.getFile()
+    const file: UrlFileObject = this.getFile() as UrlFileObject
     if (!file.url || !file.method) {
       return [false, 'URL or method are missing']
     }
@@ -125,7 +206,9 @@ export class UrlStorage extends Storage {
       contentLength,
       contentType,
       name: new URL(url).pathname.split('/').pop() || '',
-      type: 'url'
+      type: 'url',
+      encryptedBy: fileObject.encryptedBy,
+      encryptMethod: fileObject.encryptMethod
     }
   }
 }
@@ -144,7 +227,7 @@ export class ArweaveStorage extends Storage {
     if (!process.env.ARWEAVE_GATEWAY) {
       return [false, 'Arweave gateway is not provided!']
     }
-    const file: ArweaveFileObject = this.getFile()
+    const file: ArweaveFileObject = this.getFile() as ArweaveFileObject
     if (!file.transactionId) {
       return [false, 'Missing transaction ID']
     }
@@ -181,7 +264,9 @@ export class ArweaveStorage extends Storage {
       contentLength,
       contentType,
       name: new URL(url).pathname.split('/').pop() || '',
-      type: 'arweave'
+      type: 'arweave',
+      encryptedBy: fileObject.encryptedBy,
+      encryptMethod: fileObject.encryptMethod
     }
   }
 }
@@ -200,7 +285,7 @@ export class IpfsStorage extends Storage {
     if (!process.env.IPFS_GATEWAY) {
       return [false, 'IPFS gateway is not provided!']
     }
-    const file: IpfsFileObject = this.getFile()
+    const file: IpfsFileObject = this.getFile() as IpfsFileObject
     if (!file.hash) {
       return [false, 'Missing CID']
     }
@@ -236,7 +321,9 @@ export class IpfsStorage extends Storage {
       contentLength,
       contentType,
       name: '',
-      type: 'ipfs'
+      type: 'ipfs',
+      encryptedBy: fileObject.encryptedBy,
+      encryptMethod: fileObject.encryptMethod
     }
   }
 }
