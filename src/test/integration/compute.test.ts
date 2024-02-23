@@ -46,6 +46,7 @@ describe('Compute', () => {
   let computeEnvironments: any
   let publishedComputeDataset: any
   let publishedAlgoDataset: any
+  let jobId: string
   before(async () => {
     config = await getConfiguration(true) // Force reload the configuration
     dbconn = await new Database(config.dbConfig)
@@ -68,18 +69,12 @@ describe('Compute', () => {
     const response = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
       getEnvironmentsTask
     )
-
     assert(response, 'Failed to get response')
-    if (!isRunningContinousIntegrationEnv()) {
-      // This fails locally because of invalid URL
-      return
-    }
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
 
     computeEnvironments = await streamToObject(response.stream as Readable)
-
     for (const computeEnvironment of computeEnvironments) {
       assert(computeEnvironment.id, 'id missing in computeEnvironments')
       assert(
@@ -105,14 +100,6 @@ describe('Compute', () => {
     publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
   })
   it('should start a compute job', async () => {
-    /* consumerAddress: string
-  signature: string
-  nonce: string
-  environment: string
-  algorithm: ComputeAlgorithm
-  dataset: ComputeAsset
-  additionalDatasets?: ComputeAsset[]
-  output?: ComputeOutput */
     const wallet = new ethers.Wallet(
       '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
     )
@@ -152,6 +139,33 @@ describe('Compute', () => {
     expect(response.stream).to.be.instanceOf(Readable)
 
     const jobs = await streamToObject(response.stream as Readable)
-    console.log(jobs)
+    // eslint-disable-next-line prefer-destructuring
+    jobId = jobs[0].jobId
+  })
+  it('should stop a compute job', async () => {
+    const wallet = new ethers.Wallet(
+      '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
+    )
+    const nonce = Date.now().toString()
+    const message = String(nonce)
+    // sign message/nonce
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await wallet.signMessage(messageHashBytes)
+    const stopComputeTask: ComputeStopCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_STOP,
+      consumerAddress: await wallet.getAddress(),
+      signature,
+      nonce,
+      jobId
+    }
+    const response = await new ComputeStopHandler(oceanNode).handle(stopComputeTask)
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response.stream, 'Failed to get stream')
+    expect(response.stream).to.be.instanceOf(Readable)
   })
 })

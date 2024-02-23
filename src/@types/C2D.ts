@@ -158,3 +158,26 @@ export interface OPFK8ComputeStart {
   nonce: number
   chainId: number
 }
+
+export interface OPFK8ComputeStop {
+  jobId: string
+  owner: string
+  providerSignature: string //  message=owner+jobId
+  providerAddress: string
+  nonce: number
+}
+
+export interface OPFK8ComputeGetStatus {
+  agreementId?: string
+  jobId?: string
+  owner?: string
+}
+
+export interface OPFK8ComputeGetResult {
+  jobId: string
+  owner: string
+  index: number
+  providerSignature: string //  message=owner+jobId
+  providerAddress: string
+  nonce: number
+}

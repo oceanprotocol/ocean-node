@@ -13,7 +13,10 @@ import type {
   OPFK8ComputeStageAlgorithm,
   OPFK8ComputeStageInput,
   OPFK8ComputeWorkflow,
-  OPFK8ComputeStart
+  OPFK8ComputeStart,
+  OPFK8ComputeStop,
+  OPFK8ComputeGetStatus,
+  OPFK8ComputeGetResult
 } from '../../@types/C2D.js'
 import { C2DClusterType } from '../../@types/C2D.js'
 import { sign } from '../core/utils/nonceHandler.js'
@@ -89,7 +92,7 @@ export abstract class C2DEngine {
     throw new Error(`Not implemented`)
   }
 
-  public async stopComputeJob(jobId: string): Promise<ComputeJob[]> {
+  public async stopComputeJob(jobId: string, owner: string): Promise<ComputeJob[]> {
     throw new Error(`Not implemented`)
   }
 
@@ -214,13 +217,39 @@ export class C2DEngineOPFK8 extends C2DEngine {
       for (let i = 0; i < jobs.length; i++) {
         newResponse[i].jobId = hash + '-' + jobs[i].jobId
       }
-      return jobs
+      return newResponse
     } catch (e) {}
     throw new Error(`startCompute Failure`)
   }
 
-  public override async stopComputeJob(jobId: string): Promise<ComputeJob[]> {
-    throw new Error(`Not implemented`)
+  public override async stopComputeJob(
+    jobId: string,
+    owner: string
+  ): Promise<ComputeJob[]> {
+    // and the full payload
+    const nonce: number = new Date().getTime()
+    const config = await getConfiguration()
+    const providerSignature = await sign(String(nonce), config.keys.privateKey)
+    const payload: OPFK8ComputeStop = {
+      owner,
+      providerSignature,
+      providerAddress: config.keys.ethAddress,
+      nonce,
+      jobId
+    }
+    try {
+      const response = await axios({
+        method: 'put',
+        url: `${this.getC2DConfig().url}api/v1/operator/compute`,
+        data: payload
+      })
+      if (response.status !== 200) {
+        const message = `Exception on stopCompute. Status: ${response.status}, ${response.statusText}`
+        throw new Error(message)
+      }
+      return response.data
+    } catch (e) {}
+    throw new Error(`stopCompute Failure`)
   }
 
   public override async getComputeJobStatus(
