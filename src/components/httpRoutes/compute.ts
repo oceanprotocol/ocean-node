@@ -8,7 +8,9 @@ import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 
 export const computeRoutes = express.Router()
 
-computeRoutes.get('/api/services/computeEnvironments', async (req, res) => {
+export const C2D_API_BASE_PATH = '/api/services'
+
+computeRoutes.get(`${C2D_API_BASE_PATH}/computeEnvironments`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(
       `GET computeEnvironments request received with query: ${JSON.stringify(req.query)}`,

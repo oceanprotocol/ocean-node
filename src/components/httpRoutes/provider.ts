@@ -9,10 +9,14 @@ import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { EncryptHandler } from '../core/encryptHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { DecryptDdoHandler } from '../core/ddoHandler.js'
+import { DownloadHandler } from '../core/downloadHandler.js'
+import { DownloadCommand } from '../../@types/commands.js'
 
 export const providerRoutes = express.Router()
 
-providerRoutes.post('/decrypt', async (req, res) => {
+export const SERVICES_API_BASE_PATH = '/api/services'
+
+providerRoutes.post(`${SERVICES_API_BASE_PATH}/decrypt`, async (req, res) => {
   try {
     const result = await new DecryptDdoHandler(req.oceanNode).handle({
       ...req.body,
@@ -31,7 +35,7 @@ providerRoutes.post('/decrypt', async (req, res) => {
   }
 })
 
-providerRoutes.post('/encrypt', async (req, res) => {
+providerRoutes.post(`${SERVICES_API_BASE_PATH}/encrypt`, async (req, res) => {
   try {
     const data = req.body.toString()
     if (!data) {
@@ -57,16 +61,7 @@ providerRoutes.post('/encrypt', async (req, res) => {
   }
 })
 
-providerRoutes.get('/download', async (req, res) => {
-  try {
-    res.status(400).send()
-  } catch (error) {
-    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
-    res.status(500).send('Internal Server Error')
-  }
-})
-
-providerRoutes.get('/initialize', async (req, res) => {
+providerRoutes.get(`${SERVICES_API_BASE_PATH}/initialize`, async (req, res) => {
   try {
     const did = String(req.query.documentId)
     const consumerAddress = String(req.query.consumerAddress)
@@ -111,7 +106,7 @@ providerRoutes.get('/initialize', async (req, res) => {
   }
 })
 
-providerRoutes.get('/nonce', async (req, res) => {
+providerRoutes.get(`${SERVICES_API_BASE_PATH}/nonce`, async (req, res) => {
   try {
     const userAddress = String(req.query.userAddress)
     if (!userAddress) {
@@ -130,3 +125,53 @@ providerRoutes.get('/nonce', async (req, res) => {
     res.status(500).send('Internal Server Error')
   }
 })
+
+providerRoutes.get(
+  `${SERVICES_API_BASE_PATH}/download`,
+  express.urlencoded({ extended: true, type: '*/*' }),
+  async (req, res): Promise<void> => {
+    if (!req.query) {
+      res.sendStatus(400)
+      return
+    }
+    HTTP_LOGGER.logMessage(
+      `Download request received: ${JSON.stringify(req.query)}`,
+      true
+    )
+    try {
+      const {
+        fileIndex,
+        documentId,
+        serviceId,
+        transferTxId,
+        nonce,
+        consumerAddress,
+        signature
+      } = req.query
+
+      const downloadTask: DownloadCommand = {
+        fileIndex: Number(fileIndex),
+        documentId: documentId as string,
+        serviceId: serviceId as string,
+        transferTxId: transferTxId as string,
+        nonce: nonce as string,
+        consumerAddress: consumerAddress as string,
+        signature: signature as string,
+        command: PROTOCOL_COMMANDS.DOWNLOAD
+      }
+
+      const response = await new DownloadHandler(req.oceanNode).handle(downloadTask)
+      if (response.stream) {
+        res.status(response.status.httpStatus)
+        res.set(response.status.headers)
+        response.stream.pipe(res)
+      } else {
+        res.status(response.status.httpStatus).send(response.status.error)
+      }
+    } catch (error) {
+      HTTP_LOGGER.logMessage(`Error: ${error}`, true)
+      res.status(500).send(error)
+    }
+    // res.sendStatus(200)
+  }
+)

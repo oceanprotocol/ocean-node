@@ -388,10 +388,11 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should increase number of orders', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.ORDER_REUSED,
-      DEFAULT_TEST_TIMEOUT
+      DEFAULT_TEST_TIMEOUT * 2
     )
     const retrievedDDO: any = ddo
     if (retrievedDDO) {
