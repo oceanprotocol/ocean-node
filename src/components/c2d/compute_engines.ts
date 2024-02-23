@@ -98,7 +98,7 @@ export abstract class C2DEngine {
 
   public async getComputeJobStatus(
     consumerAddress?: string,
-    did?: string,
+    agreementId?: string,
     jobId?: string
   ): Promise<ComputeJob[]> {
     throw new Error(`Not implemented`)
@@ -254,10 +254,40 @@ export class C2DEngineOPFK8 extends C2DEngine {
 
   public override async getComputeJobStatus(
     consumerAddress?: string,
-    did?: string,
+    agreementId?: string,
     jobId?: string
   ): Promise<ComputeJob[]> {
-    throw new Error(`Not implemented`)
+    const nonce: number = new Date().getTime()
+    const config = await getConfiguration()
+    let message: string
+    if (jobId) message = String(nonce + consumerAddress + jobId)
+    else message = String(nonce + consumerAddress + jobId)
+    const providerSignature = await sign(message, config.keys.privateKey)
+
+    const payload: OPFK8ComputeGetStatus = {
+      providerSignature,
+      providerAddress: config.keys.ethAddress,
+      nonce,
+      owner: consumerAddress,
+      agreementId,
+      jobId
+    }
+    try {
+      const response = await axios({
+        method: 'get',
+        url: `${this.getC2DConfig().url}api/v1/operator/compute`,
+        data: payload
+      })
+      if (response.status !== 200) {
+        // do not throw, just return []
+        return []
+      }
+
+      return response.data
+    } catch (e) {
+      console.error(e)
+    }
+    throw new Error(`getComputeJobStatus Failure`)
   }
 
   public override async getComputeJobResult(

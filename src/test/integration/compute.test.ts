@@ -47,6 +47,9 @@ describe('Compute', () => {
   let publishedComputeDataset: any
   let publishedAlgoDataset: any
   let jobId: string
+  const wallet = new ethers.Wallet(
+    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
+  )
   before(async () => {
     config = await getConfiguration(true) // Force reload the configuration
     dbconn = await new Database(config.dbConfig)
@@ -100,9 +103,6 @@ describe('Compute', () => {
     publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
   })
   it('should start a compute job', async () => {
-    const wallet = new ethers.Wallet(
-      '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
-    )
     const nonce = Date.now().toString()
     const message = String(nonce)
     // sign message/nonce
@@ -143,9 +143,6 @@ describe('Compute', () => {
     jobId = jobs[0].jobId
   })
   it('should stop a compute job', async () => {
-    const wallet = new ethers.Wallet(
-      '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
-    )
     const nonce = Date.now().toString()
     const message = String(nonce)
     // sign message/nonce
@@ -167,5 +164,39 @@ describe('Compute', () => {
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
+  })
+  it('should get job status by jobId', async () => {
+    const statusComputeTask: ComputeGetStatusCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+      consumerAddress: null,
+      did: null,
+      jobId
+    }
+    const response = await new ComputeGetStatusHandler(oceanNode).handle(
+      statusComputeTask
+    )
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response.stream, 'Failed to get stream')
+    expect(response.stream).to.be.instanceOf(Readable)
+    const jobs = await streamToObject(response.stream as Readable)
+    console.log(jobs)
+  })
+  it('should get job status by consumer', async () => {
+    const statusComputeTask: ComputeGetStatusCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+      consumerAddress: wallet.address,
+      did: null,
+      jobId: null
+    }
+    const response = await new ComputeGetStatusHandler(oceanNode).handle(
+      statusComputeTask
+    )
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response.stream, 'Failed to get stream')
+    expect(response.stream).to.be.instanceOf(Readable)
+    const jobs = await streamToObject(response.stream as Readable)
+    console.log(jobs)
   })
 })

@@ -171,6 +171,9 @@ export interface OPFK8ComputeGetStatus {
   agreementId?: string
   jobId?: string
   owner?: string
+  providerSignature: string //  message=owner+jobId(if any)
+  providerAddress: string
+  nonce: number
 }
 
 export interface OPFK8ComputeGetResult {
