@@ -170,6 +170,7 @@ export async function validateComputeProviderFee(
 ): Promise<[boolean, ProviderFeeData | {}]> {
   try {
     const timestampNow = new Date().getTime() / 1000
+    CORE_LOGGER.logMessage(`timestampNow: ${timestampNow}`)
     const validationResult = await verifyComputeProviderFees(
       tx,
       userAddress,

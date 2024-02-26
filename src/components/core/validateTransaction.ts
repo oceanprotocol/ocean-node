@@ -49,6 +49,8 @@ export async function verifyComputeProviderFees(
 ): Promise<ValidateTransactionResponse> {
   const contractInterface = new Interface(ERC20Template.abi)
   const txReceiptMined = await fetchTransactionReceipt(txId, provider)
+  CORE_LOGGER.logMessage(`tx mined${JSON.stringify(txReceiptMined)}`)
+  CORE_LOGGER.logMessage(`user address${userAddress}`)
 
   if (!txReceiptMined) {
     const errorMsg = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
@@ -70,6 +72,9 @@ export async function verifyComputeProviderFees(
     'ProviderFees',
     contractInterface
   )
+
+  CORE_LOGGER.logMessage(`provider fee ${JSON.stringify(ProviderFeesEvent)}`)
+  CORE_LOGGER.logMessage(`provider fee args ${JSON.stringify(ProviderFeesEvent[0].args)}`)
 
   const validUntilContract = parseInt(ProviderFeesEvent[0].args[7].toString())
   if (timestampNow >= validUntilContract) {
