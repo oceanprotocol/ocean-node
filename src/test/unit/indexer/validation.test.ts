@@ -61,7 +61,6 @@ describe('Schema validation tests', async () => {
     })
   })
   it('should not pass due to invalid did for chainId and NFT on version 4.1.0', async () => {
-    DDOExample['@context'] = ['https://w3id.org/did/v1']
     const validationResult = await validateObject(
       DDOExample2,
       8996,
@@ -74,9 +73,9 @@ describe('Schema validation tests', async () => {
     })
   })
   it('should not pass due to invalid ISO timestamp format on version 4.1.0', async () => {
-    DDOExample2['@context'] = ['https://w3id.org/did/v1']
-    const copy = DDOExample2
-    copy.metadata.created = 'timestamp'
+    const copy = DDOExample
+    copy.metadata.created = '2000-10-31T01:30:00.000-05:00'
+    console.log('copy: ', JSON.stringify(copy))
     const validationResult = await validateObject(copy, 137, copy.nftAddress)
     expect(validationResult[0]).to.eql(false)
     expect(validationResult[1]).to.eql({
