@@ -315,6 +315,7 @@ describe('Compute provider fees', async () => {
     expect(response.stream).to.be.instanceOf(Readable)
 
     const computeEnvironments = await streamToObject(response.stream as Readable)
+    console.log('compute envs: ', computeEnvironments)
     const firstEnv = computeEnvironments[0].id
     const { consumerAddress } = computeEnvironments[0]
     const dataset: ComputeAsset = {
