@@ -51,7 +51,7 @@ describe('Schema validation tests', async () => {
     const validationResult = await validateObject(
       incorrectDDO,
       8996,
-      DDOExample.nftAddress
+      incorrectDDO.nftAddress
     )
     expect(validationResult[0]).to.eql(false)
     console.log('validation res[1]: ', JSON.stringify(validationResult[1]))
