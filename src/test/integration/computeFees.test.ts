@@ -321,6 +321,7 @@ describe('Compute provider fees', async () => {
       documentId: resolvedDDO.id,
       serviceId: resolvedDDO.services[0].id
     }
+    console.log(`resolved algo: ${JSON.stringify(resolvedAlgo)}`)
     const algorithm: ComputeAlgorithm = {
       documentId: resolvedAlgo.id,
       serviceId: resolvedAlgo.services[0].id
