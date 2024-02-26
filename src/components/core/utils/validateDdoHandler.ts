@@ -131,7 +131,7 @@ export async function validateObject(
   CORE_LOGGER.logMessage(`validator: ${JSON.stringify(validator)}`)
 
   // run the validation process
-  const report = await validator.validate({ dataset: ddoCopy })
+  const report = await validator.validate({ dataset, data: ddoCopy })
   CORE_LOGGER.logMessage(`report: ${JSON.stringify(report)}`)
   if (!report) {
     const errorMsg = 'Validation report does not exist'
