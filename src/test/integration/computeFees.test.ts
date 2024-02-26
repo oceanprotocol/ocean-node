@@ -393,7 +393,7 @@ describe('Compute provider fees', async () => {
     const resp = await new InitializeComputeHandler(oceanNode).handle(
       initializeComputeTask
     )
-    console.log(`resp: ${resp}`)
+    console.log(`resp: ${JSON.stringify(resp)}`)
 
     assert(resp, 'Failed to get response')
     assert(resp.status.httpStatus === 200, 'Failed to get 200 response')
