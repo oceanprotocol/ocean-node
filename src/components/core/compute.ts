@@ -82,7 +82,7 @@ export class InitializeComputeHandler extends Handler {
     try {
       return ddo.services.filter((service) => service.id === serviceId)[0]
     } catch (err) {
-      CORE_LOGGER.logMessage(`Service was not found: ${err}`)
+      CORE_LOGGER.error(`Service was not found: ${err}`)
     }
   }
 
@@ -175,7 +175,7 @@ export class InitializeComputeHandler extends Handler {
             approvedParams.datasets.push(resultValidation[1])
           }
         } catch (error) {
-          CORE_LOGGER.logMessage(`Unable to find DDO locally: ${error}`, true)
+          CORE_LOGGER.error(`Unable to find DDO locally: ${error}`)
         }
       }
 
