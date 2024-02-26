@@ -142,6 +142,7 @@ export class InitializeComputeHandler extends Handler {
         }
         try {
           const ddo = (await node.getDatabase().ddo.retrieve(asset.documentId)) as DDO
+          CORE_LOGGER.logMessage(`ddo: ${JSON.stringify(ddo)}`)
           if (ddo.id === task.algorithm.documentId) {
             if (ddo.metadata.type !== 'algorithm') {
               const errorMsg = `DID is not a valid algorithm`
