@@ -113,14 +113,13 @@ export async function validateObject(
   const dataset = rdfDataset.dataset()
   try {
     const contents = await readFile(filename, { encoding: 'utf8' })
-    CORE_LOGGER.logMessage(`contents: ${contents}`)
     const parser = new Parser()
     const quads = parser.parse(contents)
-    CORE_LOGGER.logMessage(`quads: ${quads}`)
     quads.forEach((quad: Quad) => {
+      CORE_LOGGER.logMessage(`quad: ${JSON.stringify(quad)}`)
       dataset.add(quad)
     })
-    CORE_LOGGER.logMessage(`dataset: ${dataset}`)
+    CORE_LOGGER.logMessage(`dataset: ${JSON.stringify(dataset)}`)
   } catch (err) {
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
   }
