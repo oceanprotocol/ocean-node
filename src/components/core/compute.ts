@@ -180,6 +180,8 @@ export class InitializeComputeHandler extends Handler {
         }
       }
 
+      CORE_LOGGER.logMessage(`result: ${approvedParams}`)
+
       return {
         stream: Readable.from(JSON.stringify(approvedParams)),
         status: {
