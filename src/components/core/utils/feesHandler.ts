@@ -176,6 +176,9 @@ export async function validateComputeProviderFee(
       provider,
       timestampNow
     )
+    CORE_LOGGER.logMessage(
+      `is valid: ${validationResult.isValid} result: ${validationResult.message}`
+    )
     if (validationResult.isValid === false) {
       // provider fee expired -> reuse order
       CORE_LOGGER.log(
