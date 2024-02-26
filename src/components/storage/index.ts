@@ -1,10 +1,11 @@
 import {
-  UrlFileObject,
-  IpfsFileObject,
   ArweaveFileObject,
-  StorageReadable,
   FileInfoRequest,
   FileInfoResponse,
+  FileObjectType,
+  IpfsFileObject,
+  StorageReadable,
+  UrlFileObject,
   EncryptMethod
 } from '../../@types/fileObject.js'
 import { fetchFileMetadata } from '../../utils/asset.js'
@@ -25,6 +26,7 @@ export abstract class Storage {
   abstract getReadableStream(): Promise<StorageReadable>
   abstract getDownloadUrl(): string
   abstract fetchSpecificFileMetadata(fileObject: any): Promise<FileInfoResponse>
+  abstract encryptContent(encryptionType: 'AES' | 'ECIES'): Promise<Buffer>
 
   getFile(): any {
     return this.file
@@ -33,11 +35,11 @@ export abstract class Storage {
   static getStorageClass(file: any): UrlStorage | IpfsStorage | ArweaveStorage {
     const { type } = file
     switch (type) {
-      case 'url':
+      case FileObjectType.URL:
         return new UrlStorage(file)
-      case 'ipfs':
+      case FileObjectType.IPFS:
         return new IpfsStorage(file)
-      case 'arweave':
+      case FileObjectType.ARWEAVE:
         return new ArweaveStorage(file)
       default:
         throw new Error(`Invalid storage type: ${type}`)
@@ -211,6 +213,18 @@ export class UrlStorage extends Storage {
       encryptMethod: fileObject.encryptMethod
     }
   }
+
+  async encryptContent(
+    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
+  ): Promise<Buffer> {
+    const file = this.getFile()
+    const response = await axios({
+      url: file.url,
+      method: file.method || 'get',
+      headers: file.headers
+    })
+    return await encryptData(response.data, encryptionType)
+  }
 }
 
 export class ArweaveStorage extends Storage {
@@ -269,6 +283,17 @@ export class ArweaveStorage extends Storage {
       encryptMethod: fileObject.encryptMethod
     }
   }
+
+  async encryptContent(
+    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
+  ): Promise<Buffer> {
+    const file = this.getFile()
+    const response = await axios({
+      url: urlJoin(process.env.ARWEAVE_GATEWAY, file.transactionId),
+      method: 'get'
+    })
+    return await encryptData(response.data, encryptionType)
+  }
 }
 
 export class IpfsStorage extends Storage {
@@ -325,5 +350,16 @@ export class IpfsStorage extends Storage {
       encryptedBy: fileObject.encryptedBy,
       encryptMethod: fileObject.encryptMethod
     }
+  }
+
+  async encryptContent(
+    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
+  ): Promise<Buffer> {
+    const file = this.getFile()
+    const response = await axios({
+      url: file.hash,
+      method: 'get'
+    })
+    return await encryptData(response.data, encryptionType)
   }
 }

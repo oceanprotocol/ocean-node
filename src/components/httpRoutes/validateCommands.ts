@@ -56,23 +56,38 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
       if (!requestBody.query) {
         return buildInvalidRequestMessage('Missing required parameter: "query"')
       }
+    } else if (command === PROTOCOL_COMMANDS.ENCRYPT_FILE) {
+      if (!requestBody.files) {
+        return buildInvalidRequestMessage('Missing required parameter: "files"')
+      }
+      if (!requestBody.encryptionType) {
+        requestBody.encryptionType = 'AES' // defaults to AES encryption
+      } else if (
+        ![EncryptMethod.AES, EncryptMethod.ECIES].includes(
+          requestBody.encryptionType.toUpperCase()
+        )
+      ) {
+        return buildInvalidRequestMessage(
+          'Invalid parameter: "encryptionType" must be AES | ECIES'
+        )
+      }
     } else if (command === PROTOCOL_COMMANDS.ENCRYPT) {
       if (!requestBody.blob) {
         return buildInvalidRequestMessage('Missing required parameter: "blob"')
       }
       if (!requestBody.encoding) {
         requestBody.encoding = 'string'
-      }
-      if (!['string', 'base58'].includes(requestBody.encoding)) {
+      } else if (!['string', 'base58'].includes(requestBody.encoding.toLowerCase())) {
         return buildInvalidRequestMessage(
           'Invalid parameter: "encoding" must be String | Base58'
         )
       }
       if (!requestBody.encryptionType) {
-        requestBody.encoding = EncryptMethod.ECIES
-      }
-      if (
-        ![EncryptMethod.AES, EncryptMethod.ECIES].includes(requestBody.encryptionType)
+        requestBody.encryptionType = 'ECIES' // defaults to ECIES encryption
+      } else if (
+        ![EncryptMethod.AES, EncryptMethod.ECIES].includes(
+          requestBody.encryptionType.toUpperCase()
+        )
       ) {
         return buildInvalidRequestMessage(
           'Invalid parameter: "encryptionType" must be AES | ECIES'
