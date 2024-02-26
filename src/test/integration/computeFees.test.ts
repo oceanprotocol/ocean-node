@@ -292,7 +292,6 @@ describe('Compute provider fees', async () => {
       provider
     )
     assert(computeProviderFess, 'provider fees were not fetched')
-    console.log('provider fees: ', computeProviderFess)
     assert(computeProviderFess.providerFeeToken === oceanToken)
     assert(
       computeProviderFess.providerFeeAmount === 0n,
@@ -315,9 +314,9 @@ describe('Compute provider fees', async () => {
     expect(response.stream).to.be.instanceOf(Readable)
 
     const computeEnvironments = await streamToObject(response.stream as Readable)
-    console.log('compute envs: ', computeEnvironments)
     const firstEnv = computeEnvironments[0].id
     const { consumerAddress } = computeEnvironments[0]
+    console.log(`resolved ddo: ${JSON.stringify(resolvedDDO)}`)
     const dataset: ComputeAsset = {
       documentId: resolvedDDO.id,
       serviceId: resolvedDDO.services[0].id
