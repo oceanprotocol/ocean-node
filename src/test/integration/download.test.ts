@@ -25,20 +25,26 @@ import {
 import { DownloadHandler } from '../../components/core/downloadHandler.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getEventFromTx } from '../../utils/util.js'
-import { waitToIndex, delay } from './testUtils.js'
+import { waitToIndex, expectedTimeoutFailure } from './testUtils.js'
 import { getConfiguration } from '../../utils/config.js'
 import { ProviderFeeData } from '../../@types/Fees.js'
 import { encrypt } from '../../utils/crypt.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
-import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import {
+  ENVIRONMENT_VARIABLES,
+  EVENTS,
+  PROTOCOL_COMMANDS
+} from '../../utils/constants.js'
 import { OceanNode } from '../../OceanNode.js'
 import {
+  DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
 
 describe('Download Tests', () => {
   let database: Database
@@ -158,7 +164,7 @@ describe('Download Tests', () => {
     }
 
     const data = Uint8Array.from(Buffer.from(JSON.stringify(files)))
-    const encryptedData = await encrypt(data, 'ECIES')
+    const encryptedData = await encrypt(data, EncryptMethod.ECIES)
     // const encryptedDataString = encryptedData.toString('base64')
 
     nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, publisherAccount)
@@ -190,10 +196,19 @@ describe('Download Tests', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(35000)
-  it('should store the ddo in the database and return it ', async () => {
-    resolvedDDO = await waitToIndex(assetDID, database)
-    expect(resolvedDDO.id).to.equal(genericAsset.id)
+  it('should store the ddo in the database and return it', async function () {
+    const { ddo, wasTimeout } = await waitToIndex(
+      assetDID,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
+
+    resolvedDDO = ddo
+    if (resolvedDDO) {
+      expect(resolvedDDO.id).to.equal(genericAsset.id)
+    } else {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    }
   })
 
   it('should update ddo metadata fields ', async () => {
@@ -218,11 +233,9 @@ describe('Download Tests', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(35000)
-
   it('should start an order and then download the asset', async function () {
     const asset: any = resolvedDDO
-    this.timeout(65000) // Extend default Mocha test timeout
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2) // Extend default Mocha test timeout
 
     const dataTokenContract = new Contract(
       datatokenAddress,

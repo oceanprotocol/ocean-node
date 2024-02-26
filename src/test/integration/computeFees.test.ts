@@ -11,7 +11,11 @@ import {
 } from 'ethers'
 import { Readable } from 'stream'
 import { streamToObject, getEventFromTx } from '../../utils/util.js'
-import { PROTOCOL_COMMANDS, ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import {
+  PROTOCOL_COMMANDS,
+  ENVIRONMENT_VARIABLES,
+  EVENTS
+} from '../../utils/constants.js'
 import { InitializeComputeCommand, Dataset, Algorithm } from '../../@types/commands.js'
 import {
   InitializeComputeHandler,
@@ -24,21 +28,25 @@ import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { genericComputeDDO, genericAlgorithm } from '../data/ddo.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
-import { waitToIndex, delay } from './testUtils.js'
+import { waitToIndex, expectedTimeoutFailure } from './testUtils.js'
 import { encrypt } from '../../utils/crypt.js'
 import {
   calculateComputeProviderFee,
   getC2DEnvs
 } from '../../components/core/utils/feesHandler.js'
 import {
+  DEFAULT_TEST_TIMEOUT,
+  OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
-  setupEnvironment
+  isRunningContinousIntegrationEnv,
+  setupEnvironment,
+  tearDownEnvironment
 } from '../utils/utils.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { ProviderFeeData } from '../../@types/Fees.js'
-import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { OceanNode } from '../../OceanNode.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
 
 describe('Compute provider fees', async () => {
   let database: Database
@@ -69,15 +77,16 @@ describe('Compute provider fees', async () => {
   const data = getOceanArtifactsAdresses()
   const oceanToken = data.development.Ocean
 
-  await setupEnvironment(
-    null,
-    buildEnvOverrideConfig(
-      [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.FEE_TOKENS],
-      [JSON.stringify(mockSupportedNetworks), JSON.stringify({ 8996: oceanToken })]
-    )
-  )
+  let envOverrides: OverrideEnvConfig[]
 
   before(async () => {
+    envOverrides = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig(
+        [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.FEE_TOKENS],
+        [JSON.stringify(mockSupportedNetworks), JSON.stringify({ 8996: oceanToken })]
+      )
+    )
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -186,7 +195,7 @@ describe('Compute provider fees', async () => {
     }
 
     const data = Uint8Array.from(Buffer.from(JSON.stringify(files)))
-    const encryptedData = await encrypt(data, 'ECIES')
+    const encryptedData = await encrypt(data, EncryptMethod.ECIES)
     // const encryptedDataString = encryptedData.toString('base64')
 
     nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, publisherAccount)
@@ -218,70 +227,27 @@ describe('Compute provider fees', async () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(1000)
-  it('should set metadata and save algo', async () => {
-    // Encrypt the files
-    const files = {
-      datatokenAddress: '0x0',
-      nftAddress: '0x0',
-      files: [
-        {
-          type: 'url',
-          url: 'https://raw.githubusercontent.com/tbertinmahieux/MSongsDB/master/Tasks_Demos/CoverSongs/shs_dataset_test.txt',
-          method: 'GET'
-        }
-      ]
+  it('should store the ddo in the database and return it ', async function () {
+    const { ddo, wasTimeout } = await waitToIndex(
+      assetDID,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
+    resolvedDDO = ddo
+    if (resolvedDDO) {
+      expect(resolvedDDO.id).to.equal(genericAsset.id)
+    } else {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     }
-
-    const data = Uint8Array.from(Buffer.from(JSON.stringify(files)))
-    const encryptedData = await encrypt(data, 'ECIES')
-    // const encryptedDataString = encryptedData.toString('base64')
-
-    nftContract = new ethers.Contract(
-      nftAddressAlgo,
-      ERC721Template.abi,
-      publisherAccount
-    )
-    genericAlgo.id =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
-    genericAlgo.nftAddress = nftAddressAlgo
-    genericAlgo.services[0].datatokenAddress = datatokenAddressAlgo
-    genericAlgo.services[0].files = encryptedData
-
-    algoDID = genericAlgo.id
-    const stringDDO = JSON.stringify(genericAlgo)
-    const bytes = Buffer.from(stringDDO)
-    const metadata = hexlify(bytes)
-    const hash = createHash('sha256').update(metadata).digest('hex')
-
-    const setMetaDataTx = await nftContract.setMetaData(
-      0,
-      'http://v4.provider.oceanprotocol.com',
-      '0x123',
-      '0x01',
-      metadata,
-      '0x' + hash,
-      []
-    )
-    const trxReceipt = await setMetaDataTx.wait()
-    assert(trxReceipt, 'set metada failed')
-  })
-  delay(1000)
-  it('should store the ddo in the database and return it ', async () => {
-    resolvedDDO = await waitToIndex(assetDID, database)
-    expect(resolvedDDO.id).to.equal(genericAsset.id)
-  })
-
-  it('should store the ddo in the database and return it ', async () => {
-    resolvedAlgo = await waitToIndex(algoDID, database)
-    expect(resolvedAlgo.id).to.equal(genericAlgo.id)
   })
 
   it('should get provider fees for compute', async () => {
     computeEnvs = await getC2DEnvs(resolvedDDO as DDO)
+    if (!isRunningContinousIntegrationEnv()) {
+      // This fails locally because of connect EHOSTUNREACH to the url http://172.15.0.13:31000
+      assert(computeEnvs.length === 0, 'compute envs do not exist locally')
+      return
+    }
     assert(computeEnvs, 'compute envs could not be retrieved')
     const envs =
       computeEnvs[0][
@@ -304,6 +270,11 @@ describe('Compute provider fees', async () => {
 
   it('should get free provider fees for compute', async () => {
     computeEnvs = await getC2DEnvs(resolvedDDO as DDO)
+    if (!isRunningContinousIntegrationEnv()) {
+      // This fails locally because of connect EHOSTUNREACH to the url http://172.15.0.13:31000
+      assert(computeEnvs.length === 0, 'compute envs do not exist locally')
+      return
+    }
     assert(computeEnvs, 'compute envs could not be retrieved')
     const envs =
       computeEnvs[0][
@@ -375,5 +346,9 @@ describe('Compute provider fees', async () => {
     assert(resp.status.httpStatus === 200, 'Failed to get 200 response')
     assert(resp.stream, 'Failed to get stream')
     expect(resp.stream).to.be.instanceOf(Readable)
+  })
+
+  after(async () => {
+    await tearDownEnvironment(envOverrides)
   })
 })

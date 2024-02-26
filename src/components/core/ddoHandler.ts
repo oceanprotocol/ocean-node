@@ -31,6 +31,7 @@ import {
 } from '../../@types/commands.js'
 import { hasP2PInterface } from '../httpRoutes/index.js'
 import { getProviderWallet } from './utils/feesHandler'
+import { EncryptMethod } from '../../@types/fileObject.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -245,7 +246,7 @@ export class DecryptDdoHandler extends Handler {
       // check if DDO is ECIES encrypted
       if (flags & 2) {
         try {
-          decryptedDocument = await decrypt(encryptedDocument, 'ECIES')
+          decryptedDocument = await decrypt(encryptedDocument, EncryptMethod.ECIES)
         } catch (error) {
           CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
           return {
