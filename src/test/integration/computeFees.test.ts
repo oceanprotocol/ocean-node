@@ -58,6 +58,7 @@ describe('Compute provider fees', async () => {
   let provider: JsonRpcProvider
   let factoryContract: Contract
   let nftContract: Contract
+  let nftAlgoContract: Contract
   let publisherAccount: Signer
   let nftAddress: string
   let nftAddressAlgo: string
@@ -228,6 +229,39 @@ describe('Compute provider fees', async () => {
     )
     const trxReceipt = await setMetaDataTx.wait()
     assert(trxReceipt, 'set metada failed')
+
+    nftAlgoContract = new ethers.Contract(
+      nftAddressAlgo,
+      ERC721Template.abi,
+      publisherAccount
+    )
+    genericAlgo.id =
+      'did:op:' +
+      createHash('sha256')
+        .update(getAddress(nftAddressAlgo) + chainId.toString(10))
+        .digest('hex')
+    genericAlgo.nftAddress = nftAddressAlgo
+    genericAlgo.services[0].datatokenAddress = datatokenAddressAlgo
+    genericAlgo.services[0].files = encryptedData
+
+    algoDID = genericAlgo.id
+
+    const stringAlgo = JSON.stringify(genericAlgo)
+    const bytesAlgo = Buffer.from(stringAlgo)
+    const metadataAlgo = hexlify(bytesAlgo)
+    const hashAlgo = createHash('sha256').update(metadata).digest('hex')
+
+    const setMetaDataTxAlgo = await nftAlgoContract.setMetaData(
+      0,
+      'http://v4.provider.oceanprotocol.com',
+      '0x123',
+      '0x01',
+      metadataAlgo,
+      '0x' + hashAlgo,
+      []
+    )
+    const trxReceiptAlgo = await setMetaDataTxAlgo.wait()
+    assert(trxReceiptAlgo, 'set metada failed')
   })
 
   it('should store the ddo in the database and return it ', async function () {
@@ -239,6 +273,20 @@ describe('Compute provider fees', async () => {
     resolvedDDO = ddo
     if (resolvedDDO) {
       expect(resolvedDDO.id).to.equal(genericAsset.id)
+    } else {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    }
+  })
+
+  it('should store the algo in the database and return it ', async function () {
+    const { ddo, wasTimeout } = await waitToIndex(
+      algoDID,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
+    resolvedAlgo = ddo
+    if (resolvedAlgo) {
+      expect(resolvedAlgo.id).to.equal(genericAlgo.id)
     } else {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     }
