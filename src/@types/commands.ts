@@ -22,7 +22,6 @@ export interface DownloadCommand extends Command {
   signature: string
   feeTx?: string
   feeData?: any
-  chainId?: number
   aes_encrypted_key?: string // if not present it means download without encryption
 }
 
