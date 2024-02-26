@@ -159,20 +159,6 @@ export async function calculateComputeProviderFee(
   return providerFee
 }
 
-async function getEventData(
-  provider: JsonRpcApiProvider,
-  transactionHash: string,
-  abi: any
-): Promise<ethers.LogDescription> {
-  const iface = new ethers.Interface(abi)
-  const receipt = await provider.getTransactionReceipt(transactionHash)
-  const eventObj = {
-    topics: receipt.logs[0].topics as string[],
-    data: receipt.logs[0].data
-  }
-  return iface.parseLog(eventObj)
-}
-
 export async function validateComputeProviderFee(
   provider: JsonRpcApiProvider,
   tx: string,

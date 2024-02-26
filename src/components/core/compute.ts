@@ -10,7 +10,7 @@ import { streamToString } from '../../utils/util.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import axios from 'axios'
 import { validateComputeProviderFee } from './utils/feesHandler.js'
-import { JsonRpcProvider } from 'ethers'
+import { getJsonRpcProvider } from '../../utils/blockchain.js'
 
 export class GetEnvironmentsHandler extends Handler {
   async handle(task: GetEnvironmentsCommand): Promise<P2PCommandResponse> {
@@ -156,10 +156,7 @@ export class InitializeComputeHandler extends Handler {
             }
           }
           const service = this.getServiceById(ddo, asset.serviceId)
-          const networkUrl = (await getConfiguration()).supportedNetworks[
-            task.chainId.toString()
-          ].rpc
-          const provider = new JsonRpcProvider(networkUrl)
+          const provider = await getJsonRpcProvider(task.chainId)
 
           const resultValidation = await validateComputeProviderFee(
             provider,
