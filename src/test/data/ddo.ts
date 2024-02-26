@@ -81,8 +81,8 @@ export const DDOExample2 = {
   chainId: 8996,
   nftAddress: '0x0000000000000000000000000000000000000000',
   metadata: {
-    created: '2000-10-31T01:30:00.000-05:00',
-    updated: '2000-10-31T01:30:00.000-05:00',
+    created: '2022-12-30T08:40:06Z',
+    updated: '2022-12-30T08:40:06Z',
     name: 'Ocean protocol white paper',
     type: 'dataset',
     description: 'Ocean protocol white paper -- description',
