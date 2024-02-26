@@ -86,7 +86,8 @@ export async function validateObject(
   const ddoCopy = JSON.parse(JSON.stringify(obj))
   ddoCopy['@type'] = 'DDO'
   const extraErrors: Record<string, string> = {}
-  ;['created', 'updated'].forEach((attr) => {
+  const timestamps = ['created', 'updated']
+  timestamps.forEach((attr) => {
     if ('metadata' in obj && attr in obj.metadata && !isIsoFormat(obj.metadata[attr])) {
       extraErrors.metadata = `${attr} is not in ISO format.`
     }
@@ -130,7 +131,7 @@ export async function validateObject(
   CORE_LOGGER.logMessage(`validator: ${JSON.stringify(validator)}`)
 
   // run the validation process
-  const report = await validator.validate({ dataset })
+  const report = await validator.validate({ dataset, data: ddoCopy })
   CORE_LOGGER.logMessage(`report: ${JSON.stringify(report)}`)
   if (!report) {
     const errorMsg = 'Validation report does not exist'

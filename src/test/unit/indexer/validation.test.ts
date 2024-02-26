@@ -72,6 +72,13 @@ describe('Schema validation tests', async () => {
       id: 'did is not valid for chain Id and nft address'
     })
   })
+  it('should not pass due to invalid chainId on version 4.1.0', async () => {
+    const validationResult = await validateObject(DDOExample, 8996, DDOExample.nftAddress)
+    expect(validationResult[0]).to.eql(false)
+    expect(validationResult[1]).to.eql({
+      chainId: 'chainId is missing or invalid.'
+    })
+  })
   it('should not pass due to invalid ISO timestamp format on version 4.1.0', async () => {
     const copy = DDOExample
     copy.metadata.created = '2000-10-31T01:30:00.000-05:00'
