@@ -1,6 +1,7 @@
 import {
   incorrectDDO,
   DDOExample,
+  DDOExample2,
   ddov5,
   ddoValidationSignature
 } from '../../data/ddo.js'
@@ -61,7 +62,11 @@ describe('Schema validation tests', async () => {
   })
   it('should not pass due to invalid did for chainId and NFT on version 4.1.0', async () => {
     DDOExample['@context'] = ['https://w3id.org/did/v1']
-    const validationResult = await validateObject(DDOExample, 8996, DDOExample.nftAddress)
+    const validationResult = await validateObject(
+      DDOExample2,
+      8996,
+      DDOExample.nftAddress
+    )
     console.log('validation result: ', validationResult)
     expect(validationResult[0]).to.eql(false)
     expect(validationResult[1]).to.eql({
@@ -69,7 +74,7 @@ describe('Schema validation tests', async () => {
     })
   })
   it('should not pass due to missing context on version 4.1.0', async () => {
-    const copy = DDOExample
+    const copy = DDOExample2
     delete copy['@context']
     const validationResult = await validateObject(copy, 137, copy.nftAddress)
     expect(validationResult[0]).to.eql(false)
@@ -78,8 +83,8 @@ describe('Schema validation tests', async () => {
     })
   })
   it('should not pass due to invalid ISO timestamp format on version 4.1.0', async () => {
-    DDOExample['@context'] = ['https://w3id.org/did/v1']
-    const copy = DDOExample
+    DDOExample2['@context'] = ['https://w3id.org/did/v1']
+    const copy = DDOExample2
     copy.metadata.created = 'timestamp'
     const validationResult = await validateObject(copy, 137, copy.nftAddress)
     expect(validationResult[0]).to.eql(false)

@@ -128,8 +128,11 @@ export async function validateObject(
     factory: rdfDataModel
   })
 
+  CORE_LOGGER.logMessage(`validator: ${JSON.stringify(validator)}`)
+
   // run the validation process
   const report = await validator.validate({ dataset })
+  CORE_LOGGER.logMessage(`report: ${JSON.stringify(report)}`)
   if (!report) {
     const errorMsg = 'Validation report does not exist'
     CORE_LOGGER.logMessage(errorMsg, true)
