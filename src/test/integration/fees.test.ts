@@ -1,4 +1,4 @@
-import { expect } from 'chai'
+import { expect, assert } from 'chai'
 import {
   ENVIRONMENT_VARIABLES,
   PROTOCOL_COMMANDS,
@@ -38,6 +38,8 @@ const service: Service = {
   serviceEndpoint: '',
   timeout: 0
 }
+
+const expectedProviderFeeAmount: BigInt = 1000000000000000000n
 
 describe('Ocean Node fees', () => {
   let config: OceanNodeConfig
@@ -81,7 +83,7 @@ describe('Ocean Node fees', () => {
     if (data) {
       expect(data.providerFeeAddress).to.be.equal(address)
       expect(data.providerFeeToken).to.be.equal(providerFeeToken)
-      expect(data.providerFeeAmount).to.be.equal(1000000000000000000n) // 1 converted to 18 decimals
+      expect(data.providerFeeAmount).to.be.equal(expectedProviderFeeAmount) // 1 converted to 18 decimals
     }
   })
 
@@ -96,7 +98,7 @@ describe('Ocean Node fees', () => {
     if (data) {
       expect(data.providerFeeAddress).to.be.equal(address)
       expect(data.providerFeeToken).to.be.equal(providerFeeToken)
-      expect(data.providerFeeAmount).to.be.equal(1000000000000000000n) // 1 converted to 18 decimals
+      expect(data.providerFeeAmount).to.be.equal(expectedProviderFeeAmount) // 1 converted to 18 decimals
 
       // will sign a new message with this data to simulate the txId and then check it
       const providerDataAsArray = ethers.toBeArray(data.providerData)
@@ -151,8 +153,6 @@ describe('Ocean Node fees', () => {
       serviceId: service.id,
       command: PROTOCOL_COMMANDS.GET_FEES
     })
-    console.log('data log: ', data.status)
-    console.log('data stream: ', data.stream)
     expect(data.status.httpStatus).to.equal(200)
     const { stream } = data
     if (stream) {
@@ -160,11 +160,12 @@ describe('Ocean Node fees', () => {
       stream.on('end', () => {
         // check that we got a valid response
         const feesData: ProviderFeeData = JSON.parse(buffer.toString()) as ProviderFeeData
-        console.log('fees data json: ', feesData)
         expect(feesData.providerFeeAddress).to.be.equal(address)
         expect(feesData.providerFeeToken).to.be.equal(providerFeeToken)
-        expect(feesData.providerFeeAmount).to.be.equal(1000000000000000000n)
-        expect(feesData.v).to.be.gte(27) // 27 OR 28
+        expect(feesData.providerFeeAmount).to.be.equal(expectedProviderFeeAmount)
+        assert(
+          feesData.v === 27 || (feesData.v === 27, 'Expected feesData.v to be 27 or 28')
+        )
         expect(Object.keys(feesData.r).length).to.be.equal(66) // 32 bytes in hex + 0x
         expect(Object.keys(feesData.s).length).to.be.equal(66) // 32 bytes in hex + 0x
       })

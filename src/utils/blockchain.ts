@@ -1,6 +1,5 @@
 import { ethers, Signer, JsonRpcApiProvider, JsonRpcProvider, Contract } from 'ethers'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-import { getConfiguration } from './config.js'
 
 export class Blockchain {
   private signer: Signer

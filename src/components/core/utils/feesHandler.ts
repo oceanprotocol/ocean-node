@@ -234,9 +234,7 @@ export async function createFee(
 
   if (providerFeeToken === ZeroAddress) {
     providerFeeAmount = 0
-  }
-
-  if (providerFeeToken && providerFeeToken !== ZeroAddress) {
+  } else {
     const networkUrl = (await getConfiguration()).supportedNetworks[
       asset.chainId.toString()
     ].rpc
