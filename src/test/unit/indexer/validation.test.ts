@@ -62,6 +62,7 @@ describe('Schema validation tests', async () => {
   it('should not pass due to invalid did for chainId and NFT on version 4.1.0', async () => {
     DDOExample['@context'] = ['https://w3id.org/did/v1']
     const validationResult = await validateObject(DDOExample, 8996, DDOExample.nftAddress)
+    console.log('validation result: ', validationResult)
     expect(validationResult[0]).to.eql(false)
     expect(validationResult[1]).to.eql({
       id: 'did is not valid for chain Id and nft address'

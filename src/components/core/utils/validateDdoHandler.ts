@@ -9,7 +9,7 @@ import * as shaclEngine from 'shacl-engine'
 import { createHash } from 'crypto'
 import { ethers, getAddress } from 'ethers'
 import { readFile } from 'node:fs/promises'
-import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { CORE_LOGGER, INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
 
@@ -92,7 +92,7 @@ export async function validateObject(
     }
   })
 
-  if (!chainId) {
+  if (!chainId && chainId !== ddoCopy.chainId) {
     extraErrors.chainId = 'chainId is missing or invalid.'
   }
 
@@ -113,11 +113,14 @@ export async function validateObject(
   const dataset = rdfDataset.dataset()
   try {
     const contents = await readFile(filename, { encoding: 'utf8' })
+    CORE_LOGGER.logMessage(`contents: ${contents}`)
     const parser = new Parser()
     const quads = parser.parse(contents)
+    CORE_LOGGER.logMessage(`quads: ${quads}`)
     quads.forEach((quad: Quad) => {
       dataset.add(quad)
     })
+    CORE_LOGGER.logMessage(`dataset: ${dataset}`)
   } catch (err) {
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
   }
