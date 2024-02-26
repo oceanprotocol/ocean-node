@@ -62,9 +62,11 @@ export async function verifyComputeProviderFees(
   }
 
   if (userAddress.toLowerCase() !== txReceiptMined.from.toLowerCase()) {
+    const errorMsg = 'User address does not match the sender of the transaction.'
+    CORE_LOGGER.logMessage(errorMsg)
     return {
       isValid: false,
-      message: 'User address does not match the sender of the transaction.'
+      message: errorMsg
     }
   }
   const ProviderFeesEvent = fetchEventFromTransaction(
