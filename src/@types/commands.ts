@@ -126,7 +126,7 @@ export interface ComputeGetResultCommand extends Command {
   signature: string
   nonce: string
   jobId: string
-  index: string
+  index: number
 }
 
 export interface ComputeGetStatusCommand extends Command {

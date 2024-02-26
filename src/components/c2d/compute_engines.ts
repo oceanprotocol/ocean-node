@@ -1,4 +1,5 @@
 import { OceanNode } from '../../OceanNode.js'
+import { Readable } from 'stream'
 import type {
   C2DClusterInfo,
   ComputeEnvironment,
@@ -104,7 +105,11 @@ export abstract class C2DEngine {
     throw new Error(`Not implemented`)
   }
 
-  public async getComputeJobResult(jobId: string, index: number): Promise<Buffer> {
+  public async getComputeJobResult(
+    consumerAddress: string,
+    jobId: string,
+    index: number
+  ): Promise<Readable> {
     throw new Error(`Not implemented`)
   }
 }
@@ -291,10 +296,41 @@ export class C2DEngineOPFK8 extends C2DEngine {
   }
 
   public override async getComputeJobResult(
+    consumerAddress: string,
     jobId: string,
     index: number
-  ): Promise<Buffer> {
-    throw new Error(`Not implemented`)
+  ): Promise<Readable> {
+    const nonce: number = new Date().getTime()
+    const config = await getConfiguration()
+    let message: string
+    if (jobId) message = String(nonce + consumerAddress + jobId)
+    else message = String(nonce + consumerAddress + jobId)
+    const providerSignature = await sign(message, config.keys.privateKey)
+
+    const payload: OPFK8ComputeGetResult = {
+      providerSignature,
+      providerAddress: config.keys.ethAddress,
+      nonce,
+      owner: consumerAddress,
+      jobId,
+      index
+    }
+    try {
+      const response = await axios({
+        method: 'get',
+        url: `${this.getC2DConfig().url}api/v1/operator/computeResult`,
+        data: payload,
+        responseType: 'stream'
+      })
+      if (response.status !== 200) {
+        const message = `Exception on getComputeJobResult. Status: ${response.status}, ${response.statusText}`
+        throw new Error(message)
+      }
+      return response.data
+    } catch (e) {
+      console.error(e)
+    }
+    throw new Error(`getComputeJobStatus Failure`)
   }
 }
 
