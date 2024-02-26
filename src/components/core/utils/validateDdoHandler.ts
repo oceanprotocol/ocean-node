@@ -124,14 +124,14 @@ export async function validateObject(
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
   }
   // create a validator instance for the shapes in the given dataset
-  const validator = new shaclEngine.Validator(dataset, {
+  const validator = new shaclEngine.Validator(ddoCopy, {
     factory: rdfDataModel
   })
 
   CORE_LOGGER.logMessage(`validator: ${JSON.stringify(validator)}`)
 
   // run the validation process
-  const report = await validator.validate({ dataset, data: ddoCopy })
+  const report = await validator.validate({ data: ddoCopy })
   CORE_LOGGER.logMessage(`report: ${JSON.stringify(report)}`)
   if (!report) {
     const errorMsg = 'Validation report does not exist'
@@ -151,6 +151,7 @@ export async function validateObject(
         `validateObject found new errors introduced: ${JSON.stringify(mergedErrors)}`,
         true
       )
+      CORE_LOGGER.logMessage(`mergedErrors: ${mergedErrors}`)
 
       return [false, mergedErrors]
     }
