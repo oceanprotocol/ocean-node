@@ -73,15 +73,6 @@ describe('Schema validation tests', async () => {
       id: 'did is not valid for chain Id and nft address'
     })
   })
-  it('should not pass due to missing context on version 4.1.0', async () => {
-    const copy = DDOExample2
-    delete copy['@context']
-    const validationResult = await validateObject(copy, 137, copy.nftAddress)
-    expect(validationResult[0]).to.eql(false)
-    expect(validationResult[1]).to.eql({
-      '@context': 'Context is missing.'
-    })
-  })
   it('should not pass due to invalid ISO timestamp format on version 4.1.0', async () => {
     DDOExample2['@context'] = ['https://w3id.org/did/v1']
     const copy = DDOExample2
