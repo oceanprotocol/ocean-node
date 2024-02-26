@@ -168,6 +168,12 @@ export class InitializeComputeHandler extends Handler {
             task.compute.validUntil,
             task.consumerAddress
           )
+          CORE_LOGGER.logMessage(
+            `validation: ${JSON.stringify(resultValidation)}, 1: ${JSON.stringify(
+              resultValidation[1]
+            )}`
+          )
+          CORE_LOGGER.logMessage(`result: ${JSON.stringify(approvedParams)}`)
           if (ddo.metadata.type === 'algorithm') {
             approvedParams = {
               algorithm: resultValidation[1]
