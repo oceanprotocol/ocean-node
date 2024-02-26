@@ -381,7 +381,7 @@ describe('Compute provider fees', async () => {
       compute: {
         env: firstEnv,
         validUntil: new Date(
-          currentDate.getFullYear() + 3,
+          currentDate.getFullYear() + 1,
           currentDate.getMonth(),
           currentDate.getDate()
         ).getTime()
