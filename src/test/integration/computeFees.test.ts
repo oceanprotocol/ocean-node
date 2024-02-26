@@ -16,7 +16,11 @@ import {
   ENVIRONMENT_VARIABLES,
   EVENTS
 } from '../../utils/constants.js'
-import { InitializeComputeCommand, Dataset, Algorithm } from '../../@types/commands.js'
+import {
+  InitializeComputeCommand,
+  ComputeAsset,
+  ComputeAlgorithm
+} from '../../@types/C2D.js'
 import {
   InitializeComputeHandler,
   GetEnvironmentsHandler
@@ -314,11 +318,11 @@ describe('Compute provider fees', async () => {
     const computeEnvironments = await streamToObject(response.stream as Readable)
     const firstEnv = computeEnvironments[0].id
     const { consumerAddress } = computeEnvironments[0]
-    const dataset: Dataset = {
+    const dataset: ComputeAsset = {
       documentId: resolvedDDO.id,
       serviceId: resolvedDDO.services[0].id
     }
-    const algorithm: Algorithm = {
+    const algorithm: ComputeAlgorithm = {
       documentId: resolvedAlgo.id,
       serviceId: resolvedAlgo.services[0].id
     }

@@ -55,34 +55,21 @@ export interface GetEnvironmentsCommand extends Command {
   chainId: number
 }
 
-export interface Dataset {
-  documentId: string
-  serviceId: string
-  transferTxId?: string
-  userdata?: any
-}
+// export interface Dataset {
+//   documentId: string
+//   serviceId: string
+//   transferTxId?: string
+//   userdata?: any
+// }
 
-export interface Algorithm {
-  documentId: string
-  meta?: any
-  serviceId: string
-  transferTxId?: string
-  userdata?: any
-  algocustomdata?: any
-}
-
-export interface Compute {
-  env: string // with hash
-  validUntil: number
-}
-
-export interface InitializeComputeCommand extends Command {
-  datasets: [Dataset]
-  algorithm: Algorithm
-  compute: Compute
-  consumerAddress: string
-  chainId: number
-}
+// export interface Algorithm {
+//   documentId: string
+//   meta?: any
+//   serviceId: string
+//   transferTxId?: string
+//   userdata?: any
+//   algocustomdata?: any
+// }
 
 export interface StatusCommand extends Command {}
 

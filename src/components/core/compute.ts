@@ -2,10 +2,8 @@ import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../@types'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { Handler } from './handler.js'
-import {
-  GetEnvironmentsCommand,
-  InitializeComputeCommand
-} from '../../@types/commands.js'
+import { GetEnvironmentsCommand } from '../../@types/commands.js'
+import { InitializeComputeCommand } from '../../@types/C2D'
 import { getConfiguration } from '../../utils/config.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { streamToString } from '../../utils/util.js'
@@ -169,7 +167,8 @@ export class InitializeComputeHandler extends Handler {
             task.compute.env,
             ddo,
             service,
-            task.compute.validUntil
+            task.compute.validUntil,
+            task.consumerAddress
           )
           if (ddo.metadata.type === 'algorithm') {
             approvedParams = {
