@@ -83,6 +83,7 @@ export async function calculateComputeProviderFee(
   const validUntilDateTime = new Date(validUntil).getTime()
   const seconds: number = (now - validUntilDateTime) / 1000
   const env = await getEnv(asset, computeEnv)
+  CORE_LOGGER.logMessage(`env : ${env}, computeEnv: ${computeEnv}`)
 
   if (!env) {
     CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Env could not be found.`, true)
@@ -181,19 +182,26 @@ export async function validateComputeProviderFee(
       `is valid: ${validationResult.isValid} result: ${validationResult.message}`
     )
     if (validationResult.isValid === false) {
-      // provider fee expired -> reuse order
+      // provider fee expired or tx id is not provided -> reuse order
       CORE_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_INFO,
-        `Provider fees for this env have expired -> reuse order.`,
+        `Provider fees for this env have expired or tx ID was not provided -> reuse order.`,
         true
       )
+      CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_INFO, `Compute env ${computeEnv}.`, true)
       const envId = computeEnv.split('-')[1]
+      CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_INFO, `envId ${envId}.`, true)
       const newProviderFee = await calculateComputeProviderFee(
         asset,
         validUntil,
         envId,
         service,
         provider
+      )
+      CORE_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_INFO,
+        `newProviderFee: ${newProviderFee}`,
+        true
       )
       return [false, newProviderFee]
     } else {
