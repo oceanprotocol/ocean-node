@@ -191,7 +191,6 @@ export async function validateComputeProviderFee(
       CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_INFO, `Compute env ${computeEnv}.`, true)
       const regex = /[^-]*-(ocean-[^-]*)/
       const envId = computeEnv.match(regex)[1]
-      // computeEnv.split('-')[1] + '-' + computeEnv.split('-')[2]
       CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_INFO, `envId ${envId}.`, true)
       const newProviderFee = await calculateComputeProviderFee(
         asset,
@@ -202,7 +201,16 @@ export async function validateComputeProviderFee(
       )
       CORE_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_INFO,
-        `newProviderFee: ${newProviderFee}`,
+        `newProviderFee: ${JSON.stringify(
+          newProviderFee,
+          (key, value) => {
+            if (typeof value === 'bigint') {
+              return value.toString() // Convert BigInt to string
+            }
+            return value
+          },
+          4
+        )}`,
         true
       )
       return [false, newProviderFee]

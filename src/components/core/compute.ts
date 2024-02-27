@@ -186,10 +186,17 @@ export class InitializeComputeHandler extends Handler {
           )
           CORE_LOGGER.logMessage(
             `validation: ${JSON.stringify(resultValidation)}, 1: ${JSON.stringify(
-              resultValidation[1]
+              resultValidation[1],
+              (key, value) => {
+                if (typeof value === 'bigint') {
+                  return value.toString() // Convert BigInt to string
+                }
+                return value
+              },
+              4
             )}`
           )
-          CORE_LOGGER.logMessage(`result: ${JSON.stringify(approvedParams)}`)
+          // CORE_LOGGER.logMessage(`result: ${JSON.stringify(approvedParams)}`)
           if (ddo.metadata.type === 'algorithm') {
             approvedParams = {
               algorithm: resultValidation[1]
@@ -198,7 +205,7 @@ export class InitializeComputeHandler extends Handler {
             approvedParams.datasets.push(resultValidation[1])
           }
         } catch (error) {
-          CORE_LOGGER.error(`Unable to find DDO locally: ${error}`)
+          CORE_LOGGER.error(`Unable to get compute provider fees: ${error}`)
         }
       }
 
