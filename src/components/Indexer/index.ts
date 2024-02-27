@@ -109,7 +109,7 @@ export class OceanIndexer {
     }
   }
 
-  static async addReindexTask(reindexTask: ReindexTask): Promise<void> {
+  static addReindexTask(reindexTask: ReindexTask): void {
     const worker = OceanIndexer.workers[reindexTask.chainId]
     if (worker) {
       worker.postMessage({ method: 'add-reindex-task', reindexTask })

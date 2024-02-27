@@ -28,36 +28,28 @@ let metadataStateEventProcessor: MetadataStateEventProcessor
 let orderReusedEventProcessor: OrderReusedEventProcessor
 let orderStartedEventProcessor: OrderStartedEventProcessor
 
-async function getMetadataEventProcessor(
-  chainId: number
-): Promise<MetadataEventProcessor> {
+function getMetadataEventProcessor(chainId: number): MetadataEventProcessor {
   if (!metadataEventProccessor) {
     metadataEventProccessor = new MetadataEventProcessor(chainId)
   }
   return metadataEventProccessor
 }
 
-async function getMetadataStateEventProcessor(
-  chainId: number
-): Promise<MetadataStateEventProcessor> {
+function getMetadataStateEventProcessor(chainId: number): MetadataStateEventProcessor {
   if (!metadataStateEventProcessor) {
     metadataStateEventProcessor = new MetadataStateEventProcessor(chainId)
   }
   return metadataStateEventProcessor
 }
 
-async function getOrderReusedEventProcessor(
-  chainId: number
-): Promise<OrderReusedEventProcessor> {
+function getOrderReusedEventProcessor(chainId: number): OrderReusedEventProcessor {
   if (!orderReusedEventProcessor) {
     orderReusedEventProcessor = new OrderReusedEventProcessor(chainId)
   }
   return orderReusedEventProcessor
 }
 
-async function getOrderStartedEventProcessor(
-  chainId: number
-): Promise<OrderStartedEventProcessor> {
+function getOrderStartedEventProcessor(chainId: number): OrderStartedEventProcessor {
   if (!orderStartedEventProcessor) {
     orderStartedEventProcessor = new OrderStartedEventProcessor(chainId)
   }
@@ -87,7 +79,7 @@ export const getContractAddress = (chainId: number, contractName: string): strin
   }
 }
 
-export const getDeployedContractBlock = async (network: number) => {
+export const getDeployedContractBlock = (network: number) => {
   let deployedBlock: number
   const addressFile = getAddressFile(network)
   const networkKeys = Object.keys(addressFile)
@@ -232,22 +224,19 @@ export const processChunkLogs = async (
   return {}
 }
 
-const procesExchangeCreated = async (): Promise<string> => {
+const procesExchangeCreated = (): string => {
   return 'EXCHANGE_CREATED'
 }
 
-const processExchangeRateChanged = async (): Promise<string> => {
+const processExchangeRateChanged = (): string => {
   return 'EXCHANGE_RATE_CHANGED'
 }
 
-const processTokenUriUpadate = async (): Promise<string> => {
+const processTokenUriUpadate = (): string => {
   return 'TOKEN_URI_UPDATE'
 }
 
-export const getNFTContract = async (
-  signer: Signer,
-  address: string
-): Promise<ethers.Contract> => {
+export const getNFTContract = (signer: Signer, address: string): ethers.Contract => {
   address = getAddress(address)
   return getContract(signer, 'ERC721Template', address)
 }
@@ -260,11 +249,11 @@ export const getNFTFactory = async (
   return await getContract(signer, 'ERC721Factory', address)
 }
 
-async function getContract(
+function getContract(
   signer: Signer,
   contractName: string,
   address: string
-): Promise<ethers.Contract> {
+): ethers.Contract {
   const abi = getContractDefinition(contractName)
   return new ethers.Contract(getAddress(address), abi, signer) // was provider.getSigner() => thow no account
 }

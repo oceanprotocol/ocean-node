@@ -132,7 +132,7 @@ async function processReindex(): Promise<void> {
   }
 }
 
-export async function checkNewlyIndexedAssets(events: BlocksEvents): Promise<void> {
+export function checkNewlyIndexedAssets(events: BlocksEvents): void {
   const eventKeys = Object.keys(events)
   eventKeys.forEach((eventType) => {
     // will emit messages for all these events

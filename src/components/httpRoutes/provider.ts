@@ -58,7 +58,7 @@ providerRoutes.post('/encrypt', async (req, res) => {
   }
 })
 
-providerRoutes.get('/download', async (req, res) => {
+providerRoutes.get('/download', (req, res) => {
   try {
     res.status(400).send()
   } catch (error) {

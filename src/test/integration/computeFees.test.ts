@@ -36,7 +36,7 @@ import {
 import { DDO } from '../../@types/DDO/DDO.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 
-describe('Compute provider fees', async () => {
+describe('Compute provider fees', () => {
   let database: Database
   let indexer: OceanIndexer
   let provider: JsonRpcProvider
