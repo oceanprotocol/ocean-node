@@ -147,15 +147,12 @@ export class InitializeComputeHandler extends Handler {
       CORE_LOGGER.logMessage(`list of assets: ${listOfAssest} `, true)
       const node = this.getOceanNode()
       CORE_LOGGER.logMessage(`node: ${node} `, true)
-      let approvedParams: any = {
+      const approvedParams: any = {
         algorithm: {},
         datasets: []
       }
 
       for (const asset of listOfAssest) {
-        // if (!asset.transferTxId) {
-        //   continue
-        // }
         try {
           const ddo = (await node.getDatabase().ddo.retrieve(asset.documentId)) as DDO
           CORE_LOGGER.logMessage(`ddo: ${JSON.stringify(ddo)}`)
@@ -184,11 +181,8 @@ export class InitializeComputeHandler extends Handler {
             task.compute.validUntil,
             task.consumerAddress
           )
-          // CORE_LOGGER.logMessage(`result: ${JSON.stringify(approvedParams)}`)
           if (ddo.metadata.type === 'algorithm') {
-            approvedParams = {
-              algorithm: resultValidation[1]
-            }
+            approvedParams.algorithm = resultValidation[1]
           } else {
             approvedParams.datasets.push(resultValidation[1])
           }
