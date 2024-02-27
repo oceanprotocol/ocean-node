@@ -38,12 +38,15 @@ describe('Encrypt File', () => {
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
 
-    expect(response.status.headers['Content-Type']).to.be.equal(
-      'application/octet-stream'
-    )
+    const expectedHeaders = {
+      'Content-Type': 'application/octet-stream',
+      'X-Encrypted-By': config.keys.peerId.toString(),
+      'X-Encrypted-Method': EncryptMethod.AES
+    }
+    expect(response.status.headers).to.deep.equal(expectedHeaders)
   })
 
-  it('should encrypt raw data file on body', async () => {
+  it('should encrypt raw data file on body (AES)', async () => {
     // should return a buffer
     const file: Buffer = fs.readFileSync('src/test/data/organizations-100.aes')
     const encryptFileTask: EncryptFileCommand = {
@@ -61,6 +64,28 @@ describe('Encrypt File', () => {
       'Content-Type': 'application/octet-stream',
       'X-Encrypted-By': config.keys.peerId.toString(),
       'X-Encrypted-Method': EncryptMethod.AES
+    }
+    expect(response.status.headers).to.deep.equal(expectedHeaders)
+  })
+
+  it('should encrypt raw data file on body (ECIES)', async () => {
+    // should return a buffer
+    const file: Buffer = fs.readFileSync('src/test/data/organizations-100.aes')
+    const encryptFileTask: EncryptFileCommand = {
+      command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
+      encryptionType: EncryptMethod.ECIES,
+      rawData: file
+    }
+    const response = await new EncryptFileHandler(oceanNode).handle(encryptFileTask)
+
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response.stream, 'Failed to get stream')
+    expect(response.stream).to.be.instanceOf(Readable)
+    const expectedHeaders = {
+      'Content-Type': 'application/octet-stream',
+      'X-Encrypted-By': config.keys.peerId.toString(),
+      'X-Encrypted-Method': EncryptMethod.ECIES
     }
     expect(response.status.headers).to.deep.equal(expectedHeaders)
   })

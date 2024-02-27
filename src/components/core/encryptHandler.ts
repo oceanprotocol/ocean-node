@@ -38,20 +38,18 @@ export class EncryptHandler extends Handler {
 export class EncryptFileHandler extends Handler {
   async handle(task: EncryptFileCommand): Promise<P2PCommandResponse> {
     try {
-      let headers = {}
+      const config = await getConfiguration()
+      const headers = {
+        'Content-Type': 'application/octet-stream',
+        'X-Encrypted-By': config.keys.peerId.toString(),
+        'X-Encrypted-Method': task.encryptionType
+      }
       let encryptedContent: Buffer
       if (task.files) {
         const storage = Storage.getStorageClass(task.files)
         encryptedContent = await storage.encryptContent(task.encryptionType)
-        headers = { 'Content-Type': 'application/octet-stream' }
       } else if (task.rawData !== null) {
         encryptedContent = await encrypt(task.rawData, task.encryptionType)
-        const config = await getConfiguration()
-        headers = {
-          'Content-Type': 'application/octet-stream',
-          'X-Encrypted-By': config.keys.peerId.toString(),
-          'X-Encrypted-Method': task.encryptionType
-        }
       }
       return {
         stream: Readable.from(encryptedContent),
