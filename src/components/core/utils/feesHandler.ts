@@ -83,7 +83,7 @@ export async function calculateComputeProviderFee(
   const validUntilDateTime = new Date(validUntil).getTime()
   const seconds: number = (now - validUntilDateTime) / 1000
   const env = await getEnv(asset, computeEnv)
-  CORE_LOGGER.logMessage(`env : ${env}, computeEnv: ${computeEnv}`)
+  CORE_LOGGER.logMessage(`env : ${JSON.stringify(env)}, computeEnv: ${computeEnv}`)
 
   if (!env) {
     CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Env could not be found.`, true)
@@ -189,7 +189,9 @@ export async function validateComputeProviderFee(
         true
       )
       CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_INFO, `Compute env ${computeEnv}.`, true)
-      const envId = computeEnv.split('-')[1]
+      const regex = /-(.+?)(-|$)/
+      const envId = computeEnv.match(regex)[1]
+      // computeEnv.split('-')[1] + '-' + computeEnv.split('-')[2]
       CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_INFO, `envId ${envId}.`, true)
       const newProviderFee = await calculateComputeProviderFee(
         asset,
