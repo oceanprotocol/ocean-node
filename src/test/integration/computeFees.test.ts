@@ -398,12 +398,15 @@ describe('Compute provider fees', async () => {
     assert(resp.stream, 'Failed to get stream')
     expect(resp.stream).to.be.instanceOf(Readable)
 
+    let receivedData = ''
+
+    // Consume the stream
     resp.stream.on('data', (chunk) => {
-      console.log('Received chunk:', chunk.toString())
+      receivedData += chunk.toString() // Concatenate the chunk to the received data
     })
 
     resp.stream.on('end', () => {
-      console.log('Stream ended')
+      console.log('Received data:', receivedData)
     })
 
     resp.stream.on('error', (err) => {
