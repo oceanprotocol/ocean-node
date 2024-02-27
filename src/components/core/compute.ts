@@ -192,30 +192,22 @@ export class InitializeComputeHandler extends Handler {
       }
 
       CORE_LOGGER.logMessage(
-        `result: ${JSON.stringify(
-          approvedParams,
-          (key, value) => {
-            if (typeof value === 'bigint') {
-              return value.toString() // Convert BigInt to string
-            }
-            return value
-          },
-          4
-        )}`
+        `result: ${JSON.stringify(approvedParams, (key, value) => {
+          if (typeof value === 'bigint') {
+            return value.toString() // Convert BigInt to string
+          }
+          return value
+        })}`
       )
 
       return {
         stream: Readable.from(
-          JSON.stringify(
-            approvedParams,
-            (key, value) => {
-              if (typeof value === 'bigint') {
-                return value.toString() // Convert BigInt to string
-              }
-              return value
-            },
-            4
-          )
+          JSON.stringify(approvedParams, (key, value) => {
+            if (typeof value === 'bigint') {
+              return value.toString()
+            }
+            return value
+          })
         ),
         status: {
           httpStatus: 200
