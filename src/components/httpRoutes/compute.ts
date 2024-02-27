@@ -56,6 +56,20 @@ computeRoutes.post('/api/services/initializeCompute', async (req, res) => {
       res.status(400).send('Missing required body')
       return
     }
+    if (!body.datasets && !body.algorithm) {
+      res.status(400).send('Missing datasets and algorithm')
+      return
+    }
+    for (const dataset of body.datasets) {
+      if (!dataset.documentId) {
+        res.status(400).send('Missing dataset did')
+        return
+      }
+    }
+    if (!body.algorithm.documentId) {
+      res.status(400).send('Missing algorithm did')
+      return
+    }
     body.command = PROTOCOL_COMMANDS.INITIALIZE_COMPUTE
     const result = await new InitializeComputeHandler(req.oceanNode).handle(body)
     if (result.stream) {

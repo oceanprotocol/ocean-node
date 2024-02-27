@@ -181,7 +181,7 @@ export async function validateComputeProviderFee(
       // provider fee expired or tx id is not provided -> reuse order
       CORE_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_INFO,
-        `Provider fees for this env have expired or tx ID was not provided -> reuse order.`,
+        `${validationResult.message} -> create new provider fees.`,
         true
       )
       const regex = /[^-]*-(ocean-[^-]*)/
