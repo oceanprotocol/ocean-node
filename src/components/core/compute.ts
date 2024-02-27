@@ -95,6 +95,12 @@ export class InitializeComputeHandler extends Handler {
       )
 
       const { validUntil } = task.compute
+      CORE_LOGGER.logMessage(
+        `validate timestamp: ${this.validateTimestamp(
+          validUntil
+        )} and validUntil: ${validUntil}`,
+        true
+      )
       if (!this.validateTimestamp(validUntil)) {
         const errorMsg = `Error validating validUntil ${validUntil}. It is not in the future.`
         CORE_LOGGER.error(errorMsg)
@@ -117,6 +123,14 @@ export class InitializeComputeHandler extends Handler {
       const resp = await streamToString(req.stream as Readable)
       const c2dEnvs = JSON.parse(resp)
 
+      CORE_LOGGER.logMessage(
+        `c2d envs resp inside handler ${c2dEnvs} and check if exists ${this.checksC2DEnv(
+          task.compute.env,
+          c2dEnvs
+        )} `,
+        true
+      )
+
       if (!this.checksC2DEnv(task.compute.env, c2dEnvs)) {
         const errorMsg = `Compute env was not found.`
         CORE_LOGGER.error(errorMsg)
@@ -130,16 +144,18 @@ export class InitializeComputeHandler extends Handler {
       }
 
       const listOfAssest = [...task.datasets, ...[task.algorithm]]
+      CORE_LOGGER.logMessage(`list of assets: ${listOfAssest} `, true)
       const node = this.getOceanNode()
+      CORE_LOGGER.logMessage(`node: ${node} `, true)
       let approvedParams: any = {
         algorithm: {},
         datasets: []
       }
 
       for (const asset of listOfAssest) {
-        if (!asset.transferTxId) {
-          continue
-        }
+        // if (!asset.transferTxId) {
+        //   continue
+        // }
         try {
           const ddo = (await node.getDatabase().ddo.retrieve(asset.documentId)) as DDO
           CORE_LOGGER.logMessage(`ddo: ${JSON.stringify(ddo)}`)
