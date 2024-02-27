@@ -347,7 +347,7 @@ describe('Compute provider fees', async () => {
     )
   })
 
-  it('Initialize compute', async () => {
+  it('Initialize compute without transaction IDs', async () => {
     const getEnvironmentsTask = {
       command: PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS,
       chainId: 8996
