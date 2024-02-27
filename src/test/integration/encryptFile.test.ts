@@ -37,13 +37,10 @@ describe('Encrypt File', () => {
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
+
     expect(response.status.headers['Content-Type']).to.be.equal(
       'application/octet-stream'
     )
-    expect(response.status.headers['X-Encrypted-By']).to.be.equal(
-      config.keys.peerId.toString()
-    )
-    expect(response.status.headers['X-Encrypted-Method']).to.be.equal(EncryptMethod.AES)
   })
 
   it('should encrypt raw data file on body', async () => {
@@ -60,6 +57,12 @@ describe('Encrypt File', () => {
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
+    const expectedHeaders = {
+      'Content-Type': 'application/octet-stream',
+      'X-Encrypted-By': config.keys.peerId.toString(),
+      'X-Encrypted-Method': EncryptMethod.AES
+    }
+    expect(response.status.headers).to.deep.equal(expectedHeaders)
   })
 
   it('should return unknown file type', async () => {
