@@ -170,16 +170,13 @@ export async function validateComputeProviderFee(
 ): Promise<[boolean, ProviderFeeData | {}]> {
   try {
     const timestampNow = new Date().getTime() / 1000
-    CORE_LOGGER.logMessage(`timestampNow: ${timestampNow}`)
     const validationResult = await verifyComputeProviderFees(
       tx,
       userAddress,
       provider,
       timestampNow
     )
-    CORE_LOGGER.logMessage(
-      `is valid: ${validationResult.isValid} result: ${validationResult.message}`
-    )
+
     if (validationResult.isValid === false) {
       // provider fee expired or tx id is not provided -> reuse order
       CORE_LOGGER.log(
