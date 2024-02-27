@@ -364,12 +364,10 @@ describe('Compute provider fees', async () => {
     const computeEnvironments = await streamToObject(response.stream as Readable)
     const firstEnv = computeEnvironments[0].id
     const { consumerAddress } = computeEnvironments[0]
-    console.log(`resolved ddo: ${JSON.stringify(resolvedDDO)}`)
     const dataset: ComputeAsset = {
       documentId: resolvedDDO.id,
       serviceId: resolvedDDO.services[0].id
     }
-    console.log(`resolved algo: ${JSON.stringify(resolvedAlgo)}`)
     const algorithm: ComputeAlgorithm = {
       documentId: resolvedAlgo.id,
       serviceId: resolvedAlgo.services[0].id
@@ -402,6 +400,14 @@ describe('Compute provider fees', async () => {
 
     resp.stream.on('data', (chunk) => {
       console.log('Received chunk:', chunk.toString())
+    })
+
+    resp.stream.on('end', () => {
+      console.log('Stream ended')
+    })
+
+    resp.stream.on('error', (err) => {
+      console.error('Stream error:', err)
     })
   })
 
