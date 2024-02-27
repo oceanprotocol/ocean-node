@@ -391,7 +391,6 @@ describe('Compute provider fees', async () => {
     const resp = await new InitializeComputeHandler(oceanNode).handle(
       initializeComputeTask
     )
-    console.log(`resp: ${JSON.stringify(resp)}`)
 
     assert(resp, 'Failed to get response')
     assert(resp.status.httpStatus === 200, 'Failed to get 200 response')
@@ -402,7 +401,7 @@ describe('Compute provider fees', async () => {
 
     // Consume the stream
     resp.stream.on('data', (chunk) => {
-      receivedData += chunk.toString() // Concatenate the chunk to the received data
+      receivedData += chunk.toString()
     })
 
     resp.stream.on('end', () => {
@@ -412,6 +411,54 @@ describe('Compute provider fees', async () => {
     resp.stream.on('error', (err) => {
       console.error('Stream error:', err)
     })
+    const receivedDataParsed = JSON.parse(receivedData)
+    assert(receivedDataParsed.algorithm, 'algorithm does not exist')
+    assert(
+      receivedDataParsed.algorithm.providerFeeAddress,
+      'algorithm providerFeeAddress does not exist'
+    )
+    assert(
+      receivedDataParsed.algorithm.providerFeeToken,
+      'algorithm providerFeeToken does not exist'
+    )
+    assert(
+      receivedDataParsed.algorithm.providerFeeAmount === 0,
+      'algorithm providerFeeToken does not exist'
+    ) // it uses the free env
+    assert(
+      receivedDataParsed.algorithm.providerFeeData,
+      'algorithm providerFeeData does not exist'
+    )
+
+    assert(
+      receivedDataParsed.algorithm.validUntil ===
+        initializeComputeTask.compute.validUntil / 1000,
+      'algorithm providerFeeData does not exist'
+    )
+
+    assert(receivedDataParsed.datasets.length > 0, 'datasets key does not exist')
+    assert(
+      receivedDataParsed.datasets[0].providerFeeAddress,
+      'algorithm providerFeeAddress does not exist'
+    )
+    assert(
+      receivedDataParsed.datasets[0].providerFeeToken,
+      'algorithm providerFeeToken does not exist'
+    )
+    assert(
+      receivedDataParsed.datasets[0].providerFeeAmount === 0,
+      'algorithm providerFeeToken does not exist'
+    ) // it uses the free env
+    assert(
+      receivedDataParsed.datasets[0].providerFeeData,
+      'algorithm providerFeeData does not exist'
+    )
+
+    assert(
+      receivedDataParsed.datasets[0].validUntil ===
+        initializeComputeTask.compute.validUntil / 1000,
+      'algorithm providerFeeData does not exist'
+    )
   })
 
   after(async () => {
