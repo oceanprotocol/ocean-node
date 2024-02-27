@@ -92,7 +92,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     )
   })
 
-  it('instance Database', async () => {
+  it('instance Database', () => {
     expect(database).to.be.instanceOf(Database)
   })
 

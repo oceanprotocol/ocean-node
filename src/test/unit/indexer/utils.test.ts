@@ -17,7 +17,7 @@ describe('Utils', () => {
   let provider: ethers.JsonRpcProvider
   let signer: ethers.Wallet
 
-  before(async () => {
+  before(() => {
     provider = new ethers.JsonRpcProvider('https://rpc-mumbai.maticvigil.com')
     signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider)
   })
@@ -46,12 +46,15 @@ describe('Utils', () => {
   })
 
   it('should process event data', async () => {
+    // eslint-disable-next-line require-await
     async function getBlock(): Promise<Block> {
       return {} as Block
     }
+    // eslint-disable-next-line require-await
     async function getTransaction(): Promise<TransactionResponse> {
       return {} as TransactionResponse
     }
+    // eslint-disable-next-line require-await
     async function getTransactionReceipt(): Promise<TransactionReceipt> {
       return {} as TransactionReceipt
     }

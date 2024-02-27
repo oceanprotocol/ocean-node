@@ -4,8 +4,8 @@ import { CoreHandlersRegistry } from '../../components/core/coreHandlersRegistry
 import { Handler } from '../../components/core/handler.js'
 import { OceanNode } from '../../OceanNode.js'
 
-describe('Commands and handlers', async () => {
-  it('Check that all supported commands have registered handlers', async () => {
+describe('Commands and handlers', () => {
+  it('Check that all supported commands have registered handlers', () => {
     // To make sure we do not forget to register handlers
     const node: OceanNode = OceanNode.getInstance()
     for (const command of SUPPORTED_PROTOCOL_COMMANDS) {
@@ -15,7 +15,7 @@ describe('Commands and handlers', async () => {
     }
   })
 
-  it('Check that supported commands and handlers match', async () => {
+  it('Check that supported commands and handlers match', () => {
     // To make sure we do not forget to register anything on supported commands
     const node: OceanNode = OceanNode.getInstance()
     const handlers: string[] = node.getCoreHandlers().getRegisteredCommands()

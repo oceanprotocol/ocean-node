@@ -57,16 +57,16 @@ describe('Status command tests', async () => {
     expect(config.hasIndexer).to.eql(true)
     expect(config.hasProvider).to.eql(true)
   })
-  it('Ocean P2P should be initialized correctly', async () => {
+  it('Ocean P2P should be initialized correctly', () => {
     expect(oceanNode.getP2PNode()).to.not.eql(null)
     expect(OceanNode.getInstance(db).getP2PNode()).to.not.eql(null)
   })
-  it('Ocean Indexer should be initialized correctly', async () => {
+  it('Ocean Indexer should be initialized correctly', () => {
     oceanNode.addIndexer(oceanIndexer)
     expect(oceanNode.getIndexer().getSupportedNetworks()).to.eql(config.supportedNetworks)
     expect(oceanNode.getIndexer().getDatabase()).to.eql(db)
   })
-  it('Ocean Provider should be initialized correctly', async () => {
+  it('Ocean Provider should be initialized correctly', () => {
     oceanNode.addProvider(oceanProvider)
     expect(oceanNode.getProvider().getDatabase()).to.eql(db)
   })

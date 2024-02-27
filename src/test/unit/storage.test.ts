@@ -298,7 +298,7 @@ describe('URL Storage getFileInfo tests', () => {
   })
 })
 
-describe('Arweave Storage getFileInfo tests', async function () {
+describe('Arweave Storage getFileInfo tests', function () {
   this.timeout(15000)
   let storage: ArweaveStorage
 
@@ -334,7 +334,7 @@ describe('Arweave Storage getFileInfo tests', async function () {
   })
 })
 
-describe('IPFS Storage getFileInfo tests', async function () {
+describe('IPFS Storage getFileInfo tests', function () {
   let storage: IpfsStorage
   let previousConfiguration: OverrideEnvConfig[]
 
@@ -428,7 +428,7 @@ describe('URL Storage encryption tests', () => {
   })
 })
 
-describe('URL Storage encryption tests', async function () {
+describe('URL Storage encryption tests', function () {
   this.timeout(15000)
   let storage: IpfsStorage
   let previousConfiguration: OverrideEnvConfig[]

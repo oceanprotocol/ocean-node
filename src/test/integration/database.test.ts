@@ -11,7 +11,7 @@ describe('Database', () => {
     database = await new Database(dbConfig)
   })
 
-  it('instance Database', async () => {
+  it('instance Database', () => {
     expect(database).to.be.instanceOf(Database)
   })
 })
@@ -49,7 +49,7 @@ describe('DdoDatabase CRUD', () => {
     database = await new Database(dbConfig)
   })
 
-  it('creates ddo schema as an array', async () => {
+  it('creates ddo schema as an array', () => {
     const ddoSchemas = database.ddo.getSchemas()
     // check if it is an array
     assert(Array.isArray(ddoSchemas))
