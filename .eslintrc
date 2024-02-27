@@ -14,7 +14,8 @@
     "no-dupe-class-members": ["warn"],
     "no-useless-constructor": ["warn"],
     "no-unused-vars": ["warn"],
-    "constructor-super": ["warn"]
+    "constructor-super": ["warn"],
+    "require-await": "error"
   },
   "env": {
     "es6": true,
