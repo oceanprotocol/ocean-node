@@ -34,7 +34,9 @@ export abstract class Storage {
 
   static getStorageClass(file: any): UrlStorage | IpfsStorage | ArweaveStorage {
     const { type } = file
-    switch (type) {
+    switch (
+      type.toLowerCase() // case insensitive
+    ) {
       case FileObjectType.URL:
         return new UrlStorage(file)
       case FileObjectType.IPFS:

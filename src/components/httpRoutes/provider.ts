@@ -6,12 +6,15 @@ import { calculateFee } from '../core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { EncryptHandler } from '../core/encryptHandler.js'
+import { EncryptFileHandler, EncryptHandler } from '../core/encryptHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { DecryptDdoHandler } from '../core/ddoHandler.js'
 import { DownloadHandler } from '../core/downloadHandler.js'
 import { DownloadCommand } from '../../@types/commands.js'
-import { EncryptMethod } from '../../@types/fileObject.js'
+import { BaseFileObject, EncryptMethod } from '../../@types/fileObject.js'
+import { getConfiguration } from '../../utils/index.js'
+import { P2PCommandResponse } from '../../@types/OceanNode.js'
+import { getEncryptMethodFromString } from '../../utils/crypt.js'
 
 export const providerRoutes = express.Router()
 
@@ -55,6 +58,90 @@ providerRoutes.post(`${SERVICES_API_BASE_PATH}/encrypt`, async (req, res) => {
       res.status(200).send(encryptedData)
     } else {
       res.status(result.status.httpStatus).send(result.status.error)
+    }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send('Internal Server Error')
+  }
+})
+
+// There are two ways of encrypting a file:
+
+// 1) Body contains file object
+// Content-type header must be set to application/json
+
+// 2 ) Body contains raw file content
+// Content-type header must be set to application/octet-stream or multipart/form-data
+
+// Query.encryptMethod can be aes or ecies (if missing, defaults to aes)
+
+// Returns:
+// Body: encrypted file content
+// Headers
+// X-Encrypted-By: our_node_id
+// X-Encrypted-Method: aes or ecies
+providerRoutes.post(`${SERVICES_API_BASE_PATH}/encryptFile`, async (req, res) => {
+  const writeResponse = async (
+    result: P2PCommandResponse,
+    encryptMethod: EncryptMethod
+  ) => {
+    if (result.stream) {
+      const nodeId = (await getConfiguration()).keys.peerId.toString()
+      const encryptedData = await streamToString(result.stream as Readable)
+      res.set({
+        'Content-Type': 'application/octet-stream',
+        'X-Encrypted-By': nodeId,
+        'X-Encrypted-Method': encryptMethod
+      })
+      res.status(200).send(encryptedData)
+    } else {
+      res.status(result.status.httpStatus).send(result.status.error)
+    }
+  }
+
+  const getEncryptedData = async (
+    encryptMethod: EncryptMethod.AES | EncryptMethod.ECIES,
+    input: Buffer
+  ) => {
+    const result = await new EncryptFileHandler(req.oceanNode).handle({
+      rawData: input,
+      encryptionType: encryptMethod,
+      command: PROTOCOL_COMMANDS.ENCRYPT_FILE
+    })
+    return result
+  }
+
+  try {
+    const encryptMethod: EncryptMethod = getEncryptMethodFromString(
+      req.query.encryptMethod as string
+    )
+    let result: P2PCommandResponse
+    if (req.is('application/json')) {
+      // body as fileObject
+      result = await new EncryptFileHandler(req.oceanNode).handle({
+        files: req.body as BaseFileObject,
+        encryptionType: encryptMethod,
+        command: PROTOCOL_COMMANDS.ENCRYPT_FILE
+      })
+      return await writeResponse(result, encryptMethod)
+      // raw data on body
+    } else if (req.is('application/octet-stream') || req.is('multipart/form-data')) {
+      if (req.is('application/octet-stream')) {
+        result = await getEncryptedData(encryptMethod, req.body)
+        return await writeResponse(result, encryptMethod)
+      } else {
+        // multipart/form-data
+        const data: Buffer[] = []
+        req.on('data', function (chunk) {
+          data.push(chunk)
+        })
+        req.on('end', async function () {
+          result = await getEncryptedData(encryptMethod, Buffer.concat(data))
+          return await writeResponse(result, encryptMethod)
+        })
+      }
+    } else {
+      res.status(400).send('Invalid request (missing body data or invalid content-type)')
     }
   } catch (error) {
     HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)

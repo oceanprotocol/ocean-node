@@ -3,6 +3,7 @@ import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
 import { Database } from './components/database/index.js'
 import express, { Express } from 'express'
+import bodyParser from 'body-parser'
 import { OceanNode } from './OceanNode.js'
 import swaggerUi from 'swagger-ui-express'
 import { httpRoutes } from './components/httpRoutes/index.js'
@@ -108,7 +109,8 @@ if (config.hasProvider && dbconn) {
 const oceanNode = OceanNode.getInstance(dbconn, node, provider, indexer)
 
 if (config.hasHttp) {
-  app.use(express.raw())
+  app.use(express.raw({ limit: '25mb' }))
+  // allow up to 25Mb file upload
   app.use((req, res, next) => {
     req.oceanNode = oceanNode
     next()

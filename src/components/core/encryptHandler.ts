@@ -37,8 +37,13 @@ export class EncryptHandler extends Handler {
 export class EncryptFileHandler extends Handler {
   async handle(task: EncryptFileCommand): Promise<P2PCommandResponse> {
     try {
-      const storage = Storage.getStorageClass(task.files)
-      const encryptedContent = await storage.encryptContent(task.encryptionType)
+      let encryptedContent: Buffer
+      if (task.files) {
+        const storage = Storage.getStorageClass(task.files)
+        encryptedContent = await storage.encryptContent(task.encryptionType)
+      } else if (task.rawData !== null) {
+        encryptedContent = await encrypt(task.rawData, task.encryptionType)
+      }
       return {
         stream: Readable.from(encryptedContent),
         status: {

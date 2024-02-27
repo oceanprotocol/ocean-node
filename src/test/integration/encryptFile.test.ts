@@ -5,10 +5,9 @@ import { OceanNode } from '../../OceanNode.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
-import { streamToString } from '../../utils/util.js'
 import { EncryptFileHandler } from '../../components/core/encryptHandler.js'
 import { EncryptFileCommand } from '../../@types/commands'
-import { EncryptMethod, FileObjectType } from '../../@types/fileObject.js'
+import { EncryptMethod, FileObjectType, UrlFileObject } from '../../@types/fileObject.js'
 
 describe('Encrypt File', () => {
   let config: OceanNodeConfig
@@ -29,7 +28,7 @@ describe('Encrypt File', () => {
         type: FileObjectType.URL,
         url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
         method: 'GET'
-      }
+      } as UrlFileObject
     }
     const response = await new EncryptFileHandler(oceanNode).handle(encryptFileTask)
 
@@ -47,7 +46,7 @@ describe('Encrypt File', () => {
         type: 'Unknown',
         url: 'Unknown',
         method: 'Unknown'
-      }
+      } as UrlFileObject
     }
     const response = await new EncryptFileHandler(oceanNode).handle(encryptFileTask)
 
