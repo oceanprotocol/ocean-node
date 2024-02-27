@@ -5,6 +5,7 @@ import * as base58 from 'base58-js'
 import { Readable } from 'stream'
 import { encrypt } from '../../utils/crypt.js'
 import { Storage } from '../storage/index.js'
+import { getConfiguration } from '../../utils/index.js'
 
 export class EncryptHandler extends Handler {
   async handle(task: EncryptCommand): Promise<P2PCommandResponse> {
@@ -37,18 +38,26 @@ export class EncryptHandler extends Handler {
 export class EncryptFileHandler extends Handler {
   async handle(task: EncryptFileCommand): Promise<P2PCommandResponse> {
     try {
+      let headers = {}
       let encryptedContent: Buffer
       if (task.files) {
         const storage = Storage.getStorageClass(task.files)
         encryptedContent = await storage.encryptContent(task.encryptionType)
+        headers = { 'Content-Type': 'application/octet-stream' }
       } else if (task.rawData !== null) {
         encryptedContent = await encrypt(task.rawData, task.encryptionType)
+        const config = await getConfiguration()
+        headers = {
+          'Content-Type': 'application/octet-stream',
+          'X-Encrypted-By': config.keys.peerId.toString(),
+          'X-Encrypted-Method': task.encryptionType
+        }
       }
       return {
         stream: Readable.from(encryptedContent),
         status: {
           httpStatus: 200,
-          headers: { 'Content-Type': 'application/octet-stream' }
+          headers
         }
       }
     } catch (error) {

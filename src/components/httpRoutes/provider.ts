@@ -12,7 +12,6 @@ import { DecryptDdoHandler } from '../core/ddoHandler.js'
 import { DownloadHandler } from '../core/downloadHandler.js'
 import { DownloadCommand } from '../../@types/commands.js'
 import { BaseFileObject, EncryptMethod } from '../../@types/fileObject.js'
-import { getConfiguration } from '../../utils/index.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { getEncryptMethodFromString } from '../../utils/crypt.js'
 
@@ -86,13 +85,8 @@ providerRoutes.post(`${SERVICES_API_BASE_PATH}/encryptFile`, async (req, res) =>
     encryptMethod: EncryptMethod
   ) => {
     if (result.stream) {
-      const nodeId = (await getConfiguration()).keys.peerId.toString()
       const encryptedData = await streamToString(result.stream as Readable)
-      res.set({
-        'Content-Type': 'application/octet-stream',
-        'X-Encrypted-By': nodeId,
-        'X-Encrypted-Method': encryptMethod
-      })
+      res.set(result.status.headers)
       res.status(200).send(encryptedData)
     } else {
       res.status(result.status.httpStatus).send(result.status.error)

@@ -8,6 +8,7 @@ import { Readable } from 'stream'
 import { EncryptFileHandler } from '../../components/core/encryptHandler.js'
 import { EncryptFileCommand } from '../../@types/commands'
 import { EncryptMethod, FileObjectType, UrlFileObject } from '../../@types/fileObject.js'
+import fs from 'fs'
 
 describe('Encrypt File', () => {
   let config: OceanNodeConfig
@@ -29,6 +30,29 @@ describe('Encrypt File', () => {
         url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
         method: 'GET'
       } as UrlFileObject
+    }
+    const response = await new EncryptFileHandler(oceanNode).handle(encryptFileTask)
+
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response.stream, 'Failed to get stream')
+    expect(response.stream).to.be.instanceOf(Readable)
+
+    const expectedHeaders = {
+      'Content-Type': 'application/octet-stream',
+      'X-Encrypted-By': config.keys.peerId.toString(),
+      'X-Encrypted-Method': EncryptMethod.AES
+    }
+    expect(response.status.headers).to.deep.equal(expectedHeaders)
+  })
+
+  it('should encrypt raw data file on body', async () => {
+    // should return a buffer
+    const file: Buffer = fs.readFileSync('src/test/data/organizations-100.aes')
+    const encryptFileTask: EncryptFileCommand = {
+      command: PROTOCOL_COMMANDS.ENCRYPT_FILE,
+      encryptionType: EncryptMethod.AES,
+      rawData: file
     }
     const response = await new EncryptFileHandler(oceanNode).handle(encryptFileTask)
 
