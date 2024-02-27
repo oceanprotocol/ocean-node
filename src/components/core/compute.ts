@@ -9,8 +9,7 @@ import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { streamToString } from '../../utils/util.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import axios from 'axios'
-import { validateComputeProviderFee } from './utils/feesHandler.js'
-import { getJsonRpcProvider } from '../../utils/blockchain.js'
+import { validateProviderFeesForDatasets } from './utils/initializeCompute.js'
 
 export class GetEnvironmentsHandler extends Handler {
   async handle(task: GetEnvironmentsCommand): Promise<P2PCommandResponse> {
@@ -128,65 +127,14 @@ export class InitializeComputeHandler extends Handler {
           }
         }
       }
-
-      const listOfAssest = [...task.datasets, ...[task.algorithm]]
-      const node = this.getOceanNode()
-      const approvedParams: any = {
-        algorithm: {},
-        datasets: []
-      }
-
-      for (const asset of listOfAssest) {
-        try {
-          const ddo = (await node.getDatabase().ddo.retrieve(asset.documentId)) as DDO
-          if (ddo.id === task.algorithm.documentId) {
-            if (ddo.metadata.type !== 'algorithm') {
-              const errorMsg = `DID is not a valid algorithm`
-              CORE_LOGGER.error(errorMsg)
-              return {
-                stream: null,
-                status: {
-                  httpStatus: 400,
-                  error: errorMsg
-                }
-              }
-            }
-          }
-          const service = this.getServiceById(ddo, asset.serviceId)
-          const provider = await getJsonRpcProvider(task.chainId)
-
-          const resultValidation = await validateComputeProviderFee(
-            provider,
-            asset.transferTxId,
-            task.compute.env,
-            ddo,
-            service,
-            task.compute.validUntil,
-            task.consumerAddress
-          )
-          if (ddo.metadata.type === 'algorithm') {
-            approvedParams.algorithm = resultValidation[1]
-          } else {
-            approvedParams.datasets.push(resultValidation[1])
-          }
-        } catch (error) {
-          CORE_LOGGER.error(`Unable to get compute provider fees: ${error}`)
-        }
-      }
-
-      const result = JSON.stringify(approvedParams, (key, value) => {
-        if (typeof value === 'bigint') {
-          return value.toString()
-        }
-        return value
-      })
-
-      return {
-        stream: Readable.from(result),
-        status: {
-          httpStatus: 200
-        }
-      }
+      return await validateProviderFeesForDatasets(
+        task.datasets,
+        task.algorithm,
+        task.chainId,
+        task.compute.env,
+        task.compute.validUntil,
+        task.consumerAddress
+      )
     } catch (error) {
       CORE_LOGGER.error(error.message)
       return {
