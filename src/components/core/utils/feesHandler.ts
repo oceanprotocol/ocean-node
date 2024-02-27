@@ -189,7 +189,7 @@ export async function validateComputeProviderFee(
         true
       )
       CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_INFO, `Compute env ${computeEnv}.`, true)
-      const regex = /-(.+?)(-|$)/
+      const regex = /[^-]*-(ocean-[^-]*)/
       const envId = computeEnv.match(regex)[1]
       // computeEnv.split('-')[1] + '-' + computeEnv.split('-')[2]
       CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_INFO, `envId ${envId}.`, true)
