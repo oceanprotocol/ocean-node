@@ -128,6 +128,7 @@ export class InitializeComputeHandler extends Handler {
         }
       }
       return await validateProviderFeesForDatasets(
+        this.getOceanNode(),
         task.datasets,
         task.algorithm,
         task.chainId,

@@ -5,8 +5,10 @@ import { DDO } from '../../../@types/DDO/DDO.js'
 import { getJsonRpcProvider } from '../../../utils/blockchain.js'
 import { validateComputeProviderFee } from './feesHandler.js'
 import { Readable } from 'stream'
+import { OceanNode } from '../../../OceanNode'
 
 export async function validateProviderFeesForDatasets(
+  node: OceanNode,
   datasets: [ComputeAsset],
   algorithm: ComputeAlgorithm,
   chainId: number,
@@ -15,7 +17,6 @@ export async function validateProviderFeesForDatasets(
   consumerAddress: string
 ): Promise<P2PCommandResponse> {
   const listOfAssest = [...datasets, ...[algorithm]]
-  const node = this.getOceanNode()
   const approvedParams: any = {
     algorithm: {},
     datasets: []
