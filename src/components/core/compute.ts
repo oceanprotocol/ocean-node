@@ -199,16 +199,15 @@ export class InitializeComputeHandler extends Handler {
           return value
         })}`
       )
+      const result = JSON.stringify(approvedParams, (key, value) => {
+        if (typeof value === 'bigint') {
+          return value.toString()
+        }
+        return value
+      })
 
       return {
-        stream: Readable.from(
-          JSON.stringify(approvedParams, (key, value) => {
-            if (typeof value === 'bigint') {
-              return value.toString()
-            }
-            return value
-          })
-        ),
+        stream: Readable.from(result),
         status: {
           httpStatus: 200
         }

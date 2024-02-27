@@ -399,6 +399,10 @@ describe('Compute provider fees', async () => {
     assert(resp.status.httpStatus === 200, 'Failed to get 200 response')
     assert(resp.stream, 'Failed to get stream')
     expect(resp.stream).to.be.instanceOf(Readable)
+
+    resp.stream.on('data', (chunk) => {
+      console.log('Received chunk:', chunk.toString())
+    })
   })
 
   after(async () => {
