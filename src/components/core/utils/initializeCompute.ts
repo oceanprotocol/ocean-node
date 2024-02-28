@@ -62,13 +62,13 @@ export async function validateProviderFeesForDatasets(
       if (ddo.metadata.type === 'algorithm') {
         approvedParams.algorithm = {
           datatoken: service.datatokenAddress,
-          providerFees: resultValidation[1],
+          providerFee: resultValidation[1],
           validOrder: resultValidation[0]
         }
       } else {
         approvedParams.datasets.push({
           datatoken: service.datatokenAddress,
-          providerFees: resultValidation[1],
+          providerFee: resultValidation[1],
           validOrder: resultValidation[0]
         })
       }
