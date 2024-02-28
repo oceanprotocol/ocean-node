@@ -428,8 +428,6 @@ describe('Compute provider fees', async () => {
 
     assert(result.datasets.length > 0, 'datasets key does not exist')
     console.log(`result.datasets: ${JSON.stringify(result.datasets[0])}`)
-    const datasetParsed = JSON.parse(result.datasets[0])
-    console.log(`datasetParsed: ${datasetParsed}`)
     assert(
       result.datatsets[0].datatoken === datatokenAddress,
       'incorrect datatoken address for dataset'
