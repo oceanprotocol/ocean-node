@@ -397,23 +397,11 @@ describe('Compute provider fees', async () => {
     assert(resp.stream, 'Failed to get stream')
     expect(resp.stream).to.be.instanceOf(Readable)
 
-    // let receivedData = ''
     const result: any = await streamToObject(resp.stream as Readable)
 
-    // resp.stream.on('data', (chunk) => {
-    //   receivedData += chunk.toString()
-    // })
-
-    // resp.stream.on('end', () => {
-    //   try {
-    //     result = JSON.parse(receivedData)
-    //     console.log('Parsed data:', result)
-    //   } catch (err) {
-    //     console.log(`error: ${err}`)
-    //   }
-    // })
     assert(result.algorithm, 'algorithm does not exist')
     console.log(`provider fee algorithm: ${JSON.stringify(result.algorithm.providerFee)}`)
+    console.log(`provider fee token: ${result.algorithm.providerFee.providerFeeToken}`)
     assert(
       result.algorithm.datatoken === datatokenAddressAlgo,
       'incorrect datatoken address for algo'
