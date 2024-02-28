@@ -405,74 +405,72 @@ describe('Compute provider fees', async () => {
     })
 
     resp.stream.on('end', () => {
-      console.log('Received data:', receivedData)
-      try {
-        const receivedDataParsed = JSON.parse(receivedData)
-        console.log('Parsed data:', receivedDataParsed)
-        assert(receivedDataParsed.algorithm, 'algorithm does not exist')
-        assert(
-          receivedDataParsed.algorithm.datatokenAddress === datatokenAddressAlgo,
-          'incorrect datatoken address for algo'
-        )
-        assert(
-          receivedDataParsed.algorithm.providerFees.providerFeeAddress,
-          'algorithm providerFeeAddress does not exist'
-        )
-        assert(
-          receivedDataParsed.algorithm.providerFees.providerFeeToken,
-          'algorithm providerFeeToken does not exist'
-        )
-        assert(
-          receivedDataParsed.algorithm.providerFees.providerFeeAmount === 0,
-          'algorithm providerFeeToken does not exist'
-        ) // it uses the free env
-        assert(
-          receivedDataParsed.algorithm.providerFees.providerFeeData,
-          'algorithm providerFeeData does not exist'
-        )
+      const receivedDataParsed = JSON.parse(receivedData)
+      console.log('Parsed data:', receivedDataParsed)
+      assert(receivedDataParsed.algorithm, 'algorithm does not exist')
+      console.log(
+        `receivedDataParsed.algorithm.datatokenAddress: ${receivedDataParsed.algorithm.datatokenAddress}, datatoken: ${datatokenAddressAlgo}`
+      )
+      assert(
+        receivedDataParsed.algorithm.datatokenAddress === datatokenAddressAlgo,
+        'incorrect datatoken address for algo'
+      )
+      assert(
+        receivedDataParsed.algorithm.providerFees.providerFeeAddress,
+        'algorithm providerFeeAddress does not exist'
+      )
+      assert(
+        receivedDataParsed.algorithm.providerFees.providerFeeToken,
+        'algorithm providerFeeToken does not exist'
+      )
+      assert(
+        receivedDataParsed.algorithm.providerFees.providerFeeAmount === 0,
+        'algorithm providerFeeToken does not exist'
+      ) // it uses the free env
+      assert(
+        receivedDataParsed.algorithm.providerFees.providerFeeData,
+        'algorithm providerFeeData does not exist'
+      )
 
-        assert(
-          receivedDataParsed.algorithm.providerFees.validUntil ===
-            initializeComputeTask.compute.validUntil / 1000,
-          'algorithm providerFeeData does not exist'
-        )
+      assert(
+        receivedDataParsed.algorithm.providerFees.validUntil ===
+          initializeComputeTask.compute.validUntil / 1000,
+        'algorithm providerFeeData does not exist'
+      )
 
-        assert(receivedDataParsed.algorithm.validOrder === false, 'incorrect validOrder') // expect false because tx id was not provided and no start order was called before
+      assert(receivedDataParsed.algorithm.validOrder === false, 'incorrect validOrder') // expect false because tx id was not provided and no start order was called before
 
-        assert(receivedDataParsed.datasets.length > 0, 'datasets key does not exist')
-        assert(
-          receivedDataParsed.datatsets[0].datatokenAddress === datatokenAddress,
-          'incorrect datatoken address for dataset'
-        )
-        assert(
-          receivedDataParsed.datasets[0].providerFees.providerFeeAddress,
-          'algorithm providerFeeAddress does not exist'
-        )
-        assert(
-          receivedDataParsed.datasets[0].providerFees.providerFeeToken,
-          'algorithm providerFeeToken does not exist'
-        )
-        assert(
-          receivedDataParsed.datasets[0].providerFees.providerFeeAmount === 0,
-          'algorithm providerFeeToken does not exist'
-        ) // it uses the free env
-        assert(
-          receivedDataParsed.datasets[0].providerFees.providerFeeData,
-          'algorithm providerFeeData does not exist'
-        )
+      assert(receivedDataParsed.datasets.length > 0, 'datasets key does not exist')
+      console.log(
+        `receivedDataParsed.datatsets[0].datatokenAddress: ${receivedDataParsed.datatsets[0].datatokenAddress}, datatoken: ${datatokenAddress}`
+      )
+      assert(
+        receivedDataParsed.datatsets[0].datatokenAddress === datatokenAddress,
+        'incorrect datatoken address for dataset'
+      )
+      assert(
+        receivedDataParsed.datasets[0].providerFees.providerFeeAddress,
+        'algorithm providerFeeAddress does not exist'
+      )
+      assert(
+        receivedDataParsed.datasets[0].providerFees.providerFeeToken,
+        'algorithm providerFeeToken does not exist'
+      )
+      assert(
+        receivedDataParsed.datasets[0].providerFees.providerFeeAmount === 0,
+        'algorithm providerFeeToken does not exist'
+      ) // it uses the free env
+      assert(
+        receivedDataParsed.datasets[0].providerFees.providerFeeData,
+        'algorithm providerFeeData does not exist'
+      )
 
-        assert(
-          receivedDataParsed.datasets[0].providerFees.validUntil ===
-            initializeComputeTask.compute.validUntil / 1000,
-          'algorithm providerFeeData does not exist'
-        )
-        assert(
-          receivedDataParsed.datasets[0].validOrder === false,
-          'incorrect validOrder'
-        ) // expect false because tx id was not provided and no start order was called before
-      } catch (error) {
-        console.error('Error parsing JSON:', error)
-      }
+      assert(
+        receivedDataParsed.datasets[0].providerFees.validUntil ===
+          initializeComputeTask.compute.validUntil / 1000,
+        'algorithm providerFeeData does not exist'
+      )
+      assert(receivedDataParsed.datasets[0].validOrder === false, 'incorrect validOrder') // expect false because tx id was not provided and no start order was called before
     })
   })
 
