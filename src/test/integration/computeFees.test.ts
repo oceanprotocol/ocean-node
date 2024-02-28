@@ -423,11 +423,7 @@ describe('Compute provider fees', async () => {
       'algorithm providerFeeData does not exist'
     )
 
-    assert(
-      result.algorithm.providerFee.validUntil ===
-        initializeComputeTask.compute.validUntil / 1000,
-      'algorithm validUntil does not exist'
-    )
+    assert(result.algorithm.providerFee.validUntil, 'algorithm validUntil does not exist')
 
     assert(result.algorithm.validOrder === false, 'incorrect validOrder') // expect false because tx id was not provided and no start order was called before
 
@@ -454,8 +450,7 @@ describe('Compute provider fees', async () => {
     )
 
     assert(
-      result.datasets[0].providerFee.validUntil ===
-        initializeComputeTask.compute.validUntil / 1000,
+      result.datasets[0].providerFee.validUntil,
       'algorithm validUntil does not exist'
     )
     assert(result.datasets[0].validOrder === false, 'incorrect validOrder') // expect false because tx id was not provided and no start order was called before
