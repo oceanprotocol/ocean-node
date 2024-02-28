@@ -444,19 +444,19 @@ describe('Compute provider fees', async () => {
         )
         assert(
           receivedDataParsed.datasets[0].providerFee.providerFeeAddress,
-          'algorithm providerFeeAddress does not exist'
+          'dataset providerFeeAddress does not exist'
         )
         assert(
-          receivedDataParsed.datasets[0].providerFees.providerFeeToken,
-          'algorithm providerFeeToken does not exist'
+          receivedDataParsed.datasets[0].providerFee.providerFeeToken,
+          'dataset providerFeeToken does not exist'
         )
         assert(
           receivedDataParsed.datasets[0].providerFee.providerFeeAmount === 0,
-          'algorithm providerFeeToken does not exist'
+          'dataset providerFeeToken does not exist'
         ) // it uses the free env
         assert(
           receivedDataParsed.datasets[0].providerFee.providerFeeData,
-          'algorithm providerFeeData does not exist'
+          'dataset providerFeeData does not exist'
         )
 
         assert(
