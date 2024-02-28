@@ -400,7 +400,6 @@ describe('Compute provider fees', async () => {
     const result: any = await streamToObject(resp.stream as Readable)
 
     assert(result.algorithm, 'algorithm does not exist')
-    console.log(`provider fee algorithm: ${JSON.stringify(result.datasets)}`)
     assert(
       result.algorithm.datatoken === datatokenAddressAlgo,
       'incorrect datatoken address for algo'
@@ -427,7 +426,6 @@ describe('Compute provider fees', async () => {
     assert(result.algorithm.validOrder === false, 'incorrect validOrder') // expect false because tx id was not provided and no start order was called before
 
     assert(result.datasets.length > 0, 'datasets key does not exist')
-    console.log(`result.datasets: ${JSON.stringify(result.datasets[0])}`)
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
     assert(
       resultParsed.datatoken === datatokenAddress,
