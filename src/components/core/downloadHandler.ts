@@ -18,6 +18,7 @@ import { checkCredentials } from '../../utils/credentials.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { OceanNode } from '../../OceanNode.js'
 import { DownloadCommand, DownloadURLCommand } from '../../@types/commands.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(
@@ -324,7 +325,7 @@ export class DownloadHandler extends Handler {
       // 6. Decrypt the url
       const decryptedUrlBytes = await decrypt(
         Uint8Array.from(Buffer.from(service.files, 'hex')),
-        'ECIES'
+        EncryptMethod.ECIES
       )
       // Convert the decrypted bytes back to a string
       const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()

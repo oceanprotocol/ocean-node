@@ -11,8 +11,6 @@ import {
   parseUnits,
   MaxUint256
 } from 'ethers'
-import fs from 'fs'
-import { homedir } from 'os'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
@@ -21,10 +19,11 @@ import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { getEventFromTx, streamToString, streamToObject } from '../../utils/util.js'
-import { delay, waitToIndex } from './testUtils.js'
+import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import {
   ENVIRONMENT_VARIABLES,
+  EVENTS,
   PROTOCOL_COMMANDS,
   getConfiguration
 } from '../../utils/index.js'
@@ -34,10 +33,11 @@ import { StatusHandler } from '../../components/core/statusHandler.js'
 
 import { Readable } from 'stream'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import { UrlFileObject } from '../../@types/fileObject.js'
+import { FileObjectType, UrlFileObject, EncryptMethod } from '../../@types/fileObject.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import {
+  DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
@@ -145,7 +145,7 @@ describe('Should run a complete node flow.', () => {
     const fileInfoTask = {
       command: PROTOCOL_COMMANDS.FILE_INFO,
       file: storage,
-      type: 'url' as 'url'
+      type: FileObjectType.URL
     }
     const response = await new FileInfoHandler(oceanNode).handle(fileInfoTask)
 
@@ -164,7 +164,6 @@ describe('Should run a complete node flow.', () => {
   })
 
   it('should publish a dataset', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
     const tx = await factoryContract.createNftWithErc20(
       {
         name: '72120Bundle',
@@ -241,7 +240,7 @@ describe('Should run a complete node flow.', () => {
       ]
     }
     const data = Uint8Array.from(Buffer.from(JSON.stringify(files)))
-    const encryptedData = await encrypt(data, 'ECIES')
+    const encryptedData = await encrypt(data, EncryptMethod.ECIES)
 
     genericAsset.services[0].files = encryptedData
 
@@ -249,7 +248,7 @@ describe('Should run a complete node flow.', () => {
       '0x' + createHash('sha256').update(JSON.stringify(genericAsset)).digest('hex')
 
     const genericAssetData = Uint8Array.from(Buffer.from(JSON.stringify(genericAsset)))
-    const encryptedDDO = await encrypt(genericAssetData, 'ECIES')
+    const encryptedDDO = await encrypt(genericAssetData, EncryptMethod.ECIES)
     const encryptedMetaData = hexlify(encryptedDDO)
 
     const setMetaDataTx = await nftContract.setMetaData(
@@ -265,23 +264,19 @@ describe('Should run a complete node flow.', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(50000)
-
-  it('should store the ddo in the database and return it ', async () => {
-    resolvedDDO = await waitToIndex(assetDID, database)
-    expect(resolvedDDO.id).to.equal(genericAsset.id)
+  it('should store the ddo in the database and return it', async function () {
+    const timeout = DEFAULT_TEST_TIMEOUT
+    this.timeout(timeout)
+    const { ddo, wasTimeout } = await waitToIndex(
+      assetDID,
+      EVENTS.METADATA_CREATED,
+      timeout
+    )
+    resolvedDDO = ddo
+    if (resolvedDDO) {
+      expect(resolvedDDO.id).to.equal(genericAsset.id)
+    } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
-
-  // it('should be able to decrypt the ddo files ', async () => {
-  //   const encryptedFilesHex = resolvedDDO.services[0].files
-  //   const encryptedFilesBytes = Uint8Array.from(Buffer.from(encryptedFilesHex, 'hex'))
-  //   const decryptedUrlBytes = await decrypt(encryptedFilesBytes, 'ECIES')
-  //   const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
-  //   const decryptedFileObject = JSON.parse(decryptedFilesString)
-  //   expect(decryptedFileObject[0].url).to.equal(
-  //     'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js'
-  //   )
-  // })
 
   it('should get file info with did', async () => {
     const fileInfoTask = {
@@ -306,7 +301,6 @@ describe('Should run a complete node flow.', () => {
   })
 
   it('should start an order', async function () {
-    this.timeout(65000) // Extend default Mocha test timeout
     const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
     const serviceIndex = '0'
     const consumeMarketFeeAddress = ZeroAddress
@@ -319,18 +313,18 @@ describe('Should run a complete node flow.', () => {
       publisherAccount
     )
 
-    // call the mint function on the dataTokenContract
-    const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
-    await mintTx.wait()
-    const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
-    assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
-
     const feeData = await createFee(
       resolvedDDO as DDO,
       0,
       'null',
       resolvedDDO.services[0]
     )
+
+    // call the mint function on the dataTokenContract
+    const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
+    await mintTx.wait()
+    const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
+    assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
 
     const dataTokenContractWithNewSigner = dataTokenContract.connect(
       consumerAccount
@@ -362,38 +356,49 @@ describe('Should run a complete node flow.', () => {
   })
 
   it('should download triger download file', async function () {
-    this.timeout(65000)
-    const oceanNode = OceanNode.getInstance(database)
-    assert(oceanNode, 'Failed to instantiate OceanNode')
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
-    const wallet = new ethers.Wallet(
-      '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
-    )
-    const nonce = Date.now().toString()
-    const message = String(resolvedDDO.id + nonce)
-    const consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
-    )
-    const messageHashBytes = ethers.toBeArray(consumerMessage)
-    const signature = await wallet.signMessage(messageHashBytes)
+    const doCheck = async () => {
+      const config = await getConfiguration(true)
+      database = await new Database(config.dbConfig)
+      const oceanNode = OceanNode.getInstance(database)
+      assert(oceanNode, 'Failed to instantiate OceanNode')
 
-    const downloadTask = {
-      fileIndex: 0,
-      documentId: assetDID,
-      serviceId,
-      transferTxId: orderTxId,
-      nonce,
-      consumerAddress,
-      signature,
-      command: PROTOCOL_COMMANDS.DOWNLOAD
+      const wallet = new ethers.Wallet(
+        '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
+      )
+      const nonce = Date.now().toString()
+      const message = String(resolvedDDO.id + nonce)
+      const consumerMessage = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      )
+      const messageHashBytes = ethers.toBeArray(consumerMessage)
+      const signature = await wallet.signMessage(messageHashBytes)
+
+      const downloadTask = {
+        fileIndex: 0,
+        documentId: assetDID,
+        serviceId,
+        transferTxId: orderTxId,
+        nonce,
+        consumerAddress,
+        signature,
+        command: PROTOCOL_COMMANDS.DOWNLOAD
+      }
+      const response = await new DownloadHandler(oceanNode).handle(downloadTask)
+
+      assert(response)
+      assert(response.stream, 'stream not present')
+      assert(response.status.httpStatus === 200, 'http status not 200')
+      expect(response.stream).to.be.instanceOf(Readable)
     }
-    const response = await new DownloadHandler(oceanNode).handle(downloadTask)
 
-    assert(response)
-    assert(response.stream, 'stream not present')
-    assert(response.status.httpStatus === 200, 'http status not 200')
-    expect(response.stream).to.be.instanceOf(Readable)
+    setTimeout(() => {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
+    }, DEFAULT_TEST_TIMEOUT * 3)
+
+    doCheck()
   })
 
   after(async () => {

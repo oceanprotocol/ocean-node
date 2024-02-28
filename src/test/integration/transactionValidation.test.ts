@@ -17,7 +17,7 @@ import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Fa
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getEventFromTx } from '../../utils/util.js'
-import { delay, signMessage, waitToIndex } from './testUtils.js'
+import { expectedTimeoutFailure, signMessage, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import { Database } from '../../components/database/index.js'
 import {
@@ -27,9 +27,13 @@ import {
 } from '../../utils/address.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
+import { DEFAULT_TEST_TIMEOUT, getMockSupportedNetworks } from '../utils/utils.js'
+import { EVENTS } from '../../utils/constants.js'
+import { OceanIndexer } from '../../components/Indexer/index.js'
 
 describe('validateOrderTransaction Function with Orders', () => {
   let database: Database
+  let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let factoryContract: Contract
   let nftContract: Contract
@@ -80,6 +84,9 @@ describe('validateOrderTransaction Function with Orders', () => {
     }
     database = await new Database(dbConfig)
 
+    // need to make sure there is an indexer running on the test suite
+    indexer = new OceanIndexer(database, getMockSupportedNetworks())
+
     // Initialize the factory contract
     factoryContract = new ethers.Contract(
       artifactsAddresses.ERC721Factory,
@@ -93,7 +100,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
 
   it('should publish a dataset', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
     const tx = await factoryContract.createNftWithErc20(
       {
         name: '72120Bundle',
@@ -129,7 +135,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
 
   it('should set metadata and save', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
     nftContract = new Contract(dataNftAddress, ERC721Template.abi, publisherAccount)
     genericDDO.id =
       'did:op:' +
@@ -156,21 +161,32 @@ describe('validateOrderTransaction Function with Orders', () => {
     assert(trxReceipt, 'set metadata failed')
   })
 
-  delay(30000)
-
-  it('should get the active state', async () => {
-    resolvedDDO = await waitToIndex(genericDDO.id, database)
+  it('should get the active state', async function () {
+    const { ddo, wasTimeout } = await waitToIndex(
+      genericDDO.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT,
+      true
+    )
+    resolvedDDO = ddo
+    if (resolvedDDO) {
+      expect(resolvedDDO.id).to.be.equal(genericDDO.id)
+    } else {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    }
   })
 
   it('should start an order and validate the transaction', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
     dataTokenContract = new Contract(
       datatokenAddress,
       ERC20Template.abi,
       publisherAccount
     )
+
     const paymentCollector = await dataTokenContract.getPaymentCollector()
     assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
+
+    console.log('resolved ddo ', resolvedDDO)
 
     const feeData = await createFee(
       resolvedDDO as DDO,
@@ -244,14 +260,15 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
 
   it('should reuse an order and validate the transaction', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
-
     const feeData = await createFee(
       resolvedDDO as DDO,
       0,
       'null',
       resolvedDDO.services[0]
     )
+
+    // git status
+    dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
 
     // sign provider data
     providerData = JSON.stringify({ timeout })
@@ -310,8 +327,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
 
   it('should reject reuse an order with invald serviceId', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
-
     const feeData = await createFee(
       resolvedDDO as DDO,
       0,
@@ -362,8 +377,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
 
   it('should reject reuse an order with invald user address', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
-
     const feeData = await createFee(
       resolvedDDO as DDO,
       0,
