@@ -419,7 +419,7 @@ describe('Compute provider fees', async () => {
       'algorithm providerFeeAmount does not exist'
     )
     assert(
-      result.algorithm.providerFee.providerFeeData,
+      result.algorithm.providerFee.providerData,
       'algorithm providerFeeData does not exist'
     )
 
@@ -449,7 +449,7 @@ describe('Compute provider fees', async () => {
       'dataset providerFeeAmount does not exist'
     )
     assert(
-      result.datasets[0].providerFee.providerFeeData,
+      result.datasets[0].providerFee.providerData,
       'dataset providerFeeData does not exist'
     )
 
