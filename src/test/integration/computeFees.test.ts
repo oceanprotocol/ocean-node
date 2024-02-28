@@ -408,6 +408,11 @@ describe('Compute provider fees', async () => {
         const receivedDataParsed = JSON.parse(receivedData)
         console.log('Parsed data:', receivedDataParsed)
         assert(receivedDataParsed.algorithm, 'algorithm does not exist')
+        console.log(
+          `provider fee algorithm: ${JSON.stringify(
+            receivedDataParsed.algorithm.providerFee
+          )}`
+        )
         assert(
           receivedDataParsed.algorithm.datatoken === datatokenAddressAlgo,
           'incorrect datatoken address for algo'
