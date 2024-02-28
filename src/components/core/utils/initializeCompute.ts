@@ -10,6 +10,12 @@ import { Service } from '../../../@types/DDO/Service.js'
 
 export function getServiceById(ddo: DDO, serviceId: string): Service {
   try {
+    CORE_LOGGER.logMessage(
+      `service: ${JSON.stringify(
+        ddo.services.filter((service) => service.id === serviceId)[0]
+      )}`
+    )
+    CORE_LOGGER.logMessage(`services: ${JSON.stringify(ddo.services)}`)
     return ddo.services.filter((service) => service.id === serviceId)[0]
   } catch (err) {
     CORE_LOGGER.error(`Service was not found: ${err}`)
