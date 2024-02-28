@@ -50,7 +50,7 @@ async function updateLastIndexedBlockNumber(block: number): Promise<void> {
   }
 }
 export async function proccesNetworkData(): Promise<void> {
-  const deployedBlock = await getDeployedContractBlock(rpcDetails.chainId)
+  const deployedBlock = getDeployedContractBlock(rpcDetails.chainId)
   if (deployedBlock == null && lastIndexedBlock == null) {
     INDEXER_LOGGER.logMessage(
       `chain: ${rpcDetails.chainId} Both deployed block and last indexed block are null. Cannot proceed further on this chain`,
@@ -92,7 +92,7 @@ export async function proccesNetworkData(): Promise<void> {
           blocksToProcess
         )
         updateLastIndexedBlockNumber(processedBlocks.lastBlock)
-        await checkNewlyIndexedAssets(processedBlocks.foundEvents)
+        checkNewlyIndexedAssets(processedBlocks.foundEvents)
         lastIndexedBlock = processedBlocks.lastBlock
       } catch (error) {
         INDEXER_LOGGER.log(

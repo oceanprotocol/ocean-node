@@ -22,7 +22,7 @@ export class ReindexHandler extends Handler {
         }
       }
       const eventIndex: number = Number(task.eventIndex)
-      await OceanIndexer.addReindexTask({
+      OceanIndexer.addReindexTask({
         txId,
         chainId,
         eventIndex

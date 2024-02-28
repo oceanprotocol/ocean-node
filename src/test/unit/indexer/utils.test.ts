@@ -22,8 +22,8 @@ describe('Utils', () => {
     signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider)
   })
 
-  it('should get deployed contract block', async () => {
-    const deployedBlock = await getDeployedContractBlock(80001)
+  it('should get deployed contract block', () => {
+    const deployedBlock = getDeployedContractBlock(80001)
     expect(deployedBlock).to.be.a('number')
   })
 
