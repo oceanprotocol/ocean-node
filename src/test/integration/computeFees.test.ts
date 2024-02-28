@@ -408,11 +408,8 @@ describe('Compute provider fees', async () => {
       const receivedDataParsed = JSON.parse(receivedData)
       console.log('Parsed data:', receivedDataParsed)
       assert(receivedDataParsed.algorithm, 'algorithm does not exist')
-      console.log(
-        `receivedDataParsed.algorithm.datatokenAddress: ${receivedDataParsed.algorithm.datatokenAddress}, datatoken: ${datatokenAddressAlgo}`
-      )
       assert(
-        receivedDataParsed.algorithm.datatokenAddress === datatokenAddressAlgo,
+        receivedDataParsed.algorithm.datatoken === datatokenAddressAlgo,
         'incorrect datatoken address for algo'
       )
       assert(
@@ -441,11 +438,8 @@ describe('Compute provider fees', async () => {
       assert(receivedDataParsed.algorithm.validOrder === false, 'incorrect validOrder') // expect false because tx id was not provided and no start order was called before
 
       assert(receivedDataParsed.datasets.length > 0, 'datasets key does not exist')
-      console.log(
-        `receivedDataParsed.datatsets[0].datatokenAddress: ${receivedDataParsed.datatsets[0].datatokenAddress}, datatoken: ${datatokenAddress}`
-      )
       assert(
-        receivedDataParsed.datatsets[0].datatokenAddress === datatokenAddress,
+        receivedDataParsed.datatsets[0].datatoken === datatokenAddress,
         'incorrect datatoken address for dataset'
       )
       assert(
