@@ -6,6 +6,15 @@ import { getJsonRpcProvider } from '../../../utils/blockchain.js'
 import { validateComputeProviderFee } from './feesHandler.js'
 import { Readable } from 'stream'
 import { OceanNode } from '../../../OceanNode'
+import { Service } from '../../../@types/DDO/Service.js'
+
+export function getServiceById(ddo: DDO, serviceId: string): Service {
+  try {
+    return ddo.services.filter((service) => service.id === serviceId)[0]
+  } catch (err) {
+    CORE_LOGGER.error(`Service was not found: ${err}`)
+  }
+}
 
 export async function validateProviderFeesForDatasets(
   node: OceanNode,
@@ -39,7 +48,7 @@ export async function validateProviderFeesForDatasets(
           }
         }
       }
-      const service = this.getServiceById(ddo, asset.serviceId)
+      const service = getServiceById(ddo, asset.serviceId)
 
       const resultValidation = await validateComputeProviderFee(
         provider,
@@ -51,9 +60,17 @@ export async function validateProviderFeesForDatasets(
         consumerAddress
       )
       if (ddo.metadata.type === 'algorithm') {
-        approvedParams.algorithm = resultValidation[1]
+        approvedParams.algorithm = {
+          datatoken: service.datatokenAddress,
+          providerFees: resultValidation[1],
+          validOrder: resultValidation[0]
+        }
       } else {
-        approvedParams.datasets.push(resultValidation[1])
+        approvedParams.datasets.push({
+          datatoken: service.datatokenAddress,
+          providerFees: resultValidation[1],
+          validOrder: resultValidation[0]
+        })
       }
     } catch (error) {
       CORE_LOGGER.error(`Unable to get compute provider fees: ${error}`)

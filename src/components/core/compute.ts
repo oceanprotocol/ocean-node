@@ -77,14 +77,6 @@ export class InitializeComputeHandler extends Handler {
     return false
   }
 
-  getServiceById(ddo: DDO, serviceId: string) {
-    try {
-      return ddo.services.filter((service) => service.id === serviceId)[0]
-    } catch (err) {
-      CORE_LOGGER.error(`Service was not found: ${err}`)
-    }
-  }
-
   async handle(task: InitializeComputeCommand): Promise<P2PCommandResponse> {
     try {
       CORE_LOGGER.logMessage(
