@@ -428,31 +428,29 @@ describe('Compute provider fees', async () => {
 
     assert(result.datasets.length > 0, 'datasets key does not exist')
     console.log(`result.datasets: ${JSON.stringify(result.datasets[0])}`)
+    const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
     assert(
-      result.datatsets[0].datatoken === datatokenAddress,
+      resultParsed.datatoken === datatokenAddress,
       'incorrect datatoken address for dataset'
     )
     assert(
-      result.datasets[0].providerFee.providerFeeAddress,
+      resultParsed.providerFee.providerFeeAddress,
       'dataset providerFeeAddress does not exist'
     )
     assert(
-      result.datasets[0].providerFee.providerFeeToken,
+      resultParsed.providerFee.providerFeeToken,
       'dataset providerFeeToken does not exist'
     )
     assert(
-      result.datasets[0].providerFee.providerFeeAmount,
+      resultParsed.providerFee.providerFeeAmount,
       'dataset providerFeeAmount does not exist'
     )
     assert(
-      result.datasets[0].providerFee.providerData,
+      resultParsed.providerFee.providerData,
       'dataset providerFeeData does not exist'
     )
 
-    assert(
-      result.datasets[0].providerFee.validUntil,
-      'algorithm validUntil does not exist'
-    )
+    assert(resultParsed.providerFee.validUntil, 'algorithm validUntil does not exist')
     assert(result.datasets[0].validOrder === false, 'incorrect validOrder') // expect false because tx id was not provided and no start order was called before
   })
 
