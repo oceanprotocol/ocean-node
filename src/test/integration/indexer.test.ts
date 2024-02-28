@@ -437,12 +437,12 @@ describe('Indexer stores a new metadata events and orders.', () => {
     }
   })
 
-  it('should add reindex task', async () => {
+  it('should add reindex task', () => {
     const reindexTask = {
       txId: setMetaDataTxReceipt.hash,
       chainId: '8996'
     }
-    await OceanIndexer.addReindexTask(reindexTask)
+    OceanIndexer.addReindexTask(reindexTask)
   })
 
   it('should store ddo reindex', async function () {
