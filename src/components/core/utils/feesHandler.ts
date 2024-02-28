@@ -174,7 +174,8 @@ export async function validateComputeProviderFee(
       tx,
       userAddress,
       provider,
-      timestampNow
+      timestampNow,
+      service.timeout
     )
 
     if (validationResult.isValid === false) {

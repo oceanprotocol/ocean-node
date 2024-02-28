@@ -45,7 +45,8 @@ export async function verifyComputeProviderFees(
   txId: string,
   userAddress: string,
   provider: JsonRpcApiProvider,
-  timestampNow: number
+  timestampNow: number,
+  serviceTimeout: number
 ): Promise<ValidateTransactionResponse> {
   const contractInterface = new Interface(ERC20Template.abi)
   const txReceiptMined = await fetchTransactionReceipt(txId, provider)
@@ -69,14 +70,24 @@ export async function verifyComputeProviderFees(
       message: errorMsg
     }
   }
+
+  const eventTimestamp = (await provider.getBlock(txReceiptMined.blockHash)).timestamp
+
+  const currentTimestamp = Math.floor(Date.now() / 1000)
+
+  const timeElapsed = currentTimestamp - eventTimestamp
+
+  if (serviceTimeout !== 0 && timeElapsed > serviceTimeout) {
+    return {
+      isValid: false,
+      message: 'The order has expired.'
+    }
+  }
   const ProviderFeesEvent = fetchEventFromTransaction(
     txReceiptMined,
     'ProviderFees',
     contractInterface
   )
-
-  CORE_LOGGER.logMessage(`provider fee ${JSON.stringify(ProviderFeesEvent)}`)
-  CORE_LOGGER.logMessage(`provider fee args ${JSON.stringify(ProviderFeesEvent[0].args)}`)
 
   const validUntilContract = parseInt(ProviderFeesEvent[0].args[7].toString())
   if (timestampNow >= validUntilContract) {
