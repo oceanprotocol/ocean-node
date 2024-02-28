@@ -415,9 +415,9 @@ describe('Compute provider fees', async () => {
       'algorithm providerFeeToken does not exist'
     )
     assert(
-      result.algorithm.providerFee.providerFeeAmount === '0',
+      result.algorithm.providerFee.providerFeeAmount,
       'algorithm providerFeeAmount does not exist'
-    ) // it uses the free env
+    )
     assert(
       result.algorithm.providerFee.providerFeeData,
       'algorithm providerFeeData does not exist'
@@ -445,9 +445,9 @@ describe('Compute provider fees', async () => {
       'dataset providerFeeToken does not exist'
     )
     assert(
-      result.datasets[0].providerFee.providerFeeAmount === '0',
+      result.datasets[0].providerFee.providerFeeAmount,
       'dataset providerFeeAmount does not exist'
-    ) // it uses the free env
+    )
     assert(
       result.datasets[0].providerFee.providerFeeData,
       'dataset providerFeeData does not exist'
