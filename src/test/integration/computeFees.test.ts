@@ -401,7 +401,7 @@ describe('Compute provider fees', async () => {
 
     assert(result.algorithm, 'algorithm does not exist')
     console.log(`provider fee algorithm: ${JSON.stringify(result.algorithm.providerFee)}`)
-    console.log(`provider fee token: ${result.algorithm.providerFee.providerFeeToken}`)
+    console.log(`provider fee amount: ${result.algorithm.providerFee.providerFeeAmount}`)
     assert(
       result.algorithm.datatoken === datatokenAddressAlgo,
       'incorrect datatoken address for algo'
@@ -415,8 +415,8 @@ describe('Compute provider fees', async () => {
       'algorithm providerFeeToken does not exist'
     )
     assert(
-      result.algorithm.providerFee.providerFeeAmount === 0,
-      'algorithm providerFeeToken does not exist'
+      result.algorithm.providerFee.providerFeeAmount === 0n,
+      'algorithm providerFeeAmount does not exist'
     ) // it uses the free env
     assert(
       result.algorithm.providerFee.providerFeeData,
@@ -426,7 +426,7 @@ describe('Compute provider fees', async () => {
     assert(
       result.algorithm.providerFee.validUntil ===
         initializeComputeTask.compute.validUntil / 1000,
-      'algorithm providerFeeData does not exist'
+      'algorithm validUntil does not exist'
     )
 
     assert(result.algorithm.validOrder === false, 'incorrect validOrder') // expect false because tx id was not provided and no start order was called before
@@ -445,8 +445,8 @@ describe('Compute provider fees', async () => {
       'dataset providerFeeToken does not exist'
     )
     assert(
-      result.datasets[0].providerFee.providerFeeAmount === 0,
-      'dataset providerFeeToken does not exist'
+      result.datasets[0].providerFee.providerFeeAmount === 0n,
+      'dataset providerFeeAmount does not exist'
     ) // it uses the free env
     assert(
       result.datasets[0].providerFee.providerFeeData,
@@ -456,7 +456,7 @@ describe('Compute provider fees', async () => {
     assert(
       result.datasets[0].providerFee.validUntil ===
         initializeComputeTask.compute.validUntil / 1000,
-      'algorithm providerFeeData does not exist'
+      'algorithm validUntil does not exist'
     )
     assert(result.datasets[0].validOrder === false, 'incorrect validOrder') // expect false because tx id was not provided and no start order was called before
   })
