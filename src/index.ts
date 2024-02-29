@@ -7,6 +7,7 @@ import { OceanNode } from './OceanNode.js'
 import swaggerUi from 'swagger-ui-express'
 import { httpRoutes } from './components/httpRoutes/index.js'
 import { getConfiguration } from './utils/index.js'
+import cron from 'node-cron';
 
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import fs from 'fs'
@@ -129,4 +130,11 @@ if (config.hasHttp) {
   app.listen(config.httpPort, () => {
     OCEAN_NODE_LOGGER.logMessage(`HTTP port: ${config.httpPort}`, true)
   })
+  // Schedule the cron job to run daily at midnight
+cron.schedule('0 0 * * *', async () => {
+  const logDatabase = new LogDatabase(/* Your config and schema here */);
+  await logDatabase.deleteOldLogs();
+  console.log('Old logs deletion task completed.');
+});
+
 }

@@ -706,6 +706,27 @@ export class LogDatabase {
       return null
     }
   }
+
+  async deleteOldLogs() {
+    const currentTime = new Date().getTime()
+    const xTime = parseInt(process.env.LOG_RETENTION_TIME || '2592000000') // Default to 30 days in milliseconds
+    const deleteBeforeTime = currentTime - xTime
+
+    try {
+      // Construct the filter condition as a string
+      const filterCondition = `timestamp:<${deleteBeforeTime}`
+
+      // Pass the filter condition directly as a string
+      const deleteResult = await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .delete(filterCondition)
+
+      console.log(`Deleted logs: ${JSON.stringify(deleteResult)}`)
+    } catch (error) {
+      console.error(`Error when deleting old log entries: ${error.message}`)
+    }
+  }
 }
 
 export class Database {
