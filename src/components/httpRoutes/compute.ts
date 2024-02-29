@@ -76,6 +76,10 @@ computeRoutes.post('/api/services/initializeCompute', async (req, res) => {
       const queryResult = JSON.parse(await streamToString(result.stream as Readable))
       res.json(queryResult)
     } else {
+      HTTP_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `Stream not found: ${result.status.error}`
+      )
       res.status(result.status.httpStatus).send(result.status.error)
     }
   } catch (error) {
