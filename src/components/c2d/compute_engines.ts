@@ -1,4 +1,3 @@
-import { OceanNode } from '../../OceanNode.js'
 import { Readable } from 'stream'
 import type {
   C2DClusterInfo,
@@ -7,9 +6,6 @@ import type {
   ComputeAsset,
   ComputeJob,
   ComputeOutput,
-  ComputeResult,
-  ComputeResultType,
-  OPFK8ComputeOutput,
   OPFK8ComputeStage,
   OPFK8ComputeStageAlgorithm,
   OPFK8ComputeStageInput,
@@ -21,7 +17,6 @@ import type {
 } from '../../@types/C2D.js'
 import { C2DClusterType } from '../../@types/C2D.js'
 import { sign } from '../core/utils/nonceHandler.js'
-import { CORE_LOGGER } from '../../utils/logging/common.js'
 import axios from 'axios'
 import { getConfiguration } from '../../utils/config.js'
 

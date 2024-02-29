@@ -6,7 +6,6 @@ import { Handler } from '../handler.js'
 import { ComputeGetStatusCommand } from '../../../@types/commands.js'
 import { getConfiguration } from '../../../utils/config.js'
 import { C2DEngine } from '../../c2d/compute_engines.js'
-import { error } from 'console'
 
 export class ComputeGetStatusHandler extends Handler {
   async handle(task: ComputeGetStatusCommand): Promise<P2PCommandResponse> {
