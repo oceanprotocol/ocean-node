@@ -49,8 +49,10 @@ import { DDO } from '../../@types/DDO/DDO.js'
 import { ProviderFeeData } from '../../@types/Fees.js'
 import { OceanNode } from '../../OceanNode.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
+import { Database } from '../../components/database/index.js'
 
 describe('Compute provider fees', async () => {
+  let database: Database
   let provider: JsonRpcProvider
   let factoryContract: Contract
   let nftContract: Contract
@@ -85,6 +87,15 @@ describe('Compute provider fees', async () => {
         [JSON.stringify(mockSupportedNetworks), JSON.stringify({ 8996: oceanToken })]
       )
     )
+
+    const dbConfig = {
+      url: 'http://localhost:8108/?apiKey=xyz'
+    }
+    database = await new Database(dbConfig)
+    oceanNode = await OceanNode.getInstance(database)
+
+    provider = new JsonRpcProvider('http://127.0.0.1:8545')
+    publisherAccount = (await provider.getSigner(0)) as Signer
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
