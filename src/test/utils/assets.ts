@@ -1,12 +1,4 @@
-import {
-  JsonRpcProvider,
-  Signer,
-  Contract,
-  ethers,
-  getAddress,
-  hexlify,
-  ZeroAddress
-} from 'ethers'
+import { Signer, ethers, getAddress, hexlify, ZeroAddress } from 'ethers'
 import { createHash } from 'crypto'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
@@ -26,7 +18,6 @@ export async function publishAsset(genericAsset: any, publisherAccount: Signer) 
   if (!network) {
     network = getOceanArtifactsAdresses().development
   }
-  const publisherAddress = await publisherAccount.getAddress()
   const net = await publisherAccount.provider.getNetwork()
   const { chainId } = net
   const factoryContract = new ethers.Contract(

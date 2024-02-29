@@ -28,11 +28,8 @@ describe('Compute', () => {
   let config: OceanNodeConfig
   let dbconn: Database
   let oceanNode: OceanNode
-  let computeAsset1
-  let algoAsset1
   let provider: any
   let publisherAccount: any
-  let consumerAccount: any
   let computeEnvironments: any
   let publishedComputeDataset: any
   let publishedAlgoDataset: any
@@ -45,7 +42,6 @@ describe('Compute', () => {
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    consumerAccount = (await provider.getSigner(1)) as Signer
     publisherAccount = (await provider.getSigner(0)) as Signer
   })
 
@@ -91,7 +87,7 @@ describe('Compute', () => {
   it('should publish compute datasets & algos', async () => {
     publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
     publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
-    const { ddo, wasTimeout } = await waitToIndex(
+    await waitToIndex(
       publishedAlgoDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT
