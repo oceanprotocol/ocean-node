@@ -3,14 +3,11 @@ import {
   ComputeGetEnvironmentsHandler,
   ComputeStartHandler,
   ComputeStopHandler,
-  ComputeGetStatusHandler,
-  ComputeGetResultHandler
+  ComputeGetStatusHandler
 } from '../../components/core/compute/index.js'
 import type {
-  ComputeGetEnvironmentsCommand,
   ComputeStartCommand,
   ComputeStopCommand,
-  ComputeGetResultCommand,
   ComputeGetStatusCommand
 } from '../../@types/commands.js'
 import { getConfiguration } from '../../utils/config.js'
@@ -19,20 +16,13 @@ import { OceanNode } from '../../OceanNode.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
-import { waitToIndex, delay } from './testUtils.js'
-import { streamToObject, streamToString } from '../../utils/util.js'
+import { waitToIndex } from './testUtils.js'
+import { EVENTS } from '../../utils/index.js'
+import { streamToObject } from '../../utils/util.js'
 import { publishAsset } from '../utils/assets.js'
-import {
-  JsonRpcProvider,
-  Signer,
-  Contract,
-  ethers,
-  getAddress,
-  hexlify,
-  ZeroAddress
-} from 'ethers'
+import { JsonRpcProvider, Signer, ethers } from 'ethers'
 import { computeAsset, algoAsset } from '../data/ddo_compute.js'
-import { isRunningContinousIntegrationEnv } from '../utils/utils.js'
+import { DEFAULT_TEST_TIMEOUT } from '../utils/utils.js'
 
 describe('Compute', () => {
   let config: OceanNodeConfig
@@ -101,6 +91,11 @@ describe('Compute', () => {
   it('should publish compute datasets & algos', async () => {
     publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
     publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
+    const { ddo, wasTimeout } = await waitToIndex(
+      publishedAlgoDataset.ddo.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
   })
   it('should start a compute job', async () => {
     const nonce = Date.now().toString()

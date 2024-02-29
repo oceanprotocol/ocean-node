@@ -8,14 +8,13 @@ import {
 } from '../core/compute/index.js'
 import type { ComputeAlgorithm, ComputeAsset, ComputeOutput } from '../../@types/C2D.js'
 import type {
-  ComputeGetEnvironmentsCommand,
   ComputeStartCommand,
   ComputeStopCommand,
   ComputeGetResultCommand,
   ComputeGetStatusCommand
 } from '../../@types/commands.js'
 
-import { streamToObject, streamToString } from '../../utils/util.js'
+import { streamToObject } from '../../utils/util.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { Readable } from 'stream'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
