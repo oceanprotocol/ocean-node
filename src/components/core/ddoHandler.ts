@@ -680,7 +680,7 @@ export class ValidateDDOHandler extends Handler {
           status: { httpStatus: 400, error: `Validation error: ${validation[1]}` }
         }
       }
-      const signature = getValidationSignature(JSON.stringify(task.ddo))
+      const signature = await getValidationSignature(JSON.stringify(task.ddo))
       return {
         stream: Readable.from(JSON.stringify(signature)),
         status: { httpStatus: 200 }
