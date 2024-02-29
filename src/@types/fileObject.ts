@@ -7,8 +7,7 @@ export interface HeadersObject {
 
 export enum EncryptMethod {
   AES = 'AES',
-  ECIES = 'ECIES',
-  NONE = ''
+  ECIES = 'ECIES'
 }
 
 export interface BaseFileObject {

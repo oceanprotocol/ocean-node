@@ -77,7 +77,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     )
   })
 
-  it('Start instance of Database', async () => {
+  it('Start instance of Database', () => {
     expect(database).to.be.instanceOf(Database)
   })
 
