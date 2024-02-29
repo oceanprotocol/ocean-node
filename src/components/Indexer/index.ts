@@ -1,5 +1,5 @@
 import EventEmitter from 'node:events'
-import { Worker, workerData } from 'node:worker_threads'
+import { Worker } from 'node:worker_threads'
 import { Database } from '../database/index.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
 import { ReindexTask } from './crawlerThread.js'

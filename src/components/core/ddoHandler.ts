@@ -17,7 +17,7 @@ import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { Blockchain } from '../../utils/blockchain.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import { getOceanArtifactsAdressesByChainId } from '../../utils/address.js'
-import { ethers, hexlify } from 'ethers'
+import { ethers } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { decrypt, create256Hash } from '../../utils/crypt.js'
 import lzma from 'lzma-native'
@@ -30,7 +30,6 @@ import {
   ValidateDDOCommand
 } from '../../@types/commands.js'
 import { hasP2PInterface } from '../httpRoutes/index.js'
-import { getProviderWallet } from './utils/feesHandler'
 import { EncryptMethod } from '../../@types/fileObject.js'
 
 const MAX_NUM_PROVIDERS = 5
