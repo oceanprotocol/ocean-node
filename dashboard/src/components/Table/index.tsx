@@ -32,9 +32,9 @@ export default function Table() {
     { name: 'Block Number', selector: (row) => row.blockNumber },
     {
       name: 'Errors',
-      selector: (row) => <ErrorCheck status={row.errors} />,
+      selector: (row) => <ErrorCheck status={row.errors} />
     },
-    { name: 'Logs', selector: () => <DownloadButton /> },
+    { name: 'Logs', selector: () => <DownloadButton /> }
   ]
 
   return (

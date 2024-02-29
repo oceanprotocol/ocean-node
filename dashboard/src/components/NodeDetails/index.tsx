@@ -1,10 +1,9 @@
+import React from 'react'
 import { ExpanderComponentProps } from 'react-data-table-component'
 import { DataRowType } from '../../shared/types/RowDataType'
 import styles from './index.module.css'
 
-const NodeDetails: React.FC<ExpanderComponentProps<DataRowType>> = ({
-  data,
-}) => {
+const NodeDetails: React.FC<ExpanderComponentProps<DataRowType>> = ({ data }) => {
   const keyValuePairs = Object.keys(data.nodeDetails).map((key) => {
     // @ts-expect-error - error is shown here because the key is used as an index.
     return { key: `${key}`, value: `${data.nodeDetails[key]}` }

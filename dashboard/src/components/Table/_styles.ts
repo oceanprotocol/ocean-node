@@ -5,14 +5,14 @@ const theme: Partial<Theme> = {
   text: {
     primary: 'var(-gray-gray-500)',
     secondary: 'var(--color-secondary)',
-    disabled: 'var(--color-secondary)',
+    disabled: 'var(--color-secondary)'
   },
   background: {
-    default: '#fff',
+    default: '#fff'
   },
   divider: {
-    default: 'var(--border-color)',
-  },
+    default: 'var(--border-color)'
+  }
 }
 
 createTheme('custom', theme)
@@ -26,31 +26,31 @@ export const customStyles: TableStyles = {
       height: '30px !important',
       background: 'transparent !important',
       border: 'transparent !important',
-      color: '#A0AEC0 !important',
-    },
+      color: '#A0AEC0 !important'
+    }
   },
   table: {
     style: {
-      scrollbarWidth: 'thin',
-    },
+      scrollbarWidth: 'thin'
+    }
   },
   head: {
     style: {
-      fontWeight: '700',
-    },
+      fontWeight: '700'
+    }
   },
   headCells: {
     style: {
       textTransform: 'uppercase',
       color: 'var(--color-secondary)',
-      fontSize: 'var(--font-size-small)',
-    },
+      fontSize: 'var(--font-size-small)'
+    }
   },
   rows: {
     style: {
       color: 'var(--gray-500)',
       paddingTop: '24px',
-      paddingBottom: '24px',
-    },
-  },
+      paddingBottom: '24px'
+    }
+  }
 }

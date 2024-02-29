@@ -35,11 +35,7 @@ const NavBar = () => {
       </div>
 
       <div className={styles.menuOptions}>
-        <button
-          type="button"
-          className={styles.docButton}
-          onClick={connectWallet}
-        >
+        <button type="button" className={styles.docButton} onClick={connectWallet}>
           {connected ? 'Disconnect' : 'Connect'}
         </button>
       </div>

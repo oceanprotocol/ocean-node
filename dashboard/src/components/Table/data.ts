@@ -17,8 +17,8 @@ const Data = [
       client_version: 'v2.1.7',
       os: 'win-x64',
       country: 'Germany',
-      city: 'Berlin',
-    },
+      city: 'Berlin'
+    }
   },
   {
     nodeId: 'P8eOwa4NUHR5F8Mv',
@@ -38,8 +38,8 @@ const Data = [
       client_version: 'v2.6.13',
       os: 'linux-x64',
       country: 'China',
-      city: 'Beijing',
-    },
+      city: 'Beijing'
+    }
   },
   {
     nodeId: 'GypgswOrMSEchoOt',
@@ -59,8 +59,8 @@ const Data = [
       client_version: 'v1.2.6',
       os: 'darwin-x64',
       country: 'United States',
-      city: 'Los Angeles',
-    },
+      city: 'Los Angeles'
+    }
   },
   {
     nodeId: 'q0UtBHkoO9bJXQ0Z',
@@ -80,8 +80,8 @@ const Data = [
       client_version: 'v1.3.16',
       os: 'linux-x64',
       country: 'China',
-      city: 'Beijing',
-    },
+      city: 'Beijing'
+    }
   },
   {
     nodeId: 'oomCkOQb2lnDjdVn',
@@ -101,8 +101,8 @@ const Data = [
       client_version: 'v2.8.4',
       os: 'linux-x64',
       country: 'Germany',
-      city: 'Frankfurt',
-    },
+      city: 'Frankfurt'
+    }
   },
   {
     nodeId: 'O5xaCO8l59zgDPj7',
@@ -122,8 +122,8 @@ const Data = [
       client_version: 'v1.7.6',
       os: 'darwin-x64',
       country: 'United States',
-      city: 'Los Angeles',
-    },
+      city: 'Los Angeles'
+    }
   },
   {
     nodeId: 'N9XdkNFaTgTE9MCZ',
@@ -143,8 +143,8 @@ const Data = [
       client_version: 'v1.5.6',
       os: 'darwin-x64',
       country: 'Brazil',
-      city: 'Rio de Janeiro',
-    },
+      city: 'Rio de Janeiro'
+    }
   },
   {
     nodeId: 'BYvfzuJkGp2Obf4A',
@@ -164,8 +164,8 @@ const Data = [
       client_version: 'v1.9.9',
       os: 'win-x64',
       country: 'Germany',
-      city: 'Berlin',
-    },
+      city: 'Berlin'
+    }
   },
   {
     nodeId: 'HIXeEpgZ6mu906dW',
@@ -185,8 +185,8 @@ const Data = [
       client_version: 'v1.3.2',
       os: 'win-x64',
       country: 'Germany',
-      city: 'Berlin',
-    },
+      city: 'Berlin'
+    }
   },
   {
     nodeId: 'FhQtCXVmpFxrT2Mu',
@@ -206,9 +206,9 @@ const Data = [
       client_version: 'v2.9.20',
       os: 'win-x64',
       country: 'United States',
-      city: 'Chicago',
-    },
-  },
+      city: 'Chicago'
+    }
+  }
 ]
 
 export { Data }
