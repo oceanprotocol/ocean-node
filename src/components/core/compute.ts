@@ -7,7 +7,6 @@ import { InitializeComputeCommand } from '../../@types/C2D'
 import { getConfiguration } from '../../utils/config.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { streamToString } from '../../utils/util.js'
-import { DDO } from '../../@types/DDO/DDO.js'
 import axios from 'axios'
 import { validateProviderFeesForDatasets } from './utils/initializeCompute.js'
 
