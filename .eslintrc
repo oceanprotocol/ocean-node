@@ -13,7 +13,7 @@
     "prefer-destructuring": ["warn", { "object": true, "array": false }],
     "no-dupe-class-members": ["warn"],
     "no-useless-constructor": ["warn"],
-    "no-unused-vars": ["warn"],
+    "no-unused-vars": ["error"],
     "constructor-super": ["warn"]
   },
   "env": {

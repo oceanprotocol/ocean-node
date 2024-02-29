@@ -294,13 +294,13 @@ export async function createFee(
   //   ethers.toBeArray(messageHash).length
   // )
 
-  const signableHash = ethers.solidityPackedKeccak256(
-    ['bytes'],
-    [ethers.toUtf8Bytes(messageHash)]
+  // const signableHash = ethers.solidityPackedKeccak256(
+  //   ['bytes'],
+  //   [ethers.toUtf8Bytes(messageHash)]
 
-    // OR ethers.utils.hashMessage(ethers.utils.concat([ hash, string, address ])
-    // https://github.com/ethers-io/ethers.js/issues/468
-  )
+  //   // OR ethers.utils.hashMessage(ethers.utils.concat([ hash, string, address ])
+  //   // https://github.com/ethers-io/ethers.js/issues/468
+  // )
 
   // *** NOTE: provider.py ***
   // pk = keys.PrivateKey(provider_wallet.key)
