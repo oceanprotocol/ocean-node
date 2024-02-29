@@ -106,7 +106,7 @@ describe('Download Tests', () => {
     )
   })
 
-  it('instance Database', async () => {
+  it('instance Database', () => {
     expect(database).to.be.instanceOf(Database)
   })
 

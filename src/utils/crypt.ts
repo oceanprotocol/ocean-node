@@ -22,8 +22,7 @@ export async function encrypt(
     const cipher = crypto.createCipheriv('aes-256-cbc', privateKey, initVector)
     // encoding is ignored because we are working with bytes and want to return a buffer
     encryptedData = Buffer.concat([cipher.update(data), cipher.final()])
-  }
-  if (algorithm === EncryptMethod.ECIES) {
+  } else if (algorithm === EncryptMethod.ECIES) {
     const sk = new eciesjs.PrivateKey(privateKey)
     // get public key from Elliptic curve
     encryptedData = eciesjs.encrypt(sk.publicKey.toHex(), data)
@@ -50,8 +49,7 @@ export async function decrypt(
     const decipher = crypto.createDecipheriv('aes-256-cbc', privateKey, initVector)
     // encoding is ignored because we are working with bytes and want to return a buffer
     decryptedData = Buffer.concat([decipher.update(data), decipher.final()])
-  }
-  if (algorithm === EncryptMethod.ECIES) {
+  } else if (algorithm === EncryptMethod.ECIES) {
     const sk = new eciesjs.PrivateKey(privateKey)
     decryptedData = eciesjs.decrypt(sk.secret, data)
   }
@@ -61,4 +59,11 @@ export async function decrypt(
 export function create256Hash(input: string): string {
   const result = crypto.createHash('sha256').update(input).digest('hex')
   return '0x' + result
+}
+
+// convert from string format to EncryptMethod (case insensitive)
+export function getEncryptMethodFromString(str: string): EncryptMethod {
+  if (!str || str.length === 0) return EncryptMethod.AES // default
+
+  return str.toUpperCase() === 'ECIES' ? EncryptMethod.ECIES : EncryptMethod.AES
 }

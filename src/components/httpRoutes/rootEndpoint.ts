@@ -1,7 +1,7 @@
 import express from 'express'
 export const rootEndpointRoutes = express.Router()
 
-rootEndpointRoutes.get('/', async (req, res) => {
+rootEndpointRoutes.get('/', (req, res) => {
   res.json({
     chainIds: [1, 5, 10, 137, 80001, 11155111],
     providerAddresses: {

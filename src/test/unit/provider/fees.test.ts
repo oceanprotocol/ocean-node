@@ -178,7 +178,7 @@ describe('Ocean Node fees', () => {
     expect(conf.feeStrategy.feeAmount.amount).to.be.gte(0)
   })
 
-  after(async () => {
+  after(() => {
     tearDownEnvironment(envBefore)
   })
 })

@@ -51,7 +51,7 @@ import { OceanNode } from '../../OceanNode.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { Database } from '../../components/database/index.js'
 
-describe('Compute provider fees', async () => {
+describe('Compute provider fees', () => {
   let database: Database
   let provider: JsonRpcProvider
   let factoryContract: Contract

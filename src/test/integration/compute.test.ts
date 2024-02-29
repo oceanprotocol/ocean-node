@@ -20,7 +20,7 @@ describe('Compute', () => {
     oceanNode = await OceanNode.getInstance(dbconn)
   })
 
-  it('Sets up compute envs', async () => {
+  it('Sets up compute envs', () => {
     assert(oceanNode, 'Failed to instantiate OceanNode')
     assert(config.c2dClusters, 'Failed to get c2dClusters')
   })

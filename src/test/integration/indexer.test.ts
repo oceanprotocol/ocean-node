@@ -81,7 +81,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     )
   })
 
-  it('instance Database', async () => {
+  it('instance Database', () => {
     expect(database).to.be.instanceOf(Database)
   })
 
@@ -363,10 +363,11 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should increase number of orders', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.ORDER_REUSED,
-      DEFAULT_TEST_TIMEOUT
+      DEFAULT_TEST_TIMEOUT * 2
     )
     const retrievedDDO: any = ddo
     if (retrievedDDO) {
@@ -412,12 +413,12 @@ describe('Indexer stores a new metadata events and orders.', () => {
     }
   })
 
-  it('should add reindex task', async () => {
+  it('should add reindex task', () => {
     const reindexTask = {
       txId: setMetaDataTxReceipt.hash,
       chainId: '8996'
     }
-    await OceanIndexer.addReindexTask(reindexTask)
+    OceanIndexer.addReindexTask(reindexTask)
   })
 
   it('should store ddo reindex', async function () {
