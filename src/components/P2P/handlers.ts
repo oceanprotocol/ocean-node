@@ -3,7 +3,7 @@ export * from './handleProtocolCommands.js'
 
 export function handlePeerConnect(details: any) {
   if (details) {
-    const peerId = details.detail
+    // const peerId = details.detail
     // console.log('Connection established to:', peerId.toString()) // Emitted when a peer has been found
     /*
         try{
@@ -21,15 +21,14 @@ export function handlePeerConnect(details: any) {
 }
 
 export function handlePeerDisconnect(details: any) {
-  const peerId = details.detail
+  // const peerId = details.detail
   // console.log('Connection closed to:', peerId.toString()) // Emitted when a peer has been found
 }
 
 export function handlePeerDiscovery(details: any) {
-  const peerInfo = details.detail
+  // const peerInfo = details.detail
   // console.log('Discovered new peer:', peerInfo.id.toString())
   // console.log(details.detail)
-
   /*
       try{
         //this._libp2p.services.pubsub.connect(peerInfo.id.toString())

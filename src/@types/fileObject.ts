@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { Readable } from 'stream'
 
 export interface HeadersObject {
