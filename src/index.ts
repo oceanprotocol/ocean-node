@@ -7,11 +7,11 @@ import { OceanNode } from './OceanNode.js'
 import swaggerUi from 'swagger-ui-express'
 import { httpRoutes } from './components/httpRoutes/index.js'
 import { getConfiguration } from './utils/index.js'
-import cron from 'node-cron';
 
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import fs from 'fs'
 import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
+const cron = require('node-cron')
 
 const app: Express = express()
 // const port = getRandomInt(6000,6500)
@@ -68,7 +68,7 @@ if (!config) {
 let node: OceanP2P = null
 let indexer = null
 let provider = null
-let dbconn = null
+let dbconn: Database | null = null
 
 if (config.dbConfig?.url) {
   // once we create a database instance, we check the environment and possibly add the DB transport
@@ -130,11 +130,17 @@ if (config.hasHttp) {
   app.listen(config.httpPort, () => {
     OCEAN_NODE_LOGGER.logMessage(`HTTP port: ${config.httpPort}`, true)
   })
-  // Schedule the cron job to run daily at midnight
-cron.schedule('0 0 * * *', async () => {
-  const logDatabase = new LogDatabase(/* Your config and schema here */);
-  await logDatabase.deleteOldLogs();
-  console.log('Old logs deletion task completed.');
-});
 
+  // Schedule the cron job to run daily at midnight
+  cron.schedule('0 0 * * *', async () => {
+    if (dbconn && dbconn.logs) {
+      await dbconn.logs.deleteOldLogs()
+      OCEAN_NODE_LOGGER.logMessage('Old logs deleted successfully.', true)
+    } else {
+      OCEAN_NODE_LOGGER.logMessage(
+        'Database connection not established or logs instance not available.',
+        true
+      )
+    }
+  })
 }

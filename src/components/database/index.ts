@@ -722,9 +722,23 @@ export class LogDatabase {
         .documents()
         .delete(filterCondition)
 
-      console.log(`Deleted logs: ${JSON.stringify(deleteResult)}`)
+      // Log the success message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Deleted logs older than ${deleteBeforeTime} (timestamp): ${JSON.stringify(
+          deleteResult
+        )}`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CHECK_MARK,
+        LOG_LEVELS_STR.LEVEL_INFO
+      )
     } catch (error) {
-      console.error(`Error when deleting old log entries: ${error.message}`)
+      // Log the error
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Error when deleting old log entries: ${error.message}`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
     }
   }
 }
