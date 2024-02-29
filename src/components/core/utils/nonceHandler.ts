@@ -97,7 +97,6 @@ async function updateNonce(
 
 // get stored nonce for an address, update it on db, validate signature
 export async function checkNonce(
-  db: NonceDatabase,
   consumer: string,
   nonce: number,
   signature: string,
@@ -105,6 +104,8 @@ export async function checkNonce(
 ): Promise<NonceResponse> {
   try {
     // get nonce from db
+    const node = this.getOceanNode()
+    const db = node.getDatabase().nonce
     let previousNonce = 0 // if none exists
     const existingNonce = await db.retrieve(consumer)
     if (existingNonce !== null) {
@@ -116,7 +117,7 @@ export async function checkNonce(
       previousNonce, // will return 0 if none exists
       consumer,
       signature,
-      ddoId
+      String(ddoId + nonce)
     )
     if (validate.valid) {
       const updateStatus = await updateNonce(db, consumer, nonce)
@@ -144,6 +145,7 @@ export async function checkNonce(
  * @param existingNonce store nonce
  * @param consumer address
  * @param signature sign(nonce)
+ * @param message Use this message instead of default String(nonce)
  * @returns true or false + error message
  */
 function validateNonceAndSignature(
@@ -151,15 +153,13 @@ function validateNonceAndSignature(
   existingNonce: number,
   consumer: string,
   signature: string,
-  ddoId: string = null
+  message: string = null
 ): NonceResponse {
   // check if is bigger than previous nonce
   if (nonce > existingNonce) {
     // nonce good
     // now validate signature
-    let message: string
-    if (ddoId) message = String(ddoId + nonce)
-    else message = String(nonce)
+    if (!message) message = String(nonce)
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
       [ethers.hexlify(ethers.toUtf8Bytes(message))]

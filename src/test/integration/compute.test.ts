@@ -5,7 +5,7 @@ import {
   ComputeStopHandler,
   ComputeGetStatusHandler,
   ComputeGetResultHandler
-} from '../../components/core/compute.js'
+} from '../../components/core/compute/index.js'
 import type {
   ComputeGetEnvironmentsCommand,
   ComputeStartCommand,

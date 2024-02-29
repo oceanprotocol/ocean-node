@@ -5,7 +5,7 @@ import {
   ComputeStopHandler,
   ComputeGetStatusHandler,
   ComputeGetResultHandler
-} from '../core/compute.js'
+} from '../core/compute/index.js'
 import type { ComputeAlgorithm, ComputeAsset, ComputeOutput } from '../../@types/C2D.js'
 import type {
   ComputeGetEnvironmentsCommand,
@@ -29,20 +29,10 @@ computeRoutes.get('/api/services/computeEnvironments', async (req, res) => {
       `GET computeEnvironments request received with query: ${JSON.stringify(req.query)}`,
       true
     )
-    const chainId = parseInt(req.query.chainId as string)
-
-    if (isNaN(chainId) || chainId < 1) {
-      HTTP_LOGGER.logMessage(
-        `Invalid chainId: ${chainId} on GET computeEnvironments request`,
-        true
-      )
-      return res.status(400).send('Invalid chainId')
-    }
-
     const getEnvironmentsTask = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS,
-      chainId,
-      node: req.query.node as string
+      chainId: parseInt(req.query.chainId as string),
+      node: (req.query.node as string) || null
     }
     const response = await new ComputeGetEnvironmentsHandler().handle(getEnvironmentsTask) // get compute environments
     const computeEnvironments = await streamToObject(response.stream as Readable)

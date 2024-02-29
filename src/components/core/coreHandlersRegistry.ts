@@ -24,7 +24,7 @@ import {
   ComputeStopHandler,
   ComputeGetStatusHandler,
   ComputeGetResultHandler
-} from './compute.js'
+} from './compute/index.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
