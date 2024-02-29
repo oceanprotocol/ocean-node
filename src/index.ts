@@ -17,7 +17,9 @@ const app: Express = express()
 // const port = getRandomInt(6000,6500)
 
 declare global {
+  // eslint-disable-next-line no-unused-vars
   namespace Express {
+    // eslint-disable-next-line no-unused-vars
     interface Request {
       oceanNode: OceanNode
     }
