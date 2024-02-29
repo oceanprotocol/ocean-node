@@ -23,13 +23,28 @@ export abstract class Storage {
   }
 
   abstract validate(): [boolean, string]
-  abstract getReadableStream(): Promise<StorageReadable>
   abstract getDownloadUrl(): string
   abstract fetchSpecificFileMetadata(fileObject: any): Promise<FileInfoResponse>
   abstract encryptContent(encryptionType: 'AES' | 'ECIES'): Promise<Buffer>
 
   getFile(): any {
     return this.file
+  }
+
+  // similar to all subclasses
+  async getReadableStream(): Promise<StorageReadable> {
+    const input = this.getDownloadUrl()
+    const response = await axios({
+      method: 'get',
+      url: input,
+      responseType: 'stream'
+    })
+
+    return {
+      httpStatus: response.status,
+      stream: response.data,
+      headers: response.headers as any
+    }
   }
 
   static getStorageClass(file: any): UrlStorage | IpfsStorage | ArweaveStorage {
@@ -186,20 +201,6 @@ export class UrlStorage extends Storage {
     return null
   }
 
-  async getReadableStream(): Promise<StorageReadable> {
-    const input = this.getDownloadUrl()
-    const response = await axios({
-      method: 'get',
-      url: input,
-      responseType: 'stream'
-    })
-    return {
-      httpStatus: response.status,
-      stream: response.data,
-      headers: response.headers as any
-    }
-  }
-
   async fetchSpecificFileMetadata(fileObject: UrlFileObject): Promise<FileInfoResponse> {
     const { url } = fileObject
     const { contentLength, contentType } = await fetchFileMetadata(url)
@@ -250,22 +251,6 @@ export class ArweaveStorage extends Storage {
 
   getDownloadUrl(): string {
     return urlJoin(process.env.ARWEAVE_GATEWAY, this.getFile().transactionId)
-  }
-
-  async getReadableStream(): Promise<StorageReadable> {
-    const input = this.getDownloadUrl()
-
-    const response = await axios({
-      method: 'get',
-      url: input,
-      responseType: 'stream'
-    })
-
-    return {
-      httpStatus: response.status,
-      stream: response.data,
-      headers: response.headers as any
-    }
   }
 
   async fetchSpecificFileMetadata(
@@ -320,22 +305,6 @@ export class IpfsStorage extends Storage {
 
   getDownloadUrl(): string {
     return urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', this.getFile().hash))
-  }
-
-  async getReadableStream(): Promise<StorageReadable> {
-    const input = this.getDownloadUrl()
-
-    const response = await axios({
-      method: 'get',
-      url: input,
-      responseType: 'stream'
-    })
-
-    return {
-      httpStatus: response.status,
-      stream: response.data,
-      headers: response.headers as any
-    }
   }
 
   async fetchSpecificFileMetadata(fileObject: IpfsFileObject): Promise<FileInfoResponse> {
