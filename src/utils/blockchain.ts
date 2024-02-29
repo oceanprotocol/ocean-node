@@ -1,4 +1,5 @@
-import { ethers, Signer, JsonRpcApiProvider } from 'ethers'
+import { ethers, Signer, JsonRpcApiProvider, JsonRpcProvider } from 'ethers'
+import { getConfiguration } from './config.js'
 
 export class Blockchain {
   private signer: Signer
@@ -46,4 +47,9 @@ export async function verifyMessage(
   } catch (err) {
     return false
   }
+}
+
+export async function getJsonRpcProvider(chainId: number): Promise<JsonRpcProvider> {
+  const networkUrl = (await getConfiguration()).supportedNetworks[chainId.toString()].rpc
+  return new JsonRpcProvider(networkUrl)
 }
