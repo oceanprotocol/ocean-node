@@ -51,6 +51,7 @@ export interface OceanNodeConfig {
   c2dClusters: C2DClusterInfo[]
   accountPurgatoryUrl: string
   assetPurgatoryUrl: string
+  codeHash?: string
 }
 
 export interface P2PStatusResponse {
@@ -92,6 +93,7 @@ export interface OceanNodeStatus {
   supportedStorage: StorageTypes
   platform: any
   uptime?: number // seconds since start
+  codecodeHash?: string
 }
 
 export interface P2PBroadcastResponse {
