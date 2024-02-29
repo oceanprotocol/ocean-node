@@ -6,14 +6,20 @@ import { calculateFee } from '../core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { EncryptHandler } from '../core/encryptHandler.js'
+import { EncryptFileHandler, EncryptHandler } from '../core/encryptHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { DecryptDdoHandler } from '../core/ddoHandler.js'
-import { EncryptMethod } from '../../@types/fileObject.js'
+import { DownloadHandler } from '../core/downloadHandler.js'
+import { DownloadCommand } from '../../@types/commands.js'
+import { BaseFileObject, EncryptMethod } from '../../@types/fileObject.js'
+import { P2PCommandResponse } from '../../@types/OceanNode.js'
+import { getEncryptMethodFromString } from '../../utils/crypt.js'
 
 export const providerRoutes = express.Router()
 
-providerRoutes.post('/decrypt', async (req, res) => {
+export const SERVICES_API_BASE_PATH = '/api/services'
+
+providerRoutes.post(`${SERVICES_API_BASE_PATH}/decrypt`, async (req, res) => {
   try {
     const result = await new DecryptDdoHandler(req.oceanNode).handle({
       ...req.body,
@@ -32,7 +38,7 @@ providerRoutes.post('/decrypt', async (req, res) => {
   }
 })
 
-providerRoutes.post('/encrypt', async (req, res) => {
+providerRoutes.post(`${SERVICES_API_BASE_PATH}/encrypt`, async (req, res) => {
   try {
     const data = req.body.toString()
     if (!data) {
@@ -58,16 +64,86 @@ providerRoutes.post('/encrypt', async (req, res) => {
   }
 })
 
-providerRoutes.get('/download', (req, res) => {
+// There are two ways of encrypting a file:
+
+// 1) Body contains file object
+// Content-type header must be set to application/json
+
+// 2 ) Body contains raw file content
+// Content-type header must be set to application/octet-stream or multipart/form-data
+
+// Query.encryptMethod can be aes or ecies (if missing, defaults to aes)
+
+// Returns:
+// Body: encrypted file content
+// Headers
+// X-Encrypted-By: our_node_id
+// X-Encrypted-Method: aes or ecies
+providerRoutes.post(`${SERVICES_API_BASE_PATH}/encryptFile`, async (req, res) => {
+  const writeResponse = async (
+    result: P2PCommandResponse,
+    encryptMethod: EncryptMethod
+  ) => {
+    if (result.stream) {
+      const encryptedData = await streamToString(result.stream as Readable)
+      res.set(result.status.headers)
+      res.status(200).send(encryptedData)
+    } else {
+      res.status(result.status.httpStatus).send(result.status.error)
+    }
+  }
+
+  const getEncryptedData = async (
+    encryptMethod: EncryptMethod.AES | EncryptMethod.ECIES,
+    input: Buffer
+  ) => {
+    const result = await new EncryptFileHandler(req.oceanNode).handle({
+      rawData: input,
+      encryptionType: encryptMethod,
+      command: PROTOCOL_COMMANDS.ENCRYPT_FILE
+    })
+    return result
+  }
+
   try {
-    res.status(400).send()
+    const encryptMethod: EncryptMethod = getEncryptMethodFromString(
+      req.query.encryptMethod as string
+    )
+    let result: P2PCommandResponse
+    if (req.is('application/json')) {
+      // body as fileObject
+      result = await new EncryptFileHandler(req.oceanNode).handle({
+        files: req.body as BaseFileObject,
+        encryptionType: encryptMethod,
+        command: PROTOCOL_COMMANDS.ENCRYPT_FILE
+      })
+      return await writeResponse(result, encryptMethod)
+      // raw data on body
+    } else if (req.is('application/octet-stream') || req.is('multipart/form-data')) {
+      if (req.is('application/octet-stream')) {
+        result = await getEncryptedData(encryptMethod, req.body)
+        return await writeResponse(result, encryptMethod)
+      } else {
+        // multipart/form-data
+        const data: Buffer[] = []
+        req.on('data', function (chunk) {
+          data.push(chunk)
+        })
+        req.on('end', async function () {
+          result = await getEncryptedData(encryptMethod, Buffer.concat(data))
+          return await writeResponse(result, encryptMethod)
+        })
+      }
+    } else {
+      res.status(400).send('Invalid request (missing body data or invalid content-type)')
+    }
   } catch (error) {
     HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
 })
 
-providerRoutes.get('/initialize', async (req, res) => {
+providerRoutes.get(`${SERVICES_API_BASE_PATH}/initialize`, async (req, res) => {
   try {
     const did = String(req.query.documentId)
     const consumerAddress = String(req.query.consumerAddress)
@@ -112,7 +188,7 @@ providerRoutes.get('/initialize', async (req, res) => {
   }
 })
 
-providerRoutes.get('/nonce', async (req, res) => {
+providerRoutes.get(`${SERVICES_API_BASE_PATH}/nonce`, async (req, res) => {
   try {
     const userAddress = String(req.query.userAddress)
     if (!userAddress) {
@@ -131,3 +207,53 @@ providerRoutes.get('/nonce', async (req, res) => {
     res.status(500).send('Internal Server Error')
   }
 })
+
+providerRoutes.get(
+  `${SERVICES_API_BASE_PATH}/download`,
+  express.urlencoded({ extended: true, type: '*/*' }),
+  async (req, res): Promise<void> => {
+    if (!req.query) {
+      res.sendStatus(400)
+      return
+    }
+    HTTP_LOGGER.logMessage(
+      `Download request received: ${JSON.stringify(req.query)}`,
+      true
+    )
+    try {
+      const {
+        fileIndex,
+        documentId,
+        serviceId,
+        transferTxId,
+        nonce,
+        consumerAddress,
+        signature
+      } = req.query
+
+      const downloadTask: DownloadCommand = {
+        fileIndex: Number(fileIndex),
+        documentId: documentId as string,
+        serviceId: serviceId as string,
+        transferTxId: transferTxId as string,
+        nonce: nonce as string,
+        consumerAddress: consumerAddress as string,
+        signature: signature as string,
+        command: PROTOCOL_COMMANDS.DOWNLOAD
+      }
+
+      const response = await new DownloadHandler(req.oceanNode).handle(downloadTask)
+      if (response.stream) {
+        res.status(response.status.httpStatus)
+        res.set(response.status.headers)
+        response.stream.pipe(res)
+      } else {
+        res.status(response.status.httpStatus).send(response.status.error)
+      }
+    } catch (error) {
+      HTTP_LOGGER.logMessage(`Error: ${error}`, true)
+      res.status(500).send(error)
+    }
+    // res.sendStatus(200)
+  }
+)
