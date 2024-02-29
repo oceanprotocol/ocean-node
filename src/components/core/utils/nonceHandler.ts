@@ -97,6 +97,7 @@ async function updateNonce(
 
 // get stored nonce for an address, update it on db, validate signature
 export async function checkNonce(
+  db: NonceDatabase,
   consumer: string,
   nonce: number,
   signature: string,
@@ -104,8 +105,6 @@ export async function checkNonce(
 ): Promise<NonceResponse> {
   try {
     // get nonce from db
-    const node = this.getOceanNode()
-    const db = node.getDatabase().nonce
     let previousNonce = 0 // if none exists
     const existingNonce = await db.retrieve(consumer)
     if (existingNonce !== null) {

@@ -19,6 +19,7 @@ export class ComputeGetResultHandler extends Handler {
       error = 'Invalid result index'
     }
     const nonceCheckResult: NonceResponse = await checkNonce(
+      this.getOceanNode().getDatabase().nonce,
       task.consumerAddress,
       parseInt(task.nonce),
       task.signature,

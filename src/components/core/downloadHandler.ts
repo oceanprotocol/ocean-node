@@ -208,6 +208,7 @@ export class DownloadHandler extends Handler {
 
     // 3. Validate nonce and signature
     const nonceCheckResult: NonceResponse = await checkNonce(
+      this.getOceanNode().getDatabase().nonce,
       task.consumerAddress,
       parseInt(task.nonce),
       task.signature,
