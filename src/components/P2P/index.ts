@@ -544,6 +544,7 @@ export class OceanP2P extends EventEmitter {
    * @param node the node
    * @returns  boolean from counter
    */
+  // eslint-disable-next-line require-await
   async storeAndAdvertiseDDOS(list: any[]): Promise<boolean> {
     if (!this.db) {
       P2P_LOGGER.logMessage(

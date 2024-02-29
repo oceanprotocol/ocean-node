@@ -67,7 +67,7 @@ export function fetchEventFromTransaction(
 }
 
 // Helper function to read from a stream
-export async function readStream(stream: Stream): Promise<string> {
+export function readStream(stream: Stream): Promise<string> {
   return new Promise((resolve, reject) => {
     // Check if the stream is readable
     if (!(stream instanceof Readable)) {

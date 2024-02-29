@@ -352,7 +352,7 @@ describe('Should run a complete node flow.', () => {
     assert(orderTxId, 'transaction id not found')
   })
 
-  it('should download triger download file', async function () {
+  it('should download triger download file', function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
     const doCheck = async () => {
