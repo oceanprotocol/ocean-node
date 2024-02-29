@@ -8,8 +8,7 @@ import {
   getAddress,
   hexlify,
   ZeroAddress,
-  parseUnits,
-  MaxUint256
+  parseUnits
 } from 'ethers'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
@@ -55,7 +54,6 @@ describe('Should run a complete node flow.', () => {
   let config: OceanNodeConfig
   let database: Database
   let oceanNode: OceanNode
-  let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let factoryContract: Contract
   let dataTokenContract: Contract
@@ -63,7 +61,6 @@ describe('Should run a complete node flow.', () => {
   let publisherAccount: Signer
   let consumerAccount: Signer
   let consumerAddress: string
-  let publisherAddress: string
   let dataNftAddress: string
   let datatokenAddress: string
   let resolvedDDO: Record<string, any>
@@ -100,7 +97,8 @@ describe('Should run a complete node flow.', () => {
     database = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(database)
 
-    indexer = new OceanIndexer(database, mockSupportedNetworks)
+    //  eslint-disable-next-line no-unused-vars
+    const indexer = new OceanIndexer(database, mockSupportedNetworks)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
@@ -110,7 +108,6 @@ describe('Should run a complete node flow.', () => {
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
 
     publisherAccount = (await provider.getSigner(0)) as Signer
-    publisherAddress = await publisherAccount.getAddress()
     consumerAccount = (await provider.getSigner(1)) as Signer
     consumerAddress = await consumerAccount.getAddress()
 

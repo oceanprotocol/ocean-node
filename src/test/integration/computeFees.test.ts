@@ -27,8 +27,6 @@ import {
 } from '../../components/core/compute.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import { Database } from '../../components/database/index.js'
-import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { genericComputeDDO, genericAlgorithm } from '../data/ddo.js'
 import { getOceanArtifactsAdresses } from '../../utils/address.js'
@@ -53,8 +51,6 @@ import { OceanNode } from '../../OceanNode.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 
 describe('Compute provider fees', async () => {
-  let database: Database
-  let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let factoryContract: Contract
   let nftContract: Contract
@@ -69,9 +65,6 @@ describe('Compute provider fees', async () => {
   let resolvedAlgo: Record<string, any>
   let genericAsset: any
   let genericAlgo: any
-  let publisherAddress: string
-  let consumerAccount: Signer
-  let consumerAddress: string
   let datatokenAddress: string
   let datatokenAddressAlgo: string
   let computeEnvs: Array<any>
@@ -92,18 +85,9 @@ describe('Compute provider fees', async () => {
         [JSON.stringify(mockSupportedNetworks), JSON.stringify({ 8996: oceanToken })]
       )
     )
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
-    }
-    database = await new Database(dbConfig)
-    indexer = new OceanIndexer(database, mockSupportedNetworks)
-    oceanNode = await OceanNode.getInstance(database)
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    consumerAccount = (await provider.getSigner(1)) as Signer
     publisherAccount = (await provider.getSigner(0)) as Signer
-    publisherAddress = await publisherAccount.getAddress()
-    consumerAddress = await consumerAccount.getAddress()
     genericAsset = genericComputeDDO
     genericAlgo = genericAlgorithm
     factoryContract = new ethers.Contract(
