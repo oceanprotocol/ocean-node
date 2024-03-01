@@ -27,9 +27,14 @@ export async function calculateComputeProviderFee(
   service: Service,
   provider: JsonRpcApiProvider
 ): Promise<ProviderFeeData> | undefined {
-  const now = new Date().getTime()
-  const validUntilDateTime = new Date(validUntil).getTime()
-  const seconds: number = (now - validUntilDateTime) / 1000
+  const now = new Date().getTime() / 1000
+  // round validUntil
+  validUntil = parseInt(String(validUntil))
+
+  const seconds = validUntil - now
+  if (seconds < 0) {
+    throw new Error('Invalid validUntil')
+  }
   const providerData = {
     environment: computeEnv.id,
     timestamp: new Date().getTime() / 1000,
@@ -42,6 +47,7 @@ export async function calculateComputeProviderFee(
   let providerFeeAmountFormatted: BigNumberish
 
   const providerFeeToken: string = computeEnv.feeToken
+
   if (providerFeeToken === ZeroAddress) {
     providerFeeAmount = 0
   }
@@ -53,8 +59,13 @@ export async function calculateComputeProviderFee(
       ERC20Template.abi,
       await provider.getSigner()
     )
-    providerFeeAmount = (seconds * computeEnv.priceMin) / 60
-    const decimals = await datatokenContract.decimals()
+    providerFeeAmount = (seconds * parseFloat(String(computeEnv.priceMin))) / 60
+    let decimals = 18
+    try {
+      decimals = await datatokenContract.decimals()
+    } catch (e) {
+      console.error(e)
+    }
 
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
   } else {
@@ -119,7 +130,6 @@ export async function validateComputeProviderFee(
       timestampNow,
       service.timeout
     )
-
     if (validationResult.isValid === false) {
       // provider fee expired or tx id is not provided -> reuse order
       CORE_LOGGER.log(
@@ -422,14 +432,11 @@ export async function getProviderFeeToken(chainId: number): Promise<string> {
   const result = (await getConfiguration()).feeStrategy.feeTokens.filter(
     (token: FeeTokens) => Number(token.chain) === chainId
   )
-  return result.length ? result[0].token : ethers.ZeroAddress
-}
-
-export async function getProviderFeeTokenByArtifacts(chainId: number): Promise<string> {
-  if (chainId === 8996) {
-    return getOceanArtifactsAdresses().development.Ocean
+  if (result.length === 0 && chainId === 8996) {
+    const localOceanToken = getOceanArtifactsAdresses().development.Ocean
+    return localOceanToken || ethers.ZeroAddress
   }
-  return await getProviderFeeToken(chainId)
+  return result.length ? result[0].token : ethers.ZeroAddress
 }
 
 /**

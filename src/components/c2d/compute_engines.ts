@@ -20,7 +20,7 @@ import { sign } from '../core/utils/nonceHandler.js'
 import axios from 'axios'
 import { getConfiguration } from '../../utils/config.js'
 import { ZeroAddress } from 'ethers'
-import { getProviderFeeTokenByArtifacts } from '../../components/core/utils/feesHandler.js'
+import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
 
 export class C2DEngine {
   private clusterConfig: C2DClusterInfo
@@ -177,7 +177,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
       for (const [index, val] of data.entries()) {
         data[index].id = `${clusterHash}-${val.id}`
         if (!data[index].feeToken || data[index].feeToken === ZeroAddress)
-          data[index].feeToken = await getProviderFeeTokenByArtifacts(chainId)
+          data[index].feeToken = await getProviderFeeToken(chainId)
       }
       return data
     } catch {}

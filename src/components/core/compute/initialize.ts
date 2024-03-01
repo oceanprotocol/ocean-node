@@ -10,7 +10,7 @@ export class ComputeInitializeHandler extends Handler {
   validateTimestamp(value: number) {
     // in miliseconds
     const timestampNow = new Date().getTime() / 1000
-    const validUntil = new Date(value).getTime() / 1000
+    const validUntil = new Date(value).getTime()
 
     return validUntil > timestampNow
   }

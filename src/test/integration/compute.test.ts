@@ -97,6 +97,11 @@ describe('Compute', () => {
     publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
     publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
     await waitToIndex(
+      publishedComputeDataset.ddo.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
+    await waitToIndex(
       publishedAlgoDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT
@@ -138,9 +143,11 @@ describe('Compute', () => {
   })
   it('should get provider fees for compute', async () => {
     const filteredEnv = computeEnvironments.filter((env: any) => env.priceMin !== 0)[0]
+    assert(filteredEnv, 'Failed to find the non-free compute env')
+    const now = new Date().getTime() / 1000
     computeProviderFess = await calculateComputeProviderFee(
       publishedComputeDataset.ddo,
-      0,
+      now + 60 * 10,
       filteredEnv,
       publishedComputeDataset.ddo.services[0],
       provider
@@ -152,9 +159,11 @@ describe('Compute', () => {
 
   it('should get free provider fees for compute', async () => {
     const filteredEnv = computeEnvironments.filter((env: any) => env.priceMin === 0)[0]
+    assert(filteredEnv, 'Failed to find the free compute env')
+    const now = new Date().getTime() / 1000
     computeProviderFess = await calculateComputeProviderFee(
       publishedComputeDataset.ddo,
-      0,
+      now + 60 * 10,
       filteredEnv,
       publishedComputeDataset.ddo.services[0],
       provider
@@ -192,17 +201,13 @@ describe('Compute', () => {
       documentId: publishedAlgoDataset.ddo.id,
       serviceId: publishedAlgoDataset.ddo.services[0].id
     }
-    const currentDate = new Date()
+    const now = new Date().getTime() / 1000
     const initializeComputeTask: ComputeInitializeCommand = {
       datasets: [dataset],
       algorithm,
       compute: {
         env: firstEnv,
-        validUntil: new Date(
-          currentDate.getFullYear() + 1,
-          currentDate.getMonth(),
-          currentDate.getDate()
-        ).getTime()
+        validUntil: now + 60 * 10
       },
       consumerAddress,
       command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
