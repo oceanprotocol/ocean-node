@@ -9,6 +9,9 @@ import { EVENTS } from '../../utils/index.js'
 
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
+
+const INDEXING_QUEUE: ReindexTask[] = []
+
 export class OceanIndexer {
   private db: Database
   private networks: RPCS
@@ -113,6 +116,7 @@ export class OceanIndexer {
     const worker = OceanIndexer.workers[reindexTask.chainId]
     if (worker) {
       worker.postMessage({ method: 'add-reindex-task', reindexTask })
+      INDEXING_QUEUE.push(reindexTask)
     }
   }
 
@@ -129,5 +133,9 @@ export class OceanIndexer {
       )
       return null
     }
+  }
+
+  public getIndexingQueue(): ReindexTask[] {
+    return INDEXING_QUEUE.slice()
   }
 }
