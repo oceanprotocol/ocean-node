@@ -248,3 +248,66 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
     expect(elapsedTimeInMs).to.be.below(1000) // threshold
   })
 })
+
+describe('LogDatabase deleteOldLogs', () => {
+  let database: Database
+  const logEntry = {
+    timestamp: new Date().getTime() - 31 * 24 * 60 * 60 * 1000, // 31 days ago
+    level: 'info',
+    message: 'Old log message for deletion test',
+    moduleName: 'testModule-1',
+    meta: 'Test meta information'
+  }
+  const recentLogEntry = {
+    timestamp: new Date().getTime(), // current time
+    level: 'info',
+    message: 'Recent log message not for deletion',
+    moduleName: 'testModule-1',
+    meta: 'Test meta information'
+  }
+
+  before(async () => {
+    const dbConfig = {
+      url: 'http://localhost:8108/?apiKey=xyz'
+    }
+    database = await new Database(dbConfig)
+  })
+
+  it('should insert an old log and a recent log', async () => {
+    const oldLogResult = await database.logs.insertLog(logEntry)
+    expect(oldLogResult).to.include.keys(
+      'id',
+      'timestamp',
+      'level',
+      'message',
+      'moduleName',
+      'meta'
+    )
+
+    const recentLogResult = await database.logs.insertLog(recentLogEntry)
+    expect(recentLogResult).to.include.keys(
+      'id',
+      'timestamp',
+      'level',
+      'message',
+      'moduleName',
+      'meta'
+    )
+  })
+
+  it('should delete logs older than 30 days', async () => {
+    await database.logs.deleteOldLogs()
+
+    // Adjust the time window to ensure we don't catch the newly inserted log
+    const startTime = new Date(logEntry.timestamp)
+    const endTime = new Date()
+    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 100)
+
+    // Check that the old log is not present, but the recent one is
+    const oldLogPresent = logs?.some((log) => log.message === logEntry.message)
+    const recentLogPresent = logs?.some((log) => log.message === recentLogEntry.message)
+
+    assert(oldLogPresent === false, 'Old logs are still present')
+    assert(recentLogPresent === true, 'Recent logs are not present')
+  })
+})
