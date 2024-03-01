@@ -49,7 +49,6 @@ export async function validateProviderFeesForDatasets(
         }
       }
       const service = getServiceById(ddo, asset.serviceId)
-
       const resultValidation = await validateComputeProviderFee(
         provider,
         asset.transferTxId,

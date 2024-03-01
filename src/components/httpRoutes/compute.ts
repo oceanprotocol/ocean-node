@@ -5,7 +5,7 @@ import {
   ComputeStopHandler,
   ComputeGetStatusHandler,
   ComputeGetResultHandler,
-  InitializeComputeHandler
+  ComputeInitializeHandler
 } from '../core/compute/index.js'
 import type { ComputeAlgorithm, ComputeAsset, ComputeOutput } from '../../@types/C2D.js'
 import type {
@@ -187,7 +187,7 @@ computeRoutes.post('/api/services/initializeCompute', async (req, res) => {
       return
     }
     body.command = PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
-    const result = await new InitializeComputeHandler(req.oceanNode).handle(body)
+    const result = await new ComputeInitializeHandler(req.oceanNode).handle(body)
     if (result.stream) {
       const queryResult = JSON.parse(await streamToString(result.stream as Readable))
       res.json(queryResult)

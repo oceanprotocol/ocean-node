@@ -134,7 +134,7 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
       if (!requestBody.chainId) {
         return buildInvalidRequestMessage('Missing required parameter: "chainId"')
       }
-    } else if (command === PROTOCOL_COMMANDS.INITIALIZE_COMPUTE) {
+    } else if (command === PROTOCOL_COMMANDS.COMPUTE_INITIALIZE) {
       if (
         !requestBody.chaindId ||
         !requestBody.datasets ||

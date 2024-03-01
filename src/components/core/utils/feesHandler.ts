@@ -1,3 +1,4 @@
+import type { ComputeEnvironment } from '../../../@types/C2D.js'
 import {
   JsonRpcApiProvider,
   ethers,
@@ -14,81 +15,23 @@ import { verifyMessage } from '../../../utils/blockchain.js'
 import { getConfiguration } from '../../../utils/config.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
-import axios from 'axios'
 import { getOceanArtifactsAdresses } from '../../../utils/address.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-import { C2DClusterInfo } from '../../../@types'
 import { verifyComputeProviderFees } from '../validateTransaction.js'
-
-export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
-  try {
-    const envs: Array<any> = []
-    const clustersURLS: string[] = []
-    const clustersInfo: C2DClusterInfo[] = (await getConfiguration()).c2dClusters
-    for (const c of clustersInfo) {
-      clustersURLS.push(c.url)
-    }
-    for (let cluster of clustersURLS) {
-      // make sure there is a valid url before appending the path
-      if (!cluster.endsWith('/')) {
-        cluster = cluster + '/'
-      }
-      const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
-      const { data } = await axios.get(url)
-      envs.push({
-        [`${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`]: data
-      })
-    }
-    return envs
-  } catch (error) {
-    CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error identifying C2D envs: ${error}`)
-    return []
-  }
-}
-
-async function getEnv(asset: DDO, computeEnv: string): Promise<any> {
-  const computeEnvs = await getC2DEnvs(asset)
-  const clustersURLS: string[] = []
-  const clustersInfo: C2DClusterInfo[] = (await getConfiguration()).c2dClusters
-  for (const c of clustersInfo) {
-    clustersURLS.push(c.url)
-  }
-
-  if (computeEnvs.length > 0) {
-    for (let cluster of clustersURLS) {
-      if (!cluster.endsWith('/')) {
-        cluster = cluster + '/'
-      }
-      const url = `${cluster}api/v1/operator/environments?chain_id=${asset.chainId}`
-
-      const envs = computeEnvs[0][url]
-      for (const env of envs) {
-        if (env.id === computeEnv) {
-          return env
-        }
-      }
-    }
-  }
-  return null
-}
+import { C2DEngine } from '../../c2d/compute_engines.js'
 
 export async function calculateComputeProviderFee(
   asset: DDO,
   validUntil: number,
-  computeEnv: string,
+  computeEnv: ComputeEnvironment,
   service: Service,
   provider: JsonRpcApiProvider
 ): Promise<ProviderFeeData> | undefined {
   const now = new Date().getTime()
   const validUntilDateTime = new Date(validUntil).getTime()
   const seconds: number = (now - validUntilDateTime) / 1000
-  const env = await getEnv(asset, computeEnv)
-
-  if (!env) {
-    CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Env could not be found.`, true)
-  }
   const providerData = {
-    environment: env.id,
+    environment: computeEnv.id,
     timestamp: new Date().getTime() / 1000,
     dt: service.datatokenAddress,
     id: service.id
@@ -98,8 +41,7 @@ export async function calculateComputeProviderFee(
   let providerFeeAmount: number
   let providerFeeAmountFormatted: BigNumberish
 
-  const providerFeeToken: string = await getProviderFeeTokenByArtifacts(asset.chainId)
-
+  const providerFeeToken: string = computeEnv.feeToken
   if (providerFeeToken === ZeroAddress) {
     providerFeeAmount = 0
   }
@@ -111,13 +53,13 @@ export async function calculateComputeProviderFee(
       ERC20Template.abi,
       await provider.getSigner()
     )
-    providerFeeAmount = (seconds * parseFloat(env.priceMin)) / 60
+    providerFeeAmount = (seconds * computeEnv.priceMin) / 60
     const decimals = await datatokenContract.decimals()
 
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
+  } else {
+    providerFeeAmountFormatted = BigInt(0)
   }
-  env.feeToken = providerFeeToken
-
   const messageHash = ethers.solidityPackedKeccak256(
     ['bytes', 'address', 'address', 'uint256', 'uint256'],
     [
@@ -185,12 +127,14 @@ export async function validateComputeProviderFee(
         `${validationResult.message} -> create new provider fees.`,
         true
       )
-      const regex = /[^-]*-(ocean-[^-]*)/
-      const envId = computeEnv.match(regex)[1]
+      const index = computeEnv.indexOf('-')
+      const engineHash = computeEnv.slice(0, index)
+      const engine = await C2DEngine.getC2DByHash(engineHash)
+      const env = await engine.getComputeEnvironment(asset.chainId, computeEnv)
       const newProviderFee = await calculateComputeProviderFee(
         asset,
         validUntil,
-        envId,
+        env,
         service,
         provider
       )

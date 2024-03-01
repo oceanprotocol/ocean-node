@@ -97,6 +97,7 @@ export async function publishAsset(genericAsset: any, publisherAccount: Signer) 
   return {
     ddo: genericAsset,
     nftAddress: genericAsset.nftAddress,
+    datatokenAddress,
     trxReceipt
   }
 }

@@ -112,6 +112,18 @@ export interface ComputeGetEnvironmentsCommand extends Command {
   chainId: number
 }
 
+export interface ComputeDetails {
+  env: string // with hash
+  validUntil: number
+}
+export interface ComputeInitializeCommand extends Command {
+  datasets: [ComputeAsset]
+  algorithm: ComputeAlgorithm
+  compute: ComputeDetails
+  consumerAddress: string
+  chainId: number
+}
+
 export interface ComputeStartCommand extends Command {
   consumerAddress: string
   signature: string

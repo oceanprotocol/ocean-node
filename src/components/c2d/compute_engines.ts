@@ -19,8 +19,10 @@ import { C2DClusterType } from '../../@types/C2D.js'
 import { sign } from '../core/utils/nonceHandler.js'
 import axios from 'axios'
 import { getConfiguration } from '../../utils/config.js'
+import { ZeroAddress } from 'ethers'
+import { getProviderFeeTokenByArtifacts } from '../../components/core/utils/feesHandler.js'
 
-export abstract class C2DEngine {
+export class C2DEngine {
   private clusterConfig: C2DClusterInfo
   public constructor(cluster: C2DClusterInfo) {
     this.clusterConfig = cluster
@@ -71,10 +73,50 @@ export abstract class C2DEngine {
   }
 
   // functions which need to be implemented by all engine types
+  // eslint-disable-next-line require-await
   public async getComputeEnvironments(chainId: number): Promise<ComputeEnvironment[]> {
     throw new Error(`Not implemented`)
   }
 
+  public async envExists(
+    chainId: number,
+    envIdWithHash?: string,
+    envIdWithoutHash?: string
+  ) {
+    try {
+      const envs = await this.getComputeEnvironments(chainId)
+      for (const c of envs) {
+        if (
+          (envIdWithHash && c.id === envIdWithHash) ||
+          (envIdWithoutHash && this.clusterConfig.hash + '-' + c.id === envIdWithHash)
+        ) {
+          return true
+        }
+      }
+    } catch (e) {}
+    return false
+  }
+
+  public async getComputeEnvironment(
+    chainId: number,
+    envIdWithHash?: string,
+    envIdWithoutHash?: string
+  ): Promise<ComputeEnvironment> {
+    try {
+      const envs = await this.getComputeEnvironments(chainId)
+      for (const c of envs) {
+        if (
+          (envIdWithHash && c.id === envIdWithHash) ||
+          (envIdWithoutHash && this.clusterConfig.hash + '-' + c.id === envIdWithHash)
+        ) {
+          return c
+        }
+      }
+    } catch (e) {}
+    return null
+  }
+
+  // eslint-disable-next-line require-await
   public async startComputeJob(
     assets: ComputeAsset[],
     algorithm: ComputeAlgorithm,
@@ -88,10 +130,12 @@ export abstract class C2DEngine {
     throw new Error(`Not implemented`)
   }
 
+  // eslint-disable-next-line require-await
   public async stopComputeJob(jobId: string, owner: string): Promise<ComputeJob[]> {
     throw new Error(`Not implemented`)
   }
 
+  // eslint-disable-next-line require-await
   public async getComputeJobStatus(
     consumerAddress?: string,
     agreementId?: string,
@@ -100,6 +144,7 @@ export abstract class C2DEngine {
     throw new Error(`Not implemented`)
   }
 
+  // eslint-disable-next-line require-await
   public async getComputeJobResult(
     consumerAddress: string,
     jobId: string,
@@ -131,6 +176,8 @@ export class C2DEngineOPFK8 extends C2DEngine {
       // we need to add hash to each env id
       for (const [index, val] of data.entries()) {
         data[index].id = `${clusterHash}-${val.id}`
+        if (!data[index].feeToken || data[index].feeToken === ZeroAddress)
+          data[index].feeToken = await getProviderFeeTokenByArtifacts(chainId)
       }
       return data
     } catch {}

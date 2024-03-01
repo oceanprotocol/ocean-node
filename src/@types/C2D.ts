@@ -33,6 +33,7 @@ export interface ComputeEnvironment {
   maxJobDuration: number
   lastSeen: number
   chainId?: number
+  feeToken: string
 }
 
 export type ComputeResultType =
