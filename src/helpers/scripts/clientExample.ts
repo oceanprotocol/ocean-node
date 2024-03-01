@@ -158,7 +158,7 @@ async function createKeyPairForFileEncryption(
  * @param initVect  the initialization vector
  * @returns true if successful
  */
-async function decryptFileStream(
+function decryptFileStream(
   inputStream: any,
   outputStream: any,
   privateKey: string,
@@ -218,7 +218,7 @@ function testEchoCommand(): Promise<string> {
   })
 }
 
-async function testDownloadCommand(
+function testDownloadCommand(
   exampleId: number, // this is just to append to file name for testing purposes
   nodeHttpPort: number,
   nodeId?: string,

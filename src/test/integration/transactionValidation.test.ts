@@ -6,8 +6,6 @@ import {
   ethers,
   getAddress,
   hexlify,
-  toUtf8Bytes,
-  solidityPackedKeccak256,
   parseUnits,
   ZeroAddress
 } from 'ethers'
@@ -17,7 +15,7 @@ import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Fa
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getEventFromTx } from '../../utils/util.js'
-import { expectedTimeoutFailure, signMessage, waitToIndex } from './testUtils.js'
+import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import { Database } from '../../components/database/index.js'
 import {
@@ -27,13 +25,11 @@ import {
 } from '../../utils/address.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
-import { DEFAULT_TEST_TIMEOUT, getMockSupportedNetworks } from '../utils/utils.js'
+import { DEFAULT_TEST_TIMEOUT } from '../utils/utils.js'
 import { EVENTS } from '../../utils/constants.js'
-import { OceanIndexer } from '../../components/Indexer/index.js'
 
 describe('validateOrderTransaction Function with Orders', () => {
   let database: Database
-  let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let factoryContract: Contract
   let nftContract: Contract
@@ -45,26 +41,15 @@ describe('validateOrderTransaction Function with Orders', () => {
   let consumerAddress: string
   let dataNftAddress: string
   let datatokenAddress: string
-  let message: string
-  let providerData: string
   let orderTxId: string
   let dataTokenContractWithNewSigner: any
-  let signedMessage: {
-    v: string
-    r: string
-    s: string
-  }
   let resolvedDDO: any
 
   const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
-  const providerFeeAddress = ZeroAddress // publisherAddress
-  const providerFeeToken = feeToken
   const serviceId = '0' // dummy index
-  const providerFeeAmount = 0 // fee to be collected on top, requires approval
   const consumeMarketFeeAddress = ZeroAddress // marketplace fee Collector
   const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
   const consumeMarketFeeToken = feeToken // token address for the feeAmount,
-  const providerValidUntil = 0
   const timeout = 0
 
   before(async () => {
@@ -84,9 +69,6 @@ describe('validateOrderTransaction Function with Orders', () => {
     }
     database = await new Database(dbConfig)
 
-    // need to make sure there is an indexer running on the test suite
-    indexer = new OceanIndexer(database, getMockSupportedNetworks())
-
     // Initialize the factory contract
     factoryContract = new ethers.Contract(
       artifactsAddresses.ERC721Factory,
@@ -95,7 +77,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     )
   })
 
-  it('Start instance of Database', async () => {
+  it('Start instance of Database', () => {
     expect(database).to.be.instanceOf(Database)
   })
 
@@ -195,20 +177,6 @@ describe('validateOrderTransaction Function with Orders', () => {
       resolvedDDO.services[0]
     )
 
-    // sign provider data
-    providerData = JSON.stringify({ timeout })
-    message = solidityPackedKeccak256(
-      ['bytes', 'address', 'address', 'uint256', 'uint256'],
-      [
-        hexlify(toUtf8Bytes(providerData)),
-        feeData.providerFeeAddress,
-        feeData.providerFeeToken,
-        feeData.providerFeeAmount,
-        feeData.validUntil
-      ]
-    )
-    signedMessage = await signMessage(message, publisherAddress, provider)
-
     // call the mint function on the dataTokenContract
     const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
     await mintTx.wait()
@@ -269,20 +237,6 @@ describe('validateOrderTransaction Function with Orders', () => {
 
     // git status
     dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
-
-    // sign provider data
-    providerData = JSON.stringify({ timeout })
-    message = solidityPackedKeccak256(
-      ['bytes', 'address', 'address', 'uint256', 'uint256'],
-      [
-        hexlify(toUtf8Bytes(providerData)),
-        feeData.providerFeeAddress,
-        feeData.providerFeeToken,
-        feeData.providerFeeAmount,
-        feeData.validUntil
-      ]
-    )
-    signedMessage = await signMessage(message, publisherAddress, provider)
 
     const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
       orderTxId,

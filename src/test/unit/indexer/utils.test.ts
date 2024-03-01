@@ -17,13 +17,13 @@ describe('Utils', () => {
   let provider: ethers.JsonRpcProvider
   let signer: ethers.Wallet
 
-  before(async () => {
+  before(() => {
     provider = new ethers.JsonRpcProvider('https://rpc-mumbai.maticvigil.com')
     signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider)
   })
 
-  it('should get deployed contract block', async () => {
-    const deployedBlock = await getDeployedContractBlock(80001)
+  it('should get deployed contract block', () => {
+    const deployedBlock = getDeployedContractBlock(80001)
     expect(deployedBlock).to.be.a('number')
   })
 
@@ -46,12 +46,15 @@ describe('Utils', () => {
   })
 
   it('should process event data', async () => {
+    // eslint-disable-next-line require-await
     async function getBlock(): Promise<Block> {
       return {} as Block
     }
+    // eslint-disable-next-line require-await
     async function getTransaction(): Promise<TransactionResponse> {
       return {} as TransactionResponse
     }
+    // eslint-disable-next-line require-await
     async function getTransactionReceipt(): Promise<TransactionReceipt> {
       return {} as TransactionReceipt
     }

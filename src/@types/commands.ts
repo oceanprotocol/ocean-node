@@ -6,7 +6,8 @@ import {
   FileObjectType,
   EncryptMethod,
   IpfsFileObject,
-  UrlFileObject
+  UrlFileObject,
+  BaseFileObject
 } from './fileObject'
 
 export interface Command {
@@ -79,12 +80,14 @@ export interface DecryptDDOCommand extends Command {
 export interface EncryptCommand extends Command {
   blob: string
   encoding: string
-  encryptionType: EncryptMethod
+  encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
 }
 
 export interface EncryptFileCommand extends Command {
   encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
-  files: UrlFileObject | ArweaveFileObject | IpfsFileObject
+  files?: BaseFileObject
+  rawData?: Buffer
+  // UrlFileObject | ArweaveFileObject | IpfsFileObject
 }
 
 export interface NonceCommand extends Command {

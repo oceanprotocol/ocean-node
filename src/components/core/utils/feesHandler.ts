@@ -14,11 +14,11 @@ import { verifyMessage } from '../../../utils/blockchain.js'
 import { getConfiguration } from '../../../utils/config.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
-import { findEventByKey } from '../../Indexer/utils.js'
 import axios from 'axios'
 import { getOceanArtifactsAdresses } from '../../../utils/address.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { C2DClusterInfo } from '../../../@types'
+import { verifyComputeProviderFees } from '../validateTransaction.js'
 
 export async function getC2DEnvs(asset: DDO): Promise<Array<any>> {
   try {
@@ -159,56 +159,47 @@ export async function calculateComputeProviderFee(
   return providerFee
 }
 
-async function getEventData(
-  provider: JsonRpcApiProvider,
-  transactionHash: string,
-  abi: any
-): Promise<ethers.LogDescription> {
-  const iface = new ethers.Interface(abi)
-  const receipt = await provider.getTransactionReceipt(transactionHash)
-  const eventObj = {
-    topics: receipt.logs[0].topics as string[],
-    data: receipt.logs[0].data
-  }
-  return iface.parseLog(eventObj)
-}
-// It will be used in #230 for initializeCompute
 export async function validateComputeProviderFee(
   provider: JsonRpcApiProvider,
   tx: string,
   computeEnv: string, // with hash
   asset: DDO,
   service: Service,
-  validUntil: number
+  validUntil: number,
+  userAddress: string
 ): Promise<[boolean, ProviderFeeData | {}]> {
-  const txReceipt = await provider.getTransactionReceipt(tx)
-  const { logs } = txReceipt
-  const timestampNow = new Date().getTime() / 1000
-  for (const log of logs) {
-    const event = findEventByKey(log.topics[0])
-    if (event && event.type === 'ProviderFee') {
-      const decodedEventData = await getEventData(provider, tx, ERC20Template.abi)
-      const validUntilContract = parseInt(decodedEventData.args[7].toString())
-      if (timestampNow >= validUntilContract) {
-        // provider fee expired -> reuse order
-        CORE_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_INFO,
-          `Provider fees for this env have expired -> reuse order.`,
-          true
-        )
-        const envId = computeEnv.split('-')[1]
-        const newProviderFee = await calculateComputeProviderFee(
-          asset,
-          validUntil,
-          envId,
-          service,
-          provider
-        )
-        return [false, newProviderFee]
-      } else {
-        return [true, {}]
-      }
+  try {
+    const timestampNow = new Date().getTime() / 1000
+    const validationResult = await verifyComputeProviderFees(
+      tx,
+      userAddress,
+      provider,
+      timestampNow,
+      service.timeout
+    )
+
+    if (validationResult.isValid === false) {
+      // provider fee expired or tx id is not provided -> reuse order
+      CORE_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_INFO,
+        `${validationResult.message} -> create new provider fees.`,
+        true
+      )
+      const regex = /[^-]*-(ocean-[^-]*)/
+      const envId = computeEnv.match(regex)[1]
+      const newProviderFee = await calculateComputeProviderFee(
+        asset,
+        validUntil,
+        envId,
+        service,
+        provider
+      )
+      return [false, newProviderFee]
+    } else {
+      return [true, validationResult.message]
     }
+  } catch (err) {
+    CORE_LOGGER.logMessage(`Validation for compute provider fees failed due to: ${err}`)
   }
 }
 // equiv to get_provider_fees
@@ -294,13 +285,13 @@ export async function createFee(
   //   ethers.toBeArray(messageHash).length
   // )
 
-  const signableHash = ethers.solidityPackedKeccak256(
-    ['bytes'],
-    [ethers.toUtf8Bytes(messageHash)]
+  // const signableHash = ethers.solidityPackedKeccak256(
+  //   ['bytes'],
+  //   [ethers.toUtf8Bytes(messageHash)]
 
-    // OR ethers.utils.hashMessage(ethers.utils.concat([ hash, string, address ])
-    // https://github.com/ethers-io/ethers.js/issues/468
-  )
+  //   // OR ethers.utils.hashMessage(ethers.utils.concat([ hash, string, address ])
+  //   // https://github.com/ethers-io/ethers.js/issues/468
+  // )
 
   // *** NOTE: provider.py ***
   // pk = keys.PrivateKey(provider_wallet.key)

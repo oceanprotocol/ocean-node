@@ -23,7 +23,8 @@ import {
   ComputeStartHandler,
   ComputeStopHandler,
   ComputeGetStatusHandler,
-  ComputeGetResultHandler
+  ComputeGetResultHandler,
+  ComputeInitializeHandler
 } from './compute/index.js'
 
 export type HandlerRegistry = {
@@ -92,6 +93,10 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
       new ComputeGetResultHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
+      new ComputeInitializeHandler(node)
     )
   }
 

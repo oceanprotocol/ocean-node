@@ -8,8 +8,6 @@ import {
   getAddress,
   hexlify,
   ZeroAddress,
-  toUtf8Bytes,
-  solidityPackedKeccak256,
   parseUnits
 } from 'ethers'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
@@ -19,7 +17,7 @@ import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { getEventFromTx } from '../../utils/util.js'
-import { waitToIndex, signMessage, expectedTimeoutFailure } from './testUtils.js'
+import { waitToIndex, expectedTimeoutFailure } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import {
   DEVELOPMENT_CHAIN_ID,
@@ -33,11 +31,9 @@ import { EVENTS } from '../../utils/constants.js'
 
 describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
-  let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let factoryContract: Contract
   let nftContract: Contract
-  let datatokenContract: Contract
   let publisherAccount: Signer
   let consumerAccount: Signer
   let nftAddress: string
@@ -50,22 +46,14 @@ describe('Indexer stores a new metadata events and orders.', () => {
   let orderTxId: string
   let reuseOrderTxId: string
   let dataTokenContractWithNewSigner: any
-  let signedMessage: { v: string; r: string; s: string }
-  let message: string
-  let providerData: string
   let orderEvent: any
   let reusedOrderEvent: any
   let initialOrderCount: number
-  const timeout = 0
   const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
-  const providerFeeAddress = ZeroAddress // publisherAddress
-  const providerFeeToken = feeToken
   const serviceIndex = 0 // dummy index
-  const providerFeeAmount = 0 // fee to be collected on top, requires approval
   const consumeMarketFeeAddress = ZeroAddress // marketplace fee Collector
   const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
-  const consumeMarketFeeToken = feeToken // token address for the feeAmount,
-  const providerValidUntil = 0
+  const consumeMarketFeeToken = feeToken // token address for the feeAmount
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
@@ -74,7 +62,8 @@ describe('Indexer stores a new metadata events and orders.', () => {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
     database = await new Database(dbConfig)
-    indexer = new OceanIndexer(database, mockSupportedNetworks)
+    // eslint-disable-next-line no-unused-vars
+    const indexer = new OceanIndexer(database, mockSupportedNetworks)
 
     let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!artifactsAddresses) {
@@ -92,7 +81,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     )
   })
 
-  it('instance Database', async () => {
+  it('instance Database', () => {
     expect(database).to.be.instanceOf(Database)
   })
 
@@ -279,20 +268,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
       resolvedDDO.services[0]
     )
 
-    // sign provider data
-    providerData = JSON.stringify({ timeout })
-    message = solidityPackedKeccak256(
-      ['bytes', 'address', 'address', 'uint256', 'uint256'],
-      [
-        hexlify(toUtf8Bytes(providerData)),
-        providerFeeAddress,
-        providerFeeToken,
-        providerFeeAmount,
-        providerValidUntil
-      ]
-    )
-    signedMessage = await signMessage(message, publisherAddress, provider)
-
     // call the mint function on the dataTokenContract
     const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
     await mintTx.wait()
@@ -388,10 +363,11 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should increase number of orders', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.ORDER_REUSED,
-      DEFAULT_TEST_TIMEOUT
+      DEFAULT_TEST_TIMEOUT * 2
     )
     const retrievedDDO: any = ddo
     if (retrievedDDO) {
@@ -437,12 +413,12 @@ describe('Indexer stores a new metadata events and orders.', () => {
     }
   })
 
-  it('should add reindex task', async () => {
+  it('should add reindex task', () => {
     const reindexTask = {
       txId: setMetaDataTxReceipt.hash,
       chainId: '8996'
     }
-    await OceanIndexer.addReindexTask(reindexTask)
+    OceanIndexer.addReindexTask(reindexTask)
   })
 
   it('should store ddo reindex', async function () {

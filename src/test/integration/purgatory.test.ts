@@ -1,14 +1,14 @@
 import { expect, assert } from 'chai'
 import { Purgatory } from '../../components/Indexer/purgatory.js'
 
-describe('Purgatory test', async () => {
+describe('Purgatory test', () => {
   let purgatory: Purgatory
 
   before(async () => {
     purgatory = await Purgatory.getInstance()
   })
 
-  it('instance Purgatory', async () => {
+  it('instance Purgatory', () => {
     expect(purgatory).to.be.instanceOf(Purgatory)
   })
   it('should retrieve account list', async () => {

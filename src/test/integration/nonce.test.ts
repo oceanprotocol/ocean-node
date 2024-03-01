@@ -12,7 +12,7 @@ describe('handle nonce', () => {
     typesense = new Typesense(convertTypesenseConfig(url))
   })
 
-  it('instance Typesense', async () => {
+  it('instance Typesense', () => {
     expect(typesense).to.be.instanceOf(Typesense)
   })
 

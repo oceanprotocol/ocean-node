@@ -15,11 +15,11 @@ describe('Typesense', () => {
     typesense = new Typesense(convertTypesenseConfig(url))
   })
 
-  it('instance Typesense', async () => {
+  it('instance Typesense', () => {
     expect(typesense).to.be.instanceOf(Typesense)
   })
 
-  it('instance TypesenseCollections', async () => {
+  it('instance TypesenseCollections', () => {
     const result = typesense.collections()
     expect(result).to.be.instanceOf(TypesenseCollections)
   })
