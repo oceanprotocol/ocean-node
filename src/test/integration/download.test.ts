@@ -234,7 +234,7 @@ describe('Should run a complete node flow.', () => {
 
     doCheck()
   })
-  it('should not allow to download the asset with different consumer address', async function () {
+  it('should not allow to download the asset with different consumer address', function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
     const doCheck = async () => {

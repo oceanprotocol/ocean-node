@@ -1,30 +1,23 @@
 import type { ComputeEnvironment } from '../../../@types/C2D.js'
 import {
-  JsonRpcProvider,
   JsonRpcApiProvider,
   ethers,
   Contract,
   Interface,
   BigNumberish,
   parseUnits,
-  ZeroAddress,
-  TransactionReceipt
+  ZeroAddress
 } from 'ethers'
 import { FeeTokens, ProviderFeeData, ProviderFeeValidation } from '../../../@types/Fees'
 import { DDO } from '../../../@types/DDO/DDO'
 import { Service } from '../../../@types/DDO/Service'
-import { AssetUtils } from '../../../utils/asset.js'
+
 import { verifyMessage, getJsonRpcProvider } from '../../../utils/blockchain.js'
 import { getConfiguration } from '../../../utils/config.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
+
 import { getOceanArtifactsAdresses } from '../../../utils/address.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-import { C2DEngine } from '../../c2d/compute_engines.js'
-import { P2PCommandResponse } from '../../../@types'
-import { ComputeAlgorithm, ComputeAsset } from '../../../@types/C2D.js'
-import { Readable } from 'stream'
-import { OceanNode } from '../../../OceanNode'
 import { fetchEventFromTransaction } from '../../../utils/util.js'
 import { fetchTransactionReceipt } from './validateOrders.js'
 

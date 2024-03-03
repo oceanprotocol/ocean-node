@@ -44,7 +44,6 @@ import {
 } from '../utils/utils.js'
 
 import { ProviderFees } from '../../@types/Fees.js'
-import { findSourceMap } from 'module'
 
 describe('Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
