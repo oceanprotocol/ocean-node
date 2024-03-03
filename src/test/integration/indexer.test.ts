@@ -351,7 +351,26 @@ describe('Indexer stores a new metadata events and orders.', () => {
       'null',
       resolvedDDO.services[0]
     )
+    // handle fees
+    // get provider fees in our account as well
+    const providerFeeTokenContract = new Contract(
+      feeData.providerFeeToken,
+      ERC20Template.abi,
+      publisherAccount
+    )
+    const feeMintTx = await providerFeeTokenContract.mint(
+      await consumerAccount.getAddress(),
+      feeData.providerFeeAmount
+    )
+    await feeMintTx.wait()
 
+    const approveTx = await (
+      providerFeeTokenContract.connect(consumerAccount) as any
+    ).approve(
+      await dataTokenContractWithNewSigner.getAddress(),
+      feeData.providerFeeAmount
+    )
+    await approveTx.wait()
     const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
       orderTxId,
       {
