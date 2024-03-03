@@ -273,6 +273,23 @@ describe('Indexer stores a new metadata events and orders.', () => {
     await mintTx.wait()
     const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
     assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
+    // handle fees
+    // get provider fees in our account as well
+    const providerFeeTokenContract = new Contract(
+      feeData.providerFeeToken,
+      ERC20Template.abi,
+      publisherAccount
+    )
+    const feeMintTx = await providerFeeTokenContract.mint(
+      await consumerAccount.getAddress(),
+      feeData.providerFeeAmount
+    )
+    await feeMintTx.wait()
+
+    const approveTx = await (
+      providerFeeTokenContract.connect(consumerAccount) as any
+    ).approve(await dataTokenContract.getAddress(), feeData.providerFeeAmount)
+    await approveTx.wait()
 
     dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
 
