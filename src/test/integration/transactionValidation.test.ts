@@ -10,7 +10,7 @@ import {
   ZeroAddress
 } from 'ethers'
 import { createHash } from 'crypto'
-import { validateOrderTransaction } from '../../components/core/validateTransaction.js'
+import { validateOrderTransaction } from '../../components/core/utils/validateOrders.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }

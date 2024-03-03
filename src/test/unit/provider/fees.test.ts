@@ -140,7 +140,7 @@ describe('Ocean Node fees', () => {
     const oceanNode = OceanNode.getInstance(dbconn)
 
     const data: P2PCommandResponse = await new FeesHandler(oceanNode).handle({
-      ddo: asset,
+      ddoId: asset.id,
       serviceId: service.id,
       command: PROTOCOL_COMMANDS.GET_FEES
     })

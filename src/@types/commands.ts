@@ -28,8 +28,6 @@ export interface DownloadCommand extends Command {
   nonce: string
   consumerAddress: string
   signature: string
-  feeTx?: string
-  feeData?: any
   aes_encrypted_key?: string // if not present it means download without encryption
 }
 
@@ -95,8 +93,10 @@ export interface NonceCommand extends Command {
 }
 
 export interface GetFeesCommand extends Command {
-  ddo: DDO
+  ddoId: string
   serviceId: string
+  consumerAddress?: string
+  validUntil?: number // this allows a user to request a fee that is valid only for a limited period of time, less than service.timeout
 }
 
 export interface ICommandHandler {
@@ -121,7 +121,6 @@ export interface ComputeInitializeCommand extends Command {
   algorithm: ComputeAlgorithm
   compute: ComputeDetails
   consumerAddress: string
-  chainId: number
 }
 
 export interface ComputeStartCommand extends Command {
