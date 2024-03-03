@@ -376,7 +376,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     assert(!validationResult.isValid, 'Reuse order transaction should not be valid.')
     assert(
       validationResult.message ===
-        'User address does not match the sender of the transaction.',
+        'User address does not match with consumer or payer of the transaction.',
       'Wrong transaction rejection message'
     )
   })
