@@ -16,7 +16,7 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
-import { getEventFromTx } from '../../utils/util.js'
+import { getEventFromTx, sleep } from '../../utils/util.js'
 import { waitToIndex, expectedTimeoutFailure } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import {
@@ -400,6 +400,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should increase number of orders', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    await sleep(2000)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.ORDER_REUSED,
