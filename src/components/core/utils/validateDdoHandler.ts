@@ -1,3 +1,4 @@
+// eslint-disable-next-line import/no-duplicates
 import rdfDataModel from '@rdfjs/data-model'
 import rdfDataset from '@rdfjs/dataset'
 import toNT from '@rdfjs/to-ntriples'
@@ -6,12 +7,14 @@ import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
 // @ts-ignore
 import * as shaclEngine from 'shacl-engine'
-import { createHash } from 'crypto'
-import { ethers, getAddress } from 'ethers'
+// import { createHash } from 'crypto'
+import { ethers } from 'ethers' // getAddress
 import { readFile } from 'node:fs/promises'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
+// eslint-disable-next-line import/no-duplicates
+import factory from '@rdfjs/data-model'
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
@@ -120,10 +123,16 @@ export async function validateObject(
     quads.forEach((quad: Quad) => {
       dataset.add(quad)
     })
-    CORE_LOGGER.logMessage(`dataset: ${JSON.stringify(dataset)}`)
   } catch (err) {
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
   }
+  Object.entries(ddoCopy).forEach(([key, value]) => {
+    const subject = factory.namedNode(`http://example.org/ddo/${key}`)
+    const predicate = factory.namedNode('http://example.org/ddo/property')
+    const object = factory.literal(value.toString())
+    dataset.add(factory.quad(subject, predicate, object))
+  })
+  CORE_LOGGER.logMessage(`dataset after the update: ${JSON.stringify(dataset)}`)
   // create a validator instance for the shapes in the given dataset
   const validator = new shaclEngine.Validator(dataset, {
     factory: rdfDataModel
