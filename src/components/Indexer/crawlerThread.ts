@@ -121,6 +121,11 @@ async function processReindex(): Promise<void> {
         const log = receipt.logs[reindexTask.eventIndex]
         const logs = log ? [log] : receipt.logs
         await processChunkLogs(logs, signer, provider, rpcDetails.chainId)
+        // clear from the 'top' queue
+        parentPort.postMessage({
+          method: 'popFromQueue',
+          data: reindexTask
+        })
       }
     } catch (error) {
       INDEXER_LOGGER.log(

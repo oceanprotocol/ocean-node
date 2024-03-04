@@ -10,7 +10,7 @@ import { EVENTS } from '../../utils/index.js'
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
 
-const INDEXING_QUEUE: ReindexTask[] = []
+let INDEXING_QUEUE: ReindexTask[] = []
 
 export class OceanIndexer {
   private db: Database
@@ -82,6 +82,13 @@ export class OceanIndexer {
               `Emiting "${event.method}" for DDO : ${event.data.id} from network: ${network} `
             )
             INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
+            // remove from indexing list
+          } else if (event.method === 'popFromQueue') {
+            // remove this one from the queue
+            INDEXING_QUEUE = INDEXING_QUEUE.filter(
+              (task) =>
+                task.txId !== event.data.txId && task.chainId !== event.data.chainId
+            )
           }
         } else {
           INDEXER_LOGGER.log(
