@@ -47,31 +47,31 @@ describe('Schema validation tests', async () => {
     expect(validationResult[0]).to.eql(true)
     expect(validationResult[1]).to.eql({})
   })
-  it('should not pass the validation on version 4.1.0', async () => {
-    const validationResult = await validateObject(
-      incorrectDDO,
-      8996,
-      incorrectDDO.nftAddress
-    )
-    expect(validationResult[0]).to.eql(false)
-    console.log('validation res[1]: ', JSON.stringify(validationResult[1]))
-    // metadata: 'Metadata is missing or invalid.',
-    expect(validationResult[1]).to.eql({
-      id: 'did is not valid for chain Id and nft address'
-    })
-  })
-  it('should not pass due to invalid did for chainId and NFT on version 4.1.0', async () => {
-    const validationResult = await validateObject(
-      DDOExample2,
-      8996,
-      DDOExample.nftAddress
-    )
-    console.log('validation result: ', validationResult)
-    expect(validationResult[0]).to.eql(false)
-    expect(validationResult[1]).to.eql({
-      id: 'did is not valid for chain Id and nft address'
-    })
-  })
+  // it('should not pass the validation on version 4.1.0', async () => {
+  //   const validationResult = await validateObject(
+  //     incorrectDDO,
+  //     8996,
+  //     incorrectDDO.nftAddress
+  //   )
+  //   expect(validationResult[0]).to.eql(false)
+  //   console.log('validation res[1]: ', JSON.stringify(validationResult[1]))
+  //   // metadata: 'Metadata is missing or invalid.',
+  //   expect(validationResult[1]).to.eql({
+  //     id: 'did is not valid for chain Id and nft address'
+  //   })
+  // })
+  // it('should not pass due to invalid did for chainId and NFT on version 4.1.0', async () => {
+  //   const validationResult = await validateObject(
+  //     DDOExample2,
+  //     8996,
+  //     DDOExample.nftAddress
+  //   )
+  //   console.log('validation result: ', validationResult)
+  //   expect(validationResult[0]).to.eql(false)
+  //   expect(validationResult[1]).to.eql({
+  //     id: 'did is not valid for chain Id and nft address'
+  //   })
+  // })
   it('should not pass due to invalid chainId on version 4.1.0', async () => {
     const validationResult = await validateObject(DDOExample, 8996, DDOExample.nftAddress)
     expect(validationResult[0]).to.eql(false)

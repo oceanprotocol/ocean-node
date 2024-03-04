@@ -130,11 +130,7 @@ export async function validateObject(
   Object.entries(ddoCopy).forEach(([key, value]) => {
     CORE_LOGGER.logMessage(`key value: ${key} ${JSON.stringify(value)}`)
     const subject = factory.namedNode(`http://example.org/ddo/${key}`)
-    CORE_LOGGER.logMessage(
-      `subject: ${JSON.stringify(subject)}, url http://example.org/ddo/${key}`
-    )
     const predicate = factory.namedNode('http://example.org/ddo/property')
-    CORE_LOGGER.logMessage(`predicate: ${JSON.stringify(predicate)}`)
     let stringValue = ''
     if (typeof value === 'object') {
       stringValue = JSON.stringify(value)
@@ -142,7 +138,6 @@ export async function validateObject(
       stringValue = value.toString()
     }
     const object = factory.literal(stringValue)
-    CORE_LOGGER.logMessage(`object: ${JSON.stringify(object)}`)
     dataset.add(factory.quad(subject, predicate, object))
   })
   CORE_LOGGER.logMessage(`dataset after the update: ${JSON.stringify(dataset)}`)
