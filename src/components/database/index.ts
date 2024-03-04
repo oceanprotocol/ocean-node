@@ -713,26 +713,35 @@ export class LogDatabase {
     const deleteBeforeTime = currentTime - xTime
 
     try {
-      // Construct the filter condition as a string
-      const filterCondition = `timestamp:<${deleteBeforeTime}`
+      // Retrieve logs that are older than the specified time
+      const searchParameters = {
+        q: '*',
+        query_by: 'timestamp',
+        filter_by: `timestamp:<${deleteBeforeTime}`,
+        sort_by: 'timestamp:desc',
+        per_page: 100
+      }
 
-      // Pass the filter condition directly as a string
-      const deleteResult = await this.provider
+      const oldLogs = await this.provider
         .collections(this.schema.name)
         .documents()
-        .delete(filterCondition)
+        .search(searchParameters)
 
-      // Log the success message
+      // Delete each log individually
+      for (const log of oldLogs.hits) {
+        await this.provider
+          .collections(this.schema.name)
+          .documents()
+          .delete(log.document.id)
+      }
+
       DATABASE_LOGGER.logMessageWithEmoji(
-        `Deleted logs older than ${deleteBeforeTime} (timestamp): ${JSON.stringify(
-          deleteResult
-        )}`,
+        `Deleted logs older than ${deleteBeforeTime} (timestamp)`,
         true,
         GENERIC_EMOJIS.EMOJI_CHECK_MARK,
         LOG_LEVELS_STR.LEVEL_INFO
       )
     } catch (error) {
-      // Log the error
       DATABASE_LOGGER.logMessageWithEmoji(
         `Error when deleting old log entries: ${error.message}`,
         true,
