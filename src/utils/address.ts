@@ -8,12 +8,9 @@ import { ENVIRONMENT_VARIABLES, existsEnvironmentVariable } from './index.js'
  * either from the env or from the ocean-contracts dir
  * @returns data or null
  */
-export function getOceanArtifactsAdresses(chainId?: number): any {
+export function getOceanArtifactsAdresses(): any {
   try {
-    if (
-      chainId === 8996 ||
-      existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ADDRESS_FILE)
-    ) {
+    if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ADDRESS_FILE)) {
       // eslint-disable-next-line security/detect-non-literal-fs-filename
       const data = fs.readFileSync(process.env.ADDRESS_FILE, 'utf8')
       return JSON.parse(data)

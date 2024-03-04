@@ -19,7 +19,7 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { fetchEventFromTransaction } from '../../utils/util.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { getOceanArtifactsAdresses } from '../../utils/address.js'
+import { getOceanArtifactsAdressesByChainId } from '../../utils/address.js'
 
 let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor
@@ -54,29 +54,21 @@ function getOrderStartedEventProcessor(chainId: number): OrderStartedEventProces
   return orderStartedEventProcessor
 }
 
-export const getAddressFile = (chainId: number) => {
-  return getOceanArtifactsAdresses(chainId)
-}
-
 export const getContractAddress = (chainId: number, contractName: string): string => {
-  const addressFile = getAddressFile(chainId)
-  const networkKeys = Object.keys(addressFile)
-  for (const key of networkKeys) {
-    if (addressFile[key].chainId === chainId && contractName in addressFile[key]) {
-      return getAddress(addressFile[key][contractName])
-    }
+  const addressFile = getOceanArtifactsAdressesByChainId(chainId)
+  if (addressFile && contractName in addressFile) {
+    return getAddress(addressFile[contractName])
   }
+  return ''
 }
 
 export const getDeployedContractBlock = (network: number) => {
   let deployedBlock: number
-  const addressFile = getAddressFile(network)
-  const networkKeys = Object.keys(addressFile)
-  networkKeys.forEach((key) => {
-    if (addressFile[key].chainId === network) {
-      deployedBlock = addressFile[key].startBlock
-    }
-  })
+  const addressFile = getOceanArtifactsAdressesByChainId(network)
+  if (addressFile) {
+    deployedBlock = addressFile.startBlock
+  }
+
   return deployedBlock
 }
 
