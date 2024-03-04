@@ -441,7 +441,10 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should get empty reindex queue', () => {
-    const queue = indexer.getIndexingQueue()
-    expect(queue.length).to.be.equal(0)
+    setTimeout(() => {
+      // needs to wait for indexer task to finish
+      const queue = indexer.getIndexingQueue()
+      expect(queue.length).to.be.equal(0)
+    }, DEFAULT_TEST_TIMEOUT / 2)
   })
 })

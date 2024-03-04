@@ -126,6 +126,9 @@ async function processReindex(): Promise<void> {
           method: 'popFromQueue',
           data: reindexTask
         })
+      } else {
+        // put it back as it failed
+        REINDEX_QUEUE.push(reindexTask)
       }
     } catch (error) {
       INDEXER_LOGGER.log(
