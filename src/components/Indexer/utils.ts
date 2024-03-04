@@ -1,9 +1,6 @@
 import { JsonRpcApiProvider, Signer, ethers, getAddress, Interface } from 'ethers'
-import localAdressFile from '@oceanprotocol/contracts/addresses/address.json' assert { type: 'json' }
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import fs from 'fs'
-import { homedir } from 'os'
 import {
   ENVIRONMENT_VARIABLES,
   EVENTS,
@@ -22,6 +19,7 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { fetchEventFromTransaction } from '../../utils/util.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { getOceanArtifactsAdresses } from '../../utils/address.js'
 
 let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor
@@ -57,16 +55,7 @@ function getOrderStartedEventProcessor(chainId: number): OrderStartedEventProces
 }
 
 export const getAddressFile = (chainId: number) => {
-  return process.env.ADDRESS_FILE || chainId === 8996
-    ? JSON.parse(
-        // eslint-disable-next-line security/detect-non-literal-fs-filename
-        fs.readFileSync(
-          process.env.ADDRESS_FILE ||
-            `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          'utf8'
-        )
-      )
-    : localAdressFile
+  return getOceanArtifactsAdresses(chainId)
 }
 
 export const getContractAddress = (chainId: number, contractName: string): string => {
