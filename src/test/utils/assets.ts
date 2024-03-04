@@ -201,3 +201,87 @@ export async function orderAsset(
   }
   return orderTxReceipt
 }
+
+export async function reOrderAsset(
+  previousOrderTxId: string,
+  genericAsset: any,
+  serviceIndex: number,
+  consumerAccount: Signer,
+  consumerAddress: string,
+  publisherAccount: Signer,
+  oceanNode?: OceanNode,
+  providerFees?: ProviderFees
+) {
+  let orderTxReceipt
+  const consumeMarketFeeAddress = ZeroAddress
+  const consumeMarketFeeAmount = 0
+  const consumeMarketFeeToken = ZeroAddress
+  const service = AssetUtils.getServiceByIndex(genericAsset, serviceIndex)
+  const dataTokenContract = new Contract(
+    service.datatokenAddress,
+    ERC20Template.abi,
+    publisherAccount
+  )
+
+  if (!providerFees) {
+    const oceanNodeConfig = await getConfiguration(true)
+    const statusCommand = {
+      command: PROTOCOL_COMMANDS.GET_FEES,
+      ddoId: genericAsset.id,
+      serviceId: service.id,
+      consumerAddress,
+      node: oceanNodeConfig.keys.peerId.toString()
+    }
+    const response = await new FeesHandler(oceanNode).handle(statusCommand)
+    providerFees = await streamToObject(response.stream as Readable)
+  }
+  // call the mint function on the dataTokenContract
+  const mintTx = await dataTokenContract.mint(
+    await consumerAccount.getAddress(),
+    parseUnits('1000', 18)
+  )
+  await mintTx.wait()
+  if (providerFees.providerFeeToken !== ZeroAddress) {
+    // get provider fees in our account as well
+    const providerFeeTokenContract = new Contract(
+      providerFees.providerFeeToken,
+      ERC20Template.abi,
+      publisherAccount
+    )
+    const mintTx = await providerFeeTokenContract.mint(
+      await consumerAccount.getAddress(),
+      providerFees.providerFeeAmount
+    )
+    await mintTx.wait()
+
+    const approveTx = await (
+      providerFeeTokenContract.connect(consumerAccount) as any
+    ).approve(await dataTokenContract.getAddress(), providerFees.providerFeeAmount)
+    await approveTx.wait()
+  }
+  const dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
+  try {
+    const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
+      previousOrderTxId,
+      {
+        providerFeeAddress: providerFees.providerFeeAddress,
+        providerFeeToken: providerFees.providerFeeToken,
+        providerFeeAmount: providerFees.providerFeeAmount,
+        v: providerFees.v,
+        r: providerFees.r,
+        s: providerFees.s,
+        providerData: providerFees.providerData,
+        validUntil: providerFees.validUntil
+      },
+      {
+        consumeMarketFeeAddress,
+        consumeMarketFeeToken,
+        consumeMarketFeeAmount
+      }
+    )
+    orderTxReceipt = await orderTx.wait()
+  } catch (e) {
+    console.log(e)
+  }
+  return orderTxReceipt
+}
