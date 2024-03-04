@@ -198,6 +198,46 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
     assert.isEmpty(logs, 'Expected logs to be empty')
   })
 
+  describe('SHould delete a single log from LogDatabase', () => {
+    let database: Database
+    const logEntry = {
+      timestamp: Date.now(),
+      level: 'info',
+      message: 'Test log message for single deletion',
+      moduleName: 'testModule-2',
+      meta: 'Test meta information for single deletion'
+    }
+    let singleLogId: string
+
+    before(async () => {
+      const dbConfig = {
+        url: 'http://localhost:8108/?apiKey=xyz'
+      }
+      database = await new Database(dbConfig)
+    })
+
+    it('should insert a log for deletion', async () => {
+      const result = await database.logs.insertLog(logEntry)
+      expect(result).to.include.keys(
+        'id',
+        'timestamp',
+        'level',
+        'message',
+        'moduleName',
+        'meta'
+      )
+      singleLogId = result?.id
+    })
+
+    it('should delete a single log', async () => {
+      await database.logs.delete(singleLogId)
+
+      // Attempt to retrieve the deleted log
+      const deletedLog = await database.logs.retrieveLog(singleLogId)
+      expect(!deletedLog, 'Deleted log should not exist')
+    })
+  })
+
   it('should not retrieve logs when no logs match the level', async () => {
     const logs = await database.logs.retrieveMultipleLogs(
       startTime,
