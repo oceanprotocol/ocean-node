@@ -127,13 +127,12 @@ export async function validateObject(
       schemaDataset.add(quad)
     })
 
-    // When the stream ends, log the dataset
-    quadsStream.on('end', () => {
-      CORE_LOGGER.logMessage(`Schema dataset: ${JSON.stringify(schemaDataset)}`)
-    })
-    // for await (const quad of fromFile(filename)) {
-    //   schemaDataset.add(quad)
-    // }
+    CORE_LOGGER.logMessage(`Schema dataset: ${JSON.stringify(schemaDataset)}`)
+
+    // // When the stream ends, log the dataset
+    // quadsStream.on('end', () => {
+
+    // })
     // const contents = await readFile(filename, { encoding: 'utf8' })
     // CORE_LOGGER.logMessage(`filename to shacl schemas: ${filename}`)
     // CORE_LOGGER.logMessage(`contents: ${JSON.stringify(contents)}`)
@@ -147,7 +146,6 @@ export async function validateObject(
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
   }
   Object.entries(ddoCopy).forEach(([key, value]) => {
-    CORE_LOGGER.logMessage(`key value: ${key} ${JSON.stringify(value)}`)
     const subject = factory.namedNode(`http://example.org/ddo/${key}`)
     const predicate = factory.namedNode('http://example.org/ddo/property')
     let stringValue = ''
