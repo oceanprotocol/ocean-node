@@ -707,40 +707,50 @@ export class LogDatabase {
     }
   }
 
-  async deleteOldLogs() {
-    const currentTime = new Date().getTime()
-    const xTime = parseInt(process.env.LOG_RETENTION_TIME || '2592000000') // Default to 30 days in milliseconds
-    const deleteBeforeTime = currentTime - xTime
-
+  async delete(logId: string): Promise<void> {
+    if (!logId) {
+      throw new Error('Log ID is required for deletion.')
+    }
     try {
-      // Retrieve logs that are older than the specified time
-      const searchParameters = {
-        q: '*',
-        query_by: 'timestamp',
-        filter_by: `timestamp:<${deleteBeforeTime}`,
-        sort_by: 'timestamp:desc',
-        per_page: 100
-      }
-
-      const oldLogs = await this.provider
-        .collections(this.schema.name)
-        .documents()
-        .search(searchParameters)
-
-      // Delete each log individually
-      for (const log of oldLogs.hits) {
-        await this.provider
-          .collections(this.schema.name)
-          .documents()
-          .delete(log.document.id)
-      }
-
+      await this.provider.collections(this.schema.name).documents().delete(logId)
       DATABASE_LOGGER.logMessageWithEmoji(
-        `Deleted logs older than ${deleteBeforeTime} (timestamp)`,
+        `Deleted log with ID: ${logId}`,
         true,
         GENERIC_EMOJIS.EMOJI_CHECK_MARK,
         LOG_LEVELS_STR.LEVEL_INFO
       )
+    } catch (error) {
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Error when deleting log entry: ${error.message}`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      throw error
+    }
+  }
+
+  async deleteOldLogs() {
+    const currentTime = new Date().getTime()
+    const xTime = parseInt(process.env.LOG_RETENTION_TIME || '2592000000') // Default to 30 days in milliseconds
+    const deleteBeforeTime = new Date(currentTime - xTime)
+
+    try {
+      const oldLogs = await this.retrieveMultipleLogs(
+        new Date(0),
+        deleteBeforeTime,
+        10000,
+        undefined,
+        undefined
+      )
+
+      if (oldLogs) {
+        for (const log of oldLogs) {
+          if (log.id) {
+            await this.delete(log.id)
+          }
+        }
+      }
     } catch (error) {
       DATABASE_LOGGER.logMessageWithEmoji(
         `Error when deleting old log entries: ${error.message}`,
