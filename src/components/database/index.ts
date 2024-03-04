@@ -681,6 +681,9 @@ export class LogDatabase {
       if (level) {
         filterConditions += ` && level:${level}`
       }
+      if (maxLogs > 250) {
+        maxLogs = 250
+      }
 
       const searchParameters = {
         q: '*',
@@ -739,7 +742,7 @@ export class LogDatabase {
       const oldLogs = await this.retrieveMultipleLogs(
         new Date(0),
         deleteBeforeTime,
-        10000,
+        200,
         undefined,
         undefined
       )
