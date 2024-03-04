@@ -184,26 +184,31 @@ describe('validateOrderTransaction Function with Orders', () => {
     assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
 
     dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
-
-    const orderTx = await dataTokenContractWithNewSigner.startOrder(
-      consumerAddress,
-      serviceId,
-      {
-        providerFeeAddress: feeData.providerFeeAddress,
-        providerFeeToken: feeData.providerFeeToken,
-        providerFeeAmount: feeData.providerFeeAmount,
-        v: feeData.v,
-        r: feeData.r,
-        s: feeData.s,
-        providerData: feeData.providerData,
-        validUntil: feeData.validUntil
-      },
-      {
-        consumeMarketFeeAddress,
-        consumeMarketFeeToken,
-        consumeMarketFeeAmount
-      }
-    )
+    let orderTx
+    try {
+      orderTx = await dataTokenContractWithNewSigner.startOrder(
+        consumerAddress,
+        serviceId,
+        {
+          providerFeeAddress: feeData.providerFeeAddress,
+          providerFeeToken: feeData.providerFeeToken,
+          providerFeeAmount: feeData.providerFeeAmount,
+          v: feeData.v,
+          r: feeData.r,
+          s: feeData.s,
+          providerData: feeData.providerData,
+          validUntil: feeData.validUntil
+        },
+        {
+          consumeMarketFeeAddress,
+          consumeMarketFeeToken,
+          consumeMarketFeeAmount
+        }
+      )
+    } catch (e) {
+      console.log(e)
+      assert(false, 'order transaction failed')
+    }
     const orderTxReceipt = await orderTx.wait()
     assert(orderTxReceipt, 'order transaction failed')
     orderTxId = orderTxReceipt.hash
@@ -237,25 +242,30 @@ describe('validateOrderTransaction Function with Orders', () => {
 
     // git status
     dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
-
-    const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
-      orderTxId,
-      {
-        providerFeeAddress: feeData.providerFeeAddress,
-        providerFeeToken: feeData.providerFeeToken,
-        providerFeeAmount: feeData.providerFeeAmount,
-        v: feeData.v,
-        r: feeData.r,
-        s: feeData.s,
-        providerData: feeData.providerData,
-        validUntil: feeData.validUntil
-      },
-      {
-        consumeMarketFeeAddress,
-        consumeMarketFeeToken,
-        consumeMarketFeeAmount
-      }
-    )
+    let orderTx
+    try {
+      orderTx = await dataTokenContractWithNewSigner.reuseOrder(
+        orderTxId,
+        {
+          providerFeeAddress: feeData.providerFeeAddress,
+          providerFeeToken: feeData.providerFeeToken,
+          providerFeeAmount: feeData.providerFeeAmount,
+          v: feeData.v,
+          r: feeData.r,
+          s: feeData.s,
+          providerData: feeData.providerData,
+          validUntil: feeData.validUntil
+        },
+        {
+          consumeMarketFeeAddress,
+          consumeMarketFeeToken,
+          consumeMarketFeeAmount
+        }
+      )
+    } catch (e) {
+      console.log(e)
+      assert(false, 'reuseOrder transaction failed')
+    }
     const orderTxReceipt = await orderTx.wait()
     assert(orderTxReceipt, 'order transaction failed')
     const txId = orderTxReceipt.hash
@@ -287,25 +297,30 @@ describe('validateOrderTransaction Function with Orders', () => {
       'null',
       resolvedDDO.services[0]
     )
-
-    const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
-      orderTxId,
-      {
-        providerFeeAddress: feeData.providerFeeAddress,
-        providerFeeToken: feeData.providerFeeToken,
-        providerFeeAmount: feeData.providerFeeAmount,
-        v: feeData.v,
-        r: feeData.r,
-        s: feeData.s,
-        providerData: feeData.providerData,
-        validUntil: feeData.validUntil
-      },
-      {
-        consumeMarketFeeAddress,
-        consumeMarketFeeToken,
-        consumeMarketFeeAmount
-      }
-    )
+    let orderTx
+    try {
+      orderTx = await dataTokenContractWithNewSigner.reuseOrder(
+        orderTxId,
+        {
+          providerFeeAddress: feeData.providerFeeAddress,
+          providerFeeToken: feeData.providerFeeToken,
+          providerFeeAmount: feeData.providerFeeAmount,
+          v: feeData.v,
+          r: feeData.r,
+          s: feeData.s,
+          providerData: feeData.providerData,
+          validUntil: feeData.validUntil
+        },
+        {
+          consumeMarketFeeAddress,
+          consumeMarketFeeToken,
+          consumeMarketFeeAmount
+        }
+      )
+    } catch (e) {
+      console.log(e)
+      assert(false, 'reuseOrder transaction failed')
+    }
     const orderTxReceipt = await orderTx.wait()
     assert(orderTxReceipt, 'order transaction failed')
     const txId = orderTxReceipt.hash
@@ -337,25 +352,30 @@ describe('validateOrderTransaction Function with Orders', () => {
       'null',
       resolvedDDO.services[0]
     )
-
-    const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
-      orderTxId,
-      {
-        providerFeeAddress: feeData.providerFeeAddress,
-        providerFeeToken: feeData.providerFeeToken,
-        providerFeeAmount: feeData.providerFeeAmount,
-        v: feeData.v,
-        r: feeData.r,
-        s: feeData.s,
-        providerData: feeData.providerData,
-        validUntil: feeData.validUntil
-      },
-      {
-        consumeMarketFeeAddress,
-        consumeMarketFeeToken,
-        consumeMarketFeeAmount
-      }
-    )
+    let orderTx
+    try {
+      orderTx = await dataTokenContractWithNewSigner.reuseOrder(
+        orderTxId,
+        {
+          providerFeeAddress: feeData.providerFeeAddress,
+          providerFeeToken: feeData.providerFeeToken,
+          providerFeeAmount: feeData.providerFeeAmount,
+          v: feeData.v,
+          r: feeData.r,
+          s: feeData.s,
+          providerData: feeData.providerData,
+          validUntil: feeData.validUntil
+        },
+        {
+          consumeMarketFeeAddress,
+          consumeMarketFeeToken,
+          consumeMarketFeeAmount
+        }
+      )
+    } catch (e) {
+      console.log(e)
+      assert(false, 'reuseOrder transaction failed')
+    }
     const orderTxReceipt = await orderTx.wait()
     assert(orderTxReceipt, 'order transaction failed')
     const txId = orderTxReceipt.hash
