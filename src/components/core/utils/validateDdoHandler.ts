@@ -116,11 +116,11 @@ export async function validateObject(
 
   const version = obj.version || CURRENT_VERSION
   const schemaFilePath = getSchema(version)
-  const filename = new URL(schemaFilePath, import.meta.url)
+  // const filename = new URL(schemaFilePath, import.meta.url)
   const schemaDataset = rdfDataset.dataset()
   const dataset = rdfDataset.dataset()
   try {
-    const quadsStream = fromFile(filename)
+    const quadsStream = fromFile(schemaFilePath)
 
     quadsStream.on('data', (quad: Quad) => {
       schemaDataset.add(quad)
