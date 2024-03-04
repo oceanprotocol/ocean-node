@@ -1,4 +1,5 @@
-import { ethers, Signer, JsonRpcApiProvider } from 'ethers'
+import { ethers, Signer, JsonRpcApiProvider, JsonRpcProvider } from 'ethers'
+import { getConfiguration } from './config.js'
 
 export class Blockchain {
   private signer: Signer
@@ -8,6 +9,7 @@ export class Blockchain {
   public constructor(rpc: string, chaindId: number) {
     this.chainId = chaindId
     this.provider = new ethers.JsonRpcProvider(rpc)
+    // always use this signer, not simply provider.getSigner(0) for instance (as we do on many tests)
     this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
   }
 
@@ -45,4 +47,9 @@ export async function verifyMessage(
   } catch (err) {
     return false
   }
+}
+
+export async function getJsonRpcProvider(chainId: number): Promise<JsonRpcProvider> {
+  const networkUrl = (await getConfiguration()).supportedNetworks[chainId.toString()].rpc
+  return new JsonRpcProvider(networkUrl)
 }

@@ -5,6 +5,7 @@ import { Readable } from 'stream'
 import { OceanIndexer } from '../Indexer/index.js'
 
 export class ReindexHandler extends Handler {
+  // eslint-disable-next-line require-await
   async handle(task: ReindexCommand): Promise<P2PCommandResponse> {
     try {
       const txId: string = String(task.txId).toLowerCase()
@@ -22,7 +23,7 @@ export class ReindexHandler extends Handler {
         }
       }
       const eventIndex: number = Number(task.eventIndex)
-      await OceanIndexer.addReindexTask({
+      OceanIndexer.addReindexTask({
         txId,
         chainId,
         eventIndex

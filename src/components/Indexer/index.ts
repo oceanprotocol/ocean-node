@@ -1,5 +1,5 @@
 import EventEmitter from 'node:events'
-import { Worker, workerData } from 'node:worker_threads'
+import { Worker } from 'node:worker_threads'
 import { Database } from '../database/index.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
 import { ReindexTask } from './crawlerThread.js'
@@ -65,8 +65,27 @@ export class OceanIndexer {
       })
 
       worker.on('message', (event: any) => {
-        if (event.method === EVENTS.METADATA_CREATED) {
-          this.advertiseDDO(event.network, event.data, event.method)
+        if (event.data) {
+          if (
+            [
+              EVENTS.METADATA_CREATED,
+              EVENTS.METADATA_UPDATED,
+              EVENTS.ORDER_STARTED,
+              EVENTS.ORDER_REUSED
+            ].includes(event.method)
+          ) {
+            // will emit the metadata created/updated event and advertise it to the other peers (on create only)
+            INDEXER_LOGGER.logMessage(
+              `Emiting "${event.method}" for DDO : ${event.data.id} from network: ${network} `
+            )
+            INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
+          }
+        } else {
+          INDEXER_LOGGER.log(
+            LOG_LEVELS_STR.LEVEL_ERROR,
+            'Missing event data (ddo) on postMessage. Something is wrong!',
+            true
+          )
         }
       })
 
@@ -90,16 +109,11 @@ export class OceanIndexer {
     }
   }
 
-  static async addReindexTask(reindexTask: ReindexTask): Promise<void> {
+  static addReindexTask(reindexTask: ReindexTask): void {
     const worker = OceanIndexer.workers[reindexTask.chainId]
     if (worker) {
       worker.postMessage({ method: 'add-reindex-task', reindexTask })
     }
-  }
-
-  public async advertiseDDO(network: number, ddo: any, method: string): Promise<void> {
-    INDEXER_LOGGER.logMessage(`Advertising new DDO : ${ddo.id} from network: ${network} `)
-    INDEXER_DDO_EVENT_EMITTER.emit(method, ddo.id)
   }
 
   public async getLastIndexedBlock(network: number): Promise<number> {

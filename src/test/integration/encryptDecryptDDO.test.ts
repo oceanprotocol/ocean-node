@@ -22,8 +22,7 @@ import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
 import { Database } from '../../components/database/index.js'
 import { DecryptDdoHandler } from '../../components/core/ddoHandler.js'
-import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
-import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { ENVIRONMENT_VARIABLES } from '../../utils/index.js'
 import { Readable } from 'stream'
 import { OceanNode } from '../../OceanNode.js'
 import {
@@ -33,9 +32,9 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
 
 describe('Should encrypt and decrypt DDO', () => {
-  let config: OceanNodeConfig
   let database: Database
   let oceanNode: OceanNode
   let provider: JsonRpcProvider
@@ -98,7 +97,6 @@ describe('Should encrypt and decrypt DDO', () => {
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
-    config = await getConfiguration(true)
     database = await new Database(dbConfig)
     oceanNode = OceanNode.getInstance(database)
     // will be used later
@@ -151,7 +149,7 @@ describe('Should encrypt and decrypt DDO', () => {
       '0x' + createHash('sha256').update(JSON.stringify(genericAsset)).digest('hex')
 
     const genericAssetData = Uint8Array.from(Buffer.from(JSON.stringify(genericAsset)))
-    const encryptedData = await encrypt(genericAssetData, 'ECIES')
+    const encryptedData = await encrypt(genericAssetData, EncryptMethod.ECIES)
     encryptedMetaData = hexlify(encryptedData)
 
     const setMetaDataTx = await nftContract.setMetaData(

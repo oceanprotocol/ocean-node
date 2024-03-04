@@ -14,7 +14,6 @@ import {
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { Database } from '../../components/database/index.js'
-import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { genericDDO } from '../data/ddo.js'
 import {
@@ -25,24 +24,29 @@ import {
 import { DownloadHandler } from '../../components/core/downloadHandler.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getEventFromTx } from '../../utils/util.js'
-import { waitToIndex, delay } from './testUtils.js'
+import { waitToIndex, expectedTimeoutFailure } from './testUtils.js'
 import { getConfiguration } from '../../utils/config.js'
 import { ProviderFeeData } from '../../@types/Fees.js'
 import { encrypt } from '../../utils/crypt.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
-import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import {
+  ENVIRONMENT_VARIABLES,
+  EVENTS,
+  PROTOCOL_COMMANDS
+} from '../../utils/constants.js'
 import { OceanNode } from '../../OceanNode.js'
 import {
+  DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
 
 describe('Download Tests', () => {
   let database: Database
-  let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let factoryContract: Contract
   let nftContract: Contract
@@ -76,7 +80,6 @@ describe('Download Tests', () => {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
     database = await new Database(dbConfig)
-    indexer = new OceanIndexer(database, mockSupportedNetworks)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
@@ -103,7 +106,7 @@ describe('Download Tests', () => {
     )
   })
 
-  it('instance Database', async () => {
+  it('instance Database', () => {
     expect(database).to.be.instanceOf(Database)
   })
 
@@ -158,7 +161,7 @@ describe('Download Tests', () => {
     }
 
     const data = Uint8Array.from(Buffer.from(JSON.stringify(files)))
-    const encryptedData = await encrypt(data, 'ECIES')
+    const encryptedData = await encrypt(data, EncryptMethod.ECIES)
     // const encryptedDataString = encryptedData.toString('base64')
 
     nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, publisherAccount)
@@ -190,10 +193,19 @@ describe('Download Tests', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(35000)
-  it('should store the ddo in the database and return it ', async () => {
-    resolvedDDO = await waitToIndex(assetDID, database)
-    expect(resolvedDDO.id).to.equal(genericAsset.id)
+  it('should store the ddo in the database and return it', async function () {
+    const { ddo, wasTimeout } = await waitToIndex(
+      assetDID,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
+
+    resolvedDDO = ddo
+    if (resolvedDDO) {
+      expect(resolvedDDO.id).to.equal(genericAsset.id)
+    } else {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    }
   })
 
   it('should update ddo metadata fields ', async () => {
@@ -218,11 +230,9 @@ describe('Download Tests', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(35000)
-
   it('should start an order and then download the asset', async function () {
     const asset: any = resolvedDDO
-    this.timeout(65000) // Extend default Mocha test timeout
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2) // Extend default Mocha test timeout
 
     const dataTokenContract = new Contract(
       datatokenAddress,

@@ -16,7 +16,9 @@ const app: Express = express()
 // const port = getRandomInt(6000,6500)
 
 declare global {
+  // eslint-disable-next-line no-unused-vars
   namespace Express {
+    // eslint-disable-next-line no-unused-vars
     interface Request {
       oceanNode: OceanNode
     }
@@ -108,7 +110,8 @@ if (config.hasProvider && dbconn) {
 const oceanNode = OceanNode.getInstance(dbconn, node, provider, indexer)
 
 if (config.hasHttp) {
-  app.use(express.raw())
+  app.use(express.raw({ limit: '25mb' }))
+  // allow up to 25Mb file upload
   app.use((req, res, next) => {
     req.oceanNode = oceanNode
     next()

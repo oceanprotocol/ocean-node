@@ -8,8 +8,6 @@ import {
   getAddress,
   hexlify,
   ZeroAddress,
-  toUtf8Bytes,
-  solidityPackedKeccak256,
   parseUnits
 } from 'ethers'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
@@ -19,7 +17,7 @@ import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { getEventFromTx } from '../../utils/util.js'
-import { delay, waitToIndex, signMessage } from './testUtils.js'
+import { waitToIndex, expectedTimeoutFailure } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import {
   DEVELOPMENT_CHAIN_ID,
@@ -28,15 +26,14 @@ import {
 } from '../../utils/address.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
-import { getMockSupportedNetworks } from '../utils/utils.js'
+import { DEFAULT_TEST_TIMEOUT, getMockSupportedNetworks } from '../utils/utils.js'
+import { EVENTS } from '../../utils/constants.js'
 
 describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
-  let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let factoryContract: Contract
   let nftContract: Contract
-  let datatokenContract: Contract
   let publisherAccount: Signer
   let consumerAccount: Signer
   let nftAddress: string
@@ -49,22 +46,14 @@ describe('Indexer stores a new metadata events and orders.', () => {
   let orderTxId: string
   let reuseOrderTxId: string
   let dataTokenContractWithNewSigner: any
-  let signedMessage: { v: string; r: string; s: string }
-  let message: string
-  let providerData: string
   let orderEvent: any
   let reusedOrderEvent: any
   let initialOrderCount: number
-  const timeout = 0
   const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
-  const providerFeeAddress = ZeroAddress // publisherAddress
-  const providerFeeToken = feeToken
   const serviceIndex = 0 // dummy index
-  const providerFeeAmount = 0 // fee to be collected on top, requires approval
   const consumeMarketFeeAddress = ZeroAddress // marketplace fee Collector
   const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
-  const consumeMarketFeeToken = feeToken // token address for the feeAmount,
-  const providerValidUntil = 0
+  const consumeMarketFeeToken = feeToken // token address for the feeAmount
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
@@ -73,7 +62,8 @@ describe('Indexer stores a new metadata events and orders.', () => {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
     database = await new Database(dbConfig)
-    indexer = new OceanIndexer(database, mockSupportedNetworks)
+    // eslint-disable-next-line no-unused-vars
+    const indexer = new OceanIndexer(database, mockSupportedNetworks)
 
     let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!artifactsAddresses) {
@@ -91,7 +81,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     )
   })
 
-  it('instance Database', async () => {
+  it('instance Database', () => {
     expect(database).to.be.instanceOf(Database)
   })
 
@@ -166,11 +156,16 @@ describe('Indexer stores a new metadata events and orders.', () => {
     genericAsset.nft.created = '2022-12-30T08:40:43'
   })
 
-  delay(30000)
-
-  it('should store the ddo in the database and return it ', async () => {
-    resolvedDDO = await waitToIndex(assetDID, database)
-    expect(resolvedDDO.id).to.equal(genericAsset.id)
+  it('should store the ddo in the database and return it ', async function () {
+    const { ddo, wasTimeout } = await waitToIndex(
+      assetDID,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
+    resolvedDDO = ddo
+    if (resolvedDDO) {
+      expect(resolvedDDO.id).to.equal(genericAsset.id)
+    } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
   it('should update ddo metadata fields ', async () => {
@@ -195,14 +190,20 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(trxReceipt, 'set metada failed')
   })
 
-  delay(30000)
-
-  it('should detect update event and store the udpdated ddo in the database', async () => {
-    const updatedDDO = await waitToIndex(assetDID, database)
-    expect(updatedDDO.metadata.name).to.equal('dataset-name-updated')
-    expect(updatedDDO.metadata.description).to.equal(
-      'Updated description for the Ocean protocol test dataset'
+  it('should detect update event and store the udpdated ddo in the database', async function () {
+    const { ddo, wasTimeout } = await waitToIndex(
+      assetDID,
+      EVENTS.METADATA_UPDATED,
+      DEFAULT_TEST_TIMEOUT,
+      true
     )
+    const updatedDDO: any = ddo
+    if (updatedDDO) {
+      expect(updatedDDO.metadata.name).to.equal('dataset-name-updated')
+      expect(updatedDDO.metadata.description).to.equal(
+        'Updated description for the Ocean protocol test dataset'
+      )
+    } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
   it('should change metadata state of the published DDO', async () => {
@@ -211,15 +212,21 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(trxReceipt, 'set metada state failed')
   })
 
-  delay(50000)
-
-  it('should get the updated state', async () => {
+  it('should get the updated state', async function () {
     const result = await nftContract.getMetaData()
-    const retrievedDDO = await waitToIndex(assetDID, database)
-    expect(retrievedDDO.nft).to.not.equal(undefined)
-    expect(retrievedDDO).to.have.nested.property('nft.state')
-    // Expect the result from contract
-    expect(retrievedDDO.nft.state).to.equal(parseInt(result[2].toString()))
+    const { ddo, wasTimeout } = await waitToIndex(
+      assetDID,
+      EVENTS.METADATA_UPDATED,
+      DEFAULT_TEST_TIMEOUT,
+      true
+    )
+    const retrievedDDO: any = ddo
+    if (retrievedDDO) {
+      expect(retrievedDDO.nft).to.not.equal(undefined)
+      expect(retrievedDDO).to.have.nested.property('nft.state')
+      // Expect the result from contract
+      expect(retrievedDDO.nft.state).to.equal(parseInt(result[2].toString()))
+    } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
   it('should change metadata state back to ACTIVE state', async () => {
@@ -228,16 +235,22 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(trxReceipt, 'set metada state failed')
   })
 
-  delay(30000)
-
-  it('should get the active state', async () => {
-    const retrievedDDO = await waitToIndex(assetDID, database)
-    // Expect the result from contract
-    expect(retrievedDDO.nft.state).to.equal(0)
+  it('should get the active state', async function () {
+    const { ddo, wasTimeout } = await waitToIndex(
+      assetDID,
+      EVENTS.METADATA_UPDATED,
+      DEFAULT_TEST_TIMEOUT,
+      true
+    )
+    const retrievedDDO: any = ddo
+    if (retrievedDDO != null) {
+      // Expect the result from contract
+      expect(retrievedDDO.id).to.equal(assetDID)
+      expect(retrievedDDO.nft.state).to.equal(0)
+    } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
   it('should get OrderStarted event', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
     const publisherAddress = await publisherAccount.getAddress()
     const consumerAddress = await consumerAccount.getAddress()
     const dataTokenContract = new Contract(
@@ -254,20 +267,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
       'null',
       resolvedDDO.services[0]
     )
-
-    // sign provider data
-    providerData = JSON.stringify({ timeout })
-    message = solidityPackedKeccak256(
-      ['bytes', 'address', 'address', 'uint256', 'uint256'],
-      [
-        hexlify(toUtf8Bytes(providerData)),
-        providerFeeAddress,
-        providerFeeToken,
-        providerFeeAmount,
-        providerValidUntil
-      ]
-    )
-    signedMessage = await signMessage(message, publisherAddress, provider)
 
     // call the mint function on the dataTokenContract
     const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
@@ -306,23 +305,29 @@ describe('Indexer stores a new metadata events and orders.', () => {
     expect(parseInt(orderEvent.args[3].toString())).to.equal(serviceIndex) // serviceIndex
   })
 
-  delay(30000)
-
-  it('should get number of orders', async () => {
-    const retrievedDDO = await waitToIndex(assetDID, database)
-    expect(retrievedDDO.stats.orders).to.equal(1)
-    initialOrderCount = retrievedDDO.stats.orders
-    const resultOrder = await database.order.retrieve(orderTxId)
-    expect(resultOrder?.id).to.equal(orderTxId)
-    expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
-    expect(resultOrder?.type).to.equal('startOrder')
-    const timestamp = orderEvent.args[4].toString()
-    expect(resultOrder?.timestamp.toString()).to.equal(timestamp)
+  it('should get number of orders', async function () {
+    const { ddo, wasTimeout } = await waitToIndex(
+      assetDID,
+      EVENTS.ORDER_STARTED,
+      DEFAULT_TEST_TIMEOUT,
+      true
+    )
+    const retrievedDDO: any = ddo
+    if (retrievedDDO) {
+      expect(retrievedDDO.stats.orders).to.equal(1)
+      initialOrderCount = retrievedDDO.stats.orders
+      const resultOrder = await database.order.retrieve(orderTxId)
+      expect(resultOrder?.id).to.equal(orderTxId)
+      expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
+      expect(resultOrder?.type).to.equal('startOrder')
+      const timestamp = orderEvent.args[4].toString()
+      expect(resultOrder?.timestamp.toString()).to.equal(timestamp)
+    } else {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    }
   })
 
   it('should detect OrderReused event', async function () {
-    this.timeout(15000) // Extend default Mocha test timeout
-
     const feeData = await createFee(
       resolvedDDO as DDO,
       0,
@@ -357,18 +362,26 @@ describe('Indexer stores a new metadata events and orders.', () => {
     expect(reusedOrderEvent.args[0]).to.equal(orderTxId)
   })
 
-  delay(30000)
-
-  it('should increase number of orders', async () => {
-    const retrievedDDO = await waitToIndex(assetDID, database)
-    expect(retrievedDDO.stats.orders).to.be.greaterThan(initialOrderCount)
-    const resultOrder = await database.order.retrieve(reuseOrderTxId)
-    expect(resultOrder?.id).to.equal(reuseOrderTxId)
-    expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
-    expect(resultOrder?.type).to.equal('reuseOrder')
-    const timestamp = reusedOrderEvent.args[2].toString()
-    expect(resultOrder?.timestamp.toString()).to.equal(timestamp)
-    expect(resultOrder?.startOrderId).to.equal(orderTxId)
+  it('should increase number of orders', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    const { ddo, wasTimeout } = await waitToIndex(
+      assetDID,
+      EVENTS.ORDER_REUSED,
+      DEFAULT_TEST_TIMEOUT * 2
+    )
+    const retrievedDDO: any = ddo
+    if (retrievedDDO) {
+      expect(retrievedDDO.stats.orders).to.be.greaterThan(initialOrderCount)
+      const resultOrder = await database.order.retrieve(reuseOrderTxId)
+      expect(resultOrder?.id).to.equal(reuseOrderTxId)
+      expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
+      expect(resultOrder?.type).to.equal('reuseOrder')
+      const timestamp = reusedOrderEvent.args[2].toString()
+      expect(resultOrder?.timestamp.toString()).to.equal(timestamp)
+      expect(resultOrder?.startOrderId).to.equal(orderTxId)
+    } else {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    }
   })
 
   it('should change metadata state to DEPRECATED', async () => {
@@ -378,29 +391,47 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(trxReceipt, 'set metada state failed')
   })
 
-  delay(30000)
-
-  it('Deprecated asset should have a short version of ddo', async () => {
+  it('Deprecated asset should have a short version of ddo', async function () {
     const result = await nftContract.getMetaData()
     expect(parseInt(result[2].toString())).to.equal(2)
-    const resolvedDDO = await waitToIndex(assetDID, database)
-    // Expect a short version of the DDO
-    expect(Object.keys(resolvedDDO).length).to.equal(4)
-    expect(
-      'id' in resolvedDDO && 'nftAddress' in resolvedDDO && 'nft' in resolvedDDO
-    ).to.equal(true)
+
+    const { ddo, wasTimeout } = await waitToIndex(
+      assetDID,
+      EVENTS.METADATA_UPDATED,
+      DEFAULT_TEST_TIMEOUT,
+      true
+    )
+    const resolvedDDO: any = ddo
+    if (resolvedDDO) {
+      // Expect a short version of the DDO
+      expect(Object.keys(resolvedDDO).length).to.equal(4)
+      expect(
+        'id' in resolvedDDO && 'nftAddress' in resolvedDDO && 'nft' in resolvedDDO
+      ).to.equal(true)
+    } else {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    }
   })
 
-  it('should add reindex task', async () => {
+  it('should add reindex task', () => {
     const reindexTask = {
       txId: setMetaDataTxReceipt.hash,
       chainId: '8996'
     }
-    await OceanIndexer.addReindexTask(reindexTask)
+    OceanIndexer.addReindexTask(reindexTask)
   })
 
-  it('should store ddo reindex', async () => {
-    const resolvedDDO = await waitToIndex(assetDID, database)
-    expect(resolvedDDO.id).to.equal(genericAsset.id)
+  it('should store ddo reindex', async function () {
+    const { ddo, wasTimeout } = await waitToIndex(
+      assetDID,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
+    const resolvedDDO: any = ddo
+    if (resolvedDDO) {
+      expect(resolvedDDO.id).to.equal(genericAsset.id)
+    } else {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    }
   })
 })

@@ -35,9 +35,11 @@ git checkout feature/nodes
 
 ### 5. Open terminal 1 and run a node
 
+Set remaining env values:
+
 ```bash
 export HTTP_API_PORT=8000
-export PRIVATE_KEY=0x.....
+export PRIVATE_KEY="0x1d751ded5a32226054cd2e71261039b65afb9ee1c746d055dd699b1150a5befc"
 export RPCS="{ \"1\":{ \"rpc\":\"https://rpc.eth.gateway.fm\", \"chainId\": 1, \"network\": \"mainet\", \"chunkSize\": 100 }, \"137\": { \"rpc\": \"https://polygon.meowrpc.com\", \"chainId\": 137, \"network\": \"polygon\", \"chunkSize\": 100 }, \"80001\": { \"rpc\": \"https://rpc-mumbai.maticvigil.com\", \"chainId\": 80001, \"network\": \"polygon-mumbai\", \"chunkSize\": 100 }}"
 ```
 
@@ -72,6 +74,12 @@ For configuring a C2D (Compute to Data) cluster(s), please set the following env
 export OPERATOR_SERVICE_URL=[\"http://example.c2d.cluster1.com\",\"http://example.cd2.cluster2.com\"]
 ```
 
+For configuring the Indexer crawling interval in miliseconds (default, if not set, is 30 secs)
+
+```bash
+export INDEXER_INTERVAL=10000
+```
+
 Then start the node:
 
 ```bash
@@ -91,6 +99,13 @@ For downloading the file from IPFS or ARWEAVE, please export the following env v
 ```bash
 export IPFS_GATEWAY=''
 export ARWEAVE_GATEWAY=''
+```
+
+For purgatory checks, please export the following env variables;
+
+```bash
+export ASSET_PURGATORY_URL=\"https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json\"
+export ACCOUNT_PURGATORY_URL=\"https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json\"
 ```
 
 For configuring the ocean node fees, please export the following environment variables;
@@ -296,8 +311,8 @@ npm run logs http://localhost:8000 "2023-11-01T00:00:00Z" "2023-11-30T23:59:59Z"
 
 ## CI Envs
 
-For now, we have three private keys defined (NODE1_PRIVATE_KEY, NODE2_PRIVATE_KEY,NODE3_PRIVATE_KEY). They are using the 10th,11th and 12rd accounts of barge:
+For now, we have three private keys defined (NODE1_PRIVATE_KEY, NODE2_PRIVATE_KEY,NODE3_PRIVATE_KEY). They are using the 7th, 8th and 9th accounts of barge:
 
-- (10) 0xee59A16d95042e1B252d4598e2e503837a52eCb1
-- (11) 0x320608cEB9B40fC5a77596CCad2E0B35659fbb2C
-- (12) 0x675003EF9a381Edb5bA2A954eD4b15037C602A2d
+- (7) 0x1d751ded5a32226054cd2e71261039b65afb9ee1c746d055dd699b1150a5befc
+- (8) 0xfd5c1ccea015b6d663618850824154a3b3fb2882c46cefb05b9a93fea8c3d215
+- (9) 0x1263dc73bef43a9da06149c7e598f52025bf4027f1d6c13896b71e81bb9233fb

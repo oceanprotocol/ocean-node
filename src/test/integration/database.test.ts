@@ -11,7 +11,7 @@ describe('Database', () => {
     database = await new Database(dbConfig)
   })
 
-  it('instance Database', async () => {
+  it('instance Database', () => {
     expect(database).to.be.instanceOf(Database)
   })
 })
@@ -49,7 +49,7 @@ describe('DdoDatabase CRUD', () => {
     database = await new Database(dbConfig)
   })
 
-  it('creates ddo schema as an array', async () => {
+  it('creates ddo schema as an array', () => {
     const ddoSchemas = database.ddo.getSchemas()
     // check if it is an array
     assert(Array.isArray(ddoSchemas))
@@ -104,6 +104,7 @@ describe('NonceDatabase CRUD', () => {
 
 describe('IndexerDatabase CRUD', () => {
   let database: Database
+  let existsPrevious: any = {}
 
   before(async () => {
     const dbConfig = {
@@ -113,15 +114,26 @@ describe('IndexerDatabase CRUD', () => {
   })
 
   it('create indexer', async () => {
-    const result = await database.indexer.create(1, 0)
-    expect(result?.id).to.equal('1')
-    expect(result?.lastIndexedBlock).to.equal(0)
+    // sometimes it exists already, locally at least, so check that first
+    const exists = await database.indexer.retrieve(1)
+    if (!exists) {
+      const result = await database.indexer.create(1, 0)
+      expect(result?.id).to.equal('1')
+      expect(result?.lastIndexedBlock).to.equal(0)
+    } else {
+      existsPrevious = exists
+      expect(existsPrevious?.id).to.equal('1')
+    }
   })
 
   it('retrieve indexer', async () => {
     const result = await database.indexer.retrieve(1)
     expect(result?.id).to.equal('1')
-    expect(result?.lastIndexedBlock).to.equal(0)
+    if (existsPrevious?.id) {
+      expect(result?.lastIndexedBlock).to.equal(existsPrevious.lastIndexedBlock)
+    } else {
+      expect(result?.lastIndexedBlock).to.equal(0)
+    }
   })
 
   it('update indexer', async () => {
