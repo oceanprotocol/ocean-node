@@ -439,4 +439,9 @@ describe('Indexer stores a new metadata events and orders.', () => {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     }
   })
+
+  it('should get empty reindex queue', () => {
+    const queue = indexer.getIndexingQueue()
+    expect(queue.length).to.be.equal(0)
+  })
 })
