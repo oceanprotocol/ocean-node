@@ -115,13 +115,14 @@ export async function validateObject(
   const version = obj.version || CURRENT_VERSION
   const schemaFilePath = getSchema(version)
   const filename = new URL(schemaFilePath, import.meta.url)
+  const schemaDataset = rdfDataset.dataset()
   const dataset = rdfDataset.dataset()
   try {
     const contents = await readFile(filename, { encoding: 'utf8' })
     const parser = new Parser()
     const quads = parser.parse(contents)
     quads.forEach((quad: Quad) => {
-      dataset.add(quad)
+      schemaDataset.add(quad)
     })
   } catch (err) {
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
@@ -146,14 +147,14 @@ export async function validateObject(
   })
   CORE_LOGGER.logMessage(`dataset after the update: ${JSON.stringify(dataset)}`)
   // create a validator instance for the shapes in the given dataset
-  const validator = new shaclEngine.Validator(dataset, {
+  const validator = new shaclEngine.Validator(schemaDataset, {
     factory: rdfDataModel
   })
 
   CORE_LOGGER.logMessage(`validator: ${JSON.stringify(validator)}`)
 
   // run the validation process
-  const report = await validator.validate({ dataset, data: ddoCopy })
+  const report = await validator.validate({ dataset })
   CORE_LOGGER.logMessage(`report: ${JSON.stringify(report)}`)
   if (!report) {
     const errorMsg = 'Validation report does not exist'
