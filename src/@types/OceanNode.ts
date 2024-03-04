@@ -93,7 +93,7 @@ export interface OceanNodeStatus {
   supportedStorage: StorageTypes
   platform: any
   uptime?: number // seconds since start
-  codecodeHash?: string
+  codeHash?: string
 }
 
 export interface P2PBroadcastResponse {

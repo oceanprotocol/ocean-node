@@ -51,7 +51,7 @@ export async function status(
       osVersion: os.version(),
       node: process.version
     },
-    codecodeHash: config.codeHash
+    codeHash: config.codeHash
   }
   if (nodeId && nodeId !== undefined) {
     status.id = nodeId
