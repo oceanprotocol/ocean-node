@@ -2,14 +2,16 @@
 import rdfDataModel from '@rdfjs/data-model'
 import rdfDataset from '@rdfjs/dataset'
 import toNT from '@rdfjs/to-ntriples'
-import { Parser, Quad } from 'n3'
+// import { Quad } from 'n3'
+import { Quad } from '@rdfjs/types'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
 // @ts-ignore
 import * as shaclEngine from 'shacl-engine'
 // import { createHash } from 'crypto'
 import { ethers } from 'ethers' // getAddress
-import { readFile } from 'node:fs/promises'
+// import { readFile } from 'node:fs/promises'
+import { fromFile } from 'rdf-utils-fs'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
@@ -118,15 +120,28 @@ export async function validateObject(
   const schemaDataset = rdfDataset.dataset()
   const dataset = rdfDataset.dataset()
   try {
-    const contents = await readFile(filename, { encoding: 'utf8' })
-    CORE_LOGGER.logMessage(`filename to shacl schemas: ${filename}`)
-    CORE_LOGGER.logMessage(`contents: ${JSON.stringify(contents)}`)
-    const parser = new Parser()
-    const quads = parser.parse(contents)
-    quads.forEach((quad: Quad) => {
-      CORE_LOGGER.logMessage(`quad: ${JSON.stringify(quad)}`)
+    const quadsStream = fromFile(filename)
+
+    quadsStream.on('data', (quad: Quad) => {
       schemaDataset.add(quad)
     })
+
+    // When the stream ends, log the dataset
+    quadsStream.on('end', () => {
+      CORE_LOGGER.logMessage(`Schema dataset: ${schemaDataset}`)
+    })
+    // for await (const quad of fromFile(filename)) {
+    //   schemaDataset.add(quad)
+    // }
+    // const contents = await readFile(filename, { encoding: 'utf8' })
+    // CORE_LOGGER.logMessage(`filename to shacl schemas: ${filename}`)
+    // CORE_LOGGER.logMessage(`contents: ${JSON.stringify(contents)}`)
+    // const parser = new Parser()
+    // const quads = parser.parse(contents)
+    // quads.forEach((quad: Quad) => {
+    //   CORE_LOGGER.logMessage(`quad: ${JSON.stringify(quad)}`)
+    //   schemaDataset.add(quad)
+    // })
   } catch (err) {
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
   }
