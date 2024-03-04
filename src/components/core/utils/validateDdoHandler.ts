@@ -127,9 +127,15 @@ export async function validateObject(
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
   }
   Object.entries(ddoCopy).forEach(([key, value]) => {
+    CORE_LOGGER.logMessage(`key value: ${key} ${value}`)
     const subject = factory.namedNode(`http://example.org/ddo/${key}`)
+    CORE_LOGGER.logMessage(
+      `subject: ${JSON.stringify(subject)}, url http://example.org/ddo/${key}`
+    )
     const predicate = factory.namedNode('http://example.org/ddo/property')
+    CORE_LOGGER.logMessage(`predicate: ${JSON.stringify(predicate)}`)
     const object = factory.literal(value.toString())
+    CORE_LOGGER.logMessage(`object: ${JSON.stringify(object)}`)
     dataset.add(factory.quad(subject, predicate, object))
   })
   CORE_LOGGER.logMessage(`dataset after the update: ${JSON.stringify(dataset)}`)
