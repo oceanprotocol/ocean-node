@@ -81,6 +81,7 @@
     "lodash.clonedeep": "^4.5.0",
     "lzma-native": "^8.0.6",
     "n3": "^1.17.2",
+    "rdf-dataset-ext": "^1.1.0",
     "rdf-utils-fs": "^3.0.0",
     "rdflib": "^2.2.33",
     "shacl-engine": "^0.1.2",

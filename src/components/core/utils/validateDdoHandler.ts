@@ -3,7 +3,7 @@ import rdfDataModel from '@rdfjs/data-model'
 import rdfDataset from '@rdfjs/dataset'
 import toNT from '@rdfjs/to-ntriples'
 // import { Quad } from 'n3'
-import { Quad } from '@rdfjs/types'
+// import { Quad } from '@rdfjs/types'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
 // @ts-ignore
