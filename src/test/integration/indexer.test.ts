@@ -442,7 +442,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should get empty reindex queue', () => {
     setTimeout(() => {
-      // needs to wait for indexer task to finish
+      // needs to wait for indexer task to run at least once
       const queue = indexer.getIndexingQueue()
       expect(queue.length).to.be.equal(0)
     }, DEFAULT_TEST_TIMEOUT / 2)
