@@ -17,6 +17,7 @@ import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
 // eslint-disable-next-line import/no-duplicates
 import factory from '@rdfjs/data-model'
+import { fromStream } from 'rdf-dataset-ext'
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
@@ -117,17 +118,17 @@ export async function validateObject(
   const version = obj.version || CURRENT_VERSION
   const schemaFilePath = getSchema(version)
   // const filename = new URL(schemaFilePath, import.meta.url)
-  const schemaDataset = rdfDataset.dataset()
+  let schemaDataset = rdfDataset.dataset()
   const dataset = rdfDataset.dataset()
   try {
-    const quadsStream = fromFile(schemaFilePath)
+    schemaDataset = await fromStream(schemaDataset, fromFile(schemaFilePath))
 
-    quadsStream.on('data', (quad: Quad) => {
-      CORE_LOGGER.logMessage(`quad stream: ${JSON.stringify(quad)}`)
-      schemaDataset.add(quad)
-    })
+    // quadsStream.on('data', (quad: Quad) => {
+    //   CORE_LOGGER.logMessage(`quad stream: ${JSON.stringify(quad)}`)
+    //   schemaDataset.add(quad)
+    // })
 
-    CORE_LOGGER.logMessage(`Schema dataset: ${JSON.stringify(schemaDataset)}`)
+    CORE_LOGGER.logMessage(`Schema quads: ${JSON.stringify(schemaDataset)}`)
 
     // // When the stream ends, log the dataset
     // quadsStream.on('end', () => {

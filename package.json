@@ -59,6 +59,7 @@
     "@rdfjs/types": "^1.1.0",
     "@types/lodash.clonedeep": "^4.5.7",
     "@types/n3": "^1.16.4",
+    "@types/rdf-dataset-ext": "^1.0.8",
     "@types/rdf-ext": "^2.2.5",
     "@types/rdf-utils-fs": "^2.1.5",
     "@types/rdfjs__data-model": "^2.0.7",
