@@ -119,9 +119,12 @@ export async function validateObject(
   const dataset = rdfDataset.dataset()
   try {
     const contents = await readFile(filename, { encoding: 'utf8' })
+    CORE_LOGGER.logMessage(`filename to shacl schemas: ${filename}`)
+    CORE_LOGGER.logMessage(`contents: ${JSON.stringify(contents)}`)
     const parser = new Parser()
     const quads = parser.parse(contents)
     quads.forEach((quad: Quad) => {
+      CORE_LOGGER.logMessage(`quad: ${JSON.stringify(quad)}`)
       schemaDataset.add(quad)
     })
   } catch (err) {
