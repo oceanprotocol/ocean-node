@@ -123,12 +123,13 @@ export async function validateObject(
     const quadsStream = fromFile(schemaFilePath)
 
     quadsStream.on('data', (quad: Quad) => {
+      CORE_LOGGER.logMessage(`quad stream: ${JSON.stringify(quad)}`)
       schemaDataset.add(quad)
     })
 
     // When the stream ends, log the dataset
     quadsStream.on('end', () => {
-      CORE_LOGGER.logMessage(`Schema dataset: ${schemaDataset}`)
+      CORE_LOGGER.logMessage(`Schema dataset: ${JSON.stringify(schemaDataset)}`)
     })
     // for await (const quad of fromFile(filename)) {
     //   schemaDataset.add(quad)
