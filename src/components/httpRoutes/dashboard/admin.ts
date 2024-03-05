@@ -34,11 +34,7 @@ aquariusRoutes.post(`${ADMIN_API_BASE_PATH}/auth`, (req, res) => {
       })
       return
     }
-    const result = validateSignature(
-      body.nonce,
-      body.expiryTimestamp.toString(),
-      body.signature
-    )
+    const result = validateSignature(body.nonce, body.expiryTimestamp, body.signature)
     if (result === false) {
       HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Validation failed`)
       res.status(400).send({
