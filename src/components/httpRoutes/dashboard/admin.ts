@@ -1,6 +1,6 @@
 import express from 'express'
 import { HTTP_LOGGER } from '../../../utils/logging/common.js'
-import { validateSignatureAndNonce } from './utils/utils.js'
+import { validateSignature } from './utils/utils.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 
 export const aquariusRoutes = express.Router()
@@ -34,7 +34,7 @@ aquariusRoutes.post(`${ADMIN_API_BASE_PATH}/auth`, (req, res) => {
       })
       return
     }
-    const result = validateSignatureAndNonce(
+    const result = validateSignature(
       body.nonce,
       body.expiryTimestamp.toString(),
       body.signature

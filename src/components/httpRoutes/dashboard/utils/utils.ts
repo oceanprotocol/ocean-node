@@ -2,7 +2,7 @@ import { sha256, toUtf8Bytes, verifyMessage } from 'ethers'
 import { HTTP_LOGGER } from '../../../../utils/logging/common'
 import { existsEnvironmentVariable } from '../../../../utils/config.js'
 
-export function validateSignatureAndNonce(
+export function validateSignature(
   nonce: number,
   expiryTimestamp: number,
   signature: string
@@ -29,7 +29,7 @@ export function validateSignatureAndNonce(
     HTTP_LOGGER.logMessage(`Signature ${signature} is invalid`)
     return false
   } catch (e) {
-    HTTP_LOGGER.error(`Error during signature and nonce validation: ${e}`)
+    HTTP_LOGGER.error(`Error during signature validation: ${e}`)
     return false
   }
 }
