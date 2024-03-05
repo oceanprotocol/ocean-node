@@ -151,6 +151,8 @@ export async function verifyProviderFees(
 ): Promise<ProviderFeeValidation> {
   let errorMsg = null
   if (!txId) errorMsg = 'Invalid txId'
+  const { chainId } = await provider.getNetwork()
+  const providerWallet = await getProviderWallet(String(chainId))
   const contractInterface = new Interface(ERC20Template.abi)
   const txReceiptMined = await fetchTransactionReceipt(txId, provider)
   if (!txReceiptMined) {
@@ -164,6 +166,12 @@ export async function verifyProviderFees(
     'ProviderFee',
     contractInterface
   )
+  // check provider address
+  if (
+    ProviderFeesEvent[0].args[0].toLowerCase() !== providerWallet.address.toLowerCase()
+  ) {
+    errorMsg = 'Provider address does not match'
+  }
   const validUntilContract = parseInt(ProviderFeesEvent[0].args[7].toString())
   if (now >= validUntilContract && validUntilContract !== 0) {
     errorMsg = 'Provider fees expired.'
