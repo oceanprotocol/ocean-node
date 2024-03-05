@@ -6,11 +6,13 @@ import express, { Express } from 'express'
 import { OceanNode } from './OceanNode.js'
 import swaggerUi from 'swagger-ui-express'
 import { httpRoutes } from './components/httpRoutes/index.js'
-import { getConfiguration } from './utils/index.js'
+import { getConfiguration, computeCodebaseHash } from './utils/index.js'
 
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import fs from 'fs'
 import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -25,7 +27,9 @@ const __filename = fileURLToPath(import.meta.url) // get the resolved path to th
 const __dirname = path.dirname(__filename) // get the name of the directory
 
 declare global {
+  // eslint-disable-next-line no-unused-vars
   namespace Express {
+    // eslint-disable-next-line no-unused-vars
     interface Request {
       oceanNode: OceanNode
     }
@@ -67,7 +71,13 @@ OCEAN_NODE_LOGGER.logMessageWithEmoji(
   GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
   LOG_LEVELS_STR.LEVEL_INFO
 )
+
 const config = await getConfiguration(true, isStartup)
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+config.codeHash = await computeCodebaseHash(__dirname)
+
+OCEAN_NODE_LOGGER.logMessage(`Codebase hash: ${config.codeHash}`, true)
 if (!config) {
   process.exit(1)
 }
@@ -117,7 +127,8 @@ if (config.hasProvider && dbconn) {
 const oceanNode = OceanNode.getInstance(dbconn, node, provider, indexer)
 
 if (config.hasHttp) {
-  app.use(express.raw())
+  app.use(express.raw({ limit: '25mb' }))
+  // allow up to 25Mb file upload
   app.use((req, res, next) => {
     req.oceanNode = oceanNode
     next()

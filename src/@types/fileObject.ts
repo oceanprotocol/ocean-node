@@ -1,23 +1,32 @@
+/* eslint-disable no-unused-vars */
 import { Readable } from 'stream'
 
 export interface HeadersObject {
   [key: string]: string
 }
 
-export interface UrlFileObject {
+export enum EncryptMethod {
+  AES = 'AES',
+  ECIES = 'ECIES'
+}
+
+export interface BaseFileObject {
   type: string
+  encryptedBy?: string
+  encryptMethod?: EncryptMethod
+}
+
+export interface UrlFileObject extends BaseFileObject {
   url: string
   method: string
   headers?: [HeadersObject]
 }
 
-export interface IpfsFileObject {
-  type: string
+export interface IpfsFileObject extends BaseFileObject {
   hash: string
 }
 
-export interface ArweaveFileObject {
-  type: string
+export interface ArweaveFileObject extends BaseFileObject {
   transactionId: string
 }
 
@@ -27,8 +36,14 @@ export interface StorageReadable {
   headers?: [any]
 }
 
+export enum FileObjectType {
+  URL = 'url',
+  IPFS = 'ipfs',
+  ARWEAVE = 'arweave'
+}
+
 export interface FileInfoRequest {
-  type: 'url' | 'ipfs' | 'arweave'
+  type: FileObjectType
   fileIndex?: number
 }
 
@@ -38,6 +53,8 @@ export interface FileInfoResponse {
   contentType: string
   name: string
   type: string
+  encryptedBy?: string
+  encryptMethod?: EncryptMethod
 }
 
 export interface FileInfoHttpRequest {

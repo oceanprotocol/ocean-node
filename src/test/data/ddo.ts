@@ -20,6 +20,58 @@ export const ddo = {
     }
   }
 }
+export const genericAlgorithm = {
+  '@context': ['https://w3id.org/did/v1'],
+  id: '',
+  version: '4.1.0',
+  chainId: 8996,
+  nftAddress: '0x0',
+  metadata: {
+    created: '2021-12-20T14:35:20Z',
+    updated: '2021-12-20T14:35:20Z',
+    type: 'algorithm',
+    name: 'dataset-name',
+    description: 'Ocean protocol test dataset description',
+    author: 'oceanprotocol-team',
+    license: 'MIT',
+    tags: ['white-papers'],
+    additionalInformation: { 'test-key': 'test-value' },
+    links: ['http://data.ceda.ac.uk/badc/ukcp09/']
+  },
+  services: [
+    {
+      id: '0',
+      type: 'access',
+      description: 'Download service',
+      files: [
+        {
+          url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
+          contentType: 'text/js',
+          encoding: 'UTF-8'
+        }
+      ],
+      datatokenAddress: '0x0',
+      serviceEndpoint: 'http://172.15.0.4:8030',
+      timeout: 0
+    }
+  ],
+  nft: { state: 0 },
+  event: {},
+  credentials: {
+    allow: [
+      {
+        type: 'address',
+        values: ['0xBE5449a6A97aD46c8558A3356267Ee5D2731ab5e']
+      }
+    ],
+    deny: [
+      {
+        type: 'address',
+        values: ['0x123']
+      }
+    ]
+  }
+}
 
 export const genericDDO = {
   '@context': ['https://w3id.org/did/v1'],
@@ -54,6 +106,71 @@ export const genericDDO = {
       datatokenAddress: '0x0',
       serviceEndpoint: 'http://172.15.0.4:8030',
       timeout: 0
+    }
+  ],
+  nft: { state: 0 },
+  event: {},
+  credentials: {
+    allow: [
+      {
+        type: 'address',
+        values: ['0xBE5449a6A97aD46c8558A3356267Ee5D2731ab5e']
+      }
+    ],
+    deny: [
+      {
+        type: 'address',
+        values: ['0x123']
+      }
+    ]
+  }
+}
+
+export const genericComputeDDO = {
+  '@context': ['https://w3id.org/did/v1'],
+  id: '',
+  version: '4.1.0',
+  chainId: 8996,
+  nftAddress: '0x0',
+  metadata: {
+    created: '2021-12-20T14:35:20Z',
+    updated: '2021-12-20T14:35:20Z',
+    type: 'dataset',
+    name: 'dataset-name',
+    description: 'Ocean protocol test dataset description',
+    author: 'oceanprotocol-team',
+    license: 'MIT',
+    tags: ['white-papers'],
+    additionalInformation: { 'test-key': 'test-value' },
+    links: ['http://data.ceda.ac.uk/badc/ukcp09/']
+  },
+  services: [
+    {
+      id: '0',
+      type: 'compute',
+      description: 'Compute service',
+      files: [
+        {
+          url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
+          contentType: 'text/js',
+          encoding: 'UTF-8'
+        }
+      ],
+      datatokenAddress: '0x0',
+      serviceEndpoint: 'http://172.15.0.4:8030',
+      timeout: 0,
+      compute: {
+        namespace: 'test',
+        publisherTrustedAlgorithms: [
+          {
+            did: 'did:op:706d7452b1a25b183051fe02f2ad902d54fc45a43fdcee26b20f21684b5dee72',
+            filesChecksum:
+              'b4908c868c78086097a10f986718a8f3fae1455f0d443c3dc59330207d47cc6d',
+            containerSectionChecksum:
+              '20d3f5667b2068e84db5465fb51aa405b06a0ff791635048d7976ec7f5abdc73'
+          }
+        ]
+      }
     }
   ],
   nft: { state: 0 },
@@ -171,6 +288,26 @@ export const incorrectDDO = {
 }
 
 export const ddov5 = {
+  '@context': ['https://w3id.org/did/v1'],
+  id: 'did:op:fa0e8fa9550e8eb13392d6eeb9ba9f8111801b332c8d2345b350b3bc66b379d5',
+  version: '4.5.0',
+  chainId: 137,
+  nftAddress: '0xBB1081DbF3227bbB233Db68f7117114baBb43656',
+  metadata: {
+    created: '2021-12-20T14:35:20Z',
+    updated: '2021-12-20T14:35:20Z',
+    type: 'dataset',
+    name: 'dataset-name',
+    description: 'Ocean protocol test dataset description',
+    author: 'oceanprotocol-team',
+    license: 'MIT',
+    tags: ['white-papers'],
+    additionalInformation: { 'test-key': 'test-value' },
+    links: ['http://data.ceda.ac.uk/badc/ukcp09/']
+  }
+}
+
+export const ddoValidationSignature = {
   '@context': ['https://w3id.org/did/v1'],
   id: 'did:op:fa0e8fa9550e8eb13392d6eeb9ba9f8111801b332c8d2345b350b3bc66b379d5',
   version: '4.5.0',

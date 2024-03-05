@@ -3,6 +3,7 @@ import urlJoin from 'url-join'
 import { P2PCommandResponse } from '../../@types'
 import {
   ArweaveFileObject,
+  EncryptMethod,
   IpfsFileObject,
   UrlFileObject
 } from '../../@types/fileObject.js'
@@ -30,7 +31,7 @@ async function getFile(
     // 3. Decrypt the url
     const decryptedUrlBytes = await decrypt(
       Uint8Array.from(Buffer.from(service.files, 'hex')),
-      'ECIES'
+      EncryptMethod.ECIES
     )
     CORE_LOGGER.logMessage(`URL decrypted for Service ID: ${serviceId}`)
 

@@ -9,9 +9,9 @@ import {
 
 let envOverrides: OverrideEnvConfig[]
 
-describe('Test available network interfaces', async () => {
+describe('Test available network interfaces', () => {
   before(async () => {
-    envOverrides = buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.INTERFACES], [undefined])
+    envOverrides = buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.INTERFACES], ['ftp']) // put wrong stuff on purpose
     await setupEnvironment(null, envOverrides)
   })
   // because of this

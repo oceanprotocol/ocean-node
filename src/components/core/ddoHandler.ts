@@ -17,7 +17,7 @@ import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { Blockchain } from '../../utils/blockchain.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import { getOceanArtifactsAdressesByChainId } from '../../utils/address.js'
-import { ethers, hexlify } from 'ethers'
+import { ethers } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { decrypt, create256Hash } from '../../utils/crypt.js'
 import lzma from 'lzma-native'
@@ -30,6 +30,7 @@ import {
   ValidateDDOCommand
 } from '../../@types/commands.js'
 import { hasP2PInterface } from '../httpRoutes/index.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -244,7 +245,7 @@ export class DecryptDdoHandler extends Handler {
       // check if DDO is ECIES encrypted
       if (flags & 2) {
         try {
-          decryptedDocument = await decrypt(encryptedDocument, 'ECIES')
+          decryptedDocument = await decrypt(encryptedDocument, EncryptMethod.ECIES)
         } catch (error) {
           CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
           return {
@@ -679,9 +680,9 @@ export class ValidateDDOHandler extends Handler {
           status: { httpStatus: 400, error: `Validation error: ${validation[1]}` }
         }
       }
-      const hash = await getValidationSignature(JSON.stringify(task.ddo))
+      const signature = await getValidationSignature(JSON.stringify(task.ddo))
       return {
-        stream: Readable.from(JSON.stringify(hash)),
+        stream: Readable.from(JSON.stringify(signature)),
         status: { httpStatus: 200 }
       }
     } catch (error) {

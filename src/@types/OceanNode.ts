@@ -37,6 +37,7 @@ export interface OceanNodeP2PConfig {
 
 export interface OceanNodeConfig {
   authorizedDecrypters: string[]
+  allowedValidators: string[]
   keys: OceanNodeKeys
   hasP2P: boolean
   p2pConfig: OceanNodeP2PConfig | null
@@ -48,6 +49,9 @@ export interface OceanNodeConfig {
   feeStrategy: FeeStrategy
   supportedNetworks?: RPCS
   c2dClusters: C2DClusterInfo[]
+  accountPurgatoryUrl: string
+  assetPurgatoryUrl: string
+  codeHash?: string
 }
 
 export interface P2PStatusResponse {
@@ -89,6 +93,7 @@ export interface OceanNodeStatus {
   supportedStorage: StorageTypes
   platform: any
   uptime?: number // seconds since start
+  codeHash?: string
 }
 
 export interface P2PBroadcastResponse {

@@ -50,7 +50,8 @@ export async function status(
       osType: os.type(),
       osVersion: os.version(),
       node: process.version
-    }
+    },
+    codeHash: config.codeHash
   }
   if (nodeId && nodeId !== undefined) {
     status.id = nodeId

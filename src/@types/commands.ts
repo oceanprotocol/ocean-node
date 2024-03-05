@@ -1,6 +1,13 @@
 import { DDO } from './DDO/DDO'
 import { P2PCommandResponse } from './OceanNode'
-import { ArweaveFileObject, IpfsFileObject, UrlFileObject } from './fileObject'
+import {
+  ArweaveFileObject,
+  FileObjectType,
+  EncryptMethod,
+  IpfsFileObject,
+  UrlFileObject,
+  BaseFileObject
+} from './fileObject'
 
 export interface Command {
   command: string // command name
@@ -26,7 +33,7 @@ export interface DownloadCommand extends Command {
 }
 
 export interface FileInfoCommand extends Command {
-  type?: 'url' | 'ipfs' | 'arweave'
+  type?: FileObjectType
   did?: string
   serviceId?: string
   fileIndex?: number
@@ -76,7 +83,14 @@ export interface DecryptDDOCommand extends Command {
 export interface EncryptCommand extends Command {
   blob: string
   encoding: string
-  encryptionType: string
+  encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
+}
+
+export interface EncryptFileCommand extends Command {
+  encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
+  files?: BaseFileObject
+  rawData?: Buffer
+  // UrlFileObject | ArweaveFileObject | IpfsFileObject
 }
 
 export interface NonceCommand extends Command {

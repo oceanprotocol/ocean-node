@@ -1,5 +1,6 @@
 import { isAddress } from 'ethers'
 import { SUPPORTED_PROTOCOL_COMMANDS, PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
 
 export type ValidateParams = {
   valid: boolean
@@ -55,22 +56,39 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
       if (!requestBody.query) {
         return buildInvalidRequestMessage('Missing required parameter: "query"')
       }
+    } else if (command === PROTOCOL_COMMANDS.ENCRYPT_FILE) {
+      if (!requestBody.files) {
+        return buildInvalidRequestMessage('Missing required parameter: "files"')
+      }
+      if (!requestBody.encryptionType) {
+        requestBody.encryptionType = 'AES' // defaults to AES encryption
+      } else if (
+        ![EncryptMethod.AES, EncryptMethod.ECIES].includes(
+          requestBody.encryptionType.toUpperCase()
+        )
+      ) {
+        return buildInvalidRequestMessage(
+          'Invalid parameter: "encryptionType" must be AES | ECIES'
+        )
+      }
     } else if (command === PROTOCOL_COMMANDS.ENCRYPT) {
       if (!requestBody.blob) {
         return buildInvalidRequestMessage('Missing required parameter: "blob"')
       }
       if (!requestBody.encoding) {
         requestBody.encoding = 'string'
-      }
-      if (!['string', 'base58'].includes(requestBody.encoding)) {
+      } else if (!['string', 'base58'].includes(requestBody.encoding.toLowerCase())) {
         return buildInvalidRequestMessage(
           'Invalid parameter: "encoding" must be String | Base58'
         )
       }
       if (!requestBody.encryptionType) {
-        requestBody.encoding = 'ECIES'
-      }
-      if (!['AES', 'ECIES'].includes(requestBody.encryptionType)) {
+        requestBody.encryptionType = 'ECIES' // defaults to ECIES encryption
+      } else if (
+        ![EncryptMethod.AES, EncryptMethod.ECIES].includes(
+          requestBody.encryptionType.toUpperCase()
+        )
+      ) {
         return buildInvalidRequestMessage(
           'Invalid parameter: "encryptionType" must be AES | ECIES'
         )
@@ -115,6 +133,18 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
     } else if (command === PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS) {
       if (!requestBody.chainId) {
         return buildInvalidRequestMessage('Missing required parameter: "chainId"')
+      }
+    } else if (command === PROTOCOL_COMMANDS.INITIALIZE_COMPUTE) {
+      if (
+        !requestBody.chaindId ||
+        !requestBody.datasets ||
+        !requestBody.algorithm ||
+        !requestBody.compute ||
+        !requestBody.consumerAddress
+      ) {
+        return buildInvalidRequestMessage(
+          'Missing required parameter(s): "chaindId","datasets", "algorithm","compute", "consumerAddress"'
+        )
       }
     }
     // only once is enough :-)

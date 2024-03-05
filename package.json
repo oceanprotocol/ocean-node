@@ -1,8 +1,14 @@
 {
-  "name": "nodes-play",
+  "name": "Ocean-Node",
   "version": "1.0.0",
-  "description": "",
+  "description": "Ocean Node is used to run all core services in the Ocean stack",
+  "author": "Ocean Protocol Foundation",
+  "license": "Apache-2.0",
+  "type": "module",
   "main": "index.js",
+  "bugs": {
+    "url": "https://github.com/oceanprotocol/ocean-node/issues"
+  },
   "scripts": {
     "build": "npm run clean && npm run build:tsc",
     "build:swagger": "tsoa spec",
@@ -26,9 +32,6 @@
     "test:integration:cover": "nyc --report-dir coverage/integration --no-clean npm run test:integration",
     "logs": "./scripts/logs.sh"
   },
-  "author": "",
-  "type": "module",
-  "license": "ISC",
   "dependencies": {
     "@chainsafe/libp2p-gossipsub": "^11.0.1",
     "@chainsafe/libp2p-noise": "^14.1.0",
@@ -87,7 +90,6 @@
     "tsoa": "^5.1.1",
     "uint8arrays": "^4.0.6",
     "url-join": "^5.0.0",
-    "valid-url": "^1.0.9",
     "winston": "^3.11.0",
     "winston-daily-rotate-file": "^4.7.1",
     "winston-transport": "^4.6.0"
@@ -99,7 +101,6 @@
     "@types/mocha": "^10.0.4",
     "@types/node": "^20.10.5",
     "@types/swagger-ui-express": "^4.1.3",
-    "@types/valid-url": "^1.0.7",
     "@typescript-eslint/eslint-plugin": "^6.8.0",
     "@typescript-eslint/parser": "^6.8.0",
     "chai": "^4.3.10",

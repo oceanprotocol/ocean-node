@@ -1,29 +1,30 @@
 {
-    "parser": "@typescript-eslint/parser",
-    "parserOptions": {
-      "sourceType": "module",
-      "ecmaFeatures": {
-        "jsx": false
-      }
-    },
-    "extends": ["oceanprotocol", "plugin:prettier/recommended"],
-    "plugins": ["@typescript-eslint"],
-    "rules": {
-      "no-empty": ["error", { "allowEmptyCatch": true }],
-      "prefer-destructuring": ["warn", { "object": true, "array": false }],
-      "no-dupe-class-members": ["warn"],
-      "no-useless-constructor": ["warn"],
-      "no-unused-vars": ["warn"],
-      "constructor-super": ["warn"]
-    },
-    "env": {
-      "es6": true,
-      "browser": true,
-      "mocha": true,
-      "node": true,
-      "jest": true
-    },
-    "globals": {
-      "NodeJS": true
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "sourceType": "module",
+    "ecmaFeatures": {
+      "jsx": false
     }
+  },
+  "extends": ["oceanprotocol", "plugin:prettier/recommended"],
+  "plugins": ["@typescript-eslint"],
+  "rules": {
+    "no-empty": ["error", { "allowEmptyCatch": true }],
+    "prefer-destructuring": ["warn", { "object": true, "array": false }],
+    "no-dupe-class-members": ["warn"],
+    "no-useless-constructor": ["warn"],
+    "constructor-super": ["warn"],
+    "require-await": "error",
+    "no-unused-vars": ["error"]
+  },
+  "env": {
+    "es6": true,
+    "browser": true,
+    "mocha": true,
+    "node": true,
+    "jest": true
+  },
+  "globals": {
+    "NodeJS": true
   }
+}
