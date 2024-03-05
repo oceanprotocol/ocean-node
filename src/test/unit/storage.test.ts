@@ -357,6 +357,7 @@ describe('IPFS Storage getFileInfo tests', function () {
     }
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
     if (fileInfo && fileInfo.length > 0) {
+      console.log('FILE INFO:', fileInfo)
       assert(fileInfo[0].valid, 'File info is valid')
       assert(
         fileInfo[0].type === FileObjectType.IPFS,
