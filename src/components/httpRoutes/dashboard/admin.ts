@@ -7,7 +7,7 @@ export const aquariusRoutes = express.Router()
 
 export const ADMIN_API_BASE_PATH = '/admin'
 
-aquariusRoutes.post(`${ADMIN_API_BASE_PATH}/auth`, async (req, res) => {
+aquariusRoutes.post(`${ADMIN_API_BASE_PATH}/auth`, (req, res) => {
   try {
     if (!req.body || req.body === undefined) {
       HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Request body is empty`)
