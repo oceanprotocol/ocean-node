@@ -285,6 +285,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         decodedEventData.args[5],
         decodedEventData.args[4]
       )
+      // stuff that we overwrite
+      ddo.chainId = chainId
+      ddo.nftAddress = event.address
       ddo.datatokens = this.getTokenInfo(ddo.services)
       INDEXER_LOGGER.logMessage(
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
