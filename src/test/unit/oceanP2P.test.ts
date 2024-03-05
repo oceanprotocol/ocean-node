@@ -48,7 +48,7 @@ describe('OceanP2P Test', () => {
     await node2.start()
     assert(node2, 'Failed to create P2P Node instance')
   })
-  it('Start check peerID of each node', async () => {
+  it('Start check peerID of each node', () => {
     assert(
       config1.keys.peerId.toString() === node1._libp2p.peerId.toString(),
       'Peer missmatch for node1'
@@ -96,7 +96,7 @@ describe('OceanP2P Test', () => {
 describe('OceanP2P Test without DB_URL set', () => {
   let originalDBURL: string | undefined
 
-  before(async () => {
+  before(() => {
     originalDBURL = process.env.DB_URL
     process.env.DB_URL = ''
   })
@@ -110,7 +110,7 @@ describe('OceanP2P Test without DB_URL set', () => {
     assert(config.hasIndexer === false, 'P2P Node should not have indexer enabled')
     assert(config.hasProvider === false, 'P2P Node should not have provider enabled')
   })
-  after(async () => {
+  after(() => {
     process.env.DB_URL = originalDBURL
   })
 })

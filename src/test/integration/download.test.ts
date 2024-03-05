@@ -1,82 +1,87 @@
 import { expect, assert } from 'chai'
-import { Readable } from 'stream'
-import { createHash } from 'crypto'
-import {
-  JsonRpcProvider,
-  Signer,
-  Contract,
-  ethers,
-  getAddress,
-  hexlify,
-  ZeroAddress,
-  parseUnits
-} from 'ethers'
-import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
-import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
+import { JsonRpcProvider, Signer, ethers } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
-import { RPCS } from '../../@types/blockchain.js'
-import { genericDDO } from '../data/ddo.js'
-import {
-  DEVELOPMENT_CHAIN_ID,
-  getOceanArtifactsAdresses,
-  getOceanArtifactsAdressesByChainId
-} from '../../utils/address.js'
-import { DownloadHandler } from '../../components/core/downloadHandler.js'
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-import { getEventFromTx } from '../../utils/util.js'
-import { waitToIndex, delay } from './testUtils.js'
-import { getConfiguration } from '../../utils/config.js'
-import { ProviderFeeData } from '../../@types/Fees.js'
-import { encrypt } from '../../utils/crypt.js'
-import { createFee } from '../../components/core/utils/feesHandler.js'
-import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { OceanNode } from '../../OceanNode.js'
+import { RPCS } from '../../@types/blockchain.js'
+import { streamToString, streamToObject } from '../../utils/util.js'
+import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
+
 import {
+  ENVIRONMENT_VARIABLES,
+  EVENTS,
+  PROTOCOL_COMMANDS,
+  getConfiguration
+} from '../../utils/index.js'
+import { DownloadHandler } from '../../components/core/downloadHandler.js'
+import { StatusHandler } from '../../components/core/statusHandler.js'
+import { GetDdoHandler } from '../../components/core/ddoHandler.js'
+
+import { Readable } from 'stream'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { FileObjectType, UrlFileObject } from '../../@types/fileObject.js'
+
+import {
+  DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
+import { FileInfoHandler } from '../../components/core/fileInfoHandler.js'
+import {
+  DEVELOPMENT_CHAIN_ID,
+  getOceanArtifactsAdresses,
+  getOceanArtifactsAdressesByChainId
+} from '../../utils/address.js'
+import { publishAsset, orderAsset } from '../utils/assets.js'
+import { downloadAsset } from '../data/assets.js'
 
-describe('Download Tests', () => {
+describe('Should run a complete node flow.', () => {
+  let config: OceanNodeConfig
   let database: Database
-  let indexer: OceanIndexer
+  let oceanNode: OceanNode
   let provider: JsonRpcProvider
-  let factoryContract: Contract
-  let nftContract: Contract
   let publisherAccount: Signer
-  let nftAddress: string
-  const chainId = 8996
-  let assetDID: string
-  let resolvedDDO: Record<string, any>
-  let genericAsset: any
-  let publisherAddress: string
   let consumerAccount: Signer
   let consumerAddress: string
-  let datatokenAddress: string
+  let resolvedDDO: Record<string, any>
   let orderTxId: string
-  let dataTokenContractWithNewSigner: any
-  let feeTx: string
-  let feeData: ProviderFeeData | undefined
-
-  const feeToken = getOceanArtifactsAdressesByChainId(chainId).Ocean
-  const serviceId = '0' // dummy index
-  const consumeMarketFeeAddress = ZeroAddress // marketplace fee Collector
-  const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
-  const consumeMarketFeeToken = feeToken // token address for the feeAmount,
+  let assetDID: string
+  let publishedDataset: any
+  let actualDDO: any
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+  const serviceId = '0'
 
   let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
-    }
-    database = await new Database(dbConfig)
-    indexer = new OceanIndexer(database, mockSupportedNetworks)
+    // override and save configuration (always before calling getConfig())
+    previousConfiguration = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig(
+        [
+          ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+          ENVIRONMENT_VARIABLES.DB_URL,
+          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS
+        ],
+        [
+          JSON.stringify(mockSupportedNetworks),
+          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+          'http://localhost:8108/?apiKey=xyz',
+          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'])
+        ]
+      )
+    )
+
+    config = await getConfiguration(true) // Force reload the configuration
+    const dbconn = await new Database(config.dbConfig)
+    oceanNode = await OceanNode.getInstance(dbconn)
+    //  eslint-disable-next-line no-unused-vars
+    const indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
@@ -84,250 +89,179 @@ describe('Download Tests', () => {
     }
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    consumerAccount = (await provider.getSigner(1)) as Signer
+
     publisherAccount = (await provider.getSigner(0)) as Signer
-    publisherAddress = await publisherAccount.getAddress()
+    consumerAccount = (await provider.getSigner(1)) as Signer
     consumerAddress = await consumerAccount.getAddress()
-    genericAsset = genericDDO
-    factoryContract = new ethers.Contract(
-      network.ERC721Factory,
-      ERC721Factory.abi,
-      publisherAccount
-    )
-    previousConfiguration = await setupEnvironment(
-      null,
-      buildEnvOverrideConfig(
-        [ENVIRONMENT_VARIABLES.RPCS],
-        [JSON.stringify(mockSupportedNetworks)]
-      )
-    )
   })
 
-  it('instance Database', async () => {
-    expect(database).to.be.instanceOf(Database)
-  })
+  it('should get node status', async () => {
+    const oceanNodeConfig = await getConfiguration(true)
 
-  it('should publish a dataset', async () => {
-    const tx = await factoryContract.createNftWithErc20(
-      {
-        name: '72120Bundle',
-        symbol: '72Bundle',
-        templateIndex: 1,
-        tokenURI: 'https://oceanprotocol.com/nft/',
-        transferable: true,
-        owner: await publisherAccount.getAddress()
-      },
-      {
-        strings: ['ERC20B1', 'ERC20DT1Symbol'],
-        templateIndex: 1,
-        addresses: [
-          await publisherAccount.getAddress(),
-          ZeroAddress,
-          ZeroAddress,
-          '0x0000000000000000000000000000000000000000'
-        ],
-        uints: [1000, 0],
-        bytess: []
-      }
-    )
-    const txReceipt = await tx.wait()
-    assert(txReceipt, 'transaction failed')
-    const nftEvent = getEventFromTx(txReceipt, 'NFTCreated')
-    const erc20Event = getEventFromTx(txReceipt, 'TokenCreated')
-
-    nftAddress = nftEvent.args[0]
-    datatokenAddress = erc20Event.args[0]
-    console.log('### datatokenAddress', datatokenAddress)
-
-    assert(nftAddress, 'find nft created failed')
-    assert(datatokenAddress, 'find datatoken created failed')
-  })
-
-  it('should set metadata and save ', async () => {
-    // Encrypt the files
-    const files = {
-      datatokenAddress: '0x0',
-      nftAddress: '0x0',
-      files: [
-        {
-          type: 'url',
-          url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
-          method: 'GET'
-        }
-      ]
+    const statusCommand = {
+      command: PROTOCOL_COMMANDS.STATUS,
+      node: oceanNodeConfig.keys.peerId.toString()
     }
-
-    const data = Uint8Array.from(Buffer.from(JSON.stringify(files)))
-    const encryptedData = await encrypt(data, 'ECIES')
-    // const encryptedDataString = encryptedData.toString('base64')
-
-    nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, publisherAccount)
-    genericAsset.id =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
-    genericAsset.nftAddress = nftAddress
-    genericAsset.services[0].datatokenAddress = datatokenAddress
-    genericAsset.services[0].files = encryptedData
-
-    assetDID = genericAsset.id
-    const stringDDO = JSON.stringify(genericAsset)
-    const bytes = Buffer.from(stringDDO)
-    const metadata = hexlify(bytes)
-    const hash = createHash('sha256').update(metadata).digest('hex')
-
-    const setMetaDataTx = await nftContract.setMetaData(
-      0,
-      'http://v4.provider.oceanprotocol.com',
-      '0x123',
-      '0x01',
-      metadata,
-      '0x' + hash,
-      []
-    )
-    const trxReceipt = await setMetaDataTx.wait()
-    assert(trxReceipt, 'set metada failed')
+    const response = await new StatusHandler(oceanNode).handle(statusCommand)
+    assert(response.status.httpStatus === 200, 'http status not 200')
+    const resp = await streamToString(response.stream as Readable)
+    const status = JSON.parse(resp)
+    assert(status.id === oceanNodeConfig.keys.peerId.toString(), 'peer id not matching ')
   })
 
-  delay(35000)
-  it('should store the ddo in the database and return it ', async () => {
-    resolvedDDO = await waitToIndex(assetDID, database)
-    expect(resolvedDDO.id).to.equal(genericAsset.id)
-  })
-
-  it('should update ddo metadata fields ', async () => {
-    resolvedDDO.metadata.name = 'dataset-name-updated'
-    resolvedDDO.metadata.description =
-      'Updated description for the Ocean protocol test dataset'
-    const stringDDO = JSON.stringify(resolvedDDO)
-    const bytes = Buffer.from(stringDDO)
-    const metadata = hexlify(bytes)
-    const hash = createHash('sha256').update(metadata).digest('hex')
-
-    const setMetaDataTx = await nftContract.setMetaData(
-      0,
-      'http://v4.provider.oceanprotocol.com',
-      '0x123',
-      '0x01',
-      metadata,
-      '0x' + hash,
-      []
-    )
-    const trxReceipt = await setMetaDataTx.wait()
-    assert(trxReceipt, 'set metada failed')
-  })
-
-  delay(35000)
-
-  it('should start an order and then download the asset', async function () {
-    const asset: any = resolvedDDO
-    this.timeout(65000) // Extend default Mocha test timeout
-
-    const dataTokenContract = new Contract(
-      datatokenAddress,
-      ERC20Template.abi,
-      publisherAccount
-    )
-    const paymentCollector = await dataTokenContract.getPaymentCollector()
-    assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
-
-    feeData = await createFee(asset, 0, 'null', resolvedDDO.services[0])
-    // call the mint function on the dataTokenContract
-    const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
-    await mintTx.wait()
-    const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
-    assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
-
-    dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
-    const orderTx = await dataTokenContractWithNewSigner.startOrder(
-      consumerAddress,
-      serviceId,
-      {
-        providerFeeAddress: feeData.providerFeeAddress,
-        providerFeeToken: feeData.providerFeeToken,
-        providerFeeAmount: feeData.providerFeeAmount,
-        v: feeData.v,
-        r: feeData.r,
-        s: feeData.s,
-        providerData: feeData.providerData,
-        validUntil: feeData.validUntil
-      },
-      {
-        consumeMarketFeeAddress,
-        consumeMarketFeeToken,
-        consumeMarketFeeAmount
-      }
-    )
-
-    const orderTxReceipt = await orderTx.wait()
-    assert(orderTxReceipt, 'order transaction failed')
-    orderTxId = orderTxReceipt.hash
-    assert(orderTxId, 'transaction id not found')
-
-    const config = await getConfiguration(true)
-    const dbconn = await new Database(config.dbConfig)
-    const oceanNode = OceanNode.getInstance(dbconn)
-    assert(oceanNode, 'Failed to instantiate OceanNode')
-
-    const wallet = new ethers.Wallet(
-      '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
-    )
-    // message to sign
-    const nonce = Date.now().toString()
-    const message = String(asset.id + nonce)
-    // sign message/nonce
-    const consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
-    )
-    const messageHashBytes = ethers.toBeArray(consumerMessage)
-    const signature = await wallet.signMessage(messageHashBytes)
-    console.log('2. feeTx', feeTx)
-    console.log('consumerAddress', consumerAddress)
-    const downloadTask = {
-      fileIndex: 0,
-      documentId: assetDID,
-      serviceId,
-      transferTxId: orderTxId,
-      nonce,
-      consumerAddress,
-      signature,
-      command: PROTOCOL_COMMANDS.DOWNLOAD
+  it('should get file info before publishing', async () => {
+    const storage: UrlFileObject = {
+      type: 'url',
+      url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
+      method: 'get'
     }
-    const response = await new DownloadHandler(oceanNode).handle(downloadTask)
-    console.log('response: ', response)
+    const fileInfoTask = {
+      command: PROTOCOL_COMMANDS.FILE_INFO,
+      file: storage,
+      type: FileObjectType.URL
+    }
+    const response = await new FileInfoHandler(oceanNode).handle(fileInfoTask)
+
     assert(response)
     assert(response.stream, 'stream not present')
     assert(response.status.httpStatus === 200, 'http status not 200')
     expect(response.stream).to.be.instanceOf(Readable)
-  })
 
-  it('should not allow to download the asset with different consumer address', async function () {
-    const downloadTask = {
-      fileIndex: 0,
-      documentId: assetDID,
-      serviceId,
-      transferTxId: orderTxId,
-      nonce: Date.now().toString(),
-      consumerAddress: '0xBE5449a6A97aD46c8558A3356267Ee5D2731ab57',
-      signature: '',
-      command: PROTOCOL_COMMANDS.DOWNLOAD
-    }
-    const config = await getConfiguration(true)
-    const dbconn = await new Database(config.dbConfig)
-    const oceanNode = OceanNode.getInstance(dbconn)
-    assert(oceanNode, 'Failed to instantiate OceanNode')
-    const response = await new DownloadHandler(oceanNode).handle(downloadTask)
-    console.log(response)
-    assert(response.stream === null, 'stream not null')
-    assert(response.status.httpStatus === 500, 'http status not 500')
-    assert(
-      response.status.error === `Error: Access to asset ${assetDID} was denied`,
-      'error contains access denied'
+    const fileInfo = await streamToObject(response.stream as Readable)
+
+    assert(fileInfo[0].valid, 'File info is valid')
+    expect(fileInfo[0].contentLength).to.equal('417')
+    expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
+    expect(fileInfo[0].name).to.equal('algo.js')
+    expect(fileInfo[0].type).to.equal('url')
+  })
+  it('should publish compute datasets & algos', async () => {
+    publishedDataset = await publishAsset(downloadAsset, publisherAccount)
+    await waitToIndex(
+      publishedDataset.ddo.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
     )
   })
+  it('should fetch the published ddo', async () => {
+    const getDDOTask = {
+      command: PROTOCOL_COMMANDS.GET_DDO,
+      id: publishedDataset.ddo.id
+    }
+    const response = await new GetDdoHandler(oceanNode).handle(getDDOTask)
+    actualDDO = await streamToObject(response.stream as Readable)
+    assert(actualDDO.id === publishedDataset.ddo.id, 'DDO id not matching')
+  })
+  it('should get file info with did', async () => {
+    const fileInfoTask = {
+      command: PROTOCOL_COMMANDS.FILE_INFO,
+      did: publishedDataset.ddo.id,
+      serviceId: publishedDataset.ddo.services[0].id
+    }
 
+    const response = await new FileInfoHandler(oceanNode).handle(fileInfoTask)
+
+    assert(response)
+    assert(response.stream, 'stream not present')
+    assert(response.status.httpStatus === 200, 'http status not 200')
+    expect(response.stream).to.be.instanceOf(Readable)
+
+    const fileInfo = await streamToObject(response.stream as Readable)
+
+    assert(fileInfo[0].valid, 'File info is valid')
+    expect(fileInfo[0].contentLength).to.equal('138486')
+    expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
+    expect(fileInfo[0].name).to.equal('shs_dataset_test.txt')
+    expect(fileInfo[0].type).to.equal('url')
+  })
+
+  it('should start an order', async function () {
+    const orderTxReceipt = await orderAsset(
+      actualDDO,
+      0,
+      consumerAccount,
+      await consumerAccount.getAddress(),
+      publisherAccount,
+      oceanNode
+    )
+    assert(orderTxReceipt, 'order transaction failed')
+    orderTxId = orderTxReceipt.hash
+    assert(orderTxId, 'transaction id not found')
+  })
+
+  it('should download triger download file', function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+
+    const doCheck = async () => {
+      const config = await getConfiguration(true)
+      database = await new Database(config.dbConfig)
+      const oceanNode = OceanNode.getInstance(database)
+      assert(oceanNode, 'Failed to instantiate OceanNode')
+
+      const wallet = new ethers.Wallet(
+        '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
+      )
+      const nonce = Date.now().toString()
+      const message = String(resolvedDDO.id + nonce)
+      const consumerMessage = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      )
+      const messageHashBytes = ethers.toBeArray(consumerMessage)
+      const signature = await wallet.signMessage(messageHashBytes)
+
+      const downloadTask = {
+        fileIndex: 0,
+        documentId: assetDID,
+        serviceId,
+        transferTxId: orderTxId,
+        nonce,
+        consumerAddress,
+        signature,
+        command: PROTOCOL_COMMANDS.DOWNLOAD
+      }
+      const response = await new DownloadHandler(oceanNode).handle(downloadTask)
+
+      assert(response)
+      assert(response.stream, 'stream not present')
+      assert(response.status.httpStatus === 200, 'http status not 200')
+      expect(response.stream).to.be.instanceOf(Readable)
+    }
+
+    setTimeout(() => {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
+    }, DEFAULT_TEST_TIMEOUT * 3)
+
+    doCheck()
+  })
+  it('should not allow to download the asset with different consumer address', function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+
+    const doCheck = async () => {
+      const downloadTask = {
+        fileIndex: 0,
+        documentId: assetDID,
+        serviceId,
+        transferTxId: orderTxId,
+        nonce: Date.now().toString(),
+        consumerAddress: '0xBE5449a6A97aD46c8558A3356267Ee5D2731ab57',
+        signature: '',
+        command: PROTOCOL_COMMANDS.DOWNLOAD
+      }
+      const response = await new DownloadHandler(oceanNode).handle(downloadTask)
+
+      assert(response)
+      assert(response.stream, 'stream not present')
+      assert(response.status.httpStatus === 200, 'http status not 200')
+      expect(response.stream).to.be.instanceOf(Readable)
+    }
+
+    setTimeout(() => {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
+    }, DEFAULT_TEST_TIMEOUT * 3)
+
+    doCheck()
+  })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
   })

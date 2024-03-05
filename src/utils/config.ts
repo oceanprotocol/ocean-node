@@ -1,4 +1,6 @@
-import type { C2DClusterInfo, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
+import type { OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
+import type { C2DClusterInfo } from '../@types/C2D.js'
+import { C2DClusterType } from '../@types/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
 import { ENVIRONMENT_VARIABLES, hexStringToByteArray } from '../utils/index.js'
@@ -66,14 +68,10 @@ function getSupportedChains(): RPCS {
   return supportedNetworks
 }
 
-function getAuthorizedDecrypters(): string[] {
-  if (!process.env.AUTHORIZED_DECRYPTERS) {
-    CONFIG_LOGGER.logMessageWithEmoji(
-      'Missing or Invalid AUTHORIZED_DECRYPTERS env variable format',
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_ERROR
-    )
+function getAuthorizedDecrypters(isStartup?: boolean): string[] {
+  if (
+    !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS, isStartup)
+  ) {
     return []
   }
   try {
@@ -99,9 +97,9 @@ function getAuthorizedDecrypters(): string[] {
   }
 }
 
-export function getAllowedValidators(): string[] {
+export function getAllowedValidators(isStartup?: boolean): string[] {
   try {
-    if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS, true)) {
+    if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS, isStartup)) {
       return []
     }
     const allowedValidators: string[] = JSON.parse(process.env.ALLOWED_VALIDATORS)
@@ -240,24 +238,32 @@ function getOceanNodeFees(supportedNetworks: RPCS, isStartup?: boolean): FeeStra
 }
 
 // get C2D environments
-function getC2DClusterEnvironment(): C2DClusterInfo[] {
+function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
   const clusters: C2DClusterInfo[] = []
-  try {
-    const clustersURLS: string[] = JSON.parse(
-      process.env.OPERATOR_SERVICE_URL
-    ) as string[]
+  // avoid log too much (too much noise on tests as well), this is not even required
+  if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL, isStartup)) {
+    try {
+      const clustersURLS: string[] = JSON.parse(
+        process.env.OPERATOR_SERVICE_URL
+      ) as string[]
 
-    for (const theURL of clustersURLS) {
-      clusters.push({ url: theURL, hash: create256Hash(theURL) })
+      for (const theURL of clustersURLS) {
+        clusters.push({
+          url: theURL,
+          hash: create256Hash(theURL),
+          type: C2DClusterType.OPF_K8
+        })
+      }
+    } catch (error) {
+      CONFIG_LOGGER.logMessageWithEmoji(
+        `Invalid or missing "${ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL.name}" env variable => ${process.env.OPERATOR_SERVICE_URL}...`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
     }
-  } catch (error) {
-    CONFIG_LOGGER.logMessageWithEmoji(
-      `Invalid or missing "${ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL.name}" env variable => ${process.env.OPERATOR_SERVICE_URL}...`,
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_ERROR
-    )
   }
+
   return clusters
 }
 
@@ -366,8 +372,8 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
   const interfaces = getNodeInterfaces(isStartup)
 
   const config: OceanNodeConfig = {
-    authorizedDecrypters: getAuthorizedDecrypters(),
-    allowedValidators: getAllowedValidators(),
+    authorizedDecrypters: getAuthorizedDecrypters(isStartup),
+    allowedValidators: getAllowedValidators(isStartup),
     keys,
     // Only enable indexer if we have a DB_URL and supportedNetworks
     hasIndexer: !!(!!getEnvValue(process.env.DB_URL, '') && !!supportedNetworks),
@@ -413,7 +419,9 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     },
     supportedNetworks,
     feeStrategy: getOceanNodeFees(supportedNetworks, isStartup),
-    c2dClusters: getC2DClusterEnvironment()
+    c2dClusters: getC2DClusterEnvironment(isStartup),
+    accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
+    assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, '')
   }
 
   if (!previousConfiguration) {
@@ -428,4 +436,10 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
 
 function configChanged(previous: OceanNodeConfig, current: OceanNodeConfig): boolean {
   return JSON.stringify(previous) !== JSON.stringify(current)
+}
+
+// useful for debugging purposes
+export async function printCurrentConfig() {
+  const conf = await getConfiguration(true)
+  console.log(JSON.stringify(conf), null, 4)
 }

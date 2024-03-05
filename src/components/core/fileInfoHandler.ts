@@ -3,6 +3,7 @@ import urlJoin from 'url-join'
 import { P2PCommandResponse } from '../../@types'
 import {
   ArweaveFileObject,
+  EncryptMethod,
   IpfsFileObject,
   UrlFileObject
 } from '../../@types/fileObject.js'
@@ -26,18 +27,21 @@ async function getFile(
     const ddo = await new FindDdoHandler(node).findAndFormatDdo(did)
     // 2. Get the service
     const service: Service = AssetUtils.getServiceById(ddo, serviceId)
-
+    if (!service) {
+      const msg = `Service with id ${serviceId} not found`
+      CORE_LOGGER.error(msg)
+      throw new Error(msg)
+    }
     // 3. Decrypt the url
     const decryptedUrlBytes = await decrypt(
       Uint8Array.from(Buffer.from(service.files, 'hex')),
-      'ECIES'
+      EncryptMethod.ECIES
     )
     CORE_LOGGER.logMessage(`URL decrypted for Service ID: ${serviceId}`)
 
     // Convert the decrypted bytes back to a string
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
     const decryptedFileArray = JSON.parse(decryptedFilesString)
-
     return decryptedFileArray.files
   } catch (error) {
     const msg = 'Error occured while requesting the files: ' + error.message

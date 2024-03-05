@@ -3,13 +3,13 @@ import { Handler } from './handler.js'
 import { checkNonce, NonceResponse } from './utils/nonceHandler.js'
 import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
-import { checkFee } from './utils/feesHandler.js'
+import { verifyProviderFees } from './utils/feesHandler.js'
 import { decrypt } from '../../utils/crypt.js'
 import { FindDdoHandler } from './ddoHandler.js'
 import crypto from 'crypto'
 import * as ethCrypto from 'eth-crypto'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { validateOrderTransaction } from './validateTransaction.js'
+import { validateOrderTransaction } from './utils/validateOrders.js'
 import { AssetUtils } from '../../utils/asset.js'
 import { Service } from '../../@types/DDO/Service'
 import { ArweaveStorage, IpfsStorage, Storage } from '../../components/storage/index.js'
@@ -18,6 +18,9 @@ import { checkCredentials } from '../../utils/credentials.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { OceanNode } from '../../OceanNode.js'
 import { DownloadCommand, DownloadURLCommand } from '../../@types/commands.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
+import { C2DEngine } from '../c2d/compute_engines.js'
+
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(
@@ -207,7 +210,7 @@ export class DownloadHandler extends Handler {
 
     // 3. Validate nonce and signature
     const nonceCheckResult: NonceResponse = await checkNonce(
-      node.getDatabase().nonce,
+      this.getOceanNode().getDatabase().nonce,
       task.consumerAddress,
       parseInt(task.nonce),
       task.signature,
@@ -228,39 +231,21 @@ export class DownloadHandler extends Handler {
         }
       }
     }
-
-    // 4. check that the provider fee transaction is valid
-    if (task.feeTx && task.feeData) {
-      let feeValidation
-      try {
-        feeValidation = await checkFee(task.feeTx, task.feeData)
-      } catch (e) {
-        return {
-          stream: null,
-          status: {
-            httpStatus: 500,
-            error: 'ERROR checking fees'
-          }
-        }
-      }
-      if (feeValidation) {
-        // Log the provider fee response for debugging purposes
-        CORE_LOGGER.logMessage(`Valid provider fee transaction`, true)
-      } else {
-        return {
-          stream: null,
-          status: {
-            httpStatus: 500,
-            error: 'Invalid provider fee transaction'
-          }
+    // from now on, we need blockchain checks
+    const config = await getConfiguration()
+    const { rpc } = config.supportedNetworks[ddo.chainId]
+    let provider
+    try {
+      provider = new JsonRpcProvider(rpc)
+    } catch (e) {
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error: 'JsonRpcProvider ERROR'
         }
       }
     }
-
-    // 5. Call the validateOrderTransaction function to check order transaction
-    const config = await getConfiguration()
-    const { rpc } = config.supportedNetworks[ddo.chainId]
-
     if (!rpc) {
       CORE_LOGGER.logMessage(
         `Cannot proceed with download. RPC not configured for this chain ${ddo.chainId}`,
@@ -274,23 +259,57 @@ export class DownloadHandler extends Handler {
         }
       }
     }
+    let service: Service = AssetUtils.getServiceById(ddo, task.serviceId)
+    if (!service) service = AssetUtils.getServiceByIndex(ddo, Number(task.serviceId))
+    if (!service) throw new Error('Cannot find service')
+    // 4. Check service type
+    const serviceType = service.type
+    if (serviceType === 'compute') {
+      // only compute envs are allowed to download compute assets
+      // get all compute envs
+      const computeAddrs: string[] = []
+      const config = await getConfiguration()
+      const { c2dClusters } = config
 
-    let provider
-    try {
-      provider = new JsonRpcProvider(rpc)
-    } catch (e) {
+      for (const cluster of c2dClusters) {
+        const engine = C2DEngine.getC2DClass(cluster)
+        const environments = await engine.getComputeEnvironments(ddo.chainId)
+        for (const env of environments)
+          computeAddrs.push(env.consumerAddress.toLowerCase())
+      }
+      //
+      if (!computeAddrs.includes(task.consumerAddress.toLowerCase())) {
+        const msg = 'Not allowed to download this asset of type compute'
+        CORE_LOGGER.logMessage(msg)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: msg
+          }
+        }
+      }
+    }
+    // 5. check that the provider fee transaction is valid
+    const validFee = await verifyProviderFees(
+      task.transferTxId,
+      task.consumerAddress,
+      provider,
+      service,
+      null,
+      null
+    )
+    if (!validFee.isValid) {
       return {
         stream: null,
         status: {
           httpStatus: 500,
-          error: 'JsonRpcProvider ERROR'
+          error: 'ERROR checking fees'
         }
       }
     }
 
-    let service: Service = AssetUtils.getServiceById(ddo, task.serviceId)
-    if (!service) service = AssetUtils.getServiceByIndex(ddo, Number(task.serviceId))
-    if (!service) throw new Error('Cannot find service')
+    // 6. Call the validateOrderTransaction function to check order transaction
     const paymentValidation = await validateOrderTransaction(
       task.transferTxId,
       task.consumerAddress,
@@ -324,7 +343,7 @@ export class DownloadHandler extends Handler {
       // 6. Decrypt the url
       const decryptedUrlBytes = await decrypt(
         Uint8Array.from(Buffer.from(service.files, 'hex')),
-        'ECIES'
+        EncryptMethod.ECIES
       )
       // Convert the decrypted bytes back to a string
       const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()

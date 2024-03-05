@@ -3,7 +3,7 @@ import { checkCredentials } from '../../utils/credentials.js'
 import { Credentials } from '../../@types/DDO/Credentials'
 
 describe('credentials', () => {
-  it('should allow access with undefined or empty credentials', async () => {
+  it('should allow access with undefined or empty credentials', () => {
     const credentialsUndefined: Credentials = undefined
     const consumerAddress = '0x123'
     const accessGranted1 = checkCredentials(credentialsUndefined, consumerAddress)
@@ -12,7 +12,7 @@ describe('credentials', () => {
     const accessGranted2 = checkCredentials(credentialsEmapty, consumerAddress)
     expect(accessGranted2).to.equal(true)
   })
-  it('should allow access with empty allow and deny lists', async () => {
+  it('should allow access with empty allow and deny lists', () => {
     const credentials: Credentials = {
       allow: [],
       deny: []
@@ -21,7 +21,7 @@ describe('credentials', () => {
     const accessGranted = checkCredentials(credentials, consumerAddress)
     expect(accessGranted).to.equal(true)
   })
-  it('should allow access with empty values in deny lists', async () => {
+  it('should allow access with empty values in deny lists', () => {
     const credentials: Credentials = {
       deny: [
         {
@@ -34,7 +34,7 @@ describe('credentials', () => {
     const accessGranted = checkCredentials(credentials, consumerAddress)
     expect(accessGranted).to.equal(true)
   })
-  it('should deny access with empty values in allow lists', async () => {
+  it('should deny access with empty values in allow lists', () => {
     const credentials: Credentials = {
       allow: [
         {
@@ -47,7 +47,7 @@ describe('credentials', () => {
     const accessGranted = checkCredentials(credentials, consumerAddress)
     expect(accessGranted).to.equal(false)
   })
-  it('should allow access with address in allow list', async () => {
+  it('should allow access with address in allow list', () => {
     const credentials: Credentials = {
       allow: [
         {
@@ -60,7 +60,7 @@ describe('credentials', () => {
     const accessGranted = checkCredentials(credentials, consumerAddress)
     expect(accessGranted).to.equal(true)
   })
-  it('should allow access with address not in deny list', async () => {
+  it('should allow access with address not in deny list', () => {
     const credentials: Credentials = {
       deny: [
         {
@@ -73,7 +73,7 @@ describe('credentials', () => {
     const accessGranted = checkCredentials(credentials, consumerAddress)
     expect(accessGranted).to.equal(true)
   })
-  it('should deny access with address in deny list', async () => {
+  it('should deny access with address in deny list', () => {
     const credentials: Credentials = {
       allow: [
         {
@@ -92,7 +92,7 @@ describe('credentials', () => {
     const accessGranted = checkCredentials(credentials, consumerAddress)
     expect(accessGranted).to.equal(false)
   })
-  it('should deny access with address not in allow list', async () => {
+  it('should deny access with address not in allow list', () => {
     const credentials: Credentials = {
       allow: [
         {

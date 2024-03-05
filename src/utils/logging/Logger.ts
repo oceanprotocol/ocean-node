@@ -115,7 +115,8 @@ export class CustomOceanNodesTransport extends Transport {
 
     try {
       // Use the insertLog method of the LogDatabase instance
-      if (this.dbInstance) {
+      if (this.dbInstance && this.dbInstance.logs) {
+        // double check before writing
         await this.dbInstance.logs.insertLog(document)
       }
     } catch (error) {
@@ -472,6 +473,15 @@ export class CustomNodeLogger {
       }
     )
     return transports.length > 0
+  }
+
+  getDBTransport(): winston.transport | undefined {
+    const transports: winston.transport[] = this.getTransports().filter(
+      (transport: winston.transport) => {
+        return transport instanceof CustomOceanNodesTransport
+      }
+    )
+    return transports.length > 0 ? transports[0] : undefined
   }
 }
 

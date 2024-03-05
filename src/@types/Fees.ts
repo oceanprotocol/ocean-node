@@ -23,5 +23,40 @@ export interface ProviderFeeData {
   v: any
   r: any
   s: any
-  validUntil: number
+  validUntil: number // this is always an absolute timestamp, till order is valid. Not a relative one (until further notice)
+}
+
+export interface ProviderFeeValidation {
+  isValid: boolean // true if valid provider fee for download
+  isComputeValid: boolean // true is valid for compute
+  message: any
+}
+
+export interface ProviderFees {
+  providerFeeAddress: string
+  providerFeeToken: string
+  providerFeeAmount: string
+  v: string
+  r: string
+  s: string
+  providerData: string
+  validUntil: string
+}
+
+export interface ProviderInitialize {
+  datatoken: string
+  nonce: string
+  computeAddress: string
+  providerFee: ProviderFees
+}
+
+export interface ProviderComputeInitialize {
+  datatoken?: string
+  validOrder?: string
+  providerFee?: ProviderFees
+}
+
+export interface ProviderComputeInitializeResults {
+  algorithm?: ProviderComputeInitialize
+  datasets?: ProviderComputeInitialize[]
 }

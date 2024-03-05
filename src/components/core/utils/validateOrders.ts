@@ -1,8 +1,14 @@
-import { JsonRpcProvider, Contract, Interface, TransactionReceipt } from 'ethers'
-import { fetchEventFromTransaction } from '../../utils/util.js'
+import {
+  JsonRpcProvider,
+  JsonRpcApiProvider,
+  Contract,
+  Interface,
+  TransactionReceipt
+} from 'ethers'
+import { fetchEventFromTransaction } from '../../../utils/util.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import { CORE_LOGGER } from '../../utils/logging/common.js'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
 interface ValidateTransactionResponse {
   isValid: boolean
@@ -11,10 +17,10 @@ interface ValidateTransactionResponse {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-async function fetchTransactionReceipt(
+export async function fetchTransactionReceipt(
   txId: string,
-  provider: JsonRpcProvider,
-  retries: number = 3
+  provider: JsonRpcApiProvider,
+  retries: number = 2
 ): Promise<TransactionReceipt> {
   while (retries > 0) {
     try {
@@ -24,7 +30,7 @@ async function fetchTransactionReceipt(
       }
       if (retries > 1) {
         // If it's not the last retry, sleep before the next retry
-        await sleep(30000)
+        await sleep(1000)
       }
       retries--
     } catch (error) {
@@ -56,13 +62,6 @@ export async function validateOrderTransaction(
     }
   }
 
-  if (userAddress.toLowerCase() !== txReceiptMined.from.toLowerCase()) {
-    return {
-      isValid: false,
-      message: 'User address does not match the sender of the transaction.'
-    }
-  }
-
   const orderReusedEvent = fetchEventFromTransaction(
     txReceiptMined,
     'OrderReused',
@@ -87,7 +86,15 @@ export async function validateOrderTransaction(
     'OrderStarted',
     contractInterface
   )
-
+  if (
+    userAddress.toLowerCase() !== OrderStartedEvent[0].args[0].toLowerCase() &&
+    userAddress.toLowerCase() !== OrderStartedEvent[0].args[1].toLowerCase()
+  ) {
+    return {
+      isValid: false,
+      message: 'User address does not match with consumer or payer of the transaction.'
+    }
+  }
   const eventServiceIndex = OrderStartedEvent[0].args[3]
 
   if (BigInt(serviceIndex) !== eventServiceIndex) {
