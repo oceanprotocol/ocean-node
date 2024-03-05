@@ -1,6 +1,7 @@
 import type { PeerId } from '@libp2p/interface/peer-id'
 import { Stream } from 'stream'
 import { RPCS } from './blockchain'
+import { C2DClusterInfo } from './C2D'
 import { FeeStrategy } from './Fees'
 
 export interface OceanNodeDBConfig {
@@ -12,11 +13,6 @@ export interface OceanNodeKeys {
   publicKey: any
   privateKey: any
   ethAddress: string
-}
-
-export interface C2DClusterInfo {
-  url: string
-  hash: string
 }
 
 export interface OceanNodeP2PConfig {

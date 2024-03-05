@@ -1,20 +1,6 @@
 import { expect, assert } from 'chai'
-import {
-  JsonRpcProvider,
-  Signer,
-  Contract,
-  ethers,
-  getAddress,
-  hexlify,
-  parseUnits,
-  ZeroAddress
-} from 'ethers'
-import { createHash } from 'crypto'
-import { validateOrderTransaction } from '../../components/core/validateTransaction.js'
-import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
-import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-import { getEventFromTx } from '../../utils/util.js'
+import { JsonRpcProvider, Signer } from 'ethers'
+import { validateOrderTransaction } from '../../components/core/utils/validateOrders.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import { Database } from '../../components/database/index.js'
@@ -23,40 +9,73 @@ import {
   getOceanArtifactsAdresses,
   getOceanArtifactsAdressesByChainId
 } from '../../utils/address.js'
-import { createFee } from '../../components/core/utils/feesHandler.js'
-import { DDO } from '../../@types/DDO/DDO.js'
-import { DEFAULT_TEST_TIMEOUT } from '../utils/utils.js'
-import { EVENTS } from '../../utils/constants.js'
-
+import { publishAsset, orderAsset, reOrderAsset } from '../utils/assets.js'
+import { RPCS } from '../../@types/blockchain.js'
+import { OceanIndexer } from '../../components/Indexer/index.js'
+import { OceanNode } from '../../OceanNode.js'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { ENVIRONMENT_VARIABLES, EVENTS, getConfiguration } from '../../utils/index.js'
+import {
+  DEFAULT_TEST_TIMEOUT,
+  OverrideEnvConfig,
+  buildEnvOverrideConfig,
+  getMockSupportedNetworks,
+  setupEnvironment,
+  tearDownEnvironment
+} from '../utils/utils.js'
 describe('validateOrderTransaction Function with Orders', () => {
   let database: Database
+  let oceanNode: OceanNode
   let provider: JsonRpcProvider
-  let factoryContract: Contract
-  let nftContract: Contract
-  let dataTokenContract: Contract
-  const chainId = 8996
   let publisherAccount: Signer
-  let publisherAddress: string
   let consumerAccount: Signer
   let consumerAddress: string
   let dataNftAddress: string
   let datatokenAddress: string
   let orderTxId: string
-  let dataTokenContractWithNewSigner: any
+  let reOrderTxId: string
   let resolvedDDO: any
+  let publishedDataset: any
 
-  const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
   const serviceId = '0' // dummy index
-  const consumeMarketFeeAddress = ZeroAddress // marketplace fee Collector
-  const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
-  const consumeMarketFeeToken = feeToken // token address for the feeAmount,
   const timeout = 0
-
+  let config: OceanNodeConfig
+  const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+  let previousConfiguration: OverrideEnvConfig[]
   before(async () => {
+    previousConfiguration = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig(
+        [
+          ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+          ENVIRONMENT_VARIABLES.DB_URL,
+          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS
+        ],
+        [
+          JSON.stringify(mockSupportedNetworks),
+          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+          'http://localhost:8108/?apiKey=xyz',
+          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'])
+        ]
+      )
+    )
+
+    config = await getConfiguration(true) // Force reload the configuration
+    const dbconn = await new Database(config.dbConfig)
+    oceanNode = await OceanNode.getInstance(dbconn)
+    //  eslint-disable-next-line no-unused-vars
+    const indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
+
+    let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+    if (!network) {
+      network = getOceanArtifactsAdresses().development
+    }
+
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
+
     publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccount = (await provider.getSigner(1)) as Signer
-    publisherAddress = await publisherAccount.getAddress()
     consumerAddress = await consumerAccount.getAddress()
 
     let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
@@ -68,13 +87,6 @@ describe('validateOrderTransaction Function with Orders', () => {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
     database = await new Database(dbConfig)
-
-    // Initialize the factory contract
-    factoryContract = new ethers.Contract(
-      artifactsAddresses.ERC721Factory,
-      ERC721Factory.abi,
-      publisherAccount
-    )
   })
 
   it('Start instance of Database', () => {
@@ -82,131 +94,40 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
 
   it('should publish a dataset', async function () {
-    const tx = await factoryContract.createNftWithErc20(
-      {
-        name: '72120Bundle',
-        symbol: '72Bundle',
-        templateIndex: 1,
-        tokenURI: 'https://oceanprotocol.com/nft/',
-        transferable: true,
-        owner: await publisherAccount.getAddress()
-      },
-      {
-        strings: ['ERC20B1', 'ERC20DT1Symbol'],
-        templateIndex: 1,
-        addresses: [
-          await publisherAccount.getAddress(),
-          ZeroAddress,
-          ZeroAddress,
-          ZeroAddress
-        ],
-        uints: [1000, 0],
-        bytess: []
-      }
-    )
-    const txReceipt = await tx.wait()
-    assert(txReceipt, 'transaction failed')
-    const nftEvent = getEventFromTx(txReceipt, 'NFTCreated')
-    const erc20Event = getEventFromTx(txReceipt, 'TokenCreated')
-
-    dataNftAddress = nftEvent.args[0]
-    datatokenAddress = erc20Event.args[0]
+    publishedDataset = await publishAsset(genericDDO, publisherAccount)
+    dataNftAddress = publishedDataset.nftAddress
+    // eslint-disable-next-line prefer-destructuring
+    datatokenAddress = publishedDataset.datatokenAddress
 
     assert(dataNftAddress, 'find nft created failed')
     assert(datatokenAddress, 'find datatoken created failed')
   })
 
-  it('should set metadata and save', async function () {
-    nftContract = new Contract(dataNftAddress, ERC721Template.abi, publisherAccount)
-    genericDDO.id =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(dataNftAddress) + chainId.toString(10))
-        .digest('hex')
-    genericDDO.nftAddress = dataNftAddress
-
-    const stringDDO = JSON.stringify(genericDDO)
-    const bytes = Buffer.from(stringDDO)
-    const metadata = hexlify(bytes)
-    const hash = createHash('sha256').update(metadata).digest('hex')
-
-    const setMetaDataTx = await nftContract.setMetaData(
-      0,
-      'http://v4.provider.oceanprotocol.com',
-      '0x123',
-      '0x01',
-      metadata,
-      '0x' + hash,
-      []
-    )
-    const trxReceipt = await setMetaDataTx.wait()
-    assert(trxReceipt, 'set metadata failed')
-  })
-
   it('should get the active state', async function () {
     const { ddo, wasTimeout } = await waitToIndex(
-      genericDDO.id,
+      publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT,
       true
     )
     resolvedDDO = ddo
     if (resolvedDDO) {
-      expect(resolvedDDO.id).to.be.equal(genericDDO.id)
+      expect(resolvedDDO.id).to.be.equal(publishedDataset.ddo.id)
     } else {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     }
   })
 
   it('should start an order and validate the transaction', async function () {
-    dataTokenContract = new Contract(
-      datatokenAddress,
-      ERC20Template.abi,
-      publisherAccount
-    )
-
-    const paymentCollector = await dataTokenContract.getPaymentCollector()
-    assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
-
-    console.log('resolved ddo ', resolvedDDO)
-
-    const feeData = await createFee(
-      resolvedDDO as DDO,
+    const orderTx = await orderAsset(
+      resolvedDDO,
       0,
-      'null',
-      resolvedDDO.services[0]
+      consumerAccount,
+      await consumerAccount.getAddress(),
+      publisherAccount,
+      oceanNode
     )
-
-    // call the mint function on the dataTokenContract
-    const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
-    await mintTx.wait()
-    const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
-    assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
-
-    dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
-
-    const orderTx = await dataTokenContractWithNewSigner.startOrder(
-      consumerAddress,
-      serviceId,
-      {
-        providerFeeAddress: feeData.providerFeeAddress,
-        providerFeeToken: feeData.providerFeeToken,
-        providerFeeAmount: feeData.providerFeeAmount,
-        v: feeData.v,
-        r: feeData.r,
-        s: feeData.s,
-        providerData: feeData.providerData,
-        validUntil: feeData.validUntil
-      },
-      {
-        consumeMarketFeeAddress,
-        consumeMarketFeeToken,
-        consumeMarketFeeAmount
-      }
-    )
-    const orderTxReceipt = await orderTx.wait()
-    assert(orderTxReceipt, 'order transaction failed')
-    orderTxId = orderTxReceipt.hash
+    orderTxId = orderTx.hash
     assert(orderTxId, 'transaction id not found')
 
     // Use the transaction receipt in validateOrderTransaction
@@ -228,43 +149,20 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
 
   it('should reuse an order and validate the transaction', async function () {
-    const feeData = await createFee(
-      resolvedDDO as DDO,
-      0,
-      'null',
-      resolvedDDO.services[0]
-    )
-
-    // git status
-    dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
-
-    const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
+    const reOrderTx = await reOrderAsset(
       orderTxId,
-      {
-        providerFeeAddress: feeData.providerFeeAddress,
-        providerFeeToken: feeData.providerFeeToken,
-        providerFeeAmount: feeData.providerFeeAmount,
-        v: feeData.v,
-        r: feeData.r,
-        s: feeData.s,
-        providerData: feeData.providerData,
-        validUntil: feeData.validUntil
-      },
-      {
-        consumeMarketFeeAddress,
-        consumeMarketFeeToken,
-        consumeMarketFeeAmount
-      }
+      resolvedDDO,
+      0,
+      consumerAccount,
+      await consumerAccount.getAddress(),
+      publisherAccount,
+      oceanNode
     )
-    const orderTxReceipt = await orderTx.wait()
-    assert(orderTxReceipt, 'order transaction failed')
-    const txId = orderTxReceipt.hash
-    assert(txId, 'transaction id not found')
-
+    reOrderTxId = reOrderTx.hash
     // Use the transaction receipt in validateOrderTransaction
 
     const validationResult = await validateOrderTransaction(
-      txId,
+      reOrderTxId,
       consumerAddress,
       provider,
       dataNftAddress,
@@ -281,40 +179,8 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
 
   it('should reject reuse an order with invald serviceId', async function () {
-    const feeData = await createFee(
-      resolvedDDO as DDO,
-      0,
-      'null',
-      resolvedDDO.services[0]
-    )
-
-    const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
-      orderTxId,
-      {
-        providerFeeAddress: feeData.providerFeeAddress,
-        providerFeeToken: feeData.providerFeeToken,
-        providerFeeAmount: feeData.providerFeeAmount,
-        v: feeData.v,
-        r: feeData.r,
-        s: feeData.s,
-        providerData: feeData.providerData,
-        validUntil: feeData.validUntil
-      },
-      {
-        consumeMarketFeeAddress,
-        consumeMarketFeeToken,
-        consumeMarketFeeAmount
-      }
-    )
-    const orderTxReceipt = await orderTx.wait()
-    assert(orderTxReceipt, 'order transaction failed')
-    const txId = orderTxReceipt.hash
-    assert(txId, 'transaction id not found')
-
-    // Use the transaction receipt in validateOrderTransaction
-
     const validationResult = await validateOrderTransaction(
-      txId,
+      reOrderTxId,
       consumerAddress,
       provider,
       dataNftAddress,
@@ -331,40 +197,8 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
 
   it('should reject reuse an order with invald user address', async function () {
-    const feeData = await createFee(
-      resolvedDDO as DDO,
-      0,
-      'null',
-      resolvedDDO.services[0]
-    )
-
-    const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
-      orderTxId,
-      {
-        providerFeeAddress: feeData.providerFeeAddress,
-        providerFeeToken: feeData.providerFeeToken,
-        providerFeeAmount: feeData.providerFeeAmount,
-        v: feeData.v,
-        r: feeData.r,
-        s: feeData.s,
-        providerData: feeData.providerData,
-        validUntil: feeData.validUntil
-      },
-      {
-        consumeMarketFeeAddress,
-        consumeMarketFeeToken,
-        consumeMarketFeeAmount
-      }
-    )
-    const orderTxReceipt = await orderTx.wait()
-    assert(orderTxReceipt, 'order transaction failed')
-    const txId = orderTxReceipt.hash
-    assert(txId, 'transaction id not found')
-
-    // Use the transaction receipt in validateOrderTransaction
-
     const validationResult = await validateOrderTransaction(
-      txId,
+      reOrderTxId,
       '0x0',
       provider,
       dataNftAddress,
@@ -376,8 +210,11 @@ describe('validateOrderTransaction Function with Orders', () => {
     assert(!validationResult.isValid, 'Reuse order transaction should not be valid.')
     assert(
       validationResult.message ===
-        'User address does not match the sender of the transaction.',
+        'User address does not match with consumer or payer of the transaction.',
       'Wrong transaction rejection message'
     )
+  })
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
   })
 })
