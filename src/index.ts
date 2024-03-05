@@ -14,17 +14,12 @@ import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-import path from 'path'
-import { fileURLToPath } from 'url'
-
 const app: Express = express()
 const appDashboard: Express = express()
 
 // const port = getRandomInt(6000,6500)
 
 express.static.mime.define({ 'image/svg+xml': ['svg'] })
-const __filename = fileURLToPath(import.meta.url) // get the resolved path to the file
-const __dirname = path.dirname(__filename) // get the name of the directory
 
 declare global {
   // eslint-disable-next-line no-unused-vars
