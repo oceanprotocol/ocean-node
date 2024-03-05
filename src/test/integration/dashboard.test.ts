@@ -9,7 +9,8 @@ import {
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
-  setupEnvironment
+  setupEnvironment,
+  tearDownEnvironment
 } from '../utils/utils.js'
 import {
   DEVELOPMENT_CHAIN_ID,
@@ -21,7 +22,6 @@ import axios, { AxiosResponse } from 'axios'
 describe('Should run a complete node flow.', async () => {
   let config: OceanNodeConfig
   let database: Database
-  //  eslint-disable-next-line no-unused-vars
   let previousConfiguration: OverrideEnvConfig[]
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
@@ -34,6 +34,7 @@ describe('Should run a complete node flow.', async () => {
 
   before(async () => {
     // override and save configuration (always before calling getConfig())
+    console.log(`envs: ${JSON.stringify(ENVIRONMENT_VARIABLES)}`)
     previousConfiguration = await setupEnvironment(
       null,
       buildEnvOverrideConfig(
@@ -96,5 +97,8 @@ describe('Should run a complete node flow.', async () => {
     assert(response.status === 200, 'http status not 200')
     console.log(`response dataix: ${JSON.stringify(response.data)}`)
     // assert(response.data.response === true)
+  })
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
   })
 })
