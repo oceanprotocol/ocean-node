@@ -5,7 +5,6 @@ import styles from './index.module.css'
 
 import Menu from './Menu'
 import { truncateString } from '../../shared/utils/truncateString'
-import config from '../../../config'
 
 type IndexerType = {
   block: string
@@ -59,22 +58,26 @@ export default function Dashboard() {
 
   useEffect(() => {
     setLoading(true)
-    fetch(`${config.apiRoutes.status}`, {
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json'
-      },
-      method: 'POST',
-      body: JSON.stringify({
-        command: 'status',
-        node: config.nodeId
+    try {
+      const apiUrl = '/directCommand'
+      fetch(apiUrl, {
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
+        },
+        method: 'POST',
+        body: JSON.stringify({
+          command: 'status'
+        })
       })
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setData(data)
-        setLoading(false)
-      })
+        .then((res) => res.json())
+        .then((data) => {
+          setData(data)
+          setLoading(false)
+        })
+    } catch (error) {
+      console.log('error', error)
+    }
   }, [])
 
   const nodeData = [

@@ -4,13 +4,12 @@ import Image from 'next/image'
 import styles from './index.module.css'
 
 import DownloadSVG from '../../assets/download.svg'
-import config from '../../../config'
 
 export default function DownloadButton() {
   const [isLoading, setLoading] = useState(false)
   const downloadLogs = useCallback(async () => {
     setLoading(true)
-    const data = await fetch(`${config.apiRoutes.logs}`, {
+    const data = await fetch(`/logs`, {
       headers: {
         'Content-Type': 'application/json'
       },
