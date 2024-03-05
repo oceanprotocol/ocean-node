@@ -10,6 +10,7 @@ import {
 } from '../../utils/logging/Logger.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { validateObject } from '../core/utils/validateDdoHandler.js'
+import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 
 export class OrderDatabase {
   private provider: Typesense
@@ -735,7 +736,7 @@ export class LogDatabase {
 
   async deleteOldLogs() {
     const currentTime = new Date().getTime()
-    const xTime = parseInt(process.env.LOG_RETENTION_TIME || '2592000000') // Default to 30 days in milliseconds
+    const xTime = parseInt(ENVIRONMENT_VARIABLES.LOG_RETENTION_TIME.value || '2592000000') // Default to 30 days in milliseconds
     const deleteBeforeTime = new Date(currentTime - xTime)
 
     try {
