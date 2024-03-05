@@ -362,8 +362,14 @@ describe('IPFS Storage getFileInfo tests', function () {
         fileInfo[0].type === FileObjectType.IPFS,
         `Type is incorrect: ${fileInfo[0].type}`
       )
-      assert(fileInfo[0].contentType === 'text/csv', 'Content type is incorrect')
-      assert(fileInfo[0].contentLength === '680782', 'Content length is incorrect')
+      assert(
+        fileInfo[0].contentType === 'text/csv',
+        `Content type is incorrect: ${fileInfo[0].contentType}`
+      )
+      assert(
+        fileInfo[0].contentLength === '680782',
+        `Content length is incorrect: ${fileInfo[0].contentLength}`
+      )
     }
   })
 
