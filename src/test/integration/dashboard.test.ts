@@ -96,7 +96,7 @@ describe('Should run a complete node flow.', async () => {
     )
     assert(response.status === 200, 'http status not 200')
     console.log(`response dataix: ${JSON.stringify(response.data)}`)
-    // assert(response.data.response === true)
+    assert(response.data.response === true)
   })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
