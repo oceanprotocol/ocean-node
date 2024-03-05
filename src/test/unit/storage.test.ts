@@ -358,7 +358,10 @@ describe('IPFS Storage getFileInfo tests', function () {
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
     if (fileInfo && fileInfo.length > 0) {
       assert(fileInfo[0].valid, 'File info is valid')
-      assert(fileInfo[0].type === FileObjectType.IPFS, 'Type is incorrect')
+      assert(
+        fileInfo[0].type === FileObjectType.IPFS,
+        `Type is incorrect: ${fileInfo[0].type}`
+      )
       assert(fileInfo[0].contentType === 'text/csv', 'Content type is incorrect')
       assert(fileInfo[0].contentLength === '680782', 'Content length is incorrect')
     }
