@@ -304,7 +304,7 @@ describe('Arweave Storage getFileInfo tests', function () {
 
   before(() => {
     storage = new ArweaveStorage({
-      type: 'arweave',
+      type: FileObjectType.ARWEAVE,
       transactionId: 'gPPDyusRh2ZyFl-sQ2ODK6hAwCRBAOwp0OFKr0n23QE'
     })
   })
@@ -316,7 +316,7 @@ describe('Arweave Storage getFileInfo tests', function () {
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
 
     assert(fileInfo[0].valid, 'File info is valid')
-    assert(fileInfo[0].type === 'arweave', 'Type is incorrect')
+    assert(fileInfo[0].type === FileObjectType.ARWEAVE, 'Type is incorrect')
     assert(
       fileInfo[0].contentType === 'text/csv; charset=utf-8',
       'Content type is incorrect'
@@ -346,7 +346,7 @@ describe('IPFS Storage getFileInfo tests', function () {
     await setupEnvironment(undefined, previousConfiguration) // Apply the environment override
 
     storage = new IpfsStorage({
-      type: 'ipfs',
+      type: FileObjectType.IPFS,
       hash: 'QmRhsp7eghZtW4PktPC2wAHdKoy2LiF1n6UXMKmAhqQJUA'
     })
   })
@@ -358,7 +358,7 @@ describe('IPFS Storage getFileInfo tests', function () {
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
     if (fileInfo && fileInfo.length > 0) {
       assert(fileInfo[0].valid, 'File info is valid')
-      assert(fileInfo[0].type === 'ipfs', 'Type is incorrect')
+      assert(fileInfo[0].type === FileObjectType.IPFS, 'Type is incorrect')
       assert(fileInfo[0].contentType === 'text/csv', 'Content type is incorrect')
       assert(fileInfo[0].contentLength === '680782', 'Content length is incorrect')
     }
