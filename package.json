@@ -70,6 +70,7 @@
     "aegir": "^37.3.0",
     "axios": "^1.6.0",
     "base58-js": "^2.0.0",
+    "cors": "^2.8.5",
     "delay": "^5.0.0",
     "dotenv": "^16.3.1",
     "eciesjs": "^0.4.5",
@@ -98,6 +99,7 @@
   },
   "devDependencies": {
     "@types/chai": "^4.3.10",
+    "@types/cors": "^2.8.17",
     "@types/express": "^4.17.17",
     "@types/lzma-native": "^4.0.4",
     "@types/mocha": "^10.0.4",

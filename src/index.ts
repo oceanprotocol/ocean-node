@@ -13,6 +13,7 @@ import fs from 'fs'
 import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import cors from 'cors'
 
 const app: Express = express()
 
@@ -122,6 +123,7 @@ const oceanNode = OceanNode.getInstance(dbconn, node, provider, indexer)
 
 if (config.hasHttp) {
   app.use(express.raw({ limit: '25mb' }))
+  app.use(cors())
 
   // Serve static files expected at the root, under the '/_next' path
   app.use('/_next', express.static(path.join(__dirname, '../dashboard/out/_next')))

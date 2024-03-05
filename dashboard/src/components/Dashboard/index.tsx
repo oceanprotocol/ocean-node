@@ -59,7 +59,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     setLoading(true)
-    fetch(`${config.apiUrl}${config.apiRoutes.status}`, {
+    fetch(`${config.apiRoutes.status}`, {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json'

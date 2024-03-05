@@ -1,5 +1,4 @@
 export type ConfigType = {
-  apiUrl: string
   apiRoutes: {
     logs: string
     status: string
@@ -8,7 +7,6 @@ export type ConfigType = {
 }
 
 const config: ConfigType = {
-  apiUrl: process.env.NEXT_PUBLIC_API_URL || '',
   apiRoutes: {
     logs: '/logs',
     status: '/directCommand'

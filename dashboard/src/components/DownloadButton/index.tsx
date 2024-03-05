@@ -10,9 +10,8 @@ export default function DownloadButton() {
   const [isLoading, setLoading] = useState(false)
   const downloadLogs = useCallback(async () => {
     setLoading(true)
-    const data = await fetch(`${config.apiUrl}${config.apiRoutes.logs}`, {
+    const data = await fetch(`${config.apiRoutes.logs}`, {
       headers: {
-        Accept: 'application/json',
         'Content-Type': 'application/json'
       },
       method: 'GET'
