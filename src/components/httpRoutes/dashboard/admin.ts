@@ -34,12 +34,10 @@ aquariusRoutes.post(`${ADMIN_API_BASE_PATH}/auth`, async (req, res) => {
       })
       return
     }
-    const node = req.oceanNode
-    const result = await validateSignatureAndNonce(
+    const result = validateSignatureAndNonce(
       body.nonce,
       body.expiryTimestamp.toString(),
-      body.signature,
-      node.getDatabase().nonce
+      body.signature
     )
     if (result === false) {
       HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Validation failed`)
