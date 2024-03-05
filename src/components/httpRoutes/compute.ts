@@ -1,6 +1,6 @@
 import express from 'express'
-import { GetEnvironmentsHandler } from '../core/compute.js'
-import { streamToObject } from '../../utils/util.js'
+import { GetEnvironmentsHandler, InitializeComputeHandler } from '../core/compute.js'
+import { streamToObject, streamToString } from '../../utils/util.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { Readable } from 'stream'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
@@ -40,6 +40,49 @@ computeRoutes.get(`${C2D_API_BASE_PATH}/computeEnvironments`, async (req, res) =
     } else {
       HTTP_LOGGER.logMessage(`Compute environments not found`, true)
       res.status(404).send('Compute environments not found')
+    }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send('Internal Server Error')
+  }
+})
+
+computeRoutes.post('/api/services/initializeCompute', async (req, res) => {
+  try {
+    HTTP_LOGGER.logMessage(
+      `POST initializeCompute request received with query: ${JSON.stringify(req.body)}`,
+      true
+    )
+    const { body } = req
+    if (!body) {
+      res.status(400).send('Missing required body')
+      return
+    }
+    if (!body.datasets && !body.algorithm) {
+      res.status(400).send('Missing datasets and algorithm')
+      return
+    }
+    for (const dataset of body.datasets) {
+      if (!dataset.documentId) {
+        res.status(400).send('Missing dataset did')
+        return
+      }
+    }
+    if (!body.algorithm.documentId) {
+      res.status(400).send('Missing algorithm did')
+      return
+    }
+    body.command = PROTOCOL_COMMANDS.INITIALIZE_COMPUTE
+    const result = await new InitializeComputeHandler(req.oceanNode).handle(body)
+    if (result.stream) {
+      const queryResult = JSON.parse(await streamToString(result.stream as Readable))
+      res.json(queryResult)
+    } else {
+      HTTP_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `Stream not found: ${result.status.error}`
+      )
+      res.status(result.status.httpStatus).send(result.status.error)
     }
   } catch (error) {
     HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)

@@ -17,7 +17,8 @@ export const PROTOCOL_COMMANDS = {
   GET_FEES: 'getFees',
   FILE_INFO: 'fileInfo',
   VALIDATE_DDO: 'validateDDO',
-  GET_COMPUTE_ENVIRONMENTS: 'getComputeEnvironments'
+  GET_COMPUTE_ENVIRONMENTS: 'getComputeEnvironments',
+  INITIALIZE_COMPUTE: 'initializeCompute'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -35,7 +36,8 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.GET_FEES,
   PROTOCOL_COMMANDS.FILE_INFO,
   PROTOCOL_COMMANDS.VALIDATE_DDO,
-  PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS
+  PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS,
+  PROTOCOL_COMMANDS.INITIALIZE_COMPUTE
 ]
 
 export const MetadataStates = {

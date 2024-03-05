@@ -23,7 +23,7 @@ export interface MetadataAlgorithm {
    * Object describing the Docker container image.
    * @type {Object}
    */
-  container: {
+  container?: {
     /**
      * The command to execute, or script to run inside the Docker image.
      * @type {string}
