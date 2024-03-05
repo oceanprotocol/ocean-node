@@ -83,7 +83,7 @@ describe('Should run a complete node flow.', async () => {
     )
 
     // Sign the original message directly
-    const signature = await publisherAccount.signMessage(message)
+    const signature = await (await provider.getSigner()).signMessage(message)
 
     const payload: any = {
       nonce,
