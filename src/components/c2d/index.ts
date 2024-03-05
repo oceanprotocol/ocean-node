@@ -5,20 +5,21 @@ import { FindDdoHandler } from '../core/ddoHandler.js'
 import { decrypt } from '../../utils/crypt.js'
 import { Storage } from '../storage/index.js'
 import { getConfiguration } from '../../utils/config.js'
-import { GetEnvironmentsHandler } from '../core/compute.js'
+import { ComputeGetEnvironmentsHandler } from '../core/compute/index.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { streamToObject } from '../../utils/util.js'
 import { Readable } from 'stream'
+import { EncryptMethod } from '../../@types/fileObject.js'
 
 export async function checkC2DEnvExists(envId: string, oceanNode: OceanNode) {
   const config = await getConfiguration()
   const { supportedNetworks } = config
   for (const supportedNetwork of Object.keys(supportedNetworks)) {
     const getEnvironmentsTask = {
-      command: PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS,
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS,
       chainId: parseInt(supportedNetwork)
     }
-    const response = await new GetEnvironmentsHandler(oceanNode).handle(
+    const response = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
       getEnvironmentsTask
     )
     if (response.status.httpStatus === 200) {
@@ -55,7 +56,7 @@ export async function getAlgoChecksums(
     }
     const decryptedUrlBytes = await decrypt(
       Uint8Array.from(Buffer.from(algorithmService.files, 'hex')),
-      'ECIES'
+      EncryptMethod.ECIES
     )
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
     const decryptedFileArray = JSON.parse(decryptedFilesString)
