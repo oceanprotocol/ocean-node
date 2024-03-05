@@ -130,7 +130,7 @@ describe('Should run a complete node flow.', () => {
     const fileInfo = await streamToObject(response.stream as Readable)
 
     assert(fileInfo[0].valid, 'File info is valid')
-    expect(fileInfo[0].contentLength).to.equal('417')
+    expect(fileInfo[0].contentLength).to.equal('946')
     expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
     expect(fileInfo[0].name).to.equal('algo.js')
     expect(fileInfo[0].type).to.equal('url')

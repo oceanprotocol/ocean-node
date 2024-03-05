@@ -282,7 +282,7 @@ describe('URL Storage getFileInfo tests', () => {
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
 
     assert(fileInfo[0].valid, 'File info is valid')
-    expect(fileInfo[0].contentLength).to.equal('138486')
+    expect(fileInfo[0].contentLength).to.equal('319520')
     expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
     expect(fileInfo[0].name).to.equal('shs_dataset_test.txt')
     expect(fileInfo[0].type).to.equal('url')
