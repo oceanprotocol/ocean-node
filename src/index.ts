@@ -6,11 +6,13 @@ import express, { Express } from 'express'
 import { OceanNode } from './OceanNode.js'
 import swaggerUi from 'swagger-ui-express'
 import { httpRoutes } from './components/httpRoutes/index.js'
-import { getConfiguration } from './utils/index.js'
+import { getConfiguration, computeCodebaseHash } from './utils/index.js'
 
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import fs from 'fs'
 import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 const app: Express = express()
 // const port = getRandomInt(6000,6500)
@@ -60,7 +62,13 @@ OCEAN_NODE_LOGGER.logMessageWithEmoji(
   GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
   LOG_LEVELS_STR.LEVEL_INFO
 )
+
 const config = await getConfiguration(true, isStartup)
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+config.codeHash = await computeCodebaseHash(__dirname)
+
+OCEAN_NODE_LOGGER.logMessage(`Codebase hash: ${config.codeHash}`, true)
 if (!config) {
   process.exit(1)
 }
