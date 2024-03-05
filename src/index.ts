@@ -12,8 +12,17 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import fs from 'fs'
 import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
 
+import path from 'path'
+import { fileURLToPath } from 'url'
+
 const app: Express = express()
+const appDashboard: Express = express()
+
 // const port = getRandomInt(6000,6500)
+
+express.static.mime.define({ 'image/svg+xml': ['svg'] })
+const __filename = fileURLToPath(import.meta.url) // get the resolved path to the file
+const __dirname = path.dirname(__filename) // get the name of the directory
 
 declare global {
   namespace Express {
@@ -125,5 +134,21 @@ if (config.hasHttp) {
   app.use('/', httpRoutes)
   app.listen(config.httpPort, () => {
     OCEAN_NODE_LOGGER.logMessage(`HTTP port: ${config.httpPort}`, true)
+  })
+  // Integrate static file serving middleware
+  appDashboard.use((req, res, next) => {
+    if (/(.ico|.js|.css|.jpg|.png|.svg|.map)$/i.test(req.path)) {
+      next()
+    } else {
+      res.header('Cache-Control', 'private, no-cache, no-store, must-revalidate')
+      res.header('Expires', '-1')
+      res.header('Pragma', 'no-cache')
+      res.sendFile(path.join(__dirname, '../dashboard/out', 'index.html'))
+    }
+  })
+  appDashboard.use(express.static(path.join(__dirname, '../dashboard/out')))
+
+  appDashboard.listen(8080, () => {
+    OCEAN_NODE_LOGGER.logMessage(`Dashboard port: ${config.httpPort + 80}`, true)
   })
 }
