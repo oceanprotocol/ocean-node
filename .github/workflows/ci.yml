@@ -164,6 +164,7 @@ jobs:
           FEE_AMOUNT: '{ "amount": 1, "unit": "MB" }'
           ASSET_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json'
           ACCOUNT_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json'
+          ALLOWED_ADMINS: '[]'
       - uses: actions/upload-artifact@v2
         with:
           name: coverage

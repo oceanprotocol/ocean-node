@@ -39,20 +39,20 @@ describe('Should run a complete node flow.', async () => {
       null,
       buildEnvOverrideConfig(
         [
+          ENVIRONMENT_VARIABLES.HTTP_API_PORT,
           ENVIRONMENT_VARIABLES.RPCS,
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
-          ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
-          ENVIRONMENT_VARIABLES.HTTP_API_PORT
+          ENVIRONMENT_VARIABLES.ALLOWED_ADMINS
         ],
         [
+          8081,
           JSON.stringify(mockSupportedNetworks),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
-          JSON.stringify([publisherAddress, consumerAddress]),
-          8081
+          JSON.stringify([publisherAddress, consumerAddress])
         ]
       )
     )
