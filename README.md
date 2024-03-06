@@ -33,7 +33,9 @@ git checkout feature/nodes
 ./start_ocean.sh
 ```
 
-### 5. Open terminal 1 and run a node
+### 5. Open terminal 1 and set the environmental variables
+
+A full list of all environmental variables is available in [env.md](./env.md)
 
 Set remaining env values:
 
@@ -80,13 +82,15 @@ For configuring the Indexer crawling interval in miliseconds (default, if not se
 export INDEXER_INTERVAL=10000
 ```
 
+### 6. Run the node
+
 Then start the node:
 
 ```bash
 npm run start
 ```
 
-### 6. Open a 2nd terminal and run another node
+### 7. Open a 2nd terminal and run another node
 
 ```bash
 export HTTP_API_PORT=8001
@@ -310,6 +314,8 @@ npm run logs http://localhost:8000 "2023-11-01T00:00:00Z" "2023-11-30T23:59:59Z"
 ```
 
 ## CI Envs
+
+A full list of all environmental variables is available in [env.md](./env.md)
 
 For now, we have three private keys defined (NODE1_PRIVATE_KEY, NODE2_PRIVATE_KEY,NODE3_PRIVATE_KEY). They are using the 7th, 8th and 9th accounts of barge:
 
