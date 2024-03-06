@@ -316,3 +316,14 @@ For now, we have three private keys defined (NODE1_PRIVATE_KEY, NODE2_PRIVATE_KE
 - (7) 0x1d751ded5a32226054cd2e71261039b65afb9ee1c746d055dd699b1150a5befc
 - (8) 0xfd5c1ccea015b6d663618850824154a3b3fb2882c46cefb05b9a93fea8c3d215
 - (9) 0x1263dc73bef43a9da06149c7e598f52025bf4027f1d6c13896b71e81bb9233fb
+
+## Dashboard
+
+The dashboard is built by default with the Ocean Node. Set the environmental variables and then run the following commands from the root of the project:
+
+```
+npm run build
+npm run start
+```
+
+The dashboard will be made available at: `http://localhost:8000/dashboard/`
