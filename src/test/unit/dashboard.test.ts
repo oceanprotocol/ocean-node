@@ -11,6 +11,11 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 import axios, { AxiosResponse } from 'axios'
+import {
+  DEVELOPMENT_CHAIN_ID,
+  getOceanArtifactsAdresses,
+  getOceanArtifactsAdressesByChainId
+} from '../../utils/address.js'
 import { validateSignature } from '../../utils/auth.js'
 
 describe('Should run the authentication node flow.', async () => {
@@ -47,6 +52,10 @@ describe('Should run the authentication node flow.', async () => {
         ]
       )
     )
+    let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+    if (!network) {
+      network = getOceanArtifactsAdresses().development
+    }
     config = await getConfiguration(true)
   })
 
