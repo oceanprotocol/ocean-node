@@ -79,6 +79,7 @@ jobs:
       - run: npm ci
       - run: npm run test:unit:cover
         env:
+          HTTP_API_PORT: 8081
           PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
           NODE1_PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
           NODE2_PRIVATE_KEY: ${{ secrets.NODE2_PRIVATE_KEY }}
