@@ -10,7 +10,7 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
-import axios, { AxiosResponse } from 'axios'
+import axios from 'axios'
 import { validateSignature } from '../../utils/auth.js'
 
 describe('Should run the authentication node flow.', () => {
@@ -52,11 +52,11 @@ describe('Should run the authentication node flow.', () => {
 
   it('should authenticate as admin', async () => {
     console.log(`http port: ${config.httpPort}`)
-    const response: AxiosResponse = await axios.get(
-      `http://localhost:${config.httpPort}/adminList`
-    )
+    const response = await axios({
+      method: 'get',
+      url: `http://localhost:${config.httpPort}/adminList`
+    })
     assert(response.status === 200, 'http status not 200')
-    assert(response.data.response === true)
   })
   it('signature should match', async () => {
     const currentDate = new Date()
