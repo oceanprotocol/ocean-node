@@ -1,5 +1,5 @@
 import { assert } from 'chai'
-import { JsonRpcProvider, Signer, sha256, toUtf8Bytes } from 'ethers'
+import { JsonRpcProvider, sha256, toUtf8Bytes } from 'ethers'
 import { RPCS } from '../../@types/blockchain.js'
 import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
@@ -11,24 +11,19 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 import axios, { AxiosResponse } from 'axios'
-import {
-  DEVELOPMENT_CHAIN_ID,
-  getOceanArtifactsAdresses,
-  getOceanArtifactsAdressesByChainId
-} from '../../utils/address.js'
 import { validateSignature } from '../../utils/auth.js'
 
-describe('Should run the authentication node flow.', async () => {
+describe('Should run the authentication node flow.', () => {
   let config: OceanNodeConfig
   let previousConfiguration: OverrideEnvConfig[]
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const provider = new JsonRpcProvider('http://127.0.0.1:8545')
 
-  const publisherAccount = (await provider.getSigner(0)) as Signer
-  const consumerAccount = (await provider.getSigner(1)) as Signer
-  const consumerAddress = await consumerAccount.getAddress()
-  const publisherAddress = await publisherAccount.getAddress()
+  // const publisherAccount = (await provider.getSigner(0)) as Signer
+  // const consumerAccount = (await provider.getSigner(1)) as Signer
+  // const consumerAddress = await consumerAccount.getAddress()
+  // const publisherAddress = await publisherAccount.getAddress()
 
   before(async () => {
     previousConfiguration = await setupEnvironment(
@@ -48,14 +43,12 @@ describe('Should run the authentication node flow.', async () => {
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
-          JSON.stringify([publisherAddress, consumerAddress])
+          JSON.stringify([
+            '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
+          ])
         ]
       )
     )
-    let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
-    if (!network) {
-      network = getOceanArtifactsAdresses().development
-    }
     config = await getConfiguration(true)
   })
 
