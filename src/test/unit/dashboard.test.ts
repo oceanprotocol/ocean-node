@@ -30,7 +30,6 @@ describe('Should run the authentication node flow.', () => {
       null,
       buildEnvOverrideConfig(
         [
-          ENVIRONMENT_VARIABLES.HTTP_API_PORT,
           ENVIRONMENT_VARIABLES.RPCS,
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.DB_URL,
@@ -38,7 +37,6 @@ describe('Should run the authentication node flow.', () => {
           ENVIRONMENT_VARIABLES.ALLOWED_ADMINS
         ],
         [
-          8081,
           JSON.stringify(mockSupportedNetworks),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           'http://localhost:8108/?apiKey=xyz',
@@ -53,6 +51,7 @@ describe('Should run the authentication node flow.', () => {
   })
 
   it('should authenticate as admin', async () => {
+    console.log(`http port: ${config.httpPort}`)
     const response: AxiosResponse = await axios.get(
       `http://localhost:${config.httpPort}/adminList`
     )
