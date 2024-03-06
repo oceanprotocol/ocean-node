@@ -10,6 +10,7 @@ import { fileInfoRoute } from './fileInfo.js'
 import { computeRoutes } from './compute.js'
 import { queueRoutes } from './queue.js'
 import { getConfiguration } from '../../utils/config.js'
+import { adminRoutes } from './dashboard/admin.js'
 
 export * from './getOceanPeers.js'
 
@@ -57,3 +58,5 @@ httpRoutes.use(rootEndpointRoutes)
 httpRoutes.use(computeRoutes)
 // queue routes
 httpRoutes.use(queueRoutes)
+// dashboard admin routes
+httpRoutes.use(adminRoutes)

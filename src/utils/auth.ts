@@ -1,17 +1,10 @@
 import { sha256, toUtf8Bytes, verifyMessage } from 'ethers'
-import { HTTP_LOGGER } from '../../../../utils/logging/common'
-import { existsEnvironmentVariable } from '../../../../utils/config.js'
+import { HTTP_LOGGER } from './logging/common.js'
+import { existsEnvironmentVariable } from './config.js'
 
-export function validateSignature(
-  nonce: number,
-  expiryTimestamp: number,
-  signature: string
-): boolean {
+export function validateSignature(expiryTimestamp: number, signature: string): boolean {
   try {
-    const message = sha256(
-      toUtf8Bytes(nonce.toString() + '-' + expiryTimestamp.toString())
-    )
-    HTTP_LOGGER.logMessage(`Message for signature validation: ${message}`)
+    const message = sha256(toUtf8Bytes(expiryTimestamp.toString()))
 
     const signerAddress = verifyMessage(message, signature).toLowerCase()
     HTTP_LOGGER.logMessage(`Resolved signer address: ${signerAddress}`)
@@ -22,7 +15,6 @@ export function validateSignature(
     const currentTimestamp = new Date().getTime()
     for (const address of JSON.parse(process.env.ALLOWED_ADMINS)) {
       if (address.lowercase() === signerAddress && currentTimestamp < expiryTimestamp) {
-        HTTP_LOGGER.logMessage(`Signature is valid`)
         return true
       }
     }

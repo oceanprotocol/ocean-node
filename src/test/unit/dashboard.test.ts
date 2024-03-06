@@ -1,7 +1,5 @@
 import { assert } from 'chai'
 import { JsonRpcProvider, Signer, sha256, toUtf8Bytes } from 'ethers'
-import { Database } from '../../components/database/index.js'
-import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
@@ -12,16 +10,11 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
-import {
-  DEVELOPMENT_CHAIN_ID,
-  getOceanArtifactsAdresses,
-  getOceanArtifactsAdressesByChainId
-} from '../../utils/address.js'
 import axios, { AxiosResponse } from 'axios'
+import { validateSignature } from '../../utils/auth.js'
 
-describe('Should run a complete node flow.', async () => {
+describe('Should run the authentication node flow.', async () => {
   let config: OceanNodeConfig
-  let database: Database
   let previousConfiguration: OverrideEnvConfig[]
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
@@ -33,8 +26,6 @@ describe('Should run a complete node flow.', async () => {
   const publisherAddress = await publisherAccount.getAddress()
 
   before(async () => {
-    // override and save configuration (always before calling getConfig())
-    console.log(`envs: ${JSON.stringify(ENVIRONMENT_VARIABLES)}`)
     previousConfiguration = await setupEnvironment(
       null,
       buildEnvOverrideConfig(
@@ -57,20 +48,16 @@ describe('Should run a complete node flow.', async () => {
       )
     )
     config = await getConfiguration(true)
-    database = await new Database(config.dbConfig)
-
-    //  eslint-disable-next-line no-unused-vars
-    const indexer = new OceanIndexer(database, mockSupportedNetworks)
-
-    let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
-    if (!network) {
-      network = getOceanArtifactsAdresses().development
-    }
   })
 
   it('should authenticate as admin', async () => {
-    const oceanNodeConfig = await getConfiguration(true)
-    const nonce = 1
+    const response: AxiosResponse = await axios.get(
+      `http://localhost:${config.httpPort}/adminList`
+    )
+    assert(response.status === 200, 'http status not 200')
+    assert(response.data.response === true)
+  })
+  it('signature should match', async () => {
     const currentDate = new Date()
     const expiryTimestamp = new Date(
       currentDate.getFullYear() + 1,
@@ -78,25 +65,15 @@ describe('Should run a complete node flow.', async () => {
       currentDate.getDate()
     ).getTime()
 
-    const message = sha256(
-      toUtf8Bytes(nonce.toString() + '-' + expiryTimestamp.toString())
-    )
+    const message = sha256(toUtf8Bytes(expiryTimestamp.toString()))
 
     // Sign the original message directly
     const signature = await (await provider.getSigner()).signMessage(message)
 
-    const payload: any = {
-      nonce,
-      expiryTimestamp,
-      signature
-    }
-    const response: AxiosResponse = await axios.post(
-      `http://localhost:${oceanNodeConfig.httpPort}/admin/auth`,
-      payload
+    assert(
+      validateSignature(expiryTimestamp, signature) === true,
+      'signatures do not match'
     )
-    assert(response.status === 200, 'http status not 200')
-    console.log(`response dataix: ${JSON.stringify(response.data)}`)
-    assert(response.data.response === true)
   })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
