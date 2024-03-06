@@ -16,7 +16,7 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
-import { getEventFromTx } from '../../utils/util.js'
+import { getEventFromTx, sleep } from '../../utils/util.js'
 import { waitToIndex, expectedTimeoutFailure } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import {
@@ -49,6 +49,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   let orderEvent: any
   let reusedOrderEvent: any
   let initialOrderCount: number
+  let indexer: OceanIndexer
   const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
   const serviceIndex = 0 // dummy index
   const consumeMarketFeeAddress = ZeroAddress // marketplace fee Collector
@@ -62,8 +63,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
     database = await new Database(dbConfig)
-    // eslint-disable-next-line no-unused-vars
-    const indexer = new OceanIndexer(database, mockSupportedNetworks)
+    indexer = new OceanIndexer(database, mockSupportedNetworks)
 
     let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!artifactsAddresses) {
@@ -273,6 +273,23 @@ describe('Indexer stores a new metadata events and orders.', () => {
     await mintTx.wait()
     const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
     assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
+    // handle fees
+    // get provider fees in our account as well
+    const providerFeeTokenContract = new Contract(
+      feeData.providerFeeToken,
+      ERC20Template.abi,
+      publisherAccount
+    )
+    const feeMintTx = await providerFeeTokenContract.mint(
+      await consumerAccount.getAddress(),
+      feeData.providerFeeAmount
+    )
+    await feeMintTx.wait()
+
+    const approveTx = await (
+      providerFeeTokenContract.connect(consumerAccount) as any
+    ).approve(await dataTokenContract.getAddress(), feeData.providerFeeAmount)
+    await approveTx.wait()
 
     dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
 
@@ -334,7 +351,26 @@ describe('Indexer stores a new metadata events and orders.', () => {
       'null',
       resolvedDDO.services[0]
     )
+    // handle fees
+    // get provider fees in our account as well
+    const providerFeeTokenContract = new Contract(
+      feeData.providerFeeToken,
+      ERC20Template.abi,
+      publisherAccount
+    )
+    const feeMintTx = await providerFeeTokenContract.mint(
+      await consumerAccount.getAddress(),
+      feeData.providerFeeAmount
+    )
+    await feeMintTx.wait()
 
+    const approveTx = await (
+      providerFeeTokenContract.connect(consumerAccount) as any
+    ).approve(
+      await dataTokenContractWithNewSigner.getAddress(),
+      feeData.providerFeeAmount
+    )
+    await approveTx.wait()
     const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
       orderTxId,
       {
@@ -364,10 +400,12 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should increase number of orders', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    await sleep(2000)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.ORDER_REUSED,
-      DEFAULT_TEST_TIMEOUT * 2
+      DEFAULT_TEST_TIMEOUT * 2,
+      true
     )
     const retrievedDDO: any = ddo
     if (retrievedDDO) {
@@ -421,6 +459,11 @@ describe('Indexer stores a new metadata events and orders.', () => {
     OceanIndexer.addReindexTask(reindexTask)
   })
 
+  it('should get reindex queue', () => {
+    const queue = indexer.getIndexingQueue()
+    expect(queue.length).to.be.greaterThanOrEqual(1)
+  })
+
   it('should store ddo reindex', async function () {
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
@@ -433,5 +476,13 @@ describe('Indexer stores a new metadata events and orders.', () => {
     } else {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     }
+  })
+
+  it('should get empty reindex queue', () => {
+    setTimeout(() => {
+      // needs to wait for indexer task to run at least once
+      const queue = indexer.getIndexingQueue()
+      expect(queue.length).to.be.equal(0)
+    }, DEFAULT_TEST_TIMEOUT / 2)
   })
 })

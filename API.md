@@ -13,10 +13,10 @@ returns ddo state
 #### Query Parameters
 
 | name    | type   | required | description                                            |
-|---------|--------|----------|--------------------------------------------------------|
-| did     | object |         | document id or did                                     |
-| chainId | object |         | chain id of network on which document is provided |
-| nft     | object |         | one or more field names that should be queried against |
+| ------- | ------ | -------- | ------------------------------------------------------ |
+| did     | object |          | document id or did                                     |
+| chainId | object |          | chain id of network on which document is provided      |
+| nft     | object |          | one or more field names that should be queried against |
 
 #### Response
 
@@ -37,7 +37,7 @@ returns search result for query
 #### Parameters
 
 | name     | type   | required | description                                            |
-|----------|--------|----------|--------------------------------------------------------|
+| -------- | ------ | -------- | ------------------------------------------------------ |
 | q        | object | v        | text to search for in database                         |
 | query_by | object | v        | one or more field names that should be queried against |
 
@@ -147,7 +147,7 @@ returns stored nonce for an address
 #### Query Parameters
 
 | name        | type   | required | description |
-|-------------|--------|----------|-------------|
+| ----------- | ------ | -------- | ----------- |
 | userAddress | string | v        | address     |
 
 #### Response
@@ -169,7 +169,7 @@ returns amount of tokens to transfer to the provider account
 #### Query Parameters
 
 | name            | type   | required | description                                    |
-|-----------------|--------|----------|------------------------------------------------|
+| --------------- | ------ | -------- | ---------------------------------------------- |
 | documentId      | string | v        | document id or did                             |
 | serviceId       | string | v        | id of the service the datatoken is attached to |
 | consumerAddress | string | v        | consumer address                               |
@@ -228,7 +228,7 @@ returns decrypted document
 #### Parameters
 
 | name              | type   | required | description                                                                                   |
-|-------------------|--------|----------|-----------------------------------------------------------------------------------------------|
+| ----------------- | ------ | -------- | --------------------------------------------------------------------------------------------- |
 | decrypterAddress  | string | v        | decrypter address                                                                             |
 | chainId           | number | v        | chain id of network on which document is provided                                             |
 | transactionId     | string |          | tx id of encrypted document                                                                   |
@@ -281,7 +281,7 @@ returns file information
 #### Parameters
 
 | name      | type   | required | description                              |
-|-----------|--------|----------|------------------------------------------|
+| --------- | ------ | -------- | ---------------------------------------- |
 | type      | string |          | type of storage `url or arweave or ipfs` |
 | did       | string |          | document id or did                       |
 | serviceId | number |          | service id of services list              |
@@ -329,7 +329,7 @@ returns a file stream of the requested file
 #### Query Parameters
 
 | name              | type   | required | description                                                                              |
-|-------------------|--------|----------|------------------------------------------------------------------------------------------|
+| ----------------- | ------ | -------- | ---------------------------------------------------------------------------------------- |
 | fileIndex         | number | v        | file index in the list of document files                                                 |
 | documentId        | string | v        | document id or did                                                                       |
 | serviceId         | string | v        | service id of array of services defining access to the asset                             |
@@ -380,7 +380,7 @@ returns list of logs
 #### Query Parameters
 
 | name       | type   | required | description                |
-|------------|--------|----------|----------------------------|
+| ---------- | ------ | -------- | -------------------------- |
 | startTime  | string |          | filter logs from date      |
 | endTime    | string |          | filter logs to date        |
 | maxLogs    | string |          | logs per page              |
@@ -415,7 +415,7 @@ returns an empty if command is valid
 #### Parameters
 
 | name    | type   | required | description                  |
-|---------|--------|----------|------------------------------|
+| ------- | ------ | -------- | ---------------------------- |
 | command | string | v        | command name                 |
 | ...     | any    |          | any other command parameters |
 
@@ -441,7 +441,7 @@ returns empty if advertising did around peers was successful
 #### Query Parameters
 
 | name | type   | required | description        |
-|------|--------|----------|--------------------|
+| ---- | ------ | -------- | ------------------ |
 | did  | string | v        | document id or did |
 
 ---
@@ -457,7 +457,7 @@ returns P2P peer
 #### Query Parameters
 
 | name   | type   | required | description |
-|--------|--------|----------|-------------|
+| ------ | ------ | -------- | ----------- |
 | peerId | string | v        | peer id     |
 
 #### Response
@@ -528,7 +528,7 @@ returns an empty object if it is valid otherwise an array with error
 #### Parameters
 
 | name       | type   | required | description                                       |
-|------------|--------|----------|---------------------------------------------------|
+| ---------- | ------ | -------- | ------------------------------------------------- |
 | command    | string | v        | command name                                      |
 | node       | string |          | if not present it means current node              |
 | id         | string | v        | document id or did                                |
@@ -562,7 +562,7 @@ returns file information
 #### Parameters
 
 | name      | type   | required | description                              |
-|-----------|--------|----------|------------------------------------------|
+| --------- | ------ | -------- | ---------------------------------------- |
 | command   | string | v        | command name                             |
 | node      | string |          | if not present it means current node     |
 | type      | string |          | type of storage `url or arweave or ipfs` |
@@ -616,7 +616,7 @@ returns a message about successful addition to the reindexing queue
 #### Parameters
 
 | name       | type   | required | description                                          |
-|------------|--------|----------|------------------------------------------------------|
+| ---------- | ------ | -------- | ---------------------------------------------------- |
 | command    | string | v        | command name                                         |
 | node       | string |          | if not present it means current node                 |
 | txId       | string | v        | id of transaction for reindexing                     |
@@ -656,7 +656,7 @@ returns calculated provider fees for DDO with service id
 #### Parameters
 
 | name      | type   | required | description                          |
-|-----------|--------|----------|--------------------------------------|
+| --------- | ------ | -------- | ------------------------------------ |
 | command   | string | v        | command name                         |
 | node      | string |          | if not present it means current node |
 | ddo       | object | v        | document object                      |
@@ -669,9 +669,7 @@ returns calculated provider fees for DDO with service id
   "command": "getFees",
   "node": "PeerId",
   "ddo": {
-    "@context": [
-      "https://w3id.org/did/v1"
-    ],
+    "@context": ["https://w3id.org/did/v1"],
     "id": "did:op:ACce67694eD2848dd683c651Dab7Af823b7dd123",
     "version": "4.1.0",
     "chainId": 1,
@@ -714,7 +712,7 @@ returns list of providers from which ddo can be obtained
 #### Parameters
 
 | name    | type   | required | description                          |
-|---------|--------|----------|--------------------------------------|
+| ------- | ------ | -------- | ------------------------------------ |
 | command | string | v        | command name                         |
 | node    | string |          | if not present it means current node |
 | id      | string | v        | document id or did                   |
@@ -757,7 +755,7 @@ returns status of node
 #### Parameters
 
 | name    | type   | required | description                          |
-|---------|--------|----------|--------------------------------------|
+| ------- | ------ | -------- | ------------------------------------ |
 | command | string | v        | command name                         |
 | node    | string |          | if not present it means current node |
 
@@ -819,7 +817,7 @@ returns search result for query
 #### Parameters
 
 | name           | type   | required | description                                            |
-|----------------|--------|----------|--------------------------------------------------------|
+| -------------- | ------ | -------- | ------------------------------------------------------ |
 | command        | string | v        | command name                                           |
 | node           | string |          | if not present it means current node                   |
 | query          | object | v        | query parameters                                       |
@@ -891,7 +889,7 @@ returns document by id
 #### Parameters
 
 | name    | type   | required | description                          |
-|---------|--------|----------|--------------------------------------|
+| ------- | ------ | -------- | ------------------------------------ |
 | command | string | v        | command name                         |
 | node    | string |          | if not present it means current node |
 | id      | string | v        | document id or did                   |
@@ -934,7 +932,7 @@ returns encrypted blob
 #### Parameters
 
 | name           | type   | required | description                          |
-|----------------|--------|----------|--------------------------------------|
+| -------------- | ------ | -------- | ------------------------------------ |
 | command        | string | v        | command name                         |
 | node           | string |          | if not present it means current node |
 | blob           | string | v        | blob data                            |
@@ -974,7 +972,7 @@ returns stored nonce for an address
 #### Parameters
 
 | name    | type   | required | description                          |
-|---------|--------|----------|--------------------------------------|
+| ------- | ------ | -------- | ------------------------------------ |
 | command | string | v        | command name                         |
 | node    | string |          | if not present it means current node |
 | address | string | v        | consumer address                     |
@@ -1010,7 +1008,7 @@ returns decrypted document
 #### Parameters
 
 | name              | type   | required | description                                                                                   |
-|-------------------|--------|----------|-----------------------------------------------------------------------------------------------|
+| ----------------- | ------ | -------- | --------------------------------------------------------------------------------------------- |
 | command           | string | v        | command name                                                                                  |
 | node              | string |          | if not present it means current node                                                          |
 | decrypterAddress  | string | v        | decrypter address                                                                             |
@@ -1069,7 +1067,7 @@ returns a file stream of the requested file
 #### Parameters
 
 | name              | type   | required | description                                                                              |
-|-------------------|--------|----------|------------------------------------------------------------------------------------------|
+| ----------------- | ------ | -------- | ---------------------------------------------------------------------------------------- |
 | command           | string | v        | command name                                                                             |
 | node              | string |          | if not present it means current node                                                     |
 | fileIndex         | number | v        | file index in the list of document files                                                 |
@@ -1119,7 +1117,7 @@ returns OK
 #### Parameters
 
 | name    | type   | required | description                          |
-|---------|--------|----------|--------------------------------------|
+| ------- | ------ | -------- | ------------------------------------ |
 | command | string | v        | command name                         |
 | node    | string |          | if not present it means current node |
 
@@ -1136,4 +1134,20 @@ returns OK
 
 ```
 OK
+```
+
+## Get indexing queue
+
+### `HTTP` GET /api/services/indexQueue
+
+#### Description
+
+returns the current indexing queue, as an array of objects
+
+#### Response
+
+```
+{
+  queue: []
+}
 ```
