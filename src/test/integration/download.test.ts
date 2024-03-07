@@ -1,5 +1,5 @@
 import { expect, assert } from 'chai'
-import { JsonRpcProvider, Signer, ethers } from 'ethers'
+import { JsonRpcProvider, Signer, ethers, sha256, toUtf8Bytes } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -37,6 +37,7 @@ import {
 } from '../../utils/address.js'
 import { publishAsset, orderAsset } from '../utils/assets.js'
 import { downloadAsset } from '../data/assets.js'
+import { validateSignature } from '../../utils/auth.js'
 
 describe('Should run a complete node flow.', async () => {
   let config: OceanNodeConfig
@@ -111,6 +112,25 @@ describe('Should run a complete node flow.', async () => {
     const status = JSON.parse(resp)
     assert(status.id === oceanNodeConfig.keys.peerId.toString(), 'peer id not matching ')
     assert(status.allowedAdmins)
+  })
+
+  it('signature should match', async () => {
+    const currentDate = new Date()
+    const expiryTimestamp = new Date(
+      currentDate.getFullYear() + 1,
+      currentDate.getMonth(),
+      currentDate.getDate()
+    ).getTime()
+
+    const message = sha256(toUtf8Bytes(expiryTimestamp.toString()))
+
+    // Sign the original message directly
+    const signature = await (await provider.getSigner()).signMessage(message)
+
+    assert(
+      validateSignature(expiryTimestamp, signature) === true,
+      'signatures do not match'
+    )
   })
 
   it('should get file info before publishing', async () => {
