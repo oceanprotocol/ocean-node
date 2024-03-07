@@ -47,7 +47,7 @@ export interface OceanNodeConfig {
   c2dClusters: C2DClusterInfo[]
   accountPurgatoryUrl: string
   assetPurgatoryUrl: string
-  allowedAdmins?: string[]
+  allowedAdmins?: string
   codeHash?: string
 }
 

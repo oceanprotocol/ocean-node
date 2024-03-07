@@ -30,10 +30,9 @@ export async function status(
   const { indexer: indexerDatabase } = oceanNode.getDatabase()
   const validAddresses = []
   if (config.allowedAdmins) {
-    for (const admin of config.allowedAdmins) {
+    for (const admin of JSON.parse(config.allowedAdmins)) {
       CORE_LOGGER.logMessage(`admin: ${admin}`)
-      // eslint-disable-next-line eqeqeq
-      if (regex.test(admin) == true) {
+      if (regex.test(admin) === true) {
         validAddresses.push(admin)
       }
     }

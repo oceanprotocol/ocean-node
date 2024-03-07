@@ -111,6 +111,7 @@ describe('Should run a complete node flow.', async () => {
     const resp = await streamToString(response.stream as Readable)
     const status = JSON.parse(resp)
     assert(status.id === oceanNodeConfig.keys.peerId.toString(), 'peer id not matching ')
+    // test allowedAdmins
     assert(status.allowedAdmins)
   })
 
