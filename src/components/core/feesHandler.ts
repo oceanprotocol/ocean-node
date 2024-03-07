@@ -10,10 +10,15 @@ import {
   buildInvalidParametersResponse,
   validateCommandParameters
 } from '../httpRoutes/validateCommands.js'
+import { validateDDOIdentifier } from './ddoHandler.js'
 
 export class FeesHandler extends Handler {
   validate(command: GetFeesCommand): ValidateParams {
-    return validateCommandParameters(command, ['ddo', 'serviceId'])
+    let validation = validateCommandParameters(command, ['ddoId', 'serviceId'])
+    if (validation.valid) {
+      validation = validateDDOIdentifier(command.ddoId)
+    }
+    return validation
   }
 
   async handle(task: GetFeesCommand): Promise<P2PCommandResponse> {
