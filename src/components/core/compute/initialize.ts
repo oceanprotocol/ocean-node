@@ -78,22 +78,24 @@ export class ComputeInitializeHandler extends Handler {
               }
             }
           }
-          if (service.type === 'compute') {
-            // we need to make sure that we are the publishers
-            // so we try to decrypt
-            try {
-              await decrypt(
-                Uint8Array.from(Buffer.from(service.files, 'hex')),
-                EncryptMethod.ECIES
-              )
-            } catch (e) {
-              const error = `Service ${elem.serviceId} from DDO ${elem.documentId} cannot be used in compute on this provider`
-              return {
-                stream: null,
-                status: {
-                  httpStatus: 500,
-                  error
-                }
+          // let's see if we can access this asset
+          let canDecrypt = false
+          try {
+            await decrypt(
+              Uint8Array.from(Buffer.from(service.files, 'hex')),
+              EncryptMethod.ECIES
+            )
+            canDecrypt = true
+          } catch (e) {
+            // do nothing
+          }
+          if (service.type === 'compute' && !canDecrypt) {
+            const error = `Service ${elem.serviceId} from DDO ${elem.documentId} cannot be used in compute on this provider`
+            return {
+              stream: null,
+              status: {
+                httpStatus: 500,
+                error
               }
             }
           }
@@ -157,25 +159,30 @@ export class ComputeInitializeHandler extends Handler {
             } else {
               bestValidUntil = Math.min(now + service.timeout, task.compute.validUntil)
             }
-            if (foundValidCompute) {
-              // we already have a valid compute fee with another asset, so we just need to create regular
-              // TO DO:  Edge case when this asset is served by a remote provider.
-              // We should connect to that provider and get the fee
-              result.providerFee = await createProviderFee(
-                ddo,
-                service,
-                bestValidUntil,
-                null,
-                null
-              )
+            if (foundValidCompute || !canDecrypt) {
+              // we already have a valid compute fee with another asset, or it's an asset not served by us
+              // in any case, we need an access providerFee
+              if (canDecrypt) {
+                result.providerFee = await createProviderFee(
+                  ddo,
+                  service,
+                  bestValidUntil,
+                  null,
+                  null
+                )
+              } else {
+                // TO DO:  Edge case when this asset is served by a remote provider.
+                // We should connect to that provider and get the fee
+              }
             } else {
               // we need to create a compute fee
+              // we can only create computeFee if the asset is ours..
               result.providerFee = await createProviderFee(
                 ddo,
                 service,
                 bestValidUntil,
                 env,
-                task.compute.validUntil
+                validUntil
               )
               foundValidCompute = { txId: null, chainId: ddo.chainId }
             }

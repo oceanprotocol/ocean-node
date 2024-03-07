@@ -397,7 +397,7 @@ describe('Compute', () => {
     )
     assert(result.datasets[0].validOrder !== false, 'We should have a valid order') // because we started an order earlier
   })
-  it('should start a compute job', async () => {
+  it('should fail to start a compute job', async () => {
     const nonce = Date.now().toString()
     const message = String(nonce)
     // sign message/nonce
@@ -429,6 +429,43 @@ describe('Compute', () => {
     }
     const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
     assert(response, 'Failed to get response')
+    // should fail, because txId '0x123' is not a valid order
+    assert(response.status.httpStatus === 500, 'Failed to get 500 response')
+    assert(!response.stream, 'We should not have a stream')
+  })
+  it('should start a compute job', async () => {
+    const nonce = Date.now().toString()
+    const message = String(nonce)
+    // sign message/nonce
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await wallet.signMessage(messageHashBytes)
+    const startComputeTask: ComputeStartCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_START,
+      consumerAddress: await wallet.getAddress(),
+      signature,
+      nonce,
+      environment: computeEnvironments[0].id,
+      dataset: {
+        documentId: publishedComputeDataset.ddo.id,
+        serviceId: publishedComputeDataset.ddo.services[0].id,
+        transferTxId: datasetOrderTxId
+      },
+      algorithm: {
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: algoOrderTxId,
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      }
+      // additionalDatasets?: ComputeAsset[]
+      // output?: ComputeOutput
+    }
+    const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
+    assert(response, 'Failed to get response')
+    // should fail, because txId '0x123' is not a valid order
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
