@@ -6,8 +6,7 @@ import { getDefaultLevel } from '../../utils/logging/Logger.js'
 
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { hasP2PInterface, sendMissingP2PResponse } from './index.js'
-import { Handler } from '../core/handler'
-import { validateCommandParameters } from './validateCommands'
+import { validateCommandParameters } from './validateCommands.js'
 
 export const broadcastCommandRoute = express.Router()
 
