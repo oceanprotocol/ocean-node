@@ -117,10 +117,6 @@ describe('Should run a complete node flow.', () => {
       status.allowedAdmins[0] === '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260',
       'incorrect allowed admin publisherAddress'
     )
-    // assert(
-    //   status.allowedAdmins[1] === consumerAddress,
-    //   'incorrect allowed admin consumerAddress'
-    // )
   })
 
   it('signature should match', async () => {
@@ -134,7 +130,7 @@ describe('Should run a complete node flow.', () => {
     const message = sha256(toUtf8Bytes(expiryTimestamp.toString()))
 
     // Sign the original message directly
-    const signature = await (await provider.getSigner()).signMessage(message)
+    const signature = await publisherAccount.signMessage(message)
 
     assert(
       validateSignature(expiryTimestamp, signature) === true,

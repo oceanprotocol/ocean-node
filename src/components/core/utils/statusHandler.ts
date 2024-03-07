@@ -5,23 +5,11 @@ import {
   OceanNodeProvider,
   OceanNodeIndexer,
   StorageTypes
-  // OceanNodeConfig
 } from '../../../@types/OceanNode.js'
 import { existsEnvironmentVariable, getConfiguration } from '../../../utils/index.js'
 import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
-
-// function getValidAllowedAdmins(config: OceanNodeConfig): string[] {
-//   const validAddresses = []
-//   const regex: RegExp = /^(0x)?[0-9a-fA-F]{40}$/
-//   for (const admin of JSON.parse(config.allowedAdmins)) {
-//     if (regex.test(admin) === true) {
-//       validAddresses.push(admin)
-//     }
-//   }
-//   return validAddresses
-// }
 
 export async function status(
   oceanNode: OceanNode,
