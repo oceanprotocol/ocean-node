@@ -43,7 +43,9 @@ export function validateCommandParameters(
     ) {
       return {
         valid: false,
-        reason: `Missing one or more required field(s) for command: ${commandStr} : ${requiredFields}`
+        reason: `Missing one ( "${field}" ) or more required field(s) for command: "${commandStr}". Required fields: ${JSON.stringify(
+          requiredFields
+        )}`
       }
     }
   }

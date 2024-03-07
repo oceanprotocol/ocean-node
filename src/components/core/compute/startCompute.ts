@@ -3,16 +3,41 @@ import { P2PCommandResponse } from '../../../@types/index.js'
 import { ComputeAsset } from '../../../@types/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler.js'
-import { Command, ComputeStartCommand } from '../../../@types/commands.js'
+import { ComputeStartCommand } from '../../../@types/commands.js'
 import { C2DEngine } from '../../c2d/compute_engines.js'
-import { ValidateParams } from '../../httpRoutes/validateCommands.js'
+import {
+  ValidateParams,
+  buildInvalidParametersResponse,
+  buildInvalidRequestMessage,
+  validateCommandParameters
+} from '../../httpRoutes/validateCommands.js'
+import { isAddress } from 'ethers'
 
 export class ComputeStartHandler extends Handler {
-  validate(command: Command): ValidateParams {
-    throw new Error('Method not implemented.')
+  validate(command: ComputeStartCommand): ValidateParams {
+    const commandValidation = validateCommandParameters(command, [
+      'chaindId',
+      'datasets',
+      'algorithm',
+      'compute',
+      'environment',
+      'consumerAddress'
+    ])
+    if (commandValidation.valid) {
+      if (!isAddress(command.consumerAddress)) {
+        return buildInvalidRequestMessage(
+          'Parameter : "consumerAddress" is not a valid web3 address'
+        )
+      }
+    }
+    return commandValidation
   }
 
   async handle(task: ComputeStartCommand): Promise<P2PCommandResponse> {
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
     try {
       CORE_LOGGER.logMessage(
         'ComputeStartCommand received with arguments: ' + JSON.stringify(task, null, 2),
@@ -20,16 +45,6 @@ export class ComputeStartHandler extends Handler {
       )
       // split compute env (which is already in hash-envId format) and get the hash
       // then get env which might contain dashes as well
-      if (!task.environment) {
-        CORE_LOGGER.logMessage(`Invalid compute environment: ${task.environment}`, true)
-        return {
-          stream: null,
-          status: {
-            httpStatus: 400,
-            error: `Invalid compute environment: ${task.environment}`
-          }
-        }
-      }
       const index = task.environment.indexOf('-')
       const hash = task.environment.slice(0, index)
       const envId = task.environment.slice(index + 1)

@@ -17,7 +17,7 @@ import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { Blockchain } from '../../utils/blockchain.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import { getOceanArtifactsAdressesByChainId } from '../../utils/address.js'
-import { ethers } from 'ethers'
+import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { decrypt, create256Hash } from '../../utils/crypt.js'
 import lzma from 'lzma-native'
@@ -34,6 +34,7 @@ import { EncryptMethod } from '../../@types/fileObject.js'
 import {
   ValidateParams,
   buildInvalidParametersResponse,
+  buildInvalidRequestMessage,
   validateCommandParameters
 } from '../httpRoutes/validateCommands.js'
 
@@ -45,9 +46,17 @@ const MAX_WAIT_TIME_SECONDS_GET_DDO = 5
 
 export class DecryptDdoHandler extends Handler {
   validate(command: DecryptDDOCommand): ValidateParams {
-    return validateCommandParameters(command, [
+    const validation = validateCommandParameters(command, [
       'decrypterAddress","chainId","nonce","signature'
     ])
+    if (validation.valid) {
+      if (!isAddress(command.decrypterAddress)) {
+        return buildInvalidRequestMessage(
+          'Parameter : "decrypterAddress" is not a valid web3 address'
+        )
+      }
+    }
+    return validation
   }
 
   async handle(task: DecryptDDOCommand): Promise<P2PCommandResponse> {
