@@ -31,18 +31,17 @@ export async function status(
   const validAddresses = []
   if (config.allowedAdmins) {
     for (const admin of config.allowedAdmins) {
-      if (regex.test(admin) === true) {
+      CORE_LOGGER.logMessage(`admin: ${admin}`)
+      // eslint-disable-next-line eqeqeq
+      if (regex.test(admin) == true) {
         validAddresses.push(admin)
-        CORE_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_ERROR,
-          `Invalid format for ETH address from ALLOWED ADMINS.`
-        )
-      } else {
-        CORE_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_ERROR,
-          `Invalid format for ETH address from ALLOWED ADMINS.`
-        )
       }
+    }
+    if (validAddresses.length === 0) {
+      CORE_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `Invalid format for ETH address from ALLOWED ADMINS.`
+      )
     }
   }
 
