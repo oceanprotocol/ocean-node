@@ -52,9 +52,7 @@ export function validateCommandParameters(
       return {
         valid: false,
         status: 400,
-        reason: `Missing one ( "${field}" ) or more required field(s) for command: "${commandStr}". Required fields: ${JSON.stringify(
-          requiredFields
-        )}`
+        reason: `Missing one ( "${field}" ) or more required field(s) for command: "${commandStr}". Required fields: ${requiredFields}`
       }
     }
   }
