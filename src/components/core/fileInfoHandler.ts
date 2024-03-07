@@ -20,7 +20,7 @@ import {
   ValidateParams,
   buildInvalidParametersResponse,
   validateCommandParameters
-} from '../httpRoutes/validateCommands'
+} from '../httpRoutes/validateCommands.js'
 
 async function getFile(
   did: string,
