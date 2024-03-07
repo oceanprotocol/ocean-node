@@ -175,16 +175,14 @@ describe('Should encrypt and decrypt DDO', () => {
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
-    expect(response.status.error).to.include(
-      `required field(s) for command: "${PROTOCOL_COMMANDS.DECRYPT_DDO}"`
-    )
+    expect(response.status.error).to.include('Decrypt DDO: Unsupported chain id')
   })
 
   it('should return error duplicate nonce', async () => {
     const decryptDDOTask: DecryptDDOCommand = {
       command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: publisherAddress,
-      chainId: 123,
+      chainId: 8996,
       nonce,
       signature: '0x123'
     }
