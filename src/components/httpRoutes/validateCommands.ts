@@ -1,7 +1,6 @@
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Command } from '../../@types/commands.js'
 import { SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { isDevelopmentEnvironment } from '../../utils/logging/Logger.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 export type ValidateParams = {
@@ -37,12 +36,9 @@ export function validateCommandParameters(
     return buildInvalidRequestMessage(`Invalid or unrecognized command: "${commandStr}"`)
   }
 
-  if (isDevelopmentEnvironment()) {
-    CORE_LOGGER.debug(
-      `Checking received command data for Command "${commandStr}": ${commandData}`
-    )
-  }
-  console.log('received data:', commandData)
+  CORE_LOGGER.info(
+    `Checking received command data for Command "${commandStr}": ${commandData}`
+  )
 
   for (const field of requiredFields) {
     if (

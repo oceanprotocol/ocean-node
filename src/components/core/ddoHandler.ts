@@ -49,6 +49,7 @@ export class DecryptDdoHandler extends Handler {
     const validation = validateCommandParameters(command, [
       'decrypterAddress","chainId","nonce","signature'
     ])
+    console.log('validation:', validation)
     if (validation.valid) {
       if (!isAddress(command.decrypterAddress)) {
         return buildInvalidRequestMessage(
@@ -64,6 +65,7 @@ export class DecryptDdoHandler extends Handler {
     if (!validation.valid) {
       return buildInvalidParametersResponse(validation)
     }
+    console.log('on handle', task)
 
     try {
       let decrypterAddress: string
