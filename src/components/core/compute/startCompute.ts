@@ -16,12 +16,12 @@ import { isAddress } from 'ethers'
 export class ComputeStartHandler extends Handler {
   validate(command: ComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
-      'chaindId',
-      'datasets',
-      'algorithm',
-      'compute',
+      'consumerAddress',
+      'signature',
+      'nonce',
       'environment',
-      'consumerAddress'
+      'algorithm',
+      'dataset'
     ])
     if (commandValidation.valid) {
       if (!isAddress(command.consumerAddress)) {
