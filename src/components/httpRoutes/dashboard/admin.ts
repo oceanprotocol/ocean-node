@@ -19,6 +19,7 @@ adminRoutes.get(`/adminList`, async (req, res) => {
       })
     }
 
+    const validAddresses = []
     for (const address of config.allowedAdmins) {
       // should we return the good ones instead?
       if (regex.test(address) === false) {
@@ -29,11 +30,19 @@ adminRoutes.get(`/adminList`, async (req, res) => {
         res.status(400).send({
           response: []
         })
+      } else {
+        validAddresses.push(address)
       }
     }
-    res.status(200).send({
-      response: config.allowedAdmins
-    })
+    if (validAddresses.length === 0) {
+      res.status(400).send({
+        response: []
+      })
+    } else {
+      res.status(200).send({
+        response: validAddresses
+      })
+    }
   } catch (error) {
     HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send(`Internal Server Error: ${error}`)
