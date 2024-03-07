@@ -112,7 +112,15 @@ describe('Should run a complete node flow.', async () => {
     const status = JSON.parse(resp)
     assert(status.id === oceanNodeConfig.keys.peerId.toString(), 'peer id not matching ')
     // test allowedAdmins
-    assert(status.allowedAdmins)
+    assert(status.allowedAdmins.length === 2, 'incorrect length')
+    assert(
+      status.allowedAdmins[0] === publisherAddress,
+      'incorrect allowed admin publisherAddress'
+    )
+    assert(
+      status.allowedAdmins[1] === consumerAddress,
+      'incorrect allowed admin consumerAddress'
+    )
   })
 
   it('signature should match', async () => {

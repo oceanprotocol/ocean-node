@@ -4,13 +4,24 @@ import {
   OceanNodeStatus,
   OceanNodeProvider,
   OceanNodeIndexer,
-  StorageTypes
+  StorageTypes,
+  OceanNodeConfig
 } from '../../../@types/OceanNode.js'
 import { existsEnvironmentVariable, getConfiguration } from '../../../utils/index.js'
 import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
 const regex: RegExp = /^(0x)?[0-9a-fA-F]{40}$/
+
+function getValidAllowedAdmins(config: OceanNodeConfig): string[] {
+  const validAddresses = []
+  for (const admin of JSON.parse(config.allowedAdmins)) {
+    if (regex.test(admin) === true) {
+      validAddresses.push(admin)
+    }
+  }
+  return validAddresses
+}
 
 export async function status(
   oceanNode: OceanNode,
@@ -28,21 +39,6 @@ export async function status(
   }
   const config = await getConfiguration()
   const { indexer: indexerDatabase } = oceanNode.getDatabase()
-  const validAddresses = []
-  if (config.allowedAdmins) {
-    for (const admin of JSON.parse(config.allowedAdmins)) {
-      CORE_LOGGER.logMessage(`admin: ${admin}`)
-      if (regex.test(admin) === true) {
-        validAddresses.push(admin)
-      }
-    }
-    if (validAddresses.length === 0) {
-      CORE_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `Invalid format for ETH address from ALLOWED ADMINS.`
-      )
-    }
-  }
 
   const status: OceanNodeStatus = {
     id: undefined,
@@ -68,8 +64,17 @@ export async function status(
       osVersion: os.version(),
       node: process.version
     },
-    codeHash: config.codeHash,
-    allowedAdmins: validAddresses.length > 0 ? validAddresses : []
+    codeHash: config.codeHash
+  }
+  if (config.allowedAdmins) {
+    const validAddresses = getValidAllowedAdmins(config)
+    if (validAddresses.length === 0) {
+      CORE_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `Invalid format for ETH address from ALLOWED ADMINS.`
+      )
+    }
+    status.allowedAdmins = validAddresses
   }
   if (nodeId && nodeId !== undefined) {
     status.id = nodeId
