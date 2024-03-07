@@ -127,6 +127,7 @@ describe('Compute', () => {
       getEnvironmentsTask
     )
     assert(response, 'Failed to get response')
+    console.log('response', response)
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
