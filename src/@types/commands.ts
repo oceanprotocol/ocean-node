@@ -78,7 +78,7 @@ export interface DecryptDDOCommand extends Command {
 
 export interface EncryptCommand extends Command {
   blob: string
-  encoding: string
+  encoding?: string
   encryptionType?: EncryptMethod.AES | EncryptMethod.ECIES
 }
 

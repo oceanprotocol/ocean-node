@@ -23,11 +23,14 @@ export const SUPPORTED_ENCRYPTION_METHODS = [
 
 export class EncryptHandler extends Handler {
   validate(command: EncryptCommand): ValidateParams {
-    const commandValidation = validateCommandParameters(command, ['blob', 'encoding'])
+    const commandValidation = validateCommandParameters(command, ['blob'])
     if (!commandValidation.valid) {
       return commandValidation
     }
 
+    if (!command.encoding) {
+      command.encoding = 'string'
+    }
     if (!command.encryptionType) {
       command.encryptionType = EncryptMethod.ECIES // defaults to ECIES encryption
     }
