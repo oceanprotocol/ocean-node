@@ -42,6 +42,7 @@ export function validateCommandParameters(
       `Checking received command data for Command "${commandStr}": ${commandData}`
     )
   }
+  console.log('received data:', commandData)
 
   for (const field of requiredFields) {
     if (
