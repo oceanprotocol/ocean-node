@@ -35,14 +35,17 @@ export function validateCommandParameters(
     return buildInvalidRequestMessage(`Invalid or unrecognized command: "${commandStr}"`)
   }
 
+  console.log('commad data:', commandData)
+
   for (const field of requiredFields) {
     if (
       !Object.hasOwn(commandData as Command, field) ||
-      commandData.field === undefined ||
-      commandData.field === null
+      commandData[field] === undefined ||
+      commandData[field] === null
     ) {
       return {
         valid: false,
+        status: 400,
         reason: `Missing one ( "${field}" ) or more required field(s) for command: "${commandStr}". Required fields: ${JSON.stringify(
           requiredFields
         )}`
