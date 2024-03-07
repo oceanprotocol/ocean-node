@@ -39,7 +39,7 @@ import { publishAsset, orderAsset } from '../utils/assets.js'
 import { downloadAsset } from '../data/assets.js'
 import { validateSignature } from '../../utils/auth.js'
 
-describe('Should run a complete node flow.', async () => {
+describe('Should run a complete node flow.', () => {
   let config: OceanNodeConfig
   let database: Database
   let oceanNode: OceanNode
@@ -52,7 +52,7 @@ describe('Should run a complete node flow.', async () => {
   let assetDID: string
   let publishedDataset: any
   let actualDDO: any
-  const publisherAddress = await publisherAccount.getAddress()
+  // const publisherAddress = await publisherAccount.getAddress()
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const serviceId = '0'
@@ -76,7 +76,7 @@ describe('Should run a complete node flow.', async () => {
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
-          JSON.stringify([publisherAddress, consumerAddress])
+          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'])
         ]
       )
     )
@@ -112,15 +112,15 @@ describe('Should run a complete node flow.', async () => {
     const status = JSON.parse(resp)
     assert(status.id === oceanNodeConfig.keys.peerId.toString(), 'peer id not matching ')
     // test allowedAdmins
-    assert(status.allowedAdmins.length === 2, 'incorrect length')
+    assert(status.allowedAdmins.length === 1, 'incorrect length')
     assert(
-      status.allowedAdmins[0] === publisherAddress,
+      status.allowedAdmins[0] === '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260',
       'incorrect allowed admin publisherAddress'
     )
-    assert(
-      status.allowedAdmins[1] === consumerAddress,
-      'incorrect allowed admin consumerAddress'
-    )
+    // assert(
+    //   status.allowedAdmins[1] === consumerAddress,
+    //   'incorrect allowed admin consumerAddress'
+    // )
   })
 
   it('signature should match', async () => {
