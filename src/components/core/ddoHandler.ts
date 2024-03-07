@@ -47,9 +47,11 @@ const MAX_WAIT_TIME_SECONDS_GET_DDO = 5
 export class DecryptDdoHandler extends Handler {
   validate(command: DecryptDDOCommand): ValidateParams {
     const validation = validateCommandParameters(command, [
-      'decrypterAddress","chainId","nonce","signature'
+      'decrypterAddress',
+      'chainId',
+      'nonce',
+      'signature'
     ])
-    console.log('validation:', validation)
     if (validation.valid) {
       if (!isAddress(command.decrypterAddress)) {
         return buildInvalidRequestMessage(
@@ -65,7 +67,6 @@ export class DecryptDdoHandler extends Handler {
     if (!validation.valid) {
       return buildInvalidParametersResponse(validation)
     }
-    console.log('on handle', task)
 
     try {
       let decrypterAddress: string
