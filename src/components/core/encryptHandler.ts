@@ -23,30 +23,23 @@ export const SUPPORTED_ENCRYPTION_METHODS = [
 
 export class EncryptHandler extends Handler {
   validate(command: EncryptCommand): ValidateParams {
-    const commandValidation = validateCommandParameters(command, ['blob'])
+    const commandValidation = validateCommandParameters(command, ['blob', 'encoding'])
     if (!commandValidation.valid) {
       return commandValidation
     }
 
-    if (!command.encoding) {
-      command.encoding = 'string' // defaults to string
-    }
     if (!command.encryptionType) {
       command.encryptionType = EncryptMethod.ECIES // defaults to ECIES encryption
     }
 
     if (!SUPPORTED_ENCRYPTION_ENCODINGS.includes(command.encoding.toLowerCase())) {
       return buildInvalidRequestMessage(
-        `Invalid parameter: "encoding" must be one of: ${JSON.stringify(
-          SUPPORTED_ENCRYPTION_ENCODINGS
-        )}`
+        `Invalid parameter: "encoding" must be one of: ${SUPPORTED_ENCRYPTION_ENCODINGS}`
       )
     }
     if (!SUPPORTED_ENCRYPTION_METHODS.includes(command.encryptionType.toUpperCase())) {
       return buildInvalidRequestMessage(
-        `Invalid parameter: "encryptionType" must be one of: ${JSON.stringify(
-          SUPPORTED_ENCRYPTION_ENCODINGS
-        )}`
+        `Invalid parameter: "encryptionType" must be one of: ${SUPPORTED_ENCRYPTION_ENCODINGS}`
       )
     }
   }
@@ -84,10 +77,16 @@ export class EncryptHandler extends Handler {
 
 export class EncryptFileHandler extends Handler {
   validate(command: EncryptFileCommand): ValidateParams {
-    const validateCommand = validateCommandParameters(command, ['encryptionType'])
+    const validateCommand = validateCommandParameters(command, [])
     if (validateCommand.valid) {
       if (!command.encryptionType) {
-        command.encryptionType = EncryptMethod.AES
+        command.encryptionType = EncryptMethod.AES // defaults to AES
+      }
+
+      if (!command.files && !command.rawData) {
+        return buildInvalidRequestMessage(
+          'Invalid request: Missing data to encrypt, use one of ["files","rawData"]'
+        )
       }
 
       if (!SUPPORTED_ENCRYPTION_METHODS.includes(command.encryptionType.toUpperCase())) {

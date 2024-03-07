@@ -79,11 +79,11 @@ export interface DecryptDDOCommand extends Command {
 export interface EncryptCommand extends Command {
   blob: string
   encoding: string
-  encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
+  encryptionType?: EncryptMethod.AES | EncryptMethod.ECIES
 }
 
 export interface EncryptFileCommand extends Command {
-  encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
+  encryptionType?: EncryptMethod.AES | EncryptMethod.ECIES
   files?: BaseFileObject
   rawData?: Buffer
   // UrlFileObject | ArweaveFileObject | IpfsFileObject
