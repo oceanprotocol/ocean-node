@@ -151,7 +151,6 @@ jobs:
       - name: integration tests
         run: npm run test:integration:cover
         env:
-          HTTP_API_PORT: 8081
           OPERATOR_SERVICE_URL: '["http://172.15.0.13:31000/"]'
           PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
           NODE1_PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
