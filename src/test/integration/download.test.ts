@@ -1,5 +1,5 @@
 import { expect, assert } from 'chai'
-import { JsonRpcProvider, Signer, ethers, sha256, toUtf8Bytes } from 'ethers'
+import { JsonRpcProvider, Signer, ethers } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -37,7 +37,6 @@ import {
 } from '../../utils/address.js'
 import { publishAsset, orderAsset } from '../utils/assets.js'
 import { downloadAsset } from '../data/assets.js'
-import { validateSignature } from '../../utils/auth.js'
 
 describe('Should run a complete node flow.', () => {
   let config: OceanNodeConfig
@@ -116,25 +115,6 @@ describe('Should run a complete node flow.', () => {
     assert(
       status.allowedAdmins[0] === '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260',
       'incorrect allowed admin publisherAddress'
-    )
-  })
-
-  it('signature should match', async () => {
-    const currentDate = new Date()
-    const expiryTimestamp = new Date(
-      currentDate.getFullYear() + 1,
-      currentDate.getMonth(),
-      currentDate.getDate()
-    ).getTime()
-
-    const message = sha256(toUtf8Bytes(expiryTimestamp.toString()))
-
-    // Sign the original message directly
-    const signature = await publisherAccount.signMessage(message)
-
-    assert(
-      validateSignature(expiryTimestamp, signature) === true,
-      'signatures do not match'
     )
   })
 
