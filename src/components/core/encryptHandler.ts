@@ -1,22 +1,69 @@
 import { Handler } from './handler.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
-import { EncryptCommand, EncryptFileCommand } from '../../@types/commands.js'
+import { Command, EncryptCommand, EncryptFileCommand } from '../../@types/commands.js'
 import * as base58 from 'base58-js'
 import { Readable } from 'stream'
 import { encrypt } from '../../utils/crypt.js'
 import { Storage } from '../storage/index.js'
 import { getConfiguration } from '../../utils/index.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
+import {
+  ValidateParams,
+  buildInvalidParametersResponse,
+  buildInvalidRequestMessage,
+  validateCommandParameters
+} from '../httpRoutes/validateCommands.js'
+
+// for encryption
+export const SUPPORTED_ENCRYPTION_ENCODINGS = ['string', 'base58']
+export const SUPPORTED_ENCRYPTION_METHODS = [
+  EncryptMethod.AES.toString(),
+  EncryptMethod.ECIES.toString()
+]
 
 export class EncryptHandler extends Handler {
+  validate(command: EncryptCommand): ValidateParams {
+    const commandValidation = validateCommandParameters(command, ['blob'])
+    if (!commandValidation.valid) {
+      return commandValidation
+    }
+
+    if (!command.encoding) {
+      command.encoding = 'string' // defaults to string
+    }
+    if (!command.encryptionType) {
+      command.encryptionType = EncryptMethod.ECIES // defaults to ECIES encryption
+    }
+
+    if (!SUPPORTED_ENCRYPTION_ENCODINGS.includes(command.encoding.toLowerCase())) {
+      return buildInvalidRequestMessage(
+        `Invalid parameter: "encoding" must be one of: ${JSON.stringify(
+          SUPPORTED_ENCRYPTION_ENCODINGS
+        )}`
+      )
+    }
+    if (!SUPPORTED_ENCRYPTION_METHODS.includes(command.encryptionType.toUpperCase())) {
+      return buildInvalidRequestMessage(
+        `Invalid parameter: "encryptionType" must be one of: ${JSON.stringify(
+          SUPPORTED_ENCRYPTION_ENCODINGS
+        )}`
+      )
+    }
+  }
+
   async handle(task: EncryptCommand): Promise<P2PCommandResponse> {
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
     try {
       // prepare an empty array in case if
       let blobData: Uint8Array = new Uint8Array()
-      if (task.encoding === 'string') {
+      if (task.encoding.toLowerCase() === 'string') {
         // get bytes from basic blob
         blobData = Uint8Array.from(Buffer.from(task.blob))
       }
-      if (task.encoding === 'base58') {
+      if (task.encoding.toLowerCase() === 'base58') {
         // get bytes from a blob that is encoded in standard base58
         blobData = base58.base58_to_binary(task.blob)
       }
@@ -36,7 +83,29 @@ export class EncryptHandler extends Handler {
 }
 
 export class EncryptFileHandler extends Handler {
+  validate(command: EncryptFileCommand): ValidateParams {
+    const validateCommand = validateCommandParameters(command, ['encryptionType'])
+    if (validateCommand.valid) {
+      if (!command.encryptionType) {
+        command.encryptionType = EncryptMethod.AES
+      }
+
+      if (!SUPPORTED_ENCRYPTION_METHODS.includes(command.encryptionType.toUpperCase())) {
+        return buildInvalidRequestMessage(
+          `Invalid parameter: "encryptionType" must be one of: ${JSON.stringify(
+            SUPPORTED_ENCRYPTION_ENCODINGS
+          )}`
+        )
+      }
+    }
+    return validateCommand
+  }
+
   async handle(task: EncryptFileCommand): Promise<P2PCommandResponse> {
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
     try {
       const config = await getConfiguration()
       const headers = {

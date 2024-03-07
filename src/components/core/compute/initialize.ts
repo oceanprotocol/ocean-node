@@ -3,7 +3,7 @@ import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler.js'
 import { DDO } from '../../../@types/DDO/DDO.js'
-import { ComputeInitializeCommand } from '../../../@types/commands.js'
+import { Command, ComputeInitializeCommand } from '../../../@types/commands.js'
 import { ProviderComputeInitializeResults } from '../../../@types/Fees.js'
 import { AssetUtils } from '../../../utils/asset.js'
 import { verifyProviderFees, createProviderFee } from '../utils/feesHandler.js'
@@ -12,7 +12,12 @@ import { validateOrderTransaction } from '../utils/validateOrders.js'
 import { getExactComputeEnv } from './utils.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import { decrypt } from '../../../utils/crypt.js'
+import { ValidateParams } from '../../httpRoutes/validateCommands.js'
 export class ComputeInitializeHandler extends Handler {
+  validate(command: Command): ValidateParams {
+    throw new Error('Method not implemented.')
+  }
+
   async handle(task: ComputeInitializeCommand): Promise<P2PCommandResponse> {
     try {
       CORE_LOGGER.logMessage(

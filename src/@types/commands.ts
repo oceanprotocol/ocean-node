@@ -1,3 +1,4 @@
+import { ValidateParams } from '../components/httpRoutes/validateCommands.js'
 import { DDO } from './DDO/DDO'
 import { P2PCommandResponse } from './OceanNode'
 import type { ComputeAsset, ComputeAlgorithm, ComputeOutput } from './C2D'
@@ -101,6 +102,7 @@ export interface GetFeesCommand extends Command {
 
 export interface ICommandHandler {
   handle(command: Command): Promise<P2PCommandResponse>
+  validate(command: Command): ValidateParams
 }
 
 export interface BroadcastCommand {

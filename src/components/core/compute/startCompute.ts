@@ -3,10 +3,15 @@ import { P2PCommandResponse } from '../../../@types/index.js'
 import { ComputeAsset } from '../../../@types/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler.js'
-import { ComputeStartCommand } from '../../../@types/commands.js'
+import { Command, ComputeStartCommand } from '../../../@types/commands.js'
 import { C2DEngine } from '../../c2d/compute_engines.js'
+import { ValidateParams } from '../../httpRoutes/validateCommands.js'
 
 export class ComputeStartHandler extends Handler {
+  validate(command: Command): ValidateParams {
+    throw new Error('Method not implemented.')
+  }
+
   async handle(task: ComputeStartCommand): Promise<P2PCommandResponse> {
     try {
       CORE_LOGGER.logMessage(

@@ -2,10 +2,15 @@ import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler.js'
-import { ComputeStopCommand } from '../../../@types/commands.js'
+import { Command, ComputeStopCommand } from '../../../@types/commands.js'
 import { C2DEngine } from '../../c2d/compute_engines.js'
+import { ValidateParams } from '../../httpRoutes/validateCommands.js'
 
 export class ComputeStopHandler extends Handler {
+  validate(command: Command): ValidateParams {
+    throw new Error('Method not implemented.')
+  }
+
   async handle(task: ComputeStopCommand): Promise<P2PCommandResponse> {
     try {
       CORE_LOGGER.logMessage(

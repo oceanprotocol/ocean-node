@@ -3,11 +3,16 @@ import { P2PCommandResponse } from '../../../@types/index.js'
 import { C2DClusterInfo, ComputeJob } from '../../../@types/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler.js'
-import { ComputeGetStatusCommand } from '../../../@types/commands.js'
+import { Command, ComputeGetStatusCommand } from '../../../@types/commands.js'
 import { getConfiguration } from '../../../utils/config.js'
 import { C2DEngine } from '../../c2d/compute_engines.js'
+import { ValidateParams } from '../../httpRoutes/validateCommands.js'
 
 export class ComputeGetStatusHandler extends Handler {
+  validate(command: Command): ValidateParams {
+    throw new Error('Method not implemented.')
+  }
+
   async handle(task: ComputeGetStatusCommand): Promise<P2PCommandResponse> {
     try {
       CORE_LOGGER.logMessage(

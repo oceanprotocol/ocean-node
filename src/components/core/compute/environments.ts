@@ -3,10 +3,15 @@ import { P2PCommandResponse } from '../../../@types/index.js'
 import { ComputeEnvironment } from '../../../@types/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler.js'
-import { ComputeGetEnvironmentsCommand } from '../../../@types/commands.js'
+import { Command, ComputeGetEnvironmentsCommand } from '../../../@types/commands.js'
 import { getConfiguration } from '../../../utils/config.js'
 import { C2DEngine } from '../../c2d/compute_engines.js'
+import { ValidateParams } from '../../httpRoutes/validateCommands.js'
 export class ComputeGetEnvironmentsHandler extends Handler {
+  validate(command: Command): ValidateParams {
+    throw new Error('Method not implemented.')
+  }
+
   async handle(task: ComputeGetEnvironmentsCommand): Promise<P2PCommandResponse> {
     try {
       CORE_LOGGER.logMessage(

@@ -16,6 +16,11 @@ import { Service } from '../../@types/DDO/Service.js'
 import { FindDdoHandler } from './ddoHandler.js'
 import { AssetUtils, fetchFileMetadata } from '../../utils/asset.js'
 import { OceanNode } from '../../OceanNode.js'
+import {
+  ValidateParams,
+  buildInvalidParametersResponse,
+  validateCommandParameters
+} from '../httpRoutes/validateCommands'
 
 async function getFile(
   did: string,
@@ -74,7 +79,15 @@ async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFile
   }
 }
 export class FileInfoHandler extends Handler {
+  validate(command: FileInfoCommand): ValidateParams {
+    return validateCommandParameters(command, []) // all optional? weird
+  }
+
   async handle(task: FileInfoCommand): Promise<P2PCommandResponse> {
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
     try {
       CORE_LOGGER.logMessage(
         'File Info Request recieved with arguments: ' + JSON.stringify(task, null, 2),

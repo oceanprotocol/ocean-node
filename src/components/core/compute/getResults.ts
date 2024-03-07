@@ -1,11 +1,16 @@
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler.js'
-import { ComputeGetResultCommand } from '../../../@types/commands.js'
+import { Command, ComputeGetResultCommand } from '../../../@types/commands.js'
 import { C2DEngine } from '../../c2d/compute_engines.js'
 import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
+import { ValidateParams } from '../../httpRoutes/validateCommands.js'
 
 export class ComputeGetResultHandler extends Handler {
+  validate(command: Command): ValidateParams {
+    throw new Error('Method not implemented.')
+  }
+
   async handle(task: ComputeGetResultCommand): Promise<P2PCommandResponse> {
     CORE_LOGGER.logMessage(
       'ComputeGetResultCommand received with arguments: ' + JSON.stringify(task, null, 2),
