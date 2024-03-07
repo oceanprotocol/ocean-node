@@ -1,8 +1,11 @@
 import { expect, assert } from 'chai'
 import { sleep, getEventFromTx, isValidUrl } from '../../utils/util.js'
 import 'mocha'
+import { JsonRpcProvider, sha256, toUtf8Bytes } from 'ethers'
+import { validateSignature } from '../../utils/auth.js'
 
 describe('Utilities Functions', () => {
+  const provider = new JsonRpcProvider('http://127.0.0.1:8545')
   describe('sleep function', () => {
     it('should resolve after specified time', async () => {
       const startTime = new Date().getTime()
@@ -111,5 +114,23 @@ describe('Utilities Functions', () => {
         'Result should be undefined for txReceipt with null logs'
       )
     })
+  })
+  it('signature should match', async () => {
+    const currentDate = new Date()
+    const expiryTimestamp = new Date(
+      currentDate.getFullYear() + 1,
+      currentDate.getMonth(),
+      currentDate.getDate()
+    ).getTime()
+
+    const message = sha256(toUtf8Bytes(expiryTimestamp.toString()))
+
+    // Sign the original message directly
+    const signature = await (await provider.getSigner()).signMessage(message)
+
+    assert(
+      validateSignature(expiryTimestamp, signature) === true,
+      'signatures do not match'
+    )
   })
 })

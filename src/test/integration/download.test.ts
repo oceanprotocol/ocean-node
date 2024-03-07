@@ -38,7 +38,7 @@ import {
 import { publishAsset, orderAsset } from '../utils/assets.js'
 import { downloadAsset } from '../data/assets.js'
 
-describe('Should run a complete node flow.', () => {
+describe('Should run a complete node flow.', async () => {
   let config: OceanNodeConfig
   let database: Database
   let oceanNode: OceanNode
@@ -51,6 +51,7 @@ describe('Should run a complete node flow.', () => {
   let assetDID: string
   let publishedDataset: any
   let actualDDO: any
+  const publisherAddress = await publisherAccount.getAddress()
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const serviceId = '0'
@@ -66,13 +67,15 @@ describe('Should run a complete node flow.', () => {
           ENVIRONMENT_VARIABLES.RPCS,
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.DB_URL,
-          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS
+          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
+          ENVIRONMENT_VARIABLES.ALLOWED_ADMINS
         ],
         [
           JSON.stringify(mockSupportedNetworks),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           'http://localhost:8108/?apiKey=xyz',
-          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'])
+          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
+          JSON.stringify([publisherAddress, consumerAddress])
         ]
       )
     )
@@ -107,6 +110,7 @@ describe('Should run a complete node flow.', () => {
     const resp = await streamToString(response.stream as Readable)
     const status = JSON.parse(resp)
     assert(status.id === oceanNodeConfig.keys.peerId.toString(), 'peer id not matching ')
+    assert(status.allowedAdmins)
   })
 
   it('should get file info before publishing', async () => {

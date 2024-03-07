@@ -26,7 +26,6 @@ import {
   ComputeGetResultHandler,
   ComputeInitializeHandler
 } from './compute/index.js'
-import { AdminHandler } from './dashboard/adminHandler.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -99,7 +98,6 @@ export class CoreHandlersRegistry {
       PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
       new ComputeInitializeHandler(node)
     )
-    this.registerCoreHandler(PROTOCOL_COMMANDS.GET_ADMIN_LIST, new AdminHandler(node))
   }
 
   public static getInstance(node: OceanNode): CoreHandlersRegistry {
