@@ -39,13 +39,6 @@ export class FeesHandler extends Handler {
       true
     )
     let errorMsg: string = null
-    if (!task.ddoId) {
-      errorMsg = 'Missing ddo id'
-    }
-    if (!task.serviceId) {
-      errorMsg = 'Missing service id'
-    }
-
     const ddo = await this.getOceanNode().getDatabase().ddo.retrieve(task.ddoId)
 
     if (!ddo) {
