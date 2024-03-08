@@ -9,6 +9,7 @@ import { C2DEngine } from '../../c2d/compute_engines.js'
 import {
   ValidateParams,
   buildInvalidParametersResponse,
+  buildInvalidRequestMessage,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 export class ComputeGetEnvironmentsHandler extends Handler {
@@ -20,9 +21,7 @@ export class ComputeGetEnvironmentsHandler extends Handler {
           `Invalid chainId: ${command.chainId} on GET computeEnvironments request`,
           true
         )
-        validateCommand.valid = false
-        validateCommand.status = 400
-        validateCommand.reason = 'Invalid chainId'
+        return buildInvalidRequestMessage('Invalid chainId')
       }
     }
     return validateCommand

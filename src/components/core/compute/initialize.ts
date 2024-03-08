@@ -45,9 +45,9 @@ export class ComputeInitializeHandler extends Handler {
           `Invalid compute environment: ${command.compute.env}`,
           true
         )
-        validation.valid = false
-        validation.status = 400
-        validation.reason = `Invalid compute environment: ${command.compute.env}`
+        return buildInvalidRequestMessage(
+          `Invalid compute environment: ${command.compute.env}`
+        )
       }
     }
 

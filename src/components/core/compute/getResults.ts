@@ -28,8 +28,7 @@ export class ComputeGetResultHandler extends Handler {
         )
       }
       if (isNaN(command.index) || command.index < 1) {
-        validation.valid = false
-        validation.reason = 'Invalid result index'
+        return buildInvalidRequestMessage('Invalid result index')
       }
     }
     return validation
