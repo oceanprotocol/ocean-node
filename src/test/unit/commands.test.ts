@@ -5,6 +5,7 @@ import { Handler } from '../../components/core/handler.js'
 import { OceanNode } from '../../OceanNode.js'
 import {
   ComputeGetEnvironmentsCommand,
+  ComputeStartCommand,
   DecryptDDOCommand,
   DownloadCommand,
   EchoCommand,
@@ -38,6 +39,7 @@ import { EchoHandler } from '../../components/core/echoHandler.js'
 import { ReindexHandler } from '../../components/core/reindexHandler.js'
 import { FileInfoHandler } from '../../components/core/fileInfoHandler.js'
 import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/environments.js'
+import { ComputeStartHandler } from '../../components/core/compute/startCompute.js'
 
 describe('Commands and handlers', () => {
   it('Check that all supported commands have registered handlers', () => {
@@ -257,13 +259,25 @@ describe('Commands and handlers', () => {
     expect(getEnvHandler.validate(getEnvCommand).valid).to.be.equal(true)
     getEnvCommand.chainId = -1
     expect(getEnvHandler.validate(getEnvCommand).valid).to.be.equal(false)
+    // -----------------------------------------
+    // ComputeStartHandler
+    const startEnvHandler: ComputeStartHandler = CoreHandlersRegistry.getInstance(
+      node
+    ).getHandler(PROTOCOL_COMMANDS.COMPUTE_START)
+    const startEnvCommand: ComputeStartCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_START,
+      consumerAddress: '',
+      signature: '',
+      nonce: '',
+      environment: '',
+      algorithm: undefined,
+      dataset: undefined
+    }
+    expect(startEnvHandler.validate(startEnvCommand).valid).to.be.equal(false)
   })
   /**
    * 
    * TODO
-
-    this.registerCoreHandler( PROTOCOL_COMMANDS.COMPUTE_START,new ComputeStartHandler(node)
-    )
     this.registerCoreHandler(PROTOCOL_COMMANDS.COMPUTE_STOP, new ComputeStopHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,new ComputeGetStatusHandler(node)
     )

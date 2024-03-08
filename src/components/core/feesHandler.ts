@@ -8,15 +8,23 @@ import { PROVIDER_LOGGER } from '../../utils/logging/common.js'
 import {
   ValidateParams,
   buildInvalidParametersResponse,
+  buildInvalidRequestMessage,
   validateCommandParameters
 } from '../httpRoutes/validateCommands.js'
 import { validateDDOIdentifier } from './ddoHandler.js'
+import { isAddress } from 'ethers'
 
 export class FeesHandler extends Handler {
   validate(command: GetFeesCommand): ValidateParams {
     let validation = validateCommandParameters(command, ['ddoId', 'serviceId'])
     if (validation.valid) {
       validation = validateDDOIdentifier(command.ddoId)
+
+      if (command.consumerAddress && !isAddress(command.consumerAddress)) {
+        return buildInvalidRequestMessage(
+          'Parameter : "consumerAddress" is not a valid web3 address'
+        )
+      }
     }
     return validation
   }
