@@ -51,7 +51,6 @@ describe('Should run a complete node flow.', () => {
   let assetDID: string
   let publishedDataset: any
   let actualDDO: any
-  // const publisherAddress = await publisherAccount.getAddress()
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const serviceId = '0'

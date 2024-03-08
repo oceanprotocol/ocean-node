@@ -51,8 +51,6 @@ export interface ValidateDDOCommand extends Command {
   ddo: DDO
 }
 
-export interface GetAdminListCommand extends Command {}
-
 export interface StatusCommand extends Command {}
 
 export interface QueryCommand extends Command {
