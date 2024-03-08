@@ -13,7 +13,19 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 export class ComputeGetEnvironmentsHandler extends Handler {
   validate(command: ComputeGetEnvironmentsCommand): ValidateParams {
-    return validateCommandParameters(command, ['chainId'])
+    const validateCommand = validateCommandParameters(command, ['chainId'])
+    if (validateCommand.valid) {
+      if (isNaN(command.chainId) || command.chainId < 1) {
+        CORE_LOGGER.logMessage(
+          `Invalid chainId: ${command.chainId} on GET computeEnvironments request`,
+          true
+        )
+        validateCommand.valid = false
+        validateCommand.status = 400
+        validateCommand.reason = 'Invalid chainId'
+      }
+    }
+    return validateCommand
   }
 
   async handle(task: ComputeGetEnvironmentsCommand): Promise<P2PCommandResponse> {
@@ -28,19 +40,6 @@ export class ComputeGetEnvironmentsHandler extends Handler {
         true
       )
 
-      if (isNaN(task.chainId) || task.chainId < 1) {
-        CORE_LOGGER.logMessage(
-          `Invalid chainId: ${task.chainId} on GET computeEnvironments request`,
-          true
-        )
-        return {
-          stream: null,
-          status: {
-            httpStatus: 400,
-            error: 'Invalid chainId'
-          }
-        }
-      }
       const response: ComputeEnvironment[] = []
       const config = await getConfiguration()
       const { c2dClusters } = config

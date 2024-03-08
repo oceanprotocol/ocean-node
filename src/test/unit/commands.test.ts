@@ -4,6 +4,7 @@ import { CoreHandlersRegistry } from '../../components/core/coreHandlersRegistry
 import { Handler } from '../../components/core/handler.js'
 import { OceanNode } from '../../OceanNode.js'
 import {
+  ComputeGetEnvironmentsCommand,
   DecryptDDOCommand,
   DownloadCommand,
   EchoCommand,
@@ -16,7 +17,8 @@ import {
   NonceCommand,
   QueryCommand,
   ReindexCommand,
-  StatusCommand
+  StatusCommand,
+  ValidateDDOCommand
 } from '../../@types/commands.js'
 import { NonceHandler } from '../../components/core/nonceHandler.js'
 import { DownloadHandler } from '../../components/core/downloadHandler.js'
@@ -24,13 +26,18 @@ import {
   EncryptFileHandler,
   EncryptHandler
 } from '../../components/core/encryptHandler.js'
-import { FindDdoHandler, GetDdoHandler } from '../../components/core/ddoHandler.js'
+import {
+  FindDdoHandler,
+  GetDdoHandler,
+  ValidateDDOHandler
+} from '../../components/core/ddoHandler.js'
 import { QueryHandler } from '../../components/core/queryHandler.js'
 import { StatusHandler } from '../../components/core/statusHandler.js'
 import { FeesHandler } from '../../components/core/feesHandler.js'
 import { EchoHandler } from '../../components/core/echoHandler.js'
 import { ReindexHandler } from '../../components/core/reindexHandler.js'
 import { FileInfoHandler } from '../../components/core/fileInfoHandler.js'
+import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/environments.js'
 
 describe('Commands and handlers', () => {
   it('Check that all supported commands have registered handlers', () => {
@@ -218,15 +225,43 @@ describe('Commands and handlers', () => {
     delete fileInfoCommand.did
     fileInfoCommand.serviceId = null
     expect(fileInfoHandler.validate(fileInfoCommand).valid).to.be.equal(false)
+    // -----------------------------------------
+    // ValidateDDOHandler
+    const validateDDOHandler: ValidateDDOHandler = CoreHandlersRegistry.getInstance(
+      node
+    ).getHandler(PROTOCOL_COMMANDS.VALIDATE_DDO)
+    const validateDDOCommand: ValidateDDOCommand = {
+      ddo: {
+        id: 'did:op:ACce67694eD2848dd683c651Dab7Af823b7dd123',
+        '@context': [],
+        version: '',
+        nftAddress: '',
+        chainId: 0,
+        metadata: undefined,
+        services: []
+      },
+      command: PROTOCOL_COMMANDS.VALIDATE_DDO
+    }
+    expect(validateDDOHandler.validate(validateDDOCommand).valid).to.be.equal(true)
+    delete validateDDOCommand.ddo
+    expect(validateDDOHandler.validate(validateDDOCommand).valid).to.be.equal(false)
+    // -----------------------------------------
+    // ComputeGetEnvironmentsHandler
+    const getEnvHandler: ComputeGetEnvironmentsHandler = CoreHandlersRegistry.getInstance(
+      node
+    ).getHandler(PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS)
+    const getEnvCommand: ComputeGetEnvironmentsCommand = {
+      chainId: 8996,
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS
+    }
+    expect(getEnvHandler.validate(getEnvCommand).valid).to.be.equal(true)
+    getEnvCommand.chainId = -1
+    expect(getEnvHandler.validate(getEnvCommand).valid).to.be.equal(false)
   })
   /**
    * 
    * TODO
-    this.registerCoreHandler(PROTOCOL_COMMANDS.VALIDATE_DDO, new ValidateDDOHandler(node))
-    this.registerCoreHandler(
-      PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS,
-      new ComputeGetEnvironmentsHandler(node)
-    )
+
     this.registerCoreHandler( PROTOCOL_COMMANDS.COMPUTE_START,new ComputeStartHandler(node)
     )
     this.registerCoreHandler(PROTOCOL_COMMANDS.COMPUTE_STOP, new ComputeStopHandler(node))

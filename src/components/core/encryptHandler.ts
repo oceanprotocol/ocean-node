@@ -29,7 +29,7 @@ export class EncryptHandler extends Handler {
     }
 
     if (!command.encoding) {
-      command.encoding = 'string'
+      command.encoding = 'string' // defaults to string encoding
     }
     if (!command.encryptionType) {
       command.encryptionType = EncryptMethod.ECIES // defaults to ECIES encryption
@@ -45,6 +45,7 @@ export class EncryptHandler extends Handler {
         `Invalid parameter: "encryptionType" must be one of: ${SUPPORTED_ENCRYPTION_ENCODINGS}`
       )
     }
+    return commandValidation
   }
 
   async handle(task: EncryptCommand): Promise<P2PCommandResponse> {
