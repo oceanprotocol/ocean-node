@@ -8,6 +8,7 @@ import { aquariusRoutes } from './aquarius.js'
 import { rootEndpointRoutes } from './rootEndpoint.js'
 import { fileInfoRoute } from './fileInfo.js'
 import { computeRoutes } from './compute.js'
+import { queueRoutes } from './queue.js'
 import { getConfiguration } from '../../utils/config.js'
 
 export * from './getOceanPeers.js'
@@ -54,3 +55,5 @@ httpRoutes.use(aquariusRoutes)
 httpRoutes.use(rootEndpointRoutes)
 // /api/services/computeEnvironments
 httpRoutes.use(computeRoutes)
+// queue routes
+httpRoutes.use(queueRoutes)

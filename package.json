@@ -10,10 +10,12 @@
     "url": "https://github.com/oceanprotocol/ocean-node/issues"
   },
   "scripts": {
-    "build": "npm run clean && npm run build:tsc",
+    "build": "npm run clean && npm run build:tsc && npm run build:dashboard",
+    "build:no-dashboard": "npm run clean && npm run build:tsc",
     "build:swagger": "tsoa spec",
     "build:tsc": "tsc --sourceMap",
     "build-tests:tsc": "tsc --sourceMap --sourceRoot ./src/test && cp ./src/test/.env.test ./dist/test",
+    "build:dashboard": "cd dashboard && npm install && npx next build",
     "client": "mkdir -p ./dist/helpers/scripts/output && node dist/helpers/scripts/clientExample.js",
     "clean": "rm -rf ./dist/ ./doc/ ./.nyc_output",
     "build-tests": "rm -rf ./dist/test && npm run build-tests:tsc",
@@ -68,6 +70,7 @@
     "aegir": "^37.3.0",
     "axios": "^1.6.0",
     "base58-js": "^2.0.0",
+    "cors": "^2.8.5",
     "delay": "^5.0.0",
     "dotenv": "^16.3.1",
     "eciesjs": "^0.4.5",
@@ -97,6 +100,7 @@
   },
   "devDependencies": {
     "@types/chai": "^4.3.10",
+    "@types/cors": "^2.8.17",
     "@types/express": "^4.17.17",
     "@types/lzma-native": "^4.0.4",
     "@types/mocha": "^10.0.4",

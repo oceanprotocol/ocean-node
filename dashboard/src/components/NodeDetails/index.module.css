@@ -1,0 +1,38 @@
+.root {
+  width: calc(100% - 64px);
+  padding: 32px 42px;
+  margin-top: 24px;
+  margin-left: 32px;
+  margin-right: 32px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  max-height: 350px;
+  gap: 24px;
+  background-color: var(--background-secondary);
+}
+
+.item {
+  min-width: 220px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+  display: flex;
+  flex-direction: row;
+  justify-content: start;
+  align-items: center;
+  gap: 24px;
+}
+
+.key {
+  width: 25%;
+  color: var(--color-secondary);
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.value {
+  width: 75%;
+  color: var(--gray-500);
+  font-weight: 400;
+}

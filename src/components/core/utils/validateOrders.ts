@@ -5,10 +5,10 @@ import {
   Interface,
   TransactionReceipt
 } from 'ethers'
-import { fetchEventFromTransaction } from '../../utils/util.js'
+import { fetchEventFromTransaction } from '../../../utils/util.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import { CORE_LOGGER } from '../../utils/logging/common.js'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
 interface ValidateTransactionResponse {
   isValid: boolean
@@ -41,65 +41,6 @@ export async function fetchTransactionReceipt(
   }
 }
 
-export async function verifyComputeProviderFees(
-  txId: string,
-  userAddress: string,
-  provider: JsonRpcApiProvider,
-  timestampNow: number,
-  serviceTimeout: number
-): Promise<ValidateTransactionResponse> {
-  const contractInterface = new Interface(ERC20Template.abi)
-  const txReceiptMined = await fetchTransactionReceipt(txId, provider)
-
-  if (!txReceiptMined) {
-    const errorMsg = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
-    CORE_LOGGER.logMessage(errorMsg)
-    return {
-      isValid: false,
-      message: errorMsg
-    }
-  }
-
-  if (userAddress.toLowerCase() !== txReceiptMined.from.toLowerCase()) {
-    const errorMsg = 'User address does not match the sender of the transaction.'
-    CORE_LOGGER.logMessage(errorMsg)
-    return {
-      isValid: false,
-      message: errorMsg
-    }
-  }
-
-  const eventTimestamp = (await provider.getBlock(txReceiptMined.blockHash)).timestamp
-
-  const currentTimestamp = Math.floor(Date.now() / 1000)
-
-  const timeElapsed = currentTimestamp - eventTimestamp
-
-  if (serviceTimeout !== 0 && timeElapsed > serviceTimeout) {
-    return {
-      isValid: false,
-      message: 'The order has expired.'
-    }
-  }
-  const ProviderFeesEvent = fetchEventFromTransaction(
-    txReceiptMined,
-    'ProviderFees',
-    contractInterface
-  )
-
-  const validUntilContract = parseInt(ProviderFeesEvent[0].args[7].toString())
-  if (timestampNow >= validUntilContract) {
-    return {
-      isValid: false,
-      message: 'Provider fees for compute have expired.'
-    }
-  }
-  return {
-    isValid: true,
-    message: ProviderFeesEvent[0].args
-  }
-}
-
 export async function validateOrderTransaction(
   txId: string,
   userAddress: string,
@@ -118,13 +59,6 @@ export async function validateOrderTransaction(
     return {
       isValid: false,
       message: errorMsg
-    }
-  }
-
-  if (userAddress.toLowerCase() !== txReceiptMined.from.toLowerCase()) {
-    return {
-      isValid: false,
-      message: 'User address does not match the sender of the transaction.'
     }
   }
 
@@ -152,7 +86,15 @@ export async function validateOrderTransaction(
     'OrderStarted',
     contractInterface
   )
-
+  if (
+    userAddress.toLowerCase() !== OrderStartedEvent[0].args[0].toLowerCase() &&
+    userAddress.toLowerCase() !== OrderStartedEvent[0].args[1].toLowerCase()
+  ) {
+    return {
+      isValid: false,
+      message: 'User address does not match with consumer or payer of the transaction.'
+    }
+  }
   const eventServiceIndex = OrderStartedEvent[0].args[3]
 
   if (BigInt(serviceIndex) !== eventServiceIndex) {
