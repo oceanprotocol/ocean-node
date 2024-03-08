@@ -5,6 +5,7 @@ import styles from './index.module.css'
 
 import Menu from './Menu'
 import { truncateString } from '../../shared/utils/truncateString'
+import { useAdminContext } from '@/context/AdminProvider'
 
 type IndexerType = {
   block: string
@@ -55,6 +56,7 @@ type NodeDataType = {
 export default function Dashboard() {
   const [data, setData] = useState<NodeDataType>()
   const [isLoading, setLoading] = useState(true)
+  const { setAllAdmins } = useAdminContext()
 
   useEffect(() => {
     setLoading(true)
@@ -73,6 +75,7 @@ export default function Dashboard() {
         .then((res) => res.json())
         .then((data) => {
           setData(data)
+          setAllAdmins(data.allowedAdmins)
           setLoading(false)
         })
     } catch (error) {

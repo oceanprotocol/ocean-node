@@ -5,7 +5,8 @@ import {
   ReactNode,
   FunctionComponent,
   Dispatch,
-  SetStateAction
+  SetStateAction,
+  useEffect
 } from 'react'
 
 interface AdminContextType {
@@ -35,6 +36,15 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
     allAdmins,
     setAllAdmins
   }
+
+  useEffect(() => {
+    for (const adminAddress in allAdmins) {
+      if (adminAddress === userAddress) {
+        setAdmin(true)
+        console.log('admin has logged in')
+      }
+    }
+  }, [userAddress, allAdmins])
 
   return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>
 }
