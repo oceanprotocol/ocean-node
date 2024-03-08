@@ -5,7 +5,13 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler.js'
 import { ComputeStartCommand } from '../../../@types/commands.js'
 import { C2DEngine } from '../../c2d/compute_engines.js'
-
+import { DDO } from '../../../@types/DDO/DDO.js'
+import { AssetUtils } from '../../../utils/asset.js'
+import { EncryptMethod } from '../../../@types/fileObject.js'
+import { decrypt } from '../../../utils/crypt.js'
+import { verifyProviderFees } from '../utils/feesHandler.js'
+import { getJsonRpcProvider } from '../../../utils/blockchain.js'
+import { validateOrderTransaction } from '../utils/validateOrders.js'
 export class ComputeStartHandler extends Handler {
   async handle(task: ComputeStartCommand): Promise<P2PCommandResponse> {
     try {
@@ -25,11 +31,9 @@ export class ComputeStartHandler extends Handler {
           }
         }
       }
-      const index = task.environment.indexOf('-')
-      const hash = task.environment.slice(0, index)
-      const envId = task.environment.slice(index + 1)
-
-      // env might contain
+      const eIndex = task.environment.indexOf('-')
+      const hash = task.environment.slice(0, eIndex)
+      const envId = task.environment.slice(eIndex + 1)
       let engine
       try {
         engine = await C2DEngine.getC2DByHash(hash)
@@ -42,14 +46,137 @@ export class ComputeStartHandler extends Handler {
           }
         }
       }
+
+      const node = this.getOceanNode()
       const assets: ComputeAsset[] = [task.dataset]
       if (task.additionalDatasets) assets.push(...task.additionalDatasets)
+      let foundValidCompute = null
+      // check algo
+      for (const elem of [...[task.algorithm], ...assets]) {
+        const result: any = { validOrder: false }
+        if ('documentId' in elem && elem.documentId) {
+          result.did = elem.documentId
+          result.serviceId = elem.documentId
+          const ddo = (await node.getDatabase().ddo.retrieve(elem.documentId)) as DDO
+          if (!ddo) {
+            const error = `DDO ${elem.documentId} not found`
+            return {
+              stream: null,
+              status: {
+                httpStatus: 500,
+                error
+              }
+            }
+          }
+          const service = AssetUtils.getServiceById(ddo, elem.serviceId)
+          if (!service) {
+            const error = `Cannot find service ${elem.serviceId} in DDO ${elem.documentId}`
+            return {
+              stream: null,
+              status: {
+                httpStatus: 500,
+                error
+              }
+            }
+          }
+          // let's see if we can access this asset
+          let canDecrypt = false
+          try {
+            await decrypt(
+              Uint8Array.from(Buffer.from(service.files, 'hex')),
+              EncryptMethod.ECIES
+            )
+            canDecrypt = true
+          } catch (e) {
+            // do nothing
+          }
+          if (service.type === 'compute' && !canDecrypt) {
+            const error = `Service ${elem.serviceId} from DDO ${elem.documentId} cannot be used in compute on this provider`
+            return {
+              stream: null,
+              status: {
+                httpStatus: 500,
+                error
+              }
+            }
+          }
+          const provider = await getJsonRpcProvider(ddo.chainId)
+          result.datatoken = service.datatokenAddress
+          result.chainId = ddo.chainId
+          // start with assumption than we need new providerfees
+          let validFee = {
+            isValid: false,
+            isComputeValid: false,
+            message: false,
+            validUntil: 0
+          }
+          const env = await engine.getComputeEnvironment(ddo.chainId, task.environment)
+          if (!('transferTxId' in elem) || !elem.transferTxId) {
+            const error = `Missing transferTxId for DDO ${elem.documentId}`
+            return {
+              stream: null,
+              status: {
+                httpStatus: 500,
+                error
+              }
+            }
+          }
+
+          // search for that compute env and see if it has access to dataset
+          const paymentValidation = await validateOrderTransaction(
+            elem.transferTxId,
+            env.consumerAddress,
+            provider,
+            ddo.nftAddress,
+            service.datatokenAddress,
+            AssetUtils.getServiceIndexById(ddo, service.id),
+            service.timeout
+          )
+          if (paymentValidation.isValid === false) {
+            const error = `TxId Service ${elem.transferTxId} is not valid for DDO ${elem.documentId} and service ${service.id}`
+            return {
+              stream: null,
+              status: {
+                httpStatus: 500,
+                error
+              }
+            }
+          }
+          result.validOrder = elem.transferTxId
+          validFee = await verifyProviderFees(
+            elem.transferTxId,
+            task.consumerAddress,
+            provider,
+            service,
+            task.environment,
+            0
+          )
+
+          if (validFee.isComputeValid === true) {
+            foundValidCompute = {
+              txId: elem.transferTxId,
+              chainId: ddo.chainId,
+              validUntil: validFee.validUntil
+            }
+          }
+        }
+      }
+      if (!foundValidCompute) {
+        CORE_LOGGER.logMessage(`Cannot find a valid compute providerFee`, true)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: `Invalid compute environment: ${task.environment}`
+          }
+        }
+      }
       // TODO - hardcoded values.
       //  - validate algo & datasets
       //  - validate providerFees -> will generate chainId & agreementId & validUntil
-      const chainId = 8996
-      const agreementId = '0x1234'
-      const validUntil = new Date().getTime() + 60
+      const { chainId } = foundValidCompute
+      const agreementId = foundValidCompute.txId
+      const { validUntil } = foundValidCompute
       const response = await engine.startComputeJob(
         assets,
         task.algorithm,
