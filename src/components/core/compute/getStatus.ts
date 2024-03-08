@@ -3,34 +3,40 @@ import { P2PCommandResponse } from '../../../@types/index.js'
 import { C2DClusterInfo, ComputeJob } from '../../../@types/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler.js'
-import { Command, ComputeGetStatusCommand } from '../../../@types/commands.js'
+import { ComputeGetStatusCommand } from '../../../@types/commands.js'
 import { getConfiguration } from '../../../utils/config.js'
 import { C2DEngine } from '../../c2d/compute_engines.js'
-import { ValidateParams } from '../../httpRoutes/validateCommands.js'
+import {
+  ValidateParams,
+  buildInvalidParametersResponse,
+  buildInvalidRequestMessage,
+  validateCommandParameters
+} from '../../httpRoutes/validateCommands.js'
+import { isAddress } from 'ethers'
 
 export class ComputeGetStatusHandler extends Handler {
-  validate(command: Command): ValidateParams {
-    throw new Error('Method not implemented.')
+  validate(command: ComputeGetStatusCommand): ValidateParams {
+    const validation = validateCommandParameters(command, [])
+    if (validation.valid) {
+      if (command.consumerAddress && !isAddress(command.consumerAddress)) {
+        return buildInvalidRequestMessage(
+          'Parameter : "consumerAddress" is not a valid web3 address'
+        )
+      } else if (!command.consumerAddress && !command.jobId && !command.did) {
+        const error = 'Missing jobId or consumerAddress or did'
+        CORE_LOGGER.logMessage(error, true)
+        return buildInvalidRequestMessage(error)
+      }
+    }
+    return validation
   }
 
   async handle(task: ComputeGetStatusCommand): Promise<P2PCommandResponse> {
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
     try {
-      CORE_LOGGER.logMessage(
-        'ComputeGetStatusCommand received with arguments: ' +
-          JSON.stringify(task, null, 2),
-        true
-      )
-      if (!task.consumerAddress && !task.jobId && !task.did) {
-        const error = `Missing jobId or consumerAddress or did`
-        CORE_LOGGER.logMessage(error, true)
-        return {
-          stream: null,
-          status: {
-            httpStatus: 400,
-            error
-          }
-        }
-      }
       const response: ComputeJob[] = []
       // two scenarios here:
       // 1. if we have a jobId, then we know what C2D Cluster to query

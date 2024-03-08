@@ -36,10 +36,6 @@ export class ComputeStopHandler extends Handler {
       return buildInvalidParametersResponse(validation)
     }
     try {
-      CORE_LOGGER.logMessage(
-        'StopComputeCommand received with arguments: ' + JSON.stringify(task, null, 2),
-        true
-      )
       // split jobId (which is already in hash-jobId format) and get the hash
       // then get jobId which might contain dashes as well
       const index = task.jobId.indexOf('-')

@@ -5,7 +5,11 @@ import { Handler } from '../../components/core/handler.js'
 import { OceanNode } from '../../OceanNode.js'
 import {
   ComputeGetEnvironmentsCommand,
+  ComputeGetResultCommand,
+  ComputeGetStatusCommand,
+  ComputeInitializeCommand,
   ComputeStartCommand,
+  ComputeStopCommand,
   DecryptDDOCommand,
   DownloadCommand,
   EchoCommand,
@@ -40,6 +44,10 @@ import { ReindexHandler } from '../../components/core/reindexHandler.js'
 import { FileInfoHandler } from '../../components/core/fileInfoHandler.js'
 import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/environments.js'
 import { ComputeStartHandler } from '../../components/core/compute/startCompute.js'
+import { ComputeStopHandler } from '../../components/core/compute/stopCompute.js'
+import { ComputeGetStatusHandler } from '../../components/core/compute/getStatus.js'
+import { ComputeGetResultHandler } from '../../components/core/compute/getResults.js'
+import { ComputeInitializeHandler } from '../../components/core/compute/initialize.js'
 
 describe('Commands and handlers', () => {
   it('Check that all supported commands have registered handlers', () => {
@@ -274,16 +282,57 @@ describe('Commands and handlers', () => {
       dataset: undefined
     }
     expect(startEnvHandler.validate(startEnvCommand).valid).to.be.equal(false)
+    // -----------------------------------------
+    // ComputeStopHandler
+    const stopEnvHandler: ComputeStopHandler = CoreHandlersRegistry.getInstance(
+      node
+    ).getHandler(PROTOCOL_COMMANDS.COMPUTE_STOP)
+    const stopEnvCommand: ComputeStopCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_STOP,
+      consumerAddress: '',
+      signature: null,
+      nonce: '',
+      jobId: ''
+    }
+    expect(stopEnvHandler.validate(stopEnvCommand).valid).to.be.equal(false)
+    // -----------------------------------------
+    // ComputeGetStatusHandler
+    const statusEnvHandler: ComputeGetStatusHandler = CoreHandlersRegistry.getInstance(
+      node
+    ).getHandler(PROTOCOL_COMMANDS.COMPUTE_GET_STATUS)
+    const statusEnvCommand: ComputeGetStatusCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+      consumerAddress: 'abcdef',
+      jobId: '23'
+    }
+    expect(statusEnvHandler.validate(statusEnvCommand).valid).to.be.equal(false)
+    // -----------------------------------------
+    // ComputeGetResultHandler
+    const resultEnvHandler: ComputeGetResultHandler = CoreHandlersRegistry.getInstance(
+      node
+    ).getHandler(PROTOCOL_COMMANDS.COMPUTE_GET_RESULT)
+    const resultEnvCommand: ComputeGetResultCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
+      consumerAddress: 'abcdef',
+      jobId: '23',
+      signature: '',
+      nonce: '',
+      index: -1
+    }
+    expect(resultEnvHandler.validate(resultEnvCommand).valid).to.be.equal(false)
+
+    // -----------------------------------------
+    // ComputeInitializeHandler
+    const initComputeHandler: ComputeInitializeHandler = CoreHandlersRegistry.getInstance(
+      node
+    ).getHandler(PROTOCOL_COMMANDS.COMPUTE_INITIALIZE)
+    const computeInitCommand: ComputeInitializeCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
+      consumerAddress: 'abcdef',
+      datasets: null,
+      algorithm: undefined,
+      compute: undefined
+    }
+    expect(initComputeHandler.validate(computeInitCommand).valid).to.be.equal(false)
   })
-  /**
-   * 
-   * TODO
-    this.registerCoreHandler(PROTOCOL_COMMANDS.COMPUTE_STOP, new ComputeStopHandler(node))
-    this.registerCoreHandler(PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,new ComputeGetStatusHandler(node)
-    )
-    this.registerCoreHandler( PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,new ComputeGetResultHandler(node)
-    )
-    this.registerCoreHandler(PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,new ComputeInitializeHandler(node)
-    )
-   */
 })

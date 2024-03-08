@@ -3,7 +3,7 @@ import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler.js'
 import { DDO } from '../../../@types/DDO/DDO.js'
-import { Command, ComputeInitializeCommand } from '../../../@types/commands.js'
+import { ComputeInitializeCommand } from '../../../@types/commands.js'
 import { ProviderComputeInitializeResults } from '../../../@types/Fees.js'
 import { AssetUtils } from '../../../utils/asset.js'
 import { verifyProviderFees, createProviderFee } from '../utils/feesHandler.js'
@@ -12,42 +12,55 @@ import { validateOrderTransaction } from '../utils/validateOrders.js'
 import { getExactComputeEnv } from './utils.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import { decrypt } from '../../../utils/crypt.js'
-import { ValidateParams } from '../../httpRoutes/validateCommands.js'
+import {
+  ValidateParams,
+  buildInvalidParametersResponse,
+  buildInvalidRequestMessage,
+  validateCommandParameters
+} from '../../httpRoutes/validateCommands.js'
+import { isAddress } from 'ethers'
 export class ComputeInitializeHandler extends Handler {
-  validate(command: Command): ValidateParams {
-    throw new Error('Method not implemented.')
-  }
-
-  async handle(task: ComputeInitializeCommand): Promise<P2PCommandResponse> {
-    try {
-      CORE_LOGGER.logMessage(
-        'Initialize Compute Request recieved with arguments: ' +
-          JSON.stringify(task, null, 2),
-        true
-      )
-
-      const { validUntil } = task.compute
+  validate(command: ComputeInitializeCommand): ValidateParams {
+    const validation = validateCommandParameters(command, [
+      'datasets',
+      'algorithm',
+      'compute',
+      'consumerAddress'
+    ])
+    if (validation.valid) {
+      if (command.consumerAddress && !isAddress(command.consumerAddress)) {
+        return buildInvalidRequestMessage(
+          'Parameter : "consumerAddress" is not a valid web3 address'
+        )
+      }
+      const { validUntil } = command.compute
       if (validUntil <= new Date().getTime() / 1000) {
         const errorMsg = `Error validating validUntil ${validUntil}. It is not in the future.`
         CORE_LOGGER.error(errorMsg)
-        return {
-          stream: null,
-          status: {
-            httpStatus: 400,
-            error: errorMsg
-          }
-        }
+        validation.valid = false
+        validation.status = 400
+        validation.reason = errorMsg
+      } else if (!command.compute || !command.compute.env) {
+        CORE_LOGGER.logMessage(
+          `Invalid compute environment: ${command.compute.env}`,
+          true
+        )
+        validation.valid = false
+        validation.status = 400
+        validation.reason = `Invalid compute environment: ${command.compute.env}`
       }
-      if (!task.compute || !task.compute.env) {
-        CORE_LOGGER.logMessage(`Invalid compute environment: ${task.compute.env}`, true)
-        return {
-          stream: null,
-          status: {
-            httpStatus: 400,
-            error: `Invalid compute environment: ${task.compute.env}`
-          }
-        }
-      }
+    }
+
+    return validation
+  }
+
+  async handle(task: ComputeInitializeCommand): Promise<P2PCommandResponse> {
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
+
+    try {
       let foundValidCompute = null
       const node = this.getOceanNode()
       const allFees: ProviderComputeInitializeResults = {

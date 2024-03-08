@@ -39,10 +39,6 @@ export class ComputeStartHandler extends Handler {
       return buildInvalidParametersResponse(validation)
     }
     try {
-      CORE_LOGGER.logMessage(
-        'ComputeStartCommand received with arguments: ' + JSON.stringify(task, null, 2),
-        true
-      )
       // split compute env (which is already in hash-envId format) and get the hash
       // then get env which might contain dashes as well
       const index = task.environment.indexOf('-')

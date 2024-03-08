@@ -37,7 +37,11 @@ export function validateCommandParameters(
   }
 
   CORE_LOGGER.info(
-    `Checking received command data for Command "${commandStr}": ${commandData}`
+    `Checking received command data for Command "${commandStr}": ${JSON.stringify(
+      commandData,
+      null,
+      4
+    )}`
   )
 
   for (const field of requiredFields) {

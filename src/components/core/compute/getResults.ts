@@ -1,28 +1,48 @@
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler.js'
-import { Command, ComputeGetResultCommand } from '../../../@types/commands.js'
+import { ComputeGetResultCommand } from '../../../@types/commands.js'
 import { C2DEngine } from '../../c2d/compute_engines.js'
 import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
-import { ValidateParams } from '../../httpRoutes/validateCommands.js'
+import {
+  buildInvalidParametersResponse,
+  buildInvalidRequestMessage,
+  validateCommandParameters,
+  ValidateParams
+} from '../../httpRoutes/validateCommands.js'
+import { isAddress } from 'ethers'
 
 export class ComputeGetResultHandler extends Handler {
-  validate(command: Command): ValidateParams {
-    throw new Error('Method not implemented.')
+  validate(command: ComputeGetResultCommand): ValidateParams {
+    const validation = validateCommandParameters(command, [
+      'consumerAddress',
+      'signature',
+      'nonce',
+      'jobId',
+      'index'
+    ])
+    if (validation.valid) {
+      if (command.consumerAddress && !isAddress(command.consumerAddress)) {
+        return buildInvalidRequestMessage(
+          'Parameter : "consumerAddress" is not a valid web3 address'
+        )
+      }
+      if (isNaN(command.index) || command.index < 1) {
+        validation.valid = false
+        validation.reason = 'Invalid result index'
+      }
+    }
+    return validation
   }
 
   async handle(task: ComputeGetResultCommand): Promise<P2PCommandResponse> {
-    CORE_LOGGER.logMessage(
-      'ComputeGetResultCommand received with arguments: ' + JSON.stringify(task, null, 2),
-      true
-    )
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
+
     let error = null
-    if (!task.jobId) {
-      error = 'Invalid jobId'
-    }
-    if (isNaN(task.index) || task.index < 1) {
-      error = 'Invalid result index'
-    }
+
     const nonceCheckResult: NonceResponse = await checkNonce(
       this.getOceanNode().getDatabase().nonce,
       task.consumerAddress,

@@ -34,12 +34,6 @@ export class ComputeGetEnvironmentsHandler extends Handler {
       return buildInvalidParametersResponse(validation)
     }
     try {
-      CORE_LOGGER.logMessage(
-        'ComputeGetEnvironmentsCommand received with arguments: ' +
-          JSON.stringify(task, null, 2),
-        true
-      )
-
       const response: ComputeEnvironment[] = []
       const config = await getConfiguration()
       const { c2dClusters } = config
