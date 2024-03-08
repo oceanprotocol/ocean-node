@@ -56,7 +56,7 @@ type NodeDataType = {
 export default function Dashboard() {
   const [data, setData] = useState<NodeDataType>()
   const [isLoading, setLoading] = useState(true)
-  const { setAllAdmins } = useAdminContext()
+  const { setAllAdmins, allAdmins } = useAdminContext()
 
   useEffect(() => {
     setLoading(true)
@@ -93,21 +93,6 @@ export default function Dashboard() {
   ]
 
   const [node, setNode] = useState(nodeData[0])
-
-  const providerData = [
-    {
-      name: 'POLYGON',
-      url: 'https://polygon-rpc.com'
-    },
-    {
-      name: 'ETHEREUM',
-      url: 'https://eth.drpc.org'
-    },
-    {
-      name: 'OPTIMISM',
-      url: 'https://mainnet.optimism.io'
-    }
-  ]
 
   const Spinner = () => {
     return <span className={styles.loader}></span>
@@ -198,22 +183,15 @@ export default function Dashboard() {
     )
   }
 
-  const Provider = () => {
+  const AdminAccounts = () => {
     return (
       <div className={styles.indexer}>
-        <div className={styles.title29}>PROVIDER</div>
+        <div className={styles.title29}>Admin Accounts</div>
         <div className={styles.provider}>
-          {providerData.map((item) => {
+          {allAdmins.map((admin, i) => {
             return (
-              <div className={styles.providerRow} key={item.name}>
-                <div className={styles.providerTitle}>
-                  <b>{item.name}:</b>
-                </div>
-                <div>
-                  <a href={item.url} target="_blank">
-                    {item.url}
-                  </a>
-                </div>
+              <div className={styles.providerRow} key={i}>
+                {admin}
               </div>
             )
           })}
@@ -289,9 +267,9 @@ export default function Dashboard() {
           <div className={styles.body}>
             <ConnectionDetails />
             <Indexer />
-            <Provider />
             <ObjectModule title="PLATFORM" data={arrayOfPlatformObjects} />
             <SupportedStorage />
+            <AdminAccounts />
           </div>
         )}
       </div>
