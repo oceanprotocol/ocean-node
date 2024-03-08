@@ -38,8 +38,8 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
   }
 
   useEffect(() => {
-    for (const adminAddress in allAdmins) {
-      if (adminAddress === userAddress) {
+    for (const adminAddress of allAdmins) {
+      if (adminAddress.toLowerCase() === userAddress.toLowerCase()) {
         setAdmin(true)
         console.log('admin has logged in')
       }
