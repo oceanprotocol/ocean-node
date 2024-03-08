@@ -1,5 +1,5 @@
 import { P2PCommandResponse } from '../../@types'
-import { Command } from '../../@types/commands.js'
+import { EchoCommand } from '../../@types/commands.js'
 import { ReadableString } from '../P2P/handleProtocolCommands.js'
 import {
   validateCommandParameters,
@@ -8,11 +8,11 @@ import {
 import { Handler } from './handler.js'
 
 export class EchoHandler extends Handler {
-  validate(command: Command): ValidateParams {
+  validate(command: EchoCommand): ValidateParams {
     return validateCommandParameters(command, [])
   }
 
-  handle(task: Command): Promise<P2PCommandResponse> {
+  handle(task: EchoCommand): Promise<P2PCommandResponse> {
     const validation = this.validate(task)
     return new Promise<P2PCommandResponse>((resolve, reject) => {
       resolve({

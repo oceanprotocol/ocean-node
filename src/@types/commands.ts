@@ -53,6 +53,7 @@ export interface ValidateDDOCommand extends Command {
 }
 
 export interface StatusCommand extends Command {}
+export interface EchoCommand extends Command {}
 
 export interface QueryCommand extends Command {
   query: Record<string, any>
