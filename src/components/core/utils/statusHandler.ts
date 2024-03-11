@@ -31,11 +31,7 @@ export async function status(
 
   const validAddresses = []
   if (config.allowedAdmins) {
-<<<<<<< HEAD
-    for (const admin of JSON.parse(config.allowedAdmins)) {
-=======
     for (const admin of config.allowedAdmins) {
->>>>>>> 6bce1a2c58543c3f95647875a4dbf4fa4e8f15da
       if (isAddress(admin) === true) {
         validAddresses.push(admin)
       }
