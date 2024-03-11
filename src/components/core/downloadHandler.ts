@@ -20,7 +20,11 @@ import { OceanNode } from '../../OceanNode.js'
 import { DownloadCommand, DownloadURLCommand } from '../../@types/commands.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { C2DEngine } from '../c2d/compute_engines.js'
-
+import {
+  buildInvalidParametersResponse,
+  validateCommandParameters,
+  ValidateParams
+} from '../httpRoutes/validateCommands.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(
@@ -144,21 +148,25 @@ export async function handleDownloadUrlCommand(
 }
 
 export class DownloadHandler extends Handler {
+  validate(command: DownloadCommand): ValidateParams {
+    return validateCommandParameters(command, [
+      'fileIndex',
+      'documentId',
+      'serviceId',
+      'transferTxId',
+      'nonce',
+      'consumerAddress',
+      'signature'
+    ])
+  }
   // No encryption here yet
 
   async handle(task: DownloadCommand): Promise<P2PCommandResponse> {
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
     const node = this.getOceanNode()
-    CORE_LOGGER.logMessage(
-      'Download Request recieved with arguments: ' +
-        task.fileIndex +
-        task.documentId +
-        task.serviceId +
-        task.transferTxId +
-        task.nonce +
-        task.consumerAddress +
-        task.signature,
-      true
-    )
     // 1. Get the DDO
     const handler: FindDdoHandler = node
       .getCoreHandlers()

@@ -3,9 +3,22 @@ import { status } from './utils/statusHandler.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { StatusCommand } from '../../@types/commands.js'
 import { Readable } from 'stream'
+import {
+  ValidateParams,
+  buildInvalidParametersResponse,
+  validateCommandParameters
+} from '../httpRoutes/validateCommands.js'
 
 export class StatusHandler extends Handler {
+  validate(command: StatusCommand): ValidateParams {
+    return validateCommandParameters(command, [])
+  }
+
   async handle(task: StatusCommand): Promise<P2PCommandResponse> {
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
     try {
       const statusResult = await status(this.getOceanNode(), task.node)
       if (!statusResult) {

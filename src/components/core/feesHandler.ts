@@ -5,20 +5,40 @@ import { createProviderFee } from './utils/feesHandler.js'
 import { Readable } from 'stream'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { PROVIDER_LOGGER } from '../../utils/logging/common.js'
+import {
+  ValidateParams,
+  buildInvalidParametersResponse,
+  buildInvalidRequestMessage,
+  validateCommandParameters
+} from '../httpRoutes/validateCommands.js'
+import { validateDDOIdentifier } from './ddoHandler.js'
+import { isAddress } from 'ethers'
+
 export class FeesHandler extends Handler {
+  validate(command: GetFeesCommand): ValidateParams {
+    let validation = validateCommandParameters(command, ['ddoId', 'serviceId'])
+    if (validation.valid) {
+      validation = validateDDOIdentifier(command.ddoId)
+
+      if (command.consumerAddress && !isAddress(command.consumerAddress)) {
+        return buildInvalidRequestMessage(
+          'Parameter : "consumerAddress" is not a valid web3 address'
+        )
+      }
+    }
+    return validation
+  }
+
   async handle(task: GetFeesCommand): Promise<P2PCommandResponse> {
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
     PROVIDER_LOGGER.logMessage(
       `Try to calculate fees for DDO with id: ${task.ddoId} and serviceId: ${task.serviceId}`,
       true
     )
     let errorMsg: string = null
-    if (!task.ddoId) {
-      errorMsg = 'Missing ddo id'
-    }
-    if (!task.serviceId) {
-      errorMsg = 'Missing service id'
-    }
-
     const ddo = await this.getOceanNode().getDatabase().ddo.retrieve(task.ddoId)
 
     if (!ddo) {

@@ -1,3 +1,4 @@
+import { ValidateParams } from '../components/httpRoutes/validateCommands.js'
 import { DDO } from './DDO/DDO'
 import { P2PCommandResponse } from './OceanNode'
 import type { ComputeAsset, ComputeAlgorithm, ComputeOutput } from './C2D'
@@ -52,6 +53,7 @@ export interface ValidateDDOCommand extends Command {
 }
 
 export interface StatusCommand extends Command {}
+export interface EchoCommand extends Command {}
 
 export interface QueryCommand extends Command {
   query: Record<string, any>
@@ -77,12 +79,12 @@ export interface DecryptDDOCommand extends Command {
 
 export interface EncryptCommand extends Command {
   blob: string
-  encoding: string
-  encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
+  encoding?: string
+  encryptionType?: EncryptMethod.AES | EncryptMethod.ECIES
 }
 
 export interface EncryptFileCommand extends Command {
-  encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
+  encryptionType?: EncryptMethod.AES | EncryptMethod.ECIES
   files?: BaseFileObject
   rawData?: Buffer
   // UrlFileObject | ArweaveFileObject | IpfsFileObject
@@ -101,6 +103,7 @@ export interface GetFeesCommand extends Command {
 
 export interface ICommandHandler {
   handle(command: Command): Promise<P2PCommandResponse>
+  validate(command: Command): ValidateParams
 }
 
 export interface BroadcastCommand {
