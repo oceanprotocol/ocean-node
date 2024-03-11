@@ -38,7 +38,7 @@ export async function fetchTransactionReceipt(
 export async function validateOrderTransaction(
   txId: string,
   userAddress: string,
-  provider: JsonRpcProvider,
+  provider: JsonRpcApiProvider,
   dataNftAddress: string,
   datatokenAddress: string,
   serviceIndex: number,
