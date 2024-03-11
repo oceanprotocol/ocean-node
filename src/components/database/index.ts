@@ -735,8 +735,11 @@ export class LogDatabase {
   }
 
   async deleteOldLogs() {
+    const defaultLogRetention = '2592000000' // 30 days in milliseconds
     const currentTime = new Date().getTime()
-    const xTime = parseInt(ENVIRONMENT_VARIABLES.LOG_RETENTION_TIME.value || '2592000000') // Default to 30 days in milliseconds
+    const xTime = parseInt(
+      ENVIRONMENT_VARIABLES.LOG_RETENTION_TIME.value || defaultLogRetention
+    )
     const deleteBeforeTime = new Date(currentTime - xTime)
 
     try {
