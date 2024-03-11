@@ -116,7 +116,7 @@ export async function checkNonce(
       previousNonce, // will return 0 if none exists
       consumer,
       signature,
-      ddoId
+      String(ddoId + nonce)
     )
     if (validate.valid) {
       const updateStatus = await updateNonce(db, consumer, nonce)
@@ -144,6 +144,7 @@ export async function checkNonce(
  * @param existingNonce store nonce
  * @param consumer address
  * @param signature sign(nonce)
+ * @param message Use this message instead of default String(nonce)
  * @returns true or false + error message
  */
 function validateNonceAndSignature(
@@ -151,15 +152,13 @@ function validateNonceAndSignature(
   existingNonce: number,
   consumer: string,
   signature: string,
-  ddoId: string = null
+  message: string = null
 ): NonceResponse {
   // check if is bigger than previous nonce
   if (nonce > existingNonce) {
     // nonce good
     // now validate signature
-    let message: string
-    if (ddoId) message = String(ddoId + nonce)
-    else message = String(nonce)
+    if (!message) message = String(nonce)
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
       [ethers.hexlify(ethers.toUtf8Bytes(message))]
@@ -186,4 +185,22 @@ function validateNonceAndSignature(
     valid: false,
     error: 'nonce: ' + nonce + ' is not a valid nonce'
   }
+}
+
+export async function sign(message: string, privateKey: string): Promise<string> {
+  /** Signs a message with a private key
+   *
+   * @param message - message to be sign
+   * @param privateKey - private key from node as Uint8Array
+   */
+  const wallet = new ethers.Wallet('0x' + Buffer.from(privateKey).toString('hex'))
+  // message to sign
+  // sign message/nonce
+  const consumerMessage = ethers.solidityPackedKeccak256(
+    ['bytes'],
+    [ethers.hexlify(ethers.toUtf8Bytes(message))]
+  )
+  const messageHashBytes = ethers.toBeArray(consumerMessage)
+  const signature = await wallet.signMessage(messageHashBytes)
+  return signature
 }

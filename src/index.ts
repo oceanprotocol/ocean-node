@@ -6,17 +6,25 @@ import express, { Express } from 'express'
 import { OceanNode } from './OceanNode.js'
 import swaggerUi from 'swagger-ui-express'
 import { httpRoutes } from './components/httpRoutes/index.js'
-import { getConfiguration } from './utils/index.js'
+import { getConfiguration, computeCodebaseHash } from './utils/index.js'
 
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import fs from 'fs'
 import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import cors from 'cors'
 
 const app: Express = express()
+
 // const port = getRandomInt(6000,6500)
 
+express.static.mime.define({ 'image/svg+xml': ['svg'] })
+
 declare global {
+  // eslint-disable-next-line no-unused-vars
   namespace Express {
+    // eslint-disable-next-line no-unused-vars
     interface Request {
       oceanNode: OceanNode
     }
@@ -58,7 +66,13 @@ OCEAN_NODE_LOGGER.logMessageWithEmoji(
   GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
   LOG_LEVELS_STR.LEVEL_INFO
 )
+
 const config = await getConfiguration(true, isStartup)
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+config.codeHash = await computeCodebaseHash(__dirname)
+
+OCEAN_NODE_LOGGER.logMessage(`Codebase hash: ${config.codeHash}`, true)
 if (!config) {
   process.exit(1)
 }
@@ -108,7 +122,27 @@ if (config.hasProvider && dbconn) {
 const oceanNode = OceanNode.getInstance(dbconn, node, provider, indexer)
 
 if (config.hasHttp) {
-  app.use(express.raw())
+  app.use(express.raw({ limit: '25mb' }))
+  app.use(cors())
+
+  // Serve static files expected at the root, under the '/_next' path
+  app.use('/_next', express.static(path.join(__dirname, '/dashboard/_next')))
+
+  // Serve static files for Next.js under '/dashboard'
+  const dashboardPath = path.join(__dirname, '/dashboard')
+  app.use('/dashboard', express.static(dashboardPath))
+
+  // Custom middleware for SPA routing: Serve index.html for non-static asset requests under '/dashboard'
+  app.use('/dashboard', (req, res, next) => {
+    if (/(.ico|.js|.css|.jpg|.png|.svg|.map)$/i.test(req.path)) {
+      return next() // Skip this middleware if the request is for a static asset
+    }
+
+    // For any other requests under '/dashboard', serve index.html
+    res.sendFile(path.join(dashboardPath, 'index.html'))
+  })
+
+  // allow up to 25Mb file upload
   app.use((req, res, next) => {
     req.oceanNode = oceanNode
     next()
@@ -122,7 +156,10 @@ if (config.hasHttp) {
       }
     })
   )
+  // Integrate static file serving middleware
+
   app.use('/', httpRoutes)
+
   app.listen(config.httpPort, () => {
     OCEAN_NODE_LOGGER.logMessage(`HTTP port: ${config.httpPort}`, true)
   })

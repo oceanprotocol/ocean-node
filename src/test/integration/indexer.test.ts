@@ -8,8 +8,6 @@ import {
   getAddress,
   hexlify,
   ZeroAddress,
-  toUtf8Bytes,
-  solidityPackedKeccak256,
   parseUnits
 } from 'ethers'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
@@ -18,8 +16,8 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
-import { getEventFromTx } from '../../utils/util.js'
-import { waitToIndex, signMessage, expectedTimeoutFailure } from './testUtils.js'
+import { getEventFromTx, sleep } from '../../utils/util.js'
+import { waitToIndex, expectedTimeoutFailure } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import {
   DEVELOPMENT_CHAIN_ID,
@@ -33,11 +31,9 @@ import { EVENTS } from '../../utils/constants.js'
 
 describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
-  let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let factoryContract: Contract
   let nftContract: Contract
-  let datatokenContract: Contract
   let publisherAccount: Signer
   let consumerAccount: Signer
   let nftAddress: string
@@ -50,22 +46,15 @@ describe('Indexer stores a new metadata events and orders.', () => {
   let orderTxId: string
   let reuseOrderTxId: string
   let dataTokenContractWithNewSigner: any
-  let signedMessage: { v: string; r: string; s: string }
-  let message: string
-  let providerData: string
   let orderEvent: any
   let reusedOrderEvent: any
   let initialOrderCount: number
-  const timeout = 0
+  let indexer: OceanIndexer
   const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
-  const providerFeeAddress = ZeroAddress // publisherAddress
-  const providerFeeToken = feeToken
   const serviceIndex = 0 // dummy index
-  const providerFeeAmount = 0 // fee to be collected on top, requires approval
   const consumeMarketFeeAddress = ZeroAddress // marketplace fee Collector
   const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
-  const consumeMarketFeeToken = feeToken // token address for the feeAmount,
-  const providerValidUntil = 0
+  const consumeMarketFeeToken = feeToken // token address for the feeAmount
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
@@ -92,7 +81,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     )
   })
 
-  it('instance Database', async () => {
+  it('instance Database', () => {
     expect(database).to.be.instanceOf(Database)
   })
 
@@ -279,25 +268,28 @@ describe('Indexer stores a new metadata events and orders.', () => {
       resolvedDDO.services[0]
     )
 
-    // sign provider data
-    providerData = JSON.stringify({ timeout })
-    message = solidityPackedKeccak256(
-      ['bytes', 'address', 'address', 'uint256', 'uint256'],
-      [
-        hexlify(toUtf8Bytes(providerData)),
-        providerFeeAddress,
-        providerFeeToken,
-        providerFeeAmount,
-        providerValidUntil
-      ]
-    )
-    signedMessage = await signMessage(message, publisherAddress, provider)
-
     // call the mint function on the dataTokenContract
     const mintTx = await dataTokenContract.mint(consumerAddress, parseUnits('1000', 18))
     await mintTx.wait()
     const consumerBalance = await dataTokenContract.balanceOf(consumerAddress)
     assert(consumerBalance === parseUnits('1000', 18), 'consumer balance not correct')
+    // handle fees
+    // get provider fees in our account as well
+    const providerFeeTokenContract = new Contract(
+      feeData.providerFeeToken,
+      ERC20Template.abi,
+      publisherAccount
+    )
+    const feeMintTx = await providerFeeTokenContract.mint(
+      await consumerAccount.getAddress(),
+      feeData.providerFeeAmount
+    )
+    await feeMintTx.wait()
+
+    const approveTx = await (
+      providerFeeTokenContract.connect(consumerAccount) as any
+    ).approve(await dataTokenContract.getAddress(), feeData.providerFeeAmount)
+    await approveTx.wait()
 
     dataTokenContractWithNewSigner = dataTokenContract.connect(consumerAccount) as any
 
@@ -359,7 +351,26 @@ describe('Indexer stores a new metadata events and orders.', () => {
       'null',
       resolvedDDO.services[0]
     )
+    // handle fees
+    // get provider fees in our account as well
+    const providerFeeTokenContract = new Contract(
+      feeData.providerFeeToken,
+      ERC20Template.abi,
+      publisherAccount
+    )
+    const feeMintTx = await providerFeeTokenContract.mint(
+      await consumerAccount.getAddress(),
+      feeData.providerFeeAmount
+    )
+    await feeMintTx.wait()
 
+    const approveTx = await (
+      providerFeeTokenContract.connect(consumerAccount) as any
+    ).approve(
+      await dataTokenContractWithNewSigner.getAddress(),
+      feeData.providerFeeAmount
+    )
+    await approveTx.wait()
     const orderTx = await dataTokenContractWithNewSigner.reuseOrder(
       orderTxId,
       {
@@ -388,10 +399,13 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should increase number of orders', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    await sleep(2000)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.ORDER_REUSED,
-      DEFAULT_TEST_TIMEOUT
+      DEFAULT_TEST_TIMEOUT * 2,
+      true
     )
     const retrievedDDO: any = ddo
     if (retrievedDDO) {
@@ -437,12 +451,17 @@ describe('Indexer stores a new metadata events and orders.', () => {
     }
   })
 
-  it('should add reindex task', async () => {
+  it('should add reindex task', () => {
     const reindexTask = {
       txId: setMetaDataTxReceipt.hash,
       chainId: '8996'
     }
-    await OceanIndexer.addReindexTask(reindexTask)
+    OceanIndexer.addReindexTask(reindexTask)
+  })
+
+  it('should get reindex queue', () => {
+    const queue = indexer.getIndexingQueue()
+    expect(queue.length).to.be.greaterThanOrEqual(1)
   })
 
   it('should store ddo reindex', async function () {
@@ -457,5 +476,13 @@ describe('Indexer stores a new metadata events and orders.', () => {
     } else {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     }
+  })
+
+  it('should get empty reindex queue', () => {
+    setTimeout(() => {
+      // needs to wait for indexer task to run at least once
+      const queue = indexer.getIndexingQueue()
+      expect(queue.length).to.be.equal(0)
+    }, DEFAULT_TEST_TIMEOUT / 2)
   })
 })

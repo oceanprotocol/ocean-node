@@ -13,12 +13,14 @@ export class TypesenseApi {
 
   constructor(private config: TypesenseConfig) {}
 
+  // eslint-disable-next-line require-await
   async get<T>(endpoint: string, queryParameters: any = {}): Promise<T> {
     return this.request<T>('get', endpoint, {
       queryParameters
     })
   }
 
+  // eslint-disable-next-line require-await
   async post<T>(
     endpoint: string,
     bodyParameters: any = {},
@@ -30,10 +32,12 @@ export class TypesenseApi {
     })
   }
 
+  // eslint-disable-next-line require-await
   async delete<T>(endpoint: string, queryParameters: any = {}): Promise<T> {
     return this.request<T>('delete', endpoint, { queryParameters })
   }
 
+  // eslint-disable-next-line require-await
   async put<T>(
     endpoint: string,
     bodyParameters: any = {},
@@ -45,6 +49,7 @@ export class TypesenseApi {
     })
   }
 
+  // eslint-disable-next-line require-await
   async patch<T>(
     endpoint: string,
     bodyParameters: any = {},

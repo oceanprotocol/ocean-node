@@ -1,5 +1,5 @@
 import EventEmitter from 'node:events'
-import { Worker, workerData } from 'node:worker_threads'
+import { Worker } from 'node:worker_threads'
 import { Database } from '../database/index.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
 import { ReindexTask } from './crawlerThread.js'
@@ -9,6 +9,9 @@ import { EVENTS } from '../../utils/index.js'
 
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
+
+let INDEXING_QUEUE: ReindexTask[] = []
+
 export class OceanIndexer {
   private db: Database
   private networks: RPCS
@@ -19,6 +22,7 @@ export class OceanIndexer {
     this.db = db
     this.networks = supportedNetworks
     this.supportedChains = Object.keys(supportedNetworks)
+    INDEXING_QUEUE = []
     this.startThreads()
   }
 
@@ -79,6 +83,13 @@ export class OceanIndexer {
               `Emiting "${event.method}" for DDO : ${event.data.id} from network: ${network} `
             )
             INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
+            // remove from indexing list
+          } else if (event.method === 'popFromQueue') {
+            // remove this one from the queue
+            INDEXING_QUEUE = INDEXING_QUEUE.filter(
+              (task) =>
+                task.txId !== event.data.txId && task.chainId !== event.data.chainId
+            )
           }
         } else {
           INDEXER_LOGGER.log(
@@ -109,10 +120,11 @@ export class OceanIndexer {
     }
   }
 
-  static async addReindexTask(reindexTask: ReindexTask): Promise<void> {
+  static addReindexTask(reindexTask: ReindexTask): void {
     const worker = OceanIndexer.workers[reindexTask.chainId]
     if (worker) {
       worker.postMessage({ method: 'add-reindex-task', reindexTask })
+      INDEXING_QUEUE.push(reindexTask)
     }
   }
 
@@ -129,5 +141,9 @@ export class OceanIndexer {
       )
       return null
     }
+  }
+
+  public getIndexingQueue(): ReindexTask[] {
+    return INDEXING_QUEUE.slice()
   }
 }

@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { Readable } from 'stream'
 
 export interface HeadersObject {
@@ -6,8 +7,7 @@ export interface HeadersObject {
 
 export enum EncryptMethod {
   AES = 'AES',
-  ECIES = 'ECIES',
-  NONE = ''
+  ECIES = 'ECIES'
 }
 
 export interface BaseFileObject {

@@ -50,7 +50,7 @@ async function updateLastIndexedBlockNumber(block: number): Promise<void> {
   }
 }
 export async function proccesNetworkData(): Promise<void> {
-  const deployedBlock = await getDeployedContractBlock(rpcDetails.chainId)
+  const deployedBlock = getDeployedContractBlock(rpcDetails.chainId)
   if (deployedBlock == null && lastIndexedBlock == null) {
     INDEXER_LOGGER.logMessage(
       `chain: ${rpcDetails.chainId} Both deployed block and last indexed block are null. Cannot proceed further on this chain`,
@@ -92,7 +92,7 @@ export async function proccesNetworkData(): Promise<void> {
           blocksToProcess
         )
         updateLastIndexedBlockNumber(processedBlocks.lastBlock)
-        await checkNewlyIndexedAssets(processedBlocks.foundEvents)
+        checkNewlyIndexedAssets(processedBlocks.foundEvents)
         lastIndexedBlock = processedBlocks.lastBlock
       } catch (error) {
         INDEXER_LOGGER.log(
@@ -121,6 +121,14 @@ async function processReindex(): Promise<void> {
         const log = receipt.logs[reindexTask.eventIndex]
         const logs = log ? [log] : receipt.logs
         await processChunkLogs(logs, signer, provider, rpcDetails.chainId)
+        // clear from the 'top' queue
+        parentPort.postMessage({
+          method: 'popFromQueue',
+          data: reindexTask
+        })
+      } else {
+        // put it back as it failed
+        REINDEX_QUEUE.push(reindexTask)
       }
     } catch (error) {
       INDEXER_LOGGER.log(
@@ -132,7 +140,7 @@ async function processReindex(): Promise<void> {
   }
 }
 
-export async function checkNewlyIndexedAssets(events: BlocksEvents): Promise<void> {
+export function checkNewlyIndexedAssets(events: BlocksEvents): void {
   const eventKeys = Object.keys(events)
   eventKeys.forEach((eventType) => {
     // will emit messages for all these events

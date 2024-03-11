@@ -1,5 +1,6 @@
-import { ethers, Signer, JsonRpcApiProvider, JsonRpcProvider, Contract } from 'ethers'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import { ethers, Signer, Contract, JsonRpcApiProvider, JsonRpcProvider } from 'ethers'
+import { getConfiguration } from './config.js'
 
 export class Blockchain {
   private signer: Signer
@@ -55,4 +56,9 @@ export async function verifyMessage(
   } catch (err) {
     return false
   }
+}
+
+export async function getJsonRpcProvider(chainId: number): Promise<JsonRpcProvider> {
+  const networkUrl = (await getConfiguration()).supportedNetworks[chainId.toString()].rpc
+  return new JsonRpcProvider(networkUrl)
 }

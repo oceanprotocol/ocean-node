@@ -130,9 +130,21 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
           'Missing required parameter(s): "fileIndex","documentId", "serviceId","transferTxId", "nonce","consumerAddress", "signature"'
         )
       }
-    } else if (command === PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS) {
+    } else if (command === PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS) {
       if (!requestBody.chainId) {
         return buildInvalidRequestMessage('Missing required parameter: "chainId"')
+      }
+    } else if (command === PROTOCOL_COMMANDS.COMPUTE_INITIALIZE) {
+      if (
+        !requestBody.chaindId ||
+        !requestBody.datasets ||
+        !requestBody.algorithm ||
+        !requestBody.compute ||
+        !requestBody.consumerAddress
+      ) {
+        return buildInvalidRequestMessage(
+          'Missing required parameter(s): "chaindId","datasets", "algorithm","compute", "consumerAddress"'
+        )
       }
     }
     // only once is enough :-)
