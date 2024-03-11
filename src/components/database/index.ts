@@ -740,7 +740,7 @@ export class LogDatabase {
     }
   }
 
-  async deleteOldLogs() {
+  async deleteOldLogs(): Promise<number> {
     const defaultLogRetention = '2592000000' // 30 days in milliseconds
     const currentTime = new Date().getTime()
     const xTime = parseInt(
@@ -764,6 +764,7 @@ export class LogDatabase {
           }
         }
       }
+      return oldLogs ? oldLogs.length : 0
     } catch (error) {
       DATABASE_LOGGER.logMessageWithEmoji(
         `Error when deleting old log entries: ${error.message}`,

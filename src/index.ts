@@ -14,7 +14,7 @@ import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import cors from 'cors'
-const cron = require('node-cron')
+import { scheduleCronJobs } from './utils/logging/logDeleteCron.js'
 
 const app: Express = express()
 
@@ -165,16 +165,6 @@ if (config.hasHttp) {
     OCEAN_NODE_LOGGER.logMessage(`HTTP port: ${config.httpPort}`, true)
   })
 
-  // Schedule the cron job to run daily at midnight
-  cron.schedule('0 0 * * *', async () => {
-    if (dbconn && dbconn.logs) {
-      await dbconn.logs.deleteOldLogs()
-      OCEAN_NODE_LOGGER.logMessage('Old logs deleted successfully.', true)
-    } else {
-      OCEAN_NODE_LOGGER.logMessage(
-        'Database connection not established or logs instance not available.',
-        true
-      )
-    }
-  })
+  // Call the function to schedule the cron job to delete old logs
+  scheduleCronJobs(dbconn)
 }
