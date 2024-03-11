@@ -201,9 +201,10 @@ export async function verifyProviderFees(
   const retMsg = {
     isValid: true,
     isComputeValid: false,
-    message: ''
+    message: '',
+    validUntil: 0
   }
-  if (computeEnv && validUntil > 0) {
+  if (computeEnv) {
     retMsg.isComputeValid = true
     if (providerData.environment !== computeEnv) {
       errorMsg =
@@ -214,13 +215,17 @@ export async function verifyProviderFees(
         ')'
       retMsg.isComputeValid = false
     }
-    if (providerData.timestamp < validUntil) {
-      errorMsg =
-        'ProviderFee compute validity(' +
-        providerData.timestamp +
-        ') lower than needed ' +
-        validUntil
-      retMsg.isComputeValid = false
+    if (validUntil > 0) {
+      if (providerData.timestamp < validUntil) {
+        errorMsg =
+          'ProviderFee compute validity(' +
+          providerData.timestamp +
+          ') lower than needed ' +
+          validUntil
+        retMsg.isComputeValid = false
+      }
+    } else {
+      retMsg.validUntil = providerData.timestamp
     }
   }
   if (errorMsg) {

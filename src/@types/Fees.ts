@@ -30,6 +30,7 @@ export interface ProviderFeeValidation {
   isValid: boolean // true if valid provider fee for download
   isComputeValid: boolean // true is valid for compute
   message: any
+  validUntil: number
 }
 
 export interface ProviderFees {
