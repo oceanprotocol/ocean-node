@@ -684,6 +684,12 @@ export class LogDatabase {
       }
       if (maxLogs > 250) {
         maxLogs = 250
+        DATABASE_LOGGER.logMessageWithEmoji(
+          `Max logs is capped at 250 as Typesense is unable to return more results per page.`,
+          true,
+          GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
+          LOG_LEVELS_STR.LEVEL_INFO
+        )
       }
 
       const searchParameters = {
