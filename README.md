@@ -37,7 +37,7 @@ git checkout feature/nodes
 
 A full list of all environmental variables is available in [env.md](./env.md)
 
-Set remaining env values:
+Set env values:
 
 ```bash
 export HTTP_API_PORT=8000
@@ -82,29 +82,6 @@ For configuring the Indexer crawling interval in miliseconds (default, if not se
 export INDEXER_INTERVAL=10000
 ```
 
-### 6. Run the node
-
-Then start the node:
-
-```bash
-npm run start
-```
-
-### 7. Open a 2nd terminal and run another node
-
-```bash
-export HTTP_API_PORT=8001
-export PRIVATE_KEY=0x.....
-export RPCS="{ \"1\": \"https://rpc.eth.gateway.fm\", \"137\": \"https://polygon.meowrpc.com\", \"80001\": \"https://rpc-mumbai.maticvigil.com\" }"
-```
-
-For downloading the file from IPFS or ARWEAVE, please export the following env variables;
-
-```bash
-export IPFS_GATEWAY=''
-export ARWEAVE_GATEWAY=''
-```
-
 For purgatory checks, please export the following env variables;
 
 ```bash
@@ -122,13 +99,15 @@ export FEE_AMOUNT="{ \"amount\": 1, \"unit\": \"MB\" }"
 Where FEE_TOKENS is a map (chainID => Token address) and FEE_AMOUNT is the fees amount (unit of fee token).
 The 'unit' parameter is not used at the moment, but allows to specify an specific unit of size (MB, KB, GB, etc). Default is MB.
 
+### 6. Run the node
+
 Then start the node:
 
 ```bash
 npm run start
 ```
 
-Now, you should see the nodes discovery/connecting/disconnecting
+To run a second node, open a new terminal and follow these steps again. Now with the two nodes running, you should see the two nodes discovery/connecting/disconnecting with each other.
 
 Load postman collection from docs and play
 
