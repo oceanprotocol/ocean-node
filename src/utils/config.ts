@@ -124,6 +124,33 @@ export function getAllowedValidators(isStartup?: boolean): string[] {
   }
 }
 
+export function getAllowedAdmins(isStartup?: boolean): string[] {
+  try {
+    if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ALLOWED_ADMINS, isStartup)) {
+      return []
+    }
+    const allowedAdmins: string[] = JSON.parse(process.env.ALLOWED_ADMINS)
+    if (!Array.isArray(allowedAdmins)) {
+      CONFIG_LOGGER.logMessageWithEmoji(
+        'Invalid ALLOWED_ADMINS env variable format',
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return []
+    }
+    return allowedAdmins.map((address) => getAddress(address))
+  } catch (error) {
+    CONFIG_LOGGER.logMessageWithEmoji(
+      'Missing or Invalid address in ALLOWED_ADMINS env variable',
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
+    return []
+  }
+}
+
 /**
  * get default values for provider fee tokens
  * @param supportedNetworks chains that we support
@@ -422,7 +449,11 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     c2dClusters: getC2DClusterEnvironment(isStartup),
     accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
     assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),
+<<<<<<< HEAD
     allowedAdmins: getEnvValue(process.env.ALLOWED_ADMINS, [])
+=======
+    allowedAdmins: getAllowedAdmins(isStartup)
+>>>>>>> 6bce1a2c58543c3f95647875a4dbf4fa4e8f15da
   }
 
   if (!previousConfiguration) {
