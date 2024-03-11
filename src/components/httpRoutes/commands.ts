@@ -17,7 +17,7 @@ broadcastCommandRoute.post(
   '/broadcastCommand',
   express.json(),
   async (req: Request, res: Response): Promise<void> => {
-    const validate = validateBroadcastParameters(req.body)
+    const validate = validateBroadcastParameters(req.body, req.oceanNode)
     if (!validate.valid) {
       res.status(validate.status).send(validate.reason)
       return
@@ -39,7 +39,7 @@ directCommandRoute.post(
   '/directCommand',
   express.json(),
   async (req: Request, res: Response): Promise<void> => {
-    const validate = validateCommandAPIParameters(req.body)
+    const validate = validateCommandAPIParameters(req.body, req.oceanNode)
     if (!validate.valid) {
       // 'node' param is not mandatory for 'downloadURL' command for instance:
       // https://github.com/oceanprotocol/ocean-node/issues/26

@@ -1,6 +1,8 @@
 import { isAddress } from 'ethers'
 import { SUPPORTED_PROTOCOL_COMMANDS, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
+import { validateSignature } from '../../utils/auth.js'
+import { OceanNode } from '../../OceanNode.js'
 
 export type ValidateParams = {
   valid: boolean
@@ -8,14 +10,20 @@ export type ValidateParams = {
   status?: number
 }
 
-export function validateBroadcastParameters(requestBody: any): ValidateParams {
+export function validateBroadcastParameters(
+  requestBody: any,
+  oceanNode: OceanNode
+): ValidateParams {
   // for now we can use the same validation function,
   // but later we might need to have separate validation functions
   // if we many different commands of each type
-  return validateCommandAPIParameters(requestBody)
+  return validateCommandAPIParameters(requestBody, oceanNode)
 }
 // add others when we add support
-export function validateCommandAPIParameters(requestBody: any): ValidateParams {
+export function validateCommandAPIParameters(
+  requestBody: any,
+  oceanNode: OceanNode
+): ValidateParams {
   // eslint-disable-next-line prefer-destructuring
   const command: string = requestBody.command as string
 
@@ -145,6 +153,17 @@ export function validateCommandAPIParameters(requestBody: any): ValidateParams {
         return buildInvalidRequestMessage(
           'Missing required parameter(s): "chaindId","datasets", "algorithm","compute", "consumerAddress"'
         )
+      }
+    } else if (command === PROTOCOL_COMMANDS.STOP_NODE) {
+      if (!requestBody.expiryTimestamp || !requestBody.signature) {
+        return buildInvalidRequestMessage(
+          'Missing required parameter(s): "expiryTimestamp","signature"'
+        )
+      }
+      if (
+        !validateSignature(requestBody.expiryTimestamp, requestBody.signature, oceanNode)
+      ) {
+        return buildInvalidRequestMessage('Expired authentication or invalid signature')
       }
     }
     // only once is enough :-)

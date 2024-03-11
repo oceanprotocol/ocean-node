@@ -48,6 +48,7 @@ export interface OceanNodeConfig {
   accountPurgatoryUrl: string
   assetPurgatoryUrl: string
   codeHash?: string
+  allowedAdmins?: string
 }
 
 export interface P2PStatusResponse {
@@ -90,6 +91,7 @@ export interface OceanNodeStatus {
   platform: any
   uptime?: number // seconds since start
   codeHash?: string
+  allowedAdmins?: string[]
 }
 
 export interface P2PBroadcastResponse {
