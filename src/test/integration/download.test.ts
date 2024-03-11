@@ -120,12 +120,8 @@ describe('Should run a complete node flow.', () => {
       file: storage,
       type: FileObjectType.URL
     }
-<<<<<<< HEAD
-    const response = await new DownloadHandler(oceanNode).handle(downloadTask)
-=======
     const response = await new FileInfoHandler(oceanNode).handle(fileInfoTask)
 
->>>>>>> develop
     assert(response)
     assert(response.stream, 'stream not present')
     assert(response.status.httpStatus === 200, 'http status not 200')
