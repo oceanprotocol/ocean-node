@@ -192,5 +192,10 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'LOG_RETENTION_TIME',
     value: process.env.LOG_RETENTION_TIME,
     required: false
+  },
+  ALLOWED_ADMINS: {
+    name: 'ALLOWED_ADMINS',
+    value: process.env.ALLOWED_ADMINS,
+    required: false
   }
 }
