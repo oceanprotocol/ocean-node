@@ -68,19 +68,27 @@ function getSupportedChains(): RPCS {
   return supportedNetworks
 }
 
+// valid decrypthers
 function getAuthorizedDecrypters(isStartup?: boolean): string[] {
-  return readAddressesFromEnvVariable(
+  return readAddressListFromEnvVariable(
     ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
     isStartup
   )
 }
-
+// allowed validators
 export function getAllowedValidators(isStartup?: boolean): string[] {
-  return readAddressesFromEnvVariable(ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS, isStartup)
+  return readAddressListFromEnvVariable(
+    ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS,
+    isStartup
+  )
+}
+// valid node admins
+export function getAllowedAdmins(isStartup?: boolean): string[] {
+  return readAddressListFromEnvVariable(ENVIRONMENT_VARIABLES.ALLOWED_ADMINS, isStartup)
 }
 
 // whenever we want to read an array of addresses from an env variable, use this common function
-function readAddressesFromEnvVariable(envVariable: any, isStartup?: boolean): string[] {
+function readAddressListFromEnvVariable(envVariable: any, isStartup?: boolean): string[] {
   const { name } = envVariable
   try {
     if (!existsEnvironmentVariable(envVariable, isStartup)) {
@@ -100,33 +108,6 @@ function readAddressesFromEnvVariable(envVariable: any, isStartup?: boolean): st
   } catch (error) {
     CONFIG_LOGGER.logMessageWithEmoji(
       `Missing or Invalid address(es) in ${name} env variable`,
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_ERROR
-    )
-    return []
-  }
-}
-
-export function getAllowedAdmins(isStartup?: boolean): string[] {
-  try {
-    if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ALLOWED_ADMINS, isStartup)) {
-      return []
-    }
-    const allowedAdmins: string[] = JSON.parse(process.env.ALLOWED_ADMINS)
-    if (!Array.isArray(allowedAdmins)) {
-      CONFIG_LOGGER.logMessageWithEmoji(
-        'Invalid ALLOWED_ADMINS env variable format',
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
-      return []
-    }
-    return allowedAdmins.map((address) => getAddress(address))
-  } catch (error) {
-    CONFIG_LOGGER.logMessageWithEmoji(
-      'Missing or Invalid address in ALLOWED_ADMINS env variable',
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
@@ -453,5 +434,5 @@ function configChanged(previous: OceanNodeConfig, current: OceanNodeConfig): boo
 // useful for debugging purposes
 export async function printCurrentConfig() {
   const conf = await getConfiguration(true)
-  console.log(JSON.stringify(conf), null, 4)
+  console.log(JSON.stringify(conf, null, 4))
 }
