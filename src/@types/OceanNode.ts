@@ -49,7 +49,6 @@ export interface OceanNodeConfig {
   assetPurgatoryUrl: string
   allowedAdmins?: string[]
   codeHash?: string
-  allowedAdmins?: string
 }
 
 export interface P2PStatusResponse {
