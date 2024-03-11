@@ -167,17 +167,6 @@ export class DownloadHandler extends Handler {
       return buildInvalidParametersResponse(validation)
     }
     const node = this.getOceanNode()
-    CORE_LOGGER.logMessage(
-      'Download Request recieved with arguments: ' +
-        task.fileIndex +
-        task.documentId +
-        task.serviceId +
-        task.transferTxId +
-        task.nonce +
-        task.consumerAddress +
-        task.signature,
-      true
-    )
     // 1. Get the DDO
     const handler: FindDdoHandler = node
       .getCoreHandlers()

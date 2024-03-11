@@ -109,10 +109,6 @@ export class FileInfoHandler extends Handler {
       return buildInvalidParametersResponse(validation)
     }
     try {
-      CORE_LOGGER.logMessage(
-        'File Info Request recieved with arguments: ' + JSON.stringify(task, null, 2),
-        true
-      )
       const oceanNode = this.getOceanNode()
       let fileInfo = []
 
