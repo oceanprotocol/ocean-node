@@ -4,12 +4,9 @@ import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 
 import { getDefaultLevel } from '../../utils/logging/Logger.js'
 
-import {
-  validateBroadcastParameters,
-  validateCommandAPIParameters
-} from './validateCommands.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { hasP2PInterface, sendMissingP2PResponse } from './index.js'
+import { validateCommandParameters } from './validateCommands.js'
 
 export const broadcastCommandRoute = express.Router()
 
@@ -17,7 +14,7 @@ broadcastCommandRoute.post(
   '/broadcastCommand',
   express.json(),
   async (req: Request, res: Response): Promise<void> => {
-    const validate = validateBroadcastParameters(req.body, req.oceanNode)
+    const validate = validateCommandParameters(req.body, [])
     if (!validate.valid) {
       res.status(validate.status).send(validate.reason)
       return
@@ -39,11 +36,8 @@ directCommandRoute.post(
   '/directCommand',
   express.json(),
   async (req: Request, res: Response): Promise<void> => {
-    const validate = validateCommandAPIParameters(req.body, req.oceanNode)
+    const validate = validateCommandParameters(req.body, [])
     if (!validate.valid) {
-      // 'node' param is not mandatory for 'downloadURL' command for instance:
-      // https://github.com/oceanprotocol/ocean-node/issues/26
-      // https://github.com/oceanprotocol/ocean-node/issues/38
       res.status(validate.status).send(validate.reason)
       return
     }

@@ -26,7 +26,7 @@ import {
   ComputeGetResultHandler,
   ComputeInitializeHandler
 } from './compute/index.js'
-import { StopNodeHandler } from './dashboard.js'
+import { StopNodeHandler } from './adminOperations.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
