@@ -47,6 +47,7 @@ export interface OceanNodeConfig {
   c2dClusters: C2DClusterInfo[]
   accountPurgatoryUrl: string
   assetPurgatoryUrl: string
+  allowedAdmins?: string[]
   codeHash?: string
 }
 
@@ -90,6 +91,7 @@ export interface OceanNodeStatus {
   platform: any
   uptime?: number // seconds since start
   codeHash?: string
+  allowedAdmins?: string[]
 }
 
 export interface P2PBroadcastResponse {
