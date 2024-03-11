@@ -1,4 +1,5 @@
 import { ConsumerParameter } from '../@types/DDO/ConsumerParameter.js'
+import { ValidateParams } from '../components/httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from './logging/common.js'
 
 function checkString(value: any) {
@@ -20,10 +21,11 @@ function checkObject(value: any) {
 export function validateConsumerParameters(
   ddoConsumerParameters: ConsumerParameter[],
   userSentObject: any[]
-) {
-  const validation = {
+): ValidateParams {
+  const validation: ValidateParams = {
     valid: true,
-    message: ''
+    reason: '',
+    status: 200
   }
 
   try {
@@ -36,13 +38,18 @@ export function validateConsumerParameters(
         if (!checkObject(sentObject)) {
           throw new Error(`Value is not an object`)
         }
+        // check if key exists in object and if it is required or not, if not add default value
         const sentObjectKey = consumerParameter.name
-        if (sentObject[sentObjectKey] === undefined) {
+        if (
+          sentObject[sentObjectKey] === undefined ||
+          sentObject[sentObjectKey] === null
+        ) {
           if (consumerParameter.required) {
             throw new Error(`value of key ${sentObjectKey} parameter is required`)
           }
           sentObject[sentObjectKey] = consumerParameter.default
         }
+        // check the value for that key
         const sentObjectValue = sentObject[sentObjectKey]
         if (consumerParameter.type === 'text' && !checkString(sentObjectValue)) {
           throw new Error(
@@ -75,7 +82,8 @@ export function validateConsumerParameters(
   } catch (error) {
     CORE_LOGGER.error(error.message)
     validation.valid = false
-    validation.message = error.message
+    validation.reason = error.message
+    validation.status = 400
     return validation
   }
 }
