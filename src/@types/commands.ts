@@ -108,6 +108,12 @@ export interface ReindexTxCommand extends Command {
   txId: string
 }
 
+export interface ReindexChainCommand extends Command {
+  expiryTimestamp: number
+  signature: string
+  chainId: number
+}
+
 export interface ICommandHandler {
   handle(command: Command): Promise<P2PCommandResponse>
   validate(command: Command): ValidateParams

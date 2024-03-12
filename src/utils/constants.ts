@@ -23,7 +23,8 @@ export const PROTOCOL_COMMANDS = {
   COMPUTE_GET_STATUS: 'getComputeStatus',
   COMPUTE_GET_RESULT: 'getComputeResult',
   COMPUTE_INITIALIZE: 'initializeCompute',
-  REINDEX_TX: 'reindexTx'
+  REINDEX_TX: 'reindexTx',
+  REINDEX_CHAIN: 'reindexChain'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -47,7 +48,8 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
   PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
   PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
-  PROTOCOL_COMMANDS.REINDEX_TX
+  PROTOCOL_COMMANDS.REINDEX_TX,
+  PROTOCOL_COMMANDS.REINDEX_CHAIN
 ]
 
 export const MetadataStates = {
