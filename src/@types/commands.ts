@@ -101,6 +101,13 @@ export interface GetFeesCommand extends Command {
   validUntil?: number // this allows a user to request a fee that is valid only for a limited period of time, less than service.timeout
 }
 
+export interface ReindexTxCommand extends Command {
+  expiryTimestamp: number
+  signature: string
+  chainId: number
+  txId: string
+}
+
 export interface ICommandHandler {
   handle(command: Command): Promise<P2PCommandResponse>
   validate(command: Command): ValidateParams
