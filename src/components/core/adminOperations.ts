@@ -22,9 +22,7 @@ export class StopNodeHandler extends Handler {
       CORE_LOGGER.logMessage(errorMsg)
       return buildInvalidRequestMessage(errorMsg)
     }
-    if (
-      !validateSignature(command.expiryTimestamp, command.signature, this.getOceanNode())
-    ) {
+    if (!validateSignature(command.expiryTimestamp, command.signature)) {
       const errorMsg = 'Expired authentication or invalid signature'
       CORE_LOGGER.logMessage(errorMsg)
       return buildInvalidRequestMessage(errorMsg)
