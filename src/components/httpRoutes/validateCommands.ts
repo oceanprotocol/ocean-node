@@ -1,5 +1,4 @@
 import { SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { OceanNode } from '../../OceanNode.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Command } from '../../@types/commands.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
@@ -10,10 +9,7 @@ export type ValidateParams = {
   status?: number
 }
 
-export function validateBroadcastParameters(
-  requestBody: any,
-  oceanNode: OceanNode
-): ValidateParams {
+export function validateBroadcastParameters(requestBody: any): ValidateParams {
   // for now we can use the same validation function,
   // but later we might need to have separate validation functions
   // if we many different commands of each type

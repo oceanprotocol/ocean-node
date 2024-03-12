@@ -23,6 +23,6 @@
   "ts-node": {
     "esm": true
   },
-  "include": ["src/**/*", "src/components/core/adminOperations.ts"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules"]
 }
