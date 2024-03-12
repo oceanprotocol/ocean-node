@@ -33,9 +33,12 @@ export function buildEnvOverrideConfig(
   }
   const result: OverrideEnvConfig[] = []
   const existingKeys = Object.keys(ENVIRONMENT_VARIABLES)
+  console.log('existingKeys', existingKeys)
 
   for (let i = 0; i < envVars.length; i++) {
     const variable = envVars[i]
+    console.log('variable', variable)
+
     if (!existingKeys.includes(variable.name)) continue
     // ignore unknown variables
     const overrideValue: any = envValues[i]
