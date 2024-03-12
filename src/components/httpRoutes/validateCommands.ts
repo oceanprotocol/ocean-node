@@ -1,6 +1,6 @@
+import { SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Command } from '../../@types/commands.js'
-import { SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 export type ValidateParams = {
@@ -15,6 +15,7 @@ export function validateBroadcastParameters(requestBody: any): ValidateParams {
   // if we many different commands of each type
   return validateCommandParameters(requestBody, [])
 }
+// add others when we add suppor
 
 // request level validation, just check if we have a "command" field and its a supported one
 // each command handler is responsible for the reamining validatio of the command fields

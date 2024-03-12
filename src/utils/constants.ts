@@ -23,6 +23,7 @@ export const PROTOCOL_COMMANDS = {
   COMPUTE_GET_STATUS: 'getComputeStatus',
   COMPUTE_GET_RESULT: 'getComputeResult',
   COMPUTE_INITIALIZE: 'initializeCompute',
+  STOP_NODE: 'stopNode',
   REINDEX_TX: 'reindexTx'
 }
 // more visible, keep then close to make sure we always update both
@@ -47,6 +48,7 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
   PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
   PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
+  PROTOCOL_COMMANDS.STOP_NODE,
   PROTOCOL_COMMANDS.REINDEX_TX
 ]
 
