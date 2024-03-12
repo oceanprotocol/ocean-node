@@ -43,7 +43,6 @@ export async function status(
       )
     }
   }
-
   const status: OceanNodeStatus = {
     id: undefined,
     publicKey: undefined,
