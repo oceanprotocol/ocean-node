@@ -18,16 +18,18 @@ export class StopNodeHandler extends Handler {
       'signature'
     ])
     if (!commandValidation.valid) {
-      CORE_LOGGER.logMessage(
-        `Command validation failed: ${JSON.stringify(commandValidation)}`
-      )
-      return commandValidation
+      const errorMsg = `Command validation failed: ${JSON.stringify(commandValidation)}`
+      CORE_LOGGER.logMessage(errorMsg)
+      return buildInvalidRequestMessage(errorMsg)
     }
     if (
       !validateSignature(command.expiryTimestamp, command.signature, this.getOceanNode())
     ) {
-      return buildInvalidRequestMessage('Expired authentication or invalid signature')
+      const errorMsg = 'Expired authentication or invalid signature'
+      CORE_LOGGER.logMessage(errorMsg)
+      return buildInvalidRequestMessage(errorMsg)
     }
+    return commandValidation
   }
 
   handle(task: StopNodeCommand): Promise<P2PCommandResponse> {
