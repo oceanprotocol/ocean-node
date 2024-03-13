@@ -111,6 +111,7 @@ describe('Should run a complete node flow.', () => {
     const message = sha256(toUtf8Bytes(expiryTimestamp.toString()))
     // signing method for ganache
     const jsonRpcSigner = new JsonRpcSigner(provider, await publisherAccount.getAddress())
+    console.log(`json rpc signer: ${await jsonRpcSigner.getAddress()}`)
     return await jsonRpcSigner._legacySignMessage(getBytes(message))
   }
 
