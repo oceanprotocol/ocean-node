@@ -405,7 +405,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     },
     // Only enable provider if we have a DB_URL
     hasProvider: !!getEnvValue(process.env.DB_URL, ''),
-    hasDashboard: !!getEnvValue(process.env.DASHBOARD, true),
+    hasDashboard: process.env.DASHBOARD !== 'false',
     httpPort: getIntEnvValue(process.env.HTTP_API_PORT, 8000),
     dbConfig: {
       url: getEnvValue(process.env.DB_URL, '')
