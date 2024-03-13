@@ -1,5 +1,12 @@
 import { assert } from 'chai'
-import { JsonRpcProvider, Signer, sha256, toUtf8Bytes } from 'ethers'
+import {
+  JsonRpcProvider,
+  JsonRpcSigner,
+  Signer,
+  sha256,
+  toUtf8Bytes,
+  getBytes
+} from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -43,6 +50,7 @@ import {
 describe('Should run a complete node flow.', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
+  //   let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let publisherAccount: Signer
   let consumerAccount: Signer
@@ -99,14 +107,21 @@ describe('Should run a complete node flow.', () => {
     consumerAddress = await consumerAccount.getAddress()
   })
 
+  async function getSignature() {
+    const message = sha256(toUtf8Bytes(expiryTimestamp.toString()))
+    // signing method for ganache
+    const jsonRpcSigner = new JsonRpcSigner(provider, await publisherAccount.getAddress())
+    return await jsonRpcSigner._legacySignMessage(getBytes(message))
+  }
+
   it('validation should pass for stop node command', async () => {
     console.log(`consumer addr: ${consumerAddress}`)
     console.log(`publisher addr: ${await publisherAccount.getAddress()}`)
 
-    const message = sha256(toUtf8Bytes(expiryTimestamp.toString()))
-
     // Sign the original message directly
-    const signature = await publisherAccount.signMessage(message)
+    const signature = await getSignature()
+
+    console.log(`signature: ${signature}`)
 
     const stopNodeCommand: StopNodeCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
@@ -127,11 +142,7 @@ describe('Should run a complete node flow.', () => {
   it('should pass for reindex tx command', async () => {
     console.log(`consumer addr: ${consumerAddress}`)
     console.log(`publisher addr: ${await publisherAccount.getAddress()}`)
-
-    const message = sha256(toUtf8Bytes(expiryTimestamp.toString()))
-
-    // Sign the original message directly
-    const signature = await publisherAccount.signMessage(message)
+    const signature = await getSignature()
 
     const reindexTxCommand: ReindexTxCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
@@ -155,11 +166,7 @@ describe('Should run a complete node flow.', () => {
   it('validation should pass for reindex chain command', async () => {
     console.log(`consumer addr: ${consumerAddress}`)
     console.log(`publisher addr: ${await publisherAccount.getAddress()}`)
-
-    const message = sha256(toUtf8Bytes(expiryTimestamp.toString()))
-
-    // Sign the original message directly
-    const signature = await publisherAccount.signMessage(message)
+    const signature = await getSignature()
 
     const reindexChainCommand: ReindexChainCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
