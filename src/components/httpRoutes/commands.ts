@@ -14,9 +14,6 @@ broadcastCommandRoute.post(
   '/broadcastCommand',
   express.json(),
   async (req: Request, res: Response): Promise<void> => {
-    // for now we can use the same validation function,
-    // but later we might need to have separate validation functions
-    // if we many different commands of each type
     const validate = validateCommandParameters(req.body, [])
     if (!validate.valid) {
       res.status(validate.status).send(validate.reason)

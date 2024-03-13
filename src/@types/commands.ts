@@ -55,6 +55,11 @@ export interface ValidateDDOCommand extends Command {
 export interface StatusCommand extends Command {}
 export interface EchoCommand extends Command {}
 
+export interface StopNodeCommand extends Command {
+  expiryTimestamp: number
+  signature: string
+}
+
 export interface QueryCommand extends Command {
   query: Record<string, any>
 }
