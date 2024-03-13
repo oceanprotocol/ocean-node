@@ -1,11 +1,12 @@
 import { assert } from 'chai'
 import {
   JsonRpcProvider,
-  JsonRpcSigner,
+  //   JsonRpcSigner,
   Signer,
-  sha256,
-  toUtf8Bytes,
-  getBytes
+  //   sha256,
+  //   toUtf8Bytes,
+  //   getBytes,
+  ethers
 } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
@@ -107,12 +108,20 @@ describe('Should run a complete node flow.', () => {
     consumerAddress = await consumerAccount.getAddress()
   })
 
-  async function getSignature() {
-    const message = sha256(toUtf8Bytes(expiryTimestamp.toString()))
+  function getSignature() {
+    const signature = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(expiryTimestamp.toString()))]
+    )
+    // const messageHashBytes = ethers.toBeArray(message)
+    return signature
+    //  = sha256(
+    //   toUtf8Bytes(expiryTimestamp.toString())
+    // ))
     // signing method for ganache
-    const jsonRpcSigner = new JsonRpcSigner(provider, await publisherAccount.getAddress())
-    console.log(`json rpc signer: ${await jsonRpcSigner.getAddress()}`)
-    return await jsonRpcSigner._legacySignMessage(getBytes(message))
+    // const jsonRpcSigner = new JsonRpcSigner(provider, await publisherAccount.getAddress())
+    // console.log(`json rpc signer: ${await jsonRpcSigner.getAddress()}`)
+    // return await jsonRpcSigner._legacySignMessage(getBytes(message))
   }
 
   it('validation should pass for stop node command', async () => {
@@ -120,9 +129,22 @@ describe('Should run a complete node flow.', () => {
     console.log(`publisher addr: ${await publisherAccount.getAddress()}`)
 
     // Sign the original message directly
-    const signature = await getSignature()
+    const signature = getSignature()
 
     console.log(`signature: ${signature}`)
+    const addressFromHashSignature = ethers.verifyMessage(
+      ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.hexlify(ethers.toUtf8Bytes(expiryTimestamp.toString()))]
+      ),
+      signature
+    )
+
+    assert(
+      ethers.getAddress(addressFromHashSignature) ===
+        ethers.getAddress(await publisherAccount.getAddress()),
+      'addresses mismatch'
+    )
 
     const stopNodeCommand: StopNodeCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
