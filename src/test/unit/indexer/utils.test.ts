@@ -18,7 +18,7 @@ describe('Utils', () => {
   let signer: ethers.Wallet
 
   before(() => {
-    provider = new ethers.JsonRpcProvider('https://rpc-mumbai.maticvigil.com')
+    provider = new ethers.JsonRpcProvider('https://polygon-mumbai.g.alchemy.com/v2/demo')
     signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider)
   })
 
