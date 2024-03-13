@@ -16,6 +16,11 @@ export interface Command {
   node?: string // if not present it means current node
 }
 
+export interface AdminCommand extends Command {
+  expiryTimestamp: number
+  signature: string
+}
+
 export interface DownloadURLCommand extends Command {
   fileObject: any
   aes_encrypted_key?: string // if not present it means download without encryption
@@ -54,11 +59,6 @@ export interface ValidateDDOCommand extends Command {
 
 export interface StatusCommand extends Command {}
 export interface EchoCommand extends Command {}
-
-export interface StopNodeCommand extends Command {
-  expiryTimestamp: number
-  signature: string
-}
 
 export interface QueryCommand extends Command {
   query: Record<string, any>
@@ -105,10 +105,9 @@ export interface GetFeesCommand extends Command {
   consumerAddress?: string
   validUntil?: number // this allows a user to request a fee that is valid only for a limited period of time, less than service.timeout
 }
-
-export interface ReindexTxCommand extends Command {
-  expiryTimestamp: number
-  signature: string
+// admin commands
+export interface StopNodeCommand extends AdminCommand {}
+export interface ReindexTxCommand extends AdminCommand {
   chainId: number
   txId: string
 }

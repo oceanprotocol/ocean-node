@@ -21,14 +21,12 @@ export class StopNodeHandler extends Handler {
       'signature'
     ])
     if (!commandValidation.valid) {
-      const errorMsg = `Command validation failed: ${JSON.stringify(commandValidation)}`
-      CORE_LOGGER.logMessage(errorMsg)
-      return buildInvalidRequestMessage(errorMsg)
+      return buildInvalidRequestMessage(
+        `Command validation failed: ${JSON.stringify(commandValidation)}`
+      )
     }
     if (!validateSignature(command.expiryTimestamp, command.signature)) {
-      const errorMsg = 'Expired authentication or invalid signature'
-      CORE_LOGGER.logMessage(errorMsg)
-      return buildInvalidRequestMessage(errorMsg)
+      return buildInvalidRequestMessage('Expired authentication or invalid signature')
     }
     return commandValidation
   }
@@ -62,14 +60,12 @@ export class ReindexTxHandler extends Handler {
       'txId'
     ])
     if (!commandValidation.valid) {
-      const errorMsg = `Command validation failed: ${JSON.stringify(commandValidation)}`
-      CORE_LOGGER.logMessage(errorMsg)
-      return buildInvalidRequestMessage(errorMsg)
+      return buildInvalidRequestMessage(
+        `Command validation failed: ${JSON.stringify(commandValidation)}`
+      )
     }
     if (!validateSignature(command.expiryTimestamp, command.signature)) {
-      const errorMsg = 'Expired authentication or invalid signature'
-      CORE_LOGGER.logMessage(errorMsg)
-      return buildInvalidRequestMessage(errorMsg)
+      return buildInvalidRequestMessage('Expired authentication or invalid signature')
     }
     return commandValidation
   }
@@ -83,6 +79,10 @@ export class ReindexTxHandler extends Handler {
     }
     CORE_LOGGER.logMessage(`Reindexing tx...`)
     const config = await getConfiguration()
+    if (!(`${task.chainId}` in config.supportedNetworks)) {
+      CORE_LOGGER.error(`Chain ID ${task.chainId} is not supported in config.`)
+      return
+    }
     const blockchain = new Blockchain(
       config.supportedNetworks[task.chainId.toString()].rpc,
       task.chainId
@@ -92,20 +92,14 @@ export class ReindexTxHandler extends Handler {
     try {
       const receipt = await provider.getTransactionReceipt(task.txId)
       if (!receipt) {
-        CORE_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_ERROR,
-          `Tx receipt was not found for txId ${task.txId}`,
-          true
-        )
+        CORE_LOGGER.error(`Tx receipt was not found for txId ${task.txId}`)
         return
       }
       const { logs } = receipt
       const ret = await processChunkLogs(logs, signer, provider, task.chainId)
       if (!ret) {
-        CORE_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_ERROR,
-          `Reindex tx for txId ${task.txId} failed on chain ${task.chainId}.`,
-          true
+        CORE_LOGGER.error(
+          `Reindex tx for txId ${task.txId} failed on chain ${task.chainId}.`
         )
         return
       }
