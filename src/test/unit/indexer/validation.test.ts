@@ -1,6 +1,7 @@
 import {
   incorrectDDO,
   DDOExample,
+  DDOExample2,
   ddov5,
   ddoValidationSignature
 } from '../../data/ddo.js'
@@ -50,35 +51,38 @@ describe('Schema validation tests', async () => {
     const validationResult = await validateObject(
       incorrectDDO,
       8996,
-      DDOExample.nftAddress
+      incorrectDDO.nftAddress
     )
     expect(validationResult[0]).to.eql(false)
+    console.log('validation res[1]: ', JSON.stringify(validationResult[1]))
+    // metadata: 'Metadata is missing or invalid.',
     expect(validationResult[1]).to.eql({
-      metadata: 'Metadata is missing or invalid.',
       id: 'did is not valid for chain Id and nft address'
     })
   })
   it('should not pass due to invalid did for chainId and NFT on version 4.1.0', async () => {
-    DDOExample['@context'] = ['https://w3id.org/did/v1']
-    const validationResult = await validateObject(DDOExample, 8996, DDOExample.nftAddress)
+    const validationResult = await validateObject(
+      DDOExample2,
+      8996,
+      DDOExample.nftAddress
+    )
+    console.log('validation result: ', validationResult)
     expect(validationResult[0]).to.eql(false)
     expect(validationResult[1]).to.eql({
       id: 'did is not valid for chain Id and nft address'
     })
   })
-  it('should not pass due to missing context on version 4.1.0', async () => {
-    const copy = DDOExample
-    delete copy['@context']
-    const validationResult = await validateObject(copy, 137, copy.nftAddress)
+  it('should not pass due to invalid chainId on version 4.1.0', async () => {
+    const validationResult = await validateObject(DDOExample, 8996, DDOExample.nftAddress)
     expect(validationResult[0]).to.eql(false)
     expect(validationResult[1]).to.eql({
-      '@context': 'Context is missing.'
+      chainId: 'chainId is missing or invalid.'
     })
   })
   it('should not pass due to invalid ISO timestamp format on version 4.1.0', async () => {
-    DDOExample['@context'] = ['https://w3id.org/did/v1']
     const copy = DDOExample
-    copy.metadata.created = 'timestamp'
+    copy.metadata.created = '2000-10-31T01:30:00.000-05:00'
+    console.log('copy: ', JSON.stringify(copy))
     const validationResult = await validateObject(copy, 137, copy.nftAddress)
     expect(validationResult[0]).to.eql(false)
     expect(validationResult[1]).to.eql({

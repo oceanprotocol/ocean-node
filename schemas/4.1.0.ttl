@@ -36,13 +36,13 @@ schema:DDOShape
     sh:property [
         sh:path schema:metadata ;
         sh:node schema:MetadataShape ;
-        sh:minCount 1;
-        sh:maxCount 1;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
     ] ;
     sh:property [
         sh:path schema:services ;
         sh:node schema:ServiceShape ;
-        sh:minCount 1;
+        sh:minCount 1 ;
     ] ;
     sh:property [
         sh:path schema:credentials;
