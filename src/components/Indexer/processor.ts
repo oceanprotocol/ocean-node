@@ -2,6 +2,7 @@ import {
   Contract,
   Interface,
   JsonRpcApiProvider,
+  Signer,
   ethers,
   getAddress,
   getBytes,
@@ -9,7 +10,6 @@ import {
 } from 'ethers'
 import { createHash } from 'crypto'
 import { Readable } from 'node:stream'
-import { isWebUri } from 'valid-url'
 import axios from 'axios'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
@@ -19,10 +19,12 @@ import { getDatabase } from '../../utils/database.js'
 import { PROTOCOL_COMMANDS, EVENTS, MetadataStates } from '../../utils/constants.js'
 import { getNFTFactory, getContractAddress } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
+import { Purgatory } from './purgatory.js'
 import { getConfiguration } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
-import { streamToString } from '../../utils/util.js'
+import { isValidUrl, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
+import { create256Hash } from '../../utils/crypt.js'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -86,9 +88,9 @@ class BaseEventProcessor {
     metadata: any
   ): Promise<any> {
     let ddo
-    if (flag === '0x02') {
+    if (parseInt(flag) === 2) {
       INDEXER_LOGGER.logMessage(
-        `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} ecnrypted by: ${decryptorURL}`
+        `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
       )
       const nonce = Date.now().toString()
       const { keys } = await getConfiguration()
@@ -105,7 +107,7 @@ class BaseEventProcessor {
       )
       const signature = await wallet.signMessage(consumerMessage)
 
-      if (isWebUri(decryptorURL)) {
+      if (isValidUrl(decryptorURL)) {
         try {
           const payload = {
             transactionId: txId,
@@ -120,18 +122,25 @@ class BaseEventProcessor {
             url: `${decryptorURL}/api/services/decrypt`,
             data: payload
           })
-          if (response.status !== 201) {
-            const message = `Provider exception on decrypt DDO. Status: ${response.status}, ${response.statusText}`
+          if (response.status !== 200) {
+            const message = `bProvider exception on decrypt DDO. Status: ${response.status}, ${response.statusText}`
             INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
             throw new Error(message)
           }
-          const encodedResponse = createHash('sha256').update(response.data).digest('hex')
-          if (encodedResponse !== metadataHash) {
-            const msg = `Hash check failed: response=${response.data}, encoded response=${encodedResponse}\n metadata hash=${metadataHash}`
+
+          let responseHash
+          if (response.data instanceof Object) {
+            responseHash = create256Hash(JSON.stringify(response.data))
+            ddo = response.data
+          } else {
+            ddo = JSON.parse(response.data)
+            responseHash = create256Hash(ddo)
+          }
+          if (responseHash !== metadataHash) {
+            const msg = `Hash check failed: response=${ddo}, decrypted ddo hash=${responseHash}\n metadata hash=${metadataHash}`
             INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, msg)
             throw new Error(msg)
           }
-          ddo = response.data.decode('utf-8')
         } catch (err) {
           const message = `Provider exception on decrypt DDO. Status: ${err.message}`
           INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
@@ -242,12 +251,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
   async processEvent(
     event: ethers.Log,
     chainId: number,
+    signer: Signer,
     provider: JsonRpcApiProvider,
     eventName: string
   ): Promise<any> {
     try {
       const nftFactoryAddress = getContractAddress(chainId, 'ERC721Factory')
-      const nftFactoryContract = await getNFTFactory(provider, nftFactoryAddress)
+      const nftFactoryContract = await getNFTFactory(signer, nftFactoryAddress)
+
       if (
         getAddress(await nftFactoryContract.erc721List(event.address)) !==
         getAddress(event.address)
@@ -274,22 +285,24 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         decodedEventData.args[5],
         decodedEventData.args[4]
       )
+      // stuff that we overwrite
+      ddo.chainId = chainId
+      ddo.nftAddress = event.address
       ddo.datatokens = this.getTokenInfo(ddo.services)
       INDEXER_LOGGER.logMessage(
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
         true
       )
+
       const previousDdo = await (await getDatabase()).ddo.retrieve(ddo.id)
-      if (eventName === 'MetadataCreated') {
+      if (eventName === EVENTS.METADATA_CREATED) {
         if (previousDdo && previousDdo.nft.state === MetadataStates.ACTIVE) {
-          INDEXER_LOGGER.logMessage(
-            `DDO ${ddo.did} is already registered as active`,
-            true
-          )
+          INDEXER_LOGGER.logMessage(`DDO ${ddo.id} is already registered as active`, true)
           return
         }
       }
-      if (eventName === 'MetadataUpdated') {
+
+      if (eventName === EVENTS.METADATA_UPDATED) {
         if (!previousDdo) {
           INDEXER_LOGGER.logMessage(
             `Previous DDO with did ${ddo.id} was not found the database. Maybe it was deleted/hidden to some violation issues`,
@@ -310,8 +323,16 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           return
         }
       }
-      const saveDDO = this.createOrUpdateDDO(ddo, eventName)
-      return saveDDO
+      const from = decodedEventData.args[0]
+      // always call, but only create instance once
+      const purgatory = await Purgatory.getInstance()
+      // if purgatory is disabled just return false
+      const updatedDDO = await this.updatePurgatoryStateDdo(ddo, from, purgatory)
+      if (updatedDDO.purgatory.state === false) {
+        // TODO: insert in a different collection for purgatory DDOs
+        const saveDDO = this.createOrUpdateDDO(ddo, eventName)
+        return saveDDO
+      }
     } catch (error) {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
@@ -319,6 +340,26 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         true
       )
     }
+  }
+
+  async updatePurgatoryStateDdo(
+    ddo: any,
+    owner: string,
+    purgatory: Purgatory
+  ): Promise<any> {
+    if (purgatory.isEnabled()) {
+      const state: boolean =
+        (await purgatory.isBannedAsset(ddo.id)) ||
+        (await purgatory.isBannedAccount(owner))
+      ddo.purgatory = {
+        state
+      }
+    } else {
+      ddo.purgatory = {
+        state: false
+      }
+    }
+    return ddo
   }
 
   isUpdateable(previousDdo: any, txHash: string, block: number): [boolean, string] {
@@ -387,17 +428,8 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
             `DDO became non-visible from ${ddo.nft.state} to ${metadataState}`
           )
           shortVersion = {
-            '@context': null,
             id: ddo.id,
-            version: null,
-            chainId: null,
-            metadata: null,
-            services: null,
-            event: null,
-            stats: null,
-            purgatory: null,
-            datatokens: null,
-            accessDetails: null,
+            chainId,
             nftAddress: ddo.nftAddress,
             nft: {
               state: metadataState

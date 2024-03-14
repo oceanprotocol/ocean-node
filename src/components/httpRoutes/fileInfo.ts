@@ -2,13 +2,14 @@ import express, { Request, Response } from 'express'
 import {
   ArweaveFileObject,
   FileInfoHttpRequest,
+  FileObjectType,
   IpfsFileObject,
   UrlFileObject
 } from '../../@types/fileObject'
-import { PROTOCOL_COMMANDS } from '../../utils/constants'
-import { FileInfoHandler } from '../core/fileInfoHandler'
-import { HTTP_LOGGER } from '../../utils/logging/common'
-import { FileInfoCommand } from '../../@types/commands'
+import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { FileInfoHandler } from '../core/fileInfoHandler.js'
+import { HTTP_LOGGER } from '../../utils/logging/common.js'
+import { FileInfoCommand } from '../../@types/commands.js'
 
 export const fileInfoRoute = express.Router()
 fileInfoRoute.use(express.json()) // Ensure JSON parsing middleware is used
@@ -61,7 +62,7 @@ fileInfoRoute.post(
         fileInfoTask = {
           command: PROTOCOL_COMMANDS.FILE_INFO,
           file: fileObject,
-          type: fileObject.type as 'url' | 'ipfs' | 'arweave'
+          type: fileObject.type as FileObjectType
         }
       } else if (fileInfoReq.type === 'ipfs' && fileInfoReq.hash) {
         fileObject = {
@@ -72,7 +73,7 @@ fileInfoRoute.post(
         fileInfoTask = {
           command: PROTOCOL_COMMANDS.FILE_INFO,
           file: fileObject,
-          type: fileObject.type as 'url' | 'ipfs' | 'arweave'
+          type: fileObject.type as FileObjectType
         }
       } else if (fileInfoReq.type === 'arweave' && fileInfoReq.transactionId) {
         fileObject = {
@@ -83,7 +84,7 @@ fileInfoRoute.post(
         fileInfoTask = {
           command: PROTOCOL_COMMANDS.FILE_INFO,
           file: fileObject,
-          type: fileObject.type as 'url' | 'ipfs' | 'arweave'
+          type: fileObject.type as FileObjectType
         }
       }
 

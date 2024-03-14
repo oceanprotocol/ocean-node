@@ -1,7 +1,4 @@
 import { Hashes } from '../@types/blockchain'
-import { DDO } from '../@types/DDO/DDO'
-import { ArweaveFileObject, IpfsFileObject, UrlFileObject } from '../@types/fileObject'
-import { P2PCommandResponse } from '../@types/OceanNode'
 
 // Add all the supported commands
 export const PROTOCOL_COMMANDS = {
@@ -10,6 +7,7 @@ export const PROTOCOL_COMMANDS = {
   REINDEX: 'reIndex',
   ECHO: 'echo',
   ENCRYPT: 'encrypt',
+  ENCRYPT_FILE: 'encryptFile',
   DECRYPT_DDO: 'decryptDDO',
   GET_DDO: 'getDDO',
   QUERY: 'query',
@@ -19,7 +17,13 @@ export const PROTOCOL_COMMANDS = {
   GET_FEES: 'getFees',
   FILE_INFO: 'fileInfo',
   VALIDATE_DDO: 'validateDDO',
-  GET_COMPUTE_ENVIRONMENTS: 'getComputeEnvironments'
+  COMPUTE_GET_ENVIRONMENTS: 'getComputeEnvironments',
+  COMPUTE_START: 'startCompute',
+  COMPUTE_STOP: 'stopCompute',
+  COMPUTE_GET_STATUS: 'getComputeStatus',
+  COMPUTE_GET_RESULT: 'getComputeResult',
+  COMPUTE_INITIALIZE: 'initializeCompute',
+  STOP_NODE: 'stopNode'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -27,6 +31,7 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.REINDEX,
   PROTOCOL_COMMANDS.ECHO,
   PROTOCOL_COMMANDS.ENCRYPT,
+  PROTOCOL_COMMANDS.ENCRYPT_FILE,
   PROTOCOL_COMMANDS.NONCE,
   PROTOCOL_COMMANDS.DECRYPT_DDO,
   PROTOCOL_COMMANDS.GET_DDO,
@@ -36,7 +41,13 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.GET_FEES,
   PROTOCOL_COMMANDS.FILE_INFO,
   PROTOCOL_COMMANDS.VALIDATE_DDO,
-  PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS
+  PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS,
+  PROTOCOL_COMMANDS.COMPUTE_START,
+  PROTOCOL_COMMANDS.COMPUTE_STOP,
+  PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+  PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
+  PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
+  PROTOCOL_COMMANDS.STOP_NODE
 ]
 
 export const MetadataStates = {
@@ -163,5 +174,25 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'OPERATOR_SERVICE_URL',
     value: process.env.OPERATOR_SERVICE_URL,
     required: false // without provider we don't have it
+  },
+  INTERFACES: {
+    name: 'INTERFACES',
+    value: process.env.INTERFACES,
+    required: false // without a value set, its both p2p2 and http
+  },
+  ALLOWED_VALIDATORS: {
+    name: 'ALLOWED_VALIDATORS',
+    value: process.env.ALLOWED_VALIDATORS,
+    required: false
+  },
+  INDEXER_INTERVAL: {
+    name: 'INDEXER_INTERVAL',
+    value: process.env.INDEXER_INTERVAL,
+    required: false // without a value set, it defaults to 30 secs
+  },
+  ALLOWED_ADMINS: {
+    name: 'ALLOWED_ADMINS',
+    value: process.env.ALLOWED_ADMINS,
+    required: false
   }
 }

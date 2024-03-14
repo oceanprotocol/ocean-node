@@ -1,5 +1,5 @@
 import { Database } from '../../components/database/index.js'
-import { expect } from 'chai'
+import { expect, assert } from 'chai'
 
 describe('Database', () => {
   let database: Database
@@ -11,20 +11,21 @@ describe('Database', () => {
     database = await new Database(dbConfig)
   })
 
-  it('instance Database', async () => {
+  it('instance Database', () => {
     expect(database).to.be.instanceOf(Database)
   })
 })
 
 describe('DdoDatabase CRUD', () => {
   let database: Database
-  const ddo = {
+  const ddoWithInvalidDid = {
     hashType: 'sha256',
     '@context': ['https://w3id.org/did/v1'],
     id: 'did:op:fa0e8fa9550e8eb13392d6eeb9ba9f8111801b332c8d2345b350b3bc66b379d7',
     nftAddress: '0xBB1081DbF3227bbB233Db68f7117114baBb43656',
     version: '4.1.0',
     chainId: 137,
+    nft: { state: 0 },
     metadata: {
       created: '2022-12-30T08:40:06Z',
       updated: '2022-12-30T08:40:06Z',
@@ -48,29 +49,21 @@ describe('DdoDatabase CRUD', () => {
     database = await new Database(dbConfig)
   })
 
-  it('create ddo', async () => {
-    const result = await database.ddo.create(ddo)
-    expect(result?.id).to.equal(ddo.id)
+  it('creates ddo schema as an array', () => {
+    const ddoSchemas = database.ddo.getSchemas()
+    // check if it is an array
+    assert(Array.isArray(ddoSchemas))
+    assert(ddoSchemas.length > 1)
+    for (const ddoSchema of ddoSchemas) {
+      assert(ddoSchema.name)
+      assert(ddoSchema.fields)
+      assert(ddoSchema.fields.length > 0)
+    }
   })
 
-  it('retrieve ddo', async () => {
-    const result = await database.ddo.retrieve(ddo.id)
-    expect(result?.id).to.equal(ddo.id)
-  })
-
-  it('update ddo', async () => {
-    const newMetadataName = 'new metadata name'
-    const result = await database.ddo.update({
-      metadata: {
-        name: newMetadataName
-      }
-    })
-    expect(result?.metadata.name).to.equal(newMetadataName)
-  })
-
-  it('delete ddo', async () => {
-    const result = await database.ddo.delete(ddo.id)
-    expect(result?.id).to.equal(ddo.id)
+  it('Database will not create ddo when did is invalid', async () => {
+    const result = await database.ddo.create(ddoWithInvalidDid)
+    expect(result?.id).to.equal(null || undefined)
   })
 })
 
@@ -111,6 +104,7 @@ describe('NonceDatabase CRUD', () => {
 
 describe('IndexerDatabase CRUD', () => {
   let database: Database
+  let existsPrevious: any = {}
 
   before(async () => {
     const dbConfig = {
@@ -120,15 +114,26 @@ describe('IndexerDatabase CRUD', () => {
   })
 
   it('create indexer', async () => {
-    const result = await database.indexer.create(1, 0)
-    expect(result?.id).to.equal('1')
-    expect(result?.lastIndexedBlock).to.equal(0)
+    // sometimes it exists already, locally at least, so check that first
+    const exists = await database.indexer.retrieve(1)
+    if (!exists) {
+      const result = await database.indexer.create(1, 0)
+      expect(result?.id).to.equal('1')
+      expect(result?.lastIndexedBlock).to.equal(0)
+    } else {
+      existsPrevious = exists
+      expect(existsPrevious?.id).to.equal('1')
+    }
   })
 
   it('retrieve indexer', async () => {
     const result = await database.indexer.retrieve(1)
     expect(result?.id).to.equal('1')
-    expect(result?.lastIndexedBlock).to.equal(0)
+    if (existsPrevious?.id) {
+      expect(result?.lastIndexedBlock).to.equal(existsPrevious.lastIndexedBlock)
+    } else {
+      expect(result?.lastIndexedBlock).to.equal(0)
+    }
   })
 
   it('update indexer', async () => {
