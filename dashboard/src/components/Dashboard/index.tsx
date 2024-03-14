@@ -55,7 +55,9 @@ type NodeDataType = {
 
 export default function Dashboard() {
   const [data, setData] = useState<NodeDataType>()
+  const [nodePeers, setNodePeers] = useState([''])
   const [isLoading, setLoading] = useState(true)
+  const [isLoadingNodePeers, setLoadingNodePeers] = useState(true)
   const { setAllAdmins, allAdmins } = useAdminContext()
 
   useEffect(() => {
@@ -80,6 +82,27 @@ export default function Dashboard() {
         })
     } catch (error) {
       console.log('error', error)
+    }
+
+    if (nodeData.length > 0) {
+      setLoadingNodePeers(true)
+      try {
+        const apiNodePeers = '/getOceanPeers'
+        fetch(apiNodePeers, {
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json'
+          },
+          method: 'GET'
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            setNodePeers(data)
+            setLoadingNodePeers(false)
+          })
+      } catch (error) {
+        console.log('error', error)
+      }
     }
   }, [])
 
@@ -139,6 +162,20 @@ export default function Dashboard() {
                 <div className={styles.title24}>Address</div>
                 {truncateString(data?.address, 12)}
               </div>
+              {nodePeers.length > 0 && (
+                <div className={styles.nodes}>
+                  <div className={styles.title24}>Node Peers</div>
+                  {isLoadingNodePeers ? (
+                    <div className={styles.loaderContainer}>
+                      <Spinner />
+                    </div>
+                  ) : (
+                    nodePeers.map((address) => {
+                      return <div>{truncateString(address, 12)}</div>
+                    })
+                  )}
+                </div>
+              )}
             </div>
             <div className={styles.columnHTTP}>
               <div className={cs([styles.title24, styles.borderBottom])}>
