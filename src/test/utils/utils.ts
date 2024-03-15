@@ -95,6 +95,7 @@ export async function setupEnvironment(
         CONFIG_LOGGER.debug('Overriding environment variable: ' + element.name)
         element.originalValue = process.env[element.name] // save original value
         process.env[element.name] = element.newValue
+        ENVIRONMENT_VARIABLES[element.name].value = element.newValue
         forceReload = true
       }
     })

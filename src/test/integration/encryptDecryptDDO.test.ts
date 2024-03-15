@@ -33,6 +33,7 @@ import {
 } from '../utils/utils.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
+import { homedir } from 'os'
 
 describe('Should encrypt and decrypt DDO', () => {
   let database: Database
@@ -63,20 +64,10 @@ describe('Should encrypt and decrypt DDO', () => {
   let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
-    let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
-    if (!artifactsAddresses) {
-      artifactsAddresses = getOceanArtifactsAdresses().development
-    }
-
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
     publisherAddress = await publisherAccount.getAddress()
     genericAsset = genericDDO
-    factoryContract = new ethers.Contract(
-      artifactsAddresses.ERC721Factory,
-      ERC721Factory.abi,
-      publisherAccount
-    )
 
     previousConfiguration = await setupEnvironment(
       null,
@@ -84,16 +75,29 @@ describe('Should encrypt and decrypt DDO', () => {
         [
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.RPCS,
-          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS
+          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
+          ENVIRONMENT_VARIABLES.DB_URL,
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           JSON.stringify(mockSupportedNetworks),
-          JSON.stringify([publisherAddress])
+          JSON.stringify([publisherAddress]),
+          'http://localhost:8108/?apiKey=xyz',
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
     )
+    let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+    if (!artifactsAddresses) {
+      artifactsAddresses = getOceanArtifactsAdresses().development
+    }
 
+    factoryContract = new ethers.Contract(
+      artifactsAddresses.ERC721Factory,
+      ERC721Factory.abi,
+      publisherAccount
+    )
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
