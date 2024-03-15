@@ -1,5 +1,6 @@
 import { expect, assert } from 'chai'
 import { getConfiguration } from '../../utils/config.js'
+import { Database } from '../../components/database/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'

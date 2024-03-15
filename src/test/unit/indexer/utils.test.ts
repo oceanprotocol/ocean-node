@@ -17,6 +17,11 @@ describe('Utils', () => {
   let provider: ethers.JsonRpcProvider
   let signer: ethers.Wallet
 
+  before(() => {
+    provider = new ethers.JsonRpcProvider('https://rpc-mumbai.maticvigil.com')
+    signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider)
+  })
+
   it('should get deployed contract block', () => {
     const deployedBlock = getDeployedContractBlock(80001)
     expect(deployedBlock).to.be.a('number')
