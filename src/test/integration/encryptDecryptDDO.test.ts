@@ -7,6 +7,7 @@ import {
   Signer,
   ZeroAddress
 } from 'ethers'
+import { homedir } from 'os'
 import { assert, expect } from 'chai'
 import { getEventFromTx, streamToString } from '../../utils/util.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
@@ -22,7 +23,7 @@ import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
 import { Database } from '../../components/database/index.js'
 import { DecryptDdoHandler } from '../../components/core/ddoHandler.js'
-import { ENVIRONMENT_VARIABLES } from '../../utils/index.js'
+import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
 import { Readable } from 'stream'
 import { OceanNode } from '../../OceanNode.js'
 import {
@@ -63,9 +64,36 @@ describe('Should encrypt and decrypt DDO', () => {
   let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
+    previousConfiguration = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig(
+        [
+          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+          ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
+          ENVIRONMENT_VARIABLES.DB_URL,
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE
+        ],
+        [
+          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+          JSON.stringify(mockSupportedNetworks),
+          JSON.stringify([publisherAddress]),
+          'http://localhost:8108/?apiKey=xyz',
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
+        ]
+      )
+    )
+    console.log('DEVELOPMENT_CHAIN_ID ', DEVELOPMENT_CHAIN_ID)
+    console.log(
+      'ENVIRONMENT_VARIABLES.ADDRESS_FILE ',
+      ENVIRONMENT_VARIABLES.ADDRESS_FILE.value
+    )
+    console.log('previousConfiguration ', previousConfiguration)
     let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+    console.log('artifactsAddresses ', artifactsAddresses)
     if (!artifactsAddresses) {
       artifactsAddresses = getOceanArtifactsAdresses().development
+      console.log('artifactsAddresses dev ', artifactsAddresses)
     }
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
@@ -77,27 +105,8 @@ describe('Should encrypt and decrypt DDO', () => {
       ERC721Factory.abi,
       publisherAccount
     )
-
-    previousConfiguration = await setupEnvironment(
-      null,
-      buildEnvOverrideConfig(
-        [
-          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
-          ENVIRONMENT_VARIABLES.RPCS,
-          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS
-        ],
-        [
-          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          JSON.stringify(mockSupportedNetworks),
-          JSON.stringify([publisherAddress])
-        ]
-      )
-    )
-
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
-    }
-    database = await new Database(dbConfig)
+    const config = await getConfiguration(true)
+    database = await new Database(config.dbConfig)
     oceanNode = OceanNode.getInstance(database)
     // will be used later
     // indexer = new OceanIndexer(database, mockSupportedNetworks)
