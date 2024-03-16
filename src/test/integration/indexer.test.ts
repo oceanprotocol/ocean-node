@@ -26,8 +26,16 @@ import {
 } from '../../utils/address.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
-import { DEFAULT_TEST_TIMEOUT, getMockSupportedNetworks } from '../utils/utils.js'
-import { EVENTS } from '../../utils/constants.js'
+import {
+  DEFAULT_TEST_TIMEOUT,
+  OverrideEnvConfig,
+  buildEnvOverrideConfig,
+  getMockSupportedNetworks,
+  setupEnvironment,
+  tearDownEnvironment
+} from '../utils/utils.js'
+import { ENVIRONMENT_VARIABLES, EVENTS } from '../../utils/constants.js'
+import { homedir } from 'os'
 
 describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
@@ -55,33 +63,31 @@ describe('Indexer stores a new metadata events and orders.', () => {
   const consumeMarketFeeAddress = ZeroAddress // marketplace fee Collector
   const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
   const consumeMarketFeeToken = feeToken // token address for the feeAmount
-
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+  let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
 
-    // previousConfiguration = await setupEnvironment(
-    //   null,
-    //   buildEnvOverrideConfig(
-    //     [
-    //       ENVIRONMENT_VARIABLES.RPCS,
-    //       ENVIRONMENT_VARIABLES.PRIVATE_KEY,
-    //       ENVIRONMENT_VARIABLES.DB_URL,
-    //       ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
-    //       ENVIRONMENT_VARIABLES.ALLOWED_ADMINS
-    //     ],
-    //     [
-    //       JSON.stringify(mockSupportedNetworks),
-    //       '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-    //       dbConfig.url,
-    //       JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
-    //       JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'])
-    //     ]
-    //   )
-    // )
+    previousConfiguration = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig(
+        [
+          ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+          ENVIRONMENT_VARIABLES.DB_URL,
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE
+        ],
+        [
+          JSON.stringify(mockSupportedNetworks),
+          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+          dbConfig.url,
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
+        ]
+      )
+    )
 
     database = await new Database(dbConfig)
     indexer = new OceanIndexer(database, mockSupportedNetworks)
@@ -505,5 +511,9 @@ describe('Indexer stores a new metadata events and orders.', () => {
       const queue = indexer.getIndexingQueue()
       expect(queue.length).to.be.equal(0)
     }, DEFAULT_TEST_TIMEOUT / 2)
+  })
+
+  after(() => {
+    tearDownEnvironment(previousConfiguration)
   })
 })
