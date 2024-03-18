@@ -381,6 +381,10 @@ export class GetDdoHandler extends Handler {
   }
 
   async handle(task: GetDdoCommand): Promise<P2PCommandResponse> {
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
     try {
       const ddo = await this.getOceanNode().getDatabase().ddo.retrieve(task.id)
       if (!ddo) {
@@ -413,6 +417,10 @@ export class FindDdoHandler extends Handler {
   }
 
   async handle(task: FindDDOCommand): Promise<P2PCommandResponse> {
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
     try {
       const node = this.getOceanNode()
       const p2pNode = node.getP2PNode()
