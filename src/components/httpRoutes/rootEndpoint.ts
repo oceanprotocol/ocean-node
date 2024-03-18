@@ -1,4 +1,5 @@
 import express from 'express'
+import { SERVICES_API_BASE_PATH } from '../../utils/constants.js'
 export const rootEndpointRoutes = express.Router()
 
 rootEndpointRoutes.get('/', (req, res) => {
@@ -13,22 +14,24 @@ rootEndpointRoutes.get('/', (req, res) => {
       '11155111': '0x00c6A0BC5cD0078d6Cd0b659E8061B404cfa5704'
     },
     serviceEndpoints: {
-      computeDelete: ['DELETE', '/api/services/compute'],
-      computeEnvironments: ['GET', '/api/services/computeEnvironments'],
-      computeResult: ['GET', '/api/services/computeResult'],
-      computeStart: ['POST', '/api/services/compute'],
-      computeStatus: ['GET', '/api/services/compute'],
-      computeStop: ['PUT', '/api/services/compute'],
-      create_auth_token: ['GET', '/api/services/createAuthToken'],
-      decrypt: ['POST', '/api/services/decrypt'],
-      delete_auth_token: ['DELETE', '/api/services/deleteAuthToken'],
-      download: ['GET', '/api/services/download'],
-      encrypt: ['POST', '/api/services/encrypt'],
-      fileinfo: ['POST', '/api/services/fileinfo'],
-      initialize: ['GET', '/api/services/initialize'],
-      initializeCompute: ['POST', '/api/services/initializeCompute'],
-      nonce: ['GET', '/api/services/nonce'],
-      validateContainer: ['POST', '/api/services/validateContainer']
+      computeEnvironments: ['GET', `${SERVICES_API_BASE_PATH}/computeEnvironments`],
+      computeResult: ['GET', `${SERVICES_API_BASE_PATH}/computeResult`],
+      initializeCompute: ['POST', `${SERVICES_API_BASE_PATH}/initializeCompute`],
+      computeStart: ['POST', `${SERVICES_API_BASE_PATH}/compute`],
+      computeStatus: ['GET', `${SERVICES_API_BASE_PATH}/compute`],
+      computeDelete: ['DELETE', `${SERVICES_API_BASE_PATH}/compute`],
+      computeStop: ['PUT', `${SERVICES_API_BASE_PATH}/compute`],
+      create_auth_token: ['GET', `${SERVICES_API_BASE_PATH}/createAuthToken`],
+      delete_auth_token: ['DELETE', `${SERVICES_API_BASE_PATH}/deleteAuthToken`],
+      download: ['GET', `${SERVICES_API_BASE_PATH}/download`],
+      decrypt: ['POST', `${SERVICES_API_BASE_PATH}/decrypt`],
+      encrypt: ['POST', `${SERVICES_API_BASE_PATH}/encrypt`],
+      fileinfo: ['POST', `${SERVICES_API_BASE_PATH}/fileinfo`],
+      initialize: ['GET', `${SERVICES_API_BASE_PATH}/initialize`],
+      nonce: ['GET', `${SERVICES_API_BASE_PATH}/nonce`],
+      validateContainer: ['POST', `${SERVICES_API_BASE_PATH}/validateContainer`],
+      directCommand: ['POST', `${SERVICES_API_BASE_PATH}/directCommand`],
+      broadcastCommand: ['POST', `${SERVICES_API_BASE_PATH}/broadcastCommand`]
     },
     software: 'Ocean-Node',
     version: '0.0.1'
