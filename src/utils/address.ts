@@ -14,6 +14,7 @@ export function getOceanArtifactsAdresses(): any {
     if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ADDRESS_FILE)) {
       // eslint-disable-next-line security/detect-non-literal-fs-filename
       const data = fs.readFileSync(ENVIRONMENT_VARIABLES.ADDRESS_FILE.value, 'utf8')
+      console.log('data ', data)
       return JSON.parse(data)
     }
     return addresses
