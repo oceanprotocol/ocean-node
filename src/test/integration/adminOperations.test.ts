@@ -1,12 +1,11 @@
 import { assert } from 'chai'
 import {
   JsonRpcProvider,
-  //   JsonRpcSigner,
+  JsonRpcSigner,
   Signer,
   //   sha256,
   //   toUtf8Bytes,
-  //   getBytes,
-  ethers
+  getBytes
 } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
@@ -108,20 +107,19 @@ describe('Should test admin operations', () => {
     consumerAddress = await consumerAccount.getAddress()
   })
 
-  function getSignature() {
-    const signature = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(expiryTimestamp.toString()))]
-    )
+  async function getSignature(message: string) {
+    // const signature = ethers.solidityPackedKeccak256(
+    //   ['bytes'],
+    //   [ethers.hexlify(ethers.toUtf8Bytes(expiryTimestamp.toString()))]
+    // )
     // const messageHashBytes = ethers.toBeArray(message)
-    return signature
     //  = sha256(
     //   toUtf8Bytes(expiryTimestamp.toString())
     // ))
     // signing method for ganache
-    // const jsonRpcSigner = new JsonRpcSigner(provider, await publisherAccount.getAddress())
-    // console.log(`json rpc signer: ${await jsonRpcSigner.getAddress()}`)
-    // return await jsonRpcSigner._legacySignMessage(getBytes(message))
+    const jsonRpcSigner = new JsonRpcSigner(provider, await publisherAccount.getAddress())
+    console.log(`json rpc signer: ${await jsonRpcSigner.getAddress()}`)
+    return await jsonRpcSigner._legacySignMessage(getBytes(message))
   }
 
   it('validation should pass for stop node command', async () => {
@@ -129,7 +127,7 @@ describe('Should test admin operations', () => {
     console.log(`publisher addr: ${await publisherAccount.getAddress()}`)
 
     // Sign the original message directly
-    const signature = getSignature()
+    const signature = await getSignature(expiryTimestamp.toString())
 
     console.log(`signature: ${signature}`)
 
@@ -154,7 +152,7 @@ describe('Should test admin operations', () => {
   it('should pass for reindex tx command', async () => {
     console.log(`consumer addr: ${consumerAddress}`)
     console.log(`publisher addr: ${await publisherAccount.getAddress()}`)
-    const signature = getSignature()
+    const signature = await getSignature(expiryTimestamp.toString())
 
     const reindexTxCommand: AdminReindexTxCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
@@ -178,7 +176,7 @@ describe('Should test admin operations', () => {
   it('validation should pass for reindex chain command', async () => {
     console.log(`consumer addr: ${consumerAddress}`)
     console.log(`publisher addr: ${await publisherAccount.getAddress()}`)
-    const signature = getSignature()
+    const signature = await getSignature(expiryTimestamp.toString())
 
     const reindexChainCommand: AdminReindexChainCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
