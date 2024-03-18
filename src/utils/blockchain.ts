@@ -36,7 +36,8 @@ export async function getDatatokenDecimals(
   try {
     return await datatokenContract.decimals()
   } catch (err) {
-    CORE_LOGGER.error(`${err}`)
+    CORE_LOGGER.error(`${err}. Returning default 18 decimals.`)
+    return 18
   }
 }
 
