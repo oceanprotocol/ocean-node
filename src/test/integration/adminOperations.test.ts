@@ -38,9 +38,9 @@ import {
   getOceanArtifactsAdressesByChainId
 } from '../../utils/address.js'
 import {
-  ReindexChainCommand,
-  ReindexTxCommand,
-  StopNodeCommand
+  AdminReindexChainCommand,
+  AdminReindexTxCommand,
+  AdminStopNodeCommand
 } from '../../@types/commands.js'
 import {
   ReindexChainHandler,
@@ -133,7 +133,7 @@ describe('Should test admin operations', () => {
 
     console.log(`signature: ${signature}`)
 
-    const stopNodeCommand: StopNodeCommand = {
+    const stopNodeCommand: AdminStopNodeCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
       node: config.keys.peerId.toString(),
       expiryTimestamp,
@@ -154,9 +154,9 @@ describe('Should test admin operations', () => {
   it('should pass for reindex tx command', async () => {
     console.log(`consumer addr: ${consumerAddress}`)
     console.log(`publisher addr: ${await publisherAccount.getAddress()}`)
-    const signature = await getSignature()
+    const signature = getSignature()
 
-    const reindexTxCommand: ReindexTxCommand = {
+    const reindexTxCommand: AdminReindexTxCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
       node: config.keys.peerId.toString(),
       txId: publishedDataset.txReceipt.hash,
@@ -180,7 +180,7 @@ describe('Should test admin operations', () => {
     console.log(`publisher addr: ${await publisherAccount.getAddress()}`)
     const signature = getSignature()
 
-    const reindexChainCommand: ReindexChainCommand = {
+    const reindexChainCommand: AdminReindexChainCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
       node: config.keys.peerId.toString(),
       chainId: DEVELOPMENT_CHAIN_ID,

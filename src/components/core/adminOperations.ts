@@ -1,9 +1,9 @@
 import { Handler } from './handler.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import {
-  ReindexChainCommand,
-  ReindexTxCommand,
-  StopNodeCommand
+  AdminReindexTxCommand,
+  AdminStopNodeCommand,
+  AdminReindexChainCommand
 } from '../../@types/commands.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
@@ -23,7 +23,7 @@ import {
 import { Blockchain, getConfiguration } from '../../utils/index.js'
 
 export class StopNodeHandler extends Handler {
-  validate(command: StopNodeCommand): ValidateParams {
+  validate(command: AdminStopNodeCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
       'expiryTimestamp',
       'signature'
@@ -39,7 +39,7 @@ export class StopNodeHandler extends Handler {
     return commandValidation
   }
 
-  handle(task: StopNodeCommand): Promise<P2PCommandResponse> {
+  handle(task: AdminStopNodeCommand): Promise<P2PCommandResponse> {
     const validation = this.validate(task)
     if (!validation.valid) {
       return new Promise<P2PCommandResponse>((resolve, reject) => {
@@ -60,7 +60,7 @@ export class StopNodeHandler extends Handler {
 }
 
 export class ReindexTxHandler extends Handler {
-  validate(command: ReindexTxCommand): ValidateParams {
+  validate(command: AdminReindexTxCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
       'expiryTimestamp',
       'signature',
@@ -78,7 +78,7 @@ export class ReindexTxHandler extends Handler {
     return commandValidation
   }
 
-  async handle(task: ReindexTxCommand): Promise<P2PCommandResponse> {
+  async handle(task: AdminReindexTxCommand): Promise<P2PCommandResponse> {
     const validation = this.validate(task)
     if (!validation.valid) {
       return new Promise<P2PCommandResponse>((resolve, reject) => {
@@ -125,7 +125,7 @@ export class ReindexTxHandler extends Handler {
 }
 
 export class ReindexChainHandler extends Handler {
-  validate(command: ReindexChainCommand): ValidateParams {
+  validate(command: AdminReindexChainCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
       'expiryTimestamp',
       'signature',
@@ -144,7 +144,7 @@ export class ReindexChainHandler extends Handler {
     return commandValidation
   }
 
-  async handle(task: ReindexTxCommand): Promise<P2PCommandResponse> {
+  async handle(task: AdminReindexChainCommand): Promise<P2PCommandResponse> {
     const validation = this.validate(task)
     if (!validation.valid) {
       return new Promise<P2PCommandResponse>((resolve, reject) => {
