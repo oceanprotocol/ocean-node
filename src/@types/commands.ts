@@ -106,8 +106,8 @@ export interface GetFeesCommand extends Command {
   validUntil?: number // this allows a user to request a fee that is valid only for a limited period of time, less than service.timeout
 }
 // admin commands
-export interface StopNodeCommand extends AdminCommand {}
-export interface ReindexTxCommand extends AdminCommand {
+export interface AdminStopNodeCommand extends AdminCommand {}
+export interface AdminReindexTxCommand extends AdminCommand {
   chainId: number
   txId: string
 }
