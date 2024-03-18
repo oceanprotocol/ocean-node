@@ -151,8 +151,12 @@ export class ReindexChainHandler extends Handler {
         resolve(buildInvalidParametersResponse(validation))
       })
     }
-    CORE_LOGGER.logMessage(`Reindexing chaincommand called`)
+    CORE_LOGGER.logMessage(`Reindexing chain command called`)
     const config = await getConfiguration()
+    if (!(`${task.chainId}` in config.supportedNetworks)) {
+      CORE_LOGGER.error(`Chain ID ${task.chainId} is not supported in config.`)
+      return
+    }
     const blockchain = new Blockchain(
       config.supportedNetworks[task.chainId.toString()].rpc,
       task.chainId
