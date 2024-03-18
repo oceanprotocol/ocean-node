@@ -4,14 +4,38 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler.js'
 import { ComputeStopCommand } from '../../../@types/commands.js'
 import { C2DEngine } from '../../c2d/compute_engines.js'
+import {
+  ValidateParams,
+  buildInvalidParametersResponse,
+  buildInvalidRequestMessage,
+  validateCommandParameters
+} from '../../httpRoutes/validateCommands.js'
+import { isAddress } from 'ethers'
 
 export class ComputeStopHandler extends Handler {
+  validate(command: ComputeStopCommand): ValidateParams {
+    const validation = validateCommandParameters(command, [
+      'consumerAddress',
+      'signature',
+      'nonce',
+      'jobId'
+    ])
+    if (validation.valid) {
+      if (!isAddress(command.consumerAddress)) {
+        return buildInvalidRequestMessage(
+          'Parameter : "consumerAddress" is not a valid web3 address'
+        )
+      }
+    }
+    return validation
+  }
+
   async handle(task: ComputeStopCommand): Promise<P2PCommandResponse> {
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
     try {
-      CORE_LOGGER.logMessage(
-        'StopComputeCommand received with arguments: ' + JSON.stringify(task, null, 2),
-        true
-      )
       // split jobId (which is already in hash-jobId format) and get the hash
       // then get jobId which might contain dashes as well
       const index = task.jobId.indexOf('-')
