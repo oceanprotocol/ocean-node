@@ -1,12 +1,5 @@
 import { assert } from 'chai'
-import {
-  JsonRpcProvider,
-  JsonRpcSigner,
-  Signer
-  //   sha256,
-  //   toUtf8Bytes,
-  // getBytes
-} from 'ethers'
+import { JsonRpcProvider, JsonRpcSigner, Signer } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -108,28 +101,14 @@ describe('Should test admin operations', () => {
   })
 
   async function getSignature(message: string) {
-    // const signature = ethers.solidityPackedKeccak256(
-    //   ['bytes'],
-    //   [ethers.hexlify(ethers.toUtf8Bytes(expiryTimestamp.toString()))]
-    // )
-    // const messageHashBytes = ethers.toBeArray(message)
-    //  = sha256(
-    //   toUtf8Bytes(expiryTimestamp.toString())
-    // ))
     // signing method for ganache
     const jsonRpcSigner = new JsonRpcSigner(provider, await publisherAccount.getAddress())
-    console.log(`json rpc signer: ${await jsonRpcSigner.getAddress()}`)
     return await jsonRpcSigner._legacySignMessage(message)
   }
 
   it('validation should pass for stop node command', async () => {
-    console.log(`consumer addr: ${consumerAddress}`)
-    console.log(`publisher addr: ${await publisherAccount.getAddress()}`)
-
     // Sign the original message directly
     const signature = await getSignature(expiryTimestamp.toString())
-
-    console.log(`signature: ${signature}`)
 
     const stopNodeCommand: AdminStopNodeCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
@@ -138,9 +117,6 @@ describe('Should test admin operations', () => {
       signature
     }
     const validationResponse = new StopNodeHandler(oceanNode).validate(stopNodeCommand)
-    console.log(
-      `validation resp for stop node handler: ${JSON.stringify(validationResponse)}`
-    )
     assert(validationResponse, 'invalid stop node validation response')
     assert(validationResponse.valid === true, 'validation for stop node command failed')
   })
@@ -155,7 +131,7 @@ describe('Should test admin operations', () => {
     const signature = await getSignature(expiryTimestamp.toString())
 
     const reindexTxCommand: AdminReindexTxCommand = {
-      command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
+      command: PROTOCOL_COMMANDS.REINDEX_TX,
       node: config.keys.peerId.toString(),
       txId: publishedDataset.txReceipt.hash,
       chainId: DEVELOPMENT_CHAIN_ID,
