@@ -28,7 +28,8 @@ export function validateSignature(expiryTimestamp: number, signature: string): b
         `Signer address mismatches! hash: ${addressFromHashSignature} bytes: ${addressFromBytesSignature}`
       )
     }
-    // const signerAddress = verifyMessage(message, signature).toLowerCase()
+    const signerAddress = ethers.verifyMessage(message, signature).toLowerCase()
+    HTTP_LOGGER.logMessage(`signerAddress: ${signerAddress}`)
     HTTP_LOGGER.logMessage(`Resolved signer address: ${addressFromHashSignature}`)
     const allowedAdmins = getAllowedAdmins()
     const currentTimestamp = new Date().getTime()
