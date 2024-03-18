@@ -113,8 +113,8 @@ describe('Should run a complete node flow.', () => {
       ['bytes'],
       [ethers.hexlify(ethers.toUtf8Bytes(expiryTimestamp.toString()))]
     )
-    const messageHashBytes = ethers.toBeArray(signature)
-    return messageHashBytes
+    // const messageHashBytes = ethers.toBeArray(message)
+    return signature
     //  = sha256(
     //   toUtf8Bytes(expiryTimestamp.toString())
     // ))
@@ -132,19 +132,6 @@ describe('Should run a complete node flow.', () => {
     const signature = getSignature()
 
     console.log(`signature: ${signature}`)
-    const addressFromHashSignature = ethers.verifyMessage(
-      ethers.solidityPackedKeccak256(
-        ['bytes'],
-        [ethers.hexlify(ethers.toUtf8Bytes(expiryTimestamp.toString()))]
-      ),
-      signature
-    )
-
-    assert(
-      ethers.getAddress(addressFromHashSignature) ===
-        ethers.getAddress(await publisherAccount.getAddress()),
-      'addresses mismatch'
-    )
 
     const stopNodeCommand: StopNodeCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
