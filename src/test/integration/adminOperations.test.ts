@@ -140,7 +140,9 @@ describe('Should run a complete node flow.', () => {
       signature
     }
     const validationResponse = new StopNodeHandler(oceanNode).validate(stopNodeCommand)
-    console.log(`validation resp for stop node handler: ${validationResponse}`)
+    console.log(
+      `validation resp for stop node handler: ${JSON.stringify(validationResponse)}`
+    )
     assert(validationResponse, 'invalid stop node validation response')
     assert(validationResponse.valid === true, 'validation for stop node command failed')
   })
