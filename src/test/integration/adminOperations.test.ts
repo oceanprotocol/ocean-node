@@ -113,8 +113,8 @@ describe('Should run a complete node flow.', () => {
       ['bytes'],
       [ethers.hexlify(ethers.toUtf8Bytes(expiryTimestamp.toString()))]
     )
-    // const messageHashBytes = ethers.toBeArray(message)
-    return signature
+    const messageHashBytes = ethers.toBeArray(signature)
+    return messageHashBytes
     //  = sha256(
     //   toUtf8Bytes(expiryTimestamp.toString())
     // ))
@@ -189,7 +189,7 @@ describe('Should run a complete node flow.', () => {
   it('validation should pass for reindex chain command', async () => {
     console.log(`consumer addr: ${consumerAddress}`)
     console.log(`publisher addr: ${await publisherAccount.getAddress()}`)
-    const signature = await getSignature()
+    const signature = getSignature()
 
     const reindexChainCommand: ReindexChainCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
