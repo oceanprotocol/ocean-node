@@ -2,12 +2,10 @@ import type { ComputeEnvironment } from '../../../@types/C2D.js'
 import {
   JsonRpcApiProvider,
   ethers,
-  Contract,
   Interface,
   BigNumberish,
   parseUnits,
-  ZeroAddress,
-  JsonRpcProvider
+  ZeroAddress
 } from 'ethers'
 import { FeeTokens, ProviderFeeData, ProviderFeeValidation } from '../../../@types/Fees'
 import { DDO } from '../../../@types/DDO/DDO'
@@ -83,20 +81,7 @@ export async function createProviderFee(
 
   if (providerFeeToken && providerFeeToken !== ZeroAddress) {
     const provider = await getJsonRpcProvider(asset.chainId)
-
-    const datatokenContract = new Contract(
-      providerFeeToken,
-      ERC20Template.abi,
-      await provider.getSigner()
-    )
-
-    let decimals = 18
-    try {
-      decimals = await datatokenContract.decimals()
-    } catch (e) {
-      console.error(e)
-    }
-
+    const decimals = await getDatatokenDecimals(providerFeeToken, provider)
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
   } else {
     providerFeeAmountFormatted = BigInt(0)
@@ -268,23 +253,12 @@ export async function createFee(
   // }
   const providerWallet = await getProviderWallet(String(asset.chainId))
   const providerFeeAddress: string = providerWallet.address
-  let providerFeeAmount
 
   // from env FEE_TOKENS
   const providerFeeToken: string = await getProviderFeeToken(asset.chainId)
 
-  if (providerFeeToken === ZeroAddress) {
-    providerFeeAmount = 0
-  } else {
-    const networkUrl = (await getConfiguration()).supportedNetworks[
-      asset.chainId.toString()
-    ].rpc
-    const provider = new JsonRpcProvider(networkUrl)
-
-    const decimals = await getDatatokenDecimals(providerFeeToken, provider)
-    // from env FEE_AMOUNT
-    providerFeeAmount = parseUnits((await getProviderFeeAmount()).toString(10), decimals)
-  }
+  // from env FEE_AMOUNT
+  const providerFeeAmount: number = await getProviderFeeAmount() // TODO check decimals on contract?
 
   /** https://github.com/ethers-io/ethers.js/issues/468
  * 
