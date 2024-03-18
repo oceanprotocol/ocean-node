@@ -71,6 +71,7 @@ describe('Compute', () => {
   )
   // const chainId = DEVELOPMENT_CHAIN_ID
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+
   before(async () => {
     previousConfiguration = await setupEnvironment(
       null,
@@ -91,7 +92,8 @@ describe('Compute', () => {
         ]
       )
     )
-    config = await getConfiguration(true) // Force reload the configuration
+
+    config = await getConfiguration(true)
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
     //  eslint-disable-next-line no-unused-vars

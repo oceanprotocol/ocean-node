@@ -33,6 +33,7 @@ export async function publishAsset(genericAsset: any, publisherAccount: Signer) 
   if (!network) {
     network = getOceanArtifactsAdresses().development
   }
+  console.log('network', network)
   const net = await publisherAccount.provider.getNetwork()
   const { chainId } = net
   const factoryContract = new ethers.Contract(
