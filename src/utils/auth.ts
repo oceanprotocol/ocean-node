@@ -5,11 +5,14 @@ import { getAllowedAdmins } from './index.js'
 export function validateSignature(expiryTimestamp: number, signature: string): boolean {
   try {
     const message = expiryTimestamp.toString()
+    HTTP_LOGGER.logMessage(`message: ${message}`)
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
       [ethers.hexlify(ethers.toUtf8Bytes(message))]
     )
+    HTTP_LOGGER.logMessage(`consumer message: ${consumerMessage}`)
     const messageHashBytes = ethers.toBeArray(consumerMessage)
+    HTTP_LOGGER.logMessage(`messageHashBytes: ${messageHashBytes}`)
 
     const addressFromHashSignature = ethers.verifyMessage(consumerMessage, signature)
     const addressFromBytesSignature = ethers.verifyMessage(messageHashBytes, signature)

@@ -48,7 +48,7 @@ import {
   StopNodeHandler
 } from '../../components/core/adminOperations.js'
 
-describe('Should run a complete node flow.', () => {
+describe('Should test admin operations', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
   //   let indexer: OceanIndexer
