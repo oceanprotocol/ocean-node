@@ -138,7 +138,6 @@ describe('Compute', () => {
     expect(response.stream).to.be.instanceOf(Readable)
 
     computeEnvironments = await streamToObject(response.stream as Readable)
-    console.log('computeEnvironments', computeEnvironments.length)
     // expect 2 envs
     expect(computeEnvironments.length === 2, 'incorrect length')
     for (const computeEnvironment of computeEnvironments) {
