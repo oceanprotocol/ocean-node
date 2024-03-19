@@ -92,7 +92,6 @@ describe('Compute', () => {
         ]
       )
     )
-
     config = await getConfiguration(true)
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)

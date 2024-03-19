@@ -29,13 +29,10 @@ import { OceanNode } from '../../OceanNode.js'
 import { ProviderFees } from '../../@types/Fees.js'
 
 export async function publishAsset(genericAsset: any, publisherAccount: Signer) {
-  console.log('DEVELOPMENT_CHAIN_ID ==', DEVELOPMENT_CHAIN_ID)
   let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
-  console.log('network ==', network)
   if (!network) {
     network = getOceanArtifactsAdresses().development
   }
-  console.log('network ==', network)
   const net = await publisherAccount.provider.getNetwork()
   const { chainId } = net
   const factoryContract = new ethers.Contract(
