@@ -24,8 +24,11 @@ export abstract class Storage {
 
   abstract validate(): [boolean, string]
   abstract getDownloadUrl(): string
-  abstract fetchSpecificFileMetadata(fileObject: any): Promise<FileInfoResponse>
-  abstract encryptContent(encryptionType: 'AES' | 'ECIES'): Promise<Buffer>
+
+  abstract fetchSpecificFileMetadata(
+    fileObject: any,
+    forceChecksum: boolean
+  ): Promise<FileInfoResponse>
 
   getFile(): any {
     return this.file
@@ -63,7 +66,10 @@ export abstract class Storage {
     }
   }
 
-  async getFileInfo(fileInfoRequest: FileInfoRequest): Promise<FileInfoResponse[]> {
+  async getFileInfo(
+    fileInfoRequest: FileInfoRequest,
+    forceChecksum: boolean = false
+  ): Promise<FileInfoResponse[]> {
     if (!fileInfoRequest.type) {
       throw new Error('Storage type is not provided')
     }
@@ -76,7 +82,7 @@ export abstract class Storage {
       if (!file) {
         throw new Error('Empty file object')
       } else {
-        const fileInfo = await this.fetchSpecificFileMetadata(file)
+        const fileInfo = await this.fetchSpecificFileMetadata(file, forceChecksum)
         response.push(fileInfo)
       }
     } catch (error) {
@@ -203,13 +209,21 @@ export class UrlStorage extends Storage {
     return null
   }
 
-  async fetchSpecificFileMetadata(fileObject: UrlFileObject): Promise<FileInfoResponse> {
-    const { url } = fileObject
-    const { contentLength, contentType } = await fetchFileMetadata(url)
+  async fetchSpecificFileMetadata(
+    fileObject: UrlFileObject,
+    forceChecksum: boolean
+  ): Promise<FileInfoResponse> {
+    const { url, method } = fileObject
+    const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
+      url,
+      method,
+      forceChecksum
+    )
     return {
       valid: true,
       contentLength,
       contentType,
+      contentChecksum,
       name: new URL(url).pathname.split('/').pop() || '',
       type: 'url',
       encryptedBy: fileObject.encryptedBy,
@@ -256,14 +270,20 @@ export class ArweaveStorage extends Storage {
   }
 
   async fetchSpecificFileMetadata(
-    fileObject: ArweaveFileObject
+    fileObject: ArweaveFileObject,
+    forceChecksum: boolean
   ): Promise<FileInfoResponse> {
     const url = urlJoin(process.env.ARWEAVE_GATEWAY, fileObject.transactionId)
-    const { contentLength, contentType } = await fetchFileMetadata(url)
+    const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
+      url,
+      'get',
+      forceChecksum
+    )
     return {
       valid: true,
       contentLength,
       contentType,
+      contentChecksum,
       name: new URL(url).pathname.split('/').pop() || '',
       type: 'arweave',
       encryptedBy: fileObject.encryptedBy,
@@ -309,13 +329,21 @@ export class IpfsStorage extends Storage {
     return urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', this.getFile().hash))
   }
 
-  async fetchSpecificFileMetadata(fileObject: IpfsFileObject): Promise<FileInfoResponse> {
+  async fetchSpecificFileMetadata(
+    fileObject: IpfsFileObject,
+    forceChecksum: boolean
+  ): Promise<FileInfoResponse> {
     const url = urlJoin(process.env.IPFS_GATEWAY, urlJoin('/ipfs', fileObject.hash))
-    const { contentLength, contentType } = await fetchFileMetadata(url)
+    const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
+      url,
+      'get',
+      forceChecksum
+    )
     return {
       valid: true,
       contentLength,
       contentType,
+      contentChecksum,
       name: '',
       type: 'ipfs',
       encryptedBy: fileObject.encryptedBy,

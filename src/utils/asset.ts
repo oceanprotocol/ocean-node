@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { DDO } from '../@types/DDO/DDO'
 import { Service } from '../@types/DDO/Service'
+import { createHash } from 'crypto'
 
 // Notes:
 // Asset as per asset.py on provider, is a class there, while on ocean.Js we only have a type
@@ -25,43 +26,38 @@ export const AssetUtils = {
 }
 
 export async function fetchFileMetadata(
-  url: string
-): Promise<{ contentLength: string; contentType: string }> {
-  let contentLength: string = ''
+  url: string,
+  method: string,
+  forceChecksum: boolean
+): Promise<{ contentLength: string; contentType: string; contentChecksum: string }> {
   let contentType: string = ''
+  let contentLength: number = 0
+  const contentChecksum = createHash('sha256')
+  const maxLengthInt = parseInt(process.env.MAX_CHECKSUM_LENGTH, 10)
+  const maxLength = isNaN(maxLengthInt) ? 10 * 1024 * 1024 : maxLengthInt
+
   try {
-    // First try with HEAD request
-    const response = await axios.head(url)
-
-    contentLength = response.headers['content-length']
+    const response = await axios({
+      url,
+      method: method || 'get',
+      responseType: 'stream'
+    })
     contentType = response.headers['content-type']
-  } catch (error) {
-    // Fallback to GET request
-    try {
-      const response = await axios.get(url, { method: 'GET', responseType: 'stream' })
-
-      contentLength = response.headers['content-length']
-      contentType = response.headers['content-type']
-    } catch (error) {
-      contentLength = 'Unknown'
-    }
-  }
-
-  if (!contentLength) {
-    try {
-      const response = await axios.get(url, { responseType: 'stream' })
-      let totalSize = 0
-
-      for await (const chunk of response.data) {
-        totalSize += chunk.length
+    let totalSize = 0
+    for await (const chunk of response.data) {
+      totalSize += chunk.length
+      contentChecksum.update(chunk)
+      if (totalSize > maxLength && !forceChecksum) {
+        contentLength = 0
+        break
       }
-      contentLength = totalSize.toString()
-    } catch (error) {
-      contentLength = 'Unknown'
     }
-  }
+    contentLength = totalSize
+  } catch (error) {}
+
   return {
-    contentLength,
-    contentType
+    contentLength: contentLength.toString(),
+    contentType,
+    contentChecksum: contentChecksum.digest('hex')
   }
 }

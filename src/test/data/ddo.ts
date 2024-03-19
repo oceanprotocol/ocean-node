@@ -307,6 +307,115 @@ export const ddov5 = {
   }
 }
 
+export const publishAlgoDDO = {
+  '@context': ['https://w3id.org/did/v1'],
+  id: '',
+  nftAddress: '',
+  version: '4.1.0',
+  chainId: 137,
+  metadata: {
+    created: '2023-08-01T17:09:39Z',
+    updated: '2023-08-01T17:09:39Z',
+    type: 'algorithm',
+    name: 'CLi Algo',
+    description: 'Cli algo',
+    author: 'OPF',
+    license: 'https://market.oceanprotocol.com/terms',
+    additionalInformation: {
+      termsAndConditions: true
+    },
+    algorithm: {
+      language: '',
+      version: '0.1',
+      container: {
+        entrypoint: 'node $ALGO',
+        image: 'node',
+        tag: 'latest',
+        checksum:
+          'sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36'
+      }
+    }
+  },
+  services: [
+    {
+      id: '0',
+      type: 'access',
+      files: {
+        datatokenAddress: '0x0',
+        nftAddress: '0x0',
+        files: [
+          {
+            type: 'url',
+            url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
+            method: 'GET'
+          }
+        ]
+      },
+      timeout: 0
+    }
+  ]
+}
+
+export const publishDatasetDDO = {
+  '@context': ['https://w3id.org/did/v1'],
+  id: '',
+  version: '4.1.0',
+  chainId: 8996,
+  nftAddress: '0x0',
+  metadata: {
+    created: '2021-12-20T14:35:20Z',
+    updated: '2021-12-20T14:35:20Z',
+    type: 'dataset',
+    name: 'dataset-name',
+    description: 'Ocean protocol test dataset description',
+    author: 'oceanprotocol-team',
+    license: 'MIT',
+    tags: ['white-papers'],
+    additionalInformation: { 'test-key': 'test-value' },
+    links: ['http://data.ceda.ac.uk/badc/ukcp09/']
+  },
+  services: [
+    {
+      id: '0',
+      type: 'compute',
+      description: 'Compute service',
+      files: [
+        {
+          datatokenAddress: '0x0',
+          nftAddress: '0x0',
+          files: [
+            {
+              type: 'url',
+              url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
+              method: 'GET'
+            }
+          ]
+        }
+      ],
+      datatokenAddress: '0x0',
+      serviceEndpoint: 'http://172.15.0.4:8030',
+      timeout: 0,
+      compute: {
+        allowRawAlgorithm: false,
+        allowNetworkAccess: true,
+        publisherTrustedAlgorithmPublishers: ['0x234', '0x235'],
+        publisherTrustedAlgorithms: [
+          {
+            did: 'did:op:123',
+            filesChecksum: '100',
+            containerSectionChecksum: '200'
+          },
+          {
+            did: 'did:op:124',
+            filesChecksum: '110',
+            containerSectionChecksum: '210'
+          }
+        ]
+      }
+    }
+  ]
+}
+
 export const ddoValidationSignature = {
   '@context': ['https://w3id.org/did/v1'],
   id: 'did:op:fa0e8fa9550e8eb13392d6eeb9ba9f8111801b332c8d2345b350b3bc66b379d5',
