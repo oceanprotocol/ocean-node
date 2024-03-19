@@ -39,19 +39,23 @@ export class StopNodeHandler extends Handler {
     return commandValidation
   }
 
-  handle(task: AdminStopNodeCommand): P2PCommandResponse {
+  handle(task: AdminStopNodeCommand): Promise<P2PCommandResponse> {
     const validation = this.validate(task)
     if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+      return new Promise<P2PCommandResponse>((resolve, reject) => {
+        resolve(buildInvalidParametersResponse(validation))
+      })
     }
     CORE_LOGGER.logMessage(`Stopping node execution...`)
     setTimeout(() => {
       process.exit()
     }, 2000)
-    return {
-      status: { httpStatus: 200 },
-      stream: new ReadableString('EXIT OK')
-    }
+    return new Promise<P2PCommandResponse>((resolve, reject) => {
+      resolve({
+        status: { httpStatus: 200 },
+        stream: new ReadableString('EXIT OK')
+      })
+    })
   }
 }
 
