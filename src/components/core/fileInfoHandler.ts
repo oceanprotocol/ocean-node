@@ -47,7 +47,9 @@ async function getFile(
 
     // Convert the decrypted bytes back to a string
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
+    CORE_LOGGER.logMessage(`decryptedFilesString: ${decryptedFilesString}`)
     const decryptedFileArray = JSON.parse(decryptedFilesString)
+    CORE_LOGGER.logMessage(`decryptedFileArray: ${decryptedFileArray}`)
     return decryptedFileArray.files
   } catch (error) {
     const msg = 'Error occured while requesting the files: ' + error.message
