@@ -33,9 +33,11 @@ git checkout feature/nodes
 ./start_ocean.sh
 ```
 
-### 5. Open terminal 1 and run a node
+### 5. Open terminal 1 and set the environmental variables
 
-Set remaining env values:
+A full list of all environmental variables is available in [env.md](./env.md)
+
+Set env values:
 
 ```bash
 export HTTP_API_PORT=8000
@@ -80,27 +82,6 @@ For configuring the Indexer crawling interval in miliseconds (default, if not se
 export INDEXER_INTERVAL=10000
 ```
 
-Then start the node:
-
-```bash
-npm run start
-```
-
-### 6. Open a 2nd terminal and run another node
-
-```bash
-export HTTP_API_PORT=8001
-export PRIVATE_KEY=0x.....
-export RPCS="{ \"1\": \"https://rpc.eth.gateway.fm\", \"137\": \"https://polygon.meowrpc.com\", \"80001\": \"https://rpc-mumbai.maticvigil.com\" }"
-```
-
-For downloading the file from IPFS or ARWEAVE, please export the following env variables;
-
-```bash
-export IPFS_GATEWAY=''
-export ARWEAVE_GATEWAY=''
-```
-
 For purgatory checks, please export the following env variables;
 
 ```bash
@@ -118,13 +99,15 @@ export FEE_AMOUNT="{ \"amount\": 1, \"unit\": \"MB\" }"
 Where FEE_TOKENS is a map (chainID => Token address) and FEE_AMOUNT is the fees amount (unit of fee token).
 The 'unit' parameter is not used at the moment, but allows to specify an specific unit of size (MB, KB, GB, etc). Default is MB.
 
+### 6. Run the node
+
 Then start the node:
 
 ```bash
 npm run start
 ```
 
-Now, you should see the nodes discovery/connecting/disconnecting
+To run a second node, open a new terminal and follow these steps again. Now with the two nodes running, you should see the two nodes discovery/connecting/disconnecting with each other.
 
 Load postman collection from docs and play
 
@@ -310,6 +293,8 @@ npm run logs http://localhost:8000 "2023-11-01T00:00:00Z" "2023-11-30T23:59:59Z"
 ```
 
 ## CI Envs
+
+A full list of all environmental variables is available in [env.md](./env.md)
 
 For now, we have three private keys defined (NODE1_PRIVATE_KEY, NODE2_PRIVATE_KEY,NODE3_PRIVATE_KEY). They are using the 7th, 8th and 9th accounts of barge:
 
