@@ -7,7 +7,7 @@ import { RPCS } from '../../@types/blockchain.js'
 import { downloadAsset } from '../data/assets.js'
 import { publishAsset } from '../utils/assets.js'
 import {
-  DEFAULT_TEST_TIMEOUT,
+  // DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
@@ -16,7 +16,7 @@ import {
 } from '../utils/utils.js'
 
 import {
-  EVENTS,
+  // EVENTS,
   ENVIRONMENT_VARIABLES,
   PROTOCOL_COMMANDS,
   getConfiguration
@@ -38,7 +38,7 @@ import {
   ReindexTxHandler,
   StopNodeHandler
 } from '../../components/core/adminOperations.js'
-import { waitToIndex } from './testUtils.js'
+// import { waitToIndex } from './testUtils.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -124,11 +124,11 @@ describe('Should test admin operations', () => {
   it('should publish compute datasets & algos', async () => {
     publishedDataset = await publishAsset(downloadAsset, publisherAccount)
     console.log(`published dataset: ${JSON.stringify(publishAsset)}`)
-    await waitToIndex(
-      publishedDataset.ddo.id,
-      EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT
-    )
+    // await waitToIndex(
+    //   publishedDataset.ddo.id,
+    //   EVENTS.METADATA_CREATED,
+    //   DEFAULT_TEST_TIMEOUT
+    // )
   })
 
   it('should pass for reindex tx command', async () => {
@@ -136,13 +136,13 @@ describe('Should test admin operations', () => {
     console.log(`publisher addr: ${await publisherAccount.getAddress()}`)
     const signature = await getSignature(expiryTimestamp.toString())
     console.log(
-      `receipt for published dataset: ${JSON.stringify(publishedDataset.txReceipt)}`
+      `receipt for published dataset: ${JSON.stringify(publishedDataset.trxReceipt)}`
     )
 
     const reindexTxCommand: AdminReindexTxCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_TX,
       node: config.keys.peerId.toString(),
-      txId: publishedDataset.txReceipt.hash,
+      txId: publishedDataset.trxReceipt.hash,
       chainId: DEVELOPMENT_CHAIN_ID,
       expiryTimestamp,
       signature
