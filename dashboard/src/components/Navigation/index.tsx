@@ -4,11 +4,12 @@ import logo from '../../assets/logo.svg'
 import styles from './style.module.css'
 import { useState } from 'react'
 import { ethers } from 'ethers'
+import { useAdminContext } from '@context/AdminProvider'
 
 const NavBar = () => {
   const [connected, setConnected] = useState(false)
-  const [walletAddress, setWalletAddress] = useState('')
-  console.log('🚀 ~ Dashboard ~ walletAddress:', walletAddress)
+
+  const { setUserAddress } = useAdminContext()
 
   async function connectWallet() {
     if (!connected) {
@@ -16,10 +17,10 @@ const NavBar = () => {
       const signer = await provider.getSigner()
       const address = await signer.getAddress()
       setConnected(true)
-      setWalletAddress(address)
+      setUserAddress(address)
     } else {
       setConnected(false)
-      setWalletAddress('')
+      setUserAddress('')
     }
   }
 

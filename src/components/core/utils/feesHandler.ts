@@ -2,7 +2,6 @@ import type { ComputeEnvironment } from '../../../@types/C2D.js'
 import {
   JsonRpcApiProvider,
   ethers,
-  Contract,
   Interface,
   BigNumberish,
   parseUnits,
@@ -11,8 +10,11 @@ import {
 import { FeeTokens, ProviderFeeData, ProviderFeeValidation } from '../../../@types/Fees'
 import { DDO } from '../../../@types/DDO/DDO'
 import { Service } from '../../../@types/DDO/Service'
-
-import { verifyMessage, getJsonRpcProvider } from '../../../utils/blockchain.js'
+import {
+  getDatatokenDecimals,
+  verifyMessage,
+  getJsonRpcProvider
+} from '../../../utils/blockchain.js'
 import { getConfiguration } from '../../../utils/config.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
@@ -79,20 +81,7 @@ export async function createProviderFee(
 
   if (providerFeeToken && providerFeeToken !== ZeroAddress) {
     const provider = await getJsonRpcProvider(asset.chainId)
-
-    const datatokenContract = new Contract(
-      providerFeeToken,
-      ERC20Template.abi,
-      await provider.getSigner()
-    )
-
-    let decimals = 18
-    try {
-      decimals = await datatokenContract.decimals()
-    } catch (e) {
-      console.error(e)
-    }
-
+    const decimals = await getDatatokenDecimals(providerFeeToken, provider)
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
   } else {
     providerFeeAmountFormatted = BigInt(0)
@@ -419,6 +408,7 @@ export async function createFee(
 
 export async function checkFee(
   txId: string,
+  chainId: number,
   providerFeesData: ProviderFeeData
   // message: string | Uint8Array // the message that was signed (fee structure) ?
 ): Promise<boolean> {
