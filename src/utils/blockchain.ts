@@ -64,12 +64,19 @@ export async function verifyMessage(
   }
 }
 
-export async function getJsonRpcProvider(chainId: number): Promise<JsonRpcProvider> {
+export async function checkSupportedChainId(chainId: number): Promise<[boolean, string]> {
   const config = await getConfiguration()
   if (!(`${chainId.toString()}` in config.supportedNetworks)) {
     CORE_LOGGER.error(`Chain ID ${chainId.toString()} is not supported`)
+    return [false, '']
+  }
+  return [true, config.supportedNetworks[chainId.toString()].rpc]
+}
+
+export async function getJsonRpcProvider(chainId: number): Promise<JsonRpcProvider> {
+  const checkResult = await checkSupportedChainId(chainId)
+  if (!checkResult[0]) {
     return null
   }
-  const networkUrl = config.supportedNetworks[chainId.toString()].rpc
-  return new JsonRpcProvider(networkUrl)
+  return new JsonRpcProvider(checkResult[1])
 }
