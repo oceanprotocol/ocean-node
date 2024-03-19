@@ -8,6 +8,7 @@ import { RPCS } from '../../@types/blockchain.js'
 import { downloadAsset } from '../data/assets.js'
 import { publishAsset } from '../utils/assets.js'
 import {
+  // DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
@@ -16,6 +17,7 @@ import {
 } from '../utils/utils.js'
 
 import {
+  // EVENTS,
   ENVIRONMENT_VARIABLES,
   PROTOCOL_COMMANDS,
   getConfiguration
@@ -39,7 +41,7 @@ import {
 } from '../../components/core/adminOperations.js'
 import { FindDdoHandler } from '../../components/core/ddoHandler.js'
 import { streamToObject } from '../../utils/util.js'
-
+// import { waitToIndex } from './testUtils.js'
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
@@ -122,16 +124,12 @@ describe('Should test admin operations', () => {
 
   it('should publish compute datasets & algos', async () => {
     publishedDataset = await publishAsset(downloadAsset, publisherAccount)
-    console.log(`published dataset: ${JSON.stringify(publishAsset)}`)
   })
 
   it('should pass for reindex tx command', async () => {
     console.log(`consumer addr: ${consumerAddress}`)
     console.log(`publisher addr: ${await publisherAccount.getAddress()}`)
     const signature = await getSignature(expiryTimestamp.toString())
-    console.log(
-      `receipt for published dataset: ${JSON.stringify(publishedDataset.trxReceipt)}`
-    )
 
     const reindexTxCommand: AdminReindexTxCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_TX,
@@ -150,6 +148,7 @@ describe('Should test admin operations', () => {
     const handlerResponse = await reindexTxHandler.handle(reindexTxCommand)
     assert(handlerResponse, 'handler resp does not exist')
     assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
+    console.log(`ddo: ${JSON.stringify(publishedDataset.ddo)}`)
     const findDDOTask = {
       command: PROTOCOL_COMMANDS.FIND_DDO,
       id: publishedDataset.ddo.id
