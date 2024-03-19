@@ -155,6 +155,7 @@ describe('Should test admin operations', () => {
     }
     const response = await new FindDdoHandler(oceanNode).handle(findDDOTask)
     const actualDDO = await streamToObject(response.stream as Readable)
+    console.log('actualDDO: ', JSON.stringify(actualDDO))
     assert(actualDDO.id === publishedDataset.ddo.id, 'DDO id not matching')
   })
 
