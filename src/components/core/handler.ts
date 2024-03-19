@@ -11,7 +11,7 @@ export abstract class Handler implements ICommandHandler {
 
   abstract validate(command: Command): ValidateParams
 
-  abstract handle(task: Command): Promise<P2PCommandResponse>
+  abstract handle(task: Command): Promise<P2PCommandResponse> | P2PCommandResponse
 
   getOceanNode(): OceanNode {
     return this.nodeInstance

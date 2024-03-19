@@ -20,7 +20,7 @@ import {
   processChunkLogs,
   getDeployedContractBlock
 } from '../Indexer/utils.js'
-import { Blockchain, getConfiguration } from '../../utils/index.js'
+import { Blockchain, checkSupportedChainId } from '../../utils/index.js'
 
 export class StopNodeHandler extends Handler {
   validate(command: AdminStopNodeCommand): ValidateParams {
@@ -39,23 +39,19 @@ export class StopNodeHandler extends Handler {
     return commandValidation
   }
 
-  handle(task: AdminStopNodeCommand): Promise<P2PCommandResponse> {
+  handle(task: AdminStopNodeCommand): P2PCommandResponse {
     const validation = this.validate(task)
     if (!validation.valid) {
-      return new Promise<P2PCommandResponse>((resolve, reject) => {
-        resolve(buildInvalidParametersResponse(validation))
-      })
+      return buildInvalidParametersResponse(validation)
     }
     CORE_LOGGER.logMessage(`Stopping node execution...`)
     setTimeout(() => {
       process.exit()
     }, 2000)
-    return new Promise<P2PCommandResponse>((resolve, reject) => {
-      resolve({
-        status: { httpStatus: 200 },
-        stream: new ReadableString('EXIT OK')
-      })
-    })
+    return {
+      status: { httpStatus: 200 },
+      stream: new ReadableString('EXIT OK')
+    }
   }
 }
 
@@ -84,15 +80,12 @@ export class ReindexTxHandler extends Handler {
       return buildInvalidParametersResponse(validation)
     }
     CORE_LOGGER.logMessage(`Reindexing tx...`)
-    const config = await getConfiguration()
-    if (!(`${task.chainId}` in config.supportedNetworks)) {
+    const checkChainId = await checkSupportedChainId(task.chainId)
+    if (!checkChainId[0]) {
       CORE_LOGGER.error(`Chain ID ${task.chainId} is not supported in config.`)
       return
     }
-    const blockchain = new Blockchain(
-      config.supportedNetworks[task.chainId.toString()].rpc,
-      task.chainId
-    )
+    const blockchain = new Blockchain(checkChainId[1], task.chainId)
     const provider = blockchain.getProvider()
     const signer = blockchain.getSigner()
     try {
@@ -110,12 +103,10 @@ export class ReindexTxHandler extends Handler {
         return
       }
 
-      return new Promise<P2PCommandResponse>((resolve, reject) => {
-        resolve({
-          status: { httpStatus: 200 },
-          stream: new ReadableString('REINDEX TX OK')
-        })
-      })
+      return {
+        status: { httpStatus: 200 },
+        stream: new ReadableString('REINDEX TX OK')
+      }
     } catch (error) {
       CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `REINDEX tx: ${error.message} `, true)
     }
@@ -148,15 +139,12 @@ export class ReindexChainHandler extends Handler {
       return buildInvalidParametersResponse(validation)
     }
     CORE_LOGGER.logMessage(`Reindexing chain command called`)
-    const config = await getConfiguration()
-    if (!(`${task.chainId}` in config.supportedNetworks)) {
+    const checkChainId = await checkSupportedChainId(task.chainId)
+    if (!checkChainId[0]) {
       CORE_LOGGER.error(`Chain ID ${task.chainId} is not supported in config.`)
       return
     }
-    const blockchain = new Blockchain(
-      config.supportedNetworks[task.chainId.toString()].rpc,
-      task.chainId
-    )
+    const blockchain = new Blockchain(checkChainId[1], task.chainId)
     const provider = blockchain.getProvider()
     const signer = blockchain.getSigner()
     const deployedBlock = getDeployedContractBlock(task.chainId)
@@ -182,12 +170,10 @@ export class ReindexChainHandler extends Handler {
         return
       }
 
-      return new Promise<P2PCommandResponse>((resolve, reject) => {
-        resolve({
-          status: { httpStatus: 200 },
-          stream: new ReadableString('REINDEX CHAIN OK')
-        })
-      })
+      return {
+        status: { httpStatus: 200 },
+        stream: new ReadableString('REINDEX CHAIN OK')
+      }
     } catch (error) {
       CORE_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,

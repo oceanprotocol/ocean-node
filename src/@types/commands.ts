@@ -117,7 +117,7 @@ export interface AdminReindexChainCommand extends AdminCommand {
 }
 
 export interface ICommandHandler {
-  handle(command: Command): Promise<P2PCommandResponse>
+  handle(command: Command): Promise<P2PCommandResponse> | P2PCommandResponse
   validate(command: Command): ValidateParams
 }
 
