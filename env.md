@@ -1,5 +1,7 @@
 # Environmental Variables
 
+Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/utils/constants.ts`. Descriptions and example values are provided below:
+
 | Name                  | Required | Example Value                                                                                                                                | Description                                                                                                                                       |
 | --------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | HTTP_API_PORT         | false    | 8000                                                                                                                                         | Port number for the HTTP API.                                                                                                                     |
