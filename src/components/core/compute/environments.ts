@@ -6,28 +6,33 @@ import { Handler } from '../handler.js'
 import { ComputeGetEnvironmentsCommand } from '../../../@types/commands.js'
 import { getConfiguration } from '../../../utils/config.js'
 import { C2DEngine } from '../../c2d/compute_engines.js'
+import {
+  ValidateParams,
+  buildInvalidParametersResponse,
+  buildInvalidRequestMessage,
+  validateCommandParameters
+} from '../../httpRoutes/validateCommands.js'
 export class ComputeGetEnvironmentsHandler extends Handler {
-  async handle(task: ComputeGetEnvironmentsCommand): Promise<P2PCommandResponse> {
-    try {
-      CORE_LOGGER.logMessage(
-        'ComputeGetEnvironmentsCommand received with arguments: ' +
-          JSON.stringify(task, null, 2),
-        true
-      )
-
-      if (isNaN(task.chainId) || task.chainId < 1) {
+  validate(command: ComputeGetEnvironmentsCommand): ValidateParams {
+    const validateCommand = validateCommandParameters(command, ['chainId'])
+    if (validateCommand.valid) {
+      if (isNaN(command.chainId) || command.chainId < 1) {
         CORE_LOGGER.logMessage(
-          `Invalid chainId: ${task.chainId} on GET computeEnvironments request`,
+          `Invalid chainId: ${command.chainId} on GET computeEnvironments request`,
           true
         )
-        return {
-          stream: null,
-          status: {
-            httpStatus: 400,
-            error: 'Invalid chainId'
-          }
-        }
+        return buildInvalidRequestMessage('Invalid chainId')
       }
+    }
+    return validateCommand
+  }
+
+  async handle(task: ComputeGetEnvironmentsCommand): Promise<P2PCommandResponse> {
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
+    try {
       const response: ComputeEnvironment[] = []
       const config = await getConfiguration()
       const { c2dClusters } = config

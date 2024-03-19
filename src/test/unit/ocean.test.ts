@@ -28,7 +28,7 @@ describe('Status command tests', async () => {
       '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
       'https://ipfs.io/',
       'https://arweave.net/',
-      '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com", "80001": "https://rpc-mumbai.maticvigil.com" }'
+      '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com" }'
     ]
   )
   envOverrides = await setupEnvironment(null, envOverrides)
@@ -49,8 +49,7 @@ describe('Status command tests', async () => {
     expect(oceanNode).to.be.instanceOf(OceanNode)
     expect(config.supportedNetworks).to.eql({
       '1': 'https://rpc.eth.gateway.fm',
-      '137': 'https://polygon.meowrpc.com',
-      '80001': 'https://rpc-mumbai.maticvigil.com'
+      '137': 'https://polygon.meowrpc.com'
     })
     expect(oceanNode.getDatabase()).to.not.eql(null)
     expect(config.hasP2P).to.eql(true)
