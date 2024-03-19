@@ -2,13 +2,11 @@ import { assert } from 'chai'
 import { Readable } from 'stream'
 import { JsonRpcProvider, JsonRpcSigner, Signer } from 'ethers'
 import { Database } from '../../components/database/index.js'
-import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { downloadAsset } from '../data/assets.js'
 import { publishAsset } from '../utils/assets.js'
 import {
-  // DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
@@ -17,7 +15,6 @@ import {
 } from '../utils/utils.js'
 
 import {
-  // EVENTS,
   ENVIRONMENT_VARIABLES,
   PROTOCOL_COMMANDS,
   getConfiguration
@@ -41,15 +38,12 @@ import {
 } from '../../components/core/adminOperations.js'
 import { FindDdoHandler } from '../../components/core/ddoHandler.js'
 import { streamToObject } from '../../utils/util.js'
-// import { waitToIndex } from './testUtils.js'
+
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
-  //   let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let publisherAccount: Signer
-  let consumerAccount: Signer
-  let consumerAddress: string
   let publishedDataset: any
   const currentDate = new Date()
   const expiryTimestamp = new Date(
@@ -87,8 +81,6 @@ describe('Should test admin operations', () => {
     config = await getConfiguration(true) // Force reload the configuration
     const dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
-    //  eslint-disable-next-line no-unused-vars
-    const indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
@@ -96,10 +88,7 @@ describe('Should test admin operations', () => {
     }
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
-
     publisherAccount = (await provider.getSigner(0)) as Signer
-    consumerAccount = (await provider.getSigner(1)) as Signer
-    consumerAddress = await consumerAccount.getAddress()
   })
 
   async function getSignature(message: string) {
@@ -127,7 +116,6 @@ describe('Should test admin operations', () => {
   })
 
   it('should pass for reindex tx command', async () => {
-    console.log(`consumer addr: ${consumerAddress}`)
     console.log(`publisher addr: ${await publisherAccount.getAddress()}`)
     const signature = await getSignature(expiryTimestamp.toString())
 
@@ -155,13 +143,10 @@ describe('Should test admin operations', () => {
     }
     const response = await new FindDdoHandler(oceanNode).handle(findDDOTask)
     const actualDDO = await streamToObject(response.stream as Readable)
-    console.log('actualDDO: ', JSON.stringify(actualDDO))
-    assert(actualDDO.id === publishedDataset.ddo.id, 'DDO id not matching')
+    assert(actualDDO[0].id === publishedDataset.ddo.id, 'DDO id not matching')
   })
 
   it('validation should pass for reindex chain command', async () => {
-    console.log(`consumer addr: ${consumerAddress}`)
-    console.log(`publisher addr: ${await publisherAccount.getAddress()}`)
     const signature = await getSignature(expiryTimestamp.toString())
 
     const reindexChainCommand: AdminReindexChainCommand = {
