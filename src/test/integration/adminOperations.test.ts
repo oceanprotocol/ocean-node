@@ -129,6 +129,9 @@ describe('Should test admin operations', () => {
     console.log(`consumer addr: ${consumerAddress}`)
     console.log(`publisher addr: ${await publisherAccount.getAddress()}`)
     const signature = await getSignature(expiryTimestamp.toString())
+    console.log(
+      `receipt for published dataset: ${JSON.stringify(publishedDataset.txReceipt)}`
+    )
 
     const reindexTxCommand: AdminReindexTxCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_TX,
