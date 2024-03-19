@@ -13,9 +13,15 @@ import { ArweaveStorage, IpfsStorage, UrlStorage } from '../storage/index.js'
 import { Handler } from './handler.js'
 import { decrypt } from '../../utils/crypt.js'
 import { Service } from '../../@types/DDO/Service.js'
-import { FindDdoHandler } from './ddoHandler.js'
+import { FindDdoHandler, validateDDOIdentifier } from './ddoHandler.js'
 import { AssetUtils, fetchFileMetadata } from '../../utils/asset.js'
 import { OceanNode } from '../../OceanNode.js'
+import {
+  ValidateParams,
+  buildInvalidParametersResponse,
+  buildInvalidRequestMessage,
+  validateCommandParameters
+} from '../httpRoutes/validateCommands.js'
 
 async function getFile(
   did: string,
@@ -74,12 +80,35 @@ async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFile
   }
 }
 export class FileInfoHandler extends Handler {
+  validate(command: FileInfoCommand): ValidateParams {
+    let validation = validateCommandParameters(command, []) // all optional? weird
+    if (validation.valid) {
+      if (command.did) {
+        validation = validateDDOIdentifier(command.did)
+        if (validation.valid && !command.serviceId) {
+          validation.valid = false
+          validation.reason = 'Invalid Request: matching "serviceId" not specified!'
+        }
+      } else if (
+        !command.checksum &&
+        !command.did &&
+        !command.file &&
+        !command.fileIndex &&
+        !command.serviceId &&
+        !command.type
+      ) {
+        return buildInvalidRequestMessage('Invalid Request: no fields are present!')
+      }
+    }
+    return validation
+  }
+
   async handle(task: FileInfoCommand): Promise<P2PCommandResponse> {
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
     try {
-      CORE_LOGGER.logMessage(
-        'File Info Request recieved with arguments: ' + JSON.stringify(task, null, 2),
-        true
-      )
       const oceanNode = this.getOceanNode()
       let fileInfo = []
 

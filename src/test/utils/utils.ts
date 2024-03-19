@@ -136,6 +136,12 @@ export function getMockSupportedNetworks(): RPCS {
       network: 'development',
       rpc: 'http://127.0.0.1:8545',
       chunkSize: 100
+    },
+    '137': {
+      chainId: 137,
+      network: 'polygon',
+      rpc: 'https://polygon-rpc.com',
+      chunkSize: 1000
     }
   }
   return mockSupportedNetworks
