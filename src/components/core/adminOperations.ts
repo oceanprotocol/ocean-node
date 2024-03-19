@@ -81,9 +81,7 @@ export class ReindexTxHandler extends Handler {
   async handle(task: AdminReindexTxCommand): Promise<P2PCommandResponse> {
     const validation = this.validate(task)
     if (!validation.valid) {
-      return new Promise<P2PCommandResponse>((resolve, reject) => {
-        resolve(buildInvalidParametersResponse(validation))
-      })
+      return buildInvalidParametersResponse(validation)
     }
     CORE_LOGGER.logMessage(`Reindexing tx...`)
     const config = await getConfiguration()
@@ -147,9 +145,7 @@ export class ReindexChainHandler extends Handler {
   async handle(task: AdminReindexChainCommand): Promise<P2PCommandResponse> {
     const validation = this.validate(task)
     if (!validation.valid) {
-      return new Promise<P2PCommandResponse>((resolve, reject) => {
-        resolve(buildInvalidParametersResponse(validation))
-      })
+      return buildInvalidParametersResponse(validation)
     }
     CORE_LOGGER.logMessage(`Reindexing chain command called`)
     const config = await getConfiguration()

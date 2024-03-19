@@ -1,4 +1,5 @@
 import { assert } from 'chai'
+import { Readable } from 'stream'
 import { JsonRpcProvider, JsonRpcSigner, Signer } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
@@ -7,7 +8,6 @@ import { RPCS } from '../../@types/blockchain.js'
 import { downloadAsset } from '../data/assets.js'
 import { publishAsset } from '../utils/assets.js'
 import {
-  // DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
@@ -16,7 +16,6 @@ import {
 } from '../utils/utils.js'
 
 import {
-  // EVENTS,
   ENVIRONMENT_VARIABLES,
   PROTOCOL_COMMANDS,
   getConfiguration
@@ -38,7 +37,8 @@ import {
   ReindexTxHandler,
   StopNodeHandler
 } from '../../components/core/adminOperations.js'
-// import { waitToIndex } from './testUtils.js'
+import { FindDdoHandler } from '../../components/core/ddoHandler.js'
+import { streamToObject } from '../../utils/util.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -107,7 +107,6 @@ describe('Should test admin operations', () => {
   }
 
   it('validation should pass for stop node command', async () => {
-    // Sign the original message directly
     const signature = await getSignature(expiryTimestamp.toString())
 
     const stopNodeCommand: AdminStopNodeCommand = {
@@ -124,11 +123,6 @@ describe('Should test admin operations', () => {
   it('should publish compute datasets & algos', async () => {
     publishedDataset = await publishAsset(downloadAsset, publisherAccount)
     console.log(`published dataset: ${JSON.stringify(publishAsset)}`)
-    // await waitToIndex(
-    //   publishedDataset.ddo.id,
-    //   EVENTS.METADATA_CREATED,
-    //   DEFAULT_TEST_TIMEOUT
-    // )
   })
 
   it('should pass for reindex tx command', async () => {
@@ -156,6 +150,13 @@ describe('Should test admin operations', () => {
     const handlerResponse = await reindexTxHandler.handle(reindexTxCommand)
     assert(handlerResponse, 'handler resp does not exist')
     assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
+    const findDDOTask = {
+      command: PROTOCOL_COMMANDS.FIND_DDO,
+      id: publishedDataset.ddo.id
+    }
+    const response = await new FindDdoHandler(oceanNode).handle(findDDOTask)
+    const actualDDO = await streamToObject(response.stream as Readable)
+    assert(actualDDO.id === publishedDataset.ddo.id, 'DDO id not matching')
   })
 
   it('validation should pass for reindex chain command', async () => {

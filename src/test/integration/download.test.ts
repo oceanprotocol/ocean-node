@@ -168,6 +168,7 @@ describe('Should run a complete node flow.', () => {
     }
 
     const response = await new FileInfoHandler(oceanNode).handle(fileInfoTask)
+    console.log(`response file info: ${JSON.stringify(response)}`)
 
     assert(response)
     assert(response.stream, 'stream not present')
