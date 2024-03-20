@@ -8,10 +8,9 @@ import {
   SetStateAction,
   useEffect
 } from 'react'
+import { useAccount } from 'wagmi'
 
 interface AdminContextType {
-  userAddress: string
-  setUserAddress: Dispatch<SetStateAction<string>>
   admin: boolean
   setAdmin: Dispatch<SetStateAction<boolean>>
   allAdmins: string[]
@@ -24,27 +23,25 @@ const AdminContext = createContext<AdminContextType | undefined>(undefined)
 export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
   children
 }) => {
+  const { address } = useAccount()
   const [admin, setAdmin] = useState<boolean>(false)
-  const [userAddress, setUserAddress] = useState<string>('')
   const [allAdmins, setAllAdmins] = useState<string[]>([])
 
   const value: AdminContextType = {
     admin,
     setAdmin,
-    userAddress,
-    setUserAddress,
     allAdmins,
     setAllAdmins
   }
 
   useEffect(() => {
     for (const adminAddress of allAdmins) {
-      if (adminAddress.toLowerCase() === userAddress.toLowerCase()) {
+      if (address && adminAddress.toLowerCase() === address.toLowerCase()) {
         setAdmin(true)
         console.log('admin has logged in')
       }
     }
-  }, [userAddress, allAdmins])
+  }, [address, allAdmins])
 
   return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>
 }
