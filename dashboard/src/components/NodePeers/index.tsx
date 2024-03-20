@@ -42,7 +42,7 @@ export default function NodePeers() {
       {nodePeers.length > 0 ? (
         nodePeers.map((address) => {
           return (
-            <div className={styles.nodeAddress}>
+            <div className={styles.nodeAddress} key={address}>
               {truncateString(address, 12)} <Copy text={address} />
             </div>
           )

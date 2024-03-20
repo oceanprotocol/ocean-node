@@ -1,17 +1,17 @@
 .download {
   display: flex;
   flex-direction: row;
-  justify-content: center;
+  justify-content: flex-start;
   flex-wrap: nowrap;
   align-items: center;
   width: 100%;
   gap: 4px;
   color: #4A5360;
   font-family: Helvetica;
-  font-size: 16px;
+  font-size: 22px;
   font-style: normal;
   font-weight: 500;
-  line-height: 140%;
+  line-height: 160%;
   text-align: left;
 }
 
@@ -48,7 +48,41 @@
   animation: rotationBack 1s linear infinite;
   transform-origin: center center;
 }
-    
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  color: #4A5360;
+  font-family: Helvetica;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 120%;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input {
+  background: transparent;
+  padding: 4px 8px;
+  color: black;
+  border: 1px solid black;
+  border-radius: 4px;
+  color-scheme: dark;
+}
+
+.input[type="datetime-local"]::-webkit-inner-spin-button,
+.input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  background-color: black;
+  margin-left: 8px;
+}
+
 @keyframes rotation {
   0% {
     transform: rotate(0deg);
