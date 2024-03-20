@@ -5,7 +5,7 @@ import styles from './index.module.css'
 
 import DownloadSVG from '../../assets/download.svg'
 
-export default function DownloadButton() {
+export default function DownloadLogs() {
   const [isLoading, setLoading] = useState(false)
   const downloadLogs = useCallback(async () => {
     setLoading(true)

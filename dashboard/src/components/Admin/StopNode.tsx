@@ -1,14 +1,14 @@
-import React, { useCallback, useState } from 'react'
-
+import React, { useState } from 'react'
 import styles from './index.module.css'
 
-export default function DownloadButton() {
+export default function StopNode() {
   const [isLoading, setLoading] = useState(false)
-  const stopNode = useCallback(() => {
+
+  async function stopNode() {
     setLoading(true)
     try {
       const apiUrl = '/directCommand'
-      fetch(apiUrl, {
+      const response = await fetch(apiUrl, {
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json'
@@ -18,16 +18,14 @@ export default function DownloadButton() {
           command: 'status'
         })
       })
-        .then((res) => res.json())
-        .then((data: any) => {
-          console.log('data response:  ', data)
-          setLoading(false)
-        })
+      const data = await response.json()
+      console.log('data response:  ', data)
     } catch (error) {
-      console.log('error', error)
+      console.error('error', error)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }, [])
+  }
 
   const Spinner = () => {
     return <span className={styles.loader}></span>
@@ -35,13 +33,7 @@ export default function DownloadButton() {
 
   return (
     <button type="button" className={styles.download} onClick={stopNode}>
-      {isLoading ? (
-        <Spinner />
-      ) : (
-        <>
-          <div>Stop Node</div>
-        </>
-      )}
+      {isLoading ? <Spinner /> : <div>Stop Node</div>}
     </button>
   )
 }
