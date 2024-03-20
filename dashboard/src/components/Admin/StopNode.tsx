@@ -1,12 +1,16 @@
 import React, { useState } from 'react'
 import styles from './index.module.css'
+import { useAdminContext } from '@context/AdminProvider'
 
 export default function StopNode() {
   const [isLoading, setLoading] = useState(false)
+  const { generateSignature, signMessageObject } = useAdminContext()
 
   async function stopNode() {
     setLoading(true)
     try {
+      await generateSignature()
+      console.log('signMessageObject:  ', signMessageObject)
       const apiUrl = '/directCommand'
       const response = await fetch(apiUrl, {
         headers: {
