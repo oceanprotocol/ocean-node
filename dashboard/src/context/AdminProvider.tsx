@@ -11,10 +11,6 @@ import {
 import { useAccount, useSignMessage } from 'wagmi'
 import { sha256, toUtf8Bytes } from 'ethers'
 
-export interface SignMessageObject {
-  expiryTimestamp: number
-  signature: string
-}
 interface AdminContextType {
   admin: boolean
   setAdmin: Dispatch<SetStateAction<boolean>>
@@ -23,7 +19,8 @@ interface AdminContextType {
   expiryTimestamp: number | undefined
   setExpiryTimestamp: Dispatch<SetStateAction<number | undefined>>
   generateSignature: () => void
-  signMessageObject: SignMessageObject | undefined
+  signature: string | undefined
+  setSignature: Dispatch<SetStateAction<string | undefined>>
 }
 
 // Create a context with a default value that matches the type
@@ -33,32 +30,34 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
   children
 }) => {
   const { address, isConnected } = useAccount()
-  const { signMessage, data: signature } = useSignMessage()
+  const { signMessage, data: signMessageData } = useSignMessage()
   const [admin, setAdmin] = useState<boolean>(false)
   const [allAdmins, setAllAdmins] = useState<string[]>([])
   const [expiryTimestamp, setExpiryTimestamp] = useState<number>()
-  const [signMessageObject, setSignMessageObject] = useState<
-    SignMessageObject | undefined
-  >()
+  const [signature, setSignature] = useState<string>()
 
-  const generateSignature = async () => {
+  useEffect(() => {
+    if (signMessageData) {
+      console.log('3. signMessageData:  ', signMessageData)
+      setSignature(signMessageData)
+      console.log('4. signMessageData:  ', signMessageData)
+    }
+  }, [signMessageData])
+
+  const generateSignature = () => {
     if (
       isConnected &&
-      (!signMessageObject ||
-        new Date().getTime() / 1000 >= signMessageObject?.expiryTimestamp)
+      (!expiryTimestamp || new Date().getTime() / 1000 >= expiryTimestamp)
     ) {
       const expiryTimestamp = Math.floor(new Date().getTime() / 1000) + 12 * 60 * 60
-      await signMessage({
+      signMessage({
         message: sha256(toUtf8Bytes(expiryTimestamp.toString()))
       })
-      if (signature) {
-        setSignMessageObject({
-          expiryTimestamp,
-          signature
-        })
-      }
+      setExpiryTimestamp(expiryTimestamp)
     }
   }
+  console.log('1. signature:  ', signature)
+  console.log('2. expiryTimestamp:  ', expiryTimestamp)
 
   const value: AdminContextType = {
     admin,
@@ -68,7 +67,8 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
     expiryTimestamp,
     setExpiryTimestamp,
     generateSignature,
-    signMessageObject
+    signature,
+    setSignature
   }
 
   useEffect(() => {

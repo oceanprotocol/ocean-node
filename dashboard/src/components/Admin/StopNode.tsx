@@ -4,26 +4,31 @@ import { useAdminContext } from '@context/AdminProvider'
 
 export default function StopNode() {
   const [isLoading, setLoading] = useState(false)
-  const { generateSignature, signMessageObject } = useAdminContext()
+  const { generateSignature, signature, expiryTimestamp } = useAdminContext()
 
   async function stopNode() {
     setLoading(true)
     try {
-      await generateSignature()
-      console.log('signMessageObject:  ', signMessageObject)
+      generateSignature()
+      console.log('stopNode signMessageObject:  ', signature)
+      console.log('stopNode expiryTimestamp:  ', expiryTimestamp)
       const apiUrl = '/directCommand'
-      const response = await fetch(apiUrl, {
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json'
-        },
-        method: 'POST',
-        body: JSON.stringify({
-          command: 'status'
+      if (expiryTimestamp && signature) {
+        const response = await fetch(apiUrl, {
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json'
+          },
+          method: 'POST',
+          body: JSON.stringify({
+            command: 'stopNode',
+            expiryTimestamp,
+            signature
+          })
         })
-      })
-      const data = await response.json()
-      console.log('data response:  ', data)
+        const data = await response.json()
+        console.log('data response:  ', data)
+      }
     } catch (error) {
       console.error('error', error)
     } finally {
