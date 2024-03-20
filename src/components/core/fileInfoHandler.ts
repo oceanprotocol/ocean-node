@@ -39,9 +39,15 @@ async function getFile(
       throw new Error(msg)
     }
     // 3. Decrypt the url
+    CORE_LOGGER.logMessage(
+      `Uint8Array.from(Buffer.from(service.files, 'hex')): ${Uint8Array.from(
+        Buffer.from(service.files, 'hex')
+      )}`
+    )
+    CORE_LOGGER.logMessage(`service.files: ${service.files}`)
     const decryptedUrlBytes = await decrypt(
       Uint8Array.from(Buffer.from(service.files, 'hex')),
-      EncryptMethod.AES
+      EncryptMethod.ECIES
     )
     CORE_LOGGER.logMessage(`URL decrypted for Service ID: ${serviceId}`)
     CORE_LOGGER.logMessage(`decryptedUrlBytes: ${decryptedUrlBytes}`)
