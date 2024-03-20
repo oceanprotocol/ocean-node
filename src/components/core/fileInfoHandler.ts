@@ -44,6 +44,7 @@ async function getFile(
       EncryptMethod.ECIES
     )
     CORE_LOGGER.logMessage(`URL decrypted for Service ID: ${serviceId}`)
+    CORE_LOGGER.logMessage(`decryptedUrlBytes: ${decryptedUrlBytes}`)
 
     // Convert the decrypted bytes back to a string
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
