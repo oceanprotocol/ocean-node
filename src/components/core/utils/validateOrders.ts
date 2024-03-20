@@ -3,6 +3,7 @@ import { fetchEventFromTransaction } from '../../../utils/util.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { EVENTS } from '../../../utils/index.js'
 
 interface ValidateTransactionResponse {
   isValid: boolean
@@ -74,12 +75,13 @@ export async function validateOrderTransaction(
       }
     }
   }
-
+  console.log('txReceiptMined == ', txReceiptMined)
   const OrderStartedEvent = fetchEventFromTransaction(
     txReceiptMined,
-    'OrderStarted',
+    EVENTS.ORDER_STARTED,
     contractInterface
   )
+  console.log('txReceiptMined == ', OrderStartedEvent)
   if (
     userAddress.toLowerCase() !== OrderStartedEvent[0].args[0].toLowerCase() &&
     userAddress.toLowerCase() !== OrderStartedEvent[0].args[1].toLowerCase()
