@@ -58,13 +58,12 @@ async function getFile(
     const decryptedFileArray = JSON.parse(decryptedFilesString)
     CORE_LOGGER.logMessage(`decryptedFileArray: ${JSON.stringify(decryptedFileArray)}`)
     const byteData: number[] = decryptedFileArray.data
-    const uint8Array = new Uint8Array(byteData)
-
-    // Decode the Uint8Array as UTF-8
-    const decodedString: string = new TextDecoder().decode(uint8Array)
+    const decodedString: string = byteData
+      .map((byte) => String.fromCharCode(byte))
+      .join('')
     CORE_LOGGER.logMessage(`decodedString: ${decodedString}`)
-    const decodedStringArray = JSON.parse(decodedString)
-    CORE_LOGGER.logMessage(`decodedStringArray: ${JSON.stringify(decodedStringArray)}`)
+    // const decodedStringArray = JSON.parse(decodedString)
+    // CORE_LOGGER.logMessage(`decodedStringArray: ${JSON.stringify(decodedStringArray)}`)
     return decryptedFileArray.files
   } catch (error) {
     const msg = 'Error occured while requesting the files: ' + error.message
