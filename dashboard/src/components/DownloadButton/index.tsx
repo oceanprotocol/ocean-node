@@ -39,7 +39,13 @@ export default function DownloadButton() {
       ) : (
         <>
           <div>Download logs</div>
-          <Image src={DownloadSVG} alt="download button" width={20} height={20} />
+          <Image
+            src={DownloadSVG}
+            alt="download button"
+            width={20}
+            height={20}
+            className={styles.buttonIcon}
+          />
         </>
       )}
     </button>
