@@ -40,6 +40,7 @@ export interface OceanNodeConfig {
   hasIndexer: boolean
   hasProvider: boolean
   hasHttp: boolean
+  hasDashboard: boolean
   dbConfig?: OceanNodeDBConfig
   httpPort: number
   feeStrategy: FeeStrategy
