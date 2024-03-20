@@ -196,5 +196,10 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'ALLOWED_ADMINS',
     value: process.env.ALLOWED_ADMINS,
     required: false
+  },
+  DASHBOARD: {
+    name: 'DASHBOARD',
+    value: process.env.DASHBOARD,
+    required: false
   }
 }
