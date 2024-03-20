@@ -41,7 +41,7 @@ async function getFile(
     // 3. Decrypt the url
     const decryptedUrlBytes = await decrypt(
       Uint8Array.from(Buffer.from(service.files, 'hex')),
-      EncryptMethod.ECIES
+      EncryptMethod.AES
     )
     CORE_LOGGER.logMessage(`URL decrypted for Service ID: ${serviceId}`)
     CORE_LOGGER.logMessage(`decryptedUrlBytes: ${decryptedUrlBytes}`)
