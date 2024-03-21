@@ -9,9 +9,22 @@ const validateRequest = (
   res: express.Response,
   next: express.NextFunction
 ) => {
-  const { signature, expiryTimestamp } = req.body
-  if (!signature || !expiryTimestamp) {
-    return res.status(400).send('Missing signature or expiryTimestamp')
+  const { signature } = req.body
+  let { expiryTimestamp } = req.body
+  console.log('signature:', signature)
+  console.log('expiryTimestamp:', expiryTimestamp)
+
+  if (!signature) {
+    return res.status(400).send('Missing signature')
+  }
+  if (!expiryTimestamp) {
+    return res.status(400).send('Missing expiryTimestamp')
+  }
+
+  // Ensure expiryTimestamp is a number
+  expiryTimestamp = Number(expiryTimestamp)
+  if (isNaN(expiryTimestamp)) {
+    return res.status(400).send('Invalid expiryTimestamp')
   }
 
   const isValid = validateSignature(expiryTimestamp, signature)
@@ -22,7 +35,7 @@ const validateRequest = (
   next() // Proceed to the next middleware/function if validation is successful
 }
 
-logRoutes.post('/logs', validateRequest, async (req, res) => {
+logRoutes.post('/logs', express.json(), validateRequest, async (req, res) => {
   try {
     const startTime =
       typeof req.query.startTime === 'string'
@@ -49,7 +62,7 @@ logRoutes.post('/logs', validateRequest, async (req, res) => {
   }
 })
 
-logRoutes.post('/log/:id', validateRequest, async (req, res) => {
+logRoutes.post('/log/:id', express.json(), validateRequest, async (req, res) => {
   try {
     const logId = req.params.id
     const log = await req.oceanNode.getDatabase().logs.retrieveLog(logId)
