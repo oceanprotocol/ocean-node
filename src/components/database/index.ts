@@ -378,6 +378,21 @@ export class DdoDatabase {
       )
     }
   }
+
+  async deleteAllAssetsFromChain(chainId: number) {
+    const searchParameters = {
+      q: '*',
+      filter_by: `chainId:=${chainId}`
+    }
+    const results = await this.search(searchParameters)
+    for (const res of results) {
+      if (res && res.hits) {
+        for (const h of res.hits) {
+          await this.delete(h.document.id)
+        }
+      }
+    }
+  }
 }
 
 export class NonceDatabase {

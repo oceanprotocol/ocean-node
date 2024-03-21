@@ -39,15 +39,24 @@ async function getFile(
       throw new Error(msg)
     }
     // 3. Decrypt the url
+    CORE_LOGGER.logMessage(
+      `Uint8Array.from(Buffer.from(service.files, 'hex')): ${Uint8Array.from(
+        Buffer.from(service.files, 'hex')
+      )}`
+    )
+    CORE_LOGGER.logMessage(`service.files: ${service.files}`)
     const decryptedUrlBytes = await decrypt(
       Uint8Array.from(Buffer.from(service.files, 'hex')),
       EncryptMethod.ECIES
     )
     CORE_LOGGER.logMessage(`URL decrypted for Service ID: ${serviceId}`)
+    CORE_LOGGER.logMessage(`decryptedUrlBytes: ${decryptedUrlBytes}`)
 
     // Convert the decrypted bytes back to a string
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
+    CORE_LOGGER.logMessage(`decryptedFilesString: ${decryptedFilesString}`)
     const decryptedFileArray = JSON.parse(decryptedFilesString)
+    CORE_LOGGER.logMessage(`decryptedFileArray: ${JSON.stringify(decryptedFileArray)}`)
     return decryptedFileArray.files
   } catch (error) {
     const msg = 'Error occured while requesting the files: ' + error.message
@@ -128,6 +137,7 @@ export class FileInfoHandler extends Handler {
         })
       } else if (task.did && task.serviceId) {
         const fileArray = await getFile(task.did, task.serviceId, oceanNode)
+        CORE_LOGGER.logMessage(`fileArray: ${fileArray}`)
 
         if (task.fileIndex) {
           const fileMetadata = await formatMetadata(fileArray[task.fileIndex])

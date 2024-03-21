@@ -1,6 +1,10 @@
 import { Handler } from './handler.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
-import { AdminReindexTxCommand, AdminStopNodeCommand } from '../../@types/commands.js'
+import {
+  AdminReindexTxCommand,
+  AdminStopNodeCommand,
+  AdminReindexChainCommand
+} from '../../@types/commands.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { ReadableString } from '../P2P/handleProtocolCommands.js'
@@ -11,8 +15,12 @@ import {
   buildInvalidParametersResponse
 } from '../httpRoutes/validateCommands.js'
 import { validateSignature } from '../../utils/auth.js'
-import { processChunkLogs } from '../Indexer/utils.js'
-import { Blockchain, getConfiguration } from '../../utils/index.js'
+import {
+  processBlocks,
+  processChunkLogs,
+  getDeployedContractBlock
+} from '../Indexer/utils.js'
+import { Blockchain, checkSupportedChainId } from '../../utils/index.js'
 
 export class StopNodeHandler extends Handler {
   validate(command: AdminStopNodeCommand): ValidateParams {
@@ -73,20 +81,15 @@ export class ReindexTxHandler extends Handler {
   async handle(task: AdminReindexTxCommand): Promise<P2PCommandResponse> {
     const validation = this.validate(task)
     if (!validation.valid) {
-      return new Promise<P2PCommandResponse>((resolve, reject) => {
-        resolve(buildInvalidParametersResponse(validation))
-      })
+      return buildInvalidParametersResponse(validation)
     }
     CORE_LOGGER.logMessage(`Reindexing tx...`)
-    const config = await getConfiguration()
-    if (!(`${task.chainId}` in config.supportedNetworks)) {
+    const checkChainId = await checkSupportedChainId(task.chainId)
+    if (!checkChainId[0]) {
       CORE_LOGGER.error(`Chain ID ${task.chainId} is not supported in config.`)
       return
     }
-    const blockchain = new Blockchain(
-      config.supportedNetworks[task.chainId.toString()].rpc,
-      task.chainId
-    )
+    const blockchain = new Blockchain(checkChainId[1], task.chainId)
     const provider = blockchain.getProvider()
     const signer = blockchain.getSigner()
     try {
@@ -104,14 +107,83 @@ export class ReindexTxHandler extends Handler {
         return
       }
 
-      return new Promise<P2PCommandResponse>((resolve, reject) => {
-        resolve({
-          status: { httpStatus: 200 },
-          stream: new ReadableString('REINDEX TX OK')
-        })
-      })
+      return {
+        status: { httpStatus: 200 },
+        stream: new ReadableString('REINDEX TX OK')
+      }
     } catch (error) {
       CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `REINDEX tx: ${error.message} `, true)
+    }
+  }
+}
+
+export class ReindexChainHandler extends Handler {
+  validate(command: AdminReindexChainCommand): ValidateParams {
+    const commandValidation = validateCommandParameters(command, [
+      'expiryTimestamp',
+      'signature',
+      'chainId'
+    ])
+    if (!commandValidation.valid) {
+      const errorMsg = `Command validation failed: ${JSON.stringify(commandValidation)}`
+      CORE_LOGGER.logMessage(errorMsg)
+      return buildInvalidRequestMessage(errorMsg)
+    }
+    if (!validateSignature(command.expiryTimestamp, command.signature)) {
+      const errorMsg = 'Expired authentication or invalid signature'
+      CORE_LOGGER.logMessage(errorMsg)
+      return buildInvalidRequestMessage(errorMsg)
+    }
+    return commandValidation
+  }
+
+  async handle(task: AdminReindexChainCommand): Promise<P2PCommandResponse> {
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
+    CORE_LOGGER.logMessage(`Reindexing chain command called`)
+    const checkChainId = await checkSupportedChainId(task.chainId)
+    if (!checkChainId[0]) {
+      CORE_LOGGER.error(`Chain ID ${task.chainId} is not supported in config.`)
+      return
+    }
+    const blockchain = new Blockchain(checkChainId[1], task.chainId)
+    const provider = blockchain.getProvider()
+    const signer = blockchain.getSigner()
+    const deployedBlock = getDeployedContractBlock(task.chainId)
+    try {
+      await this.getOceanNode().getDatabase().ddo.deleteAllAssetsFromChain(task.chainId)
+      CORE_LOGGER.logMessage(
+        `Assets from chain ${task.chainId} were deleted from db, now starting to reindex...`
+      )
+      const latestBlock = await provider.getBlockNumber()
+      const ret = await processBlocks(
+        signer,
+        provider,
+        task.chainId,
+        deployedBlock,
+        latestBlock - deployedBlock + 1
+      )
+      if (!ret) {
+        CORE_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_ERROR,
+          `Reindex chain failed on chain ${task.chainId}.`,
+          true
+        )
+        return
+      }
+
+      return {
+        status: { httpStatus: 200 },
+        stream: new ReadableString('REINDEX CHAIN OK')
+      }
+    } catch (error) {
+      CORE_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `REINDEX chain: ${error.message} `,
+        true
+      )
     }
   }
 }

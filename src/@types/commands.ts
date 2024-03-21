@@ -112,6 +112,10 @@ export interface AdminReindexTxCommand extends AdminCommand {
   txId: string
 }
 
+export interface AdminReindexChainCommand extends AdminCommand {
+  chainId: number
+}
+
 export interface ICommandHandler {
   handle(command: Command): Promise<P2PCommandResponse>
   validate(command: Command): ValidateParams
