@@ -36,7 +36,7 @@ function getEnvOverrides(): OverrideEnvConfig[] {
     [
       'http://172.15.0.16:8080/',
       'https://arweave.net/',
-      '{ "1": {"rpc": "https://rpc.eth.gateway.fm", "chainId": 1, "network": "mainet", "chunkSize": 100}, "137": {"rpc": "https://polygon.meowrpc.com", "chainId": 137, "network": "polygon", "chunkSize": 100 }, "80001": {"rpc": "https://rpc-mumbai.maticvigil.com","chainId": 80001, "network": "polygon-mumbai", "chunkSize": 100 } }',
+      '{ "1": {"rpc": "https://rpc.eth.gateway.fm", "chainId": 1, "network": "mainet", "chunkSize": 100}, "137": {"rpc": "https://polygon.meowrpc.com", "chainId": 137, "network": "polygon", "chunkSize": 100 }}',
       '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
     ]
   )
