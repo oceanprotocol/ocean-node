@@ -38,7 +38,6 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
   const [signature, setSignature] = useState<string | undefined>()
   const [validTimestamp, setValidTimestamp] = useState<boolean>(true)
 
-  // Effect for handling localStorage retrieval and initialization
   useEffect(() => {
     const storedExpiry = localStorage.getItem('expiryTimestamp')
     if (storedExpiry) {
@@ -72,20 +71,17 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
   useEffect(() => {
     const interval = setInterval(() => {
       if (expiryTimestamp) {
-        const now = Math.floor(Date.now() / 1000)
+        const now = Date.now()
         setValidTimestamp(now < expiryTimestamp)
       }
-    }, 300000) // Check every 5 minutes (300000 milliseconds)
+    }, 300000) // Check every 5 minutes
 
     return () => clearInterval(interval)
   }, [expiryTimestamp])
 
   const generateSignature = () => {
-    if (
-      isConnected &&
-      (!expiryTimestamp || new Date().getTime() / 1000 >= expiryTimestamp)
-    ) {
-      const newExpiryTimestamp = Math.floor(new Date().getTime() / 1000) + 12 * 60 * 60
+    if (isConnected && (!expiryTimestamp || Date.now() >= expiryTimestamp)) {
+      const newExpiryTimestamp = Date.now() + 12 * 60 * 60 * 1000 // 12 hours ahead in milliseconds
       signMessage({
         message: sha256(toUtf8Bytes(newExpiryTimestamp.toString()))
       })

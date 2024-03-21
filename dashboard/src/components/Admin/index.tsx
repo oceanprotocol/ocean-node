@@ -23,7 +23,7 @@ export default function AdminActions() {
           Unlock
         </button>
       )}
-      {signature && validTimestamp && admin && (
+      {isConnected && signature && validTimestamp && admin && (
         <>
           <DownloadLogs />
           <StopNode />
