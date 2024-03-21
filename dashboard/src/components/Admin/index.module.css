@@ -104,6 +104,7 @@
   border-radius: 12px;
   background: #fff;
   max-width: 320px;
+  min-width: 245px;
   display: flex;
   flex-direction: column;
   padding: 40px;

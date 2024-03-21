@@ -7,7 +7,7 @@
 
 .bodyContainer {
   position: relative;
-  width: calc(100% - 320px);
+  width: 100%;
 }
 
 .body {
