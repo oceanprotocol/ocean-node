@@ -1,24 +1,22 @@
 import React from 'react'
-
-import styles from './Menu.module.css'
-
+import styles from './index.module.css'
 import DownloadLogs from '../Admin/DownloadLogs'
 import StopNode from '../Admin/StopNode'
 import { useAdminContext } from '@/context/AdminProvider'
 
 export default function AdminActions() {
-  const { generateSignature, signature, expiryTimestamp } = useAdminContext()
+  const { generateSignature, signature, validTimestamp } = useAdminContext()
 
   return (
     <div className={styles.root}>
       <div className={styles.title}>ADMIN ACTIONS</div>
 
-      {(!signature || !expiryTimestamp) && (
-        <button type="button" className={styles.download} onClick={generateSignature}>
+      {(!signature || !validTimestamp) && (
+        <button type="button" className={styles.unlockButton} onClick={generateSignature}>
           Unlock
         </button>
       )}
-      {signature && expiryTimestamp && (
+      {signature && validTimestamp && (
         <>
           <DownloadLogs />
           <StopNode />
