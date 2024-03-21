@@ -1,5 +1,5 @@
 import express from 'express'
-import { validateSignature } from '../../utils/auth'
+import { validateSignature } from '../../utils/auth.js'
 
 export const logRoutes = express.Router()
 
