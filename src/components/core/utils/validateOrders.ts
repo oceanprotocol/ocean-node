@@ -45,7 +45,6 @@ export async function validateOrderTransaction(
   serviceIndex: number,
   serviceTimeout: number
 ): Promise<ValidateTransactionResponse> {
-  console.log(dataNftAddress, datatokenAddress)
   const contractInterface = new Interface(ERC20Template.abi)
   let txReceiptMined = await fetchTransactionReceipt(txId, provider)
   if (!txReceiptMined) {
