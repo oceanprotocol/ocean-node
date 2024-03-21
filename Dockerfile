@@ -1,5 +1,5 @@
 FROM --platform=${BUILDPLATFORM} ubuntu:22.04 as base
-RUN apt-get update && apt-get -y install bash curl
+RUN apt-get update && apt-get -y install bash curl python3 python3-pip
 COPY .nvmrc /usr/src/app/
 RUN rm /bin/sh && ln -s /bin/bash /bin/sh
 ENV NVM_DIR /usr/local/nvm
@@ -15,11 +15,13 @@ ENV NODE_PATH $NVM_DIR/$NODE_VERSION/lib/node_modules
 ENV PATH $NVM_DIR/versions/node/$NODE_VERSION/bin:$PATH
 ENV IPFS_GATEWAY='https://ipfs.io/'
 ENV ARWEAVE_GATEWAY='https://arweave.net/'
+ENV NODE_ENV='production'
 
 FROM base as builder
 RUN apt-get update && apt-get -y install wget
 COPY package*.json /usr/src/app/
 WORKDIR /usr/src/app/
+RUN npm i
 RUN npm ci
 
 
@@ -27,6 +29,7 @@ FROM base as runner
 COPY . /usr/src/app
 WORKDIR /usr/src/app/
 COPY --from=builder /usr/src/app/node_modules/ /usr/src/app/node_modules/
+RUN npm i
 RUN npm run build
 ENV P2P_ipV4BindTcpPort=9000
 EXPOSE 9000
