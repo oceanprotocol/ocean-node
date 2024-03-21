@@ -12,7 +12,7 @@ export default function App({ Component, pageProps }: AppProps) {
     appName: 'Ocean Node Dashboard',
     projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_ID
       ? process.env.NEXT_PUBLIC_WALLET_CONNECT_ID
-      : '',
+      : 'da267f7e1897e2cf92a7710f92e8f660',
     chains: [mainnet, polygon],
     ssr: true
   })
