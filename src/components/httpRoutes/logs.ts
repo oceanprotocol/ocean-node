@@ -27,11 +27,11 @@ logRoutes.post('/logs', validateRequest, async (req, res) => {
     const startTime =
       typeof req.query.startTime === 'string'
         ? new Date(req.query.startTime)
-        : new Date(Date.now() - 24 * 60 * 60 * 1000)
+        : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) // Default to 90 days ago
     const endTime =
       typeof req.query.endTime === 'string' ? new Date(req.query.endTime) : new Date()
     const maxLogs =
-      typeof req.query.maxLogs === 'string' ? parseInt(req.query.maxLogs, 10) : 100
+      typeof req.query.maxLogs === 'string' ? parseInt(req.query.maxLogs, 10) : 100 // default to 100 logs
     const moduleName =
       typeof req.query.moduleName === 'string' ? req.query.moduleName : undefined
     const level = typeof req.query.level === 'string' ? req.query.level : undefined
