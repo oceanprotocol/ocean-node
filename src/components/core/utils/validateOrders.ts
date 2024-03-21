@@ -45,9 +45,11 @@ export async function validateOrderTransaction(
   serviceIndex: number,
   serviceTimeout: number
 ): Promise<ValidateTransactionResponse> {
+  console.log(dataNftAddress, datatokenAddress)
   const contractInterface = new Interface(ERC20Template.abi)
   let txReceiptMined = await fetchTransactionReceipt(txId, provider)
-
+  console.log('txReceiptMined  ', txReceiptMined)
+  console.log('txReceiptMined contractAddress: ', txReceiptMined.contractAddress)
   if (!txReceiptMined) {
     const errorMsg = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
     CORE_LOGGER.logMessage(errorMsg)
@@ -59,7 +61,7 @@ export async function validateOrderTransaction(
 
   const orderReusedEvent = fetchEventFromTransaction(
     txReceiptMined,
-    'OrderReused',
+    EVENTS.ORDER_REUSED,
     contractInterface
   )
 
@@ -75,23 +77,30 @@ export async function validateOrderTransaction(
       }
     }
   }
-  console.log('txReceiptMined == ', txReceiptMined)
   const OrderStartedEvent = fetchEventFromTransaction(
     txReceiptMined,
     EVENTS.ORDER_STARTED,
     contractInterface
   )
-  console.log('txReceiptMined == ', OrderStartedEvent)
-  if (
-    userAddress.toLowerCase() !== OrderStartedEvent[0].args[0].toLowerCase() &&
-    userAddress.toLowerCase() !== OrderStartedEvent[0].args[1].toLowerCase()
-  ) {
+  let orderEvent
+  for (const event of OrderStartedEvent) {
+    if (
+      userAddress.toLowerCase() !== event.args[0].toLowerCase() &&
+      userAddress.toLowerCase() !== event.args[1].toLowerCase()
+    ) {
+      continue
+    }
+    orderEvent = event
+    break
+  }
+
+  if (!orderEvent) {
     return {
       isValid: false,
       message: 'User address does not match with consumer or payer of the transaction.'
     }
   }
-  const eventServiceIndex = OrderStartedEvent[0].args[3]
+  const eventServiceIndex = orderEvent.args[3]
 
   if (BigInt(serviceIndex) !== eventServiceIndex) {
     return {
