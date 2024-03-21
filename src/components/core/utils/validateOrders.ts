@@ -48,8 +48,6 @@ export async function validateOrderTransaction(
   console.log(dataNftAddress, datatokenAddress)
   const contractInterface = new Interface(ERC20Template.abi)
   let txReceiptMined = await fetchTransactionReceipt(txId, provider)
-  console.log('txReceiptMined  ', txReceiptMined)
-  console.log('txReceiptMined contractAddress: ', txReceiptMined.contractAddress)
   if (!txReceiptMined) {
     const errorMsg = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
     CORE_LOGGER.logMessage(errorMsg)
@@ -58,6 +56,7 @@ export async function validateOrderTransaction(
       message: errorMsg
     }
   }
+  const contractAddress = txReceiptMined.to
 
   const orderReusedEvent = fetchEventFromTransaction(
     txReceiptMined,
@@ -85,8 +84,9 @@ export async function validateOrderTransaction(
   let orderEvent
   for (const event of OrderStartedEvent) {
     if (
-      userAddress.toLowerCase() !== event.args[0].toLowerCase() &&
-      userAddress.toLowerCase() !== event.args[1].toLowerCase()
+      (userAddress.toLowerCase() !== event.args[0].toLowerCase() &&
+        userAddress.toLowerCase() !== event.args[1].toLowerCase()) ||
+      contractAddress.toLowerCase() !== datatokenAddress.toLowerCase()
     ) {
       continue
     }
@@ -97,7 +97,8 @@ export async function validateOrderTransaction(
   if (!orderEvent) {
     return {
       isValid: false,
-      message: 'User address does not match with consumer or payer of the transaction.'
+      message:
+        'Tx id used not valid, Datatoken adreess does not match or User address does not match with consumer or payer of the transaction.'
     }
   }
   const eventServiceIndex = orderEvent.args[3]
