@@ -1,7 +1,7 @@
 .root {
   border-radius: 12px;
   background: #fff;
-  max-width: 260px;
+  max-width: 320px;
   display: flex;
   flex-direction: column;
   padding: 40px;

@@ -34,14 +34,22 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
   const { signMessage, data: signMessageData } = useSignMessage()
   const [admin, setAdmin] = useState<boolean>(false)
   const [allAdmins, setAllAdmins] = useState<string[]>([])
-  const [expiryTimestamp, setExpiryTimestamp] = useState<number | undefined>(() => {
-    const storedExpiry = localStorage.getItem('expiryTimestamp')
-    return storedExpiry ? parseInt(storedExpiry, 10) : undefined
-  })
-  const [signature, setSignature] = useState<string | undefined>(() => {
-    return localStorage.getItem('signature') || undefined
-  })
+  const [expiryTimestamp, setExpiryTimestamp] = useState<number | undefined>()
+  const [signature, setSignature] = useState<string | undefined>()
   const [validTimestamp, setValidTimestamp] = useState<boolean>(true)
+
+  // Effect for handling localStorage retrieval and initialization
+  useEffect(() => {
+    const storedExpiry = localStorage.getItem('expiryTimestamp')
+    if (storedExpiry) {
+      setExpiryTimestamp(parseInt(storedExpiry, 10))
+    }
+
+    const storedSignature = localStorage.getItem('signature')
+    if (storedSignature) {
+      setSignature(storedSignature)
+    }
+  }, [])
 
   useEffect(() => {
     if (expiryTimestamp) {
