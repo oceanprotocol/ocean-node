@@ -1,20 +1,18 @@
 import React, { useState } from 'react'
 import styles from './index.module.css'
 import { useAdminContext } from '@context/AdminProvider'
+import Button from '@mui/material/Button'
 
 export default function StopNode() {
   const [isLoading, setLoading] = useState(false)
-  const { generateSignature, signature, expiryTimestamp } = useAdminContext()
+  const { signature, expiryTimestamp } = useAdminContext()
 
   async function stopNode() {
     setLoading(true)
     try {
-      generateSignature()
-      console.log('stopNode signMessageObject:  ', signature)
-      console.log('stopNode expiryTimestamp:  ', expiryTimestamp)
       const apiUrl = '/directCommand'
       if (expiryTimestamp && signature) {
-        const response = await fetch(apiUrl, {
+        await fetch(apiUrl, {
           headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json'
@@ -26,8 +24,6 @@ export default function StopNode() {
             signature
           })
         })
-        const data = await response.json()
-        console.log('data response:  ', data)
       }
     } catch (error) {
       console.error('error', error)
@@ -41,8 +37,8 @@ export default function StopNode() {
   }
 
   return (
-    <button type="button" className={styles.download} onClick={stopNode}>
+    <Button onClick={stopNode} variant="outlined" color="error">
       {isLoading ? <Spinner /> : <div>Stop Node</div>}
-    </button>
+    </Button>
   )
 }

@@ -1,9 +1,6 @@
 import React, { useCallback, useState } from 'react'
-import Image from 'next/image'
-
 import styles from './index.module.css'
-
-import DownloadSVG from '../../assets/download.svg'
+import Button from '@mui/material/Button'
 
 export default function DownloadLogs() {
   const [isLoading, setLoading] = useState(false)
@@ -33,21 +30,8 @@ export default function DownloadLogs() {
   }
 
   return (
-    <button type="button" className={styles.download} onClick={downloadLogs}>
-      {isLoading ? (
-        <Spinner />
-      ) : (
-        <>
-          <div>Download logs</div>
-          <Image
-            src={DownloadSVG}
-            alt="download button"
-            width={20}
-            height={20}
-            className={styles.buttonIcon}
-          />
-        </>
-      )}
-    </button>
+    <Button onClick={downloadLogs} variant="outlined">
+      {isLoading ? <Spinner /> : <div>Download logs</div>}
+    </Button>
   )
 }
