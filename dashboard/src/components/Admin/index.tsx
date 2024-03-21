@@ -6,7 +6,7 @@ import DownloadLogs from '../Admin/DownloadLogs'
 import StopNode from '../Admin/StopNode'
 import { useAdminContext } from '@/context/AdminProvider'
 
-export default function Menu() {
+export default function AdminActions() {
   const { generateSignature, signature, expiryTimestamp } = useAdminContext()
 
   return (

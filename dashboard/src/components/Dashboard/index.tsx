@@ -6,6 +6,7 @@ import styles from './index.module.css'
 import Menu from './Menu'
 import { truncateString } from '../../shared/utils/truncateString'
 import { useAdminContext } from '@/context/AdminProvider'
+import AdminActions from '../Admin'
 
 type IndexerType = {
   block: string
@@ -256,7 +257,7 @@ export default function Dashboard() {
 
   return (
     <div className={styles.root}>
-      <Menu />
+      <AdminActions />
 
       <div className={styles.bodyContainer}>
         {isLoading ? (

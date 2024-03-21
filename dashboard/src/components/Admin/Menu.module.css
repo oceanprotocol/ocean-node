@@ -1,6 +1,6 @@
 .root {
   border-radius: 12px;
-  background: #FFF;
+  background: #fff;
   max-width: 260px;
   display: flex;
   flex-direction: column;
@@ -8,7 +8,7 @@
 }
 
 .title {
-  color: #3D4551;
+  color: #3d4551;
   font-family: Helvetica;
   font-size: 20px;
   font-style: normal;

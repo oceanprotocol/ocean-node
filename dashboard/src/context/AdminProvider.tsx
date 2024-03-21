@@ -21,6 +21,8 @@ interface AdminContextType {
   generateSignature: () => void
   signature: string | undefined
   setSignature: Dispatch<SetStateAction<string | undefined>>
+  validTimestamp: boolean
+  setValidTimestamp: Dispatch<SetStateAction<boolean>>
 }
 
 // Create a context with a default value that matches the type
@@ -35,6 +37,7 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
   const [allAdmins, setAllAdmins] = useState<string[]>([])
   const [expiryTimestamp, setExpiryTimestamp] = useState<number>()
   const [signature, setSignature] = useState<string>()
+  const [validTimestamp, setValidTimestamp] = useState<boolean>(false)
 
   useEffect(() => {
     if (signMessageData) {
@@ -43,6 +46,18 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
       console.log('4. signMessageData:  ', signMessageData)
     }
   }, [signMessageData])
+
+  useEffect(() => {
+    // This effect checks the expiryTimestamp against the current time
+    const interval = setInterval(() => {
+      if (expiryTimestamp) {
+        const now = Math.floor(Date.now() / 1000)
+        setValidTimestamp(now < expiryTimestamp)
+      }
+    }, 300000) // Check every 5 minutes (300000 milliseconds)
+
+    return () => clearInterval(interval) // Cleanup the interval on unmount
+  }, [expiryTimestamp])
 
   const generateSignature = () => {
     if (
@@ -56,8 +71,6 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
       setExpiryTimestamp(expiryTimestamp)
     }
   }
-  console.log('1. signature:  ', signature)
-  console.log('2. expiryTimestamp:  ', expiryTimestamp)
 
   const value: AdminContextType = {
     admin,
@@ -68,7 +81,9 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
     setExpiryTimestamp,
     generateSignature,
     signature,
-    setSignature
+    setSignature,
+    validTimestamp,
+    setValidTimestamp
   }
 
   useEffect(() => {
