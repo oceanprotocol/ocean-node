@@ -674,6 +674,7 @@ export class LogDatabase {
     level?: string
   ): Promise<Record<string, any>[] | null> {
     try {
+      let allLogs: Record<string, any>[] = []
       let filterConditions = `timestamp:>=${startTime.getTime()} && timestamp:<${endTime.getTime()}`
       if (moduleName) {
         filterConditions += ` && moduleName:${moduleName}`
@@ -682,21 +683,38 @@ export class LogDatabase {
         filterConditions += ` && level:${level}`
       }
 
-      const searchParameters = {
-        q: '*',
-        query_by: 'message,level,meta',
-        filter_by: filterConditions,
-        sort_by: 'timestamp:desc',
-        per_page: maxLogs
+      let page = 1
+      let totalFetchedLogs = 0
+      const maxPerPage = Math.min(maxLogs, 250) // Typesense's limit per page or user-defined limit, whichever is smaller.
+
+      while (true) {
+        const searchParameters = {
+          q: '*',
+          query_by: 'message,level,meta',
+          filter_by: filterConditions,
+          sort_by: 'timestamp:desc',
+          per_page: maxPerPage,
+          page
+        }
+
+        const result = await this.provider
+          .collections(this.schema.name)
+          .documents()
+          .search(searchParameters)
+
+        allLogs = allLogs.concat(result.hits.map((hit) => hit.document))
+        totalFetchedLogs += result.hits.length
+
+        if (result.hits.length < maxPerPage || totalFetchedLogs >= maxLogs) {
+          break // Break if the last page is reached or the maxLogs limit is hit.
+        }
+
+        page++
       }
 
-      const result = await this.provider
-        .collections(this.schema.name)
-        .documents()
-        .search(searchParameters)
-      return result.hits.map((hit) => hit.document)
+      return allLogs
     } catch (error) {
-      const errorMsg = `Error when retrieving mutliple log entries: ` + error.message
+      const errorMsg = `Error when retrieving multiple log entries: ` + error.message
       DATABASE_LOGGER.logMessageWithEmoji(
         errorMsg,
         true,
