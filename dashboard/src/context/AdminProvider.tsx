@@ -25,7 +25,6 @@ interface AdminContextType {
   setValidTimestamp: Dispatch<SetStateAction<boolean>>
 }
 
-// Create a context with a default value that matches the type
 const AdminContext = createContext<AdminContextType | undefined>(undefined)
 
 export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
@@ -35,20 +34,34 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
   const { signMessage, data: signMessageData } = useSignMessage()
   const [admin, setAdmin] = useState<boolean>(false)
   const [allAdmins, setAllAdmins] = useState<string[]>([])
-  const [expiryTimestamp, setExpiryTimestamp] = useState<number>()
-  const [signature, setSignature] = useState<string>()
-  const [validTimestamp, setValidTimestamp] = useState<boolean>(false)
+  const [expiryTimestamp, setExpiryTimestamp] = useState<number | undefined>(() => {
+    const storedExpiry = localStorage.getItem('expiryTimestamp')
+    return storedExpiry ? parseInt(storedExpiry, 10) : undefined
+  })
+  const [signature, setSignature] = useState<string | undefined>(() => {
+    return localStorage.getItem('signature') || undefined
+  })
+  const [validTimestamp, setValidTimestamp] = useState<boolean>(true)
+
+  useEffect(() => {
+    if (expiryTimestamp) {
+      localStorage.setItem('expiryTimestamp', expiryTimestamp.toString())
+    }
+  }, [expiryTimestamp])
+
+  useEffect(() => {
+    if (signature) {
+      localStorage.setItem('signature', signature)
+    }
+  }, [signature])
 
   useEffect(() => {
     if (signMessageData) {
-      console.log('3. signMessageData:  ', signMessageData)
       setSignature(signMessageData)
-      console.log('4. signMessageData:  ', signMessageData)
     }
   }, [signMessageData])
 
   useEffect(() => {
-    // This effect checks the expiryTimestamp against the current time
     const interval = setInterval(() => {
       if (expiryTimestamp) {
         const now = Math.floor(Date.now() / 1000)
@@ -56,7 +69,7 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
       }
     }, 300000) // Check every 5 minutes (300000 milliseconds)
 
-    return () => clearInterval(interval) // Cleanup the interval on unmount
+    return () => clearInterval(interval)
   }, [expiryTimestamp])
 
   const generateSignature = () => {
@@ -64,11 +77,11 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
       isConnected &&
       (!expiryTimestamp || new Date().getTime() / 1000 >= expiryTimestamp)
     ) {
-      const expiryTimestamp = Math.floor(new Date().getTime() / 1000) + 12 * 60 * 60
+      const newExpiryTimestamp = Math.floor(new Date().getTime() / 1000) + 12 * 60 * 60
       signMessage({
-        message: sha256(toUtf8Bytes(expiryTimestamp.toString()))
+        message: sha256(toUtf8Bytes(newExpiryTimestamp.toString()))
       })
-      setExpiryTimestamp(expiryTimestamp)
+      setExpiryTimestamp(newExpiryTimestamp)
     }
   }
 
@@ -90,7 +103,6 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
     for (const adminAddress of allAdmins) {
       if (address && adminAddress.toLowerCase() === address.toLowerCase()) {
         setAdmin(true)
-        console.log('admin has logged in')
       }
     }
   }, [address, allAdmins])
