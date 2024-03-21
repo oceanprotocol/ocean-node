@@ -6,13 +6,12 @@ import { ConnectButton } from '@rainbow-me/rainbowkit'
 const NavBar = () => {
   return (
     <div className={styles.navbarParent}>
-      <Image
-        className={styles.logo}
-        src={logo}
-        alt="The logo of the platform."
-        priority
-      />
-      <ConnectButton />
+      <div className={styles.logoWrapper}>
+        <Image src={logo} alt="Ocean Node Logo" priority />
+      </div>
+      <div className={styles.connectButtonWrapper}>
+        <ConnectButton />
+      </div>
     </div>
   )
 }

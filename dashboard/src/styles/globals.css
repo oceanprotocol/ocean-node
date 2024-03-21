@@ -101,9 +101,9 @@ body {
   font-size: 14px;
   line-height: 150%;
   font-weight: 700;
-
-  max-width: 1234px;
-  margin: 50px auto;
+  margin: 50px;
+  margin-left: 5%;
+  margin-right: 5%;
 }
 
 header {
