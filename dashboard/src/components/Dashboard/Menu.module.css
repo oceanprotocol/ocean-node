@@ -4,7 +4,8 @@
   max-width: 260px;
   display: flex;
   flex-direction: column;
-  padding: 40px;
+  padding: 40px 28px;
+  min-width: 260px;
 }
 
 .title {
