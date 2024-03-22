@@ -140,8 +140,6 @@ describe('Compute', () => {
     expect(response.stream).to.be.instanceOf(Readable)
 
     computeEnvironments = await streamToObject(response.stream as Readable)
-    console.log('computeEnvironments: ', computeEnvironments)
-    console.log('computeEnvironments lenght: ', computeEnvironments.length)
 
     // expect 2 envs
     expect(computeEnvironments.length === 2, 'incorrect length')
@@ -162,7 +160,6 @@ describe('Compute', () => {
         'maxJobDuration missing in computeEnvironments'
       )
     }
-    console.log('computeEnvironments lenght: ', computeEnvironments[0])
     firstEnv = computeEnvironments[0]
   })
 
@@ -482,9 +479,7 @@ describe('Compute', () => {
       // output?: ComputeOutput
     }
     const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
-    console.log('response: ', response)
     assert(response, 'Failed to get response')
-    console.log('response.status.httpStatus : ', response.status.httpStatus)
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
