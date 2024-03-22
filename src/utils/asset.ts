@@ -87,7 +87,7 @@ export function validateDDOHash(
     return false
   }
   const hashAddressAndChain: string = generateDDOHash(nftAddress, chainId)
-  return ddoID === DDO_IDENTIFIER_PREFIX + hashAddressAndChain
+  return ddoID === hashAddressAndChain
 }
 
 /**

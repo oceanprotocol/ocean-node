@@ -289,6 +289,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       ddo.chainId = chainId
       ddo.nftAddress = event.address
       ddo.datatokens = this.getTokenInfo(ddo.services)
+      // we need to store the event data
+      ddo.event.tx = event.transactionHash
+      ddo.event.block = event.blockNumber
+      ddo.event.from = decodedEventData.args[0]
+      ddo.event.contract = event.address
+      const { timestamp } = await provider.getBlock(event.blockNumber)
+      ddo.event.datetime = new Date(timestamp * 1000).toJSON()
+
       INDEXER_LOGGER.logMessage(
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
         true
