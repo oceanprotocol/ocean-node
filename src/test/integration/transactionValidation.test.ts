@@ -213,8 +213,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     assert(!validationResult.isValid, 'Reuse order transaction should not be valid.')
     assert(
       validationResult.message ===
-        'User address does not match with consumer or payer of the transaction.',
-      'Wrong transaction rejection message'
+        'Tx id used not valid, Datatoken adreess does not match or User address does not match with consumer or payer of the transaction.'
     )
   })
   after(async () => {
