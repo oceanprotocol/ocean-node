@@ -482,8 +482,9 @@ describe('Compute', () => {
       // output?: ComputeOutput
     }
     const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
+    console.log('response: ', response)
     assert(response, 'Failed to get response')
-    // should fail, because txId '0x123' is not a valid order
+    console.log('response.status.httpStatus : ', response.status.httpStatus)
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
