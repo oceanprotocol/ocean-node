@@ -204,5 +204,10 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'ACCOUNT_PURGATORY_URL',
     value: process.env.ACCOUNT_PURGATORY_URL,
     required: false
+  },
+  DASHBOARD: {
+    name: 'DASHBOARD',
+    value: process.env.DASHBOARD,
+    required: false
   }
 }
