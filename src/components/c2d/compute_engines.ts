@@ -251,7 +251,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
     try {
       const response = await axios({
         method: 'post',
-        url: `${this.getC2DConfig().url}api/v1/operator/compute`,
+        url: `${this.getC2DConfig().url}/api/v1/operator/compute`,
         data: payload
       })
       if (response.status !== 200) {
