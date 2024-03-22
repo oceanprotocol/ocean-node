@@ -35,6 +35,7 @@ import { publishAsset, orderAsset } from '../utils/assets.js'
 import { computeAsset, algoAsset } from '../data/assets.js'
 import { RPCS } from '../../@types/blockchain.js'
 import {
+  DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
@@ -104,6 +105,7 @@ describe('Compute', () => {
   })
   // let's publish assets & algos
   it('should publish compute datasets & algos', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
     publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
     const computeDatasetResult = await waitToIndex(
