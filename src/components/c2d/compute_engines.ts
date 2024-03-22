@@ -170,7 +170,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
     const clusterHash = this.getC2DConfig().hash
     const url = `${
       this.getC2DConfig().url
-    }api/v1/operator/environments?chain_id=${chainId}`
+    }/api/v1/operator/environments?chain_id=${chainId}`
     console.log('url', url)
     try {
       const { data } = await axios.get(url)

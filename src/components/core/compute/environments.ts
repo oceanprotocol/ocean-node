@@ -36,7 +36,6 @@ export class ComputeGetEnvironmentsHandler extends Handler {
       const response: ComputeEnvironment[] = []
       const config = await getConfiguration()
       const { c2dClusters } = config
-      console.log('c2dClusters', c2dClusters)
 
       for (const cluster of c2dClusters) {
         const engine = C2DEngine.getC2DClass(cluster)
