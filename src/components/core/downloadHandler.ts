@@ -270,6 +270,25 @@ export class DownloadHandler extends Handler {
     let service: Service = AssetUtils.getServiceById(ddo, task.serviceId)
     if (!service) service = AssetUtils.getServiceByIndex(ddo, Number(task.serviceId))
     if (!service) throw new Error('Cannot find service')
+
+    // check credentials on service level
+    if (service.credentials) {
+      const accessGranted = checkCredentials(service.credentials, task.consumerAddress)
+      if (!accessGranted) {
+        CORE_LOGGER.logMessage(
+          `Error: Access to service with id ${service.id} was denied`,
+          true
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: `Error: Access to service with id ${service.id} was denied`
+          }
+        }
+      }
+    }
+
     // 4. Check service type
     const serviceType = service.type
     if (serviceType === 'compute') {
