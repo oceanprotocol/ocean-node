@@ -29,9 +29,7 @@ export class StopNodeHandler extends Handler {
       'signature'
     ])
     if (!commandValidation.valid) {
-      return buildInvalidRequestMessage(
-        `Command validation failed: ${JSON.stringify(commandValidation)}`
-      )
+      return buildInvalidRequestMessage(commandValidation.reason)
     }
     if (!validateSignature(command.expiryTimestamp, command.signature)) {
       return buildInvalidRequestMessage('Expired authentication or invalid signature')
@@ -68,9 +66,7 @@ export class ReindexTxHandler extends Handler {
       'txId'
     ])
     if (!commandValidation.valid) {
-      return buildInvalidRequestMessage(
-        `Command validation failed: ${JSON.stringify(commandValidation)}`
-      )
+      return buildInvalidRequestMessage(commandValidation.reason)
     }
     if (!validateSignature(command.expiryTimestamp, command.signature)) {
       return buildInvalidRequestMessage('Expired authentication or invalid signature')
@@ -125,14 +121,10 @@ export class ReindexChainHandler extends Handler {
       'chainId'
     ])
     if (!commandValidation.valid) {
-      const errorMsg = `Command validation failed: ${JSON.stringify(commandValidation)}`
-      CORE_LOGGER.logMessage(errorMsg)
-      return buildInvalidRequestMessage(errorMsg)
+      return buildInvalidRequestMessage(commandValidation.reason)
     }
     if (!validateSignature(command.expiryTimestamp, command.signature)) {
-      const errorMsg = 'Expired authentication or invalid signature'
-      CORE_LOGGER.logMessage(errorMsg)
-      return buildInvalidRequestMessage(errorMsg)
+      return buildInvalidRequestMessage('Expired authentication or invalid signature')
     }
     return commandValidation
   }
