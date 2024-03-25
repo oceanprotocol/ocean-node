@@ -172,3 +172,8 @@ export interface ComputeGetStatusCommand extends Command {
   did?: string
   jobId?: string
 }
+
+export interface ValidateChainId {
+  validation: boolean
+  networkRpc: string
+}
