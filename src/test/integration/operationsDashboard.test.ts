@@ -105,6 +105,7 @@ describe('Should test admin operations', () => {
       signature
     }
     const validationResponse = new StopNodeHandler(oceanNode).validate(stopNodeCommand)
+    console.log('validation response for stop node: ', validationResponse)
     assert(validationResponse, 'invalid stop node validation response')
     assert(validationResponse.valid === true, 'validation for stop node command failed')
   })
