@@ -587,7 +587,7 @@ export class FindDdoHandler extends Handler {
                 id: task.id,
                 command: PROTOCOL_COMMANDS.GET_DDO
               }
-              // NOTE: do not push until we verify that it is legitimate
+              // NOTE: do not push to response until we verify that it is legitimate
               providerIds.push(peer)
 
               try {
