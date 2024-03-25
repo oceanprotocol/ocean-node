@@ -840,10 +840,8 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
 
   // 5) check block & events
   const networkBlock = await getNetworkHeight(blockchain.getProvider())
-  if (networkBlock < ddo.event?.block) {
-    CORE_LOGGER.error(
-      `current network block: ${networkBlock} is before the event block: ${ddo.event?.block}`
-    )
+  if (!event.block || event.block < 0 || networkBlock < event.block) {
+    CORE_LOGGER.error(`Event block: ${event.block} is either missing or invalid`)
     return false
   }
 

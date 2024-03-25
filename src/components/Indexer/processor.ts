@@ -22,7 +22,7 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
 import { getConfiguration } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
-import { isValidUrl, streamToString } from '../../utils/util.js'
+import { asyncCallWithTimeout, isValidUrl, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 
@@ -291,11 +291,19 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       ddo.datatokens = this.getTokenInfo(ddo.services)
       // we need to store the event data
       ddo.event.tx = event.transactionHash
-      ddo.event.block = event.blockNumber
       ddo.event.from = decodedEventData.args[0]
       ddo.event.contract = event.address
-      const { timestamp } = await provider.getBlock(event.blockNumber)
-      ddo.event.datetime = new Date(timestamp * 1000).toJSON()
+      if (event.blockNumber) {
+        ddo.event.block = event.blockNumber
+        // try get block & timestamp from block
+        const promiseFn = provider.getBlock(event.blockNumber)
+        const result = await asyncCallWithTimeout(promiseFn, 2000)
+        if (result.data !== null && !result.timeout) {
+          ddo.event.datetime = new Date(result.data.timestamp * 1000).toJSON()
+        }
+      } else {
+        ddo.event.block = -1
+      }
 
       INDEXER_LOGGER.logMessage(
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
