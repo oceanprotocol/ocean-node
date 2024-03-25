@@ -4,7 +4,8 @@ import {
   getDeployedContractBlock,
   getNetworkHeight,
   processBlocks,
-  processChunkLogs
+  processChunkLogs,
+  retrieveChunkEvents
 } from './utils.js'
 import { Blockchain } from '../../utils/blockchain.js'
 import { BlocksEvents, SupportedNetwork } from '../../@types/blockchain.js'
@@ -13,6 +14,7 @@ import { sleep } from '../../utils/util.js'
 import { EVENTS } from '../../utils/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getDatabase } from '../../utils/database.js'
+import { Log } from 'ethers'
 
 export interface ReindexTask {
   txId: string
@@ -61,7 +63,7 @@ export async function proccesNetworkData(): Promise<void> {
 
   // we can override the default value of 30 secs, by setting process.env.INDEXER_INTERVAL
   const interval = getCrawlingInterval()
-
+  let { chunkSize } = rpcDetails
   while (true) {
     const networkHeight = await getNetworkHeight(provider)
 
@@ -76,15 +78,35 @@ export async function proccesNetworkData(): Promise<void> {
     )
 
     if (networkHeight > startBlock) {
-      let { chunkSize } = rpcDetails
       const remainingBlocks = networkHeight - startBlock
       const blocksToProcess = Math.min(chunkSize, remainingBlocks)
       INDEXER_LOGGER.logMessage(
         `network: ${rpcDetails.network} processing ${blocksToProcess} blocks ...`
       )
-
+      let chunkEvents: Log[] = []
+      try {
+        chunkEvents = await retrieveChunkEvents(
+          signer,
+          provider,
+          rpcDetails.chainId,
+          startBlock,
+          blocksToProcess
+        )
+      } catch (error) {
+        INDEXER_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_ERROR,
+          `Get events for network: ${rpcDetails.network} failure: ${error.message} `,
+          true
+        )
+        chunkSize = Math.floor(chunkSize / 2) < 1 ? 1 : Math.floor(chunkSize / 2)
+        INDEXER_LOGGER.logMessage(
+          `network: ${rpcDetails.network} Reducing chunk size  ${chunkSize} `,
+          true
+        )
+      }
       try {
         const processedBlocks = await processBlocks(
+          chunkEvents,
           signer,
           provider,
           rpcDetails.chainId,
@@ -94,15 +116,11 @@ export async function proccesNetworkData(): Promise<void> {
         updateLastIndexedBlockNumber(processedBlocks.lastBlock)
         checkNewlyIndexedAssets(processedBlocks.foundEvents)
         lastIndexedBlock = processedBlocks.lastBlock
+        chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
       } catch (error) {
         INDEXER_LOGGER.log(
           LOG_LEVELS_STR.LEVEL_ERROR,
-          `network: ${rpcDetails.network} Error: ${error.message} `,
-          true
-        )
-        chunkSize = Math.floor(chunkSize / 2)
-        INDEXER_LOGGER.logMessage(
-          `network: ${rpcDetails.network} Reducing chunk size  ${chunkSize} `,
+          `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `,
           true
         )
       }

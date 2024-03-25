@@ -78,13 +78,13 @@ export const getNetworkHeight = async (provider: JsonRpcApiProvider) => {
   return networkHeight
 }
 
-export const processBlocks = async (
+export const retrieveChunkEvents = async (
   signer: Signer,
   provider: JsonRpcApiProvider,
   network: number,
   lastIndexedBlock: number,
   count: number
-): Promise<ProcessingEvents> => {
+): Promise<ethers.Log[]> => {
   try {
     const eventHashes = Object.keys(EVENT_HASHES)
     const startIndex = lastIndexedBlock + 1
@@ -93,7 +93,25 @@ export const processBlocks = async (
       toBlock: lastIndexedBlock + count,
       topics: [eventHashes]
     })
-    const events = await processChunkLogs(blockLogs, signer, provider, network)
+    return blockLogs
+  } catch (error) {
+    throw new Error(` Error processing chunk of blocks events ${error.message}`)
+  }
+}
+
+export const processBlocks = async (
+  blockLogs: ethers.Log[],
+  signer: Signer,
+  provider: JsonRpcApiProvider,
+  network: number,
+  lastIndexedBlock: number,
+  count: number
+): Promise<ProcessingEvents> => {
+  try {
+    const events: any[] | BlocksEvents =
+      blockLogs && blockLogs.length > 0
+        ? await processChunkLogs(blockLogs, signer, provider, network)
+        : []
 
     return {
       lastBlock: lastIndexedBlock + count,
