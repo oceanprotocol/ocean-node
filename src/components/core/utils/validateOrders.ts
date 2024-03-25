@@ -55,9 +55,6 @@ export async function validateOrderTransaction(
       message: errorMsg
     }
   }
-  console.log('datanftAddress ', dataNftAddress)
-  console.log('datatokenAddress ', datatokenAddress)
-
   const erc20Address = txReceiptMined.to
   const datatokenContract = new Contract(
     erc20Address,
@@ -65,8 +62,7 @@ export async function validateOrderTransaction(
     await provider.getSigner()
   )
   const erc721Address = await datatokenContract.getERC721Address()
-  console.log('erc721Address ', erc721Address)
-  console.log('erc20Address ', erc20Address)
+
   const orderReusedEvent = fetchEventFromTransaction(
     txReceiptMined,
     EVENTS.ORDER_REUSED,

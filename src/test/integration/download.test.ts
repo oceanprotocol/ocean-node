@@ -88,12 +88,8 @@ describe('Should run a complete node flow.', () => {
     const indexer = new OceanIndexer(database, mockSupportedNetworks)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
-    console.log('network ', network)
-    console.log('DEVELOPMENT_CHAIN_ID ', DEVELOPMENT_CHAIN_ID)
-
     if (!network) {
       network = getOceanArtifactsAdresses().development
-      console.log('network 2', network)
     }
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')

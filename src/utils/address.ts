@@ -10,10 +10,6 @@ import { ENVIRONMENT_VARIABLES, existsEnvironmentVariable } from './index.js'
  */
 export function getOceanArtifactsAdresses(): any {
   try {
-    console.log(
-      'Getting ocean artifacts addresses',
-      ENVIRONMENT_VARIABLES.ADDRESS_FILE.value
-    )
     if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ADDRESS_FILE)) {
       // eslint-disable-next-line security/detect-non-literal-fs-filename
       const data = fs.readFileSync(ENVIRONMENT_VARIABLES.ADDRESS_FILE.value, 'utf8')
