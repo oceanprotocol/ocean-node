@@ -8,16 +8,13 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { validateSignature } from '../../../utils/auth.js'
 import { Handler } from '../handler.js'
-import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
 export abstract class AdminHandler extends Handler {
   validate(command: AdminCommand): ValidateParams {
-    CORE_LOGGER.logMessage(``)
     const commandValidation = validateCommandParameters(command, [
       'expiryTimestamp',
       'signature'
     ])
-    CORE_LOGGER.logMessage(`commandValidation: ${JSON.stringify(commandValidation)}`)
     if (!commandValidation.valid) {
       return buildInvalidRequestMessage(commandValidation.reason)
     }
