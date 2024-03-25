@@ -55,8 +55,18 @@ export async function validateOrderTransaction(
       message: errorMsg
     }
   }
-  const contractAddress = txReceiptMined.to
+  console.log('datanftAddress ', dataNftAddress)
+  console.log('datatokenAddress ', datatokenAddress)
 
+  const erc20Address = txReceiptMined.to
+  const datatokenContract = new Contract(
+    erc20Address,
+    ERC20Template.abi,
+    await provider.getSigner()
+  )
+  const erc721Address = await datatokenContract.getERC721Address()
+  console.log('erc721Address ', erc721Address)
+  console.log('erc20Address ', erc20Address)
   const orderReusedEvent = fetchEventFromTransaction(
     txReceiptMined,
     EVENTS.ORDER_REUSED,
@@ -85,7 +95,8 @@ export async function validateOrderTransaction(
     if (
       (userAddress.toLowerCase() !== event.args[0].toLowerCase() &&
         userAddress.toLowerCase() !== event.args[1].toLowerCase()) ||
-      contractAddress.toLowerCase() !== datatokenAddress.toLowerCase()
+      erc20Address.toLowerCase() !== datatokenAddress.toLowerCase() ||
+      erc721Address.toLowerCase() !== dataNftAddress.toLowerCase()
     ) {
       continue
     }
@@ -97,7 +108,7 @@ export async function validateOrderTransaction(
     return {
       isValid: false,
       message:
-        'Tx id used not valid, Datatoken adreess does not match or User address does not match with consumer or payer of the transaction.'
+        'Tx id used not valid, one of the NFT addresses, Datatoken address or the User address contract address does not match.'
     }
   }
   const eventServiceIndex = orderEvent.args[3]
