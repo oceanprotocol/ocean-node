@@ -104,27 +104,25 @@ export async function proccesNetworkData(): Promise<void> {
           true
         )
       }
-      if (chunkEvents && chunkEvents.length > 0) {
-        try {
-          const processedBlocks = await processBlocks(
-            chunkEvents,
-            signer,
-            provider,
-            rpcDetails.chainId,
-            startBlock,
-            blocksToProcess
-          )
-          updateLastIndexedBlockNumber(processedBlocks.lastBlock)
-          checkNewlyIndexedAssets(processedBlocks.foundEvents)
-          lastIndexedBlock = processedBlocks.lastBlock
-          chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
-        } catch (error) {
-          INDEXER_LOGGER.log(
-            LOG_LEVELS_STR.LEVEL_ERROR,
-            `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `,
-            true
-          )
-        }
+      try {
+        const processedBlocks = await processBlocks(
+          chunkEvents,
+          signer,
+          provider,
+          rpcDetails.chainId,
+          startBlock,
+          blocksToProcess
+        )
+        updateLastIndexedBlockNumber(processedBlocks.lastBlock)
+        checkNewlyIndexedAssets(processedBlocks.foundEvents)
+        lastIndexedBlock = processedBlocks.lastBlock
+        chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
+      } catch (error) {
+        INDEXER_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_ERROR,
+          `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `,
+          true
+        )
       }
     }
     processReindex()

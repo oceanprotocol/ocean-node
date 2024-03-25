@@ -108,7 +108,10 @@ export const processBlocks = async (
   count: number
 ): Promise<ProcessingEvents> => {
   try {
-    const events = await processChunkLogs(blockLogs, signer, provider, network)
+    const events: any[] | BlocksEvents =
+      blockLogs && blockLogs.length > 0
+        ? await processChunkLogs(blockLogs, signer, provider, network)
+        : []
 
     return {
       lastBlock: lastIndexedBlock + count,
