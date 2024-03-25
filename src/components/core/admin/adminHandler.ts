@@ -24,6 +24,9 @@ export abstract class AdminHandler extends Handler {
     if (!validateSignature(command.expiryTimestamp, command.signature)) {
       return buildInvalidRequestMessage('Expired authentication or invalid signature')
     }
+    return {
+      valid: true
+    }
   }
 
   abstract handle(task: Command): Promise<P2PCommandResponse>
