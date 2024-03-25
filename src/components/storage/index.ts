@@ -336,7 +336,7 @@ export class IpfsStorage extends Storage {
   }
 
   isFilePath(): boolean {
-    const regex: RegExp = /^(.+)\/([^/]+)$/ // The CID should not represent a path
+    const regex: RegExp = /^(.+)\/([^/]*)$/ // The CID should not represent a path
     const { hash } = this.getFile()
 
     return regex.test(hash)
