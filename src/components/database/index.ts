@@ -671,7 +671,9 @@ export class LogDatabase {
     endTime: Date,
     maxLogs: number,
     moduleName?: string,
-    level?: string
+    level?: string,
+    maxLogsPerPage?: number,
+    page?: number
   ): Promise<Record<string, any>[] | null> {
     try {
       let allLogs: Record<string, any>[] = []
@@ -683,11 +685,10 @@ export class LogDatabase {
         filterConditions += ` && level:${level}`
       }
 
-      let page = 1
-      let totalFetchedLogs = 0
-      const maxPerPage = Math.min(maxLogs, 250) // Typesense's limit per page or user-defined limit, whichever is smaller.
+      const maxPerPage = Math.min(maxLogsPerPage || maxLogs, 250) // Limit maxPerPage to 250 or user-defined limit, whichever is smaller.
 
-      while (true) {
+      if (page) {
+        // If page number is provided, fetch only for that specific page.
         const searchParameters = {
           q: '*',
           query_by: 'message,level,meta',
@@ -702,19 +703,41 @@ export class LogDatabase {
           .documents()
           .search(searchParameters)
 
-        allLogs = allLogs.concat(result.hits.map((hit) => hit.document))
-        totalFetchedLogs += result.hits.length
+        return result.hits.map((hit) => hit.document)
+      } else {
+        // If no page number is provided, concatenate logs across all pages.
+        let currentPage = 1
+        let totalFetchedLogs = 0
 
-        if (result.hits.length < maxPerPage || totalFetchedLogs >= maxLogs) {
-          break // Break if the last page is reached or the maxLogs limit is hit.
+        while (true) {
+          const searchParameters = {
+            q: '*',
+            query_by: 'message,level,meta',
+            filter_by: filterConditions,
+            sort_by: 'timestamp:desc',
+            per_page: maxPerPage,
+            page: currentPage
+          }
+
+          const result = await this.provider
+            .collections(this.schema.name)
+            .documents()
+            .search(searchParameters)
+
+          allLogs = allLogs.concat(result.hits.map((hit) => hit.document))
+          totalFetchedLogs += result.hits.length
+
+          if (result.hits.length < maxPerPage || totalFetchedLogs >= maxLogs) {
+            break // Break if the last page is reached or the maxLogs limit is hit.
+          }
+
+          currentPage++
         }
 
-        page++
+        return allLogs
       }
-
-      return allLogs
     } catch (error) {
-      const errorMsg = `Error when retrieving multiple log entries: ` + error.message
+      const errorMsg = `Error when retrieving multiple log entries: ${error.message}`
       DATABASE_LOGGER.logMessageWithEmoji(
         errorMsg,
         true,
