@@ -194,10 +194,11 @@ export class UrlStorage extends Storage {
   isFilePath(): boolean {
     const regex: RegExp = /^(.+)\/([^/]+)$/ // The URL should not represent a path
     const { url } = this.getFile()
+    CORE_LOGGER.logMessage(`url: ${url}`)
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return false
     }
-
+    CORE_LOGGER.logMessage(`regex test for url: ${regex.test(url)}`)
     return regex.test(url)
   }
 
