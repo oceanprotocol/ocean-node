@@ -336,9 +336,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         ddo.event.contract = event.address
         if (event.blockNumber) {
           ddo.event.block = event.blockNumber
-          // try get block & timestamp from block (only wait 2 secs maximum)
+          // try get block & timestamp from block (only wait 2.5 secs maximum)
           const promiseFn = provider.getBlock(event.blockNumber)
-          const result = await asyncCallWithTimeout(promiseFn, 2000)
+          const result = await asyncCallWithTimeout(promiseFn, 2500)
           if (result.data !== null && !result.timeout) {
             ddo.event.datetime = new Date(result.data.timestamp * 1000).toJSON()
           }

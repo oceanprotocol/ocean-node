@@ -819,7 +819,9 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
   const config = await getConfiguration()
   const network = config.supportedNetworks[chainId.toString()]
   if (!network) {
-    console.log(`We do not support the newtwork ${chainId}, cannot confirm validation.`)
+    CORE_LOGGER.error(
+      `We do not support the newtwork ${chainId}, cannot confirm validation.`
+    )
     return false
   }
   // 4) check if was deployed by our factory

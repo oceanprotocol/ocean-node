@@ -188,7 +188,6 @@ describe('Compute', () => {
     )
 
     assert(resp, 'Failed to get response')
-    console.log('response was: ', resp)
     assert(resp.status.httpStatus === 200, 'Failed to get 200 response')
     assert(resp.stream, 'Failed to get stream')
     expect(resp.stream).to.be.instanceOf(Readable)

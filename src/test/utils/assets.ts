@@ -44,9 +44,7 @@ export async function publishAsset(genericAsset: any, publisherAccount: Signer) 
     ERC721Factory.abi,
     publisherAccount
   )
-  console.log('network:', network)
-  console.log('chainId:', chainId)
-  console.log('factoryContract:', factoryContract)
+
   const tx = await factoryContract.createNftWithErc20(
     {
       name: '72120Bundle',
