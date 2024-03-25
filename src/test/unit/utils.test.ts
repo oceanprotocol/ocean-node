@@ -1,6 +1,7 @@
 import { expect, assert } from 'chai'
-import { sleep, getEventFromTx, isValidUrl } from '../../utils/util.js'
+import { sleep, getEventFromTx } from '../../utils/util.js'
 import 'mocha'
+import { URLUtils } from '../../utils/url.js'
 
 describe('Utilities Functions', () => {
   describe('sleep function', () => {
@@ -12,19 +13,19 @@ describe('Utilities Functions', () => {
     })
 
     it('should handle/validate multiple URLS', () => {
-      assert.isTrue(isValidUrl('https://localhost:80'))
-      assert.isFalse(isValidUrl(''))
+      assert.isTrue(URLUtils.isValidUrl('https://localhost:80'))
+      assert.isFalse(URLUtils.isValidUrl(''))
       assert.isTrue(
-        isValidUrl(
+        URLUtils.isValidUrl(
           'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json'
         )
       )
       assert.isTrue(
-        isValidUrl(
+        URLUtils.isValidUrl(
           'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json'
         )
       )
-      assert.isFalse(isValidUrl('http://hello world!'))
+      assert.isFalse(URLUtils.isValidUrl('http://hello world!'))
     })
   })
 

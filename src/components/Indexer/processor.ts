@@ -22,9 +22,10 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
 import { getConfiguration } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
-import { asyncCallWithTimeout, isValidUrl, streamToString } from '../../utils/util.js'
+import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
+import { URLUtils } from '../../utils/url.js'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -107,7 +108,7 @@ class BaseEventProcessor {
       )
       const signature = await wallet.signMessage(consumerMessage)
 
-      if (isValidUrl(decryptorURL)) {
+      if (URLUtils.isValidUrl(decryptorURL)) {
         try {
           const payload = {
             transactionId: txId,
