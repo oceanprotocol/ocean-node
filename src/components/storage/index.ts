@@ -14,6 +14,7 @@ import urlJoin from 'url-join'
 import { encrypt as encryptData, decrypt as decryptData } from '../../utils/crypt.js'
 import { Readable } from 'stream'
 import { getConfiguration } from '../../utils/index.js'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 export abstract class Storage {
   private file: UrlFileObject | IpfsFileObject | ArweaveFileObject
@@ -167,6 +168,9 @@ export class UrlStorage extends Storage {
   public constructor(file: UrlFileObject) {
     super(file)
     const [isValid, message] = this.validate()
+    CORE_LOGGER.logMessage(
+      `log for validation in url storage: ${isValid}, message: ${message}`
+    )
     if (isValid === false) {
       throw new Error(`Error validationg the URL file: ${message}`)
     }
