@@ -38,14 +38,15 @@ export async function publishAsset(genericAsset: any, publisherAccount: Signer) 
     network = getOceanArtifactsAdresses().development
   }
   const net = await publisherAccount.provider.getNetwork()
-  const { chainId } = net
+  const chainId = net && net.chainId ? net.chainId : DEVELOPMENT_CHAIN_ID
   const factoryContract = new ethers.Contract(
     network.ERC721Factory,
     ERC721Factory.abi,
     publisherAccount
   )
   console.log('network:', network)
-  console.log('net:', net)
+  console.log('chainId:', chainId)
+  console.log('factoryContract:', factoryContract)
   const tx = await factoryContract.createNftWithErc20(
     {
       name: '72120Bundle',
