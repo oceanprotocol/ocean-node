@@ -4,7 +4,8 @@ import {
   getDeployedContractBlock,
   getNetworkHeight,
   processBlocks,
-  processChunkLogs
+  processChunkLogs,
+  retrieveChunkEvents
 } from './utils.js'
 import { Blockchain } from '../../utils/blockchain.js'
 import { BlocksEvents, SupportedNetwork } from '../../@types/blockchain.js'
@@ -13,6 +14,7 @@ import { sleep } from '../../utils/util.js'
 import { EVENTS } from '../../utils/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getDatabase } from '../../utils/database.js'
+import { Log } from 'ethers'
 
 export interface ReindexTask {
   txId: string
@@ -81,23 +83,19 @@ export async function proccesNetworkData(): Promise<void> {
       INDEXER_LOGGER.logMessage(
         `network: ${rpcDetails.network} processing ${blocksToProcess} blocks ...`
       )
-
+      let chunkEvents: Log[] = []
       try {
-        const processedBlocks = await processBlocks(
+        chunkEvents = await retrieveChunkEvents(
           signer,
           provider,
           rpcDetails.chainId,
           startBlock,
           blocksToProcess
         )
-        updateLastIndexedBlockNumber(processedBlocks.lastBlock)
-        checkNewlyIndexedAssets(processedBlocks.foundEvents)
-        lastIndexedBlock = processedBlocks.lastBlock
-        chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
       } catch (error) {
         INDEXER_LOGGER.log(
           LOG_LEVELS_STR.LEVEL_ERROR,
-          `network: ${rpcDetails.network} Error: ${error.message} `,
+          `Get events for network: ${rpcDetails.network} failure: ${error.message} `,
           true
         )
         chunkSize = Math.floor(chunkSize / 2) < 1 ? 1 : Math.floor(chunkSize / 2)
@@ -105,6 +103,28 @@ export async function proccesNetworkData(): Promise<void> {
           `network: ${rpcDetails.network} Reducing chunk size  ${chunkSize} `,
           true
         )
+      }
+      if (chunkEvents && chunkEvents.length > 0) {
+        try {
+          const processedBlocks = await processBlocks(
+            chunkEvents,
+            signer,
+            provider,
+            rpcDetails.chainId,
+            startBlock,
+            blocksToProcess
+          )
+          updateLastIndexedBlockNumber(processedBlocks.lastBlock)
+          checkNewlyIndexedAssets(processedBlocks.foundEvents)
+          lastIndexedBlock = processedBlocks.lastBlock
+          chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
+        } catch (error) {
+          INDEXER_LOGGER.log(
+            LOG_LEVELS_STR.LEVEL_ERROR,
+            `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `,
+            true
+          )
+        }
       }
     }
     processReindex()
