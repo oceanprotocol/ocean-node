@@ -293,17 +293,17 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       ddo.event.tx = event.transactionHash
       ddo.event.from = decodedEventData.args[0]
       ddo.event.contract = event.address
-      if (event.blockNumber) {
-        ddo.event.block = event.blockNumber
-        // try get block & timestamp from block
-        const promiseFn = provider.getBlock(event.blockNumber)
-        const result = await asyncCallWithTimeout(promiseFn, 2000)
-        if (result.data !== null && !result.timeout) {
-          ddo.event.datetime = new Date(result.data.timestamp * 1000).toJSON()
-        }
-      } else {
-        ddo.event.block = -1
-      }
+      // if (event.blockNumber) {
+      //   ddo.event.block = event.blockNumber
+      //   // try get block & timestamp from block
+      //   const promiseFn = provider.getBlock(event.blockNumber)
+      //   const result = await asyncCallWithTimeout(promiseFn, 2000)
+      //   if (result.data !== null && !result.timeout) {
+      //     ddo.event.datetime = new Date(result.data.timestamp * 1000).toJSON()
+      //   }
+      // } else {
+      //   ddo.event.block = -1
+      // }
 
       INDEXER_LOGGER.logMessage(
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
