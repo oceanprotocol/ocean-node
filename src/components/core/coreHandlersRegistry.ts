@@ -26,11 +26,9 @@ import {
   ComputeGetResultHandler,
   ComputeInitializeHandler
 } from './compute/index.js'
-import {
-  ReindexChainHandler,
-  ReindexTxHandler,
-  StopNodeHandler
-} from './adminOperations.js'
+import { StopNodeHandler } from './admin/stopNodeHandler.js'
+import { ReindexTxHandler } from './admin/reindexTxHandler.js'
+import { ReindexChainHandler } from './admin/reindexChainHandler.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler

@@ -1,19 +1,15 @@
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { OceanNode } from '../../../OceanNode.js'
-import { AdminCommand, Command, ICommandHandler } from '../../../@types/commands.js'
+import { AdminCommand, Command } from '../../../@types/commands.js'
 import {
   ValidateParams,
   validateCommandParameters,
   buildInvalidRequestMessage
 } from '../../httpRoutes/validateCommands.js'
 import { validateSignature } from '../../../utils/auth.js'
+import { Handler } from '../handler.js'
 
-export abstract class AdminHandler implements ICommandHandler {
-  private nodeInstance?: OceanNode
-  public constructor(oceanNode?: OceanNode) {
-    this.nodeInstance = oceanNode
-  }
-
+export abstract class AdminHandler extends Handler {
   validate(command: AdminCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
       'expiryTimestamp',
@@ -30,6 +26,6 @@ export abstract class AdminHandler implements ICommandHandler {
   abstract handle(task: Command): Promise<P2PCommandResponse>
 
   getOceanNode(): OceanNode {
-    return this.nodeInstance
+    return super.getOceanNode()
   }
 }
