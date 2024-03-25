@@ -192,7 +192,7 @@ export class UrlStorage extends Storage {
   }
 
   isFilePath(): boolean {
-    const regex: RegExp = /^(.+)\/([^/]+)$/ // The URL should not represent a path
+    const regex: RegExp = /^(.+)\/([^/]*)$/ // The URL should not represent a path
     const { url } = this.getFile()
     CORE_LOGGER.logMessage(`url: ${url}`)
     if (url.startsWith('http://') || url.startsWith('https://')) {
@@ -270,7 +270,7 @@ export class ArweaveStorage extends Storage {
   }
 
   isFilePath(): boolean {
-    const regex: RegExp = /^(.+)\/([^/]+)$/ // The transaction ID should not represent a path
+    const regex: RegExp = /^(.+)\/([^/]*)$/ // The transaction ID should not represent a path
     const { transactionId } = this.getFile()
 
     return regex.test(transactionId)
