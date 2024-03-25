@@ -32,18 +32,46 @@ export class OrderDatabase {
     })() as unknown as OrderDatabase
   }
 
-  async search(query: Record<string, any>) {
+  async search(
+    query: Record<string, any>,
+    maxResultsPerPage?: number,
+    pageNumber?: number
+  ) {
     try {
-      const results = []
+      let queryObj: TypesenseSearchParams
+
+      // if queryObj is a string
+      if (typeof query === 'string') {
+        queryObj = JSON.parse(query)
+      } else {
+        queryObj = query as TypesenseSearchParams
+      }
+
+      // Check if the necessary properties are present
+      if (!queryObj.q || !queryObj.query_by) {
+        throw new Error("The query object must include 'q' and 'query_by' properties.")
+      }
+      const maxPerPage = maxResultsPerPage ? Math.min(maxResultsPerPage, 250) : 250 // Cap maxResultsPerPage at 250
+      const page = pageNumber || 1 // Default to the first page if pageNumber is not provided
+
+      // Modify the query to include pagination parameters
+      const searchParams: TypesenseSearchParams = {
+        ...queryObj,
+        per_page: maxPerPage,
+        page
+      }
+
       const result = await this.provider
         .collections(this.schema.name)
         .documents()
-        .search(query as TypesenseSearchParams)
-      results.push(result)
-      return results
+        .search(searchParams)
+
+      // Instead of pushing the entire result, only include the documents
+      return result.hits.map((hit) => hit.document)
     } catch (error) {
       const errorMsg =
-        `Error when searching order entry by query ${query}: ` + error.message
+        `Error when searching order entry by query ${JSON.stringify(query)}: ` +
+        error.message
       DATABASE_LOGGER.logMessageWithEmoji(
         errorMsg,
         true,
