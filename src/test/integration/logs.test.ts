@@ -351,3 +351,69 @@ describe('LogDatabase deleteOldLogs', () => {
     assert(recentLogPresent === true, 'Recent logs are not present')
   })
 })
+
+describe('LogDatabase retrieveMultipleLogs with pagination', () => {
+  let database: Database
+  const startTime = new Date(Date.now() - 10000) // 10 seconds ago
+  const endTime = new Date() // now
+
+  before(async () => {
+    const dbConfig = {
+      url: 'http://localhost:8108/?apiKey=xyz'
+    }
+    database = await new Database(dbConfig)
+  })
+
+  it('should retrieve logs limited by maxLogsPerPage', async () => {
+    const maxLogsPerPage = 5
+    const logs = await database.logs.retrieveMultipleLogs(
+      startTime,
+      endTime,
+      100, // Set a higher number to ensure pagination is possible
+      undefined,
+      undefined,
+      maxLogsPerPage
+    )
+    expect(logs.length).to.be.at.most(maxLogsPerPage)
+  })
+
+  it('should retrieve logs for a specific page', async () => {
+    const page = 2
+    const maxLogsPerPage = 5
+    const logsPage1 = await database.logs.retrieveMultipleLogs(
+      startTime,
+      endTime,
+      100,
+      undefined,
+      undefined,
+      maxLogsPerPage,
+      1
+    )
+    const logsPage2 = await database.logs.retrieveMultipleLogs(
+      startTime,
+      endTime,
+      100,
+      undefined,
+      undefined,
+      maxLogsPerPage,
+      page
+    )
+
+    // Ensure that the logs on page 2 are different from those on page 1
+    expect(logsPage1[0].id).to.not.equal(logsPage2[0].id)
+  })
+
+  it('should return empty results for a non-existent page', async () => {
+    const nonExistentPage = 100 // Assuming this page doesn't exist
+    const logs = await database.logs.retrieveMultipleLogs(
+      startTime,
+      endTime,
+      100,
+      undefined,
+      undefined,
+      5,
+      nonExistentPage
+    )
+    assert.isEmpty(logs, 'Expected logs to be empty')
+  })
+})
