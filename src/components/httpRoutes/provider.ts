@@ -3,7 +3,7 @@ import { getNonce } from '../core/utils/nonceHandler.js'
 import { streamToObject, streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants.js'
 import { EncryptFileHandler, EncryptHandler } from '../core/encryptHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { DecryptDdoHandler } from '../core/ddoHandler.js'
@@ -15,8 +15,6 @@ import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { getEncryptMethodFromString } from '../../utils/crypt.js'
 
 export const providerRoutes = express.Router()
-
-export const SERVICES_API_BASE_PATH = '/api/services'
 
 providerRoutes.post(`${SERVICES_API_BASE_PATH}/decrypt`, async (req, res) => {
   try {

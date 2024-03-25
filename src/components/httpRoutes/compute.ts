@@ -16,16 +16,14 @@ import type {
 } from '../../@types/commands.js'
 
 import { streamToObject, streamToString } from '../../utils/util.js'
-import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants.js'
 import { Readable } from 'stream'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 
 export const computeRoutes = express.Router()
 
-export const C2D_API_BASE_PATH = '/api/services'
-
-computeRoutes.get(`${C2D_API_BASE_PATH}/computeEnvironments`, async (req, res) => {
+computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(
       `GET computeEnvironments request received with query: ${JSON.stringify(req.query)}`,
@@ -52,7 +50,7 @@ computeRoutes.get(`${C2D_API_BASE_PATH}/computeEnvironments`, async (req, res) =
   }
 })
 
-computeRoutes.post('/api/services/compute', async (req, res) => {
+computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(
       `ComputeStartCommand request received with query: ${JSON.stringify(req.query)}`,
@@ -86,7 +84,7 @@ computeRoutes.post('/api/services/compute', async (req, res) => {
   }
 })
 
-computeRoutes.put('/api/services/compute', async (req, res) => {
+computeRoutes.put(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(
       `ComputeStopCommand request received with query: ${JSON.stringify(req.query)}`,
@@ -110,7 +108,7 @@ computeRoutes.put('/api/services/compute', async (req, res) => {
   }
 })
 
-computeRoutes.get('/api/services/compute', async (req, res) => {
+computeRoutes.get(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(
       `ComputeGetStatusCommand request received with query: ${JSON.stringify(req.query)}`,
@@ -132,14 +130,14 @@ computeRoutes.get('/api/services/compute', async (req, res) => {
   }
 })
 
-computeRoutes.get('/api/services/computeResult', async (req, res) => {
+computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeResult`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(
       `ComputeGetResultCommand request received with query: ${JSON.stringify(req.query)}`,
       true
     )
     const resultComputeTask: ComputeGetResultCommand = {
-      command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
       node: (req.query.node as string) || null,
       consumerAddress: (req.query.consumerAddress as string) || null,
       index: parseInt(req.query.index as string) || null,
@@ -161,7 +159,7 @@ computeRoutes.get('/api/services/computeResult', async (req, res) => {
     res.status(500).send('Internal Server Error')
   }
 })
-computeRoutes.post('/api/services/initializeCompute', async (req, res) => {
+computeRoutes.post(`${SERVICES_API_BASE_PATH}/initializeCompute`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(
       `POST initializeCompute request received with query: ${JSON.stringify(req.body)}`,
@@ -202,4 +200,8 @@ computeRoutes.post('/api/services/initializeCompute', async (req, res) => {
     HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
   }
+})
+
+computeRoutes.delete(`${SERVICES_API_BASE_PATH}/compute`, (req, res) => {
+  res.status(404).send('Not yet implemented!')
 })

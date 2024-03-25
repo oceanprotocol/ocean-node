@@ -1,7 +1,7 @@
 import express from 'express'
 import { OceanIndexer } from '../Indexer'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
-import { SERVICES_API_BASE_PATH } from './provider.js'
+import { SERVICES_API_BASE_PATH } from '../../utils/constants.js'
 
 export const queueRoutes = express.Router()
 
