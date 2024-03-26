@@ -22,9 +22,10 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
 import { getConfiguration } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
-import { isValidUrl, streamToString } from '../../utils/util.js'
+import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
+import { URLUtils } from '../../utils/url.js'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -107,7 +108,7 @@ class BaseEventProcessor {
       )
       const signature = await wallet.signMessage(consumerMessage)
 
-      if (isValidUrl(decryptorURL)) {
+      if (URLUtils.isValidUrl(decryptorURL)) {
         try {
           const payload = {
             transactionId: txId,
@@ -289,6 +290,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       ddo.chainId = chainId
       ddo.nftAddress = event.address
       ddo.datatokens = this.getTokenInfo(ddo.services)
+
       INDEXER_LOGGER.logMessage(
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
         true
@@ -324,6 +326,28 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         }
       }
       const from = decodedEventData.args[0]
+
+      // we need to store the event data (either metadata created or update and is updatable)
+      if ([EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED].includes(eventName)) {
+        if (!ddo.event) {
+          ddo.event = {}
+        }
+        ddo.event.tx = event.transactionHash
+        ddo.event.from = from
+        ddo.event.contract = event.address
+        if (event.blockNumber) {
+          ddo.event.block = event.blockNumber
+          // try get block & timestamp from block (only wait 2.5 secs maximum)
+          const promiseFn = provider.getBlock(event.blockNumber)
+          const result = await asyncCallWithTimeout(promiseFn, 2500)
+          if (result.data !== null && !result.timeout) {
+            ddo.event.datetime = new Date(result.data.timestamp * 1000).toJSON()
+          }
+        } else {
+          ddo.event.block = -1
+        }
+      }
+
       // always call, but only create instance once
       const purgatory = await Purgatory.getInstance()
       // if purgatory is disabled just return false

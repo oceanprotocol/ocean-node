@@ -206,3 +206,5 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     required: false
   }
 }
+
+export const DDO_IDENTIFIER_PREFIX = 'did:op:'

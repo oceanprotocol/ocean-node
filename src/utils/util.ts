@@ -91,19 +91,38 @@ export function readStream(stream: Stream): Promise<string> {
   })
 }
 
-// basic url check using URL constructor
-export function isValidUrl(
-  urlString: string,
-  hyperTextProtocolOnly: boolean = true
-): boolean {
-  let url
-  try {
-    url = new URL(urlString)
-  } catch (e) {
-    return false
-  }
-  // by default only care about http:// and https://
-  return hyperTextProtocolOnly
-    ? url.protocol === 'http:' || url.protocol === 'https:'
-    : true
+// something returned by an async request, that we want to limit of wait time
+export interface AsyncRequestLimited {
+  data: any
+  timeout: boolean
+}
+/**
+ * Call an async function with a maximum time limit (milliseconds) for the timeout
+ * @param {Promise<any>} asyncPromise An asynchronous promise to resolve
+ * @param {number} timeLimit Time limit in milliseconds to resolve
+ * @returns {Promise<AsyncRequestLimited> } Resolved promise result for async call
+ */
+export function asyncCallWithTimeout(
+  asyncPromise: Promise<any>,
+  timeLimit: number
+): Promise<AsyncRequestLimited> {
+  let timeoutHandler: any = null
+  const timeoutPromise = new Promise((resolve, reject) => {
+    timeoutHandler = setTimeout(
+      () =>
+        resolve({
+          data: null,
+          timeout: true
+        }),
+      timeLimit
+    )
+  })
+
+  return Promise.race([asyncPromise, timeoutPromise]).then((result) => {
+    clearTimeout(timeoutHandler)
+    return {
+      data: result,
+      timeout: false
+    }
+  })
 }
