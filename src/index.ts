@@ -14,6 +14,7 @@ import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import cors from 'cors'
+import { scheduleCronJobs } from './utils/logging/logDeleteCron.js'
 
 const app: Express = express()
 
@@ -79,7 +80,7 @@ if (!config) {
 let node: OceanP2P = null
 let indexer = null
 let provider = null
-let dbconn = null
+let dbconn: Database | null = null
 
 if (config.dbConfig?.url) {
   // once we create a database instance, we check the environment and possibly add the DB transport
@@ -165,4 +166,7 @@ if (config.hasHttp) {
   app.listen(config.httpPort, () => {
     OCEAN_NODE_LOGGER.logMessage(`HTTP port: ${config.httpPort}`, true)
   })
+
+  // Call the function to schedule the cron job to delete old logs
+  scheduleCronJobs(dbconn)
 }

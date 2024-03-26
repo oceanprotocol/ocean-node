@@ -60,11 +60,6 @@ directCommandRoute.post(
                 isBinaryContent = true
               }
             }
-            if (decoded.httpStatus !== 200) {
-              res.write(decoded.error)
-              res.end()
-              break
-            }
           } catch (e) {
             res.status(500)
             res.write(uint8ArrayToString(chunk.subarray()))

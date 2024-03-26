@@ -194,6 +194,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.INDEXER_INTERVAL,
     required: false // without a value set, it defaults to 30 secs
   },
+  LOG_RETENTION_TIME: {
+    name: 'LOG_RETENTION_TIME',
+    value: process.env.LOG_RETENTION_TIME,
+    required: false
+  },
   ALLOWED_ADMINS: {
     name: 'ALLOWED_ADMINS',
     value: process.env.ALLOWED_ADMINS,
