@@ -3,6 +3,7 @@ import {
   validateCommandParameters,
   buildInvalidRequestMessage,
   buildInvalidParametersResponse,
+  buildErrorResponse,
   ValidateParams
 } from '../../httpRoutes/validateCommands.js'
 import { AdminReindexTxCommand } from '../../../@types/commands.js'
@@ -11,7 +12,6 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { checkSupportedChainId, Blockchain } from '../../../utils/blockchain.js'
 import { processChunkLogs } from '../../Indexer/utils.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
-import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 
 export class ReindexTxHandler extends AdminHandler {
   validate(command: AdminReindexTxCommand): ValidateParams {
@@ -31,8 +31,9 @@ export class ReindexTxHandler extends AdminHandler {
     CORE_LOGGER.logMessage(`Reindexing tx...`)
     const checkChainId = await checkSupportedChainId(task.chainId)
     if (!checkChainId.validation) {
-      CORE_LOGGER.error(`Chain ID ${task.chainId} is not supported in config.`)
-      return
+      return buildErrorResponse(
+        `Chain ID ${task.chainId} is not supported in the node's config`
+      )
     }
     const blockchain = new Blockchain(checkChainId.networkRpc, task.chainId)
     const provider = blockchain.getProvider()
@@ -41,7 +42,7 @@ export class ReindexTxHandler extends AdminHandler {
       const receipt = await provider.getTransactionReceipt(task.txId)
       if (!receipt) {
         CORE_LOGGER.error(`Tx receipt was not found for txId ${task.txId}`)
-        return
+        return buildErrorResponse(`Tx receipt was not found for txId ${task.txId}`)
       }
       const { logs } = receipt
       const ret = await processChunkLogs(logs, signer, provider, task.chainId)
@@ -49,7 +50,9 @@ export class ReindexTxHandler extends AdminHandler {
         CORE_LOGGER.error(
           `Reindex tx for txId ${task.txId} failed on chain ${task.chainId}.`
         )
-        return
+        return buildErrorResponse(
+          `Reindex tx for txId ${task.txId} failed on chain ${task.chainId}.`
+        )
       }
 
       return {
@@ -57,7 +60,8 @@ export class ReindexTxHandler extends AdminHandler {
         stream: new ReadableString('REINDEX TX OK')
       }
     } catch (error) {
-      CORE_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `REINDEX tx: ${error.message} `, true)
+      CORE_LOGGER.error(`REINDEX tx: ${error.message}`)
+      return buildErrorResponse(`REINDEX tx: ${error.message} `)
     }
   }
 }

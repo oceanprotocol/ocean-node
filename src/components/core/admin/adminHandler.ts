@@ -1,6 +1,4 @@
-import { P2PCommandResponse } from '../../../@types/OceanNode.js'
-import { OceanNode } from '../../../OceanNode.js'
-import { AdminCommand, Command } from '../../../@types/commands.js'
+import { AdminCommand } from '../../../@types/commands.js'
 import {
   ValidateParams,
   validateCommandParameters,
@@ -24,11 +22,5 @@ export abstract class AdminHandler extends Handler {
     return {
       valid: true
     }
-  }
-
-  abstract handle(task: Command): Promise<P2PCommandResponse>
-
-  getOceanNode(): OceanNode {
-    return super.getOceanNode()
   }
 }

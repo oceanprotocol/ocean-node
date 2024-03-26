@@ -36,13 +36,17 @@ import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.j
 import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
 import { FindDdoHandler } from '../../components/core/ddoHandler.js'
 import { streamToObject } from '../../utils/util.js'
+import { OceanIndexer } from '../../components/Indexer/index.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
+  let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let publisherAccount: Signer
   let publishedDataset: any
+  let dbconn: Database
+  let network: any
   const currentDate = new Date()
   const expiryTimestamp = new Date(
     currentDate.getFullYear() + 1,
@@ -77,10 +81,11 @@ describe('Should test admin operations', () => {
     )
 
     config = await getConfiguration(true) // Force reload the configuration
-    const dbconn = await new Database(config.dbConfig)
+    dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
+    indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
 
-    let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+    network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
       network = getOceanArtifactsAdresses().development
     }
@@ -114,7 +119,6 @@ describe('Should test admin operations', () => {
   })
 
   it('should pass for reindex tx command', async () => {
-    console.log(`publisher addr: ${await publisherAccount.getAddress()}`)
     const signature = await getSignature(expiryTimestamp.toString())
 
     const reindexTxCommand: AdminReindexTxCommand = {
@@ -127,14 +131,12 @@ describe('Should test admin operations', () => {
     }
     const reindexTxHandler = new ReindexTxHandler(oceanNode)
     const validationResponse = reindexTxHandler.validate(reindexTxCommand)
-    console.log(`validation resp for reindex tx handler: ${validationResponse}`)
     assert(validationResponse, 'invalid reindex tx validation response')
     assert(validationResponse.valid === true, 'validation for reindex tx command failed')
 
     const handlerResponse = await reindexTxHandler.handle(reindexTxCommand)
     assert(handlerResponse, 'handler resp does not exist')
     assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
-    console.log(`ddo: ${JSON.stringify(publishedDataset.ddo)}`)
     const findDDOTask = {
       command: PROTOCOL_COMMANDS.FIND_DDO,
       id: publishedDataset.ddo.id
@@ -156,12 +158,17 @@ describe('Should test admin operations', () => {
     }
     const reindexChainHandler = new ReindexChainHandler(oceanNode)
     const validationResponse = reindexChainHandler.validate(reindexChainCommand)
-    console.log(`validation resp for reindex chain handler: ${validationResponse}`)
     assert(validationResponse, 'invalid reindex chain validation response')
     assert(
       validationResponse.valid === true,
       'validation for reindex chain command failed'
     )
+
+    const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
+    assert(handlerResponse, 'handler resp does not exist')
+    assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
+    assert(dbconn.ddo.retrieve(publishedDataset.ddo.id) === null, 'ddo does not exist')
+    assert(indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID) === network.startBlock)
   })
 
   after(async () => {

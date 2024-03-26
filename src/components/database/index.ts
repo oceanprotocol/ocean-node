@@ -293,6 +293,7 @@ export class DdoDatabase {
             LOG_LEVELS_STR.LEVEL_ERROR
           )
         }
+        return ddo
       }
     }
 

@@ -4,13 +4,13 @@ import {
   validateCommandParameters,
   ValidateParams,
   buildInvalidRequestMessage,
-  buildInvalidParametersResponse
+  buildInvalidParametersResponse,
+  buildErrorResponse
 } from '../../httpRoutes/validateCommands.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { checkSupportedChainId, Blockchain } from '../../../utils/blockchain.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
-import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { processBlocks, getDeployedContractBlock } from '../../Indexer/utils.js'
 
 export class ReindexChainHandler extends AdminHandler {
@@ -31,8 +31,9 @@ export class ReindexChainHandler extends AdminHandler {
     CORE_LOGGER.logMessage(`Reindexing chain command called`)
     const checkChainId = await checkSupportedChainId(task.chainId)
     if (!checkChainId.validation) {
-      CORE_LOGGER.error(`Chain ID ${task.chainId} is not supported in config.`)
-      return
+      return buildErrorResponse(
+        `Chain ID ${task.chainId} is not supported in the node's config`
+      )
     }
     const blockchain = new Blockchain(checkChainId.networkRpc, task.chainId)
     const provider = blockchain.getProvider()
@@ -52,12 +53,8 @@ export class ReindexChainHandler extends AdminHandler {
         latestBlock - deployedBlock + 1
       )
       if (!ret) {
-        CORE_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_ERROR,
-          `Reindex chain failed on chain ${task.chainId}.`,
-          true
-        )
-        return
+        CORE_LOGGER.error(`Reindex chain failed on chain ${task.chainId}.`)
+        return buildErrorResponse(`Reindex chain failed on chain ${task.chainId}.`)
       }
 
       return {
@@ -65,11 +62,8 @@ export class ReindexChainHandler extends AdminHandler {
         stream: new ReadableString('REINDEX CHAIN OK')
       }
     } catch (error) {
-      CORE_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `REINDEX chain: ${error.message} `,
-        true
-      )
+      CORE_LOGGER.error(`REINDEX chain: ${error.message}`)
+      return buildErrorResponse(`REINDEX chain: ${error.message}`)
     }
   }
 }
