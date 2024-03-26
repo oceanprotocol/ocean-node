@@ -2,7 +2,7 @@
 
 import { Database } from '../../components/database/index.js'
 import { OCEAN_NODE_LOGGER } from './common.js'
-const cron = require('node-cron')
+import * as cron from 'node-cron'
 
 export function scheduleCronJobs(dbconn: Database | null) {
   // Schedule the cron job to run daily at midnight
