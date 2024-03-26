@@ -130,6 +130,7 @@ export async function createProviderFee(
     )
   )
 }
+
 export async function verifyProviderFees(
   txId: string,
   userAddress: string,
@@ -146,29 +147,33 @@ export async function verifyProviderFees(
   const txReceiptMined = await fetchTransactionReceipt(txId, provider)
   if (!txReceiptMined) {
     errorMsg = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
-    return { isValid: false, message: errorMsg, isComputeValid: false, validUntil: 0 }
   }
 
+  // const eventTimestamp = (await provider.getBlock(txReceiptMined.blockHash)).timestamp
   const now = Math.round(new Date().getTime() / 1000)
-  const providerFeesEvents = fetchEventFromTransaction(
+  const ProviderFeesEvents = fetchEventFromTransaction(
     txReceiptMined,
     'ProviderFee',
     contractInterface
   )
 
-  let validEventFound = false
-  for (const event of providerFeesEvents) {
+  let ProviderFeesEvent
+  for (const event of ProviderFeesEvents) {
     const providerAddress = event.args[0].toLowerCase()
+    CORE_LOGGER.logMessage('providerAddress: ' + providerAddress)
     const validUntilContract = parseInt(event.args[7].toString())
     const utf = ethers.toUtf8String(event.args[3])
+    CORE_LOGGER.logMessage('utf: ' + utf)
     let providerData
 
     try {
       providerData = JSON.parse(utf)
     } catch (e) {
       console.error(e)
+      CORE_LOGGER.logMessage('ProviderFee event JSON parsing failed')
       continue // Skip this event if JSON parsing fails
     }
+    CORE_LOGGER.logMessage('providerData: ' + JSON.stringify(providerData))
 
     if (
       providerAddress === providerWallet.address.toLowerCase() &&
@@ -176,24 +181,80 @@ export async function verifyProviderFees(
       providerData.dt.toLowerCase() === service.datatokenAddress.toLowerCase() &&
       (now < validUntilContract || validUntilContract === 0)
     ) {
-      validEventFound = true
+      CORE_LOGGER.logMessage('ProviderFee event found')
+      ProviderFeesEvent = event
       break // Exit the loop if a valid event is found
     }
+    CORE_LOGGER.logMessage('ProviderFee event not found')
   }
 
-  if (!validEventFound) {
-    // If no events passed validation
-    CORE_LOGGER.logMessage(errorMsg || 'No valid provider fee event found')
-    errorMsg = 'No valid ProviderFee event found in the transaction.'
+  // check provider address
+  if (ProviderFeesEvent.args[0].toLowerCase() !== providerWallet.address.toLowerCase()) {
+    errorMsg = 'Provider address does not match'
   }
-
-  return {
-    isValid: validEventFound,
-    isComputeValid: false, // Additional logic needed if computeEnv is used
-    message: errorMsg || 'Unknown error.',
-    validUntil: 0 // Set correctly if computeEnv is used
+  const validUntilContract = parseInt(ProviderFeesEvent.args[7].toString())
+  if (now >= validUntilContract && validUntilContract !== 0) {
+    errorMsg = 'Provider fees expired.'
   }
+  // check serviceId and datatokenAddress
+  const utf = ethers.toUtf8String(ProviderFeesEvent.args[3])
+  let providerData
+  try {
+    providerData = JSON.parse(utf)
+  } catch (e) {
+    console.error(e)
+    // providerData was empty??
+    providerData = {
+      environment: null,
+      timestamp: 0,
+      dt: null,
+      id: null
+    }
+  }
+  if (providerData.id !== service.id) {
+    errorMsg = 'ProviderFee service.id does not match with provided service id'
+  }
+  if (providerData.dt.toLowerCase() !== service.datatokenAddress.toLowerCase()) {
+    errorMsg =
+      'ProviderFee datatoken address does not match with service datatoken address'
+  }
+  const retMsg = {
+    isValid: true,
+    isComputeValid: false,
+    message: '',
+    validUntil: 0
+  }
+  if (computeEnv) {
+    retMsg.isComputeValid = true
+    if (providerData.environment !== computeEnv) {
+      errorMsg =
+        'ProviderFee computeEnv(' +
+        providerData.environment +
+        ') does not match with requested provider computeEnv(' +
+        computeEnv +
+        ')'
+      retMsg.isComputeValid = false
+    }
+    if (validUntil > 0) {
+      if (providerData.timestamp < validUntil) {
+        errorMsg =
+          'ProviderFee compute validity(' +
+          providerData.timestamp +
+          ') lower than needed ' +
+          validUntil
+        retMsg.isComputeValid = false
+      }
+    } else {
+      retMsg.validUntil = providerData.timestamp
+    }
+  }
+  if (errorMsg) {
+    CORE_LOGGER.logMessage(errorMsg)
+    retMsg.message = errorMsg
+  }
+  return retMsg
 }
+
 // TO DO - delete functions below, as they are used in the tests
 // new provider create & verify  -> see above :)
 
