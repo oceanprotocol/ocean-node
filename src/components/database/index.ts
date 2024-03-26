@@ -229,9 +229,10 @@ export class DdoStateDatabase {
           .documents()
           .create({ id: did, chainId, did, nftAddress, txId, valid, errorMsg })
       }
-      const errorMsg = `Error when saving ddo state for: ${did} Error: ` + error.message
+      const errorMessage =
+        `Error when saving ddo state for: ${did} Error: ` + error.message
       DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
+        errorMessage,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
