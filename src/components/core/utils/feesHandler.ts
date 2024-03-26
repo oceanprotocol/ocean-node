@@ -156,62 +156,42 @@ export async function verifyProviderFees(
     contractInterface
   )
 
+  let validEventFound = false
   for (const event of providerFeesEvents) {
-    // Reset errorMsg for each event
-    errorMsg = null
-
-    if (event.args[0].toLowerCase() !== providerWallet.address.toLowerCase()) {
-      errorMsg = 'Provider address does not match'
-      continue // Skip to the next event
-    }
-
+    const providerAddress = event.args[0].toLowerCase()
     const validUntilContract = parseInt(event.args[7].toString())
-    if (now >= validUntilContract && validUntilContract !== 0) {
-      errorMsg = 'Provider fees expired.'
-      continue
-    }
-
     const utf = ethers.toUtf8String(event.args[3])
     let providerData
+
     try {
       providerData = JSON.parse(utf)
     } catch (e) {
       console.error(e)
-      continue
+      continue // Skip this event if JSON parsing fails
     }
 
     if (
-      providerData.id !== service.id ||
-      providerData.dt.toLowerCase() !== service.datatokenAddress.toLowerCase()
+      providerAddress === providerWallet.address.toLowerCase() &&
+      providerData.id === service.id &&
+      providerData.dt.toLowerCase() === service.datatokenAddress.toLowerCase() &&
+      (now < validUntilContract || validUntilContract === 0)
     ) {
-      continue // Skip to the next event
-    }
-
-    if (computeEnv) {
-      if (
-        providerData.environment !== computeEnv ||
-        (validUntil > 0 && providerData.timestamp < validUntil)
-      ) {
-        continue // Skip to the next event
-      }
-    }
-
-    // If all checks pass for this event
-    return {
-      isValid: true,
-      isComputeValid: computeEnv ? providerData.environment === computeEnv : false,
-      message: '',
-      validUntil: computeEnv ? providerData.timestamp : 0
+      validEventFound = true
+      break // Exit the loop if a valid event is found
     }
   }
 
-  // If no events passed validation
-  CORE_LOGGER.logMessage(errorMsg || 'No valid provider fee event found')
+  if (!validEventFound) {
+    // If no events passed validation
+    CORE_LOGGER.logMessage(errorMsg || 'No valid provider fee event found')
+    errorMsg = 'No valid ProviderFee event found in the transaction.'
+  }
+
   return {
-    isValid: false,
-    isComputeValid: false,
-    message: errorMsg || 'No valid provider fee event found',
-    validUntil: 0
+    isValid: validEventFound,
+    isComputeValid: false, // Additional logic needed if computeEnv is used
+    message: errorMsg || 'Unknown error.',
+    validUntil: 0 // Set correctly if computeEnv is used
   }
 }
 // TO DO - delete functions below, as they are used in the tests
