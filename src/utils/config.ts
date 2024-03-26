@@ -1,4 +1,4 @@
-import type { OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
+import type { BlackList, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
 import type { C2DClusterInfo } from '../@types/C2D.js'
 import { C2DClusterType } from '../@types/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
@@ -329,12 +329,34 @@ function getRateLimit(isStartup: boolean = false) {
     return DEFAULT_RATE_LIMIT_PER_SECOND
   } else {
     try {
-      return getIntEnvValue(
-        ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND.value,
-        DEFAULT_RATE_LIMIT_PER_SECOND
-      )
+      return getIntEnvValue(process.env.MAX_REQ_PER_SECOND, DEFAULT_RATE_LIMIT_PER_SECOND)
     } catch (err) {
+      CONFIG_LOGGER.error(
+        `Invalid "${ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND.name}" env variable...`
+      )
       return DEFAULT_RATE_LIMIT_PER_SECOND
+    }
+  }
+}
+
+// get blacklisted ips and peer ids
+function getBlackList(isStartup: boolean = false): BlackList {
+  const defaultBlackList: BlackList = {
+    peers: [],
+    ips: []
+  }
+  if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.RATE_BLACKLIST, isStartup)) {
+    return defaultBlackList
+  } else {
+    try {
+      const blacklist: BlackList = JSON.parse(process.env.RATE_BLACKLIST) as BlackList
+      return blacklist
+    } catch (err) {
+      CONFIG_LOGGER.error(
+        `Invalid "${ENVIRONMENT_VARIABLES.RATE_BLACKLIST.name}" env variable...`
+      )
+      console.log('error:', err)
+      return defaultBlackList
     }
   }
 }
@@ -435,7 +457,8 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
     assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),
     allowedAdmins: getAllowedAdmins(isStartup),
-    rateLimit: getRateLimit(isStartup)
+    rateLimit: getRateLimit(isStartup),
+    blackList: getBlackList(isStartup)
   }
 
   if (!previousConfiguration) {

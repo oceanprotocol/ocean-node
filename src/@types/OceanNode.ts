@@ -8,6 +8,12 @@ export interface OceanNodeDBConfig {
   url: string | null
 }
 
+// blacklisted peer ids and ips (for rate limiting purposes)
+export interface BlackList {
+  peers: string[]
+  ips: string[]
+}
+
 export interface OceanNodeKeys {
   peerId: PeerId
   publicKey: any
@@ -51,6 +57,7 @@ export interface OceanNodeConfig {
   allowedAdmins?: string[]
   codeHash?: string
   rateLimit?: number
+  blackList?: BlackList
 }
 
 export interface P2PStatusResponse {

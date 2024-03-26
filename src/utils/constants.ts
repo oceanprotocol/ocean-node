@@ -210,6 +210,12 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'MAX_REQ_PER_SECOND',
     value: process.env.MAX_REQ_PER_SECOND,
     required: false
+  },
+  RATE_BLACKLIST: {
+    // rate limit blacklist (peers and ips)
+    name: 'RATE_BLACKLIST',
+    value: process.env.RATE_BLACKLIST,
+    required: false
   }
 }
 
