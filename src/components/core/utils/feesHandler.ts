@@ -130,6 +130,7 @@ export async function createProviderFee(
     )
   )
 }
+
 export async function verifyProviderFees(
   txId: string,
   userAddress: string,
@@ -150,23 +151,48 @@ export async function verifyProviderFees(
 
   // const eventTimestamp = (await provider.getBlock(txReceiptMined.blockHash)).timestamp
   const now = Math.round(new Date().getTime() / 1000)
-  const ProviderFeesEvent = fetchEventFromTransaction(
+  const ProviderFeesEvents = fetchEventFromTransaction(
     txReceiptMined,
     'ProviderFee',
     contractInterface
   )
+
+  let ProviderFeesEvent
+  for (const event of ProviderFeesEvents) {
+    const providerAddress = event.args[0].toLowerCase()
+    const validUntilContract = parseInt(event.args[7].toString())
+    const utf = ethers.toUtf8String(event.args[3])
+    let providerData
+
+    try {
+      providerData = JSON.parse(utf)
+    } catch (e) {
+      CORE_LOGGER.logMessage('ProviderFee event JSON parsing failed')
+      continue // Skip this event if JSON parsing fails
+    }
+
+    if (
+      providerAddress === providerWallet.address.toLowerCase() &&
+      providerData.id === service.id &&
+      providerData.dt.toLowerCase() === service.datatokenAddress.toLowerCase() &&
+      (now < validUntilContract || validUntilContract === 0)
+    ) {
+      CORE_LOGGER.logMessage('ProviderFee event found')
+      ProviderFeesEvent = event
+      break // Exit the loop if a valid event is found
+    }
+  }
+
   // check provider address
-  if (
-    ProviderFeesEvent[0].args[0].toLowerCase() !== providerWallet.address.toLowerCase()
-  ) {
+  if (ProviderFeesEvent.args[0].toLowerCase() !== providerWallet.address.toLowerCase()) {
     errorMsg = 'Provider address does not match'
   }
-  const validUntilContract = parseInt(ProviderFeesEvent[0].args[7].toString())
+  const validUntilContract = parseInt(ProviderFeesEvent.args[7].toString())
   if (now >= validUntilContract && validUntilContract !== 0) {
     errorMsg = 'Provider fees expired.'
   }
   // check serviceId and datatokenAddress
-  const utf = ethers.toUtf8String(ProviderFeesEvent[0].args[3])
+  const utf = ethers.toUtf8String(ProviderFeesEvent.args[3])
   let providerData
   try {
     providerData = JSON.parse(utf)
@@ -218,7 +244,7 @@ export async function verifyProviderFees(
     }
   }
   if (errorMsg) {
-    CORE_LOGGER.logMessage(errorMsg)
+    CORE_LOGGER.logMessage('Error occurred when verifying provider fees: ' + errorMsg)
     retMsg.message = errorMsg
   }
   return retMsg
