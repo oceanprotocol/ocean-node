@@ -206,6 +206,7 @@ export async function verifyProviderFees(
   }
 
   // If no events passed validation
+  CORE_LOGGER.logMessage(errorMsg || 'No valid provider fee event found')
   return {
     isValid: false,
     isComputeValid: false,
