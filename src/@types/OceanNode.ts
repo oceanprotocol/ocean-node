@@ -50,6 +50,7 @@ export interface OceanNodeConfig {
   assetPurgatoryUrl: string
   allowedAdmins?: string[]
   codeHash?: string
+  rateLimit?: number
 }
 
 export interface P2PStatusResponse {

@@ -3,7 +3,12 @@ import type { C2DClusterInfo } from '../@types/C2D.js'
 import { C2DClusterType } from '../@types/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
-import { ENVIRONMENT_VARIABLES, hexStringToByteArray } from '../utils/index.js'
+import {
+  DEFAULT_RATE_LIMIT_PER_SECOND,
+  ENVIRONMENT_VARIABLES,
+  EnvVariable,
+  hexStringToByteArray
+} from '../utils/index.js'
 import type { PeerId } from '@libp2p/interface/peer-id'
 
 import { LOG_LEVELS_STR, GENERIC_EMOJIS, getLoggerLevelEmoji } from './logging/Logger.js'
@@ -179,11 +184,7 @@ function getOceanNodeFees(supportedNetworks: RPCS, isStartup?: boolean): FeeStra
     // if not exists, just use defaults
     if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.FEE_AMOUNT)) {
       if (isStartup) {
-        CONFIG_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_WARN,
-          `Missing "${ENVIRONMENT_VARIABLES.FEE_AMOUNT.name}" env variable. Will use defaults...`,
-          true
-        )
+        logMissingVariableWithDefault(ENVIRONMENT_VARIABLES.FEE_AMOUNT)
       }
 
       nodeFeesAmount = { amount: 0, unit: 'MB' }
@@ -193,11 +194,7 @@ function getOceanNodeFees(supportedNetworks: RPCS, isStartup?: boolean): FeeStra
     if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.FEE_TOKENS)) {
       // try to get first for artifacts address if available
       if (isStartup) {
-        CONFIG_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_WARN,
-          `Missing "${ENVIRONMENT_VARIABLES.FEE_TOKENS.name}" env variable. Will use defaults...`,
-          true
-        )
+        logMissingVariableWithDefault(ENVIRONMENT_VARIABLES.FEE_TOKENS)
       }
 
       nodeFeesTokens = getDefaultFeeTokens(supportedNetworks)
@@ -264,11 +261,7 @@ function getNodeInterfaces(isStartup: boolean = false) {
   let interfaces: string[] = ['P2P', 'HTTP']
   if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.INTERFACES)) {
     if (isStartup) {
-      CONFIG_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_WARN,
-        `Missing "${ENVIRONMENT_VARIABLES.INTERFACES.name}" env variable. Will use defaults...`,
-        true
-      )
+      logMissingVariableWithDefault(ENVIRONMENT_VARIABLES.INTERFACES)
     }
   } else {
     try {
@@ -318,6 +311,32 @@ export function existsEnvironmentVariable(envVariable: any, log = false): boolea
     return false
   }
   return true
+}
+
+function logMissingVariableWithDefault(envVariable: EnvVariable) {
+  CONFIG_LOGGER.log(
+    LOG_LEVELS_STR.LEVEL_WARN,
+    `Missing "${envVariable.name}" env variable. Will use defaults...`,
+    true
+  )
+}
+// have a rate limit for handler calls
+function getRateLimit(isStartup: boolean = false) {
+  if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND)) {
+    if (isStartup) {
+      logMissingVariableWithDefault(ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND)
+    }
+    return DEFAULT_RATE_LIMIT_PER_SECOND
+  } else {
+    try {
+      return getIntEnvValue(
+        ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND.value,
+        DEFAULT_RATE_LIMIT_PER_SECOND
+      )
+    } catch (err) {
+      return DEFAULT_RATE_LIMIT_PER_SECOND
+    }
+  }
 }
 
 // lazy access ocean node config, when we don't need updated values from process.env
@@ -415,7 +434,8 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     c2dClusters: getC2DClusterEnvironment(isStartup),
     accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
     assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),
-    allowedAdmins: getAllowedAdmins(isStartup)
+    allowedAdmins: getAllowedAdmins(isStartup),
+    rateLimit: getRateLimit(isStartup)
   }
 
   if (!previousConfiguration) {

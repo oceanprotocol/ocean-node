@@ -204,5 +204,14 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'DASHBOARD',
     value: process.env.DASHBOARD,
     required: false
+  },
+  MAX_REQ_PER_SECOND: {
+    // rate limit per second
+    name: 'MAX_REQ_PER_SECOND',
+    value: process.env.MAX_REQ_PER_SECOND,
+    required: false
   }
 }
+
+// default to 3 requests per second (configurable)
+export const DEFAULT_RATE_LIMIT_PER_SECOND = 3
