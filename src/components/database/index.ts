@@ -725,11 +725,9 @@ export class LogDatabase {
     maxLogs: number,
     moduleName?: string,
     level?: string,
-    maxLogsPerPage?: number,
     page?: number
   ): Promise<Record<string, any>[] | null> {
     try {
-      let allLogs: Record<string, any>[] = []
       let filterConditions = `timestamp:>=${startTime.getTime()} && timestamp:<${endTime.getTime()}`
       if (moduleName) {
         filterConditions += ` && moduleName:${moduleName}`
@@ -737,8 +735,10 @@ export class LogDatabase {
       if (level) {
         filterConditions += ` && level:${level}`
       }
+
+      // Cap maxLogs at 250 to adhere to Typesense's maximum limit
+      const logsLimit = Math.min(maxLogs, 250)
       if (maxLogs > 250) {
-        maxLogs = 250
         DATABASE_LOGGER.logMessageWithEmoji(
           `Max logs is capped at 250 as Typesense is unable to return more results per page.`,
           true,
@@ -747,57 +747,24 @@ export class LogDatabase {
         )
       }
 
-      const maxPerPage = Math.min(maxLogsPerPage || maxLogs, 250) // Limit maxPerPage to 250 or user-defined limit, whichever is smaller.
-
-      if (page) {
-        // If page number is provided, fetch only for that specific page.
-        const searchParameters = {
-          q: '*',
-          query_by: 'message,level,meta',
-          filter_by: filterConditions,
-          sort_by: 'timestamp:desc',
-          per_page: maxPerPage,
-          page
-        }
-
-        const result = await this.provider
-          .collections(this.schema.name)
-          .documents()
-          .search(searchParameters)
-
-        return result.hits.map((hit) => hit.document)
-      } else {
-        // If no page number is provided, concatenate logs across all pages.
-        let currentPage = 1
-        let totalFetchedLogs = 0
-
-        while (true) {
-          const searchParameters = {
-            q: '*',
-            query_by: 'message,level,meta',
-            filter_by: filterConditions,
-            sort_by: 'timestamp:desc',
-            per_page: maxPerPage,
-            page: currentPage
-          }
-
-          const result = await this.provider
-            .collections(this.schema.name)
-            .documents()
-            .search(searchParameters)
-
-          allLogs = allLogs.concat(result.hits.map((hit) => hit.document))
-          totalFetchedLogs += result.hits.length
-
-          if (result.hits.length < maxPerPage || totalFetchedLogs >= maxLogs) {
-            break // Break if the last page is reached or the maxLogs limit is hit.
-          }
-
-          currentPage++
-        }
-
-        return allLogs
+      // Define search parameters
+      const searchParameters = {
+        q: '*',
+        query_by: 'message,level,meta',
+        filter_by: filterConditions,
+        sort_by: 'timestamp:desc',
+        per_page: logsLimit,
+        page: page || 1 // Default to the first page if page number is not provided
       }
+
+      // Execute search query
+      const result = await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .search(searchParameters)
+
+      // Map and return the search hits as log entries
+      return result.hits.map((hit) => hit.document)
     } catch (error) {
       const errorMsg = `Error when retrieving multiple log entries: ${error.message}`
       DATABASE_LOGGER.logMessageWithEmoji(

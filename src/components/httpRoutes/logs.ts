@@ -15,25 +15,14 @@ logRoutes.get('/logs', async (req, res) => {
     const moduleName =
       typeof req.query.moduleName === 'string' ? req.query.moduleName : undefined
     const level = typeof req.query.level === 'string' ? req.query.level : undefined
-    const maxLogsPerPage =
-      typeof req.query.maxLogsPerPage === 'string'
-        ? Math.min(parseInt(req.query.maxLogsPerPage, 10), 250)
-        : 250 // Default to 250, capped at 250
+
     const page =
       typeof req.query.page === 'string' ? parseInt(req.query.page, 10) : undefined // Default to undefined, which will fetch all logs
 
     // Retrieve logs from the database with pagination
     const logs = await req.oceanNode
       .getDatabase()
-      .logs.retrieveMultipleLogs(
-        startTime,
-        endTime,
-        maxLogs,
-        moduleName,
-        level,
-        maxLogsPerPage,
-        page
-      )
+      .logs.retrieveMultipleLogs(startTime, endTime, maxLogs, moduleName, level, page)
 
     if (logs) {
       res.json(logs)
