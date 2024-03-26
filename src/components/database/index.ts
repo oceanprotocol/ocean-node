@@ -386,6 +386,7 @@ export class DdoDatabase {
       filter_by: `chainId:=${chainId}`
     }
     const results = await this.search(searchParameters)
+    DATABASE_LOGGER.logMessage(`results when deleting all assets: ${results}`)
     for (const res of results) {
       if (res && res.hits) {
         for (const h of res.hits) {
