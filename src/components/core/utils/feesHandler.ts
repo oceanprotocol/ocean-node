@@ -146,84 +146,73 @@ export async function verifyProviderFees(
   const txReceiptMined = await fetchTransactionReceipt(txId, provider)
   if (!txReceiptMined) {
     errorMsg = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
+    return { isValid: false, message: errorMsg, isComputeValid: false, validUntil: 0 }
   }
 
-  // const eventTimestamp = (await provider.getBlock(txReceiptMined.blockHash)).timestamp
   const now = Math.round(new Date().getTime() / 1000)
-  const ProviderFeesEvent = fetchEventFromTransaction(
+  const providerFeesEvents = fetchEventFromTransaction(
     txReceiptMined,
     'ProviderFee',
     contractInterface
   )
-  // check provider address
-  if (
-    ProviderFeesEvent[0].args[0].toLowerCase() !== providerWallet.address.toLowerCase()
-  ) {
-    errorMsg = 'Provider address does not match'
-  }
-  const validUntilContract = parseInt(ProviderFeesEvent[0].args[7].toString())
-  if (now >= validUntilContract && validUntilContract !== 0) {
-    errorMsg = 'Provider fees expired.'
-  }
-  // check serviceId and datatokenAddress
-  const utf = ethers.toUtf8String(ProviderFeesEvent[0].args[3])
-  let providerData
-  try {
-    providerData = JSON.parse(utf)
-  } catch (e) {
-    console.error(e)
-    // providerData was empty??
-    providerData = {
-      environment: null,
-      timestamp: 0,
-      dt: null,
-      id: null
+
+  for (const event of providerFeesEvents) {
+    // Reset errorMsg for each event
+    errorMsg = null
+
+    if (event.args[0].toLowerCase() !== providerWallet.address.toLowerCase()) {
+      errorMsg = 'Provider address does not match'
+      continue // Skip to the next event
+    }
+
+    const validUntilContract = parseInt(event.args[7].toString())
+    if (now >= validUntilContract && validUntilContract !== 0) {
+      errorMsg = 'Provider fees expired.'
+      continue
+    }
+
+    const utf = ethers.toUtf8String(event.args[3])
+    let providerData
+    try {
+      providerData = JSON.parse(utf)
+    } catch (e) {
+      console.error(e)
+      continue
+    }
+
+    if (
+      providerData.id !== service.id ||
+      providerData.dt.toLowerCase() !== service.datatokenAddress.toLowerCase()
+    ) {
+      continue // Skip to the next event
+    }
+
+    if (computeEnv) {
+      if (
+        providerData.environment !== computeEnv ||
+        (validUntil > 0 && providerData.timestamp < validUntil)
+      ) {
+        continue // Skip to the next event
+      }
+    }
+
+    // If all checks pass for this event
+    return {
+      isValid: true,
+      isComputeValid: computeEnv ? providerData.environment === computeEnv : false,
+      message: '',
+      validUntil: computeEnv ? providerData.timestamp : 0
     }
   }
-  if (providerData.id !== service.id) {
-    errorMsg = 'ProviderFee service.id does not match with provided service id'
-  }
-  if (providerData.dt.toLowerCase() !== service.datatokenAddress.toLowerCase()) {
-    errorMsg =
-      'ProviderFee datatoken address does not match with service datatoken address'
-  }
-  const retMsg = {
-    isValid: true,
+
+  // If no events passed validation
+  return {
+    isValid: false,
     isComputeValid: false,
-    message: '',
+    message: errorMsg || 'No valid provider fee event found',
     validUntil: 0
   }
-  if (computeEnv) {
-    retMsg.isComputeValid = true
-    if (providerData.environment !== computeEnv) {
-      errorMsg =
-        'ProviderFee computeEnv(' +
-        providerData.environment +
-        ') does not match with requested provider computeEnv(' +
-        computeEnv +
-        ')'
-      retMsg.isComputeValid = false
-    }
-    if (validUntil > 0) {
-      if (providerData.timestamp < validUntil) {
-        errorMsg =
-          'ProviderFee compute validity(' +
-          providerData.timestamp +
-          ') lower than needed ' +
-          validUntil
-        retMsg.isComputeValid = false
-      }
-    } else {
-      retMsg.validUntil = providerData.timestamp
-    }
-  }
-  if (errorMsg) {
-    CORE_LOGGER.logMessage(errorMsg)
-    retMsg.message = errorMsg
-  }
-  return retMsg
 }
-
 // TO DO - delete functions below, as they are used in the tests
 // new provider create & verify  -> see above :)
 
