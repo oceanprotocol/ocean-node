@@ -321,7 +321,7 @@ describe('Compute', () => {
     )
     assert(
       !('providerFee' in resultParsed),
-      '1. dataset providerFeeAddress should not exist'
+      'dataset providerFeeAddress should not exist'
     )
     assert(result.datasets[0].validOrder !== false, 'We should have a valid order') // because we started an order earlier
   })
@@ -381,7 +381,7 @@ describe('Compute', () => {
     )
     assert(
       !('providerFee' in result.algorithm),
-      '2. dataset providerFeeAddress should not exist'
+      'dataset providerFeeAddress should not exist'
     )
     assert(result.algorithm.validOrder !== false, 'We should have a valid order') // because we started an order earlier
     // dataset checks
@@ -393,7 +393,7 @@ describe('Compute', () => {
     )
     assert(
       !('providerFee' in resultParsed),
-      '3. dataset providerFeeAddress should not exist'
+      'dataset providerFeeAddress should not exist'
     )
     assert(result.datasets[0].validOrder !== false, 'We should have a valid order') // because we started an order earlier
   })

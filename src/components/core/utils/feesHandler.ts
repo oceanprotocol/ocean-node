@@ -160,20 +160,16 @@ export async function verifyProviderFees(
   let ProviderFeesEvent
   for (const event of ProviderFeesEvents) {
     const providerAddress = event.args[0].toLowerCase()
-    CORE_LOGGER.logMessage('providerAddress: ' + providerAddress)
     const validUntilContract = parseInt(event.args[7].toString())
     const utf = ethers.toUtf8String(event.args[3])
-    CORE_LOGGER.logMessage('utf: ' + utf)
     let providerData
 
     try {
       providerData = JSON.parse(utf)
     } catch (e) {
-      console.error(e)
       CORE_LOGGER.logMessage('ProviderFee event JSON parsing failed')
       continue // Skip this event if JSON parsing fails
     }
-    CORE_LOGGER.logMessage('providerData: ' + JSON.stringify(providerData))
 
     if (
       providerAddress === providerWallet.address.toLowerCase() &&
@@ -185,7 +181,6 @@ export async function verifyProviderFees(
       ProviderFeesEvent = event
       break // Exit the loop if a valid event is found
     }
-    CORE_LOGGER.logMessage('ProviderFee event not found')
   }
 
   // check provider address
@@ -249,7 +244,7 @@ export async function verifyProviderFees(
     }
   }
   if (errorMsg) {
-    CORE_LOGGER.logMessage(errorMsg)
+    CORE_LOGGER.logMessage('Error occurred when verifying provider fees: ' + errorMsg)
     retMsg.message = errorMsg
   }
   return retMsg
