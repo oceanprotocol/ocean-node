@@ -4,9 +4,10 @@ import { Readable } from 'stream'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { GetDdoHandler, ValidateDDOHandler } from '../core/ddoHandler.js'
-import { QueryHandler } from '../core/queryHandler.js'
+import { QueryHandler, QueryDdoStateHandler } from '../core/queryHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { DDO } from '../../@types/DDO/DDO.js'
+import { QueryDdoStateCommand } from '../../@types/commands.js'
 
 export const aquariusRoutes = express.Router()
 
@@ -89,39 +90,29 @@ aquariusRoutes.post(
 
 aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
   try {
-    let query
+    let query: QueryDdoStateCommand
     const did = String(req.query.did)
     if (did) {
-      query = {
-        q: did,
-        query_by: 'id'
-      }
-    }
-    const chainId = String(req.query.chainId)
-    if (chainId) {
-      query = {
-        q: chainId,
-        query_by: 'chainId'
-      }
+      query.did = did
     }
     const nft = String(req.query.nft)
     if (nft) {
-      query = {
-        q: nft,
-        query_by: 'nft.address'
-      }
+      query.nft = nft
+    }
+    const txId = String(req.query.txId)
+    if (txId) {
+      query.txId = txId
     }
     if (!query) {
       res
         .status(400)
-        .send('Missing or invalid required parameters: "did", "chainId", "nft"')
+        .send(
+          'Missing or invalid required parameters, you need to specify one of: "did", "txId", "nft"'
+        )
       return
     }
-
-    const result = await new QueryHandler(req.oceanNode).handle({
-      query,
-      command: PROTOCOL_COMMANDS.QUERY
-    })
+    query.command = PROTOCOL_COMMANDS.QUERY
+    const result = await new QueryDdoStateHandler(req.oceanNode).handle(query)
     if (result.stream) {
       const queryResult = JSON.parse(await streamToString(result.stream as Readable))
       if (queryResult[0].found) {

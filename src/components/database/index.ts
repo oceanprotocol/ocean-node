@@ -883,6 +883,7 @@ export class Database {
   indexer: IndexerDatabase
   logs: LogDatabase
   order: OrderDatabase
+  ddoState: DdoStateDatabase
 
   constructor(private config: OceanNodeDBConfig) {
     // add this DB transport too
@@ -897,6 +898,7 @@ export class Database {
       this.indexer = await new IndexerDatabase(this.config, schemas.indexerSchemas)
       this.logs = await new LogDatabase(this.config, schemas.logSchemas)
       this.order = await new OrderDatabase(this.config, schemas.orderSchema)
+      this.ddoState = await new DdoStateDatabase(this.config, schemas.ddoStateSchema)
       return this
     })() as unknown as Database
   }
