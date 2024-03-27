@@ -15,6 +15,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import cors from 'cors'
 import { scheduleCronJobs } from './utils/logging/logDeleteCron.js'
+import { requestValidator } from './components/httpRoutes/requestValidator.js'
 
 const app: Express = express()
 
@@ -123,6 +124,7 @@ if (config.hasProvider && dbconn) {
 const oceanNode = OceanNode.getInstance(dbconn, node, provider, indexer)
 
 if (config.hasHttp) {
+  // allow up to 25Mb file upload
   app.use(express.raw({ limit: '25mb' }))
   app.use(cors())
 
@@ -145,8 +147,7 @@ if (config.hasHttp) {
     })
   }
 
-  // allow up to 25Mb file upload
-  app.use((req, res, next) => {
+  app.use(requestValidator, (req, res, next) => {
     req.oceanNode = oceanNode
     next()
   })

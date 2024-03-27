@@ -355,7 +355,6 @@ function getBlackList(isStartup: boolean = false): BlackList {
       CONFIG_LOGGER.error(
         `Invalid "${ENVIRONMENT_VARIABLES.RATE_BLACKLIST.name}" env variable...`
       )
-      console.log('error:', err)
       return defaultBlackList
     }
   }
