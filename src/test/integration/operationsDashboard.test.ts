@@ -176,7 +176,13 @@ describe('Should test admin operations', () => {
     //   (await dbconn.ddo.retrieve(publishedDataset.ddo.id)) === null,
     //   'ddo does not exist'
     // )
-    assert(indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID) === network.startBlock)
+    console.log(
+      `indexer last block: ${await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)}`
+    )
+    console.log(`network.startBlock: ${network.startBlock}`)
+    assert(
+      (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) === network.startBlock
+    )
   })
 
   after(async () => {
