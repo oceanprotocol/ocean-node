@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import { getConfiguration } from '../../utils'
+import { HTTP_LOGGER } from '../../utils/logging/common'
 
 // TODO we should group common stuff,
 // we have multiple similar validation interfaces
@@ -10,12 +11,9 @@ export interface CommonValidation {
 const configuration = await getConfiguration()
 // midleware to valid client addresses against a blacklist
 export const requestValidator = function (req: Request, res: Response, next: any) {
-  // Perform your validations.
-  console.log(req.headers['x-forwarded-for'])
-  console.log(req.socket.remoteAddress)
+  // Perform the validations.
   const requestIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress
-
-  const validation = check(requestIP)
+  const validation = checkIP(requestIP)
   // Validation failed, or an error occurred during the external request.
   if (!validation.valid) {
     res.status(403).send(validation.error)
@@ -25,7 +23,7 @@ export const requestValidator = function (req: Request, res: Response, next: any
   next()
 }
 
-function check(requestIP: string | string[]): CommonValidation {
+function checkIP(requestIP: string | string[]): CommonValidation {
   let isBlackListed = false
   if (!Array.isArray(requestIP)) {
     isBlackListed = configuration.blackList?.ips.includes(requestIP)
@@ -38,10 +36,12 @@ function check(requestIP: string | string[]): CommonValidation {
     }
   }
 
+  if (isBlackListed) {
+    HTTP_LOGGER.error(`Incoming request denied to blacklisted ip address: ${requestIP}`)
+  }
+
   return {
     valid: !isBlackListed,
-    error: isBlackListed
-      ? `An unauthorized IP address ${requestIP} has tried to access the service`
-      : ''
+    error: isBlackListed ? 'Unauthorized request' : ''
   }
 }

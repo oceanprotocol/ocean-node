@@ -8,6 +8,7 @@ import { P2PCommandResponse } from '../../@types/OceanNode'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import StreamConcat from 'stream-concat'
 import { Handler } from '../core/handler.js'
+import { getConfiguration } from '../../utils/index.js'
 
 export class ReadableString extends Readable {
   private sent = false
@@ -27,15 +28,30 @@ export class ReadableString extends Readable {
 }
 
 export async function handleProtocolCommands(connection: any) {
-  P2P_LOGGER.logMessage(
-    'Incoming connection from peer ' + connection.connection.remotePeer,
-    true
-  )
+  const { remotePeer } = connection.connection
+
+  P2P_LOGGER.logMessage('Incoming connection from peer ' + remotePeer, true)
+
   P2P_LOGGER.logMessage('Using ' + connection.connection.remoteAddr, true)
   let status = null
   let task: Command
   let statusStream
   let sendStream = null
+
+  const blackListedPeers = await (await getConfiguration()).blackList
+  if (blackListedPeers.peers.length > 0) {
+    if (blackListedPeers.peers.includes(remotePeer.toString())) {
+      P2P_LOGGER.error(`Incoming request denied to blacklisted peer: ${remotePeer}`)
+      status = {
+        httpStatus: 403,
+        error: 'Unauthorized request'
+      }
+      statusStream = new ReadableString(JSON.stringify(status))
+      pipe(statusStream, connection.stream.sink)
+      return
+    }
+  }
+
   /* eslint no-unreachable-loop: ["error", { "ignore": ["ForInStatement", "ForOfStatement"] }] */
   for await (const chunk of connection.stream.source) {
     try {
