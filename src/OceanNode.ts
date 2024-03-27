@@ -16,6 +16,8 @@ export class OceanNode {
   private static instance: OceanNode
   // handlers
   private coreHandlers: CoreHandlersRegistry
+  // requester
+  private remoteCaller: string | string[]
   // eslint-disable-next-line no-useless-constructor
   private constructor(
     private db?: Database,
@@ -69,6 +71,14 @@ export class OceanNode {
 
   public getCoreHandlers(): CoreHandlersRegistry {
     return this.coreHandlers
+  }
+
+  public setRemoteCaller(client: string | string[]) {
+    this.remoteCaller = client
+  }
+
+  public getRemoteCaller(): string | string[] {
+    return this.remoteCaller
   }
 
   /**

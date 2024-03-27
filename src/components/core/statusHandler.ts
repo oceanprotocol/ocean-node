@@ -6,6 +6,7 @@ import { Readable } from 'stream'
 import {
   ValidateParams,
   buildInvalidParametersResponse,
+  buildRateLimitReachedResponse,
   validateCommandParameters
 } from '../httpRoutes/validateCommands.js'
 
@@ -15,6 +16,10 @@ export class StatusHandler extends Handler {
   }
 
   async handle(task: StatusCommand): Promise<P2PCommandResponse> {
+    const isOK = await this.checkRateLimit()
+    if (!isOK) {
+      return buildRateLimitReachedResponse()
+    }
     const validation = this.validate(task)
     if (!validation.valid) {
       return buildInvalidParametersResponse(validation)

@@ -74,6 +74,8 @@ export async function handleProtocolCommands(connection: any) {
     status = { httpStatus: 501, error: `No handler found for command: ${task.command}` }
   } else {
     try {
+      // who is calling this handler?
+      handler.getOceanNode().setRemoteCaller(remotePeer.toString())
       response = await handler.handle(task)
       if (response) {
         // eslint-disable-next-line prefer-destructuring

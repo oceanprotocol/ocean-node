@@ -148,6 +148,7 @@ if (config.hasHttp) {
   }
 
   app.use(requestValidator, (req, res, next) => {
+    oceanNode.setRemoteCaller(req.headers['x-forwarded-for'] || req.socket.remoteAddress)
     req.oceanNode = oceanNode
     next()
   })
