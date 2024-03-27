@@ -165,9 +165,16 @@ describe('Should test admin operations', () => {
     )
 
     const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
+    console.log(
+      'retrieved ddo from db: ',
+      JSON.stringify(await dbconn.ddo.retrieve(publishedDataset.ddo.id))
+    )
     assert(handlerResponse, 'handler resp does not exist')
     assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
-    assert(dbconn.ddo.retrieve(publishedDataset.ddo.id) === null, 'ddo does not exist')
+    assert(
+      (await dbconn.ddo.retrieve(publishedDataset.ddo.id)) === null,
+      'ddo does not exist'
+    )
     assert(indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID) === network.startBlock)
   })
 
