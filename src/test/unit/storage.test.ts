@@ -300,6 +300,26 @@ describe('URL Storage getFileInfo tests', () => {
   })
 })
 
+describe('URL Storage with malformed URL', () => {
+  let error: Error
+
+  it('should detect path regex', () => {
+    try {
+      // eslint-disable-next-line no-new
+      new UrlStorage({
+        type: 'url',
+        url: '../../myFolder/',
+        method: 'get'
+      })
+    } catch (err) {
+      error = err
+    }
+    expect(error.message).to.equal(
+      'Error validationg the URL file: URL looks like a file path'
+    )
+  })
+})
+
 describe('Arweave Storage getFileInfo tests', function () {
   this.timeout(15000)
   let storage: ArweaveStorage
@@ -333,6 +353,75 @@ describe('Arweave Storage getFileInfo tests', function () {
     } catch (err) {
       expect(err.message).to.equal('Transaction ID is required for type arweave')
     }
+  })
+})
+
+describe('Arweave Storage with malformed transaction ID', () => {
+  let error: Error
+
+  it('should detect URL path format', () => {
+    try {
+      // eslint-disable-next-line no-new
+      new ArweaveStorage({
+        type: 'arweave',
+        transactionId:
+          'https://raw.githubusercontent.com/tbertinmahieux/MSongsDB/master/Tasks_Demos/CoverSongs/shs_dataset_test.txt'
+      })
+    } catch (err) {
+      error = err
+    }
+    expect(error.message).to.equal(
+      'Error validationg the Arweave file: Transaction ID looks like an URL. Please specify URL storage instead.'
+    )
+  })
+
+  it('should detect path regex', () => {
+    try {
+      // eslint-disable-next-line no-new
+      new ArweaveStorage({
+        type: 'arweave',
+        transactionId: '../../myFolder/'
+      })
+    } catch (err) {
+      error = err
+    }
+    expect(error.message).to.equal(
+      'Error validationg the Arweave file: Transaction ID looks like a file path'
+    )
+  })
+})
+
+describe('Arweave Storage with malformed transaction ID', () => {
+  let error: Error
+
+  it('should detect URL path format', () => {
+    try {
+      // eslint-disable-next-line no-new
+      new IpfsStorage({
+        type: 'ipfs',
+        hash: 'https://raw.githubusercontent.com/tbertinmahieux/MSongsDB/master/Tasks_Demos/CoverSongs/shs_dataset_test.txt'
+      })
+    } catch (err) {
+      error = err
+    }
+    expect(error.message).to.equal(
+      'Error validationg the IPFS file: CID looks like an URL. Please specify URL storage instead.'
+    )
+  })
+
+  it('should detect path regex', () => {
+    try {
+      // eslint-disable-next-line no-new
+      new IpfsStorage({
+        type: 'ipfs',
+        hash: '../../myFolder/'
+      })
+    } catch (err) {
+      error = err
+    }
+    expect(error.message).to.equal(
+      'Error validationg the IPFS file: CID looks like a file path'
+    )
   })
 })
 
