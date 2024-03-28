@@ -96,6 +96,12 @@
   min-width: 55px;
 }
 
+.node {
+  display: flex;
+  flex-direction: row;
+  gap: 18px;
+}
+
 .node:hover {
   color: #333;
   cursor: pointer;
@@ -173,37 +179,6 @@
   justify-content: center;
   align-items: center;
   border-radius: 12px;
-}
-
-.loader {
-  width: 48px;
-  height: 48px;
-  border: 2px solid #FFF;
-  border-radius: 50%;
-  display: inline-block;
-  position: relative;
-  box-sizing: border-box;
-  animation: rotation 1s linear infinite;
-}
-.loader::after,
-.loader::before {
-  content: '';  
-  box-sizing: border-box;
-  position: absolute;
-  left: 0;
-  top: 0;
-  background: #FF3D00;
-  width: 6px;
-  height: 6px;
-  transform: translate(150%, 150%);
-  border-radius: 50%;
-}
-.loader::before {
-  left: auto;
-  top: auto;
-  right: 0;
-  bottom: 0;
-  transform: translate(-150%, -150%);
 }
 
 @keyframes rotation {
