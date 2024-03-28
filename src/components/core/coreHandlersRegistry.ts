@@ -26,7 +26,9 @@ import {
   ComputeGetResultHandler,
   ComputeInitializeHandler
 } from './compute/index.js'
-import { StopNodeHandler } from './adminOperations.js'
+import { StopNodeHandler } from './admin/stopNodeHandler.js'
+import { ReindexTxHandler } from './admin/reindexTxHandler.js'
+import { ReindexChainHandler } from './admin/reindexChainHandler.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -100,6 +102,11 @@ export class CoreHandlersRegistry {
       new ComputeInitializeHandler(node)
     )
     this.registerCoreHandler(PROTOCOL_COMMANDS.STOP_NODE, new StopNodeHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.REINDEX_TX, new ReindexTxHandler(node))
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.REINDEX_CHAIN,
+      new ReindexChainHandler(node)
+    )
   }
 
   public static getInstance(node: OceanNode): CoreHandlersRegistry {

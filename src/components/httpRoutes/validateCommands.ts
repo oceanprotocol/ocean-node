@@ -80,3 +80,13 @@ export function buildInvalidParametersResponse(
     status: { httpStatus: validation.status, error: validation.reason }
   }
 }
+
+export function buildErrorResponse(cause: string): P2PCommandResponse {
+  return {
+    stream: null,
+    status: {
+      httpStatus: 400,
+      error: `The result is not the expected one: ${cause}`
+    }
+  }
+}
