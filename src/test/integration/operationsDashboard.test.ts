@@ -147,6 +147,7 @@ describe('Should test admin operations', () => {
   })
 
   it('should pass for reindex chain command', async () => {
+    const indexerLastBlockBeforereindex = await provider.getBlockNumber()
     const signature = await getSignature(expiryTimestamp.toString())
 
     const reindexChainCommand: AdminReindexChainCommand = {
@@ -181,7 +182,12 @@ describe('Should test admin operations', () => {
     )
     console.log(`network.startBlock: ${network.startBlock}`)
     assert(
-      (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) === network.startBlock
+      (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) <=
+        indexerLastBlockBeforereindex
+    )
+    assert(
+      (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) ===
+        indexerLastBlockBeforereindex - network.startBlock + 1
     )
   })
 

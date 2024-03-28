@@ -45,9 +45,6 @@ export class ReindexChainHandler extends AdminHandler {
         `Assets from chain ${task.chainId} were deleted from db, now starting to reindex...`
       )
       const latestBlock = await provider.getBlockNumber()
-      CORE_LOGGER.logMessage(
-        `diff: ${latestBlock - deployedBlock + 1}, deployed block: ${deployedBlock}`
-      )
       const ret = await processBlocks(
         signer,
         provider,
