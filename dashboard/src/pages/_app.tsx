@@ -4,7 +4,7 @@ import { AdminProvider } from '@context/AdminProvider'
 import '@rainbow-me/rainbowkit/styles.css'
 import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit'
 import { WagmiProvider } from 'wagmi'
-import { mainnet, polygon, hardhat } from 'wagmi/chains'
+import { mainnet, polygon, sepolia, hardhat } from 'wagmi/chains'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 
 // Define Ganache as a custom network
@@ -26,7 +26,7 @@ export default function App({ Component, pageProps }: AppProps) {
     projectId: process.env.NEXT_PUBLIC_WALLET_CONNECT_ID
       ? process.env.NEXT_PUBLIC_WALLET_CONNECT_ID
       : 'da267f7e1897e2cf92a7710f92e8f660',
-    chains: [mainnet, polygon, barge],
+    chains: [mainnet, polygon, sepolia, barge],
     ssr: true
   })
 
