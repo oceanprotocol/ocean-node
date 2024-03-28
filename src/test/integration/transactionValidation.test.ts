@@ -23,6 +23,7 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
+import { homedir } from 'os'
 describe('validateOrderTransaction Function with Orders', () => {
   let database: Database
   let oceanNode: OceanNode
@@ -50,13 +51,15 @@ describe('validateOrderTransaction Function with Orders', () => {
           ENVIRONMENT_VARIABLES.RPCS,
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.DB_URL,
-          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS
+          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
           JSON.stringify(mockSupportedNetworks),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           'http://localhost:8108/?apiKey=xyz',
-          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'])
+          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
     )
@@ -210,8 +213,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     assert(!validationResult.isValid, 'Reuse order transaction should not be valid.')
     assert(
       validationResult.message ===
-        'User address does not match with consumer or payer of the transaction.',
-      'Wrong transaction rejection message'
+        'Tx id used not valid, one of the NFT addresses, Datatoken address or the User address contract address does not match.'
     )
   })
   after(async () => {
