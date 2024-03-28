@@ -65,9 +65,7 @@ export interface QueryCommand extends Command {
 }
 
 export interface QueryDdoStateCommand extends Command {
-  txId?: string
-  nft?: string
-  did?: string
+  query: Record<string, any>
 }
 
 export interface ReindexCommand extends Command {

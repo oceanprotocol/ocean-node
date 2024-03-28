@@ -90,20 +90,26 @@ aquariusRoutes.post(
 
 aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
   try {
-    let query: QueryDdoStateCommand
+    let queryDdoState: QueryDdoStateCommand
     const did = String(req.query.did)
-    if (did) {
-      query.did = did
+    queryDdoState.query = {
+      q: did,
+      query_by: 'did'
     }
+
     const nft = String(req.query.nft)
-    if (nft) {
-      query.nft = nft
+    queryDdoState.query = {
+      q: nft,
+      query_by: 'nft'
     }
+
     const txId = String(req.query.txId)
-    if (txId) {
-      query.txId = txId
+    queryDdoState.query = {
+      q: txId,
+      query_by: 'txId'
     }
-    if (!query) {
+
+    if (!queryDdoState.query) {
       res
         .status(400)
         .send(
@@ -111,8 +117,8 @@ aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
         )
       return
     }
-    query.command = PROTOCOL_COMMANDS.QUERY
-    const result = await new QueryDdoStateHandler(req.oceanNode).handle(query)
+    queryDdoState.command = PROTOCOL_COMMANDS.QUERY
+    const result = await new QueryDdoStateHandler(req.oceanNode).handle(queryDdoState)
     if (result.stream) {
       const queryResult = JSON.parse(await streamToString(result.stream as Readable))
       if (queryResult[0].found) {

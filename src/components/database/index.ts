@@ -209,6 +209,25 @@ export class DdoStateDatabase {
     }
   }
 
+  async search(query: Record<string, any>) {
+    try {
+      const result = await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .search(query as TypesenseSearchParams)
+      return result
+    } catch (error) {
+      const errorMsg = `Error when searching by query ${query}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
   async update(
     chainId: number,
     did: string,

@@ -1,5 +1,5 @@
 import { Handler } from './handler.js'
-import { Command, QueryCommand, QueryDdoStateCommand } from '../../@types/commands.js'
+import { QueryCommand, QueryDdoStateCommand } from '../../@types/commands.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
 import {
@@ -47,10 +47,7 @@ export class QueryDdoStateHandler extends Handler {
       return buildInvalidParametersResponse(validation)
     }
     try {
-      let result = await this.getOceanNode().getDatabase().ddoState.retrieve(task.did)
-      if (!result) {
-        result = []
-      }
+      const result = await this.getOceanNode().getDatabase().ddoState.search(task.query)
       return {
         stream: Readable.from(JSON.stringify(result)),
         status: { httpStatus: 200 }
