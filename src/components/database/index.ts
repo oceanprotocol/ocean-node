@@ -232,7 +232,7 @@ export class DdoStateDatabase {
     chainId: number,
     did: string,
     nftAddress: string,
-    txId: string,
+    txId?: string,
     valid: boolean = true,
     errorMsg: string = ' '
   ) {
