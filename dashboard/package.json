@@ -11,6 +11,11 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@emotion/react": "^11.11.4",
+    "@emotion/styled": "^11.11.0",
+    "@mui/material": "^5.15.14",
+    "@rainbow-me/rainbowkit": "^2.0.2",
+    "@tanstack/react-query": "^5.28.4",
     "classnames": "^2.5.0",
     "ethers": "^6.10.0",
     "express": "^4.18.2",
@@ -21,7 +26,9 @@
     "react-dom": "^18",
     "react-paginate": "^8.2.0",
     "react-query": "^3.39.3",
-    "styled-components": "^6.1.1"
+    "styled-components": "^6.1.1",
+    "viem": "^2.8.14",
+    "wagmi": "^2.5.11"
   },
   "devDependencies": {
     "@types/node": "^20",

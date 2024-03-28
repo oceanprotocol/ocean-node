@@ -15,10 +15,7 @@
     #0071ff33 160deg,
     transparent 360deg
   );
-  --secondary-glow: radial-gradient(
-    rgba(255, 255, 255, 1),
-    rgba(255, 255, 255, 0)
-  );
+  --secondary-glow: radial-gradient(rgba(255, 255, 255, 1), rgba(255, 255, 255, 0));
 
   --tile-start-rgb: 239, 245, 249;
   --tile-end-rgb: 228, 232, 233;
@@ -38,14 +35,14 @@
   --card-border-rgb: 131, 134, 135;
 
   --white: #fff;
-  --background-body: #F8F9FA;
-  --background-secondary: #FBFBFB;
+  --background-body: #f8f9fa;
+  --background-secondary: #fbfbfb;
 
   --gray-500: #718096;
-  --gray-700: #2D3748;
-  --color-secondary: #3D4551;
+  --gray-700: #2d3748;
+  --color-secondary: #3d4551;
 
-  --border-color: #E2E8F0;
+  --border-color: #e2e8f0;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -96,22 +93,6 @@ body {
   font-style: normal;
 }
 
-button {
-  width: 35px;
-  height: 35px;
-  background: transparent;
-  border: transparent;
-  color: #A0AEC0;
-}
-
-button:hover {
-  background: #A0AEC0;
-  border: #A0AEC0;
-  color: #fff;
-  transition: all 0.3s ease-in-out;
-  cursor: pointer;
-}
-
 body {
   background: #f8f9fa;
 
@@ -120,9 +101,9 @@ body {
   font-size: 14px;
   line-height: 150%;
   font-weight: 700;
-
-  max-width: 1234px;
-  margin: 50px auto;
+  margin: 50px;
+  margin-left: 5%;
+  margin-right: 5%;
 }
 
 header {
