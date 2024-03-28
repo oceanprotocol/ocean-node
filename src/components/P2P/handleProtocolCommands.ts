@@ -7,7 +7,7 @@ import { Command } from '../../@types/commands.js'
 import { P2PCommandResponse } from '../../@types/OceanNode'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import StreamConcat from 'stream-concat'
-import { Handler } from '../core/handler.js'
+import { Handler } from '../core/handler/handler.js'
 import { getConfiguration } from '../../utils/index.js'
 
 export class ReadableString extends Readable {

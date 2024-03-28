@@ -1,8 +1,8 @@
-import { P2PCommandResponse } from '../../@types/OceanNode.js'
-import { OceanNode } from '../../OceanNode.js'
-import { Command, ICommandHandler } from '../../@types/commands.js'
-import { ValidateParams } from '../httpRoutes/validateCommands.js'
-import { getConfiguration } from '../../utils/index.js'
+import { P2PCommandResponse } from '../../../@types/OceanNode.js'
+import { OceanNode } from '../../../OceanNode.js'
+import { Command, ICommandHandler } from '../../../@types/commands.js'
+import { ValidateParams } from '../../httpRoutes/validateCommands.js'
+import { getConfiguration } from '../../../utils/index.js'
 
 export interface RequestLimiter {
   requester: string | string[] // IP address or peer ID

@@ -3,13 +3,13 @@ import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
 import { P2PCommandResponse } from './@types/OceanNode.js'
 import { Database } from './components/database/index.js'
-import { CoreHandlersRegistry } from './components/core/coreHandlersRegistry.js'
+import { CoreHandlersRegistry } from './components/core/handler/coreHandlersRegistry.js'
 import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
 import { ReadableString } from './components/P2P/handleProtocolCommands.js'
 import StreamConcat from 'stream-concat'
 import { pipe } from 'it-pipe'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
-import { Handler } from './components/core/handler.js'
+import { Handler } from './components/core/handler/handler.js'
 
 export class OceanNode {
   // eslint-disable-next-line no-use-before-define
