@@ -1,12 +1,13 @@
 import { Handler } from './handler.js'
-import { QueryCommand } from '../../@types/commands.js'
-import { P2PCommandResponse } from '../../@types/OceanNode.js'
+import { QueryCommand } from '../../../@types/commands.js'
+import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { Readable } from 'stream'
 import {
   ValidateParams,
   buildInvalidParametersResponse,
+  buildRateLimitReachedResponse,
   validateCommandParameters
-} from '../httpRoutes/validateCommands.js'
+} from '../../httpRoutes/validateCommands.js'
 
 export class QueryHandler extends Handler {
   validate(command: QueryCommand): ValidateParams {
@@ -14,6 +15,9 @@ export class QueryHandler extends Handler {
   }
 
   async handle(task: QueryCommand): Promise<P2PCommandResponse> {
+    if (!(await this.checkRateLimit())) {
+      return buildRateLimitReachedResponse()
+    }
     const validation = this.validate(task)
     if (!validation.valid) {
       return buildInvalidParametersResponse(validation)

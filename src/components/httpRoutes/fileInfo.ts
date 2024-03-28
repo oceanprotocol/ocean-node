@@ -7,7 +7,7 @@ import {
   UrlFileObject
 } from '../../@types/fileObject'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { FileInfoHandler } from '../core/fileInfoHandler.js'
+import { FileInfoHandler } from '../core/handler/fileInfoHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { FileInfoCommand } from '../../@types/commands.js'
 

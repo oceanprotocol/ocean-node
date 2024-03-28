@@ -1,5 +1,8 @@
-import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { OCEAN_NODE_LOGGER } from '../../utils/logging/common.js'
+import {
+  PROTOCOL_COMMANDS,
+  SUPPORTED_PROTOCOL_COMMANDS
+} from '../../../utils/constants.js'
+import { OCEAN_NODE_LOGGER } from '../../../utils/logging/common.js'
 import {
   GetDdoHandler,
   FindDdoHandler,
@@ -16,8 +19,8 @@ import { NonceHandler } from './nonceHandler.js'
 import { QueryHandler } from './queryHandler.js'
 import { StatusHandler } from './statusHandler.js'
 import { ReindexHandler } from './reindexHandler.js'
-import { OceanNode } from '../../OceanNode.js'
-import { Command } from '../../@types/commands.js'
+import { OceanNode } from '../../../OceanNode.js'
+import { Command } from '../../../@types/commands.js'
 import {
   ComputeGetEnvironmentsHandler,
   ComputeStartHandler,
@@ -25,8 +28,8 @@ import {
   ComputeGetStatusHandler,
   ComputeGetResultHandler,
   ComputeInitializeHandler
-} from './compute/index.js'
-import { StopNodeHandler } from './adminOperations.js'
+} from '../compute/index.js'
+import { StopNodeHandler } from '../adminOperations.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -108,18 +111,6 @@ export class CoreHandlersRegistry {
     }
     return this.instance
   }
-
-  // supported commands:
-  // PROTOCOL_COMMANDS.DOWNLOAD_URL,
-  // PROTOCOL_COMMANDS.ECHO,
-  // PROTOCOL_COMMANDS.ENCRYPT,
-  // PROTOCOL_COMMANDS.NONCE,
-  // PROTOCOL_COMMANDS.GET_DDO,
-  // PROTOCOL_COMMANDS.QUERY,
-  // PROTOCOL_COMMANDS.STATUS,
-  // PROTOCOL_COMMANDS.FIND_DDO,
-  // PROTOCOL_COMMANDS.GET_FEES,
-  // PROTOCOL_COMMANDS.VALIDATE_DDO
 
   // private method for registering the core handlers
   private registerCoreHandler(handlerName: string, handlerObj: Handler) {

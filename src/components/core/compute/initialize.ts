@@ -1,7 +1,7 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Handler } from '../handler.js'
+import { Handler } from '../handler/handler.js'
 import { DDO } from '../../../@types/DDO/DDO.js'
 import { ComputeInitializeCommand } from '../../../@types/commands.js'
 import { ProviderComputeInitializeResults } from '../../../@types/Fees.js'

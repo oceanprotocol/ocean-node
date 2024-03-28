@@ -13,9 +13,9 @@ import {
   PROTOCOL_COMMANDS,
   getConfiguration
 } from '../../utils/index.js'
-import { DownloadHandler } from '../../components/core/downloadHandler.js'
-import { StatusHandler } from '../../components/core/statusHandler.js'
-import { GetDdoHandler } from '../../components/core/ddoHandler.js'
+import { DownloadHandler } from '../../components/core/handler/downloadHandler.js'
+import { StatusHandler } from '../../components/core/handler/statusHandler.js'
+import { GetDdoHandler } from '../../components/core/handler/ddoHandler.js'
 
 import { Readable } from 'stream'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
@@ -29,7 +29,7 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
-import { FileInfoHandler } from '../../components/core/fileInfoHandler.js'
+import { FileInfoHandler } from '../../components/core/handler/fileInfoHandler.js'
 import {
   DEVELOPMENT_CHAIN_ID,
   getOceanArtifactsAdresses,
