@@ -51,6 +51,7 @@ export type Schemas = {
   indexerSchemas: Schema
   logSchemas: Schema
   orderSchema: Schema
+  ddoStateSchema: Schema
 }
 const ddoSchemas = readJsonSchemas()
 export const schemas: Schemas = {
@@ -90,6 +91,18 @@ export const schemas: Schemas = {
         optional: true,
         dependencies: { type: ['reuseOrder'] }
       }
+    ]
+  },
+  ddoStateSchema: {
+    name: 'state',
+    enable_nested_fields: true,
+    fields: [
+      { name: 'chainId', type: 'int64' },
+      { name: 'did', type: 'string' },
+      { name: 'nft', type: 'string' },
+      { name: 'txId', type: 'string' },
+      { name: 'valid', type: 'bool' },
+      { name: 'error', type: 'string' }
     ]
   }
 }

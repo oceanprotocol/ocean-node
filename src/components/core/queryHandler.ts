@@ -1,5 +1,5 @@
 import { Handler } from './handler.js'
-import { QueryCommand } from '../../@types/commands.js'
+import { QueryCommand, QueryDdoStateCommand } from '../../@types/commands.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
 import {
@@ -23,6 +23,31 @@ export class QueryHandler extends Handler {
       if (!result) {
         result = []
       }
+      return {
+        stream: Readable.from(JSON.stringify(result)),
+        status: { httpStatus: 200 }
+      }
+    } catch (error) {
+      return {
+        stream: null,
+        status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
+      }
+    }
+  }
+}
+
+export class QueryDdoStateHandler extends Handler {
+  validate(command: QueryDdoStateCommand): ValidateParams {
+    return validateCommandParameters(command, [])
+  }
+
+  async handle(task: QueryDdoStateCommand): Promise<P2PCommandResponse> {
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
+    try {
+      const result = await this.getOceanNode().getDatabase().ddoState.search(task.query)
       return {
         stream: Readable.from(JSON.stringify(result)),
         status: { httpStatus: 200 }

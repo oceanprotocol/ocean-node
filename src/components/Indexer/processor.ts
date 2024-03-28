@@ -62,13 +62,23 @@ class BaseEventProcessor {
 
   protected async createOrUpdateDDO(ddo: any, method: string): Promise<any> {
     try {
-      const { ddo: ddoDatabase } = await getDatabase()
+      const { ddo: ddoDatabase, ddoState } = await getDatabase()
       const saveDDO = await ddoDatabase.update({ ...ddo })
+      await ddoState.update(this.networkId, ddo.id, ddo.nft.address, ddo.event?.tx, true)
       INDEXER_LOGGER.logMessage(
         `Saved or updated DDO  : ${saveDDO.id} from network: ${this.networkId} triggered by: ${method}`
       )
       return saveDDO
     } catch (err) {
+      const { ddoState } = await getDatabase()
+      await ddoState.update(
+        this.networkId,
+        ddo.id,
+        ddo.nft.address,
+        ddo.event?.tx,
+        true,
+        err.message
+      )
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
         `Error found on ${this.networkId} triggered by: ${method} while creating or updating DDO: ${err}`,
@@ -255,7 +265,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     provider: JsonRpcApiProvider,
     eventName: string
   ): Promise<any> {
+    let did = 'did:op'
     try {
+      const { ddo: ddoDatabase, ddoState } = await getDatabase()
       const nftFactoryAddress = getContractAddress(chainId, 'ERC721Factory')
       const nftFactoryContract = await getNFTFactory(signer, nftFactoryAddress)
 
@@ -285,6 +297,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         decodedEventData.args[5],
         decodedEventData.args[4]
       )
+      did = ddo.id
       // stuff that we overwrite
       ddo.chainId = chainId
       ddo.nftAddress = event.address
@@ -294,10 +307,18 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         true
       )
 
-      const previousDdo = await (await getDatabase()).ddo.retrieve(ddo.id)
+      const previousDdo = await ddoDatabase.retrieve(ddo.id)
       if (eventName === EVENTS.METADATA_CREATED) {
         if (previousDdo && previousDdo.nft.state === MetadataStates.ACTIVE) {
           INDEXER_LOGGER.logMessage(`DDO ${ddo.id} is already registered as active`, true)
+          await ddoState.update(
+            this.networkId,
+            did,
+            event.address,
+            event.transactionHash,
+            false,
+            `DDO ${ddo.id} is already registered as active`
+          )
           return
         }
       }
@@ -307,6 +328,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           INDEXER_LOGGER.logMessage(
             `Previous DDO with did ${ddo.id} was not found the database. Maybe it was deleted/hidden to some violation issues`,
             true
+          )
+          await ddoState.update(
+            this.networkId,
+            did,
+            event.address,
+            event.transactionHash,
+            false,
+            `Previous DDO with did ${ddo.id} was not found the database. Maybe it was deleted/hidden to some violation issues`
           )
           return
         }
@@ -319,6 +348,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           INDEXER_LOGGER.logMessage(
             `Error encountered when checking if the asset is eligiable for update: ${error}`,
             true
+          )
+          await ddoState.update(
+            this.networkId,
+            did,
+            event.address,
+            event.transactionHash,
+            false,
+            error
           )
           return
         }
@@ -334,6 +371,15 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         return saveDDO
       }
     } catch (error) {
+      const { ddoState } = await getDatabase()
+      await ddoState.update(
+        this.networkId,
+        did,
+        event.address,
+        event.transactionHash,
+        false,
+        error.message
+      )
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
         `Error processMetadataEvents: ${error}`,
