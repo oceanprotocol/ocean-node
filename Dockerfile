@@ -1,7 +1,8 @@
 FROM --platform=${BUILDPLATFORM} ubuntu:22.04 as base
-RUN apt-get update && apt-get -y install bash curl
+RUN apt-get update && apt-get -y install bash curl apt-utils
 COPY .nvmrc /usr/src/app/
 RUN rm /bin/sh && ln -s /bin/bash /bin/sh
+RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
 ENV NVM_DIR /usr/local/nvm
 RUN mkdir $NVM_DIR
 ENV NODE_VERSION=v18.19.0
@@ -21,7 +22,7 @@ FROM base as builder
 RUN apt-get update && apt-get -y install wget
 COPY package*.json /usr/src/app/
 WORKDIR /usr/src/app/
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 
 FROM base as runner
