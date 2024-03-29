@@ -15,6 +15,7 @@ ENV NODE_PATH $NVM_DIR/$NODE_VERSION/lib/node_modules
 ENV PATH $NVM_DIR/versions/node/$NODE_VERSION/bin:$PATH
 ENV IPFS_GATEWAY='https://ipfs.io/'
 ENV ARWEAVE_GATEWAY='https://arweave.net/'
+ENV NODE_ENV='production'
 
 FROM base as builder
 RUN apt-get update && apt-get -y install wget
