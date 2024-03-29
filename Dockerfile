@@ -1,8 +1,7 @@
 FROM --platform=${BUILDPLATFORM} ubuntu:22.04 as base
-RUN apt-get update && apt-get -y install bash curl apt-utils
+RUN apt-get update && apt-get -y install bash curl
 COPY .nvmrc /usr/src/app/
 RUN rm /bin/sh && ln -s /bin/bash /bin/sh
-RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
 ENV NVM_DIR /usr/local/nvm
 RUN mkdir $NVM_DIR
 ENV NODE_VERSION=v18.19.0
@@ -16,7 +15,6 @@ ENV NODE_PATH $NVM_DIR/$NODE_VERSION/lib/node_modules
 ENV PATH $NVM_DIR/versions/node/$NODE_VERSION/bin:$PATH
 ENV IPFS_GATEWAY='https://ipfs.io/'
 ENV ARWEAVE_GATEWAY='https://arweave.net/'
-ENV NODE_ENV='production'
 
 FROM base as builder
 RUN apt-get update && apt-get -y install wget
@@ -40,4 +38,5 @@ ENV P2P_ipV6BindWsPort=9003
 EXPOSE 9003
 ENV HTTP_API_PORT=8000
 EXPOSE 8000
+ENV NODE_ENV='production'
 CMD ["npm","run","start"]
