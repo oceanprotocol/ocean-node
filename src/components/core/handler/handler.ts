@@ -3,6 +3,7 @@ import { OceanNode } from '../../../OceanNode.js'
 import { Command, ICommandHandler } from '../../../@types/commands.js'
 import { ValidateParams } from '../../httpRoutes/validateCommands.js'
 import { getConfiguration } from '../../../utils/index.js'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
 export interface RequestLimiter {
   requester: string | string[] // IP address or peer ID
@@ -64,6 +65,11 @@ export abstract class Handler implements ICommandHandler {
         }
         // do not proceed any further
         if (!isOK) {
+          CORE_LOGGER.warn(
+            `Request denied (rate limit exceeded) for remote caller ${remote}. Current request map: ${JSON.stringify(
+              this.requestMap.get(remote)
+            )}`
+          )
           return false
         }
       }
@@ -78,6 +84,14 @@ export abstract class Handler implements ICommandHandler {
         return true
       } else {
         updateRequestData(caller)
+        // log if request was denied
+        if (!isOK) {
+          CORE_LOGGER.warn(
+            `Request denied (rate limit exceeded) for remote caller ${caller}. Current request map: ${JSON.stringify(
+              this.requestMap.get(caller)
+            )}`
+          )
+        }
       }
     }
     return isOK
