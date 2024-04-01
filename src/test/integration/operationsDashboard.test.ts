@@ -169,10 +169,17 @@ describe('Should test admin operations', () => {
     assert(handlerResponse, 'handler resp does not exist')
     assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
 
+    console.log('ddo: ', await dbconn.ddo.retrieve(publishedDataset.ddo.id))
+
     // assert(
     //   (await dbconn.ddo.retrieve(publishedDataset.ddo.id)) === null,
     //   'ddo does not exist'
     // )
+    console.log(
+      '(await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)): ',
+      await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)
+    )
+    console.log('indexerLastBlockBeforereindex: ', indexerLastBlockBeforereindex)
     assert(
       (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) <=
         indexerLastBlockBeforereindex
