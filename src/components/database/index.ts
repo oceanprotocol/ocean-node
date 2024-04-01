@@ -354,6 +354,9 @@ export class DdoDatabase {
           .delete(did)
         if (response.id === did) {
           isDeleted = true
+          DATABASE_LOGGER.logMessage(
+            `response for deleting the ddo: ${response}, isDeleted: ${isDeleted}`
+          )
           return response
         }
       } catch (error) {
@@ -392,6 +395,9 @@ export class DdoDatabase {
     for (const res of results) {
       if (res && res.hits) {
         for (const h of res.hits) {
+          DATABASE_LOGGER.logMessage(
+            `results before deleting all assets: ${JSON.stringify(h)}`
+          )
           await this.delete(h.document.id)
         }
       }
