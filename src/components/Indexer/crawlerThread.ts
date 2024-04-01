@@ -33,7 +33,7 @@ const blockchain = new Blockchain(rpcDetails.rpc, rpcDetails.chainId)
 const provider = blockchain.getProvider()
 const signer = blockchain.getSigner()
 
-async function updateLastIndexedBlockNumber(block: number): Promise<void> {
+export async function updateLastIndexedBlockNumber(block: number): Promise<void> {
   try {
     const { indexer } = await getDatabase()
     const updatedIndex = await indexer.update(rpcDetails.chainId, block)

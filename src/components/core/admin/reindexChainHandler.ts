@@ -12,6 +12,7 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { checkSupportedChainId, Blockchain } from '../../../utils/blockchain.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { processBlocks, getDeployedContractBlock } from '../../Indexer/utils.js'
+import { OceanIndexer } from '../../Indexer/index.js'
 
 export class ReindexChainHandler extends AdminHandler {
   validate(command: AdminReindexChainCommand): ValidateParams {
@@ -35,28 +36,13 @@ export class ReindexChainHandler extends AdminHandler {
         `Chain ID ${task.chainId} is not supported in the node's config`
       )
     }
-    const blockchain = new Blockchain(checkChainId.networkRpc, task.chainId)
-    const provider = blockchain.getProvider()
-    const signer = blockchain.getSigner()
-    const deployedBlock = getDeployedContractBlock(task.chainId)
     try {
       await this.getOceanNode().getDatabase().ddo.deleteAllAssetsFromChain(task.chainId)
       CORE_LOGGER.logMessage(
         `Assets from chain ${task.chainId} were deleted from db, now starting to reindex...`
       )
-      const latestBlock = await provider.getBlockNumber()
-      const ret = await processBlocks(
-        signer,
-        provider,
-        task.chainId,
-        deployedBlock,
-        latestBlock - deployedBlock + 1
-      )
-      if (!ret) {
-        CORE_LOGGER.error(`Reindex chain failed on chain ${task.chainId}.`)
-        return buildErrorResponse(`Reindex chain failed on chain ${task.chainId}.`)
-      }
 
+      OceanIndexer.resetCrawling(task.chainId)
       return {
         status: { httpStatus: 200 },
         stream: new ReadableString('REINDEX CHAIN OK')
