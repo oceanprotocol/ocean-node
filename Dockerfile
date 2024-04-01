@@ -20,7 +20,7 @@ FROM base as builder
 RUN apt-get update && apt-get -y install wget
 COPY package*.json /usr/src/app/
 WORKDIR /usr/src/app/
-RUN npm ci --legacy-peer-deps
+RUN npm ci
 
 
 FROM base as runner
