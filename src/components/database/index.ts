@@ -180,7 +180,7 @@ export class DdoStateDatabase {
       return await this.provider
         .collections(this.schema.name)
         .documents()
-        .create({ id: did, chainId, did, nftAddress, txId, valid, error: errorMsg })
+        .create({ id: did, chainId, did, nft: nftAddress, txId, valid, error: errorMsg })
     } catch (error) {
       const errorMsg = `Error when saving ddo state for: ${did} Error: ` + error.message
       DATABASE_LOGGER.logMessageWithEmoji(
@@ -240,13 +240,18 @@ export class DdoStateDatabase {
       return await this.provider
         .collections(this.schema.name)
         .documents()
-        .update(did, { chainId, did, nftAddress, txId, valid, error: errorMsg })
+        .update(did, { chainId, did, nft: nftAddress, txId, valid, error: errorMsg })
     } catch (error) {
       if (error instanceof TypesenseError && error.httpStatus === 404) {
-        return await this.provider
-          .collections(this.schema.name)
-          .documents()
-          .create({ id: did, chainId, did, nftAddress, txId, valid, error: errorMsg })
+        return await this.provider.collections(this.schema.name).documents().create({
+          id: did,
+          chainId,
+          did,
+          nft: nftAddress,
+          txId,
+          valid,
+          error: errorMsg
+        })
       }
       const errorMessage =
         `Error when saving ddo state for: ${did} Error: ` + error.message
