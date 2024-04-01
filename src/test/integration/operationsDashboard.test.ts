@@ -181,6 +181,7 @@ describe('Should test admin operations', () => {
       `indexer last block: ${await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)}`
     )
     console.log(`network.startBlock: ${network.startBlock}`)
+    console.log(`before: ${indexerLastBlockBeforereindex}`)
     assert(
       (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) <=
         indexerLastBlockBeforereindex
