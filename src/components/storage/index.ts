@@ -6,19 +6,30 @@ import {
   IpfsFileObject,
   StorageReadable,
   UrlFileObject,
-  EncryptMethod
+  EncryptMethod,
+  S3FileObject,
+  S3Object
 } from '../../@types/fileObject.js'
 import { fetchFileMetadata } from '../../utils/asset.js'
 import axios from 'axios'
 import urlJoin from 'url-join'
-import { encrypt as encryptData, decrypt as decryptData } from '../../utils/crypt.js'
+import {
+  encrypt as encryptData,
+  decrypt as decryptData,
+  decrypt
+} from '../../utils/crypt.js'
 import { Readable } from 'stream'
 import { getConfiguration } from '../../utils/index.js'
+import { streamToString } from '../../utils/util.js'
+import { ethers } from 'ethers'
+import AWS from 'aws-sdk'
 
 export abstract class Storage {
-  private file: UrlFileObject | IpfsFileObject | ArweaveFileObject
+  private file: UrlFileObject | IpfsFileObject | ArweaveFileObject | S3FileObject
 
-  public constructor(file: UrlFileObject | IpfsFileObject | ArweaveFileObject) {
+  public constructor(
+    file: UrlFileObject | IpfsFileObject | ArweaveFileObject | S3FileObject
+  ) {
     this.file = file
   }
 
@@ -47,7 +58,9 @@ export abstract class Storage {
     }
   }
 
-  static getStorageClass(file: any): UrlStorage | IpfsStorage | ArweaveStorage {
+  static getStorageClass(
+    file: any
+  ): UrlStorage | IpfsStorage | ArweaveStorage | S3Storage {
     const { type } = file
     switch (
       type.toLowerCase() // case insensitive
@@ -58,6 +71,8 @@ export abstract class Storage {
         return new IpfsStorage(file)
       case FileObjectType.ARWEAVE:
         return new ArweaveStorage(file)
+      case FileObjectType.S3:
+        return new S3Storage(file)
       default:
         throw new Error(`Invalid storage type: ${type}`)
     }
@@ -228,6 +243,13 @@ export class UrlStorage extends Storage {
     })
     return await encryptData(response.data, encryptionType)
   }
+
+  async encryptInfo(
+    data: any,
+    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
+  ): Promise<Buffer> {
+    return await encryptData(data, encryptionType)
+  }
 }
 
 export class ArweaveStorage extends Storage {
@@ -332,5 +354,176 @@ export class IpfsStorage extends Storage {
       method: 'get'
     })
     return await encryptData(response.data, encryptionType)
+  }
+}
+
+export class S3Storage extends Storage {
+  public constructor(file: S3FileObject) {
+    super(file)
+    const [isValid, message] = this.validate()
+    if (isValid === false) {
+      throw new Error(`Error validationg the S3 file: ${message}`)
+    }
+  }
+
+  validate(): [boolean, string] {
+    const file: S3FileObject = this.getFile() as S3FileObject
+    if (!file.hash) {
+      return [false, 'Missing Hash']
+    }
+    return [true, '']
+  }
+
+  parseDecryptedStream(decryptedStream: Readable): Promise<S3Object> {
+    return new Promise((resolve, reject) => {
+      let data = ''
+      decryptedStream.on('data', (chunk) => {
+        data += chunk
+      })
+      decryptedStream.on('end', () => {
+        try {
+          const parsedData = JSON.parse(data)
+          resolve(parsedData)
+        } catch (error) {
+          reject(error)
+        }
+      })
+      decryptedStream.on('error', (error) => {
+        reject(error)
+      })
+    })
+  }
+
+  getDownloadUrl(): string {
+    const fileHash = this.getFile().hash
+    const fileStream = Readable.from(fileHash)
+    const processStreamPromise = this.processStream(fileStream)
+      .then((decryptedStream) => decryptedStream)
+      .catch((error) => {
+        console.error('Error processing stream:', error)
+        return null
+      })
+    let downloadUrl = ''
+    processStreamPromise.then((obj) => {
+      downloadUrl = obj || ''
+    })
+
+    return downloadUrl
+  }
+
+  getS3Object(): S3Object {
+    const fileHash = this.getFile().hash
+    const fileStream = Readable.from(fileHash)
+    const processStreamPromise = this.processStream(fileStream)
+      .then((decryptedStream) => decryptedStream)
+      .catch((error) => {
+        console.error('Error processing stream:', error)
+        return null
+      })
+    let objS3: S3Object
+    processStreamPromise.then((obj) => {
+      objS3 = JSON.parse(obj) as S3Object
+    })
+
+    return objS3
+  }
+
+  async getData(): Promise<any> {
+    const s3Obj = this.getS3Object()
+    const spacesEndpoint = new AWS.Endpoint(s3Obj.endpoint)
+    const s3 = new AWS.S3({
+      endpoint: spacesEndpoint,
+      accessKeyId: s3Obj.accessKeyId,
+      secretAccessKey: s3Obj.secretAccessKey,
+      region: s3Obj.region
+    })
+
+    const params = {
+      Bucket: s3Obj.bucket,
+      Key: s3Obj.objectKey
+    }
+    try {
+      const data = await s3.getObject(params).promise()
+      console.log('Successfully retrieved object from S3', data)
+      return data
+    } catch (err) {
+      console.error('Error fetching object from S3:', err)
+    }
+  }
+
+  async fetchSpecificFileMetadata(): Promise<FileInfoResponse> {
+    const data = await this.getData()
+    console.log('data', data)
+    return {
+      valid: true,
+      contentLength: 'unknown',
+      contentType: 'unknown',
+      name: '',
+      type: 's3',
+      encryptedBy: this.getFile().encryptedBy,
+      encryptMethod: this.getFile().encryptMethod
+    }
+  }
+
+  async processStream(stream: Readable): Promise<Readable> {
+    if (!this.getFile()?.encryptedBy || !this.getFile()?.encryptedMethod) {
+      console.log('Stream is NOT encrypted', true)
+      return stream
+    }
+
+    console.log('Stream is encrypted', true)
+
+    const { keys } = await getConfiguration()
+    const nodeId = keys.peerId.toString()
+
+    if (this.getFile()?.encryptedBy !== nodeId) {
+      throw Error(`Decrypt stream error: ${this.getFile()?.encryptedBy} !== ${nodeId}`)
+    }
+
+    const streamString = await streamToString(stream as Readable)
+    const encryptedData = ethers.getBytes(streamString)
+    const decryptedData = await decrypt(encryptedData, this.getFile().encryptedMethod)
+
+    return Readable.from([decryptedData])
+  }
+
+  async encryptContent(
+    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
+  ): Promise<Buffer> {
+    const file = this.getFile()
+    const response = await axios({
+      url: file.hash,
+      method: 'get'
+    })
+    return await encryptData(response.data, encryptionType)
+  }
+
+  async encryptHash(
+    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
+  ): Promise<Buffer> {
+    try {
+      const file = this.getFile()
+      return await encryptData(file.hash, encryptionType)
+    } catch (err) {
+      console.error('Error fetching object from S3:', err)
+    }
+  }
+
+  async decryptHash(
+    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
+  ): Promise<Buffer> {
+    try {
+      const file = this.getFile()
+      return await decryptData(file.hash, encryptionType)
+    } catch (err) {
+      console.error('Error fetching object from S3:', err)
+    }
+  }
+
+  async decryptContent(
+    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
+  ): Promise<Buffer> {
+    const data = await this.getData()
+    return await encryptData(data, encryptionType)
   }
 }
