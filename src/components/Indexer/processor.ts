@@ -64,11 +64,10 @@ class BaseEventProcessor {
     try {
       const { ddo: ddoDatabase, ddoState } = await getDatabase()
       const saveDDO = await ddoDatabase.update({ ...ddo })
-      console.log('saved ddo ', saveDDO)
       await ddoState.update(
         this.networkId,
         saveDDO.id,
-        saveDDO.nft.address,
+        saveDDO.nftAddress,
         saveDDO.event?.tx,
         true
       )
@@ -78,11 +77,10 @@ class BaseEventProcessor {
       return saveDDO
     } catch (err) {
       const { ddoState } = await getDatabase()
-      console.log('error save ddo', ddo)
       await ddoState.update(
         this.networkId,
         ddo.id,
-        ddo.nft.address,
+        ddo.nftAddress,
         ddo.event?.tx,
         true,
         err.message
