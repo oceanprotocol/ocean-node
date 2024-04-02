@@ -291,7 +291,7 @@ export class DecryptDdoHandler extends Handler {
           lzma.decompress(
             decryptedDocument,
             { synchronous: true },
-            (decompressedResult) => {
+            (decompressedResult: any) => {
               decryptedDocument = decompressedResult
             }
           )
