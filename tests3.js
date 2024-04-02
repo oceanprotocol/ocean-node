@@ -188,4 +188,5 @@ async function testEncrypt() {
   console.log('\ndecryptedDataOCEAN', decryptedDataOCEAN)
 }
 
-testEncrypt().then(testS3Storage())
+//testEncrypt()
+testS3Storage()
