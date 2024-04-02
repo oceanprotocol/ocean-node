@@ -2,8 +2,6 @@ import fs from 'fs'
 import addresses from '@oceanprotocol/contracts/addresses/address.json' assert { type: 'json' }
 import { CORE_LOGGER } from './logging/common.js'
 import { ENVIRONMENT_VARIABLES, existsEnvironmentVariable } from './index.js'
-import { getContractAddress, getNFTFactory } from '../components/Indexer/utils.js'
-import { Signer, getAddress } from 'ethers'
 
 /**
  * Get the artifacts address from the address.json file
@@ -47,25 +45,7 @@ export function getOceanArtifactsAdressesByChainId(chain: number): any {
   }
   return null
 }
-/**
- * Checks if a given NFT address was deployed by our NFT Factory on the specific chain
- * @param chainId chain id as number
- * @param signer the signer account
- * @param dataNftAddress the deployed nft address
- * @returns true or false
- */
-export async function wasNFTDeployedByOurFactory(
-  chainId: number,
-  signer: Signer,
-  dataNftAddress: string
-): Promise<boolean> {
-  const nftFactoryAddress = getContractAddress(chainId, 'ERC721Factory')
-  const nftFactoryContract = await getNFTFactory(signer, nftFactoryAddress)
 
-  const nftAddressFromFactory = await nftFactoryContract.erc721List(dataNftAddress)
-
-  return getAddress(dataNftAddress) === getAddress(nftAddressFromFactory)
-}
 // default token addresses per chain
 export const OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN = addresses
 export const DEVELOPMENT_CHAIN_ID = 8996

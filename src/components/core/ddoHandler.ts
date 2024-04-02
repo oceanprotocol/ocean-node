@@ -15,7 +15,6 @@ import { DDO } from '../../@types/DDO/DDO.js'
 import { FindDDOResponse } from '../../@types/index.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { Blockchain } from '../../utils/blockchain.js'
-import { wasNFTDeployedByOurFactory } from '../../utils/address.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { decrypt, create256Hash } from '../../utils/crypt.js'
@@ -36,7 +35,11 @@ import {
   buildInvalidRequestMessage,
   validateCommandParameters
 } from '../httpRoutes/validateCommands.js'
-import { findEventByKey, getNetworkHeight } from '../Indexer/utils.js'
+import {
+  findEventByKey,
+  getNetworkHeight,
+  wasNFTDeployedByOurFactory
+} from '../Indexer/utils.js'
 import { validateDDOHash } from '../../utils/asset.js'
 
 const MAX_NUM_PROVIDERS = 5

@@ -25,7 +25,7 @@ import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
-import { wasNFTDeployedByOurFactory } from '../../utils/address.js'
+import { wasNFTDeployedByOurFactory } from './utils.js'
 
 class BaseEventProcessor {
   protected networkId: number
