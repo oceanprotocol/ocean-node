@@ -6,7 +6,6 @@ import { ReindexTask } from './crawlerThread.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { EVENTS } from '../../utils/index.js'
-// import { getDeployedContractBlock } from './utils.js'
 
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
@@ -92,11 +91,6 @@ export class OceanIndexer {
                 task.txId !== event.data.txId && task.chainId !== event.data.chainId
             )
           }
-          // else if (event.method === 'reset-crawling') {
-          //   // reset indexing block
-          //   const deployedBlock = getDeployedContractBlock(event.data.chainId)
-          //   updateLastIndexedBlockNumber(deployedBlock)
-          // }
         } else {
           INDEXER_LOGGER.log(
             LOG_LEVELS_STR.LEVEL_ERROR,
