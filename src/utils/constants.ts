@@ -216,3 +216,6 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     required: false
   }
 }
+
+// global ocean node API services path
+export const SERVICES_API_BASE_PATH = '/api/services'
