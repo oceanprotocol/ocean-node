@@ -16,7 +16,10 @@ import { FindDDOResponse } from '../../@types/index.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { Blockchain } from '../../utils/blockchain.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
-import { getOceanArtifactsAdressesByChainId } from '../../utils/address.js'
+import {
+  getOceanArtifactsAdressesByChainId,
+  wasNFTDeployedByOurFactory
+} from '../../utils/address.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { decrypt, create256Hash } from '../../utils/crypt.js'
@@ -828,14 +831,13 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
   const blockchain = new Blockchain(network.rpc, chainId)
   const signer = blockchain.getSigner()
 
-  const artifactsAddresses = getOceanArtifactsAdressesByChainId(chainId)
+  const wasDeployedByUs = wasNFTDeployedByOurFactory(
+    chainId as number,
+    signer,
+    ethers.getAddress(nftAddress)
+  )
 
-  const factoryAddress = ethers.getAddress(artifactsAddresses.ERC721Factory)
-  const factoryContract = new ethers.Contract(factoryAddress, ERC721Factory.abi, signer)
-  const dataNftAddress = ethers.getAddress(nftAddress)
-  const factoryListAddress = await factoryContract.erc721List(dataNftAddress)
-
-  if (dataNftAddress !== factoryListAddress) {
+  if (!wasDeployedByUs) {
     CORE_LOGGER.error(`Asset ${ddo.id} not deployed by the data NFT factory`)
     return false
   }

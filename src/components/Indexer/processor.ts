@@ -17,7 +17,6 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getDatabase } from '../../utils/database.js'
 import { PROTOCOL_COMMANDS, EVENTS, MetadataStates } from '../../utils/constants.js'
-import { getNFTFactory, getContractAddress } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
 import { getConfiguration } from '../../utils/index.js'
@@ -26,6 +25,7 @@ import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
+import { wasNFTDeployedByOurFactory } from '../../utils/address.js'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -257,13 +257,13 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     eventName: string
   ): Promise<any> {
     try {
-      const nftFactoryAddress = getContractAddress(chainId, 'ERC721Factory')
-      const nftFactoryContract = await getNFTFactory(signer, nftFactoryAddress)
-
-      if (
-        getAddress(await nftFactoryContract.erc721List(event.address)) !==
+      const wasDeployedByUs = wasNFTDeployedByOurFactory(
+        chainId,
+        signer,
         getAddress(event.address)
-      ) {
+      )
+
+      if (!wasDeployedByUs) {
         INDEXER_LOGGER.log(
           LOG_LEVELS_STR.LEVEL_ERROR,
           `NFT not deployed by OPF factory`,
