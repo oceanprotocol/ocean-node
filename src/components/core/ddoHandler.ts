@@ -15,11 +15,7 @@ import { DDO } from '../../@types/DDO/DDO.js'
 import { FindDDOResponse } from '../../@types/index.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { Blockchain } from '../../utils/blockchain.js'
-import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
-import {
-  getOceanArtifactsAdressesByChainId,
-  wasNFTDeployedByOurFactory
-} from '../../utils/address.js'
+import { wasNFTDeployedByOurFactory } from '../../utils/address.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { decrypt, create256Hash } from '../../utils/crypt.js'
@@ -156,20 +152,15 @@ export class DecryptDdoHandler extends Handler {
       // if we do: artifactsAddresses[supportedNetwork.network]
       // because on the contracts we have "optimism_sepolia" instead of "optimism-sepolia"
       // so its always safer to use the chain id to get the correct network and artifacts addresses
-      const artifactsAddresses = getOceanArtifactsAdressesByChainId(
-        supportedNetwork.chainId
-      )
 
-      const factoryAddress = ethers.getAddress(artifactsAddresses.ERC721Factory)
-      const factoryContract = new ethers.Contract(
-        factoryAddress,
-        ERC721Factory.abi,
-        signer
-      )
       const dataNftAddress = ethers.getAddress(task.dataNftAddress)
-      const factoryListAddress = await factoryContract.erc721List(dataNftAddress)
+      const wasDeployedByUs = wasNFTDeployedByOurFactory(
+        supportedNetwork.chainId,
+        signer,
+        dataNftAddress
+      )
 
-      if (dataNftAddress !== factoryListAddress) {
+      if (!wasDeployedByUs) {
         CORE_LOGGER.logMessage(
           'Decrypt DDO: Asset not deployed by the data NFT factory',
           true
