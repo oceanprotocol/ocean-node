@@ -1,10 +1,33 @@
 import { expect, assert } from 'chai'
 import { Purgatory } from '../../components/Indexer/purgatory.js'
+import {
+  OverrideEnvConfig,
+  buildEnvOverrideConfig,
+  setupEnvironment,
+  tearDownEnvironment
+} from '../utils/utils.js'
+import { ENVIRONMENT_VARIABLES } from '../../utils/index.js'
 
 describe('Purgatory test', () => {
   let purgatory: Purgatory
+  let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
+    // override and save configuration (always before calling getConfig())
+    previousConfiguration = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig(
+        [
+          ENVIRONMENT_VARIABLES.ASSET_PURGATORY_URL,
+          ENVIRONMENT_VARIABLES.ACCOUNT_PURGATORY_URL
+        ],
+        [
+          'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json',
+          'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json'
+        ]
+      )
+    )
+
     purgatory = await Purgatory.getInstance()
   })
 
@@ -55,5 +78,9 @@ describe('Purgatory test', () => {
         'did:op:5b33dd722bd9e5e291685545203dfcfd914b55d12de0c1f31541d323e581041c'
       )) === true
     )
+  })
+
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
   })
 })
