@@ -7,7 +7,7 @@ It has a modular approach, allowing multiple compute engines to be connected to 
 
 
 ### Additional features
- - allow multiple c2d engines
+ - allow multiple c2d engines connected to same ocean-node
  - allow multiple jobs(stages) in a workflow
  - a job can depend(or not) on a previous stage -> parallel/serial jobs
 
@@ -54,12 +54,12 @@ A workflow defines one or more jobs to be executed. Each job may have dependenci
 Former known as "operator-service", this layer handles interactions between ocean-node core layer and different execution environments.
 
 In a nutshell, it should:
-     - take a new job (created by startJob core handler)
-     - determine which module to use (docker, k8, Bachalau, etc)
-     - insert workflow in database
-     - signal module handler to take over the job execution
-     - read workflow status when c2d getStatus core is called
-     - serve job results when c2d getJobResult is called
+- take a new job (created by startJob core handler)
+- determine which module to use (docker, k8, Bachalau, etc)
+- insert workflow in database
+- signal module handler to take over the job execution
+- read workflow status when c2d getStatus core is called
+- serve job results when c2d getJobResult is called
      
 Since, due to technical constrains, both internal modules (docker and k8) will use docker images for data provisioning (old pod-configuration) and results publishing (old pod-publishing), orchestration layer will also expose three new core commands:
 - c2dJobProvision (called by pod-configuration executor to get the workflow input definition)
@@ -91,7 +91,7 @@ An engine that uses external services (like Bachalau) has the same logic, but mo
 
 An engine is responsible for:
  - exposing list of compute environments to orchestration layer
- - exposing list of running jobs and limits (max concurent jobs, etc)  to orchestration layer
+ - exposing list of running jobs and limits (max concurrent jobs, etc)  to orchestration layer
  - store workflows and each job status (so, on restart we can resume flows or continue running flow)
  - queue new jobs
 
@@ -160,8 +160,8 @@ Pod-Publishing -> Ocean-node: call c2dJobStatusUpdate
 
 ## POD-* common description
 
-   For a efficient comm between ocean-node and the two containers, the easiest way is to use p2p/http api.
-   Thus, all pod-* will run a ocean-node instance (each will have a job generated random key), and they will connect to the main ocean-node instance. Main ocean-node instance peerNodeId or http api endpoint will be inserted in yaml.
+   For a efficient communication between ocean-node and the two containers, the easiest way is to use p2p/http api.
+   Thus, all pod-* will run a ocean-node instance (each will have a job generated random key), and they will connect to the main ocean-node instance. Main ocean-node instance peerNodeId or http API endpoint will be inserted in yaml.
    Each pod-** will use a private key, also exposed in yaml.
 
    So, each yml of pod-* will contain the following envs:
@@ -169,8 +169,7 @@ Pod-Publishing -> Ocean-node: call c2dJobStatusUpdate
     - nodeHttpApi ?
     - privateKey
 
-    When pod-* will call one of 
-
+    
 ### Pod-configuration
  In the past, pod-configuration was a standalone repo, built as docker image.
  In this implementation, it will be ocean-node, with a different entrypoint (entry_configuration.js)
