@@ -173,6 +173,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
     const url = `${baseUrl}api/v1/operator/environments?chain_id=${chainId}`
     try {
       const { data } = await axios.get(url)
+      if (!data) return envs
       // we need to add hash to each env id
       for (const [index, val] of data.entries()) {
         data[index].id = `${clusterHash}-${val.id}`

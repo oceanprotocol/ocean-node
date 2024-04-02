@@ -44,6 +44,7 @@ import {
 } from '../utils/utils.js'
 
 import { ProviderFees } from '../../@types/Fees.js'
+import { homedir } from 'os'
 
 describe('Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
@@ -70,6 +71,7 @@ describe('Compute', () => {
   )
   // const chainId = DEVELOPMENT_CHAIN_ID
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+
   before(async () => {
     previousConfiguration = await setupEnvironment(
       null,
@@ -78,17 +80,21 @@ describe('Compute', () => {
           ENVIRONMENT_VARIABLES.RPCS,
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.DB_URL,
-          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS
+          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE,
+          ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL
         ],
         [
           JSON.stringify(mockSupportedNetworks),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           'http://localhost:8108/?apiKey=xyz',
-          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'])
+          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
+          JSON.stringify(['http://localhost:31000'])
         ]
       )
     )
-    config = await getConfiguration(true) // Force reload the configuration
+    config = await getConfiguration(true)
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
     //  eslint-disable-next-line no-unused-vars
@@ -103,6 +109,7 @@ describe('Compute', () => {
     assert(oceanNode, 'Failed to instantiate OceanNode')
     assert(config.c2dClusters, 'Failed to get c2dClusters')
   })
+
   // let's publish assets & algos
   it('should publish compute datasets & algos', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
@@ -128,6 +135,7 @@ describe('Compute', () => {
       )
     }
   })
+
   it('Get compute environments', async () => {
     const getEnvironmentsTask = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS,
@@ -142,6 +150,7 @@ describe('Compute', () => {
     expect(response.stream).to.be.instanceOf(Readable)
 
     computeEnvironments = await streamToObject(response.stream as Readable)
+
     // expect 2 envs
     expect(computeEnvironments.length === 2, 'incorrect length')
     for (const computeEnvironment of computeEnvironments) {
@@ -248,6 +257,7 @@ describe('Compute', () => {
     assert(resultParsed.providerFee.validUntil, 'algorithm validUntil does not exist')
     assert(result.datasets[0].validOrder === false, 'incorrect validOrder') // expect false because tx id was not provided and no start order was called before
   })
+
   it('should start an order', async function () {
     const orderTxReceipt = await orderAsset(
       publishedComputeDataset.ddo,
@@ -262,6 +272,7 @@ describe('Compute', () => {
     datasetOrderTxId = orderTxReceipt.hash
     assert(datasetOrderTxId, 'transaction id not found')
   })
+
   it('Initialize compute with dataset tx and without algoritm tx', async () => {
     // now, we have a valid order for dataset, with valid compute provider fees
     // expected results:
@@ -335,6 +346,7 @@ describe('Compute', () => {
     )
     assert(result.datasets[0].validOrder !== false, 'We should have a valid order') // because we started an order earlier
   })
+
   it('should buy algo', async function () {
     const orderTxReceipt = await orderAsset(
       publishedAlgoDataset.ddo,
@@ -349,6 +361,7 @@ describe('Compute', () => {
     algoOrderTxId = orderTxReceipt.hash
     assert(algoOrderTxId, 'transaction id not found')
   })
+
   it('Initialize compute with dataset tx and algo with tx', async () => {
     // now, we have valid orders for both algo and dataset,
     // expected results:
@@ -407,6 +420,7 @@ describe('Compute', () => {
     )
     assert(result.datasets[0].validOrder !== false, 'We should have a valid order') // because we started an order earlier
   })
+
   it('should fail to start a compute job', async () => {
     const nonce = Date.now().toString()
     const message = String(nonce)
@@ -443,6 +457,7 @@ describe('Compute', () => {
     assert(response.status.httpStatus === 500, 'Failed to get 500 response')
     assert(!response.stream, 'We should not have a stream')
   })
+
   it('should start a compute job', async () => {
     const nonce = Date.now().toString()
     const message = String(nonce)
@@ -475,7 +490,6 @@ describe('Compute', () => {
     }
     const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
     assert(response, 'Failed to get response')
-    // should fail, because txId '0x123' is not a valid order
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
@@ -484,6 +498,7 @@ describe('Compute', () => {
     // eslint-disable-next-line prefer-destructuring
     jobId = jobs[0].jobId
   })
+
   it('should stop a compute job', async () => {
     const nonce = Date.now().toString()
     const message = String(nonce)
@@ -507,6 +522,7 @@ describe('Compute', () => {
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
   })
+
   it('should get job status by jobId', async () => {
     const statusComputeTask: ComputeGetStatusCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
@@ -524,6 +540,7 @@ describe('Compute', () => {
     const jobs = await streamToObject(response.stream as Readable)
     console.log(jobs)
   })
+
   it('should get job status by consumer', async () => {
     const statusComputeTask: ComputeGetStatusCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
@@ -541,6 +558,7 @@ describe('Compute', () => {
     const jobs = await streamToObject(response.stream as Readable)
     console.log(jobs)
   })
+
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
   })
