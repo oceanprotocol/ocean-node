@@ -41,9 +41,11 @@ const s3ObjectAWS = {
 
 const sampleS3FileObjectWASABI = {
   type: 's3',
-  hash: '0x040b62aff557348958b287a27eb60d1e807f403b09c5bb08a227ad51eb3527122008a5c9a2fb4d9a22336b90cc6d81768c9fc9c2550fbc529ec14234a33fd1e49332c4ed5544fcdb22c40baec62d0b1d07a1b74187f0606882c81e82fdddc8fd600e6e7964225a7b323ac1194dc58908ad281e6ae487e928f47e5d663da486621d62f6da79645b47f64d90a9069140fdfe792c5a65d9abb6ee6fd591216d759d503a1b4abb190cd7a9d72ea4c4aa430ed0dfc390fa0790df2b2d91b9ed882ec90bf68db6951ec93f3e31980f78bdb1b12bed062d15e6e3abc04d0ff3e5ddf03113eceb6fcedd6594b5544f9b90b4a1768fafc329de01f162d76c4a068b48d8ea832cc8d7f8f326e8a1cee4c9210d0d6e29d2bfe0443ca36c111ae8f73e1bdf7dd18b017fc5fe',
+  hash: '0x6080d8e89754e342e7821a5cfc50944960be74b5c55b0c139697cda91689e3d2e6b06021eb11581d213c5e26584f3264b2800b471bce724e6b9b224adab7208de762f64dda773af2ac13a2a261fc15ac4239c1ac631e75640162b4c761033596eec8fb0290f79180fce23fc0c46ee621eb6f6b15fec6e77ae68c24fec93c2de80bba6e0365ee2604650437130364cd6ba80cabaea0753ebe638066c5b3242286994b9f6e389fdc86d092c1e68730eeece686924f78a2a50cdcf71ff2ce65a3a4bae39a04a35638f7dbb9289b845d51ff',
+  //hash: '0x040b62aff557348958b287a27eb60d1e807f403b09c5bb08a227ad51eb3527122008a5c9a2fb4d9a22336b90cc6d81768c9fc9c2550fbc529ec14234a33fd1e49332c4ed5544fcdb22c40baec62d0b1d07a1b74187f0606882c81e82fdddc8fd600e6e7964225a7b323ac1194dc58908ad281e6ae487e928f47e5d663da486621d62f6da79645b47f64d90a9069140fdfe792c5a65d9abb6ee6fd591216d759d503a1b4abb190cd7a9d72ea4c4aa430ed0dfc390fa0790df2b2d91b9ed882ec90bf68db6951ec93f3e31980f78bdb1b12bed062d15e6e3abc04d0ff3e5ddf03113eceb6fcedd6594b5544f9b90b4a1768fafc329de01f162d76c4a068b48d8ea832cc8d7f8f326e8a1cee4c9210d0d6e29d2bfe0443ca36c111ae8f73e1bdf7dd18b017fc5fe',
   encryptedBy: 'EncryptionKey',
-  encryptMethod: 'ECIES'
+  //encryptMethod: 'ECIES'
+  encryptMethod: 'AES'
 }
 
 const s3ObjectWASABI = {
@@ -58,10 +60,12 @@ const s3ObjectWASABI = {
 function encrypt(data, algorithm) {
   let encryptedData
   if (algorithm === 'AES') {
+    const publicKeyBuffer = Buffer.from(publicKey.slice(2), 'hex')
     // use first 16 bytes of public key as an initialisation vector
-    const initVector = publicKey.subarray(0, 16)
+    const initVector = publicKeyBuffer.subarray(0, 16)
+    const privateKeyBuffer = Buffer.from(privateKey, 'hex')
     // creates cipher object, with the given algorithm, key and initialization vector
-    const cipher = crypto.createCipheriv('aes-256-cbc', privateKey, initVector)
+    const cipher = crypto.createCipheriv('aes-256-cbc', privateKeyBuffer, initVector)
     // encoding is ignored because we are working with bytes and want to return a buffer
     encryptedData = Buffer.concat([cipher.update(data), cipher.final()])
   } else if (algorithm === 'ECIES') {
@@ -87,9 +91,17 @@ async function decryptData(hash, algorithm) {
 
   let data
   if (algorithm === 'ECIES') {
+    console.log('ecies')
     const privateKeyBuffer = Buffer.from(privateKey, 'hex')
     const sk = new eciesjs.PrivateKey(privateKeyBuffer)
     data = eciesjs.decrypt(sk.secret, encryptedData)
+  } else if (algorithm === 'AES') {
+    console.log('aes')
+    const publicKeyBuffer = Buffer.from(publicKey.slice(2), 'hex')
+    const initVector = publicKeyBuffer.subarray(0, 16)
+    const privateKeyBuffer = Buffer.from(privateKey, 'hex')
+    const decipher = crypto.createDecipheriv('aes-256-cbc', privateKeyBuffer, initVector)
+    data = Buffer.concat([decipher.update(encryptedData), decipher.final()])
   } else {
     throw new Error('Unsupported encryption algorithm')
   }
@@ -155,10 +167,7 @@ async function testS3Storage() {
 }
 
 async function testEncrypt() {
-  const encryptedDataWasabi = await testEncryption(
-    s3ObjectWASABI,
-    sampleS3FileObjectWASABI.encryptMethod
-  )
+  const encryptedDataWasabi = await testEncryption(s3ObjectWASABI, 'AES')
   console.log('\nencrypt for wasabi ok', encryptedDataWasabi)
   const decryptedDataWASABI = await decryptData(
     encryptedDataWasabi,
@@ -188,5 +197,5 @@ async function testEncrypt() {
   console.log('\ndecryptedDataOCEAN', decryptedDataOCEAN)
 }
 
-//testEncrypt()
+testEncrypt()
 testS3Storage()
