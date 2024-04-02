@@ -204,9 +204,22 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.ALLOWED_ADMINS,
     required: false
   },
+  ASSET_PURGATORY_URL: {
+    name: 'ASSET_PURGATORY_URL',
+    value: process.env.ASSET_PURGATORY_URL,
+    required: false
+  },
+  ACCOUNT_PURGATORY_URL: {
+    name: 'ACCOUNT_PURGATORY_URL',
+    value: process.env.ACCOUNT_PURGATORY_URL,
+    required: false
+  },
   DASHBOARD: {
     name: 'DASHBOARD',
     value: process.env.DASHBOARD,
     required: false
   }
 }
+
+// global ocean node API services path
+export const SERVICES_API_BASE_PATH = '/api/services'
