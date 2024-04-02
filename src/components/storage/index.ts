@@ -26,6 +26,7 @@ export abstract class Storage {
   abstract getDownloadUrl(): string
   abstract fetchSpecificFileMetadata(fileObject: any): Promise<FileInfoResponse>
   abstract encryptContent(encryptionType: 'AES' | 'ECIES'): Promise<Buffer>
+  abstract isFilePath(): boolean
 
   getFile(): any {
     return this.file
@@ -187,12 +188,11 @@ export class UrlStorage extends Storage {
   }
 
   isFilePath(): boolean {
-    const regex: RegExp = /^(.+)\/([^/]+)$/ // The URL should not represent a path
+    const regex: RegExp = /^(.+)\/([^/]*)$/ // The URL should not represent a path
     const { url } = this.getFile()
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return false
     }
-
     return regex.test(url)
   }
 
@@ -248,7 +248,26 @@ export class ArweaveStorage extends Storage {
     if (!file.transactionId) {
       return [false, 'Missing transaction ID']
     }
+    if (
+      file.transactionId.startsWith('http://') ||
+      file.transactionId.startsWith('https://')
+    ) {
+      return [
+        false,
+        'Transaction ID looks like an URL. Please specify URL storage instead.'
+      ]
+    }
+    if (this.isFilePath() === true) {
+      return [false, 'Transaction ID looks like a file path']
+    }
     return [true, '']
+  }
+
+  isFilePath(): boolean {
+    const regex: RegExp = /^(.+)\/([^/]*)$/ // The transaction ID should not represent a path
+    const { transactionId } = this.getFile()
+
+    return regex.test(transactionId)
   }
 
   getDownloadUrl(): string {
@@ -301,8 +320,20 @@ export class IpfsStorage extends Storage {
     if (!file.hash) {
       return [false, 'Missing CID']
     }
-
+    if (file.hash.startsWith('http://') || file.hash.startsWith('https://')) {
+      return [false, 'CID looks like an URL. Please specify URL storage instead.']
+    }
+    if (this.isFilePath() === true) {
+      return [false, 'CID looks like a file path']
+    }
     return [true, '']
+  }
+
+  isFilePath(): boolean {
+    const regex: RegExp = /^(.+)\/([^/]*)$/ // The CID should not represent a path
+    const { hash } = this.getFile()
+
+    return regex.test(hash)
   }
 
   getDownloadUrl(): string {
