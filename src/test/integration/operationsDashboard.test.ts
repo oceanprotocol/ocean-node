@@ -179,8 +179,9 @@ describe('Should test admin operations', () => {
     }
     // search all ddos published on 8996 chain ID
     const results = await dbconn.ddo.search(searchParameters)
-    console.log('results: ', results)
-    assert(results.length === 0, 'list not empty')
+    for (const result of results) {
+      assert(result.hits.length === 0, 'list not empty')
+    }
     assert(
       (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) <=
         indexerLastBlockBeforereindex
