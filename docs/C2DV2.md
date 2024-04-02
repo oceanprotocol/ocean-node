@@ -114,29 +114,28 @@ An engine is responsible for:
 ```
 title C2Dv2 message flow for docker module
 User -> Ocean-node: start c2d job
-Ocean-node -> Op-service: start c2d job
-Op-service -> Op-service: determine module and insert workflow, random private key in db
-Op-service -> Docker-module: queue job
-Docker-module -> Docker_host:  create job volume
-Docker-module -> Docker-module: create yaml for pod-configuration, set private key
-Docker-module -> Docker_host: start pod-configuration
-Docker_host -> Pod-Configuration: start as docker container
+Ocean-node -> Orchestration-class: start c2d job
+Orchestration-class -> Orchestration-class: determinte module and insert workflow, random private key in db
+Orchestration-class -> Docker-engine: queue job
+Docker-engine -> Docker_host_api:  create job volume
+Docker-engine -> Docker-engine: create yaml for pod-configuration, set private key
+Docker-engine -> Docker_host_api: start pod-configuration
 Pod_configuration -> Pod_configuration: starts ocean-node as pod-config
 Pod_configuration -> Ocean-node: call c2dJobProvision
 Ocean-node -> Pod_configuration: return workflow
 Pod_configuration -> Pod_configuration : download inputs & algo
 Pod_configuration -> Ocean-node: call c2dJobStatusUpdate
-Ocean-node -> Docker-module: download success, start algo
-Docker-module -> Docker-module: create yaml for algo
-Docker-module -> Docker_host: start algo container
-Docker_host -> Docker_host: start as docker container
-Docker-module -> Docker-module: monitor algo container, stop if timeout
-Docker-module -> Docker-module: create yaml for pod-publishing, set private key
-Docker-module -> Docker_host: start pod-publishing
-Docker_host -> Pod-Publishing: start as docker container
+Ocean-node -> Docker-engine: download success, start algo
+Docker-engine -> Docker-engine: create yaml for algo
+Docker-engine -> Docker_host_api: start algo container
+Docker-engine -> Docker-engine: monitor algo container, stop if timeout
+Docker-engine -> Docker-engine: create yaml for pod-publishing, set private key
+Docker-engine -> Docker_host_api: start pod-publishing
+Docker_host_api -> Pod-Publishing: start as docker container
 Pod-Publishing -> Pod-Publishing : prepare output
 Pod-Publishing -> Ocean-node: call c2dJobPublishResult
 Pod-Publishing -> Ocean-node: call c2dJobStatusUpdate
+
 
 ```
 
