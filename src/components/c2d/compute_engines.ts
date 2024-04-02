@@ -170,9 +170,10 @@ export class C2DEngineOPFK8 extends C2DEngine {
     const clusterHash = this.getC2DConfig().hash
     const url = `${
       this.getC2DConfig().url
-    }api/v1/operator/environments?chain_id=${chainId}`
+    }/api/v1/operator/environments?chain_id=${chainId}`
     try {
       const { data } = await axios.get(url)
+      if (!data) return envs
       // we need to add hash to each env id
       for (const [index, val] of data.entries()) {
         data[index].id = `${clusterHash}-${val.id}`
@@ -250,7 +251,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
     try {
       const response = await axios({
         method: 'post',
-        url: `${this.getC2DConfig().url}api/v1/operator/compute`,
+        url: `${this.getC2DConfig().url}/api/v1/operator/compute`,
         data: payload
       })
       if (response.status !== 200) {
@@ -287,7 +288,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
     try {
       const response = await axios({
         method: 'put',
-        url: `${this.getC2DConfig().url}api/v1/operator/compute`,
+        url: `${this.getC2DConfig().url}/api/v1/operator/compute`,
         data: payload
       })
       if (response.status !== 200) {
@@ -322,7 +323,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
     try {
       const response = await axios({
         method: 'get',
-        url: `${this.getC2DConfig().url}api/v1/operator/compute`,
+        url: `${this.getC2DConfig().url}/api/v1/operator/compute`,
         data: payload
       })
       if (response.status !== 200) {
@@ -360,7 +361,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
     try {
       const response = await axios({
         method: 'get',
-        url: `${this.getC2DConfig().url}api/v1/operator/computeResult`,
+        url: `${this.getC2DConfig().url}/api/v1/operator/computeResult`,
         data: payload,
         responseType: 'stream'
       })

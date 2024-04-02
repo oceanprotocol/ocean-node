@@ -264,7 +264,7 @@ export class ArweaveStorage extends Storage {
       valid: true,
       contentLength,
       contentType,
-      name: new URL(url).pathname.split('/').pop() || '',
+      name: '', // Never send the file name for Arweave as it may leak the transaction ID
       type: 'arweave',
       encryptedBy: fileObject.encryptedBy,
       encryptMethod: fileObject.encryptMethod

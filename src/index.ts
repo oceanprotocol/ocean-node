@@ -14,6 +14,7 @@ import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import cors from 'cors'
+import { scheduleCronJobs } from './utils/logging/logDeleteCron.js'
 
 const app: Express = express()
 
@@ -79,7 +80,7 @@ if (!config) {
 let node: OceanP2P = null
 let indexer = null
 let provider = null
-let dbconn = null
+let dbconn: Database | null = null
 
 if (config.dbConfig?.url) {
   // once we create a database instance, we check the environment and possibly add the DB transport
@@ -125,22 +126,24 @@ if (config.hasHttp) {
   app.use(express.raw({ limit: '25mb' }))
   app.use(cors())
 
-  // Serve static files expected at the root, under the '/_next' path
-  app.use('/_next', express.static(path.join(__dirname, '/dashboard/_next')))
+  if (config.hasDashboard) {
+    // Serve static files expected at the root, under the '/_next' path
+    app.use('/_next', express.static(path.join(__dirname, '/dashboard/_next')))
 
-  // Serve static files for Next.js under '/dashboard'
-  const dashboardPath = path.join(__dirname, '/dashboard')
-  app.use('/dashboard', express.static(dashboardPath))
+    // Serve static files for Next.js under '/dashboard'
+    const dashboardPath = path.join(__dirname, '/dashboard')
+    app.use('/dashboard', express.static(dashboardPath))
 
-  // Custom middleware for SPA routing: Serve index.html for non-static asset requests under '/dashboard'
-  app.use('/dashboard', (req, res, next) => {
-    if (/(.ico|.js|.css|.jpg|.png|.svg|.map)$/i.test(req.path)) {
-      return next() // Skip this middleware if the request is for a static asset
-    }
+    // Custom middleware for SPA routing: Serve index.html for non-static asset requests under '/dashboard'
+    app.use('/dashboard', (req, res, next) => {
+      if (/(.ico|.js|.css|.jpg|.png|.svg|.map)$/i.test(req.path)) {
+        return next() // Skip this middleware if the request is for a static asset
+      }
 
-    // For any other requests under '/dashboard', serve index.html
-    res.sendFile(path.join(dashboardPath, 'index.html'))
-  })
+      // For any other requests under '/dashboard', serve index.html
+      res.sendFile(path.join(dashboardPath, 'index.html'))
+    })
+  }
 
   // allow up to 25Mb file upload
   app.use((req, res, next) => {
@@ -163,4 +166,7 @@ if (config.hasHttp) {
   app.listen(config.httpPort, () => {
     OCEAN_NODE_LOGGER.logMessage(`HTTP port: ${config.httpPort}`, true)
   })
+
+  // Call the function to schedule the cron job to delete old logs
+  scheduleCronJobs(dbconn)
 }

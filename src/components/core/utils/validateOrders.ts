@@ -1,10 +1,4 @@
-import {
-  JsonRpcProvider,
-  JsonRpcApiProvider,
-  Contract,
-  Interface,
-  TransactionReceipt
-} from 'ethers'
+import { JsonRpcApiProvider, Contract, Interface, TransactionReceipt } from 'ethers'
 import { fetchEventFromTransaction } from '../../../utils/util.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
@@ -44,7 +38,7 @@ export async function fetchTransactionReceipt(
 export async function validateOrderTransaction(
   txId: string,
   userAddress: string,
-  provider: JsonRpcProvider,
+  provider: JsonRpcApiProvider,
   dataNftAddress: string,
   datatokenAddress: string,
   serviceIndex: number,
