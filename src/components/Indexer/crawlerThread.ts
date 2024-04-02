@@ -172,8 +172,8 @@ parentPort.on('message', (message) => {
       REINDEX_QUEUE.push(message.reindexTask)
     }
   }
-  if (message.method === 'reset-crawling') {
-    const deployedBlock = getDeployedContractBlock(message.chainId)
-    updateLastIndexedBlockNumber(deployedBlock)
-  }
+  // if (message.method === 'reset-crawling') {
+  //   const deployedBlock = getDeployedContractBlock(message.chainId)
+  //   updateLastIndexedBlockNumber(deployedBlock)
+  // }
 })
