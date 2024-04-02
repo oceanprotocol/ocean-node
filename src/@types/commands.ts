@@ -63,11 +63,6 @@ export interface StopNodeCommand extends Command {
 export interface QueryCommand extends Command {
   query: Record<string, any>
 }
-
-export interface QueryDdoStateCommand extends Command {
-  query: Record<string, any>
-}
-
 export interface ReindexCommand extends Command {
   txId: string
   chainId: number

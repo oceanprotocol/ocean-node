@@ -1,5 +1,5 @@
 import { Handler } from './handler.js'
-import { QueryCommand, QueryDdoStateCommand } from '../../@types/commands.js'
+import { QueryCommand } from '../../@types/commands.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
 import {
@@ -37,11 +37,11 @@ export class QueryHandler extends Handler {
 }
 
 export class QueryDdoStateHandler extends Handler {
-  validate(command: QueryDdoStateCommand): ValidateParams {
+  validate(command: QueryCommand): ValidateParams {
     return validateCommandParameters(command, [])
   }
 
-  async handle(task: QueryDdoStateCommand): Promise<P2PCommandResponse> {
+  async handle(task: QueryCommand): Promise<P2PCommandResponse> {
     const validation = this.validate(task)
     if (!validation.valid) {
       return buildInvalidParametersResponse(validation)
