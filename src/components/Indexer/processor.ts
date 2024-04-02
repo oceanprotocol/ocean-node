@@ -257,7 +257,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     eventName: string
   ): Promise<any> {
     try {
-      const wasDeployedByUs = wasNFTDeployedByOurFactory(
+      const wasDeployedByUs = await wasNFTDeployedByOurFactory(
         chainId,
         signer,
         getAddress(event.address)

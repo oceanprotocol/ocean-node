@@ -157,7 +157,7 @@ export class DecryptDdoHandler extends Handler {
       // so its always safer to use the chain id to get the correct network and artifacts addresses
 
       const dataNftAddress = ethers.getAddress(task.dataNftAddress)
-      const wasDeployedByUs = wasNFTDeployedByOurFactory(
+      const wasDeployedByUs = await wasNFTDeployedByOurFactory(
         supportedNetwork.chainId,
         signer,
         dataNftAddress
@@ -825,7 +825,7 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
   const blockchain = new Blockchain(network.rpc, chainId)
   const signer = blockchain.getSigner()
 
-  const wasDeployedByUs = wasNFTDeployedByOurFactory(
+  const wasDeployedByUs = await wasNFTDeployedByOurFactory(
     chainId as number,
     signer,
     ethers.getAddress(nftAddress)
