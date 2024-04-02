@@ -137,6 +137,8 @@ export class OceanIndexer {
     const worker = OceanIndexer.workers[chainId]
     if (worker) {
       worker.postMessage({ method: 'reset-crawling', chainId })
+      // const deployedBlock = getDeployedContractBlock(chainId)
+      // updateLastIndexedBlockNumber(deployedBlock)
     }
   }
 

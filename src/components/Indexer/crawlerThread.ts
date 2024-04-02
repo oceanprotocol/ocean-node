@@ -27,6 +27,8 @@ interface ThreadData {
   lastIndexedBlock: number
 }
 
+INDEXER_LOGGER.logMessage(`workerData: ${JSON.stringify(workerData)}`)
+
 let { rpcDetails, lastIndexedBlock } = workerData as ThreadData
 
 const blockchain = new Blockchain(rpcDetails.rpc, rpcDetails.chainId)
@@ -169,5 +171,9 @@ parentPort.on('message', (message) => {
     if (message.reindexTask) {
       REINDEX_QUEUE.push(message.reindexTask)
     }
+  }
+  if (message.method === 'reset-crawling') {
+    const deployedBlock = getDeployedContractBlock(message.chainId)
+    updateLastIndexedBlockNumber(deployedBlock)
   }
 })
