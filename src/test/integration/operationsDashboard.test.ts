@@ -171,10 +171,10 @@ describe('Should test admin operations', () => {
 
     console.log('ddo: ', await dbconn.ddo.retrieve(publishedDataset.ddo.id))
 
-    // assert(
-    //   (await dbconn.ddo.retrieve(publishedDataset.ddo.id)) === null,
-    //   'ddo does not exist'
-    // )
+    assert(
+      (await dbconn.ddo.retrieve(publishedDataset.ddo.id)) === null,
+      'ddo does not exist'
+    )
     console.log(
       '(await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)): ',
       await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)
