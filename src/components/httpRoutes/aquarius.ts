@@ -7,7 +7,7 @@ import { GetDdoHandler, ValidateDDOHandler } from '../core/ddoHandler.js'
 import { QueryHandler, QueryDdoStateHandler } from '../core/queryHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { DDO } from '../../@types/DDO/DDO.js'
-import { QueryDdoStateCommand } from '../../@types/commands.js'
+import { QueryCommand } from '../../@types/commands.js'
 
 export const aquariusRoutes = express.Router()
 
@@ -90,7 +90,7 @@ aquariusRoutes.post(
 
 aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
   try {
-    let queryDdoState: QueryDdoStateCommand
+    let queryDdoState: QueryCommand
     const did = String(req.query.did)
     queryDdoState.query = {
       q: did,
