@@ -8,12 +8,12 @@ export interface CommonValidation {
   valid: boolean
   error?: string
 }
-const configuration = await getConfiguration()
+
 // midleware to valid client addresses against a blacklist
-export const requestValidator = function (req: Request, res: Response, next: any) {
+export const requestValidator = async function (req: Request, res: Response, next: any) {
   // Perform the validations.
   const requestIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress
-  const validation = checkIP(requestIP)
+  const validation = await checkIP(requestIP)
   // Validation failed, or an error occurred during the external request.
   if (!validation.valid) {
     res.status(403).send(validation.error)
@@ -23,8 +23,9 @@ export const requestValidator = function (req: Request, res: Response, next: any
   next()
 }
 
-function checkIP(requestIP: string | string[]): CommonValidation {
+async function checkIP(requestIP: string | string[]): Promise<CommonValidation> {
   let isBlackListed = false
+  const configuration = await getConfiguration()
   if (!Array.isArray(requestIP)) {
     isBlackListed = configuration.blackList?.ips.includes(requestIP)
   } else {

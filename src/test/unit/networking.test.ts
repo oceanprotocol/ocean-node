@@ -184,7 +184,7 @@ describe('Test rate limitations and blacklist settings', () => {
 
     const rateLimitResponses = []
 
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < ips.length; i++) {
       node.setRemoteCaller(ips[i])
       const statusHandler: StatusHandler = CoreHandlersRegistry.getInstance(
         node
