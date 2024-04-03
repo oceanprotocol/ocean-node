@@ -483,7 +483,7 @@ export class S3Storage extends Storage {
     const streamString = await streamToString(stream as Readable)
     const encryptedData = ethers.getBytes(streamString)
     const decryptedData = await decrypt(encryptedData, this.getFile().encryptedMethod)
-
+    // return JSON.parse(decryptedData.toString())
     return Readable.from([decryptedData])
   }
 
@@ -498,17 +498,6 @@ export class S3Storage extends Storage {
     return await encryptData(response.data, encryptionType)
   }
 
-  async encryptHash(
-    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
-  ): Promise<Buffer> {
-    try {
-      const file = this.getFile()
-      return await encryptData(file.hash, encryptionType)
-    } catch (err) {
-      console.error('Error fetching object from S3:', err)
-    }
-  }
-
   async decryptHash(
     encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
   ): Promise<Buffer> {
@@ -518,12 +507,5 @@ export class S3Storage extends Storage {
     } catch (err) {
       console.error('Error fetching object from S3:', err)
     }
-  }
-
-  async decryptContent(
-    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
-  ): Promise<Buffer> {
-    const data = await this.getData()
-    return await encryptData(data, encryptionType)
   }
 }

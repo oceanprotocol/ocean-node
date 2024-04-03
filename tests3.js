@@ -57,6 +57,22 @@ const s3ObjectWASABI = {
   secretAccessKey: ''
 }
 
+const sampleS3FileObjectBACKBLAZE = {
+  type: 's3',
+  hash: '0x047ac7694f57010a18fe6b95dce2b59804414a203b28c3f19fd409b214f421681e4c104aa5cb057f4ba2baacf87950e3675004b3be34b50400c179c3711c8fa8e40a26f5161a4517a26beb86af4158b9e2d03075b2ef6a694bbdbbdc071d60cd46d417b9a42757d85c7989d2652aecdec89d094f352c17ccd0673f0d83143367cdd6487eaa817f8fdef57044dd7595387e38256fa85b3b9fe82e085639022324fbbf2a2d6bfceb76e73084352279897620ede9e606defc71f6480b1eeb35fb615874e4bb9d537bb18cb2d723350e5d1d67b00cc36a70c7ce2a1113764a13366473f3cd56e85db1cce0355b01cfa410496d92975f16d7b64d3a69e30942cd4ce71c20d2e1bf0493610c2aacc8ff1414eaf85ba4d0af3693cb51a400844529904eddb96af6763cf65657582e373067e75063eeb1b3d1',
+  encryptedBy: 'EncryptionKey',
+  encryptMethod: 'ECIES'
+}
+
+const s3ObjectBACKBLAZE = {
+  endpoint: 's3.us-east-005.backblazeb2.com',
+  region: 'us-east-005',
+  objectKey: 'test.json',
+  bucket: 'adritestbucket',
+  accessKeyId: '',
+  secretAccessKey: ''
+}
+
 function encrypt(data, algorithm) {
   let encryptedData
   if (algorithm === 'AES') {
@@ -91,12 +107,10 @@ async function decryptData(hash, algorithm) {
 
   let data
   if (algorithm === 'ECIES') {
-    console.log('ecies')
     const privateKeyBuffer = Buffer.from(privateKey, 'hex')
     const sk = new eciesjs.PrivateKey(privateKeyBuffer)
     data = eciesjs.decrypt(sk.secret, encryptedData)
   } else if (algorithm === 'AES') {
-    console.log('aes')
     const publicKeyBuffer = Buffer.from(publicKey.slice(2), 'hex')
     const initVector = publicKeyBuffer.subarray(0, 16)
     const privateKeyBuffer = Buffer.from(privateKey, 'hex')
@@ -116,7 +130,8 @@ async function fetchSpecificFileMetadataTest(fileObject) {
     endpoint: spacesEndpoint,
     accessKeyId: s3Object.accessKeyId,
     secretAccessKey: s3Object.secretAccessKey,
-    region: s3Object.region
+    region: s3Object.region,
+    s3ForcePathStyle: true
   })
 
   const params = {
@@ -161,6 +176,10 @@ async function testS3Storage() {
     console.log('-------------------------------------')
     await fetchSpecificFileMetadataTest(sampleS3FileObjectWASABI)
     console.log('wasabi ok')
+
+    console.log('-------------------------------------')
+    await fetchSpecificFileMetadataTest(sampleS3FileObjectBACKBLAZE)
+    console.log('backblaze ok')
   } catch (error) {
     console.error('Error:', error)
   }
@@ -195,6 +214,17 @@ async function testEncrypt() {
     sampleS3FileObjectOCEAN.encryptMethod
   )
   console.log('\ndecryptedDataOCEAN', decryptedDataOCEAN)
+
+  const encryptedDataBACKBLAZE = await testEncryption(
+    s3ObjectBACKBLAZE,
+    sampleS3FileObjectBACKBLAZE.encryptMethod
+  )
+  console.log('\nencrypt for backblaze ok', encryptedDataBACKBLAZE)
+  const decryptedDataBACKBLAZE = await decryptData(
+    encryptedDataBACKBLAZE,
+    sampleS3FileObjectOCEAN.encryptMethod
+  )
+  console.log('\ndecryptedDataBACKBLAZE', decryptedDataBACKBLAZE)
 }
 
 testEncrypt()
