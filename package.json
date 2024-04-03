@@ -68,6 +68,7 @@
     "@types/rdfjs__parser-jsonld": "^2.1.6",
     "@types/rdfjs__to-ntriples": "^2.0.6",
     "aegir": "^37.3.0",
+    "aws-sdk": "^2.1591.0",
     "axios": "^1.6.0",
     "base58-js": "^2.0.0",
     "cors": "^2.8.5",
