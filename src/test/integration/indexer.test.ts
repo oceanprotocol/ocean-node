@@ -195,6 +195,16 @@ describe('Indexer stores a new metadata events and orders.', () => {
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
+  it('should store the ddo state in the db with no errors found ', async function () {
+    const ddoState = await database.ddoState.retrieve(resolvedDDO.id)
+    expect(resolvedDDO.id).to.equal(ddoState.did)
+    expect(resolvedDDO.nftAddress).to.equal(ddoState.nft)
+    expect(ddoState.valid).to.equal(true)
+    expect(resolvedDDO.id).to.equal(ddoState.did)
+    expect(ddoState.error).to.equal(' ')
+    // add txId check once we have that as change merged and the event will be indexed
+  })
+
   it('should update ddo metadata fields ', async () => {
     resolvedDDO.metadata.name = 'dataset-name-updated'
     resolvedDDO.metadata.description =
