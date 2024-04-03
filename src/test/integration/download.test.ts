@@ -194,7 +194,7 @@ describe('Should run a complete node flow.', () => {
       publisherAccount,
       oceanNode
     )
-    console.log('orderTxReceipt', orderTxReceipt)
+    assert(orderTxReceipt, 'order transaction failed')
     orderTxId = orderTxReceipt.hash
     assert(orderTxId, 'transaction id not found')
   })
