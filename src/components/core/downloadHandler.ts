@@ -356,9 +356,26 @@ export class DownloadHandler extends Handler {
       // Convert the decrypted bytes back to a string
       const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
       const decryptedFileArray = JSON.parse(decryptedFilesString)
+
+      const decriptedFileObject: any = decryptedFileArray.files[task.fileIndex]
+      if (
+        decriptedFileObject.nftAddress !== ddo.nftAddress ||
+        decriptedFileObject.datatokenAddress !== service.datatokenAddress
+      ) {
+        CORE_LOGGER.error(
+          'Unauthorized download operation. Decrypted "nftAddress" and "datatokenAddress" do not match the original DDO'
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 403,
+            error: 'Failed to download asset, unauthorized operation!'
+          }
+        }
+      }
       // 7. Proceed to download the file
       return await handleDownloadUrlCommand(node, {
-        fileObject: decryptedFileArray.files[task.fileIndex],
+        fileObject: decriptedFileObject,
         aes_encrypted_key: task.aes_encrypted_key,
         command: PROTOCOL_COMMANDS.DOWNLOAD_URL
       })
