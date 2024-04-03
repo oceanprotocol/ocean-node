@@ -10,8 +10,9 @@ import { AdminReindexTxCommand } from '../../../@types/commands.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
-import { checkSupportedChainId, Blockchain } from '../../../utils/blockchain.js'
-import { processChunkLogs } from '../../Indexer/utils.js'
+import { checkSupportedChainId } from '../../../utils/blockchain.js'
+// import { processChunkLogs } from '../../Indexer/utils.js'
+import { OceanIndexer } from '../../Indexer/index.js'
 
 export class ReindexTxHandler extends AdminHandler {
   validate(command: AdminReindexTxCommand): ValidateParams {
@@ -36,27 +37,31 @@ export class ReindexTxHandler extends AdminHandler {
       )
     }
     try {
-      const blockchain = new Blockchain(checkChainId.networkRpc, task.chainId)
-      const provider = blockchain.getProvider()
-      const signer = blockchain.getSigner()
-      const receipt = await provider.getTransactionReceipt(task.txId)
-      if (!receipt) {
-        CORE_LOGGER.error(`Tx receipt was not found for txId ${task.txId}`)
-        return buildErrorResponse(`Tx receipt was not found for txId ${task.txId}`)
-      }
-      const { logs } = receipt
-      const ret = await processChunkLogs(logs, signer, provider, task.chainId)
-      if (!ret) {
-        CORE_LOGGER.error(
-          `Reindex tx for txId ${task.txId} failed on chain ${task.chainId}.`
-        )
-        return buildErrorResponse(
-          `Reindex tx for txId ${task.txId} failed on chain ${task.chainId}.`
-        )
-      }
+      // const blockchain = new Blockchain(checkChainId.networkRpc, task.chainId)
+      // const provider = blockchain.getProvider()
+      // const signer = blockchain.getSigner()
+      // const receipt = await provider.getTransactionReceipt(task.txId)
+      // if (!receipt) {
+      //   CORE_LOGGER.error(`Tx receipt was not found for txId ${task.txId}`)
+      //   return buildErrorResponse(`Tx receipt was not found for txId ${task.txId}`)
+      // }
+      // const { logs } = receipt
+      // const ret = await processChunkLogs(logs, signer, provider, task.chainId)
+      // if (!ret) {
+      //   CORE_LOGGER.error(
+      //     `Reindex tx for txId ${task.txId} failed on chain ${task.chainId}.`
+      //   )
+      //   return buildErrorResponse(
+      //     `Reindex tx for txId ${task.txId} failed on chain ${task.chainId}.`
+      //   )
+      // }
+      OceanIndexer.addReindexTask({
+        txId: task.txId,
+        chainId: task.chainId.toString()
+      })
       return {
         status: { httpStatus: 200 },
-        stream: new ReadableString('REINDEX TX OK')
+        stream: new ReadableString('PUSH REINDEX TX TASK TO QUEUE SUCCESSFULLY')
       }
     } catch (error) {
       CORE_LOGGER.error(`REINDEX tx: ${error.message}`)
