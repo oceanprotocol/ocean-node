@@ -122,7 +122,7 @@ aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
     if (result.stream) {
       const queryResult = JSON.parse(await streamToString(result.stream as Readable))
       if (queryResult[0].found) {
-        res.json(queryResult[0].hits[0].document.nft.state)
+        res.json(queryResult[0].hits[0])
       } else {
         res.status(404).send('Not found')
       }

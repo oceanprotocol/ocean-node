@@ -35,7 +35,11 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
-import { ENVIRONMENT_VARIABLES, EVENTS } from '../../utils/constants.js'
+import {
+  ENVIRONMENT_VARIABLES,
+  EVENTS,
+  PROTOCOL_COMMANDS
+} from '../../utils/constants.js'
 import { homedir } from 'os'
 import { QueryDdoStateHandler } from '../../components/core/queryHandler.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -212,16 +216,20 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should store the ddo state in the db with no errors found and returnit query handler', async function () {
     const queryDdoStateHandler = new QueryDdoStateHandler(oceanNode)
-    let queryDdoState: QueryCommand
-    queryDdoState.query = {
-      q: resolvedDDO.id,
-      query_by: 'did'
+    const queryDdoState: QueryCommand = {
+      query: {
+        q: resolvedDDO.id,
+        query_by: 'did'
+      },
+      command: PROTOCOL_COMMANDS.QUERY
     }
     const response = await queryDdoStateHandler.handle(queryDdoState)
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
-    const ddoState = await streamToObject(response.stream as Readable)
+    const result = await streamToObject(response.stream as Readable)
+    const ddoState = result.hits[0].document
+    console.log('ddo state', ddoState)
     expect(resolvedDDO.id).to.equal(ddoState.did)
     expect(resolvedDDO.nftAddress).to.equal(ddoState.nft)
     expect(ddoState.valid).to.equal(true)
