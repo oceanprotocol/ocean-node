@@ -54,10 +54,12 @@ A workflow defines one or more jobs to be executed. Each job may have dependenci
 Former known as "operator-service", this layer handles interactions between ocean-node core layer and different execution environments.
 
 In a nutshell, it should:
+- exposing list of compute environments for all engines
+- exposing list of running jobs and limits (max concurrent jobs, etc)
 - take a new job (created by startJob core handler)
 - determine which module to use (docker, k8, Bachalau, etc)
 - insert workflow in database
-- signal module handler to take over the job execution
+- signal engine handler to take over the job execution
 - read workflow status when c2d getStatus core is called
 - serve job results when c2d getJobResult is called
      
@@ -90,8 +92,6 @@ This documents focuses on internal compute engines:
 An engine that uses external services (like Bachalau) has the same logic, but mostly likely will interact with remote APIs
 
 An engine is responsible for:
- - exposing list of compute environments to orchestration layer
- - exposing list of running jobs and limits (max concurrent jobs, etc)  to orchestration layer
  - store workflows and each job status (so, on restart we can resume flows or continue running flow)
  - queue new jobs
 
