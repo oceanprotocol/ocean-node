@@ -13,15 +13,11 @@ import {
 import { fetchFileMetadata } from '../../utils/asset.js'
 import axios from 'axios'
 import urlJoin from 'url-join'
-import {
-  encrypt as encryptData,
-  decrypt as decryptData,
-  decrypt
-} from '../../utils/crypt.js'
+import { encrypt as encryptData, decrypt as decryptData } from '../../utils/crypt.js'
 import { Readable } from 'stream'
 import { getConfiguration } from '../../utils/index.js'
 import { streamToString } from '../../utils/util.js'
-import { ethers } from 'ethers'
+import { ethers, hexlify } from 'ethers'
 import AWS from 'aws-sdk'
 
 export abstract class Storage {
@@ -396,40 +392,20 @@ export class S3Storage extends Storage {
 
   getDownloadUrl(): string {
     const fileHash = this.getFile().hash
-    const fileStream = Readable.from(fileHash)
-    const processStreamPromise = this.processStream(fileStream)
-      .then((decryptedStream) => decryptedStream)
-      .catch((error) => {
-        console.error('Error processing stream:', error)
-        return null
-      })
-    let downloadUrl = ''
-    processStreamPromise.then((obj) => {
-      downloadUrl = obj || ''
-    })
-
-    return downloadUrl
+    return fileHash
   }
 
-  getS3Object(): S3Object {
-    const fileHash = this.getFile().hash
-    const fileStream = Readable.from(fileHash)
-    const processStreamPromise = this.processStream(fileStream)
-      .then((decryptedStream) => decryptedStream)
-      .catch((error) => {
-        console.error('Error processing stream:', error)
-        return null
-      })
-    let objS3: S3Object
-    processStreamPromise.then((obj) => {
-      objS3 = JSON.parse(obj) as S3Object
-    })
-
-    return objS3
+  async getS3Object(): Promise<S3Object> {
+    const file = this.getFile()
+    const fileStream = Readable.from(file.hash)
+    const streamString = await streamToString(fileStream)
+    const encryptedData = ethers.getBytes(streamString)
+    const decryptedData = await decryptData(encryptedData, file.encryptMethod)
+    return JSON.parse(decryptedData.toString()) as S3Object
   }
 
-  async getData(): Promise<any> {
-    const s3Obj = this.getS3Object()
+  async fetchData(): Promise<any> {
+    const s3Obj = await this.getS3Object()
     const spacesEndpoint = new AWS.Endpoint(s3Obj.endpoint)
     const s3 = new AWS.S3({
       endpoint: spacesEndpoint,
@@ -444,7 +420,7 @@ export class S3Storage extends Storage {
     }
     try {
       const data = await s3.getObject(params).promise()
-      console.log('Successfully retrieved object from S3', data)
+      console.log('Successfully retrieved object from S3')
       return data
     } catch (err) {
       console.error('Error fetching object from S3:', err)
@@ -452,39 +428,42 @@ export class S3Storage extends Storage {
   }
 
   async fetchSpecificFileMetadata(): Promise<FileInfoResponse> {
-    const data = await this.getData()
-    console.log('data', data)
+    const data = await this.fetchData()
+    const s3Obj = await this.getS3Object()
     return {
       valid: true,
-      contentLength: 'unknown',
-      contentType: 'unknown',
-      name: '',
+      contentLength: data.ContentLength,
+      contentType: data.ContentType,
+      name: s3Obj.objectKey,
       type: 's3',
       encryptedBy: this.getFile().encryptedBy,
       encryptMethod: this.getFile().encryptMethod
     }
   }
 
-  async processStream(stream: Readable): Promise<Readable> {
-    if (!this.getFile()?.encryptedBy || !this.getFile()?.encryptedMethod) {
-      console.log('Stream is NOT encrypted', true)
-      return stream
+  async encryptDataContent(
+    data: S3Object,
+    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
+  ): Promise<String> {
+    const genericAssetData = Uint8Array.from(Buffer.from(JSON.stringify(data)))
+    const encryptedData = await encryptData(genericAssetData, encryptionType)
+    const encryptedMetaData = hexlify(encryptedData)
+    return encryptedMetaData
+  }
+
+  async decryptDataContent(
+    hash: String,
+    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
+  ): Promise<Buffer> {
+    try {
+      const fileStream = Readable.from(hash)
+      const streamString = await streamToString(fileStream)
+      const encryptedData = ethers.getBytes(streamString)
+      const data = await decryptData(encryptedData, encryptionType)
+      return data
+    } catch (err) {
+      console.error('Error fetching object from S3:', err)
     }
-
-    console.log('Stream is encrypted', true)
-
-    const { keys } = await getConfiguration()
-    const nodeId = keys.peerId.toString()
-
-    if (this.getFile()?.encryptedBy !== nodeId) {
-      throw Error(`Decrypt stream error: ${this.getFile()?.encryptedBy} !== ${nodeId}`)
-    }
-
-    const streamString = await streamToString(stream as Readable)
-    const encryptedData = ethers.getBytes(streamString)
-    const decryptedData = await decrypt(encryptedData, this.getFile().encryptedMethod)
-    // return JSON.parse(decryptedData.toString())
-    return Readable.from([decryptedData])
   }
 
   async encryptContent(
@@ -496,16 +475,5 @@ export class S3Storage extends Storage {
       method: 'get'
     })
     return await encryptData(response.data, encryptionType)
-  }
-
-  async decryptHash(
-    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
-  ): Promise<Buffer> {
-    try {
-      const file = this.getFile()
-      return await decryptData(file.hash, encryptionType)
-    } catch (err) {
-      console.error('Error fetching object from S3:', err)
-    }
   }
 }
