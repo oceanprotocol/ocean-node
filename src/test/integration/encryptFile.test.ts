@@ -14,6 +14,7 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
+import { Database } from '../../components/database/index.js'
 
 describe('Encrypt File', () => {
   let config: OceanNodeConfig
@@ -32,6 +33,8 @@ describe('Encrypt File', () => {
       )
     )
     config = await getConfiguration(true) // Force reload the configuration
+    const dbconn = await new Database(config.dbConfig)
+    oceanNode = await OceanNode.getInstance(dbconn)
   })
 
   it('should encrypt files', async () => {
