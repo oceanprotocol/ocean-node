@@ -204,7 +204,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
-  it('should store the ddo state in the db with no errors found and returnit using did', async function () {
+  it('should store the ddo state in the db with no errors and retrieve it using did', async function () {
     const ddoState = await database.ddoState.retrieve(resolvedDDO.id)
     expect(resolvedDDO.id).to.equal(ddoState.did)
     expect(resolvedDDO.nftAddress).to.equal(ddoState.nft)
@@ -214,8 +214,9 @@ describe('Indexer stores a new metadata events and orders.', () => {
     // add txId check once we have that as change merged and the event will be indexed
   })
 
-  it('should store the ddo state in the db with no errors found and returnit query handler', async function () {
+  it('should find the state of the ddo using query ddo state handler', async function () {
     const queryDdoStateHandler = new QueryDdoStateHandler(oceanNode)
+    // query using the did
     const queryDdoState: QueryCommand = {
       query: {
         q: resolvedDDO.id,
@@ -229,12 +230,28 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(response.stream, 'Failed to get stream')
     const result = await streamToObject(response.stream as Readable)
     const ddoState = result.hits[0].document
-    console.log('ddo state', ddoState)
     expect(resolvedDDO.id).to.equal(ddoState.did)
     expect(resolvedDDO.nftAddress).to.equal(ddoState.nft)
     expect(ddoState.valid).to.equal(true)
     expect(resolvedDDO.id).to.equal(ddoState.did)
     expect(ddoState.error).to.equal(' ')
+
+    // query using the nft address
+    queryDdoState.query = {
+      q: resolvedDDO.nftAddress,
+      query_by: 'nft'
+    }
+    const nftQueryResponse = await queryDdoStateHandler.handle(queryDdoState)
+    assert(nftQueryResponse, 'Failed to get response')
+    assert(nftQueryResponse.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(nftQueryResponse.stream, 'Failed to get stream')
+    const nftQueryResult = await streamToObject(nftQueryResponse.stream as Readable)
+    const nftDdoState = nftQueryResult.hits[0].document
+    expect(resolvedDDO.id).to.equal(nftDdoState.did)
+    expect(resolvedDDO.nftAddress).to.equal(nftDdoState.nft)
+    expect(nftDdoState.valid).to.equal(true)
+    expect(resolvedDDO.id).to.equal(nftDdoState.did)
+    expect(nftDdoState.error).to.equal(' ')
     // add txId check once we have that as change merged and the event will be indexed
   })
 
