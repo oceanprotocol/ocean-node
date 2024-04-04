@@ -25,6 +25,7 @@ import {
   validateCommandParameters,
   ValidateParams
 } from '../httpRoutes/validateCommands.js'
+import { DDO } from '../../@types/DDO/DDO.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(
@@ -145,6 +146,20 @@ export async function handleDownloadUrlCommand(
       status: { httpStatus: 501, error: 'Unknown error: ' + err.message }
     }
   }
+}
+
+export function validateFilesStructure(
+  ddo: DDO,
+  service: Service,
+  decriptedFileObject: any
+): boolean {
+  if (
+    decriptedFileObject.nftAddress !== ddo.nftAddress ||
+    decriptedFileObject.datatokenAddress !== service.datatokenAddress
+  ) {
+    return false
+  }
+  return true
 }
 
 export class DownloadHandler extends Handler {
@@ -358,10 +373,7 @@ export class DownloadHandler extends Handler {
       const decryptedFileArray = JSON.parse(decryptedFilesString)
 
       const decriptedFileObject: any = decryptedFileArray.files[task.fileIndex]
-      if (
-        decriptedFileObject.nftAddress !== ddo.nftAddress ||
-        decriptedFileObject.datatokenAddress !== service.datatokenAddress
-      ) {
+      if (!validateFilesStructure(ddo, service, decriptedFileObject)) {
         CORE_LOGGER.error(
           'Unauthorized download operation. Decrypted "nftAddress" and "datatokenAddress" do not match the original DDO'
         )
@@ -373,6 +385,7 @@ export class DownloadHandler extends Handler {
           }
         }
       }
+
       // 7. Proceed to download the file
       return await handleDownloadUrlCommand(node, {
         fileObject: decriptedFileObject,
