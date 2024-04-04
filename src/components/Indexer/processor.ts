@@ -298,7 +298,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         return
       }
 
-      if (decodedEventData.args[5] !== null) {
+      if (decodedEventData.args[5] === null) {
         INDEXER_LOGGER.error(`Metadata hash is not defined.`)
         return
       }
