@@ -298,8 +298,11 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         return
       }
 
-      if (decodedEventData.args[5] === null) {
-        INDEXER_LOGGER.error(`Metadata hash is not defined.`)
+      if (
+        decodedEventData.args[5] &&
+        decodedEventData.args[5] !== create256Hash(JSON.stringify(ddo))
+      ) {
+        INDEXER_LOGGER.error(`Metadata hash is not matching.`)
         return
       }
       // stuff that we overwrite
