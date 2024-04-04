@@ -257,7 +257,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
   ): Promise<any> {
     try {
       const nftFactoryAddress = getContractAddress(chainId, 'ERC721Factory')
-      const nftFactoryContract = await getNFTFactory(signer, nftFactoryAddress)
+      const nftFactoryContract = getNFTFactory(signer, nftFactoryAddress)
 
       if (
         getAddress(await nftFactoryContract.erc721List(event.address)) !==
@@ -285,6 +285,23 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         decodedEventData.args[5],
         decodedEventData.args[4]
       )
+      if (
+        ddo.id !==
+        'did:op:' +
+          createHash('sha256')
+            .update(getAddress(event.address) + chainId.toString(10))
+            .digest('hex')
+      ) {
+        INDEXER_LOGGER.error(
+          `Decrypted DDO ID is not matching the generated hash for DID.`
+        )
+        return
+      }
+
+      if (decodedEventData.args[5] !== null) {
+        INDEXER_LOGGER.error(`Metadata hash is not defined.`)
+        return
+      }
       // stuff that we overwrite
       ddo.chainId = chainId
       ddo.nftAddress = event.address
@@ -316,9 +333,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           event.blockNumber
         )
         if (!isUpdateable) {
-          INDEXER_LOGGER.logMessage(
-            `Error encountered when checking if the asset is eligiable for update: ${error}`,
-            true
+          INDEXER_LOGGER.error(
+            `Error encountered when checking if the asset is eligiable for update: ${error}`
           )
           return
         }
