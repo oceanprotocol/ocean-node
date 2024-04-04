@@ -14,6 +14,8 @@ import { EVENTS } from '../../utils/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getDatabase } from '../../utils/database.js'
 
+let REINDEX_BLOCK: number = null
+
 export interface ReindexTask {
   txId: string
   chainId: string
@@ -93,9 +95,15 @@ export async function proccesNetworkData(): Promise<void> {
           startBlock,
           blocksToProcess
         )
-        updateLastIndexedBlockNumber(processedBlocks.lastBlock)
+
         checkNewlyIndexedAssets(processedBlocks.foundEvents)
-        lastIndexedBlock = processedBlocks.lastBlock
+        if (REINDEX_BLOCK) {
+          lastIndexedBlock = REINDEX_BLOCK
+          REINDEX_BLOCK = null
+        } else {
+          lastIndexedBlock = processedBlocks.lastBlock
+        }
+        updateLastIndexedBlockNumber(lastIndexedBlock)
       } catch (error) {
         INDEXER_LOGGER.log(
           LOG_LEVELS_STR.LEVEL_ERROR,
@@ -173,7 +181,6 @@ parentPort.on('message', (message) => {
     }
   }
   if (message.method === 'reset-crawling') {
-    const deployedBlock = getDeployedContractBlock(message.chainId)
-    updateLastIndexedBlockNumber(deployedBlock)
+    REINDEX_BLOCK = getDeployedContractBlock(message.chainId)
   }
 })
