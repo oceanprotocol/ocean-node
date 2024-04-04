@@ -23,7 +23,11 @@ import { getEventFromTx, streamToObject } from '../../utils/util.js'
 import { encrypt } from '../../utils/crypt.js'
 import { AssetUtils } from '../../utils/asset.js'
 
-import { PROTOCOL_COMMANDS, getConfiguration } from '../../utils/index.js'
+import {
+  DDO_IDENTIFIER_PREFIX,
+  PROTOCOL_COMMANDS,
+  getConfiguration
+} from '../../utils/index.js'
 import { FeesHandler } from '../../components/core/feesHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { ProviderFees } from '../../@types/Fees.js'
@@ -34,12 +38,13 @@ export async function publishAsset(genericAsset: any, publisherAccount: Signer) 
     network = getOceanArtifactsAdresses().development
   }
   const net = await publisherAccount.provider.getNetwork()
-  const { chainId } = net
+  const chainId = net && net.chainId ? net.chainId : DEVELOPMENT_CHAIN_ID
   const factoryContract = new ethers.Contract(
     network.ERC721Factory,
     ERC721Factory.abi,
     publisherAccount
   )
+
   const tx = await factoryContract.createNftWithErc20(
     {
       name: '72120Bundle',
@@ -85,7 +90,7 @@ export async function publishAsset(genericAsset: any, publisherAccount: Signer) 
     publisherAccount
   )
   genericAsset.id =
-    'did:op:' +
+    DDO_IDENTIFIER_PREFIX +
     createHash('sha256')
       .update(getAddress(nftAddress) + chainId.toString(10))
       .digest('hex')

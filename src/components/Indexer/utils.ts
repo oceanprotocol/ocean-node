@@ -247,6 +247,26 @@ function getContractDefinition(contractName: string): any {
   }
 }
 
+/**
+ * Checks if a given NFT address was deployed by our NFT Factory on the specific chain
+ * @param chainId chain id as number
+ * @param signer the signer account
+ * @param dataNftAddress the deployed nft address
+ * @returns true or false
+ */
+export async function wasNFTDeployedByOurFactory(
+  chainId: number,
+  signer: Signer,
+  dataNftAddress: string
+): Promise<boolean> {
+  const nftFactoryAddress = getContractAddress(chainId, 'ERC721Factory')
+  const nftFactoryContract = await getNFTFactory(signer, nftFactoryAddress)
+
+  const nftAddressFromFactory = await nftFactoryContract.erc721List(dataNftAddress)
+
+  return getAddress(dataNftAddress) === getAddress(nftAddressFromFactory)
+}
+
 // default in seconds
 const DEFAULT_INDEXER_CRAWLING_INTERVAL = 1000 * 30 // 30 seconds
 export const getCrawlingInterval = (): number => {
