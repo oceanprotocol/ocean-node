@@ -386,7 +386,7 @@ export class DdoDatabase {
   async deleteAllAssetsFromChain(chainId: number) {
     const searchParameters = {
       q: '*',
-      query_by: `chainId:${chainId}`
+      filter_by: `chainId:${chainId}`
     }
     const results = await this.search(searchParameters)
     for (const res of results) {
