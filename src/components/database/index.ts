@@ -354,8 +354,8 @@ export class DdoDatabase {
           .delete(did)
         if (response.id === did) {
           isDeleted = true
-          DATABASE_LOGGER.logMessage(
-            `response for deleting the ddo: ${response}, isDeleted: ${isDeleted}`
+          DATABASE_LOGGER.debug(
+            `Response for deleting the ddo: ${response.id}, isDeleted: ${isDeleted}`
           )
           return response
         }

@@ -96,7 +96,6 @@ export async function publishAsset(genericAsset: any, publisherAccount: Signer) 
   genericAsset.services[0].datatokenAddress = datatokenAddress
 
   const stringDDO = JSON.stringify(genericAsset)
-  console.log(`string DDO: ${stringDDO}`)
   const bytes = Buffer.from(stringDDO)
   const metadata = hexlify(bytes)
   const hash = createHash('sha256').update(metadata).digest('hex')
