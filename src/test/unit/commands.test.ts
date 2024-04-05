@@ -21,7 +21,6 @@ import {
   GetFeesCommand,
   NonceCommand,
   QueryCommand,
-  ReindexCommand,
   StatusCommand,
   ValidateDDOCommand
 } from '../../@types/commands.js'
@@ -40,7 +39,6 @@ import { QueryHandler } from '../../components/core/queryHandler.js'
 import { StatusHandler } from '../../components/core/statusHandler.js'
 import { FeesHandler } from '../../components/core/feesHandler.js'
 import { EchoHandler } from '../../components/core/echoHandler.js'
-import { ReindexHandler } from '../../components/core/reindexHandler.js'
 import { FileInfoHandler } from '../../components/core/fileInfoHandler.js'
 import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/environments.js'
 import { ComputeStartHandler } from '../../components/core/compute/startCompute.js'
@@ -208,19 +206,6 @@ describe('Commands and handlers', () => {
       command: PROTOCOL_COMMANDS.ECHO
     }
     expect(echoHandler.validate(echoCommand).valid).to.be.equal(true)
-    // -----------------------------------------
-    // ReindexHandler
-    const reindexHandler: ReindexHandler = CoreHandlersRegistry.getInstance(
-      node
-    ).getHandler(PROTOCOL_COMMANDS.REINDEX)
-    const reindexCommand: ReindexCommand = {
-      txId: '0xCce67694eD2848dd683c651Dab7Af823b7dd123',
-      chainId: 8996,
-      command: PROTOCOL_COMMANDS.REINDEX
-    }
-    expect(reindexHandler.validate(reindexCommand).valid).to.be.equal(true)
-    reindexCommand.chainId = undefined
-    expect(reindexHandler.validate(reindexCommand).valid).to.be.equal(false)
     // -----------------------------------------
     // FileInfoHandler
     const fileInfoHandler: FileInfoHandler = CoreHandlersRegistry.getInstance(

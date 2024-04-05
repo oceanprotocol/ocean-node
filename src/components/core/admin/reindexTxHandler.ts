@@ -20,6 +20,9 @@ export class ReindexTxHandler extends AdminHandler {
         `Missing chainId or txId fields for command: "${command}".`
       )
     }
+    if (!/^0x([A-Fa-f0-9]{64})$/.test(command.txId)) {
+      return buildInvalidRequestMessage(`Invalid format for transaction ID.`)
+    }
     return super.validate(command)
   }
 

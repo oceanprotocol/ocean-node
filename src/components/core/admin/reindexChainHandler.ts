@@ -15,7 +15,7 @@ import { OceanIndexer } from '../../Indexer/index.js'
 
 export class ReindexChainHandler extends AdminHandler {
   validate(command: AdminReindexChainCommand): ValidateParams {
-    if (!validateCommandParameters(command, ['chainId', 'txId'])) {
+    if (!validateCommandParameters(command, ['chainId'])) {
       return buildInvalidRequestMessage(
         `Missing chainId field for command: "${command}".`
       )
