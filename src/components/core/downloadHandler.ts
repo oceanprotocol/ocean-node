@@ -368,10 +368,9 @@ export class DownloadHandler extends Handler {
       )
       // Convert the decrypted bytes back to a string
       const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
-      const decryptedFileArray = JSON.parse(decryptedFilesString)
-
-      const decriptedFileObject: any = decryptedFileArray.files[task.fileIndex]
-      if (!validateFilesStructure(ddo, service, decriptedFileObject)) {
+      const decryptedFileData = JSON.parse(decryptedFilesString)
+      const decriptedFileObject: any = decryptedFileData.files[task.fileIndex]
+      if (!validateFilesStructure(ddo, service, decryptedFileData)) {
         CORE_LOGGER.error(
           'Unauthorized download operation. Decrypted "nftAddress" and "datatokenAddress" do not match the original DDO'
         )
