@@ -36,11 +36,7 @@ export class QueryHandler extends Handler {
   }
 }
 
-export class QueryDdoStateHandler extends Handler {
-  validate(command: QueryCommand): ValidateParams {
-    return validateCommandParameters(command, [])
-  }
-
+export class QueryDdoStateHandler extends QueryHandler {
   async handle(task: QueryCommand): Promise<P2PCommandResponse> {
     const validation = this.validate(task)
     if (!validation.valid) {
