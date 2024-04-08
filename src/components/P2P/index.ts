@@ -480,8 +480,7 @@ export class OceanP2P extends EventEmitter {
       }
       const db = this.db.ddo
       const searchParameters = {
-        q: '*',
-        query_by: 'metadata.name'
+        q: '*'
       }
 
       const result: TypesenseSearchResponse[] = await db.search(searchParameters)
