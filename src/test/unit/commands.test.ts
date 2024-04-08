@@ -4,6 +4,9 @@ import { CoreHandlersRegistry } from '../../components/core/coreHandlersRegistry
 import { Handler } from '../../components/core/handler.js'
 import { OceanNode } from '../../OceanNode.js'
 import {
+  AdminReindexChainCommand,
+  AdminReindexTxCommand,
+  AdminStopNodeCommand,
   ComputeGetEnvironmentsCommand,
   ComputeGetResultCommand,
   ComputeGetStatusCommand,
@@ -46,8 +49,14 @@ import { ComputeStopHandler } from '../../components/core/compute/stopCompute.js
 import { ComputeGetStatusHandler } from '../../components/core/compute/getStatus.js'
 import { ComputeGetResultHandler } from '../../components/core/compute/getResults.js'
 import { ComputeInitializeHandler } from '../../components/core/compute/initialize.js'
+import { StopNodeHandler } from '../../components/core/admin/stopNodeHandler.js'
+import { JsonRpcSigner, Signer, JsonRpcProvider } from 'ethers'
+import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.js'
+import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
 
-describe('Commands and handlers', () => {
+describe('Commands and handlers', async () => {
+  const provider = new JsonRpcProvider('http://127.0.0.1:8545')
+  const publisherAccount = (await provider.getSigner(0)) as Signer
   it('Check that all supported commands have registered handlers', () => {
     // To make sure we do not forget to register handlers
     const node: OceanNode = OceanNode.getInstance()
@@ -65,7 +74,7 @@ describe('Commands and handlers', () => {
     expect(SUPPORTED_PROTOCOL_COMMANDS.length).to.be.equal(handlers.length)
   })
 
-  it('Check that all commands are validating required parameters', () => {
+  it('Check that all commands are validating required parameters', async () => {
     // To make sure we do not forget to register anything on supported commands
     const node: OceanNode = OceanNode.getInstance()
 
@@ -206,6 +215,50 @@ describe('Commands and handlers', () => {
       command: PROTOCOL_COMMANDS.ECHO
     }
     expect(echoHandler.validate(echoCommand).valid).to.be.equal(true)
+    // -----------------------------------------
+    // Stop Node Handler for Admin
+    const currentDate = new Date()
+    const expiryTimestamp = new Date(
+      currentDate.getFullYear() + 1,
+      currentDate.getMonth(),
+      currentDate.getDate()
+    ).getTime()
+    const jsonRpcSigner = new JsonRpcSigner(provider, await publisherAccount.getAddress())
+    const signature = await jsonRpcSigner._legacySignMessage(expiryTimestamp.toString())
+    const stopNodeHandler: StopNodeHandler = CoreHandlersRegistry.getInstance(
+      node
+    ).getHandler(PROTOCOL_COMMANDS.ECHO)
+    const stopNodeCommand: AdminStopNodeCommand = {
+      command: PROTOCOL_COMMANDS.STOP_NODE,
+      expiryTimestamp,
+      signature
+    }
+    expect(stopNodeHandler.validate(stopNodeCommand).valid).to.be.equal(true)
+    // -----------------------------------------
+    // Reindex Tx Handler
+    const reindexTxHandler: ReindexTxHandler = CoreHandlersRegistry.getInstance(
+      node
+    ).getHandler(PROTOCOL_COMMANDS.REINDEX_TX)
+    const reindexTxCommand: AdminReindexTxCommand = {
+      command: PROTOCOL_COMMANDS.REINDEX_TX,
+      chainId: 8996,
+      txId: '0xb5c8bd9430b6cc87a0e2fe110ece6bf527fa4f170a4bc8cd032f768fc5219838',
+      expiryTimestamp,
+      signature
+    }
+    expect(reindexTxHandler.validate(reindexTxCommand).valid).to.be.equal(true)
+    // -----------------------------------------
+    // Reindex Chain Handler
+    const reindexChainHandler: ReindexChainHandler = CoreHandlersRegistry.getInstance(
+      node
+    ).getHandler(PROTOCOL_COMMANDS.REINDEX_CHAIN)
+    const reindexChainCommand: AdminReindexChainCommand = {
+      command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
+      chainId: 8996,
+      expiryTimestamp,
+      signature
+    }
+    expect(reindexChainHandler.validate(reindexChainCommand).valid).to.be.equal(true)
     // -----------------------------------------
     // FileInfoHandler
     const fileInfoHandler: FileInfoHandler = CoreHandlersRegistry.getInstance(

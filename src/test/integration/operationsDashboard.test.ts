@@ -104,7 +104,7 @@ describe('Should test admin operations', () => {
     const signature = await getSignature(expiryTimestamp.toString())
 
     const stopNodeCommand: AdminStopNodeCommand = {
-      command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
+      command: PROTOCOL_COMMANDS.STOP_NODE,
       node: config.keys.peerId.toString(),
       expiryTimestamp,
       signature
