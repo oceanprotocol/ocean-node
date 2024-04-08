@@ -35,3 +35,24 @@ export class QueryHandler extends Handler {
     }
   }
 }
+
+export class QueryDdoStateHandler extends QueryHandler {
+  async handle(task: QueryCommand): Promise<P2PCommandResponse> {
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
+    try {
+      const result = await this.getOceanNode().getDatabase().ddoState.search(task.query)
+      return {
+        stream: Readable.from(JSON.stringify(result)),
+        status: { httpStatus: 200 }
+      }
+    } catch (error) {
+      return {
+        stream: null,
+        status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
+      }
+    }
+  }
+}
