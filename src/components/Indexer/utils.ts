@@ -118,6 +118,7 @@ export const processBlocks = async (
       foundEvents: events
     }
   } catch (error) {
+    console.error('processBlocks err: ', error)
     throw new Error(` Error processing chunk of blocks events ${error.message}`)
   }
 }
@@ -244,14 +245,20 @@ export const getNFTFactory = (signer: Signer, address: string): ethers.Contract 
   address = getAddress(address)
   return getContract(signer, 'ERC721Factory', address)
 }
-
 function getContract(
   signer: Signer,
   contractName: string,
   address: string
 ): ethers.Contract {
+  console.log('getContract ++ ', contractName, address)
   const abi = getContractDefinition(contractName)
-  return new ethers.Contract(getAddress(address), abi, signer) // was provider.getSigner() => thow no account
+  try {
+    const contract = new ethers.Contract(getAddress(address), abi, signer) // was provider.getSigner() => thow no account
+    return contract
+  } catch (err) {
+    console.error('getContract err: ', err)
+    throw err
+  }
 }
 
 function getContractDefinition(contractName: string): any {

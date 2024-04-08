@@ -257,7 +257,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
   ): Promise<any> {
     try {
       const nftFactoryAddress = getContractAddress(chainId, 'ERC721Factory')
-      const nftFactoryContract = await getNFTFactory(signer, nftFactoryAddress)
+      console.log('getNFTFactory signer ', await signer.getAddress())
+      const nftFactoryContract = getNFTFactory(signer, nftFactoryAddress)
 
       if (
         getAddress(await nftFactoryContract.erc721List(event.address)) !==

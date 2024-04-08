@@ -113,6 +113,7 @@ export async function proccesNetworkData(): Promise<void> {
           startBlock,
           blocksToProcess
         )
+        console.log('processed block', processedBlocks.lastBlock)
         updateLastIndexedBlockNumber(processedBlocks.lastBlock)
         checkNewlyIndexedAssets(processedBlocks.foundEvents)
         lastIndexedBlock = processedBlocks.lastBlock
