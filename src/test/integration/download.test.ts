@@ -47,7 +47,6 @@ describe('Should run a complete node flow.', () => {
   let publisherAccount: Signer
   let consumerAccount: Signer
   let consumerAddress: string
-  let resolvedDDO: Record<string, any>
   let orderTxId: string
   let assetDID: string
   let publishedDataset: any
@@ -83,10 +82,10 @@ describe('Should run a complete node flow.', () => {
     )
 
     config = await getConfiguration(true) // Force reload the configuration
-    const dbconn = await new Database(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(dbconn)
+    database = await new Database(config.dbConfig)
+    oceanNode = await OceanNode.getInstance(database)
     //  eslint-disable-next-line no-unused-vars
-    const indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
+    const indexer = new OceanIndexer(database, mockSupportedNetworks)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
@@ -200,20 +199,15 @@ describe('Should run a complete node flow.', () => {
     assert(orderTxId, 'transaction id not found')
   })
 
-  it('should download triger download file', function () {
+  it('should download triger download file', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
     const doCheck = async () => {
-      const config = await getConfiguration(true)
-      database = await new Database(config.dbConfig)
-      const oceanNode = OceanNode.getInstance(database)
-      assert(oceanNode, 'Failed to instantiate OceanNode')
-
       const wallet = new ethers.Wallet(
         '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
       )
       const nonce = Date.now().toString()
-      const message = String(resolvedDDO.id + nonce)
+      const message = String(publishedDataset.ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
         [ethers.hexlify(ethers.toUtf8Bytes(message))]
@@ -223,8 +217,8 @@ describe('Should run a complete node flow.', () => {
 
       const downloadTask = {
         fileIndex: 0,
-        documentId: assetDID,
-        serviceId,
+        documentId: publishedDataset.ddo.id,
+        serviceId: publishedDataset.ddo.services[0].id,
         transferTxId: orderTxId,
         nonce,
         consumerAddress,
@@ -243,7 +237,7 @@ describe('Should run a complete node flow.', () => {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
     }, DEFAULT_TEST_TIMEOUT * 3)
 
-    doCheck()
+    await doCheck()
   })
   it('should not allow to download the asset with different consumer address', function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
