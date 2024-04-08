@@ -52,11 +52,11 @@ export class OceanIndexer {
     return network
   }
 
-  public async startThreads(): Promise<void> {
+  public startThreads(): void {
     for (const network of this.supportedChains) {
       const chainId = parseInt(network)
       const rpcDetails: SupportedNetwork = this.getSupportedNetwork(chainId)
-      const lastIndexedBlock = await this.getLastIndexedBlock(chainId)
+      const lastIndexedBlock = 5390003
       const workerData = { rpcDetails, lastIndexedBlock }
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_INFO,
