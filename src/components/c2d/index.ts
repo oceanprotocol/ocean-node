@@ -107,8 +107,8 @@ export async function validateAlgoForDataset(
 
     if (algoDID) {
       if (
-        compute.publisherTrustedAlgorithms === undefined &&
-        compute.publisherTrustedAlgorithmPublishers === undefined
+        !compute.publisherTrustedAlgorithms &&
+        !compute.publisherTrustedAlgorithmPublishers
       ) {
         return true
       }

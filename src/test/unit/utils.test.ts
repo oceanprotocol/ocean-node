@@ -1,7 +1,8 @@
 import { expect, assert } from 'chai'
 import { sleep, getEventFromTx } from '../../utils/util.js'
-import 'mocha'
 import { URLUtils } from '../../utils/url.js'
+import { validateConsumerParameters } from '../../utils/validators.js'
+import { ConsumerParameter } from '../../@types/DDO/ConsumerParameter.js'
 
 describe('Utilities Functions', () => {
   describe('sleep function', () => {
@@ -112,5 +113,82 @@ describe('Utilities Functions', () => {
         'Result should be undefined for txReceipt with null logs'
       )
     })
+  })
+
+  it('should validateConsumerParameters', async () => {
+    const ddoConsumerParameters: ConsumerParameter[] = [
+      {
+        name: 'hometown',
+        type: 'text',
+        label: 'Hometown',
+        required: true,
+        description: 'What is your hometown?',
+        default: 'Nowhere'
+      },
+      {
+        name: 'age',
+        type: 'number',
+        label: 'Age',
+        required: false,
+        description: 'Please fill your age',
+        default: 0
+      },
+      {
+        name: 'developer',
+        type: 'boolean',
+        label: 'Developer',
+        required: false,
+        description: 'Are you a developer?',
+        default: false
+      },
+      {
+        name: 'languagePreference',
+        type: 'select',
+        label: 'Language',
+        required: false,
+        description: 'Do you like NodeJs or Python',
+        default: 'nodejs',
+        options: [
+          {
+            nodejs: 'I love NodeJs'
+          },
+          {
+            python: 'I love Python'
+          }
+        ]
+      }
+    ]
+    const userSentObject: any[] = [
+      {
+        hometown: 'Tokyo',
+        age: 12,
+        developer: true,
+        languagePreference: 'python'
+      },
+      {
+        hometown: 'Kyoto',
+        age: 34,
+        developer: true,
+        languagePreference: 'nodejs'
+      },
+      {
+        hometown: 'Osaka',
+        age: 56,
+        developer: true,
+        languagePreference: 'python'
+      },
+      {
+        hometown: 'Yokohama',
+        age: 78,
+        developer: false
+      },
+      {
+        hometown: 'Sapporo',
+        age: 90,
+        developer: false
+      }
+    ]
+    const result = await validateConsumerParameters(ddoConsumerParameters, userSentObject)
+    expect(result.valid).to.equal(true)
   })
 })

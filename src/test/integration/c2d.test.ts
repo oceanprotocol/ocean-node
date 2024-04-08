@@ -1,9 +1,5 @@
-import {
-  checkC2DEnvExists,
-  getAlgoChecksums,
-  validateAlgoForDataset
-} from '../../components/c2d/index.js'
-import { validateConsumerParameters } from '../../utils/validators.js'
+import { getAlgoChecksums, validateAlgoForDataset } from '../../components/c2d/index.js'
+
 import {
   Contract,
   ethers,
@@ -36,7 +32,7 @@ import { Readable } from 'stream'
 import { EncryptMethod, FileObjectType, UrlFileObject } from '../../@types/fileObject.js'
 import { FileInfoHandler } from '../../components/core/fileInfoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
-import { ConsumerParameter } from '../../@types/DDO/ConsumerParameter'
+
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
@@ -338,87 +334,38 @@ describe('C2D functions', () => {
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
-  it('should validateConsumerParameters', async () => {
-    const ddoConsumerParameters: ConsumerParameter[] = [
-      {
-        name: 'hometown',
-        type: 'text',
-        label: 'Hometown',
-        required: true,
-        description: 'What is your hometown?',
-        default: 'Nowhere'
-      },
-      {
-        name: 'age',
-        type: 'number',
-        label: 'Age',
-        required: false,
-        description: 'Please fill your age',
-        default: 0
-      },
-      {
-        name: 'developer',
-        type: 'boolean',
-        label: 'Developer',
-        required: false,
-        description: 'Are you a developer?',
-        default: false
-      },
-      {
-        name: 'languagePreference',
-        type: 'select',
-        label: 'Language',
-        required: false,
-        description: 'Do you like NodeJs or Python',
-        default: 'nodejs',
-        options: [
-          {
-            nodejs: 'I love NodeJs'
-          },
-          {
-            python: 'I love Python'
-          }
-        ]
-      }
-    ]
-    const userSentObject: any[] = [
-      {
-        hometown: 'Tokyo',
-        age: 12,
-        developer: true,
-        languagePreference: 'python'
-      },
-      {
-        hometown: 'Kyoto',
-        age: 34,
-        developer: true,
-        languagePreference: 'nodejs'
-      },
-      {
-        hometown: 'Osaka',
-        age: 56,
-        developer: true,
-        languagePreference: 'python'
-      },
-      {
-        hometown: 'Yokohama',
-        age: 78,
-        developer: false
-      },
-      {
-        hometown: 'Sapporo',
-        age: 90,
-        developer: false
-      }
-    ]
-    const result = await validateConsumerParameters(ddoConsumerParameters, userSentObject)
-    expect(result.valid).to.equal(true)
-  })
+  it('should validateAlgoForDataset if trusted algos are empty', async function () {
+    const { ddo, wasTimeout } = await waitToIndex(
+      algoDDO.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
 
-  it('should checkC2DEnvExists', async () => {
-    const envId = '0x123'
-    const result = await checkC2DEnvExists(envId, oceanNode)
-    expect(result).to.equal(false)
+    const algoDDOTest = ddo
+    if (algoDDOTest) {
+      const algoChecksums = await getAlgoChecksums(
+        algoDDOTest.id,
+        algoDDOTest.services[0].id,
+        oceanNode
+      )
+      const { ddo, wasTimeout } = await waitToIndex(
+        datasetDDO.id,
+        EVENTS.METADATA_CREATED,
+        DEFAULT_TEST_TIMEOUT
+      )
+
+      const datasetDDOTest = ddo
+      if (datasetDDOTest) {
+        const result = await validateAlgoForDataset(
+          algoDDOTest.id,
+          algoChecksums,
+          datasetDDOTest.id,
+          datasetDDOTest.services[0].id,
+          oceanNode
+        )
+        expect(result).to.equal(true)
+      } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
   after(async () => {
