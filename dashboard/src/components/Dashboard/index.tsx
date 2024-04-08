@@ -5,6 +5,10 @@ import styles from './index.module.css'
 
 import Menu from './Menu'
 import { truncateString } from '../../shared/utils/truncateString'
+import { useAdminContext } from '@/context/AdminProvider'
+import Spinner from '../Spinner'
+import NodePeers from '../NodePeers'
+import Copy from '../Copy'
 
 type IndexerType = {
   block: string
@@ -55,6 +59,7 @@ type NodeDataType = {
 export default function Dashboard() {
   const [data, setData] = useState<NodeDataType>()
   const [isLoading, setLoading] = useState(true)
+  const { setAllAdmins, allAdmins } = useAdminContext()
 
   useEffect(() => {
     setLoading(true)
@@ -73,6 +78,7 @@ export default function Dashboard() {
         .then((res) => res.json())
         .then((data) => {
           setData(data)
+          setAllAdmins(data.allowedAdmins)
           setLoading(false)
         })
     } catch (error) {
@@ -90,25 +96,6 @@ export default function Dashboard() {
   ]
 
   const [node, setNode] = useState(nodeData[0])
-
-  const providerData = [
-    {
-      name: 'POLYGON',
-      url: 'https://polygon-rpc.com'
-    },
-    {
-      name: 'ETHEREUM',
-      url: 'https://eth.drpc.org'
-    },
-    {
-      name: 'OPTIMISM',
-      url: 'https://mainnet.optimism.io'
-    }
-  ]
-
-  const Spinner = () => {
-    return <span className={styles.loader}></span>
-  }
 
   const arrayOfPlatformObjects: { key: string; value: string | number }[] = []
 
@@ -137,20 +124,27 @@ export default function Dashboard() {
                 <div className={styles.title24}>NODE ID</div>
                 {nodeData.map((node) => {
                   return (
-                    <div
-                      key={node.id}
-                      className={styles.nodeAddress}
-                      onClick={() => setNode(node)}
-                    >
-                      <div className={styles.node}>{truncateString(node.id, 12)}</div>
+                    <div className={styles.node}>
+                      <div
+                        key={node.id}
+                        className={styles.nodeAddress}
+                        onClick={() => setNode(node)}
+                      >
+                        <div className={styles.node}>{truncateString(node.id, 12)}</div>
+                      </div>
+                      <Copy text={node?.id as string} />
                     </div>
                   )
                 })}
               </div>
               <div className={styles.nodes}>
                 <div className={styles.title24}>Address</div>
-                {truncateString(data?.address, 12)}
+                <div className={styles.node}>
+                  {truncateString(data?.address, 12)}
+                  <Copy text={data?.address as string} />
+                </div>
               </div>
+              <NodePeers />
             </div>
             <div className={styles.columnHTTP}>
               <div className={cs([styles.title24, styles.borderBottom])}>
@@ -195,22 +189,15 @@ export default function Dashboard() {
     )
   }
 
-  const Provider = () => {
+  const AdminAccounts = () => {
     return (
       <div className={styles.indexer}>
-        <div className={styles.title29}>PROVIDER</div>
+        <div className={styles.title29}>Admin Accounts</div>
         <div className={styles.provider}>
-          {providerData.map((item) => {
+          {allAdmins.map((admin, i) => {
             return (
-              <div className={styles.providerRow} key={item.name}>
-                <div className={styles.providerTitle}>
-                  <b>{item.name}:</b>
-                </div>
-                <div>
-                  <a href={item.url} target="_blank">
-                    {item.url}
-                  </a>
-                </div>
+              <div className={styles.providerRow} key={i}>
+                {admin}
               </div>
             )
           })}
@@ -286,9 +273,9 @@ export default function Dashboard() {
           <div className={styles.body}>
             <ConnectionDetails />
             <Indexer />
-            <Provider />
             <ObjectModule title="PLATFORM" data={arrayOfPlatformObjects} />
             <SupportedStorage />
+            <AdminAccounts />
           </div>
         )}
       </div>

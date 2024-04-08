@@ -1,7 +1,10 @@
 import axios from 'axios'
 import { DDO } from '../@types/DDO/DDO'
 import { Service } from '../@types/DDO/Service'
+import { DDO_IDENTIFIER_PREFIX } from './constants.js'
+import { CORE_LOGGER } from './logging/common.js'
 import { createHash } from 'crypto'
+import { getAddress } from 'ethers'
 
 // Notes:
 // Asset as per asset.py on provider, is a class there, while on ocean.Js we only have a type
@@ -60,4 +63,42 @@ export async function fetchFileMetadata(
     contentType,
     contentChecksum: contentChecksum.digest('hex')
   }
+}
+
+/**
+ * Validates if a given DDO identifier matches the NFT address and the chain ID provided
+ * @param ddoID the ID of the DDO
+ * @param nftAddress the nft address
+ * @param chainId the chain id
+ * @returns validation result
+ */
+export function validateDDOHash(
+  ddoID: string,
+  nftAddress: string,
+  chainId: number
+): boolean {
+  if (!ddoID || !nftAddress || !chainId) {
+    CORE_LOGGER.error('Invalid or missing data for proper DDO id validation')
+    return false
+  }
+  const hashAddressAndChain: string = generateDDOHash(nftAddress, chainId)
+  return ddoID === hashAddressAndChain
+}
+
+/**
+ * Generates DDO Id given the chain and nft address provided
+ * @param nftAddress the nft address
+ * @param chainId the chain id
+ * @returns did
+ */
+export function generateDDOHash(nftAddress: string, chainId: number): string | null {
+  if (!nftAddress || !chainId) {
+    CORE_LOGGER.error('Invalid or missing data for proper DDO id hash generation')
+    return null
+  }
+  const hashAddressAndChain: string = createHash('sha256')
+    .update(getAddress(nftAddress) + chainId.toString(10))
+    .digest('hex')
+
+  return DDO_IDENTIFIER_PREFIX + hashAddressAndChain
 }

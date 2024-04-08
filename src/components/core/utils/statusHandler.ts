@@ -10,6 +10,7 @@ import { existsEnvironmentVariable, getConfiguration } from '../../../utils/inde
 import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
+import { isAddress } from 'ethers'
 
 export async function status(
   oceanNode: OceanNode,
@@ -27,6 +28,21 @@ export async function status(
   }
   const config = await getConfiguration()
   const { indexer: indexerDatabase } = oceanNode.getDatabase()
+
+  const validAddresses = []
+  if (config.allowedAdmins) {
+    for (const admin of config.allowedAdmins) {
+      if (isAddress(admin) === true) {
+        validAddresses.push(admin)
+      }
+    }
+    if (validAddresses.length === 0) {
+      CORE_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `Invalid format for ETH address from ALLOWED ADMINS.`
+      )
+    }
+  }
   const status: OceanNodeStatus = {
     id: undefined,
     publicKey: undefined,
@@ -46,13 +62,13 @@ export async function status(
       arch: os.arch(),
       machine: os.machine(),
       platform: os.platform(),
-      release: os.release(),
       osType: os.type(),
-      osVersion: os.version(),
       node: process.version
     },
-    codeHash: config.codeHash
+    codeHash: config.codeHash,
+    allowedAdmins: validAddresses
   }
+
   if (nodeId && nodeId !== undefined) {
     status.id = nodeId
   } else {

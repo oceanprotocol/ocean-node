@@ -22,7 +22,7 @@ import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
 import { Database } from '../../components/database/index.js'
 import { DecryptDdoHandler } from '../../components/core/ddoHandler.js'
-import { ENVIRONMENT_VARIABLES } from '../../utils/index.js'
+import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/index.js'
 import { Readable } from 'stream'
 import { OceanNode } from '../../OceanNode.js'
 import {
@@ -33,6 +33,7 @@ import {
 } from '../utils/utils.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
+import { homedir } from 'os'
 
 describe('Should encrypt and decrypt DDO', () => {
   let database: Database
@@ -63,20 +64,10 @@ describe('Should encrypt and decrypt DDO', () => {
   let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
-    let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
-    if (!artifactsAddresses) {
-      artifactsAddresses = getOceanArtifactsAdresses().development
-    }
-
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
     publisherAddress = await publisherAccount.getAddress()
     genericAsset = genericDDO
-    factoryContract = new ethers.Contract(
-      artifactsAddresses.ERC721Factory,
-      ERC721Factory.abi,
-      publisherAccount
-    )
 
     previousConfiguration = await setupEnvironment(
       null,
@@ -84,16 +75,29 @@ describe('Should encrypt and decrypt DDO', () => {
         [
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.RPCS,
-          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS
+          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
+          ENVIRONMENT_VARIABLES.DB_URL,
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           JSON.stringify(mockSupportedNetworks),
-          JSON.stringify([publisherAddress])
+          JSON.stringify([publisherAddress]),
+          'http://localhost:8108/?apiKey=xyz',
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
     )
+    let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+    if (!artifactsAddresses) {
+      artifactsAddresses = getOceanArtifactsAdresses().development
+    }
 
+    factoryContract = new ethers.Contract(
+      artifactsAddresses.ERC721Factory,
+      ERC721Factory.abi,
+      publisherAccount
+    )
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -167,7 +171,7 @@ describe('Should encrypt and decrypt DDO', () => {
 
   it('should return unsupported chain id', async () => {
     const decryptDDOTask: DecryptDDOCommand = {
-      command: 'decryptDDO',
+      command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: publisherAddress,
       chainId: 123,
       nonce,
@@ -175,25 +179,26 @@ describe('Should encrypt and decrypt DDO', () => {
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
-    expect(response.status.error).to.equal('Decrypt DDO: Unsupported chain id')
+    expect(response.status.error).to.include('Decrypt DDO: Unsupported chain id')
   })
 
   it('should return error duplicate nonce', async () => {
     const decryptDDOTask: DecryptDDOCommand = {
-      command: 'decryptDDO',
+      command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: publisherAddress,
-      chainId: 123,
+      chainId: 8996,
       nonce,
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
+    console.log('first response:', response)
     expect(response.status.httpStatus).to.equal(400)
     expect(response.status.error).to.equal(`Decrypt DDO: duplicate nonce`)
   })
 
   it('should return decrypter not authorized', async () => {
     const decryptDDOTask: DecryptDDOCommand = {
-      command: 'decryptDDO',
+      command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: '0x0000000000000000000000000000000000000001',
       chainId,
       nonce: Date.now().toString(),
@@ -206,7 +211,7 @@ describe('Should encrypt and decrypt DDO', () => {
 
   it('should return asset not deployed by the data NFT factory', async () => {
     const decryptDDOTask: DecryptDDOCommand = {
-      command: 'decryptDDO',
+      command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: publisherAddress,
       chainId,
       dataNftAddress: publisherAddress,
@@ -222,7 +227,7 @@ describe('Should encrypt and decrypt DDO', () => {
 
   it('should return failed to process transaction id', async () => {
     const decryptDDOTask: DecryptDDOCommand = {
-      command: 'decryptDDO',
+      command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: publisherAddress,
       chainId,
       transactionId: 'string',
@@ -239,7 +244,7 @@ describe('Should encrypt and decrypt DDO', () => {
 
   it('should return failed to convert input args to bytes', async () => {
     const decryptDDOTask: DecryptDDOCommand = {
-      command: 'decryptDDO',
+      command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: publisherAddress,
       chainId,
       encryptedDocument: '123',
@@ -258,7 +263,7 @@ describe('Should encrypt and decrypt DDO', () => {
 
   it('should return checksum does not match', async () => {
     const decryptDDOTask: DecryptDDOCommand = {
-      command: 'decryptDDO',
+      command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: publisherAddress,
       chainId,
       encryptedDocument: encryptedMetaData,
@@ -275,7 +280,7 @@ describe('Should encrypt and decrypt DDO', () => {
 
   it('should return checksum does not match', async () => {
     const decryptDDOTask: DecryptDDOCommand = {
-      command: 'decryptDDO',
+      command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: publisherAddress,
       chainId,
       transactionId: txReceiptEncryptDDO.hash,
@@ -308,7 +313,7 @@ describe('Should encrypt and decrypt DDO', () => {
     const signature = await wallet.signMessage(messageHash)
 
     const decryptDDOTask: DecryptDDOCommand = {
-      command: 'decryptDDO',
+      command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: publisherAddress,
       chainId,
       transactionId: txReceiptEncryptDDO.hash,
@@ -334,7 +339,7 @@ describe('Should encrypt and decrypt DDO', () => {
     const signature = await wallet.signMessage(messageHash)
 
     const decryptDDOTask: DecryptDDOCommand = {
-      command: 'decryptDDO',
+      command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: publisherAddress,
       chainId,
       encryptedDocument: encryptedMetaData,

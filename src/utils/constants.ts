@@ -22,7 +22,8 @@ export const PROTOCOL_COMMANDS = {
   COMPUTE_STOP: 'stopCompute',
   COMPUTE_GET_STATUS: 'getComputeStatus',
   COMPUTE_GET_RESULT: 'getComputeResult',
-  COMPUTE_INITIALIZE: 'initializeCompute'
+  COMPUTE_INITIALIZE: 'initializeCompute',
+  STOP_NODE: 'stopNode'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -45,7 +46,8 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.COMPUTE_STOP,
   PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
   PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
-  PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
+  PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
+  PROTOCOL_COMMANDS.STOP_NODE
 ]
 
 export const MetadataStates = {
@@ -187,5 +189,34 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'INDEXER_INTERVAL',
     value: process.env.INDEXER_INTERVAL,
     required: false // without a value set, it defaults to 30 secs
+  },
+  LOG_RETENTION_TIME: {
+    name: 'LOG_RETENTION_TIME',
+    value: process.env.LOG_RETENTION_TIME,
+    required: false
+  },
+  ALLOWED_ADMINS: {
+    name: 'ALLOWED_ADMINS',
+    value: process.env.ALLOWED_ADMINS,
+    required: false
+  },
+  ASSET_PURGATORY_URL: {
+    name: 'ASSET_PURGATORY_URL',
+    value: process.env.ASSET_PURGATORY_URL,
+    required: false
+  },
+  ACCOUNT_PURGATORY_URL: {
+    name: 'ACCOUNT_PURGATORY_URL',
+    value: process.env.ACCOUNT_PURGATORY_URL,
+    required: false
+  },
+  DASHBOARD: {
+    name: 'DASHBOARD',
+    value: process.env.DASHBOARD,
+    required: false
   }
 }
+
+export const DDO_IDENTIFIER_PREFIX = 'did:op:'
+// global ocean node API services path
+export const SERVICES_API_BASE_PATH = '/api/services'

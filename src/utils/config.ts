@@ -68,54 +68,46 @@ function getSupportedChains(): RPCS {
   return supportedNetworks
 }
 
+// valid decrypthers
 function getAuthorizedDecrypters(isStartup?: boolean): string[] {
-  if (
-    !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS, isStartup)
-  ) {
-    return []
-  }
-  try {
-    const authorizedDecrypters: string[] = JSON.parse(process.env.AUTHORIZED_DECRYPTERS)
-    if (!Array.isArray(authorizedDecrypters)) {
-      CONFIG_LOGGER.logMessageWithEmoji(
-        'Missing or Invalid AUTHORIZED_DECRYPTERS env variable format',
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
-      return []
-    }
-    return authorizedDecrypters.map((address) => getAddress(address))
-  } catch (error) {
-    CONFIG_LOGGER.logMessageWithEmoji(
-      'Missing or Invalid AUTHORIZED_DECRYPTERS env variable format',
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_ERROR
-    )
-    return []
-  }
+  return readAddressListFromEnvVariable(
+    ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
+    isStartup
+  )
+}
+// allowed validators
+export function getAllowedValidators(isStartup?: boolean): string[] {
+  return readAddressListFromEnvVariable(
+    ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS,
+    isStartup
+  )
+}
+// valid node admins
+export function getAllowedAdmins(isStartup?: boolean): string[] {
+  return readAddressListFromEnvVariable(ENVIRONMENT_VARIABLES.ALLOWED_ADMINS, isStartup)
 }
 
-export function getAllowedValidators(isStartup?: boolean): string[] {
+// whenever we want to read an array of addresses from an env variable, use this common function
+function readAddressListFromEnvVariable(envVariable: any, isStartup?: boolean): string[] {
+  const { name } = envVariable
   try {
-    if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS, isStartup)) {
+    if (!existsEnvironmentVariable(envVariable, isStartup)) {
       return []
     }
-    const allowedValidators: string[] = JSON.parse(process.env.ALLOWED_VALIDATORS)
-    if (!Array.isArray(allowedValidators)) {
+    const addressesRaw: string[] = JSON.parse(process.env[name])
+    if (!Array.isArray(addressesRaw)) {
       CONFIG_LOGGER.logMessageWithEmoji(
-        'Invalid ALLOWED_VALIDATORS env variable format',
+        `Invalid ${name} env variable format`,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
       return []
     }
-    return allowedValidators.map((address) => getAddress(address))
+    return addressesRaw.map((address) => getAddress(address))
   } catch (error) {
     CONFIG_LOGGER.logMessageWithEmoji(
-      'Missing or Invalid address in ALLOWED_VALIDATORS env variable',
+      `Missing or Invalid address(es) in ${name} env variable`,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
@@ -388,6 +380,9 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
         '/ip4/35.198.125.13/tcp/8000/p2p/16Uiu2HAmKZuuY2Lx3JiY938rJWZrYQh6kjBZCNrh3ALkodtwFRdF', // paulo
         '/ip4/34.159.64.236/tcp/8000/p2p/16Uiu2HAmAy1GcZGhzFT3cbARTmodg9c3M4EAmtBZyDgu5cSL1NPr', // jaime
         '/ip4/34.107.3.14/tcp/8000/p2p/16Uiu2HAm4DWmX56ZX2bKjvARJQZPMUZ9xsdtAfrMmd7P8czcN4UT', // maria
+        // LOCAL
+        // TODO check: we might need to have an option to use local node as a bootstrap one
+        // '/ip4/127.0.0.1/tcp/8000/p2p/16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo',
         '/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb',
         '/dnsaddr/bootstrap.libp2p.io/p2p/QmZa1sAxajnQjVM8WjWXoMbmPd7NsWhfKsPkErzpm9wGkp',
         '/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt'
@@ -413,6 +408,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     },
     // Only enable provider if we have a DB_URL
     hasProvider: !!getEnvValue(process.env.DB_URL, ''),
+    hasDashboard: process.env.DASHBOARD !== 'false',
     httpPort: getIntEnvValue(process.env.HTTP_API_PORT, 8000),
     dbConfig: {
       url: getEnvValue(process.env.DB_URL, '')
@@ -421,7 +417,8 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     feeStrategy: getOceanNodeFees(supportedNetworks, isStartup),
     c2dClusters: getC2DClusterEnvironment(isStartup),
     accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
-    assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, '')
+    assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),
+    allowedAdmins: getAllowedAdmins(isStartup)
   }
 
   if (!previousConfiguration) {
@@ -441,5 +438,5 @@ function configChanged(previous: OceanNodeConfig, current: OceanNodeConfig): boo
 // useful for debugging purposes
 export async function printCurrentConfig() {
   const conf = await getConfiguration(true)
-  console.log(JSON.stringify(conf), null, 4)
+  console.log(JSON.stringify(conf, null, 4))
 }
