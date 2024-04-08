@@ -19,8 +19,8 @@ function checkObject(value: any) {
 }
 
 export function validateConsumerParameters(
-  ddoConsumerParameters: ConsumerParameter[],
-  userSentObject: any[]
+  ddoConsumerParameters: ConsumerParameter | ConsumerParameter[],
+  userSentObject: any | any[]
 ): ValidateParams {
   const validation: ValidateParams = {
     valid: true,
@@ -30,7 +30,10 @@ export function validateConsumerParameters(
 
   try {
     if (!Array.isArray(userSentObject)) {
-      throw new Error(`Value is not an array`)
+      userSentObject = [userSentObject]
+    }
+    if (!Array.isArray(ddoConsumerParameters)) {
+      ddoConsumerParameters = [ddoConsumerParameters]
     }
 
     for (const consumerParameter of ddoConsumerParameters) {
