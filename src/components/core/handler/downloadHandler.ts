@@ -320,7 +320,6 @@ export class DownloadHandler extends Handler {
         }
       }
     }
-
     // 6. Call the validateOrderTransaction function to check order transaction
     const paymentValidation = await validateOrderTransaction(
       task.transferTxId,
@@ -331,7 +330,6 @@ export class DownloadHandler extends Handler {
       AssetUtils.getServiceIndexById(ddo, task.serviceId),
       service.timeout
     )
-
     if (paymentValidation.isValid) {
       CORE_LOGGER.logMessage(
         `Valid payment transaction. Result: ${paymentValidation.message}`,

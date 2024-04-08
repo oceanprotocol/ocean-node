@@ -231,5 +231,6 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
 
 // default to 3 requests per second (configurable)
 export const DEFAULT_RATE_LIMIT_PER_SECOND = 3
+export const DDO_IDENTIFIER_PREFIX = 'did:op:'
 // global ocean node API services path
 export const SERVICES_API_BASE_PATH = '/api/services'
