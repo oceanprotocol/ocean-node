@@ -483,7 +483,6 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
       `Processed new order for service index ${serviceIndex} at ${timestamp}`,
       true
     )
-    console.log('getDtContract signer ', await signer.getAddress())
     const datatokenContract = getDtContract(signer, event.address)
 
     const nftAddress = await datatokenContract.getERC721Address()
@@ -545,7 +544,6 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
     const payer = decodedEventData.args[1].toString()
     INDEXER_LOGGER.logMessage(`Processed reused order at ${timestamp}`, true)
 
-    console.log('getDtContract signer ', await signer.getAddress())
     const datatokenContract = getDtContract(signer, event.address)
 
     const nftAddress = await datatokenContract.getERC721Address()

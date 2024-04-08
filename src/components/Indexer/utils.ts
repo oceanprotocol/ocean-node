@@ -118,7 +118,6 @@ export const processBlocks = async (
       foundEvents: events
     }
   } catch (error) {
-    console.error('processBlocks err: ', error)
     throw new Error(` Error processing chunk of blocks events ${error.message}`)
   }
 }
@@ -266,13 +265,7 @@ function getContract(
   address: string
 ): ethers.Contract {
   const abi = getContractDefinition(contractName)
-  try {
-    const contract = new ethers.Contract(getAddress(address), abi, signer)
-    return contract
-  } catch (err) {
-    console.error('getContract err: ', err)
-    throw err
-  }
+  return new ethers.Contract(getAddress(address), abi, signer)
 }
 
 function getContractDefinition(contractName: string): any {

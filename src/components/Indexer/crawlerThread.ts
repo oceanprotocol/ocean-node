@@ -113,7 +113,6 @@ export async function proccesNetworkData(): Promise<void> {
           startBlock,
           blocksToProcess
         )
-        console.log('processed block', processedBlocks.lastBlock)
         updateLastIndexedBlockNumber(processedBlocks.lastBlock)
         checkNewlyIndexedAssets(processedBlocks.foundEvents)
         lastIndexedBlock = processedBlocks.lastBlock
@@ -124,6 +123,8 @@ export async function proccesNetworkData(): Promise<void> {
           `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `,
           true
         )
+        updateLastIndexedBlockNumber(startBlock + blocksToProcess)
+        lastIndexedBlock = startBlock + blocksToProcess
       }
     }
     processReindex()
