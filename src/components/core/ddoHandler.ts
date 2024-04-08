@@ -15,8 +15,6 @@ import { DDO } from '../../@types/DDO/DDO.js'
 import { FindDDOResponse } from '../../@types/index.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { Blockchain } from '../../utils/blockchain.js'
-import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
-import { getOceanArtifactsAdressesByChainId } from '../../utils/address.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { decrypt, create256Hash } from '../../utils/crypt.js'
@@ -37,6 +35,12 @@ import {
   buildInvalidRequestMessage,
   validateCommandParameters
 } from '../httpRoutes/validateCommands.js'
+import {
+  findEventByKey,
+  getNetworkHeight,
+  wasNFTDeployedByOurFactory
+} from '../Indexer/utils.js'
+import { validateDDOHash } from '../../utils/asset.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -151,20 +155,15 @@ export class DecryptDdoHandler extends Handler {
       // if we do: artifactsAddresses[supportedNetwork.network]
       // because on the contracts we have "optimism_sepolia" instead of "optimism-sepolia"
       // so its always safer to use the chain id to get the correct network and artifacts addresses
-      const artifactsAddresses = getOceanArtifactsAdressesByChainId(
-        supportedNetwork.chainId
-      )
 
-      const factoryAddress = ethers.getAddress(artifactsAddresses.ERC721Factory)
-      const factoryContract = new ethers.Contract(
-        factoryAddress,
-        ERC721Factory.abi,
-        signer
-      )
       const dataNftAddress = ethers.getAddress(task.dataNftAddress)
-      const factoryListAddress = await factoryContract.erc721List(dataNftAddress)
+      const wasDeployedByUs = await wasNFTDeployedByOurFactory(
+        supportedNetwork.chainId,
+        signer,
+        dataNftAddress
+      )
 
-      if (dataNftAddress !== factoryListAddress) {
+      if (!wasDeployedByUs) {
         CORE_LOGGER.logMessage(
           'Decrypt DDO: Asset not deployed by the data NFT factory',
           true
@@ -454,6 +453,8 @@ export class FindDdoHandler extends Handler {
       const providerIds: string[] = []
       let processed = 0
       let toProcess = 0
+
+      const configuration = await getConfiguration()
       // sink fn
       const sink = async function (source: any) {
         const chunks: string[] = []
@@ -473,38 +474,55 @@ export class FindDdoHandler extends Handler {
               chunks.push(str)
             }
           } // end for chunk
-          const ddo = JSON.parse(chunks.toString())
+
+          const ddo: any = JSON.parse(chunks.toString())
+
           chunks.length = 0
           // process it
           if (providerIds.length > 0) {
             const peer = providerIds.pop()
-            const ddoInfo: FindDDOResponse = {
-              id: ddo.id,
-              lastUpdateTx: ddo.event.tx,
-              lastUpdateTime: ddo.metadata.updated,
-              provider: peer
-            }
-            resultList.push(ddoInfo)
+            const isResponseLegit = await checkIfDDOResponseIsLegit(ddo)
+            if (isResponseLegit) {
+              const ddoInfo: FindDDOResponse = {
+                id: ddo.id,
+                lastUpdateTx: ddo.event.tx,
+                lastUpdateTime: ddo.metadata.updated,
+                provider: peer
+              }
+              resultList.push(ddoInfo)
 
-            CORE_LOGGER.logMessage(
-              `Succesfully processed DDO info, id: ${ddo.id} from remote peer: ${peer}`,
-              true
-            )
-            // is it cached?
-            const ddoCache = p2pNode.getDDOCache()
-            if (ddoCache.dht.has(ddo.id)) {
-              const localValue: FindDDOResponse = ddoCache.dht.get(ddo.id)
-              if (
-                new Date(ddoInfo.lastUpdateTime) > new Date(localValue.lastUpdateTime)
-              ) {
-                // update cached version
+              CORE_LOGGER.logMessage(
+                `Succesfully processed DDO info, id: ${ddo.id} from remote peer: ${peer}`,
+                true
+              )
+
+              // is it cached?
+              const ddoCache = p2pNode.getDDOCache()
+              if (ddoCache.dht.has(ddo.id)) {
+                const localValue: FindDDOResponse = ddoCache.dht.get(ddo.id)
+                if (
+                  new Date(ddoInfo.lastUpdateTime) > new Date(localValue.lastUpdateTime)
+                ) {
+                  // update cached version
+                  ddoCache.dht.set(ddo.id, ddoInfo)
+                }
+              } else {
+                // just add it to the list
                 ddoCache.dht.set(ddo.id, ddoInfo)
               }
+              updatedCache = true
+              // also store it locally on db
+              if (configuration.hasIndexer) {
+                const ddoExistsLocally = await node.getDatabase().ddo.retrieve(ddo.id)
+                if (!ddoExistsLocally) {
+                  p2pNode.storeAndAdvertiseDDOS([ddo])
+                }
+              }
             } else {
-              // just add it to the list
-              ddoCache.dht.set(ddo.id, ddoInfo)
+              CORE_LOGGER.warn(
+                `Cannot confirm validity of ${ddo.id} fetch from remote node, skipping it...`
+              )
             }
-            updatedCache = true
           }
           processed++
         } catch (err) {
@@ -566,6 +584,7 @@ export class FindDdoHandler extends Handler {
                 id: task.id,
                 command: PROTOCOL_COMMANDS.GET_DDO
               }
+              // NOTE: do not push to response until we verify that it is legitimate
               providerIds.push(peer)
 
               try {
@@ -772,4 +791,84 @@ export function validateDDOIdentifier(identifier: string): ValidateParams {
   return {
     valid: true
   }
+}
+
+/**
+ * Checks if the response is legit
+ * @param ddo the DDO
+ * @returns validation result
+ */
+async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
+  const { nftAddress, chainId, event } = ddo
+  let isValid = validateDDOHash(ddo.id, nftAddress, chainId)
+  // 1) check hash sha256(nftAddress + chainId)
+  if (!isValid) {
+    CORE_LOGGER.error(`Asset ${ddo.id} does not have a valid hash`)
+    return false
+  }
+
+  // 2) check event
+  if (!event) {
+    return false
+  }
+
+  // 3) check if we support this network
+  const config = await getConfiguration()
+  const network = config.supportedNetworks[chainId.toString()]
+  if (!network) {
+    CORE_LOGGER.error(
+      `We do not support the newtwork ${chainId}, cannot confirm validation.`
+    )
+    return false
+  }
+  // 4) check if was deployed by our factory
+  const blockchain = new Blockchain(network.rpc, chainId)
+  const signer = blockchain.getSigner()
+
+  const wasDeployedByUs = await wasNFTDeployedByOurFactory(
+    chainId as number,
+    signer,
+    ethers.getAddress(nftAddress)
+  )
+
+  if (!wasDeployedByUs) {
+    CORE_LOGGER.error(`Asset ${ddo.id} not deployed by the data NFT factory`)
+    return false
+  }
+
+  // 5) check block & events
+  const networkBlock = await getNetworkHeight(blockchain.getProvider())
+  if (!event.block || event.block < 0 || networkBlock < event.block) {
+    CORE_LOGGER.error(`Event block: ${event.block} is either missing or invalid`)
+    return false
+  }
+
+  // check events on logs
+  const txId: string = event.tx // NOTE: DDO is txid, Asset is tx
+  if (!txId) {
+    CORE_LOGGER.error(`DDO event missing tx data, cannot confirm transaction`)
+    return false
+  }
+  const receipt = await blockchain.getProvider().getTransactionReceipt(txId)
+  let foundEvents = false
+  if (receipt) {
+    const { logs } = receipt
+    for (const log of logs) {
+      const event = findEventByKey(log.topics[0])
+      if (event && Object.values(EVENTS).includes(event.type)) {
+        if (
+          event.type === EVENTS.METADATA_CREATED ||
+          event.type === EVENTS.METADATA_UPDATED
+        ) {
+          foundEvents = true
+          break
+        }
+      }
+    }
+    isValid = foundEvents
+  } else {
+    isValid = false
+  }
+
+  return isValid
 }

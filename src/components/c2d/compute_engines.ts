@@ -21,6 +21,7 @@ import axios from 'axios'
 import { getConfiguration } from '../../utils/config.js'
 import { ZeroAddress } from 'ethers'
 import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
+import { URLUtils } from '../../utils/url.js'
 
 export class C2DEngine {
   private clusterConfig: C2DClusterInfo
@@ -168,9 +169,8 @@ export class C2DEngineOPFK8 extends C2DEngine {
      */
     const envs: ComputeEnvironment[] = []
     const clusterHash = this.getC2DConfig().hash
-    const url = `${
-      this.getC2DConfig().url
-    }/api/v1/operator/environments?chain_id=${chainId}`
+    const baseUrl = URLUtils.sanitizeURLPath(this.getC2DConfig().url)
+    const url = `${baseUrl}api/v1/operator/environments?chain_id=${chainId}`
     try {
       const { data } = await axios.get(url)
       if (!data) return envs
@@ -251,7 +251,9 @@ export class C2DEngineOPFK8 extends C2DEngine {
     try {
       const response = await axios({
         method: 'post',
-        url: `${this.getC2DConfig().url}/api/v1/operator/compute`,
+        url: `${URLUtils.sanitizeURLPath(
+          this.getC2DConfig().url
+        )}api/v1/operator/compute`,
         data: payload
       })
       if (response.status !== 200) {
@@ -288,7 +290,9 @@ export class C2DEngineOPFK8 extends C2DEngine {
     try {
       const response = await axios({
         method: 'put',
-        url: `${this.getC2DConfig().url}/api/v1/operator/compute`,
+        url: `${URLUtils.sanitizeURLPath(
+          this.getC2DConfig().url
+        )}api/v1/operator/compute`,
         data: payload
       })
       if (response.status !== 200) {
@@ -323,7 +327,9 @@ export class C2DEngineOPFK8 extends C2DEngine {
     try {
       const response = await axios({
         method: 'get',
-        url: `${this.getC2DConfig().url}/api/v1/operator/compute`,
+        url: `${URLUtils.sanitizeURLPath(
+          this.getC2DConfig().url
+        )}api/v1/operator/compute`,
         data: payload
       })
       if (response.status !== 200) {
@@ -361,7 +367,9 @@ export class C2DEngineOPFK8 extends C2DEngine {
     try {
       const response = await axios({
         method: 'get',
-        url: `${this.getC2DConfig().url}/api/v1/operator/computeResult`,
+        url: `${URLUtils.sanitizeURLPath(
+          this.getC2DConfig().url
+        )}api/v1/operator/computeResult`,
         data: payload,
         responseType: 'stream'
       })
