@@ -12,7 +12,6 @@
   "scripts": {
     "build": "npm run clean && npm run build:tsc && npm run build:dashboard",
     "build:no-dashboard": "npm run clean && npm run build:tsc",
-    "build:swagger": "tsoa spec",
     "build:tsc": "tsc --sourceMap",
     "build-tests:tsc": "tsc --sourceMap --sourceRoot ./src/test && cp ./src/test/.env.test ./dist/test",
     "build:dashboard": "cd dashboard && npm install && npx next build",
@@ -89,7 +88,6 @@
     "shacl-engine": "^0.1.2",
     "sinon": "^17.0.1",
     "stream-concat": "^1.0.0",
-    "swagger-ui-express": "^5.0.0",
     "ts-node": "^10.9.1",
     "tsoa": "^5.1.1",
     "uint8arrays": "^4.0.6",
@@ -106,7 +104,6 @@
     "@types/mocha": "^10.0.4",
     "@types/node": "^20.10.5",
     "@types/node-cron": "^3.0.11",
-    "@types/swagger-ui-express": "^4.1.3",
     "@typescript-eslint/eslint-plugin": "^6.8.0",
     "@typescript-eslint/parser": "^6.8.0",
     "chai": "^4.3.10",
