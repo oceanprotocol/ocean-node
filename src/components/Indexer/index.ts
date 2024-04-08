@@ -131,7 +131,6 @@ export class OceanIndexer {
   public async getLastIndexedBlock(network: number): Promise<number> {
     const dbconn = this.db.indexer
     try {
-      await dbconn.update(network, 5390003)
       const indexer = await dbconn.retrieve(network)
       return indexer?.lastIndexedBlock
     } catch (err) {
