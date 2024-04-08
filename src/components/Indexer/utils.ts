@@ -209,10 +209,20 @@ export const processChunkLogs = async (
           storeEvents[event.type] = processExchangeRateChanged()
         } else if (event.type === EVENTS.ORDER_STARTED) {
           const processor = getOrderStartedEventProcessor(chainId)
-          storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
+          storeEvents[event.type] = await processor.processEvent(
+            log,
+            chainId,
+            signer,
+            provider
+          )
         } else if (event.type === EVENTS.ORDER_REUSED) {
           const processor = getOrderReusedEventProcessor(chainId)
-          storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
+          storeEvents[event.type] = await processor.processEvent(
+            log,
+            chainId,
+            signer,
+            provider
+          )
         } else if (event.type === EVENTS.TOKEN_URI_UPDATE) {
           storeEvents[event.type] = processTokenUriUpadate()
         }
@@ -241,6 +251,11 @@ export const getNFTContract = (signer: Signer, address: string): ethers.Contract
   return getContract(signer, 'ERC721Template', address)
 }
 
+export const getDtContract = (signer: Signer, address: string): ethers.Contract => {
+  address = getAddress(address)
+  return getContract(signer, 'ERC20Template', address)
+}
+
 export const getNFTFactory = (signer: Signer, address: string): ethers.Contract => {
   address = getAddress(address)
   return getContract(signer, 'ERC721Factory', address)
@@ -250,10 +265,9 @@ function getContract(
   contractName: string,
   address: string
 ): ethers.Contract {
-  console.log('getContract ++ ', contractName, address)
   const abi = getContractDefinition(contractName)
   try {
-    const contract = new ethers.Contract(getAddress(address), abi, signer) // was provider.getSigner() => thow no account
+    const contract = new ethers.Contract(getAddress(address), abi, signer)
     return contract
   } catch (err) {
     console.error('getContract err: ', err)
@@ -267,6 +281,8 @@ function getContractDefinition(contractName: string): any {
       return ERC721Factory.abi
     case 'ERC721Template':
       return ERC721Template.abi
+    case 'ERC20Template':
+      return ERC20Template.abi
     default:
       return ERC721Factory.abi
   }
