@@ -19,7 +19,7 @@ import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { getEventFromTx, sleep, streamToObject } from '../../utils/util.js'
 import { waitToIndex, expectedTimeoutFailure } from './testUtils.js'
-import { genericDDO } from '../data/ddo.js'
+import { ddo, genericDDO } from '../data/ddo.js'
 import {
   DEVELOPMENT_CHAIN_ID,
   getOceanArtifactsAdresses,
@@ -205,7 +205,10 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should store the ddo state in the db with no errors and retrieve it using did', async function () {
+    console.log('ddoState', resolvedDDO.id)
     const ddoState = await database.ddoState.retrieve(resolvedDDO.id)
+    console.log('ddoState', ddoState)
+
     expect(resolvedDDO.id).to.equal(ddoState.did)
     expect(resolvedDDO.nftAddress).to.equal(ddoState.nft)
     expect(ddoState.valid).to.equal(true)
