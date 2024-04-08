@@ -52,11 +52,11 @@ export class OceanIndexer {
     return network
   }
 
-  public startThreads(): void {
+  public async startThreads(): Promise<void> {
     for (const network of this.supportedChains) {
       const chainId = parseInt(network)
       const rpcDetails: SupportedNetwork = this.getSupportedNetwork(chainId)
-      const lastIndexedBlock = 5390003
+      const lastIndexedBlock = await this.getLastIndexedBlock(chainId)
       const workerData = { rpcDetails, lastIndexedBlock }
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_INFO,
@@ -131,6 +131,7 @@ export class OceanIndexer {
   public async getLastIndexedBlock(network: number): Promise<number> {
     const dbconn = this.db.indexer
     try {
+      await dbconn.update(network, 5390003)
       const indexer = await dbconn.retrieve(network)
       return indexer?.lastIndexedBlock
     } catch (err) {
