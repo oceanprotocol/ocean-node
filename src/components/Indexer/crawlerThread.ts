@@ -65,7 +65,7 @@ export async function proccesNetworkData(): Promise<void> {
 
   // we can override the default value of 30 secs, by setting process.env.INDEXER_INTERVAL
   const interval = getCrawlingInterval()
-
+  let { chunkSize } = rpcDetails
   while (true) {
     const networkHeight = await getNetworkHeight(provider)
 
@@ -80,7 +80,6 @@ export async function proccesNetworkData(): Promise<void> {
     )
 
     if (networkHeight > startBlock) {
-      let { chunkSize } = rpcDetails
       const remainingBlocks = networkHeight - startBlock
       const blocksToProcess = Math.min(chunkSize, remainingBlocks)
       INDEXER_LOGGER.logMessage(
@@ -104,13 +103,14 @@ export async function proccesNetworkData(): Promise<void> {
           lastIndexedBlock = processedBlocks.lastBlock
         }
         updateLastIndexedBlockNumber(lastIndexedBlock)
+        chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
       } catch (error) {
         INDEXER_LOGGER.log(
           LOG_LEVELS_STR.LEVEL_ERROR,
           `network: ${rpcDetails.network} Error: ${error.message} `,
           true
         )
-        chunkSize = Math.floor(chunkSize / 2)
+        chunkSize = Math.floor(chunkSize / 2) < 1 ? 1 : Math.floor(chunkSize / 2)
         INDEXER_LOGGER.logMessage(
           `network: ${rpcDetails.network} Reducing chunk size  ${chunkSize} `,
           true

@@ -221,5 +221,6 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   }
 }
 
+export const DDO_IDENTIFIER_PREFIX = 'did:op:'
 // global ocean node API services path
 export const SERVICES_API_BASE_PATH = '/api/services'

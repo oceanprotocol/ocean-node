@@ -1,0 +1,24 @@
+.icon {
+    background-color: transparent;
+}
+
+.feedback {
+    color: black;
+    font-size: 10px;
+}
+
+.action {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+}
+
+.action:hover {
+    cursor: pointer;
+}
+
+.button {
+    background-color: transparent;
+    border: none;
+}

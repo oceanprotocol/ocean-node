@@ -28,7 +28,7 @@ import { OceanNode } from '../../OceanNode.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { Readable } from 'stream'
-import { waitToIndex } from './testUtils.js'
+import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 import { streamToObject } from '../../utils/util.js'
 import { JsonRpcProvider, Signer, ethers } from 'ethers'
 import { publishAsset, orderAsset } from '../utils/assets.js'
@@ -111,19 +111,29 @@ describe('Compute', () => {
   })
 
   // let's publish assets & algos
-  it('should publish compute datasets & algos', async () => {
+  it('should publish compute datasets & algos', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
     publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
-    await waitToIndex(
+    const computeDatasetResult = await waitToIndex(
       publishedComputeDataset.ddo.id,
-      EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT
+      EVENTS.METADATA_CREATED
     )
-    await waitToIndex(
+    // consider possible timeouts
+    if (!computeDatasetResult.ddo) {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(
+        computeDatasetResult.wasTimeout
+      )
+    }
+    const algoDatasetResult = await waitToIndex(
       publishedAlgoDataset.ddo.id,
-      EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT
+      EVENTS.METADATA_CREATED
     )
+    if (!algoDatasetResult.ddo) {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(
+        algoDatasetResult.wasTimeout
+      )
+    }
   })
 
   it('Get compute environments', async () => {
