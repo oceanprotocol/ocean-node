@@ -68,7 +68,7 @@ export async function proccesNetworkData(): Promise<void> {
 
   while (true) {
     console.log('lockProcessing == ', lockProccessing)
-    console.log('lockProcessing == ', lastIndexedBlock)
+    console.log('lastIndexedBlock == ', lastIndexedBlock)
     console.log('chunkSize == ', chunkSize)
     if (!lockProccessing) {
       lockProccessing = true
@@ -135,6 +135,8 @@ export async function proccesNetworkData(): Promise<void> {
           lastIndexedBlock = startBlock + blocksToProcess
           lockProccessing = false
         }
+      } else {
+        lockProccessing = false
       }
       processReindex()
     } else {
