@@ -107,11 +107,15 @@ export async function validateAlgoForDataset(
 
     if (algoDID) {
       if (
-        !compute.publisherTrustedAlgorithms &&
-        !compute.publisherTrustedAlgorithmPublishers
+        // if not set or empty allow them all
+        (!compute.publisherTrustedAlgorithms &&
+          !compute.publisherTrustedAlgorithmPublishers) ||
+        (compute.publisherTrustedAlgorithms?.length === 0 &&
+          compute.publisherTrustedAlgorithmPublishers?.length === 0)
       ) {
         return true
       }
+      // if is set only allow if match
       if (compute.publisherTrustedAlgorithms) {
         const trustedAlgo = compute.publisherTrustedAlgorithms.find(
           (algo) => algo.did === algoDID

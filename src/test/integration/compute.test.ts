@@ -61,6 +61,7 @@ import { createHash } from 'crypto'
 // import { getAlgoChecksums, validateAlgoForDataset } from '../../components/c2d/index.js'
 import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
+import { getAlgoChecksums, validateAlgoForDataset } from '../../components/c2d/index.js'
 
 describe('Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
@@ -591,6 +592,7 @@ describe('Compute', () => {
     console.log(jobs)
   })
 
+  // algo and checksums related
   it('should publish AlgoDDO', async () => {
     const tx = await (factoryContract as any).createNftWithErc20(
       {
@@ -715,19 +717,24 @@ describe('Compute', () => {
     const filesData = Uint8Array.from(Buffer.from(JSON.stringify(files)))
     datasetDDO.services[0].files = await encrypt(filesData, EncryptMethod.ECIES)
 
+    // randomly use a set of trusted algos or empty arrays (should validate both cases)
+    const setTrustedAlgosEmpty: boolean = Math.random() <= 0.5
+
     datasetDDO.services[0].compute = {
       allowRawAlgorithm: false,
       allowNetworkAccess: true,
-      publisherTrustedAlgorithmPublishers: [publisherAddress],
-      publisherTrustedAlgorithms: [
-        {
-          did: algoDDO.id,
-          filesChecksum:
-            'f6a7b95e4a2e3028957f69fdd2dac27bd5103986b2171bc8bfee68b52f874dcd',
-          containerSectionChecksum:
-            'ba8885fcc7d366f058d6c3bb0b7bfe191c5f85cb6a4ee3858895342436c23504'
-        }
-      ]
+      publisherTrustedAlgorithmPublishers: setTrustedAlgosEmpty ? [] : [publisherAddress],
+      publisherTrustedAlgorithms: setTrustedAlgosEmpty
+        ? []
+        : [
+            {
+              did: algoDDO.id,
+              filesChecksum:
+                'f6a7b95e4a2e3028957f69fdd2dac27bd5103986b2171bc8bfee68b52f874dcd',
+              containerSectionChecksum:
+                'ba8885fcc7d366f058d6c3bb0b7bfe191c5f85cb6a4ee3858895342436c23504'
+            }
+          ]
     }
 
     const metadata = hexlify(Buffer.from(JSON.stringify(datasetDDO)))
@@ -744,6 +751,63 @@ describe('Compute', () => {
     )
     const txReceipt = await setMetaDataTx.wait()
     assert(txReceipt, 'set metadata failed')
+  })
+
+  it('should getAlgoChecksums', async function () {
+    const { ddo, wasTimeout } = await waitToIndex(
+      algoDDO.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
+    const algoDDOTest = ddo
+    if (algoDDOTest) {
+      const algoChecksums = await getAlgoChecksums(
+        algoDDOTest.id,
+        algoDDOTest.services[0].id,
+        oceanNode
+      )
+      expect(algoChecksums.files).to.equal(
+        'f6a7b95e4a2e3028957f69fdd2dac27bd5103986b2171bc8bfee68b52f874dcd'
+      )
+      expect(algoChecksums.container).to.equal(
+        'ba8885fcc7d366f058d6c3bb0b7bfe191c5f85cb6a4ee3858895342436c23504'
+      )
+    } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+  })
+
+  it('should validateAlgoForDataset', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    const { ddo, wasTimeout } = await waitToIndex(
+      algoDDO.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT * 2
+    )
+
+    const algoDDOTest = ddo
+    if (algoDDOTest) {
+      const algoChecksums = await getAlgoChecksums(
+        algoDDOTest.id,
+        algoDDOTest.services[0].id,
+        oceanNode
+      )
+      const { ddo, wasTimeout } = await waitToIndex(
+        datasetDDO.id,
+        EVENTS.METADATA_CREATED,
+        DEFAULT_TEST_TIMEOUT * 2
+      )
+
+      const datasetDDOTest = ddo
+      if (datasetDDOTest) {
+        const result = await validateAlgoForDataset(
+          algoDDOTest.id,
+          algoChecksums,
+          datasetDDOTest.id,
+          datasetDDOTest.services[0].id,
+          oceanNode
+        )
+        expect(result).to.equal(true)
+      } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
   after(async () => {
