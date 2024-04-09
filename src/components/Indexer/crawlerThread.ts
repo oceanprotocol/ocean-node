@@ -67,6 +67,9 @@ export async function proccesNetworkData(): Promise<void> {
   let lockProccessing = false
 
   while (true) {
+    console.log('lockProcessing == ', lockProccessing)
+    console.log('lockProcessing == ', lastIndexedBlock)
+    console.log('chunkSize == ', chunkSize)
     if (!lockProccessing) {
       lockProccessing = true
       const networkHeight = await getNetworkHeight(provider)
