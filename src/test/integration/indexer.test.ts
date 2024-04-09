@@ -185,7 +185,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     genericAsset.event.from = setMetaDataTxReceipt.from
     genericAsset.event.contract = setMetaDataTxReceipt.contractAddress
     genericAsset.event.datetime = '2023-02-15T16:42:22'
-
+    console.log('   genericAsset.event', genericAsset.event)
     genericAsset.nft.address = nftAddress
     genericAsset.nft.owner = setMetaDataTxReceipt.from
     genericAsset.nft.state = 0
@@ -199,13 +199,14 @@ describe('Indexer stores a new metadata events and orders.', () => {
       DEFAULT_TEST_TIMEOUT
     )
     resolvedDDO = ddo
+    console.log('resolvedDDO', resolvedDDO)
     if (resolvedDDO) {
       expect(resolvedDDO.id).to.equal(genericAsset.id)
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
   it('should store the ddo state in the db with no errors and retrieve it using did', async function () {
-    console.log('ddoState', resolvedDDO.id)
+    console.log('did to search ', resolvedDDO.id)
     const ddoState = await database.ddoState.retrieve(resolvedDDO.id)
     console.log('ddoState', ddoState)
 
