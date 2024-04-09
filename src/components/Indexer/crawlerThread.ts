@@ -68,7 +68,7 @@ export async function proccesNetworkData(): Promise<void> {
 
   while (true) {
     if (!lockProccessing) {
-      lockProccessing = false
+      lockProccessing = true
       const networkHeight = await getNetworkHeight(provider)
 
       const startBlock =
