@@ -54,30 +54,26 @@ export function validateConsumerParameters(
         }
         // check the value for that key
         const sentObjectValue = sentObject[sentObjectKey]
-        if (consumerParameter.type === 'text' && !checkString(sentObjectValue)) {
-          throw new Error(
-            `value ${sentObjectValue} of key ${sentObjectKey} parameter is not a text`
-          )
-        }
-        if (consumerParameter.type === 'number' && !checkNumber(sentObjectValue)) {
-          throw new Error(
-            `value ${sentObjectValue} of key ${sentObjectKey} parameter is not a number`
-          )
-        }
-        if (consumerParameter.type === 'boolean' && !checkBoolean(sentObjectValue)) {
-          throw new Error(
-            `value ${sentObjectValue} of key ${sentObjectKey} parameter is not a boolean`
-          )
-        }
-        if (consumerParameter.type === 'select') {
+        const parameterType = consumerParameter.type // text, number, boolean or select
+        let hasWrongType = false
+        if (
+          (parameterType === 'text' && !checkString(sentObjectValue)) ||
+          (parameterType === 'number' && !checkNumber(sentObjectValue)) ||
+          (parameterType === 'boolean' && !checkBoolean(sentObjectValue))
+        ) {
+          hasWrongType = true
+        } else if (parameterType === 'select') {
           const options: any[] = consumerParameter.options.map(
             (option) => Object.keys(option)[0]
           )
           if (!options.includes(sentObjectValue)) {
-            throw new Error(
-              `value ${sentObjectValue} of key ${sentObjectKey} parameter is not a select`
-            )
+            hasWrongType = true
           }
+        }
+        if (hasWrongType) {
+          throw new Error(
+            `value ${sentObjectValue} of key ${sentObjectKey} parameter has wrong type, expected: "${parameterType}", got: "${typeof sentObjectValue}`
+          )
         }
       }
     }

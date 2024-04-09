@@ -191,4 +191,67 @@ describe('Utilities Functions', () => {
     const result = await validateConsumerParameters(ddoConsumerParameters, userSentObject)
     expect(result.valid).to.equal(true)
   })
+  it('should Not validateConsumerParameters (wrong types)', async () => {
+    const ddoConsumerParameters: ConsumerParameter[] = [
+      {
+        name: 'hometown',
+        type: 'text',
+        label: 'Hometown',
+        required: true,
+        description: 'What is your hometown?',
+        default: 'Nowhere'
+      },
+      {
+        name: 'age',
+        type: 'number',
+        label: 'Age',
+        required: false,
+        description: 'Please fill your age',
+        default: 0
+      },
+      {
+        name: 'developer',
+        type: 'boolean',
+        label: 'Developer',
+        required: false,
+        description: 'Are you a developer?',
+        default: false
+      }
+    ]
+    const userSentObject: any = {
+      hometown: 'Tokyo',
+      age: 12,
+      developer: 'wrong type here' // should be a boolean
+    }
+    const result = await validateConsumerParameters(ddoConsumerParameters, userSentObject)
+    expect(result.valid).to.equal(false)
+    expect(result.reason).includes('parameter has wrong type')
+  })
+
+  it('should Not validateConsumerParameters (missing required field)', async () => {
+    const ddoConsumerParameters: ConsumerParameter[] = [
+      {
+        name: 'hometown',
+        type: 'text',
+        label: 'Hometown',
+        required: true,
+        description: 'What is your hometown?',
+        default: 'Nowhere'
+      },
+      {
+        name: 'age',
+        type: 'number',
+        label: 'Age',
+        required: true,
+        description: 'Please fill your age',
+        default: 0
+      }
+    ]
+    const userSentObject: any = {
+      hometown: 'Tokyo'
+    }
+    const result = await validateConsumerParameters(ddoConsumerParameters, userSentObject)
+    expect(result.valid).to.equal(false)
+    expect(result.reason).includes('parameter is required')
+  })
 })
