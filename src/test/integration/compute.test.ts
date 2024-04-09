@@ -58,7 +58,6 @@ import { getOceanArtifactsAdresses } from '../../utils/address.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { createHash } from 'crypto'
-// import { getAlgoChecksums, validateAlgoForDataset } from '../../components/c2d/index.js'
 import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { getAlgoChecksums, validateAlgoForDataset } from '../../components/c2d/index.js'
@@ -89,6 +88,9 @@ describe('Compute', () => {
   // const chainId = DEVELOPMENT_CHAIN_ID
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const chainId = 8996
+  // randomly use a set of trusted algos or empty arrays
+  // should validate if set and match, invalidate otherwise
+  const setTrustedAlgosEmpty: boolean = Math.random() <= 0.5
 
   let publisherAddress: string
   let factoryContract: Contract
@@ -717,9 +719,6 @@ describe('Compute', () => {
     const filesData = Uint8Array.from(Buffer.from(JSON.stringify(files)))
     datasetDDO.services[0].files = await encrypt(filesData, EncryptMethod.ECIES)
 
-    // randomly use a set of trusted algos or empty arrays (should validate both cases)
-    const setTrustedAlgosEmpty: boolean = Math.random() <= 0.5
-
     datasetDDO.services[0].compute = {
       allowRawAlgorithm: false,
       allowNetworkAccess: true,
@@ -805,7 +804,7 @@ describe('Compute', () => {
           datasetDDOTest.services[0].id,
           oceanNode
         )
-        expect(result).to.equal(true)
+        expect(result).to.equal(!setTrustedAlgosEmpty)
       } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })

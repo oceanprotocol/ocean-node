@@ -107,11 +107,9 @@ export async function validateAlgoForDataset(
 
     if (algoDID) {
       if (
-        // if not set or empty allow them all
-        (!compute.publisherTrustedAlgorithms &&
-          !compute.publisherTrustedAlgorithmPublishers) ||
-        (compute.publisherTrustedAlgorithms?.length === 0 &&
-          compute.publisherTrustedAlgorithmPublishers?.length === 0)
+        // if not set allow them all
+        !compute.publisherTrustedAlgorithms &&
+        !compute.publisherTrustedAlgorithmPublishers
       ) {
         return true
       }
