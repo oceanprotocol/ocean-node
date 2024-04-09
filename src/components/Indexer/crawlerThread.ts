@@ -35,7 +35,7 @@ const blockchain = new Blockchain(rpcDetails.rpc, rpcDetails.chainId)
 const provider = blockchain.getProvider()
 const signer = blockchain.getSigner()
 
-async function updateLastIndexedBlockNumber(block: number): Promise<void> {
+async function updateLastIndexedBlockNumber(block: number): Promise<number> {
   try {
     const { indexer } = await getDatabase()
     const updatedIndex = await indexer.update(rpcDetails.chainId, block)
@@ -43,6 +43,7 @@ async function updateLastIndexedBlockNumber(block: number): Promise<void> {
       `New last indexed block : ${updatedIndex.lastIndexedBlock}`,
       true
     )
+    return updatedIndex.lastIndexedBlock
   } catch (err) {
     INDEXER_LOGGER.log(
       LOG_LEVELS_STR.LEVEL_ERROR,
@@ -121,9 +122,8 @@ export async function proccesNetworkData(): Promise<void> {
             startBlock,
             blocksToProcess
           )
-          await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
+          lastIndexedBlock = await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
           checkNewlyIndexedAssets(processedBlocks.foundEvents)
-          lastIndexedBlock = processedBlocks.lastBlock
           chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
         } catch (error) {
           INDEXER_LOGGER.log(
@@ -131,8 +131,9 @@ export async function proccesNetworkData(): Promise<void> {
             `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `,
             true
           )
-          await updateLastIndexedBlockNumber(startBlock + blocksToProcess)
-          lastIndexedBlock = startBlock + blocksToProcess
+          lastIndexedBlock = await updateLastIndexedBlockNumber(
+            startBlock + blocksToProcess
+          )
         }
       }
       await processReindex()
