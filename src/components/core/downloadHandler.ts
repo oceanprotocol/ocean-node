@@ -25,6 +25,7 @@ import {
   validateCommandParameters,
   ValidateParams
 } from '../httpRoutes/validateCommands.js'
+import { DDO } from '../../@types/DDO/DDO.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(
@@ -145,6 +146,20 @@ export async function handleDownloadUrlCommand(
       status: { httpStatus: 501, error: 'Unknown error: ' + err.message }
     }
   }
+}
+
+export function validateFilesStructure(
+  ddo: DDO,
+  service: Service,
+  decriptedFileObject: any
+): boolean {
+  if (
+    decriptedFileObject.nftAddress !== ddo.nftAddress ||
+    decriptedFileObject.datatokenAddress !== service.datatokenAddress
+  ) {
+    return false
+  }
+  return true
 }
 
 export class DownloadHandler extends Handler {
@@ -316,7 +331,6 @@ export class DownloadHandler extends Handler {
         }
       }
     }
-
     // 6. Call the validateOrderTransaction function to check order transaction
     const paymentValidation = await validateOrderTransaction(
       task.transferTxId,
@@ -327,7 +341,6 @@ export class DownloadHandler extends Handler {
       AssetUtils.getServiceIndexById(ddo, task.serviceId),
       service.timeout
     )
-
     if (paymentValidation.isValid) {
       CORE_LOGGER.logMessage(
         `Valid payment transaction. Result: ${paymentValidation.message}`,
@@ -355,10 +368,24 @@ export class DownloadHandler extends Handler {
       )
       // Convert the decrypted bytes back to a string
       const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
-      const decryptedFileArray = JSON.parse(decryptedFilesString)
+      const decryptedFileData = JSON.parse(decryptedFilesString)
+      const decriptedFileObject: any = decryptedFileData.files[task.fileIndex]
+      if (!validateFilesStructure(ddo, service, decryptedFileData)) {
+        CORE_LOGGER.error(
+          'Unauthorized download operation. Decrypted "nftAddress" and "datatokenAddress" do not match the original DDO'
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 403,
+            error: 'Failed to download asset, unauthorized operation!'
+          }
+        }
+      }
+
       // 7. Proceed to download the file
       return await handleDownloadUrlCommand(node, {
-        fileObject: decryptedFileArray.files[task.fileIndex],
+        fileObject: decriptedFileObject,
         aes_encrypted_key: task.aes_encrypted_key,
         command: PROTOCOL_COMMANDS.DOWNLOAD_URL
       })
