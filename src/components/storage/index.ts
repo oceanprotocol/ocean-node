@@ -239,13 +239,6 @@ export class UrlStorage extends Storage {
     })
     return await encryptData(response.data, encryptionType)
   }
-
-  async encryptInfo(
-    data: any,
-    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
-  ): Promise<Buffer> {
-    return await encryptData(data, encryptionType)
-  }
 }
 
 export class ArweaveStorage extends Storage {
