@@ -121,7 +121,7 @@ export async function proccesNetworkData(): Promise<void> {
             startBlock,
             blocksToProcess
           )
-          updateLastIndexedBlockNumber(processedBlocks.lastBlock)
+          await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
           checkNewlyIndexedAssets(processedBlocks.foundEvents)
           lastIndexedBlock = processedBlocks.lastBlock
           lockProccessing = false
@@ -132,14 +132,12 @@ export async function proccesNetworkData(): Promise<void> {
             `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `,
             true
           )
-          updateLastIndexedBlockNumber(startBlock + blocksToProcess)
+          await updateLastIndexedBlockNumber(startBlock + blocksToProcess)
           lastIndexedBlock = startBlock + blocksToProcess
           lockProccessing = false
         }
-      } else {
-        lockProccessing = false
       }
-      processReindex()
+      await processReindex()
     } else {
       INDEXER_LOGGER.logMessage(
         `Processing already in progress for network ${rpcDetails.network} waiting untill finishing the current processing ...`,
