@@ -64,70 +64,82 @@ export async function proccesNetworkData(): Promise<void> {
   // we can override the default value of 30 secs, by setting process.env.INDEXER_INTERVAL
   const interval = getCrawlingInterval()
   let { chunkSize } = rpcDetails
+  let lockProccessing = false
+
   while (true) {
-    const networkHeight = await getNetworkHeight(provider)
+    if (!lockProccessing) {
+      lockProccessing = false
+      const networkHeight = await getNetworkHeight(provider)
 
-    const startBlock =
-      lastIndexedBlock && lastIndexedBlock > deployedBlock
-        ? lastIndexedBlock
-        : deployedBlock
+      const startBlock =
+        lastIndexedBlock && lastIndexedBlock > deployedBlock
+          ? lastIndexedBlock
+          : deployedBlock
 
-    INDEXER_LOGGER.logMessage(
-      `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`,
-      true
-    )
-
-    if (networkHeight > startBlock) {
-      const remainingBlocks = networkHeight - startBlock
-      const blocksToProcess = Math.min(chunkSize, remainingBlocks)
       INDEXER_LOGGER.logMessage(
-        `network: ${rpcDetails.network} processing ${blocksToProcess} blocks ...`
+        `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`,
+        true
       )
-      let chunkEvents: Log[] = []
-      try {
-        chunkEvents = await retrieveChunkEvents(
-          signer,
-          provider,
-          rpcDetails.chainId,
-          startBlock,
-          blocksToProcess
-        )
-      } catch (error) {
-        INDEXER_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_ERROR,
-          `Get events for network: ${rpcDetails.network} failure: ${error.message} `,
-          true
-        )
-        chunkSize = Math.floor(chunkSize / 2) < 1 ? 1 : Math.floor(chunkSize / 2)
+
+      if (networkHeight > startBlock) {
+        const remainingBlocks = networkHeight - startBlock
+        const blocksToProcess = Math.min(chunkSize, remainingBlocks)
         INDEXER_LOGGER.logMessage(
-          `network: ${rpcDetails.network} Reducing chunk size  ${chunkSize} `,
-          true
+          `network: ${rpcDetails.network} processing ${blocksToProcess} blocks ...`
         )
+        let chunkEvents: Log[] = []
+        try {
+          chunkEvents = await retrieveChunkEvents(
+            signer,
+            provider,
+            rpcDetails.chainId,
+            startBlock,
+            blocksToProcess
+          )
+        } catch (error) {
+          INDEXER_LOGGER.log(
+            LOG_LEVELS_STR.LEVEL_ERROR,
+            `Get events for network: ${rpcDetails.network} failure: ${error.message} `,
+            true
+          )
+          chunkSize = Math.floor(chunkSize / 2) < 1 ? 1 : Math.floor(chunkSize / 2)
+          INDEXER_LOGGER.logMessage(
+            `network: ${rpcDetails.network} Reducing chunk size  ${chunkSize} `,
+            true
+          )
+        }
+        try {
+          const processedBlocks = await processBlocks(
+            chunkEvents,
+            signer,
+            provider,
+            rpcDetails.chainId,
+            startBlock,
+            blocksToProcess
+          )
+          updateLastIndexedBlockNumber(processedBlocks.lastBlock)
+          checkNewlyIndexedAssets(processedBlocks.foundEvents)
+          lastIndexedBlock = processedBlocks.lastBlock
+          lockProccessing = false
+          chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
+        } catch (error) {
+          INDEXER_LOGGER.log(
+            LOG_LEVELS_STR.LEVEL_ERROR,
+            `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `,
+            true
+          )
+          updateLastIndexedBlockNumber(startBlock + blocksToProcess)
+          lastIndexedBlock = startBlock + blocksToProcess
+          lockProccessing = false
+        }
       }
-      try {
-        const processedBlocks = await processBlocks(
-          chunkEvents,
-          signer,
-          provider,
-          rpcDetails.chainId,
-          startBlock,
-          blocksToProcess
-        )
-        updateLastIndexedBlockNumber(processedBlocks.lastBlock)
-        checkNewlyIndexedAssets(processedBlocks.foundEvents)
-        lastIndexedBlock = processedBlocks.lastBlock
-        chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
-      } catch (error) {
-        INDEXER_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_ERROR,
-          `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `,
-          true
-        )
-        updateLastIndexedBlockNumber(startBlock + blocksToProcess)
-        lastIndexedBlock = startBlock + blocksToProcess
-      }
+      processReindex()
+    } else {
+      INDEXER_LOGGER.logMessage(
+        `Processing already in progress for network ${rpcDetails.network} waiting untill finishing the current processing ...`,
+        true
+      )
     }
-    processReindex()
     await sleep(interval)
   }
 }
