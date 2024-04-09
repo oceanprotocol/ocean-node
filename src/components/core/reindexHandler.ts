@@ -3,9 +3,23 @@ import { ReindexCommand } from '../../@types/commands.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
 import { OceanIndexer } from '../Indexer/index.js'
+import {
+  ValidateParams,
+  buildInvalidParametersResponse,
+  validateCommandParameters
+} from '../httpRoutes/validateCommands.js'
 
 export class ReindexHandler extends Handler {
+  validate(command: ReindexCommand): ValidateParams {
+    return validateCommandParameters(command, ['txId', 'chainId'])
+  }
+
+  // eslint-disable-next-line require-await
   async handle(task: ReindexCommand): Promise<P2PCommandResponse> {
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
     try {
       const txId: string = String(task.txId).toLowerCase()
       if (!/^0x([A-Fa-f0-9]{64})$/.test(txId)) {
@@ -22,7 +36,7 @@ export class ReindexHandler extends Handler {
         }
       }
       const eventIndex: number = Number(task.eventIndex)
-      await OceanIndexer.addReindexTask({
+      OceanIndexer.addReindexTask({
         txId,
         chainId,
         eventIndex

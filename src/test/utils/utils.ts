@@ -6,6 +6,7 @@ import { CONFIG_LOGGER } from '../../utils/logging/common.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { getConfiguration } from '../../utils/config.js'
 
+export const DEFAULT_TEST_TIMEOUT = 20000 // 20 secs MAX
 // __dirname and __filename are not defined in ES module scope
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -135,7 +136,23 @@ export function getMockSupportedNetworks(): RPCS {
       network: 'development',
       rpc: 'http://127.0.0.1:8545',
       chunkSize: 100
+    },
+    '137': {
+      chainId: 137,
+      network: 'polygon',
+      rpc: 'https://polygon-rpc.com',
+      chunkSize: 1000
     }
   }
   return mockSupportedNetworks
+}
+
+// need to find a better way, but for now does the trick
+// these vars are only set on CI
+export function isRunningContinousIntegrationEnv(): boolean {
+  return (
+    process.env.NODE1_PRIVATE_KEY !== undefined &&
+    process.env.NODE2_PRIVATE_KEY !== undefined &&
+    process.env.NODE3_PRIVATE_KEY !== undefined
+  )
 }

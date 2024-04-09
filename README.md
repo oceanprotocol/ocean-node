@@ -33,12 +33,22 @@ git checkout feature/nodes
 ./start_ocean.sh
 ```
 
-### 5. Open terminal 1 and run a node
+### 5. Open terminal 1 and set the environmental variables
+
+A full list of all environmental variables is available in [env.md](./env.md)
+
+Set env values:
 
 ```bash
 export HTTP_API_PORT=8000
-export PRIVATE_KEY=0x.....
+export PRIVATE_KEY="0x1d751ded5a32226054cd2e71261039b65afb9ee1c746d055dd699b1150a5befc"
 export RPCS="{ \"1\":{ \"rpc\":\"https://rpc.eth.gateway.fm\", \"chainId\": 1, \"network\": \"mainet\", \"chunkSize\": 100 }, \"137\": { \"rpc\": \"https://polygon.meowrpc.com\", \"chainId\": 137, \"network\": \"polygon\", \"chunkSize\": 100 }, \"80001\": { \"rpc\": \"https://rpc-mumbai.maticvigil.com\", \"chainId\": 80001, \"network\": \"polygon-mumbai\", \"chunkSize\": 100 }}"
+```
+
+Network interfaces supported by the node ('http' and/or 'p2p'). By default, if not specified otherwise, both are supported. Case insensitive.
+
+```bash
+export INTERFACES=[\"HTTP\",\"P2P\"]
 ```
 
 You need to define a database URL if you want to run a database as part of your node. This is required for the tests to pass.
@@ -54,31 +64,29 @@ export IPFS_GATEWAY='https://ipfs.io/'
 export ARWEAVE_GATEWAY='https://arweave.net/'
 ```
 
+For configuring allowed validators for verifying an asset signature before indexing, please set the following environment variable (array of 1 or multiple addresses):
+
+```bash
+export ALLOWED_VALIDATORS=[\"0x123\",\"0x456\"]
+```
+
 For configuring a C2D (Compute to Data) cluster(s), please set the following environment variable (array of 1 or multiple cluster URLS):
 
 ```bash
 export OPERATOR_SERVICE_URL=[\"http://example.c2d.cluster1.com\",\"http://example.cd2.cluster2.com\"]
 ```
 
-Then start the node:
+For configuring the Indexer crawling interval in miliseconds (default, if not set, is 30 secs)
 
 ```bash
-npm run start
+export INDEXER_INTERVAL=10000
 ```
 
-### 6. Open a 2nd terminal and run another node
+For purgatory checks, please export the following env variables;
 
 ```bash
-export HTTP_API_PORT=8001
-export PRIVATE_KEY=0x.....
-export RPCS="{ \"1\": \"https://rpc.eth.gateway.fm\", \"137\": \"https://polygon.meowrpc.com\", \"80001\": \"https://rpc-mumbai.maticvigil.com\" }"
-```
-
-For downloading the file from IPFS or ARWEAVE, please export the following env variables;
-
-```bash
-export IPFS_GATEWAY=''
-export ARWEAVE_GATEWAY=''
+export ASSET_PURGATORY_URL=\"https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json\"
+export ACCOUNT_PURGATORY_URL=\"https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json\"
 ```
 
 For configuring the ocean node fees, please export the following environment variables;
@@ -91,13 +99,15 @@ export FEE_AMOUNT="{ \"amount\": 1, \"unit\": \"MB\" }"
 Where FEE_TOKENS is a map (chainID => Token address) and FEE_AMOUNT is the fees amount (unit of fee token).
 The 'unit' parameter is not used at the moment, but allows to specify an specific unit of size (MB, KB, GB, etc). Default is MB.
 
+### 6. Run the node
+
 Then start the node:
 
 ```bash
 npm run start
 ```
 
-Now, you should see the nodes discovery/connecting/disconnecting
+To run a second node, open a new terminal and follow these steps again. Now with the two nodes running, you should see the two nodes discovery/connecting/disconnecting with each other.
 
 Load postman collection from docs and play
 
@@ -284,8 +294,21 @@ npm run logs http://localhost:8000 "2023-11-01T00:00:00Z" "2023-11-30T23:59:59Z"
 
 ## CI Envs
 
-For now, we have three private keys defined (NODE1_PRIVATE_KEY, NODE2_PRIVATE_KEY,NODE3_PRIVATE_KEY). They are using the 10th,11th and 12rd accounts of barge:
+A full list of all environmental variables is available in [env.md](./env.md)
 
-- (10) 0xee59A16d95042e1B252d4598e2e503837a52eCb1
-- (11) 0x320608cEB9B40fC5a77596CCad2E0B35659fbb2C
-- (12) 0x675003EF9a381Edb5bA2A954eD4b15037C602A2d
+For now, we have three private keys defined (NODE1_PRIVATE_KEY, NODE2_PRIVATE_KEY,NODE3_PRIVATE_KEY). They are using the 7th, 8th and 9th accounts of barge:
+
+- (7) 0x1d751ded5a32226054cd2e71261039b65afb9ee1c746d055dd699b1150a5befc
+- (8) 0xfd5c1ccea015b6d663618850824154a3b3fb2882c46cefb05b9a93fea8c3d215
+- (9) 0x1263dc73bef43a9da06149c7e598f52025bf4027f1d6c13896b71e81bb9233fb
+
+## Dashboard
+
+The dashboard is built by default with the Ocean Node. Set the environmental variables and then run the following commands from the root of the project:
+
+```
+npm run build
+npm run start
+```
+
+The dashboard will be made available at: `http://localhost:8000/dashboard/`

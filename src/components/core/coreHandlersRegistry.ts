@@ -9,7 +9,7 @@ import {
 import { DownloadHandler } from './downloadHandler.js'
 import { FileInfoHandler } from './fileInfoHandler.js'
 import { EchoHandler } from './echoHandler.js'
-import { EncryptHandler } from './encryptHandler.js'
+import { EncryptHandler, EncryptFileHandler } from './encryptHandler.js'
 import { FeesHandler } from './feesHandler.js'
 import { Handler } from './handler.js'
 import { NonceHandler } from './nonceHandler.js'
@@ -18,7 +18,15 @@ import { StatusHandler } from './statusHandler.js'
 import { ReindexHandler } from './reindexHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { Command } from '../../@types/commands.js'
-import { GetEnvironmentsHandler } from './compute.js'
+import {
+  ComputeGetEnvironmentsHandler,
+  ComputeStartHandler,
+  ComputeStopHandler,
+  ComputeGetStatusHandler,
+  ComputeGetResultHandler,
+  ComputeInitializeHandler
+} from './compute/index.js'
+import { StopNodeHandler } from './adminOperations.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -60,6 +68,7 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(PROTOCOL_COMMANDS.DECRYPT_DDO, new DecryptDdoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.NONCE, new NonceHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.ENCRYPT, new EncryptHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.ENCRYPT_FILE, new EncryptFileHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.GET_DDO, new GetDdoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.QUERY, new QueryHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.STATUS, new StatusHandler(node))
@@ -70,9 +79,27 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(PROTOCOL_COMMANDS.FILE_INFO, new FileInfoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.VALIDATE_DDO, new ValidateDDOHandler(node))
     this.registerCoreHandler(
-      PROTOCOL_COMMANDS.GET_COMPUTE_ENVIRONMENTS,
-      new GetEnvironmentsHandler(node)
+      PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS,
+      new ComputeGetEnvironmentsHandler(node)
     )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.COMPUTE_START,
+      new ComputeStartHandler(node)
+    )
+    this.registerCoreHandler(PROTOCOL_COMMANDS.COMPUTE_STOP, new ComputeStopHandler(node))
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+      new ComputeGetStatusHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
+      new ComputeGetResultHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
+      new ComputeInitializeHandler(node)
+    )
+    this.registerCoreHandler(PROTOCOL_COMMANDS.STOP_NODE, new StopNodeHandler(node))
   }
 
   public static getInstance(node: OceanNode): CoreHandlersRegistry {

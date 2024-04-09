@@ -4,11 +4,9 @@ import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 
 import { getDefaultLevel } from '../../utils/logging/Logger.js'
 
-import {
-  validateBroadcastParameters,
-  validateCommandAPIParameters
-} from './validateCommands.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
+import { hasP2PInterface, sendMissingP2PResponse } from './index.js'
+import { validateCommandParameters } from './validateCommands.js'
 
 export const broadcastCommandRoute = express.Router()
 
@@ -16,7 +14,7 @@ broadcastCommandRoute.post(
   '/broadcastCommand',
   express.json(),
   async (req: Request, res: Response): Promise<void> => {
-    const validate = validateBroadcastParameters(req.body)
+    const validate = validateCommandParameters(req.body, [])
     if (!validate.valid) {
       res.status(validate.status).send(validate.reason)
       return
@@ -24,8 +22,12 @@ broadcastCommandRoute.post(
 
     HTTP_LOGGER.log(getDefaultLevel(), `broadcastCommand received ${req.body}`, true)
 
-    await req.oceanNode.getP2PNode().broadcast(JSON.stringify(req.body))
-    res.sendStatus(200)
+    if (hasP2PInterface) {
+      await req.oceanNode.getP2PNode().broadcast(JSON.stringify(req.body))
+      res.sendStatus(200)
+    } else {
+      sendMissingP2PResponse(res)
+    }
   }
 )
 
@@ -34,11 +36,8 @@ directCommandRoute.post(
   '/directCommand',
   express.json(),
   async (req: Request, res: Response): Promise<void> => {
-    const validate = validateCommandAPIParameters(req.body)
+    const validate = validateCommandParameters(req.body, [])
     if (!validate.valid) {
-      // 'node' param is not mandatory for 'downloadURL' command for instance:
-      // https://github.com/oceanprotocol/ocean-node/issues/26
-      // https://github.com/oceanprotocol/ocean-node/issues/38
       res.status(validate.status).send(validate.reason)
       return
     }
@@ -95,7 +94,11 @@ directCommandRoute.post(
 
     let response: P2PCommandResponse = null
     // send to this peer (we might not need P2P connectivity)
-    if (!req.body.node || req.oceanNode.getP2PNode().isTargetPeerSelf(req.body.node)) {
+    if (
+      !hasP2PInterface ||
+      !req.body.node ||
+      req.oceanNode.getP2PNode().isTargetPeerSelf(req.body.node)
+    ) {
       // send to this node
       response = await req.oceanNode.handleDirectProtocolCommand(
         JSON.stringify(req.body),
@@ -104,11 +107,19 @@ directCommandRoute.post(
       // UPDATED: we can just call the handler directly here, once we have them
       // moving some of the logic from "handleProtocolCommands()" and "handleDirectProtocolCommands()" to the OceanNode
       // These actions do not need P2P connections directly
-    } else {
+    } else if (hasP2PInterface) {
       // send to another peer (Only here we need P2P networking)
       response = await req.oceanNode
         .getP2PNode()
         .sendTo(req.body.node as string, JSON.stringify(req.body), sink)
+    } else {
+      response = {
+        stream: null,
+        status: {
+          httpStatus: 400,
+          error: 'Invalid or Non Existing P2P configuration'
+        }
+      }
     }
 
     if (response.stream == null) {

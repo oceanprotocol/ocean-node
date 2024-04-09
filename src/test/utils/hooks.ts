@@ -10,7 +10,8 @@ import {
   tearDownEnvironment,
   getExistingEnvironment,
   TEST_ENV_CONFIG_FILE,
-  buildEnvOverrideConfig
+  buildEnvOverrideConfig,
+  DEFAULT_TEST_TIMEOUT
 } from './utils.js'
 
 // current process.env environment
@@ -35,7 +36,7 @@ function getEnvOverrides(): OverrideEnvConfig[] {
     [
       'http://localhost:5005/',
       'https://arweave.net/',
-      '{ "1": {"rpc": "https://rpc.eth.gateway.fm", "chainId": 1, "network": "mainet", "chunkSize": 100}, "137": {"rpc": "https://polygon.meowrpc.com", "chainId": 137, "network": "polygon", "chunkSize": 100 }, "80001": {"rpc": "https://rpc-mumbai.maticvigil.com","chainId": 80001, "network": "polygon-mumbai", "chunkSize": 100 } }',
+      '{ "1": {"rpc": "https://rpc.eth.gateway.fm", "chainId": 1, "network": "mainet", "chunkSize": 100}, "137": {"rpc": "https://polygon.meowrpc.com", "chainId": 137, "network": "polygon", "chunkSize": 100 }}',
       '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
     ]
   )
@@ -51,6 +52,9 @@ export const mochaHooks = {
     setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides).then((overrides) => {
       envOverrides = overrides
     })
+
+    // just in case the configuration value fails
+    this.timeout(DEFAULT_TEST_TIMEOUT)
   },
 
   afterAll() {

@@ -1,4 +1,7 @@
-import { ethers, Signer, JsonRpcApiProvider } from 'ethers'
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import { ethers, Signer, Contract, JsonRpcApiProvider, JsonRpcProvider } from 'ethers'
+import { getConfiguration } from './config.js'
+import { CORE_LOGGER } from './logging/common.js'
 
 export class Blockchain {
   private signer: Signer
@@ -8,7 +11,8 @@ export class Blockchain {
   public constructor(rpc: string, chaindId: number) {
     this.chainId = chaindId
     this.provider = new ethers.JsonRpcProvider(rpc)
-    this.signer = new ethers.Wallet(process.env.PRIVATE_KEY.substring(2))
+    // always use this signer, not simply provider.getSigner(0) for instance (as we do on many tests)
+    this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
   }
 
   public getSigner(): Signer {
@@ -21,6 +25,19 @@ export class Blockchain {
 
   public getSupportedChains(): number {
     return this.chainId
+  }
+}
+
+export async function getDatatokenDecimals(
+  datatokenAddress: string,
+  provider: JsonRpcProvider
+): Promise<number> {
+  const datatokenContract = new Contract(datatokenAddress, ERC20Template.abi, provider)
+  try {
+    return await datatokenContract.decimals()
+  } catch (err) {
+    CORE_LOGGER.error(`${err}. Returning default 18 decimals.`)
+    return 18
   }
 }
 
@@ -45,4 +62,21 @@ export async function verifyMessage(
   } catch (err) {
     return false
   }
+}
+
+export async function checkSupportedChainId(chainId: number): Promise<[boolean, string]> {
+  const config = await getConfiguration()
+  if (!(`${chainId.toString()}` in config.supportedNetworks)) {
+    CORE_LOGGER.error(`Chain ID ${chainId.toString()} is not supported`)
+    return [false, '']
+  }
+  return [true, config.supportedNetworks[chainId.toString()].rpc]
+}
+
+export async function getJsonRpcProvider(chainId: number): Promise<JsonRpcProvider> {
+  const checkResult = await checkSupportedChainId(chainId)
+  if (!checkResult[0]) {
+    return null
+  }
+  return new JsonRpcProvider(checkResult[1])
 }

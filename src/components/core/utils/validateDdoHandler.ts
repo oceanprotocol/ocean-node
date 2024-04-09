@@ -7,9 +7,11 @@ import { dirname, resolve } from 'path'
 // @ts-ignore
 import * as shaclEngine from 'shacl-engine'
 import { createHash } from 'crypto'
-import { getAddress } from 'ethers'
+import { ethers, getAddress } from 'ethers'
 import { readFile } from 'node:fs/promises'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { create256Hash } from '../../../utils/crypt.js'
+import { getProviderWallet } from './feesHandler.js'
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
@@ -70,12 +72,14 @@ function makeDid(nftAddress: string, chainId: string): string {
       .digest('hex')
   )
 }
+
 export async function validateObject(
   obj: Record<string, any>,
   chainId: number,
   nftAddress: string
 ): Promise<[boolean, Record<string, string>]> {
-  const ddoCopy = obj
+  CORE_LOGGER.logMessage(`Validating object: ` + JSON.stringify(obj), true)
+  const ddoCopy = JSON.parse(JSON.stringify(obj))
   ddoCopy['@type'] = 'DDO'
   const extraErrors: Record<string, string> = {}
   if (!('@context' in obj)) {
@@ -87,7 +91,6 @@ export async function validateObject(
   if (!('metadata' in obj)) {
     extraErrors.metadata = 'Metadata is missing or invalid.'
   }
-
   ;['created', 'updated'].forEach((attr) => {
     if ('metadata' in obj && attr in obj.metadata && !isIsoFormat(obj.metadata[attr])) {
       extraErrors.metadata = `${attr} is not in ISO format.`
@@ -108,9 +111,6 @@ export async function validateObject(
   if (!(makeDid(nftAddress, chainId.toString(10)) === obj.id)) {
     extraErrors.id = 'did is not valid for chain Id and nft address'
   }
-
-  // @context key is reserved in JSON-LD format
-  ddoCopy['@context'] = { '@vocab': 'http://schema.org/' }
 
   const version = obj.version || CURRENT_VERSION
   const schemaFilePath = getSchema(version)
@@ -139,21 +139,22 @@ export async function validateObject(
     return [false, { error: errorMsg }]
   }
   const errors = parseReportToErrors(report.results)
-
   if (extraErrors) {
     // Merge errors and extraErrors without overwriting existing keys
     const mergedErrors = { ...errors, ...extraErrors }
-
     // Check if there are any new errors introduced
     const newErrorsIntroduced = Object.keys(mergedErrors).some(
       (key) => !Object.prototype.hasOwnProperty.call(errors, key)
     )
-
     if (newErrorsIntroduced) {
+      CORE_LOGGER.logMessage(
+        `validateObject found new errors introduced: ${JSON.stringify(mergedErrors)}`,
+        true
+      )
+
       return [false, mergedErrors]
     }
   }
-
   return [report.conforms, errors]
 }
 
@@ -170,4 +171,25 @@ export function isRemoteDDO(ddo: any): boolean {
   }
 
   return false
+
+export async function getValidationSignature(ddo: string): Promise<any> {
+  try {
+    const hashedDDO = create256Hash(ddo)
+    const providerWallet = await getProviderWallet()
+    const messageHash = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(hashedDDO))]
+    )
+    const signed32Bytes = await providerWallet.signMessage(
+      new Uint8Array(ethers.toBeArray(messageHash))
+    )
+    const signatureSplitted = ethers.Signature.from(signed32Bytes)
+    const v = signatureSplitted.v <= 1 ? signatureSplitted.v + 27 : signatureSplitted.v
+    const r = ethers.hexlify(signatureSplitted.r) // 32 bytes
+    const s = ethers.hexlify(signatureSplitted.s)
+    return { hash: hashedDDO, publicKey: providerWallet.address, r, s, v }
+  } catch (error) {
+    CORE_LOGGER.logMessage(`Validation signature error: ${error}`, true)
+    return { hash: '', publicKey: '', r: '', s: '', v: '' }
+  }
 }

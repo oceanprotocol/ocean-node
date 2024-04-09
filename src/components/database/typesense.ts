@@ -51,26 +51,31 @@ class TypesenseDocuments {
     this.apiPath = `/collections/${this.collectionName}/documents`
   }
 
+  // eslint-disable-next-line require-await
   async create(document: TypesenseDocumentSchema) {
     if (!document) throw new Error('No document provided')
     return this.api.post<TypesenseDocumentSchema>(this.apiPath, document)
   }
 
+  // eslint-disable-next-line require-await
   async retrieve(documentId: string) {
     const path = `${this.apiPath}/${documentId}`
     return this.api.get<TypesenseDocumentSchema>(path)
   }
 
+  // eslint-disable-next-line require-await
   async delete(documentId: string) {
     const path = `${this.apiPath}/${documentId}`
     return this.api.delete<TypesenseDocumentSchema>(path)
   }
 
+  // eslint-disable-next-line require-await
   async update(documentId: string, partialDocument: Partial<TypesenseDocumentSchema>) {
     const path = `${this.apiPath}/${documentId}`
     return this.api.patch<TypesenseDocumentSchema>(path, partialDocument)
   }
 
+  // eslint-disable-next-line require-await
   async search(
     searchParameters: TypesenseSearchParams
   ): Promise<TypesenseSearchResponse> {
@@ -105,16 +110,19 @@ class TypesenseCollection {
     this._documents = new TypesenseDocuments(this.name, this.api)
   }
 
+  // eslint-disable-next-line require-await
   async retrieve(): Promise<TypesenseCollectionSchema> {
     return this.api.get<TypesenseCollectionSchema>(this.apiPath)
   }
 
+  // eslint-disable-next-line require-await
   async update(
     schema: TypesenseCollectionUpdateSchema
   ): Promise<TypesenseCollectionSchema> {
     return this.api.patch<TypesenseCollectionSchema>(this.apiPath, schema)
   }
 
+  // eslint-disable-next-line require-await
   async delete(): Promise<TypesenseCollectionSchema> {
     return this.api.delete<TypesenseCollectionSchema>(this.apiPath)
   }
@@ -132,10 +140,12 @@ export class TypesenseCollections {
 
   constructor(private api: TypesenseApi) {}
 
+  // eslint-disable-next-line require-await
   async create(schema: TypesenseCollectionCreateSchema) {
     return this.api.post<TypesenseCollectionSchema>(this.apiPath, schema)
   }
 
+  // eslint-disable-next-line require-await
   async retrieve() {
     return this.api.get<TypesenseCollectionSchema[]>(this.apiPath)
   }

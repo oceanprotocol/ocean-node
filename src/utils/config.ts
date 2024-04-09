@@ -1,4 +1,6 @@
-import type { C2DClusterInfo, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
+import type { OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
+import type { C2DClusterInfo } from '../@types/C2D.js'
+import { C2DClusterType } from '../@types/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
 import { ENVIRONMENT_VARIABLES, hexStringToByteArray } from '../utils/index.js'
@@ -66,34 +68,46 @@ function getSupportedChains(): RPCS {
   return supportedNetworks
 }
 
-function getAuthorizedDecrypters(): string[] {
-  if (
-    !process.env.AUTHORIZED_DECRYPTERS ||
-    !JSON.parse(process.env.AUTHORIZED_DECRYPTERS)
-  ) {
-    CONFIG_LOGGER.logMessageWithEmoji(
-      'Missing or Invalid AUTHORIZED_DECRYPTERS env variable format',
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_ERROR
-    )
-    return []
-  }
-  const authorizedDecrypters: string[] = JSON.parse(process.env.AUTHORIZED_DECRYPTERS)
-  if (!Array.isArray(authorizedDecrypters)) {
-    CONFIG_LOGGER.logMessageWithEmoji(
-      'Missing or Invalid AUTHORIZED_DECRYPTERS env variable format',
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_ERROR
-    )
-    return []
-  }
+// valid decrypthers
+function getAuthorizedDecrypters(isStartup?: boolean): string[] {
+  return readAddressListFromEnvVariable(
+    ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
+    isStartup
+  )
+}
+// allowed validators
+export function getAllowedValidators(isStartup?: boolean): string[] {
+  return readAddressListFromEnvVariable(
+    ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS,
+    isStartup
+  )
+}
+// valid node admins
+export function getAllowedAdmins(isStartup?: boolean): string[] {
+  return readAddressListFromEnvVariable(ENVIRONMENT_VARIABLES.ALLOWED_ADMINS, isStartup)
+}
+
+// whenever we want to read an array of addresses from an env variable, use this common function
+function readAddressListFromEnvVariable(envVariable: any, isStartup?: boolean): string[] {
+  const { name } = envVariable
   try {
-    return authorizedDecrypters.map((address) => getAddress(address))
+    if (!existsEnvironmentVariable(envVariable, isStartup)) {
+      return []
+    }
+    const addressesRaw: string[] = JSON.parse(process.env[name])
+    if (!Array.isArray(addressesRaw)) {
+      CONFIG_LOGGER.logMessageWithEmoji(
+        `Invalid ${name} env variable format`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return []
+    }
+    return addressesRaw.map((address) => getAddress(address))
   } catch (error) {
     CONFIG_LOGGER.logMessageWithEmoji(
-      'Missing or Invalid AUTHORIZED_DECRYPTERS env variable format',
+      `Missing or Invalid address(es) in ${name} env variable`,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
@@ -216,25 +230,65 @@ function getOceanNodeFees(supportedNetworks: RPCS, isStartup?: boolean): FeeStra
 }
 
 // get C2D environments
-function getC2DClusterEnvironment(): C2DClusterInfo[] {
+function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
   const clusters: C2DClusterInfo[] = []
-  try {
-    const clustersURLS: string[] = JSON.parse(
-      process.env.OPERATOR_SERVICE_URL
-    ) as string[]
+  // avoid log too much (too much noise on tests as well), this is not even required
+  if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL, isStartup)) {
+    try {
+      const clustersURLS: string[] = JSON.parse(
+        process.env.OPERATOR_SERVICE_URL
+      ) as string[]
 
-    for (const theURL of clustersURLS) {
-      clusters.push({ url: theURL, hash: create256Hash(theURL) })
+      for (const theURL of clustersURLS) {
+        clusters.push({
+          url: theURL,
+          hash: create256Hash(theURL),
+          type: C2DClusterType.OPF_K8
+        })
+      }
+    } catch (error) {
+      CONFIG_LOGGER.logMessageWithEmoji(
+        `Invalid or missing "${ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL.name}" env variable => ${process.env.OPERATOR_SERVICE_URL}...`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
     }
-  } catch (error) {
-    CONFIG_LOGGER.logMessageWithEmoji(
-      `Invalid or missing "${ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL.name}" env variable => ${process.env.OPERATOR_SERVICE_URL}...`,
-      true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_ERROR
-    )
   }
+
   return clusters
+}
+
+// connect interfaces (p2p or/and http)
+function getNodeInterfaces(isStartup: boolean = false) {
+  let interfaces: string[] = ['P2P', 'HTTP']
+  if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.INTERFACES)) {
+    if (isStartup) {
+      CONFIG_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_WARN,
+        `Missing "${ENVIRONMENT_VARIABLES.INTERFACES.name}" env variable. Will use defaults...`,
+        true
+      )
+    }
+  } else {
+    try {
+      interfaces = JSON.parse(process.env.INTERFACES) as string[]
+      if (interfaces.length === 0) {
+        return ['P2P', 'HTTP']
+      }
+    } catch (err) {
+      CONFIG_LOGGER.logMessageWithEmoji(
+        `Invalid "${ENVIRONMENT_VARIABLES.INTERFACES.name}" env variable => ${process.env.INTERFACES}. Will use defaults...`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+    }
+  }
+  // make it case insensitive
+  return interfaces.map((iface: string) => {
+    return iface.toUpperCase()
+  })
 }
 
 /**
@@ -244,7 +298,11 @@ function getC2DClusterEnvironment(): C2DClusterInfo[] {
  * @returns boolean
  */
 export function existsEnvironmentVariable(envVariable: any, log = false): boolean {
-  const { name, value, required } = envVariable
+  let { name, value, required } = envVariable
+  // extra check in case we change environment with tests (get the latest)
+  if (process.env[name] !== value) {
+    value = process.env[name]
+  }
   if (!value) {
     if (log) {
       CONFIG_LOGGER.logMessageWithEmoji(
@@ -273,6 +331,7 @@ export async function getConfiguration(
   }
   return previousConfiguration
 }
+
 // we can just use the lazy version above "getConfiguration()" and specify if we want to reload from .env variables
 async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
   const privateKey = process.env.PRIVATE_KEY
@@ -301,13 +360,17 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     )
   }
 
+  // http and/or p2p connections
+  const interfaces = getNodeInterfaces(isStartup)
+
   const config: OceanNodeConfig = {
-    authorizedDecrypters: getAuthorizedDecrypters(),
+    authorizedDecrypters: getAuthorizedDecrypters(isStartup),
+    allowedValidators: getAllowedValidators(isStartup),
     keys,
     // Only enable indexer if we have a DB_URL and supportedNetworks
     hasIndexer: !!(!!getEnvValue(process.env.DB_URL, '') && !!supportedNetworks),
-    hasHttp: true,
-    hasP2P: true,
+    hasHttp: interfaces.includes('HTTP'),
+    hasP2P: interfaces.includes('P2P'),
     p2pConfig: {
       bootstrapNodes: [
         '/ip4/104.131.131.82/tcp/4001/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ',
@@ -348,7 +411,10 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     },
     supportedNetworks,
     feeStrategy: getOceanNodeFees(supportedNetworks, isStartup),
-    c2dClusters: getC2DClusterEnvironment()
+    c2dClusters: getC2DClusterEnvironment(isStartup),
+    accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
+    assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),
+    allowedAdmins: getAllowedAdmins(isStartup)
   }
 
   if (!previousConfiguration) {
@@ -363,4 +429,10 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
 
 function configChanged(previous: OceanNodeConfig, current: OceanNodeConfig): boolean {
   return JSON.stringify(previous) !== JSON.stringify(current)
+}
+
+// useful for debugging purposes
+export async function printCurrentConfig() {
+  const conf = await getConfiguration(true)
+  console.log(JSON.stringify(conf, null, 4))
 }

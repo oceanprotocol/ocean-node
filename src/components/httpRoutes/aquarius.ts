@@ -6,10 +6,13 @@ import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { GetDdoHandler, ValidateDDOHandler } from '../core/ddoHandler.js'
 import { QueryHandler } from '../core/queryHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
+import { DDO } from '../../@types/DDO/DDO.js'
 
 export const aquariusRoutes = express.Router()
 
-aquariusRoutes.get('/assets/ddo/:did', async (req, res) => {
+export const AQUARIUS_API_BASE_PATH = '/api/aquarius'
+
+aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/assets/ddo/:did`, async (req, res) => {
   try {
     const { did } = req.params
     if (!did || !did.startsWith('did:op')) {
@@ -33,7 +36,7 @@ aquariusRoutes.get('/assets/ddo/:did', async (req, res) => {
   }
 })
 
-aquariusRoutes.get('/assets/metadata/:did', async (req, res) => {
+aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/assets/metadata/:did`, async (req, res) => {
   try {
     const { did } = req.params
     if (!did || !did.startsWith('did:op')) {
@@ -57,31 +60,34 @@ aquariusRoutes.get('/assets/metadata/:did', async (req, res) => {
   }
 })
 
-aquariusRoutes.post('/assets/metadata/query', async (req, res) => {
-  try {
-    const query = req.body
-    if (!query) {
-      res.status(400).send('Missing required body')
-      return
-    }
+aquariusRoutes.post(
+  `${AQUARIUS_API_BASE_PATH}/assets/metadata/query`,
+  async (req, res) => {
+    try {
+      const query = req.body
+      if (!query) {
+        res.status(400).send('Missing required body')
+        return
+      }
 
-    const result = await new QueryHandler(req.oceanNode).handle({
-      query,
-      command: PROTOCOL_COMMANDS.QUERY
-    })
-    if (result.stream) {
-      const queryResult = JSON.parse(await streamToString(result.stream as Readable))
-      res.json(queryResult)
-    } else {
-      res.status(result.status.httpStatus).send(result.status.error)
+      const result = await new QueryHandler(req.oceanNode).handle({
+        query,
+        command: PROTOCOL_COMMANDS.QUERY
+      })
+      if (result.stream) {
+        const queryResult = JSON.parse(await streamToString(result.stream as Readable))
+        res.json(queryResult)
+      } else {
+        res.status(result.status.httpStatus).send(result.status.error)
+      }
+    } catch (error) {
+      HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+      res.status(500).send('Internal Server Error')
     }
-  } catch (error) {
-    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
-    res.status(500).send('Internal Server Error')
   }
-})
+)
 
-aquariusRoutes.get('/state/ddo', async (req, res) => {
+aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
   try {
     let query
     const did = String(req.query.did)
@@ -132,13 +138,13 @@ aquariusRoutes.get('/state/ddo', async (req, res) => {
   }
 })
 
-aquariusRoutes.post('/assets/ddo/validate', async (req, res) => {
+aquariusRoutes.post(`${AQUARIUS_API_BASE_PATH}/assets/ddo/validate`, async (req, res) => {
   try {
     if (!req.body || req.body === undefined) {
       res.status(400).send('Missing DDO object')
       return
     }
-    const ddo = JSON.parse(req.body)
+    const ddo = JSON.parse(req.body) as DDO
 
     if (!ddo.version) {
       res.status(400).send('Missing DDO version')
@@ -147,9 +153,7 @@ aquariusRoutes.post('/assets/ddo/validate', async (req, res) => {
 
     const node = req.oceanNode
     const result = await new ValidateDDOHandler(node).handle({
-      id: ddo.id,
-      chainId: ddo.chainId,
-      nftAddress: ddo.nftAddress,
+      ddo,
       command: PROTOCOL_COMMANDS.VALIDATE_DDO
     })
     if (result.stream) {
