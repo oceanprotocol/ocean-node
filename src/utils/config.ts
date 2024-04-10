@@ -1,4 +1,4 @@
-import type { BlackList, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
+import type { DenyList, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
 import type { C2DClusterInfo } from '../@types/C2D.js'
 import { C2DClusterType } from '../@types/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
@@ -340,8 +340,8 @@ function getRateLimit(isStartup: boolean = false) {
 }
 
 // get blacklisted ips and peer ids
-function getBlackList(isStartup: boolean = false): BlackList {
-  const defaultBlackList: BlackList = {
+function getBlackList(isStartup: boolean = false): DenyList {
+  const defaultBlackList: DenyList = {
     peers: [],
     ips: []
   }
@@ -349,7 +349,7 @@ function getBlackList(isStartup: boolean = false): BlackList {
     return defaultBlackList
   } else {
     try {
-      const blacklist: BlackList = JSON.parse(process.env.RATE_BLACKLIST) as BlackList
+      const blacklist: DenyList = JSON.parse(process.env.RATE_BLACKLIST) as DenyList
       return blacklist
     } catch (err) {
       CONFIG_LOGGER.error(

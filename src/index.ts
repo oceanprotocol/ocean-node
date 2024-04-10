@@ -4,7 +4,6 @@ import { OceanIndexer } from './components/Indexer/index.js'
 import { Database } from './components/database/index.js'
 import express, { Express } from 'express'
 import { OceanNode } from './OceanNode.js'
-import swaggerUi from 'swagger-ui-express'
 import { httpRoutes } from './components/httpRoutes/index.js'
 import { getConfiguration, computeCodebaseHash } from './utils/index.js'
 
@@ -152,15 +151,7 @@ if (config.hasHttp) {
     req.oceanNode = oceanNode
     next()
   })
-  app.use(
-    '/docs',
-    swaggerUi.serve,
-    swaggerUi.setup(undefined, {
-      swaggerOptions: {
-        url: '/swagger.json'
-      }
-    })
-  )
+
   // Integrate static file serving middleware
 
   app.use('/', httpRoutes)
