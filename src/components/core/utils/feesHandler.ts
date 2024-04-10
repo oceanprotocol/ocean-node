@@ -150,6 +150,7 @@ export async function verifyProviderFees(
 
   const { chainId } = await provider.getNetwork()
   const providerWallet = await getProviderWallet(String(chainId))
+  const contractInterface = new Interface(ERC20Template.abi)
   const txReceiptMined = await fetchTransactionReceipt(txId, provider)
   if (!txReceiptMined) {
     const message = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
@@ -224,6 +225,12 @@ export async function verifyProviderFees(
     validationErrors.push('Datatoken address does not match')
   }
 
+  if (validationErrors.length > 0) {
+    const message = validationErrors.join('; ')
+    CORE_LOGGER.logMessage(message)
+    return { isValid: false, isComputeValid: false, message, validUntil: 0 }
+  }
+
   // Compute environment validation
   let isComputeValid = true
   if (computeEnv) {
@@ -235,14 +242,11 @@ export async function verifyProviderFees(
     }
   }
 
-  // Determine overall validity
-  const isValid = validationErrors.length === 0 && isComputeValid
-
-  if (!isValid) {
-    const message = validationErrors.join('; ') || 'Compute environment validation failed'
+  if (!isComputeValid) {
+    const message = 'Compute environment validation failed'
     CORE_LOGGER.logMessage(message)
     return {
-      isValid,
+      isValid: true,
       isComputeValid,
       message,
       validUntil: providerData ? providerData.timestamp : 0
@@ -250,7 +254,7 @@ export async function verifyProviderFees(
   }
 
   return {
-    isValid,
+    isValid: true,
     isComputeValid,
     message: 'Validation successful',
     validUntil: providerData.timestamp
