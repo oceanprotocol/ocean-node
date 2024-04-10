@@ -139,7 +139,7 @@ export async function verifyProviderFees(
   validUntil?: number // only for computeEnv
 ): Promise<ProviderFeeValidation> {
   if (!txId) {
-    CORE_LOGGER.logMessage('Invalid txId')
+    CORE_LOGGER.error('Invalid txId')
     return {
       isValid: false,
       isComputeValid: false,
@@ -154,7 +154,7 @@ export async function verifyProviderFees(
   const txReceiptMined = await fetchTransactionReceipt(txId, provider)
   if (!txReceiptMined) {
     const message = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
-    CORE_LOGGER.logMessage(message)
+    CORE_LOGGER.error(message)
     return { isValid: false, isComputeValid: false, message, validUntil: 0 }
   }
 
@@ -175,7 +175,7 @@ export async function verifyProviderFees(
     try {
       providerData = JSON.parse(utf)
     } catch (e) {
-      CORE_LOGGER.logMessage('ProviderFee event JSON parsing failed')
+      CORE_LOGGER.error('ProviderFee event JSON parsing failed')
       allEventsValid = false
       continue
     }
@@ -194,7 +194,7 @@ export async function verifyProviderFees(
 
   if (!allEventsValid) {
     const message = 'Not all ProviderFee events are valid'
-    CORE_LOGGER.logMessage(message)
+    CORE_LOGGER.error(message)
     return { isValid: false, isComputeValid: false, message, validUntil: 0 }
   }
 
@@ -211,7 +211,7 @@ export async function verifyProviderFees(
 
   if (!isComputeValid) {
     const message = 'Compute environment validation failed'
-    CORE_LOGGER.logMessage(message)
+    CORE_LOGGER.error(message)
     return {
       isValid: true,
       isComputeValid,
