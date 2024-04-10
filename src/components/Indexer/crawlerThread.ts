@@ -145,10 +145,6 @@ export async function proccesNetworkData(): Promise<void> {
       }
       await processReindex()
       lockProccessing = false
-      INDEXER_LOGGER.logMessage(
-        `Finished processing blocks ${startBlock} to ${indexedBlock} for network ${rpcDetails.network}`,
-        true
-      )
     } else {
       INDEXER_LOGGER.logMessage(
         `Processing already in progress for network ${rpcDetails.network} waiting untill finishing the current processing ...`,
