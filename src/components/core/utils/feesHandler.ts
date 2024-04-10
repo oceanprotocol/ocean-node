@@ -159,74 +159,41 @@ export async function verifyProviderFees(
   }
 
   const now = Math.round(new Date().getTime() / 1000)
-  const ProviderFeesEvents = fetchEventFromTransaction(
+  const providerFeesEvents = fetchEventFromTransaction(
     txReceiptMined,
     'ProviderFee',
     contractInterface
   )
 
-  let validEventFound = false
-  let ProviderFeesEvent
-  for (const event of ProviderFeesEvents) {
+  let allEventsValid = true
+  let providerData
+  for (const event of providerFeesEvents) {
     const providerAddress = event.args[0].toLowerCase()
     const validUntilContract = parseInt(event.args[7].toString())
     const utf = ethers.toUtf8String(event.args[3])
-    let providerData
 
     try {
       providerData = JSON.parse(utf)
     } catch (e) {
       CORE_LOGGER.logMessage('ProviderFee event JSON parsing failed')
-      continue // Skip this event if JSON parsing fails
+      allEventsValid = false
+      continue
     }
 
     if (
-      providerAddress === providerWallet.address.toLowerCase() &&
-      providerData.id === service.id &&
-      providerData.dt.toLowerCase() === service.datatokenAddress.toLowerCase() &&
-      (now < validUntilContract || validUntilContract === 0)
+      !providerData ||
+      providerAddress !== providerWallet.address.toLowerCase() ||
+      providerData.id !== service.id ||
+      providerData.dt.toLowerCase() !== service.datatokenAddress.toLowerCase() ||
+      !(now < validUntilContract || validUntilContract === 0)
     ) {
-      CORE_LOGGER.logMessage('ProviderFee event found')
-      ProviderFeesEvent = event
-      validEventFound = true
-      break // Found a valid event, break the loop
+      allEventsValid = false
+      break // Invalid event found, no need to check further
     }
   }
 
-  if (!validEventFound) {
-    const message = 'Valid ProviderFee event not found'
-    CORE_LOGGER.logMessage(message)
-    return { isValid: false, isComputeValid: false, message, validUntil: 0 }
-  }
-
-  // Validate provider address and service details from the event
-  const validationErrors = []
-  if (ProviderFeesEvent.args[0].toLowerCase() !== providerWallet.address.toLowerCase()) {
-    validationErrors.push('Provider address does not match')
-  }
-
-  const utf = ethers.toUtf8String(ProviderFeesEvent.args[3])
-  let providerData
-  try {
-    providerData = JSON.parse(utf)
-  } catch (e) {
-    console.error(e)
-    validationErrors.push('Failed to parse provider data from event')
-  }
-
-  if (providerData && providerData.id !== service.id) {
-    validationErrors.push('Service ID does not match')
-  }
-
-  if (
-    providerData &&
-    providerData.dt.toLowerCase() !== service.datatokenAddress.toLowerCase()
-  ) {
-    validationErrors.push('Datatoken address does not match')
-  }
-
-  if (validationErrors.length > 0) {
-    const message = validationErrors.join('; ')
+  if (!allEventsValid) {
+    const message = 'Not all ProviderFee events are valid'
     CORE_LOGGER.logMessage(message)
     return { isValid: false, isComputeValid: false, message, validUntil: 0 }
   }
