@@ -190,9 +190,24 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.INDEXER_INTERVAL,
     required: false // without a value set, it defaults to 30 secs
   },
+  LOG_RETENTION_TIME: {
+    name: 'LOG_RETENTION_TIME',
+    value: process.env.LOG_RETENTION_TIME,
+    required: false
+  },
   ALLOWED_ADMINS: {
     name: 'ALLOWED_ADMINS',
     value: process.env.ALLOWED_ADMINS,
+    required: false
+  },
+  ASSET_PURGATORY_URL: {
+    name: 'ASSET_PURGATORY_URL',
+    value: process.env.ASSET_PURGATORY_URL,
+    required: false
+  },
+  ACCOUNT_PURGATORY_URL: {
+    name: 'ACCOUNT_PURGATORY_URL',
+    value: process.env.ACCOUNT_PURGATORY_URL,
     required: false
   },
   DASHBOARD: {
@@ -201,3 +216,7 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     required: false
   }
 }
+
+export const DDO_IDENTIFIER_PREFIX = 'did:op:'
+// global ocean node API services path
+export const SERVICES_API_BASE_PATH = '/api/services'

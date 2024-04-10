@@ -63,7 +63,6 @@ export interface AdminCommand extends Command {
 export interface QueryCommand extends Command {
   query: Record<string, any>
 }
-
 export interface ReindexCommand extends Command {
   txId: string
   chainId: number

@@ -45,6 +45,7 @@ export function getOceanArtifactsAdressesByChainId(chain: number): any {
   }
   return null
 }
+
 // default token addresses per chain
 export const OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN = addresses
 export const DEVELOPMENT_CHAIN_ID = 8996

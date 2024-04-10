@@ -96,6 +96,12 @@
   min-width: 55px;
 }
 
+.node {
+  display: flex;
+  flex-direction: row;
+  gap: 18px;
+}
+
 .node:hover {
   color: #333;
   cursor: pointer;
