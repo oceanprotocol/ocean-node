@@ -97,9 +97,7 @@ export async function proccesNetworkData(): Promise<void> {
 
       if (networkHeight > startBlock) {
         const remainingBlocks = networkHeight - startBlock
-        console.log('remainingBlocks == ', remainingBlocks)
         const blocksToProcess = Math.min(chunkSize, remainingBlocks)
-        console.log('blocksToProcess == ', blocksToProcess)
         INDEXER_LOGGER.logMessage(
           `network: ${rpcDetails.network} processing ${blocksToProcess} blocks ...`
         )
