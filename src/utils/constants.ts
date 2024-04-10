@@ -221,10 +221,10 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.MAX_REQ_PER_SECOND,
     required: false
   },
-  RATE_BLACKLIST: {
-    // rate limit blacklist (peers and ips)
-    name: 'RATE_BLACKLIST',
-    value: process.env.RATE_BLACKLIST,
+  RATE_DENY_LIST: {
+    // rate limit / deny list (peers and ips)
+    name: 'RATE_DENY_LIST',
+    value: process.env.RATE_DENY_LIST,
     required: false
   }
 }

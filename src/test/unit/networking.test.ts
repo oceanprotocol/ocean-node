@@ -100,12 +100,12 @@ describe('Test available network interfaces', () => {
   })
 })
 
-describe('Test rate limitations and blacklist defaults', () => {
+describe('Test rate limitations and deny list defaults', () => {
   // To make sure we do not forget to register anything on supported commands
   // const node: OceanNode = OceanNode.getInstance()
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
-      [ENVIRONMENT_VARIABLES.RATE_BLACKLIST, ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND],
+      [ENVIRONMENT_VARIABLES.RATE_DENY_LIST, ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND],
       [undefined, undefined]
     )
     await setupEnvironment(null, envOverrides)
@@ -113,8 +113,8 @@ describe('Test rate limitations and blacklist defaults', () => {
 
   it('should check that configuration has some defaults', async () => {
     const config = await getConfiguration(true)
-    expect(config.blackList.ips).to.be.length(0)
-    expect(config.blackList.peers).to.be.length(0)
+    expect(config.denyList.ips).to.be.length(0)
+    expect(config.denyList.peers).to.be.length(0)
     expect(config.rateLimit).to.be.equal(DEFAULT_RATE_LIMIT_PER_SECOND)
   })
 
@@ -124,14 +124,14 @@ describe('Test rate limitations and blacklist defaults', () => {
   })
 })
 
-describe('Test rate limitations and blacklist settings', () => {
+describe('Test rate limitations and deny list settings', () => {
   const node: OceanNode = OceanNode.getInstance()
 
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
       [
         ENVIRONMENT_VARIABLES.PRIVATE_KEY,
-        ENVIRONMENT_VARIABLES.RATE_BLACKLIST,
+        ENVIRONMENT_VARIABLES.RATE_DENY_LIST,
         ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND
       ],
       [
@@ -146,15 +146,15 @@ describe('Test rate limitations and blacklist settings', () => {
     await setupEnvironment(null, envOverrides)
   })
 
-  it('should read blacklist of other peers and ips', async () => {
+  it('should read deny list of other peers and ips', async () => {
     // Start instance of node 1
     const config1 = await getConfiguration(true)
-    expect(config1.blackList.peers.length).to.be.equal(1)
-    expect(config1.blackList.peers[0]).to.be.equal(
+    expect(config1.denyList.peers.length).to.be.equal(1)
+    expect(config1.denyList.peers[0]).to.be.equal(
       '16Uiu2HAm7YHuXeBpoFoKHyAieKDAsdg3RNmCUEVgNxffByRS7Hdt'
     ) // node 2 id
-    expect(config1.blackList.ips.length).to.be.equal(1)
-    expect(config1.blackList.ips[0]).to.be.equal('127.0.0.1') // node 2 id
+    expect(config1.denyList.ips.length).to.be.equal(1)
+    expect(config1.denyList.ips[0]).to.be.equal('127.0.0.1') // node 2 id
     expect(config1.rateLimit).to.be.equal(3)
   })
 

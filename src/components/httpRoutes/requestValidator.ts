@@ -9,7 +9,7 @@ export interface CommonValidation {
   error?: string
 }
 
-// midleware to valid client addresses against a blacklist
+// midleware to valid client addresses against a denylist
 export const requestValidator = async function (req: Request, res: Response, next: any) {
   // Perform the validations.
   const requestIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress
@@ -24,25 +24,25 @@ export const requestValidator = async function (req: Request, res: Response, nex
 }
 
 async function checkIP(requestIP: string | string[]): Promise<CommonValidation> {
-  let isBlackListed = false
+  let onDenyList = false
   const configuration = await getConfiguration()
   if (!Array.isArray(requestIP)) {
-    isBlackListed = configuration.blackList?.ips.includes(requestIP)
+    onDenyList = configuration.denyList?.ips.includes(requestIP)
   } else {
     for (const ip of requestIP) {
-      if (configuration.blackList?.ips.includes(ip)) {
-        isBlackListed = true
+      if (configuration.denyList?.ips.includes(ip)) {
+        onDenyList = true
         break
       }
     }
   }
 
-  if (isBlackListed) {
-    HTTP_LOGGER.error(`Incoming request denied to blacklisted ip address: ${requestIP}`)
+  if (onDenyList) {
+    HTTP_LOGGER.error(`Incoming request denied to ip address: ${requestIP}`)
   }
 
   return {
-    valid: !isBlackListed,
-    error: isBlackListed ? 'Unauthorized request' : ''
+    valid: !onDenyList,
+    error: onDenyList ? 'Unauthorized request' : ''
   }
 }

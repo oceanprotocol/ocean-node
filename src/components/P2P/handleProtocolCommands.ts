@@ -38,10 +38,10 @@ export async function handleProtocolCommands(connection: any) {
   let statusStream
   let sendStream = null
 
-  const blackListedPeers = await (await getConfiguration()).blackList
-  if (blackListedPeers.peers.length > 0) {
-    if (blackListedPeers.peers.includes(remotePeer.toString())) {
-      P2P_LOGGER.error(`Incoming request denied to blacklisted peer: ${remotePeer}`)
+  const denyList = await (await getConfiguration()).denyList
+  if (denyList.peers.length > 0) {
+    if (denyList.peers.includes(remotePeer.toString())) {
+      P2P_LOGGER.error(`Incoming request denied to peer: ${remotePeer}`)
       status = {
         httpStatus: 403,
         error: 'Unauthorized request'

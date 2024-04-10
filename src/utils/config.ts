@@ -339,23 +339,23 @@ function getRateLimit(isStartup: boolean = false) {
   }
 }
 
-// get blacklisted ips and peer ids
-function getBlackList(isStartup: boolean = false): DenyList {
-  const defaultBlackList: DenyList = {
+// get blocked ips and peer ids
+function getDenyList(isStartup: boolean = false): DenyList {
+  const defaultDenyList: DenyList = {
     peers: [],
     ips: []
   }
-  if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.RATE_BLACKLIST, isStartup)) {
-    return defaultBlackList
+  if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.RATE_DENY_LIST, isStartup)) {
+    return defaultDenyList
   } else {
     try {
-      const blacklist: DenyList = JSON.parse(process.env.RATE_BLACKLIST) as DenyList
-      return blacklist
+      const list: DenyList = JSON.parse(process.env.RATE_DENY_LIST) as DenyList
+      return list
     } catch (err) {
       CONFIG_LOGGER.error(
-        `Invalid "${ENVIRONMENT_VARIABLES.RATE_BLACKLIST.name}" env variable...`
+        `Invalid "${ENVIRONMENT_VARIABLES.RATE_DENY_LIST.name}" env variable...`
       )
-      return defaultBlackList
+      return defaultDenyList
     }
   }
 }
@@ -460,7 +460,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),
     allowedAdmins: getAllowedAdmins(isStartup),
     rateLimit: getRateLimit(isStartup),
-    blackList: getBlackList(isStartup)
+    denyList: getDenyList(isStartup)
   }
 
   if (!previousConfiguration) {
