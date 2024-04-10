@@ -52,6 +52,22 @@ async function updateLastIndexedBlockNumber(block: number): Promise<number> {
     )
   }
 }
+
+async function getLastIndexedBlock(): Promise<number> {
+  const { indexer } = await getDatabase()
+  try {
+    const networkDetails = await indexer.retrieve(rpcDetails.chainId)
+    return networkDetails?.lastIndexedBlock
+  } catch (err) {
+    INDEXER_LOGGER.log(
+      LOG_LEVELS_STR.LEVEL_ERROR,
+      'Error retrieving last indexed block',
+      true
+    )
+    return null
+  }
+}
+
 export async function proccesNetworkData(): Promise<void> {
   const deployedBlock = getDeployedContractBlock(rpcDetails.chainId)
   if (deployedBlock == null && lastIndexedBlock == null) {
@@ -66,18 +82,18 @@ export async function proccesNetworkData(): Promise<void> {
   const interval = getCrawlingInterval()
   let { chunkSize } = rpcDetails
   let lockProccessing = false
-
   while (true) {
     console.log('lockProcessing == ', lockProccessing)
-    console.log('lastIndexedBlock == ', lastIndexedBlock)
+    console.log('indexedBlock == ', await getLastIndexedBlock())
+    console.log(' lastIndexedBlock == ', lastIndexedBlock)
+
     if (!lockProccessing) {
       lockProccessing = true
+      const indexedBlock = await getLastIndexedBlock()
       const networkHeight = await getNetworkHeight(provider)
-      console.log('networkHeight == ', networkHeight)
+
       const startBlock =
-        lastIndexedBlock && lastIndexedBlock > deployedBlock
-          ? lastIndexedBlock
-          : deployedBlock
+        indexedBlock && indexedBlock > deployedBlock ? indexedBlock : deployedBlock
 
       INDEXER_LOGGER.logMessage(
         `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`,
