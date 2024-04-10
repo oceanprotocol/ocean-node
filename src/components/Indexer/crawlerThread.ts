@@ -26,10 +26,9 @@ const REINDEX_QUEUE: ReindexTask[] = []
 
 interface ThreadData {
   rpcDetails: SupportedNetwork
-  lastIndexedBlock: number
 }
 
-let { rpcDetails, lastIndexedBlock } = workerData as ThreadData
+const { rpcDetails } = workerData as ThreadData
 
 const blockchain = new Blockchain(rpcDetails.rpc, rpcDetails.chainId)
 const provider = blockchain.getProvider()
@@ -70,7 +69,7 @@ async function getLastIndexedBlock(): Promise<number> {
 
 export async function proccesNetworkData(): Promise<void> {
   const deployedBlock = getDeployedContractBlock(rpcDetails.chainId)
-  if (deployedBlock == null && lastIndexedBlock == null) {
+  if (deployedBlock == null && (await getLastIndexedBlock()) == null) {
     INDEXER_LOGGER.logMessage(
       `chain: ${rpcDetails.chainId} Both deployed block and last indexed block are null. Cannot proceed further on this chain`,
       true
@@ -83,10 +82,6 @@ export async function proccesNetworkData(): Promise<void> {
   let { chunkSize } = rpcDetails
   let lockProccessing = false
   while (true) {
-    console.log('lockProcessing == ', lockProccessing)
-    console.log('indexedBlock == ', await getLastIndexedBlock())
-    console.log(' lastIndexedBlock == ', lastIndexedBlock)
-
     if (!lockProccessing) {
       lockProccessing = true
       const indexedBlock = await getLastIndexedBlock()
@@ -138,7 +133,7 @@ export async function proccesNetworkData(): Promise<void> {
             startBlock,
             blocksToProcess
           )
-          lastIndexedBlock = await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
+          await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
           checkNewlyIndexedAssets(processedBlocks.foundEvents)
           chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
         } catch (error) {
@@ -147,15 +142,13 @@ export async function proccesNetworkData(): Promise<void> {
             `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `,
             true
           )
-          lastIndexedBlock = await updateLastIndexedBlockNumber(
-            startBlock + blocksToProcess
-          )
+          await updateLastIndexedBlockNumber(startBlock + blocksToProcess)
         }
       }
       await processReindex()
       lockProccessing = false
       INDEXER_LOGGER.logMessage(
-        `Finished processing blocks ${startBlock} to ${lastIndexedBlock} for network ${rpcDetails.network}`,
+        `Finished processing blocks ${startBlock} to ${indexedBlock} for network ${rpcDetails.network}`,
         true
       )
     } else {
