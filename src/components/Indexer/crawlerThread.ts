@@ -133,7 +133,6 @@ export async function proccesNetworkData(): Promise<void> {
             blocksToProcess
           )
 
-          checkNewlyIndexedAssets(processedBlocks.foundEvents)
           let lastIndexedBlock
           if (REINDEX_BLOCK) {
             lastIndexedBlock = REINDEX_BLOCK
@@ -142,6 +141,7 @@ export async function proccesNetworkData(): Promise<void> {
             lastIndexedBlock = processedBlocks.lastBlock
           }
           updateLastIndexedBlockNumber(lastIndexedBlock)
+          checkNewlyIndexedAssets(processedBlocks.foundEvents)
           chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
         } catch (error) {
           INDEXER_LOGGER.error(`network: ${rpcDetails.network} Error: ${error.message} `)
@@ -149,6 +149,7 @@ export async function proccesNetworkData(): Promise<void> {
           INDEXER_LOGGER.logMessage(
             `network: ${rpcDetails.network} processing ${blocksToProcess} blocks ...`
           )
+          await updateLastIndexedBlockNumber(startBlock + blocksToProcess)
         }
         await processReindex()
         lockProccessing = false
@@ -157,6 +158,7 @@ export async function proccesNetworkData(): Promise<void> {
           `Processing already in progress for network ${rpcDetails.network} waiting untill finishing the current processing ...`,
           true
         )
+        await updateLastIndexedBlockNumber(startBlock + blocksToProcess)
       }
       await sleep(interval)
     }
