@@ -65,7 +65,6 @@ export interface QueryCommand extends Command {
   maxResultsPerPage?: number
   pageNumber?: number
 }
-
 export interface ReindexCommand extends Command {
   txId: string
   chainId: number

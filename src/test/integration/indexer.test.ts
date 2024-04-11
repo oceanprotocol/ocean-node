@@ -10,13 +10,14 @@ import {
   ZeroAddress,
   parseUnits
 } from 'ethers'
+import { Readable } from 'stream'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
-import { getEventFromTx, sleep } from '../../utils/util.js'
+import { getEventFromTx, sleep, streamToObject } from '../../utils/util.js'
 import { waitToIndex, expectedTimeoutFailure } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import {
@@ -26,11 +27,27 @@ import {
 } from '../../utils/address.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
-import { DEFAULT_TEST_TIMEOUT, getMockSupportedNetworks } from '../utils/utils.js'
-import { EVENTS } from '../../utils/constants.js'
+import {
+  DEFAULT_TEST_TIMEOUT,
+  OverrideEnvConfig,
+  buildEnvOverrideConfig,
+  getMockSupportedNetworks,
+  setupEnvironment,
+  tearDownEnvironment
+} from '../utils/utils.js'
+import {
+  ENVIRONMENT_VARIABLES,
+  EVENTS,
+  PROTOCOL_COMMANDS
+} from '../../utils/constants.js'
+import { homedir } from 'os'
+import { QueryDdoStateHandler } from '../../components/core/queryHandler.js'
+import { OceanNode } from '../../OceanNode.js'
+import { QueryCommand } from '../../@types/commands.js'
 
 describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
+  let oceanNode: OceanNode
   let provider: JsonRpcProvider
   let factoryContract: Contract
   let nftContract: Contract
@@ -55,16 +72,35 @@ describe('Indexer stores a new metadata events and orders.', () => {
   const consumeMarketFeeAddress = ZeroAddress // marketplace fee Collector
   const consumeMarketFeeAmount = 0 // fee to be collected on top, requires approval
   const consumeMarketFeeToken = feeToken // token address for the feeAmount
-
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+  let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
+
+    previousConfiguration = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig(
+        [
+          ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+          ENVIRONMENT_VARIABLES.DB_URL,
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE
+        ],
+        [
+          JSON.stringify(mockSupportedNetworks),
+          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+          dbConfig.url,
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
+        ]
+      )
+    )
+
     database = await new Database(dbConfig)
     indexer = new OceanIndexer(database, mockSupportedNetworks)
-
+    oceanNode = await OceanNode.getInstance(database)
     let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!artifactsAddresses) {
       artifactsAddresses = getOceanArtifactsAdresses().development
@@ -166,6 +202,57 @@ describe('Indexer stores a new metadata events and orders.', () => {
     if (resolvedDDO) {
       expect(resolvedDDO.id).to.equal(genericAsset.id)
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+  })
+
+  it('should store the ddo state in the db with no errors and retrieve it using did', async function () {
+    const ddoState = await database.ddoState.retrieve(resolvedDDO.id)
+    expect(resolvedDDO.id).to.equal(ddoState.did)
+    expect(resolvedDDO.nftAddress).to.equal(ddoState.nft)
+    expect(ddoState.valid).to.equal(true)
+    expect(resolvedDDO.id).to.equal(ddoState.did)
+    expect(ddoState.error).to.equal(' ')
+    // add txId check once we have that as change merged and the event will be indexed
+  })
+
+  it('should find the state of the ddo using query ddo state handler', async function () {
+    const queryDdoStateHandler = new QueryDdoStateHandler(oceanNode)
+    // query using the did
+    const queryDdoState: QueryCommand = {
+      query: {
+        q: resolvedDDO.id,
+        query_by: 'did'
+      },
+      command: PROTOCOL_COMMANDS.QUERY
+    }
+    const response = await queryDdoStateHandler.handle(queryDdoState)
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response.stream, 'Failed to get stream')
+    const result = await streamToObject(response.stream as Readable)
+    const ddoState = result.hits[0].document
+    expect(resolvedDDO.id).to.equal(ddoState.did)
+    expect(resolvedDDO.nftAddress).to.equal(ddoState.nft)
+    expect(ddoState.valid).to.equal(true)
+    expect(resolvedDDO.id).to.equal(ddoState.did)
+    expect(ddoState.error).to.equal(' ')
+
+    // query using the nft address
+    queryDdoState.query = {
+      q: resolvedDDO.nftAddress,
+      query_by: 'nft'
+    }
+    const nftQueryResponse = await queryDdoStateHandler.handle(queryDdoState)
+    assert(nftQueryResponse, 'Failed to get response')
+    assert(nftQueryResponse.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(nftQueryResponse.stream, 'Failed to get stream')
+    const nftQueryResult = await streamToObject(nftQueryResponse.stream as Readable)
+    const nftDdoState = nftQueryResult.hits[0].document
+    expect(resolvedDDO.id).to.equal(nftDdoState.did)
+    expect(resolvedDDO.nftAddress).to.equal(nftDdoState.nft)
+    expect(nftDdoState.valid).to.equal(true)
+    expect(resolvedDDO.id).to.equal(nftDdoState.did)
+    expect(nftDdoState.error).to.equal(' ')
+    // add txId check once we have that as change merged and the event will be indexed
   })
 
   it('should update ddo metadata fields ', async () => {
@@ -484,5 +571,9 @@ describe('Indexer stores a new metadata events and orders.', () => {
       const queue = indexer.getIndexingQueue()
       expect(queue.length).to.be.equal(0)
     }, DEFAULT_TEST_TIMEOUT / 2)
+  })
+
+  after(() => {
+    tearDownEnvironment(previousConfiguration)
   })
 })

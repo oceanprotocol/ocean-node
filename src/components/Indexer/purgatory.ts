@@ -2,7 +2,7 @@ import axios from 'axios'
 import { PurgatoryAccounts, PurgatoryAssets } from '../../@types/Purgatory.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { isValidUrl } from '../../utils/util.js'
+import { URLUtils } from '../../utils/url.js'
 import { getConfiguration } from '../../utils/index.js'
 
 export class Purgatory {
@@ -154,11 +154,11 @@ export class Purgatory {
   }
 
   private isAssetsPurgatoryEnabled(): boolean {
-    return isValidUrl(this.assetPurgatoryUrl)
+    return URLUtils.isValidUrl(this.assetPurgatoryUrl)
   }
 
   private isAccountsPurgatoryEnabled(): boolean {
-    return isValidUrl(this.accountPurgatoryUrl)
+    return URLUtils.isValidUrl(this.accountPurgatoryUrl)
   }
 
   isEnabled(): boolean {

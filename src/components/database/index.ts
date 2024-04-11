@@ -176,6 +176,139 @@ export class OrderDatabase {
   }
 }
 
+export class DdoStateDatabase {
+  private provider: Typesense
+
+  constructor(
+    private config: OceanNodeDBConfig,
+    private schema: Schema
+  ) {
+    return (async (): Promise<DdoStateDatabase> => {
+      this.provider = new Typesense(convertTypesenseConfig(this.config.url))
+      try {
+        await this.provider.collections(this.schema.name).retrieve()
+      } catch (error) {
+        if (error instanceof TypesenseError && error.httpStatus === 404) {
+          await this.provider.collections().create(this.schema)
+        }
+      }
+      return this
+    })() as unknown as DdoStateDatabase
+  }
+
+  async create(
+    chainId: number,
+    did: string,
+    nftAddress: string,
+    txId: string = ' ',
+    valid: boolean = true,
+    errorMsg: string = ' '
+  ) {
+    try {
+      return await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .create({ id: did, chainId, did, nft: nftAddress, txId, valid, error: errorMsg })
+    } catch (error) {
+      const errorMsg = `Error when saving ddo state for: ${did} Error: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async retrieve(did: string) {
+    try {
+      return await this.provider.collections(this.schema.name).documents().retrieve(did)
+    } catch (error) {
+      const errorMsg =
+        `Error when retrieving the state of the ddo with id: ${did}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async search(query: Record<string, any>) {
+    try {
+      const result = await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .search(query as TypesenseSearchParams)
+      return result
+    } catch (error) {
+      const errorMsg = `Error when searching by query ${query}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async update(
+    chainId: number,
+    did: string,
+    nftAddress: string,
+    txId: string = ' ',
+    valid: boolean = true,
+    errorMsg: string = ' '
+  ) {
+    try {
+      return await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .update(did, { chainId, did, nft: nftAddress, txId, valid, error: errorMsg })
+    } catch (error) {
+      if (error instanceof TypesenseError && error.httpStatus === 404) {
+        return await this.provider.collections(this.schema.name).documents().create({
+          id: did,
+          chainId,
+          did,
+          nft: nftAddress,
+          txId,
+          valid,
+          error: errorMsg
+        })
+      }
+      const errorMessage =
+        `Error when saving ddo state for: ${did} Error: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMessage,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async delete(did: string) {
+    try {
+      return await this.provider.collections(this.schema.name).documents().delete(did)
+    } catch (error) {
+      const errorMsg = `Error when deleting ddo state ${did}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+}
+
 export class DdoDatabase {
   private provider: Typesense
 
@@ -561,14 +694,6 @@ export class IndexerDatabase {
     })() as unknown as IndexerDatabase
   }
 
-  // async create(fields: Record<string, any>) {
-  //   try {
-  //     return await this.provider.collections(this.schema.name).documents().create(fields)
-  //   } catch (error) {
-  //     return null
-  //   }
-  // }
-
   async create(network: number, lastIndexedBlock: number) {
     try {
       return await this.provider
@@ -842,6 +967,7 @@ export class Database {
   indexer: IndexerDatabase
   logs: LogDatabase
   order: OrderDatabase
+  ddoState: DdoStateDatabase
 
   constructor(private config: OceanNodeDBConfig) {
     // add this DB transport too
@@ -856,6 +982,7 @@ export class Database {
       this.indexer = await new IndexerDatabase(this.config, schemas.indexerSchemas)
       this.logs = await new LogDatabase(this.config, schemas.logSchemas)
       this.order = await new OrderDatabase(this.config, schemas.orderSchema)
+      this.ddoState = await new DdoStateDatabase(this.config, schemas.ddoStateSchema)
       return this
     })() as unknown as Database
   }
