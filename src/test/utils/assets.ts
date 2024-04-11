@@ -28,7 +28,7 @@ import {
   PROTOCOL_COMMANDS,
   getConfiguration
 } from '../../utils/index.js'
-import { FeesHandler } from '../../components/core/feesHandler.js'
+import { FeesHandler } from '../../components/core/handler/feesHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { ProviderFees } from '../../@types/Fees.js'
 

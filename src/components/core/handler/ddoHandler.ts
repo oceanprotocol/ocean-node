@@ -1,46 +1,46 @@
 import { Handler } from './handler.js'
-import { EVENTS, MetadataStates, PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { P2PCommandResponse } from '../../@types'
+import { EVENTS, MetadataStates, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
+import { P2PCommandResponse, FindDDOResponse } from '../../../@types/index.js'
 import { Readable } from 'stream'
 import {
   hasCachedDDO,
   sortFindDDOResults,
   findDDOLocally,
   formatService
-} from './utils/findDdoHandler.js'
+} from '../utils/findDdoHandler.js'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { sleep, readStream } from '../../utils/util.js'
-import { DDO } from '../../@types/DDO/DDO.js'
-import { FindDDOResponse } from '../../@types/index.js'
-import { CORE_LOGGER } from '../../utils/logging/common.js'
-import { Blockchain } from '../../utils/blockchain.js'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
+import { sleep, readStream } from '../../../utils/util.js'
+import { DDO } from '../../../@types/DDO/DDO.js'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { Blockchain } from '../../../utils/blockchain.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import { decrypt, create256Hash } from '../../utils/crypt.js'
+import { decrypt, create256Hash } from '../../../utils/crypt.js'
 import lzma from 'lzma-native'
-import { getValidationSignature, validateObject } from './utils/validateDdoHandler.js'
-import { getConfiguration } from '../../utils/config.js'
+import { getValidationSignature, validateObject } from '../utils/validateDdoHandler.js'
+import { getConfiguration } from '../../../utils/config.js'
 import {
   GetDdoCommand,
   FindDDOCommand,
   DecryptDDOCommand,
   ValidateDDOCommand
-} from '../../@types/commands.js'
-import { hasP2PInterface } from '../httpRoutes/index.js'
-import { EncryptMethod } from '../../@types/fileObject.js'
+} from '../../../@types/commands.js'
+import { hasP2PInterface } from '../../httpRoutes/index.js'
+import { EncryptMethod } from '../../../@types/fileObject.js'
 import {
   ValidateParams,
   buildInvalidParametersResponse,
   buildInvalidRequestMessage,
+  buildRateLimitReachedResponse,
   validateCommandParameters
-} from '../httpRoutes/validateCommands.js'
+} from '../../httpRoutes/validateCommands.js'
 import {
   findEventByKey,
   getNetworkHeight,
   wasNFTDeployedByOurFactory
-} from '../Indexer/utils.js'
-import { validateDDOHash } from '../../utils/asset.js'
+} from '../../Indexer/utils.js'
+import { validateDDOHash } from '../../../utils/asset.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -734,6 +734,9 @@ export class ValidateDDOHandler extends Handler {
   }
 
   async handle(task: ValidateDDOCommand): Promise<P2PCommandResponse> {
+    if (!(await this.checkRateLimit())) {
+      return buildRateLimitReachedResponse()
+    }
     const commandValidation = this.validate(task)
     if (!commandValidation.valid) {
       return {

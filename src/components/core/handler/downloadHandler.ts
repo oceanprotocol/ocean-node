@@ -1,31 +1,32 @@
 import { JsonRpcProvider } from 'ethers'
 import { Handler } from './handler.js'
-import { checkNonce, NonceResponse } from './utils/nonceHandler.js'
-import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { P2PCommandResponse } from '../../@types/OceanNode.js'
-import { verifyProviderFees } from './utils/feesHandler.js'
-import { decrypt } from '../../utils/crypt.js'
+import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
+import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
+import { P2PCommandResponse } from '../../../@types/OceanNode.js'
+import { verifyProviderFees } from '../utils/feesHandler.js'
+import { decrypt } from '../../../utils/crypt.js'
 import { FindDdoHandler } from './ddoHandler.js'
 import crypto from 'crypto'
 import * as ethCrypto from 'eth-crypto'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { validateOrderTransaction } from './utils/validateOrders.js'
-import { AssetUtils } from '../../utils/asset.js'
-import { Service } from '../../@types/DDO/Service'
-import { ArweaveStorage, IpfsStorage, Storage } from '../../components/storage/index.js'
-import { existsEnvironmentVariable, getConfiguration } from '../../utils/index.js'
-import { checkCredentials } from '../../utils/credentials.js'
-import { CORE_LOGGER } from '../../utils/logging/common.js'
-import { OceanNode } from '../../OceanNode.js'
-import { DownloadCommand, DownloadURLCommand } from '../../@types/commands.js'
-import { EncryptMethod } from '../../@types/fileObject.js'
-import { C2DEngine } from '../c2d/compute_engines.js'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
+import { validateOrderTransaction } from '../utils/validateOrders.js'
+import { AssetUtils } from '../../../utils/asset.js'
+import { Service } from '../../../@types/DDO/Service.js'
+import { ArweaveStorage, IpfsStorage, Storage } from '../../storage/index.js'
+import { existsEnvironmentVariable, getConfiguration } from '../../../utils/index.js'
+import { checkCredentials } from '../../../utils/credentials.js'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { OceanNode } from '../../../OceanNode.js'
+import { DownloadCommand, DownloadURLCommand } from '../../../@types/commands.js'
+import { EncryptMethod } from '../../../@types/fileObject.js'
+import { C2DEngine } from '../../c2d/compute_engines.js'
 import {
   buildInvalidParametersResponse,
+  buildRateLimitReachedResponse,
   validateCommandParameters,
   ValidateParams
-} from '../httpRoutes/validateCommands.js'
-import { DDO } from '../../@types/DDO/DDO.js'
+} from '../../httpRoutes/validateCommands.js'
+import { DDO } from '../../../@types/DDO/DDO.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(
@@ -177,6 +178,9 @@ export class DownloadHandler extends Handler {
   // No encryption here yet
 
   async handle(task: DownloadCommand): Promise<P2PCommandResponse> {
+    if (!(await this.checkRateLimit())) {
+      return buildRateLimitReachedResponse()
+    }
     const validation = this.validate(task)
     if (!validation.valid) {
       return buildInvalidParametersResponse(validation)

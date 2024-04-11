@@ -21,7 +21,7 @@ import { genericDDO } from '../data/ddo.js'
 import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
 import { Database } from '../../components/database/index.js'
-import { DecryptDdoHandler } from '../../components/core/ddoHandler.js'
+import { DecryptDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import {
   ENVIRONMENT_VARIABLES,
   getConfiguration,
