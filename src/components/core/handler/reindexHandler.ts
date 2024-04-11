@@ -1,13 +1,14 @@
 import { Handler } from './handler.js'
-import { ReindexCommand } from '../../@types/commands.js'
-import { P2PCommandResponse } from '../../@types/OceanNode.js'
+import { ReindexCommand } from '../../../@types/commands.js'
+import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { Readable } from 'stream'
-import { OceanIndexer } from '../Indexer/index.js'
+import { OceanIndexer } from '../../Indexer/index.js'
 import {
   ValidateParams,
   buildInvalidParametersResponse,
+  buildRateLimitReachedResponse,
   validateCommandParameters
-} from '../httpRoutes/validateCommands.js'
+} from '../../httpRoutes/validateCommands.js'
 
 export class ReindexHandler extends Handler {
   validate(command: ReindexCommand): ValidateParams {
@@ -16,6 +17,9 @@ export class ReindexHandler extends Handler {
 
   // eslint-disable-next-line require-await
   async handle(task: ReindexCommand): Promise<P2PCommandResponse> {
+    if (!(await this.checkRateLimit())) {
+      return buildRateLimitReachedResponse()
+    }
     const validation = this.validate(task)
     if (!validation.valid) {
       return buildInvalidParametersResponse(validation)
