@@ -323,18 +323,21 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         )
         return
       }
+
       INDEXER_LOGGER.logMessage(
         `decodedEventData.args[5]: ${decodedEventData.args[5]}, hash: ${create256Hash(
           JSON.stringify(ddo)
-        )}`
+        )}, decodedEventData.args[4]: ${JSON.stringify(
+          decodedEventData.args[4]
+        )}, hash 4: ${create256Hash(JSON.stringify(decodedEventData.args[4]))}`
       )
-      if (
-        decodedEventData.args[5] &&
-        decodedEventData.args[5] !== create256Hash(JSON.stringify(ddo))
-      ) {
-        INDEXER_LOGGER.error(`Metadata hash is not matching.`)
-        return
-      }
+      // if (
+      //   decodedEventData.args[5] &&
+      //   decodedEventData.args[5] !== create256Hash(JSON.stringify(ddo))
+      // ) {
+      //   INDEXER_LOGGER.error(`Metadata hash is not matching.`)
+      //   return
+      // }
       did = ddo.id
       // stuff that we overwrite
       ddo.chainId = chainId
