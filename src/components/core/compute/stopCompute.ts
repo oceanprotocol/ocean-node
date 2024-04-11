@@ -1,7 +1,7 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Handler } from '../handler.js'
+import { Handler } from '../handler/handler.js'
 import { ComputeStopCommand } from '../../../@types/commands.js'
 import { C2DEngine } from '../../c2d/compute_engines.js'
 import {

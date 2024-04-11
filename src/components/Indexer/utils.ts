@@ -78,13 +78,13 @@ export const getNetworkHeight = async (provider: JsonRpcApiProvider) => {
   return networkHeight
 }
 
-export const processBlocks = async (
+export const retrieveChunkEvents = async (
   signer: Signer,
   provider: JsonRpcApiProvider,
   network: number,
   lastIndexedBlock: number,
   count: number
-): Promise<ProcessingEvents> => {
+): Promise<ethers.Log[]> => {
   try {
     const eventHashes = Object.keys(EVENT_HASHES)
     const startIndex = lastIndexedBlock + 1
@@ -93,7 +93,25 @@ export const processBlocks = async (
       toBlock: lastIndexedBlock + count,
       topics: [eventHashes]
     })
-    const events = await processChunkLogs(blockLogs, signer, provider, network)
+    return blockLogs
+  } catch (error) {
+    throw new Error(` Error processing chunk of blocks events ${error.message}`)
+  }
+}
+
+export const processBlocks = async (
+  blockLogs: ethers.Log[],
+  signer: Signer,
+  provider: JsonRpcApiProvider,
+  network: number,
+  lastIndexedBlock: number,
+  count: number
+): Promise<ProcessingEvents> => {
+  try {
+    const events: any[] | BlocksEvents =
+      blockLogs && blockLogs.length > 0
+        ? await processChunkLogs(blockLogs, signer, provider, network)
+        : []
 
     return {
       lastBlock: lastIndexedBlock + count,
@@ -190,10 +208,20 @@ export const processChunkLogs = async (
           storeEvents[event.type] = processExchangeRateChanged()
         } else if (event.type === EVENTS.ORDER_STARTED) {
           const processor = getOrderStartedEventProcessor(chainId)
-          storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
+          storeEvents[event.type] = await processor.processEvent(
+            log,
+            chainId,
+            signer,
+            provider
+          )
         } else if (event.type === EVENTS.ORDER_REUSED) {
           const processor = getOrderReusedEventProcessor(chainId)
-          storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
+          storeEvents[event.type] = await processor.processEvent(
+            log,
+            chainId,
+            signer,
+            provider
+          )
         } else if (event.type === EVENTS.TOKEN_URI_UPDATE) {
           storeEvents[event.type] = processTokenUriUpadate()
         }
@@ -222,18 +250,22 @@ export const getNFTContract = (signer: Signer, address: string): ethers.Contract
   return getContract(signer, 'ERC721Template', address)
 }
 
+export const getDtContract = (signer: Signer, address: string): ethers.Contract => {
+  address = getAddress(address)
+  return getContract(signer, 'ERC20Template', address)
+}
+
 export const getNFTFactory = (signer: Signer, address: string): ethers.Contract => {
   address = getAddress(address)
   return getContract(signer, 'ERC721Factory', address)
 }
-
 function getContract(
   signer: Signer,
   contractName: string,
   address: string
 ): ethers.Contract {
   const abi = getContractDefinition(contractName)
-  return new ethers.Contract(getAddress(address), abi, signer) // was provider.getSigner() => thow no account
+  return new ethers.Contract(getAddress(address), abi, signer)
 }
 
 function getContractDefinition(contractName: string): any {
@@ -242,6 +274,8 @@ function getContractDefinition(contractName: string): any {
       return ERC721Factory.abi
     case 'ERC721Template':
       return ERC721Template.abi
+    case 'ERC20Template':
+      return ERC20Template.abi
     default:
       return ERC721Factory.abi
   }
