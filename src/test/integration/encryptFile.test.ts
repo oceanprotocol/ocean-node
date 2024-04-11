@@ -4,7 +4,7 @@ import { OceanNode } from '../../OceanNode.js'
 import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
-import { EncryptFileHandler } from '../../components/core/encryptHandler.js'
+import { EncryptFileHandler } from '../../components/core/handler/encryptHandler.js'
 import { EncryptFileCommand } from '../../@types/commands'
 import { EncryptMethod, FileObjectType, UrlFileObject } from '../../@types/fileObject.js'
 import fs from 'fs'
@@ -14,6 +14,7 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
+import { Database } from '../../components/database/index.js'
 
 describe('Encrypt File', () => {
   let config: OceanNodeConfig
@@ -32,6 +33,8 @@ describe('Encrypt File', () => {
       )
     )
     config = await getConfiguration(true) // Force reload the configuration
+    const dbconn = await new Database(config.dbConfig)
+    oceanNode = await OceanNode.getInstance(dbconn)
   })
 
   it('should encrypt files', async () => {

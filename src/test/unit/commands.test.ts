@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/index.js'
-import { CoreHandlersRegistry } from '../../components/core/coreHandlersRegistry.js'
-import { Handler } from '../../components/core/handler.js'
+import { CoreHandlersRegistry } from '../../components/core/handler/coreHandlersRegistry.js'
+import { Handler } from '../../components/core/handler/handler.js'
 import { OceanNode } from '../../OceanNode.js'
 import {
   ComputeGetEnvironmentsCommand,
@@ -24,22 +24,22 @@ import {
   StatusCommand,
   ValidateDDOCommand
 } from '../../@types/commands.js'
-import { NonceHandler } from '../../components/core/nonceHandler.js'
-import { DownloadHandler } from '../../components/core/downloadHandler.js'
+import { NonceHandler } from '../../components/core/handler/nonceHandler.js'
+import { DownloadHandler } from '../../components/core/handler/downloadHandler.js'
 import {
   EncryptFileHandler,
   EncryptHandler
-} from '../../components/core/encryptHandler.js'
+} from '../../components/core/handler/encryptHandler.js'
 import {
   FindDdoHandler,
   GetDdoHandler,
   ValidateDDOHandler
-} from '../../components/core/ddoHandler.js'
-import { QueryHandler } from '../../components/core/queryHandler.js'
-import { StatusHandler } from '../../components/core/statusHandler.js'
-import { FeesHandler } from '../../components/core/feesHandler.js'
-import { EchoHandler } from '../../components/core/echoHandler.js'
-import { FileInfoHandler } from '../../components/core/fileInfoHandler.js'
+} from '../../components/core/handler/ddoHandler.js'
+import { QueryHandler } from '../../components/core/handler/queryHandler.js'
+import { StatusHandler } from '../../components/core/handler/statusHandler.js'
+import { FeesHandler } from '../../components/core/handler/feesHandler.js'
+import { EchoHandler } from '../../components/core/handler/echoHandler.js'
+import { FileInfoHandler } from '../../components/core/handler/fileInfoHandler.js'
 import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/environments.js'
 import { ComputeStartHandler } from '../../components/core/compute/startCompute.js'
 import { ComputeStopHandler } from '../../components/core/compute/stopCompute.js'

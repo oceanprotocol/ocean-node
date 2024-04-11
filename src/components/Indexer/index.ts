@@ -52,12 +52,12 @@ export class OceanIndexer {
     return network
   }
 
+  // eslint-disable-next-line require-await
   public async startThreads(): Promise<void> {
     for (const network of this.supportedChains) {
       const chainId = parseInt(network)
       const rpcDetails: SupportedNetwork = this.getSupportedNetwork(chainId)
-      const lastIndexedBlock = await this.getLastIndexedBlock(chainId)
-      const workerData = { rpcDetails, lastIndexedBlock }
+      const workerData = { rpcDetails }
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_INFO,
         `Starting worker for network ${network} with ${JSON.stringify(workerData)}`,

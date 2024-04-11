@@ -5,7 +5,7 @@ import {
   buildInvalidRequestMessage
 } from '../../httpRoutes/validateCommands.js'
 import { validateSignature } from '../../../utils/auth.js'
-import { Handler } from '../handler.js'
+import { Handler } from '../handler/handler.js'
 
 export abstract class AdminHandler extends Handler {
   validate(command: AdminCommand): ValidateParams {
