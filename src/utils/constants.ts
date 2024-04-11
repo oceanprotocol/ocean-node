@@ -226,6 +226,12 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'RATE_DENY_LIST',
     value: process.env.RATE_DENY_LIST,
     required: false
+  },
+  MAX_CHECKSUM_LENGTH: {
+    // c2d, maximum length for a file if checksum is required.
+    name: 'MAX_CHECKSUM_LENGTH',
+    value: process.env.MAX_CHECKSUM_LENGTH,
+    required: false
   }
 }
 
