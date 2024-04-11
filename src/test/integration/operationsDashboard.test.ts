@@ -34,7 +34,7 @@ import {
 import { StopNodeHandler } from '../../components/core/admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.js'
 import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
-import { FindDdoHandler } from '../../components/core/ddoHandler.js'
+import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import { streamToObject } from '../../utils/util.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 
