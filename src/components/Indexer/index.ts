@@ -52,12 +52,12 @@ export class OceanIndexer {
     return network
   }
 
+  // eslint-disable-next-line require-await
   public async startThreads(): Promise<void> {
     for (const network of this.supportedChains) {
       const chainId = parseInt(network)
       const rpcDetails: SupportedNetwork = this.getSupportedNetwork(chainId)
-      const lastIndexedBlock = await this.getLastIndexedBlock(chainId)
-      const workerData = { rpcDetails, lastIndexedBlock }
+      const workerData = { rpcDetails }
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_INFO,
         `Starting worker for network ${network} with ${JSON.stringify(workerData)}`,
@@ -125,21 +125,6 @@ export class OceanIndexer {
     if (worker) {
       worker.postMessage({ method: 'add-reindex-task', reindexTask })
       INDEXING_QUEUE.push(reindexTask)
-    }
-  }
-
-  public async getLastIndexedBlock(network: number): Promise<number> {
-    const dbconn = this.db.indexer
-    try {
-      const indexer = await dbconn.retrieve(network)
-      return indexer?.lastIndexedBlock
-    } catch (err) {
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        'Error retrieving last indexed block',
-        true
-      )
-      return null
     }
   }
 
