@@ -1,5 +1,4 @@
 import {
-  Contract,
   Interface,
   JsonRpcApiProvider,
   Signer,
@@ -17,6 +16,7 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getDatabase } from '../../utils/database.js'
 import { PROTOCOL_COMMANDS, EVENTS, MetadataStates } from '../../utils/constants.js'
+import { getDtContract, wasNFTDeployedByOurFactory } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
 import { getConfiguration } from '../../utils/index.js'
@@ -25,7 +25,6 @@ import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
-import { wasNFTDeployedByOurFactory } from './utils.js'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -543,6 +542,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
   async processEvent(
     event: ethers.Log,
     chainId: number,
+    signer: Signer,
     provider: JsonRpcApiProvider
   ): Promise<any> {
     const decodedEventData = await this.getEventData(
@@ -558,11 +558,8 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
       `Processed new order for service index ${serviceIndex} at ${timestamp}`,
       true
     )
-    const datatokenContract = new Contract(
-      event.address,
-      ERC20Template.abi,
-      await provider.getSigner()
-    )
+    const datatokenContract = getDtContract(signer, event.address)
+
     const nftAddress = await datatokenContract.getERC721Address()
     const did =
       'did:op:' +
@@ -609,6 +606,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
   async processEvent(
     event: ethers.Log,
     chainId: number,
+    signer: Signer,
     provider: JsonRpcApiProvider
   ): Promise<any> {
     const decodedEventData = await this.getEventData(
@@ -621,11 +619,8 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
     const payer = decodedEventData.args[1].toString()
     INDEXER_LOGGER.logMessage(`Processed reused order at ${timestamp}`, true)
 
-    const datatokenContract = new Contract(
-      event.address,
-      ERC20Template.abi,
-      await provider.getSigner()
-    )
+    const datatokenContract = getDtContract(signer, event.address)
+
     const nftAddress = await datatokenContract.getERC721Address()
     const did =
       'did:op:' +
