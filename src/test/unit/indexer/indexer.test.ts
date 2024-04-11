@@ -27,7 +27,6 @@ describe('OceanIndexer', () => {
     }
 
     stub(oceanIndexer as any, 'startThreads').callsFake(() => {
-      oceanIndexer.getLastIndexedBlock = stub().resolves(0)
       oceanIndexer.startThreads = async () => {
         try {
           const network = '1'
