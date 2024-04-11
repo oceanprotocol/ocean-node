@@ -304,7 +304,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const result = await nftContract.getMetaData()
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
-      EVENTS.METADATA_UPDATED,
+      EVENTS.METADATA_STATE,
       DEFAULT_TEST_TIMEOUT * 2,
       true
     )
