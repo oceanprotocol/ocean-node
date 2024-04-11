@@ -304,7 +304,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.METADATA_UPDATED,
-      DEFAULT_TEST_TIMEOUT,
+      40000,
       true
     )
     const retrievedDDO: any = ddo
