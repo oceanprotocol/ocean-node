@@ -158,7 +158,6 @@ export async function proccesNetworkData(): Promise<void> {
           `Processing already in progress for network ${rpcDetails.network} waiting untill finishing the current processing ...`,
           true
         )
-        await updateLastIndexedBlockNumber(startBlock + blocksToProcess)
       }
       await sleep(interval)
     }
