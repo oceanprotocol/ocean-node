@@ -202,6 +202,7 @@ export function checkNewlyIndexedAssets(events: BlocksEvents): void {
       [
         EVENTS.METADATA_CREATED,
         EVENTS.METADATA_UPDATED,
+        EVENTS.METADATA_STATE,
         EVENTS.ORDER_STARTED,
         EVENTS.ORDER_REUSED
       ].includes(eventType)
