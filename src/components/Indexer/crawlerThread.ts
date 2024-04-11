@@ -139,8 +139,11 @@ export async function proccesNetworkData(): Promise<void> {
             REINDEX_BLOCK = null
           } else {
             lastIndexedBlock = processedBlocks.lastBlock
+            INDEXER_LOGGER.logMessage(
+              `lastIndexedBlock: ${lastIndexedBlock} and processedBlocks.lastBlock: ${processedBlocks.lastBlock}`
+            )
           }
-          updateLastIndexedBlockNumber(lastIndexedBlock)
+          await updateLastIndexedBlockNumber(lastIndexedBlock)
           checkNewlyIndexedAssets(processedBlocks.foundEvents)
           chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
         } catch (error) {
