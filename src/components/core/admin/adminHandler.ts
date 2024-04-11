@@ -1,4 +1,4 @@
-import { Handler } from '../handler.js'
+import { Handler } from '../handler/handler.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { AdminCommand } from '../../../@types/commands.js'
 import {

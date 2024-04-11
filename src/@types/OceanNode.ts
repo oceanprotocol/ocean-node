@@ -8,6 +8,12 @@ export interface OceanNodeDBConfig {
   url: string | null
 }
 
+// deny list of peer ids and ips (for rate limiting purposes)
+export interface DenyList {
+  peers: string[]
+  ips: string[]
+}
+
 export interface OceanNodeKeys {
   peerId: PeerId
   publicKey: any
@@ -50,6 +56,8 @@ export interface OceanNodeConfig {
   assetPurgatoryUrl: string
   allowedAdmins?: string[]
   codeHash?: string
+  rateLimit?: number
+  denyList?: DenyList
 }
 
 export interface P2PStatusResponse {

@@ -42,23 +42,28 @@ logRoutes.post('/logs', express.json(), validateRequest, async (req, res) => {
         ? new Date(req.query.startTime)
         : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) // Default to 90 days ago
     const endTime =
-      typeof req.query.endTime === 'string' ? new Date(req.query.endTime) : new Date()
+      typeof req.query.endTime === 'string' ? new Date(req.query.endTime) : new Date() // Default to now
     const maxLogs =
       typeof req.query.maxLogs === 'string' ? parseInt(req.query.maxLogs, 10) : 100 // default to 100 logs
     const moduleName =
       typeof req.query.moduleName === 'string' ? req.query.moduleName : undefined
     const level = typeof req.query.level === 'string' ? req.query.level : undefined
 
+    const page =
+      typeof req.query.page === 'string' ? parseInt(req.query.page, 10) : undefined // Default to undefined, which will fetch all logs
+
+    // Retrieve logs from the database with pagination
     const logs = await req.oceanNode
       .getDatabase()
-      .logs.retrieveMultipleLogs(startTime, endTime, maxLogs, moduleName, level)
+      .logs.retrieveMultipleLogs(startTime, endTime, maxLogs, moduleName, level, page)
+
     if (logs) {
       res.json(logs)
     } else {
       res.status(404).send('No logs found')
     }
   } catch (error) {
-    res.status(500).send('Internal Server Error')
+    res.status(500).send(`Internal Server Error: ${error.message}`)
   }
 })
 

@@ -138,90 +138,94 @@ export async function verifyProviderFees(
   computeEnv?: string,
   validUntil?: number // only for computeEnv
 ): Promise<ProviderFeeValidation> {
-  let errorMsg = null
-  if (!txId) errorMsg = 'Invalid txId'
+  if (!txId) {
+    CORE_LOGGER.error('Invalid txId')
+    return {
+      isValid: false,
+      isComputeValid: false,
+      message: 'Invalid txId',
+      validUntil: 0
+    }
+  }
+
   const { chainId } = await provider.getNetwork()
   const providerWallet = await getProviderWallet(String(chainId))
   const contractInterface = new Interface(ERC20Template.abi)
   const txReceiptMined = await fetchTransactionReceipt(txId, provider)
   if (!txReceiptMined) {
-    errorMsg = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
+    const message = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
+    CORE_LOGGER.error(message)
+    return { isValid: false, isComputeValid: false, message, validUntil: 0 }
   }
 
-  // const eventTimestamp = (await provider.getBlock(txReceiptMined.blockHash)).timestamp
   const now = Math.round(new Date().getTime() / 1000)
-  const ProviderFeesEvent = fetchEventFromTransaction(
+  const providerFeesEvents = fetchEventFromTransaction(
     txReceiptMined,
     'ProviderFee',
     contractInterface
   )
-  // check provider address
-  if (
-    ProviderFeesEvent[0].args[0].toLowerCase() !== providerWallet.address.toLowerCase()
-  ) {
-    errorMsg = 'Provider address does not match'
-  }
-  const validUntilContract = parseInt(ProviderFeesEvent[0].args[7].toString())
-  if (now >= validUntilContract && validUntilContract !== 0) {
-    errorMsg = 'Provider fees expired.'
-  }
-  // check serviceId and datatokenAddress
-  const utf = ethers.toUtf8String(ProviderFeesEvent[0].args[3])
+
+  let allEventsValid = true
   let providerData
-  try {
-    providerData = JSON.parse(utf)
-  } catch (e) {
-    console.error(e)
-    // providerData was empty??
-    providerData = {
-      environment: null,
-      timestamp: 0,
-      dt: null,
-      id: null
+  for (const event of providerFeesEvents) {
+    const providerAddress = event.args[0].toLowerCase()
+    const validUntilContract = parseInt(event.args[7].toString())
+    const utf = ethers.toUtf8String(event.args[3])
+
+    try {
+      providerData = JSON.parse(utf)
+    } catch (e) {
+      CORE_LOGGER.error('ProviderFee event JSON parsing failed')
+      allEventsValid = false
+      continue
+    }
+
+    if (
+      !providerData ||
+      providerAddress !== providerWallet.address.toLowerCase() ||
+      providerData.id !== service.id ||
+      providerData.dt.toLowerCase() !== service.datatokenAddress.toLowerCase() ||
+      !(now < validUntilContract || validUntilContract === 0)
+    ) {
+      allEventsValid = false
+      break // Invalid event found, no need to check further
     }
   }
-  if (providerData.id !== service.id) {
-    errorMsg = 'ProviderFee service.id does not match with provided service id'
+
+  if (!allEventsValid) {
+    const message = 'Not all ProviderFee events are valid'
+    CORE_LOGGER.error(message)
+    return { isValid: false, isComputeValid: false, message, validUntil: 0 }
   }
-  if (providerData.dt.toLowerCase() !== service.datatokenAddress.toLowerCase()) {
-    errorMsg =
-      'ProviderFee datatoken address does not match with service datatoken address'
-  }
-  const retMsg = {
-    isValid: true,
-    isComputeValid: false,
-    message: '',
-    validUntil: 0
-  }
+
+  // Compute environment validation
+  let isComputeValid = true
   if (computeEnv) {
-    retMsg.isComputeValid = true
     if (providerData.environment !== computeEnv) {
-      errorMsg =
-        'ProviderFee computeEnv(' +
-        providerData.environment +
-        ') does not match with requested provider computeEnv(' +
-        computeEnv +
-        ')'
-      retMsg.isComputeValid = false
+      isComputeValid = false
     }
-    if (validUntil > 0) {
-      if (providerData.timestamp < validUntil) {
-        errorMsg =
-          'ProviderFee compute validity(' +
-          providerData.timestamp +
-          ') lower than needed ' +
-          validUntil
-        retMsg.isComputeValid = false
-      }
-    } else {
-      retMsg.validUntil = providerData.timestamp
+    if (validUntil > 0 && providerData.timestamp < validUntil) {
+      isComputeValid = false
     }
   }
-  if (errorMsg) {
-    CORE_LOGGER.logMessage(errorMsg)
-    retMsg.message = errorMsg
+
+  if (!isComputeValid) {
+    const message = 'Compute environment validation failed'
+    CORE_LOGGER.error(message)
+    return {
+      isValid: true,
+      isComputeValid,
+      message,
+      validUntil: providerData ? providerData.timestamp : 0
+    }
   }
-  return retMsg
+
+  return {
+    isValid: true,
+    isComputeValid,
+    message: 'Validation successful',
+    validUntil: providerData.timestamp
+  }
 }
 
 // TO DO - delete functions below, as they are used in the tests

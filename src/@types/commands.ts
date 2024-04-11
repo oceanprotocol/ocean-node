@@ -62,6 +62,8 @@ export interface AdminCommand extends Command {
 
 export interface QueryCommand extends Command {
   query: Record<string, any>
+  maxResultsPerPage?: number
+  pageNumber?: number
 }
 export interface ReindexCommand extends Command {
   txId: string
