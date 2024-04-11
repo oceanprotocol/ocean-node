@@ -60,7 +60,11 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
-import { getAlgoChecksums, validateAlgoForDataset } from '../../components/c2d/index.js'
+import {
+  checkC2DEnvExists,
+  getAlgoChecksums,
+  validateAlgoForDataset
+} from '../../components/c2d/index.js'
 
 describe('Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
@@ -594,219 +598,229 @@ describe('Compute', () => {
     console.log(jobs)
   })
 
+  it('should checkC2DEnvExists', async () => {
+    const envId = '0x123'
+    const result = await checkC2DEnvExists(envId, oceanNode)
+    expect(result).to.equal(false)
+  })
+
   // algo and checksums related
-  it('should publish AlgoDDO', async () => {
-    const tx = await (factoryContract as any).createNftWithErc20(
-      {
-        name: '72120Bundle',
-        symbol: '72Bundle',
-        templateIndex: 1,
-        tokenURI: 'https://oceanprotocol.com/nft/',
-        transferable: true,
-        owner: publisherAddress
-      },
-      {
-        strings: ['ERC20B1', 'ERC20DT1Symbol'],
-        templateIndex: 1,
-        addresses: [publisherAddress, ZeroAddress, ZeroAddress, ZeroAddress],
-        uints: [1000, 0],
-        bytess: []
-      }
-    )
-    const txFactoryContract = await tx.wait()
-    assert(txFactoryContract, 'transaction failed')
-    const nftEvent = getEventFromTx(txFactoryContract, 'NFTCreated')
-    const erc20Event = getEventFromTx(txFactoryContract, 'TokenCreated')
-    const dataNftAddress = nftEvent.args[0]
-    const datatokenAddress = erc20Event.args[0]
-    assert(dataNftAddress, 'find nft created failed')
-    assert(datatokenAddress, 'find datatoken created failed')
-
-    const nftContract = new ethers.Contract(
-      dataNftAddress,
-      ERC721Template.abi,
-      publisherAccount
-    )
-    algoDDO.id =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(dataNftAddress) + chainId.toString(10))
-        .digest('hex')
-    algoDDO.nftAddress = dataNftAddress
-    algoDDO.services[0].datatokenAddress = datatokenAddress
-
-    const files = {
-      datatokenAddress: '0x0',
-      nftAddress: '0x0',
-      files: [
+  describe('C2D algo and checksums related', () => {
+    it('should publish AlgoDDO', async () => {
+      const tx = await (factoryContract as any).createNftWithErc20(
         {
-          type: 'url',
-          url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
-          method: 'get'
-        }
-      ]
-    }
-    const filesData = Uint8Array.from(Buffer.from(JSON.stringify(files)))
-    algoDDO.services[0].files = await encrypt(filesData, EncryptMethod.ECIES)
-
-    const metadata = hexlify(Buffer.from(JSON.stringify(algoDDO)))
-    const hash = createHash('sha256').update(metadata).digest('hex')
-
-    const setMetaDataTx = await nftContract.setMetaData(
-      0,
-      'http://v4.provider.oceanprotocol.com',
-      '0x123',
-      '0x00',
-      metadata,
-      '0x' + hash,
-      []
-    )
-    const txReceipt = await setMetaDataTx.wait()
-    assert(txReceipt, 'set metadata failed')
-  })
-
-  it('should publish DatasetDDO', async () => {
-    const tx = await (factoryContract as any).createNftWithErc20(
-      {
-        name: '72120Bundle',
-        symbol: '72Bundle',
-        templateIndex: 1,
-        tokenURI: 'https://oceanprotocol.com/nft/',
-        transferable: true,
-        owner: publisherAddress
-      },
-      {
-        strings: ['ERC20B1', 'ERC20DT1Symbol'],
-        templateIndex: 1,
-        addresses: [publisherAddress, ZeroAddress, ZeroAddress, ZeroAddress],
-        uints: [1000, 0],
-        bytess: []
-      }
-    )
-    const txFactoryContract = await tx.wait()
-    assert(txFactoryContract, 'transaction failed')
-    const nftEvent = getEventFromTx(txFactoryContract, 'NFTCreated')
-    const erc20Event = getEventFromTx(txFactoryContract, 'TokenCreated')
-    const dataNftAddress = nftEvent.args[0]
-    const datatokenAddress = erc20Event.args[0]
-    assert(dataNftAddress, 'find nft created failed')
-    assert(datatokenAddress, 'find datatoken created failed')
-
-    const nftContract = new ethers.Contract(
-      dataNftAddress,
-      ERC721Template.abi,
-      publisherAccount
-    )
-    datasetDDO.id =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(dataNftAddress) + chainId.toString(10))
-        .digest('hex')
-    datasetDDO.nftAddress = dataNftAddress
-    datasetDDO.services[0].datatokenAddress = datatokenAddress
-
-    const files = {
-      datatokenAddress: '0x0',
-      nftAddress: '0x0',
-      files: [
+          name: '72120Bundle',
+          symbol: '72Bundle',
+          templateIndex: 1,
+          tokenURI: 'https://oceanprotocol.com/nft/',
+          transferable: true,
+          owner: publisherAddress
+        },
         {
-          type: 'url',
-          url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
-          method: 'GET'
+          strings: ['ERC20B1', 'ERC20DT1Symbol'],
+          templateIndex: 1,
+          addresses: [publisherAddress, ZeroAddress, ZeroAddress, ZeroAddress],
+          uints: [1000, 0],
+          bytess: []
         }
-      ]
-    }
-    const filesData = Uint8Array.from(Buffer.from(JSON.stringify(files)))
-    datasetDDO.services[0].files = await encrypt(filesData, EncryptMethod.ECIES)
-
-    datasetDDO.services[0].compute = {
-      allowRawAlgorithm: false,
-      allowNetworkAccess: true,
-      publisherTrustedAlgorithmPublishers: setTrustedAlgosEmpty ? [] : [publisherAddress],
-      publisherTrustedAlgorithms: setTrustedAlgosEmpty
-        ? []
-        : [
-            {
-              did: algoDDO.id,
-              filesChecksum:
-                'f6a7b95e4a2e3028957f69fdd2dac27bd5103986b2171bc8bfee68b52f874dcd',
-              containerSectionChecksum:
-                'ba8885fcc7d366f058d6c3bb0b7bfe191c5f85cb6a4ee3858895342436c23504'
-            }
-          ]
-    }
-
-    const metadata = hexlify(Buffer.from(JSON.stringify(datasetDDO)))
-    const hash = createHash('sha256').update(metadata).digest('hex')
-
-    const setMetaDataTx = await nftContract.setMetaData(
-      0,
-      'http://v4.provider.oceanprotocol.com',
-      '0x123',
-      '0x00',
-      metadata,
-      '0x' + hash,
-      []
-    )
-    const txReceipt = await setMetaDataTx.wait()
-    assert(txReceipt, 'set metadata failed')
-  })
-
-  it('should getAlgoChecksums', async function () {
-    const { ddo, wasTimeout } = await waitToIndex(
-      algoDDO.id,
-      EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT
-    )
-    const algoDDOTest = ddo
-    if (algoDDOTest) {
-      const algoChecksums = await getAlgoChecksums(
-        algoDDOTest.id,
-        algoDDOTest.services[0].id,
-        oceanNode
       )
-      expect(algoChecksums.files).to.equal(
-        'f6a7b95e4a2e3028957f69fdd2dac27bd5103986b2171bc8bfee68b52f874dcd'
-      )
-      expect(algoChecksums.container).to.equal(
-        'ba8885fcc7d366f058d6c3bb0b7bfe191c5f85cb6a4ee3858895342436c23504'
-      )
-    } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
-  })
+      const txFactoryContract = await tx.wait()
+      assert(txFactoryContract, 'transaction failed')
+      const nftEvent = getEventFromTx(txFactoryContract, 'NFTCreated')
+      const erc20Event = getEventFromTx(txFactoryContract, 'TokenCreated')
+      const dataNftAddress = nftEvent.args[0]
+      const datatokenAddress = erc20Event.args[0]
+      assert(dataNftAddress, 'find nft created failed')
+      assert(datatokenAddress, 'find datatoken created failed')
 
-  it('should validateAlgoForDataset', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
-    const { ddo, wasTimeout } = await waitToIndex(
-      algoDDO.id,
-      EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT * 2
-    )
-
-    const algoDDOTest = ddo
-    if (algoDDOTest) {
-      const algoChecksums = await getAlgoChecksums(
-        algoDDOTest.id,
-        algoDDOTest.services[0].id,
-        oceanNode
+      const nftContract = new ethers.Contract(
+        dataNftAddress,
+        ERC721Template.abi,
+        publisherAccount
       )
+      algoDDO.id =
+        'did:op:' +
+        createHash('sha256')
+          .update(getAddress(dataNftAddress) + chainId.toString(10))
+          .digest('hex')
+      algoDDO.nftAddress = dataNftAddress
+      algoDDO.services[0].datatokenAddress = datatokenAddress
+
+      const files = {
+        datatokenAddress: '0x0',
+        nftAddress: '0x0',
+        files: [
+          {
+            type: 'url',
+            url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
+            method: 'get'
+          }
+        ]
+      }
+      const filesData = Uint8Array.from(Buffer.from(JSON.stringify(files)))
+      algoDDO.services[0].files = await encrypt(filesData, EncryptMethod.ECIES)
+
+      const metadata = hexlify(Buffer.from(JSON.stringify(algoDDO)))
+      const hash = createHash('sha256').update(metadata).digest('hex')
+
+      const setMetaDataTx = await nftContract.setMetaData(
+        0,
+        'http://v4.provider.oceanprotocol.com',
+        '0x123',
+        '0x00',
+        metadata,
+        '0x' + hash,
+        []
+      )
+      const txReceipt = await setMetaDataTx.wait()
+      assert(txReceipt, 'set metadata failed')
+    })
+
+    it('should publish DatasetDDO', async () => {
+      const tx = await (factoryContract as any).createNftWithErc20(
+        {
+          name: '72120Bundle',
+          symbol: '72Bundle',
+          templateIndex: 1,
+          tokenURI: 'https://oceanprotocol.com/nft/',
+          transferable: true,
+          owner: publisherAddress
+        },
+        {
+          strings: ['ERC20B1', 'ERC20DT1Symbol'],
+          templateIndex: 1,
+          addresses: [publisherAddress, ZeroAddress, ZeroAddress, ZeroAddress],
+          uints: [1000, 0],
+          bytess: []
+        }
+      )
+      const txFactoryContract = await tx.wait()
+      assert(txFactoryContract, 'transaction failed')
+      const nftEvent = getEventFromTx(txFactoryContract, 'NFTCreated')
+      const erc20Event = getEventFromTx(txFactoryContract, 'TokenCreated')
+      const dataNftAddress = nftEvent.args[0]
+      const datatokenAddress = erc20Event.args[0]
+      assert(dataNftAddress, 'find nft created failed')
+      assert(datatokenAddress, 'find datatoken created failed')
+
+      const nftContract = new ethers.Contract(
+        dataNftAddress,
+        ERC721Template.abi,
+        publisherAccount
+      )
+      datasetDDO.id =
+        'did:op:' +
+        createHash('sha256')
+          .update(getAddress(dataNftAddress) + chainId.toString(10))
+          .digest('hex')
+      datasetDDO.nftAddress = dataNftAddress
+      datasetDDO.services[0].datatokenAddress = datatokenAddress
+
+      const files = {
+        datatokenAddress: '0x0',
+        nftAddress: '0x0',
+        files: [
+          {
+            type: 'url',
+            url: 'https://github.com/datablist/sample-csv-files/raw/main/files/organizations/organizations-100.csv',
+            method: 'GET'
+          }
+        ]
+      }
+      const filesData = Uint8Array.from(Buffer.from(JSON.stringify(files)))
+      datasetDDO.services[0].files = await encrypt(filesData, EncryptMethod.ECIES)
+
+      datasetDDO.services[0].compute = {
+        allowRawAlgorithm: false,
+        allowNetworkAccess: true,
+        publisherTrustedAlgorithmPublishers: setTrustedAlgosEmpty
+          ? []
+          : [publisherAddress],
+        publisherTrustedAlgorithms: setTrustedAlgosEmpty
+          ? []
+          : [
+              {
+                did: algoDDO.id,
+                filesChecksum:
+                  'f6a7b95e4a2e3028957f69fdd2dac27bd5103986b2171bc8bfee68b52f874dcd',
+                containerSectionChecksum:
+                  'ba8885fcc7d366f058d6c3bb0b7bfe191c5f85cb6a4ee3858895342436c23504'
+              }
+            ]
+      }
+
+      const metadata = hexlify(Buffer.from(JSON.stringify(datasetDDO)))
+      const hash = createHash('sha256').update(metadata).digest('hex')
+
+      const setMetaDataTx = await nftContract.setMetaData(
+        0,
+        'http://v4.provider.oceanprotocol.com',
+        '0x123',
+        '0x00',
+        metadata,
+        '0x' + hash,
+        []
+      )
+      const txReceipt = await setMetaDataTx.wait()
+      assert(txReceipt, 'set metadata failed')
+    })
+
+    it('should getAlgoChecksums', async function () {
       const { ddo, wasTimeout } = await waitToIndex(
-        datasetDDO.id,
+        algoDDO.id,
+        EVENTS.METADATA_CREATED,
+        DEFAULT_TEST_TIMEOUT
+      )
+      const algoDDOTest = ddo
+      if (algoDDOTest) {
+        const algoChecksums = await getAlgoChecksums(
+          algoDDOTest.id,
+          algoDDOTest.services[0].id,
+          oceanNode
+        )
+        expect(algoChecksums.files).to.equal(
+          'f6a7b95e4a2e3028957f69fdd2dac27bd5103986b2171bc8bfee68b52f874dcd'
+        )
+        expect(algoChecksums.container).to.equal(
+          'ba8885fcc7d366f058d6c3bb0b7bfe191c5f85cb6a4ee3858895342436c23504'
+        )
+      } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    })
+
+    it('should validateAlgoForDataset', async function () {
+      this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+      const { ddo, wasTimeout } = await waitToIndex(
+        algoDDO.id,
         EVENTS.METADATA_CREATED,
         DEFAULT_TEST_TIMEOUT * 2
       )
 
-      const datasetDDOTest = ddo
-      if (datasetDDOTest) {
-        const result = await validateAlgoForDataset(
+      const algoDDOTest = ddo
+      if (algoDDOTest) {
+        const algoChecksums = await getAlgoChecksums(
           algoDDOTest.id,
-          algoChecksums,
-          datasetDDOTest.id,
-          datasetDDOTest.services[0].id,
+          algoDDOTest.services[0].id,
           oceanNode
         )
-        expect(result).to.equal(!setTrustedAlgosEmpty)
+        const { ddo, wasTimeout } = await waitToIndex(
+          datasetDDO.id,
+          EVENTS.METADATA_CREATED,
+          DEFAULT_TEST_TIMEOUT * 2
+        )
+
+        const datasetDDOTest = ddo
+        if (datasetDDOTest) {
+          const result = await validateAlgoForDataset(
+            algoDDOTest.id,
+            algoChecksums,
+            datasetDDOTest.id,
+            datasetDDOTest.services[0].id,
+            oceanNode
+          )
+          expect(result).to.equal(!setTrustedAlgosEmpty)
+        } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
       } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
-    } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    })
   })
 
   after(async () => {
