@@ -39,7 +39,6 @@ import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import { streamToObject } from '../../utils/util.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { TypesenseSearchParams } from '../../@types/Typesense.js'
-import { delay } from './testUtils.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
