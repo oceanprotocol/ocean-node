@@ -398,27 +398,22 @@ export class DdoDatabase {
       } else {
         queryObj = query as TypesenseSearchParams
       }
-      DATABASE_LOGGER.logMessage(`queryObj: ${JSON.stringify(queryObj)}`)
 
       const maxPerPage = maxResultsPerPage ? Math.min(maxResultsPerPage, 250) : 250 // Cap maxResultsPerPage at 250
       const page = pageNumber || 1 // Default to the first page if pageNumber is not provided
       const results = []
 
       for (const schema of this.getSchemas()) {
-        DATABASE_LOGGER.logMessage(
-          `schema: ${JSON.stringify(schema)}, this.schemas: ${this.getSchemas()}`
-        )
         // Extend the query with pagination parameters
         const searchParams: TypesenseSearchParams = {
           ...queryObj,
           per_page: maxPerPage,
           page
         }
-        DATABASE_LOGGER.logMessage(`searchParams: ${JSON.stringify(searchParams)}`)
         const result = await this.provider
           .collections(schema.name)
           .documents()
-          .search(searchParams as TypesenseSearchParams)
+          .search(searchParams)
         results.push(result)
       }
 
