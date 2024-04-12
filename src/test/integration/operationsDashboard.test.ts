@@ -185,7 +185,7 @@ describe('Should test admin operations', () => {
     for (const result of results) {
       assert(result.hits.length === 0, 'list not empty')
     }
-    setTimeout(() => {}, 11000)
+    setTimeout(() => {}, DEFAULT_TEST_TIMEOUT)
     console.log('indexerLastBlockBeforereindex ', indexerLastBlockBeforereindex)
     console.log(
       '(await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)): ',
