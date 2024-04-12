@@ -331,6 +331,12 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           decodedEventData.args[4]
         )}, hash 4: ${create256Hash(JSON.stringify(decodedEventData.args[4]))}`
       )
+      INDEXER_LOGGER.logMessage(
+        `document hash: ${
+          '0x' + createHash('sha256').update(JSON.stringify(ddo)).digest('hex')
+        }`
+      )
+
       // if (
       //   decodedEventData.args[5] &&
       //   decodedEventData.args[5] !== create256Hash(JSON.stringify(ddo))
