@@ -16,8 +16,8 @@ import urlJoin from 'url-join'
 import { encrypt as encryptData, decrypt as decryptData } from '../../utils/crypt.js'
 import { Readable } from 'stream'
 import { getConfiguration } from '../../utils/index.js'
-import { hexlify } from 'ethers'
 import AWS from 'aws-sdk'
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3'
 
 export abstract class Storage {
   private file: UrlFileObject | IpfsFileObject | ArweaveFileObject | S3FileObject
@@ -413,21 +413,17 @@ export class S3Storage extends Storage {
     })
   }
 
-  getDownloadUrl(): string {
-    const fileHash = this.getFile().hash
-    return fileHash
+  isFilePath(): boolean {
+    const { endpoint } = this.getFile().s3Access
+    return endpoint.includes('.')
   }
 
-  // async getS3Object(): Promise<S3Object> {
-  //   const file = this.getFile()
-  //   const fileStream = Readable.from(file.hash)
-  //   const streamString = await streamToString(fileStream)
-  //   const encryptedData = ethers.getBytes(streamString)
-  //   const decryptedData = await decryptData(encryptedData, file.encryptMethod)
-  //   return JSON.parse(decryptedData.toString()) as S3Object
-  // }
+  getDownloadUrl(): string {
+    const { s3Access } = this.getFile()
+    return JSON.stringify(s3Access)
+  }
 
-  async fetchData(): Promise<any> {
+  async fetchDataContent(): Promise<any> {
     const s3Obj = await this.getFile().s3Access
     const spacesEndpoint = new AWS.Endpoint(s3Obj.endpoint)
     const s3 = new AWS.S3({
@@ -443,15 +439,46 @@ export class S3Storage extends Storage {
     }
     try {
       const data = await s3.getObject(params).promise()
-      console.log('Successfully retrieved object from S3')
+      console.log('Successfully fetched data from S3')
       return data
     } catch (err) {
       console.error('Error fetching object from S3:', err)
     }
   }
 
+  async fetchDataStream(): Promise<any> {
+    const s3Obj = await this.getFile().s3Access
+    const spacesEndpoint = new AWS.Endpoint(s3Obj.endpoint)
+    const s3Client = new S3Client({
+      endpoint: {
+        hostname: spacesEndpoint.hostname,
+        protocol: spacesEndpoint.protocol,
+        path: '/'
+      },
+      region: s3Obj.region,
+      credentials: {
+        accessKeyId: s3Obj.accessKeyId,
+        secretAccessKey: s3Obj.secretAccessKey
+      }
+    })
+
+    const params = {
+      Bucket: s3Obj.bucket,
+      Key: s3Obj.objectKey
+    }
+    try {
+      const response = await s3Client.send(new GetObjectCommand(params))
+
+      const dataStream = response.Body
+      console.log('Successfully retrieved object from S3')
+      return dataStream
+    } catch (err) {
+      console.error('Error fetching object from S3:', err)
+    }
+  }
+
   async fetchSpecificFileMetadata(): Promise<FileInfoResponse> {
-    const data = await this.fetchData()
+    const data = await this.fetchDataContent()
     const s3Obj = await this.getFile().s3Access
     return {
       valid: true,
@@ -464,35 +491,10 @@ export class S3Storage extends Storage {
     }
   }
 
-  async encryptDataContent(
-    data: S3Object,
-    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
-  ): Promise<String> {
-    const genericAssetData = Uint8Array.from(Buffer.from(JSON.stringify(data)))
-    const encryptedData = await encryptData(genericAssetData, encryptionType)
-    const encryptedMetaData = hexlify(encryptedData)
-    return encryptedMetaData
-  }
-
-  // async decryptDataContent(
-  //   hash: String,
-  //   encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
-  // ): Promise<Buffer> {
-  //   try {
-  //     const fileStream = Readable.from(hash)
-  //     const streamString = await streamToString(fileStream)
-  //     const encryptedData = ethers.getBytes(streamString)
-  //     const data = await decryptData(encryptedData, encryptionType)
-  //     return data
-  //   } catch (err) {
-  //     console.error('Error fetching object from S3:', err)
-  //   }
-  // }
-
   async encryptContent(
     encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
   ): Promise<Buffer> {
-    const data = await this.fetchData()
+    const data = await this.fetchDataContent()
     return await encryptData(data, encryptionType)
   }
 }

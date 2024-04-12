@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import { EncryptMethod, S3FileObject, S3Object } from '../../@types/fileObject.js'
-import { Readable } from 'stream'
+import { Readable, Transform } from 'stream'
 import { S3Storage } from '../../components/storage/index.js'
 
 describe('S3 Storage tests', () => {
@@ -45,15 +45,49 @@ describe('S3 Storage tests', () => {
     expect(parsedData).to.deep.equal({ key: 'value' })
   })
 
+  it('should fetch data from s3', () => {
+    const result = s3Storage.getDownloadUrl()
+    expect(result).to.be.equal(JSON.stringify(s3Object))
+  })
+
   it('should fetch data from s3', async () => {
-    const data = await s3Storage.fetchData()
-    const jsonData = JSON.parse(data.Body.toString('utf-8'))
-    expect(jsonData.test).to.be.equals(1)
+    const data = await s3Storage.fetchDataStream()
+
+    const jsonTransformStream = new Transform({
+      transform(chunk, encoding, callback) {
+        const json = JSON.parse(chunk.toString('utf-8'))
+        callback(null, JSON.stringify(json))
+      }
+    })
+
+    // Pipe the data stream through the JSON transform stream
+    const dataJson = data.pipe(jsonTransformStream)
+    let transformedJson = ''
+
+    const streamFinishedPromise = new Promise<void>((resolve, reject) => {
+      dataJson.on('data', (chunk: any) => {
+        transformedJson += chunk
+      })
+      dataJson.on('finish', () => {
+        resolve()
+      })
+      dataJson.on('error', (err: any) => {
+        console.error('Error reading stream:', err)
+        reject(err)
+      })
+    })
+
+    await streamFinishedPromise
+
+    const jsonData = JSON.parse(transformedJson)
+
+    expect(jsonData.test).to.equal(1)
   })
 
   it('should fetch fetchSpecificFileMetadata from s3', async () => {
     const data = await s3Storage.fetchSpecificFileMetadata()
     expect(data.encryptMethod).to.be.equals(EncryptMethod.ECIES)
     expect(data.name).to.be.equals(s3Object.objectKey)
+    expect(data.contentType).to.be.equals('application/json')
   })
 })
