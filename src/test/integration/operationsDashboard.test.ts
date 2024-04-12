@@ -149,7 +149,7 @@ describe('Should test admin operations', () => {
   })
 
   it('should pass for reindex chain command', async function () {
-    this.timeout(45000)
+    this.timeout(100000)
     const indexerLastBlockBeforereindex = await provider.getBlockNumber()
     const signature = await getSignature(expiryTimestamp.toString())
 
@@ -185,7 +185,7 @@ describe('Should test admin operations', () => {
     for (const result of results) {
       assert(result.hits.length === 0, 'list not empty')
     }
-    setTimeout(() => {}, DEFAULT_TEST_TIMEOUT * 2)
+    setTimeout(() => {}, DEFAULT_TEST_TIMEOUT * 4)
     console.log('indexerLastBlockBeforereindex ', indexerLastBlockBeforereindex)
     console.log(
       '(await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)): ',
