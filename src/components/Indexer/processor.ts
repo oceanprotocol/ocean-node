@@ -303,14 +303,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         decodedEventData.args[5],
         decodedEventData.args[4]
       )
-      INDEXER_LOGGER.logMessage(
-        `ddo.id: ${ddo.id}, hash: ${
-          'did:op:' +
-          createHash('sha256')
-            .update(getAddress(event.address) + chainId.toString(10))
-            .digest('hex')
-        }`
-      )
       if (
         ddo.id !==
         'did:op:' +
