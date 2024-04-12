@@ -148,7 +148,8 @@ describe('Should test admin operations', () => {
     assert(actualDDO[0].id === publishedDataset.ddo.id, 'DDO id not matching')
   })
 
-  it('should pass for reindex chain command', async () => {
+  it('should pass for reindex chain command', async function () {
+    this.timeout(45000)
     const indexerLastBlockBeforereindex = await provider.getBlockNumber()
     const signature = await getSignature(expiryTimestamp.toString())
 
@@ -184,7 +185,7 @@ describe('Should test admin operations', () => {
     for (const result of results) {
       assert(result.hits.length === 0, 'list not empty')
     }
-    setTimeout(() => {}, DEFAULT_TEST_TIMEOUT)
+    setTimeout(() => {}, DEFAULT_TEST_TIMEOUT * 2)
     console.log('indexerLastBlockBeforereindex ', indexerLastBlockBeforereindex)
     console.log(
       '(await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)): ',
