@@ -62,9 +62,7 @@ export async function status(
       arch: os.arch(),
       machine: os.machine(),
       platform: os.platform(),
-      release: os.release(),
       osType: os.type(),
-      osVersion: os.version(),
       node: process.version
     },
     codeHash: config.codeHash,

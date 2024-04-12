@@ -38,4 +38,5 @@ ENV P2P_ipV6BindWsPort=9003
 EXPOSE 9003
 ENV HTTP_API_PORT=8000
 EXPOSE 8000
+ENV NODE_ENV='production'
 CMD ["npm","run","start"]
