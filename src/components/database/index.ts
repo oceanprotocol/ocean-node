@@ -32,18 +32,46 @@ export class OrderDatabase {
     })() as unknown as OrderDatabase
   }
 
-  async search(query: Record<string, any>) {
+  async search(
+    query: Record<string, any>,
+    maxResultsPerPage?: number,
+    pageNumber?: number
+  ) {
     try {
-      const results = []
+      let queryObj: TypesenseSearchParams
+
+      // if queryObj is a string
+      if (typeof query === 'string') {
+        queryObj = JSON.parse(query)
+      } else {
+        queryObj = query as TypesenseSearchParams
+      }
+
+      // Check if the necessary properties are present
+      if (!queryObj.q || !queryObj.query_by) {
+        throw new Error("The query object must include 'q' and 'query_by' properties.")
+      }
+      const maxPerPage = maxResultsPerPage ? Math.min(maxResultsPerPage, 250) : 250 // Cap maxResultsPerPage at 250
+      const page = pageNumber || 1 // Default to the first page if pageNumber is not provided
+
+      // Modify the query to include pagination parameters
+      const searchParams: TypesenseSearchParams = {
+        ...queryObj,
+        per_page: maxPerPage,
+        page
+      }
+
       const result = await this.provider
         .collections(this.schema.name)
         .documents()
-        .search(query as TypesenseSearchParams)
-      results.push(result)
-      return results
+        .search(searchParams)
+
+      // Instead of pushing the entire result, only include the documents
+      return result.hits.map((hit) => hit.document)
     } catch (error) {
       const errorMsg =
-        `Error when searching order entry by query ${query}: ` + error.message
+        `Error when searching order entry by query ${JSON.stringify(query)}: ` +
+        error.message
       DATABASE_LOGGER.logMessageWithEmoji(
         errorMsg,
         true,
@@ -357,19 +385,43 @@ export class DdoDatabase {
     }
   }
 
-  async search(query: Record<string, any>) {
+  async search(
+    query: Record<string, any>,
+    maxResultsPerPage?: number,
+    pageNumber?: number
+  ) {
     try {
+      let queryObj: TypesenseSearchParams
+      // if queryObj is a string
+      if (typeof query === 'string') {
+        queryObj = JSON.parse(query)
+      } else {
+        queryObj = query as TypesenseSearchParams
+      }
+
+      const maxPerPage = maxResultsPerPage ? Math.min(maxResultsPerPage, 250) : 250 // Cap maxResultsPerPage at 250
+      const page = pageNumber || 1 // Default to the first page if pageNumber is not provided
       const results = []
+
       for (const schema of this.schemas) {
+        // Extend the query with pagination parameters
+        const searchParams: TypesenseSearchParams = {
+          ...queryObj,
+          per_page: maxPerPage,
+          page
+        }
+
         const result = await this.provider
           .collections(schema.name)
           .documents()
-          .search(query as TypesenseSearchParams)
+          .search(searchParams)
         results.push(result)
       }
+
       return results
     } catch (error) {
-      const errorMsg = `Error when searching by query ${query}: ` + error.message
+      const errorMsg =
+        `Error when searching by query ${JSON.stringify(query)}: ` + error.message
       DATABASE_LOGGER.logMessageWithEmoji(
         errorMsg,
         true,
@@ -797,7 +849,8 @@ export class LogDatabase {
     endTime: Date,
     maxLogs: number,
     moduleName?: string,
-    level?: string
+    level?: string,
+    page?: number
   ): Promise<Record<string, any>[] | null> {
     try {
       let filterConditions = `timestamp:>=${startTime.getTime()} && timestamp:<${endTime.getTime()}`
@@ -807,8 +860,10 @@ export class LogDatabase {
       if (level) {
         filterConditions += ` && level:${level}`
       }
+
+      // Cap maxLogs at 250 to adhere to Typesense's maximum limit
+      const logsLimit = Math.min(maxLogs, 250)
       if (maxLogs > 250) {
-        maxLogs = 250
         DATABASE_LOGGER.logMessageWithEmoji(
           `Max logs is capped at 250 as Typesense is unable to return more results per page.`,
           true,
@@ -817,21 +872,26 @@ export class LogDatabase {
         )
       }
 
+      // Define search parameters
       const searchParameters = {
         q: '*',
         query_by: 'message,level,meta',
         filter_by: filterConditions,
         sort_by: 'timestamp:desc',
-        per_page: maxLogs
+        per_page: logsLimit,
+        page: page || 1 // Default to the first page if page number is not provided
       }
 
+      // Execute search query
       const result = await this.provider
         .collections(this.schema.name)
         .documents()
         .search(searchParameters)
+
+      // Map and return the search hits as log entries
       return result.hits.map((hit) => hit.document)
     } catch (error) {
-      const errorMsg = `Error when retrieving mutliple log entries: ` + error.message
+      const errorMsg = `Error when retrieving multiple log entries: ${error.message}`
       DATABASE_LOGGER.logMessageWithEmoji(
         errorMsg,
         true,
