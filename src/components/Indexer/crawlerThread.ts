@@ -232,5 +232,6 @@ parentPort.on('message', (message) => {
   if (message.method === 'reset-crawling') {
     REINDEX_BLOCK = getDeployedContractBlock(message.chainId)
     INDEXER_LOGGER.logMessage(`REINDEX BLOCK: ${REINDEX_BLOCK}`)
+    proccesNetworkData()
   }
 })
