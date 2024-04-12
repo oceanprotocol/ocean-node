@@ -394,7 +394,7 @@ export class DdoDatabase {
       let queryObj: TypesenseSearchParams
       // if queryObj is a string
       if (typeof query === 'string') {
-        queryObj = JSON.parse(query)
+        queryObj = JSON.parse(query) as TypesenseSearchParams
       } else {
         queryObj = query as TypesenseSearchParams
       }
