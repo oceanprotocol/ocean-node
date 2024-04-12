@@ -37,6 +37,7 @@ import { ReindexChainHandler } from '../../components/core/admin/reindexChainHan
 import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import { streamToObject } from '../../utils/util.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
+import { TypesenseSearchParams } from '../../@types/Typesense.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -173,9 +174,9 @@ describe('Should test admin operations', () => {
       (await dbconn.ddo.retrieve(publishedDataset.ddo.id)) === null,
       'ddo does not exist'
     )
-    const searchParameters = {
-      q: '*',
-      quey_by: `chainId:${DEVELOPMENT_CHAIN_ID}`
+    const searchParameters: TypesenseSearchParams = {
+      q: `${DEVELOPMENT_CHAIN_ID}`,
+      query_by: 'chainId'
     }
     // search all ddos published on 8996 chain ID
     const results = await dbconn.ddo.search(searchParameters)
