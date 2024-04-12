@@ -133,6 +133,9 @@ export async function proccesNetworkData(): Promise<void> {
             blocksToProcess
           )
           let lastIndexedBlock
+          INDEXER_LOGGER.logMessage(
+            `REINDEX BLOCK reindex chain command: ${REINDEX_BLOCK}`
+          )
           if (REINDEX_BLOCK) {
             lastIndexedBlock = REINDEX_BLOCK
             INDEXER_LOGGER.logMessage(

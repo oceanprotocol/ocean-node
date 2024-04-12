@@ -7,6 +7,7 @@ import { RPCS } from '../../@types/blockchain.js'
 import { downloadAsset } from '../data/assets.js'
 import { publishAsset } from '../utils/assets.js'
 import {
+  DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
@@ -38,6 +39,7 @@ import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import { streamToObject } from '../../utils/util.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { TypesenseSearchParams } from '../../@types/Typesense.js'
+import { delay } from './testUtils.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -183,6 +185,7 @@ describe('Should test admin operations', () => {
     for (const result of results) {
       assert(result.hits.length === 0, 'list not empty')
     }
+    setTimeout(() => {}, 11000)
     console.log('indexerLastBlockBeforereindex ', indexerLastBlockBeforereindex)
     console.log(
       '(await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)): ',
