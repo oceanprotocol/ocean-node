@@ -221,10 +221,7 @@ export function checkNewlyIndexedAssets(events: BlocksEvents): void {
 }
 
 parentPort.on('message', async (message) => {
-  if (message.method === 'start-crawling' || message.method === 'reset-crawling') {
-    // if (message.method === 'reset-crawling') {
-    //   REINDEX_BLOCK = getDeployedContractBlock(message.chainId)
-    // }
+  if (message.method === 'start-crawling') {
     await proccesNetworkData()
   }
   if (message.method === 'add-reindex-task') {
