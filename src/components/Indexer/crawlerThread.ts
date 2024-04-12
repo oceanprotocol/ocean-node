@@ -136,13 +136,14 @@ export async function proccesNetworkData(): Promise<void> {
           let lastIndexedBlock
           if (REINDEX_BLOCK) {
             lastIndexedBlock = REINDEX_BLOCK
+            INDEXER_LOGGER.logMessage(
+              `lastIndexedBlock for reindex chain command: ${lastIndexedBlock}`
+            )
             REINDEX_BLOCK = null
           } else {
             lastIndexedBlock = processedBlocks.lastBlock
-            INDEXER_LOGGER.logMessage(
-              `lastIndexedBlock: ${lastIndexedBlock} and processedBlocks.lastBlock: ${processedBlocks.lastBlock}`
-            )
           }
+          INDEXER_LOGGER.logMessage(`lastIndexedBlock: ${lastIndexedBlock}`)
           await updateLastIndexedBlockNumber(lastIndexedBlock)
           chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
         } catch (error) {
@@ -227,5 +228,6 @@ parentPort.on('message', (message) => {
   }
   if (message.method === 'reset-crawling') {
     REINDEX_BLOCK = getDeployedContractBlock(message.chainId)
+    INDEXER_LOGGER.logMessage(`REINDEX BLOCK: ${REINDEX_BLOCK}`)
   }
 })
