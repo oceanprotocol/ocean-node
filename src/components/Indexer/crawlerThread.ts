@@ -221,7 +221,11 @@ export function checkNewlyIndexedAssets(events: BlocksEvents): void {
 }
 
 parentPort.on('message', async (message) => {
-  if (message.method === 'start-crawling') {
+  if (message.method === 'start-crawling' || message.method === 'reset-crawling') {
+    if (message.method === 'reset-crawling') {
+      REINDEX_BLOCK = getDeployedContractBlock(message.chainId)
+      INDEXER_LOGGER.logMessage(`REINDEX BLOCK: ${REINDEX_BLOCK}`)
+    }
     await proccesNetworkData()
   }
   if (message.method === 'add-reindex-task') {
@@ -229,8 +233,6 @@ parentPort.on('message', async (message) => {
       REINDEX_QUEUE.push(message.reindexTask)
     }
   }
-  if (message.method === 'reset-crawling') {
-    REINDEX_BLOCK = getDeployedContractBlock(message.chainId)
-    INDEXER_LOGGER.logMessage(`REINDEX BLOCK: ${REINDEX_BLOCK}`)
-  }
+  // if (message.method === 'reset-crawling') {
+  // }
 })
