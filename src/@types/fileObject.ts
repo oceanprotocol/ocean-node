@@ -25,11 +25,6 @@ export interface UrlFileObject extends BaseFileObject {
 export interface IpfsFileObject extends BaseFileObject {
   hash: string
 }
-
-export interface S3FileObject extends BaseFileObject {
-  hash: string
-}
-
 export interface S3Object {
   endpoint: string
   region: string
@@ -37,6 +32,9 @@ export interface S3Object {
   bucket: string
   accessKeyId: string
   secretAccessKey: string
+}
+export interface S3FileObject extends BaseFileObject {
+  s3Access: S3Object
 }
 
 export interface ArweaveFileObject extends BaseFileObject {

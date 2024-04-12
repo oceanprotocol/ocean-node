@@ -16,8 +16,7 @@ import urlJoin from 'url-join'
 import { encrypt as encryptData, decrypt as decryptData } from '../../utils/crypt.js'
 import { Readable } from 'stream'
 import { getConfiguration } from '../../utils/index.js'
-import { streamToString } from '../../utils/util.js'
-import { ethers, hexlify } from 'ethers'
+import { hexlify } from 'ethers'
 import AWS from 'aws-sdk'
 
 export abstract class Storage {
@@ -357,8 +356,8 @@ export class S3Storage extends Storage {
 
   validate(): [boolean, string] {
     const file: S3FileObject = this.getFile() as S3FileObject
-    if (!file.hash) {
-      return [false, 'Missing Hash']
+    if (!file.s3Access) {
+      return [false, 'Missing s3Access']
     }
     return [true, '']
   }
@@ -388,17 +387,17 @@ export class S3Storage extends Storage {
     return fileHash
   }
 
-  async getS3Object(): Promise<S3Object> {
-    const file = this.getFile()
-    const fileStream = Readable.from(file.hash)
-    const streamString = await streamToString(fileStream)
-    const encryptedData = ethers.getBytes(streamString)
-    const decryptedData = await decryptData(encryptedData, file.encryptMethod)
-    return JSON.parse(decryptedData.toString()) as S3Object
-  }
+  // async getS3Object(): Promise<S3Object> {
+  //   const file = this.getFile()
+  //   const fileStream = Readable.from(file.hash)
+  //   const streamString = await streamToString(fileStream)
+  //   const encryptedData = ethers.getBytes(streamString)
+  //   const decryptedData = await decryptData(encryptedData, file.encryptMethod)
+  //   return JSON.parse(decryptedData.toString()) as S3Object
+  // }
 
   async fetchData(): Promise<any> {
-    const s3Obj = await this.getS3Object()
+    const s3Obj = await this.getFile().s3Access
     const spacesEndpoint = new AWS.Endpoint(s3Obj.endpoint)
     const s3 = new AWS.S3({
       endpoint: spacesEndpoint,
@@ -422,7 +421,7 @@ export class S3Storage extends Storage {
 
   async fetchSpecificFileMetadata(): Promise<FileInfoResponse> {
     const data = await this.fetchData()
-    const s3Obj = await this.getS3Object()
+    const s3Obj = await this.getFile().s3Access
     return {
       valid: true,
       contentLength: data.ContentLength,
@@ -444,29 +443,25 @@ export class S3Storage extends Storage {
     return encryptedMetaData
   }
 
-  async decryptDataContent(
-    hash: String,
-    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
-  ): Promise<Buffer> {
-    try {
-      const fileStream = Readable.from(hash)
-      const streamString = await streamToString(fileStream)
-      const encryptedData = ethers.getBytes(streamString)
-      const data = await decryptData(encryptedData, encryptionType)
-      return data
-    } catch (err) {
-      console.error('Error fetching object from S3:', err)
-    }
-  }
+  // async decryptDataContent(
+  //   hash: String,
+  //   encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
+  // ): Promise<Buffer> {
+  //   try {
+  //     const fileStream = Readable.from(hash)
+  //     const streamString = await streamToString(fileStream)
+  //     const encryptedData = ethers.getBytes(streamString)
+  //     const data = await decryptData(encryptedData, encryptionType)
+  //     return data
+  //   } catch (err) {
+  //     console.error('Error fetching object from S3:', err)
+  //   }
+  // }
 
   async encryptContent(
     encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
   ): Promise<Buffer> {
-    const file = this.getFile()
-    const response = await axios({
-      url: file.hash,
-      method: 'get'
-    })
-    return await encryptData(response.data, encryptionType)
+    const data = await this.fetchData()
+    return await encryptData(data, encryptionType)
   }
 }
