@@ -416,7 +416,7 @@ export class DdoDatabase {
         const result = await this.provider
           .collections(schema.name)
           .documents()
-          .search(searchParams)
+          .search(searchParams as TypesenseSearchParams)
         results.push(result)
       }
 
