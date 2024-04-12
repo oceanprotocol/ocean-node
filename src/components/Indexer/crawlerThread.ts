@@ -16,7 +16,7 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getDatabase } from '../../utils/database.js'
 import { Log } from 'ethers'
 
-let REINDEX_BLOCK: number = null
+export let REINDEX_BLOCK: number = null
 
 export interface ReindexTask {
   txId: string
@@ -132,6 +132,7 @@ export async function proccesNetworkData(): Promise<void> {
             startBlock,
             blocksToProcess
           )
+          checkNewlyIndexedAssets(processedBlocks.foundEvents)
           let lastIndexedBlock
           INDEXER_LOGGER.logMessage(
             `REINDEX BLOCK reindex chain command: ${REINDEX_BLOCK}`
@@ -147,7 +148,6 @@ export async function proccesNetworkData(): Promise<void> {
           }
           INDEXER_LOGGER.logMessage(`lastIndexedBlock: ${lastIndexedBlock}`)
           await updateLastIndexedBlockNumber(lastIndexedBlock)
-          checkNewlyIndexedAssets(processedBlocks.foundEvents)
           chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
         } catch (error) {
           INDEXER_LOGGER.error(`network: ${rpcDetails.network} Error: ${error.message} `)
