@@ -16,7 +16,7 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getDatabase } from '../../utils/database.js'
 import { Log } from 'ethers'
 
-export let REINDEX_BLOCK: number = null
+let REINDEX_BLOCK: number = null
 
 export interface ReindexTask {
   txId: string
