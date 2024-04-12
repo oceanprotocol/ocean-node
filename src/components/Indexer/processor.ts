@@ -326,7 +326,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       INDEXER_LOGGER.logMessage(
         `document hash: ${
           '0x' + createHash('sha256').update(JSON.stringify(ddo)).digest('hex')
-        }`
+        } and document: ${JSON.stringify(ddo)}`
       )
 
       // if (
