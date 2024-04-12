@@ -42,12 +42,11 @@ export class ReindexChainHandler extends AdminHandler {
       )
 
       OceanIndexer.resetCrawling(task.chainId)
-      setTimeout(() => {
-        return {
-          status: { httpStatus: 200 },
-          stream: new ReadableString('REINDEX CHAIN OK')
-        }
-      }, 2000)
+      setTimeout(() => {}, 2000)
+      return {
+        status: { httpStatus: 200 },
+        stream: new ReadableString('REINDEX CHAIN OK')
+      }
     } catch (error) {
       CORE_LOGGER.error(`REINDEX chain: ${error.message}`)
       return buildErrorResponse(`REINDEX chain: ${error.message}`)
