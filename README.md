@@ -155,7 +155,7 @@ Now, back in your nodes terminal, you can run the tests
 npm run test:integration
 ```
 
-If you started barge without c2d components you can run a lighter version of integration tests that do no run the compute to data tests.
+If you started barge without c2d components you can run a lighter version of integration tests that do not run the compute to data tests.
 
 ```bash
 npm run test:integration-light
