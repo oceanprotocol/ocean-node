@@ -11,7 +11,8 @@ export function validateSignature(expiryTimestamp: number, signature: string): b
     const currentTimestamp = new Date().getTime()
     for (const address of allowedAdmins) {
       if (
-        ethers.getAddress(address) === ethers.getAddress(signerAddress) &&
+        ethers.getAddress(address.toLowerCase()) ===
+          ethers.getAddress(signerAddress.toLowerCase()) &&
         currentTimestamp < expiryTimestamp
       ) {
         return true
