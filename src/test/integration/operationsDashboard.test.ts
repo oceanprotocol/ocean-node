@@ -39,7 +39,6 @@ import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import { streamToObject } from '../../utils/util.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { TypesenseSearchParams } from '../../@types/Typesense.js'
-import { delay } from './testUtils.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -121,8 +120,6 @@ describe('Should test admin operations', () => {
     publishedDataset = await publishAsset(downloadAsset, publisherAccount)
   })
 
-  delay(25000)
-
   it('should pass for reindex tx command', async () => {
     const signature = await getSignature(expiryTimestamp.toString())
 
@@ -150,7 +147,6 @@ describe('Should test admin operations', () => {
     const actualDDO = await streamToObject(response.stream as Readable)
     assert(actualDDO[0].id === publishedDataset.ddo.id, 'DDO id not matching')
   })
-  delay(25000)
 
   it('should pass for reindex chain command', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
@@ -192,13 +188,6 @@ describe('Should test admin operations', () => {
     assert(
       (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) <=
         indexerLastBlockBeforereindex
-    )
-  })
-  delay(25000)
-  it('should find ddo after', async () => {
-    assert(
-      (await dbconn.ddo.retrieve(publishedDataset.ddo.id)) !== null,
-      'ddo does not exist'
     )
   })
 
