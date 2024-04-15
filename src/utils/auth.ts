@@ -2,26 +2,35 @@ import { ethers } from 'ethers'
 import { HTTP_LOGGER } from './logging/common.js'
 import { getAllowedAdmins } from './index.js'
 
-export function validateSignature(expiryTimestamp: number, signature: string): boolean {
+export function validateSignature(
+  expiryTimestamp: number,
+  signature: string
+): [boolean, string] {
   try {
     const message = expiryTimestamp.toString()
     const signerAddress = ethers.verifyMessage(message, signature).toLowerCase()
     HTTP_LOGGER.logMessage(`Resolved signer address: ${signerAddress}`)
     const allowedAdmins = getAllowedAdmins()
+    if (allowedAdmins.length === 0) {
+      const errorMsg = "Allowed admins list is empty. Please add admins' addresses."
+      HTTP_LOGGER.logMessage(errorMsg)
+      return [false, errorMsg]
+    }
     const currentTimestamp = new Date().getTime()
     for (const address of allowedAdmins) {
       if (
-        ethers.getAddress(address.toLowerCase()) ===
-          ethers.getAddress(signerAddress.toLowerCase()) &&
+        ethers.getAddress(address) === ethers.getAddress(signerAddress) &&
         currentTimestamp < expiryTimestamp
       ) {
-        return true
+        return [true, '']
       }
     }
-    HTTP_LOGGER.logMessage(`Signature ${signature} is invalid`)
-    return false
+    const errorMsg = `Signature ${signature} is invalid`
+    HTTP_LOGGER.logMessage(errorMsg)
+    return [false, errorMsg]
   } catch (e) {
-    HTTP_LOGGER.error(`Error during signature validation: ${e}`)
-    return false
+    const errorMsg = `Error during signature validation: ${e}`
+    HTTP_LOGGER.error(errorMsg)
+    return [false, errorMsg]
   }
 }

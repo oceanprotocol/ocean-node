@@ -16,8 +16,12 @@ export abstract class AdminHandler extends Handler {
     if (!commandValidation.valid) {
       return buildInvalidRequestMessage(commandValidation.reason)
     }
-    if (!validateSignature(command.expiryTimestamp, command.signature)) {
-      return buildInvalidRequestMessage('Expired authentication or invalid signature')
+    if (!validateSignature(command.expiryTimestamp, command.signature)[0]) {
+      return buildInvalidRequestMessage(
+        `Signature check failed: ${
+          validateSignature(command.expiryTimestamp, command.signature)[1]
+        }`
+      )
     }
     return {
       valid: true

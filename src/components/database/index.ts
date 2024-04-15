@@ -403,7 +403,7 @@ export class DdoDatabase {
       const page = pageNumber || 1 // Default to the first page if pageNumber is not provided
       const results = []
 
-      for (const schema of this.getSchemas()) {
+      for (const schema of this.schemas) {
         // Extend the query with pagination parameters
         const searchParams: TypesenseSearchParams = {
           ...queryObj,

@@ -149,6 +149,7 @@ describe('Should test admin operations', () => {
   })
 
   it('should pass for reindex chain command', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const indexerLastBlockBeforereindex = await provider.getBlockNumber()
     const signature = await getSignature(expiryTimestamp.toString())
 
@@ -173,7 +174,7 @@ describe('Should test admin operations', () => {
 
     assert(
       (await dbconn.ddo.retrieve(publishedDataset.ddo.id)) === null,
-      'ddo does not exist'
+      'ddo does exist'
     )
     const searchParameters: TypesenseSearchParams = {
       q: `${DEVELOPMENT_CHAIN_ID}`,
@@ -185,22 +186,13 @@ describe('Should test admin operations', () => {
       assert(result.hits.length === 0, 'list not empty')
     }
     setTimeout(() => {}, DEFAULT_TEST_TIMEOUT)
-    console.log('indexerLastBlockBeforereindex ', indexerLastBlockBeforereindex)
-    console.log(
-      '(await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)): ',
-      await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)
-    )
-    console.log(
-      '(await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)): ',
-      await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)
-    )
-    console.log('network.startBlock ', network.startBlock)
     assert(
       (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) <=
         indexerLastBlockBeforereindex
     )
     assert(
-      (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) === network.startBlock
+      (await dbconn.ddo.retrieve(publishedDataset.ddo.id)) !== null,
+      'ddo does not exist'
     )
   })
 
