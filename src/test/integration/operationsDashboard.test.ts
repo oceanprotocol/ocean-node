@@ -39,6 +39,7 @@ import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import { streamToObject } from '../../utils/util.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { TypesenseSearchParams } from '../../@types/Typesense.js'
+import { delay } from './testUtils.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -185,11 +186,13 @@ describe('Should test admin operations', () => {
     for (const result of results) {
       assert(result.hits.length === 0, 'list not empty')
     }
-    setTimeout(() => {}, DEFAULT_TEST_TIMEOUT)
     assert(
       (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) <=
         indexerLastBlockBeforereindex
     )
+  })
+  delay(25000)
+  it('should find ddo after', async () => {
     assert(
       (await dbconn.ddo.retrieve(publishedDataset.ddo.id)) !== null,
       'ddo does not exist'
