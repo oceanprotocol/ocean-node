@@ -134,16 +134,19 @@ export class DecryptDdoHandler extends Handler {
         }
       }
 
-      if (
-        config.authorizedDecrypters.length > 0 &&
-        !config.authorizedDecrypters.includes(decrypterAddress)
-      ) {
-        CORE_LOGGER.logMessage('Decrypt DDO: Decrypter not authorized', true)
-        return {
-          stream: null,
-          status: {
-            httpStatus: 403,
-            error: 'Decrypt DDO: Decrypter not authorized'
+      if (config.authorizedDecrypters.length > 0) {
+        // allow if on authorized list or it is own node
+        if (
+          !config.authorizedDecrypters.includes(decrypterAddress) &&
+          decrypterAddress !== config.keys.ethAddress
+        ) {
+          CORE_LOGGER.logMessage('Decrypt DDO: Decrypter not authorized', true)
+          return {
+            stream: null,
+            status: {
+              httpStatus: 403,
+              error: 'Decrypt DDO: Decrypter not authorized'
+            }
           }
         }
       }

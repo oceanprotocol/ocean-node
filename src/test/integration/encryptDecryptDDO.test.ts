@@ -22,7 +22,11 @@ import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
 import { Database } from '../../components/database/index.js'
 import { DecryptDdoHandler } from '../../components/core/handler/ddoHandler.js'
-import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/index.js'
+import {
+  ENVIRONMENT_VARIABLES,
+  getConfiguration,
+  PROTOCOL_COMMANDS
+} from '../../utils/index.js'
 import { Readable } from 'stream'
 import { OceanNode } from '../../OceanNode.js'
 import {
@@ -207,6 +211,20 @@ describe('Should encrypt and decrypt DDO', () => {
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(403)
     expect(response.status.error).to.equal('Decrypt DDO: Decrypter not authorized')
+  })
+
+  it('should authorize decrypter since is this node', async () => {
+    const config = await getConfiguration()
+    const decryptDDOTask: DecryptDDOCommand = {
+      command: PROTOCOL_COMMANDS.DECRYPT_DDO,
+      decrypterAddress: await config.keys.ethAddress,
+      chainId,
+      nonce: Date.now().toString(),
+      signature: '0x123'
+    }
+    const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
+    expect(response.status.httpStatus).to.not.equal(403)
+    expect(response.status.error).to.not.equal('Decrypt DDO: Decrypter not authorized')
   })
 
   it('should return asset not deployed by the data NFT factory', async () => {
