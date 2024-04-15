@@ -16,7 +16,7 @@ export default function AdminActions() {
       <div className={styles.title}>ADMIN ACTIONS</div>
       {!isConnected && <ConnectButton />}
       {isConnected && !admin && (
-        <div className={styles.connecting}>Your account does not have admin access</div>
+        <div className={styles.unauthorised}>Your account does not have admin access</div>
       )}
 
       {(!signature || !validTimestamp) && admin && (

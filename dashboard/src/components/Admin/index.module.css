@@ -120,6 +120,10 @@
   margin-bottom: 47px;
 }
 
+.unauthorised {
+  color: #ff3d00;
+}
+
 @media screen and (max-width: 700px) {
   .root {
     max-width: none;
