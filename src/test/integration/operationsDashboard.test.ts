@@ -116,7 +116,7 @@ describe('Should test admin operations', () => {
     assert(validationResponse.valid === true, 'validation for stop node command failed')
   })
 
-  it('should publish compute datasets & algos', async () => {
+  it('should publish dataset', async () => {
     publishedDataset = await publishAsset(downloadAsset, publisherAccount)
   })
 
@@ -149,7 +149,6 @@ describe('Should test admin operations', () => {
   })
 
   it('should pass for reindex chain command', async function () {
-    this.timeout(200000)
     const indexerLastBlockBeforereindex = await provider.getBlockNumber()
     const signature = await getSignature(expiryTimestamp.toString())
 
@@ -185,7 +184,7 @@ describe('Should test admin operations', () => {
     for (const result of results) {
       assert(result.hits.length === 0, 'list not empty')
     }
-    setTimeout(() => {}, DEFAULT_TEST_TIMEOUT * 8)
+    setTimeout(() => {}, DEFAULT_TEST_TIMEOUT)
     console.log('indexerLastBlockBeforereindex ', indexerLastBlockBeforereindex)
     console.log(
       '(await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)): ',
