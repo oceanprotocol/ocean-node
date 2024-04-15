@@ -132,22 +132,23 @@ export async function proccesNetworkData(): Promise<void> {
             startBlock,
             blocksToProcess
           )
-          checkNewlyIndexedAssets(processedBlocks.foundEvents)
-          let lastIndexedBlock
+          // checkNewlyIndexedAssets(processedBlocks.foundEvents)
+          // let lastIndexedBlock
           INDEXER_LOGGER.logMessage(
             `REINDEX BLOCK reindex chain command: ${REINDEX_BLOCK}`
           )
           if (REINDEX_BLOCK) {
-            lastIndexedBlock = REINDEX_BLOCK
             INDEXER_LOGGER.logMessage(
-              `lastIndexedBlock for reindex chain command: ${lastIndexedBlock}`
+              `lastIndexedBlock for reindex chain command: ${REINDEX_BLOCK}`
             )
+            await updateLastIndexedBlockNumber(REINDEX_BLOCK)
             REINDEX_BLOCK = null
           } else {
-            lastIndexedBlock = processedBlocks.lastBlock
+            await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
           }
-          INDEXER_LOGGER.logMessage(`lastIndexedBlock: ${lastIndexedBlock}`)
-          await updateLastIndexedBlockNumber(lastIndexedBlock)
+          // INDEXER_LOGGER.logMessage(`lastIndexedBlock: ${lastIndexedBlock}`)
+          // await updateLastIndexedBlockNumber(lastIndexedBlock)
+          checkNewlyIndexedAssets(processedBlocks.foundEvents)
           chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
         } catch (error) {
           INDEXER_LOGGER.error(`network: ${rpcDetails.network} Error: ${error.message} `)
@@ -220,19 +221,17 @@ export function checkNewlyIndexedAssets(events: BlocksEvents): void {
   })
 }
 
-parentPort.on('message', async (message) => {
-  if (message.method === 'start-crawling' || message.method === 'reset-crawling') {
-    if (message.method === 'reset-crawling') {
-      REINDEX_BLOCK = getDeployedContractBlock(message.chainId)
-      INDEXER_LOGGER.logMessage(`REINDEX BLOCK: ${REINDEX_BLOCK}`)
-    }
-    await proccesNetworkData()
+parentPort.on('message', (message) => {
+  if (message.method === 'start-crawling') {
+    proccesNetworkData()
   }
   if (message.method === 'add-reindex-task') {
     if (message.reindexTask) {
       REINDEX_QUEUE.push(message.reindexTask)
     }
   }
-  // if (message.method === 'reset-crawling') {
-  // }
+  if (message.method === 'reset-crawling') {
+    REINDEX_BLOCK = getDeployedContractBlock(message.chainId)
+    INDEXER_LOGGER.logMessage(`REINDEX BLOCK: ${REINDEX_BLOCK}`)
+  }
 })
