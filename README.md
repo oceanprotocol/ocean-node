@@ -158,7 +158,7 @@ npm run test:integration
 If you started barge without c2d components you can run a lighter version of integration tests that do not run the compute to data tests.
 
 ```bash
-npm run test:integration-light
+npm run test:integration:light
 ```
 
 ## Unit and integration .environments
