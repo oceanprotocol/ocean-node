@@ -10,6 +10,7 @@ import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { streamToObject } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { EncryptMethod } from '../../@types/fileObject.js'
+import { AlgoChecksums } from '../../@types/C2D.js'
 
 export async function checkC2DEnvExists(envId: string, oceanNode: OceanNode): Promise<boolean> {
   const config = await getConfiguration()
@@ -38,8 +39,8 @@ export async function getAlgoChecksums(
   algoDID: string,
   algoServiceId: string,
   oceanNode: OceanNode
-) {
-  const checksums = {
+): Promise <AlgoChecksums> {
+  const checksums: AlgoChecksums = {
     files: '',
     container: ''
   }
