@@ -11,7 +11,7 @@ import { streamToObject } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { EncryptMethod } from '../../@types/fileObject.js'
 
-export async function checkC2DEnvExists(envId: string, oceanNode: OceanNode) {
+export async function checkC2DEnvExists(envId: string, oceanNode: OceanNode): Promise<boolean> {
   const config = await getConfiguration()
   const { supportedNetworks } = config
   for (const supportedNetwork of Object.keys(supportedNetworks)) {
