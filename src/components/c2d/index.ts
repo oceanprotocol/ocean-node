@@ -12,7 +12,10 @@ import { Readable } from 'stream'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { AlgoChecksums } from '../../@types/C2D.js'
 
-export async function checkC2DEnvExists(envId: string, oceanNode: OceanNode): Promise<boolean> {
+export async function checkC2DEnvExists(
+  envId: string,
+  oceanNode: OceanNode
+): Promise<boolean> {
   const config = await getConfiguration()
   const { supportedNetworks } = config
   for (const supportedNetwork of Object.keys(supportedNetworks)) {
@@ -39,7 +42,7 @@ export async function getAlgoChecksums(
   algoDID: string,
   algoServiceId: string,
   oceanNode: OceanNode
-): Promise <AlgoChecksums> {
+): Promise<AlgoChecksums> {
   const checksums: AlgoChecksums = {
     files: '',
     container: ''
