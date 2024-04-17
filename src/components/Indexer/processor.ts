@@ -25,6 +25,7 @@ import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
+import { EncryptHandler } from '../core/handler/encryptHandler.js'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -328,6 +329,12 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           '0x' + createHash('sha256').update(JSON.stringify(ddo)).digest('hex')
         } and document: ${JSON.stringify(ddo)}`
       )
+      const encodedData = await new EncryptHandler().handle({
+        command: PROTOCOL_COMMANDS.ENCRYPT,
+        blob: JSON.stringify(ddo)
+      })
+
+      INDEXER_LOGGER.logMessage(`encodedData: ${encodedData}`)
 
       // if (
       //   decodedEventData.args[5] &&
