@@ -5,7 +5,6 @@ import { ComputeGetResultCommand } from '../../../@types/commands.js'
 import { C2DEngine } from '../../c2d/compute_engines.js'
 import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
 import {
-  buildInvalidParametersResponse,
   buildInvalidRequestMessage,
   validateCommandParameters,
   ValidateParams
@@ -35,9 +34,9 @@ export class ComputeGetResultHandler extends Handler {
   }
 
   async handle(task: ComputeGetResultCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
 
     let error = null

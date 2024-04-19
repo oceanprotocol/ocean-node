@@ -32,7 +32,6 @@ import {
   ValidateParams,
   buildInvalidParametersResponse,
   buildInvalidRequestMessage,
-  buildRateLimitReachedResponse,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import {
@@ -67,11 +66,10 @@ export class DecryptDdoHandler extends Handler {
   }
 
   async handle(task: DecryptDDOCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
-
     try {
       let decrypterAddress: string
       try {
@@ -383,9 +381,9 @@ export class GetDdoHandler extends Handler {
   }
 
   async handle(task: GetDdoCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     try {
       const ddo = await this.getOceanNode().getDatabase().ddo.retrieve(task.id)
@@ -419,9 +417,9 @@ export class FindDdoHandler extends Handler {
   }
 
   async handle(task: FindDDOCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     try {
       const node = this.getOceanNode()
@@ -734,18 +732,9 @@ export class ValidateDDOHandler extends Handler {
   }
 
   async handle(task: ValidateDDOCommand): Promise<P2PCommandResponse> {
-    if (!(await this.checkRateLimit())) {
-      return buildRateLimitReachedResponse()
-    }
-    const commandValidation = this.validate(task)
-    if (!commandValidation.valid) {
-      return {
-        stream: null,
-        status: {
-          httpStatus: commandValidation.status,
-          error: `Validation error: ${commandValidation.reason}`
-        }
-      }
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     try {
       const validation = await validateObject(

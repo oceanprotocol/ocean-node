@@ -145,9 +145,17 @@ export abstract class Handler implements ICommandHandler {
       return buildInvalidParametersResponse(validation)
     }
 
+    // all good!
     return {
       stream: new ReadableString('OK'),
       status: { httpStatus: 200, error: null }
     }
+  }
+
+  shouldDenyTaskHandling(validationResponse: P2PCommandResponse): boolean {
+    return (
+      validationResponse.status.httpStatus !== 200 ||
+      validationResponse.status.error !== null
+    )
   }
 }

@@ -5,8 +5,6 @@ import { Readable } from 'stream'
 import { OceanIndexer } from '../../Indexer/index.js'
 import {
   ValidateParams,
-  buildInvalidParametersResponse,
-  buildRateLimitReachedResponse,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 
@@ -17,12 +15,9 @@ export class ReindexHandler extends Handler {
 
   // eslint-disable-next-line require-await
   async handle(task: ReindexCommand): Promise<P2PCommandResponse> {
-    if (!(await this.checkRateLimit())) {
-      return buildRateLimitReachedResponse()
-    }
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     try {
       const txId: string = String(task.txId).toLowerCase()
