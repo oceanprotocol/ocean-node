@@ -23,9 +23,8 @@ import { getConfiguration } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
-import { create256Hash } from '../../utils/crypt.js'
+import { create256Hash, encrypt } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
-import { EncryptHandler } from '../core/handler/encryptHandler.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 
 class BaseEventProcessor {
@@ -330,19 +329,12 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           '0x' + createHash('sha256').update(JSON.stringify(ddo)).digest('hex')
         } and document: ${JSON.stringify(ddo)}`
       )
-      const encodedData = await new EncryptHandler().handle({
-        command: PROTOCOL_COMMANDS.ENCRYPT,
-        blob: JSON.stringify(ddo),
-        encryptionType: EncryptMethod.AES
-      })
+      const blobData = Uint8Array.from(Buffer.from(JSON.stringify(ddo)))
+      const encodedData = await encrypt(blobData, EncryptMethod.ECIES)
 
       INDEXER_LOGGER.logMessage(`encodedData with aes: ${encodedData}`)
 
-      const encodedDataEcies = await new EncryptHandler().handle({
-        command: PROTOCOL_COMMANDS.ENCRYPT,
-        blob: JSON.stringify(ddo),
-        encryptionType: EncryptMethod.ECIES
-      })
+      const encodedDataEcies = await encrypt(blobData, EncryptMethod.ECIES)
 
       INDEXER_LOGGER.logMessage(`encodedData with ecies: ${encodedDataEcies}`)
 
