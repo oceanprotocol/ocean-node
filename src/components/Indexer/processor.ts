@@ -324,6 +324,20 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           decodedEventData.args[4]
         )}, hash 4: ${create256Hash(JSON.stringify(decodedEventData.args[4]))}`
       )
+
+      // if (
+      //   decodedEventData.args[5] &&
+      //   decodedEventData.args[5] !== create256Hash(JSON.stringify(ddo))
+      // ) {
+      //   INDEXER_LOGGER.error(`Metadata hash is not matching.`)
+      //   return
+      // }
+      did = ddo.id
+      // stuff that we overwrite
+      ddo.chainId = chainId
+      ddo.nftAddress = event.address
+      ddo.datatokens = this.getTokenInfo(ddo.services)
+
       INDEXER_LOGGER.logMessage(
         `document hash: ${
           '0x' + createHash('sha256').update(JSON.stringify(ddo)).digest('hex')
@@ -341,19 +355,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       INDEXER_LOGGER.logMessage(
         `encodedData with ecies: ${'0x' + encodedDataEcies.toString('hex')}`
       )
-
-      // if (
-      //   decodedEventData.args[5] &&
-      //   decodedEventData.args[5] !== create256Hash(JSON.stringify(ddo))
-      // ) {
-      //   INDEXER_LOGGER.error(`Metadata hash is not matching.`)
-      //   return
-      // }
-      did = ddo.id
-      // stuff that we overwrite
-      ddo.chainId = chainId
-      ddo.nftAddress = event.address
-      ddo.datatokens = this.getTokenInfo(ddo.services)
 
       INDEXER_LOGGER.logMessage(
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
