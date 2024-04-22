@@ -4,7 +4,7 @@ import {
   validateCommandParameters,
   buildInvalidRequestMessage
 } from '../../httpRoutes/validateCommands.js'
-import { validateSignature } from '../../../utils/auth.js'
+import { validateAdminSignature } from '../../../utils/auth.js'
 import { Handler } from '../handler/handler.js'
 
 export abstract class AdminHandler extends Handler {
@@ -16,11 +16,13 @@ export abstract class AdminHandler extends Handler {
     if (!commandValidation.valid) {
       return buildInvalidRequestMessage(commandValidation.reason)
     }
-    if (!validateSignature(command.expiryTimestamp, command.signature)[0]) {
+    const signatureValidation = validateAdminSignature(
+      command.expiryTimestamp,
+      command.signature
+    )
+    if (!signatureValidation.valid) {
       return buildInvalidRequestMessage(
-        `Signature check failed: ${
-          validateSignature(command.expiryTimestamp, command.signature)[1]
-        }`
+        `Signature check failed: ${signatureValidation.error}`
       )
     }
     return {

@@ -141,10 +141,10 @@ export async function proccesNetworkData(): Promise<void> {
           }
           chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
         } catch (error) {
-          INDEXER_LOGGER.error(`network: ${rpcDetails.network} Error: ${error.message} `)
-          chunkSize = Math.floor(chunkSize / 2) < 1 ? 1 : Math.floor(chunkSize / 2)
-          INDEXER_LOGGER.logMessage(
-            `network: ${rpcDetails.network} processing ${blocksToProcess} blocks ...`
+          INDEXER_LOGGER.log(
+            LOG_LEVELS_STR.LEVEL_ERROR,
+            `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `,
+            true
           )
           await updateLastIndexedBlockNumber(startBlock + blocksToProcess)
         }
