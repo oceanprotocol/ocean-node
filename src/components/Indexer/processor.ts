@@ -332,11 +332,15 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       const blobData = Uint8Array.from(Buffer.from(JSON.stringify(ddo)))
       const encodedData = await encrypt(blobData, EncryptMethod.ECIES)
 
-      INDEXER_LOGGER.logMessage(`encodedData with aes: ${encodedData}`)
+      INDEXER_LOGGER.logMessage(
+        `encodedData with aes: ${'0x' + encodedData.toString('hex')}`
+      )
 
       const encodedDataEcies = await encrypt(blobData, EncryptMethod.ECIES)
 
-      INDEXER_LOGGER.logMessage(`encodedData with ecies: ${encodedDataEcies}`)
+      INDEXER_LOGGER.logMessage(
+        `encodedData with ecies: ${'0x' + encodedDataEcies.toString('hex')}`
+      )
 
       // if (
       //   decodedEventData.args[5] &&
