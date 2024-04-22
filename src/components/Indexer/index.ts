@@ -131,7 +131,6 @@ export class OceanIndexer {
 
   static resetCrawling(chainId: number): void {
     const worker = OceanIndexer.workers[chainId]
-    INDEXER_LOGGER.logMessage(`found worker: ${worker}`)
     if (worker) {
       worker.postMessage({ method: 'reset-crawling', chainId })
     }

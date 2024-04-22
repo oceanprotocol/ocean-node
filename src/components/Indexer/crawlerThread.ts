@@ -17,6 +17,7 @@ import { getDatabase } from '../../utils/database.js'
 import { Log } from 'ethers'
 
 let REINDEX_BLOCK: number = null
+let lockProccessing: boolean = null
 
 export interface ReindexTask {
   txId: string
@@ -82,7 +83,7 @@ export async function proccesNetworkData(): Promise<void> {
   // we can override the default value of 30 secs, by setting process.env.INDEXER_INTERVAL
   const interval = getCrawlingInterval()
   let { chunkSize } = rpcDetails
-  let lockProccessing = false
+  lockProccessing = false
   while (true) {
     if (!lockProccessing) {
       lockProccessing = true
@@ -221,6 +222,8 @@ parentPort.on('message', (message) => {
     }
   }
   if (message.method === 'reset-crawling') {
+    lockProccessing = true
     REINDEX_BLOCK = getDeployedContractBlock(message.chainId)
+    lockProccessing = false
   }
 })
