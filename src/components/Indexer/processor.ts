@@ -26,6 +26,7 @@ import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
 import { EncryptHandler } from '../core/handler/encryptHandler.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -331,10 +332,19 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       )
       const encodedData = await new EncryptHandler().handle({
         command: PROTOCOL_COMMANDS.ENCRYPT,
-        blob: JSON.stringify(ddo)
+        blob: JSON.stringify(ddo),
+        encryptionType: EncryptMethod.AES
       })
 
-      INDEXER_LOGGER.logMessage(`encodedData: ${encodedData}`)
+      INDEXER_LOGGER.logMessage(`encodedData with aes: ${encodedData}`)
+
+      const encodedDataEcies = await new EncryptHandler().handle({
+        command: PROTOCOL_COMMANDS.ENCRYPT,
+        blob: JSON.stringify(ddo),
+        encryptionType: EncryptMethod.ECIES
+      })
+
+      INDEXER_LOGGER.logMessage(`encodedData with ecies: ${encodedDataEcies}`)
 
       // if (
       //   decodedEventData.args[5] &&
