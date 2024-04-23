@@ -48,25 +48,25 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
     if (storedSignature) {
       setSignature(storedSignature)
     }
-  }, [])
+  }, [address, isConnected])
 
   useEffect(() => {
     if (expiryTimestamp) {
       localStorage.setItem('expiryTimestamp', expiryTimestamp.toString())
     }
-  }, [expiryTimestamp])
+  }, [expiryTimestamp, address, isConnected])
 
   useEffect(() => {
     if (signature) {
       localStorage.setItem('signature', signature)
     }
-  }, [signature])
+  }, [signature, address, isConnected])
 
   useEffect(() => {
     if (signMessageData) {
       setSignature(signMessageData)
     }
-  }, [signMessageData])
+  }, [signMessageData, address, isConnected])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -77,7 +77,7 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
     }, 300000) // Check every 5 minutes
 
     return () => clearInterval(interval)
-  }, [expiryTimestamp])
+  }, [expiryTimestamp, address, isConnected])
 
   const generateSignature = () => {
     if (isConnected && (!expiryTimestamp || Date.now() >= expiryTimestamp)) {
@@ -103,13 +103,13 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
     setValidTimestamp
   }
 
+  // Update admin status based on current address
   useEffect(() => {
-    for (const adminAddress of allAdmins) {
-      if (address && adminAddress.toLowerCase() === address.toLowerCase()) {
-        setAdmin(true)
-      }
-    }
-  }, [address, allAdmins])
+    const isAdmin = allAdmins.some(
+      (adminAddress) => address && adminAddress.toLowerCase() === address.toLowerCase()
+    )
+    setAdmin(isAdmin)
+  }, [address, allAdmins, isConnected])
 
   return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>
 }
