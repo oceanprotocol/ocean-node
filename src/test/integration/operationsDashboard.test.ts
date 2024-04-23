@@ -7,7 +7,6 @@ import { RPCS } from '../../@types/blockchain.js'
 import { downloadAsset } from '../data/assets.js'
 import { publishAsset } from '../utils/assets.js'
 import {
-  DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
@@ -37,13 +36,10 @@ import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.j
 import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
 import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import { streamToObject } from '../../utils/util.js'
-import { OceanIndexer } from '../../components/Indexer/index.js'
-import { TypesenseSearchParams } from '../../@types/Typesense.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
-  let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let publisherAccount: Signer
   let publishedDataset: any
@@ -85,7 +81,6 @@ describe('Should test admin operations', () => {
     config = await getConfiguration(true) // Force reload the configuration
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
-    indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
 
     network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
