@@ -38,6 +38,14 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
   const [signature, setSignature] = useState<string | undefined>()
   const [validTimestamp, setValidTimestamp] = useState<boolean>(true)
 
+  // Ensure signature and expiry are cleared when the account is changed or disconnected
+  useEffect(() => {
+    if (!isConnected || !address) {
+      setSignature(undefined)
+      setExpiryTimestamp(undefined)
+    }
+  }, [address, isConnected])
+
   useEffect(() => {
     const storedExpiry = localStorage.getItem('expiryTimestamp')
     if (storedExpiry) {
