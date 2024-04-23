@@ -214,9 +214,29 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'DASHBOARD',
     value: process.env.DASHBOARD,
     required: false
+  },
+  MAX_REQ_PER_SECOND: {
+    // rate limit per second
+    name: 'MAX_REQ_PER_SECOND',
+    value: process.env.MAX_REQ_PER_SECOND,
+    required: false
+  },
+  RATE_DENY_LIST: {
+    // rate limit / deny list (peers and ips)
+    name: 'RATE_DENY_LIST',
+    value: process.env.RATE_DENY_LIST,
+    required: false
+  },
+  MAX_CHECKSUM_LENGTH: {
+    // c2d, maximum length for a file if checksum is required.
+    name: 'MAX_CHECKSUM_LENGTH',
+    value: process.env.MAX_CHECKSUM_LENGTH,
+    required: false
   }
 }
 
+// default to 3 requests per second (configurable)
+export const DEFAULT_RATE_LIMIT_PER_SECOND = 3
 export const DDO_IDENTIFIER_PREFIX = 'did:op:'
 // global ocean node API services path
 export const SERVICES_API_BASE_PATH = '/api/services'

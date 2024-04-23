@@ -48,7 +48,7 @@ import {
 } from '../../utils/logging/Logger.js'
 import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
-import { CoreHandlersRegistry } from '../core/coreHandlersRegistry'
+import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000

@@ -1,27 +1,28 @@
 import { Readable } from 'stream'
 import urlJoin from 'url-join'
-import { P2PCommandResponse } from '../../@types'
+import { P2PCommandResponse } from '../../../@types/index.js'
 import {
   ArweaveFileObject,
   EncryptMethod,
   IpfsFileObject,
   UrlFileObject
-} from '../../@types/fileObject.js'
-import { FileInfoCommand } from '../../@types/commands.js'
-import { CORE_LOGGER } from '../../utils/logging/common.js'
-import { ArweaveStorage, IpfsStorage, UrlStorage } from '../storage/index.js'
+} from '../../../@types/fileObject.js'
+import { FileInfoCommand } from '../../../@types/commands.js'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { ArweaveStorage, IpfsStorage, UrlStorage } from '../../storage/index.js'
 import { Handler } from './handler.js'
-import { decrypt } from '../../utils/crypt.js'
-import { Service } from '../../@types/DDO/Service.js'
+import { decrypt } from '../../../utils/crypt.js'
+import { Service } from '../../../@types/DDO/Service.js'
 import { FindDdoHandler, validateDDOIdentifier } from './ddoHandler.js'
-import { AssetUtils, fetchFileMetadata } from '../../utils/asset.js'
-import { OceanNode } from '../../OceanNode.js'
+import { AssetUtils, fetchFileMetadata } from '../../../utils/asset.js'
+import { OceanNode } from '../../../OceanNode.js'
 import {
   ValidateParams,
   buildInvalidParametersResponse,
   buildInvalidRequestMessage,
+  buildRateLimitReachedResponse,
   validateCommandParameters
-} from '../httpRoutes/validateCommands.js'
+} from '../../httpRoutes/validateCommands.js'
 
 async function getFile(
   did: string,
@@ -68,13 +69,18 @@ async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFile
       ? (file as IpfsFileObject).hash
       : null
 
-  const { contentLength, contentType } = await fetchFileMetadata(url)
+  const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
+    url,
+    'get',
+    false
+  )
   CORE_LOGGER.logMessage(`Metadata for file: ${contentLength} ${contentType}`)
 
   return {
     valid: true,
     contentLength,
     contentType,
+    contentChecksum,
     name: new URL(url).pathname.split('/').pop() || '',
     type: file.type
   }
@@ -104,6 +110,9 @@ export class FileInfoHandler extends Handler {
   }
 
   async handle(task: FileInfoCommand): Promise<P2PCommandResponse> {
+    if (!(await this.checkRateLimit())) {
+      return buildRateLimitReachedResponse()
+    }
     const validation = this.validate(task)
     if (!validation.valid) {
       return buildInvalidParametersResponse(validation)

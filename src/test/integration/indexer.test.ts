@@ -41,7 +41,7 @@ import {
   PROTOCOL_COMMANDS
 } from '../../utils/constants.js'
 import { homedir } from 'os'
-import { QueryDdoStateHandler } from '../../components/core/queryHandler.js'
+import { QueryDdoStateHandler } from '../../components/core/handler/queryHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { QueryCommand } from '../../@types/commands.js'
 
