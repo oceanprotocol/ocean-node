@@ -1,18 +1,22 @@
 import { expect, assert } from 'chai'
 import { createHash } from 'crypto'
-import { JsonRpcProvider, Signer, Contract, ethers, hexlify, ZeroAddress, getAddress } from 'ethers'
+import {
+  JsonRpcProvider,
+  Signer,
+  Contract,
+  ethers,
+  hexlify,
+  ZeroAddress,
+  getAddress
+} from 'ethers'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { getEventFromTx } from '../../utils/util.js'
-import { delay, waitToIndex, deleteAsset } from './testUtils.js'
-import {
-  genericDDO,
-  remoteDDOTypeIPFSNotEncrypted,
-  remoteDDOTypeIPFSEncrypted
-} from '../data/ddo.js'
+import { waitToIndex } from './testUtils.js'
+import { genericDDO } from '../data/ddo.js'
 import {
   DEVELOPMENT_CHAIN_ID,
   getOceanArtifactsAdresses,
@@ -21,31 +25,30 @@ import {
 import {
   getMockSupportedNetworks,
   setupEnvironment,
+  tearDownEnvironment,
   OverrideEnvConfig,
   buildEnvOverrideConfig
 } from '../utils/utils.js'
-import {
-  ENVIRONMENT_VARIABLES,
-  EVENTS,
-  PROTOCOL_COMMANDS
-} from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES, EVENTS } from '../../utils/constants.js'
 import { homedir } from 'os'
-import { QueryDdoStateHandler } from '../../components/core/handler/queryHandler.js'
 import { OceanNode } from '../../OceanNode.js'
-import { QueryCommand } from '../../@types/commands.js'
-import { INDEXER_LOGGER } from '../../utils/logging/common.js'
-import { decrypt } from '../../utils/crypt.js'
 import axios from 'axios'
 
-function uploadToIpfs(data: any): Promise<string>{
+function uploadToIpfs(data: any): Promise<string> {
   return new Promise((resolve, reject) => {
-    axios.post('http://172.15.0.16:5001/api/v0/add', 
-    "--------------------------a28d68b1c872c96f\r\nContent-Disposition: form-data; name=\"file\"; filename=\"ddo.json\"\r\nContent-Type: application/octet-stream\r\n\r\n" + data+
-    "\r\n--------------------------a28d68b1c872c96f--\r\n",
-    { 
-      headers: {
-      'Content-Type': 'multipart/form-data; boundary=------------------------a28d68b1c872c96f'
-    }})
+    axios
+      .post(
+        'http://172.15.0.16:5001/api/v0/add',
+        '--------------------------a28d68b1c872c96f\r\nContent-Disposition: form-data; name="file"; filename="ddo.json"\r\nContent-Type: application/octet-stream\r\n\r\n' +
+          data +
+          '\r\n--------------------------a28d68b1c872c96f--\r\n',
+        {
+          headers: {
+            'Content-Type':
+              'multipart/form-data; boundary=------------------------a28d68b1c872c96f'
+          }
+        }
+      )
       .then(function (response: any) {
         resolve(response.data.Hash)
       })
@@ -57,22 +60,25 @@ function uploadToIpfs(data: any): Promise<string>{
 
 describe('RemoteDDO: Indexer stores a new metadata events and orders.', () => {
   let database: Database
+  // eslint-disable-next-line no-unused-vars
   let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let factoryContract: Contract
   let nftContract: Contract
   let publisherAccount: Signer
+  // eslint-disable-next-line no-unused-vars
   let consumerAccount: Signer
   let nftAddress: string
   let datatokenAddress: string
   let resolvedDDO: Record<string, any>
+  // eslint-disable-next-line no-unused-vars
   let genericAsset: any
   let setMetaDataTxReceipt: any
+  // eslint-disable-next-line no-unused-vars
   let oceanNode: OceanNode
   const chainId = 8996
-
-  const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   let previousConfiguration: OverrideEnvConfig[]
+  const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
   before(async () => {
     const dbConfig = {
@@ -116,10 +122,6 @@ describe('RemoteDDO: Indexer stores a new metadata events and orders.', () => {
     )
   })
 
-  it('instance Database', async () => {
-    expect(database).to.be.instanceOf(Database)
-  })
-
   it('should publish a dataset', async () => {
     const tx = await factoryContract.createNftWithErc20(
       {
@@ -156,16 +158,16 @@ describe('RemoteDDO: Indexer stores a new metadata events and orders.', () => {
   it('should set metadata and save (the remote DDO is encrypted) ', async () => {
     nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, publisherAccount)
     const did =
-        'did:op:' +
-        createHash('sha256')
-          .update(getAddress(nftAddress) + chainId.toString(10))
-          .digest('hex')
-    const ddoToPublish=genericDDO
-    ddoToPublish.id=did
-    const ipfsCID=await uploadToIpfs(JSON.stringify(ddoToPublish))
-    const remoteDDO={
-      remote:{
-        type: "ipfs",
+      'did:op:' +
+      createHash('sha256')
+        .update(getAddress(nftAddress) + chainId.toString(10))
+        .digest('hex')
+    const ddoToPublish = genericDDO
+    ddoToPublish.id = did
+    const ipfsCID = await uploadToIpfs(JSON.stringify(ddoToPublish))
+    const remoteDDO = {
+      remote: {
+        type: 'ipfs',
         hash: ipfsCID
       }
     }
@@ -189,17 +191,14 @@ describe('RemoteDDO: Indexer stores a new metadata events and orders.', () => {
 
   it('should store the ddo in the database and return it ', async () => {
     const did =
-        'did:op:' +
-        createHash('sha256')
-          .update(getAddress(nftAddress) + chainId.toString(10))
-          .digest('hex')
-    resolvedDDO = await waitToIndex(
-      did,
-      EVENTS.METADATA_CREATED
-    )
-    expect(resolvedDDO.ddo.id).to.equal(
-      did
-    )
+      'did:op:' +
+      createHash('sha256')
+        .update(getAddress(nftAddress) + chainId.toString(10))
+        .digest('hex')
+    resolvedDDO = await waitToIndex(did, EVENTS.METADATA_CREATED)
+    expect(resolvedDDO.ddo.id).to.equal(did)
   })
-
+  after(() => {
+    tearDownEnvironment(previousConfiguration)
+  })
 })
