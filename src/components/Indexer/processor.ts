@@ -324,7 +324,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           decodedEventData.args[4]
         )}, hash 4: ${create256Hash(
           JSON.stringify(decodedEventData.args[4])
-        )}, decoded data: ${JSON.stringify(decodedEventData)}`
+        )}, decoded data: ${decodedEventData}`
       )
 
       // if (
