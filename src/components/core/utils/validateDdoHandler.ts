@@ -171,6 +171,7 @@ export function isRemoteDDO(ddo: any): boolean {
   }
 
   return false
+}
 
 export async function getValidationSignature(ddo: string): Promise<any> {
   try {

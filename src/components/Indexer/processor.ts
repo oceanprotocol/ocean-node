@@ -435,6 +435,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     }
 
     return response
+  }
 
   async updatePurgatoryStateDdo(
     ddo: any,
