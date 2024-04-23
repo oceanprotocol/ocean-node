@@ -16,7 +16,6 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getDatabase } from '../../utils/database.js'
 import { Log } from 'ethers'
 
-// const REINDEX_BLOCK: number = null
 let lockProccessing: boolean = null
 
 export interface ReindexTask {
