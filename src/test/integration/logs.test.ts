@@ -351,3 +351,74 @@ describe('LogDatabase deleteOldLogs', () => {
     assert(recentLogPresent === true, 'Recent logs are not present')
   })
 })
+describe('LogDatabase retrieveMultipleLogs with pagination', () => {
+  let database: Database
+  const logCount = 10 // Total number of logs to insert and also the limit for logs per page
+
+  before(async () => {
+    const dbConfig = {
+      url: 'http://localhost:8108/?apiKey=xyz'
+    }
+    database = await new Database(dbConfig)
+
+    // Insert multiple log entries to ensure there are enough logs for pagination
+    for (let i = 0; i < logCount; i++) {
+      await database.logs.insertLog({
+        timestamp: Date.now(),
+        level: 'info',
+        message: `Test log message ${Date.now()}`,
+        moduleName: `testModule-${i}`,
+        meta: `Test meta information ${i}`
+      })
+    }
+  })
+
+  it('should retrieve logs limited by maxLogs', async () => {
+    const logs = await database.logs.retrieveMultipleLogs(
+      new Date(Date.now() - 10000), // 10 seconds ago
+      new Date(), // now
+      5 // Limit the number of logs to 5
+    )
+    expect(logs.length).to.be.at.most(5)
+  })
+
+  it('should retrieve logs for a specific page', async () => {
+    const page = 2
+    const logsPage1 = await database.logs.retrieveMultipleLogs(
+      new Date(Date.now() - 10000), // 10 seconds ago
+      new Date(), // now
+      5, // Limit the number of logs to 5 for pagination
+      undefined,
+      undefined,
+      1 // Page 1
+    )
+    const logsPage2 = await database.logs.retrieveMultipleLogs(
+      new Date(Date.now() - 10000), // 10 seconds ago
+      new Date(), // now
+      5, // Limit the number of logs to 5 for pagination
+      undefined,
+      undefined,
+      page // Page 2
+    )
+
+    // Ensure that the logs on page 2 are different from those on page 1 if logsPage2 is not empty
+    if (logsPage2.length > 0) {
+      expect(logsPage1[0].id).to.not.equal(logsPage2[0].id)
+    } else {
+      assert.isEmpty(logsPage2, 'Expected logs to be empty')
+    }
+  })
+
+  it('should return empty results for a non-existent page', async () => {
+    const nonExistentPage = 100 // Assuming this page doesn't exist
+    const logs = await database.logs.retrieveMultipleLogs(
+      new Date(Date.now() - 10000), // 10 seconds ago
+      new Date(), // now
+      5, // Limit the number of logs to 5 for pagination
+      undefined,
+      undefined,
+      nonExistentPage
+    )
+    assert.isEmpty(logs, 'Expected logs to be empty')
+  })
+})

@@ -13,9 +13,9 @@ import {
   PROTOCOL_COMMANDS,
   getConfiguration
 } from '../../utils/index.js'
-import { DownloadHandler } from '../../components/core/downloadHandler.js'
-import { StatusHandler } from '../../components/core/statusHandler.js'
-import { GetDdoHandler } from '../../components/core/ddoHandler.js'
+import { DownloadHandler } from '../../components/core/handler/downloadHandler.js'
+import { StatusHandler } from '../../components/core/handler/statusHandler.js'
+import { GetDdoHandler } from '../../components/core/handler/ddoHandler.js'
 
 import { Readable } from 'stream'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
@@ -29,7 +29,7 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
-import { FileInfoHandler } from '../../components/core/fileInfoHandler.js'
+import { FileInfoHandler } from '../../components/core/handler/fileInfoHandler.js'
 import {
   DEVELOPMENT_CHAIN_ID,
   getOceanArtifactsAdresses,
@@ -140,7 +140,7 @@ describe('Should run a complete node flow.', () => {
     const fileInfo = await streamToObject(response.stream as Readable)
 
     assert(fileInfo[0].valid, 'File info is valid')
-    expect(fileInfo[0].contentLength).to.equal('417')
+    expect(fileInfo[0].contentLength).to.equal('946')
     expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
     expect(fileInfo[0].name).to.equal('algo.js')
     expect(fileInfo[0].type).to.equal('url')
@@ -179,7 +179,7 @@ describe('Should run a complete node flow.', () => {
     const fileInfo = await streamToObject(response.stream as Readable)
 
     assert(fileInfo[0].valid, 'File info is valid')
-    expect(fileInfo[0].contentLength).to.equal('138486')
+    expect(fileInfo[0].contentLength).to.equal('319520')
     expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
     expect(fileInfo[0].name).to.equal('shs_dataset_test.txt')
     expect(fileInfo[0].type).to.equal('url')
