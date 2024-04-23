@@ -185,3 +185,8 @@ export interface OPFK8ComputeGetResult {
   providerAddress: string
   nonce: number
 }
+
+export interface AlgoChecksums {
+  files: string
+  container: string
+}
