@@ -25,6 +25,8 @@ export default function StopNode() {
           })
         })
       }
+      alert('The node has been stopped. The dashboard will no longer be displayed.')
+      window.location.reload()
     } catch (error) {
       console.error('error', error)
     } finally {
