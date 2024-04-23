@@ -46,7 +46,7 @@ export function getOceanArtifactsAdressesByChainId(chain: number): any {
       !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ADDRESS_FILE, true)
     ) {
       CORE_LOGGER.warn(
-        'Cannot find artifacts addresses for "development" chain, unless "ADDRESS_FILE" is configured!'
+        'Cannot find contract artifacts addresses for "development" chain. Please set the "ADDRESS_FILE" environmental variable!'
       )
     }
   } catch (error) {
