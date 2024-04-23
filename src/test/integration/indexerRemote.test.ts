@@ -1,6 +1,6 @@
 import { expect, assert } from 'chai'
 import { createHash } from 'crypto'
-import { JsonRpcProvider, Signer, Contract, ethers, hexlify, ZeroAddress } from 'ethers'
+import { JsonRpcProvider, Signer, Contract, ethers, hexlify, ZeroAddress, getAddress } from 'ethers'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { Database } from '../../components/database/index.js'
@@ -13,18 +13,49 @@ import {
   remoteDDOTypeIPFSNotEncrypted,
   remoteDDOTypeIPFSEncrypted
 } from '../data/ddo.js'
-import { getOceanArtifactsAdresses } from '../../utils/address.js'
+import {
+  DEVELOPMENT_CHAIN_ID,
+  getOceanArtifactsAdresses,
+  getOceanArtifactsAdressesByChainId
+} from '../../utils/address.js'
 import {
   getMockSupportedNetworks,
   setupEnvironment,
   OverrideEnvConfig,
   buildEnvOverrideConfig
 } from '../utils/utils.js'
-import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
+import {
+  ENVIRONMENT_VARIABLES,
+  EVENTS,
+  PROTOCOL_COMMANDS
+} from '../../utils/constants.js'
+import { homedir } from 'os'
+import { QueryDdoStateHandler } from '../../components/core/handler/queryHandler.js'
+import { OceanNode } from '../../OceanNode.js'
+import { QueryCommand } from '../../@types/commands.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { decrypt } from '../../utils/crypt.js'
+import axios from 'axios'
 
-describe('Indexer stores a new metadata events and orders.', () => {
+function uploadToIpfs(data: any): Promise<string>{
+  return new Promise((resolve, reject) => {
+    axios.post('http://172.15.0.16:5001/api/v0/add', 
+    "--------------------------a28d68b1c872c96f\r\nContent-Disposition: form-data; name=\"file\"; filename=\"ddo.json\"\r\nContent-Type: application/octet-stream\r\n\r\n" + data+
+    "\r\n--------------------------a28d68b1c872c96f--\r\n",
+    { 
+      headers: {
+      'Content-Type': 'multipart/form-data; boundary=------------------------a28d68b1c872c96f'
+    }})
+      .then(function (response: any) {
+        resolve(response.data.Hash)
+      })
+      .catch(function (error: any) {
+        reject(error)
+      })
+  })
+}
+
+describe('RemoteDDO: Indexer stores a new metadata events and orders.', () => {
   let database: Database
   let indexer: OceanIndexer
   let provider: JsonRpcProvider
@@ -37,33 +68,49 @@ describe('Indexer stores a new metadata events and orders.', () => {
   let resolvedDDO: Record<string, any>
   let genericAsset: any
   let setMetaDataTxReceipt: any
+  let oceanNode: OceanNode
+  const chainId = 8996
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
-    previousConfiguration = await setupEnvironment(
-      null,
-      buildEnvOverrideConfig(
-        [ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS],
-        [JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'])]
-      )
-    )
-
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
+
+    previousConfiguration = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig(
+        [
+          ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+          ENVIRONMENT_VARIABLES.DB_URL,
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE
+        ],
+        [
+          JSON.stringify(mockSupportedNetworks),
+          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+          dbConfig.url,
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
+        ]
+      )
+    )
+
     database = await new Database(dbConfig)
     indexer = new OceanIndexer(database, mockSupportedNetworks)
-
-    const data = getOceanArtifactsAdresses()
+    oceanNode = await OceanNode.getInstance(database)
+    let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+    if (!artifactsAddresses) {
+      artifactsAddresses = getOceanArtifactsAdresses().development
+    }
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccount = (await provider.getSigner(1)) as Signer
     genericAsset = genericDDO
     factoryContract = new ethers.Contract(
-      data.development.ERC721Factory,
+      artifactsAddresses.ERC721Factory,
       ERC721Factory.abi,
       publisherAccount
     )
@@ -71,14 +118,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('instance Database', async () => {
     expect(database).to.be.instanceOf(Database)
-  })
-
-  // for testing purpose
-  it('delete test asset ', async () => {
-    await deleteAsset(
-      'did:op:b5f14a64dcffba08daed511826d21a46146dc468186683c6895e4db153757c14',
-      database
-    )
   })
 
   it('should publish a dataset', async () => {
@@ -116,8 +155,21 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should set metadata and save (the remote DDO is encrypted) ', async () => {
     nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, publisherAccount)
-
-    const stringDDO = JSON.stringify(remoteDDOTypeIPFSEncrypted)
+    const did =
+        'did:op:' +
+        createHash('sha256')
+          .update(getAddress(nftAddress) + chainId.toString(10))
+          .digest('hex')
+    const ddoToPublish=genericDDO
+    ddoToPublish.id=did
+    const ipfsCID=await uploadToIpfs(JSON.stringify(ddoToPublish))
+    const remoteDDO={
+      remote:{
+        type: "ipfs",
+        hash: ipfsCID
+      }
+    }
+    const stringDDO = JSON.stringify(remoteDDO)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
     const hash = createHash('sha256').update(metadata).digest('hex')
@@ -135,24 +187,19 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(setMetaDataTxReceipt, 'set metada failed')
   })
 
-  delay(30000)
-
   it('should store the ddo in the database and return it ', async () => {
+    const did =
+        'did:op:' +
+        createHash('sha256')
+          .update(getAddress(nftAddress) + chainId.toString(10))
+          .digest('hex')
     resolvedDDO = await waitToIndex(
-      'did:op:b5f14a64dcffba08daed511826d21a46146dc468186683c6895e4db153757c14',
-      database
+      did,
+      EVENTS.METADATA_CREATED
     )
-    expect(resolvedDDO.id).to.equal(
-      'did:op:b5f14a64dcffba08daed511826d21a46146dc468186683c6895e4db153757c14'
+    expect(resolvedDDO.ddo.id).to.equal(
+      did
     )
   })
 
-  // for testing purpose
-  it('delete asset ', async () => {
-    const deleted = await deleteAsset(
-      'did:op:b5f14a64dcffba08daed511826d21a46146dc468186683c6895e4db153757c14',
-      database
-    )
-    assert(deleted, 'not deleted')
-  })
 })

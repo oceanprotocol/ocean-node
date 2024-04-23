@@ -18,17 +18,17 @@ import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { decrypt, create256Hash } from '../../../utils/crypt.js'
 import lzma from 'lzma-native'
-import { isRemoteDDO, getValidationSignature, validateObject } from './utils/validateDdoHandler.js'
-import { getConfiguration } from '../../utils/config.js'
+import { isRemoteDDO, getValidationSignature, validateObject } from '../utils/validateDdoHandler.js'
+import { getConfiguration } from '../../../utils/config.js'
 import {
   GetDdoCommand,
   FindDDOCommand,
   DecryptDDOCommand,
   ValidateDDOCommand
-} from '../../@types/commands.js'
-import { Storage } from '../../components/storage/index.js'
-import { hasP2PInterface } from '../httpRoutes/index.js'
-import { EncryptMethod } from '../../@types/fileObject.js'
+} from '../../../@types/commands.js'
+import { Storage } from '../../../components/storage/index.js'
+import { hasP2PInterface } from '../..//httpRoutes/index.js'
+import { EncryptMethod } from '../../../@types/fileObject.js'
 import {
   ValidateParams,
   buildInvalidParametersResponse,
