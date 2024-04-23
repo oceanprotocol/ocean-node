@@ -58,6 +58,7 @@ class BaseEventProcessor {
       topics: receipt.logs[0].topics as string[],
       data: receipt.logs[0].data
     }
+    INDEXER_LOGGER.logMessage(`parseLog: ${JSON.stringify(iface.parseLog(eventObj))}`)
     return iface.parseLog(eventObj)
   }
 
@@ -324,7 +325,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           decodedEventData.args[4]
         )}, hash 4: ${create256Hash(
           JSON.stringify(decodedEventData.args[4])
-        )}, decoded data: ${decodedEventData}`
+        )}, decoded data: ${JSON.stringify(decodedEventData)}`
       )
 
       // if (
