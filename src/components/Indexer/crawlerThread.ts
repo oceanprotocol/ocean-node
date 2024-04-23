@@ -234,8 +234,6 @@ parentPort.on('message', (message) => {
   if (message.method === 'reset-crawling') {
     lockProccessing = true
     REINDEX_BLOCK = getDeployedContractBlock(message.chainId)
-    // updateLastIndexedBlockNumber(reindexedBlock).then(() => {
     lockProccessing = false
-    // })
   }
 })

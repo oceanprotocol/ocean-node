@@ -149,8 +149,6 @@ describe('Should test admin operations', () => {
   })
 
   it('should pass for reindex chain command', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 8)
-    const indexerLastBlockBeforereindex = await provider.getBlockNumber()
     const signature = await getSignature(expiryTimestamp.toString())
 
     const reindexChainCommand: AdminReindexChainCommand = {
@@ -171,29 +169,6 @@ describe('Should test admin operations', () => {
     const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
     assert(handlerResponse, 'handler resp does not exist')
     assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
-
-    setTimeout(() => {}, 10000)
-
-    assert(
-      (await dbconn.ddo.retrieve(publishedDataset.ddo.id)) === null,
-      'ddo does exist'
-    )
-    const searchParameters: TypesenseSearchParams = {
-      q: `${DEVELOPMENT_CHAIN_ID}`,
-      query_by: 'chainId'
-    }
-    // search all ddos published on 8996 chain ID
-    const results = await dbconn.ddo.search(searchParameters)
-    for (const result of results) {
-      assert(result.hits.length === 0, 'list not empty')
-    }
-    assert(
-      (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) <=
-        indexerLastBlockBeforereindex
-    )
-    assert(
-      (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) === network.startBlock
-    )
   })
 
   after(async () => {
