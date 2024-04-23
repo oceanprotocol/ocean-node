@@ -6,7 +6,6 @@ import { ComputeStopCommand } from '../../../@types/commands.js'
 import { C2DEngine } from '../../c2d/compute_engines.js'
 import {
   ValidateParams,
-  buildInvalidParametersResponse,
   buildInvalidRequestMessage,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
@@ -31,9 +30,9 @@ export class ComputeStopHandler extends Handler {
   }
 
   async handle(task: ComputeStopCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     try {
       // split jobId (which is already in hash-jobId format) and get the hash
