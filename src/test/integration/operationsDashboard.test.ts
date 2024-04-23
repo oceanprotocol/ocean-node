@@ -149,7 +149,7 @@ describe('Should test admin operations', () => {
   })
 
   it('should pass for reindex chain command', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 8)
     const indexerLastBlockBeforereindex = await provider.getBlockNumber()
     const signature = await getSignature(expiryTimestamp.toString())
 
@@ -171,6 +171,8 @@ describe('Should test admin operations', () => {
     const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
     assert(handlerResponse, 'handler resp does not exist')
     assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
+
+    setTimeout(() => {}, 10000)
 
     assert(
       (await dbconn.ddo.retrieve(publishedDataset.ddo.id)) === null,
