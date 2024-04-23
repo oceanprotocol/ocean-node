@@ -18,9 +18,7 @@ import { AssetUtils, fetchFileMetadata } from '../../../utils/asset.js'
 import { OceanNode } from '../../../OceanNode.js'
 import {
   ValidateParams,
-  buildInvalidParametersResponse,
   buildInvalidRequestMessage,
-  buildRateLimitReachedResponse,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 
@@ -69,13 +67,18 @@ async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFile
       ? (file as IpfsFileObject).hash
       : null
 
-  const { contentLength, contentType } = await fetchFileMetadata(url)
+  const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
+    url,
+    'get',
+    false
+  )
   CORE_LOGGER.logMessage(`Metadata for file: ${contentLength} ${contentType}`)
 
   return {
     valid: true,
     contentLength,
     contentType,
+    contentChecksum,
     name: new URL(url).pathname.split('/').pop() || '',
     type: file.type
   }
@@ -105,12 +108,9 @@ export class FileInfoHandler extends Handler {
   }
 
   async handle(task: FileInfoCommand): Promise<P2PCommandResponse> {
-    if (!(await this.checkRateLimit())) {
-      return buildRateLimitReachedResponse()
-    }
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     try {
       const oceanNode = this.getOceanNode()

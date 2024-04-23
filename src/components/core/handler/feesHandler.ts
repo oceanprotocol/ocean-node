@@ -7,9 +7,7 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js
 import { PROVIDER_LOGGER } from '../../../utils/logging/common.js'
 import {
   ValidateParams,
-  buildInvalidParametersResponse,
   buildInvalidRequestMessage,
-  buildRateLimitReachedResponse,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { validateDDOIdentifier } from './ddoHandler.js'
@@ -31,12 +29,9 @@ export class FeesHandler extends Handler {
   }
 
   async handle(task: GetFeesCommand): Promise<P2PCommandResponse> {
-    if (!(await this.checkRateLimit())) {
-      return buildRateLimitReachedResponse()
-    }
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     PROVIDER_LOGGER.logMessage(
       `Try to calculate fees for DDO with id: ${task.ddoId} and serviceId: ${task.serviceId}`,

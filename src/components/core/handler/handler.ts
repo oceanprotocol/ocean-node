@@ -1,9 +1,14 @@
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { Command, ICommandHandler } from '../../../@types/commands.js'
-import { ValidateParams } from '../../httpRoutes/validateCommands.js'
+import {
+  ValidateParams,
+  buildInvalidParametersResponse,
+  buildRateLimitReachedResponse
+} from '../../httpRoutes/validateCommands.js'
 import { getConfiguration } from '../../../utils/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { ReadableString } from '../../P2P/handlers.js'
 
 export interface RequestLimiter {
   requester: string | string[] // IP address or peer ID
@@ -127,5 +132,30 @@ export abstract class Handler implements ICommandHandler {
         updatedRequestData: requestData
       }
     }
+  }
+
+  async verifyParamsAndRateLimits(task: Command): Promise<P2PCommandResponse> {
+    // first check rate limits, if any
+    if (!(await this.checkRateLimit())) {
+      return buildRateLimitReachedResponse()
+    }
+    // then validate the command arguments
+    const validation = this.validate(task)
+    if (!validation.valid) {
+      return buildInvalidParametersResponse(validation)
+    }
+
+    // all good!
+    return {
+      stream: new ReadableString('OK'),
+      status: { httpStatus: 200, error: null }
+    }
+  }
+
+  shouldDenyTaskHandling(validationResponse: P2PCommandResponse): boolean {
+    return (
+      validationResponse.status.httpStatus !== 200 ||
+      validationResponse.status.error !== null
+    )
   }
 }
