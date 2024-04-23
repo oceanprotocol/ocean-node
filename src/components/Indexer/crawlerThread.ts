@@ -16,7 +16,7 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getDatabase } from '../../utils/database.js'
 import { Log } from 'ethers'
 
-let REINDEX_BLOCK: number = null
+// const REINDEX_BLOCK: number = null
 let lockProccessing: boolean = null
 
 export interface ReindexTask {
@@ -133,13 +133,8 @@ export async function proccesNetworkData(): Promise<void> {
             startBlock,
             blocksToProcess
           )
+          await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
           checkNewlyIndexedAssets(processedBlocks.foundEvents)
-          if (REINDEX_BLOCK) {
-            await updateLastIndexedBlockNumber(REINDEX_BLOCK)
-            REINDEX_BLOCK = null
-          } else {
-            await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
-          }
           chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
         } catch (error) {
           INDEXER_LOGGER.log(
@@ -223,7 +218,10 @@ parentPort.on('message', (message) => {
   }
   if (message.method === 'reset-crawling') {
     lockProccessing = true
-    REINDEX_BLOCK = getDeployedContractBlock(message.chainId)
-    lockProccessing = false
+    const reindexedBlock = getDeployedContractBlock(message.chainId)
+    updateLastIndexedBlockNumber(reindexedBlock).then(() => {
+      lockProccessing = false
+    })
+    // lockProccessing = false
   }
 })
