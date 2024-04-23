@@ -185,15 +185,12 @@ describe('Should test admin operations', () => {
     for (const result of results) {
       assert(result.hits.length === 0, 'list not empty')
     }
-    console.log(
-      `await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID): ${await indexer.getLastIndexedBlock(
-        DEVELOPMENT_CHAIN_ID
-      )}`
-    )
-    console.log(`network block: ${network.startBlock}`)
     assert(
       (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) <=
         indexerLastBlockBeforereindex
+    )
+    assert(
+      (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) === network.startBlock
     )
   })
 
