@@ -165,7 +165,9 @@ export async function proccesNetworkData(): Promise<void> {
       INDEXER_LOGGER.logMessage(`Assets deleted from db for chain ${rpcDetails.chainId}`)
       await updateLastIndexedBlockNumber(REINDEX_BLOCK)
       INDEXER_LOGGER.logMessage(`Block updated for reindexing chain ${REINDEX_BLOCK}`)
+      lockProccessing = true
       REINDEX_BLOCK = null
+      lockProccessing = false
     }
   }
 }
@@ -230,10 +232,10 @@ parentPort.on('message', (message) => {
     }
   }
   if (message.method === 'reset-crawling') {
-    // lockProccessing = true
+    lockProccessing = true
     REINDEX_BLOCK = getDeployedContractBlock(message.chainId)
     // updateLastIndexedBlockNumber(reindexedBlock).then(() => {
-    //   lockProccessing = false
+    lockProccessing = false
     // })
   }
 })
