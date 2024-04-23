@@ -36,11 +36,6 @@ export class ReindexChainHandler extends AdminHandler {
       )
     }
     try {
-      await this.getOceanNode().getDatabase().ddo.deleteAllAssetsFromChain(task.chainId)
-      CORE_LOGGER.logMessage(
-        `Assets from chain ${task.chainId} were deleted from db, now starting to reindex...`
-      )
-
       OceanIndexer.resetCrawling(task.chainId)
       return {
         status: { httpStatus: 200 },

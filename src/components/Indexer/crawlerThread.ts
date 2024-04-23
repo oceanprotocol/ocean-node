@@ -24,6 +24,7 @@ export interface ReindexTask {
   eventIndex?: number
 }
 
+let REINDEX_BLOCK: number = null
 const REINDEX_QUEUE: ReindexTask[] = []
 
 interface ThreadData {
@@ -60,11 +61,17 @@ async function getLastIndexedBlock(): Promise<number> {
     const networkDetails = await indexer.retrieve(rpcDetails.chainId)
     return networkDetails?.lastIndexedBlock
   } catch (err) {
-    INDEXER_LOGGER.log(
-      LOG_LEVELS_STR.LEVEL_ERROR,
-      'Error retrieving last indexed block',
-      true
-    )
+    INDEXER_LOGGER.error(`Error retrieving last indexed block: ${err}`)
+    return null
+  }
+}
+
+async function deleteAllAssetsFromChain(): Promise<void> {
+  const { ddo } = await getDatabase()
+  try {
+    await ddo.deleteAllAssetsFromChain(rpcDetails.chainId)
+  } catch (err) {
+    INDEXER_LOGGER.error(`Error deleting all assets: ${err}`)
     return null
   }
 }
@@ -153,6 +160,13 @@ export async function proccesNetworkData(): Promise<void> {
       )
     }
     await sleep(interval)
+    if (REINDEX_BLOCK) {
+      await deleteAllAssetsFromChain()
+      INDEXER_LOGGER.logMessage(`Assets deleted from db for chain ${rpcDetails.chainId}`)
+      await updateLastIndexedBlockNumber(REINDEX_BLOCK)
+      INDEXER_LOGGER.logMessage(`Block updated for reindexing chain ${REINDEX_BLOCK}`)
+      REINDEX_BLOCK = null
+    }
   }
 }
 
@@ -216,11 +230,10 @@ parentPort.on('message', (message) => {
     }
   }
   if (message.method === 'reset-crawling') {
-    lockProccessing = true
-    const reindexedBlock = getDeployedContractBlock(message.chainId)
-    updateLastIndexedBlockNumber(reindexedBlock).then(() => {
-      lockProccessing = false
-    })
-    // lockProccessing = false
+    // lockProccessing = true
+    REINDEX_BLOCK = getDeployedContractBlock(message.chainId)
+    // updateLastIndexedBlockNumber(reindexedBlock).then(() => {
+    //   lockProccessing = false
+    // })
   }
 })
