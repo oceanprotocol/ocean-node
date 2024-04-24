@@ -56,7 +56,7 @@ export interface StatusCommand extends Command {}
 export interface DetailedStatusCommand extends StatusCommand {}
 export interface EchoCommand extends Command {}
 
-export interface StopNodeCommand extends Command {
+export interface AdminCommand extends Command {
   expiryTimestamp: number
   signature: string
 }
