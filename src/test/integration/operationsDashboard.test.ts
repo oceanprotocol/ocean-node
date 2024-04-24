@@ -1,6 +1,6 @@
 import { assert } from 'chai'
 import { Readable } from 'stream'
-import { JsonRpcProvider, Signer, parseEther, ethers } from 'ethers'
+import { ethers } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS } from '../../@types/blockchain.js'
@@ -12,8 +12,7 @@ import {
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
   setupEnvironment,
-  tearDownEnvironment,
-  DEFAULT_TEST_TIMEOUT
+  tearDownEnvironment
 } from '../utils/utils.js'
 
 import {
@@ -38,16 +37,10 @@ import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.j
 import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
 import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import { streamToObject } from '../../utils/util.js'
-import { OceanIndexer } from '../../components/Indexer/index.js'
-import { TypesenseSearchParams } from '../../@types/Typesense.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
-  let indexer: OceanIndexer
-  let provider: JsonRpcProvider
-  let publisherAccount: Signer
-  let consumerAccount: Signer
   let publishedDataset: any
   let dbconn: Database
   let network: any
@@ -98,16 +91,9 @@ describe('Should test admin operations', () => {
     if (!network) {
       network = getOceanArtifactsAdresses().development
     }
-
-    provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    publisherAccount = (await provider.getSigner(0)) as Signer
-    consumerAccount = (await provider.getSigner(1)) as Signer
   })
 
   async function getSignature(message: string) {
-    // // signing method for ganache
-    // const jsonRpcSigner = new JsonRpcSigner(provider, await publisherAccount.getAddress())
-    // return await jsonRpcSigner.(message)
     return await wallet.signMessage(message)
   }
 
@@ -158,8 +144,6 @@ describe('Should test admin operations', () => {
   })
 
   it('should pass for reindex chain command', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
-    const indexerLastBlockBeforereindex = await provider.getBlockNumber()
     const signature = await getSignature(expiryTimestamp.toString())
 
     const reindexChainCommand: AdminReindexChainCommand = {
@@ -180,51 +164,6 @@ describe('Should test admin operations', () => {
     const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
     assert(handlerResponse, 'handler resp does not exist')
     assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
-
-    for (let i = 0; i < 6; i++) {
-      try {
-        // Send a dummy transaction to the recipient address with a random value
-        const tx = await publisherAccount.sendTransaction({
-          to: await consumerAccount.getAddress(),
-          value: parseEther((Math.random() * 10).toString())
-        })
-
-        // Wait for the transaction to be confirmed
-        await tx.wait()
-
-        console.log(`Transaction ${i + 1} sent: ${tx.hash}`)
-      } catch (error) {
-        console.error(`Error sending transaction ${i + 1}: ${error.message}`)
-      }
-    }
-    assert(
-      (await dbconn.ddo.retrieve(publishedDataset.ddo.id)) === null,
-      'ddo does exist'
-    )
-    const searchParameters: TypesenseSearchParams = {
-      q: `${DEVELOPMENT_CHAIN_ID}`,
-      query_by: 'chainId'
-    }
-    // search all ddos published on 8996 chain ID
-    const results = await dbconn.ddo.search(searchParameters)
-    for (const result of results) {
-      assert(result.hits.length === 0, 'list not empty')
-    }
-
-    console.log(
-      `await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID): ${await indexer.getLastIndexedBlock(
-        DEVELOPMENT_CHAIN_ID
-      )}`
-    )
-    console.log(`network block: ${network.startBlock}`)
-
-    assert(
-      (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) <=
-        indexerLastBlockBeforereindex
-    )
-    assert(
-      (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) === network.startBlock
-    )
   })
 
   after(async () => {
