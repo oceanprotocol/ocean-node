@@ -11,7 +11,8 @@ import {
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
   setupEnvironment,
-  tearDownEnvironment
+  tearDownEnvironment,
+  DEFAULT_TEST_TIMEOUT
 } from '../utils/utils.js'
 
 import {
@@ -36,10 +37,13 @@ import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.j
 import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
 import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import { streamToObject } from '../../utils/util.js'
+import { OceanIndexer } from '../../components/Indexer/index.js'
+import { TypesenseSearchParams } from '../../@types/Typesense.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
+  let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let publisherAccount: Signer
   let publishedDataset: any
@@ -66,14 +70,16 @@ describe('Should test admin operations', () => {
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
-          ENVIRONMENT_VARIABLES.ALLOWED_ADMINS
+          ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
           JSON.stringify(mockSupportedNetworks),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
-          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'])
+          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
+          `$HOME/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
     )
@@ -144,6 +150,8 @@ describe('Should test admin operations', () => {
   })
 
   it('should pass for reindex chain command', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    const indexerLastBlockBeforereindex = await provider.getBlockNumber()
     const signature = await getSignature(expiryTimestamp.toString())
 
     const reindexChainCommand: AdminReindexChainCommand = {
@@ -164,6 +172,29 @@ describe('Should test admin operations', () => {
     const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
     assert(handlerResponse, 'handler resp does not exist')
     assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
+
+    setTimeout(() => {}, DEFAULT_TEST_TIMEOUT)
+    assert(
+      (await dbconn.ddo.retrieve(publishedDataset.ddo.id)) === null,
+      'ddo does exist'
+    )
+    const searchParameters: TypesenseSearchParams = {
+      q: `${DEVELOPMENT_CHAIN_ID}`,
+      query_by: 'chainId'
+    }
+    // search all ddos published on 8996 chain ID
+    const results = await dbconn.ddo.search(searchParameters)
+    for (const result of results) {
+      assert(result.hits.length === 0, 'list not empty')
+    }
+
+    assert(
+      (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) <=
+        indexerLastBlockBeforereindex
+    )
+    assert(
+      (await indexer.getLastIndexedBlock(DEVELOPMENT_CHAIN_ID)) === network.startBlock
+    )
   })
 
   after(async () => {
