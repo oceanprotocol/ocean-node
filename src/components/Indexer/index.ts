@@ -132,7 +132,7 @@ export class OceanIndexer {
   static resetCrawling(chainId: number): void {
     const worker = OceanIndexer.workers[chainId]
     if (worker) {
-      worker.postMessage({ method: 'reset-crawling', chainId })
+      worker.postMessage({ method: 'reset-crawling' })
     }
   }
 

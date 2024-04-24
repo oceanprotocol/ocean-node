@@ -16,8 +16,6 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getDatabase } from '../../utils/database.js'
 import { Log } from 'ethers'
 
-let lockProccessing: boolean = null
-
 export interface ReindexTask {
   txId: string
   chainId: string
@@ -83,13 +81,13 @@ export async function proccesNetworkData(): Promise<void> {
       `chain: ${rpcDetails.chainId} Both deployed block and last indexed block are null. Cannot proceed further on this chain`,
       true
     )
-    return
+    return null
   }
 
   // we can override the default value of 30 secs, by setting process.env.INDEXER_INTERVAL
   const interval = getCrawlingInterval()
   let { chunkSize } = rpcDetails
-  lockProccessing = false
+  let lockProccessing = false
   while (true) {
     if (!lockProccessing) {
       lockProccessing = true
@@ -160,14 +158,22 @@ export async function proccesNetworkData(): Promise<void> {
       )
     }
     await sleep(interval)
-    if (REINDEX_BLOCK) {
-      await deleteAllAssetsFromChain()
+    if (REINDEX_BLOCK && !lockProccessing) {
+      const res = await deleteAllAssetsFromChain()
+      if (res === null) {
+        INDEXER_LOGGER.error(
+          `Assets could not be deleted for chain ${rpcDetails.chainId}. Continue indexing normally...`
+        )
+        continue
+      }
       INDEXER_LOGGER.logMessage(`Assets deleted from db for chain ${rpcDetails.chainId}`)
-      await updateLastIndexedBlockNumber(REINDEX_BLOCK)
+      const block = await updateLastIndexedBlockNumber(REINDEX_BLOCK)
+      if (block === null) {
+        INDEXER_LOGGER.error(`Block could not be reset. Continue indexing normally...`)
+        continue
+      }
       INDEXER_LOGGER.logMessage(`Block updated for reindexing chain ${REINDEX_BLOCK}`)
-      lockProccessing = true
       REINDEX_BLOCK = null
-      lockProccessing = false
     }
   }
 }
@@ -232,8 +238,6 @@ parentPort.on('message', (message) => {
     }
   }
   if (message.method === 'reset-crawling') {
-    lockProccessing = true
-    REINDEX_BLOCK = getDeployedContractBlock(message.chainId)
-    lockProccessing = false
+    REINDEX_BLOCK = getDeployedContractBlock(rpcDetails.chainId)
   }
 })

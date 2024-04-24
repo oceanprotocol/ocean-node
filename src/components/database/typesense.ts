@@ -70,6 +70,12 @@ class TypesenseDocuments {
   }
 
   // eslint-disable-next-line require-await
+  async deleteByChainId(filterCondition: string) {
+    const path = `${this.apiPath}?filter_by=${filterCondition}`
+    return this.api.delete<TypesenseDocumentSchema>(path)
+  }
+
+  // eslint-disable-next-line require-await
   async update(documentId: string, partialDocument: Partial<TypesenseDocumentSchema>) {
     const path = `${this.apiPath}/${documentId}`
     return this.api.patch<TypesenseDocumentSchema>(path, partialDocument)

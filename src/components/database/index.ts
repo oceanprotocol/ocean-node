@@ -568,15 +568,25 @@ export class DdoDatabase {
   }
 
   async deleteAllAssetsFromChain(chainId: number) {
-    const searchParameters: TypesenseSearchParams = {
-      q: `${chainId}`,
-      query_by: 'chainId'
-    }
-    const results = await this.search(searchParameters)
-    for (const res of results) {
-      if (res && res.hits) {
-        for (const h of res.hits) {
-          await this.delete(h.document.id)
+    for (const schema of this.schemas) {
+      try {
+        const response = await this.provider
+          .collections(schema.name)
+          .documents()
+          .deleteByChainId(`chainId:${chainId}`)
+        if (response.num_deleted > 0) {
+          DATABASE_LOGGER.debug(`Response for deleting the ddos: ${response.num_deleted}`)
+          return response
+        }
+      } catch (error) {
+        if (!(error instanceof TypesenseError && error.httpStatus === 404)) {
+          // Log error other than not found
+          DATABASE_LOGGER.logMessageWithEmoji(
+            `Error when deleting DDOs from schema ${schema.name}: ` + error.message,
+            true,
+            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+            LOG_LEVELS_STR.LEVEL_ERROR
+          )
         }
       }
     }
