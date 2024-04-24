@@ -259,7 +259,7 @@ describe('Should run a complete node flow.', () => {
 
     await doCheck()
   })
-  it('should not allow to download the asset with different consumer address', function () {
+  it('should not allow to download the asset with different consumer address', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
     const doCheck = async () => {
@@ -276,16 +276,16 @@ describe('Should run a complete node flow.', () => {
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
 
       assert(response)
-      assert(response.stream, 'stream not present')
-      assert(response.status.httpStatus === 200, 'http status not 200')
-      expect(response.stream).to.be.instanceOf(Readable)
+      assert(response.stream === null, 'stream is present')
+      assert(response.status.httpStatus === 500, 'http status not 500')
+      console.log('response: ', response.status.error)
     }
 
     setTimeout(() => {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
     }, DEFAULT_TEST_TIMEOUT * 3)
 
-    doCheck()
+    await doCheck()
   })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
