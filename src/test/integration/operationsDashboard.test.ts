@@ -1,6 +1,6 @@
 import { assert } from 'chai'
 import { Readable } from 'stream'
-import { Signer, ethers } from 'ethers'
+import { Signer, JsonRpcProvider, ethers } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS } from '../../@types/blockchain.js'
@@ -50,9 +50,10 @@ describe('Should test admin operations', () => {
     currentDate.getMonth(),
     currentDate.getDate()
   ).getTime()
-
+  const provider = new JsonRpcProvider('http://127.0.0.1:8545')
   const wallet = new ethers.Wallet(
-    '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
+    '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+    provider
   )
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
