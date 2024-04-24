@@ -158,6 +158,7 @@ export async function proccesNetworkData(): Promise<void> {
       )
     }
     await sleep(interval)
+    // reindex chain command called
     if (REINDEX_BLOCK && !lockProccessing) {
       const res = await deleteAllAssetsFromChain()
       if (res === null) {
@@ -167,6 +168,7 @@ export async function proccesNetworkData(): Promise<void> {
         continue
       }
       INDEXER_LOGGER.logMessage(`Assets deleted from db for chain ${rpcDetails.chainId}`)
+      // TODO: if block couldn't be updated and DDOs are deleted => should set in DDO mapping a field for archieved DDOs.
       const block = await updateLastIndexedBlockNumber(REINDEX_BLOCK)
       if (block === null) {
         INDEXER_LOGGER.error(`Block could not be reset. Continue indexing normally...`)
