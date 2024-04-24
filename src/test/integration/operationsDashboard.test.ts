@@ -1,6 +1,6 @@
 import { assert } from 'chai'
 import { Readable } from 'stream'
-import { ethers } from 'ethers'
+import { Signer, ethers } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS } from '../../@types/blockchain.js'
@@ -112,7 +112,7 @@ describe('Should test admin operations', () => {
   })
 
   it('should publish dataset', async () => {
-    publishedDataset = await publishAsset(downloadAsset, wallet)
+    publishedDataset = await publishAsset(downloadAsset, wallet as Signer)
   })
 
   it('should pass for reindex tx command', async () => {
