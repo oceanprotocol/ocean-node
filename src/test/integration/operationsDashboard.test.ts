@@ -1,11 +1,12 @@
 import { assert } from 'chai'
 import { Readable } from 'stream'
-import { JsonRpcProvider, JsonRpcSigner, Signer } from 'ethers'
+import { JsonRpcProvider, Signer, parseEther, ethers } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { downloadAsset } from '../data/assets.js'
 import { publishAsset } from '../utils/assets.js'
+import { homedir } from 'os'
 import {
   OverrideEnvConfig,
   buildEnvOverrideConfig,
@@ -46,6 +47,7 @@ describe('Should test admin operations', () => {
   let indexer: OceanIndexer
   let provider: JsonRpcProvider
   let publisherAccount: Signer
+  let consumerAccount: Signer
   let publishedDataset: any
   let dbconn: Database
   let network: any
@@ -55,6 +57,10 @@ describe('Should test admin operations', () => {
     currentDate.getMonth(),
     currentDate.getDate()
   ).getTime()
+
+  const wallet = new ethers.Wallet(
+    '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
+  )
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
@@ -70,14 +76,16 @@ describe('Should test admin operations', () => {
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
-          ENVIRONMENT_VARIABLES.ALLOWED_ADMINS
+          ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
           JSON.stringify(mockSupportedNetworks),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
-          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'])
+          JSON.stringify([await wallet.getAddress()]),
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
     )
@@ -93,12 +101,14 @@ describe('Should test admin operations', () => {
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
+    consumerAccount = (await provider.getSigner(1)) as Signer
   })
 
   async function getSignature(message: string) {
-    // signing method for ganache
-    const jsonRpcSigner = new JsonRpcSigner(provider, await publisherAccount.getAddress())
-    return await jsonRpcSigner._legacySignMessage(message)
+    // // signing method for ganache
+    // const jsonRpcSigner = new JsonRpcSigner(provider, await publisherAccount.getAddress())
+    // return await jsonRpcSigner.(message)
+    return await wallet.signMessage(message)
   }
 
   it('validation should pass for stop node command', async () => {
@@ -116,7 +126,7 @@ describe('Should test admin operations', () => {
   })
 
   it('should publish dataset', async () => {
-    publishedDataset = await publishAsset(downloadAsset, publisherAccount)
+    publishedDataset = await publishAsset(downloadAsset, wallet)
   })
 
   it('should pass for reindex tx command', async () => {
@@ -171,7 +181,22 @@ describe('Should test admin operations', () => {
     assert(handlerResponse, 'handler resp does not exist')
     assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
 
-    setTimeout(() => {}, DEFAULT_TEST_TIMEOUT)
+    for (let i = 0; i < 6; i++) {
+      try {
+        // Send a dummy transaction to the recipient address with a random value
+        const tx = await publisherAccount.sendTransaction({
+          to: await consumerAccount.getAddress(),
+          value: parseEther((Math.random() * 10).toString())
+        })
+
+        // Wait for the transaction to be confirmed
+        await tx.wait()
+
+        console.log(`Transaction ${i + 1} sent: ${tx.hash}`)
+      } catch (error) {
+        console.error(`Error sending transaction ${i + 1}: ${error.message}`)
+      }
+    }
     assert(
       (await dbconn.ddo.retrieve(publishedDataset.ddo.id)) === null,
       'ddo does exist'
