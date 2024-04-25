@@ -71,7 +71,8 @@ class TypesenseDocuments {
 
   // eslint-disable-next-line require-await
   async deleteByChainId(filterCondition: string) {
-    // TODO: Use the batch_size parameter to control the number of documents. A larger value will speed up deletions, but will impact performance.
+    // TODO #406 https://github.com/oceanprotocol/ocean-node/issues/406:
+    // Use the batch_size parameter to control the number of documents. A larger value will speed up deletions, but will impact performance.
     const path = `${this.apiPath}?filter_by=${filterCondition}`
     return this.api.delete<TypesenseDocumentSchema>(path)
   }
