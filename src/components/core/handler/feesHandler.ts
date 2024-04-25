@@ -1,16 +1,15 @@
 import { Handler } from './handler.js'
-import { GetFeesCommand } from '../../@types/commands.js'
-import { P2PCommandResponse } from '../../@types/OceanNode.js'
-import { createProviderFee } from './utils/feesHandler.js'
+import { GetFeesCommand } from '../../../@types/commands.js'
+import { P2PCommandResponse } from '../../../@types/OceanNode.js'
+import { createProviderFee } from '../utils/feesHandler.js'
 import { Readable } from 'stream'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { PROVIDER_LOGGER } from '../../utils/logging/common.js'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
+import { PROVIDER_LOGGER } from '../../../utils/logging/common.js'
 import {
   ValidateParams,
-  buildInvalidParametersResponse,
   buildInvalidRequestMessage,
   validateCommandParameters
-} from '../httpRoutes/validateCommands.js'
+} from '../../httpRoutes/validateCommands.js'
 import { validateDDOIdentifier } from './ddoHandler.js'
 import { isAddress } from 'ethers'
 
@@ -30,9 +29,9 @@ export class FeesHandler extends Handler {
   }
 
   async handle(task: GetFeesCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     PROVIDER_LOGGER.logMessage(
       `Try to calculate fees for DDO with id: ${task.ddoId} and serviceId: ${task.serviceId}`,

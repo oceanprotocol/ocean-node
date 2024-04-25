@@ -8,13 +8,13 @@
 
 .bodyContainer {
   position: relative;
-  width: calc(100% - 260px);
+  width: 100%;
 }
 
 .body {
   padding: 40px 72px;
   border-radius: 12px;
-  background: #FFF;
+  background: #fff;
   width: 100%;
 }
 
@@ -26,14 +26,14 @@
 
 .columnP2P {
   /* padding: 32px; */
-  border-bottom: 1.5px solid #EEF1F5;
-  border-right: 1.5px solid #EEF1F5;
+  border-bottom: 1.5px solid #eef1f5;
+  border-right: 1.5px solid #eef1f5;
   width: 50%;
 }
 
 .columnHTTP {
   /* padding: 32px; */
-  border-bottom: 1.5px solid #EEF1F5;
+  border-bottom: 1.5px solid #eef1f5;
   width: 50%;
 }
 
@@ -59,11 +59,11 @@
 }
 
 .borderBottom {
-  border-bottom: 1.5px solid #EEF1F5;
+  border-bottom: 1.5px solid #eef1f5;
 }
 
 .title29 {
-  color: #3D4551;
+  color: #3d4551;
   font-family: Helvetica;
   font-size: 20px;
   font-style: normal;
@@ -73,7 +73,7 @@
 }
 
 .title24 {
-  color: #3D4551;
+  color: #3d4551;
   font-family: Helvetica;
   font-size: 18px;
   font-style: normal;
@@ -88,7 +88,7 @@
 }
 
 .nodeAddress > h5 {
-  color: #3D4551;
+  color: #3d4551;
   font-family: Helvetica;
   font-size: 18px;
   font-style: normal;
@@ -126,11 +126,11 @@
   gap: 9px;
   padding: 24px 28px;
   border-radius: 8px;
-  border: 1px solid rgba(78, 203, 113, 0.70);
-  background: rgba(38, 194, 81, 0.70);
+  border: 1px solid rgba(78, 203, 113, 0.7);
+  background: rgba(38, 194, 81, 0.7);
   min-width: 240px;
 
-  color: #3D4551;
+  color: #3d4551;
   font-family: Helvetica;
   font-size: 16px;
   font-style: normal;
@@ -140,7 +140,7 @@
 
 .indexBlock h5 {
   margin-bottom: 18px;
-  color: #3D4551;
+  color: #3d4551;
   font-family: Helvetica;
   font-size: 18px;
   font-style: normal;
@@ -149,8 +149,8 @@
 }
 
 .delayed {
-  background: rgba(234, 89, 47, 0.90);
-  border: 1px solid rgba(234, 89, 47, 0.90);
+  background: rgba(234, 89, 47, 0.9);
+  border: 1px solid rgba(234, 89, 47, 0.9);
 }
 
 .provider {
@@ -182,6 +182,37 @@
   border-radius: 12px;
 }
 
+.loader {
+  width: 48px;
+  height: 48px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  display: inline-block;
+  position: relative;
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+}
+.loader::after,
+.loader::before {
+  content: '';
+  box-sizing: border-box;
+  position: absolute;
+  left: 0;
+  top: 0;
+  background: #ff3d00;
+  width: 6px;
+  height: 6px;
+  transform: translate(150%, 150%);
+  border-radius: 50%;
+}
+.loader::before {
+  left: auto;
+  top: auto;
+  right: 0;
+  bottom: 0;
+  transform: translate(-150%, -150%);
+}
+
 @keyframes rotation {
   0% {
     transform: rotate(0deg);
@@ -189,7 +220,7 @@
   100% {
     transform: rotate(360deg);
   }
-} 
+}
 
 @media screen and (max-width: 700px) {
   .root {
@@ -210,7 +241,7 @@
   .columnHTTP {
     width: 100%;
   }
- 
+
   .columnP2P {
     width: 100%;
     border-right: 0;

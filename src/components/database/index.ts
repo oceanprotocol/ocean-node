@@ -10,6 +10,7 @@ import {
 } from '../../utils/logging/Logger.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { validateObject } from '../core/utils/validateDdoHandler.js'
+import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 
 export class OrderDatabase {
   private provider: Typesense
@@ -31,18 +32,46 @@ export class OrderDatabase {
     })() as unknown as OrderDatabase
   }
 
-  async search(query: Record<string, any>) {
+  async search(
+    query: Record<string, any>,
+    maxResultsPerPage?: number,
+    pageNumber?: number
+  ) {
     try {
-      const results = []
+      let queryObj: TypesenseSearchParams
+
+      // if queryObj is a string
+      if (typeof query === 'string') {
+        queryObj = JSON.parse(query)
+      } else {
+        queryObj = query as TypesenseSearchParams
+      }
+
+      // Check if the necessary properties are present
+      if (!queryObj.q || !queryObj.query_by) {
+        throw new Error("The query object must include 'q' and 'query_by' properties.")
+      }
+      const maxPerPage = maxResultsPerPage ? Math.min(maxResultsPerPage, 250) : 250 // Cap maxResultsPerPage at 250
+      const page = pageNumber || 1 // Default to the first page if pageNumber is not provided
+
+      // Modify the query to include pagination parameters
+      const searchParams: TypesenseSearchParams = {
+        ...queryObj,
+        per_page: maxPerPage,
+        page
+      }
+
       const result = await this.provider
         .collections(this.schema.name)
         .documents()
-        .search(query as TypesenseSearchParams)
-      results.push(result)
-      return results
+        .search(searchParams)
+
+      // Instead of pushing the entire result, only include the documents
+      return result.hits.map((hit) => hit.document)
     } catch (error) {
       const errorMsg =
-        `Error when searching order entry by query ${query}: ` + error.message
+        `Error when searching order entry by query ${JSON.stringify(query)}: ` +
+        error.message
       DATABASE_LOGGER.logMessageWithEmoji(
         errorMsg,
         true,
@@ -147,6 +176,139 @@ export class OrderDatabase {
   }
 }
 
+export class DdoStateDatabase {
+  private provider: Typesense
+
+  constructor(
+    private config: OceanNodeDBConfig,
+    private schema: Schema
+  ) {
+    return (async (): Promise<DdoStateDatabase> => {
+      this.provider = new Typesense(convertTypesenseConfig(this.config.url))
+      try {
+        await this.provider.collections(this.schema.name).retrieve()
+      } catch (error) {
+        if (error instanceof TypesenseError && error.httpStatus === 404) {
+          await this.provider.collections().create(this.schema)
+        }
+      }
+      return this
+    })() as unknown as DdoStateDatabase
+  }
+
+  async create(
+    chainId: number,
+    did: string,
+    nftAddress: string,
+    txId: string = ' ',
+    valid: boolean = true,
+    errorMsg: string = ' '
+  ) {
+    try {
+      return await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .create({ id: did, chainId, did, nft: nftAddress, txId, valid, error: errorMsg })
+    } catch (error) {
+      const errorMsg = `Error when saving ddo state for: ${did} Error: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async retrieve(did: string) {
+    try {
+      return await this.provider.collections(this.schema.name).documents().retrieve(did)
+    } catch (error) {
+      const errorMsg =
+        `Error when retrieving the state of the ddo with id: ${did}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async search(query: Record<string, any>) {
+    try {
+      const result = await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .search(query as TypesenseSearchParams)
+      return result
+    } catch (error) {
+      const errorMsg = `Error when searching by query ${query}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async update(
+    chainId: number,
+    did: string,
+    nftAddress: string,
+    txId: string = ' ',
+    valid: boolean = true,
+    errorMsg: string = ' '
+  ) {
+    try {
+      return await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .update(did, { chainId, did, nft: nftAddress, txId, valid, error: errorMsg })
+    } catch (error) {
+      if (error instanceof TypesenseError && error.httpStatus === 404) {
+        return await this.provider.collections(this.schema.name).documents().create({
+          id: did,
+          chainId,
+          did,
+          nft: nftAddress,
+          txId,
+          valid,
+          error: errorMsg
+        })
+      }
+      const errorMessage =
+        `Error when saving ddo state for: ${did} Error: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMessage,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async delete(did: string) {
+    try {
+      return await this.provider.collections(this.schema.name).documents().delete(did)
+    } catch (error) {
+      const errorMsg = `Error when deleting ddo state ${did}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+}
+
 export class DdoDatabase {
   private provider: Typesense
 
@@ -223,19 +385,43 @@ export class DdoDatabase {
     }
   }
 
-  async search(query: Record<string, any>) {
+  async search(
+    query: Record<string, any>,
+    maxResultsPerPage?: number,
+    pageNumber?: number
+  ) {
     try {
+      let queryObj: TypesenseSearchParams
+      // if queryObj is a string
+      if (typeof query === 'string') {
+        queryObj = JSON.parse(query)
+      } else {
+        queryObj = query as TypesenseSearchParams
+      }
+
+      const maxPerPage = maxResultsPerPage ? Math.min(maxResultsPerPage, 250) : 250 // Cap maxResultsPerPage at 250
+      const page = pageNumber || 1 // Default to the first page if pageNumber is not provided
       const results = []
+
       for (const schema of this.schemas) {
+        // Extend the query with pagination parameters
+        const searchParams: TypesenseSearchParams = {
+          ...queryObj,
+          per_page: maxPerPage,
+          page
+        }
+
         const result = await this.provider
           .collections(schema.name)
           .documents()
-          .search(query as TypesenseSearchParams)
+          .search(searchParams)
         results.push(result)
       }
+
       return results
     } catch (error) {
-      const errorMsg = `Error when searching by query ${query}: ` + error.message
+      const errorMsg =
+        `Error when searching by query ${JSON.stringify(query)}: ` + error.message
       DATABASE_LOGGER.logMessageWithEmoji(
         errorMsg,
         true,
@@ -508,14 +694,6 @@ export class IndexerDatabase {
     })() as unknown as IndexerDatabase
   }
 
-  // async create(fields: Record<string, any>) {
-  //   try {
-  //     return await this.provider.collections(this.schema.name).documents().create(fields)
-  //   } catch (error) {
-  //     return null
-  //   }
-  // }
-
   async create(network: number, lastIndexedBlock: number) {
     try {
       return await this.provider
@@ -671,7 +849,8 @@ export class LogDatabase {
     endTime: Date,
     maxLogs: number,
     moduleName?: string,
-    level?: string
+    level?: string,
+    page?: number
   ): Promise<Record<string, any>[] | null> {
     try {
       let filterConditions = `timestamp:>=${startTime.getTime()} && timestamp:<${endTime.getTime()}`
@@ -682,21 +861,37 @@ export class LogDatabase {
         filterConditions += ` && level:${level}`
       }
 
+      // Cap maxLogs at 250 to adhere to Typesense's maximum limit
+      const logsLimit = Math.min(maxLogs, 250)
+      if (maxLogs > 250) {
+        DATABASE_LOGGER.logMessageWithEmoji(
+          `Max logs is capped at 250 as Typesense is unable to return more results per page.`,
+          true,
+          GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
+          LOG_LEVELS_STR.LEVEL_INFO
+        )
+      }
+
+      // Define search parameters
       const searchParameters = {
         q: '*',
         query_by: 'message,level,meta',
         filter_by: filterConditions,
         sort_by: 'timestamp:desc',
-        per_page: maxLogs
+        per_page: logsLimit,
+        page: page || 1 // Default to the first page if page number is not provided
       }
 
+      // Execute search query
       const result = await this.provider
         .collections(this.schema.name)
         .documents()
         .search(searchParameters)
+
+      // Map and return the search hits as log entries
       return result.hits.map((hit) => hit.document)
     } catch (error) {
-      const errorMsg = `Error when retrieving mutliple log entries: ` + error.message
+      const errorMsg = `Error when retrieving multiple log entries: ${error.message}`
       DATABASE_LOGGER.logMessageWithEmoji(
         errorMsg,
         true,
@@ -704,6 +899,64 @@ export class LogDatabase {
         LOG_LEVELS_STR.LEVEL_ERROR
       )
       return null
+    }
+  }
+
+  async delete(logId: string): Promise<void> {
+    if (!logId) {
+      throw new Error('Log ID is required for deletion.')
+    }
+    try {
+      await this.provider.collections(this.schema.name).documents().delete(logId)
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Deleted log with ID: ${logId}`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CHECK_MARK,
+        LOG_LEVELS_STR.LEVEL_INFO
+      )
+    } catch (error) {
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Error when deleting log entry: ${error.message}`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      throw error
+    }
+  }
+
+  async deleteOldLogs(): Promise<number> {
+    const defaultLogRetention = '2592000000' // 30 days in milliseconds
+    const currentTime = new Date().getTime()
+    const xTime = parseInt(
+      ENVIRONMENT_VARIABLES.LOG_RETENTION_TIME.value || defaultLogRetention
+    )
+    const deleteBeforeTime = new Date(currentTime - xTime)
+
+    try {
+      const oldLogs = await this.retrieveMultipleLogs(
+        new Date(0),
+        deleteBeforeTime,
+        200,
+        undefined,
+        undefined
+      )
+
+      if (oldLogs) {
+        for (const log of oldLogs) {
+          if (log.id) {
+            await this.delete(log.id)
+          }
+        }
+      }
+      return oldLogs ? oldLogs.length : 0
+    } catch (error) {
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Error when deleting old log entries: ${error.message}`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
     }
   }
 }
@@ -714,6 +967,7 @@ export class Database {
   indexer: IndexerDatabase
   logs: LogDatabase
   order: OrderDatabase
+  ddoState: DdoStateDatabase
 
   constructor(private config: OceanNodeDBConfig) {
     // add this DB transport too
@@ -728,6 +982,7 @@ export class Database {
       this.indexer = await new IndexerDatabase(this.config, schemas.indexerSchemas)
       this.logs = await new LogDatabase(this.config, schemas.logSchemas)
       this.order = await new OrderDatabase(this.config, schemas.orderSchema)
+      this.ddoState = await new DdoStateDatabase(this.config, schemas.ddoStateSchema)
       return this
     })() as unknown as Database
   }

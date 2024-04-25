@@ -1,9 +1,14 @@
-import type { OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
+import type { DenyList, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
 import type { C2DClusterInfo } from '../@types/C2D.js'
 import { C2DClusterType } from '../@types/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
-import { ENVIRONMENT_VARIABLES, hexStringToByteArray } from '../utils/index.js'
+import {
+  DEFAULT_RATE_LIMIT_PER_SECOND,
+  ENVIRONMENT_VARIABLES,
+  EnvVariable,
+  hexStringToByteArray
+} from '../utils/index.js'
 import type { PeerId } from '@libp2p/interface/peer-id'
 
 import { LOG_LEVELS_STR, GENERIC_EMOJIS, getLoggerLevelEmoji } from './logging/Logger.js'
@@ -179,11 +184,7 @@ function getOceanNodeFees(supportedNetworks: RPCS, isStartup?: boolean): FeeStra
     // if not exists, just use defaults
     if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.FEE_AMOUNT)) {
       if (isStartup) {
-        CONFIG_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_WARN,
-          `Missing "${ENVIRONMENT_VARIABLES.FEE_AMOUNT.name}" env variable. Will use defaults...`,
-          true
-        )
+        logMissingVariableWithDefault(ENVIRONMENT_VARIABLES.FEE_AMOUNT)
       }
 
       nodeFeesAmount = { amount: 0, unit: 'MB' }
@@ -193,11 +194,7 @@ function getOceanNodeFees(supportedNetworks: RPCS, isStartup?: boolean): FeeStra
     if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.FEE_TOKENS)) {
       // try to get first for artifacts address if available
       if (isStartup) {
-        CONFIG_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_WARN,
-          `Missing "${ENVIRONMENT_VARIABLES.FEE_TOKENS.name}" env variable. Will use defaults...`,
-          true
-        )
+        logMissingVariableWithDefault(ENVIRONMENT_VARIABLES.FEE_TOKENS)
       }
 
       nodeFeesTokens = getDefaultFeeTokens(supportedNetworks)
@@ -264,11 +261,7 @@ function getNodeInterfaces(isStartup: boolean = false) {
   let interfaces: string[] = ['P2P', 'HTTP']
   if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.INTERFACES)) {
     if (isStartup) {
-      CONFIG_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_WARN,
-        `Missing "${ENVIRONMENT_VARIABLES.INTERFACES.name}" env variable. Will use defaults...`,
-        true
-      )
+      logMissingVariableWithDefault(ENVIRONMENT_VARIABLES.INTERFACES)
     }
   } else {
     try {
@@ -318,6 +311,53 @@ export function existsEnvironmentVariable(envVariable: any, log = false): boolea
     return false
   }
   return true
+}
+
+function logMissingVariableWithDefault(envVariable: EnvVariable) {
+  CONFIG_LOGGER.log(
+    LOG_LEVELS_STR.LEVEL_WARN,
+    `Missing "${envVariable.name}" env variable. Will use defaults...`,
+    true
+  )
+}
+// have a rate limit for handler calls
+function getRateLimit(isStartup: boolean = false) {
+  if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND)) {
+    if (isStartup) {
+      logMissingVariableWithDefault(ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND)
+    }
+    return DEFAULT_RATE_LIMIT_PER_SECOND
+  } else {
+    try {
+      return getIntEnvValue(process.env.MAX_REQ_PER_SECOND, DEFAULT_RATE_LIMIT_PER_SECOND)
+    } catch (err) {
+      CONFIG_LOGGER.error(
+        `Invalid "${ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND.name}" env variable...`
+      )
+      return DEFAULT_RATE_LIMIT_PER_SECOND
+    }
+  }
+}
+
+// get blocked ips and peer ids
+function getDenyList(isStartup: boolean = false): DenyList {
+  const defaultDenyList: DenyList = {
+    peers: [],
+    ips: []
+  }
+  if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.RATE_DENY_LIST, isStartup)) {
+    return defaultDenyList
+  } else {
+    try {
+      const list: DenyList = JSON.parse(process.env.RATE_DENY_LIST) as DenyList
+      return list
+    } catch (err) {
+      CONFIG_LOGGER.error(
+        `Invalid "${ENVIRONMENT_VARIABLES.RATE_DENY_LIST.name}" env variable...`
+      )
+      return defaultDenyList
+    }
+  }
 }
 
 // lazy access ocean node config, when we don't need updated values from process.env
@@ -380,6 +420,9 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
         '/ip4/35.198.125.13/tcp/8000/p2p/16Uiu2HAmKZuuY2Lx3JiY938rJWZrYQh6kjBZCNrh3ALkodtwFRdF', // paulo
         '/ip4/34.159.64.236/tcp/8000/p2p/16Uiu2HAmAy1GcZGhzFT3cbARTmodg9c3M4EAmtBZyDgu5cSL1NPr', // jaime
         '/ip4/34.107.3.14/tcp/8000/p2p/16Uiu2HAm4DWmX56ZX2bKjvARJQZPMUZ9xsdtAfrMmd7P8czcN4UT', // maria
+        // LOCAL
+        // TODO check: we might need to have an option to use local node as a bootstrap one
+        // '/ip4/127.0.0.1/tcp/8000/p2p/16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo',
         '/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb',
         '/dnsaddr/bootstrap.libp2p.io/p2p/QmZa1sAxajnQjVM8WjWXoMbmPd7NsWhfKsPkErzpm9wGkp',
         '/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt'
@@ -415,7 +458,9 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     c2dClusters: getC2DClusterEnvironment(isStartup),
     accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
     assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),
-    allowedAdmins: getAllowedAdmins(isStartup)
+    allowedAdmins: getAllowedAdmins(isStartup),
+    rateLimit: getRateLimit(isStartup),
+    denyList: getDenyList(isStartup)
   }
 
   if (!previousConfiguration) {

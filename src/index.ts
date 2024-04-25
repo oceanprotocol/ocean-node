@@ -4,7 +4,6 @@ import { OceanIndexer } from './components/Indexer/index.js'
 import { Database } from './components/database/index.js'
 import express, { Express } from 'express'
 import { OceanNode } from './OceanNode.js'
-import swaggerUi from 'swagger-ui-express'
 import { httpRoutes } from './components/httpRoutes/index.js'
 import { getConfiguration, computeCodebaseHash } from './utils/index.js'
 
@@ -14,6 +13,8 @@ import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import cors from 'cors'
+import { scheduleCronJobs } from './utils/logging/logDeleteCron.js'
+import { requestValidator } from './components/httpRoutes/requestValidator.js'
 
 const app: Express = express()
 
@@ -79,7 +80,7 @@ if (!config) {
 let node: OceanP2P = null
 let indexer = null
 let provider = null
-let dbconn = null
+let dbconn: Database | null = null
 
 if (config.dbConfig?.url) {
   // once we create a database instance, we check the environment and possibly add the DB transport
@@ -122,6 +123,7 @@ if (config.hasProvider && dbconn) {
 const oceanNode = OceanNode.getInstance(dbconn, node, provider, indexer)
 
 if (config.hasHttp) {
+  // allow up to 25Mb file upload
   app.use(express.raw({ limit: '25mb' }))
   app.use(cors())
 
@@ -144,20 +146,12 @@ if (config.hasHttp) {
     })
   }
 
-  // allow up to 25Mb file upload
-  app.use((req, res, next) => {
+  app.use(requestValidator, (req, res, next) => {
+    oceanNode.setRemoteCaller(req.headers['x-forwarded-for'] || req.socket.remoteAddress)
     req.oceanNode = oceanNode
     next()
   })
-  app.use(
-    '/docs',
-    swaggerUi.serve,
-    swaggerUi.setup(undefined, {
-      swaggerOptions: {
-        url: '/swagger.json'
-      }
-    })
-  )
+
   // Integrate static file serving middleware
 
   app.use('/', httpRoutes)
@@ -165,4 +159,7 @@ if (config.hasHttp) {
   app.listen(config.httpPort, () => {
     OCEAN_NODE_LOGGER.logMessage(`HTTP port: ${config.httpPort}`, true)
   })
+
+  // Call the function to schedule the cron job to delete old logs
+  scheduleCronJobs(dbconn)
 }

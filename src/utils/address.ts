@@ -40,11 +40,21 @@ export function getOceanArtifactsAdressesByChainId(chain: number): any {
         }
       }
     }
+    // just warn about this missing configuration if running locally
+    if (
+      chain === DEVELOPMENT_CHAIN_ID &&
+      !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ADDRESS_FILE, true)
+    ) {
+      CORE_LOGGER.warn(
+        'Cannot find contract artifacts addresses for "development" chain. Please set the "ADDRESS_FILE" environmental variable!'
+      )
+    }
   } catch (error) {
     CORE_LOGGER.error(error)
   }
   return null
 }
+
 // default token addresses per chain
 export const OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN = addresses
 export const DEVELOPMENT_CHAIN_ID = 8996

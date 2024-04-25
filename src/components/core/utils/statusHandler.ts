@@ -11,10 +11,12 @@ import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { isAddress } from 'ethers'
+import { schemas } from '../../database/schemas.js'
 
 export async function status(
   oceanNode: OceanNode,
-  nodeId?: string
+  nodeId?: string,
+  detailed: boolean = false
 ): Promise<OceanNodeStatus> {
   CORE_LOGGER.logMessage('Command status started execution...', true)
   if (!oceanNode) {
@@ -62,9 +64,7 @@ export async function status(
       arch: os.arch(),
       machine: os.machine(),
       platform: os.platform(),
-      release: os.release(),
       osType: os.type(),
-      osVersion: os.version(),
       node: process.version
     },
     codeHash: config.codeHash,
@@ -121,6 +121,11 @@ export async function status(
         status.indexer.push(indexer)
       }
     }
+  }
+
+  if (detailed) {
+    status.c2dClusters = config.c2dClusters
+    status.supportedSchemas = schemas.ddoSchemas
   }
   return status
 }

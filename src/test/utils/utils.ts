@@ -36,6 +36,7 @@ export function buildEnvOverrideConfig(
 
   for (let i = 0; i < envVars.length; i++) {
     const variable = envVars[i]
+
     if (!existingKeys.includes(variable.name)) continue
     // ignore unknown variables
     const overrideValue: any = envValues[i]
@@ -94,6 +95,7 @@ export async function setupEnvironment(
         CONFIG_LOGGER.debug('Overriding environment variable: ' + element.name)
         element.originalValue = process.env[element.name] // save original value
         process.env[element.name] = element.newValue
+        ENVIRONMENT_VARIABLES[element.name].value = element.newValue
         forceReload = true
       }
     })
@@ -136,12 +138,6 @@ export function getMockSupportedNetworks(): RPCS {
       network: 'development',
       rpc: 'http://127.0.0.1:8545',
       chunkSize: 100
-    },
-    '137': {
-      chainId: 137,
-      network: 'polygon',
-      rpc: 'https://polygon-rpc.com',
-      chunkSize: 1000
     }
   }
   return mockSupportedNetworks

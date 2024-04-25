@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react'
 import Image from 'next/image'
-
+import { useAdminContext } from '@context/AdminProvider'
 import styles from './index.module.css'
 
 import DownloadSVG from '../../assets/download.svg'
@@ -14,6 +14,7 @@ export default function DownloadButton() {
   const [maxLogs, setMaxLogs] = useState('')
   const [moduleName, setModuleName] = useState('')
   const [level, setLevel] = useState('')
+  const { signature, expiryTimestamp } = useAdminContext()
 
   const downloadLogs = useCallback(async () => {
     const startDateParam = startDate ? `&startTime=${startDate}` : ''
@@ -24,13 +25,18 @@ export default function DownloadButton() {
 
     setLoading(true)
     try {
+      if (!expiryTimestamp || !signature) {
+        console.error('Missing expiryTimestamp or signature')
+        return
+      }
       const data = await fetch(
         `/logs?${startDateParam}${endDateParam}${maxLogsParam}${moduleNameParam}${levelParam}`,
         {
           headers: {
             'Content-Type': 'application/json'
           },
-          method: 'GET'
+          method: 'POST',
+          body: JSON.stringify({ expiryTimestamp, signature })
         }
       ).then((res) => res.json())
       if (data) {

@@ -1,42 +1,44 @@
 import { Handler } from './handler.js'
-import { EVENTS, MetadataStates, PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { P2PCommandResponse } from '../../@types'
+import { EVENTS, MetadataStates, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
+import { P2PCommandResponse, FindDDOResponse } from '../../../@types/index.js'
 import { Readable } from 'stream'
 import {
   hasCachedDDO,
   sortFindDDOResults,
   findDDOLocally,
   formatService
-} from './utils/findDdoHandler.js'
+} from '../utils/findDdoHandler.js'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { sleep, readStream } from '../../utils/util.js'
-import { DDO } from '../../@types/DDO/DDO.js'
-import { FindDDOResponse } from '../../@types/index.js'
-import { CORE_LOGGER } from '../../utils/logging/common.js'
-import { Blockchain } from '../../utils/blockchain.js'
-import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
-import { getOceanArtifactsAdressesByChainId } from '../../utils/address.js'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
+import { sleep, readStream } from '../../../utils/util.js'
+import { DDO } from '../../../@types/DDO/DDO.js'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { Blockchain } from '../../../utils/blockchain.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import { decrypt, create256Hash } from '../../utils/crypt.js'
+import { decrypt, create256Hash } from '../../../utils/crypt.js'
 import lzma from 'lzma-native'
-import { getValidationSignature, validateObject } from './utils/validateDdoHandler.js'
-import { getConfiguration } from '../../utils/config.js'
+import { getValidationSignature, validateObject } from '../utils/validateDdoHandler.js'
+import { getConfiguration } from '../../../utils/config.js'
 import {
   GetDdoCommand,
   FindDDOCommand,
   DecryptDDOCommand,
   ValidateDDOCommand
-} from '../../@types/commands.js'
-import { hasP2PInterface } from '../httpRoutes/index.js'
-import { EncryptMethod } from '../../@types/fileObject.js'
+} from '../../../@types/commands.js'
+import { hasP2PInterface } from '../../httpRoutes/index.js'
+import { EncryptMethod } from '../../../@types/fileObject.js'
 import {
   ValidateParams,
-  buildInvalidParametersResponse,
   buildInvalidRequestMessage,
   validateCommandParameters
-} from '../httpRoutes/validateCommands.js'
+} from '../../httpRoutes/validateCommands.js'
+import {
+  findEventByKey,
+  getNetworkHeight,
+  wasNFTDeployedByOurFactory
+} from '../../Indexer/utils.js'
+import { validateDDOHash } from '../../../utils/asset.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -63,11 +65,10 @@ export class DecryptDdoHandler extends Handler {
   }
 
   async handle(task: DecryptDDOCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
-
     try {
       let decrypterAddress: string
       try {
@@ -130,16 +131,19 @@ export class DecryptDdoHandler extends Handler {
         }
       }
 
-      if (
-        config.authorizedDecrypters.length > 0 &&
-        !config.authorizedDecrypters.includes(decrypterAddress)
-      ) {
-        CORE_LOGGER.logMessage('Decrypt DDO: Decrypter not authorized', true)
-        return {
-          stream: null,
-          status: {
-            httpStatus: 403,
-            error: 'Decrypt DDO: Decrypter not authorized'
+      if (config.authorizedDecrypters.length > 0) {
+        // allow if on authorized list or it is own node
+        if (
+          !config.authorizedDecrypters.includes(decrypterAddress) &&
+          decrypterAddress !== config.keys.ethAddress
+        ) {
+          CORE_LOGGER.logMessage('Decrypt DDO: Decrypter not authorized', true)
+          return {
+            stream: null,
+            status: {
+              httpStatus: 403,
+              error: 'Decrypt DDO: Decrypter not authorized'
+            }
           }
         }
       }
@@ -151,20 +155,15 @@ export class DecryptDdoHandler extends Handler {
       // if we do: artifactsAddresses[supportedNetwork.network]
       // because on the contracts we have "optimism_sepolia" instead of "optimism-sepolia"
       // so its always safer to use the chain id to get the correct network and artifacts addresses
-      const artifactsAddresses = getOceanArtifactsAdressesByChainId(
-        supportedNetwork.chainId
-      )
 
-      const factoryAddress = ethers.getAddress(artifactsAddresses.ERC721Factory)
-      const factoryContract = new ethers.Contract(
-        factoryAddress,
-        ERC721Factory.abi,
-        signer
-      )
       const dataNftAddress = ethers.getAddress(task.dataNftAddress)
-      const factoryListAddress = await factoryContract.erc721List(dataNftAddress)
+      const wasDeployedByUs = await wasNFTDeployedByOurFactory(
+        supportedNetwork.chainId,
+        signer,
+        dataNftAddress
+      )
 
-      if (dataNftAddress !== factoryListAddress) {
+      if (!wasDeployedByUs) {
         CORE_LOGGER.logMessage(
           'Decrypt DDO: Asset not deployed by the data NFT factory',
           true
@@ -291,7 +290,7 @@ export class DecryptDdoHandler extends Handler {
           lzma.decompress(
             decryptedDocument,
             { synchronous: true },
-            (decompressedResult) => {
+            (decompressedResult: any) => {
               decryptedDocument = decompressedResult
             }
           )
@@ -381,9 +380,9 @@ export class GetDdoHandler extends Handler {
   }
 
   async handle(task: GetDdoCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     try {
       const ddo = await this.getOceanNode().getDatabase().ddo.retrieve(task.id)
@@ -417,9 +416,9 @@ export class FindDdoHandler extends Handler {
   }
 
   async handle(task: FindDDOCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     try {
       const node = this.getOceanNode()
@@ -454,6 +453,8 @@ export class FindDdoHandler extends Handler {
       const providerIds: string[] = []
       let processed = 0
       let toProcess = 0
+
+      const configuration = await getConfiguration()
       // sink fn
       const sink = async function (source: any) {
         const chunks: string[] = []
@@ -473,38 +474,55 @@ export class FindDdoHandler extends Handler {
               chunks.push(str)
             }
           } // end for chunk
-          const ddo = JSON.parse(chunks.toString())
+
+          const ddo: any = JSON.parse(chunks.toString())
+
           chunks.length = 0
           // process it
           if (providerIds.length > 0) {
             const peer = providerIds.pop()
-            const ddoInfo: FindDDOResponse = {
-              id: ddo.id,
-              lastUpdateTx: ddo.event.tx,
-              lastUpdateTime: ddo.metadata.updated,
-              provider: peer
-            }
-            resultList.push(ddoInfo)
+            const isResponseLegit = await checkIfDDOResponseIsLegit(ddo)
+            if (isResponseLegit) {
+              const ddoInfo: FindDDOResponse = {
+                id: ddo.id,
+                lastUpdateTx: ddo.event.tx,
+                lastUpdateTime: ddo.metadata.updated,
+                provider: peer
+              }
+              resultList.push(ddoInfo)
 
-            CORE_LOGGER.logMessage(
-              `Succesfully processed DDO info, id: ${ddo.id} from remote peer: ${peer}`,
-              true
-            )
-            // is it cached?
-            const ddoCache = p2pNode.getDDOCache()
-            if (ddoCache.dht.has(ddo.id)) {
-              const localValue: FindDDOResponse = ddoCache.dht.get(ddo.id)
-              if (
-                new Date(ddoInfo.lastUpdateTime) > new Date(localValue.lastUpdateTime)
-              ) {
-                // update cached version
+              CORE_LOGGER.logMessage(
+                `Succesfully processed DDO info, id: ${ddo.id} from remote peer: ${peer}`,
+                true
+              )
+
+              // is it cached?
+              const ddoCache = p2pNode.getDDOCache()
+              if (ddoCache.dht.has(ddo.id)) {
+                const localValue: FindDDOResponse = ddoCache.dht.get(ddo.id)
+                if (
+                  new Date(ddoInfo.lastUpdateTime) > new Date(localValue.lastUpdateTime)
+                ) {
+                  // update cached version
+                  ddoCache.dht.set(ddo.id, ddoInfo)
+                }
+              } else {
+                // just add it to the list
                 ddoCache.dht.set(ddo.id, ddoInfo)
               }
+              updatedCache = true
+              // also store it locally on db
+              if (configuration.hasIndexer) {
+                const ddoExistsLocally = await node.getDatabase().ddo.retrieve(ddo.id)
+                if (!ddoExistsLocally) {
+                  p2pNode.storeAndAdvertiseDDOS([ddo])
+                }
+              }
             } else {
-              // just add it to the list
-              ddoCache.dht.set(ddo.id, ddoInfo)
+              CORE_LOGGER.warn(
+                `Cannot confirm validity of ${ddo.id} fetch from remote node, skipping it...`
+              )
             }
-            updatedCache = true
           }
           processed++
         } catch (err) {
@@ -566,6 +584,7 @@ export class FindDdoHandler extends Handler {
                 id: task.id,
                 command: PROTOCOL_COMMANDS.GET_DDO
               }
+              // NOTE: do not push to response until we verify that it is legitimate
               providerIds.push(peer)
 
               try {
@@ -712,15 +731,9 @@ export class ValidateDDOHandler extends Handler {
   }
 
   async handle(task: ValidateDDOCommand): Promise<P2PCommandResponse> {
-    const commandValidation = this.validate(task)
-    if (!commandValidation.valid) {
-      return {
-        stream: null,
-        status: {
-          httpStatus: commandValidation.status,
-          error: `Validation error: ${commandValidation.reason}`
-        }
-      }
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     try {
       const validation = await validateObject(
@@ -772,4 +785,84 @@ export function validateDDOIdentifier(identifier: string): ValidateParams {
   return {
     valid: true
   }
+}
+
+/**
+ * Checks if the response is legit
+ * @param ddo the DDO
+ * @returns validation result
+ */
+async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
+  const { nftAddress, chainId, event } = ddo
+  let isValid = validateDDOHash(ddo.id, nftAddress, chainId)
+  // 1) check hash sha256(nftAddress + chainId)
+  if (!isValid) {
+    CORE_LOGGER.error(`Asset ${ddo.id} does not have a valid hash`)
+    return false
+  }
+
+  // 2) check event
+  if (!event) {
+    return false
+  }
+
+  // 3) check if we support this network
+  const config = await getConfiguration()
+  const network = config.supportedNetworks[chainId.toString()]
+  if (!network) {
+    CORE_LOGGER.error(
+      `We do not support the newtwork ${chainId}, cannot confirm validation.`
+    )
+    return false
+  }
+  // 4) check if was deployed by our factory
+  const blockchain = new Blockchain(network.rpc, chainId)
+  const signer = blockchain.getSigner()
+
+  const wasDeployedByUs = await wasNFTDeployedByOurFactory(
+    chainId as number,
+    signer,
+    ethers.getAddress(nftAddress)
+  )
+
+  if (!wasDeployedByUs) {
+    CORE_LOGGER.error(`Asset ${ddo.id} not deployed by the data NFT factory`)
+    return false
+  }
+
+  // 5) check block & events
+  const networkBlock = await getNetworkHeight(blockchain.getProvider())
+  if (!event.block || event.block < 0 || networkBlock < event.block) {
+    CORE_LOGGER.error(`Event block: ${event.block} is either missing or invalid`)
+    return false
+  }
+
+  // check events on logs
+  const txId: string = event.tx // NOTE: DDO is txid, Asset is tx
+  if (!txId) {
+    CORE_LOGGER.error(`DDO event missing tx data, cannot confirm transaction`)
+    return false
+  }
+  const receipt = await blockchain.getProvider().getTransactionReceipt(txId)
+  let foundEvents = false
+  if (receipt) {
+    const { logs } = receipt
+    for (const log of logs) {
+      const event = findEventByKey(log.topics[0])
+      if (event && Object.values(EVENTS).includes(event.type)) {
+        if (
+          event.type === EVENTS.METADATA_CREATED ||
+          event.type === EVENTS.METADATA_UPDATED
+        ) {
+          foundEvents = true
+          break
+        }
+      }
+    }
+    isValid = foundEvents
+  } else {
+    isValid = false
+  }
+
+  return isValid
 }

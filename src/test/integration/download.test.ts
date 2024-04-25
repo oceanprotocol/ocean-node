@@ -13,9 +13,12 @@ import {
   PROTOCOL_COMMANDS,
   getConfiguration
 } from '../../utils/index.js'
-import { DownloadHandler } from '../../components/core/downloadHandler.js'
-import { StatusHandler } from '../../components/core/statusHandler.js'
-import { GetDdoHandler } from '../../components/core/ddoHandler.js'
+import { DownloadHandler } from '../../components/core/handler/downloadHandler.js'
+import {
+  DetailedStatusHandler,
+  StatusHandler
+} from '../../components/core/handler/statusHandler.js'
+import { GetDdoHandler } from '../../components/core/handler/ddoHandler.js'
 
 import { Readable } from 'stream'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
@@ -29,7 +32,7 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
-import { FileInfoHandler } from '../../components/core/fileInfoHandler.js'
+import { FileInfoHandler } from '../../components/core/handler/fileInfoHandler.js'
 import {
   DEVELOPMENT_CHAIN_ID,
   getOceanArtifactsAdresses,
@@ -37,6 +40,7 @@ import {
 } from '../../utils/address.js'
 import { publishAsset, orderAsset } from '../utils/assets.js'
 import { downloadAsset } from '../data/assets.js'
+import { homedir } from 'os'
 
 describe('Should run a complete node flow.', () => {
   let config: OceanNodeConfig
@@ -46,7 +50,6 @@ describe('Should run a complete node flow.', () => {
   let publisherAccount: Signer
   let consumerAccount: Signer
   let consumerAddress: string
-  let resolvedDDO: Record<string, any>
   let orderTxId: string
   let assetDID: string
   let publishedDataset: any
@@ -67,23 +70,25 @@ describe('Should run a complete node flow.', () => {
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
-          ENVIRONMENT_VARIABLES.ALLOWED_ADMINS
+          ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
           JSON.stringify(mockSupportedNetworks),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
-          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'])
+          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
     )
 
     config = await getConfiguration(true) // Force reload the configuration
-    const dbconn = await new Database(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(dbconn)
+    database = await new Database(config.dbConfig)
+    oceanNode = await OceanNode.getInstance(database)
     //  eslint-disable-next-line no-unused-vars
-    const indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
+    const indexer = new OceanIndexer(database, mockSupportedNetworks)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
@@ -115,6 +120,23 @@ describe('Should run a complete node flow.', () => {
       status.allowedAdmins[0] === '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260',
       'incorrect allowed admin publisherAddress'
     )
+    assert(status.c2dClusters === undefined, 'clusters info should be undefined')
+    assert(status.supportedSchemas === undefined, 'schemas info should be undefined')
+  })
+
+  it('should get node detailed status', async () => {
+    const oceanNodeConfig = await getConfiguration(true)
+
+    const statusCommand = {
+      command: PROTOCOL_COMMANDS.DETAILED_STATUS,
+      node: oceanNodeConfig.keys.peerId.toString()
+    }
+    const response = await new DetailedStatusHandler(oceanNode).handle(statusCommand)
+    assert(response.status.httpStatus === 200, 'http status not 200')
+    const resp = await streamToString(response.stream as Readable)
+    const status = JSON.parse(resp)
+    assert(status.c2dClusters !== undefined, 'clusters info should not be undefined')
+    assert(status.supportedSchemas !== undefined, 'schemas info should not be undefined')
   })
 
   it('should get file info before publishing', async () => {
@@ -138,7 +160,7 @@ describe('Should run a complete node flow.', () => {
     const fileInfo = await streamToObject(response.stream as Readable)
 
     assert(fileInfo[0].valid, 'File info is valid')
-    expect(fileInfo[0].contentLength).to.equal('417')
+    expect(fileInfo[0].contentLength).to.equal('946')
     expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
     expect(fileInfo[0].name).to.equal('algo.js')
     expect(fileInfo[0].type).to.equal('url')
@@ -177,7 +199,7 @@ describe('Should run a complete node flow.', () => {
     const fileInfo = await streamToObject(response.stream as Readable)
 
     assert(fileInfo[0].valid, 'File info is valid')
-    expect(fileInfo[0].contentLength).to.equal('138486')
+    expect(fileInfo[0].contentLength).to.equal('319520')
     expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
     expect(fileInfo[0].name).to.equal('shs_dataset_test.txt')
     expect(fileInfo[0].type).to.equal('url')
@@ -197,20 +219,15 @@ describe('Should run a complete node flow.', () => {
     assert(orderTxId, 'transaction id not found')
   })
 
-  it('should download triger download file', function () {
+  it('should download triger download file', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
     const doCheck = async () => {
-      const config = await getConfiguration(true)
-      database = await new Database(config.dbConfig)
-      const oceanNode = OceanNode.getInstance(database)
-      assert(oceanNode, 'Failed to instantiate OceanNode')
-
       const wallet = new ethers.Wallet(
         '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
       )
       const nonce = Date.now().toString()
-      const message = String(resolvedDDO.id + nonce)
+      const message = String(publishedDataset.ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
         [ethers.hexlify(ethers.toUtf8Bytes(message))]
@@ -220,8 +237,8 @@ describe('Should run a complete node flow.', () => {
 
       const downloadTask = {
         fileIndex: 0,
-        documentId: assetDID,
-        serviceId,
+        documentId: publishedDataset.ddo.id,
+        serviceId: publishedDataset.ddo.services[0].id,
         transferTxId: orderTxId,
         nonce,
         consumerAddress,
@@ -240,7 +257,7 @@ describe('Should run a complete node flow.', () => {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
     }, DEFAULT_TEST_TIMEOUT * 3)
 
-    doCheck()
+    await doCheck()
   })
   it('should not allow to download the asset with different consumer address', function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)

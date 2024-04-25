@@ -3,20 +3,18 @@ import { getNonce } from '../core/utils/nonceHandler.js'
 import { streamToObject, streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { EncryptFileHandler, EncryptHandler } from '../core/encryptHandler.js'
+import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants.js'
+import { EncryptFileHandler, EncryptHandler } from '../core/handler/encryptHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
-import { DecryptDdoHandler } from '../core/ddoHandler.js'
-import { DownloadHandler } from '../core/downloadHandler.js'
+import { DecryptDdoHandler } from '../core/handler/ddoHandler.js'
+import { DownloadHandler } from '../core/handler/downloadHandler.js'
 import { DownloadCommand } from '../../@types/commands.js'
-import { FeesHandler } from '../core/feesHandler.js'
+import { FeesHandler } from '../core/handler/feesHandler.js'
 import { BaseFileObject, EncryptMethod } from '../../@types/fileObject.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { getEncryptMethodFromString } from '../../utils/crypt.js'
 
 export const providerRoutes = express.Router()
-
-export const SERVICES_API_BASE_PATH = '/api/services'
 
 providerRoutes.post(`${SERVICES_API_BASE_PATH}/decrypt`, async (req, res) => {
   try {
