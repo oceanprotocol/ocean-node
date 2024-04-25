@@ -131,6 +131,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: docker image ls
+      - run: docker ps -a
       - name: Delete default runner images
         run: |
           docker image rm node:16
