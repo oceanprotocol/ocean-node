@@ -1,9 +1,9 @@
 import React, { useCallback, useState } from 'react'
 import Image from 'next/image'
 import { useAdminContext } from '@context/AdminProvider'
-import styles from './index.module.css'
+import { Button, TextField } from '@mui/material'
 import DownloadSVG from '../../assets/download.svg'
-import { Button } from '@mui/material'
+import styles from './index.module.css'
 
 export default function DownloadButton() {
   const [showFilters, setShowFilters] = useState(false)
@@ -60,98 +60,68 @@ export default function DownloadButton() {
     setShowFilters(!state)
   }
 
-  const Spinner = () => {
-    return <span className={styles.loader}></span>
-  }
-
   return (
     <div className={styles.column}>
-      <Button
-        type="button"
-        className={styles.download}
-        onClick={() => handleFiltersDropdown(showFilters)}
-      >
-        <div>Download Logs</div>
+      <Button type="button" onClick={() => handleFiltersDropdown(showFilters)}>
+        Download Logs
       </Button>
 
       {showFilters && (
         <div className={styles.filters}>
-          <div className={styles.column}>
-            <label htmlFor="startTime">Start Time</label>
-            <input
-              className={styles.input}
-              name="startTime"
-              type="datetime-local"
-              id="startTime"
-              onChange={(e) => {
-                console.log('start', e.target.value)
-                setStartDate(e.target.value)
-              }}
-              defaultValue={startDate}
-            />
-          </div>
-          <div className={styles.column}>
-            <label htmlFor="endTime">End Time</label>
-            <input
-              className={styles.input}
-              name="endTime"
-              type="datetime-local"
-              id="endTime"
-              onChange={(e) => {
-                setEndDate(e.target.value)
-              }}
-              defaultValue={endDate}
-            />
-          </div>
-          <div className={styles.column}>
-            <label htmlFor="maxLogs">Max Logs</label>
-            <input
-              className={styles.input}
-              name="maxLogs"
-              type="number"
-              id="maxLogs"
-              onChange={(e) => {
-                setMaxLogs(e.target.value)
-              }}
-            />
-          </div>
-          <div className={styles.column}>
-            <label htmlFor="moduleName">Module Name</label>
-            <input
-              className={styles.input}
-              name="moduleName"
-              type="text"
-              id="moduleName"
-              onChange={(e) => {
-                setModuleName(e.target.value)
-              }}
-            />
-          </div>
-          <div className={styles.column}>
-            <label htmlFor="level">Level</label>
-            <input
-              className={styles.input}
-              name="level"
-              type="text"
-              id="level"
-              value={level}
-              onChange={(e) => {
-                setLevel(e.target.value)
-              }}
-            />
-          </div>
-          <button
+          <TextField
+            label="Start Time"
+            type="datetime-local"
+            onChange={(e) => setStartDate(e.target.value)}
+            defaultValue={startDate}
+            fullWidth
+            margin="normal"
+            variant="outlined"
+          />
+          <TextField
+            label="End Time"
+            type="datetime-local"
+            onChange={(e) => setEndDate(e.target.value)}
+            defaultValue={endDate}
+            fullWidth
+            margin="normal"
+            variant="outlined"
+          />
+          <TextField
+            label="Max Logs"
+            type="number"
+            onChange={(e) => setMaxLogs(e.target.value)}
+            fullWidth
+            margin="normal"
+            variant="outlined"
+          />
+          <TextField
+            label="Module Name"
+            type="text"
+            onChange={(e) => setModuleName(e.target.value)}
+            fullWidth
+            margin="normal"
+            variant="outlined"
+          />
+          <TextField
+            label="Level"
+            type="text"
+            value={level}
+            onChange={(e) => setLevel(e.target.value)}
+            fullWidth
+            margin="normal"
+            variant="outlined"
+          />
+          <Button
             type="button"
-            className={styles.download}
-            onClick={() => downloadLogs()}
-          >
-            <div>Download</div>
-            {isLoading ? (
-              <Spinner />
-            ) : (
+            onClick={downloadLogs}
+            variant="outlined"
+            startIcon={
               <Image src={DownloadSVG} alt="download button" width={24} height={24} />
-            )}
-          </button>
+            }
+            disabled={isLoading}
+          >
+            Download
+          </Button>
         </div>
       )}
     </div>
