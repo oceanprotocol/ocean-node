@@ -89,6 +89,7 @@ export async function proccesNetworkData(): Promise<void> {
   let { chunkSize } = rpcDetails
   let lockProccessing = false
   while (true) {
+    let currentBlock
     if (!lockProccessing) {
       lockProccessing = true
       const indexedBlock = await getLastIndexedBlock()
@@ -138,6 +139,7 @@ export async function proccesNetworkData(): Promise<void> {
             blocksToProcess
           )
           await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
+          currentBlock = processedBlocks.lastBlock
           checkNewlyIndexedAssets(processedBlocks.foundEvents)
           chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
         } catch (error) {
@@ -160,24 +162,28 @@ export async function proccesNetworkData(): Promise<void> {
     await sleep(interval)
     // reindex chain command called
     if (REINDEX_BLOCK && !lockProccessing) {
-      const res = await deleteAllAssetsFromChain()
-      if (res === null) {
-        INDEXER_LOGGER.error(
-          `Assets could not be deleted for chain ${rpcDetails.chainId}. Continue indexing normally...`
-        )
-        continue
-      }
-      INDEXER_LOGGER.logMessage(`Assets deleted from db for chain ${rpcDetails.chainId}`)
-      // TODO #405 https://github.com/oceanprotocol/ocean-node/issues/405:
-      // if block couldn't be updated and DDOs are deleted => should set in DDO mapping a field for archieved DDOs.
-      const block = await updateLastIndexedBlockNumber(REINDEX_BLOCK)
-      if (block === null) {
-        INDEXER_LOGGER.error(`Block could not be reset. Continue indexing normally...`)
-        continue
-      }
-      INDEXER_LOGGER.logMessage(`Block updated for reindexing chain ${REINDEX_BLOCK}`)
-      REINDEX_BLOCK = null
+      await reindexChain(currentBlock)
     }
+  }
+}
+
+async function reindexChain(currentBlock: number): Promise<void> {
+  const block = await updateLastIndexedBlockNumber(REINDEX_BLOCK)
+  if (block !== null) {
+    INDEXER_LOGGER.logMessage(`Block updated for reindexing chain ${REINDEX_BLOCK}`)
+    REINDEX_BLOCK = null
+    const res = await deleteAllAssetsFromChain()
+    if (res !== null) {
+      INDEXER_LOGGER.logMessage(`Assets deleted from db for chain ${rpcDetails.chainId}`)
+    } else {
+      INDEXER_LOGGER.error(
+        `Assets could not be deleted for chain ${rpcDetails.chainId}. Reverting block...`
+      )
+      await updateLastIndexedBlockNumber(currentBlock)
+    }
+  } else {
+    INDEXER_LOGGER.error(`Block could not be reset. Continue indexing normally...`)
+    REINDEX_BLOCK = null
   }
 }
 
