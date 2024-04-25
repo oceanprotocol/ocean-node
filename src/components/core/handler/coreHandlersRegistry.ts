@@ -17,7 +17,7 @@ import { FeesHandler } from './feesHandler.js'
 import { Handler } from './handler.js'
 import { NonceHandler } from './nonceHandler.js'
 import { QueryHandler } from './queryHandler.js'
-import { StatusHandler } from './statusHandler.js'
+import { DetailedStatusHandler, StatusHandler } from './statusHandler.js'
 import { ReindexHandler } from './reindexHandler.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { Command } from '../../../@types/commands.js'
@@ -29,7 +29,7 @@ import {
   ComputeGetResultHandler,
   ComputeInitializeHandler
 } from '../compute/index.js'
-import { StopNodeHandler } from '../adminOperations.js'
+import { StopNodeHandler } from '../admin/stopNode.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -75,6 +75,10 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(PROTOCOL_COMMANDS.GET_DDO, new GetDdoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.QUERY, new QueryHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.STATUS, new StatusHandler(node))
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.DETAILED_STATUS,
+      new DetailedStatusHandler(node)
+    )
     this.registerCoreHandler(PROTOCOL_COMMANDS.FIND_DDO, new FindDdoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.GET_FEES, new FeesHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.ECHO, new EchoHandler(node))

@@ -53,15 +53,18 @@ export interface ValidateDDOCommand extends Command {
 }
 
 export interface StatusCommand extends Command {}
+export interface DetailedStatusCommand extends StatusCommand {}
 export interface EchoCommand extends Command {}
 
-export interface StopNodeCommand extends Command {
+export interface AdminCommand extends Command {
   expiryTimestamp: number
   signature: string
 }
 
 export interface QueryCommand extends Command {
   query: Record<string, any>
+  maxResultsPerPage?: number
+  pageNumber?: number
 }
 export interface ReindexCommand extends Command {
   txId: string

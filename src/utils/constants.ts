@@ -13,6 +13,7 @@ export const PROTOCOL_COMMANDS = {
   QUERY: 'query',
   NONCE: 'nonce',
   STATUS: 'status',
+  DETAILED_STATUS: 'detailedStatus',
   FIND_DDO: 'findDDO',
   GET_FEES: 'getFees',
   FILE_INFO: 'fileInfo',
@@ -37,6 +38,7 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.GET_DDO,
   PROTOCOL_COMMANDS.QUERY,
   PROTOCOL_COMMANDS.STATUS,
+  PROTOCOL_COMMANDS.DETAILED_STATUS,
   PROTOCOL_COMMANDS.FIND_DDO,
   PROTOCOL_COMMANDS.GET_FEES,
   PROTOCOL_COMMANDS.FILE_INFO,
@@ -225,6 +227,12 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     // rate limit / deny list (peers and ips)
     name: 'RATE_DENY_LIST',
     value: process.env.RATE_DENY_LIST,
+    required: false
+  },
+  MAX_CHECKSUM_LENGTH: {
+    // c2d, maximum length for a file if checksum is required.
+    name: 'MAX_CHECKSUM_LENGTH',
+    value: process.env.MAX_CHECKSUM_LENGTH,
     required: false
   }
 }

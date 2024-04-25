@@ -14,7 +14,10 @@ import {
   getConfiguration
 } from '../../utils/index.js'
 import { DownloadHandler } from '../../components/core/handler/downloadHandler.js'
-import { StatusHandler } from '../../components/core/handler/statusHandler.js'
+import {
+  DetailedStatusHandler,
+  StatusHandler
+} from '../../components/core/handler/statusHandler.js'
 import { GetDdoHandler } from '../../components/core/handler/ddoHandler.js'
 
 import { Readable } from 'stream'
@@ -117,6 +120,23 @@ describe('Should run a complete node flow.', () => {
       status.allowedAdmins[0] === '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260',
       'incorrect allowed admin publisherAddress'
     )
+    assert(status.c2dClusters === undefined, 'clusters info should be undefined')
+    assert(status.supportedSchemas === undefined, 'schemas info should be undefined')
+  })
+
+  it('should get node detailed status', async () => {
+    const oceanNodeConfig = await getConfiguration(true)
+
+    const statusCommand = {
+      command: PROTOCOL_COMMANDS.DETAILED_STATUS,
+      node: oceanNodeConfig.keys.peerId.toString()
+    }
+    const response = await new DetailedStatusHandler(oceanNode).handle(statusCommand)
+    assert(response.status.httpStatus === 200, 'http status not 200')
+    const resp = await streamToString(response.stream as Readable)
+    const status = JSON.parse(resp)
+    assert(status.c2dClusters !== undefined, 'clusters info should not be undefined')
+    assert(status.supportedSchemas !== undefined, 'schemas info should not be undefined')
   })
 
   it('should get file info before publishing', async () => {
@@ -140,7 +160,7 @@ describe('Should run a complete node flow.', () => {
     const fileInfo = await streamToObject(response.stream as Readable)
 
     assert(fileInfo[0].valid, 'File info is valid')
-    expect(fileInfo[0].contentLength).to.equal('417')
+    expect(fileInfo[0].contentLength).to.equal('946')
     expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
     expect(fileInfo[0].name).to.equal('algo.js')
     expect(fileInfo[0].type).to.equal('url')
@@ -179,7 +199,7 @@ describe('Should run a complete node flow.', () => {
     const fileInfo = await streamToObject(response.stream as Readable)
 
     assert(fileInfo[0].valid, 'File info is valid')
-    expect(fileInfo[0].contentLength).to.equal('138486')
+    expect(fileInfo[0].contentLength).to.equal('319520')
     expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
     expect(fileInfo[0].name).to.equal('shs_dataset_test.txt')
     expect(fileInfo[0].type).to.equal('url')
