@@ -327,6 +327,11 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           JSON.stringify(decodedEventData.args[4])
         )}, decoded data: ${JSON.stringify(decodedEventData)}`
       )
+      for (const a in decodedEventData.args) {
+        INDEXER_LOGGER.logMessage(
+          `decodedEventData.args[${a}]: ${JSON.stringify(decodedEventData.args[a])}`
+        )
+      }
 
       // if (
       //   decodedEventData.args[5] &&
