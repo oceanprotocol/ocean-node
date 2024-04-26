@@ -30,7 +30,11 @@ interface ThreadData {
 
 const { rpcDetails } = workerData as ThreadData
 
-const blockchain = new Blockchain(rpcDetails.rpc, rpcDetails.chainId)
+const blockchain = new Blockchain(
+  rpcDetails.rpc,
+  rpcDetails.chainId,
+  rpcDetails.fallbackRPCs
+)
 const provider = blockchain.getProvider()
 const signer = blockchain.getSigner()
 
