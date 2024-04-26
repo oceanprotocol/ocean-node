@@ -5,7 +5,8 @@ import {
   Contract,
   JsonRpcApiProvider,
   JsonRpcProvider,
-  isAddress
+  isAddress,
+  Network
 } from 'ethers'
 import { getConfiguration } from './config.js'
 import { CORE_LOGGER } from './logging/common.js'
@@ -14,11 +15,18 @@ export class Blockchain {
   private signer: Signer
   private provider: JsonRpcApiProvider
   private chainId: number
-  private knownRPCs: string[]
+  private knownRPCs: string[] = []
+  private networkAvailable: boolean = false
 
   public constructor(rpc: string, chaindId: number, fallbackRPCs?: string[]) {
     this.chainId = chaindId
     this.provider = new ethers.JsonRpcProvider(rpc)
+    this.provider.on('network', (newNetwork) => {
+      // When a Provider makes its initial connection, it emits a "network"
+      // event with a null oldNetwork along with the newNetwork. So, if the
+      // oldNetwork exists, it represents a changing network
+      this.networkAvailable = newNetwork instanceof Network
+    })
     this.knownRPCs.push(rpc)
     if (fallbackRPCs && fallbackRPCs.length > 0) {
       this.knownRPCs.push(...fallbackRPCs)
@@ -39,13 +47,14 @@ export class Blockchain {
     return this.chainId
   }
 
-  public isProviderReady(): boolean {
-    return this.provider && this.provider.ready
+  public isNetworkReady(): boolean {
+    return this.networkAvailable || this.provider.ready
   }
 
   public detectProviderNetwork(): boolean {
     try {
       this.provider._detectNetwork()
+      this.networkAvailable = true
       return true
     } catch (error) {
       return false
