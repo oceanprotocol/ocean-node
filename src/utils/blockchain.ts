@@ -10,6 +10,7 @@ import {
 } from 'ethers'
 import { getConfiguration } from './config.js'
 import { CORE_LOGGER } from './logging/common.js'
+import { sleep } from './util.js'
 
 export class Blockchain {
   private signer: Signer
@@ -21,12 +22,7 @@ export class Blockchain {
   public constructor(rpc: string, chaindId: number, fallbackRPCs?: string[]) {
     this.chainId = chaindId
     this.provider = new ethers.JsonRpcProvider(rpc)
-    this.provider.on('network', (newNetwork) => {
-      // When a Provider makes its initial connection, it emits a "network"
-      // event with a null oldNetwork along with the newNetwork. So, if the
-      // oldNetwork exists, it represents a changing network
-      this.networkAvailable = newNetwork instanceof Network
-    })
+    this.registerForNetworkEvents(this.provider)
     this.knownRPCs.push(rpc)
     if (fallbackRPCs && fallbackRPCs.length > 0) {
       this.knownRPCs.push(...fallbackRPCs)
@@ -51,6 +47,7 @@ export class Blockchain {
     return this.networkAvailable || this.provider.ready
   }
 
+  // _detectNetwork throws error if network is not available
   public detectProviderNetwork(): boolean {
     try {
       this.provider._detectNetwork()
@@ -63,6 +60,33 @@ export class Blockchain {
 
   public getKnownRPCs(): string[] {
     return this.knownRPCs
+  }
+
+  // try other rpc options, if available
+  public async tryFallbackRPCs(): Promise<boolean> {
+    if (this.knownRPCs.length <= 1) {
+      return false
+    }
+    for (let i = 1; i < this.knownRPCs.length; i++) {
+      const newProvider = new JsonRpcProvider(this.knownRPCs[i])
+      // try them 1 by 1 and wait a couple of secs for network detection
+      this.registerForNetworkEvents(newProvider)
+      await sleep(2500)
+      if (this.isNetworkReady()) {
+        return true
+      }
+    }
+    return false
+  }
+
+  private registerForNetworkEvents(provider: ethers.JsonRpcApiProvider) {
+    this.provider = provider
+    this.provider.on('network', (newNetwork) => {
+      // When a Provider makes its initial connection, it emits a "network"
+      // event with a null oldNetwork along with the newNetwork. So, if the
+      // oldNetwork exists, it represents a changing network
+      this.networkAvailable = newNetwork instanceof Network
+    })
   }
 }
 
