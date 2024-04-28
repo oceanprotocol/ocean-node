@@ -28,8 +28,8 @@ import {
   PROTOCOL_COMMANDS,
   getConfiguration
 } from '../../utils/index.js'
-import { DownloadHandler } from '../../components/core/downloadHandler.js'
-import { GetDdoHandler } from '../../components/core/ddoHandler.js'
+import { DownloadHandler } from '../../components/core/handler/downloadHandler.js'
+import { GetDdoHandler } from '../../components/core/handler/ddoHandler.js'
 
 import { Readable } from 'stream'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
