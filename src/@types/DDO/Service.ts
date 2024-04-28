@@ -99,6 +99,12 @@ export interface Service {
   description?: string
 
   /**
+   * Service lifecycle state. 0 no access. >=1 access.
+   * @type {number}
+   */
+  state?: number
+
+  /**
    * If service is of type compute, holds information about the compute-related privacy settings & resources.
    * @type {ServiceComputeOptions}
    */
