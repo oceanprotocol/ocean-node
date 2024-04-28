@@ -1,16 +1,17 @@
 import { Handler } from './handler.js'
-import { GetFeesCommand } from '../../@types/commands.js'
-import { P2PCommandResponse } from '../../@types/OceanNode.js'
-import { createProviderFee } from './utils/feesHandler.js'
+import { GetFeesCommand } from '../../../@types/commands.js'
+import { P2PCommandResponse } from '../../../@types/OceanNode.js'
+import { createProviderFee } from '../utils/feesHandler.js'
 import { Readable } from 'stream'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { PROVIDER_LOGGER } from '../../utils/logging/common.js'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
+import { PROVIDER_LOGGER } from '../../../utils/logging/common.js'
 import {
   ValidateParams,
   buildInvalidParametersResponse,
   buildInvalidRequestMessage,
+  buildRateLimitReachedResponse,
   validateCommandParameters
-} from '../httpRoutes/validateCommands.js'
+} from '../../httpRoutes/validateCommands.js'
 import { validateDDOIdentifier } from './ddoHandler.js'
 import { isAddress } from 'ethers'
 
@@ -30,6 +31,9 @@ export class FeesHandler extends Handler {
   }
 
   async handle(task: GetFeesCommand): Promise<P2PCommandResponse> {
+    if (!(await this.checkRateLimit())) {
+      return buildRateLimitReachedResponse()
+    }
     const validation = this.validate(task)
     if (!validation.valid) {
       return buildInvalidParametersResponse(validation)

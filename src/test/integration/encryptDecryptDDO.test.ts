@@ -21,8 +21,12 @@ import { genericDDO } from '../data/ddo.js'
 import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
 import { Database } from '../../components/database/index.js'
-import { DecryptDdoHandler } from '../../components/core/ddoHandler.js'
-import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/index.js'
+import { DecryptDdoHandler } from '../../components/core/handler/ddoHandler.js'
+import {
+  ENVIRONMENT_VARIABLES,
+  getConfiguration,
+  PROTOCOL_COMMANDS
+} from '../../utils/index.js'
 import { Readable } from 'stream'
 import { OceanNode } from '../../OceanNode.js'
 import {
@@ -33,6 +37,7 @@ import {
 } from '../utils/utils.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
+import { homedir } from 'os'
 
 describe('Should encrypt and decrypt DDO', () => {
   let database: Database
@@ -63,20 +68,10 @@ describe('Should encrypt and decrypt DDO', () => {
   let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
-    let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
-    if (!artifactsAddresses) {
-      artifactsAddresses = getOceanArtifactsAdresses().development
-    }
-
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
     publisherAddress = await publisherAccount.getAddress()
     genericAsset = genericDDO
-    factoryContract = new ethers.Contract(
-      artifactsAddresses.ERC721Factory,
-      ERC721Factory.abi,
-      publisherAccount
-    )
 
     previousConfiguration = await setupEnvironment(
       null,
@@ -84,16 +79,29 @@ describe('Should encrypt and decrypt DDO', () => {
         [
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.RPCS,
-          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS
+          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
+          ENVIRONMENT_VARIABLES.DB_URL,
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           JSON.stringify(mockSupportedNetworks),
-          JSON.stringify([publisherAddress])
+          JSON.stringify([publisherAddress]),
+          'http://localhost:8108/?apiKey=xyz',
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
     )
+    let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+    if (!artifactsAddresses) {
+      artifactsAddresses = getOceanArtifactsAdresses().development
+    }
 
+    factoryContract = new ethers.Contract(
+      artifactsAddresses.ERC721Factory,
+      ERC721Factory.abi,
+      publisherAccount
+    )
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -203,6 +211,20 @@ describe('Should encrypt and decrypt DDO', () => {
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(403)
     expect(response.status.error).to.equal('Decrypt DDO: Decrypter not authorized')
+  })
+
+  it('should authorize decrypter since is this node', async () => {
+    const config = await getConfiguration()
+    const decryptDDOTask: DecryptDDOCommand = {
+      command: PROTOCOL_COMMANDS.DECRYPT_DDO,
+      decrypterAddress: await config.keys.ethAddress,
+      chainId,
+      nonce: Date.now().toString(),
+      signature: '0x123'
+    }
+    const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
+    expect(response.status.httpStatus).to.not.equal(403)
+    expect(response.status.error).to.not.equal('Decrypt DDO: Decrypter not authorized')
   })
 
   it('should return asset not deployed by the data NFT factory', async () => {

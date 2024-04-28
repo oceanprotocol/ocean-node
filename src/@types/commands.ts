@@ -62,8 +62,9 @@ export interface StopNodeCommand extends Command {
 
 export interface QueryCommand extends Command {
   query: Record<string, any>
+  maxResultsPerPage?: number
+  pageNumber?: number
 }
-
 export interface ReindexCommand extends Command {
   txId: string
   chainId: number

@@ -16,7 +16,8 @@ export * from './getOceanPeers.js'
 export const httpRoutes = express.Router()
 
 // P2P routes related
-export const hasP2PInterface = await (await getConfiguration()).hasP2P
+export const hasP2PInterface = (await (await getConfiguration())?.hasP2P) || false
+
 export function sendMissingP2PResponse(res: Response) {
   res.status(400).send('Invalid or Non Existing P2P configuration')
 }

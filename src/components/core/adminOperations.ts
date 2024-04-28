@@ -1,4 +1,4 @@
-import { Handler } from './handler.js'
+import { Handler } from './handler/handler.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { StopNodeCommand } from '../../@types/commands.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'

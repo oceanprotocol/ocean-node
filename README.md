@@ -155,6 +155,12 @@ Now, back in your nodes terminal, you can run the tests
 npm run test:integration
 ```
 
+If you started barge without c2d components you can run a lighter version of integration tests that do not run the compute to data tests.
+
+```bash
+npm run test:integration:light
+```
+
 ## Unit and integration .environments
 
 Whenever possible, we should avoid overriding .env variables, as it might affect local configuration and other tests

@@ -1,6 +1,8 @@
 import { expect, assert } from 'chai'
-import { sleep, getEventFromTx, isValidUrl } from '../../utils/util.js'
-import 'mocha'
+import { sleep, getEventFromTx } from '../../utils/util.js'
+import { URLUtils } from '../../utils/url.js'
+import { validateConsumerParameters } from '../../utils/validators.js'
+import { ConsumerParameter } from '../../@types/DDO/ConsumerParameter.js'
 
 describe('Utilities Functions', () => {
   describe('sleep function', () => {
@@ -12,19 +14,19 @@ describe('Utilities Functions', () => {
     })
 
     it('should handle/validate multiple URLS', () => {
-      assert.isTrue(isValidUrl('https://localhost:80'))
-      assert.isFalse(isValidUrl(''))
+      assert.isTrue(URLUtils.isValidUrl('https://localhost:80'))
+      assert.isFalse(URLUtils.isValidUrl(''))
       assert.isTrue(
-        isValidUrl(
+        URLUtils.isValidUrl(
           'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json'
         )
       )
       assert.isTrue(
-        isValidUrl(
+        URLUtils.isValidUrl(
           'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json'
         )
       )
-      assert.isFalse(isValidUrl('http://hello world!'))
+      assert.isFalse(URLUtils.isValidUrl('http://hello world!'))
     })
   })
 
@@ -111,5 +113,145 @@ describe('Utilities Functions', () => {
         'Result should be undefined for txReceipt with null logs'
       )
     })
+  })
+
+  it('should validateConsumerParameters', async () => {
+    const ddoConsumerParameters: ConsumerParameter[] = [
+      {
+        name: 'hometown',
+        type: 'text',
+        label: 'Hometown',
+        required: true,
+        description: 'What is your hometown?',
+        default: 'Nowhere'
+      },
+      {
+        name: 'age',
+        type: 'number',
+        label: 'Age',
+        required: false,
+        description: 'Please fill your age',
+        default: 0
+      },
+      {
+        name: 'developer',
+        type: 'boolean',
+        label: 'Developer',
+        required: false,
+        description: 'Are you a developer?',
+        default: false
+      },
+      {
+        name: 'languagePreference',
+        type: 'select',
+        label: 'Language',
+        required: false,
+        description: 'Do you like NodeJs or Python',
+        default: 'nodejs',
+        options: [
+          {
+            nodejs: 'I love NodeJs'
+          },
+          {
+            python: 'I love Python'
+          }
+        ]
+      }
+    ]
+    const userSentObject: any[] = [
+      {
+        hometown: 'Tokyo',
+        age: 12,
+        developer: true,
+        languagePreference: 'python'
+      },
+      {
+        hometown: 'Kyoto',
+        age: 34,
+        developer: true,
+        languagePreference: 'nodejs'
+      },
+      {
+        hometown: 'Osaka',
+        age: 56,
+        developer: true,
+        languagePreference: 'python'
+      },
+      {
+        hometown: 'Yokohama',
+        age: 78,
+        developer: false
+      },
+      {
+        hometown: 'Sapporo',
+        age: 90,
+        developer: false
+      }
+    ]
+    const result = await validateConsumerParameters(ddoConsumerParameters, userSentObject)
+    expect(result.valid).to.equal(true)
+  })
+  it('should Not validateConsumerParameters (wrong types)', async () => {
+    const ddoConsumerParameters: ConsumerParameter[] = [
+      {
+        name: 'hometown',
+        type: 'text',
+        label: 'Hometown',
+        required: true,
+        description: 'What is your hometown?',
+        default: 'Nowhere'
+      },
+      {
+        name: 'age',
+        type: 'number',
+        label: 'Age',
+        required: false,
+        description: 'Please fill your age',
+        default: 0
+      },
+      {
+        name: 'developer',
+        type: 'boolean',
+        label: 'Developer',
+        required: false,
+        description: 'Are you a developer?',
+        default: false
+      }
+    ]
+    const userSentObject: any = {
+      hometown: 'Tokyo',
+      age: 12,
+      developer: 'wrong type here' // should be a boolean
+    }
+    const result = await validateConsumerParameters(ddoConsumerParameters, userSentObject)
+    expect(result.valid).to.equal(false)
+    expect(result.reason).includes('parameter has wrong type')
+  })
+
+  it('should Not validateConsumerParameters (missing required field)', async () => {
+    const ddoConsumerParameters: ConsumerParameter[] = [
+      {
+        name: 'hometown',
+        type: 'text',
+        label: 'Hometown',
+        required: true,
+        description: 'What is your hometown?',
+        default: 'Nowhere'
+      },
+      {
+        name: 'age',
+        type: 'number',
+        label: 'Age',
+        required: true,
+        description: 'Please fill your age',
+        default: 0
+      }
+    ]
+    const userSentObject: any = {
+      hometown: 'Tokyo'
+    }
+    const result = await validateConsumerParameters(ddoConsumerParameters, userSentObject)
+    expect(result.valid).to.equal(false)
+    expect(result.reason).includes('parameter is required')
   })
 })

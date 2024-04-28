@@ -2,6 +2,7 @@ import { SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Command } from '../../@types/commands.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
+import { ReadableString } from '../P2P/handlers.js'
 
 export type ValidateParams = {
   valid: boolean
@@ -71,6 +72,14 @@ export function buildInvalidRequestMessage(cause: string): ValidateParams {
     reason: cause
   }
 }
+
+export function buildRateLimitReachedResponse(): P2PCommandResponse {
+  return {
+    stream: new ReadableString('Rate limit exceeded'),
+    status: { httpStatus: 403, error: 'Rate limit exceeded' }
+  }
+}
+
 // always send same response
 export function buildInvalidParametersResponse(
   validation: ValidateParams
