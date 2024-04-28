@@ -235,6 +235,21 @@ export class DownloadHandler extends Handler {
       }
     }
 
+    // check lifecycle state
+    if (ddo.nft.state !== 0 && ddo.nft.state !== 5) {
+      CORE_LOGGER.logMessage(
+        `Error: Asset with id ${ddo.id} is not in an active state`,
+        true
+      )
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error: `Error: Asset with id ${ddo.id} is not in an active state`
+        }
+      }
+    }
+
     // 3. Validate nonce and signature
     const nonceCheckResult: NonceResponse = await checkNonce(
       this.getOceanNode().getDatabase().nonce,
