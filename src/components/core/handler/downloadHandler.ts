@@ -262,7 +262,7 @@ export class DownloadHandler extends Handler {
     if (!nonceCheckResult.valid) {
       CORE_LOGGER.logMessage(
         'Invalid nonce or signature, unable to proceed with download: ' +
-        nonceCheckResult.error,
+          nonceCheckResult.error,
         true
       )
       return {
