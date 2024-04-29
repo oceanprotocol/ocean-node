@@ -142,8 +142,8 @@ jobs:
           docker image rm debian:10
           docker image rm debian:11
           docker image rm moby/buildkit:latest
-    - name: Setup upterm session
-      uses: lhotari/action-upterm@v1
+      - name: Setup upterm session
+        uses: lhotari/action-upterm@v1
       - name: Wait for contracts deployment and C2D cluster to be ready
         working-directory: ${{ github.workspace }}/barge
         run: |
