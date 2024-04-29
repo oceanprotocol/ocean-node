@@ -23,7 +23,7 @@ import { getConfiguration } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
-import { create256Hash, encrypt } from '../../utils/crypt.js'
+import { create256Hash, decrypt } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 
@@ -348,16 +348,16 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         } and document: ${JSON.stringify(ddo)}`
       )
       const blobData = Uint8Array.from(Buffer.from(JSON.stringify(ddo)))
-      const encodedData = await encrypt(blobData, EncryptMethod.ECIES)
+      const decryptDataAES = await decrypt(blobData, EncryptMethod.ECIES)
 
       INDEXER_LOGGER.logMessage(
-        `encodedData with aes: ${'0x' + encodedData.toString('hex')}`
+        `decryptDataAES with aes: ${'0x' + decryptDataAES.toString('hex')}`
       )
 
-      const encodedDataEcies = await encrypt(blobData, EncryptMethod.ECIES)
+      const decryptDataEcies = await decrypt(blobData, EncryptMethod.ECIES)
 
       INDEXER_LOGGER.logMessage(
-        `encodedData with ecies: ${'0x' + encodedDataEcies.toString('hex')}`
+        `decryptDataEcies with ecies: ${'0x' + decryptDataEcies.toString('hex')}`
       )
 
       INDEXER_LOGGER.logMessage(
