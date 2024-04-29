@@ -50,6 +50,7 @@ export async function updateLastIndexedBlockNumber(block: number): Promise<numbe
       `Error updating last indexed block ${err.message}`,
       true
     )
+    return -1
   }
 }
 
@@ -64,13 +65,14 @@ async function getLastIndexedBlock(): Promise<number> {
   }
 }
 
-async function deleteAllAssetsFromChain(): Promise<void> {
+async function deleteAllAssetsFromChain(): Promise<number> {
   const { ddo } = await getDatabase()
   try {
-    await ddo.deleteAllAssetsFromChain(rpcDetails.chainId)
+    const res = await ddo.deleteAllAssetsFromChain(rpcDetails.chainId)
+    return res.num_deleted
   } catch (err) {
     INDEXER_LOGGER.error(`Error deleting all assets: ${err}`)
-    return null
+    return -1
   }
 }
 
@@ -169,11 +171,11 @@ export async function proccesNetworkData(): Promise<void> {
 
 async function reindexChain(currentBlock: number): Promise<void> {
   const block = await updateLastIndexedBlockNumber(REINDEX_BLOCK)
-  if (block !== null) {
+  if (block !== -1) {
     INDEXER_LOGGER.logMessage(`Block updated for reindexing chain ${REINDEX_BLOCK}`)
     REINDEX_BLOCK = null
     const res = await deleteAllAssetsFromChain()
-    if (res !== null) {
+    if (res !== -1) {
       INDEXER_LOGGER.logMessage(`Assets deleted from db for chain ${rpcDetails.chainId}`)
     } else {
       INDEXER_LOGGER.error(
