@@ -321,15 +321,13 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       INDEXER_LOGGER.logMessage(
         `decodedEventData.args[5]: ${decodedEventData.args[5]}, hash: ${create256Hash(
           JSON.stringify(ddo)
-        )}, decodedEventData.args[4]: ${JSON.stringify(
-          decodedEventData.args[4]
-        )}, hash 4: ${create256Hash(JSON.stringify(decodedEventData.args[4]))}`
+        )}, decodedEventData.args[4]: ${JSON.stringify(decodedEventData.args[4])}`
       )
-      for (const a in decodedEventData.args) {
-        INDEXER_LOGGER.logMessage(
-          `decodedEventData.args[${a}]: ${JSON.stringify(decodedEventData.args[a])}`
-        )
-      }
+      // for (const a in decodedEventData.args) {
+      //   INDEXER_LOGGER.logMessage(
+      //     `decodedEventData.args[${a}]: ${JSON.stringify(decodedEventData.args[a])}`
+      //   )
+      // }
 
       // if (
       //   decodedEventData.args[5] &&
