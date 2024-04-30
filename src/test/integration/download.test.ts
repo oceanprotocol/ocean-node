@@ -269,7 +269,6 @@ describe('Should run a complete node flow.', () => {
   })
 
   it('should update state of the service to 1 - end of life', async () => {
-    console.log('Actual DDO: ', actualDDO)
     const updatedDDO = {
       ...actualDDO,
       services: [
@@ -289,7 +288,6 @@ describe('Should run a complete node flow.', () => {
     }
     const response = await new GetDdoHandler(oceanNode).handle(getDDOTask)
     actualDDO = await streamToObject(response.stream as Readable)
-    console.log('2222 Actual DDO: ', actualDDO)
 
     assert(actualDDO.services[0], 'Service not present')
     assert(actualDDO.services[0].state === 1, 'Service state not updated to 1')
