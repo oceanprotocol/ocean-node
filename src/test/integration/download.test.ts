@@ -40,6 +40,7 @@ import {
 } from '../../utils/address.js'
 import { publishAsset, orderAsset } from '../utils/assets.js'
 import { downloadAsset } from '../data/assets.js'
+import { genericDDO } from '../data/ddo.js'
 import { homedir } from 'os'
 
 describe('Should run a complete node flow.', () => {
@@ -257,6 +258,19 @@ describe('Should run a complete node flow.', () => {
     }, DEFAULT_TEST_TIMEOUT * 3)
 
     await doCheck()
+  })
+
+  it('should publish ddo with access credentials', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    publishedDataset = await publishAsset(genericDDO, publisherAccount)
+    const { wasTimeout } = await waitToIndex(
+      publishedDataset.ddo.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
+    setTimeout(() => {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    }, DEFAULT_TEST_TIMEOUT * 2)
   })
   it('should not allow to download the asset with different consumer address', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
