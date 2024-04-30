@@ -14,7 +14,7 @@ import { sleep } from '../../utils/util.js'
 import { EVENTS } from '../../utils/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getDatabase } from '../../utils/database.js'
-import { Log } from 'ethers'
+import { JsonRpcApiProvider, Log, Signer } from 'ethers'
 
 export interface ReindexTask {
   txId: string
@@ -29,14 +29,6 @@ interface ThreadData {
 }
 
 const { rpcDetails } = workerData as ThreadData
-
-const blockchain = new Blockchain(
-  rpcDetails.rpc,
-  rpcDetails.chainId,
-  rpcDetails.fallbackRPCs
-)
-const provider = blockchain.getProvider()
-const signer = blockchain.getSigner()
 
 async function updateLastIndexedBlockNumber(block: number): Promise<number> {
   try {
@@ -71,7 +63,10 @@ async function getLastIndexedBlock(): Promise<number> {
   }
 }
 
-export async function proccesNetworkData(): Promise<void> {
+export async function proccesNetworkData(
+  provider: JsonRpcApiProvider,
+  signer: Signer
+): Promise<void> {
   const deployedBlock = getDeployedContractBlock(rpcDetails.chainId)
   if (deployedBlock == null && (await getLastIndexedBlock()) == null) {
     INDEXER_LOGGER.logMessage(
@@ -147,7 +142,7 @@ export async function proccesNetworkData(): Promise<void> {
           await updateLastIndexedBlockNumber(startBlock + blocksToProcess)
         }
       }
-      await processReindex()
+      await processReindex(provider, signer, rpcDetails.chainId)
       lockProccessing = false
     } else {
       INDEXER_LOGGER.logMessage(
@@ -159,7 +154,11 @@ export async function proccesNetworkData(): Promise<void> {
   }
 }
 
-async function processReindex(): Promise<void> {
+async function processReindex(
+  provider: JsonRpcApiProvider,
+  signer: Signer,
+  chainId: number
+): Promise<void> {
   while (REINDEX_QUEUE.length > 0) {
     const reindexTask = REINDEX_QUEUE.pop()
     try {
@@ -167,7 +166,7 @@ async function processReindex(): Promise<void> {
       if (receipt) {
         const log = receipt.logs[reindexTask.eventIndex]
         const logs = log ? [log] : receipt.logs
-        await processChunkLogs(logs, signer, provider, rpcDetails.chainId)
+        await processChunkLogs(logs, signer, provider, chainId)
         // clear from the 'top' queue
         parentPort.postMessage({
           method: 'popFromQueue',
@@ -208,9 +207,49 @@ export function checkNewlyIndexedAssets(events: BlocksEvents): void {
   })
 }
 
+async function retryCrawlerWithDelay(
+  blockchain: Blockchain,
+  interval: number = 5000 // in milliseconds, default 5 secs
+): Promise<boolean> {
+  try {
+    const retryInterval = Math.max(blockchain.getNumberOfKnownRPCs() * 3000, interval) // give 2 secs per each one
+    // try
+    const result = await startCrawler(blockchain)
+    if (result) {
+      return true
+    } else {
+      // delay the next call
+      await sleep(retryInterval)
+      // recursively call the same func
+      return retryCrawlerWithDelay(blockchain, retryInterval)
+    }
+  } catch (err) {
+    return false
+  }
+}
+
+async function startCrawler(blockchain: Blockchain): Promise<boolean> {
+  if (blockchain.isNetworkReady()) {
+    proccesNetworkData(blockchain.getProvider(), blockchain.getSigner())
+    return true
+  } else if (blockchain.getKnownRPCs().length > 0) {
+    const ok = await blockchain.tryFallbackRPCs()
+    if (ok) {
+      proccesNetworkData(blockchain.getProvider(), blockchain.getSigner())
+      return true
+    }
+  }
+  return false
+}
+
 parentPort.on('message', (message) => {
   if (message.method === 'start-crawling') {
-    proccesNetworkData()
+    const blockchain = new Blockchain(
+      rpcDetails.rpc,
+      rpcDetails.chainId,
+      rpcDetails.fallbackRPCs
+    )
+    retryCrawlerWithDelay(blockchain)
   }
   if (message.method === 'add-reindex-task') {
     if (message.reindexTask) {

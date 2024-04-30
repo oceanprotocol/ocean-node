@@ -16,17 +16,18 @@ export class Blockchain {
   private signer: Signer
   private provider: JsonRpcApiProvider
   private chainId: number
+  private rpc: string
   private knownRPCs: string[] = []
   private networkAvailable: boolean = false
 
   public constructor(rpc: string, chaindId: number, fallbackRPCs?: string[]) {
     this.chainId = chaindId
-    this.provider = new ethers.JsonRpcProvider(rpc)
-    this.registerForNetworkEvents(this.provider)
     this.knownRPCs.push(rpc)
     if (fallbackRPCs && fallbackRPCs.length > 0) {
       this.knownRPCs.push(...fallbackRPCs)
     }
+    this.provider = new ethers.JsonRpcProvider(rpc)
+    this.registerForNetworkEvents()
     // always use this signer, not simply provider.getSigner(0) for instance (as we do on many tests)
     this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
   }
@@ -47,15 +48,8 @@ export class Blockchain {
     return this.networkAvailable || this.provider.ready
   }
 
-  // _detectNetwork throws error if network is not available
-  public detectProviderNetwork(): boolean {
-    try {
-      this.provider._detectNetwork()
-      this.networkAvailable = true
-      return true
-    } catch (error) {
-      return false
-    }
+  public getNumberOfKnownRPCs(): number {
+    return this.knownRPCs.length
   }
 
   public getKnownRPCs(): string[] {
@@ -64,14 +58,13 @@ export class Blockchain {
 
   // try other rpc options, if available
   public async tryFallbackRPCs(): Promise<boolean> {
-    if (this.knownRPCs.length <= 1) {
-      return false
-    }
-    for (let i = 1; i < this.knownRPCs.length; i++) {
-      const newProvider = new JsonRpcProvider(this.knownRPCs[i])
+    // we also retry the original one again after all the fallbacks
+    for (let i = this.knownRPCs.length - 1; i >= 0; i--) {
+      this.provider.off('network')
+      this.provider = new JsonRpcProvider(this.knownRPCs[i])
       // try them 1 by 1 and wait a couple of secs for network detection
-      this.registerForNetworkEvents(newProvider)
-      await sleep(2500)
+      this.registerForNetworkEvents()
+      await sleep(2000)
       if (this.isNetworkReady()) {
         return true
       }
@@ -79,8 +72,7 @@ export class Blockchain {
     return false
   }
 
-  private registerForNetworkEvents(provider: ethers.JsonRpcApiProvider) {
-    this.provider = provider
+  private registerForNetworkEvents() {
     this.provider.on('network', (newNetwork) => {
       // When a Provider makes its initial connection, it emits a "network"
       // event with a null oldNetwork along with the newNetwork. So, if the
