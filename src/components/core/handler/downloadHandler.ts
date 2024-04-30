@@ -315,8 +315,8 @@ export class DownloadHandler extends Handler {
     if (!service) service = AssetUtils.getServiceByIndex(ddo, Number(task.serviceId))
     if (!service) throw new Error('Cannot find service')
 
-    // check lifecycle state of the service
-    if (service.state !== 0 && service.state !== 5) {
+    // check lifecycle state of the service - undefined state is considered active
+    if (service.state && service.state !== 0 && service.state !== 5) {
       CORE_LOGGER.logMessage(
         `Error: Service with id ${service.id} is not in an active state`,
         true

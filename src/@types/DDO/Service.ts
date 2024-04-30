@@ -101,6 +101,7 @@ export interface Service {
   /**
    * Service lifecycle state.
    * Values have the same meaning as on nft level https://docs.oceanprotocol.com/developers/ddo-specification#state
+   * undefined state is considered active
    * @type {number}
    */
   state?: number
