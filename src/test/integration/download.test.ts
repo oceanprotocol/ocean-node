@@ -51,7 +51,6 @@ describe('Should run a complete node flow.', () => {
   let consumerAccount: Signer
   let consumerAddress: string
   let orderTxId: string
-  let assetDID: string
   let publishedDataset: any
   let actualDDO: any
 
@@ -262,6 +261,7 @@ describe('Should run a complete node flow.', () => {
   it('should not allow to download the asset with different consumer address', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
+    const assetDID = publishedDataset.ddo.id
     const doCheck = async () => {
       const downloadTask = {
         fileIndex: 0,
