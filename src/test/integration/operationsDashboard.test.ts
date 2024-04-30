@@ -8,6 +8,7 @@ import { downloadAsset } from '../data/assets.js'
 import { publishAsset } from '../utils/assets.js'
 import { homedir } from 'os'
 import {
+  DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
@@ -18,7 +19,8 @@ import {
 import {
   ENVIRONMENT_VARIABLES,
   PROTOCOL_COMMANDS,
-  getConfiguration
+  getConfiguration,
+  EVENTS
 } from '../../utils/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
@@ -33,6 +35,7 @@ import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.j
 import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
 import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import { streamToObject } from '../../utils/util.js'
+import { waitToIndex } from './testUtils.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -66,7 +69,8 @@ describe('Should test admin operations', () => {
           ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
-          ENVIRONMENT_VARIABLES.ADDRESS_FILE
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE,
+          ENVIRONMENT_VARIABLES.INDEXER_INTERVAL
         ],
         [
           JSON.stringify(mockSupportedNetworks),
@@ -74,7 +78,8 @@ describe('Should test admin operations', () => {
           'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify([await wallet.getAddress()]),
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
+          3000
         ]
       )
     )
@@ -135,7 +140,9 @@ describe('Should test admin operations', () => {
   })
 
   it('should pass for reindex chain command', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const signature = await getSignature(expiryTimestamp.toString())
+    await waitToIndex(publishedDataset.ddo.did, EVENTS.METADATA_CREATED)
 
     const reindexChainCommand: AdminReindexChainCommand = {
       command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
@@ -155,6 +162,16 @@ describe('Should test admin operations', () => {
     const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
     assert(handlerResponse, 'handler resp does not exist')
     assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
+
+    assert(
+      (await dbconn.ddo.retrieve(publishedDataset.ddo.id)) === null,
+      'ddo does exist'
+    )
+    setTimeout(() => {}, 5000)
+    assert(
+      (await dbconn.ddo.retrieve(publishedDataset.ddo.id)) !== null,
+      'ddo does not exist'
+    )
   })
 
   after(async () => {
