@@ -22,11 +22,7 @@ import {
 } from '../../utils/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
-import {
-  DEVELOPMENT_CHAIN_ID,
-  getOceanArtifactsAdresses,
-  getOceanArtifactsAdressesByChainId
-} from '../../utils/address.js'
+import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
 import {
   AdminReindexChainCommand,
   AdminReindexTxCommand,
@@ -43,7 +39,6 @@ describe('Should test admin operations', () => {
   let oceanNode: OceanNode
   let publishedDataset: any
   let dbconn: Database
-  let network: any
   const currentDate = new Date()
   const expiryTimestamp = new Date(
     currentDate.getFullYear() + 1,
@@ -87,11 +82,6 @@ describe('Should test admin operations', () => {
     config = await getConfiguration(true) // Force reload the configuration
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
-
-    network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
-    if (!network) {
-      network = getOceanArtifactsAdresses().development
-    }
   })
 
   async function getSignature(message: string) {
