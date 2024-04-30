@@ -123,6 +123,37 @@ export async function publishAsset(genericAsset: any, publisherAccount: Signer) 
   }
 }
 
+export async function updateAssetMetadata(
+  nftAddress: string,
+  updatedDDO: any,
+  publisherAccount: Signer
+) {
+  const nftContract = new ethers.Contract(
+    nftAddress,
+    ERC721Template.abi,
+    publisherAccount
+  )
+
+  const stringDDO = JSON.stringify(updatedDDO)
+  const bytes = Buffer.from(stringDDO)
+  const metadata = hexlify(bytes)
+  const hash = createHash('sha256').update(metadata).digest('hex')
+
+  const setMetaDataTx = await nftContract.setMetaData(
+    0,
+    'http://v4.provider.oceanprotocol.com',
+    '0x123',
+    '0x01',
+    metadata,
+    '0x' + hash,
+    []
+  )
+  const trxReceipt = await setMetaDataTx.wait()
+  return {
+    trxReceipt
+  }
+}
+
 export async function orderAsset(
   genericAsset: any,
   serviceIndex: number,
