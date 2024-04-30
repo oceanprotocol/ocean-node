@@ -130,8 +130,8 @@ jobs:
           bash -x start_ocean.sh --no-dashboard --with-c2d 2>&1 > start_ocean.log &
       - run: npm ci
       - run: npm run build
-      #- name: Setup upterm session
-      #  uses: lhotari/action-upterm@v1
+      - name: Setup upterm session
+        uses: lhotari/action-upterm@v1
       - run: docker image ls
       - name: Delete default runner images
         run: |
