@@ -269,6 +269,7 @@ describe('Should run a complete node flow.', () => {
   })
 
   it('should update state of the service to 1 - end of life', async () => {
+    console.log('Actual DDO', actualDDO)
     const updatedDDO = {
       ...actualDDO,
       services: [
@@ -279,15 +280,17 @@ describe('Should run a complete node flow.', () => {
       ]
     }
     await updateAssetMetadata(actualDDO.nftAddress, updatedDDO, publisherAccount)
-    await waitToIndex(updatedDDO.id, EVENTS.METADATA_UPDATED, DEFAULT_TEST_TIMEOUT)
+    await waitToIndex(updatedDDO.id, EVENTS.METADATA_UPDATED, DEFAULT_TEST_TIMEOUT, true)
   })
   it('should fetch the updated ddo', async () => {
     const getDDOTask = {
       command: PROTOCOL_COMMANDS.GET_DDO,
       id: publishedDataset.ddo.id
     }
+    console.log('Get DDO Task', getDDOTask)
     const response = await new GetDdoHandler(oceanNode).handle(getDDOTask)
     actualDDO = await streamToObject(response.stream as Readable)
+    console.log('Updated Actual DDO', actualDDO.services)
 
     assert(actualDDO.services[0], 'Service not present')
     assert(actualDDO.services[0].state === 1, 'Service state not updated to 1')
