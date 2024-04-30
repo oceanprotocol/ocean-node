@@ -99,7 +99,8 @@ export interface Service {
   description?: string
 
   /**
-   * Service lifecycle state. 0 no access. >=1 access.
+   * Service lifecycle state.
+   * Values have the same meaning as on nft level https://docs.oceanprotocol.com/developers/ddo-specification#state
    * @type {number}
    */
   state?: number

@@ -13,7 +13,11 @@ import { validateOrderTransaction } from '../utils/validateOrders.js'
 import { AssetUtils } from '../../../utils/asset.js'
 import { Service } from '../../../@types/DDO/Service.js'
 import { ArweaveStorage, IpfsStorage, Storage } from '../../storage/index.js'
-import { existsEnvironmentVariable, getConfiguration } from '../../../utils/index.js'
+import {
+  Blockchain,
+  existsEnvironmentVariable,
+  getConfiguration
+} from '../../../utils/index.js'
 import { checkCredentials } from '../../../utils/credentials.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
@@ -27,6 +31,7 @@ import {
   ValidateParams
 } from '../../httpRoutes/validateCommands.js'
 import { DDO } from '../../../@types/DDO/DDO.js'
+import { getNFTContract } from '../../Indexer/utils.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(
@@ -235,21 +240,6 @@ export class DownloadHandler extends Handler {
       }
     }
 
-    // check lifecycle state
-    if (ddo.nft.state !== 0 && ddo.nft.state !== 5) {
-      CORE_LOGGER.logMessage(
-        `Error: Asset with id ${ddo.id} is not in an active state`,
-        true
-      )
-      return {
-        stream: null,
-        status: {
-          httpStatus: 500,
-          error: `Error: Asset with id ${ddo.id} is not in an active state`
-        }
-      }
-    }
-
     // 3. Validate nonce and signature
     const nonceCheckResult: NonceResponse = await checkNonce(
       this.getOceanNode().getDatabase().nonce,
@@ -261,8 +251,7 @@ export class DownloadHandler extends Handler {
 
     if (!nonceCheckResult.valid) {
       CORE_LOGGER.logMessage(
-        'Invalid nonce or signature, unable to proceed with download: ' +
-          nonceCheckResult.error,
+        `Invalid nonce or signature, unable to proceed with download: ${nonceCheckResult.error}`,
         true
       )
       return {
@@ -301,12 +290,33 @@ export class DownloadHandler extends Handler {
         }
       }
     }
+
+    const blockchain = new Blockchain(rpc, ddo.chainId)
+    const signer = blockchain.getSigner()
+
+    // check lifecycle state of the asset
+    const nftContract = getNFTContract(signer, ddo.nftAddress)
+    const nftState = Number(await nftContract.metaDataState())
+    if (nftState !== 0 && nftState !== 5) {
+      CORE_LOGGER.logMessage(
+        `Error: Asset with id ${ddo.id} is not in an active state`,
+        true
+      )
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error: `Error: Asset with id ${ddo.id} is not in an active state`
+        }
+      }
+    }
+
     let service: Service = AssetUtils.getServiceById(ddo, task.serviceId)
     if (!service) service = AssetUtils.getServiceByIndex(ddo, Number(task.serviceId))
     if (!service) throw new Error('Cannot find service')
 
-    // check service lifecycle state
-    if (service.state === 0) {
+    // check lifecycle state of the service
+    if (service.state !== 0 && service.state !== 5) {
       CORE_LOGGER.logMessage(
         `Error: Service with id ${service.id} is not in an active state`,
         true
