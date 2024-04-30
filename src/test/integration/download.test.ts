@@ -287,13 +287,9 @@ describe('Should run a complete node flow.', () => {
         signature: '0xBE5449a6',
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
-      console.log('task:', downloadTask)
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
 
       assert(response.stream === null, 'stream not null')
-      console.log('status: ', response.status)
-      const resp = await streamToString(response.stream as Readable)
-      console.log('response: ', resp)
       assert(response.status.httpStatus === 500, 'http status not 500')
       assert(
         response.status.error === `Error: Access to asset ${assetDID} was denied`,
