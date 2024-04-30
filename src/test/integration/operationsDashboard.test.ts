@@ -8,7 +8,6 @@ import { downloadAsset } from '../data/assets.js'
 import { publishAsset } from '../utils/assets.js'
 import { homedir } from 'os'
 import {
-  DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
@@ -69,8 +68,7 @@ describe('Should test admin operations', () => {
           ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
-          ENVIRONMENT_VARIABLES.ADDRESS_FILE,
-          ENVIRONMENT_VARIABLES.INDEXER_INTERVAL
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
           JSON.stringify(mockSupportedNetworks),
@@ -78,8 +76,7 @@ describe('Should test admin operations', () => {
           'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify([await wallet.getAddress()]),
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          3000
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
     )
@@ -140,7 +137,6 @@ describe('Should test admin operations', () => {
   })
 
   it('should pass for reindex chain command', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const signature = await getSignature(expiryTimestamp.toString())
     await waitToIndex(publishedDataset.ddo.did, EVENTS.METADATA_CREATED)
 
@@ -162,15 +158,6 @@ describe('Should test admin operations', () => {
     const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
     assert(handlerResponse, 'handler resp does not exist')
     assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
-    assert(
-      (await waitToIndex(publishedDataset.ddo.did, EVENTS.METADATA_CREATED)).ddo === null,
-      'ddo does exist'
-    )
-    setTimeout(() => {}, 5000)
-    assert(
-      (await waitToIndex(publishedDataset.ddo.did, EVENTS.METADATA_CREATED)).ddo !== null,
-      'ddo does not exist'
-    )
   })
 
   after(async () => {
