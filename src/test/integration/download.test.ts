@@ -273,6 +273,7 @@ describe('Should run a complete node flow.', () => {
         signature: '',
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
+      console.log('task:', downloadTask)
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
 
       assert(response.stream === null, 'stream not null')
