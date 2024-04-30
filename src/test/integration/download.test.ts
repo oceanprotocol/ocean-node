@@ -270,7 +270,7 @@ describe('Should run a complete node flow.', () => {
         transferTxId: orderTxId,
         nonce: Date.now().toString(),
         consumerAddress: '0xBE5449a6A97aD46c8558A3356267Ee5D2731ab57',
-        signature: '',
+        signature: '0xBE5449a6',
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
       console.log('task:', downloadTask)
