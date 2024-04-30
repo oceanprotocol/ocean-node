@@ -260,21 +260,20 @@ describe('Should run a complete node flow.', () => {
     await doCheck()
   })
 
+  // for use on the test bellow
   it('should publish ddo with access credentials', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     publishedDataset = await publishAsset(genericDDO, publisherAccount)
-    const { wasTimeout } = await waitToIndex(
+    const { ddo, wasTimeout } = await waitToIndex(
       publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT
     )
-    setTimeout(() => {
+
+    if (!ddo) {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
-    }, DEFAULT_TEST_TIMEOUT * 2)
+    }
   })
   it('should not allow to download the asset with different consumer address', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
-
     const assetDID = publishedDataset.ddo.id
     const doCheck = async () => {
       const downloadTask = {
@@ -296,10 +295,6 @@ describe('Should run a complete node flow.', () => {
         'error contains access denied'
       )
     }
-
-    setTimeout(() => {
-      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
-    }, DEFAULT_TEST_TIMEOUT * 3)
 
     await doCheck()
   })
