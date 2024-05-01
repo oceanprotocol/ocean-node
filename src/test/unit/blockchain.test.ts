@@ -5,11 +5,13 @@ import { Blockchain } from '../../utils/blockchain.js'
 import { getConfiguration } from '../../utils/config.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import {
+  DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
+import { expectedTimeoutFailure } from '../integration/testUtils.js'
 
 let envOverrides: OverrideEnvConfig[]
 let config: OceanNodeConfig
@@ -47,7 +49,8 @@ describe('Should validate blockchain network connections', () => {
     expect(isReady).to.be.equal(false)
   })
 
-  it('should get network ready after retry other RPCs', async () => {
+  it('should get network ready after retry other RPCs', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     let isReady = await blockchain.isNetworkReady()
     expect(isReady).to.be.equal(false)
     // at least one should be OK
@@ -55,6 +58,13 @@ describe('Should validate blockchain network connections', () => {
     expect(retryResult).to.be.equal(true)
     isReady = await blockchain.isNetworkReady()
     expect(isReady).to.be.equal(true)
+    // should fire 5 seconds before test timeout
+    setTimeout(
+      () => {
+        expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
+      },
+      DEFAULT_TEST_TIMEOUT * 2 - 5000
+    )
   })
 
   after(async () => {
