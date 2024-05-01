@@ -55,18 +55,20 @@ describe('Should validate blockchain network connections', () => {
     // at least one should be OK
     console.log('Network is ready?', isReady)
     console.log('will retry...')
+
+    setTimeout(
+      () => {
+        expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
+        return true
+      },
+      DEFAULT_TEST_TIMEOUT * 3 - 5000
+    )
     const retryResult = await blockchain.tryFallbackRPCs()
     console.log('retry result:', retryResult)
     expect(retryResult).to.be.equal(true)
     isReady = await blockchain.isNetworkReady()
     console.log('second is ready?', isReady)
     expect(isReady).to.be.equal(true)
-    setTimeout(
-      () => {
-        expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
-      },
-      DEFAULT_TEST_TIMEOUT * 3 - 5000
-    )
   })
 
   after(async () => {
