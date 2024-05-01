@@ -36,6 +36,7 @@ export class Blockchain {
     this.registerForNetworkEvents()
     // always use this signer, not simply provider.getSigner(0) for instance (as we do on many tests)
     this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
+    console.log('done signer')
   }
 
   public getSigner(): Signer {
@@ -62,13 +63,19 @@ export class Blockchain {
   }
 
   private async detectNetwork(): Promise<boolean> {
+    const timeout = setTimeout(() => {
+      console.log('detect network timeout')
+      return false
+    }, 2000)
     try {
       console.log('will wait for networks to be discovered...')
       const network = await this.provider._detectNetwork()
       console.log('networks discovered:', network)
+      clearTimeout(timeout)
       return network instanceof Network
     } catch (err) {
       console.log('got error:', err)
+      clearTimeout(timeout)
       return false
     }
   }
@@ -83,7 +90,7 @@ export class Blockchain {
       this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
       // try them 1 by 1 and wait a couple of secs for network detection
       console.log('will register...')
-      this.registerForNetworkEvents()
+      await this.registerForNetworkEvents()
       await sleep(2000)
       console.log('after sleep 2 secs')
       if (await this.isNetworkReady()) {
@@ -95,8 +102,8 @@ export class Blockchain {
     return false
   }
 
-  private registerForNetworkEvents() {
-    this.provider.on('network', this.networkChanged)
+  private async registerForNetworkEvents() {
+    await this.provider.on('network', this.networkChanged)
   }
 
   private networkChanged(newNetwork: any) {
