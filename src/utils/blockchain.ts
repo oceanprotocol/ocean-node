@@ -79,6 +79,7 @@ export class Blockchain {
     // we also retry the original one again after all the fallbacks
     for (let i = this.knownRPCs.length - 1; i >= 0; i--) {
       await this.provider.off('network', this.networkChanged)
+      CORE_LOGGER.warn(`Retrying new provider connection with RPC: ${this.knownRPCs[i]}`)
       this.provider = new JsonRpcProvider(this.knownRPCs[i])
       this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
       // try them 1 by 1 and wait a couple of secs for network detection

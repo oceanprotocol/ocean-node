@@ -216,8 +216,15 @@ async function retryCrawlerWithDelay(
     // try
     const result = await startCrawler(blockchain)
     if (result) {
+      INDEXER_LOGGER.info('Blockchain connection succeffully established!')
+      processNetworkData(blockchain.getProvider(), blockchain.getSigner())
       return true
     } else {
+      INDEXER_LOGGER.warn(
+        `Blockchain connection is not established, retrying again in ${
+          retryInterval / 1000
+        } secs....`
+      )
       // delay the next call
       await sleep(retryInterval)
       // recursively call the same func
@@ -230,12 +237,10 @@ async function retryCrawlerWithDelay(
 
 async function startCrawler(blockchain: Blockchain): Promise<boolean> {
   if (await blockchain.isNetworkReady()) {
-    processNetworkData(blockchain.getProvider(), blockchain.getSigner())
     return true
-  } else if (blockchain.getKnownRPCs().length > 0) {
-    const ok = await blockchain.tryFallbackRPCs()
-    if (ok || (await blockchain.isNetworkReady())) {
-      processNetworkData(blockchain.getProvider(), blockchain.getSigner())
+  } else {
+    const connectionOK = await blockchain.tryFallbackRPCs()
+    if (connectionOK || (await blockchain.isNetworkReady())) {
       return true
     }
   }
