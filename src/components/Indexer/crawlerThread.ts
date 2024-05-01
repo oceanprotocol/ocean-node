@@ -212,7 +212,7 @@ async function retryCrawlerWithDelay(
   interval: number = 5000 // in milliseconds, default 5 secs
 ): Promise<boolean> {
   try {
-    const retryInterval = Math.max(blockchain.getNumberOfKnownRPCs() * 3000, interval) // give 2 secs per each one
+    const retryInterval = Math.max(blockchain.getKnownRPCs().length * 3000, interval) // give 2 secs per each one
     // try
     const result = await startCrawler(blockchain)
     if (result) {

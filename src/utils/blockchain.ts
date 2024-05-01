@@ -57,10 +57,6 @@ export class Blockchain {
     return await this.detectNetwork()
   }
 
-  public getNumberOfKnownRPCs(): number {
-    return this.knownRPCs.length
-  }
-
   public getKnownRPCs(): string[] {
     return this.knownRPCs
   }
