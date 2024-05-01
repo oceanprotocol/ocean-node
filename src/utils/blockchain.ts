@@ -87,14 +87,16 @@ export class Blockchain {
       await sleep(2000)
       console.log('after sleep 2 secs')
       if (await this.isNetworkReady()) {
+        console.log('fallback ok')
         return true
       }
     }
+    console.log('fallback failed')
     return false
   }
 
-  private async registerForNetworkEvents() {
-    await this.provider.on('network', this.networkChanged)
+  private registerForNetworkEvents() {
+    this.provider.on('network', this.networkChanged)
   }
 
   private networkChanged(newNetwork: any) {
