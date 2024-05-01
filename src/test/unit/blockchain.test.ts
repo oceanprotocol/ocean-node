@@ -31,7 +31,6 @@ describe('Should validate blockchain network connections', () => {
 
     rpcs = config.supportedNetworks
     network = rpcs['11155420']
-    console.log('rpcs: ', rpcs)
     blockchain = new Blockchain(
       network.rpc,
       network.network,
