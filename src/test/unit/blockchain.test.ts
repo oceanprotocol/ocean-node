@@ -60,7 +60,6 @@ describe('Should validate blockchain network connections', () => {
       () => {
         expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
         done()
-        return true
       },
       DEFAULT_TEST_TIMEOUT * 3 - 5000
     )
