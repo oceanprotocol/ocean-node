@@ -11,6 +11,7 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
+import { expectedTimeoutFailure } from '../integration/testUtils.js'
 
 let envOverrides: OverrideEnvConfig[]
 let config: OceanNodeConfig
@@ -60,6 +61,12 @@ describe('Should validate blockchain network connections', () => {
     isReady = await blockchain.isNetworkReady()
     console.log('second is ready?', isReady)
     expect(isReady).to.be.equal(true)
+    setTimeout(
+      () => {
+        expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
+      },
+      DEFAULT_TEST_TIMEOUT * 3 - 5000
+    )
   })
 
   after(async () => {
