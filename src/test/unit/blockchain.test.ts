@@ -48,7 +48,7 @@ describe('Should validate blockchain network connections', () => {
     expect(isReady).to.be.equal(false)
   })
 
-  it('should get network ready after retry other RPCs', async function () {
+  it('should get network ready after retry other RPCs', async function (done) {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     let isReady = await blockchain.isNetworkReady()
     expect(isReady).to.be.equal(false)
@@ -59,6 +59,7 @@ describe('Should validate blockchain network connections', () => {
     setTimeout(
       () => {
         expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
+        done()
         return true
       },
       DEFAULT_TEST_TIMEOUT * 3 - 5000
