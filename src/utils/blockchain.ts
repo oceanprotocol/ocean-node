@@ -17,17 +17,22 @@ export class Blockchain {
   private provider: JsonRpcApiProvider
   private chainId: number
   private knownRPCs: string[] = []
+  private network: Network
   private networkAvailable: boolean = false
 
-  public constructor(rpc: string, chaindId: number, fallbackRPCs?: string[]) {
-    this.chainId = chaindId
+  public constructor(
+    rpc: string,
+    chainName: string,
+    chainId: number,
+    fallbackRPCs?: string[]
+  ) {
+    this.chainId = chainId
     this.knownRPCs.push(rpc)
     if (fallbackRPCs && fallbackRPCs.length > 0) {
       this.knownRPCs.push(...fallbackRPCs)
     }
-    console.log('RPCS: ', this.knownRPCs)
-    console.log('first attempt with rpc:', rpc)
-    this.provider = new ethers.JsonRpcProvider(rpc)
+    this.network = new ethers.Network(chainName, chainId)
+    this.provider = new ethers.JsonRpcProvider(rpc, this.network)
     this.registerForNetworkEvents()
     // always use this signer, not simply provider.getSigner(0) for instance (as we do on many tests)
     this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
@@ -45,8 +50,11 @@ export class Blockchain {
     return this.chainId
   }
 
-  public isNetworkReady(): boolean {
-    return this.networkAvailable || this.provider.ready
+  public async isNetworkReady(): Promise<boolean> {
+    if (this.networkAvailable || this.provider.ready) {
+      return true
+    }
+    return await this.detectNetwork()
   }
 
   public getNumberOfKnownRPCs(): number {
@@ -57,18 +65,26 @@ export class Blockchain {
     return this.knownRPCs
   }
 
+  private async detectNetwork(): Promise<boolean> {
+    try {
+      const network = await this.provider._detectNetwork()
+      return network instanceof Network
+    } catch (err) {
+      return false
+    }
+  }
+
   // try other rpc options, if available
   public async tryFallbackRPCs(): Promise<boolean> {
     // we also retry the original one again after all the fallbacks
     for (let i = this.knownRPCs.length - 1; i >= 0; i--) {
       await this.provider.off('network', this.networkChanged)
-      console.log('off network event, retry with new rpc: ' + this.knownRPCs[i])
       this.provider = new JsonRpcProvider(this.knownRPCs[i])
       this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
       // try them 1 by 1 and wait a couple of secs for network detection
       this.registerForNetworkEvents()
       await sleep(2000)
-      if (this.isNetworkReady()) {
+      if (await this.isNetworkReady()) {
         return true
       }
     }
@@ -80,7 +96,6 @@ export class Blockchain {
   }
 
   private networkChanged(newNetwork: any) {
-    console.log('network changed called: ', newNetwork instanceof Network)
     // When a Provider makes its initial connection, it emits a "network"
     // event with a null oldNetwork along with the newNetwork. So, if the
     // oldNetwork exists, it represents a changing network

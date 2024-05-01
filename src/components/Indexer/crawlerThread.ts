@@ -215,12 +215,10 @@ async function retryCrawlerWithDelay(
     const retryInterval = Math.max(blockchain.getNumberOfKnownRPCs() * 3000, interval) // give 2 secs per each one
     // try
     const result = await startCrawler(blockchain)
-    console.log('startCrawler result: ', result)
     if (result) {
       return true
     } else {
       // delay the next call
-      console.log('Network not good yet, sleeping for ', retryInterval / 1000, 'secs')
       await sleep(retryInterval)
       // recursively call the same func
       return retryCrawlerWithDelay(blockchain, retryInterval)
@@ -231,14 +229,12 @@ async function retryCrawlerWithDelay(
 }
 
 async function startCrawler(blockchain: Blockchain): Promise<boolean> {
-  if (blockchain.isNetworkReady()) {
-    console.log('network ready: ', blockchain.isNetworkReady())
+  if (await blockchain.isNetworkReady()) {
     processNetworkData(blockchain.getProvider(), blockchain.getSigner())
     return true
   } else if (blockchain.getKnownRPCs().length > 0) {
     const ok = await blockchain.tryFallbackRPCs()
-    console.log('tryFallbackRPCs result:', ok)
-    if (ok || blockchain.isNetworkReady()) {
+    if (ok || (await blockchain.isNetworkReady())) {
       processNetworkData(blockchain.getProvider(), blockchain.getSigner())
       return true
     }
@@ -250,11 +246,11 @@ parentPort.on('message', async (message) => {
   if (message.method === 'start-crawling') {
     const blockchain = new Blockchain(
       rpcDetails.rpc,
+      rpcDetails.network,
       rpcDetails.chainId,
       rpcDetails.fallbackRPCs
     )
-    const res = await retryCrawlerWithDelay(blockchain)
-    console.log('finally returned', res)
+    await retryCrawlerWithDelay(blockchain)
   }
   if (message.method === 'add-reindex-task') {
     if (message.reindexTask) {
