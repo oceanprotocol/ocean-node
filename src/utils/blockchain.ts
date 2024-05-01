@@ -63,9 +63,12 @@ export class Blockchain {
 
   private async detectNetwork(): Promise<boolean> {
     try {
+      console.log('will wait for networks to be discovered...')
       const network = await this.provider._detectNetwork()
+      console.log('networks discovered:', network)
       return network instanceof Network
     } catch (err) {
+      console.log('got error:', err)
       return false
     }
   }
@@ -79,8 +82,10 @@ export class Blockchain {
       this.provider = new JsonRpcProvider(this.knownRPCs[i])
       this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
       // try them 1 by 1 and wait a couple of secs for network detection
+      console.log('will register...')
       this.registerForNetworkEvents()
       await sleep(2000)
+      console.log('after sleep 2 secs')
       if (await this.isNetworkReady()) {
         return true
       }
