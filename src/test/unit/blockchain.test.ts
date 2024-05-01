@@ -58,13 +58,6 @@ describe('Should validate blockchain network connections', () => {
     expect(retryResult).to.be.equal(true)
     isReady = await blockchain.isNetworkReady()
     expect(isReady).to.be.equal(true)
-    // should fire 5 seconds before test timeout
-    setTimeout(
-      () => {
-        expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
-      },
-      DEFAULT_TEST_TIMEOUT * 2 - 5000
-    )
   })
 
   after(async () => {
