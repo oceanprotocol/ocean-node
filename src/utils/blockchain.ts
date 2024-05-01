@@ -80,12 +80,12 @@ export class Blockchain {
   public async tryFallbackRPCs(): Promise<boolean> {
     // we also retry the original one again after all the fallbacks
     for (let i = this.knownRPCs.length - 1; i >= 0; i--) {
-      await this.provider.off('network', this.networkChanged)
+      this.provider.off('network')
       CORE_LOGGER.warn(`Retrying new provider connection with RPC: ${this.knownRPCs[i]}`)
       this.provider = new JsonRpcProvider(this.knownRPCs[i])
       this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
       // try them 1 by 1 and wait a couple of secs for network detection
-      await this.registerForNetworkEvents()
+      this.registerForNetworkEvents()
       await sleep(2000)
       if (await this.isNetworkReady()) {
         return true
@@ -94,8 +94,8 @@ export class Blockchain {
     return false
   }
 
-  private async registerForNetworkEvents() {
-    await this.provider.on('network', this.networkChanged)
+  private registerForNetworkEvents() {
+    this.provider.on('network', this.networkChanged)
   }
 
   private networkChanged(newNetwork: any) {

@@ -11,7 +11,6 @@ import {
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
-import { expectedTimeoutFailure } from '../integration/testUtils.js'
 
 let envOverrides: OverrideEnvConfig[]
 let config: OceanNodeConfig
@@ -48,26 +47,16 @@ describe('Should validate blockchain network connections', () => {
     expect(isReady).to.be.equal(false)
   })
 
-  it('should get network ready after retry other RPCs', async function (done) {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+  it('should get network ready after retry other RPCs', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     let isReady = await blockchain.isNetworkReady()
     expect(isReady).to.be.equal(false)
     // at least one should be OK
-    console.log('Network is ready?', isReady)
-    console.log('will retry...')
-
-    setTimeout(
-      () => {
-        expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
-        done()
-      },
-      DEFAULT_TEST_TIMEOUT * 3 - 5000
-    )
+    console.log(' will retry...')
     const retryResult = await blockchain.tryFallbackRPCs()
     console.log('retry result:', retryResult)
     expect(retryResult).to.be.equal(true)
     isReady = await blockchain.isNetworkReady()
-    console.log('second is ready?', isReady)
     expect(isReady).to.be.equal(true)
   })
 
