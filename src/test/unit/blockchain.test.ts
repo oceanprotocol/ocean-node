@@ -52,9 +52,13 @@ describe('Should validate blockchain network connections', () => {
     let isReady = await blockchain.isNetworkReady()
     expect(isReady).to.be.equal(false)
     // at least one should be OK
+    console.log('Network is ready?', isReady)
+    console.log('will retry...')
     const retryResult = await blockchain.tryFallbackRPCs()
+    console.log('retry result:', retryResult)
     expect(retryResult).to.be.equal(true)
     isReady = await blockchain.isNetworkReady()
+    console.log('second is ready?', isReady)
     expect(isReady).to.be.equal(true)
   })
 
