@@ -247,7 +247,7 @@ async function startCrawler(blockchain: Blockchain): Promise<boolean> {
   return false
 }
 
-parentPort.on('message', async (message) => {
+parentPort.on('message', (message) => {
   if (message.method === 'start-crawling') {
     const blockchain = new Blockchain(
       rpcDetails.rpc,
@@ -255,7 +255,7 @@ parentPort.on('message', async (message) => {
       rpcDetails.chainId,
       rpcDetails.fallbackRPCs
     )
-    await retryCrawlerWithDelay(blockchain)
+    return retryCrawlerWithDelay(blockchain)
   }
   if (message.method === 'add-reindex-task') {
     if (message.reindexTask) {
