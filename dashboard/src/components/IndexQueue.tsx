@@ -1,4 +1,11 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableContainer from '@mui/material/TableContainer'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
+import Paper from '@mui/material/Paper'
 
 interface QueueItem {
   txId: string
@@ -7,7 +14,7 @@ interface QueueItem {
 
 const rpcs = JSON.parse(process.env.RPCS || '{}')
 
-export default function IndexQueueComponent() {
+export default function IndexQueue() {
   const [queue, setQueue] = useState<QueueItem[]>([])
 
   useEffect(() => {
@@ -37,13 +44,26 @@ export default function IndexQueueComponent() {
   return (
     <div>
       <h1>Indexing Queue</h1>
-      <ul>
-        {queue.map((item, index) => (
-          <li key={index}>
-            Transaction ID: {item.txId} - Network: {item.chainId}
-          </li>
-        ))}
-      </ul>
+      <TableContainer component={Paper}>
+        <Table aria-label="simple table">
+          <TableHead>
+            <TableRow>
+              <TableCell>Transaction ID</TableCell>
+              <TableCell align="right">Network</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {queue.map((item, index) => (
+              <TableRow key={index}>
+                <TableCell component="th" scope="row">
+                  {item.txId}
+                </TableCell>
+                <TableCell align="right">{item.chainId}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </div>
   )
 }
