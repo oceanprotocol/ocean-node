@@ -235,12 +235,14 @@ async function retryCrawlerWithDelay(
   }
 }
 
+// it does not start crawling until the network connectin is ready
 async function startCrawler(blockchain: Blockchain): Promise<boolean> {
-  if (await blockchain.isNetworkReady()) {
+  if ((await blockchain.isNetworkReady()).ready) {
     return true
   } else {
-    const connectionOK = await blockchain.tryFallbackRPCs()
-    if (connectionOK || (await blockchain.isNetworkReady())) {
+    // try other RPCS if any available (otherwise will just retry the same RPC)
+    const connectionStatus = await blockchain.tryFallbackRPCs()
+    if (connectionStatus.ready || (await blockchain.isNetworkReady()).ready) {
       return true
     }
   }

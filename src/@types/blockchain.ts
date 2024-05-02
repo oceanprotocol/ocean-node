@@ -26,3 +26,8 @@ export interface ProcessingEvents {
   lastBlock: number
   foundEvents: BlocksEvents
 }
+
+export interface ConnectionStatus {
+  ready: boolean
+  error?: string
+}

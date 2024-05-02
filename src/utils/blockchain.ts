@@ -11,6 +11,7 @@ import {
 import { getConfiguration } from './config.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { sleep } from './util.js'
+import { ConnectionStatus } from '../@types/blockchain.js'
 
 export class Blockchain {
   private signer: Signer
@@ -50,9 +51,9 @@ export class Blockchain {
     return this.chainId
   }
 
-  public async isNetworkReady(): Promise<boolean> {
+  public async isNetworkReady(): Promise<ConnectionStatus> {
     if (this.networkAvailable || this.provider.ready) {
-      return true
+      return { ready: true }
     }
     return await this.detectNetwork()
   }
@@ -61,29 +62,30 @@ export class Blockchain {
     return this.knownRPCs
   }
 
-  private detectNetwork(): Promise<boolean> {
+  private detectNetwork(): Promise<ConnectionStatus> {
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {
         // timeout, hanging or invalid connection
-        CORE_LOGGER.error(`Unable to detect provider network: (timeout)`)
-        resolve(false)
-      }, 2500)
+        CORE_LOGGER.error(`Unable to detect provider network: (TIMEOUT)`)
+        resolve({ ready: false, error: 'TIMEOUT' })
+      }, 3000)
       this.provider
         ._detectNetwork()
         .then((network) => {
           clearTimeout(timeout)
-          resolve(network instanceof Network)
+          resolve({ ready: network instanceof Network })
         })
         .catch((err) => {
           CORE_LOGGER.error(`Unable to detect provider network: ${err.message}`)
           clearTimeout(timeout)
-          resolve(false)
+          resolve({ ready: false, error: err.message })
         })
     })
   }
 
   // try other rpc options, if available
-  public async tryFallbackRPCs(): Promise<boolean> {
+  public async tryFallbackRPCs(): Promise<ConnectionStatus> {
+    let response: ConnectionStatus = { ready: false, error: '' }
     // we also retry the original one again after all the fallbacks
     for (let i = this.knownRPCs.length - 1; i >= 0; i--) {
       this.provider.off('network')
@@ -93,11 +95,13 @@ export class Blockchain {
       // try them 1 by 1 and wait a couple of secs for network detection
       this.registerForNetworkEvents()
       await sleep(2000)
-      if (await this.isNetworkReady()) {
-        return true
+      response = await this.isNetworkReady()
+      // return as soon as we have a valid one
+      if (response.ready) {
+        return response
       }
     }
-    return false
+    return response
   }
 
   private registerForNetworkEvents() {
