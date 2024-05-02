@@ -1,14 +1,13 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 
 interface QueueItem {
   txId: string
   chainId: string
 }
 
-// Assuming RPCS is available in environment and properly formatted as JSON
 const rpcs = JSON.parse(process.env.RPCS || '{}')
 
-const IndexQueueComponent: React.FC = () => {
+export default function IndexQueueComponent() {
   const [queue, setQueue] = useState<QueueItem[]>([])
 
   useEffect(() => {
@@ -39,5 +38,3 @@ const IndexQueueComponent: React.FC = () => {
     </div>
   )
 }
-
-export default IndexQueueComponent
