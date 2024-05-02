@@ -68,8 +68,6 @@ export class Blockchain {
         CORE_LOGGER.error(`Unable to detect provider network: (timeout)`)
         resolve(false)
       }, 2500)
-
-      console.log('before the network detection call')
       this.provider
         ._detectNetwork()
         .then((network) => {
