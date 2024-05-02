@@ -5,7 +5,6 @@ import TableCell from '@mui/material/TableCell'
 import TableContainer from '@mui/material/TableContainer'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
-import Paper from '@mui/material/Paper'
 import styles from './Dashboard/index.module.css'
 
 interface QueueItem {
@@ -46,7 +45,7 @@ export default function IndexQueue() {
     <div>
       <div className={styles.title24}>Indexing Queue</div>
       {queue.length > 0 ? (
-        <TableContainer component={Paper}>
+        <TableContainer>
           <Table aria-label="simple table">
             <TableHead>
               <TableRow>
