@@ -36,7 +36,6 @@ export class Blockchain {
     this.registerForNetworkEvents()
     // always use this signer, not simply provider.getSigner(0) for instance (as we do on many tests)
     this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
-    console.log('done signer')
   }
 
   public getSigner(): Signer {
@@ -62,18 +61,27 @@ export class Blockchain {
     return this.knownRPCs
   }
 
-  private async detectNetwork(): Promise<boolean> {
-    const timeout = setTimeout(() => {
-      return false
-    }, 3000)
-    try {
-      const network = await this.provider._detectNetwork()
-      clearTimeout(timeout)
-      return network instanceof Network
-    } catch (err) {
-      clearTimeout(timeout)
-      return false
-    }
+  private detectNetwork(): Promise<boolean> {
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        // timeout, hanging or invalid connection
+        CORE_LOGGER.error(`Unable to detect provider network: (timeout)`)
+        resolve(false)
+      }, 2500)
+
+      console.log('before the network detection call')
+      this.provider
+        ._detectNetwork()
+        .then((network) => {
+          clearTimeout(timeout)
+          resolve(network instanceof Network)
+        })
+        .catch((err) => {
+          CORE_LOGGER.error(`Unable to detect provider network: ${err.message}`)
+          clearTimeout(timeout)
+          resolve(false)
+        })
+    })
   }
 
   // try other rpc options, if available

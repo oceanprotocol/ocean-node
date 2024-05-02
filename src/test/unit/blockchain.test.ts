@@ -22,14 +22,14 @@ describe('Should validate blockchain network connections', () => {
     envOverrides = buildEnvOverrideConfig(
       [ENVIRONMENT_VARIABLES.RPCS],
       [
-        '{ "11155420":{ "rpc":"https://sepolia.optimism.FAKE", "fallbackRPCs": ["https://sepolia.optimism.io","https://public.stackup.sh/api/v1/node/optimism-sepolia","https://optimism-sepolia.blockpi.network/v1/rpc/public","https://endpoints.omniatech.io/v1/op/sepolia/public"], "chainId": 11155420, "network": "optimism-sepolia", "chunkSize": 100 }}'
+        '{ "8996":{ "rpc":"http://172.0.0.1:8545", "fallbackRPCs": ["http://127.0.0.1:8545","http://172.0.0.3:8545"], "chainId": 8996, "network": "development", "chunkSize": 100 }}'
       ]
     )
     envOverrides = await setupEnvironment(null, envOverrides)
     config = await getConfiguration(true)
 
     rpcs = config.supportedNetworks
-    network = rpcs['11155420']
+    network = rpcs['8996']
     blockchain = new Blockchain(
       network.rpc,
       network.network,
@@ -39,7 +39,7 @@ describe('Should validate blockchain network connections', () => {
   })
 
   it('should get known rpcs', () => {
-    expect(blockchain.getKnownRPCs().length).to.be.equal(5)
+    expect(blockchain.getKnownRPCs().length).to.be.equal(3)
   })
 
   it('should get network not ready (wrong RPC setting)', async () => {
@@ -52,9 +52,7 @@ describe('Should validate blockchain network connections', () => {
     let isReady = await blockchain.isNetworkReady()
     expect(isReady).to.be.equal(false)
     // at least one should be OK
-    console.log(' will retry...')
     const retryResult = await blockchain.tryFallbackRPCs()
-    console.log('retry result:', retryResult)
     expect(retryResult).to.be.equal(true)
     isReady = await blockchain.isNetworkReady()
     expect(isReady).to.be.equal(true)
