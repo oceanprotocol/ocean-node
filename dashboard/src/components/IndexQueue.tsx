@@ -6,6 +6,7 @@ import TableContainer from '@mui/material/TableContainer'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import Paper from '@mui/material/Paper'
+import styles from './Dashboard/index.module.css'
 
 interface QueueItem {
   txId: string
@@ -43,27 +44,35 @@ export default function IndexQueue() {
 
   return (
     <div>
-      <h1>Indexing Queue</h1>
-      <TableContainer component={Paper}>
-        <Table aria-label="simple table">
-          <TableHead>
-            <TableRow>
-              <TableCell>Transaction ID</TableCell>
-              <TableCell align="right">Network</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {queue.map((item, index) => (
-              <TableRow key={index}>
-                <TableCell component="th" scope="row">
-                  {item.txId}
+      <div className={styles.title24}>Indexing Queue</div>
+      {queue.length > 0 ? (
+        <TableContainer component={Paper}>
+          <Table aria-label="simple table">
+            <TableHead>
+              <TableRow>
+                <TableCell>
+                  <b>Transaction ID</b>
                 </TableCell>
-                <TableCell align="right">{item.chainId}</TableCell>
+                <TableCell align="right">
+                  <b>Network</b>
+                </TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+            </TableHead>
+            <TableBody>
+              {queue.map((item, index) => (
+                <TableRow key={index}>
+                  <TableCell component="th" scope="row">
+                    {item.txId}
+                  </TableCell>
+                  <TableCell align="right">{item.chainId}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      ) : (
+        <p>Indexing queue is empty.</p>
+      )}
     </div>
   )
 }
