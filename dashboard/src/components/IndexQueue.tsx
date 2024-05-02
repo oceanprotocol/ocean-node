@@ -11,18 +11,27 @@ export default function IndexQueueComponent() {
   const [queue, setQueue] = useState<QueueItem[]>([])
 
   useEffect(() => {
-    fetch('/api/services/indexQueue')
-      .then((response) => response.json())
-      .then((data) => {
-        const transformedQueue = data.queue.map((item: any) => ({
-          txId: item.txId,
-          chainId: rpcs[item.chainId]?.network || item.chainId
-        }))
-        setQueue(transformedQueue)
-      })
-      .catch((error) => {
-        console.error('Error fetching queue:', error)
-      })
+    const fetchQueue = () => {
+      fetch('/api/services/indexQueue')
+        .then((response) => response.json())
+        .then((data) => {
+          const transformedQueue = data.queue.map((item: any) => ({
+            txId: item.txId,
+            chainId: rpcs[item.chainId]?.network || item.chainId
+          }))
+          setQueue(transformedQueue)
+        })
+        .catch((error) => {
+          console.error('Error fetching queue:', error)
+        })
+    }
+
+    fetchQueue() // Initial fetch
+    const intervalId = setInterval(fetchQueue, 2000) // Poll API every 2000 milliseconds (2 seconds)
+
+    return () => {
+      clearInterval(intervalId) // Clear interval on component unmount
+    }
   }, [])
 
   return (
