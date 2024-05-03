@@ -68,14 +68,19 @@ async function getLastIndexedBlock(): Promise<number> {
 }
 
 export async function proccesNetworkData(): Promise<void> {
-  const deployedBlock = getDeployedContractBlock(rpcDetails.chainId)
-  if (deployedBlock == null && (await getLastIndexedBlock()) == null) {
+  const contractDeploymentBlock = getDeployedContractBlock(rpcDetails.chainId)
+  if (contractDeploymentBlock == null && (await getLastIndexedBlock()) == null) {
     INDEXER_LOGGER.logMessage(
       `chain: ${rpcDetails.chainId} Both deployed block and last indexed block are null. Cannot proceed further on this chain`,
       true
     )
     return
   }
+  // if we defined a valid startBlock use it, oterwise start from deployed one
+  const crawlingStartBlock =
+    rpcDetails.startBlock && rpcDetails.startBlock > contractDeploymentBlock
+      ? rpcDetails.startBlock
+      : contractDeploymentBlock
 
   // we can override the default value of 30 secs, by setting process.env.INDEXER_INTERVAL
   const interval = getCrawlingInterval()
@@ -84,11 +89,13 @@ export async function proccesNetworkData(): Promise<void> {
   while (true) {
     if (!lockProccessing) {
       lockProccessing = true
-      const indexedBlock = await getLastIndexedBlock()
+      const lastIndexedBlock = await getLastIndexedBlock()
       const networkHeight = await getNetworkHeight(provider)
 
       const startBlock =
-        indexedBlock && indexedBlock > deployedBlock ? indexedBlock : deployedBlock
+        lastIndexedBlock && lastIndexedBlock > crawlingStartBlock
+          ? lastIndexedBlock
+          : crawlingStartBlock
 
       INDEXER_LOGGER.logMessage(
         `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`,
