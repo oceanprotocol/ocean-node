@@ -67,7 +67,7 @@ async function getLastIndexedBlock(): Promise<number> {
   }
 }
 
-export async function proccesNetworkData(): Promise<void> {
+export async function processNetworkData(): Promise<void> {
   const contractDeploymentBlock = getDeployedContractBlock(rpcDetails.chainId)
   if (contractDeploymentBlock == null && (await getLastIndexedBlock()) == null) {
     INDEXER_LOGGER.logMessage(
@@ -213,7 +213,7 @@ export function checkNewlyIndexedAssets(events: BlocksEvents): void {
 
 parentPort.on('message', (message) => {
   if (message.method === 'start-crawling') {
-    proccesNetworkData()
+    processNetworkData()
   }
   if (message.method === 'add-reindex-task') {
     if (message.reindexTask) {
