@@ -184,6 +184,7 @@ export default function Dashboard() {
             )
           })}
         </div>
+        <IndexQueue />
       </div>
     )
   }
@@ -274,7 +275,6 @@ export default function Dashboard() {
             <Indexer />
             <ObjectModule title="PLATFORM" data={arrayOfPlatformObjects} />
             <SupportedStorage />
-            <IndexQueue />
             <AdminAccounts />
           </div>
         )}
