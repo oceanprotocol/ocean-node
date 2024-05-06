@@ -40,6 +40,7 @@ import {
 } from '../../utils/address.js'
 import { publishAsset, orderAsset } from '../utils/assets.js'
 import { downloadAsset } from '../data/assets.js'
+import { genericDDO } from '../data/ddo.js'
 import { homedir } from 'os'
 
 describe('Should run a complete node flow.', () => {
@@ -51,7 +52,6 @@ describe('Should run a complete node flow.', () => {
   let consumerAccount: Signer
   let consumerAddress: string
   let orderTxId: string
-  let assetDID: string
   let publishedDataset: any
   let actualDDO: any
 
@@ -259,9 +259,22 @@ describe('Should run a complete node flow.', () => {
 
     await doCheck()
   })
-  it('should not allow to download the asset with different consumer address', function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
+  // for use on the test bellow
+  it('should publish ddo with access credentials', async function () {
+    publishedDataset = await publishAsset(genericDDO, publisherAccount)
+    const { ddo, wasTimeout } = await waitToIndex(
+      publishedDataset.ddo.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
+
+    if (!ddo) {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    }
+  })
+  it('should not allow to download the asset with different consumer address', async function () {
+    const assetDID = publishedDataset.ddo.id
     const doCheck = async () => {
       const downloadTask = {
         fileIndex: 0,
@@ -270,22 +283,20 @@ describe('Should run a complete node flow.', () => {
         transferTxId: orderTxId,
         nonce: Date.now().toString(),
         consumerAddress: '0xBE5449a6A97aD46c8558A3356267Ee5D2731ab57',
-        signature: '',
+        signature: '0xBE5449a6',
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
 
-      assert(response)
-      assert(response.stream, 'stream not present')
-      assert(response.status.httpStatus === 200, 'http status not 200')
-      expect(response.stream).to.be.instanceOf(Readable)
+      assert(response.stream === null, 'stream not null')
+      assert(response.status.httpStatus === 500, 'http status not 500')
+      assert(
+        response.status.error === `Error: Access to asset ${assetDID} was denied`,
+        'error contains access denied'
+      )
     }
 
-    setTimeout(() => {
-      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
-    }, DEFAULT_TEST_TIMEOUT * 3)
-
-    doCheck()
+    await doCheck()
   })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
