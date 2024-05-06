@@ -5,10 +5,11 @@ import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
 import { ReindexTask } from './crawlerThread.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
-import { EVENTS } from '../../utils/index.js'
+import { EVENTS, INDEXER_CRAWLING_EVENTS } from '../../utils/index.js'
 
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
+export const INDEXER_CRAWLING_EVENT_EMITTER = new EventEmitter()
 
 let INDEXING_QUEUE: ReindexTask[] = []
 
@@ -52,6 +53,14 @@ export class OceanIndexer {
     return network
   }
 
+  public async stopThread(chainID: string): Promise<number> {
+    const worker = OceanIndexer.workers[chainID]
+    if (worker) {
+      return await worker.terminate()
+    }
+    return -1
+  }
+
   // eslint-disable-next-line require-await
   public async startThreads(): Promise<void> {
     for (const network of this.supportedChains) {
@@ -84,14 +93,14 @@ export class OceanIndexer {
             )
             INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
             // remove from indexing list
-          } else if (event.method === 'popFromQueue') {
+          } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP) {
             // remove this one from the queue
             INDEXING_QUEUE = INDEXING_QUEUE.filter(
               (task) =>
                 task.txId !== event.data.txId && task.chainId !== event.data.chainId
             )
-          } else if (event.method === 'startedCrawling') {
-            INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data)
+          } else if (event.method === INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED) {
+            INDEXER_CRAWLING_EVENT_EMITTER.emit(event.method, event.data)
           }
         } else {
           INDEXER_LOGGER.log(

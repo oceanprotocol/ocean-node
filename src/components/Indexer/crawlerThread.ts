@@ -11,7 +11,7 @@ import { Blockchain } from '../../utils/blockchain.js'
 import { BlocksEvents, SupportedNetwork } from '../../@types/blockchain.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { sleep } from '../../utils/util.js'
-import { EVENTS } from '../../utils/index.js'
+import { EVENTS, INDEXER_CRAWLING_EVENTS } from '../../utils/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getDatabase } from '../../utils/database.js'
 import { Log } from 'ethers'
@@ -108,7 +108,7 @@ export async function processNetworkData(): Promise<void> {
         if (!startedCrawling) {
           startedCrawling = true
           parentPort.postMessage({
-            method: 'startedCrawling',
+            method: INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED,
             data: { startBlock, networkHeight, contractDeploymentBlock }
           })
         }
@@ -182,7 +182,7 @@ async function processReindex(): Promise<void> {
         await processChunkLogs(logs, signer, provider, rpcDetails.chainId)
         // clear from the 'top' queue
         parentPort.postMessage({
-          method: 'popFromQueue',
+          method: INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP,
           data: reindexTask
         })
       } else {
