@@ -90,6 +90,8 @@ export class OceanIndexer {
               (task) =>
                 task.txId !== event.data.txId && task.chainId !== event.data.chainId
             )
+          } else if (event.method === 'startedCrawling') {
+            INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data)
           }
         } else {
           INDEXER_LOGGER.log(

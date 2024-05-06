@@ -86,6 +86,7 @@ export async function processNetworkData(): Promise<void> {
   const interval = getCrawlingInterval()
   let { chunkSize } = rpcDetails
   let lockProccessing = false
+  let startedCrawling = false
   while (true) {
     if (!lockProccessing) {
       lockProccessing = true
@@ -103,6 +104,14 @@ export async function processNetworkData(): Promise<void> {
       )
 
       if (networkHeight > startBlock) {
+        // emit an one shot event when we actually start the crawling process
+        if (!startedCrawling) {
+          startedCrawling = true
+          parentPort.postMessage({
+            method: 'startedCrawling',
+            data: { startBlock, networkHeight, contractDeploymentBlock }
+          })
+        }
         const remainingBlocks = networkHeight - startBlock
         const blocksToProcess = Math.min(chunkSize, remainingBlocks)
         INDEXER_LOGGER.logMessage(
@@ -154,7 +163,7 @@ export async function processNetworkData(): Promise<void> {
       lockProccessing = false
     } else {
       INDEXER_LOGGER.logMessage(
-        `Processing already in progress for network ${rpcDetails.network} waiting untill finishing the current processing ...`,
+        `Processing already in progress for network ${rpcDetails.network}, waiting until finishing the current processing ...`,
         true
       )
     }
