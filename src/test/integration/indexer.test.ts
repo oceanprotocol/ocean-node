@@ -584,12 +584,13 @@ describe('Indexer stores a new metadata events and orders.', () => {
     }, DEFAULT_TEST_TIMEOUT / 2)
   })
 
-  after(() => {
-    tearDownEnvironment(previousConfiguration)
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
+    await indexer.stopThread(DEVELOPMENT_CHAIN_ID.toString())
   })
 })
 
-describe('OceanIndexer - crawler threads', () => {
+describe('OceanIndexer - crawler threads', async () => {
   let envOverrides: OverrideEnvConfig[]
   let config: OceanNodeConfig
   let db: Database
@@ -599,7 +600,11 @@ describe('OceanIndexer - crawler threads', () => {
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const chainID = DEVELOPMENT_CHAIN_ID.toString()
-  mockSupportedNetworks[chainID].startBlock = 2
+
+  const netHeight = await getNetworkHeight(blockchain.getProvider())
+  const deployBlock = getDeployedContractBlock(mockSupportedNetworks[chainID].chainId)
+  const startingBlock = Math.abs(netHeight - deployBlock / 2)
+  mockSupportedNetworks[chainID].startBlock = startingBlock
 
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
@@ -623,10 +628,8 @@ describe('OceanIndexer - crawler threads', () => {
     oceanNode.addIndexer(oceanIndexer)
   })
   it('should start a worker thread and handle RPCS "startBlock"', async () => {
-    const netHeight = await getNetworkHeight(blockchain.getProvider())
-    const deployBlock = getDeployedContractBlock(mockSupportedNetworks[chainID].chainId)
     const { indexer } = db
-    const updatedIndex = await indexer.update(Number(chainID), 1)
+    const updatedIndex = await indexer.update(Number(chainID), startingBlock - 1)
 
     expect(updatedIndex.lastIndexedBlock).to.be.equal(1)
 
@@ -635,7 +638,7 @@ describe('OceanIndexer - crawler threads', () => {
       INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED,
       (data: any) => {
         const { startBlock, deployedContractBlock, networkHeight } = data
-        expect(startBlock).to.be.equal(1)
+        expect(startBlock).to.be.equal(startingBlock)
         expect(deployedContractBlock).to.be.equal(deployBlock)
         expect(networkHeight).to.be.equal(netHeight)
       }
