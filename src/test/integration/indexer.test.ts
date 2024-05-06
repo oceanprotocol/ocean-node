@@ -631,7 +631,7 @@ describe('OceanIndexer - crawler threads', async () => {
     const { indexer } = db
     const updatedIndex = await indexer.update(Number(chainID), startingBlock - 1)
 
-    expect(updatedIndex.lastIndexedBlock).to.be.equal(1)
+    expect(updatedIndex.lastIndexedBlock).to.be.equal(startingBlock - 1)
 
     await oceanIndexer.startThreads()
     INDEXER_CRAWLING_EVENT_EMITTER.addListener(
@@ -645,7 +645,7 @@ describe('OceanIndexer - crawler threads', async () => {
     )
   })
 
-  after(() => {
-    tearDownEnvironment(envOverrides)
+  after(async () => {
+    await tearDownEnvironment(envOverrides)
   })
 })
