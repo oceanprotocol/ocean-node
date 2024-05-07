@@ -594,7 +594,6 @@ describe('OceanIndexer - crawler threads', () => {
   let config: OceanNodeConfig
   let db: Database
   // let oceanNode: OceanNode
-  let oceanIndexer: OceanIndexer
   let blockchain: Blockchain
 
   const supportedNetworks: RPCS = getMockSupportedNetworks()
@@ -645,8 +644,9 @@ describe('OceanIndexer - crawler threads', () => {
     const { indexer } = db
     const updatedIndex = await indexer.update(Number(chainID), startingBlock - 1)
     expect(updatedIndex.lastIndexedBlock).to.be.equal(startingBlock - 1)
-    oceanIndexer = new OceanIndexer(db, supportedNetworks)
-    // await oceanIndexer.startThreads()
+    // eslint-disable-next-line no-unused-vars
+    const oceanIndexer = new OceanIndexer(db, supportedNetworks)
+
     await sleep(4000)
   })
 
