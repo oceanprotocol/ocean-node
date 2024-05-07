@@ -593,19 +593,12 @@ describe('OceanIndexer - crawler threads', () => {
   let envOverrides: OverrideEnvConfig[]
   let config: OceanNodeConfig
   let db: Database
-  let oceanNode: OceanNode
+  // let oceanNode: OceanNode
   let oceanIndexer: OceanIndexer
   let blockchain: Blockchain
 
-  const supportedNetworks: RPCS = {
-    '11155420': {
-      chainId: 11155420,
-      network: 'optimism-sepolia',
-      rpc: 'https://sepolia.optimism.io',
-      chunkSize: 100
-    }
-  }
-  const chainID = '11155420'
+  const supportedNetworks: RPCS = getMockSupportedNetworks()
+  const chainID = DEVELOPMENT_CHAIN_ID.toString()
 
   let netHeight = 0
   let deployBlock = 0
@@ -627,23 +620,18 @@ describe('OceanIndexer - crawler threads', () => {
     envOverrides = await setupEnvironment(null, envOverrides)
     config = await getConfiguration(true)
     db = await new Database(config.dbConfig)
-    oceanNode = OceanNode.getInstance(db)
+    // oceanNode = OceanNode.getInstance(db)
 
     deployBlock = getDeployedContractBlock(supportedNetworks[chainID].chainId)
     netHeight = await getNetworkHeight(blockchain.getProvider())
     startingBlock = deployBlock + 1
     supportedNetworks[chainID].startBlock = startingBlock
 
-    oceanIndexer = new OceanIndexer(db, supportedNetworks)
+    // oceanIndexer = new OceanIndexer(db, supportedNetworks)
 
-    oceanNode.addIndexer(oceanIndexer)
+    // oceanNode.addIndexer(oceanIndexer)
   })
   it('should start a worker thread and handle RPCS "startBlock"', async () => {
-    const { indexer } = db
-    const updatedIndex = await indexer.update(Number(chainID), startingBlock - 1)
-
-    expect(updatedIndex.lastIndexedBlock).to.be.equal(startingBlock - 1)
-
     INDEXER_CRAWLING_EVENT_EMITTER.addListener(
       INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED,
       (data: any) => {
@@ -653,7 +641,12 @@ describe('OceanIndexer - crawler threads', () => {
         expect(networkHeight).to.be.equal(netHeight)
       }
     )
-    await oceanIndexer.startThreads()
+
+    const { indexer } = db
+    const updatedIndex = await indexer.update(Number(chainID), startingBlock - 1)
+    expect(updatedIndex.lastIndexedBlock).to.be.equal(startingBlock - 1)
+    oceanIndexer = new OceanIndexer(db, supportedNetworks)
+    // await oceanIndexer.startThreads()
     await sleep(4000)
   })
 
