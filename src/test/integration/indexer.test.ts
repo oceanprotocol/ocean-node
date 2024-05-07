@@ -624,7 +624,7 @@ describe('OceanIndexer - crawler threads', () => {
 
     deployBlock = getDeployedContractBlock(mockSupportedNetworks[chainID].chainId)
     netHeight = await getNetworkHeight(blockchain.getProvider())
-    startingBlock = Math.floor(netHeight - deployBlock / 2)
+    startingBlock = deployBlock + 1
     mockSupportedNetworks[chainID].startBlock = startingBlock
 
     oceanIndexer = new OceanIndexer(db, mockSupportedNetworks)
