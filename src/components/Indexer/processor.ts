@@ -46,11 +46,8 @@ class BaseEventProcessor {
     return datatokens
   }
 
-  protected async getNFTInfo(
-    nftAddress: string,
-    provider: JsonRpcApiProvider
-  ): Promise<any> {
-    const nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, provider)
+  protected async getNFTInfo(nftAddress: string, signer: Signer): Promise<any> {
+    const nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, signer)
     const state = await nftContract.getMetaData()
     return {
       state,
@@ -322,7 +319,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       ddo.chainId = chainId
       ddo.nftAddress = event.address
       ddo.datatokens = this.getTokenInfo(ddo.services)
-      ddo.nft = this.getNFTInfo(ddo.nftAddress, provider)
+      ddo.nft = this.getNFTInfo(ddo.nftAddress, signer)
 
       INDEXER_LOGGER.logMessage(
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
