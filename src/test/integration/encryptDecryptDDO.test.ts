@@ -287,7 +287,7 @@ describe('Should encrypt and decrypt DDO', () => {
       encryptedDocument: encryptedMetaData,
       flags: 2,
       documentHash: '0x123',
-      dataNftAddress: ZeroAddress,
+      dataNftAddress: '0x0000000000000000000000000000000000000001',
       nonce: Date.now().toString(),
       signature: '0x123'
     }
