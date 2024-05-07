@@ -586,11 +586,10 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
-    await indexer.stopThread(DEVELOPMENT_CHAIN_ID.toString())
   })
 })
 
-describe('OceanIndexer - crawler threads', async () => {
+describe('OceanIndexer - crawler threads', () => {
   let envOverrides: OverrideEnvConfig[]
   let config: OceanNodeConfig
   let db: Database
@@ -601,12 +600,16 @@ describe('OceanIndexer - crawler threads', async () => {
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const chainID = DEVELOPMENT_CHAIN_ID.toString()
 
-  const netHeight = await getNetworkHeight(blockchain.getProvider())
-  const deployBlock = getDeployedContractBlock(mockSupportedNetworks[chainID].chainId)
-  const startingBlock = Math.abs(netHeight - deployBlock / 2)
-  mockSupportedNetworks[chainID].startBlock = startingBlock
+  let netHeight = 0
+  let deployBlock = 0
+  let startingBlock = 0
 
   before(async () => {
+    blockchain = new Blockchain(
+      mockSupportedNetworks[chainID].rpc,
+      mockSupportedNetworks[chainID].chainId
+    )
+
     envOverrides = buildEnvOverrideConfig(
       [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.ADDRESS_FILE],
       [
@@ -617,13 +620,14 @@ describe('OceanIndexer - crawler threads', async () => {
     envOverrides = await setupEnvironment(null, envOverrides)
     config = await getConfiguration(true)
     db = await new Database(config.dbConfig)
-
     oceanNode = OceanNode.getInstance(db)
+
+    deployBlock = getDeployedContractBlock(mockSupportedNetworks[chainID].chainId)
+    netHeight = await getNetworkHeight(blockchain.getProvider())
+    startingBlock = Math.floor(netHeight - deployBlock / 2)
+    mockSupportedNetworks[chainID].startBlock = startingBlock
+
     oceanIndexer = new OceanIndexer(db, mockSupportedNetworks)
-    blockchain = new Blockchain(
-      mockSupportedNetworks[chainID].rpc,
-      mockSupportedNetworks[chainID].chainId
-    )
 
     oceanNode.addIndexer(oceanIndexer)
   })
@@ -633,16 +637,17 @@ describe('OceanIndexer - crawler threads', async () => {
 
     expect(updatedIndex.lastIndexedBlock).to.be.equal(startingBlock - 1)
 
-    await oceanIndexer.startThreads()
     INDEXER_CRAWLING_EVENT_EMITTER.addListener(
       INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED,
       (data: any) => {
-        const { startBlock, deployedContractBlock, networkHeight } = data
+        const { startBlock, contractDeploymentBlock, networkHeight } = data
         expect(startBlock).to.be.equal(startingBlock)
-        expect(deployedContractBlock).to.be.equal(deployBlock)
+        expect(contractDeploymentBlock).to.be.equal(deployBlock)
         expect(networkHeight).to.be.equal(netHeight)
       }
     )
+    await oceanIndexer.startThreads()
+    await sleep(4000)
   })
 
   after(async () => {
