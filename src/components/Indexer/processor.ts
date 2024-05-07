@@ -317,11 +317,11 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         return
       }
 
-      INDEXER_LOGGER.logMessage(
-        `decodedEventData.args[5]: ${decodedEventData.args[5]}, hash: ${create256Hash(
-          JSON.stringify(ddo)
-        )}, decodedEventData.args[4]: ${JSON.stringify(decodedEventData.args[4])}`
-      )
+      // INDEXER_LOGGER.logMessage(
+      //   `decodedEventData.args[5]: ${decodedEventData.args[5]}, hash: ${create256Hash(
+      //     JSON.stringify(ddo)
+      //   )}, decodedEventData.args[4]: ${JSON.stringify(decodedEventData.args[4])}`
+      // )
       // for (const a in decodedEventData.args) {
       //   INDEXER_LOGGER.logMessage(
       //     `decodedEventData.args[${a}]: ${JSON.stringify(decodedEventData.args[a])}`
@@ -341,11 +341,11 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       ddo.nftAddress = event.address
       ddo.datatokens = this.getTokenInfo(ddo.services)
 
-      INDEXER_LOGGER.logMessage(
-        `document hash: ${
-          '0x' + createHash('sha256').update(JSON.stringify(ddo)).digest('hex')
-        } and document: ${JSON.stringify(ddo)}`
-      )
+      // INDEXER_LOGGER.logMessage(
+      //   `document hash: ${
+      //     '0x' + createHash('sha256').update(JSON.stringify(ddo)).digest('hex')
+      //   } and document: ${JSON.stringify(ddo)}`
+      // )
       // const blobData = Uint8Array.from(Buffer.from(JSON.stringify(ddo)))
       // const decryptDataAES = await decrypt(blobData, EncryptMethod.ECIES)
 
@@ -365,11 +365,11 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       )
 
       const previousDdo = await ddoDatabase.retrieve(ddo.id)
-      INDEXER_LOGGER.logMessage(
-        `previousDdo hash: ${
-          '0x' + createHash('sha256').update(JSON.stringify(previousDdo)).digest('hex')
-        } and previousDdo: ${JSON.stringify(previousDdo)}`
-      )
+      // INDEXER_LOGGER.logMessage(
+      //   `previousDdo hash: ${
+      //     '0x' + createHash('sha256').update(JSON.stringify(previousDdo)).digest('hex')
+      //   } and previousDdo: ${JSON.stringify(previousDdo)}`
+      // )
       if (eventName === EVENTS.METADATA_CREATED) {
         if (previousDdo && previousDdo.nft.state === MetadataStates.ACTIVE) {
           INDEXER_LOGGER.logMessage(`DDO ${ddo.id} is already registered as active`, true)
