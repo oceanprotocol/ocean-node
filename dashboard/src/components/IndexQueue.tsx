@@ -42,7 +42,7 @@ export default function IndexQueue() {
     if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.INDEXER_INTERVAL)) {
       pollingInterval = Number(process.env.INDEXER_INTERVAL)
     }
-    const intervalId = setInterval(fetchQueue, pollingInterval) // Poll API every 2000 milliseconds (2 seconds)
+    const intervalId = setInterval(fetchQueue, pollingInterval)
 
     return () => {
       clearInterval(intervalId) // Clear interval on component unmount
