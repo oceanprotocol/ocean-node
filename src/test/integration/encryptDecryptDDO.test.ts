@@ -62,6 +62,12 @@ describe('Should encrypt and decrypt DDO', () => {
       network: 'development',
       rpc: 'http://127.0.0.1:8545',
       chunkSize: 100
+    },
+    '1': {
+      chainId: 1,
+      network: 'mainnet',
+      rpc: 'http://127.0.0.1:8545',
+      chunkSize: 100
     }
   }
 
@@ -279,7 +285,24 @@ describe('Should encrypt and decrypt DDO', () => {
     )
   })
 
-  it('should return did does not match', async () => {
+  it('should return data NFT factory does not match', async () => {
+    const decryptDDOTask: DecryptDDOCommand = {
+      command: PROTOCOL_COMMANDS.DECRYPT_DDO,
+      decrypterAddress: publisherAddress,
+      chainId: 1,
+      encryptedDocument: encryptedMetaData,
+      flags: 2,
+      documentHash: '0x123',
+      dataNftAddress,
+      nonce: Date.now().toString(),
+      signature: '0x123'
+    }
+    const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
+    expect(response.status.httpStatus).to.equal(400)
+    expect(response.status.error).to.equal('Decrypt DDO: did does not match')
+  })
+
+  it('should return data NFT factory does not match', async () => {
     const decryptDDOTask: DecryptDDOCommand = {
       command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: publisherAddress,
@@ -293,7 +316,9 @@ describe('Should encrypt and decrypt DDO', () => {
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     expect(response.status.httpStatus).to.equal(400)
-    expect(response.status.error).to.equal('Decrypt DDO: did does not match')
+    expect(response.status.error).to.equal(
+      'Decrypt DDO: Asset not deployed by the data NFT factory'
+    )
   })
 
   it('should return checksum does not match', async () => {
