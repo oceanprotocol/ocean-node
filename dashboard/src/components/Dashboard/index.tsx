@@ -7,6 +7,7 @@ import AdminActions from '../Admin'
 import Spinner from '../Spinner'
 import NodePeers from '../NodePeers'
 import Copy from '../Copy'
+import IndexQueue from '../IndexQueue'
 
 type IndexerType = {
   block: string
@@ -180,6 +181,7 @@ export default function Dashboard() {
             )
           })}
         </div>
+        <IndexQueue />
       </div>
     )
   }
