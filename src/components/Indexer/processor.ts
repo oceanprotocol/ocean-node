@@ -303,6 +303,26 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         decodedEventData.args[5],
         decodedEventData.args[4]
       )
+      if (
+        ddo.id !==
+        'did:op:' +
+          createHash('sha256')
+            .update(getAddress(event.address) + chainId.toString(10))
+            .digest('hex')
+      ) {
+        INDEXER_LOGGER.error(
+          `Decrypted DDO ID is not matching the generated hash for DID.`
+        )
+        return
+      }
+      const encryptedHash = create256Hash(decodedEventData.args[4].toString())
+      INDEXER_LOGGER.logMessage(`encrypted hash: ${encryptedHash}`)
+      INDEXER_LOGGER.logMessage(`decodedEventData.args[4]: ${decodedEventData.args[4]}`)
+      INDEXER_LOGGER.logMessage(`decodedEventData.args[5]: ${decodedEventData.args[5]}`)
+      if (encryptedHash === decodedEventData.args[5]) {
+        INDEXER_LOGGER.error(`DDO checksum does not match.`)
+        return
+      }
       did = ddo.id
       // stuff that we overwrite
       ddo.chainId = chainId
