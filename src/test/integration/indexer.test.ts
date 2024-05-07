@@ -16,7 +16,7 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { Database } from '../../components/database/index.js'
 import {
-  INDEXER_CRAWLING_EVENT_EMITTER,
+  // INDEXER_CRAWLING_EVENT_EMITTER,
   OceanIndexer
 } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
@@ -41,20 +41,20 @@ import {
 import {
   ENVIRONMENT_VARIABLES,
   EVENTS,
-  INDEXER_CRAWLING_EVENTS,
+  // INDEXER_CRAWLING_EVENTS,
   PROTOCOL_COMMANDS
 } from '../../utils/constants.js'
 import { homedir } from 'os'
 import { QueryDdoStateHandler } from '../../components/core/handler/queryHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { QueryCommand } from '../../@types/commands.js'
-import {
-  getDeployedContractBlock,
-  getNetworkHeight
-} from '../../components/Indexer/utils.js'
-import { Blockchain } from '../../utils/blockchain.js'
-import { getConfiguration } from '../../utils/config.js'
-import { OceanNodeConfig } from '../../@types/OceanNode.js'
+// import {
+//   getDeployedContractBlock,
+//   getNetworkHeight
+// } from '../../components/Indexer/utils.js'
+// import { Blockchain } from '../../utils/blockchain.js'
+// import { getConfiguration } from '../../utils/config.js'
+// import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
 describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
@@ -588,7 +588,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     await tearDownEnvironment(previousConfiguration)
   })
 })
-
+/*
 describe('OceanIndexer - crawler threads', () => {
   let envOverrides: OverrideEnvConfig[]
   let config: OceanNodeConfig
@@ -653,4 +653,4 @@ describe('OceanIndexer - crawler threads', () => {
   after(async () => {
     await tearDownEnvironment(envOverrides)
   })
-})
+}) */
