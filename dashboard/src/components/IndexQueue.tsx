@@ -6,6 +6,10 @@ import TableContainer from '@mui/material/TableContainer'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import styles from './Dashboard/index.module.css'
+import {
+  ENVIRONMENT_VARIABLES,
+  existsEnvironmentVariable
+} from '../../../src/utils/index.js'
 
 interface QueueItem {
   txId: string
@@ -34,7 +38,11 @@ export default function IndexQueue() {
     }
 
     fetchQueue() // Initial fetch
-    const intervalId = setInterval(fetchQueue, 2000) // Poll API every 2000 milliseconds (2 seconds)
+    let pollingInterval = 2000 // Default polling interval
+    if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.INDEXER_INTERVAL)) {
+      pollingInterval = Number(process.env.INDEXER_INTERVAL)
+    }
+    const intervalId = setInterval(fetchQueue, pollingInterval) // Poll API every 2000 milliseconds (2 seconds)
 
     return () => {
       clearInterval(intervalId) // Clear interval on component unmount
