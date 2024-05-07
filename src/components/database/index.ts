@@ -394,7 +394,7 @@ export class DdoDatabase {
       let queryObj: TypesenseSearchParams
       // if queryObj is a string
       if (typeof query === 'string') {
-        queryObj = JSON.parse(query)
+        queryObj = JSON.parse(query) as TypesenseSearchParams
       } else {
         queryObj = query as TypesenseSearchParams
       }
@@ -410,7 +410,6 @@ export class DdoDatabase {
           per_page: maxPerPage,
           page
         }
-
         const result = await this.provider
           .collections(schema.name)
           .documents()
@@ -539,6 +538,9 @@ export class DdoDatabase {
           .delete(did)
         if (response.id === did) {
           isDeleted = true
+          DATABASE_LOGGER.debug(
+            `Response for deleting the ddo: ${response.id}, isDeleted: ${isDeleted}`
+          )
           return response
         }
       } catch (error) {
@@ -562,6 +564,31 @@ export class DdoDatabase {
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
+    }
+  }
+
+  async deleteAllAssetsFromChain(chainId: number) {
+    for (const schema of this.schemas) {
+      try {
+        const response = await this.provider
+          .collections(schema.name)
+          .documents()
+          .deleteByChainId(`chainId:${chainId}`)
+        if (response.num_deleted > 0) {
+          DATABASE_LOGGER.debug(`Response for deleting the ddos: ${response.num_deleted}`)
+          return response
+        }
+      } catch (error) {
+        if (!(error instanceof TypesenseError && error.httpStatus === 404)) {
+          // Log error other than not found
+          DATABASE_LOGGER.logMessageWithEmoji(
+            `Error when deleting DDOs from schema ${schema.name}: ` + error.message,
+            true,
+            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+            LOG_LEVELS_STR.LEVEL_ERROR
+          )
+        }
+      }
     }
   }
 }
