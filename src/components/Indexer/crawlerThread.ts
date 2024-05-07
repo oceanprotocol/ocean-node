@@ -22,6 +22,7 @@ export interface ReindexTask {
   eventIndex?: number
 }
 
+let REINDEX_BLOCK: number = null
 const REINDEX_QUEUE: ReindexTask[] = []
 
 interface ThreadData {
@@ -34,7 +35,7 @@ const blockchain = new Blockchain(rpcDetails.rpc, rpcDetails.chainId)
 const provider = blockchain.getProvider()
 const signer = blockchain.getSigner()
 
-async function updateLastIndexedBlockNumber(block: number): Promise<number> {
+export async function updateLastIndexedBlockNumber(block: number): Promise<number> {
   try {
     const { indexer } = await getDatabase()
     const updatedIndex = await indexer.update(rpcDetails.chainId, block)
@@ -49,6 +50,7 @@ async function updateLastIndexedBlockNumber(block: number): Promise<number> {
       `Error updating last indexed block ${err.message}`,
       true
     )
+    return -1
   }
 }
 
@@ -58,12 +60,20 @@ async function getLastIndexedBlock(): Promise<number> {
     const networkDetails = await indexer.retrieve(rpcDetails.chainId)
     return networkDetails?.lastIndexedBlock
   } catch (err) {
-    INDEXER_LOGGER.log(
-      LOG_LEVELS_STR.LEVEL_ERROR,
-      'Error retrieving last indexed block',
-      true
-    )
+    INDEXER_LOGGER.error(`Error retrieving last indexed block: ${err}`)
     return null
+  }
+}
+
+async function deleteAllAssetsFromChain(): Promise<number> {
+  const { ddo } = await getDatabase()
+  try {
+    const res = await ddo.deleteAllAssetsFromChain(rpcDetails.chainId)
+    INDEXER_LOGGER.logMessage(`Assets successfully deleted.`)
+    return res.num_deleted
+  } catch (err) {
+    INDEXER_LOGGER.error(`Error deleting all assets: ${err}`)
+    return -1
   }
 }
 
@@ -74,7 +84,7 @@ export async function proccesNetworkData(): Promise<void> {
       `chain: ${rpcDetails.chainId} Both deployed block and last indexed block are null. Cannot proceed further on this chain`,
       true
     )
-    return
+    return null
   }
 
   // we can override the default value of 30 secs, by setting process.env.INDEXER_INTERVAL
@@ -82,6 +92,7 @@ export async function proccesNetworkData(): Promise<void> {
   let { chunkSize } = rpcDetails
   let lockProccessing = false
   while (true) {
+    let currentBlock
     if (!lockProccessing) {
       lockProccessing = true
       const indexedBlock = await getLastIndexedBlock()
@@ -94,7 +105,6 @@ export async function proccesNetworkData(): Promise<void> {
         `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`,
         true
       )
-
       if (networkHeight > startBlock) {
         const remainingBlocks = networkHeight - startBlock
         const blocksToProcess = Math.min(chunkSize, remainingBlocks)
@@ -132,6 +142,7 @@ export async function proccesNetworkData(): Promise<void> {
             blocksToProcess
           )
           await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
+          currentBlock = processedBlocks.lastBlock
           checkNewlyIndexedAssets(processedBlocks.foundEvents)
           chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
         } catch (error) {
@@ -152,6 +163,26 @@ export async function proccesNetworkData(): Promise<void> {
       )
     }
     await sleep(interval)
+    // reindex chain command called
+    if (REINDEX_BLOCK && !lockProccessing) {
+      await reindexChain(currentBlock)
+    }
+  }
+}
+
+async function reindexChain(currentBlock: number): Promise<void> {
+  const block = await updateLastIndexedBlockNumber(REINDEX_BLOCK)
+  if (block !== -1) {
+    REINDEX_BLOCK = null
+    const res = await deleteAllAssetsFromChain()
+    if (res === -1) {
+      await updateLastIndexedBlockNumber(currentBlock)
+    }
+  } else {
+    // Set the reindex block to null -> force admin to trigger again the command until
+    // we have a notification from worker thread to parent thread #414.
+    INDEXER_LOGGER.error(`Block could not be reset. Continue indexing normally...`)
+    REINDEX_BLOCK = null
   }
 }
 
@@ -191,6 +222,7 @@ export function checkNewlyIndexedAssets(events: BlocksEvents): void {
       [
         EVENTS.METADATA_CREATED,
         EVENTS.METADATA_UPDATED,
+        EVENTS.METADATA_STATE,
         EVENTS.ORDER_STARTED,
         EVENTS.ORDER_REUSED
       ].includes(eventType)
@@ -212,5 +244,8 @@ parentPort.on('message', (message) => {
     if (message.reindexTask) {
       REINDEX_QUEUE.push(message.reindexTask)
     }
+  }
+  if (message.method === 'reset-crawling') {
+    REINDEX_BLOCK = getDeployedContractBlock(rpcDetails.chainId)
   }
 })
