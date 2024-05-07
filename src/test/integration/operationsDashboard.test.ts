@@ -109,6 +109,7 @@ describe('Should test admin operations', () => {
   })
 
   it('should pass for reindex tx command', async () => {
+    await waitToIndex(publishedDataset.ddo.did, EVENTS.METADATA_CREATED)
     const signature = await getSignature(expiryTimestamp.toString())
 
     const reindexTxCommand: AdminReindexTxCommand = {
