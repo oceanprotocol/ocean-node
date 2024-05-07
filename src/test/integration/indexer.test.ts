@@ -110,7 +110,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     )
 
     database = await new Database(dbConfig)
-    indexer = new OceanIndexer(database, mockSupportedNetworks)
+    // indexer = new OceanIndexer(database, mockSupportedNetworks)
     oceanNode = await OceanNode.getInstance(database)
     let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!artifactsAddresses) {
@@ -126,6 +126,42 @@ describe('Indexer stores a new metadata events and orders.', () => {
       ERC721Factory.abi,
       publisherAccount
     )
+  })
+  it('should start a worker thread and handle RPCS "startBlock"', async () => {
+    const supportedNetworks = mockSupportedNetworks
+    const chainID = DEVELOPMENT_CHAIN_ID.toString()
+    let netHeight = 0
+    let deployBlock = 0
+    let startingBlock = 0
+
+    const blockchain = new Blockchain(
+      supportedNetworks[chainID].rpc,
+      supportedNetworks[chainID].chainId
+    )
+
+    deployBlock = getDeployedContractBlock(supportedNetworks[chainID].chainId)
+    netHeight = await getNetworkHeight(blockchain.getProvider())
+    startingBlock = deployBlock + 1
+    supportedNetworks[chainID].startBlock = startingBlock
+
+    INDEXER_CRAWLING_EVENT_EMITTER.addListener(
+      INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED,
+      (data: any) => {
+        const { startBlock, contractDeploymentBlock, networkHeight } = data
+        expect(startBlock).to.be.equal(startingBlock)
+        expect(contractDeploymentBlock).to.be.equal(deployBlock)
+        expect(networkHeight).to.be.equal(netHeight)
+      }
+    )
+
+    indexer = new OceanIndexer(database, supportedNetworks)
+    // const { indexer } = db
+    // const updatedIndex = await indexer.update(Number(chainID), startingBlock - 1)
+    // expect(updatedIndex.lastIndexedBlock).to.be.equal(startingBlock - 1)
+    // eslint-disable-next-line no-unused-vars
+    // const oceanIndexer = new OceanIndexer(db, supportedNetworks)
+
+    await sleep(4000)
   })
 
   it('instance Database', () => {
@@ -589,64 +625,45 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 })
 
-describe('OceanIndexer - crawler threads', () => {
-  let envOverrides: OverrideEnvConfig[]
-  let config: OceanNodeConfig
-  let db: Database
-  // let oceanNode: OceanNode
-  let blockchain: Blockchain
+// describe('OceanIndexer - crawler threads', () => {
+//   let envOverrides: OverrideEnvConfig[]
+//   let config: OceanNodeConfig
+//   let db: Database
+//   // let oceanNode: OceanNode
+//   let blockchain: Blockchain
 
-  const supportedNetworks: RPCS = getMockSupportedNetworks()
-  const chainID = DEVELOPMENT_CHAIN_ID.toString()
+//   const supportedNetworks: RPCS = getMockSupportedNetworks()
+//   const chainID = DEVELOPMENT_CHAIN_ID.toString()
 
-  let netHeight = 0
-  let deployBlock = 0
-  let startingBlock = 0
+//   let netHeight = 0
+//   let deployBlock = 0
+//   let startingBlock = 0
 
-  before(async () => {
-    blockchain = new Blockchain(
-      supportedNetworks[chainID].rpc,
-      supportedNetworks[chainID].chainId
-    )
+//   before(async () => {
+//     blockchain = new Blockchain(
+//       supportedNetworks[chainID].rpc,
+//       supportedNetworks[chainID].chainId
+//     )
 
-    deployBlock = getDeployedContractBlock(supportedNetworks[chainID].chainId)
-    netHeight = await getNetworkHeight(blockchain.getProvider())
-    startingBlock = deployBlock + 1
-    supportedNetworks[chainID].startBlock = startingBlock
+//     deployBlock = getDeployedContractBlock(supportedNetworks[chainID].chainId)
+//     netHeight = await getNetworkHeight(blockchain.getProvider())
+//     startingBlock = deployBlock + 1
+//     supportedNetworks[chainID].startBlock = startingBlock
 
-    envOverrides = buildEnvOverrideConfig(
-      [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.ADDRESS_FILE],
-      [
-        JSON.stringify(supportedNetworks),
-        `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
-      ]
-    )
-    envOverrides = await setupEnvironment(null, envOverrides)
-    config = await getConfiguration(true)
-    db = await new Database(config.dbConfig)
-    // oceanNode = OceanNode.getInstance(db)
-  })
-  it('should start a worker thread and handle RPCS "startBlock"', async () => {
-    INDEXER_CRAWLING_EVENT_EMITTER.addListener(
-      INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED,
-      (data: any) => {
-        const { startBlock, contractDeploymentBlock, networkHeight } = data
-        expect(startBlock).to.be.equal(startingBlock)
-        expect(contractDeploymentBlock).to.be.equal(deployBlock)
-        expect(networkHeight).to.be.equal(netHeight)
-      }
-    )
+//     envOverrides = buildEnvOverrideConfig(
+//       [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.ADDRESS_FILE],
+//       [
+//         JSON.stringify(supportedNetworks),
+//         `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
+//       ]
+//     )
+//     envOverrides = await setupEnvironment(null, envOverrides)
+//     config = await getConfiguration(true)
+//     db = await new Database(config.dbConfig)
+//     // oceanNode = OceanNode.getInstance(db)
+//   })
 
-    // const { indexer } = db
-    // const updatedIndex = await indexer.update(Number(chainID), startingBlock - 1)
-    // expect(updatedIndex.lastIndexedBlock).to.be.equal(startingBlock - 1)
-    // eslint-disable-next-line no-unused-vars
-    const oceanIndexer = new OceanIndexer(db, supportedNetworks)
-
-    await sleep(4000)
-  })
-
-  after(async () => {
-    await tearDownEnvironment(envOverrides)
-  })
-})
+//   after(async () => {
+//     await tearDownEnvironment(envOverrides)
+//   })
+// })
