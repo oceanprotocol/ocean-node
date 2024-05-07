@@ -57,7 +57,6 @@ class BaseEventProcessor {
       topics: receipt.logs[0].topics as string[],
       data: receipt.logs[0].data
     }
-    INDEXER_LOGGER.logMessage(`parseLog: ${JSON.stringify(iface.parseLog(eventObj))}`)
     return iface.parseLog(eventObj)
   }
 
