@@ -21,7 +21,7 @@ import { PROTOCOL_COMMANDS, EVENTS, MetadataStates } from '../../utils/constants
 import { getDtContract, wasNFTDeployedByOurFactory } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
-import { getConfiguration, stringToByteArray } from '../../utils/index.js'
+import { getConfiguration } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
@@ -319,15 +319,13 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         return
       }
       // if the asset is not encrypted, decryptDDO() call is not needed
-      const byteArray = stringToByteArray(JSON.stringify(ddo))
-      INDEXER_LOGGER.logMessage(`byteArray: ${byteArray}`)
-      const ut8Bytes = toUtf8Bytes(JSON.stringify(ddo))
-      INDEXER_LOGGER.logMessage(`ut8Bytes: ${ut8Bytes}`)
-      const expectedMetadata = hexlify(ut8Bytes)
+      const utf8Bytes = toUtf8Bytes(JSON.stringify(ddo))
+      const expectedMetadata = hexlify(utf8Bytes)
       INDEXER_LOGGER.logMessage(`expectedMetadata: ${expectedMetadata}`)
-      INDEXER_LOGGER.logMessage(`bytes from contracts: ${getBytes(metadata)}`)
       INDEXER_LOGGER.logMessage(`metadata: ${metadata}`)
-      if (byteArray !== getBytes(metadata)) {
+      INDEXER_LOGGER.logMessage(`hash: ${create256Hash(expectedMetadata.toString())}`)
+      INDEXER_LOGGER.logMessage(`decodedEventData.args[5]: ${decodedEventData.args[5]}`)
+      if (create256Hash(expectedMetadata.toString()) !== decodedEventData.args[5]) {
         INDEXER_LOGGER.error(`DDO checksum does not match.`)
         return
       }
