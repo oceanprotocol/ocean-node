@@ -18,7 +18,6 @@ import { Handler } from './handler.js'
 import { NonceHandler } from './nonceHandler.js'
 import { QueryHandler } from './queryHandler.js'
 import { DetailedStatusHandler, StatusHandler } from './statusHandler.js'
-import { ReindexHandler } from './reindexHandler.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { Command } from '../../../@types/commands.js'
 import {
@@ -29,7 +28,9 @@ import {
   ComputeGetResultHandler,
   ComputeInitializeHandler
 } from '../compute/index.js'
-import { StopNodeHandler } from '../admin/stopNode.js'
+import { StopNodeHandler } from '../admin/stopNodeHandler.js'
+import { ReindexTxHandler } from '../admin/reindexTxHandler.js'
+import { ReindexChainHandler } from '../admin/reindexChainHandler.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -82,7 +83,6 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(PROTOCOL_COMMANDS.FIND_DDO, new FindDdoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.GET_FEES, new FeesHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.ECHO, new EchoHandler(node))
-    this.registerCoreHandler(PROTOCOL_COMMANDS.REINDEX, new ReindexHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.FILE_INFO, new FileInfoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.VALIDATE_DDO, new ValidateDDOHandler(node))
     this.registerCoreHandler(
@@ -107,6 +107,11 @@ export class CoreHandlersRegistry {
       new ComputeInitializeHandler(node)
     )
     this.registerCoreHandler(PROTOCOL_COMMANDS.STOP_NODE, new StopNodeHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.REINDEX_TX, new ReindexTxHandler(node))
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.REINDEX_CHAIN,
+      new ReindexChainHandler(node)
+    )
   }
 
   public static getInstance(node: OceanNode): CoreHandlersRegistry {

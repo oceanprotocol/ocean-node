@@ -1,5 +1,5 @@
 import express from 'express'
-import { validateSignature } from '../../utils/auth.js'
+import { validateAdminSignature } from '../../utils/auth.js'
 
 export const logRoutes = express.Router()
 
@@ -27,9 +27,9 @@ const validateRequest = (
     return res.status(400).send('Invalid expiryTimestamp')
   }
 
-  const isValid = validateSignature(expiryTimestamp, signature)
-  if (!isValid) {
-    return res.status(403).send('Invalid signature')
+  const isValid = validateAdminSignature(expiryTimestamp, signature)
+  if (!isValid.valid) {
+    return res.status(403).send(`Invalid signature: ${isValid.error}`)
   }
 
   next() // Proceed to the next middleware/function if validation is successful
