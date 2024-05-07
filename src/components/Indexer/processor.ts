@@ -293,7 +293,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         event.transactionHash,
         ERC721Template.abi
       )
-      const metadata = decodedEventData.args[4]
       const ddo = await this.decryptDDO(
         decodedEventData.args[2],
         decodedEventData.args[3],
@@ -302,7 +301,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         chainId,
         event.transactionHash,
         decodedEventData.args[5],
-        metadata
+        decodedEventData.args[4]
       )
       if (
         ddo.id !==
@@ -317,7 +316,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         return
       }
       // if the asset is not encrypted, decryptDDO() call is not needed
-      const encryptedHash = create256Hash(metadata.toString())
+      const byteArray = getBytes(decodedEventData.args[4])
+      const utf8String = toUtf8String(byteArray)
+      const encryptedHash = create256Hash(utf8String)
       if (encryptedHash !== decodedEventData.args[5]) {
         INDEXER_LOGGER.error(`DDO checksum does not match.`)
         return
