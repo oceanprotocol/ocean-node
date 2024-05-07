@@ -66,7 +66,7 @@ describe('Should encrypt and decrypt DDO', () => {
     '1': {
       chainId: 1,
       network: 'mainnet',
-      rpc: 'http://127.0.0.1:8545',
+      rpc: 'https://ethereum-rpc.publicnode.com',
       chunkSize: 100
     }
   }
@@ -285,7 +285,7 @@ describe('Should encrypt and decrypt DDO', () => {
     )
   })
 
-  it('should return data NFT factory does not match', async () => {
+  it('should return did does not match', async () => {
     const decryptDDOTask: DecryptDDOCommand = {
       command: PROTOCOL_COMMANDS.DECRYPT_DDO,
       decrypterAddress: publisherAddress,
