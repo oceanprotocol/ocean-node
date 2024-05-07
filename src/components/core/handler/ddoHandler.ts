@@ -306,6 +306,16 @@ export class DecryptDdoHandler extends Handler {
         }
       }
 
+      // did matches
+      const ddo = JSON.parse(decryptedDocument.toString())
+      CORE_LOGGER.logMessage(
+        `ddo: ${JSON.stringify(ddo)}, decrypted document: ${decryptedDocument.toString()}`
+      )
+      if (ddo.id !== 'did:op:' + create256Hash(dataNftAddress + chainId.toString())) {
+        CORE_LOGGER.error(`Decrypted DDO ID is not matching the generated hash for DID.`)
+        return
+      }
+
       // checksum matches
       const decryptedDocumentHash = create256Hash(decryptedDocument.toString())
       if (decryptedDocumentHash !== documentHash) {
