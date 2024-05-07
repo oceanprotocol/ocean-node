@@ -48,12 +48,7 @@ class BaseEventProcessor {
 
   protected async getNFTInfo(nftAddress: string, signer: Signer): Promise<any> {
     const nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, signer)
-    INDEXER_LOGGER.logMessage(`contract: ${nftContract}`)
-    const state = await nftContract.getMetaData()
-    INDEXER_LOGGER.logMessage(`state: ${state}`)
-    INDEXER_LOGGER.logMessage(`address: ${nftAddress}`)
-    INDEXER_LOGGER.logMessage(`name: ${await nftContract.name()}`)
-    INDEXER_LOGGER.logMessage(`symbol: ${await nftContract.symbol()}`)
+    const state = (await nftContract.getMetaData())[2]
     return {
       state,
       address: nftAddress,
