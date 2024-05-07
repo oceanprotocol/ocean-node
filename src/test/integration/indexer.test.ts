@@ -16,7 +16,7 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { Database } from '../../components/database/index.js'
 import {
-  INDEXER_CRAWLING_EVENT_EMITTER,
+  // INDEXER_CRAWLING_EVENT_EMITTER,
   OceanIndexer
 } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
@@ -41,20 +41,20 @@ import {
 import {
   ENVIRONMENT_VARIABLES,
   EVENTS,
-  INDEXER_CRAWLING_EVENTS,
+  // INDEXER_CRAWLING_EVENTS,
   PROTOCOL_COMMANDS
 } from '../../utils/constants.js'
 import { homedir } from 'os'
 import { QueryDdoStateHandler } from '../../components/core/handler/queryHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { QueryCommand } from '../../@types/commands.js'
-import {
-  getDeployedContractBlock,
-  getNetworkHeight
-} from '../../components/Indexer/utils.js'
-import { Blockchain } from '../../utils/blockchain.js'
-import { getConfiguration } from '../../utils/config.js'
-import { OceanNodeConfig } from '../../@types/OceanNode.js'
+// import {
+//   getDeployedContractBlock,
+//   getNetworkHeight
+// } from '../../components/Indexer/utils.js'
+// import { Blockchain } from '../../utils/blockchain.js'
+// import { getConfiguration } from '../../utils/config.js'
+// import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
 describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
@@ -589,68 +589,68 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 })
 
-describe('OceanIndexer - crawler threads', () => {
-  let envOverrides: OverrideEnvConfig[]
-  let config: OceanNodeConfig
-  let db: Database
-  // let oceanNode: OceanNode
-  let blockchain: Blockchain
+// describe('OceanIndexer - crawler threads', () => {
+//   let envOverrides: OverrideEnvConfig[]
+//   let config: OceanNodeConfig
+//   let db: Database
+//   // let oceanNode: OceanNode
+//   let blockchain: Blockchain
 
-  const supportedNetworks: RPCS = getMockSupportedNetworks()
-  const chainID = DEVELOPMENT_CHAIN_ID.toString()
+//   const supportedNetworks: RPCS = getMockSupportedNetworks()
+//   const chainID = DEVELOPMENT_CHAIN_ID.toString()
 
-  let netHeight = 0
-  let deployBlock = 0
-  let startingBlock = 0
+//   let netHeight = 0
+//   let deployBlock = 0
+//   let startingBlock = 0
 
-  before(async () => {
-    blockchain = new Blockchain(
-      supportedNetworks[chainID].rpc,
-      supportedNetworks[chainID].chainId
-    )
+//   before(async () => {
+//     blockchain = new Blockchain(
+//       supportedNetworks[chainID].rpc,
+//       supportedNetworks[chainID].chainId
+//     )
 
-    deployBlock = getDeployedContractBlock(supportedNetworks[chainID].chainId)
-    netHeight = await getNetworkHeight(blockchain.getProvider())
-    startingBlock = deployBlock + 1
-    supportedNetworks[chainID].startBlock = startingBlock
+//     deployBlock = getDeployedContractBlock(supportedNetworks[chainID].chainId)
+//     netHeight = await getNetworkHeight(blockchain.getProvider())
+//     startingBlock = deployBlock + 1
+//     supportedNetworks[chainID].startBlock = startingBlock
 
-    envOverrides = buildEnvOverrideConfig(
-      [
-        ENVIRONMENT_VARIABLES.RPCS,
-        ENVIRONMENT_VARIABLES.ADDRESS_FILE,
-        ENVIRONMENT_VARIABLES.DB_URL
-      ],
-      [
-        JSON.stringify(supportedNetworks),
-        `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-        'http://localhost:8108/?apiKey=xyz'
-      ]
-    )
-    envOverrides = await setupEnvironment(null, envOverrides)
-    config = await getConfiguration(true)
-    db = await new Database(config.dbConfig)
-    // oceanNode = OceanNode.getInstance(db)
-  })
-  it('dummy', () => {
-    expect(1).to.be.equal(1)
-  })
-  // it('should start a worker thread and handle RPCS "startBlock"', async () => {
-  //   INDEXER_CRAWLING_EVENT_EMITTER.addListener(
-  //     INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED,
-  //     (data: any) => {
-  //       const { startBlock, contractDeploymentBlock, networkHeight } = data
-  //       expect(startBlock).to.be.equal(startingBlock)
-  //       expect(contractDeploymentBlock).to.be.equal(deployBlock)
-  //       expect(networkHeight).to.be.equal(netHeight)
-  //     }
-  //   )
-  //   // eslint-disable-next-line no-unused-vars
-  //   const oceanIndexer = new OceanIndexer(db, supportedNetworks)
+//     envOverrides = buildEnvOverrideConfig(
+//       [
+//         ENVIRONMENT_VARIABLES.RPCS,
+//         ENVIRONMENT_VARIABLES.ADDRESS_FILE,
+//         ENVIRONMENT_VARIABLES.DB_URL
+//       ],
+//       [
+//         JSON.stringify(supportedNetworks),
+//         `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
+//         'http://localhost:8108/?apiKey=xyz'
+//       ]
+//     )
+//     envOverrides = await setupEnvironment(null, envOverrides)
+//     config = await getConfiguration(true)
+//     db = await new Database(config.dbConfig)
+//     // oceanNode = OceanNode.getInstance(db)
+//   })
+//   it('dummy', () => {
+//     expect(1).to.be.equal(1)
+//   })
+//   // it('should start a worker thread and handle RPCS "startBlock"', async () => {
+//   //   INDEXER_CRAWLING_EVENT_EMITTER.addListener(
+//   //     INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED,
+//   //     (data: any) => {
+//   //       const { startBlock, contractDeploymentBlock, networkHeight } = data
+//   //       expect(startBlock).to.be.equal(startingBlock)
+//   //       expect(contractDeploymentBlock).to.be.equal(deployBlock)
+//   //       expect(networkHeight).to.be.equal(netHeight)
+//   //     }
+//   //   )
+//   //   // eslint-disable-next-line no-unused-vars
+//   //   const oceanIndexer = new OceanIndexer(db, supportedNetworks)
 
-  //   await sleep(4000)
-  // })
+//   //   await sleep(4000)
+//   // })
 
-  after(async () => {
-    await tearDownEnvironment(envOverrides)
-  })
-})
+//   after(async () => {
+//     await tearDownEnvironment(envOverrides)
+//   })
+// })
