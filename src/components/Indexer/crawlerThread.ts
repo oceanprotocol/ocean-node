@@ -69,6 +69,7 @@ async function deleteAllAssetsFromChain(): Promise<number> {
   const { ddo } = await getDatabase()
   try {
     const res = await ddo.deleteAllAssetsFromChain(rpcDetails.chainId)
+    INDEXER_LOGGER.logMessage(`Assets successfully deleted.`)
     return res.num_deleted
   } catch (err) {
     INDEXER_LOGGER.error(`Error deleting all assets: ${err}`)
@@ -172,18 +173,14 @@ export async function proccesNetworkData(): Promise<void> {
 async function reindexChain(currentBlock: number): Promise<void> {
   const block = await updateLastIndexedBlockNumber(REINDEX_BLOCK)
   if (block !== -1) {
-    INDEXER_LOGGER.logMessage(`Block updated for reindexing chain ${REINDEX_BLOCK}`)
     REINDEX_BLOCK = null
     const res = await deleteAllAssetsFromChain()
-    if (res !== -1) {
-      INDEXER_LOGGER.logMessage(`Assets deleted from db for chain ${rpcDetails.chainId}`)
-    } else {
-      INDEXER_LOGGER.error(
-        `Assets could not be deleted for chain ${rpcDetails.chainId}. Reverting block...`
-      )
+    if (res === -1) {
       await updateLastIndexedBlockNumber(currentBlock)
     }
   } else {
+    // Set the reindex block to null -> force admin to trigger again the command until
+    // we have a notification from worker thread to parent thread #414.
     INDEXER_LOGGER.error(`Block could not be reset. Continue indexing normally...`)
     REINDEX_BLOCK = null
   }
