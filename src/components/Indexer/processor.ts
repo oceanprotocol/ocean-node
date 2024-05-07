@@ -316,10 +316,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         return
       }
       const encryptedHash = create256Hash(decodedEventData.args[4].toString())
-      INDEXER_LOGGER.logMessage(`encrypted hash: ${encryptedHash}`)
-      INDEXER_LOGGER.logMessage(`decodedEventData.args[4]: ${decodedEventData.args[4]}`)
-      INDEXER_LOGGER.logMessage(`decodedEventData.args[5]: ${decodedEventData.args[5]}`)
-      if (encryptedHash === decodedEventData.args[5]) {
+      if (encryptedHash !== decodedEventData.args[5]) {
         INDEXER_LOGGER.error(`DDO checksum does not match.`)
         return
       }
