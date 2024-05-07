@@ -95,6 +95,16 @@ class BaseEventProcessor {
     }
   }
 
+  protected checkDdoHash(decryptedDocument: any, documentHashFromContract: any): boolean {
+    const utf8Bytes = toUtf8Bytes(JSON.stringify(decryptedDocument))
+    const expectedMetadata = hexlify(utf8Bytes)
+    if (create256Hash(expectedMetadata.toString()) !== documentHashFromContract) {
+      INDEXER_LOGGER.error(`DDO checksum does not match.`)
+      return false
+    }
+    return true
+  }
+
   protected async decryptDDO(
     decryptorURL: string,
     flag: string,
@@ -318,15 +328,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      // if the asset is not encrypted, decryptDDO() call is not needed
-      const utf8Bytes = toUtf8Bytes(JSON.stringify(ddo))
-      const expectedMetadata = hexlify(utf8Bytes)
-      INDEXER_LOGGER.logMessage(`expectedMetadata: ${expectedMetadata}`)
-      INDEXER_LOGGER.logMessage(`metadata: ${metadata}`)
-      INDEXER_LOGGER.logMessage(`hash: ${create256Hash(expectedMetadata.toString())}`)
-      INDEXER_LOGGER.logMessage(`decodedEventData.args[5]: ${decodedEventData.args[5]}`)
-      if (create256Hash(expectedMetadata.toString()) !== decodedEventData.args[5]) {
-        INDEXER_LOGGER.error(`DDO checksum does not match.`)
+      // for unencrypted DDOs
+      if (!this.checkDdoHash(ddo, decodedEventData.args[5])) {
         return
       }
       did = ddo.id
