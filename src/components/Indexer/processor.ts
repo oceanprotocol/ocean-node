@@ -317,8 +317,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       }
       // if the asset is not encrypted, decryptDDO() call is not needed
       const byteArray = getBytes(decodedEventData.args[4])
+      INDEXER_LOGGER.logMessage(`byteArray: ${byteArray}`)
       const utf8String = toUtf8String(byteArray)
+      INDEXER_LOGGER.logMessage(`utf8String: ${utf8String}`)
+      INDEXER_LOGGER.logMessage(`byteArray str: ${byteArray.toString()}`)
+      INDEXER_LOGGER.logMessage(`hash: ${create256Hash(byteArray.toString())}`)
       const encryptedHash = create256Hash(utf8String)
+      INDEXER_LOGGER.logMessage(`encryptedHash: ${encryptedHash}`)
+      INDEXER_LOGGER.logMessage(`decodedEventData.args[5]: ${decodedEventData.args[5]}`)
       if (encryptedHash !== decodedEventData.args[5]) {
         INDEXER_LOGGER.error(`DDO checksum does not match.`)
         return
