@@ -121,6 +121,7 @@ export class OceanIndexer {
       })
 
       worker.on('exit', (code: number) => {
+        console.log('exited???')
         INDEXER_LOGGER.logMessage(
           `Worker for network ${network} exited with code: ${code}`,
           true
