@@ -6,10 +6,6 @@ import TableContainer from '@mui/material/TableContainer'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import styles from './Dashboard/index.module.css'
-import {
-  ENVIRONMENT_VARIABLES,
-  existsEnvironmentVariable
-} from '../../../src/utils/index.js'
 
 interface QueueItem {
   txId: string
@@ -39,7 +35,7 @@ export default function IndexQueue() {
 
     fetchQueue() // Initial fetch
     let pollingInterval = 2000 // Default polling interval
-    if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.INDEXER_INTERVAL)) {
+    if (process.env.INDEXER_INTERVAL) {
       pollingInterval = Number(process.env.INDEXER_INTERVAL)
     }
     const intervalId = setInterval(fetchQueue, pollingInterval)
