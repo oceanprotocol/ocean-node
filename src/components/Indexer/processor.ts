@@ -5,6 +5,8 @@ import {
   ethers,
   getAddress,
   getBytes,
+  hexlify,
+  toUtf8Bytes,
   toUtf8String
 } from 'ethers'
 import { createHash } from 'crypto'
@@ -319,6 +321,10 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       // if the asset is not encrypted, decryptDDO() call is not needed
       const byteArray = stringToByteArray(JSON.stringify(ddo))
       INDEXER_LOGGER.logMessage(`byteArray: ${byteArray}`)
+      const ut8Bytes = toUtf8Bytes(JSON.stringify(ddo))
+      INDEXER_LOGGER.logMessage(`ut8Bytes: ${ut8Bytes}`)
+      const expectedMetadata = hexlify(ut8Bytes)
+      INDEXER_LOGGER.logMessage(`expectedMetadata: ${expectedMetadata}`)
       INDEXER_LOGGER.logMessage(`bytes from contracts: ${getBytes(metadata)}`)
       INDEXER_LOGGER.logMessage(`metadata: ${metadata}`)
       if (byteArray !== getBytes(metadata)) {
