@@ -307,19 +307,19 @@ export class DecryptDdoHandler extends Handler {
       }
 
       // did matches
-      const ddo = JSON.parse(decryptedDocument.toString())
-      CORE_LOGGER.logMessage(`decrypted document: ${decryptedDocument.toString()}`)
-      CORE_LOGGER.logMessage(`ddo: ${JSON.stringify(ddo)}`)
-      if (ddo.id !== 'did:op:' + create256Hash(dataNftAddress + chainId.toString())) {
-        CORE_LOGGER.error(`Decrypted DDO ID is not matching the generated hash for DID.`)
-        return {
-          stream: null,
-          status: {
-            httpStatus: 400,
-            error: 'Decrypt DDO: did does not match'
-          }
-        }
-      }
+      // const ddo = JSON.parse(decryptedDocument.toString())
+      // CORE_LOGGER.logMessage(`decrypted document: ${decryptedDocument.toString()}`)
+      // CORE_LOGGER.logMessage(`ddo: ${JSON.stringify(ddo)}`)
+      // if (ddo.id !== 'did:op:' + create256Hash(dataNftAddress + chainId.toString())) {
+      //   CORE_LOGGER.error(`Decrypted DDO ID is not matching the generated hash for DID.`)
+      //   return {
+      //     stream: null,
+      //     status: {
+      //       httpStatus: 400,
+      //       error: 'Decrypt DDO: did does not match'
+      //     }
+      //   }
+      // }
 
       // checksum matches
       const decryptedDocumentHash = create256Hash(decryptedDocument.toString())
