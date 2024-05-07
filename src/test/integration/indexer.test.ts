@@ -208,6 +208,8 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(resolvedDDO.nft, 'NFT field is not present')
     console.log('resolved nft address: ', resolvedDDO.nft.address)
     console.log('nft address: ', nftAddress)
+    console.log('stringify ddo nft: ', JSON.stringify(resolvedDDO.nft))
+    console.log('stringify ddo: ', JSON.stringify(resolvedDDO))
     assert(resolvedDDO.nft.address === nftAddress, 'NFT address mismatch')
     assert(resolvedDDO.nft.state === 0, 'NFT state mismatch') // ACTIVE
     assert(resolvedDDO.nft.name === (await nftContract.name()), 'NFT name mismatch')
