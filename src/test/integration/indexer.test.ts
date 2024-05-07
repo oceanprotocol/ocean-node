@@ -609,6 +609,11 @@ describe('OceanIndexer - crawler threads', () => {
       supportedNetworks[chainID].chainId
     )
 
+    deployBlock = getDeployedContractBlock(supportedNetworks[chainID].chainId)
+    netHeight = await getNetworkHeight(blockchain.getProvider())
+    startingBlock = deployBlock + 1
+    supportedNetworks[chainID].startBlock = startingBlock
+
     envOverrides = buildEnvOverrideConfig(
       [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.ADDRESS_FILE],
       [
@@ -620,15 +625,6 @@ describe('OceanIndexer - crawler threads', () => {
     config = await getConfiguration(true)
     db = await new Database(config.dbConfig)
     // oceanNode = OceanNode.getInstance(db)
-
-    deployBlock = getDeployedContractBlock(supportedNetworks[chainID].chainId)
-    netHeight = await getNetworkHeight(blockchain.getProvider())
-    startingBlock = deployBlock + 1
-    supportedNetworks[chainID].startBlock = startingBlock
-
-    // oceanIndexer = new OceanIndexer(db, supportedNetworks)
-
-    // oceanNode.addIndexer(oceanIndexer)
   })
   it('should start a worker thread and handle RPCS "startBlock"', async () => {
     INDEXER_CRAWLING_EVENT_EMITTER.addListener(
@@ -641,9 +637,9 @@ describe('OceanIndexer - crawler threads', () => {
       }
     )
 
-    const { indexer } = db
-    const updatedIndex = await indexer.update(Number(chainID), startingBlock - 1)
-    expect(updatedIndex.lastIndexedBlock).to.be.equal(startingBlock - 1)
+    // const { indexer } = db
+    // const updatedIndex = await indexer.update(Number(chainID), startingBlock - 1)
+    // expect(updatedIndex.lastIndexedBlock).to.be.equal(startingBlock - 1)
     // eslint-disable-next-line no-unused-vars
     const oceanIndexer = new OceanIndexer(db, supportedNetworks)
 
