@@ -15,13 +15,6 @@ export function hexStringToByteArray(hexString: any) {
   return byteArray
 }
 
-export function bytesToHex(bytes: any) {
-  return bytes.reduce(
-    (str: any, byte: any) => str + byte.toString(16).padStart(2, '0'),
-    ''
-  )
-}
-
 export function stringToByteArray(data: string) {
   const numBytes = data.length / 2
   const byteArray = new Uint8Array(numBytes)
