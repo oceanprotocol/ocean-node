@@ -185,8 +185,8 @@ describe('Should run a complete node flow.', () => {
   it('should get file info with did', async () => {
     const fileInfoTask = {
       command: PROTOCOL_COMMANDS.FILE_INFO,
-      did: publishedDataset.ddo.id,
-      serviceId: publishedDataset.ddo.services[0].id
+      did: actualDDO.id,
+      serviceId: actualDDO.services[0].id
     }
 
     const response = await new FileInfoHandler(oceanNode).handle(fileInfoTask)

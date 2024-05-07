@@ -2,6 +2,7 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 import { ethers, Signer, Contract, JsonRpcApiProvider, JsonRpcProvider } from 'ethers'
 import { getConfiguration } from './config.js'
 import { CORE_LOGGER } from './logging/common.js'
+import { ValidateChainId } from '../@types/commands.js'
 
 export class Blockchain {
   private signer: Signer
@@ -64,19 +65,25 @@ export async function verifyMessage(
   }
 }
 
-export async function checkSupportedChainId(chainId: number): Promise<[boolean, string]> {
+export async function checkSupportedChainId(chainId: number): Promise<ValidateChainId> {
   const config = await getConfiguration()
   if (!(`${chainId.toString()}` in config.supportedNetworks)) {
     CORE_LOGGER.error(`Chain ID ${chainId.toString()} is not supported`)
-    return [false, '']
+    return {
+      validation: false,
+      networkRpc: ''
+    }
   }
-  return [true, config.supportedNetworks[chainId.toString()].rpc]
+  return {
+    validation: true,
+    networkRpc: config.supportedNetworks[chainId.toString()].rpc
+  }
 }
 
 export async function getJsonRpcProvider(chainId: number): Promise<JsonRpcProvider> {
   const checkResult = await checkSupportedChainId(chainId)
-  if (!checkResult[0]) {
+  if (!checkResult.validation) {
     return null
   }
-  return new JsonRpcProvider(checkResult[1])
+  return new JsonRpcProvider(checkResult.networkRpc)
 }
