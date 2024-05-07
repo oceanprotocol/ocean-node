@@ -16,7 +16,7 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { Database } from '../../components/database/index.js'
 import {
-  // INDEXER_CRAWLING_EVENT_EMITTER,
+  INDEXER_CRAWLING_EVENT_EMITTER,
   OceanIndexer
 } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
@@ -41,20 +41,20 @@ import {
 import {
   ENVIRONMENT_VARIABLES,
   EVENTS,
-  // INDEXER_CRAWLING_EVENTS,
+  INDEXER_CRAWLING_EVENTS,
   PROTOCOL_COMMANDS
 } from '../../utils/constants.js'
 import { homedir } from 'os'
 import { QueryDdoStateHandler } from '../../components/core/handler/queryHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { QueryCommand } from '../../@types/commands.js'
-// import {
-//   getDeployedContractBlock,
-//   getNetworkHeight
-// } from '../../components/Indexer/utils.js'
-// import { Blockchain } from '../../utils/blockchain.js'
-// import { getConfiguration } from '../../utils/config.js'
-// import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import {
+  getDeployedContractBlock,
+  getNetworkHeight
+} from '../../components/Indexer/utils.js'
+import { Blockchain } from '../../utils/blockchain.js'
+import { getConfiguration } from '../../utils/config.js'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
 describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
@@ -588,7 +588,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     await tearDownEnvironment(previousConfiguration)
   })
 })
-/*
+
 describe('OceanIndexer - crawler threads', () => {
   let envOverrides: OverrideEnvConfig[]
   let config: OceanNodeConfig
@@ -597,8 +597,15 @@ describe('OceanIndexer - crawler threads', () => {
   let oceanIndexer: OceanIndexer
   let blockchain: Blockchain
 
-  const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
-  const chainID = DEVELOPMENT_CHAIN_ID.toString()
+  const supportedNetworks: RPCS = {
+    '11155420': {
+      chainId: 11155420,
+      network: 'optimism-sepolia',
+      rpc: 'https://sepolia.optimism.io',
+      chunkSize: 100
+    }
+  }
+  const chainID = '11155420'
 
   let netHeight = 0
   let deployBlock = 0
@@ -606,14 +613,14 @@ describe('OceanIndexer - crawler threads', () => {
 
   before(async () => {
     blockchain = new Blockchain(
-      mockSupportedNetworks[chainID].rpc,
-      mockSupportedNetworks[chainID].chainId
+      supportedNetworks[chainID].rpc,
+      supportedNetworks[chainID].chainId
     )
 
     envOverrides = buildEnvOverrideConfig(
       [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.ADDRESS_FILE],
       [
-        JSON.stringify(mockSupportedNetworks),
+        JSON.stringify(supportedNetworks),
         `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
       ]
     )
@@ -622,12 +629,12 @@ describe('OceanIndexer - crawler threads', () => {
     db = await new Database(config.dbConfig)
     oceanNode = OceanNode.getInstance(db)
 
-    deployBlock = getDeployedContractBlock(mockSupportedNetworks[chainID].chainId)
+    deployBlock = getDeployedContractBlock(supportedNetworks[chainID].chainId)
     netHeight = await getNetworkHeight(blockchain.getProvider())
     startingBlock = deployBlock + 1
-    mockSupportedNetworks[chainID].startBlock = startingBlock
+    supportedNetworks[chainID].startBlock = startingBlock
 
-    oceanIndexer = new OceanIndexer(db, mockSupportedNetworks)
+    oceanIndexer = new OceanIndexer(db, supportedNetworks)
 
     oceanNode.addIndexer(oceanIndexer)
   })
@@ -653,4 +660,4 @@ describe('OceanIndexer - crawler threads', () => {
   after(async () => {
     await tearDownEnvironment(envOverrides)
   })
-}) */
+})
