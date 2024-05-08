@@ -88,8 +88,8 @@ describe('Should run a complete node flow.', () => {
     config = await getConfiguration(true) // Force reload the configuration
     database = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(database)
-    //  eslint-disable-next-line no-unused-vars
     indexer = new OceanIndexer(database, mockSupportedNetworks)
+    oceanNode.addIndexer(indexer)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {

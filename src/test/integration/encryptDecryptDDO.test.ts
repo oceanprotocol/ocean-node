@@ -111,6 +111,7 @@ describe('Should encrypt and decrypt DDO', () => {
     oceanNode = OceanNode.getInstance(database)
     // will be used later
     indexer = new OceanIndexer(database, mockSupportedNetworks)
+    oceanNode.addIndexer(indexer)
   })
 
   it('should publish a dataset', async () => {

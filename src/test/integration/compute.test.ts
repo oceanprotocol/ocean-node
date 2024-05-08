@@ -127,8 +127,8 @@ describe('Compute', () => {
     config = await getConfiguration(true)
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
-    //  eslint-disable-next-line no-unused-vars
     indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
+    oceanNode.addIndexer(indexer)
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer

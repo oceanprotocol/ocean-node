@@ -110,8 +110,9 @@ describe('Indexer stores a new metadata events and orders.', () => {
     )
 
     database = await new Database(dbConfig)
-    indexer = new OceanIndexer(database, mockSupportedNetworks)
     oceanNode = await OceanNode.getInstance(database)
+    indexer = new OceanIndexer(database, mockSupportedNetworks)
+    oceanNode.addIndexer(indexer)
     let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!artifactsAddresses) {
       artifactsAddresses = getOceanArtifactsAdresses().development
