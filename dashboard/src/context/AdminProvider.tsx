@@ -48,27 +48,22 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
 
   useEffect(() => {
     const storedExpiry = localStorage.getItem('expiryTimestamp')
-    if (storedExpiry) {
-      setExpiryTimestamp(parseInt(storedExpiry, 10))
-    }
-
-    const storedSignature = localStorage.getItem('signature')
-    if (storedSignature) {
-      setSignature(storedSignature)
+    const storedExpiryTimestamp = storedExpiry ? parseInt(storedExpiry, 10) : null
+    if (storedExpiryTimestamp && storedExpiryTimestamp > Date.now()) {
+      setExpiryTimestamp(storedExpiryTimestamp)
+      const storedSignature = localStorage.getItem('signature')
+      if (storedSignature) {
+        setSignature(storedSignature)
+      }
     }
   }, [address, isConnected])
 
   useEffect(() => {
-    if (expiryTimestamp) {
+    if (expiryTimestamp && expiryTimestamp > Date.now()) {
       localStorage.setItem('expiryTimestamp', expiryTimestamp.toString())
+      signature && localStorage.setItem('signature', signature)
     }
-  }, [expiryTimestamp, address, isConnected])
-
-  useEffect(() => {
-    if (signature) {
-      localStorage.setItem('signature', signature)
-    }
-  }, [signature, address, isConnected])
+  }, [expiryTimestamp, signature, address, isConnected])
 
   useEffect(() => {
     if (signMessageData) {
