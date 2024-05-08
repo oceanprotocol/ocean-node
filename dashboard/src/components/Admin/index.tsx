@@ -6,6 +6,7 @@ import { useAdminContext } from '@/context/AdminProvider'
 import { useAccount } from 'wagmi'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import Stack from '@mui/material/Stack'
+import ReIndexChain from './ReindexChain'
 
 export default function AdminActions() {
   const { generateSignature, signature, validTimestamp, admin } = useAdminContext()
@@ -28,6 +29,7 @@ export default function AdminActions() {
         <Stack spacing={2} direction="column">
           <DownloadLogs />
           <StopNode />
+          <ReIndexChain />
         </Stack>
       )}
     </div>
