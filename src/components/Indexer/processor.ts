@@ -1,4 +1,5 @@
 import {
+  Filter,
   Interface,
   JsonRpcApiProvider,
   Signer,
@@ -18,7 +19,12 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getDatabase } from '../../utils/database.js'
 import { PROTOCOL_COMMANDS, EVENTS, MetadataStates } from '../../utils/constants.js'
-import { getDtContract, wasNFTDeployedByOurFactory, getContractAddress } from './utils.js'
+import {
+  getDtContract,
+  wasNFTDeployedByOurFactory,
+  getContractAddress,
+  getDeployedContractBlock
+} from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
 import { getConfiguration, timestampToDateTime } from '../../utils/index.js'
@@ -72,18 +78,13 @@ class BaseEventProcessor {
     const iface = new Interface(ERC721TFactory.abi)
 
     const nftFactoryAddress = getContractAddress(chainId, 'ERC721Factory')
-
-    const fromBlock = 0
-    // Filter logs for the event
-    const filter = {
-      address: nftFactoryAddress,
-      fromBlock,
-      toBlock,
-      topics: [
-        id('NFTCreated'),
-        getAddress(dataNftAddress),
-        getAddress(owner)
-      ] as string[]
+    // const nftFactoryContract = await getNFTFactory(signer, nftFactoryAddress)
+    const startBlock = getDeployedContractBlock(chainId)
+    const filter: Filter = {
+      fromBlock: startBlock.toString(),
+      toBlock: toBlock.toString(),
+      topics: [nftFactoryAddress, dataNftAddress, owner, id('NFTCreated')],
+      address: nftFactoryAddress
     }
 
     const logs = await provider.getLogs(filter)
