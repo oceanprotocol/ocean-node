@@ -89,6 +89,7 @@ describe('Should test admin operations', () => {
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
     indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
+    oceanNode.addIndexer(indexer)
   })
 
   async function getSignature(message: string) {
