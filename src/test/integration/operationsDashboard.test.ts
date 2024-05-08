@@ -149,26 +149,34 @@ describe('Should test admin operations', () => {
 
   it('should pass for reindex chain command', async function () {
     const signature = await getSignature(expiryTimestamp.toString())
-    await waitToIndex(publishedDataset.ddo.did, EVENTS.METADATA_CREATED)
-
-    const reindexChainCommand: AdminReindexChainCommand = {
-      command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
-      node: config.keys.peerId.toString(),
-      chainId: DEVELOPMENT_CHAIN_ID,
-      expiryTimestamp,
-      signature
-    }
-    const reindexChainHandler = new ReindexChainHandler(oceanNode)
-    const validationResponse = reindexChainHandler.validate(reindexChainCommand)
-    assert(validationResponse, 'invalid reindex chain validation response')
-    assert(
-      validationResponse.valid === true,
-      'validation for reindex chain command failed'
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    const { ddo, wasTimeout } = await waitToIndex(
+      publishedDataset.ddo.did,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT * 2
     )
+    if (!ddo) {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    } else {
+      const reindexChainCommand: AdminReindexChainCommand = {
+        command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
+        node: config.keys.peerId.toString(),
+        chainId: DEVELOPMENT_CHAIN_ID,
+        expiryTimestamp,
+        signature
+      }
+      const reindexChainHandler = new ReindexChainHandler(oceanNode)
+      const validationResponse = reindexChainHandler.validate(reindexChainCommand)
+      assert(validationResponse, 'invalid reindex chain validation response')
+      assert(
+        validationResponse.valid === true,
+        'validation for reindex chain command failed'
+      )
 
-    // const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
-    // assert(handlerResponse, 'handler resp does not exist')
-    // assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
+      const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
+      assert(handlerResponse, 'handler resp does not exist')
+      assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
+    }
   })
 
   after(async () => {
