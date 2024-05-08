@@ -136,21 +136,6 @@ export class OceanIndexer {
     }
   }
 
-  public async getLastIndexedBlock(network: number): Promise<number> {
-    const dbconn = this.db.indexer
-    try {
-      const indexer = await dbconn.retrieve(network)
-      return indexer?.lastIndexedBlock
-    } catch (err) {
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        'Error retrieving last indexed block',
-        true
-      )
-      return null
-    }
-  }
-
   public getIndexingQueue(): ReindexTask[] {
     return INDEXING_QUEUE.slice()
   }

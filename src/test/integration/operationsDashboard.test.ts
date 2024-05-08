@@ -8,6 +8,7 @@ import { downloadAsset } from '../data/assets.js'
 import { publishAsset } from '../utils/assets.js'
 import { homedir } from 'os'
 import {
+  DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
@@ -106,6 +107,11 @@ describe('Should test admin operations', () => {
 
   it('should publish dataset', async () => {
     publishedDataset = await publishAsset(downloadAsset, wallet as Signer)
+    await waitToIndex(
+      publishedDataset.ddo.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
   })
 
   it('should pass for reindex tx command', async () => {
