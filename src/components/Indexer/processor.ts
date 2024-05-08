@@ -19,7 +19,7 @@ import { PROTOCOL_COMMANDS, EVENTS, MetadataStates } from '../../utils/constants
 import { getDtContract, wasNFTDeployedByOurFactory } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
-import { getConfiguration } from '../../utils/index.js'
+import { getConfiguration, timestampToDateTime } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
@@ -46,14 +46,22 @@ class BaseEventProcessor {
     return datatokens
   }
 
-  protected async getNFTInfo(nftAddress: string, signer: Signer): Promise<any> {
+  protected async getNFTInfo(
+    nftAddress: string,
+    signer: Signer,
+    owner: string,
+    timestamp: number
+  ): Promise<any> {
     const nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, signer)
     const state = parseInt((await nftContract.getMetaData())[2])
+    // respects https://docs.oceanprotocol.com/developers/ddo-specification#nft-object-example
     return {
       state,
       address: nftAddress,
       name: await nftContract.name(),
-      symbol: await nftContract.symbol()
+      symbol: await nftContract.symbol(),
+      owner,
+      created: timestampToDateTime(timestamp)
     }
   }
 
@@ -304,10 +312,11 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         event.transactionHash,
         ERC721Template.abi
       )
+      const owner = decodedEventData.args[0]
       const ddo = await this.decryptDDO(
         decodedEventData.args[2],
         decodedEventData.args[3],
-        decodedEventData.args[0],
+        owner,
         event.address,
         chainId,
         event.transactionHash,
@@ -319,7 +328,12 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       ddo.chainId = chainId
       ddo.nftAddress = event.address
       ddo.datatokens = this.getTokenInfo(ddo.services)
-      ddo.nft = await this.getNFTInfo(ddo.nftAddress, signer)
+      ddo.nft = await this.getNFTInfo(
+        ddo.nftAddress,
+        signer,
+        owner,
+        decodedEventData.args[6]
+      )
 
       INDEXER_LOGGER.logMessage(
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
