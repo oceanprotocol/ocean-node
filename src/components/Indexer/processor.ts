@@ -22,8 +22,8 @@ import { PROTOCOL_COMMANDS, EVENTS, MetadataStates } from '../../utils/constants
 import {
   getDtContract,
   wasNFTDeployedByOurFactory,
-  getContractAddress,
-  getDeployedContractBlock
+  getContractAddress
+  // getDeployedContractBlock
 } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
@@ -79,9 +79,9 @@ class BaseEventProcessor {
 
     const nftFactoryAddress = getContractAddress(chainId, 'ERC721Factory')
     // const nftFactoryContract = await getNFTFactory(signer, nftFactoryAddress)
-    const startBlock = getDeployedContractBlock(chainId)
+    // const startBlock = getDeployedContractBlock(chainId)
     const filter: Filter = {
-      fromBlock: startBlock.toString(),
+      fromBlock: 0,
       toBlock: toBlock.toString(),
       topics: [nftFactoryAddress, dataNftAddress, owner, id('NFTCreated')],
       address: nftFactoryAddress
