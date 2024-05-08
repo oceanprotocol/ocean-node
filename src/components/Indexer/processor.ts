@@ -1,12 +1,10 @@
 import {
-  Filter,
   Interface,
   JsonRpcApiProvider,
   Signer,
   ethers,
   getAddress,
   getBytes,
-  id,
   toUtf8String
 } from 'ethers'
 import { createHash } from 'crypto'
@@ -14,17 +12,11 @@ import { Readable } from 'node:stream'
 import axios from 'axios'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import ERC721TFactory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getDatabase } from '../../utils/database.js'
 import { PROTOCOL_COMMANDS, EVENTS, MetadataStates } from '../../utils/constants.js'
-import {
-  getDtContract,
-  wasNFTDeployedByOurFactory,
-  getContractAddress
-  // getDeployedContractBlock
-} from './utils.js'
+import { getDtContract, wasNFTDeployedByOurFactory } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
 import { getConfiguration, timestampToDateTime } from '../../utils/index.js'
@@ -68,58 +60,24 @@ class BaseEventProcessor {
     return iface.parseLog(eventObj)
   }
 
-  protected async fetchNftCreatedEventLogs(
-    dataNftAddress: string,
-    owner: string,
-    provider: JsonRpcApiProvider,
-    toBlock: number,
-    chainId: number
-  ) {
-    const iface = new Interface(ERC721TFactory.abi)
-
-    const nftFactoryAddress = getContractAddress(chainId, 'ERC721Factory')
-    // const nftFactoryContract = await getNFTFactory(signer, nftFactoryAddress)
-    // const startBlock = getDeployedContractBlock(chainId)
-    const filter: Filter = {
-      fromBlock: 0,
-      toBlock: toBlock.toString(),
-      topics: [nftFactoryAddress, dataNftAddress, owner, id('NFTCreated')],
-      address: nftFactoryAddress
-    }
-
-    const logs = await provider.getLogs(filter)
-    INDEXER_LOGGER.logMessage(`logs: ${JSON.stringify(logs)}`)
-    const events = logs.map((log: any) => iface.parseLog(log))
-    INDEXER_LOGGER.logMessage(`events: ${events}`)
-    return events
-  }
-
   protected async getNFTInfo(
     nftAddress: string,
     signer: Signer,
     owner: string,
-    timestamp: number,
-    provider: JsonRpcApiProvider,
-    chainId: number
+    timestamp: number
   ): Promise<any> {
     const nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, signer)
     const state = parseInt((await nftContract.getMetaData())[2])
-    // respects https://docs.oceanprotocol.com/developers/ddo-specification#nft-object-example
-    const events = await this.fetchNftCreatedEventLogs(
-      nftAddress,
-      owner,
-      provider,
-      await provider.getBlockNumber(),
-      chainId
-    )
-    INDEXER_LOGGER.logMessage(`events 2: ${events}`)
+    const id = await nftContract.getId()
+    const tokenURI = await nftContract.tokenURI(id)
     return {
       state,
       address: nftAddress,
       name: await nftContract.name(),
       symbol: await nftContract.symbol(),
       owner,
-      created: timestampToDateTime(timestamp)
+      created: timestampToDateTime(timestamp),
+      tokenURI
     }
   }
 
@@ -376,9 +334,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         ddo.nftAddress,
         signer,
         owner,
-        decodedEventData.args[6],
-        provider,
-        chainId
+        decodedEventData.args[6]
       )
 
       INDEXER_LOGGER.logMessage(
