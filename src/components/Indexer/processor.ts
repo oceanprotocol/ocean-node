@@ -1,7 +1,6 @@
 import {
   Interface,
   JsonRpcApiProvider,
-  JsonRpcProvider,
   Signer,
   ethers,
   getAddress,
@@ -99,7 +98,7 @@ class BaseEventProcessor {
     signer: Signer,
     owner: string,
     timestamp: number,
-    provider: JsonRpcProvider,
+    provider: JsonRpcApiProvider,
     chainId: number
   ): Promise<any> {
     const nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, signer)
