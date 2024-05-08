@@ -1,4 +1,4 @@
-import { assert } from 'chai'
+import { assert, expect } from 'chai'
 import { Readable } from 'stream'
 import { Signer, JsonRpcProvider, ethers } from 'ethers'
 import { Database } from '../../components/database/index.js'
@@ -35,7 +35,7 @@ import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.j
 import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
 import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import { streamToObject } from '../../utils/util.js'
-import { waitToIndex } from './testUtils.js'
+import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -105,13 +105,17 @@ describe('Should test admin operations', () => {
     assert(validationResponse.valid === true, 'validation for stop node command failed')
   })
 
-  it('should publish dataset', async () => {
+  it('should publish dataset', async function () {
     publishedDataset = await publishAsset(downloadAsset, wallet as Signer)
-    await waitToIndex(
+    const { ddo, wasTimeout } = await waitToIndex(
       publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT
     )
+
+    if (!ddo) {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    }
   })
 
   it('should pass for reindex tx command', async () => {
