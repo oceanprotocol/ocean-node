@@ -2,7 +2,7 @@ import { CID } from 'multiformats/cid'
 import { sha256 } from 'multiformats/hashes/sha2'
 import * as multiFormatRaw from 'multiformats/codecs/raw'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
-import { INDEXER_LOGGER } from './logging/common'
+import { INDEXER_LOGGER } from './logging/common.js'
 
 export function hexStringToByteArray(hexString: any) {
   if (hexString.length % 2 !== 0) {
