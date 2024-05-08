@@ -36,13 +36,14 @@ import { ReindexChainHandler } from '../../components/core/admin/reindexChainHan
 import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import { streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
-import { NUM_INDEXERS } from '../../components/Indexer/index.js'
+import { NUM_INDEXERS, OceanIndexer } from '../../components/Indexer/index.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
   let publishedDataset: any
   let dbconn: Database
+  let indexer: OceanIndexer
   const currentDate = new Date()
   const expiryTimestamp = new Date(
     currentDate.getFullYear() + 1,
@@ -87,6 +88,7 @@ describe('Should test admin operations', () => {
     config = await getConfiguration(true) // Force reload the configuration
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
+    indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
   })
 
   async function getSignature(message: string) {
@@ -183,5 +185,6 @@ describe('Should test admin operations', () => {
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
+    indexer.stopAllThreads()
   })
 })

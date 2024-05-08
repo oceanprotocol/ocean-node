@@ -70,6 +70,7 @@ export class OceanIndexer {
       const worker = this.workers[chainID]
       if (worker) {
         worker.postMessage({ method: 'stop-crawling' })
+        NUM_WORKERS--
       }
     }
     return true
