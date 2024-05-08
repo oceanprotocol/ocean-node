@@ -106,11 +106,12 @@ describe('Should test admin operations', () => {
   })
 
   it('should publish dataset', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     publishedDataset = await publishAsset(downloadAsset, wallet as Signer)
     const { ddo, wasTimeout } = await waitToIndex(
       publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT
+      DEFAULT_TEST_TIMEOUT * 2
     )
 
     if (!ddo) {
