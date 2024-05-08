@@ -69,9 +69,7 @@ class BaseEventProcessor {
     const nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, signer)
     const state = parseInt((await nftContract.getMetaData())[2])
     const id = parseInt(await nftContract.getId())
-    INDEXER_LOGGER.logMessage(`id: ${id}`)
     const tokenURI = await nftContract.tokenURI(id)
-    INDEXER_LOGGER.logMessage(`tokenURI: ${tokenURI}`)
     return {
       state,
       address: nftAddress,
@@ -332,7 +330,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       ddo.chainId = chainId
       ddo.nftAddress = event.address
       ddo.datatokens = this.getTokenInfo(ddo.services)
-      INDEXER_LOGGER.logMessage(`timestamp: ${parseInt(decodedEventData.args[6])}`)
       ddo.nft = await this.getNFTInfo(
         ddo.nftAddress,
         signer,

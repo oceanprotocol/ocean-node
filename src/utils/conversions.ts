@@ -2,7 +2,6 @@ import { CID } from 'multiformats/cid'
 import { sha256 } from 'multiformats/hashes/sha2'
 import * as multiFormatRaw from 'multiformats/codecs/raw'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
-import { INDEXER_LOGGER } from './logging/common.js'
 
 export function hexStringToByteArray(hexString: any) {
   if (hexString.length % 2 !== 0) {
@@ -39,18 +38,11 @@ export function getRandomInt(min: number, max: number) {
 
 export function timestampToDateTime(timestamp: number) {
   const date = new Date(timestamp * 1000)
-  INDEXER_LOGGER.logMessage(`date: ${date}`)
   const year = date.getFullYear()
-  INDEXER_LOGGER.logMessage(`year: ${year}`)
   const month = String(date.getMonth() + 1).padStart(2, '0')
-  INDEXER_LOGGER.logMessage(`month: ${month}`)
   const day = String(date.getDate()).padStart(2, '0')
-  INDEXER_LOGGER.logMessage(`day: ${day}`)
   const hours = String(date.getHours()).padStart(2, '0')
-  INDEXER_LOGGER.logMessage(`hours: ${hours}`)
   const minutes = String(date.getMinutes()).padStart(2, '0')
-  INDEXER_LOGGER.logMessage(`minutes: ${minutes}`)
   const seconds = String(date.getSeconds()).padStart(2, '0')
-  INDEXER_LOGGER.logMessage(`seconds: ${seconds}`)
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}Z`
 }

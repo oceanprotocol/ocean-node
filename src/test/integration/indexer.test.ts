@@ -205,12 +205,18 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should have nft field stored in ddo', async function () {
-    console.log('nft ', JSON.stringify(resolvedDDO.nft))
     assert(resolvedDDO.nft, 'NFT field is not present')
     assert(resolvedDDO.nft.address === nftAddress, 'NFT address mismatch')
     assert(resolvedDDO.nft.state === 0, 'NFT state mismatch') // ACTIVE
     assert(resolvedDDO.nft.name === (await nftContract.name()), 'NFT name mismatch')
     assert(resolvedDDO.nft.symbol === (await nftContract.symbol()), 'NFT symbol mismatch')
+    assert(
+      resolvedDDO.nft.tokenURI ===
+        (await nftContract.tokenURI(await nftContract.getId())),
+      'NFT tokeURI mismatch'
+    )
+    assert(resolvedDDO.nft.owner === setMetaDataTxReceipt.from, 'NFT owner mismatch')
+    assert(resolvedDDO.nft.created, 'NFT created timestamp does not exist')
   })
 
   it('should store the ddo state in the db with no errors and retrieve it using did', async function () {
