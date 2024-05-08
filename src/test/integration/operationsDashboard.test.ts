@@ -36,6 +36,7 @@ import { ReindexChainHandler } from '../../components/core/admin/reindexChainHan
 import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import { streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
+import { NUM_INDEXERS } from '../../components/Indexer/index.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -54,6 +55,7 @@ describe('Should test admin operations', () => {
     provider
   )
 
+  console.log('NUM_INDEXERS_RUNNING', NUM_INDEXERS)
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
   let previousConfiguration: OverrideEnvConfig[]

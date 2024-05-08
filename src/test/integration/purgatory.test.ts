@@ -7,11 +7,13 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/index.js'
+import { NUM_INDEXERS } from '../../components/Indexer/index.js'
 
 describe('Purgatory test', () => {
   let purgatory: Purgatory
   let previousConfiguration: OverrideEnvConfig[]
 
+  console.log('NUM_INDEXERS_RUNNING', NUM_INDEXERS)
   before(async () => {
     // override and save configuration (always before calling getConfig())
     previousConfiguration = await setupEnvironment(

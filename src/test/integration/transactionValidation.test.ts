@@ -11,7 +11,7 @@ import {
 } from '../../utils/address.js'
 import { publishAsset, orderAsset, reOrderAsset } from '../utils/assets.js'
 import { RPCS } from '../../@types/blockchain.js'
-import { OceanIndexer } from '../../components/Indexer/index.js'
+import { NUM_INDEXERS, OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { ENVIRONMENT_VARIABLES, EVENTS, getConfiguration } from '../../utils/index.js'
@@ -37,6 +37,8 @@ describe('validateOrderTransaction Function with Orders', () => {
   let reOrderTxId: string
   let resolvedDDO: any
   let publishedDataset: any
+
+  console.log('NUM_INDEXERS_RUNNING', NUM_INDEXERS)
 
   const serviceId = '0' // dummy index
   const timeout = 0

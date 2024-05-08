@@ -12,6 +12,7 @@ export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
 export const INDEXER_CRAWLING_EVENT_EMITTER = new EventEmitter()
 
 let INDEXING_QUEUE: ReindexTask[] = []
+export let NUM_INDEXERS = 0
 
 export class OceanIndexer {
   private db: Database
@@ -25,6 +26,7 @@ export class OceanIndexer {
     this.supportedChains = Object.keys(supportedNetworks)
     INDEXING_QUEUE = []
     this.startThreads()
+    NUM_INDEXERS++
   }
 
   public getSupportedNetworks(): RPCS {
