@@ -645,11 +645,14 @@ describe('OceanIndexer - crawler threads', () => {
       }
     )
     oceanIndexer = new OceanIndexer(db, supportedNetworks)
-    await sleep(4000)
+    await sleep(DEFAULT_TEST_TIMEOUT / 2)
   })
 
   after(async () => {
     await tearDownEnvironment(envOverrides)
     oceanIndexer.stopAllThreads()
+    INDEXER_CRAWLING_EVENT_EMITTER.removeAllListeners(
+      INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED
+    )
   })
 })
