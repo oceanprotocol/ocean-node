@@ -28,7 +28,7 @@ export default function ReIndexChain() {
             signature
           })
         })
-        alert('The chain is now being reindexed.')
+        alert(`Chain with ID ${chainId} is now being reindexed.`)
       }
     } catch (error) {
       console.error('error', error)
@@ -40,7 +40,7 @@ export default function ReIndexChain() {
   return (
     <div className={styles.column}>
       <Button type="button" onClick={() => setShowChainInput(!showChainInput)}>
-        Download Logs
+        ReIndex Chain
       </Button>
 
       {showChainInput && (
@@ -55,7 +55,7 @@ export default function ReIndexChain() {
             variant="outlined"
           />
           <Button type="button" onClick={reIndex} variant="outlined" disabled={isLoading}>
-            Download
+            ReIndex Chain
           </Button>
         </div>
       )}
