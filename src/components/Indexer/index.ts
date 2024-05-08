@@ -13,6 +13,7 @@ export const INDEXER_CRAWLING_EVENT_EMITTER = new EventEmitter()
 
 let INDEXING_QUEUE: ReindexTask[] = []
 export let NUM_INDEXERS = 0
+export let NUM_WORKERS = 0
 
 export class OceanIndexer {
   private db: Database
@@ -89,6 +90,7 @@ export class OceanIndexer {
       const worker = new Worker('./dist/components/Indexer/crawlerThread.js', {
         workerData
       })
+      NUM_WORKERS++
 
       worker.on('message', (event: any) => {
         if (event.data) {
@@ -134,6 +136,7 @@ export class OceanIndexer {
       })
 
       worker.on('exit', (code: number) => {
+        NUM_WORKERS--
         INDEXER_LOGGER.logMessage(
           `Worker for network ${network} exited with code: ${code}`,
           true
