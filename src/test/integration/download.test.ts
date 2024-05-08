@@ -54,6 +54,7 @@ describe('Should run a complete node flow.', () => {
   let orderTxId: string
   let publishedDataset: any
   let actualDDO: any
+  let indexer: OceanIndexer
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const serviceId = '0'
@@ -88,7 +89,7 @@ describe('Should run a complete node flow.', () => {
     database = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(database)
     //  eslint-disable-next-line no-unused-vars
-    const indexer = new OceanIndexer(database, mockSupportedNetworks)
+    indexer = new OceanIndexer(database, mockSupportedNetworks)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
@@ -300,5 +301,6 @@ describe('Should run a complete node flow.', () => {
   })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
+    indexer.stopAllThreads()
   })
 })

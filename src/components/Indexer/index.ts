@@ -19,7 +19,7 @@ export class OceanIndexer {
   private db: Database
   private networks: RPCS
   private supportedChains: string[]
-  private static workers: Record<string, Worker> = {}
+  private workers: Record<string, Worker> = {}
 
   constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
@@ -67,7 +67,7 @@ export class OceanIndexer {
 
   public stopAllThreads(): boolean {
     for (const chainID of this.supportedChains) {
-      const worker = OceanIndexer.workers[chainID]
+      const worker = this.workers[chainID]
       if (worker) {
         worker.postMessage({ method: 'stop-crawling' })
       }
@@ -147,20 +147,20 @@ export class OceanIndexer {
       })
 
       worker.postMessage({ method: 'start-crawling' })
-      OceanIndexer.workers[network] = worker
+      this.workers[network] = worker
     }
   }
 
-  static addReindexTask(reindexTask: ReindexTask): void {
-    const worker = OceanIndexer.workers[reindexTask.chainId]
+  public addReindexTask(reindexTask: ReindexTask): void {
+    const worker = this.workers[reindexTask.chainId]
     if (worker) {
       worker.postMessage({ method: 'add-reindex-task', reindexTask })
       INDEXING_QUEUE.push(reindexTask)
     }
   }
 
-  static resetCrawling(chainId: number): void {
-    const worker = OceanIndexer.workers[chainId]
+  public resetCrawling(chainId: number): void {
+    const worker = this.workers[chainId]
     if (worker) {
       worker.postMessage({ method: 'reset-crawling' })
     }

@@ -66,9 +66,9 @@ async function getLastIndexedBlock(): Promise<number> {
 async function deleteAllAssetsFromChain(): Promise<number> {
   const { ddo } = await getDatabase()
   try {
-    const res = await ddo.deleteAllAssetsFromChain(rpcDetails.chainId)
-    INDEXER_LOGGER.logMessage(`Assets successfully deleted.`)
-    return res.num_deleted
+    const numDeleted = await ddo.deleteAllAssetsFromChain(rpcDetails.chainId)
+    INDEXER_LOGGER.logMessage(`${numDeleted} Assets were successfully deleted.`)
+    return numDeleted
   } catch (err) {
     INDEXER_LOGGER.error(`Error deleting all assets: ${err}`)
     return -1
@@ -160,7 +160,7 @@ export async function processNetworkData(
             blocksToProcess
           )
           currentBlock = await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
-          console.log('currentBlock after updateLastIndexedBlockNumber', currentBlock)
+          // we can't just update currentBlock to processedBlocks.lastBlock if the DB action failed
           if (currentBlock < 0 && lastIndexedBlock !== null) {
             currentBlock = lastIndexedBlock
           }

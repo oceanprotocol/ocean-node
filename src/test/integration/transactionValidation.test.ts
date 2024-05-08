@@ -37,6 +37,7 @@ describe('validateOrderTransaction Function with Orders', () => {
   let reOrderTxId: string
   let resolvedDDO: any
   let publishedDataset: any
+  let indexer: OceanIndexer
 
   console.log('NUM_INDEXERS_RUNNING', NUM_INDEXERS)
 
@@ -69,8 +70,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     config = await getConfiguration(true) // Force reload the configuration
     const dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
-    //  eslint-disable-next-line no-unused-vars
-    const indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
+    indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
@@ -235,5 +235,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
+    indexer.stopAllThreads()
   })
 })

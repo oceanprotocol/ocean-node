@@ -554,7 +554,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       txId: setMetaDataTxReceipt.hash,
       chainId: '8996'
     }
-    OceanIndexer.addReindexTask(reindexTask)
+    indexer.addReindexTask(reindexTask)
   })
 
   it('should get reindex queue', () => {
@@ -586,6 +586,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
+    indexer.stopAllThreads()
   })
 })
 
@@ -595,6 +596,7 @@ describe('OceanIndexer - crawler threads', () => {
   let db: Database
   let blockchain: Blockchain
 
+  let oceanIndexer: OceanIndexer
   const supportedNetworks: RPCS = getMockSupportedNetworks()
   const chainID = DEVELOPMENT_CHAIN_ID.toString()
 
@@ -642,14 +644,12 @@ describe('OceanIndexer - crawler threads', () => {
         expect(networkHeight).to.be.equal(netHeight)
       }
     )
-    // eslint-disable-next-line no-unused-vars
-    const oceanIndexer = new OceanIndexer(db, supportedNetworks)
-
+    oceanIndexer = new OceanIndexer(db, supportedNetworks)
     await sleep(4000)
-    oceanIndexer.stopAllThreads()
   })
 
   after(async () => {
     await tearDownEnvironment(envOverrides)
+    oceanIndexer.stopAllThreads()
   })
 })

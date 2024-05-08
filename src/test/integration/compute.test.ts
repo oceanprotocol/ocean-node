@@ -82,6 +82,7 @@ describe('Compute', () => {
   let algoOrderTxId: any
   let providerFeesComputeDataset: ProviderFees
   let providerFeesComputeAlgo: ProviderFees
+  let indexer: OceanIndexer
   const now = new Date().getTime() / 1000
   const computeJobValidUntil = now + 60 * 15 // 15 minutes from now should be enough
   let firstEnv: ComputeEnvironment
@@ -127,7 +128,7 @@ describe('Compute', () => {
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
     //  eslint-disable-next-line no-unused-vars
-    const indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
+    indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
@@ -825,5 +826,6 @@ describe('Compute', () => {
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
+    indexer.stopAllThreads()
   })
 })
