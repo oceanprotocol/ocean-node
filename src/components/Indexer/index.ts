@@ -74,6 +74,7 @@ export class OceanIndexer {
             [
               EVENTS.METADATA_CREATED,
               EVENTS.METADATA_UPDATED,
+              EVENTS.METADATA_STATE,
               EVENTS.ORDER_STARTED,
               EVENTS.ORDER_REUSED
             ].includes(event.method)
@@ -125,6 +126,28 @@ export class OceanIndexer {
     if (worker) {
       worker.postMessage({ method: 'add-reindex-task', reindexTask })
       INDEXING_QUEUE.push(reindexTask)
+    }
+  }
+
+  static resetCrawling(chainId: number): void {
+    const worker = OceanIndexer.workers[chainId]
+    if (worker) {
+      worker.postMessage({ method: 'reset-crawling' })
+    }
+  }
+
+  public async getLastIndexedBlock(network: number): Promise<number> {
+    const dbconn = this.db.indexer
+    try {
+      const indexer = await dbconn.retrieve(network)
+      return indexer?.lastIndexedBlock
+    } catch (err) {
+      INDEXER_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        'Error retrieving last indexed block',
+        true
+      )
+      return null
     }
   }
 
