@@ -149,7 +149,12 @@ export class DecryptDdoHandler extends Handler {
         }
       }
 
-      const blockchain = new Blockchain(supportedNetwork.rpc, supportedNetwork.chainId)
+      const blockchain = new Blockchain(
+        supportedNetwork.rpc,
+        supportedNetwork.network,
+        supportedNetwork.chainId,
+        supportedNetwork.fallbackRPCs
+      )
       const provider = blockchain.getProvider()
       const signer = blockchain.getSigner()
       // note: "getOceanArtifactsAdresses()"" is broken for at least optimism sepolia
@@ -836,7 +841,12 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
     return false
   }
   // 4) check if was deployed by our factory
-  const blockchain = new Blockchain(network.rpc, chainId)
+  const blockchain = new Blockchain(
+    network.rpc,
+    network.network,
+    chainId,
+    network.fallbackRPCs
+  )
   const signer = blockchain.getSigner()
 
   const wasDeployedByUs = await wasNFTDeployedByOurFactory(
