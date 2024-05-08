@@ -26,8 +26,8 @@ export class OceanIndexer {
     this.networks = supportedNetworks
     this.supportedChains = Object.keys(supportedNetworks)
     INDEXING_QUEUE = []
-    this.startThreads()
     NUM_INDEXERS++
+    this.startThreads()
   }
 
   public getSupportedNetworks(): RPCS {
@@ -77,6 +77,7 @@ export class OceanIndexer {
 
   // eslint-disable-next-line require-await
   public async startThreads(): Promise<void> {
+    console.log('NUM_INDEXERS: ', NUM_INDEXERS)
     for (const network of this.supportedChains) {
       const chainId = parseInt(network)
       const rpcDetails: SupportedNetwork = this.getSupportedNetwork(chainId)
@@ -91,6 +92,7 @@ export class OceanIndexer {
         workerData
       })
       NUM_WORKERS++
+      console.log('NUM_WORKERS: ', NUM_WORKERS)
 
       worker.on('message', (event: any) => {
         if (event.data) {
@@ -137,6 +139,7 @@ export class OceanIndexer {
 
       worker.on('exit', (code: number) => {
         NUM_WORKERS--
+        console.log('NUM_WORKERS:', NUM_WORKERS)
         INDEXER_LOGGER.logMessage(
           `Worker for network ${network} exited with code: ${code}`,
           true

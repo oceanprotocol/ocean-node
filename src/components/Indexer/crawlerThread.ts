@@ -15,7 +15,6 @@ import { EVENTS, INDEXER_CRAWLING_EVENTS } from '../../utils/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getDatabase } from '../../utils/database.js'
 import { JsonRpcApiProvider, Log, Signer } from 'ethers'
-import { NUM_INDEXERS, NUM_WORKERS } from './index.js'
 
 export interface ReindexTask {
   txId: string
@@ -80,8 +79,6 @@ export async function processNetworkData(
   provider: JsonRpcApiProvider,
   signer: Signer
 ): Promise<void> {
-  console.log('NUM_INDEXERS', NUM_INDEXERS)
-  console.log('NUM_WORKERS', NUM_WORKERS)
   stopCrawling = false
   const contractDeploymentBlock = getDeployedContractBlock(rpcDetails.chainId)
   if (contractDeploymentBlock == null && (await getLastIndexedBlock()) == null) {

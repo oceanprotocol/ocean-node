@@ -99,30 +99,27 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
 
   it('should publish a dataset', async function () {
-    console.log('Publishing dataset debugging...')
-    try {
-      this.timeout(DEFAULT_TEST_TIMEOUT * 3)
-      publishedDataset = await publishAsset(genericDDO, publisherAccount)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    console.log('before publish dataset')
+    publishedDataset = await publishAsset(genericDDO, publisherAccount)
+    console.log('publishedDataset: ', publishedDataset)
 
-      const { ddo, wasTimeout } = await waitToIndex(
-        publishedDataset.ddo.id,
-        EVENTS.METADATA_CREATED,
-        DEFAULT_TEST_TIMEOUT * 3
-      )
+    const { ddo, wasTimeout } = await waitToIndex(
+      publishedDataset.ddo.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT * 3
+    )
 
-      if (!ddo) {
-        expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
-      } else {
-        publishedDataset = ddo
-        dataNftAddress = publishedDataset.nftAddress
-        // eslint-disable-next-line prefer-destructuring
-        datatokenAddress = publishedDataset.datatokenAddress
+    if (!ddo) {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    } else {
+      publishedDataset = ddo
+      dataNftAddress = publishedDataset.nftAddress
+      // eslint-disable-next-line prefer-destructuring
+      datatokenAddress = publishedDataset.datatokenAddress
 
-        assert(dataNftAddress, 'find nft created failed')
-        assert(datatokenAddress, 'find datatoken created failed')
-      }
-    } catch (existError) {
-      console.log('got error', existError)
+      assert(dataNftAddress, 'find nft created failed')
+      assert(datatokenAddress, 'find datatoken created failed')
     }
   })
 
