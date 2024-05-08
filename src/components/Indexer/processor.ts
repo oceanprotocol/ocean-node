@@ -27,6 +27,7 @@ import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
+import { makeDid } from '../core/utils/validateDdoHandler.js'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -306,32 +307,29 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         ERC721Template.abi
       )
       const metadata = decodedEventData.args[4]
+      const metadataHash = decodedEventData.args[5]
+      const flag = decodedEventData.args[3]
       const ddo = await this.decryptDDO(
         decodedEventData.args[2],
-        decodedEventData.args[3],
+        flag,
         decodedEventData.args[0],
         event.address,
         chainId,
         event.transactionHash,
-        decodedEventData.args[5], // document hash
+        metadataHash,
         metadata
       )
-      if (
-        ddo.id !==
-        'did:op:' +
-          createHash('sha256')
-            .update(getAddress(event.address) + chainId.toString(10))
-            .digest('hex')
-      ) {
+      if (ddo.id !== makeDid(event.address, chainId.toString(10))) {
         INDEXER_LOGGER.error(
           `Decrypted DDO ID is not matching the generated hash for DID.`
         )
         return
       }
       // for unencrypted DDOs
-      if (!this.checkDdoHash(ddo, decodedEventData.args[5])) {
+      if (parseInt(flag) !== 2 && !this.checkDdoHash(ddo, metadataHash)) {
         return
       }
+
       did = ddo.id
       // stuff that we overwrite
       ddo.chainId = chainId
