@@ -159,8 +159,11 @@ export async function processNetworkData(
             startBlock,
             blocksToProcess
           )
-          await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
-          currentBlock = processedBlocks.lastBlock
+          currentBlock = await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
+          console.log('currentBlock after updateLastIndexedBlockNumber', currentBlock)
+          if (currentBlock < 0 && lastIndexedBlock !== null) {
+            currentBlock = lastIndexedBlock
+          }
           checkNewlyIndexedAssets(processedBlocks.foundEvents)
           chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
         } catch (error) {
@@ -321,7 +324,11 @@ parentPort.on('message', (message) => {
     }
   }
   if (message.method === 'reset-crawling') {
-    REINDEX_BLOCK = getDeployedContractBlock(rpcDetails.chainId)
+    const deployBlock = getDeployedContractBlock(rpcDetails.chainId)
+    REINDEX_BLOCK =
+      rpcDetails.startBlock && rpcDetails.startBlock >= deployBlock
+        ? rpcDetails.startBlock
+        : deployBlock
   }
   if (message.method === 'stop-crawling') {
     stopCrawling = true
