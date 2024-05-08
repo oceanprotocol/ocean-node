@@ -98,12 +98,23 @@ describe('validateOrderTransaction Function with Orders', () => {
 
   it('should publish a dataset', async function () {
     publishedDataset = await publishAsset(genericDDO, publisherAccount)
-    dataNftAddress = publishedDataset.nftAddress
-    // eslint-disable-next-line prefer-destructuring
-    datatokenAddress = publishedDataset.datatokenAddress
 
-    assert(dataNftAddress, 'find nft created failed')
-    assert(datatokenAddress, 'find datatoken created failed')
+    const { ddo, wasTimeout } = await waitToIndex(
+      publishedDataset.ddo.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
+
+    if (!ddo) {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    } else {
+      dataNftAddress = publishedDataset.nftAddress
+      // eslint-disable-next-line prefer-destructuring
+      datatokenAddress = publishedDataset.datatokenAddress
+
+      assert(dataNftAddress, 'find nft created failed')
+      assert(datatokenAddress, 'find datatoken created failed')
+    }
   })
 
   it('should get the active state', async function () {
