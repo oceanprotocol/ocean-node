@@ -25,6 +25,8 @@ export interface ReindexTask {
 let REINDEX_BLOCK: number = null
 const REINDEX_QUEUE: ReindexTask[] = []
 
+let stopCrawling: boolean = false
+
 interface ThreadData {
   rpcDetails: SupportedNetwork
 }
@@ -77,6 +79,7 @@ export async function processNetworkData(
   provider: JsonRpcApiProvider,
   signer: Signer
 ): Promise<void> {
+  stopCrawling = false
   try {
     const contractDeploymentBlock = getDeployedContractBlock(rpcDetails.chainId)
     if (contractDeploymentBlock == null && (await getLastIndexedBlock()) == null) {
@@ -169,6 +172,8 @@ export async function processNetworkData(
             )
             await updateLastIndexedBlockNumber(startBlock + blocksToProcess)
           }
+        } else {
+          console.log('DO NOTHING...')
         }
         await processReindex(provider, signer, rpcDetails.chainId)
         lockProccessing = false
@@ -181,7 +186,13 @@ export async function processNetworkData(
       await sleep(interval)
       // reindex chain command called
       if (REINDEX_BLOCK && !lockProccessing) {
+        console.log('WILL REINDEX,', REINDEX_BLOCK, ' current block:', currentBlock)
         await reindexChain(currentBlock)
+      }
+
+      if (stopCrawling) {
+        console.log('STOP CRAWLING called...,')
+        break
       }
     }
   } catch (e) {
@@ -318,5 +329,8 @@ parentPort.on('message', (message) => {
   }
   if (message.method === 'reset-crawling') {
     REINDEX_BLOCK = getDeployedContractBlock(rpcDetails.chainId)
+  }
+  if (message.method === 'stop-crawling') {
+    stopCrawling = true
   }
 })

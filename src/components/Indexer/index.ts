@@ -53,12 +53,23 @@ export class OceanIndexer {
     return network
   }
 
-  public async stopThread(chainID: string): Promise<number> {
-    const worker = OceanIndexer.workers[chainID]
-    if (worker) {
-      return await worker.terminate()
+  // TODO check
+  // private async stopThread(chainID: string): Promise<number> {
+  //   const worker = OceanIndexer.workers[chainID]
+  //   if (worker) {
+  //     // return await worker.terminate()
+  //   }
+  //   return -1
+  // }
+
+  public stopAllThreads(): boolean {
+    for (const chainID of this.supportedChains) {
+      const worker = OceanIndexer.workers[chainID]
+      if (worker) {
+        worker.postMessage({ method: 'stop-crawling' })
+      }
     }
-    return -1
+    return true
   }
 
   // eslint-disable-next-line require-await

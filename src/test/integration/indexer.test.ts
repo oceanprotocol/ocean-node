@@ -646,6 +646,7 @@ describe('OceanIndexer - crawler threads', () => {
     const oceanIndexer = new OceanIndexer(db, supportedNetworks)
 
     await sleep(4000)
+    oceanIndexer.stopAllThreads()
   })
 
   after(async () => {
