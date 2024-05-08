@@ -38,13 +38,25 @@ export function validateCommandParameters(
     return buildInvalidRequestMessage(`Invalid or unrecognized command: "${commandStr}"`)
   }
 
-  CORE_LOGGER.info(
-    `Checking received command data for Command "${commandStr}": ${JSON.stringify(
-      commandData,
-      null,
-      4
-    )}`
-  )
+  if (commandStr === 'encrypt') {
+    const encryptCommandData = commandData
+    encryptCommandData.files = [] // hide files data for logging
+    CORE_LOGGER.info(
+      `Checking received command data for Command "${commandStr}": ${JSON.stringify(
+        encryptCommandData,
+        null,
+        4
+      )}`
+    )
+  } else {
+    CORE_LOGGER.info(
+      `Checking received command data for Command "${commandStr}": ${JSON.stringify(
+        commandData,
+        null,
+        4
+      )}`
+    )
+  }
 
   for (const field of requiredFields) {
     if (
