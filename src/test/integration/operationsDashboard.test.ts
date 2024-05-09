@@ -175,6 +175,7 @@ describe('Should test admin operations', () => {
     INDEXER_CRAWLING_EVENT_EMITTER.addListener(
       INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
       (data) => {
+        // {result: true/false}
         assert(typeof data.result === 'boolean', 'expected a boolean value')
         reindexResult = data.result as boolean
       }
@@ -186,7 +187,7 @@ describe('Should test admin operations', () => {
     // give it a little time to respond with the event
     await sleep(getCrawlingInterval() * 2)
     if (reindexResult !== null) {
-      assert(reindexResult === 'boolean', 'expected a boolean value')
+      assert(typeof reindexResult === 'boolean', 'expected a boolean value')
     }
   })
 
