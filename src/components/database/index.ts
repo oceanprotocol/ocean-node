@@ -582,7 +582,6 @@ export class DdoDatabase {
 
         numDeleted += response.num_deleted
       } catch (error) {
-        console.log('got error', error)
         if (!(error instanceof TypesenseError && error.httpStatus === 404)) {
           // Log error other than not found
           DATABASE_LOGGER.logMessageWithEmoji(
