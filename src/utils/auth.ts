@@ -18,15 +18,17 @@ export function validateAdminSignature(
       return { valid: false, error: errorMsg }
     }
     const currentTimestamp = new Date().getTime()
+    if (currentTimestamp > expiryTimestamp) {
+      const errorMsg = `The expiryTimestamp ${expiryTimestamp} sent for validation is in the past. Therefore signature ${signature} is rejected`
+      CORE_LOGGER.logMessage(errorMsg)
+      return { valid: false, error: errorMsg }
+    }
     for (const address of allowedAdmins) {
-      if (
-        ethers.getAddress(address) === ethers.getAddress(signerAddress) &&
-        currentTimestamp < expiryTimestamp
-      ) {
+      if (ethers.getAddress(address) === ethers.getAddress(signerAddress)) {
         return { valid: true, error: '' }
       }
     }
-    const errorMsg = `Signature ${signature} is invalid`
+    const errorMsg = `The address which signed the message is not on the allowed admins list. Therefore signature ${signature} is rejected`
     CORE_LOGGER.logMessage(errorMsg)
     return { valid: false, error: errorMsg }
   } catch (e) {
