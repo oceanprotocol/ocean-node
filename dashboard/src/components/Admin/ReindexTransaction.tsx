@@ -16,7 +16,7 @@ export default function ReIndexTransaction() {
     try {
       const apiUrl = '/directCommand'
       if (expiryTimestamp && signature && chainId && txId) {
-        await fetch(apiUrl, {
+        const response = await fetch(apiUrl, {
           headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json'
@@ -30,6 +30,7 @@ export default function ReIndexTransaction() {
             signature
           })
         })
+        console.log('response: ', response)
         alert(
           `Transaction with TX ID ${txId} on chain ${chainId} is now being reindexed.`
         )
