@@ -455,6 +455,17 @@ export class FindDdoHandler extends Handler {
       let toProcess = 0
 
       const configuration = await getConfiguration()
+
+      // Checking locally...
+      const ddoInfo = await findDDOLocally(node, task.id)
+      if (ddoInfo) {
+        // node has ddo
+        // add to the result list anyway
+        resultList.push(ddoInfo)
+
+        updatedCache = true
+      }
+
       // sink fn
       const sink = async function (source: any) {
         const chunks: string[] = []
@@ -545,16 +556,6 @@ export class FindDdoHandler extends Handler {
           status: { httpStatus: 200 }
         }
       }, 1000 * MAX_RESPONSE_WAIT_TIME_SECONDS)
-
-      // Checking locally...
-      const ddoInfo = await findDDOLocally(node, task.id)
-      if (ddoInfo) {
-        // node has ddo
-        // add to the result list anyway
-        resultList.push(ddoInfo)
-
-        updatedCache = true
-      }
 
       // check other providers for this ddo
       const providers = await p2pNode.getProvidersForDid(task.id)
@@ -664,22 +665,25 @@ export class FindDdoHandler extends Handler {
   }
 
   // Function to use findDDO and get DDO in desired format
-  async findAndFormatDdo(ddoId: string): Promise<DDO | null> {
+  async findAndFormatDdo(ddoId: string, force: boolean = false): Promise<DDO | null> {
     const node = this.getOceanNode()
-    // First try to find the DDO Locally
-    try {
-      const ddo = await node.getDatabase().ddo.retrieve(ddoId)
-      return ddo as DDO
-    } catch (error) {
-      CORE_LOGGER.logMessage(
-        `Unable to find DDO locally. Proceeding to call findDDO`,
-        true
-      )
+    // First try to find the DDO Locally if findDDO is not enforced
+    if (!force) {
+      try {
+        const ddo = await node.getDatabase().ddo.retrieve(ddoId)
+        return ddo as DDO
+      } catch (error) {
+        CORE_LOGGER.logMessage(
+          `Unable to find DDO locally. Proceeding to call findDDO`,
+          true
+        )
+      }
     }
     try {
       const task: FindDDOCommand = {
         id: ddoId,
-        command: PROTOCOL_COMMANDS.FIND_DDO
+        command: PROTOCOL_COMMANDS.FIND_DDO,
+        force
       }
       const response: P2PCommandResponse = await this.handle(task)
 
@@ -714,8 +718,8 @@ export class FindDdoHandler extends Handler {
 
       return null
     } catch (error) {
-      CORE_LOGGER.logMessage(`Error getting DDO: ${error}`, true)
-      return null
+      CORE_LOGGER.logMessage(`Error finding DDO: ${error}`, true)
+      throw new Error(`Error finding DDO: ${error}`)
     }
   }
 }
