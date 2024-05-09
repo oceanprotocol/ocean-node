@@ -3,6 +3,7 @@ import styles from './index.module.css'
 import { useAdminContext } from '@context/AdminProvider'
 import Button from '@mui/material/Button'
 import { TextField } from '@mui/material'
+import NetworkSelector from '../shared/NetworkSelector'
 
 export default function ReIndexTransaction() {
   const [showChainInput, setShowChainInput] = useState(false)
@@ -30,10 +31,14 @@ export default function ReIndexTransaction() {
             signature
           })
         })
-        console.log('response: ', response)
-        alert(
-          `Transaction with TX ID ${txId} on chain ${chainId} is now being reindexed.`
-        )
+        if (response.status === 200) {
+          alert(
+            `Transaction with TX ID ${txId} on chain ${chainId} is now being reindexed.`
+          )
+          setShowChainInput(false)
+        } else {
+          alert('Error reindexing chain. Please try again.')
+        }
       }
     } catch (error) {
       console.error('error', error)
@@ -50,15 +55,7 @@ export default function ReIndexTransaction() {
 
       {showChainInput && (
         <div className={styles.filters}>
-          <TextField
-            label="Chain ID"
-            type="number"
-            value={chainId}
-            onChange={(e) => setChainId(e.target.value)}
-            fullWidth
-            margin="normal"
-            variant="outlined"
-          />
+          <NetworkSelector chainId={chainId} setChainId={setChainId} />
           <TextField
             label="Transaction ID"
             value={txId}
