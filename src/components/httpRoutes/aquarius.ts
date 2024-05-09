@@ -3,11 +3,7 @@ import { streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import {
-  FindDdoHandler,
-  GetDdoHandler,
-  ValidateDDOHandler
-} from '../core/handler/ddoHandler.js'
+import { FindDdoHandler, ValidateDDOHandler } from '../core/handler/ddoHandler.js'
 import { QueryDdoStateHandler, QueryHandler } from '../core/handler/queryHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { DDO } from '../../@types/DDO/DDO.js'
