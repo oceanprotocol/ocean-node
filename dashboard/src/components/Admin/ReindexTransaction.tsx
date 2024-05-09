@@ -60,7 +60,7 @@ export default function ReIndexTransaction() {
           />
           <TextField
             label="Transaction ID"
-            value={chainId}
+            value={txId}
             onChange={(e) => setTxId(e.target.value)}
             fullWidth
             margin="normal"
