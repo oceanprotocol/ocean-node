@@ -5,10 +5,11 @@ import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
 import { ReindexTask } from './crawlerThread.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
-import { EVENTS } from '../../utils/index.js'
+import { EVENTS, INDEXER_CRAWLING_EVENTS } from '../../utils/index.js'
 
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
+export const INDEXER_CRAWLING_EVENT_EMITTER = new EventEmitter()
 
 let INDEXING_QUEUE: ReindexTask[] = []
 
@@ -85,11 +86,22 @@ export class OceanIndexer {
             )
             INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
             // remove from indexing list
-          } else if (event.method === 'popFromQueue') {
-            // remove this one from the queue
+          } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP) {
+            // remove this one from the queue (means we processed the reindex for this tx)
             INDEXING_QUEUE = INDEXING_QUEUE.filter(
               (task) =>
                 task.txId !== event.data.txId && task.chainId !== event.data.chainId
+            )
+            // reindex tx successfully done
+            INDEXER_CRAWLING_EVENT_EMITTER.emit(
+              INDEXER_CRAWLING_EVENTS.REINDEX_TX, // explicitly set constant value for readability
+              event.data
+            )
+          } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN) {
+            // we should listen to this on the dashboard for instance
+            INDEXER_CRAWLING_EVENT_EMITTER.emit(
+              INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
+              event.data
             )
           }
         } else {

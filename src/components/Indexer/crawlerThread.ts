@@ -11,7 +11,7 @@ import { Blockchain } from '../../utils/blockchain.js'
 import { BlocksEvents, SupportedNetwork } from '../../@types/blockchain.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { sleep } from '../../utils/util.js'
-import { EVENTS } from '../../utils/index.js'
+import { EVENTS, INDEXER_CRAWLING_EVENTS } from '../../utils/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getDatabase } from '../../utils/database.js'
 import { JsonRpcApiProvider, Log, Signer } from 'ethers'
@@ -164,24 +164,32 @@ export async function processNetworkData(
     await sleep(interval)
     // reindex chain command called
     if (REINDEX_BLOCK && !lockProccessing) {
-      await reindexChain(currentBlock)
+      const result = await reindexChain(currentBlock)
+      // either "true" for success or "false" otherwise
+      parentPort.postMessage({
+        method: INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
+        data: { result }
+      })
     }
   }
 }
 
-async function reindexChain(currentBlock: number): Promise<void> {
+async function reindexChain(currentBlock: number): Promise<boolean> {
   const block = await updateLastIndexedBlockNumber(REINDEX_BLOCK)
   if (block !== -1) {
+    // TODO: check
     REINDEX_BLOCK = null
     const res = await deleteAllAssetsFromChain()
     if (res === -1) {
       await updateLastIndexedBlockNumber(currentBlock)
     }
+    return true
   } else {
     // Set the reindex block to null -> force admin to trigger again the command until
     // we have a notification from worker thread to parent thread #414.
     INDEXER_LOGGER.error(`Block could not be reset. Continue indexing normally...`)
     REINDEX_BLOCK = null
+    return false
   }
 }
 
@@ -200,7 +208,7 @@ async function processReindex(
         await processChunkLogs(logs, signer, provider, chainId)
         // clear from the 'top' queue
         parentPort.postMessage({
-          method: 'popFromQueue',
+          method: INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP,
           data: reindexTask
         })
       } else {
