@@ -190,7 +190,7 @@ export async function processNetworkData(
     }
 
     if (stopCrawling) {
-      console.log('STOP CRAWLING called...,')
+      INDEXER_LOGGER.logMessage('Exiting thread...')
       break
     }
   }
@@ -332,5 +332,6 @@ parentPort.on('message', (message) => {
   }
   if (message.method === 'stop-crawling') {
     stopCrawling = true
+    INDEXER_LOGGER.warn('Stopping crawler thread once current run finishes...')
   }
 })

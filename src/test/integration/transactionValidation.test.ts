@@ -11,7 +11,7 @@ import {
 } from '../../utils/address.js'
 import { publishAsset, orderAsset, reOrderAsset } from '../utils/assets.js'
 import { RPCS } from '../../@types/blockchain.js'
-import { NUM_INDEXERS, OceanIndexer } from '../../components/Indexer/index.js'
+import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { ENVIRONMENT_VARIABLES, EVENTS, getConfiguration } from '../../utils/index.js'
@@ -38,8 +38,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   let resolvedDDO: any
   let publishedDataset: any
   let indexer: OceanIndexer
-
-  console.log('NUM_INDEXERS_RUNNING', NUM_INDEXERS)
 
   const serviceId = '0' // dummy index
   const timeout = 0
@@ -101,9 +99,7 @@ describe('validateOrderTransaction Function with Orders', () => {
 
   it('should publish a dataset', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
-    console.log('before publish dataset')
     publishedDataset = await publishAsset(genericDDO, publisherAccount)
-    console.log('publishedDataset: ', publishedDataset)
 
     const { ddo, wasTimeout } = await waitToIndex(
       publishedDataset.ddo.id,
