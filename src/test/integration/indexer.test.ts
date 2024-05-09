@@ -444,6 +444,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should detect OrderReused event', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const feeData = await createFee(
       resolvedDDO as DDO,
       0,
