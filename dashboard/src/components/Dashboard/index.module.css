@@ -3,6 +3,7 @@
   flex-direction: row;
   gap: 28px;
   position: relative;
+  min-height: 550px;
 }
 
 .bodyContainer {

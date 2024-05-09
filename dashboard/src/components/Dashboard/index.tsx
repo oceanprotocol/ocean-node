@@ -81,6 +81,7 @@ export default function Dashboard() {
           setLoading(false)
         })
     } catch (error) {
+      setLoading(false)
       console.log('error', error)
     }
   }, [])
@@ -123,12 +124,8 @@ export default function Dashboard() {
                 <div className={styles.title24}>NODE ID</div>
                 {nodeData.map((node) => {
                   return (
-                    <div className={styles.node}>
-                      <div
-                        key={node.id}
-                        className={styles.nodeAddress}
-                        onClick={() => setNode(node)}
-                      >
+                    <div className={styles.node} key={node.id}>
+                      <div className={styles.nodeAddress} onClick={() => setNode(node)}>
                         <div className={styles.node}>{truncateString(node.id, 12)}</div>
                       </div>
                       <Copy text={node?.id as string} />
