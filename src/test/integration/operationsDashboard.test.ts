@@ -39,6 +39,7 @@ import { sleep, streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 import { INDEXER_CRAWLING_EVENT_EMITTER } from '../../components/Indexer/index.js'
 import { getCrawlingInterval } from '../../components/Indexer/utils.js'
+import { ReindexTask } from '../../components/Indexer/crawlerThread.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -121,7 +122,8 @@ describe('Should test admin operations', () => {
     }
   })
 
-  it('should pass for reindex tx command', async () => {
+  it('should pass for reindex tx command', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     await waitToIndex(publishedDataset.ddo.did, EVENTS.METADATA_CREATED)
     const signature = await getSignature(expiryTimestamp.toString())
 
@@ -138,12 +140,30 @@ describe('Should test admin operations', () => {
     assert(validationResponse, 'invalid reindex tx validation response')
     assert(validationResponse.valid === true, 'validation for reindex tx command failed')
 
+    let reindexResult: any = null
+    INDEXER_CRAWLING_EVENT_EMITTER.addListener(
+      INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP, // triggered when tx completes and removed from queue
+      (data) => {
+        // {ReindexTask}
+        reindexResult = data.result as ReindexTask
+        expect(reindexResult.txId).to.be.equal(publishedDataset.trxReceipt.hash)
+        expect(reindexResult.chainId).to.be.equal(DEVELOPMENT_CHAIN_ID)
+      }
+    )
+
     const handlerResponse = await reindexTxHandler.handle(reindexTxCommand)
     assert(handlerResponse, 'handler resp does not exist')
     assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
     const findDDOTask = {
       command: PROTOCOL_COMMANDS.FIND_DDO,
       id: publishedDataset.ddo.id
+    }
+
+    // wait a bit
+    await sleep(getCrawlingInterval() * 2)
+    if (reindexResult !== null) {
+      assert('chainId' in reindexResult, 'expected a chainId')
+      assert('txId' in reindexResult, 'expected a txId')
     }
 
     const response = await new FindDdoHandler(oceanNode).handle(findDDOTask)
