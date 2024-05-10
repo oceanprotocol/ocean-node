@@ -11,7 +11,7 @@ interface QueueItem {
   txId: string
   chainId: string
 }
-
+// TODO: remove
 const rpcs = JSON.parse(process.env.RPCS || '{}')
 
 export default function IndexQueue() {
