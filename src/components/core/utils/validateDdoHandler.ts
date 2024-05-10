@@ -1,18 +1,23 @@
 // eslint-disable-next-line import/no-duplicates
 import rdfDataModel from '@rdfjs/data-model'
+// eslint-disable-next-line import/no-duplicates
+import factory from '@rdfjs/data-model'
 import rdfDataset from '@rdfjs/dataset'
 import toNT from '@rdfjs/to-ntriples'
-import { Parser, Quad } from 'n3'
+// import { Parser, Quad } from 'n3'
+import { fromFile } from 'rdf-utils-fs'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
 // @ts-ignore
 import * as shaclEngine from 'shacl-engine'
 import { createHash } from 'crypto'
 import { ethers, getAddress } from 'ethers'
-import { readFile } from 'node:fs/promises'
+import pkg from 'rdf-dataset-ext'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
+import * as SHACL from 'shacl-js'
+const { fromStream } = pkg
 // import { readFile } from 'node:fs/promises'
 // import { fromFile } from 'rdf-utils-fs'
 // // eslint-disable-next-line import/no-duplicates
@@ -122,23 +127,53 @@ export async function validateObject(
 
   const version = obj.version || CURRENT_VERSION
   const schemaFilePath = getSchema(version)
-  const filename = new URL(schemaFilePath, import.meta.url)
+  // const filename = new URL(schemaFilePath, import.meta.url)
+  let schemaDataset = rdfDataset.dataset()
   const dataset = rdfDataset.dataset()
   try {
-    const contents = await readFile(filename, { encoding: 'utf8' })
-    const parser = new Parser()
-    const quads = parser.parse(contents)
-    quads.forEach((quad: Quad) => {
-      dataset.add(quad)
-    })
+    schemaDataset = await fromStream(schemaDataset, fromFile(schemaFilePath))
+    // quadsStream.on('data', (quad: Quad) => {
+    //   CORE_LOGGER.logMessage(`quad stream: ${JSON.stringify(quad)}`)
+    //   schemaDataset.add(quad)
+    // })
+    CORE_LOGGER.logMessage(`Schema quads: ${JSON.stringify(schemaDataset)}`)
+    // // When the stream ends, log the dataset
+    // quadsStream.on('end', () => {
+    // })
+    // const contents = await readFile(filename, { encoding: 'utf8' })
+    // CORE_LOGGER.logMessage(`filename to shacl schemas: ${filename}`)
+    // CORE_LOGGER.logMessage(`contents: ${JSON.stringify(contents)}`)
+    // const parser = new Parser()
+    // const quads = parser.parse(contents)
+    // quads.forEach((quad: Quad) => {
+    //   CORE_LOGGER.logMessage(`quad: ${JSON.stringify(quad)}`)
+    //   schemaDataset.add(quad)
+    // })
   } catch (err) {
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
   }
+  Object.entries(ddoCopy).forEach(([key, value]) => {
+    const subject = factory.namedNode(`http://example.org/ddo/${key}`)
+    const predicate = factory.namedNode('http://example.org/ddo/property')
+    const shape = factory.namedNode('http://example.org/ddo/shape')
+    let stringValue = ''
+    if (typeof value === 'object') {
+      stringValue = JSON.stringify(value)
+    } else {
+      stringValue = value.toString()
+    }
+    const object = factory.literal(stringValue)
+    CORE_LOGGER.logMessage(
+      `node validation with new lib: ${SHACL.SHACL.nodeConformsToShape(subject, shape)}`
+    )
+
+    dataset.add(factory.quad(subject, predicate, object))
+  })
+  CORE_LOGGER.logMessage(`dataset after the update: ${JSON.stringify(dataset)}`)
   // create a validator instance for the shapes in the given dataset
-  const validator = new shaclEngine.Validator(dataset, {
+  const validator = new shaclEngine.Validator(schemaDataset, {
     factory: rdfDataModel
   })
-
   // run the validation process
   const report = await validator.validate({ dataset })
   if (!report) {
