@@ -14,12 +14,12 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
 // import { readFile } from 'node:fs/promises'
-import { fromFile } from 'rdf-utils-fs'
-// eslint-disable-next-line import/no-duplicates
-import factory from '@rdfjs/data-model'
-// import { fromStream } from 'rdf-dataset-ext'
-import pkg from 'rdf-dataset-ext'
-const { fromStream } = pkg
+// import { fromFile } from 'rdf-utils-fs'
+// // eslint-disable-next-line import/no-duplicates
+// import factory from '@rdfjs/data-model'
+// // import { fromStream } from 'rdf-dataset-ext'
+// import pkg from 'rdf-dataset-ext'
+// const { fromStream } = pkg
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
