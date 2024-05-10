@@ -2,19 +2,19 @@
 import rdfDataModel from '@rdfjs/data-model'
 import rdfDataset from '@rdfjs/dataset'
 import toNT from '@rdfjs/to-ntriples'
-// import { Quad } from 'n3'
-// import { Quad } from '@rdfjs/types'
+import { Parser, Quad } from 'n3'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
 // @ts-ignore
 import * as shaclEngine from 'shacl-engine'
-// import { createHash } from 'crypto'
-import { ethers } from 'ethers' // getAddress
-// import { readFile } from 'node:fs/promises'
-import { fromFile } from 'rdf-utils-fs'
+import { createHash } from 'crypto'
+import { ethers, getAddress } from 'ethers'
+import { readFile } from 'node:fs/promises'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
+// import { readFile } from 'node:fs/promises'
+import { fromFile } from 'rdf-utils-fs'
 // eslint-disable-next-line import/no-duplicates
 import factory from '@rdfjs/data-model'
 // import { fromStream } from 'rdf-dataset-ext'
@@ -44,7 +44,6 @@ export function getSchema(version: string = CURRENT_VERSION): string {
 }
 
 function parseReportToErrors(results: any): Record<string, string> {
-  CORE_LOGGER.logMessage(`results for errors: ${JSON.stringify(results)}`)
   const paths = results
     .filter((result: any) => result.path)
     .map((result: any) => toNT(result.path))
@@ -68,23 +67,19 @@ function beautifyMessage(message: string): string {
   return message
 }
 
-// function isIsoFormat(dateString: string): boolean {
-//   const isoDateRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z)?$/
-//   return isoDateRegex.test(dateString)
-// }
+function isIsoFormat(dateString: string): boolean {
+  const isoDateRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z)?$/
+  return isoDateRegex.test(dateString)
+}
 
-// function makeDid(nftAddress: string, chainId: string): string {
-//   return (
-//     'did:op:' +
-//     createHash('sha256')
-//       .update(getAddress(nftAddress) + chainId)
-//       .digest('hex')
-//   )
-// }
-
-// export async function validateShortVersion(obj: Record<string, any>) {
-//   const ddoCopy = JSON.parse(JSON.stringify(obj))
-// }
+function makeDid(nftAddress: string, chainId: string): string {
+  return (
+    'did:op:' +
+    createHash('sha256')
+      .update(getAddress(nftAddress) + chainId)
+      .digest('hex')
+  )
+}
 
 export async function validateObject(
   obj: Record<string, any>,
@@ -94,106 +89,80 @@ export async function validateObject(
   CORE_LOGGER.logMessage(`Validating object: ` + JSON.stringify(obj), true)
   const ddoCopy = JSON.parse(JSON.stringify(obj))
   ddoCopy['@type'] = 'DDO'
-  // const extraErrors: Record<string, string> = {}
-  // const timestamps = ['created', 'updated']
-  // timestamps.forEach((attr) => {
-  //   if ('metadata' in obj && attr in obj.metadata && !isIsoFormat(obj.metadata[attr])) {
-  //     extraErrors.metadata = `${attr} is not in ISO format.`
-  //   }
-  // })
+  const extraErrors: Record<string, string> = {}
+  if (!('@context' in obj)) {
+    extraErrors['@context'] = 'Context is missing.'
+  }
+  if ('@context' in obj && !Array.isArray(obj['@context'])) {
+    extraErrors['@context'] = 'Context is not an array.'
+  }
+  if (!('metadata' in obj)) {
+    extraErrors.metadata = 'Metadata is missing or invalid.'
+  }
+  ;['created', 'updated'].forEach((attr) => {
+    if ('metadata' in obj && attr in obj.metadata && !isIsoFormat(obj.metadata[attr])) {
+      extraErrors.metadata = `${attr} is not in ISO format.`
+    }
+  })
 
-  // if (!chainId && chainId !== ddoCopy.chainId) {
-  //   extraErrors.chainId = 'chainId is missing or invalid.'
-  // }
+  if (!chainId) {
+    extraErrors.chainId = 'chainId is missing or invalid.'
+  }
 
-  // try {
-  //   getAddress(nftAddress)
-  // } catch (err) {
-  //   extraErrors.nftAddress = 'nftAddress is missing or invalid.'
-  //   CORE_LOGGER.logMessage(`Error when retrieving address ${nftAddress}: ${err}`, true)
-  // }
+  try {
+    getAddress(nftAddress)
+  } catch (err) {
+    extraErrors.nftAddress = 'nftAddress is missing or invalid.'
+    CORE_LOGGER.logMessage(`Error when retrieving address ${nftAddress}: ${err}`, true)
+  }
 
-  // if (!(makeDid(nftAddress, chainId.toString(10)) === obj.id)) {
-  //   extraErrors.id = 'did is not valid for chain Id and nft address'
-  // }
+  if (!(makeDid(nftAddress, chainId.toString(10)) === obj.id)) {
+    extraErrors.id = 'did is not valid for chain Id and nft address'
+  }
 
   const version = obj.version || CURRENT_VERSION
   const schemaFilePath = getSchema(version)
-  // const filename = new URL(schemaFilePath, import.meta.url)
-  let schemaDataset = rdfDataset.dataset()
+  const filename = new URL(schemaFilePath, import.meta.url)
   const dataset = rdfDataset.dataset()
   try {
-    schemaDataset = await fromStream(schemaDataset, fromFile(schemaFilePath))
-
-    // quadsStream.on('data', (quad: Quad) => {
-    //   CORE_LOGGER.logMessage(`quad stream: ${JSON.stringify(quad)}`)
-    //   schemaDataset.add(quad)
-    // })
-
-    CORE_LOGGER.logMessage(`Schema quads: ${JSON.stringify(schemaDataset)}`)
-
-    // // When the stream ends, log the dataset
-    // quadsStream.on('end', () => {
-
-    // })
-    // const contents = await readFile(filename, { encoding: 'utf8' })
-    // CORE_LOGGER.logMessage(`filename to shacl schemas: ${filename}`)
-    // CORE_LOGGER.logMessage(`contents: ${JSON.stringify(contents)}`)
-    // const parser = new Parser()
-    // const quads = parser.parse(contents)
-    // quads.forEach((quad: Quad) => {
-    //   CORE_LOGGER.logMessage(`quad: ${JSON.stringify(quad)}`)
-    //   schemaDataset.add(quad)
-    // })
+    const contents = await readFile(filename, { encoding: 'utf8' })
+    const parser = new Parser()
+    const quads = parser.parse(contents)
+    quads.forEach((quad: Quad) => {
+      dataset.add(quad)
+    })
   } catch (err) {
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
   }
-  Object.entries(ddoCopy).forEach(([key, value]) => {
-    const subject = factory.namedNode(`http://example.org/ddo/${key}`)
-    const predicate = factory.namedNode('http://example.org/ddo/property')
-    let stringValue = ''
-    if (typeof value === 'object') {
-      stringValue = JSON.stringify(value)
-    } else {
-      stringValue = value.toString()
-    }
-    const object = factory.literal(stringValue)
-    dataset.add(factory.quad(subject, predicate, object))
-  })
-  CORE_LOGGER.logMessage(`dataset after the update: ${JSON.stringify(dataset)}`)
   // create a validator instance for the shapes in the given dataset
-  const validator = new shaclEngine.Validator(schemaDataset, {
+  const validator = new shaclEngine.Validator(dataset, {
     factory: rdfDataModel
   })
 
-  CORE_LOGGER.logMessage(`validator: ${JSON.stringify(validator)}`)
-
   // run the validation process
   const report = await validator.validate({ dataset })
-  CORE_LOGGER.logMessage(`report: ${JSON.stringify(report)}`)
   if (!report) {
     const errorMsg = 'Validation report does not exist'
     CORE_LOGGER.logMessage(errorMsg, true)
     return [false, { error: errorMsg }]
   }
   const errors = parseReportToErrors(report.results)
-  // if (extraErrors) {
-  //   // Merge errors and extraErrors without overwriting existing keys
-  //   const mergedErrors = { ...errors, ...extraErrors }
-  //   // Check if there are any new errors introduced
-  //   const newErrorsIntroduced = Object.keys(mergedErrors).some(
-  //     (key) => !Object.prototype.hasOwnProperty.call(errors, key)
-  //   )
-  //   if (newErrorsIntroduced) {
-  //     CORE_LOGGER.logMessage(
-  //       `validateObject found new errors introduced: ${JSON.stringify(mergedErrors)}`,
-  //       true
-  //     )
-  //     CORE_LOGGER.logMessage(`mergedErrors: ${mergedErrors}`)
+  if (extraErrors) {
+    // Merge errors and extraErrors without overwriting existing keys
+    const mergedErrors = { ...errors, ...extraErrors }
+    // Check if there are any new errors introduced
+    const newErrorsIntroduced = Object.keys(mergedErrors).some(
+      (key) => !Object.prototype.hasOwnProperty.call(errors, key)
+    )
+    if (newErrorsIntroduced) {
+      CORE_LOGGER.logMessage(
+        `validateObject found new errors introduced: ${JSON.stringify(mergedErrors)}`,
+        true
+      )
 
-  //     return [false, mergedErrors]
-  //   }
-  // }
+      return [false, mergedErrors]
+    }
+  }
   return [report.conforms, errors]
 }
 

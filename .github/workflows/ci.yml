@@ -133,14 +133,18 @@ jobs:
       - run: docker image ls
       - name: Delete default runner images
         run: |
-          docker image rm node:16
-          docker image rm node:16-alpine
+          docker image rm node:20
+          docker image rm node:20-alpine
           docker image rm node:18
           docker image rm node:18-alpine
-          docker image rm node:20
+          docker image rm node:16
+          docker image rm node:16-alpine
           docker image rm debian:10
           docker image rm debian:11
+          docker image rm ubuntu:22.04
+          docker image rm ubuntu:20.04
           docker image rm moby/buildkit:latest
+          rm -rf /usr/share/swift/
       - name: Wait for contracts deployment and C2D cluster to be ready
         working-directory: ${{ github.workspace }}/barge
         run: |
@@ -148,22 +152,28 @@ jobs:
             sleep 10
             [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" -a -f "$HOME/.ocean/ocean-c2d/ready" ] && break
             done
+      - name: docker logs
+        run: docker logs ocean_ocean-contracts_1 && docker logs ocean_kindcluster_1 && docker logs ocean_computetodata_1 && docker logs ocean_typesense_1
+        if: ${{ failure() }}
       - name: integration tests
         run: npm run test:integration:cover
         env:
-          OPERATOR_SERVICE_URL: '["http://172.15.0.13:31000/"]'
+          OPERATOR_SERVICE_URL: '["http://172.15.0.13:31000"]'
           PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
           NODE1_PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
           NODE2_PRIVATE_KEY: ${{ secrets.NODE2_PRIVATE_KEY }}
           NODE3_PRIVATE_KEY: ${{ secrets.NODE3_PRIVATE_KEY }}
           IPFS_GATEWAY: http://172.15.0.16:8080/
           ARWEAVE_GATEWAY: https://arweave.net/
-          RPCS: '{ "1": {"rpc": "https://rpc.eth.gateway.fm", "chainId": 1, "network": "mainet", "chunkSize": 100}, "137": {"rpc": "https://polygon.meowrpc.com", "chainId": 137, "network": "polygon", "chunkSize": 100 }, "80001": {"rpc": "https://rpc-mumbai.maticvigil.com","chainId": 80001, "network": "polygon-mumbai", "chunkSize": 100 } }'
+          RPCS: '{ "8996": {"rpc": "http://127.0.0.1:8545", "chainId": 8996, "network": "development", "chunkSize": 100}}'
           DB_URL: 'http://localhost:8108/?apiKey=xyz'
           FEE_TOKENS: '{ "1": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48", "137": "0x282d8efCe846A88B159800bd4130ad77443Fa1A1", "80001": "0xd8992Ed72C445c35Cb4A2be468568Ed1079357c8", "56": "0xDCe07662CA8EbC241316a15B611c89711414Dd1a" }'
           FEE_AMOUNT: '{ "amount": 1, "unit": "MB" }'
           ASSET_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json'
           ACCOUNT_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json'
+      - name: docker logs
+        run: docker logs ocean_ocean-contracts_1 && docker logs ocean_kindcluster_1 && docker logs ocean_computetodata_1 && docker logs ocean_typesense_1
+        if: ${{ failure() }}
       - uses: actions/upload-artifact@v2
         with:
           name: coverage

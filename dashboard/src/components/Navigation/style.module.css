@@ -1,0 +1,30 @@
+.navbarParent {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--gray-700);
+  background-color: #ffffff;
+  border-radius: 15px;
+  box-shadow: 0px 7px 23px 0px rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(10.5px);
+  padding: 11px 24px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.logoWrapper {
+  flex-shrink: 0; /* Prevent the logo from shrinking */
+  min-width: 108px; /* Minimum width for the logo */
+}
+
+.connectButtonWrapper {
+  flex-shrink: 0; /* Prevent the connect button from shrinking */
+  /* Optionally, you can set a min-width here as well */
+}
+
+@media screen and (max-width: 700px) {
+  .navbarParent {
+    width: 90vw;
+    margin: 0 auto;
+  }
+}

@@ -1,5 +1,4 @@
 import {
-  Contract,
   Interface,
   JsonRpcApiProvider,
   Signer,
@@ -17,14 +16,15 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getDatabase } from '../../utils/database.js'
 import { PROTOCOL_COMMANDS, EVENTS, MetadataStates } from '../../utils/constants.js'
-import { getNFTFactory, getContractAddress } from './utils.js'
+import { getDtContract, wasNFTDeployedByOurFactory } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
-import { getConfiguration } from '../../utils/index.js'
+import { getConfiguration, timestampToDateTime } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
-import { isValidUrl, streamToString } from '../../utils/util.js'
+import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
+import { URLUtils } from '../../utils/url.js'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -60,15 +60,52 @@ class BaseEventProcessor {
     return iface.parseLog(eventObj)
   }
 
+  protected async getNFTInfo(
+    nftAddress: string,
+    signer: Signer,
+    owner: string,
+    timestamp: number
+  ): Promise<any> {
+    const nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, signer)
+    const state = parseInt((await nftContract.getMetaData())[2])
+    const id = parseInt(await nftContract.getId())
+    const tokenURI = await nftContract.tokenURI(id)
+    return {
+      state,
+      address: nftAddress,
+      name: await nftContract.name(),
+      symbol: await nftContract.symbol(),
+      owner,
+      created: timestampToDateTime(timestamp),
+      tokenURI
+    }
+  }
+
   protected async createOrUpdateDDO(ddo: any, method: string): Promise<any> {
     try {
-      const { ddo: ddoDatabase } = await getDatabase()
+      const { ddo: ddoDatabase, ddoState } = await getDatabase()
       const saveDDO = await ddoDatabase.update({ ...ddo })
+      await ddoState.update(
+        this.networkId,
+        saveDDO.id,
+        saveDDO.nftAddress,
+        saveDDO.event?.tx,
+        true
+      )
       INDEXER_LOGGER.logMessage(
         `Saved or updated DDO  : ${saveDDO.id} from network: ${this.networkId} triggered by: ${method}`
       )
       return saveDDO
     } catch (err) {
+      const { ddoState } = await getDatabase()
+      await ddoState.update(
+        this.networkId,
+        ddo.id,
+        ddo.nftAddress,
+        ddo.event?.tx,
+        true,
+        err.message
+      )
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
         `Error found on ${this.networkId} triggered by: ${method} while creating or updating DDO: ${err}`,
@@ -107,7 +144,7 @@ class BaseEventProcessor {
       )
       const signature = await wallet.signMessage(consumerMessage)
 
-      if (isValidUrl(decryptorURL)) {
+      if (URLUtils.isValidUrl(decryptorURL)) {
         try {
           const payload = {
             transactionId: txId,
@@ -255,14 +292,16 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     provider: JsonRpcApiProvider,
     eventName: string
   ): Promise<any> {
+    let did = 'did:op'
     try {
-      const nftFactoryAddress = getContractAddress(chainId, 'ERC721Factory')
-      const nftFactoryContract = await getNFTFactory(signer, nftFactoryAddress)
-
-      if (
-        getAddress(await nftFactoryContract.erc721List(event.address)) !==
+      const { ddo: ddoDatabase, ddoState } = await getDatabase()
+      const wasDeployedByUs = await wasNFTDeployedByOurFactory(
+        chainId,
+        signer,
         getAddress(event.address)
-      ) {
+      )
+
+      if (!wasDeployedByUs) {
         INDEXER_LOGGER.log(
           LOG_LEVELS_STR.LEVEL_ERROR,
           `NFT not deployed by OPF factory`,
@@ -275,26 +314,46 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         event.transactionHash,
         ERC721Template.abi
       )
+      const owner = decodedEventData.args[0]
       const ddo = await this.decryptDDO(
         decodedEventData.args[2],
         decodedEventData.args[3],
-        decodedEventData.args[0],
+        owner,
         event.address,
         chainId,
         event.transactionHash,
         decodedEventData.args[5],
         decodedEventData.args[4]
       )
+      did = ddo.id
+      // stuff that we overwrite
+      ddo.chainId = chainId
+      ddo.nftAddress = event.address
       ddo.datatokens = this.getTokenInfo(ddo.services)
+      ddo.nft = await this.getNFTInfo(
+        ddo.nftAddress,
+        signer,
+        owner,
+        parseInt(decodedEventData.args[6])
+      )
+
       INDEXER_LOGGER.logMessage(
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
         true
       )
 
-      const previousDdo = await (await getDatabase()).ddo.retrieve(ddo.id)
+      const previousDdo = await ddoDatabase.retrieve(ddo.id)
       if (eventName === EVENTS.METADATA_CREATED) {
         if (previousDdo && previousDdo.nft.state === MetadataStates.ACTIVE) {
           INDEXER_LOGGER.logMessage(`DDO ${ddo.id} is already registered as active`, true)
+          await ddoState.update(
+            this.networkId,
+            did,
+            event.address,
+            event.transactionHash,
+            false,
+            `DDO ${ddo.id} is already registered as active`
+          )
           return
         }
       }
@@ -304,6 +363,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           INDEXER_LOGGER.logMessage(
             `Previous DDO with did ${ddo.id} was not found the database. Maybe it was deleted/hidden to some violation issues`,
             true
+          )
+          await ddoState.update(
+            this.networkId,
+            did,
+            event.address,
+            event.transactionHash,
+            false,
+            `Previous DDO with did ${ddo.id} was not found the database. Maybe it was deleted/hidden to some violation issues`
           )
           return
         }
@@ -317,10 +384,40 @@ export class MetadataEventProcessor extends BaseEventProcessor {
             `Error encountered when checking if the asset is eligiable for update: ${error}`,
             true
           )
+          await ddoState.update(
+            this.networkId,
+            did,
+            event.address,
+            event.transactionHash,
+            false,
+            error
+          )
           return
         }
       }
       const from = decodedEventData.args[0]
+
+      // we need to store the event data (either metadata created or update and is updatable)
+      if ([EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED].includes(eventName)) {
+        if (!ddo.event) {
+          ddo.event = {}
+        }
+        ddo.event.tx = event.transactionHash
+        ddo.event.from = from
+        ddo.event.contract = event.address
+        if (event.blockNumber) {
+          ddo.event.block = event.blockNumber
+          // try get block & timestamp from block (only wait 2.5 secs maximum)
+          const promiseFn = provider.getBlock(event.blockNumber)
+          const result = await asyncCallWithTimeout(promiseFn, 2500)
+          if (result.data !== null && !result.timeout) {
+            ddo.event.datetime = new Date(result.data.timestamp * 1000).toJSON()
+          }
+        } else {
+          ddo.event.block = -1
+        }
+      }
+
       // always call, but only create instance once
       const purgatory = await Purgatory.getInstance()
       // if purgatory is disabled just return false
@@ -331,6 +428,15 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         return saveDDO
       }
     } catch (error) {
+      const { ddoState } = await getDatabase()
+      await ddoState.update(
+        this.networkId,
+        did,
+        event.address,
+        event.transactionHash,
+        false,
+        error.message
+      )
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
         `Error processMetadataEvents: ${error}`,
@@ -464,6 +570,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
   async processEvent(
     event: ethers.Log,
     chainId: number,
+    signer: Signer,
     provider: JsonRpcApiProvider
   ): Promise<any> {
     const decodedEventData = await this.getEventData(
@@ -479,11 +586,8 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
       `Processed new order for service index ${serviceIndex} at ${timestamp}`,
       true
     )
-    const datatokenContract = new Contract(
-      event.address,
-      ERC20Template.abi,
-      await provider.getSigner()
-    )
+    const datatokenContract = getDtContract(signer, event.address)
+
     const nftAddress = await datatokenContract.getERC721Address()
     const did =
       'did:op:' +
@@ -530,6 +634,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
   async processEvent(
     event: ethers.Log,
     chainId: number,
+    signer: Signer,
     provider: JsonRpcApiProvider
   ): Promise<any> {
     const decodedEventData = await this.getEventData(
@@ -542,11 +647,8 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
     const payer = decodedEventData.args[1].toString()
     INDEXER_LOGGER.logMessage(`Processed reused order at ${timestamp}`, true)
 
-    const datatokenContract = new Contract(
-      event.address,
-      ERC20Template.abi,
-      await provider.getSigner()
-    )
+    const datatokenContract = getDtContract(signer, event.address)
+
     const nftAddress = await datatokenContract.getERC721Address()
     const did =
       'did:op:' +

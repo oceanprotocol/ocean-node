@@ -18,7 +18,7 @@ import {
 // save any existing configuration before starting the tests
 const initialConfiguration: Map<string, OverrideEnvConfig> = getExistingEnvironment()
 let envOverrides: OverrideEnvConfig[] = []
-
+let initialSetupDone = false
 // if you want to override some variables, just use the
 // OverrideEnvConfig type and build an array to pass to setupEnvironment() (on before() function)
 // this function returns the new configuration together with any variables that were overrided
@@ -36,7 +36,7 @@ function getEnvOverrides(): OverrideEnvConfig[] {
     [
       'http://172.15.0.16:8080/',
       'https://arweave.net/',
-      '{ "1": {"rpc": "https://rpc.eth.gateway.fm", "chainId": 1, "network": "mainet", "chunkSize": 100}, "137": {"rpc": "https://polygon.meowrpc.com", "chainId": 137, "network": "polygon", "chunkSize": 100 }, "80001": {"rpc": "https://rpc-mumbai.maticvigil.com","chainId": 80001, "network": "polygon-mumbai", "chunkSize": 100 } }',
+      '{ "1": {"rpc": "https://rpc.eth.gateway.fm", "chainId": 1, "network": "mainet", "chunkSize": 100}, "137": {"rpc": "https://polygon.meowrpc.com", "chainId": 137, "network": "polygon", "chunkSize": 100 }}',
       '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
     ]
   )
@@ -52,6 +52,7 @@ export const mochaHooks = {
     setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides).then((overrides) => {
       envOverrides = overrides
     })
+    initialSetupDone = true
 
     // just in case the configuration value fails
     this.timeout(DEFAULT_TEST_TIMEOUT)
@@ -74,3 +75,12 @@ export const mochaHooks = {
     })
   }
 }
+// some test code might call getConfiguration() before the beforeAll() hook gets called (before actual tests)
+// if that happens we might not have any inital env vars yet, that are mandatory (like PRIVATE_KEY)
+// so we need to make sure that we have the basics in place
+async function doInitialSetup() {
+  if (!initialSetupDone) {
+    envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, getEnvOverrides())
+  }
+}
+await doInitialSetup()
