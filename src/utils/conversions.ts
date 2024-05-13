@@ -15,15 +15,6 @@ export function hexStringToByteArray(hexString: any) {
   return byteArray
 }
 
-export function stringToByteArray(data: string) {
-  const numBytes = data.length / 2
-  const byteArray = new Uint8Array(numBytes)
-  for (let i = 0; i < numBytes; i++) {
-    byteArray[i] = data.charCodeAt(i)
-  }
-  return byteArray
-}
-
 export async function cidFromRawString(data: string) {
   const hash = await sha256.digest(uint8ArrayFromString(data))
   const cid = CID.create(1, multiFormatRaw.code, hash)
