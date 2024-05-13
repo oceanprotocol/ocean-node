@@ -2,6 +2,7 @@ import { Handler } from './handler.js'
 import { EVENTS, MetadataStates, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { P2PCommandResponse, FindDDOResponse } from '../../../@types/index.js'
 import { Readable } from 'stream'
+import { decrypt, create256Hash } from '../../../utils/crypt.js'
 import {
   hasCachedDDO,
   sortFindDDOResults,
@@ -16,9 +17,12 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Blockchain } from '../../../utils/blockchain.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import { decrypt, create256Hash } from '../../../utils/crypt.js'
 import lzma from 'lzma-native'
-import { getValidationSignature, validateObject } from '../utils/validateDdoHandler.js'
+import {
+  getValidationSignature,
+  makeDid,
+  validateObject
+} from '../utils/validateDdoHandler.js'
 import { getConfiguration } from '../../../utils/config.js'
 import {
   GetDdoCommand,
@@ -307,6 +311,19 @@ export class DecryptDdoHandler extends Handler {
               httpStatus: 400,
               error: 'Decrypt DDO: Failed to lzma decompress'
             }
+          }
+        }
+      }
+
+      // did matches
+      const ddo = JSON.parse(decryptedDocument.toString())
+      if (ddo.id !== makeDid(dataNftAddress, chainId)) {
+        CORE_LOGGER.error(`Decrypted DDO ID is not matching the generated hash for DID.`)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: 'Decrypt DDO: did does not match'
           }
         }
       }
