@@ -87,7 +87,7 @@
     "node-cron": "^3.0.3",
     "rdf-dataset-ext": "^1.1.0",
     "rdf-utils-fs": "^3.0.0",
-    "rdflib": "^2.2.33",
+    "rdflib": "^2.2.35",
     "shacl-engine": "^0.1.2",
     "shacl-js": "^0.0.1",
     "sinon": "^17.0.1",

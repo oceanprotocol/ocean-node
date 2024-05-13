@@ -17,8 +17,9 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
 // import * as SHACL from 'shacl-js'
-import pkg2 from 'shacl-js'
-const { SHACLValidator } = pkg2
+// import pkg2 from 'shacl-js'
+// import { jsonParser } from 'rdflib'
+// const { SHACLValidator } = pkg2
 const { fromStream } = pkg
 // import { readFile } from 'node:fs/promises'
 // import { fromFile } from 'rdf-utils-fs'
@@ -96,6 +97,7 @@ export async function validateObject(
   CORE_LOGGER.logMessage(`Validating object: ` + JSON.stringify(obj), true)
   const ddoCopy = JSON.parse(JSON.stringify(obj))
   ddoCopy['@type'] = 'DDO'
+  ddoCopy['@context'] = { '@vocab': 'http://schema.org/' }
   const extraErrors: Record<string, string> = {}
   if (!('@context' in obj)) {
     extraErrors['@context'] = 'Context is missing.'
@@ -134,26 +136,14 @@ export async function validateObject(
   const dataset = rdfDataset.dataset()
   try {
     schemaDataset = await fromStream(schemaDataset, fromFile(schemaFilePath))
-    // quadsStream.on('data', (quad: Quad) => {
-    //   CORE_LOGGER.logMessage(`quad stream: ${JSON.stringify(quad)}`)
-    //   schemaDataset.add(quad)
-    // })
-    // CORE_LOGGER.logMessage(`Schema quads: ${JSON.stringify(schemaDataset)}`)
+    CORE_LOGGER.logMessage(`Schema quads: ${JSON.stringify(schemaDataset)}`)
     // // When the stream ends, log the dataset
     // quadsStream.on('end', () => {
-    // })
-    // const contents = await readFile(filename, { encoding: 'utf8' })
-    // CORE_LOGGER.logMessage(`filename to shacl schemas: ${filename}`)
-    // CORE_LOGGER.logMessage(`contents: ${JSON.stringify(contents)}`)
-    // const parser = new Parser()
-    // const quads = parser.parse(contents)
-    // quads.forEach((quad: Quad) => {
-    //   CORE_LOGGER.logMessage(`quad: ${JSON.stringify(quad)}`)
-    //   schemaDataset.add(quad)
     // })
   } catch (err) {
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
   }
+  const shapes: any[] = []
   Object.entries(ddoCopy).forEach(([key, value]) => {
     const subject = factory.namedNode(`http://example.org/ddo/${key}`)
     const predicate = factory.namedNode('http://example.org/ddo/property')
@@ -165,26 +155,30 @@ export async function validateObject(
       stringValue = value.toString()
     }
     const object = factory.literal(stringValue)
-    const valid = new SHACLValidator()
-    CORE_LOGGER.logMessage(`node validaor with new lib: ${valid}`)
-    CORE_LOGGER.logMessage(
-      `node validation with new lib: ${valid.prototype.validate(
-        JSON.stringify(ddoCopy),
-        'text/turtle',
-        shape,
-        'text/turtle'
-      )}`
-    )
-
+    // const valid = new SHACLValidator()
+    // CORE_LOGGER.logMessage(`node validaor with new lib: ${valid}`)
+    // CORE_LOGGER.logMessage(
+    //   `node validation with new lib: ${valid.prototype.validate(
+    //     JSON.stringify(ddoCopy),
+    //     'text/turtle',
+    //     shape,
+    //     'text/turtle'
+    //   )}`
+    // )
+    shapes.push(shape)
     dataset.add(factory.quad(subject, predicate, object))
   })
-  CORE_LOGGER.logMessage(`dataset after the update: ${JSON.stringify(dataset)}`)
+  CORE_LOGGER.logMessage(`shapes: ${shapes}`)
+  // const graph = new jsonParser()
+  // graph.parseJSON(ddoCopy, 'json-ld')
+  // CORE_LOGGER.logMessage(`dataset after the update: ${JSON.stringify(graph)}`)
   // create a validator instance for the shapes in the given dataset
   const validator = new shaclEngine.Validator(schemaDataset, {
     factory: rdfDataModel
   })
   // run the validation process
-  const report = await validator.validate({ dataset })
+  const report = await validator.validate(JSON.stringify(ddoCopy), shapes)
+  CORE_LOGGER.logMessage(`report: ${JSON.stringify(report)}`)
   if (!report) {
     const errorMsg = 'Validation report does not exist'
     CORE_LOGGER.logMessage(errorMsg, true)
