@@ -11,7 +11,6 @@ import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { checkSupportedChainId } from '../../../utils/blockchain.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
-import { OceanIndexer } from '../../Indexer/index.js'
 
 export class ReindexChainHandler extends AdminHandler {
   validate(command: AdminReindexChainCommand): ValidateParams {
@@ -36,7 +35,7 @@ export class ReindexChainHandler extends AdminHandler {
       )
     }
     try {
-      OceanIndexer.resetCrawling(task.chainId)
+      this.getOceanNode().getIndexer().resetCrawling(task.chainId)
       return {
         status: { httpStatus: 200 },
         stream: new ReadableString('REINDEXING CHAIN...')

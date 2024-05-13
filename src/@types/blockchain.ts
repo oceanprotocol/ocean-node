@@ -3,6 +3,7 @@ export interface SupportedNetwork {
   rpc: string
   network?: string
   chunkSize?: number
+  startBlock?: number
   fallbackRPCs?: string[]
 }
 

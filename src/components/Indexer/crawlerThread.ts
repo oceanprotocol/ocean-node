@@ -11,7 +11,7 @@ import { Blockchain } from '../../utils/blockchain.js'
 import { BlocksEvents, SupportedNetwork } from '../../@types/blockchain.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { sleep } from '../../utils/util.js'
-import { EVENTS } from '../../utils/index.js'
+import { EVENTS, INDEXER_CRAWLING_EVENTS } from '../../utils/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getDatabase } from '../../utils/database.js'
 import { JsonRpcApiProvider, Log, Signer } from 'ethers'
@@ -24,6 +24,8 @@ export interface ReindexTask {
 
 let REINDEX_BLOCK: number = null
 const REINDEX_QUEUE: ReindexTask[] = []
+
+let stopCrawling: boolean = false
 
 interface ThreadData {
   rpcDetails: SupportedNetwork
@@ -64,9 +66,9 @@ async function getLastIndexedBlock(): Promise<number> {
 async function deleteAllAssetsFromChain(): Promise<number> {
   const { ddo } = await getDatabase()
   try {
-    const res = await ddo.deleteAllAssetsFromChain(rpcDetails.chainId)
-    INDEXER_LOGGER.logMessage(`Assets successfully deleted.`)
-    return res.num_deleted
+    const numDeleted = await ddo.deleteAllAssetsFromChain(rpcDetails.chainId)
+    INDEXER_LOGGER.logMessage(`${numDeleted} Assets were successfully deleted.`)
+    return numDeleted
   } catch (err) {
     INDEXER_LOGGER.error(`Error deleting all assets: ${err}`)
     return -1
@@ -77,34 +79,51 @@ export async function processNetworkData(
   provider: JsonRpcApiProvider,
   signer: Signer
 ): Promise<void> {
-  const deployedBlock = getDeployedContractBlock(rpcDetails.chainId)
-  if (deployedBlock == null && (await getLastIndexedBlock()) == null) {
+  stopCrawling = false
+  const contractDeploymentBlock = getDeployedContractBlock(rpcDetails.chainId)
+  if (contractDeploymentBlock == null && (await getLastIndexedBlock()) == null) {
     INDEXER_LOGGER.logMessage(
       `chain: ${rpcDetails.chainId} Both deployed block and last indexed block are null. Cannot proceed further on this chain`,
       true
     )
     return null
   }
+  // if we defined a valid startBlock use it, oterwise start from deployed one
+  const crawlingStartBlock =
+    rpcDetails.startBlock && rpcDetails.startBlock > contractDeploymentBlock
+      ? rpcDetails.startBlock
+      : contractDeploymentBlock
 
   // we can override the default value of 30 secs, by setting process.env.INDEXER_INTERVAL
   const interval = getCrawlingInterval()
   let { chunkSize } = rpcDetails
   let lockProccessing = false
+  let startedCrawling = false
   while (true) {
     let currentBlock
     if (!lockProccessing) {
       lockProccessing = true
-      const indexedBlock = await getLastIndexedBlock()
+      const lastIndexedBlock = await getLastIndexedBlock()
       const networkHeight = await getNetworkHeight(provider)
 
       const startBlock =
-        indexedBlock && indexedBlock > deployedBlock ? indexedBlock : deployedBlock
+        lastIndexedBlock && lastIndexedBlock > crawlingStartBlock
+          ? lastIndexedBlock
+          : crawlingStartBlock
 
       INDEXER_LOGGER.logMessage(
         `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`,
         true
       )
       if (networkHeight > startBlock) {
+        // emit an one shot event when we actually start the crawling process
+        if (!startedCrawling) {
+          startedCrawling = true
+          parentPort.postMessage({
+            method: INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED,
+            data: { startBlock, networkHeight, contractDeploymentBlock }
+          })
+        }
         const remainingBlocks = networkHeight - startBlock
         const blocksToProcess = Math.min(chunkSize, remainingBlocks)
         INDEXER_LOGGER.logMessage(
@@ -140,8 +159,11 @@ export async function processNetworkData(
             startBlock,
             blocksToProcess
           )
-          await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
-          currentBlock = processedBlocks.lastBlock
+          currentBlock = await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
+          // we can't just update currentBlock to processedBlocks.lastBlock if the DB action failed
+          if (currentBlock < 0 && lastIndexedBlock !== null) {
+            currentBlock = lastIndexedBlock
+          }
           checkNewlyIndexedAssets(processedBlocks.foundEvents)
           chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
         } catch (error) {
@@ -157,7 +179,7 @@ export async function processNetworkData(
       lockProccessing = false
     } else {
       INDEXER_LOGGER.logMessage(
-        `Processing already in progress for network ${rpcDetails.network} waiting untill finishing the current processing ...`,
+        `Processing already in progress for network ${rpcDetails.network}, waiting until finishing the current processing ...`,
         true
       )
     }
@@ -165,6 +187,11 @@ export async function processNetworkData(
     // reindex chain command called
     if (REINDEX_BLOCK && !lockProccessing) {
       await reindexChain(currentBlock)
+    }
+
+    if (stopCrawling) {
+      INDEXER_LOGGER.logMessage('Exiting thread...')
+      break
     }
   }
 }
@@ -200,7 +227,7 @@ async function processReindex(
         await processChunkLogs(logs, signer, provider, chainId)
         // clear from the 'top' queue
         parentPort.postMessage({
-          method: 'popFromQueue',
+          method: INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP,
           data: reindexTask
         })
       } else {
@@ -297,6 +324,14 @@ parentPort.on('message', (message) => {
     }
   }
   if (message.method === 'reset-crawling') {
-    REINDEX_BLOCK = getDeployedContractBlock(rpcDetails.chainId)
+    const deployBlock = getDeployedContractBlock(rpcDetails.chainId)
+    REINDEX_BLOCK =
+      rpcDetails.startBlock && rpcDetails.startBlock >= deployBlock
+        ? rpcDetails.startBlock
+        : deployBlock
+  }
+  if (message.method === 'stop-crawling') {
+    stopCrawling = true
+    INDEXER_LOGGER.warn('Stopping crawler thread once current run finishes...')
   }
 })
