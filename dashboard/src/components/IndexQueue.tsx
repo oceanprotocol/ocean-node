@@ -12,8 +12,6 @@ interface QueueItem {
   chainId: string
 }
 
-const rpcs = JSON.parse(process.env.RPCS || '{}')
-
 export default function IndexQueue() {
   const [queue, setQueue] = useState<QueueItem[]>([])
 
@@ -24,7 +22,7 @@ export default function IndexQueue() {
         .then((data) => {
           const transformedQueue = data.queue.map((item: any) => ({
             txId: item.txId,
-            chainId: rpcs[item.chainId]?.network || item.chainId
+            chainId: item.chainId
           }))
           setQueue(transformedQueue)
         })
