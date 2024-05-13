@@ -10,7 +10,7 @@ import {
 } from '../../utils/logging/Logger.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { validateObject } from '../core/utils/validateDdoHandler.js'
-import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES, TYPESENSE_HITS_CAP } from '../../utils/constants.js'
 
 export class OrderDatabase {
   private provider: Typesense
@@ -51,7 +51,9 @@ export class OrderDatabase {
       if (!queryObj.q || !queryObj.query_by) {
         throw new Error("The query object must include 'q' and 'query_by' properties.")
       }
-      const maxPerPage = maxResultsPerPage ? Math.min(maxResultsPerPage, 250) : 250 // Cap maxResultsPerPage at 250
+      const maxPerPage = maxResultsPerPage
+        ? Math.min(maxResultsPerPage, TYPESENSE_HITS_CAP)
+        : TYPESENSE_HITS_CAP // Cap maxResultsPerPage at 250
       const page = pageNumber || 1 // Default to the first page if pageNumber is not provided
 
       // Modify the query to include pagination parameters
@@ -399,7 +401,9 @@ export class DdoDatabase {
         queryObj = query as TypesenseSearchParams
       }
 
-      const maxPerPage = maxResultsPerPage ? Math.min(maxResultsPerPage, 250) : 250 // Cap maxResultsPerPage at 250
+      const maxPerPage = maxResultsPerPage
+        ? Math.min(maxResultsPerPage, TYPESENSE_HITS_CAP)
+        : TYPESENSE_HITS_CAP // Cap maxResultsPerPage at 250
       const page = pageNumber || 1 // Default to the first page if pageNumber is not provided
       const results = []
 
@@ -567,7 +571,7 @@ export class DdoDatabase {
     }
   }
 
-  async deleteAllAssetsFromChain(chainId: number) {
+  async deleteAllAssetsFromChain(chainId: number, batchSize?: number) {
     for (const schema of this.schemas) {
       try {
         const response = await this.provider
@@ -888,9 +892,8 @@ export class LogDatabase {
         filterConditions += ` && level:${level}`
       }
 
-      // Cap maxLogs at 250 to adhere to Typesense's maximum limit
-      const logsLimit = Math.min(maxLogs, 250)
-      if (maxLogs > 250) {
+      const logsLimit = Math.min(maxLogs, TYPESENSE_HITS_CAP)
+      if (maxLogs > TYPESENSE_HITS_CAP) {
         DATABASE_LOGGER.logMessageWithEmoji(
           `Max logs is capped at 250 as Typesense is unable to return more results per page.`,
           true,
