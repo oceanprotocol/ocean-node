@@ -14,7 +14,7 @@
     "build:no-dashboard": "npm run clean && npm run build:tsc",
     "build:tsc": "tsc --sourceMap",
     "build-tests:tsc": "tsc --sourceMap --sourceRoot ./src/test && cp ./src/test/.env.test ./dist/test",
-    "build:dashboard": "cd dashboard && npm install && npx next build",
+    "build:dashboard": "cd dashboard && npm install && npx next build && rm -rf node_modules",
     "client": "mkdir -p ./dist/helpers/scripts/output && node dist/helpers/scripts/clientExample.js",
     "clean": "rm -rf ./dist/ ./doc/ ./.nyc_output",
     "build-tests": "rm -rf ./dist/test && npm run build-tests:tsc",
