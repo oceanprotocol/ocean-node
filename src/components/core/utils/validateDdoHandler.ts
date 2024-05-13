@@ -149,7 +149,7 @@ export async function validateObject(
   //   schemaDataset.add(factory.quad(subject, predicate, object))
   // })
   const dataGraph = graph()
-  jsonParser.parseJSON(ddoCopy, schemaDataset, dataGraph)
+  jsonParser.parseJSON(ddoCopy, {}, dataGraph)
   CORE_LOGGER.logMessage(`data graph: ${dataGraph}`)
   // const shapes = parser.parse(readFileSync(schemaFilePath).toString()) as DatasetCore
   // parse(
