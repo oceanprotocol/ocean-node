@@ -2,9 +2,6 @@
 require('dotenv').config()
 
 const nextConfig = {
-  env: {
-    RPCS: process.env.RPCS || '{}'
-  },
   reactStrictMode: true,
   images: {
     unoptimized: true

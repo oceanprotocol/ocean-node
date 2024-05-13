@@ -37,7 +37,7 @@ export default function ReIndexTransaction() {
           )
           setShowChainInput(false)
         } else {
-          alert('Error reindexing chain. Please try again.')
+          alert('Error reindexing transaction. Please try again.')
         }
       }
     } catch (error) {
