@@ -16,7 +16,8 @@ import pkg from 'rdf-dataset-ext'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
-import * as SHACL from 'shacl-js'
+// import * as SHACL from 'shacl-js'
+import { SHACLValidator } from 'shacl-js'
 const { fromStream } = pkg
 // import { readFile } from 'node:fs/promises'
 // import { fromFile } from 'rdf-utils-fs'
@@ -163,7 +164,7 @@ export async function validateObject(
       stringValue = value.toString()
     }
     const object = factory.literal(stringValue)
-    const valid = new SHACL.SHACLValidator()
+    const valid = new SHACLValidator()
     CORE_LOGGER.logMessage(`node validaor with new lib: ${valid}`)
     CORE_LOGGER.logMessage(
       `node validation with new lib: ${valid.prototype.validate(
