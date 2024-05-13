@@ -11,11 +11,36 @@ interface QueueItem {
   txId: string
   chainId: string
 }
-// TODO: remove
-const rpcs = JSON.parse(process.env.RPCS || '{}')
 
 export default function IndexQueue() {
   const [queue, setQueue] = useState<QueueItem[]>([])
+  const [rpcs, setRPCs] = useState<any>({})
+
+  useEffect(() => {
+    const getStatus = () => {
+      fetch('/directCommand', {
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
+        },
+        method: 'POST',
+        body: JSON.stringify({
+          command: 'status'
+        })
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          const rpcData: any = {}
+          if (data.indexer) {
+            for (const item of data.indexer) {
+              rpcData[item.chainId] = { chainId: item.chainId, network: item.network }
+            }
+          }
+          setRPCs(rpcData)
+        })
+    }
+    getStatus()
+  }, [])
 
   useEffect(() => {
     const fetchQueue = () => {
@@ -43,7 +68,7 @@ export default function IndexQueue() {
     return () => {
       clearInterval(intervalId) // Clear interval on component unmount
     }
-  }, [])
+  }, [rpcs])
 
   return (
     <div>
