@@ -17,7 +17,8 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
 // import * as SHACL from 'shacl-js'
-import { SHACLValidator } from 'shacl-js'
+import pkg2 from 'shacl-js'
+const { SHACLValidator } = pkg2
 const { fromStream } = pkg
 // import { readFile } from 'node:fs/promises'
 // import { fromFile } from 'rdf-utils-fs'
