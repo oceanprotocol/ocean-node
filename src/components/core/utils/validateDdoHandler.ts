@@ -163,8 +163,10 @@ export async function validateObject(
       stringValue = value.toString()
     }
     const object = factory.literal(stringValue)
+    const valid = new SHACL.Validator()
+    CORE_LOGGER.logMessage(`node validaor with new lib: ${valid}`)
     CORE_LOGGER.logMessage(
-      `node validation with new lib: ${SHACL.nodeConformsToShape(subject, shape)}`
+      `node validation with new lib: ${valid.nodeConformsToShape(subject, shape)}`
     )
 
     dataset.add(factory.quad(subject, predicate, object))
