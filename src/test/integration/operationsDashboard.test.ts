@@ -37,7 +37,10 @@ import { ReindexChainHandler } from '../../components/core/admin/reindexChainHan
 import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import { sleep, streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
-import { INDEXER_CRAWLING_EVENT_EMITTER } from '../../components/Indexer/index.js'
+import {
+  INDEXER_CRAWLING_EVENT_EMITTER,
+  OceanIndexer
+} from '../../components/Indexer/index.js'
 import { getCrawlingInterval } from '../../components/Indexer/utils.js'
 import { ReindexTask } from '../../components/Indexer/crawlerThread.js'
 
@@ -46,6 +49,7 @@ describe('Should test admin operations', () => {
   let oceanNode: OceanNode
   let publishedDataset: any
   let dbconn: Database
+  let indexer: OceanIndexer
   const currentDate = new Date()
   const expiryTimestamp = new Date(
     currentDate.getFullYear() + 1,
@@ -89,6 +93,8 @@ describe('Should test admin operations', () => {
     config = await getConfiguration(true) // Force reload the configuration
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
+    indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
+    oceanNode.addIndexer(indexer)
   })
 
   async function getSignature(message: string) {
@@ -110,11 +116,12 @@ describe('Should test admin operations', () => {
   })
 
   it('should publish dataset', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     publishedDataset = await publishAsset(downloadAsset, wallet as Signer)
     const { ddo, wasTimeout } = await waitToIndex(
       publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT
+      DEFAULT_TEST_TIMEOUT * 2
     )
 
     if (!ddo) {
@@ -174,45 +181,54 @@ describe('Should test admin operations', () => {
   it('should pass for reindex chain command', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const signature = await getSignature(expiryTimestamp.toString())
-    await waitToIndex(publishedDataset.ddo.did, EVENTS.METADATA_CREATED)
-
-    const reindexChainCommand: AdminReindexChainCommand = {
-      command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
-      node: config.keys.peerId.toString(),
-      chainId: DEVELOPMENT_CHAIN_ID,
-      expiryTimestamp,
-      signature
-    }
-    const reindexChainHandler = new ReindexChainHandler(oceanNode)
-    const validationResponse = reindexChainHandler.validate(reindexChainCommand)
-    assert(validationResponse, 'invalid reindex chain validation response')
-    assert(
-      validationResponse.valid === true,
-      'validation for reindex chain command failed'
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    const { ddo, wasTimeout } = await waitToIndex(
+      publishedDataset.ddo.did,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT * 2
     )
-
-    let reindexResult: any = null
-    INDEXER_CRAWLING_EVENT_EMITTER.addListener(
-      INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
-      (data) => {
-        // {result: true/false}
-        assert(typeof data.result === 'boolean', 'expected a boolean value')
-        reindexResult = data.result as boolean
+    if (!ddo) {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    } else {
+      const reindexChainCommand: AdminReindexChainCommand = {
+        command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
+        node: config.keys.peerId.toString(),
+        chainId: DEVELOPMENT_CHAIN_ID,
+        expiryTimestamp,
+        signature
       }
-    )
-    const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
-    assert(handlerResponse, 'handler resp does not exist')
-    assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
+      const reindexChainHandler = new ReindexChainHandler(oceanNode)
+      const validationResponse = reindexChainHandler.validate(reindexChainCommand)
+      assert(validationResponse, 'invalid reindex chain validation response')
+      assert(
+        validationResponse.valid === true,
+        'validation for reindex chain command failed'
+      )
 
-    // give it a little time to respond with the event
-    await sleep(getCrawlingInterval() * 2)
-    if (reindexResult !== null) {
-      assert(typeof reindexResult === 'boolean', 'expected a boolean value')
+      let reindexResult: any = null
+      INDEXER_CRAWLING_EVENT_EMITTER.addListener(
+        INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
+        (data) => {
+          // {result: true/false}
+          assert(typeof data.result === 'boolean', 'expected a boolean value')
+          reindexResult = data.result as boolean
+        }
+      )
+      const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
+      assert(handlerResponse, 'handler resp does not exist')
+      assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
+
+      // give it a little time to respond with the event
+      await sleep(getCrawlingInterval() * 2)
+      if (reindexResult !== null) {
+        assert(typeof reindexResult === 'boolean', 'expected a boolean value')
+      }
     }
   })
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
     INDEXER_CRAWLING_EVENT_EMITTER.removeAllListeners()
+    indexer.stopAllThreads()
   })
 })

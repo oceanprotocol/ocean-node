@@ -1,4 +1,4 @@
-import { SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Command } from '../../@types/commands.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
@@ -38,9 +38,13 @@ export function validateCommandParameters(
     return buildInvalidRequestMessage(`Invalid or unrecognized command: "${commandStr}"`)
   }
 
+  const logCommandData = commandData
+  if (commandStr === PROTOCOL_COMMANDS.ENCRYPT) {
+    logCommandData.files = [] // hide files data for logging
+  }
   CORE_LOGGER.info(
     `Checking received command data for Command "${commandStr}": ${JSON.stringify(
-      commandData,
+      logCommandData,
       null,
       4
     )}`

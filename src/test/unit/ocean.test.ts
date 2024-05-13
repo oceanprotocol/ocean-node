@@ -40,9 +40,10 @@ describe('Status command tests', async () => {
   const oceanProvider = new OceanProvider(db)
   const oceanNode = OceanNode.getInstance(db, oceanP2P)
 
-  after(() => {
+  after(async () => {
     // Restore original local setup / env variables after test
-    tearDownEnvironment(envOverrides)
+    await tearDownEnvironment(envOverrides)
+    oceanIndexer.stopAllThreads()
   })
 
   it('Ocean Node instance', () => {
