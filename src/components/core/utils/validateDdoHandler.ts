@@ -167,7 +167,7 @@ export async function validateObject(
     shapes.push(shape)
     dataset.add(factory.quad(subject, predicate, object))
   })
-  CORE_LOGGER.logMessage(`shapes: ${shapes}`)
+  CORE_LOGGER.logMessage(`shapes: ${shapes}, first: ${JSON.stringify(shapes[0])}`)
   // const graph = new jsonParser()
   // graph.parseJSON(ddoCopy, 'json-ld')
   // CORE_LOGGER.logMessage(`dataset after the update: ${JSON.stringify(graph)}`)
