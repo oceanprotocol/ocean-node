@@ -1,11 +1,9 @@
 // eslint-disable-next-line import/no-duplicates
 import rdfDataModel from '@rdfjs/data-model'
 // eslint-disable-next-line import/no-duplicates
-import factory from '@rdfjs/data-model'
 import rdfDataset from '@rdfjs/dataset'
 import toNT from '@rdfjs/to-ntriples'
-// import { Parser, Quad } from 'n3'
-import { fromFile } from 'rdf-utils-fs'
+// import { Parser } from 'n3'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
 // @ts-ignore
@@ -16,18 +14,12 @@ import pkg from 'rdf-dataset-ext'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
-// import * as SHACL from 'shacl-js'
-// import pkg2 from 'shacl-js'
-// import { jsonParser } from 'rdflib'
-// const { SHACLValidator } = pkg2
+// import SHACLValidator from 'rdf-validate-shacl'
+// import { readFileSync } from 'fs'
+// import { DatasetCore } from '@rdfjs/types'
+import { graph, jsonParser } from 'rdflib'
+import fromFile from 'rdf-utils-fs/fromFile.js'
 const { fromStream } = pkg
-// import { readFile } from 'node:fs/promises'
-// import { fromFile } from 'rdf-utils-fs'
-// // eslint-disable-next-line import/no-duplicates
-// import factory from '@rdfjs/data-model'
-// // import { fromStream } from 'rdf-dataset-ext'
-// import pkg from 'rdf-dataset-ext'
-// const { fromStream } = pkg
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
@@ -132,9 +124,10 @@ export async function validateObject(
   const version = obj.version || CURRENT_VERSION
   const schemaFilePath = getSchema(version)
   // const filename = new URL(schemaFilePath, import.meta.url)
-  let dataset = rdfDataset.dataset()
+  let schemaDataset = rdfDataset.dataset()
+  const dataset = rdfDataset.dataset()
   try {
-    dataset = await fromStream(dataset, fromFile(schemaFilePath))
+    schemaDataset = await fromStream(dataset, fromFile(schemaFilePath))
     CORE_LOGGER.logMessage(`Schema quads: ${JSON.stringify(dataset)}`)
     // // When the stream ends, log the dataset
     // quadsStream.on('end', () => {
@@ -142,41 +135,42 @@ export async function validateObject(
   } catch (err) {
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
   }
-  const shapes: any[] = []
-  Object.entries(ddoCopy).forEach(([key, value]) => {
-    const subject = factory.namedNode(`http://example.org/ddo/${key}`)
-    const predicate = factory.namedNode('http://example.org/ddo/property')
-    const shape = factory.namedNode('http://example.org/ddo/shape')
-    let stringValue = ''
-    if (typeof value === 'object') {
-      stringValue = JSON.stringify(value)
-    } else {
-      stringValue = value.toString()
-    }
-    const object = factory.literal(stringValue)
-    // const valid = new SHACLValidator()
-    // CORE_LOGGER.logMessage(`node validaor with new lib: ${valid}`)
-    // CORE_LOGGER.logMessage(
-    //   `node validation with new lib: ${valid.prototype.validate(
-    //     JSON.stringify(ddoCopy),
-    //     'text/turtle',
-    //     shape,
-    //     'text/turtle'
-    //   )}`
-    // )
-    shapes.push(shape)
-    dataset.add(factory.quad(subject, predicate, object))
-  })
-  CORE_LOGGER.logMessage(`shapes: ${shapes}, first: ${JSON.stringify(shapes[0])}`)
-  // const graph = new jsonParser()
-  // graph.parseJSON(ddoCopy, 'json-ld')
-  // CORE_LOGGER.logMessage(`dataset after the update: ${JSON.stringify(graph)}`)
-  // create a validator instance for the shapes in the given dataset
+  // const shapes: DatasetCore<Quad, Quad>[] = []
+  // Object.entries(ddoCopy).forEach(([key, value]) => {
+  //   const subject = factory.namedNode(`http://example.org/ddo/${key}`)
+  //   const predicate = factory.namedNode('http://example.org/ddo/property')
+  //   let stringValue = ''
+  //   if (typeof value === 'object') {
+  //     stringValue = JSON.stringify(value)
+  //   } else {
+  //     stringValue = value.toString()
+  //   }
+  //   const object = factory.literal(stringValue)
+  //   schemaDataset.add(factory.quad(subject, predicate, object))
+  // })
+  const dataGraph = graph()
+  jsonParser.parseJSON(ddoCopy, schemaDataset, dataGraph)
+  CORE_LOGGER.logMessage(`data graph: ${dataGraph}`)
+  // const shapes = parser.parse(readFileSync(schemaFilePath).toString()) as DatasetCore
+  // parse(
+  //   ,
+  //   store,
+  //   'http://schema.org/',
+  //   'text/turtle'
+  // )
+  // Process the query results
+  // CORE_LOGGER.logMessage(`shapes: ${shapesResult}, first: ${JSON.stringify(shapes[0])}`)
+
   const validator = new shaclEngine.Validator(dataset, {
     factory: rdfDataModel
   })
+
+  // Validate the data against the schema
+  // const validator = new SHACLValidator(shapes)
+  // const report = validator.validate(ddoCopy, shapes)
+
   // run the validation process
-  const report = await validator.validate({ dataset }, shapes)
+  const report = await validator.validate({ dataset })
   CORE_LOGGER.logMessage(`report: ${JSON.stringify(report)}`)
   if (!report) {
     const errorMsg = 'Validation report does not exist'
