@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react'
-import Table from '@mui/material/Table'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableContainer from '@mui/material/TableContainer'
-import TableHead from '@mui/material/TableHead'
-import TableRow from '@mui/material/TableRow'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow
+} from '@mui/material'
 import styles from './Dashboard/index.module.css'
 
 interface QueueItem {
@@ -45,7 +47,12 @@ export default function IndexQueue() {
 
   return (
     <div>
-      <div className={styles.title24}>Indexing Queue</div>
+      <div
+        className={styles.title24}
+        style={{ paddingTop: '55px', paddingBottom: '55px' }}
+      >
+        Indexing Queue
+      </div>
       {queue.length > 0 ? (
         <TableContainer>
           <Table aria-label="simple table">
