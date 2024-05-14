@@ -23,7 +23,8 @@ import { getProviderWallet } from './feesHandler.js'
 import factory from '@rdfjs/data-model'
 // import fromFile from 'rdf-utils-fs/fromFile.js'
 // const { fromStream } = pkg
-import { expand, flatten, toRDF } from 'jsonld'
+import pkg from 'jsonld'
+const { expand, flatten, toRDF } = pkg
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
