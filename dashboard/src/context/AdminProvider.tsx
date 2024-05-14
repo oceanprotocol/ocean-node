@@ -11,6 +11,11 @@ import {
 import { useAccount, useSignMessage } from 'wagmi'
 import { verifyMessage } from 'ethers'
 
+interface network {
+  chainId: number
+  network: string
+}
+
 interface AdminContextType {
   admin: boolean
   setAdmin: Dispatch<SetStateAction<boolean>>
@@ -23,6 +28,8 @@ interface AdminContextType {
   setSignature: Dispatch<SetStateAction<string | undefined>>
   validTimestamp: boolean
   setValidTimestamp: Dispatch<SetStateAction<boolean>>
+  networks: network[]
+  setNetworks: Dispatch<SetStateAction<network[]>>
 }
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined)
@@ -37,6 +44,7 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
   const [expiryTimestamp, setExpiryTimestamp] = useState<number | undefined>()
   const [signature, setSignature] = useState<string | undefined>()
   const [validTimestamp, setValidTimestamp] = useState<boolean>(true)
+  const [networks, setNetworks] = useState<network[]>([])
 
   // Ensure signature and expiry are cleared when the account is changed or disconnected
   useEffect(() => {
@@ -117,7 +125,9 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
     signature,
     setSignature,
     validTimestamp,
-    setValidTimestamp
+    setValidTimestamp,
+    networks,
+    setNetworks
   }
 
   // Update admin status based on current address
