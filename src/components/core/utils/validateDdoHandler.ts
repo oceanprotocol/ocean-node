@@ -3,7 +3,7 @@ import rdfDataModel from '@rdfjs/data-model'
 // eslint-disable-next-line import/no-duplicates
 import rdfDataset from '@rdfjs/dataset'
 import toNT from '@rdfjs/to-ntriples'
-import { Parser, Quad } from 'n3'
+import { Parser, Quad, Store } from 'n3'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
 import { readFile } from 'node:fs/promises'
@@ -23,6 +23,7 @@ import { getProviderWallet } from './feesHandler.js'
 import factory from '@rdfjs/data-model'
 // import fromFile from 'rdf-utils-fs/fromFile.js'
 // const { fromStream } = pkg
+import * as jsonld from 'jsonld'
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
@@ -153,12 +154,12 @@ export async function validateObject(
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
   }
 
-  const jsonParser = new Parser({ format: 'application/ld+json' })
-  const quadsDdo = jsonParser.parse(JSON.stringify(ddoCopy))
-  quadsDdo.forEach((quad: Quad) => {
-    CORE_LOGGER.logMessage(`quad ddo: ${JSON.stringify(quad)}`)
-    dataset.add(quad)
-  })
+  const expanded = await jsonld.expand(ddoCopy)
+  const flattened = await jsonld.flatten(expanded)
+  const nquads = await jsonld.toRDF(flattened, { format: 'application/n-quads' })
+  CORE_LOGGER.logMessage(`nquads: ${JSON.stringify(nquads)}`)
+  // const ddoStore = new Store()
+  // ddoStore.addQuads(nquads)
 
   Object.entries(ddoCopy).forEach(([key, value]) => {
     CORE_LOGGER.logMessage(`key value: ${key} ${JSON.stringify(value)}`)

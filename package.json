@@ -81,6 +81,7 @@
     "express": "^4.18.2",
     "hyperdiff": "^2.0.16",
     "it-pipe": "^3.0.1",
+    "jsonld": "^8.3.2",
     "jsonld-streaming-parser": "^3.4.0",
     "libp2p": "^1.0.10",
     "lodash.clonedeep": "^4.5.0",
