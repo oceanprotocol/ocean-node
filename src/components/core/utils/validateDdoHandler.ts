@@ -3,23 +3,26 @@ import rdfDataModel from '@rdfjs/data-model'
 // eslint-disable-next-line import/no-duplicates
 import rdfDataset from '@rdfjs/dataset'
 import toNT from '@rdfjs/to-ntriples'
-// import { Parser } from 'n3'
+import { Parser, Quad } from 'n3'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
+import { readFile } from 'node:fs/promises'
 // @ts-ignore
 import * as shaclEngine from 'shacl-engine'
 import { createHash } from 'crypto'
 import { ethers, getAddress } from 'ethers'
-import pkg from 'rdf-dataset-ext'
+// import pkg from 'rdf-dataset-ext'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
 // import SHACLValidator from 'rdf-validate-shacl'
 // import { readFileSync } from 'fs'
 // import { DatasetCore } from '@rdfjs/types'
-import { graph, jsonParser } from 'rdflib'
-import fromFile from 'rdf-utils-fs/fromFile.js'
-const { fromStream } = pkg
+// import { graph, jsonParser } from 'rdflib'
+// eslint-disable-next-line import/no-duplicates
+import factory from '@rdfjs/data-model'
+// import fromFile from 'rdf-utils-fs/fromFile.js'
+// const { fromStream } = pkg
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
@@ -124,10 +127,16 @@ export async function validateObject(
   const version = obj.version || CURRENT_VERSION
   const schemaFilePath = getSchema(version)
   // const filename = new URL(schemaFilePath, import.meta.url)
-  let schemaDataset = rdfDataset.dataset()
+  const schemaDataset = rdfDataset.dataset()
   const dataset = rdfDataset.dataset()
   try {
-    schemaDataset = await fromStream(dataset, fromFile(schemaFilePath))
+    const contents = await readFile(schemaFilePath, { encoding: 'utf8' })
+    const parser = new Parser()
+    const quads = parser.parse(contents)
+    quads.forEach((quad: Quad) => {
+      CORE_LOGGER.logMessage(`quad: ${JSON.stringify(quad)}`)
+      schemaDataset.add(quad)
+    })
     CORE_LOGGER.logMessage(`Schema quads: ${JSON.stringify(dataset)}`)
     // // When the stream ends, log the dataset
     // quadsStream.on('end', () => {
@@ -135,22 +144,31 @@ export async function validateObject(
   } catch (err) {
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
   }
-  // const shapes: DatasetCore<Quad, Quad>[] = []
-  // Object.entries(ddoCopy).forEach(([key, value]) => {
-  //   const subject = factory.namedNode(`http://example.org/ddo/${key}`)
-  //   const predicate = factory.namedNode('http://example.org/ddo/property')
-  //   let stringValue = ''
-  //   if (typeof value === 'object') {
-  //     stringValue = JSON.stringify(value)
-  //   } else {
-  //     stringValue = value.toString()
-  //   }
-  //   const object = factory.literal(stringValue)
-  //   schemaDataset.add(factory.quad(subject, predicate, object))
+  Object.entries(ddoCopy).forEach(([key, value]) => {
+    CORE_LOGGER.logMessage(`key value: ${key} ${JSON.stringify(value)}`)
+    const subject = factory.namedNode(`http://example.org/ddo/${key}`)
+    const predicate = factory.namedNode('http://example.org/ddo/property')
+    let stringValue = ''
+    if (typeof value === 'object') {
+      stringValue = JSON.stringify(value)
+    } else {
+      stringValue = value.toString()
+    }
+    const object = factory.literal(stringValue)
+    dataset.add(factory.quad(subject, predicate, object))
+  })
+  CORE_LOGGER.logMessage(`dataset after the update: ${JSON.stringify(dataset)}`)
+  // create a validator instance for the shapes in the given dataset
+  // const validator = new shaclEngine.Validator(schemaDataset, {
+  //   factory: rdfDataModel
   // })
-  const dataGraph = graph()
-  jsonParser.parseJSON(ddoCopy, {}, dataGraph)
-  CORE_LOGGER.logMessage(`data graph: ${dataGraph}`)
+  // CORE_LOGGER.logMessage(`validator: ${JSON.stringify(validator)}`)
+  // run the validation process
+  // const report = await validator.validate({ dataset })
+  // CORE_LOGGER.logMessage(`report: ${JSON.stringify(report)}`)
+  // const dataGraph = graph()
+  // jsonParser.parseJSON(ddoCopy, {}, dataGraph)
+  // CORE_LOGGER.logMessage(`data graph: ${dataGraph}`)
   // const shapes = parser.parse(readFileSync(schemaFilePath).toString()) as DatasetCore
   // parse(
   //   ,
