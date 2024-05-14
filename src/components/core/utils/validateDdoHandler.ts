@@ -144,7 +144,7 @@ export async function validateObject(
     const parser = new Parser()
     const quads = parser.parse(contents)
     quads.forEach((quad: Quad) => {
-      CORE_LOGGER.logMessage(`quad: ${JSON.stringify(quad)}`)
+      // CORE_LOGGER.logMessage(`quad: ${JSON.stringify(quad)}`)
       schemaDataset.add(quad)
     })
     CORE_LOGGER.logMessage(`Schema quads: ${JSON.stringify(dataset)}`)
