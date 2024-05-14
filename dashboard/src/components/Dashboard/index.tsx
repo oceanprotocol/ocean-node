@@ -58,7 +58,7 @@ type NodeDataType = {
 export default function Dashboard() {
   const [data, setData] = useState<NodeDataType>()
   const [isLoading, setLoading] = useState(true)
-  const { setAllAdmins, allAdmins } = useAdminContext()
+  const { setAllAdmins, allAdmins, setNetworks } = useAdminContext()
 
   useEffect(() => {
     setLoading(true)
@@ -78,11 +78,12 @@ export default function Dashboard() {
         .then((data) => {
           setData(data)
           setAllAdmins(data.allowedAdmins)
+          setNetworks(data.indexer)
           setLoading(false)
         })
     } catch (error) {
       setLoading(false)
-      console.log('error', error)
+      console.error('error', error)
     }
   }, [])
 
