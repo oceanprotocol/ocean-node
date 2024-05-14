@@ -3,7 +3,7 @@ import rdfDataModel from '@rdfjs/data-model'
 // eslint-disable-next-line import/no-duplicates
 import rdfDataset from '@rdfjs/dataset'
 import toNT from '@rdfjs/to-ntriples'
-import { Parser, Quad, Store } from 'n3'
+import { Parser, Quad } from 'n3'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
 import { readFile } from 'node:fs/promises'
