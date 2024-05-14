@@ -84,6 +84,16 @@ export function makeDid(nftAddress: string, chainId: string): string {
   )
 }
 
+// Convert JSON-LD data to RDF quads
+// function convertJsonToRDFQuads(jsonData: any): Quad[] {
+//   const parser = new Parser({ format: 'application/ld+json' })
+//   const quads: Quad[] = []
+//   parser.parse(JSON.stringify(jsonData), (error, quad) => {
+//     if (quad) quads.push(quad)
+//   })
+//   return quads
+// }
+
 export async function validateObject(
   obj: Record<string, any>,
   chainId: number,
@@ -139,14 +149,16 @@ export async function validateObject(
     })
     CORE_LOGGER.logMessage(`Schema quads: ${JSON.stringify(dataset)}`)
     // // When the stream ends, log the dataset
-    const ddoQuads = parser.parse(JSON.stringify(ddoCopy))
-    ddoQuads.forEach((quad: Quad) => {
-      CORE_LOGGER.logMessage(`quad ddo: ${JSON.stringify(quad)}`)
-      dataset.add(quad)
-    })
   } catch (err) {
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
   }
+
+  const jsonParser = new Parser({ format: 'application/ld+json' })
+  const quadsDdo = jsonParser.parse(JSON.stringify(ddoCopy))
+  quadsDdo.forEach((quad: Quad) => {
+    CORE_LOGGER.logMessage(`quad ddo: ${JSON.stringify(quad)}`)
+    dataset.add(quad)
+  })
 
   Object.entries(ddoCopy).forEach(([key, value]) => {
     CORE_LOGGER.logMessage(`key value: ${key} ${JSON.stringify(value)}`)
@@ -162,34 +174,10 @@ export async function validateObject(
     dataset.add(factory.quad(subject, predicate, object))
   })
   CORE_LOGGER.logMessage(`dataset after the update: ${JSON.stringify(dataset)}`)
-  // create a validator instance for the shapes in the given dataset
-  // const validator = new shaclEngine.Validator(schemaDataset, {
-  //   factory: rdfDataModel
-  // })
-  // CORE_LOGGER.logMessage(`validator: ${JSON.stringify(validator)}`)
-  // run the validation process
-  // const report = await validator.validate({ dataset })
-  // CORE_LOGGER.logMessage(`report: ${JSON.stringify(report)}`)
-  // const dataGraph = graph()
-  // jsonParser.parseJSON(ddoCopy, {}, dataGraph)
-  // CORE_LOGGER.logMessage(`data graph: ${dataGraph}`)
-  // const shapes = parser.parse(readFileSync(schemaFilePath).toString()) as DatasetCore
-  // parse(
-  //   ,
-  //   store,
-  //   'http://schema.org/',
-  //   'text/turtle'
-  // )
-  // Process the query results
-  // CORE_LOGGER.logMessage(`shapes: ${shapesResult}, first: ${JSON.stringify(shapes[0])}`)
 
   const validator = new shaclEngine.Validator(dataset, {
     factory: rdfDataModel
   })
-
-  // Validate the data against the schema
-  // const validator = new SHACLValidator(shapes)
-  // const report = validator.validate(ddoCopy, shapes)
 
   // run the validation process
   const report = await validator.validate({ dataset })
