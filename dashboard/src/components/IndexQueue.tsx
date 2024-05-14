@@ -1,56 +1,38 @@
 import React, { useState, useEffect } from 'react'
-import Table from '@mui/material/Table'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableContainer from '@mui/material/TableContainer'
-import TableHead from '@mui/material/TableHead'
-import TableRow from '@mui/material/TableRow'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow
+} from '@mui/material'
 import styles from './Dashboard/index.module.css'
+import { useAdminContext } from '@/context/AdminProvider'
 
 interface QueueItem {
   txId: string
-  chainId: string
+  chainId: number
+  chain: string
 }
 
 export default function IndexQueue() {
   const [queue, setQueue] = useState<QueueItem[]>([])
-  const [rpcs, setRPCs] = useState<any>({})
-
-  useEffect(() => {
-    const getStatus = () => {
-      fetch('/directCommand', {
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json'
-        },
-        method: 'POST',
-        body: JSON.stringify({
-          command: 'status'
-        })
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          const rpcData: any = {}
-          if (data.indexer) {
-            for (const item of data.indexer) {
-              rpcData[item.chainId] = { chainId: item.chainId, network: item.network }
-            }
-          }
-          setRPCs(rpcData)
-        })
-    }
-    getStatus()
-  }, [])
+  const { networks } = useAdminContext()
 
   useEffect(() => {
     const fetchQueue = () => {
       fetch('/api/services/indexQueue')
         .then((response) => response.json())
         .then((data) => {
-          const transformedQueue = data.queue.map((item: any) => ({
-            txId: item.txId,
-            chainId: rpcs[item.chainId]?.network || item.chainId
-          }))
+          const transformedQueue = data.queue.map((item: any) => {
+            const network = networks.find((net) => net.chainId === item.chainId)
+            return {
+              txId: item.txId,
+              chainId: item.chainId,
+              chain: network ? network.network : 'Unknown Network'
+            }
+          })
           setQueue(transformedQueue)
         })
         .catch((error) => {
@@ -68,11 +50,16 @@ export default function IndexQueue() {
     return () => {
       clearInterval(intervalId) // Clear interval on component unmount
     }
-  }, [rpcs])
+  }, [])
 
   return (
     <div>
-      <div className={styles.title24}>Indexing Queue</div>
+      <div
+        className={styles.title24}
+        style={{ paddingTop: '55px', paddingBottom: '55px' }}
+      >
+        Indexing Queue
+      </div>
       {queue.length > 0 ? (
         <TableContainer>
           <Table aria-label="simple table">
@@ -92,7 +79,7 @@ export default function IndexQueue() {
                   <TableCell component="th" scope="row">
                     {item.txId}
                   </TableCell>
-                  <TableCell align="right">{item.chainId}</TableCell>
+                  <TableCell align="right">{item.chain}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

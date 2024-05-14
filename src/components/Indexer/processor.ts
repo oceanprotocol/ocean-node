@@ -5,6 +5,8 @@ import {
   ethers,
   getAddress,
   getBytes,
+  hexlify,
+  toUtf8Bytes,
   toUtf8String
 } from 'ethers'
 import { createHash } from 'crypto'
@@ -25,6 +27,7 @@ import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
+import { makeDid } from '../core/utils/validateDdoHandler.js'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -112,6 +115,16 @@ class BaseEventProcessor {
         true
       )
     }
+  }
+
+  protected checkDdoHash(decryptedDocument: any, documentHashFromContract: any): boolean {
+    const utf8Bytes = toUtf8Bytes(JSON.stringify(decryptedDocument))
+    const expectedMetadata = hexlify(utf8Bytes)
+    if (create256Hash(expectedMetadata.toString()) !== documentHashFromContract) {
+      INDEXER_LOGGER.error(`DDO checksum does not match.`)
+      return false
+    }
+    return true
   }
 
   protected async decryptDDO(
@@ -314,17 +327,31 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         event.transactionHash,
         ERC721Template.abi
       )
+      const metadata = decodedEventData.args[4]
+      const metadataHash = decodedEventData.args[5]
+      const flag = decodedEventData.args[3]
       const owner = decodedEventData.args[0]
       const ddo = await this.decryptDDO(
         decodedEventData.args[2],
-        decodedEventData.args[3],
+        flag,
         owner,
         event.address,
         chainId,
         event.transactionHash,
-        decodedEventData.args[5],
-        decodedEventData.args[4]
+        metadataHash,
+        metadata
       )
+      if (ddo.id !== makeDid(event.address, chainId.toString(10))) {
+        INDEXER_LOGGER.error(
+          `Decrypted DDO ID is not matching the generated hash for DID.`
+        )
+        return
+      }
+      // for unencrypted DDOs
+      if (parseInt(flag) !== 2 && !this.checkDdoHash(ddo, metadataHash)) {
+        return
+      }
+
       did = ddo.id
       // stuff that we overwrite
       ddo.chainId = chainId
@@ -380,9 +407,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           event.blockNumber
         )
         if (!isUpdateable) {
-          INDEXER_LOGGER.logMessage(
-            `Error encountered when checking if the asset is eligiable for update: ${error}`,
-            true
+          INDEXER_LOGGER.error(
+            `Error encountered when checking if the asset is eligiable for update: ${error}`
           )
           await ddoState.update(
             this.networkId,

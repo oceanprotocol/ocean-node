@@ -17,9 +17,10 @@ const mockSupportedNetworks: RPCS = {
 }
 
 describe('OceanIndexer', () => {
+  let oceanIndexer: OceanIndexer
   it('should start threads and handle worker events', async () => {
     const mockDatabase = new MockDatabase()
-    const oceanIndexer = new OceanIndexer(mockDatabase as any, mockSupportedNetworks)
+    oceanIndexer = new OceanIndexer(mockDatabase as any, mockSupportedNetworks)
 
     const mockWorker = {
       on: stub(),
@@ -55,5 +56,9 @@ describe('OceanIndexer', () => {
       .false
     // eslint-disable-next-line no-unused-expressions
     expect(mockWorker.on.calledThrice).to.be.false
+  })
+
+  after(() => {
+    oceanIndexer.stopAllThreads()
   })
 })
