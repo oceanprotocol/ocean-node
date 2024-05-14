@@ -11,7 +11,6 @@ import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { checkSupportedChainId } from '../../../utils/blockchain.js'
-import { OceanIndexer } from '../../Indexer/index.js'
 
 export class ReindexTxHandler extends AdminHandler {
   validate(command: AdminReindexTxCommand): ValidateParams {
@@ -39,7 +38,7 @@ export class ReindexTxHandler extends AdminHandler {
       )
     }
     try {
-      OceanIndexer.addReindexTask({
+      this.getOceanNode().getIndexer().addReindexTask({
         txId: task.txId,
         chainId: task.chainId.toString()
       })
