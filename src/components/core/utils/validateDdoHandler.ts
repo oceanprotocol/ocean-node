@@ -139,11 +139,15 @@ export async function validateObject(
     })
     CORE_LOGGER.logMessage(`Schema quads: ${JSON.stringify(dataset)}`)
     // // When the stream ends, log the dataset
-    // quadsStream.on('end', () => {
-    // })
+    const ddoQuads = parser.parse(JSON.stringify(ddoCopy))
+    ddoQuads.forEach((quad: Quad) => {
+      CORE_LOGGER.logMessage(`quad ddo: ${JSON.stringify(quad)}`)
+      dataset.add(quad)
+    })
   } catch (err) {
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
   }
+
   Object.entries(ddoCopy).forEach(([key, value]) => {
     CORE_LOGGER.logMessage(`key value: ${key} ${JSON.stringify(value)}`)
     const subject = factory.namedNode(`http://example.org/ddo/${key}`)
