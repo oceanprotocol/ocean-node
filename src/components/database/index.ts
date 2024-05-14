@@ -571,17 +571,20 @@ export class DdoDatabase {
     }
   }
 
-  async deleteAllAssetsFromChain(chainId: number, batchSize?: number) {
+  async deleteAllAssetsFromChain(chainId: number, batchSize?: number): Promise<number> {
+    let numDeleted = 0
     for (const schema of this.schemas) {
       try {
         const response = await this.provider
           .collections(schema.name)
           .documents()
           .deleteByChainId(`chainId:${chainId}`)
-        if (response.num_deleted > 0) {
-          DATABASE_LOGGER.debug(`Response for deleting the ddos: ${response.num_deleted}`)
-          return response
-        }
+
+        DATABASE_LOGGER.debug(
+          `Number of deleted ddos on schema ${schema} : ${response.num_deleted}`
+        )
+
+        numDeleted += response.num_deleted
       } catch (error) {
         if (!(error instanceof TypesenseError && error.httpStatus === 404)) {
           // Log error other than not found
@@ -592,8 +595,10 @@ export class DdoDatabase {
             LOG_LEVELS_STR.LEVEL_ERROR
           )
         }
+        return -1
       }
     }
+    return numDeleted
   }
 }
 
