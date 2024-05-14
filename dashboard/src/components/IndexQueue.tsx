@@ -8,24 +8,31 @@ import {
   TableRow
 } from '@mui/material'
 import styles from './Dashboard/index.module.css'
+import { useAdminContext } from '@/context/AdminProvider'
 
 interface QueueItem {
   txId: string
-  chainId: string
+  chainId: number
+  chain: string
 }
 
 export default function IndexQueue() {
   const [queue, setQueue] = useState<QueueItem[]>([])
+  const { networks } = useAdminContext()
 
   useEffect(() => {
     const fetchQueue = () => {
       fetch('/api/services/indexQueue')
         .then((response) => response.json())
         .then((data) => {
-          const transformedQueue = data.queue.map((item: any) => ({
-            txId: item.txId,
-            chainId: item.chainId
-          }))
+          const transformedQueue = data.queue.map((item: any) => {
+            const network = networks.find((net) => net.chainId === item.chainId)
+            return {
+              txId: item.txId,
+              chainId: item.chainId,
+              chain: network ? network.network : 'Unknown Network'
+            }
+          })
           setQueue(transformedQueue)
         })
         .catch((error) => {
@@ -72,7 +79,7 @@ export default function IndexQueue() {
                   <TableCell component="th" scope="row">
                     {item.txId}
                   </TableCell>
-                  <TableCell align="right">{item.chainId}</TableCell>
+                  <TableCell align="right">{item.chain}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
