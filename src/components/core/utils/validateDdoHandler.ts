@@ -23,7 +23,7 @@ import { getProviderWallet } from './feesHandler.js'
 import factory from '@rdfjs/data-model'
 // import fromFile from 'rdf-utils-fs/fromFile.js'
 // const { fromStream } = pkg
-import * as jsonld from 'jsonld'
+import { expand, flatten, toRDF } from 'jsonld'
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
@@ -154,9 +154,9 @@ export async function validateObject(
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
   }
 
-  const expanded = await jsonld.expand(ddoCopy)
-  const flattened = await jsonld.flatten(expanded)
-  const nquads = await jsonld.toRDF(flattened, { format: 'application/n-quads' })
+  const expanded = await expand(ddoCopy)
+  const flattened = await flatten(expanded)
+  const nquads = await toRDF(flattened, { format: 'application/n-quads' })
   CORE_LOGGER.logMessage(`nquads: ${JSON.stringify(nquads)}`)
   // const ddoStore = new Store()
   // ddoStore.addQuads(nquads)
