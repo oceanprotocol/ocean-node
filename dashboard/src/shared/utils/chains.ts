@@ -1,4 +1,3 @@
-import { Chain } from '@wagmi/core'
 import {
   mainnet,
   goerli,
