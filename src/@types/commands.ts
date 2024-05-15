@@ -179,7 +179,7 @@ export interface ValidateChainId {
   validation: boolean
   networkRpc: string
 }
-
+/* eslint-disable no-unused-vars */
 export enum IndexingCommand {
   STOP_THREAD = 'start',
   START_THREAD = 'stop'

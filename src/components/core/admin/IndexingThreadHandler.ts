@@ -8,7 +8,6 @@ import {
   ValidateParams
 } from '../../httpRoutes/validateCommands.js'
 import { AdminHandler } from './adminHandler.js'
-import { OceanIndexer } from '../../Indexer/index.js'
 
 export class IndexingThreadHandler extends AdminHandler {
   validate(command: StartStopIndexingCommand): ValidateParams {
