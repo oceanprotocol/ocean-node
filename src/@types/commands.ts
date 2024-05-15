@@ -179,3 +179,12 @@ export interface ValidateChainId {
   validation: boolean
   networkRpc: string
 }
+
+export enum IndexingCommand {
+  STOP_THREAD = 'start',
+  START_THREAD = 'stop'
+}
+export interface StartStopIndexingCommand extends AdminCommand {
+  chainId?: number
+  action: IndexingCommand
+}
