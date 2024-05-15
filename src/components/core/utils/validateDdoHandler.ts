@@ -163,7 +163,6 @@ export async function validateObject(
   // ddoStore.addQuads(nquads)
 
   Object.entries(ddoCopy).forEach(([key, value]) => {
-    CORE_LOGGER.logMessage(`key value: ${key} ${JSON.stringify(value)}`)
     const subject = factory.namedNode(`http://example.org/ddo/${key}`)
     const predicate = factory.namedNode('http://example.org/ddo/property')
     let stringValue = ''

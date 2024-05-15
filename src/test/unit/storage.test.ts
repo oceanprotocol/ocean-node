@@ -528,7 +528,7 @@ describe('URL Storage encryption tests', () => {
   })
 })
 
-describe('URL Storage encryption tests', function () {
+describe('IPFS Storage encryption tests', function () {
   this.timeout(15000)
   let storage: IpfsStorage
   let previousConfiguration: OverrideEnvConfig[]
