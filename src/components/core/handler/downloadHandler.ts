@@ -13,7 +13,12 @@ import { validateOrderTransaction } from '../utils/validateOrders.js'
 import { AssetUtils } from '../../../utils/asset.js'
 import { Service } from '../../../@types/DDO/Service.js'
 import { ArweaveStorage, IpfsStorage, Storage } from '../../storage/index.js'
-import { existsEnvironmentVariable, getConfiguration } from '../../../utils/index.js'
+import {
+  Blockchain,
+  existsEnvironmentVariable,
+  getConfiguration,
+  getJsonRpcProvider
+} from '../../../utils/index.js'
 import { checkCredentials } from '../../../utils/credentials.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
@@ -255,10 +260,11 @@ export class DownloadHandler extends Handler {
     }
     // from now on, we need blockchain checks
     const config = await getConfiguration()
-    const { rpc } = config.supportedNetworks[ddo.chainId]
+    const { rpc, network, chainId, fallbackRPCs } = config.supportedNetworks[ddo.chainId]
     let provider
     try {
-      provider = new JsonRpcProvider(rpc)
+      const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+      provider = blockchain.getProvider()
     } catch (e) {
       return {
         stream: null,
