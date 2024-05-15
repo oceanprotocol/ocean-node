@@ -265,6 +265,7 @@ export class DownloadHandler extends Handler {
     let provider
     try {
       const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+      setTimeout(() => {}, 2000)
       provider = blockchain.getProvider()
       console.log('get signer blockchain ', blockchain.getSigner())
       console.log('get signer provider', await provider.getSigner())
