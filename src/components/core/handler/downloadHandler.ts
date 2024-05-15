@@ -266,6 +266,8 @@ export class DownloadHandler extends Handler {
     try {
       const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
       provider = blockchain.getProvider()
+      console.log('get signer blockchain ', blockchain.getSigner())
+      console.log('get signer provider', provider.getSigner())
     } catch (e) {
       return {
         stream: null,
