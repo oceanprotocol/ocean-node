@@ -32,7 +32,6 @@ import { autoNAT } from '@libp2p/autonat'
 import { uPnPNAT } from '@libp2p/upnp-nat'
 import { ping } from '@libp2p/ping'
 import { dcutr } from '@libp2p/dcutr'
-
 import { kadDHT } from '@libp2p/kad-dht'
 import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 
@@ -109,6 +108,7 @@ export class OceanP2P extends EventEmitter {
   async start(options: any = null) {
     this._topic = 'oceanprotocol'
     this._libp2p = await this.createNode(this._config)
+
     this._libp2p.addEventListener('peer:connect', (evt: any) => {
       this.handlePeerConnect(evt)
     })
@@ -180,12 +180,16 @@ export class OceanP2P extends EventEmitter {
     P2P_LOGGER.debug('subscription-change:' + details.detail)
   }
 
+  shouldAnnounce(multiaddr: any) {
+    // TO DO
+    return true
+  }
+
   async createNode(config: OceanNodeConfig): Promise<Libp2p | null> {
     try {
       this._publicAddress = config.keys.peerId.toString()
       this._publicKey = config.keys.publicKey
       this._privateKey = config.keys.privateKey
-
       /** @type {import('libp2p').Libp2pOptions} */
       // start with some default, overwrite based on config later
       const options = {
@@ -195,7 +199,10 @@ export class OceanP2P extends EventEmitter {
             `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindWsPort}/ws`,
             `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindTcpPort}`,
             `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindWsPort}/ws`
-          ]
+          ],
+          announce: config.p2pConfig.announceAddresses,
+          announceFilter: (multiaddrs: any[]) =>
+            multiaddrs.filter((m) => this.shouldAnnounce(m))
         },
         peerId: config.keys.peerId,
         transports: [webSockets(), tcp(), circuitRelayTransport()],
@@ -206,7 +213,11 @@ export class OceanP2P extends EventEmitter {
         ],
         peerDiscovery: [
           bootstrap({
-            list: config.p2pConfig.bootstrapNodes
+            list: config.p2pConfig.bootstrapNodes,
+            timeout: 1000, // in ms,
+            tagName: 'bootstrap',
+            tagValue: 50,
+            tagTTL: 10000000000
           }),
           pubsubPeerDiscovery({
             interval: config.p2pConfig.pubsubPeerDiscoveryInterval,
@@ -284,7 +295,8 @@ export class OceanP2P extends EventEmitter {
       // ;(node.services.upnpNAT as any).mapIpAddresses()
       ;(node.services.upnpNAT as any).mapIpAddresses().catch((err: any) => {
         // hole punching errors are non-fatal
-        console.error(err)
+        P2P_LOGGER.info('Failed to configure UPNP Gateway(if you have one)')
+        P2P_LOGGER.debug(err)
       })
       return node
     } catch (e) {

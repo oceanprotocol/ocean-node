@@ -318,3 +318,12 @@ npm run start
 ```
 
 The dashboard will be made available at: `http://localhost:8000/dashboard/`
+
+## Networking in cloud environments or DMZ
+
+Sometimes, you need to manually specify an external address that has to be announced by the node, in order for others to be able to connect to the node.
+In order to do that, use P2P_ANNOUNCE_ADDRESSES env:
+
+```bash
+export P2P_ANNOUNCE_ADDRESSES=[\"/ip4/1.2.3.4/tcp/8000\"]
+```

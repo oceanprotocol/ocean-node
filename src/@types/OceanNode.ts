@@ -36,6 +36,7 @@ export interface OceanNodeP2PConfig {
   mDNSInterval: number
   connectionsMaxParallelDials: number
   connectionsDialTimeout: number
+  announceAddresses: string[]
 }
 
 export interface OceanNodeConfig {
