@@ -23,7 +23,7 @@ export interface RequestDataCheck {
 export abstract class Handler implements ICommandHandler {
   private nodeInstance?: OceanNode
   private requestMap: Map<string, RequestLimiter>
-  public constructor(oceanNode?: OceanNode) {
+  public constructor(oceanNode: OceanNode) {
     this.nodeInstance = oceanNode
     this.requestMap = new Map<string, RequestLimiter>()
   }
