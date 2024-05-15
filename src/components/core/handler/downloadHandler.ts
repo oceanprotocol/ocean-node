@@ -234,6 +234,7 @@ export class DownloadHandler extends Handler {
         }
       }
     }
+    CORE_LOGGER.logMessage('Validate ddo and credentials', true)
 
     // 3. Validate nonce and signature
     const nonceCheckResult: NonceResponse = await checkNonce(
@@ -287,6 +288,8 @@ export class DownloadHandler extends Handler {
         }
       }
     }
+    CORE_LOGGER.logMessage(' blockchain checks', true)
+
     let service: Service = AssetUtils.getServiceById(ddo, task.serviceId)
     if (!service) service = AssetUtils.getServiceByIndex(ddo, Number(task.serviceId))
     if (!service) throw new Error('Cannot find service')
@@ -336,6 +339,8 @@ export class DownloadHandler extends Handler {
         }
       }
     }
+    CORE_LOGGER.logMessage(' check that the provider fee transaction is valid ', true)
+
     // 6. Call the validateOrderTransaction function to check order transaction
     const paymentValidation = await validateOrderTransaction(
       task.transferTxId,
@@ -346,6 +351,11 @@ export class DownloadHandler extends Handler {
       AssetUtils.getServiceIndexById(ddo, task.serviceId),
       service.timeout
     )
+    CORE_LOGGER.logMessage(
+      ' validateOrderTransaction function to check order transaction',
+      true
+    )
+
     if (paymentValidation.isValid) {
       CORE_LOGGER.logMessage(
         `Valid payment transaction. Result: ${paymentValidation.message}`,
