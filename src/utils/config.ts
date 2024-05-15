@@ -422,19 +422,22 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     hasP2P: interfaces.includes('P2P'),
     p2pConfig: {
       bootstrapNodes: [
+        // Public ipfs bootstraps
         '/ip4/104.131.131.82/tcp/4001/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ',
         '/dnsaddr/bootstrap.libp2p.io/ipfs/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN',
         '/dnsaddr/bootstrap.libp2p.io/ipfs/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa',
-        // '/ip4/127.0.0.12/tcp/49100/p2p/12D3KooWLktGvbzuDK7gv1kS4pq6DNWxmxEREKVtBEhVFQmDNni7'
-        '/ip4/35.198.125.13/tcp/8000/p2p/16Uiu2HAmKZuuY2Lx3JiY938rJWZrYQh6kjBZCNrh3ALkodtwFRdF', // paulo
-        '/ip4/34.159.64.236/tcp/8000/p2p/16Uiu2HAmAy1GcZGhzFT3cbARTmodg9c3M4EAmtBZyDgu5cSL1NPr', // jaime
-        '/ip4/34.107.3.14/tcp/8000/p2p/16Uiu2HAm4DWmX56ZX2bKjvARJQZPMUZ9xsdtAfrMmd7P8czcN4UT', // maria
-        // LOCAL
-        // TODO check: we might need to have an option to use local node as a bootstrap one
-        // '/ip4/127.0.0.1/tcp/8000/p2p/16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo',
         '/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb',
         '/dnsaddr/bootstrap.libp2p.io/p2p/QmZa1sAxajnQjVM8WjWXoMbmPd7NsWhfKsPkErzpm9wGkp',
-        '/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt'
+        '/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt',
+        // OPF nodes
+        '/dnsaddr/node1.oceanprotocol.com/tcp/9000/p2p/',
+        '/dnsaddr/node2.oceanprotocol.com/tcp/9000/p2p/16Uiu2HAm6u88XuC4Xke7J9NmT7qLNL4zMYEyLxqdVgAc7Rnr95o6',
+        '/dnsaddr/node3.oceanprotocol.com/tcp/9000/p2p/',
+        // OPF developer nodes
+        '/ip4/35.198.125.13/tcp/8000/p2p/16Uiu2HAmKZuuY2Lx3JiY938rJWZrYQh6kjBZCNrh3ALkodtwFRdF', // paulo
+        '/ip4/35.209.77.64/tcp/8000/p2p/16Uiu2HAmFxPwhW5dmoLZnbqXFyUvr6j1PzCB1mBxRUZHGsoqQoSQ',
+        '/ip4/34.107.3.14/tcp/8000/p2p/16Uiu2HAm4DWmX56ZX2bKjvARJQZPMUZ9xsdtAfrMmd7P8czcN4UT', // maria
+        '/dnsaddr/ocean-node3.oceanprotocol.io/tcp/8000/p2p/16Uiu2HAm96Sx6o8XCEifPL9MtJiZCSzKqiBQApnZ6JWd7be4zwNK' // bogdan
       ],
       ipV4BindAddress: getEnvValue(process.env.P2P_ipV4BindAddress, '0.0.0.0'),
       ipV4BindTcpPort: getIntEnvValue(process.env.P2P_ipV4BindTcpPort, 0),
