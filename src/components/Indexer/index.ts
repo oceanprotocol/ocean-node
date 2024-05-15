@@ -53,38 +53,58 @@ export class OceanIndexer {
     return network
   }
 
-  // stops crawling for a specific chain
-  public stopThread(chainID: string): boolean {
-    const worker = this.workers[chainID]
-    if (worker) {
-      worker.postMessage({ method: 'stop-crawling' })
-    }
-    return true
-  }
-
   // stops all worker threads
   public stopAllThreads(): boolean {
     for (const chainID of this.supportedChains) {
-      this.stopThread(chainID)
+      this.stopThread(parseInt(chainID))
     }
     return true
   }
 
-  // eslint-disable-next-line require-await
-  public async startThreads(): Promise<void> {
-    for (const network of this.supportedChains) {
-      const chainId = parseInt(network)
-      const rpcDetails: SupportedNetwork = this.getSupportedNetwork(chainId)
-      const workerData = { rpcDetails }
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_INFO,
-        `Starting worker for network ${network} with ${JSON.stringify(workerData)}`,
-        true
-      )
+  // stops crawling for a specific chain
+  public stopThread(chainID: number): boolean {
+    const worker = this.workers[chainID]
+    if (worker) {
+      worker.postMessage({ method: 'stop-crawling' })
+    } else {
+      INDEXER_LOGGER.error('Unable to find running worker thread for chain ' + chainID)
+    }
+    return true
+  }
 
-      const worker = new Worker('./dist/components/Indexer/crawlerThread.js', {
+  // starts crawling for a specific chain
+  public startThread(chainID: number): Worker | null {
+    const rpcDetails: SupportedNetwork = this.getSupportedNetwork(chainID)
+    if (!rpcDetails) {
+      INDEXER_LOGGER.error(
+        'Unable to start (unsupported network) a worker thread for chain: ' + chainID
+      )
+      return null
+    }
+    const workerData = { rpcDetails }
+    let worker = this.workers[chainID]
+    if (!worker) {
+      worker = new Worker('./dist/components/Indexer/crawlerThread.js', {
         workerData
       })
+    }
+    worker.postMessage({ method: 'start-crawling' })
+    INDEXER_LOGGER.log(
+      LOG_LEVELS_STR.LEVEL_INFO,
+      `Starting worker for network ${rpcDetails.network} with ${JSON.stringify(
+        workerData
+      )}`,
+      true
+    )
+    return worker
+  }
+
+  // eslint-disable-next-line require-await
+  public startThreads() {
+    for (const network of this.supportedChains) {
+      const chainId = parseInt(network)
+      const worker = this.startThread(chainId)
+      this.workers[network] = worker
 
       worker.on('message', (event: any) => {
         if (event.data) {
@@ -135,9 +155,6 @@ export class OceanIndexer {
           true
         )
       })
-
-      worker.postMessage({ method: 'start-crawling' })
-      this.workers[network] = worker
     }
   }
 
