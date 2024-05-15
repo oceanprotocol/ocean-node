@@ -161,6 +161,7 @@ export default function Dashboard() {
                 <div className={styles.nodeAddress}>
                   <h5 className={styles.title24}>IP : </h5>
                   <div className={styles.nodeAddress}>{ipAddress}</div>
+                  <Copy text={ipAddress as string} />
                 </div>
               </div>
             </div>
