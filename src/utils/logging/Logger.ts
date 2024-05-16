@@ -79,9 +79,10 @@ export function getLoggerLevelEmoji(level: string): string {
 export const LOG_COLORS = {
   error: 'red',
   warn: 'yellow',
-  info: 'green',
-  debug: 'white',
-  http: 'magenta'
+  info: 'cyan',
+  debug: 'green',
+  http: 'blue',
+  verbose: 'white'
 }
 
 // for a custom logger transport
@@ -141,17 +142,23 @@ export function isDevelopmentEnvironment(): boolean {
   return env === 'development'
 }
 
-export const getDefaultLevel = (): string => {
-  // if we have something set use that
+// if we have something set on process.env use that
+const getConfiguredLogLevel = (): string | null => {
   const envLevel = process.env.LOG_LEVEL
   // do case insensitive check
   if (envLevel && Object.values(LOG_LEVELS_STR).includes(envLevel.toLowerCase())) {
     return envLevel.toLowerCase()
-  } else {
-    return isDevelopmentEnvironment()
-      ? LOG_LEVELS_STR.LEVEL_DEBUG
-      : LOG_LEVELS_STR.LEVEL_INFO
   }
+  return null
+}
+
+const CONFIG_LOG_LEVEL = getConfiguredLogLevel()
+
+export const getDefaultLevel = (): string => {
+  return (
+    CONFIG_LOG_LEVEL ||
+    (isDevelopmentEnvironment() ? LOG_LEVELS_STR.LEVEL_DEBUG : LOG_LEVELS_STR.LEVEL_INFO)
+  )
 }
 
 if (isDevelopmentEnvironment()) {
@@ -505,7 +512,7 @@ export function getCustomLoggerForModule(
 
   const logger: CustomNodeLogger = new CustomNodeLogger(
     /* pass any custom options here */ {
-      level: logLevel || LOG_LEVELS_STR.LEVEL_INFO,
+      level: logLevel || getDefaultLevel(),
       levels: LOG_LEVELS_NUM,
       moduleName: moduleOrComponentName,
       defaultMeta: { component: moduleOrComponentName.toUpperCase() },
