@@ -28,6 +28,7 @@ import {
   ValidateParams
 } from '../../httpRoutes/validateCommands.js'
 import { DDO } from '../../../@types/DDO/DDO.js'
+import { ethers } from 'ethers'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(
@@ -263,9 +264,9 @@ export class DownloadHandler extends Handler {
     let provider
     try {
       const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-      provider = blockchain.getProvider()
-      // console.log('get signer blockchain ', blockchain.getSigner())
-      // console.log('get signer provider', await provider.getSigner())
+      setTimeout(() => {
+        provider = blockchain.getProvider()
+      }, 2000)
     } catch (e) {
       return {
         stream: null,
@@ -349,7 +350,8 @@ export class DownloadHandler extends Handler {
       ddo.nftAddress,
       service.datatokenAddress,
       AssetUtils.getServiceIndexById(ddo, task.serviceId),
-      service.timeout
+      service.timeout,
+      new ethers.Wallet(process.env.PRIVATE_KEY, provider)
     )
     CORE_LOGGER.logMessage(
       ' validateOrderTransaction function to check order transaction',
@@ -376,7 +378,7 @@ export class DownloadHandler extends Handler {
     }
 
     try {
-      // 6. Decrypt the url
+      // 7. Decrypt the url
       const decryptedUrlBytes = await decrypt(
         Uint8Array.from(Buffer.from(service.files, 'hex')),
         EncryptMethod.ECIES
@@ -398,7 +400,7 @@ export class DownloadHandler extends Handler {
         }
       }
 
-      // 7. Proceed to download the file
+      // 8. Proceed to download the file
       return await handleDownloadUrlCommand(node, {
         fileObject: decriptedFileObject,
         aes_encrypted_key: task.aes_encrypted_key,
