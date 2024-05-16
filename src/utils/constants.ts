@@ -242,6 +242,12 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'MAX_CHECKSUM_LENGTH',
     value: process.env.MAX_CHECKSUM_LENGTH,
     required: false
+  },
+  LOG_LEVEL: {
+    // default log level (if not specified, "debug" for "development" and "info" for "production")
+    name: 'LOG_LEVEL',
+    value: process.env.LOG_LEVEL,
+    required: false
   }
 }
 

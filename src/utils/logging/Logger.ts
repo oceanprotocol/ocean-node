@@ -142,7 +142,16 @@ export function isDevelopmentEnvironment(): boolean {
 }
 
 export const getDefaultLevel = (): string => {
-  return isDevelopmentEnvironment() ? 'debug' : 'info'
+  // if we have something set use that
+  const envLevel = process.env.LOG_LEVEL
+  // do case insensitive check
+  if (envLevel && Object.values(LOG_LEVELS_STR).includes(envLevel.toLowerCase())) {
+    return envLevel.toLowerCase()
+  } else {
+    return isDevelopmentEnvironment()
+      ? LOG_LEVELS_STR.LEVEL_DEBUG
+      : LOG_LEVELS_STR.LEVEL_INFO
+  }
 }
 
 if (isDevelopmentEnvironment()) {
