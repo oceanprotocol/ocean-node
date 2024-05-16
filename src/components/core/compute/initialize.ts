@@ -7,7 +7,7 @@ import { ComputeInitializeCommand } from '../../../@types/commands.js'
 import { ProviderComputeInitializeResults } from '../../../@types/Fees.js'
 import { AssetUtils } from '../../../utils/asset.js'
 import { verifyProviderFees, createProviderFee } from '../utils/feesHandler.js'
-import { getJsonRpcProvider } from '../../../utils/blockchain.js'
+import { Blockchain } from '../../../utils/blockchain.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
 import { getExactComputeEnv } from './utils.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
@@ -18,6 +18,7 @@ import {
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { isAddress } from 'ethers'
+import { getConfiguration } from '../../../utils/index.js'
 export class ComputeInitializeHandler extends Handler {
   validate(command: ComputeInitializeCommand): ValidateParams {
     const validation = validateCommandParameters(command, [
@@ -111,7 +112,11 @@ export class ComputeInitializeHandler extends Handler {
               }
             }
           }
-          const provider = await getJsonRpcProvider(ddo.chainId)
+          const config = await getConfiguration()
+          const { rpc, network, chainId, fallbackRPCs } =
+            config.supportedNetworks[ddo.chainId]
+          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+          const provider = blockchain.getProvider()
           result.datatoken = service.datatokenAddress
           result.chainId = ddo.chainId
           // start with assumption than we need new providerfees

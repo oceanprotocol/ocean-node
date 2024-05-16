@@ -17,8 +17,9 @@ import { AssetUtils } from '../../../utils/asset.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import { decrypt } from '../../../utils/crypt.js'
 import { verifyProviderFees } from '../utils/feesHandler.js'
-import { getJsonRpcProvider } from '../../../utils/blockchain.js'
+import { Blockchain } from '../../../utils/blockchain.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
+import { getConfiguration } from '../../../utils/index.js'
 export class ComputeStartHandler extends Handler {
   validate(command: ComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
@@ -116,7 +117,11 @@ export class ComputeStartHandler extends Handler {
               }
             }
           }
-          const provider = await getJsonRpcProvider(ddo.chainId)
+          const config = await getConfiguration()
+          const { rpc, network, chainId, fallbackRPCs } =
+            config.supportedNetworks[ddo.chainId]
+          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+          const provider = blockchain.getProvider()
           result.datatoken = service.datatokenAddress
           result.chainId = ddo.chainId
           // start with assumption than we need new providerfees

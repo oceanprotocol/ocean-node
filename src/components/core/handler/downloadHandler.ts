@@ -1,4 +1,3 @@
-import { JsonRpcProvider } from 'ethers'
 import { Handler } from './handler.js'
 import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
 import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
@@ -16,8 +15,7 @@ import { ArweaveStorage, IpfsStorage, Storage } from '../../storage/index.js'
 import {
   Blockchain,
   existsEnvironmentVariable,
-  getConfiguration,
-  getJsonRpcProvider
+  getConfiguration
 } from '../../../utils/index.js'
 import { checkCredentials } from '../../../utils/credentials.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
@@ -265,10 +263,9 @@ export class DownloadHandler extends Handler {
     let provider
     try {
       const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-      setTimeout(() => {}, 2000)
       provider = blockchain.getProvider()
-      console.log('get signer blockchain ', blockchain.getSigner())
-      console.log('get signer provider', await provider.getSigner())
+      // console.log('get signer blockchain ', blockchain.getSigner())
+      // console.log('get signer provider', await provider.getSigner())
     } catch (e) {
       return {
         stream: null,
