@@ -2,6 +2,7 @@ import cs from 'classnames'
 import styles from './index.module.css'
 import IndexQueue from '../IndexQueue'
 import { NodeDataType } from '@Types/dataTypes'
+import { Card } from '@mui/material'
 
 export default function Indexer({ data }: { data: NodeDataType | undefined }) {
   return (
@@ -10,14 +11,19 @@ export default function Indexer({ data }: { data: NodeDataType | undefined }) {
       <div className={styles.rowIndexer}>
         {data?.indexer.map((item) => {
           return (
-            <div
-              className={cs([styles.indexBlock, item.delayed && styles.delayed])}
+            <Card
               key={item.block}
+              className={cs([styles.indexBlock, item.delayed && styles.delayed])}
+              sx={{
+                marginBottom: 4,
+                borderRadius: '8px',
+                position: 'relative'
+              }}
             >
               <h5>{item.network}</h5>
               <div>ChainID: {item.chainId}</div>
               <div>BLOCK: {item.block}</div>
-            </div>
+            </Card>
           )
         })}
       </div>
