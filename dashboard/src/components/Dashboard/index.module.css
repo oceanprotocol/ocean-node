@@ -113,13 +113,6 @@
   padding-top: 55px;
 }
 
-.rowIndexer {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  /* gap: 80px; */
-}
-
 .indexBlock {
   display: flex;
   flex-direction: column;
@@ -245,10 +238,5 @@
   .columnP2P {
     width: 100%;
     border-right: 0;
-  }
-
-  .rowIndexer {
-    flex-direction: column;
-    gap: 20px;
   }
 }
