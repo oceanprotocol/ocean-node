@@ -271,9 +271,9 @@ export default function Dashboard() {
           <div className={styles.body}>
             <ConnectionDetails />
             <Indexer />
-            <ObjectModule title="PLATFORM" data={arrayOfPlatformObjects} />
             <SupportedStorage />
             <AdminAccounts />
+            <ObjectModule title="PLATFORM" data={arrayOfPlatformObjects} />
           </div>
         )}
       </div>
