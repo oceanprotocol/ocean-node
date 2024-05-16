@@ -38,6 +38,7 @@ import {
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { homedir } from 'os'
+import { OceanIndexer } from '../../components/Indexer/index.js'
 
 describe('Should encrypt and decrypt DDO', () => {
   let database: Database
@@ -53,6 +54,7 @@ describe('Should encrypt and decrypt DDO', () => {
   let txReceiptEncryptDDO: any
   let encryptedMetaData: any
   let documentHash: any
+  let indexer: OceanIndexer
   const nonce = Date.now().toString()
 
   const chainId = 8996
@@ -108,7 +110,8 @@ describe('Should encrypt and decrypt DDO', () => {
     database = await new Database(dbConfig)
     oceanNode = OceanNode.getInstance(database)
     // will be used later
-    // indexer = new OceanIndexer(database, mockSupportedNetworks)
+    indexer = new OceanIndexer(database, mockSupportedNetworks)
+    oceanNode.addIndexer(indexer)
   })
 
   it('should publish a dataset', async () => {
@@ -393,7 +396,8 @@ describe('Should encrypt and decrypt DDO', () => {
     expect(decryptedStringDDO).to.equal(stringDDO)
   })
 
-  after(() => {
-    tearDownEnvironment(previousConfiguration)
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
+    indexer.stopAllThreads()
   })
 })

@@ -75,6 +75,12 @@ export const EVENTS = {
   DISPENSER_CREATED: 'DispenserCreated'
 }
 
+export const INDEXER_CRAWLING_EVENTS = {
+  CRAWLING_STARTED: 'crawlingStarted',
+  REINDEX_QUEUE_POP: 'popFromQueue'
+  // TODO REINDEX_CHAIN
+}
+
 export const EVENT_HASHES: Hashes = {
   '0x5463569dcc320958360074a9ab27e809e8a6942c394fb151d139b5f7b4ecb1bd': {
     type: EVENTS.METADATA_CREATED,
