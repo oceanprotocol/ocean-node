@@ -42,9 +42,9 @@ export async function decrypt(
   let decryptedData: Buffer
   const config = await getConfiguration()
   const { privateKey, publicKey } = config.keys
-  console.log(privateKey)
-  console.log(publicKey)
-  console.log(algorithm)
+  console.log('private', privateKey)
+  console.log('publig ', publicKey)
+  console.log('algorithm ', algorithm)
   if (algorithm === EncryptMethod.AES) {
     // use first 16 bytes of public key as an initialisation vector
     const initVector = publicKey.subarray(0, 16)
