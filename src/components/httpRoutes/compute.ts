@@ -34,7 +34,9 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, r
       chainId: parseInt(req.query.chainId as string),
       node: (req.query.node as string) || null
     }
-    const response = await new ComputeGetEnvironmentsHandler().handle(getEnvironmentsTask) // get compute environments
+    const response = await new ComputeGetEnvironmentsHandler(req.oceanNode).handle(
+      getEnvironmentsTask
+    ) // get compute environments
     const computeEnvironments = await streamToObject(response.stream as Readable)
 
     // check if computeEnvironments is a valid json object and not empty
@@ -75,7 +77,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       startComputeTask.output = req.query.output as ComputeOutput
     }
 
-    const response = await new ComputeStartHandler().handle(startComputeTask) // get compute environments
+    const response = await new ComputeStartHandler(req.oceanNode).handle(startComputeTask) // get compute environments
     const jobs = await streamToObject(response.stream as Readable)
     res.status(200).json(jobs)
   } catch (error) {
@@ -99,7 +101,7 @@ computeRoutes.put(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       nonce: (req.query.nonce as string) || null,
       jobId: (req.query.jobId as string) || null
     }
-    const response = await new ComputeStopHandler().handle(stopComputeTask)
+    const response = await new ComputeStopHandler(req.oceanNode).handle(stopComputeTask)
     const jobs = await streamToObject(response.stream as Readable)
     res.status(200).json(jobs)
   } catch (error) {
@@ -121,7 +123,9 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       did: (req.query.did as string) || null,
       jobId: (req.query.jobId as string) || null
     }
-    const response = await new ComputeGetStatusHandler().handle(statusComputeTask)
+    const response = await new ComputeGetStatusHandler(req.oceanNode).handle(
+      statusComputeTask
+    )
     const jobs = await streamToObject(response.stream as Readable)
     res.status(200).json(jobs)
   } catch (error) {
@@ -146,7 +150,9 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeResult`, async (req, res) =>
       nonce: (req.query.nonce as string) || null
     }
 
-    const response = await new ComputeGetResultHandler().handle(resultComputeTask)
+    const response = await new ComputeGetResultHandler(req.oceanNode).handle(
+      resultComputeTask
+    )
     if (response.stream) {
       res.status(response.status.httpStatus)
       res.set(response.status.headers)
