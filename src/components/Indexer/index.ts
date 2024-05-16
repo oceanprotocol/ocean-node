@@ -55,10 +55,13 @@ export class OceanIndexer {
 
   // stops all worker threads
   public stopAllThreads(): boolean {
+    let count = 0
     for (const chainID of this.supportedChains) {
-      this.stopThread(parseInt(chainID))
+      if (this.stopThread(parseInt(chainID))) {
+        count++
+      }
     }
-    return true
+    return count === this.supportedChains.length
   }
 
   // stops crawling for a specific chain
@@ -66,10 +69,10 @@ export class OceanIndexer {
     const worker = this.workers[chainID]
     if (worker) {
       worker.postMessage({ method: 'stop-crawling' })
-    } else {
-      INDEXER_LOGGER.error('Unable to find running worker thread for chain ' + chainID)
+      return true
     }
-    return true
+    INDEXER_LOGGER.error('Unable to find running worker thread for chain ' + chainID)
+    return false
   }
 
   // starts crawling for a specific chain
@@ -82,12 +85,14 @@ export class OceanIndexer {
       return null
     }
     const workerData = { rpcDetails }
+    // see if it exists already, otherwise create a new one
     let worker = this.workers[chainID]
     if (!worker) {
       worker = new Worker('./dist/components/Indexer/crawlerThread.js', {
         workerData
       })
     }
+
     worker.postMessage({ method: 'start-crawling' })
     INDEXER_LOGGER.log(
       LOG_LEVELS_STR.LEVEL_INFO,
@@ -100,62 +105,67 @@ export class OceanIndexer {
   }
 
   // eslint-disable-next-line require-await
-  public startThreads() {
+  public startThreads(): boolean {
+    let count = 0
     for (const network of this.supportedChains) {
       const chainId = parseInt(network)
       const worker = this.startThread(chainId)
-      this.workers[network] = worker
-
-      worker.on('message', (event: any) => {
-        if (event.data) {
-          if (
-            [
-              EVENTS.METADATA_CREATED,
-              EVENTS.METADATA_UPDATED,
-              EVENTS.METADATA_STATE,
-              EVENTS.ORDER_STARTED,
-              EVENTS.ORDER_REUSED
-            ].includes(event.method)
-          ) {
-            // will emit the metadata created/updated event and advertise it to the other peers (on create only)
-            INDEXER_LOGGER.logMessage(
-              `Emiting "${event.method}" for DDO : ${event.data.id} from network: ${network} `
+      if (worker) {
+        // track if we were able to start them all
+        count++
+        this.workers[chainId] = worker
+        worker.on('message', (event: any) => {
+          if (event.data) {
+            if (
+              [
+                EVENTS.METADATA_CREATED,
+                EVENTS.METADATA_UPDATED,
+                EVENTS.METADATA_STATE,
+                EVENTS.ORDER_STARTED,
+                EVENTS.ORDER_REUSED
+              ].includes(event.method)
+            ) {
+              // will emit the metadata created/updated event and advertise it to the other peers (on create only)
+              INDEXER_LOGGER.logMessage(
+                `Emiting "${event.method}" for DDO : ${event.data.id} from network: ${network} `
+              )
+              INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
+              // remove from indexing list
+            } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP) {
+              // remove this one from the queue
+              INDEXING_QUEUE = INDEXING_QUEUE.filter(
+                (task) =>
+                  task.txId !== event.data.txId && task.chainId !== event.data.chainId
+              )
+            } else if (event.method === INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED) {
+              INDEXER_CRAWLING_EVENT_EMITTER.emit(event.method, event.data)
+            }
+          } else {
+            INDEXER_LOGGER.log(
+              LOG_LEVELS_STR.LEVEL_ERROR,
+              'Missing event data (ddo) on postMessage. Something is wrong!',
+              true
             )
-            INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
-            // remove from indexing list
-          } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP) {
-            // remove this one from the queue
-            INDEXING_QUEUE = INDEXING_QUEUE.filter(
-              (task) =>
-                task.txId !== event.data.txId && task.chainId !== event.data.chainId
-            )
-          } else if (event.method === INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED) {
-            INDEXER_CRAWLING_EVENT_EMITTER.emit(event.method, event.data)
           }
-        } else {
+        })
+
+        worker.on('error', (err: Error) => {
           INDEXER_LOGGER.log(
             LOG_LEVELS_STR.LEVEL_ERROR,
-            'Missing event data (ddo) on postMessage. Something is wrong!',
+            `Error in worker for network ${network}: ${err.message}`,
             true
           )
-        }
-      })
+        })
 
-      worker.on('error', (err: Error) => {
-        INDEXER_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_ERROR,
-          `Error in worker for network ${network}: ${err.message}`,
-          true
-        )
-      })
-
-      worker.on('exit', (code: number) => {
-        INDEXER_LOGGER.logMessage(
-          `Worker for network ${network} exited with code: ${code}`,
-          true
-        )
-      })
+        worker.on('exit', (code: number) => {
+          INDEXER_LOGGER.logMessage(
+            `Worker for network ${network} exited with code: ${code}`,
+            true
+          )
+        })
+      }
     }
+    return count === this.supportedChains.length
   }
 
   public addReindexTask(reindexTask: ReindexTask): void {

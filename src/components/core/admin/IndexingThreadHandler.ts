@@ -2,23 +2,26 @@ import { P2PCommandResponse } from '../../../@types/index.js'
 import { IndexingCommand, StartStopIndexingCommand } from '../../../@types/commands.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import {
+  buildErrorResponse,
   buildInvalidParametersResponse,
   buildInvalidRequestMessage,
   validateCommandParameters,
   ValidateParams
 } from '../../httpRoutes/validateCommands.js'
 import { AdminHandler } from './adminHandler.js'
+import { checkSupportedChainId } from '../../../utils/blockchain.js'
 
 export class IndexingThreadHandler extends AdminHandler {
   validate(command: StartStopIndexingCommand): ValidateParams {
     if (
-      !validateCommandParameters(command, ['chainId']) ||
+      !validateCommandParameters(command, ['action']) ||
       ![IndexingCommand.START_THREAD, IndexingCommand.STOP_THREAD].includes(
         command.action
-      )
+      ) ||
+      (command.chainId && !checkSupportedChainId(command.chainId))
     ) {
       return buildInvalidRequestMessage(
-        `Missing "chainId" field or invalid "action" for command: "${command}".`
+        `Missing or invalid "action" and/or "chainId" fields for command: "${command}".`
       )
     }
     return super.validate(command)
@@ -32,13 +35,7 @@ export class IndexingThreadHandler extends AdminHandler {
     }
     const indexer = this.getOceanNode().getIndexer()
     if (!indexer) {
-      return {
-        status: {
-          httpStatus: 400,
-          error: 'Node is not running an indexer instance!'
-        },
-        stream: null
-      }
+      return buildErrorResponse('Node is not running an indexer instance!')
     }
     if (task.action === IndexingCommand.START_THREAD) {
       const output = task.chainId
@@ -62,13 +59,6 @@ export class IndexingThreadHandler extends AdminHandler {
         },
         stream: output ? new ReadableString('OK') : null
       }
-    }
-    return {
-      status: {
-        httpStatus: 200,
-        error: null
-      },
-      stream: new ReadableString('OK')
     }
   }
 }

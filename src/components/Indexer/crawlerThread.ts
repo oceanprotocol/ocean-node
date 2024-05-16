@@ -18,15 +18,15 @@ import { JsonRpcApiProvider, Log, Signer } from 'ethers'
 
 export interface ReindexTask {
   txId: string
-  chainId: string
+  chainId: number
   eventIndex?: number
 }
 
 let REINDEX_BLOCK: number = null
 const REINDEX_QUEUE: ReindexTask[] = []
 
-let stopCrawling: boolean = false
-
+let stoppedCrawling: boolean = false
+let startedCrawling: boolean = false
 interface ThreadData {
   rpcDetails: SupportedNetwork
 }
@@ -79,7 +79,7 @@ export async function processNetworkData(
   provider: JsonRpcApiProvider,
   signer: Signer
 ): Promise<void> {
-  stopCrawling = false
+  stoppedCrawling = startedCrawling = false
   const contractDeploymentBlock = getDeployedContractBlock(rpcDetails.chainId)
   if (contractDeploymentBlock == null && (await getLastIndexedBlock()) == null) {
     INDEXER_LOGGER.logMessage(
@@ -98,7 +98,7 @@ export async function processNetworkData(
   const interval = getCrawlingInterval()
   let { chunkSize } = rpcDetails
   let lockProccessing = false
-  let startedCrawling = false
+
   while (true) {
     let currentBlock
     if (!lockProccessing) {
@@ -189,8 +189,9 @@ export async function processNetworkData(
       await reindexChain(currentBlock)
     }
 
-    if (stopCrawling) {
+    if (stoppedCrawling) {
       INDEXER_LOGGER.logMessage('Exiting thread...')
+      startedCrawling = false
       break
     }
   }
@@ -331,7 +332,7 @@ parentPort.on('message', (message) => {
         : deployBlock
   }
   if (message.method === 'stop-crawling') {
-    stopCrawling = true
+    stoppedCrawling = true
     INDEXER_LOGGER.warn('Stopping crawler thread once current run finishes...')
   }
 })

@@ -28,7 +28,7 @@ describe('OceanIndexer', () => {
     }
 
     stub(oceanIndexer as any, 'startThreads').callsFake(() => {
-      oceanIndexer.startThreads = () => {
+      oceanIndexer.startThreads = (): boolean => {
         try {
           const network = '1'
 
@@ -40,7 +40,7 @@ describe('OceanIndexer', () => {
 
           mockWorker.on.withArgs('exit').callArgWith(1, 0)
 
-          oceanIndexer.startThreads()
+          return oceanIndexer.startThreads()
         } catch (error) {
           console.error(error)
         }
