@@ -232,7 +232,6 @@ export class DownloadHandler extends Handler {
         }
       }
     }
-    CORE_LOGGER.logMessage('Validate ddo and credentials', true)
 
     // 3. Validate nonce and signature
     const nonceCheckResult: NonceResponse = await checkNonce(
@@ -287,8 +286,6 @@ export class DownloadHandler extends Handler {
         }
       }
     }
-    CORE_LOGGER.logMessage(' blockchain checks', true)
-
     let service: Service = AssetUtils.getServiceById(ddo, task.serviceId)
     if (!service) service = AssetUtils.getServiceByIndex(ddo, Number(task.serviceId))
     if (!service) throw new Error('Cannot find service')
@@ -307,7 +304,7 @@ export class DownloadHandler extends Handler {
         for (const env of environments)
           computeAddrs.push(env.consumerAddress.toLowerCase())
       }
-      //
+
       if (!computeAddrs.includes(task.consumerAddress.toLowerCase())) {
         const msg = 'Not allowed to download this asset of type compute'
         CORE_LOGGER.logMessage(msg)
@@ -338,7 +335,6 @@ export class DownloadHandler extends Handler {
         }
       }
     }
-    CORE_LOGGER.logMessage(' check that the provider fee transaction is valid ', true)
 
     // 6. Call the validateOrderTransaction function to check order transaction
     const paymentValidation = await validateOrderTransaction(
@@ -350,10 +346,6 @@ export class DownloadHandler extends Handler {
       AssetUtils.getServiceIndexById(ddo, task.serviceId),
       service.timeout,
       await blockchain.getSigner()
-    )
-    CORE_LOGGER.logMessage(
-      ' validateOrderTransaction function to check order transaction',
-      true
     )
 
     if (paymentValidation.isValid) {
@@ -381,6 +373,7 @@ export class DownloadHandler extends Handler {
         Uint8Array.from(Buffer.from(service.files, 'hex')),
         EncryptMethod.ECIES
       )
+      console.log('decrypt works')
       // Convert the decrypted bytes back to a string
       const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
       const decryptedFileData = JSON.parse(decryptedFilesString)

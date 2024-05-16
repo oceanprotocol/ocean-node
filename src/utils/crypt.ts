@@ -42,16 +42,26 @@ export async function decrypt(
   let decryptedData: Buffer
   const config = await getConfiguration()
   const { privateKey, publicKey } = config.keys
+  console.log(privateKey)
+  console.log(publicKey)
+  console.log(algorithm)
   if (algorithm === EncryptMethod.AES) {
     // use first 16 bytes of public key as an initialisation vector
     const initVector = publicKey.subarray(0, 16)
     // creates decipher object, with the given algorithm, key and initialization vector
+    console.log('initVector', initVector)
+
     const decipher = crypto.createDecipheriv('aes-256-cbc', privateKey, initVector)
+    console.log('decipher', decipher)
+
     // encoding is ignored because we are working with bytes and want to return a buffer
     decryptedData = Buffer.concat([decipher.update(data), decipher.final()])
+    console.log('decryptedData', decryptedData)
   } else if (algorithm === EncryptMethod.ECIES) {
     const sk = new eciesjs.PrivateKey(privateKey)
+    console.log('sk', sk)
     decryptedData = eciesjs.decrypt(sk.secret, data)
+    console.log('decryptedData', decryptedData)
   }
   return decryptedData
 }

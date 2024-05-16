@@ -63,12 +63,8 @@ export async function validateOrderTransaction(
     }
   }
   const erc20Address = txReceiptMined.to
-  console.log(' erc20Address', erc20Address)
   const datatokenContract = new Contract(erc20Address, ERC20Template.abi, signer)
-  console.log(' datatokenContract', datatokenContract)
-
   const erc721Address = await datatokenContract.getERC721Address()
-  console.log(' erc721Address', erc721Address)
 
   const orderReusedEvent = fetchEventFromTransaction(
     txReceiptMined,
