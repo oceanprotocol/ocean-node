@@ -28,7 +28,6 @@ import {
   ValidateParams
 } from '../../httpRoutes/validateCommands.js'
 import { DDO } from '../../../@types/DDO/DDO.js'
-import { ethers } from 'ethers'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(
@@ -262,8 +261,9 @@ export class DownloadHandler extends Handler {
     const config = await getConfiguration()
     const { rpc, network, chainId, fallbackRPCs } = config.supportedNetworks[ddo.chainId]
     let provider
+    let blockchain
     try {
-      const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+      blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
       provider = blockchain.getProvider()
     } catch (e) {
       return {
@@ -348,8 +348,8 @@ export class DownloadHandler extends Handler {
       ddo.nftAddress,
       service.datatokenAddress,
       AssetUtils.getServiceIndexById(ddo, task.serviceId),
-      service.timeout
-      // new ethers.Wallet(process.env.PRIVATE_KEY, provider)
+      service.timeout,
+      await blockchain.getSigner()
     )
     CORE_LOGGER.logMessage(
       ' validateOrderTransaction function to check order transaction',

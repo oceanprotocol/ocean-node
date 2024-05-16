@@ -40,7 +40,14 @@ export class Blockchain {
     this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
   }
 
-  public getSigner(): Signer {
+  public async getSigner(): Promise<Signer> {
+    if (
+      (await this.signer.getAddress()) === '0x0000000000000000000000000000000000000000'
+    ) {
+      console.log('Signer not initialized')
+      this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
+      return this.signer
+    }
     return this.signer
   }
 
@@ -48,6 +55,7 @@ export class Blockchain {
     console.log('provider ready or not == ', this.provider.ready)
     if (!this.provider.ready) {
       this.provider = new ethers.JsonRpcProvider(this.knownRPCs[0], this.network)
+      console.log('is it ready now == ', this.provider.ready)
       return this.provider
     }
     return this.provider
