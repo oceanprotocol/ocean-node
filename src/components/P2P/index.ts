@@ -205,7 +205,13 @@ export class OceanP2P extends EventEmitter {
             multiaddrs.filter((m) => this.shouldAnnounce(m))
         },
         peerId: config.keys.peerId,
-        transports: [webSockets(), tcp(), circuitRelayTransport()],
+        transports: [
+          webSockets(),
+          tcp(),
+          circuitRelayTransport({
+            discoverRelays: 2
+          })
+        ],
         streamMuxers: [yamux(), mplex()],
         connectionEncryption: [
           noise()

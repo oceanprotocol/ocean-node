@@ -431,9 +431,9 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     p2pConfig: {
       bootstrapNodes: [
         // Public IPFS bootstraps
-        '/ip4/104.131.131.82/tcp/4001/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ',
-        '/dnsaddr/bootstrap.libp2p.io/ipfs/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN',
-        '/dnsaddr/bootstrap.libp2p.io/ipfs/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa',
+        // '/ip4/104.131.131.82/tcp/4001/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ',
+        // '/dnsaddr/bootstrap.libp2p.io/ipfs/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN',
+        // '/dnsaddr/bootstrap.libp2p.io/ipfs/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa',
         // OPF nodes
         // '/dns4/node1.oceanprotocol.com/tcp/9000/p2p/'
         '/dns4/node2.oceanprotocol.com/tcp/9000/p2p/16Uiu2HAm6u88XuC4Xke7J9NmT7qLNL4zMYEyLxqdVgAc7Rnr95o6'
@@ -462,7 +462,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
         process.env.P2P_connectionsMaxParallelDials,
         150
       ),
-      connectionsDialTimeout: getIntEnvValue(process.env.P2P_connectionsDialTimeout, 10e3) // 10 seconds
+      connectionsDialTimeout: getIntEnvValue(process.env.P2P_connectionsDialTimeout, 30e3) // 10 seconds
     },
     // Only enable provider if we have a DB_URL
     hasProvider: !!getEnvValue(process.env.DB_URL, ''),
