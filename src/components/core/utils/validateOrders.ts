@@ -2,8 +2,8 @@ import {
   JsonRpcApiProvider,
   Contract,
   Interface,
-  TransactionReceipt,
-  Signer
+  TransactionReceipt
+  // Signer
 } from 'ethers'
 import { fetchEventFromTransaction } from '../../../utils/util.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
@@ -49,8 +49,8 @@ export async function validateOrderTransaction(
   dataNftAddress: string,
   datatokenAddress: string,
   serviceIndex: number,
-  serviceTimeout: number,
-  signer?: Signer
+  serviceTimeout: number
+  // signer?: Signer
 ): Promise<ValidateTransactionResponse> {
   const contractInterface = new Interface(ERC20Template.abi)
   let txReceiptMined = await fetchTransactionReceipt(txId, provider)
@@ -64,7 +64,12 @@ export async function validateOrderTransaction(
   }
   const erc20Address = txReceiptMined.to
   console.log(' erc20Address', erc20Address)
-  const datatokenContract = new Contract(erc20Address, ERC20Template.abi, signer)
+  const datatokenContract = new Contract(
+    erc20Address,
+    ERC20Template.abi,
+    await provider.getSigner()
+  )
+  console.log(' datatokenContract', datatokenContract)
 
   const erc721Address = await datatokenContract.getERC721Address()
   console.log(' erc721Address', erc721Address)

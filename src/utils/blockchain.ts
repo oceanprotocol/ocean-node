@@ -45,6 +45,11 @@ export class Blockchain {
   }
 
   public getProvider(): JsonRpcApiProvider {
+    console.log('provider ready or not == ', this.provider.ready)
+    if (!this.provider.ready) {
+      this.provider = new ethers.JsonRpcProvider(this.knownRPCs[0], this.network)
+      return this.provider
+    }
     return this.provider
   }
 

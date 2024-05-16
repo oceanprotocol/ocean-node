@@ -264,9 +264,7 @@ export class DownloadHandler extends Handler {
     let provider
     try {
       const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-      setTimeout(() => {
-        provider = blockchain.getProvider()
-      }, 2000)
+      provider = blockchain.getProvider()
     } catch (e) {
       return {
         stream: null,
@@ -350,8 +348,8 @@ export class DownloadHandler extends Handler {
       ddo.nftAddress,
       service.datatokenAddress,
       AssetUtils.getServiceIndexById(ddo, task.serviceId),
-      service.timeout,
-      new ethers.Wallet(process.env.PRIVATE_KEY, provider)
+      service.timeout
+      // new ethers.Wallet(process.env.PRIVATE_KEY, provider)
     )
     CORE_LOGGER.logMessage(
       ' validateOrderTransaction function to check order transaction',
