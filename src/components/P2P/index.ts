@@ -246,9 +246,9 @@ export class OceanP2P extends EventEmitter {
         transports: [
           webSockets(),
           tcp(),
-          circuitRelayTransport({
+          circuitRelayTransport(/* {
             discoverRelays: 2
-          })
+          } */)
         ],
         streamMuxers: [yamux(), mplex()],
         connectionEncryption: [
