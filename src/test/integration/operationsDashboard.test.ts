@@ -28,7 +28,9 @@ import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
 import {
   AdminReindexChainCommand,
   AdminReindexTxCommand,
-  AdminStopNodeCommand
+  AdminStopNodeCommand,
+  IndexingCommand,
+  StartStopIndexingCommand
 } from '../../@types/commands.js'
 import { StopNodeHandler } from '../../components/core/admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.js'
@@ -37,6 +39,8 @@ import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import { streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
+import { IndexingThreadHandler } from '../../components/core/admin/IndexingThreadHandler.js'
+import { CoreHandlersRegistry } from '../../components/core/handler/coreHandlersRegistry.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -182,6 +186,31 @@ describe('Should test admin operations', () => {
       assert(handlerResponse, 'handler resp does not exist')
       assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
     }
+  })
+
+  it('should test commands for start/stop threads', async () => {
+    // -----------------------------------------
+    // IndexingThreadHandler
+    const indexingHandler: IndexingThreadHandler = CoreHandlersRegistry.getInstance(
+      oceanNode
+    ).getHandler(PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD)
+
+    const signature = await getSignature(expiryTimestamp.toString())
+    const indexingStartCommand: StartStopIndexingCommand = {
+      command: PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
+      action: IndexingCommand.START_THREAD,
+      expiryTimestamp,
+      signature
+    }
+    expect(indexingHandler.validate(indexingStartCommand).valid).to.be.equal(true) // OK
+
+    const indexingStopCommand: StartStopIndexingCommand = {
+      command: PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
+      action: IndexingCommand.STOP_THREAD,
+      expiryTimestamp: 10,
+      signature
+    }
+    expect(indexingHandler.validate(indexingStopCommand).valid).to.be.equal(false) // NOK
   })
 
   after(async () => {
