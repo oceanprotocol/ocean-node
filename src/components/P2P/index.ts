@@ -337,24 +337,39 @@ export class OceanP2P extends EventEmitter {
     // }
   }
 
-  async getPeers() {
-    const pubsubPeers = this._peers.slice(0)
-    const p2pPeers = await this._libp2p.peerStore.all()
-    const oceanPeers = []
-    for (const peer of p2pPeers) {
+  async getRunningOceanPeers() {
+    return await this.getOceanPeers()
+  }
+
+  async getKnownOceanPeers() {
+    return await this.getOceanPeers(false, true)
+  }
+
+  async getAllOceanPeers() {
+    return await this.getOceanPeers(true, true)
+  }
+
+  async getOceanPeers(running: boolean = true, known: boolean = false) {
+    const peers: string[] = []
+
+    // get pubsub peers
+    for (const peer of this._peers.slice(0)) {
+      if (!peers.includes(peer.toString)) peers.push(peer.toString())
+    }
+    console.log(peers)
+    // get p2p peers and filter them by protocol
+    for (const peer of await this._libp2p.peerStore.all()) {
       if (peer && peer.protocols) {
         for (const protocol of peer.protocols) {
           if (protocol === this._protocol) {
-            oceanPeers.push(peer.id.toString())
+            if (!peers.includes(peer.id.toString())) peers.push(peer.id.toString())
           }
         }
       }
     }
-    const allPeers = oceanPeers.concat(pubsubPeers)
-    const uniqueArray = allPeers.filter(function (item, pos, self) {
-      return self.indexOf(item) === pos
-    })
-    return uniqueArray
+    console.log(peers)
+
+    return peers
   }
 
   async hasPeer(peer: any) {
@@ -512,7 +527,7 @@ export class OceanP2P extends EventEmitter {
   async advertiseDid(did: string) {
     P2P_LOGGER.logMessage('Advertising ' + did, true)
     try {
-      const x = (await this.getPeers()).length
+      const x = (await this.getRunningOceanPeers()).length
       if (x > 0) {
         const cid = await cidFromRawString(did)
         const multiAddrs = this._libp2p.components.addressManager.getAddresses()
