@@ -356,7 +356,6 @@ export class OceanP2P extends EventEmitter {
     for (const peer of this._peers.slice(0)) {
       if (!peers.includes(peer.toString)) peers.push(peer.toString())
     }
-    console.log(peers)
     // get p2p peers and filter them by protocol
     for (const peer of await this._libp2p.peerStore.all()) {
       if (peer && peer.protocols) {
@@ -367,7 +366,6 @@ export class OceanP2P extends EventEmitter {
         }
       }
     }
-    console.log(peers)
 
     return peers
   }
