@@ -462,7 +462,13 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
         process.env.P2P_connectionsMaxParallelDials,
         150
       ),
-      connectionsDialTimeout: getIntEnvValue(process.env.P2P_connectionsDialTimeout, 30e3) // 10 seconds
+      connectionsDialTimeout: getIntEnvValue(
+        process.env.P2P_connectionsDialTimeout,
+        30e3
+      ), // 10 seconds
+      upnp: true,
+      autoNat: true,
+      enableCircuitRelayServer: true
     },
     // Only enable provider if we have a DB_URL
     hasProvider: !!getEnvValue(process.env.DB_URL, ''),

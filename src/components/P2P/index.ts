@@ -192,6 +192,44 @@ export class OceanP2P extends EventEmitter {
       this._privateKey = config.keys.privateKey
       /** @type {import('libp2p').Libp2pOptions} */
       // start with some default, overwrite based on config later
+      let servicesConfig = {
+        identify: identify(),
+        pubsub: gossipsub({
+          allowPublishToZeroPeers: true
+          // canRelayMessage: true,
+          // enabled: true
+        }),
+        dht: kadDHT({
+          // this is necessary because this node is not connected to the public network
+          // it can be removed if, for example bootstrappers are configured
+          allowQueryWithZeroPeers: true,
+          maxInboundStreams: config.p2pConfig.dhtMaxInboundStreams,
+          maxOutboundStreams: config.p2pConfig.dhtMaxOutboundStreams,
+
+          clientMode: false, // this should be true for edge devices
+          kBucketSize: 20,
+          protocolPrefix: '/ocean/nodes/1.0.0'
+          // randomWalk: {
+          //  enabled: true,            // Allows to disable discovery (enabled by default)
+          //  interval: 300e3,
+          //  timeout: 10e3
+          // }
+        }),
+        ping: ping(),
+        dcutr: dcutr()
+      }
+      // eslint-disable-next-line no-constant-condition, no-self-compare
+      if (config.p2pConfig.enableCircuitRelayServer) {
+        servicesConfig = { ...servicesConfig, ...{ circuitRelay: circuitRelayServer() } }
+      }
+      // eslint-disable-next-line no-constant-condition, no-self-compare
+      if (config.p2pConfig.upnp) {
+        servicesConfig = { ...servicesConfig, ...{ upnpNAT: uPnPNAT() } }
+      }
+      // eslint-disable-next-line no-constant-condition, no-self-compare
+      if (config.p2pConfig.autoNat) {
+        servicesConfig = { ...servicesConfig, ...{ autoNAT: autoNAT() } }
+      }
       const options = {
         addresses: {
           listen: [
@@ -238,35 +276,7 @@ export class OceanP2P extends EventEmitter {
             interval: config.p2pConfig.mDNSInterval
           })
         ],
-        services: {
-          identify: identify(),
-          pubsub: gossipsub({
-            allowPublishToZeroPeers: true
-            // canRelayMessage: true,
-            // enabled: true
-          }),
-          dht: kadDHT({
-            // this is necessary because this node is not connected to the public network
-            // it can be removed if, for example bootstrappers are configured
-            allowQueryWithZeroPeers: true,
-            maxInboundStreams: config.p2pConfig.dhtMaxInboundStreams,
-            maxOutboundStreams: config.p2pConfig.dhtMaxOutboundStreams,
-
-            clientMode: false, // this should be true for edge devices
-            kBucketSize: 20,
-            protocolPrefix: '/ocean/nodes/1.0.0'
-            // randomWalk: {
-            //  enabled: true,            // Allows to disable discovery (enabled by default)
-            //  interval: 300e3,
-            //  timeout: 10e3
-            // }
-          }),
-          autoNAT: autoNAT(),
-          upnpNAT: uPnPNAT(),
-          ping: ping(),
-          dcutr: dcutr(),
-          circuitRelay: circuitRelayServer()
-        },
+        services: servicesConfig,
         connectionManager: {
           maxParallelDials: config.p2pConfig.connectionsMaxParallelDials, // 150 total parallel multiaddr dials
           dialTimeout: config.p2pConfig.connectionsDialTimeout // 10 second dial timeout per peer dial
@@ -299,11 +309,14 @@ export class OceanP2P extends EventEmitter {
       node.services.pubsub.subscribe(this._topic)
       node.services.pubsub.publish(this._topic, encoding('online'))
       // ;(node.services.upnpNAT as any).mapIpAddresses()
-      ;(node.services.upnpNAT as any).mapIpAddresses().catch((err: any) => {
-        // hole punching errors are non-fatal
-        P2P_LOGGER.info('Failed to configure UPNP Gateway(if you have one)')
-        P2P_LOGGER.debug(err)
-      })
+      const upnpService = (node.services as any).upnpNAT
+      if (config.p2pConfig.upnp && upnpService) {
+        ;(upnpService as any).mapIpAddresses().catch((err: any) => {
+          // hole punching errors are non-fatal
+          P2P_LOGGER.info('Failed to configure UPNP Gateway(if you have one)')
+          P2P_LOGGER.debug(err)
+        })
+      }
       return node
     } catch (e) {
       P2P_LOGGER.logMessageWithEmoji(
