@@ -188,7 +188,8 @@ describe('Should test admin operations', () => {
     }
   })
 
-  it('should test commands for start/stop threads', async () => {
+  it('should test commands for start/stop threads', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     // -----------------------------------------
     // IndexingThreadHandler
     const indexingHandler: IndexingThreadHandler = CoreHandlersRegistry.getInstance(
@@ -211,6 +212,16 @@ describe('Should test admin operations', () => {
       signature
     }
     expect(indexingHandler.validate(indexingStopCommand).valid).to.be.equal(false) // NOK
+
+    // OK now
+    indexingStopCommand.expiryTimestamp = expiryTimestamp
+    indexingStopCommand.chainId = 8996
+    expect(indexingHandler.validate(indexingStopCommand).valid).to.be.equal(true) // OK
+
+    // should exist a running thread for this network atm
+    const response = await indexingHandler.handle(indexingStopCommand)
+    assert(response.stream, 'Failed to get stream')
+    expect(response.status.httpStatus).to.be.equal(200)
   })
 
   after(async () => {
