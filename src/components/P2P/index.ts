@@ -123,7 +123,7 @@ export class OceanP2P extends EventEmitter {
     this._connections = {}
     this._protocol = '/ocean/nodes/1.0.0'
 
-    // this._interval = setInterval(this._pollPeers.bind(this), this._options.pollInterval)
+    this._interval = setInterval(this._pollPeers.bind(this), this._options.pollInterval)
     this._libp2p.handle(this._protocol, handleProtocolCommands.bind(this))
 
     setInterval(this.republishStoredDDOS.bind(this), REPUBLISH_INTERVAL_HOURS)
@@ -338,17 +338,21 @@ export class OceanP2P extends EventEmitter {
   }
 
   async getPeers() {
+    const pubsubPeers = this._peers.slice(0)
     const allPeers = await this._libp2p.peerStore.all()
     const oceanPeers = []
     for (const peer of allPeers) {
-      if (peer && peer.protocols) console.log(peer.id)
-      for (const protocol of peer.protocols) {
-        if (protocol === this._protocol) {
-          oceanPeers.push(peer.id.toString())
+      if (peer && peer.protocols) {
+        for (const protocol of peer.protocols) {
+          if (protocol === this._protocol) {
+            oceanPeers.push(peer.id.toString())
+          }
         }
       }
     }
-    return oceanPeers
+
+    const peers = Array.from(new Set(oceanPeers.concat(pubsubPeers)))
+    return peers
   }
 
   async hasPeer(peer: any) {
@@ -465,12 +469,10 @@ export class OceanP2P extends EventEmitter {
 
   //   return response
   // }
-  /*
+
   async _pollPeers() {
     const node = <any>this._libp2p
     const newPeers = (await node.services.pubsub.getSubscribers(this._topic)).sort()
-    console.log('============  newPeers ====================')
-    console.log(newPeers)
     if (this._emitChanges(newPeers)) {
       const addedNew = newPeers.length > this._peers.length
       this._peers = newPeers
@@ -487,8 +489,6 @@ export class OceanP2P extends EventEmitter {
   }
 
   _emitChanges(newPeers: any) {
-    console.log('============  _emitChanges ==================  ')
-    console.log(newPeers)
     const peers = this._peers.map((p) => p.toString())
     const newpeers = newPeers.map((x: any) => x.toString())
     const differences = diff(peers, newpeers)
@@ -496,10 +496,9 @@ export class OceanP2P extends EventEmitter {
     differences.added.forEach((peer: any) => this.emit('peer joined', peer))
     differences.removed.forEach((peer: any) => this.emit('peer left', peer))
     const x = differences.added.length > 0 || differences.removed.length > 0
-    console.log(x)
     return x
   }
-*/
+
   _onMessage(event: any) {
     const message = event.detail
 
@@ -511,21 +510,22 @@ export class OceanP2P extends EventEmitter {
   async advertiseDid(did: string) {
     P2P_LOGGER.logMessage('Advertising ' + did, true)
     try {
-      // const x = this._peers.length
-      // if (x > 0) {
-      const cid = await cidFromRawString(did)
-      const multiAddrs = this._libp2p.components.addressManager.getAddresses()
-      // console.log('multiaddrs: ', multiAddrs)
-      await this._libp2p.contentRouting.provide(cid, multiAddrs)
-      // } else {
-      //  P2P_LOGGER.warn(
-      //    'Could not find any Ocean peers. Nobody is listening at the moment, skipping...'
-      //  )
-      //  // save it for retry later
-      //  // https://github.com/libp2p/js-libp2p-kad-dht/issues/98
-      //  if (!this._pendingAdvertise.includes(did)) {
-      //   this._pendingAdvertise.push(did)
-      //  }
+      const x = (await this.getPeers()).length
+      if (x > 0) {
+        const cid = await cidFromRawString(did)
+        const multiAddrs = this._libp2p.components.addressManager.getAddresses()
+        // console.log('multiaddrs: ', multiAddrs)
+        await this._libp2p.contentRouting.provide(cid, multiAddrs)
+      } else {
+        P2P_LOGGER.verbose(
+          'Could not find any Ocean peers. Nobody is listening at the moment, skipping...'
+        )
+        // save it for retry later
+        // https://github.com/libp2p/js-libp2p-kad-dht/issues/98
+        if (!this._pendingAdvertise.includes(did)) {
+          this._pendingAdvertise.push(did)
+        }
+      }
     } catch (e) {
       P2P_LOGGER.error('advertiseDid():' + e.message)
     }
