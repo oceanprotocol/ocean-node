@@ -339,9 +339,9 @@ export class OceanP2P extends EventEmitter {
 
   async getPeers() {
     const pubsubPeers = this._peers.slice(0)
-    const allPeers = await this._libp2p.peerStore.all()
+    const p2pPeers = await this._libp2p.peerStore.all()
     const oceanPeers = []
-    for (const peer of allPeers) {
+    for (const peer of p2pPeers) {
       if (peer && peer.protocols) {
         for (const protocol of peer.protocols) {
           if (protocol === this._protocol) {
@@ -350,9 +350,11 @@ export class OceanP2P extends EventEmitter {
         }
       }
     }
-
-    const peers = Array.from(new Set(oceanPeers.concat(pubsubPeers)))
-    return peers
+    const allPeers = oceanPeers.concat(pubsubPeers)
+    const uniqueArray = allPeers.filter(function (item, pos, self) {
+      return self.indexOf(item) === pos
+    })
+    return uniqueArray
   }
 
   async hasPeer(peer: any) {
