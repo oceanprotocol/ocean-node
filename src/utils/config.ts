@@ -468,7 +468,8 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       ), // 10 seconds
       upnp: true,
       autoNat: true,
-      enableCircuitRelayServer: true
+      enableCircuitRelayServer: true,
+      announcePrivateIp: false
     },
     // Only enable provider if we have a DB_URL
     hasProvider: !!getEnvValue(process.env.DB_URL, ''),

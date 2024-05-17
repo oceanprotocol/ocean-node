@@ -40,6 +40,7 @@ export interface OceanNodeP2PConfig {
   autoNat: boolean
   upnp: boolean
   enableCircuitRelayServer: boolean
+  announcePrivateIp: boolean
 }
 
 export interface OceanNodeConfig {

@@ -39,7 +39,7 @@ import { EVENTS, cidFromRawString } from '../../utils/index.js'
 import { Transform } from 'stream'
 import { Database } from '../database'
 import { OceanNodeConfig, FindDDOResponse } from '../../@types/OceanNode'
-
+import is_ip_private from 'private-ip'
 import {
   GENERIC_EMOJIS,
   LOG_LEVELS_STR,
@@ -48,6 +48,8 @@ import {
 import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
+import { multiaddr } from '@multiformats/multiaddr'
+import { config } from 'dotenv'
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
@@ -180,9 +182,14 @@ export class OceanP2P extends EventEmitter {
     P2P_LOGGER.debug('subscription-change:' + details.detail)
   }
 
-  shouldAnnounce(multiaddr: any) {
-    // TO DO
-    return true
+  shouldAnnounce(addr: any) {
+    const maddr = multiaddr(addr)
+    if (
+      this._config.p2pConfig.announcePrivateIp === false &&
+      is_ip_private(maddr.nodeAddress().address)
+    )
+      return false
+    else return true
   }
 
   async createNode(config: OceanNodeConfig): Promise<Libp2p | null> {
@@ -202,7 +209,7 @@ export class OceanP2P extends EventEmitter {
         dht: kadDHT({
           // this is necessary because this node is not connected to the public network
           // it can be removed if, for example bootstrappers are configured
-          allowQueryWithZeroPeers: true,
+          allowQueryWithZeroPeers: false,
           maxInboundStreams: config.p2pConfig.dhtMaxInboundStreams,
           maxOutboundStreams: config.p2pConfig.dhtMaxOutboundStreams,
 
