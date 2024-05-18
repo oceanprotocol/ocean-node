@@ -188,10 +188,12 @@ export class OceanP2P extends EventEmitter {
       this._config.p2pConfig.announcePrivateIp === false &&
       is_ip_private(maddr.nodeAddress().address)
     ) {
-      P2P_LOGGER.warn('Deny announcment of ' + maddr.nodeAddress().address)
+      // disabled logs because of flooding
+      // P2P_LOGGER.debug('Deny announcment of ' + maddr.nodeAddress().address)
       return false
     } else {
-      P2P_LOGGER.warn('Allow announcment of ' + maddr.nodeAddress().address)
+      // disabled logs because of flooding
+      // P2P_LOGGER.debug('Allow announcment of ' + maddr.nodeAddress().address)
       return true
     }
   }
