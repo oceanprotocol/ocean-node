@@ -323,7 +323,6 @@ export class OceanP2P extends EventEmitter {
           }
         }
       }
-      console.log(options)
       const node = await createLibp2p(options)
       await node.start()
 
