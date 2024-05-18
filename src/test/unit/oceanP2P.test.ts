@@ -75,15 +75,13 @@ describe('OceanP2P Test', () => {
   })
   it('Start check if nodes are connected with pubsub', async () => {
     let peers = await node1.getOceanPeers()
-    const peers1 = peers.map((p) => p.toString())
     assert(
-      peers1.includes(config2.keys.peerId.toString()),
+      peers.includes(config2.keys.peerId.toString()),
       'Node2 not found in node1 peer list'
     )
     peers = await node2.getOceanPeers()
-    const peers2 = peers.map((p) => p.toString())
     assert(
-      peers2.includes(config1.keys.peerId.toString()),
+      peers.includes(config1.keys.peerId.toString()),
       'Node1 not found in node2 peer list'
     )
   })
