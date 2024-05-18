@@ -39,6 +39,7 @@ import { EVENTS, cidFromRawString } from '../../utils/index.js'
 import { Transform } from 'stream'
 import { Database } from '../database'
 import { OceanNodeConfig, FindDDOResponse } from '../../@types/OceanNode'
+// eslint-disable-next-line camelcase
 import is_ip_private from 'private-ip'
 import {
   GENERIC_EMOJIS,
@@ -49,7 +50,6 @@ import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
 import { multiaddr } from '@multiformats/multiaddr'
-import { config } from 'dotenv'
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
