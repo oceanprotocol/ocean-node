@@ -187,9 +187,13 @@ export class OceanP2P extends EventEmitter {
     if (
       this._config.p2pConfig.announcePrivateIp === false &&
       is_ip_private(maddr.nodeAddress().address)
-    )
+    ) {
+      P2P_LOGGER.warn('Deny announcment of ' + maddr.nodeAddress().address)
       return false
-    else return true
+    } else {
+      P2P_LOGGER.warn('Allow announcment of ' + maddr.nodeAddress().address)
+      return true
+    }
   }
 
   async createNode(config: OceanNodeConfig): Promise<Libp2p | null> {
@@ -209,7 +213,7 @@ export class OceanP2P extends EventEmitter {
         dht: kadDHT({
           // this is necessary because this node is not connected to the public network
           // it can be removed if, for example bootstrappers are configured
-          allowQueryWithZeroPeers: false,
+          allowQueryWithZeroPeers: true,
           maxInboundStreams: config.p2pConfig.dhtMaxInboundStreams,
           maxOutboundStreams: config.p2pConfig.dhtMaxOutboundStreams,
 
@@ -237,7 +241,7 @@ export class OceanP2P extends EventEmitter {
       if (config.p2pConfig.autoNat) {
         servicesConfig = { ...servicesConfig, ...{ autoNAT: autoNAT() } }
       }
-      const options = {
+      let options = {
         addresses: {
           listen: [
             `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindTcpPort}`,
@@ -262,33 +266,62 @@ export class OceanP2P extends EventEmitter {
           noise()
           // plaintext()
         ],
-        peerDiscovery: [
-          bootstrap({
-            list: config.p2pConfig.bootstrapNodes,
-            timeout: 1000, // in ms,
-            tagName: 'bootstrap',
-            tagValue: 50,
-            tagTTL: 10000000000
-          }),
-          pubsubPeerDiscovery({
-            interval: config.p2pConfig.pubsubPeerDiscoveryInterval,
-            topics: [
-              'oceanprotocoldiscovery',
-              `oceanprotocol._peer-discovery._p2p._pubsub`, // It's recommended but not required to extend the global space
-              '_peer-discovery._p2p._pubsub' // Include if you want to participate in the global space
-            ],
-            listenOnly: false
-          }),
-          mdns({
-            interval: config.p2pConfig.mDNSInterval
-          })
-        ],
         services: servicesConfig,
         connectionManager: {
           maxParallelDials: config.p2pConfig.connectionsMaxParallelDials, // 150 total parallel multiaddr dials
           dialTimeout: config.p2pConfig.connectionsDialTimeout // 10 second dial timeout per peer dial
         }
       }
+      if (config.p2pConfig.bootstrapNodes && config.p2pConfig.bootstrapNodes.length > 0) {
+        options = {
+          ...options,
+          ...{
+            peerDiscovery: [
+              bootstrap({
+                list: config.p2pConfig.bootstrapNodes,
+                timeout: 1000, // in ms,
+                tagName: 'bootstrap',
+                tagValue: 50,
+                tagTTL: 10000000000
+              }),
+              mdns({
+                interval: config.p2pConfig.mDNSInterval
+              }),
+              pubsubPeerDiscovery({
+                interval: config.p2pConfig.pubsubPeerDiscoveryInterval,
+                topics: [
+                  'oceanprotocoldiscovery',
+                  `oceanprotocol._peer-discovery._p2p._pubsub`, // It's recommended but not required to extend the global space
+                  '_peer-discovery._p2p._pubsub' // Include if you want to participate in the global space
+                ],
+                listenOnly: false
+              })
+            ]
+          }
+        }
+      } else {
+        // only mdns & pubsubPeerDiscovery
+        options = {
+          ...options,
+          ...{
+            peerDiscovery: [
+              mdns({
+                interval: config.p2pConfig.mDNSInterval
+              }),
+              pubsubPeerDiscovery({
+                interval: config.p2pConfig.pubsubPeerDiscoveryInterval,
+                topics: [
+                  'oceanprotocoldiscovery',
+                  `oceanprotocol._peer-discovery._p2p._pubsub`, // It's recommended but not required to extend the global space
+                  '_peer-discovery._p2p._pubsub' // Include if you want to participate in the global space
+                ],
+                listenOnly: false
+              })
+            ]
+          }
+        }
+      }
+      console.log(options)
       const node = await createLibp2p(options)
       await node.start()
 
