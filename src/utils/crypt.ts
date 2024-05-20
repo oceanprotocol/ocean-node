@@ -41,7 +41,7 @@ export async function decrypt(
   data: Uint8Array,
   algorithm: EncryptMethod
 ): Promise<Buffer> {
-  console.log('decrypt data', decrypt)
+  console.log('decrypt data', data)
   let decryptedData: Buffer
   const config = await getConfiguration()
   const { privateKey, publicKey } = config.keys
