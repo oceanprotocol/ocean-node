@@ -16,6 +16,8 @@ export RPC="{ \"1\": \"https://rpc.eth.gateway.fm\", \"137\": \"https://polygon.
 
 ## P2P
 
+- `P2P_ENABLE_IPV4` : Enable IPv4 conectivity. Defaults: True
+- `P2P_ENABLE_IPV6` : Enable IPv6 conectivity. Defaults: True
 - `P2P_ipV4BindAddress` : Bind address for IPV4. Defaults to `0.0.0.0`
 - `P2P_ipV4BindTcpPort` : Port used on IPv4 TCP connections. Defaults to `0` (Use whatever port is free. When running as docker, please set it explicitly)
 - `P2P_ipV4BindWsPort` : Port used on IPv4 WS connections. Defaults to `0` (Use whatever port is free. When running as docker, please set it explicitly)
@@ -23,12 +25,17 @@ export RPC="{ \"1\": \"https://rpc.eth.gateway.fm\", \"137\": \"https://polygon.
 - `P2P_ipV6BindTcpPort` : Port used on IPv6 TCP connections. Defaults to `0` (Use whatever port is free. When running as docker, please set it explicitly)
 - `P2P_ipV6BindWsPort` : Port used on IPv6 WS connections. Defaults to `0` (Use whatever port is free. When running as docker, please set it explicitly)
 - `P2P_ANNOUNCE_ADDRESSES` : List of addresses to announce to the network. Example: ["/ip4/1.2.3.4/tcp/8000"]
+- `P2P_ANNOUNCE_PRIVATE`: Announce private IPs. Default: True
 - `P2P_pubsubPeerDiscoveryInterval` : Interval (in ms) for discovery using pubsub. Defaults to `1000` (one second)
 - `P2P_dhtMaxInboundStreams` : Maximum no of DHT inbound streams. Defaults to `500`
 - `P2P_dhtMaxOutboundStreams` : Maximum no of DHT outbound streams. Defaults to `500`
 - `P2P_mDNSInterval` : Interval (in ms) for discovery using mDNS. Defaults to `20000` (20 seconds)
 - `P2P_connectionsMaxParallelDials` : Maximum no of parallel dials. Defaults to `150`
 - `P2P_connectionsDialTimeout`: Timeout for dial commands. Defaults to `10000` (10 seconds)
+- `P2P_ENABLE_UPNP`: Enable UPNP gateway discovery. Default: True
+- `P2P_ENABLE_AUTONAT`: Enable AutoNAT discovery. Default: True
+- `P2P_ENABLE_CIRCUIT_RELAY_SERVER`: Enable Circuit Relay Server. It will help network, but increase your bandwith usage. Should be disabled for edge nodes. Default: True
+- `P2P_ENABLE_CIRCUIT_RELAY_CLIENT`: Enable conections through relay servers. Default: True
 
 ## HTTP
 

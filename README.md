@@ -321,9 +321,67 @@ The dashboard will be made available at: `http://localhost:8000/dashboard/`
 
 ## Networking in cloud environments or DMZ
 
-Sometimes, you need to manually specify an external address that has to be announced by the node, in order for others to be able to connect to the node.
-In order to do that, use P2P_ANNOUNCE_ADDRESSES env:
+In order for your node to join the network, the others nodes needs to be able to connect to it.
+All options can be controlled using [environment
+variables](docs/environment-variables.md#p2p)
+
+Here are the proper steps:
+
+- decide what IP version to use (IPV4 or/and IPv6). You should use both if available.
+- decide if you want to filter private ips (if you run multiple nodes in a LAN or cloud environment, leave them on)
+- if you already have an external ip configured on your machine, you are good to go.
+- if you have a private ip, but an UPNP gateway, you should be fine as well.
+- if you have a private ip and you can forward external ports from your gateway, use P2P_ANNOUNCE_ADDRESSES and let other nodes know your external IP/port.
+- if you cannot forward ports on your gateway, the only choice is to use a circuit relay server (then all traffic will go through that node and it will proxy)
+
+In order to check connectivity, you can do the following:
+
+### On your node, check and observe how your node sees itself:
 
 ```bash
-export P2P_ANNOUNCE_ADDRESSES=[\"/ip4/1.2.3.4/tcp/8000\"]
+curl http://localhost:8000/getP2pPeer?peerId=16Uiu2HAkwWe6BFQXZWg6zE9X7ExynvXEe9BRTR5Wn3udNs7JpUDx
+```
+
+and observe the addresses section:
+
+```json
+{
+  "addresses": [
+    { "multiaddr": "/ip4/127.0.0.1/tcp/34227", "isCertified": false },
+    { "multiaddr": "/ip4/127.0.0.1/tcp/36913/ws", "isCertified": false },
+    { "multiaddr": "/ip4/172.15.0.1/tcp/34227", "isCertified": false },
+    { "multiaddr": "/ip4/172.15.0.1/tcp/36913/ws", "isCertified": false },
+    { "multiaddr": "/ip4/172.26.53.25/tcp/34227", "isCertified": false },
+    { "multiaddr": "/ip4/172.26.53.25/tcp/36913/ws", "isCertified": false },
+    { "multiaddr": "/ip6/::1/tcp/41157", "isCertified": false }
+  ],
+  "protocols": [
+    "/floodsub/1.0.0",
+    "/ipfs/id/1.0.0",
+    "/ipfs/id/push/1.0.0",
+    "/ipfs/ping/1.0.0",
+    "/libp2p/autonat/1.0.0",
+    "/libp2p/circuit/relay/0.2.0/hop",
+    "/libp2p/circuit/relay/0.2.0/stop",
+    "/libp2p/dcutr",
+    "/meshsub/1.0.0",
+    "/meshsub/1.1.0",
+    "/ocean/nodes/1.0.0",
+    "/ocean/nodes/1.0.0/kad/1.0.0",
+    "/ocean/nodes/1.0.0/lan/kad/1.0.0"
+  ],
+  "metadata": {},
+  "tags": {},
+  "id": "16Uiu2HAkwWe6BFQXZWg6zE9X7ExynvXEe9BRTR5Wn3udNs7JpUDx",
+  "publicKey": "08021221021efd24150c233d689ade0f9f467aa6a5a2969a5f52d70c85caac8681925093e3"
+}
+```
+
+Are any of those IPs reachable from other nodes?
+
+### To observe how your node is seen by others, start your node, wait a bit and then ask another node to give you details about you:
+
+```bash
+ curl http://node2.oceanprotocol.com:8000/getP2pPeer?peerId=16Uiu2HAk
+wWe6BFQXZWg6zE9X7ExynvXEe9BRTR5Wn3udNs7JpUDx
 ```
