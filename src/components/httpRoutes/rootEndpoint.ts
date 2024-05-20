@@ -41,6 +41,13 @@ rootEndpointRoutes.get('/', (req, res) => {
       ddoMetadataQuery: ['POST', `${AQUARIUS_API_BASE_PATH}/assets/metadata/query`],
       getDDOState: ['GET', `${AQUARIUS_API_BASE_PATH}/state/ddo`],
       validateDDO: ['POST', `${AQUARIUS_API_BASE_PATH}/assets/ddo/validate`],
+      // dids
+      advertiseDid: ['POST', '/advertiseDid'],
+      getProvidersForDid: ['GET', '/getProvidersForDid'],
+      // logs
+      logs: ['POST', '/logs'],
+      log: ['GET', '/log/:id'],
+
       // P2P related
       getOceanPeers: ['GET', '/getOceanPeers'],
       getP2PPeers: ['GET', '/getP2PPeers'],
