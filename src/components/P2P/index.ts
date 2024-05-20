@@ -243,26 +243,43 @@ export class OceanP2P extends EventEmitter {
       if (config.p2pConfig.autoNat) {
         servicesConfig = { ...servicesConfig, ...{ autoNAT: autoNAT() } }
       }
+      const bindInterfaces = []
+      if (config.p2pConfig.enableIPV4) {
+        bindInterfaces.push(
+          `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindTcpPort}`
+        )
+        bindInterfaces.push(
+          `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindWsPort}/ws`
+        )
+      }
+      if (config.p2pConfig.enableIPV4) {
+        bindInterfaces.push(
+          `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindTcpPort}`
+        )
+        bindInterfaces.push(
+          `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindWsPort}/ws`
+        )
+      }
+      let transports = []
+      if (config.p2pConfig.enableCircuitRelayClient) {
+        transports = [
+          webSockets(),
+          tcp(),
+          circuitRelayTransport(/* {
+              discoverRelays: 2
+            } */)
+        ]
+      } else {
+        transports = [webSockets(), tcp()]
+      }
       let options = {
         addresses: {
-          listen: [
-            `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindTcpPort}`,
-            `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindWsPort}/ws`,
-            `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindTcpPort}`,
-            `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindWsPort}/ws`
-          ],
-          announce: config.p2pConfig.announceAddresses,
+          listen: bindInterfaces,
           announceFilter: (multiaddrs: any[]) =>
             multiaddrs.filter((m) => this.shouldAnnounce(m))
         },
         peerId: config.keys.peerId,
-        transports: [
-          webSockets(),
-          tcp(),
-          circuitRelayTransport(/* {
-            discoverRelays: 2
-          } */)
-        ],
+        transports,
         streamMuxers: [yamux(), mplex()],
         connectionEncryption: [
           noise()
