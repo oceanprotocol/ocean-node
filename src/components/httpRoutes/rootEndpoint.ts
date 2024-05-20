@@ -12,14 +12,7 @@ rootEndpointRoutes.get('/', (req, res) => {
   }
   res.json({
     chainIds: config.supportedNetworks.keys,
-    providerAddresses: {
-      '1': '0xeAFDC69612a8bF720FBfE6A5520Cfede69a9a5b5',
-      '5': '0x00c6A0BC5cD0078d6Cd0b659E8061B404cfa5704',
-      '10': '0xeAFDC69612a8bF720FBfE6A5520Cfede69a9a5b5',
-      '137': '0xC96ED22751eF6bE3e2432118B944A0cDAEDe10E8',
-      '80001': '0x4256Df50c94D9a7e04610976cde01aED91eB531E',
-      '11155111': '0x00c6A0BC5cD0078d6Cd0b659E8061B404cfa5704'
-    },
+    providerAddress: config.keys.ethAddress,
     serviceEndpoints: {
       // compute service endpoints
       computeEnvironments: ['GET', `${SERVICES_API_BASE_PATH}/computeEnvironments`],
