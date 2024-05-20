@@ -159,6 +159,7 @@ export async function validateObject(
   const flattened = await flatten(expanded)
   const nquads = await toRDF(flattened, { format: 'application/n-quads' })
   CORE_LOGGER.logMessage(`nquads: ${JSON.stringify(nquads)}`)
+
   // const ddoStore = new Store()
   // ddoStore.addQuads(nquads)
 
@@ -181,7 +182,7 @@ export async function validateObject(
   })
 
   // run the validation process
-  const report = await validator.validate({ dataset })
+  const report = await validator.validate({ dataset: nquads })
   CORE_LOGGER.logMessage(`report: ${JSON.stringify(report)}`)
   if (!report) {
     const errorMsg = 'Validation report does not exist'
