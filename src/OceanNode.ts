@@ -1,7 +1,7 @@
 import { OceanP2P } from './components/P2P/index.js'
 import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
-import { P2PCommandResponse } from './@types/OceanNode.js'
+import { OceanNodeConfig, P2PCommandResponse } from './@types/OceanNode.js'
 import { Database } from './components/database/index.js'
 import { CoreHandlersRegistry } from './components/core/handler/coreHandlersRegistry.js'
 import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
@@ -23,7 +23,8 @@ export class OceanNode {
     private db?: Database,
     private node?: OceanP2P,
     private provider?: OceanProvider,
-    private indexer?: OceanIndexer
+    private indexer?: OceanIndexer,
+    private config?: OceanNodeConfig
   ) {
     this.coreHandlers = CoreHandlersRegistry.getInstance(this)
     if (node) {
@@ -36,10 +37,11 @@ export class OceanNode {
     db?: Database,
     node?: OceanP2P,
     provider?: OceanProvider,
-    indexer?: OceanIndexer
+    indexer?: OceanIndexer,
+    config?: OceanNodeConfig
   ): OceanNode {
     if (!OceanNode.instance) {
-      this.instance = new OceanNode(db, node, provider, indexer)
+      this.instance = new OceanNode(db, node, provider, indexer, config)
     }
     return this.instance
   }
@@ -79,6 +81,10 @@ export class OceanNode {
 
   public getRemoteCaller(): string | string[] {
     return this.remoteCaller
+  }
+
+  public getConfig(): OceanNodeConfig {
+    return this.config
   }
 
   /**

@@ -1,11 +1,18 @@
 import express from 'express'
 import { SERVICES_API_BASE_PATH } from '../../utils/constants.js'
 import { AQUARIUS_API_BASE_PATH } from './aquarius.js'
+import { HTTP_LOGGER } from '../../utils/logging/common.js'
 export const rootEndpointRoutes = express.Router()
 
 rootEndpointRoutes.get('/', (req, res) => {
+  const config = req.oceanNode.getConfig()
+  if (!config.supportedNetworks) {
+    HTTP_LOGGER.error(`Supported networks not defined`)
+    res.status(400).send(`Supported networks not defined`)
+  }
   res.json({
-    chainIds: [1, 5, 10, 137, 80001, 11155111],
+    chainIds: config.supportedNetworks.keys,
+    // needs refactor
     providerAddresses: {
       '1': '0xeAFDC69612a8bF720FBfE6A5520Cfede69a9a5b5',
       '5': '0x00c6A0BC5cD0078d6Cd0b659E8061B404cfa5704',
