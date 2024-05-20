@@ -25,6 +25,8 @@ export async function encrypt(
   } else if (algorithm === EncryptMethod.ECIES) {
     const sk = new eciesjs.PrivateKey(privateKey)
     // get public key from Elliptic curve
+    console.log(' encrypt data ', data)
+    console.log(' encrypt sk.publicKey.toHex() ', sk.publicKey.toHex())
     encryptedData = eciesjs.encrypt(sk.publicKey.toHex(), data)
   }
   return encryptedData
@@ -39,6 +41,7 @@ export async function decrypt(
   data: Uint8Array,
   algorithm: EncryptMethod
 ): Promise<Buffer> {
+  console.log('decrypt data', decrypt)
   let decryptedData: Buffer
   const config = await getConfiguration()
   const { privateKey, publicKey } = config.keys
