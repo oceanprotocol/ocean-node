@@ -104,7 +104,6 @@ export async function validateObject(
   CORE_LOGGER.logMessage(`Validating object: ` + JSON.stringify(obj), true)
   const ddoCopy = JSON.parse(JSON.stringify(obj))
   ddoCopy['@type'] = 'DDO'
-  ddoCopy['@context'] = { '@vocab': 'http://schema.org/' }
   const extraErrors: Record<string, string> = {}
   if (!('@context' in obj)) {
     extraErrors['@context'] = 'Context is missing.'
@@ -112,9 +111,11 @@ export async function validateObject(
   if ('@context' in obj && !Array.isArray(obj['@context'])) {
     extraErrors['@context'] = 'Context is not an array.'
   }
-  if (!('metadata' in obj)) {
-    extraErrors.metadata = 'Metadata is missing or invalid.'
-  }
+  ddoCopy['@context'] = { '@vocab': 'http://schema.org/' }
+
+  // if (!('metadata' in obj)) {
+  //   extraErrors.metadata = 'Metadata is missing or invalid.'
+  // }
   ;['created', 'updated'].forEach((attr) => {
     if ('metadata' in obj && attr in obj.metadata && !isIsoFormat(obj.metadata[attr])) {
       extraErrors.metadata = `${attr} is not in ISO format.`
@@ -133,7 +134,7 @@ export async function validateObject(
   }
 
   if (!(makeDid(nftAddress, chainId.toString(10)) === obj.id)) {
-    extraErrors.id = 'did is not valid for chain Id and nft address'
+    extraErrors.id = 'did is not valid for chainId and nft address'
   }
 
   const version = obj.version || CURRENT_VERSION
