@@ -128,9 +128,7 @@ export interface BroadcastCommand {
   message: any // the message to broadcast
 }
 
-export interface ComputeGetEnvironmentsCommand extends Command {
-  chainId: number
-}
+export interface ComputeGetEnvironmentsCommand extends Command {}
 
 export interface ComputeDetails {
   env: string // with hash

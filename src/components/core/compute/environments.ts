@@ -15,13 +15,7 @@ export class ComputeGetEnvironmentsHandler extends Handler {
   validate(command: ComputeGetEnvironmentsCommand): ValidateParams {
     const validateCommand = validateCommandParameters(command, ['chainId'])
     if (validateCommand.valid) {
-      if (isNaN(command.chainId) || command.chainId < 1) {
-        CORE_LOGGER.logMessage(
-          `Invalid chainId: ${command.chainId} on GET computeEnvironments request`,
-          true
-        )
-        return buildInvalidRequestMessage('Invalid chainId')
-      }
+      return buildInvalidRequestMessage('Invalid chainId')
     }
     return validateCommand
   }
@@ -38,8 +32,10 @@ export class ComputeGetEnvironmentsHandler extends Handler {
 
       for (const cluster of c2dClusters) {
         const engine = C2DEngine.getC2DClass(cluster)
-        const environments = await engine.getComputeEnvironments(task.chainId)
-        response.push(...environments)
+        for (const chain of Object.keys(config.supportedNetworks)) {
+          const environments = await engine.getComputeEnvironments(parseInt(chain))
+          response.push(...environments)
+        }
       }
 
       CORE_LOGGER.logMessage(
