@@ -267,11 +267,9 @@ describe('Commands and handlers', () => {
       node
     ).getHandler(PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS)
     const getEnvCommand: ComputeGetEnvironmentsCommand = {
-      chainId: 8996,
       command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS
     }
     expect(getEnvHandler.validate(getEnvCommand).valid).to.be.equal(true)
-    getEnvCommand.chainId = -1
     expect(getEnvHandler.validate(getEnvCommand).valid).to.be.equal(false)
     // -----------------------------------------
     // ComputeStartHandler

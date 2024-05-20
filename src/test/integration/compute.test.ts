@@ -178,8 +178,7 @@ describe('Compute', () => {
 
   it('Get compute environments', async () => {
     const getEnvironmentsTask = {
-      command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS,
-      chainId: 8996
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS
     }
     const response = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
       getEnvironmentsTask
