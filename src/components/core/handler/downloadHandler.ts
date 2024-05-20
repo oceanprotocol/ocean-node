@@ -369,7 +369,7 @@ export class DownloadHandler extends Handler {
 
     try {
       // 7. Decrypt the url
-      // console.log('Uint8Array', Uint8Array.from(Buffer.from(service.files, 'hex')))
+      console.log('service.files before decrypt', service.files)
       const decryptedUrlBytes = await decrypt(
         Uint8Array.from(Buffer.from(service.files, 'hex')),
         EncryptMethod.ECIES
