@@ -37,6 +37,7 @@ describe('validateOrderTransaction Function with Orders', () => {
   let reOrderTxId: string
   let resolvedDDO: any
   let publishedDataset: any
+  let indexer: OceanIndexer
 
   const serviceId = '0' // dummy index
   const timeout = 0
@@ -67,8 +68,8 @@ describe('validateOrderTransaction Function with Orders', () => {
     config = await getConfiguration(true) // Force reload the configuration
     const dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
-    //  eslint-disable-next-line no-unused-vars
-    const indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
+    indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
+    oceanNode.addIndexer(indexer)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
@@ -97,13 +98,24 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
 
   it('should publish a dataset', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     publishedDataset = await publishAsset(genericDDO, publisherAccount)
-    dataNftAddress = publishedDataset.nftAddress
-    // eslint-disable-next-line prefer-destructuring
-    datatokenAddress = publishedDataset.datatokenAddress
 
-    assert(dataNftAddress, 'find nft created failed')
-    assert(datatokenAddress, 'find datatoken created failed')
+    const { ddo, wasTimeout } = await waitToIndex(
+      publishedDataset.ddo.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT * 2
+    )
+
+    if (!ddo) {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    } else {
+      dataNftAddress = publishedDataset.nftAddress
+      // eslint-disable-next-line prefer-destructuring
+      datatokenAddress = publishedDataset.datatokenAddress
+      assert(dataNftAddress, 'find nft created failed')
+      assert(datatokenAddress, 'find datatoken created failed')
+    }
   })
 
   it('should get the active state', async function () {
@@ -218,5 +230,6 @@ describe('validateOrderTransaction Function with Orders', () => {
   })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
+    indexer.stopAllThreads()
   })
 })

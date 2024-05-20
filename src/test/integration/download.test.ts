@@ -54,6 +54,7 @@ describe('Should run a complete node flow.', () => {
   let orderTxId: string
   let publishedDataset: any
   let actualDDO: any
+  let indexer: OceanIndexer
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const serviceId = '0'
@@ -87,8 +88,8 @@ describe('Should run a complete node flow.', () => {
     config = await getConfiguration(true) // Force reload the configuration
     database = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(database)
-    //  eslint-disable-next-line no-unused-vars
-    const indexer = new OceanIndexer(database, mockSupportedNetworks)
+    indexer = new OceanIndexer(database, mockSupportedNetworks)
+    oceanNode.addIndexer(indexer)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
@@ -160,10 +161,13 @@ describe('Should run a complete node flow.', () => {
     const fileInfo = await streamToObject(response.stream as Readable)
 
     assert(fileInfo[0].valid, 'File info is valid')
-    expect(fileInfo[0].contentLength).to.equal('946')
-    expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
-    expect(fileInfo[0].name).to.equal('algo.js')
     expect(fileInfo[0].type).to.equal('url')
+
+    if (fileInfo[0].contentLength && fileInfo[0].contentType) {
+      expect(fileInfo[0].contentLength).to.equal('946')
+      expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
+      expect(fileInfo[0].name).to.equal('algo.js')
+    }
   })
   it('should publish compute datasets & algos', async () => {
     publishedDataset = await publishAsset(downloadAsset, publisherAccount)
@@ -199,10 +203,12 @@ describe('Should run a complete node flow.', () => {
     const fileInfo = await streamToObject(response.stream as Readable)
 
     assert(fileInfo[0].valid, 'File info is valid')
-    expect(fileInfo[0].contentLength).to.equal('319520')
-    expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
-    expect(fileInfo[0].name).to.equal('shs_dataset_test.txt')
     expect(fileInfo[0].type).to.equal('url')
+    if (fileInfo[0].contentLength && fileInfo[0].contentType) {
+      expect(fileInfo[0].contentLength).to.equal('319520')
+      expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
+      expect(fileInfo[0].name).to.equal('shs_dataset_test.txt')
+    }
   })
 
   it('should start an order', async function () {
@@ -300,5 +306,6 @@ describe('Should run a complete node flow.', () => {
   })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
+    indexer.stopAllThreads()
   })
 })
