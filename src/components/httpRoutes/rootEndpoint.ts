@@ -11,7 +11,7 @@ rootEndpointRoutes.get('/', (req, res) => {
     res.status(400).send(`Supported networks not defined`)
   }
   res.json({
-    chainIds: config.supportedNetworks.keys,
+    chainIds: Object.keys(config.supportedNetworks),
     providerAddress: config.keys.ethAddress,
     serviceEndpoints: {
       // compute service endpoints
