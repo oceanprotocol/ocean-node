@@ -422,8 +422,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
   }
 
   async processDDO(ddo: any) {
-    const response = ddo
-
     if (isRemoteDDO(ddo)) {
       INDEXER_LOGGER.logMessage('DDO is remote', true)
 
@@ -434,7 +432,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       return JSON.parse(streamToStringDDO)
     }
 
-    return response
+    return ddo
   }
 
   async updatePurgatoryStateDdo(
