@@ -64,7 +64,7 @@ function isIsoFormat(dateString: string): boolean {
   return isoDateRegex.test(dateString)
 }
 
-function makeDid(nftAddress: string, chainId: string): string {
+export function makeDid(nftAddress: string, chainId: string): string {
   return (
     'did:op:' +
     createHash('sha256')
@@ -156,6 +156,21 @@ export async function validateObject(
     }
   }
   return [report.conforms, errors]
+}
+
+export function isRemoteDDO(ddo: any): boolean {
+  let keys
+  try {
+    keys = Object.keys(ddo)
+  } catch (e) {
+    return false
+  }
+
+  if (keys.length === 1 && keys[0] === 'remote') {
+    return true
+  }
+
+  return false
 }
 
 export async function getValidationSignature(ddo: string): Promise<any> {

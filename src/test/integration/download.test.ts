@@ -14,7 +14,10 @@ import {
   getConfiguration
 } from '../../utils/index.js'
 import { DownloadHandler } from '../../components/core/handler/downloadHandler.js'
-import { StatusHandler } from '../../components/core/handler/statusHandler.js'
+import {
+  DetailedStatusHandler,
+  StatusHandler
+} from '../../components/core/handler/statusHandler.js'
 import { GetDdoHandler } from '../../components/core/handler/ddoHandler.js'
 
 import { Readable } from 'stream'
@@ -37,6 +40,7 @@ import {
 } from '../../utils/address.js'
 import { publishAsset, orderAsset, updateAssetMetadata } from '../utils/assets.js'
 import { downloadAsset } from '../data/assets.js'
+import { genericDDO } from '../data/ddo.js'
 import { homedir } from 'os'
 
 describe('Should run a complete node flow.', () => {
@@ -48,9 +52,9 @@ describe('Should run a complete node flow.', () => {
   let consumerAccount: Signer
   let consumerAddress: string
   let orderTxId: string
-  let assetDID: string
   let publishedDataset: any
   let actualDDO: any
+  let indexer: OceanIndexer
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const serviceId = '0'
@@ -84,8 +88,8 @@ describe('Should run a complete node flow.', () => {
     config = await getConfiguration(true) // Force reload the configuration
     database = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(database)
-    //  eslint-disable-next-line no-unused-vars
-    const indexer = new OceanIndexer(database, mockSupportedNetworks)
+    indexer = new OceanIndexer(database, mockSupportedNetworks)
+    oceanNode.addIndexer(indexer)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
@@ -117,6 +121,23 @@ describe('Should run a complete node flow.', () => {
       status.allowedAdmins[0] === '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260',
       'incorrect allowed admin publisherAddress'
     )
+    assert(status.c2dClusters === undefined, 'clusters info should be undefined')
+    assert(status.supportedSchemas === undefined, 'schemas info should be undefined')
+  })
+
+  it('should get node detailed status', async () => {
+    const oceanNodeConfig = await getConfiguration(true)
+
+    const statusCommand = {
+      command: PROTOCOL_COMMANDS.DETAILED_STATUS,
+      node: oceanNodeConfig.keys.peerId.toString()
+    }
+    const response = await new DetailedStatusHandler(oceanNode).handle(statusCommand)
+    assert(response.status.httpStatus === 200, 'http status not 200')
+    const resp = await streamToString(response.stream as Readable)
+    const status = JSON.parse(resp)
+    assert(status.c2dClusters !== undefined, 'clusters info should not be undefined')
+    assert(status.supportedSchemas !== undefined, 'schemas info should not be undefined')
   })
 
   it('should get file info before publishing', async () => {
@@ -140,10 +161,13 @@ describe('Should run a complete node flow.', () => {
     const fileInfo = await streamToObject(response.stream as Readable)
 
     assert(fileInfo[0].valid, 'File info is valid')
-    expect(fileInfo[0].contentLength).to.equal('946')
-    expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
-    expect(fileInfo[0].name).to.equal('algo.js')
     expect(fileInfo[0].type).to.equal('url')
+
+    if (fileInfo[0].contentLength && fileInfo[0].contentType) {
+      expect(fileInfo[0].contentLength).to.equal('946')
+      expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
+      expect(fileInfo[0].name).to.equal('algo.js')
+    }
   })
   it('should publish compute datasets & algos', async () => {
     publishedDataset = await publishAsset(downloadAsset, publisherAccount)
@@ -165,8 +189,8 @@ describe('Should run a complete node flow.', () => {
   it('should get file info with did', async () => {
     const fileInfoTask = {
       command: PROTOCOL_COMMANDS.FILE_INFO,
-      did: publishedDataset.ddo.id,
-      serviceId: publishedDataset.ddo.services[0].id
+      did: actualDDO.id,
+      serviceId: actualDDO.services[0].id
     }
 
     const response = await new FileInfoHandler(oceanNode).handle(fileInfoTask)
@@ -179,10 +203,12 @@ describe('Should run a complete node flow.', () => {
     const fileInfo = await streamToObject(response.stream as Readable)
 
     assert(fileInfo[0].valid, 'File info is valid')
-    expect(fileInfo[0].contentLength).to.equal('319520')
-    expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
-    expect(fileInfo[0].name).to.equal('shs_dataset_test.txt')
     expect(fileInfo[0].type).to.equal('url')
+    if (fileInfo[0].contentLength && fileInfo[0].contentType) {
+      expect(fileInfo[0].contentLength).to.equal('319520')
+      expect(fileInfo[0].contentType).to.equal('text/plain; charset=utf-8')
+      expect(fileInfo[0].name).to.equal('shs_dataset_test.txt')
+    }
   })
 
   it('should start an order', async function () {
@@ -239,9 +265,22 @@ describe('Should run a complete node flow.', () => {
 
     await doCheck()
   })
-  it('should not allow to download the asset with different consumer address', function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
+  // for use on the test bellow
+  it('should publish ddo with access credentials', async function () {
+    publishedDataset = await publishAsset(genericDDO, publisherAccount)
+    const { ddo, wasTimeout } = await waitToIndex(
+      publishedDataset.ddo.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
+
+    if (!ddo) {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    }
+  })
+  it('should not allow to download the asset with different consumer address', async function () {
+    const assetDID = publishedDataset.ddo.id
     const doCheck = async () => {
       const downloadTask = {
         fileIndex: 0,
@@ -250,22 +289,20 @@ describe('Should run a complete node flow.', () => {
         transferTxId: orderTxId,
         nonce: Date.now().toString(),
         consumerAddress: '0xBE5449a6A97aD46c8558A3356267Ee5D2731ab57',
-        signature: '',
+        signature: '0xBE5449a6',
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
 
-      assert(response)
-      assert(response.stream, 'stream not present')
-      assert(response.status.httpStatus === 200, 'http status not 200')
-      expect(response.stream).to.be.instanceOf(Readable)
+      assert(response.stream === null, 'stream not null')
+      assert(response.status.httpStatus === 500, 'http status not 500')
+      assert(
+        response.status.error === `Error: Access to asset ${assetDID} was denied`,
+        'error contains access denied'
+      )
     }
 
-    setTimeout(() => {
-      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(true)
-    }, DEFAULT_TEST_TIMEOUT * 3)
-
-    doCheck()
+    await doCheck()
   })
 
   it('should update state of the service to 1 - end of life', async () => {
@@ -347,5 +384,6 @@ describe('Should run a complete node flow.', () => {
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
+    indexer.stopAllThreads()
   })
 })

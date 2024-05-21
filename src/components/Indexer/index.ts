@@ -5,10 +5,11 @@ import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
 import { ReindexTask } from './crawlerThread.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
-import { EVENTS } from '../../utils/index.js'
+import { EVENTS, INDEXER_CRAWLING_EVENTS } from '../../utils/index.js'
 
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
+export const INDEXER_CRAWLING_EVENT_EMITTER = new EventEmitter()
 
 let INDEXING_QUEUE: ReindexTask[] = []
 
@@ -16,7 +17,7 @@ export class OceanIndexer {
   private db: Database
   private networks: RPCS
   private supportedChains: string[]
-  private static workers: Record<string, Worker> = {}
+  private workers: Record<string, Worker> = {}
 
   constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
@@ -52,6 +53,23 @@ export class OceanIndexer {
     return network
   }
 
+  // stops crawling for a specific chain
+  public stopThread(chainID: string): boolean {
+    const worker = this.workers[chainID]
+    if (worker) {
+      worker.postMessage({ method: 'stop-crawling' })
+    }
+    return true
+  }
+
+  // stops all worker threads
+  public stopAllThreads(): boolean {
+    for (const chainID of this.supportedChains) {
+      this.stopThread(chainID)
+    }
+    return true
+  }
+
   // eslint-disable-next-line require-await
   public async startThreads(): Promise<void> {
     for (const network of this.supportedChains) {
@@ -74,6 +92,7 @@ export class OceanIndexer {
             [
               EVENTS.METADATA_CREATED,
               EVENTS.METADATA_UPDATED,
+              EVENTS.METADATA_STATE,
               EVENTS.ORDER_STARTED,
               EVENTS.ORDER_REUSED
             ].includes(event.method)
@@ -84,12 +103,14 @@ export class OceanIndexer {
             )
             INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
             // remove from indexing list
-          } else if (event.method === 'popFromQueue') {
+          } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP) {
             // remove this one from the queue
             INDEXING_QUEUE = INDEXING_QUEUE.filter(
               (task) =>
                 task.txId !== event.data.txId && task.chainId !== event.data.chainId
             )
+          } else if (event.method === INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED) {
+            INDEXER_CRAWLING_EVENT_EMITTER.emit(event.method, event.data)
           }
         } else {
           INDEXER_LOGGER.log(
@@ -116,15 +137,22 @@ export class OceanIndexer {
       })
 
       worker.postMessage({ method: 'start-crawling' })
-      OceanIndexer.workers[network] = worker
+      this.workers[network] = worker
     }
   }
 
-  static addReindexTask(reindexTask: ReindexTask): void {
-    const worker = OceanIndexer.workers[reindexTask.chainId]
+  public addReindexTask(reindexTask: ReindexTask): void {
+    const worker = this.workers[reindexTask.chainId]
     if (worker) {
       worker.postMessage({ method: 'add-reindex-task', reindexTask })
       INDEXING_QUEUE.push(reindexTask)
+    }
+  }
+
+  public resetCrawling(chainId: number): void {
+    const worker = this.workers[chainId]
+    if (worker) {
+      worker.postMessage({ method: 'reset-crawling' })
     }
   }
 

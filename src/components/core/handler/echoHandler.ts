@@ -2,7 +2,6 @@ import { P2PCommandResponse } from '../../../@types/index.js'
 import { EchoCommand } from '../../../@types/commands.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import {
-  buildRateLimitReachedResponse,
   validateCommandParameters,
   ValidateParams
 } from '../../httpRoutes/validateCommands.js'
@@ -14,16 +13,16 @@ export class EchoHandler extends Handler {
   }
 
   async handle(task: EchoCommand): Promise<P2PCommandResponse> {
-    if (!(await this.checkRateLimit())) {
-      return buildRateLimitReachedResponse()
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
-    const validation = this.validate(task)
     return {
       status: {
-        httpStatus: validation.valid ? 200 : validation.status,
-        error: validation.valid ? '' : validation.reason
+        httpStatus: 200,
+        error: null
       },
-      stream: validation.valid ? new ReadableString('OK') : null
+      stream: new ReadableString('OK')
     }
   }
 }
