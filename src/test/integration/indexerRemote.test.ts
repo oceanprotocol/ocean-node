@@ -174,7 +174,7 @@ describe('RemoteDDO: Indexer stores a new metadata events and orders.', () => {
     // create metadata hash using the original DDO
     const utf8Bytes = toUtf8Bytes(JSON.stringify(ddoToPublish))
     const hash = create256Hash(hexlify(utf8Bytes).toString())
-
+    // publish metadata
     const setMetaDataTx = await nftContract.setMetaData(
       0,
       'http://v4.provider.oceanprotocol.com',
