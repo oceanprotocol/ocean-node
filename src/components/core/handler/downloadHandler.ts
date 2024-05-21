@@ -21,8 +21,6 @@ import { DownloadCommand, DownloadURLCommand } from '../../../@types/commands.js
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import { C2DEngine } from '../../c2d/compute_engines.js'
 import {
-  buildInvalidParametersResponse,
-  buildRateLimitReachedResponse,
   validateCommandParameters,
   ValidateParams
 } from '../../httpRoutes/validateCommands.js'
@@ -178,12 +176,9 @@ export class DownloadHandler extends Handler {
   // No encryption here yet
 
   async handle(task: DownloadCommand): Promise<P2PCommandResponse> {
-    if (!(await this.checkRateLimit())) {
-      return buildRateLimitReachedResponse()
-    }
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     const node = this.getOceanNode()
     // 1. Get the DDO

@@ -2,6 +2,7 @@ import { Handler } from './handler.js'
 import { EVENTS, MetadataStates, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { P2PCommandResponse, FindDDOResponse } from '../../../@types/index.js'
 import { Readable } from 'stream'
+import { decrypt, create256Hash } from '../../../utils/crypt.js'
 import {
   hasCachedDDO,
   sortFindDDOResults,
@@ -16,9 +17,12 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Blockchain } from '../../../utils/blockchain.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import { decrypt, create256Hash } from '../../../utils/crypt.js'
 import lzma from 'lzma-native'
-import { getValidationSignature, validateObject } from '../utils/validateDdoHandler.js'
+import {
+  getValidationSignature,
+  makeDid,
+  validateObject
+} from '../utils/validateDdoHandler.js'
 import { getConfiguration } from '../../../utils/config.js'
 import {
   GetDdoCommand,
@@ -30,9 +34,7 @@ import { hasP2PInterface } from '../../httpRoutes/index.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import {
   ValidateParams,
-  buildInvalidParametersResponse,
   buildInvalidRequestMessage,
-  buildRateLimitReachedResponse,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import {
@@ -67,11 +69,10 @@ export class DecryptDdoHandler extends Handler {
   }
 
   async handle(task: DecryptDDOCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
-
     try {
       let decrypterAddress: string
       try {
@@ -151,7 +152,12 @@ export class DecryptDdoHandler extends Handler {
         }
       }
 
-      const blockchain = new Blockchain(supportedNetwork.rpc, supportedNetwork.chainId)
+      const blockchain = new Blockchain(
+        supportedNetwork.rpc,
+        supportedNetwork.network,
+        supportedNetwork.chainId,
+        supportedNetwork.fallbackRPCs
+      )
       const provider = blockchain.getProvider()
       const signer = blockchain.getSigner()
       // note: "getOceanArtifactsAdresses()"" is broken for at least optimism sepolia
@@ -309,6 +315,19 @@ export class DecryptDdoHandler extends Handler {
         }
       }
 
+      // did matches
+      const ddo = JSON.parse(decryptedDocument.toString())
+      if (ddo.id !== makeDid(dataNftAddress, chainId)) {
+        CORE_LOGGER.error(`Decrypted DDO ID is not matching the generated hash for DID.`)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: 'Decrypt DDO: did does not match'
+          }
+        }
+      }
+
       // checksum matches
       const decryptedDocumentHash = create256Hash(decryptedDocument.toString())
       if (decryptedDocumentHash !== documentHash) {
@@ -383,9 +402,9 @@ export class GetDdoHandler extends Handler {
   }
 
   async handle(task: GetDdoCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     try {
       const ddo = await this.getOceanNode().getDatabase().ddo.retrieve(task.id)
@@ -419,9 +438,9 @@ export class FindDdoHandler extends Handler {
   }
 
   async handle(task: FindDDOCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     try {
       const node = this.getOceanNode()
@@ -734,18 +753,9 @@ export class ValidateDDOHandler extends Handler {
   }
 
   async handle(task: ValidateDDOCommand): Promise<P2PCommandResponse> {
-    if (!(await this.checkRateLimit())) {
-      return buildRateLimitReachedResponse()
-    }
-    const commandValidation = this.validate(task)
-    if (!commandValidation.valid) {
-      return {
-        stream: null,
-        status: {
-          httpStatus: commandValidation.status,
-          error: `Validation error: ${commandValidation.reason}`
-        }
-      }
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     try {
       const validation = await validateObject(
@@ -828,7 +838,12 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
     return false
   }
   // 4) check if was deployed by our factory
-  const blockchain = new Blockchain(network.rpc, chainId)
+  const blockchain = new Blockchain(
+    network.rpc,
+    network.network,
+    chainId,
+    network.fallbackRPCs
+  )
   const signer = blockchain.getSigner()
 
   const wasDeployedByUs = await wasNFTDeployedByOurFactory(

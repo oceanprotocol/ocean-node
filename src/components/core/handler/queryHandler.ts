@@ -5,7 +5,6 @@ import { Readable } from 'stream'
 import {
   ValidateParams,
   buildInvalidParametersResponse,
-  buildRateLimitReachedResponse,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 
@@ -15,12 +14,9 @@ export class QueryHandler extends Handler {
   }
 
   async handle(task: QueryCommand): Promise<P2PCommandResponse> {
-    if (!(await this.checkRateLimit())) {
-      return buildRateLimitReachedResponse()
-    }
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     try {
       let result = await this.getOceanNode().getDatabase().ddo.search(task.query)

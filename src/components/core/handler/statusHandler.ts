@@ -1,12 +1,10 @@
 import { Handler } from './handler.js'
 import { status } from '../utils/statusHandler.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
-import { StatusCommand } from '../../../@types/commands.js'
+import { DetailedStatusCommand, StatusCommand } from '../../../@types/commands.js'
 import { Readable } from 'stream'
 import {
   ValidateParams,
-  buildInvalidParametersResponse,
-  buildRateLimitReachedResponse,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 
@@ -15,16 +13,16 @@ export class StatusHandler extends Handler {
     return validateCommandParameters(command, [])
   }
 
-  async handle(task: StatusCommand): Promise<P2PCommandResponse> {
-    if (!(await this.checkRateLimit())) {
-      return buildRateLimitReachedResponse()
-    }
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+  async handle(
+    task: StatusCommand,
+    detailed: boolean = false
+  ): Promise<P2PCommandResponse> {
+    const checks = await this.verifyParamsAndRateLimits(task)
+    if (checks.status.httpStatus !== 200 || checks.status.error !== null) {
+      return checks
     }
     try {
-      const statusResult = await status(this.getOceanNode(), task.node)
+      const statusResult = await status(this.getOceanNode(), task.node, detailed)
       if (!statusResult) {
         return {
           stream: null,
@@ -32,7 +30,7 @@ export class StatusHandler extends Handler {
         }
       }
       return {
-        stream: Readable.from(JSON.stringify(statusResult)),
+        stream: Readable.from(JSON.stringify(statusResult, null, 4)),
         status: { httpStatus: 200 }
       }
     } catch (error) {
@@ -41,5 +39,15 @@ export class StatusHandler extends Handler {
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
       }
     }
+  }
+}
+
+export class DetailedStatusHandler extends StatusHandler {
+  validate(command: DetailedStatusCommand): ValidateParams {
+    return validateCommandParameters(command, [])
+  }
+
+  async handle(task: StatusCommand): Promise<P2PCommandResponse> {
+    return await super.handle(task, true)
   }
 }

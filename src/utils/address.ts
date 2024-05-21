@@ -40,6 +40,15 @@ export function getOceanArtifactsAdressesByChainId(chain: number): any {
         }
       }
     }
+    // just warn about this missing configuration if running locally
+    if (
+      chain === DEVELOPMENT_CHAIN_ID &&
+      !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ADDRESS_FILE, true)
+    ) {
+      CORE_LOGGER.warn(
+        'Cannot find contract artifacts addresses for "development" chain. Please set the "ADDRESS_FILE" environmental variable!'
+      )
+    }
   } catch (error) {
     CORE_LOGGER.error(error)
   }
