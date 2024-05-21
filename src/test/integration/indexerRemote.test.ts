@@ -1,5 +1,4 @@
 import { expect, assert } from 'chai'
-import { createHash } from 'crypto'
 import {
   JsonRpcProvider,
   Signer,
@@ -7,7 +6,8 @@ import {
   ethers,
   hexlify,
   ZeroAddress,
-  getAddress
+  getAddress,
+  toUtf8Bytes
 } from 'ethers'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
@@ -17,6 +17,8 @@ import { RPCS } from '../../@types/blockchain.js'
 import { getEventFromTx } from '../../utils/util.js'
 import { waitToIndex } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
+import { makeDid } from '../../components/core/utils/validateDdoHandler.js'
+import { create256Hash } from '../../utils/crypt.js'
 import {
   DEVELOPMENT_CHAIN_ID,
   getOceanArtifactsAdresses,
@@ -157,13 +159,8 @@ describe('RemoteDDO: Indexer stores a new metadata events and orders.', () => {
 
   it('should set metadata and save (the remote DDO is encrypted) ', async () => {
     nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, publisherAccount)
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
     const ddoToPublish = genericDDO
-    ddoToPublish.id = did
+    ddoToPublish.id = makeDid(getAddress(nftAddress), chainId.toString(10))
     const ipfsCID = await uploadToIpfs(JSON.stringify(ddoToPublish))
     const remoteDDO = {
       remote: {
@@ -174,7 +171,9 @@ describe('RemoteDDO: Indexer stores a new metadata events and orders.', () => {
     const stringDDO = JSON.stringify(remoteDDO)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
-    const hash = createHash('sha256').update(metadata).digest('hex')
+    // create metadata hash using the original DDO
+    const utf8Bytes = toUtf8Bytes(JSON.stringify(ddoToPublish))
+    const hash = create256Hash(hexlify(utf8Bytes).toString())
 
     const setMetaDataTx = await nftContract.setMetaData(
       0,
@@ -182,7 +181,7 @@ describe('RemoteDDO: Indexer stores a new metadata events and orders.', () => {
       '0x123',
       '0x01',
       metadata,
-      '0x' + hash,
+      hash,
       []
     )
     setMetaDataTxReceipt = await setMetaDataTx.wait()
@@ -190,11 +189,7 @@ describe('RemoteDDO: Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should store the ddo in the database and return it ', async () => {
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = makeDid(getAddress(nftAddress), chainId.toString(10))
     resolvedDDO = await waitToIndex(did, EVENTS.METADATA_CREATED)
     expect(resolvedDDO.ddo.id).to.equal(did)
   })

@@ -26,10 +26,9 @@ import { getConfiguration, timestampToDateTime } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
-import { isRemoteDDO } from '../core/utils/validateDdoHandler.js'
+import { isRemoteDDO, makeDid } from '../core/utils/validateDdoHandler.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
-import { makeDid } from '../core/utils/validateDdoHandler.js'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -122,8 +121,11 @@ class BaseEventProcessor {
   protected checkDdoHash(decryptedDocument: any, documentHashFromContract: any): boolean {
     const utf8Bytes = toUtf8Bytes(JSON.stringify(decryptedDocument))
     const expectedMetadata = hexlify(utf8Bytes)
-    if (create256Hash(expectedMetadata.toString()) !== documentHashFromContract) {
-      INDEXER_LOGGER.error(`DDO checksum does not match.`)
+    const expectedMetadataHash = create256Hash(expectedMetadata.toString())
+    if (expectedMetadataHash !== documentHashFromContract) {
+      INDEXER_LOGGER.error(
+        `DDO checksum does not match. Expected: ${documentHashFromContract} Received: ${expectedMetadata}`
+      )
       return false
     }
     return true
@@ -351,6 +353,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         return
       }
       // for unencrypted DDOs
+      console.log(ddo.id)
+      console.log(metadataHash)
       if (parseInt(flag) !== 2 && !this.checkDdoHash(ddo, metadataHash)) {
         return
       }
