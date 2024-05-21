@@ -13,7 +13,6 @@ import {
 import axios from 'axios'
 import urlJoin from 'url-join'
 import { fetchFileMetadata } from '../../utils/asset.js'
-import { getConfiguration } from '../../utils/index.js'
 import { encrypt as encryptData, decrypt as decryptData } from '../../utils/crypt.js'
 import { Readable } from 'stream'
 import { getConfiguration } from '../../utils/index.js'
