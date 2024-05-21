@@ -6,19 +6,25 @@ import {
   IpfsFileObject,
   StorageReadable,
   UrlFileObject,
-  EncryptMethod
+  EncryptMethod,
+  S3FileObject,
+  S3Object
 } from '../../@types/fileObject.js'
 import axios from 'axios'
 import urlJoin from 'url-join'
 import { fetchFileMetadata } from '../../utils/asset.js'
-import { getConfiguration } from '../../utils/index.js'
 import { encrypt as encryptData, decrypt as decryptData } from '../../utils/crypt.js'
 import { Readable } from 'stream'
+import { getConfiguration } from '../../utils/index.js'
+import AWS from 'aws-sdk'
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3'
 
 export abstract class Storage {
-  private file: UrlFileObject | IpfsFileObject | ArweaveFileObject
+  private file: UrlFileObject | IpfsFileObject | ArweaveFileObject | S3FileObject
 
-  public constructor(file: UrlFileObject | IpfsFileObject | ArweaveFileObject) {
+  public constructor(
+    file: UrlFileObject | IpfsFileObject | ArweaveFileObject | S3FileObject
+  ) {
     this.file = file
   }
 
@@ -53,7 +59,9 @@ export abstract class Storage {
     }
   }
 
-  static getStorageClass(file: any): UrlStorage | IpfsStorage | ArweaveStorage {
+  static getStorageClass(
+    file: any
+  ): UrlStorage | IpfsStorage | ArweaveStorage | S3Storage {
     const { type } = file
     switch (
       type.toLowerCase() // case insensitive
@@ -64,6 +72,8 @@ export abstract class Storage {
         return new IpfsStorage(file)
       case FileObjectType.ARWEAVE:
         return new ArweaveStorage(file)
+      case FileObjectType.S3:
+        return new S3Storage(file)
       default:
         throw new Error(`Invalid storage type: ${type}`)
     }
@@ -393,5 +403,128 @@ export class IpfsStorage extends Storage {
       method: 'get'
     })
     return await encryptData(response.data, encryptionType)
+  }
+}
+
+export class S3Storage extends Storage {
+  public constructor(file: S3FileObject) {
+    super(file)
+    const [isValid, message] = this.validate()
+    if (isValid === false) {
+      throw new Error(`Error validationg the S3 file: ${message}`)
+    }
+  }
+
+  validate(): [boolean, string] {
+    const file: S3FileObject = this.getFile() as S3FileObject
+    if (!file.s3Access) {
+      return [false, 'Missing s3Access']
+    }
+    return [true, '']
+  }
+
+  parseDecryptedStream(decryptedStream: Readable): Promise<S3Object> {
+    return new Promise((resolve, reject) => {
+      let data = ''
+      decryptedStream.on('data', (chunk) => {
+        data += chunk
+      })
+      decryptedStream.on('end', () => {
+        try {
+          const parsedData = JSON.parse(data)
+          resolve(parsedData)
+        } catch (error) {
+          reject(error)
+        }
+      })
+      decryptedStream.on('error', (error) => {
+        reject(error)
+      })
+    })
+  }
+
+  isFilePath(): boolean {
+    const { endpoint } = this.getFile().s3Access
+    return endpoint.includes('.')
+  }
+
+  getDownloadUrl(): string {
+    const { s3Access } = this.getFile()
+    return JSON.stringify(s3Access)
+  }
+
+  async fetchDataContent(): Promise<any> {
+    const s3Obj = await this.getFile().s3Access
+    const spacesEndpoint = new AWS.Endpoint(s3Obj.endpoint)
+    const s3 = new AWS.S3({
+      endpoint: spacesEndpoint,
+      accessKeyId: s3Obj.accessKeyId,
+      secretAccessKey: s3Obj.secretAccessKey,
+      region: s3Obj.region
+    })
+
+    const params = {
+      Bucket: s3Obj.bucket,
+      Key: s3Obj.objectKey
+    }
+    try {
+      const data = await s3.getObject(params).promise()
+      console.log('Successfully fetched data from S3')
+      return data
+    } catch (err) {
+      console.error('Error fetching object from S3:', err)
+    }
+  }
+
+  async fetchDataStream(): Promise<any> {
+    const s3Obj = await this.getFile().s3Access
+    const spacesEndpoint = new AWS.Endpoint(s3Obj.endpoint)
+    const s3Client = new S3Client({
+      endpoint: {
+        hostname: spacesEndpoint.hostname,
+        protocol: spacesEndpoint.protocol,
+        path: '/'
+      },
+      region: s3Obj.region,
+      credentials: {
+        accessKeyId: s3Obj.accessKeyId,
+        secretAccessKey: s3Obj.secretAccessKey
+      }
+    })
+
+    const params = {
+      Bucket: s3Obj.bucket,
+      Key: s3Obj.objectKey
+    }
+    try {
+      const response = await s3Client.send(new GetObjectCommand(params))
+
+      const dataStream = response.Body
+      console.log('Successfully retrieved object from S3')
+      return dataStream
+    } catch (err) {
+      console.error('Error fetching object from S3:', err)
+    }
+  }
+
+  async fetchSpecificFileMetadata(): Promise<FileInfoResponse> {
+    const data = await this.fetchDataContent()
+    const s3Obj = await this.getFile().s3Access
+    return {
+      valid: true,
+      contentLength: data.ContentLength,
+      contentType: data.ContentType,
+      name: s3Obj.objectKey,
+      type: 's3',
+      encryptedBy: this.getFile().encryptedBy,
+      encryptMethod: this.getFile().encryptMethod
+    }
+  }
+
+  async encryptContent(
+    encryptionType: EncryptMethod.AES | EncryptMethod.ECIES
+  ): Promise<Buffer> {
+    const data = await this.fetchDataContent()
+    return await encryptData(data, encryptionType)
   }
 }
