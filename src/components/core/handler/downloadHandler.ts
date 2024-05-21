@@ -370,6 +370,16 @@ export class DownloadHandler extends Handler {
     try {
       // 7. Decrypt the url
       console.log('service.files before decrypt', service.files)
+      const buffer = Buffer.from(service.files)
+      console.log('buffer ', buffer)
+      const uint8Array = Uint8Array.from(buffer)
+      console.log('uint8Array ', uint8Array)
+
+      const bufferHex = Buffer.from(service.files)
+      console.log('bufferHex ', bufferHex)
+      const uint8ArrayHex = Uint8Array.from(bufferHex)
+      console.log('uint8ArrayHex ', uint8ArrayHex)
+
       const decryptedUrlBytes = await decrypt(
         Uint8Array.from(Buffer.from(service.files, 'hex')),
         EncryptMethod.ECIES
