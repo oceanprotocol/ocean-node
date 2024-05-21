@@ -270,7 +270,6 @@ describe('Commands and handlers', () => {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS
     }
     expect(getEnvHandler.validate(getEnvCommand).valid).to.be.equal(true)
-    expect(getEnvHandler.validate(getEnvCommand).valid).to.be.equal(false)
     // -----------------------------------------
     // ComputeStartHandler
     const startEnvHandler: ComputeStartHandler = CoreHandlersRegistry.getInstance(

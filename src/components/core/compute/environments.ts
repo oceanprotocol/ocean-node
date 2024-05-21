@@ -14,8 +14,10 @@ import {
 export class ComputeGetEnvironmentsHandler extends Handler {
   validate(command: ComputeGetEnvironmentsCommand): ValidateParams {
     const validateCommand = validateCommandParameters(command, [])
-    if (validateCommand.valid) {
-      return buildInvalidRequestMessage('Invalid chainId')
+    if (!validateCommand.valid) {
+      return buildInvalidRequestMessage(
+        'Invalid getComputeEnv command ' + validateCommand.reason
+      )
     }
     return validateCommand
   }
