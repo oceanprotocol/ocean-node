@@ -13,7 +13,7 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 export class ComputeGetEnvironmentsHandler extends Handler {
   validate(command: ComputeGetEnvironmentsCommand): ValidateParams {
-    const validateCommand = validateCommandParameters(command, ['chainId'])
+    const validateCommand = validateCommandParameters(command, [])
     if (validateCommand.valid) {
       return buildInvalidRequestMessage('Invalid chainId')
     }
