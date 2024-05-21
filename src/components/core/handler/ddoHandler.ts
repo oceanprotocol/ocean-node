@@ -19,6 +19,7 @@ import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import lzma from 'lzma-native'
 import {
+  isRemoteDDO,
   getValidationSignature,
   makeDid,
   validateObject
@@ -30,7 +31,8 @@ import {
   DecryptDDOCommand,
   ValidateDDOCommand
 } from '../../../@types/commands.js'
-import { hasP2PInterface } from '../../httpRoutes/index.js'
+import { Storage } from '../../../components/storage/index.js'
+import { hasP2PInterface } from '../..//httpRoutes/index.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import {
   ValidateParams,
@@ -377,8 +379,19 @@ export class DecryptDdoHandler extends Handler {
         }
       }
 
+      const decryptedDocumentString = decryptedDocument.toString()
+      const ddoObject = JSON.parse(decryptedDocumentString)
+
+      let stream = Readable.from(decryptedDocumentString)
+
+      if (isRemoteDDO(ddoObject)) {
+        const storage = Storage.getStorageClass(ddoObject.remote)
+        const result = await storage.getReadableStream()
+        stream = result.stream as Readable
+      }
+
       return {
-        stream: Readable.from(decryptedDocument.toString()),
+        stream,
         status: { httpStatus: 201 }
       }
     } catch (error) {
