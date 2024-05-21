@@ -64,7 +64,7 @@ function isIsoFormat(dateString: string): boolean {
   return isoDateRegex.test(dateString)
 }
 
-function makeDid(nftAddress: string, chainId: string): string {
+export function makeDid(nftAddress: string, chainId: string): string {
   return (
     'did:op:' +
     createHash('sha256')

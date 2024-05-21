@@ -3,6 +3,7 @@ import { Stream } from 'stream'
 import { RPCS } from './blockchain'
 import { C2DClusterInfo } from './C2D'
 import { FeeStrategy } from './Fees'
+import { Schema } from '../components/database/schemas'
 
 export interface OceanNodeDBConfig {
   url: string | null
@@ -101,6 +102,9 @@ export interface OceanNodeStatus {
   uptime?: number // seconds since start
   codeHash?: string
   allowedAdmins?: string[]
+  // detailed information
+  c2dClusters?: C2DClusterInfo[]
+  supportedSchemas?: Schema[]
 }
 
 export interface P2PBroadcastResponse {

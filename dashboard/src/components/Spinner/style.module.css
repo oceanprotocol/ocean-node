@@ -8,6 +8,7 @@
   box-sizing: border-box;
   animation: rotation 1s linear infinite;
 }
+
 .loader::after,
 .loader::before {
   content: '';  
@@ -21,6 +22,7 @@
   transform: translate(150%, 150%);
   border-radius: 50%;
 }
+
 .loader::before {
   left: auto;
   top: auto;
@@ -28,3 +30,12 @@
   bottom: 0;
   transform: translate(-150%, -150%);
 }
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+} 

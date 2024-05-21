@@ -58,18 +58,27 @@ function getIntEnvValue(env: any, defaultValue: number) {
   return isNaN(num) ? defaultValue : num
 }
 
-function getSupportedChains(): RPCS {
-  if (!process.env.RPCS || !JSON.parse(process.env.RPCS)) {
+function getSupportedChains(): RPCS | null {
+  const logError = function (): null {
     // missing or invalid RPC list
     CONFIG_LOGGER.logMessageWithEmoji(
-      'Missing or Invalid RPCS env variable format, Running node without the  Indexer component ..',
+      'Missing or Invalid RPCS env variable format, Running node without the Indexer component...',
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
     )
     return null
   }
-  const supportedNetworks: RPCS = JSON.parse(process.env.RPCS)
+  if (!process.env.RPCS) {
+    return logError()
+  }
+  let supportedNetworks: RPCS = null
+  try {
+    supportedNetworks = JSON.parse(process.env.RPCS)
+  } catch (e) {
+    return logError()
+  }
+
   return supportedNetworks
 }
 

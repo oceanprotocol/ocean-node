@@ -1,0 +1,134 @@
+.download {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  flex-wrap: nowrap;
+  align-items: center;
+  width: 100%;
+  gap: 4px;
+  color: #4a5360;
+  font-family: Helvetica;
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 140%;
+  text-align: left;
+  background: transparent;
+  border: transparent;
+}
+
+.unlockButton {
+  padding: 10px 20px;
+  background-color: #007bff;
+  border: none;
+  color: white;
+  text-transform: uppercase;
+  font-weight: bold;
+  cursor: pointer;
+  transition:
+    background-color 0.3s,
+    transform 0.2s;
+  border-radius: 4px;
+  outline: none;
+}
+
+.unlockButton:hover {
+  background-color: #0056b3;
+  transform: scale(1.05);
+}
+
+.unlockButton:active {
+  transform: scale(0.95);
+}
+
+.unlockButton:focus {
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.5);
+}
+
+.buttonIcon {
+  color: #a0aec0;
+}
+
+.download:hover {
+  background-color: transparent;
+  color: black;
+}
+
+.loader {
+  width: 48px;
+  height: 48px;
+  border: 3px dotted #fff;
+  border-style: solid solid dotted dotted;
+  border-radius: 50%;
+  display: inline-block;
+  position: relative;
+  box-sizing: border-box;
+  animation: rotation 2s linear infinite;
+}
+.loader::after {
+  content: '';
+  box-sizing: border-box;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  margin: auto;
+  border: 3px dotted #ff3d00;
+  border-style: solid solid dotted;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  animation: rotationBack 1s linear infinite;
+  transform-origin: center center;
+}
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+@keyframes rotationBack {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(-360deg);
+  }
+}
+
+.root {
+  border-radius: 12px;
+  background: #fff;
+  max-width: 320px;
+  min-width: 245px;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+.title {
+  color: #3d4551;
+  font-family: Helvetica;
+  font-size: 20px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 140%;
+  margin-bottom: 47px;
+}
+
+.unauthorised {
+  color: #ff3d00;
+}
+
+@media screen and (max-width: 700px) {
+  .root {
+    max-width: none;
+    width: 90vw;
+    margin: 0 auto;
+    padding: 20px;
+  }
+}
