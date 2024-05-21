@@ -285,8 +285,8 @@ export class DownloadHandler extends Handler {
         }
       }
     }
-
-    const blockchain = new Blockchain(rpc, ddo.chainId)
+    const network = config.supportedNetworks[ddo.chainId.toString()]
+    const blockchain = new Blockchain(rpc, network.network, ddo.chainId)
     const signer = blockchain.getSigner()
 
     // check lifecycle state of the asset
