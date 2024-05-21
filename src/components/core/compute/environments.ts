@@ -2,13 +2,12 @@ import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { ComputeEnvironment } from '../../../@types/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Handler } from '../handler.js'
+import { Handler } from '../handler/handler.js'
 import { ComputeGetEnvironmentsCommand } from '../../../@types/commands.js'
 import { getConfiguration } from '../../../utils/config.js'
 import { C2DEngine } from '../../c2d/compute_engines.js'
 import {
   ValidateParams,
-  buildInvalidParametersResponse,
   buildInvalidRequestMessage,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
@@ -28,9 +27,9 @@ export class ComputeGetEnvironmentsHandler extends Handler {
   }
 
   async handle(task: ComputeGetEnvironmentsCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     try {
       const response: ComputeEnvironment[] = []

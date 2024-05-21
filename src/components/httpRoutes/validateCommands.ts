@@ -1,7 +1,8 @@
-import { SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { Command } from '../../@types/commands.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
+import { ReadableString } from '../P2P/handlers.js'
 
 export type ValidateParams = {
   valid: boolean
@@ -37,9 +38,13 @@ export function validateCommandParameters(
     return buildInvalidRequestMessage(`Invalid or unrecognized command: "${commandStr}"`)
   }
 
+  const logCommandData = commandData
+  if (commandStr === PROTOCOL_COMMANDS.ENCRYPT) {
+    logCommandData.files = [] // hide files data for logging
+  }
   CORE_LOGGER.info(
     `Checking received command data for Command "${commandStr}": ${JSON.stringify(
-      commandData,
+      logCommandData,
       null,
       4
     )}`
@@ -71,6 +76,14 @@ export function buildInvalidRequestMessage(cause: string): ValidateParams {
     reason: cause
   }
 }
+
+export function buildRateLimitReachedResponse(): P2PCommandResponse {
+  return {
+    stream: new ReadableString('Rate limit exceeded'),
+    status: { httpStatus: 403, error: 'Rate limit exceeded' }
+  }
+}
+
 // always send same response
 export function buildInvalidParametersResponse(
   validation: ValidateParams
@@ -78,5 +91,15 @@ export function buildInvalidParametersResponse(
   return {
     stream: null,
     status: { httpStatus: validation.status, error: validation.reason }
+  }
+}
+
+export function buildErrorResponse(cause: string): P2PCommandResponse {
+  return {
+    stream: null,
+    status: {
+      httpStatus: 400,
+      error: `The result is not the expected one: ${cause}`
+    }
   }
 }

@@ -30,6 +30,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
 
+
   dockertest:
     runs-on: ubuntu-latest
     steps:
@@ -133,14 +134,18 @@ jobs:
       - run: docker image ls
       - name: Delete default runner images
         run: |
-          docker image rm node:16
-          docker image rm node:16-alpine
+          docker image rm node:20
+          docker image rm node:20-alpine
           docker image rm node:18
           docker image rm node:18-alpine
-          docker image rm node:20
+          docker image rm node:16
+          docker image rm node:16-alpine
           docker image rm debian:10
           docker image rm debian:11
+          docker image rm ubuntu:22.04
+          docker image rm ubuntu:20.04
           docker image rm moby/buildkit:latest
+          rm -rf /usr/share/swift/
       - name: Wait for contracts deployment and C2D cluster to be ready
         working-directory: ${{ github.workspace }}/barge
         run: |
@@ -148,6 +153,9 @@ jobs:
             sleep 10
             [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" -a -f "$HOME/.ocean/ocean-c2d/ready" ] && break
             done
+      - name: docker logs
+        run: docker logs ocean_ocean-contracts_1 && docker logs ocean_kindcluster_1 && docker logs ocean_computetodata_1 && docker logs ocean_typesense_1
+        if: ${{ failure() }}
       - name: integration tests
         run: npm run test:integration:cover
         env:
@@ -164,6 +172,9 @@ jobs:
           FEE_AMOUNT: '{ "amount": 1, "unit": "MB" }'
           ASSET_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json'
           ACCOUNT_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json'
+      - name: docker logs
+        run: docker logs ocean_ocean-contracts_1 && docker logs ocean_kindcluster_1 && docker logs ocean_computetodata_1 && docker logs ocean_typesense_1
+        if: ${{ failure() }}
       - uses: actions/upload-artifact@v2
         with:
           name: coverage

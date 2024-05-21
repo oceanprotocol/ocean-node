@@ -1,14 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import cs from 'classnames'
-
 import styles from './index.module.css'
-
-import Menu from './Menu'
 import { truncateString } from '../../shared/utils/truncateString'
 import { useAdminContext } from '@/context/AdminProvider'
+import AdminActions from '../Admin'
 import Spinner from '../Spinner'
 import NodePeers from '../NodePeers'
 import Copy from '../Copy'
+import IndexQueue from '../IndexQueue'
 
 type IndexerType = {
   block: string
@@ -59,7 +58,7 @@ type NodeDataType = {
 export default function Dashboard() {
   const [data, setData] = useState<NodeDataType>()
   const [isLoading, setLoading] = useState(true)
-  const { setAllAdmins, allAdmins } = useAdminContext()
+  const { setAllAdmins, allAdmins, setNetworks } = useAdminContext()
 
   useEffect(() => {
     setLoading(true)
@@ -79,10 +78,12 @@ export default function Dashboard() {
         .then((data) => {
           setData(data)
           setAllAdmins(data.allowedAdmins)
+          setNetworks(data.indexer)
           setLoading(false)
         })
     } catch (error) {
-      console.log('error', error)
+      setLoading(false)
+      console.error('error', error)
     }
   }, [])
 
@@ -124,12 +125,8 @@ export default function Dashboard() {
                 <div className={styles.title24}>NODE ID</div>
                 {nodeData.map((node) => {
                   return (
-                    <div className={styles.node}>
-                      <div
-                        key={node.id}
-                        className={styles.nodeAddress}
-                        onClick={() => setNode(node)}
-                      >
+                    <div className={styles.node} key={node.id}>
+                      <div className={styles.nodeAddress} onClick={() => setNode(node)}>
                         <div className={styles.node}>{truncateString(node.id, 12)}</div>
                       </div>
                       <Copy text={node?.id as string} />
@@ -185,6 +182,7 @@ export default function Dashboard() {
             )
           })}
         </div>
+        <IndexQueue />
       </div>
     )
   }
@@ -262,7 +260,7 @@ export default function Dashboard() {
 
   return (
     <div className={styles.root}>
-      <Menu />
+      <AdminActions />
 
       <div className={styles.bodyContainer}>
         {isLoading ? (

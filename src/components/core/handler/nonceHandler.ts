@@ -1,13 +1,12 @@
 import { Handler } from './handler.js'
-import { P2PCommandResponse } from '../../@types/OceanNode.js'
-import { NonceCommand } from '../../@types/commands.js'
-import { getNonce } from './utils/nonceHandler.js'
+import { P2PCommandResponse } from '../../../@types/OceanNode.js'
+import { NonceCommand } from '../../../@types/commands.js'
+import { getNonce } from '../utils/nonceHandler.js'
 import {
   ValidateParams,
-  buildInvalidParametersResponse,
   buildInvalidRequestMessage,
   validateCommandParameters
-} from '../httpRoutes/validateCommands.js'
+} from '../../httpRoutes/validateCommands.js'
 import { isAddress } from 'ethers'
 
 export class NonceHandler extends Handler {
@@ -25,9 +24,9 @@ export class NonceHandler extends Handler {
 
   // eslint-disable-next-line require-await
   async handle(task: NonceCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
     }
     const { address } = task
     return getNonce(this.getOceanNode().getDatabase().nonce, address)

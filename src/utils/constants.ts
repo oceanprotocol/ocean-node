@@ -4,7 +4,6 @@ import { Hashes } from '../@types/blockchain'
 export const PROTOCOL_COMMANDS = {
   DOWNLOAD: 'download',
   DOWNLOAD_URL: 'downloadURL', // we still use this
-  REINDEX: 'reIndex',
   ECHO: 'echo',
   ENCRYPT: 'encrypt',
   ENCRYPT_FILE: 'encryptFile',
@@ -13,6 +12,7 @@ export const PROTOCOL_COMMANDS = {
   QUERY: 'query',
   NONCE: 'nonce',
   STATUS: 'status',
+  DETAILED_STATUS: 'detailedStatus',
   FIND_DDO: 'findDDO',
   GET_FEES: 'getFees',
   FILE_INFO: 'fileInfo',
@@ -23,12 +23,13 @@ export const PROTOCOL_COMMANDS = {
   COMPUTE_GET_STATUS: 'getComputeStatus',
   COMPUTE_GET_RESULT: 'getComputeResult',
   COMPUTE_INITIALIZE: 'initializeCompute',
-  STOP_NODE: 'stopNode'
+  STOP_NODE: 'stopNode',
+  REINDEX_TX: 'reindexTx',
+  REINDEX_CHAIN: 'reindexChain'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.DOWNLOAD,
-  PROTOCOL_COMMANDS.REINDEX,
   PROTOCOL_COMMANDS.ECHO,
   PROTOCOL_COMMANDS.ENCRYPT,
   PROTOCOL_COMMANDS.ENCRYPT_FILE,
@@ -37,6 +38,7 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.GET_DDO,
   PROTOCOL_COMMANDS.QUERY,
   PROTOCOL_COMMANDS.STATUS,
+  PROTOCOL_COMMANDS.DETAILED_STATUS,
   PROTOCOL_COMMANDS.FIND_DDO,
   PROTOCOL_COMMANDS.GET_FEES,
   PROTOCOL_COMMANDS.FILE_INFO,
@@ -47,7 +49,9 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
   PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
   PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
-  PROTOCOL_COMMANDS.STOP_NODE
+  PROTOCOL_COMMANDS.STOP_NODE,
+  PROTOCOL_COMMANDS.REINDEX_TX,
+  PROTOCOL_COMMANDS.REINDEX_CHAIN
 ]
 
 export const MetadataStates = {
@@ -69,6 +73,12 @@ export const EVENTS = {
   EXCHANGE_CREATED: 'ExchangeCreated',
   EXCHANGE_RATE_CHANGED: 'ExchangeRateChanged',
   DISPENSER_CREATED: 'DispenserCreated'
+}
+
+export const INDEXER_CRAWLING_EVENTS = {
+  CRAWLING_STARTED: 'crawlingStarted',
+  REINDEX_QUEUE_POP: 'popFromQueue'
+  // TODO REINDEX_CHAIN
 }
 
 export const EVENT_HASHES: Hashes = {
@@ -214,9 +224,35 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'DASHBOARD',
     value: process.env.DASHBOARD,
     required: false
+  },
+  MAX_REQ_PER_SECOND: {
+    // rate limit per second
+    name: 'MAX_REQ_PER_SECOND',
+    value: process.env.MAX_REQ_PER_SECOND,
+    required: false
+  },
+  RATE_DENY_LIST: {
+    // rate limit / deny list (peers and ips)
+    name: 'RATE_DENY_LIST',
+    value: process.env.RATE_DENY_LIST,
+    required: false
+  },
+  MAX_CHECKSUM_LENGTH: {
+    // c2d, maximum length for a file if checksum is required.
+    name: 'MAX_CHECKSUM_LENGTH',
+    value: process.env.MAX_CHECKSUM_LENGTH,
+    required: false
+  },
+  LOG_LEVEL: {
+    // default log level (if not specified, "debug" for "development" and "info" for "production")
+    name: 'LOG_LEVEL',
+    value: process.env.LOG_LEVEL,
+    required: false
   }
 }
 
+// default to 3 requests per second (configurable)
+export const DEFAULT_RATE_LIMIT_PER_SECOND = 3
 export const DDO_IDENTIFIER_PREFIX = 'did:op:'
 // global ocean node API services path
 export const SERVICES_API_BASE_PATH = '/api/services'

@@ -1,11 +1,12 @@
 import {
-  Contract,
   Interface,
   JsonRpcApiProvider,
   Signer,
   ethers,
   getAddress,
   getBytes,
+  hexlify,
+  toUtf8Bytes,
   toUtf8String
 } from 'ethers'
 import { createHash } from 'crypto'
@@ -17,15 +18,16 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { getDatabase } from '../../utils/database.js'
 import { PROTOCOL_COMMANDS, EVENTS, MetadataStates } from '../../utils/constants.js'
+import { getDtContract, wasNFTDeployedByOurFactory } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
-import { getConfiguration } from '../../utils/index.js'
+import { getConfiguration, timestampToDateTime } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
-import { wasNFTDeployedByOurFactory } from './utils.js'
+import { makeDid } from '../core/utils/validateDdoHandler.js'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -61,6 +63,27 @@ class BaseEventProcessor {
     return iface.parseLog(eventObj)
   }
 
+  protected async getNFTInfo(
+    nftAddress: string,
+    signer: Signer,
+    owner: string,
+    timestamp: number
+  ): Promise<any> {
+    const nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, signer)
+    const state = parseInt((await nftContract.getMetaData())[2])
+    const id = parseInt(await nftContract.getId())
+    const tokenURI = await nftContract.tokenURI(id)
+    return {
+      state,
+      address: nftAddress,
+      name: await nftContract.name(),
+      symbol: await nftContract.symbol(),
+      owner,
+      created: timestampToDateTime(timestamp),
+      tokenURI
+    }
+  }
+
   protected async createOrUpdateDDO(ddo: any, method: string): Promise<any> {
     try {
       const { ddo: ddoDatabase, ddoState } = await getDatabase()
@@ -92,6 +115,16 @@ class BaseEventProcessor {
         true
       )
     }
+  }
+
+  protected checkDdoHash(decryptedDocument: any, documentHashFromContract: any): boolean {
+    const utf8Bytes = toUtf8Bytes(JSON.stringify(decryptedDocument))
+    const expectedMetadata = hexlify(utf8Bytes)
+    if (create256Hash(expectedMetadata.toString()) !== documentHashFromContract) {
+      INDEXER_LOGGER.error(`DDO checksum does not match.`)
+      return false
+    }
+    return true
   }
 
   protected async decryptDDO(
@@ -294,21 +327,42 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         event.transactionHash,
         ERC721Template.abi
       )
+      const metadata = decodedEventData.args[4]
+      const metadataHash = decodedEventData.args[5]
+      const flag = decodedEventData.args[3]
+      const owner = decodedEventData.args[0]
       const ddo = await this.decryptDDO(
         decodedEventData.args[2],
-        decodedEventData.args[3],
-        decodedEventData.args[0],
+        flag,
+        owner,
         event.address,
         chainId,
         event.transactionHash,
-        decodedEventData.args[5],
-        decodedEventData.args[4]
+        metadataHash,
+        metadata
       )
+      if (ddo.id !== makeDid(event.address, chainId.toString(10))) {
+        INDEXER_LOGGER.error(
+          `Decrypted DDO ID is not matching the generated hash for DID.`
+        )
+        return
+      }
+      // for unencrypted DDOs
+      if (parseInt(flag) !== 2 && !this.checkDdoHash(ddo, metadataHash)) {
+        return
+      }
+
       did = ddo.id
       // stuff that we overwrite
       ddo.chainId = chainId
       ddo.nftAddress = event.address
       ddo.datatokens = this.getTokenInfo(ddo.services)
+      ddo.nft = await this.getNFTInfo(
+        ddo.nftAddress,
+        signer,
+        owner,
+        parseInt(decodedEventData.args[6])
+      )
 
       INDEXER_LOGGER.logMessage(
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
@@ -353,9 +407,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           event.blockNumber
         )
         if (!isUpdateable) {
-          INDEXER_LOGGER.logMessage(
-            `Error encountered when checking if the asset is eligiable for update: ${error}`,
-            true
+          INDEXER_LOGGER.error(
+            `Error encountered when checking if the asset is eligiable for update: ${error}`
           )
           await ddoState.update(
             this.networkId,
@@ -543,6 +596,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
   async processEvent(
     event: ethers.Log,
     chainId: number,
+    signer: Signer,
     provider: JsonRpcApiProvider
   ): Promise<any> {
     const decodedEventData = await this.getEventData(
@@ -558,11 +612,8 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
       `Processed new order for service index ${serviceIndex} at ${timestamp}`,
       true
     )
-    const datatokenContract = new Contract(
-      event.address,
-      ERC20Template.abi,
-      await provider.getSigner()
-    )
+    const datatokenContract = getDtContract(signer, event.address)
+
     const nftAddress = await datatokenContract.getERC721Address()
     const did =
       'did:op:' +
@@ -609,6 +660,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
   async processEvent(
     event: ethers.Log,
     chainId: number,
+    signer: Signer,
     provider: JsonRpcApiProvider
   ): Promise<any> {
     const decodedEventData = await this.getEventData(
@@ -621,11 +673,8 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
     const payer = decodedEventData.args[1].toString()
     INDEXER_LOGGER.logMessage(`Processed reused order at ${timestamp}`, true)
 
-    const datatokenContract = new Contract(
-      event.address,
-      ERC20Template.abi,
-      await provider.getSigner()
-    )
+    const datatokenContract = getDtContract(signer, event.address)
+
     const nftAddress = await datatokenContract.getERC721Address()
     const did =
       'did:op:' +

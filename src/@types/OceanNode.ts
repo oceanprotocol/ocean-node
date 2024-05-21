@@ -3,9 +3,16 @@ import { Stream } from 'stream'
 import { RPCS } from './blockchain'
 import { C2DClusterInfo } from './C2D'
 import { FeeStrategy } from './Fees'
+import { Schema } from '../components/database/schemas'
 
 export interface OceanNodeDBConfig {
   url: string | null
+}
+
+// deny list of peer ids and ips (for rate limiting purposes)
+export interface DenyList {
+  peers: string[]
+  ips: string[]
 }
 
 export interface OceanNodeKeys {
@@ -50,6 +57,8 @@ export interface OceanNodeConfig {
   assetPurgatoryUrl: string
   allowedAdmins?: string[]
   codeHash?: string
+  rateLimit?: number
+  denyList?: DenyList
 }
 
 export interface P2PStatusResponse {
@@ -93,6 +102,9 @@ export interface OceanNodeStatus {
   uptime?: number // seconds since start
   codeHash?: string
   allowedAdmins?: string[]
+  // detailed information
+  c2dClusters?: C2DClusterInfo[]
+  supportedSchemas?: Schema[]
 }
 
 export interface P2PBroadcastResponse {

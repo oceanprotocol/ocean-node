@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/index.js'
-import { CoreHandlersRegistry } from '../../components/core/coreHandlersRegistry.js'
-import { Handler } from '../../components/core/handler.js'
+import { CoreHandlersRegistry } from '../../components/core/handler/coreHandlersRegistry.js'
+import { Handler } from '../../components/core/handler/handler.js'
 import { OceanNode } from '../../OceanNode.js'
 import {
   ComputeGetEnvironmentsCommand,
@@ -21,33 +21,34 @@ import {
   GetFeesCommand,
   NonceCommand,
   QueryCommand,
-  ReindexCommand,
   StatusCommand,
   ValidateDDOCommand
 } from '../../@types/commands.js'
-import { NonceHandler } from '../../components/core/nonceHandler.js'
-import { DownloadHandler } from '../../components/core/downloadHandler.js'
+import { NonceHandler } from '../../components/core/handler/nonceHandler.js'
+import { DownloadHandler } from '../../components/core/handler/downloadHandler.js'
 import {
   EncryptFileHandler,
   EncryptHandler
-} from '../../components/core/encryptHandler.js'
+} from '../../components/core/handler/encryptHandler.js'
 import {
   FindDdoHandler,
   GetDdoHandler,
   ValidateDDOHandler
-} from '../../components/core/ddoHandler.js'
-import { QueryHandler } from '../../components/core/queryHandler.js'
-import { StatusHandler } from '../../components/core/statusHandler.js'
-import { FeesHandler } from '../../components/core/feesHandler.js'
-import { EchoHandler } from '../../components/core/echoHandler.js'
-import { ReindexHandler } from '../../components/core/reindexHandler.js'
-import { FileInfoHandler } from '../../components/core/fileInfoHandler.js'
+} from '../../components/core/handler/ddoHandler.js'
+import { QueryHandler } from '../../components/core/handler/queryHandler.js'
+import { StatusHandler } from '../../components/core/handler/statusHandler.js'
+import { FeesHandler } from '../../components/core/handler/feesHandler.js'
+import { EchoHandler } from '../../components/core/handler/echoHandler.js'
+import { FileInfoHandler } from '../../components/core/handler/fileInfoHandler.js'
 import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/environments.js'
 import { ComputeStartHandler } from '../../components/core/compute/startCompute.js'
 import { ComputeStopHandler } from '../../components/core/compute/stopCompute.js'
 import { ComputeGetStatusHandler } from '../../components/core/compute/getStatus.js'
 import { ComputeGetResultHandler } from '../../components/core/compute/getResults.js'
 import { ComputeInitializeHandler } from '../../components/core/compute/initialize.js'
+import { StopNodeHandler } from '../../components/core/admin/stopNodeHandler.js'
+import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.js'
+import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
 
 describe('Commands and handlers', () => {
   it('Check that all supported commands have registered handlers', () => {
@@ -209,18 +210,23 @@ describe('Commands and handlers', () => {
     }
     expect(echoHandler.validate(echoCommand).valid).to.be.equal(true)
     // -----------------------------------------
-    // ReindexHandler
-    const reindexHandler: ReindexHandler = CoreHandlersRegistry.getInstance(
+    // Stop Node Handler for Admin
+    const stopNodeHandler: StopNodeHandler = CoreHandlersRegistry.getInstance(
       node
-    ).getHandler(PROTOCOL_COMMANDS.REINDEX)
-    const reindexCommand: ReindexCommand = {
-      txId: '0xCce67694eD2848dd683c651Dab7Af823b7dd123',
-      chainId: 8996,
-      command: PROTOCOL_COMMANDS.REINDEX
-    }
-    expect(reindexHandler.validate(reindexCommand).valid).to.be.equal(true)
-    reindexCommand.chainId = undefined
-    expect(reindexHandler.validate(reindexCommand).valid).to.be.equal(false)
+    ).getHandler(PROTOCOL_COMMANDS.ECHO)
+    expect(stopNodeHandler).to.be.not.equal(null)
+    // -----------------------------------------
+    // Reindex Tx Handler
+    const reindexTxHandler: ReindexTxHandler = CoreHandlersRegistry.getInstance(
+      node
+    ).getHandler(PROTOCOL_COMMANDS.REINDEX_TX)
+    expect(reindexTxHandler).to.be.not.equal(null)
+    // -----------------------------------------
+    // Reindex Chain Handler
+    const reindexChainHandler: ReindexChainHandler = CoreHandlersRegistry.getInstance(
+      node
+    ).getHandler(PROTOCOL_COMMANDS.REINDEX_CHAIN)
+    expect(reindexChainHandler).to.be.not.equal(null)
     // -----------------------------------------
     // FileInfoHandler
     const fileInfoHandler: FileInfoHandler = CoreHandlersRegistry.getInstance(
