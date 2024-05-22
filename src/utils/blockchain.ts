@@ -52,12 +52,12 @@ export class Blockchain {
   }
 
   public getProvider(): JsonRpcApiProvider {
-    console.log('provider ready or not == ', this.provider.ready)
-    if (!this.provider.ready) {
-      this.provider = new ethers.JsonRpcProvider(this.knownRPCs[0], this.network)
-      console.log('is it ready now == ', this.provider.ready)
-      return this.provider
-    }
+    // console.log('provider ready or not == ', this.provider.ready)
+    // if (!this.provider.ready) {
+    //   this.provider = new ethers.JsonRpcProvider(this.knownRPCs[0], this.network)
+    //   console.log('is it ready now == ', this.provider.ready)
+    //   return this.provider
+    // }
     return this.provider
   }
 
