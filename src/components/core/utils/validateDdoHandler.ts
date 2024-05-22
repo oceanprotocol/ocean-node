@@ -20,7 +20,7 @@ import { getProviderWallet } from './feesHandler.js'
 // import { DatasetCore } from '@rdfjs/types'
 // import { graph, jsonParser } from 'rdflib'
 // eslint-disable-next-line import/no-duplicates
-import factory from '@rdfjs/data-model'
+// import factory from '@rdfjs/data-model'
 // import fromFile from 'rdf-utils-fs/fromFile.js'
 // const { fromStream } = pkg
 import pkg from 'jsonld'
@@ -159,31 +159,37 @@ export async function validateObject(
   const expanded = await expand(ddoCopy)
   const flattened = await flatten(expanded)
   const nquads = await toRDF(flattened, { format: 'application/n-quads' })
+  const parser = new Parser({ format: 'application/n-quads' })
+  const ddoQuads = parser.parse(JSON.stringify(nquads))
   CORE_LOGGER.logMessage(`nquads: ${JSON.stringify(nquads)}`)
+  ddoQuads.forEach((quad: Quad) => {
+    // CORE_LOGGER.logMessage(`quad: ${JSON.stringify(quad)}`)
+    dataset.add(quad)
+  })
 
   // const ddoStore = new Store()
   // ddoStore.addQuads(nquads)
 
-  Object.entries(ddoCopy).forEach(([key, value]) => {
-    const subject = factory.namedNode(`http://example.org/ddo/${key}`)
-    const predicate = factory.namedNode('http://example.org/ddo/property')
-    let stringValue = ''
-    if (typeof value === 'object') {
-      stringValue = JSON.stringify(value)
-    } else {
-      stringValue = value.toString()
-    }
-    const object = factory.literal(stringValue)
-    dataset.add(factory.quad(subject, predicate, object))
-  })
+  // Object.entries(ddoCopy).forEach(([key, value]) => {
+  //   const subject = factory.namedNode(`http://example.org/ddo/${key}`)
+  //   const predicate = factory.namedNode('http://example.org/ddo/property')
+  //   let stringValue = ''
+  //   if (typeof value === 'object') {
+  //     stringValue = JSON.stringify(value)
+  //   } else {
+  //     stringValue = value.toString()
+  //   }
+  //   const object = factory.literal(stringValue)
+  //   dataset.add(factory.quad(subject, predicate, object))
+  // })
   CORE_LOGGER.logMessage(`dataset after the update: ${JSON.stringify(dataset)}`)
 
-  const validator = new shaclEngine.Validator(dataset, {
+  const validator = new shaclEngine.Validator(schemaDataset, {
     factory: rdfDataModel
   })
 
   // run the validation process
-  const report = await validator.validate({ dataset: nquads })
+  const report = await validator.validate({ dataset })
   CORE_LOGGER.logMessage(`report: ${JSON.stringify(report)}`)
   if (!report) {
     const errorMsg = 'Validation report does not exist'
