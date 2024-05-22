@@ -20,9 +20,8 @@ jobs:
       matrix:
         platform:
           - linux/amd64
-          - linux/arm/v6
+          - linux/arm64/v8
           - linux/arm/v7
-          - linux/arm64
     steps:
       - name: Prepare
         run: |
@@ -56,6 +55,7 @@ jobs:
           # type=semver,pattern={{major}}
           # type=sha
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -63,6 +63,7 @@ jobs:
           push: true
           tags: ${{ steps.ocean_node_meta.outputs.tags }}
           labels: ${{ steps.ocean_node_meta.outputs.labels }}
+          outputs: type=image,name=oceanprotocol/ocean-node,push-by-digest=true,name-canonical=true,push=true
       - name: Export digest
         run: |
           mkdir -p /tmp/digests
