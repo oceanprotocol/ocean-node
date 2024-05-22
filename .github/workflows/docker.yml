@@ -33,7 +33,7 @@ jobs:
         uses: docker/setup-qemu-action@v3
         with:
           platforms: ${{ matrix.platform }}
-          image: tonistiigi/binfmt:qemu-v8.1.5
+          image: tonistiigi/binfmt:qemu-v8.0.4
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v3
