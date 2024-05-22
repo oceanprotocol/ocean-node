@@ -54,7 +54,7 @@ import {
 import { ProviderFees } from '../../@types/Fees.js'
 import { homedir } from 'os'
 import { publishAlgoDDO, publishDatasetDDO } from '../data/ddo.js'
-import { getOceanArtifactsAdresses } from '../../utils/address.js'
+import { DEVELOPMENT_CHAIN_ID, getOceanArtifactsAdresses } from '../../utils/address.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { createHash } from 'crypto'
@@ -191,8 +191,8 @@ describe('Compute', () => {
     computeEnvironments = await streamToObject(response.stream as Readable)
 
     // expect 2 envs
-    expect(computeEnvironments.length === 2, 'incorrect length')
-    for (const computeEnvironment of computeEnvironments) {
+    expect(computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 2, 'incorrect length')
+    for (const computeEnvironment of computeEnvironments[DEVELOPMENT_CHAIN_ID]) {
       assert(computeEnvironment.id, 'id missing in computeEnvironments')
       assert(
         computeEnvironment.consumerAddress,
@@ -209,7 +209,7 @@ describe('Compute', () => {
         'maxJobDuration missing in computeEnvironments'
       )
     }
-    firstEnv = computeEnvironments[0]
+    firstEnv = computeEnvironments[DEVELOPMENT_CHAIN_ID][0]
   })
 
   it('Initialize compute without transaction IDs', async () => {
