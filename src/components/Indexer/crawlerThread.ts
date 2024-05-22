@@ -204,7 +204,6 @@ export async function processNetworkData(
 async function reindexChain(currentBlock: number): Promise<boolean> {
   const block = await updateLastIndexedBlockNumber(REINDEX_BLOCK)
   if (block !== -1) {
-    // TODO: check
     REINDEX_BLOCK = null
     const res = await deleteAllAssetsFromChain()
     if (res === -1) {
