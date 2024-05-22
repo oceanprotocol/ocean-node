@@ -210,6 +210,7 @@ describe('Compute', () => {
       )
     }
     firstEnv = computeEnvironments[DEVELOPMENT_CHAIN_ID][0]
+    console.log(`first env: ${JSON.stringify(firstEnv)}`)
   })
 
   it('Initialize compute without transaction IDs', async () => {
