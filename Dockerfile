@@ -6,7 +6,6 @@ ENV NVM_DIR /usr/local/nvm
 RUN mkdir $NVM_DIR
 ENV NODE_VERSION=v18.19.0
 # Install nvm with node and npm
-ENV METHOD=git
 RUN curl https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash \
     && source $NVM_DIR/nvm.sh \
     && nvm install $NODE_VERSION \
