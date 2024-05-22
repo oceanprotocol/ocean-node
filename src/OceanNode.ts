@@ -23,8 +23,7 @@ export class OceanNode {
     private db?: Database,
     private node?: OceanP2P,
     private provider?: OceanProvider,
-    private indexer?: OceanIndexer,
-    private config?: OceanNodeConfig
+    private indexer?: OceanIndexer
   ) {
     this.coreHandlers = CoreHandlersRegistry.getInstance(this)
     if (node) {
@@ -41,7 +40,7 @@ export class OceanNode {
     config?: OceanNodeConfig
   ): OceanNode {
     if (!OceanNode.instance) {
-      this.instance = new OceanNode(db, node, provider, indexer, config)
+      this.instance = new OceanNode(db, node, provider, indexer)
     }
     return this.instance
   }
@@ -81,10 +80,6 @@ export class OceanNode {
 
   public getRemoteCaller(): string | string[] {
     return this.remoteCaller
-  }
-
-  public getConfig(): OceanNodeConfig {
-    return this.config
   }
 
   /**

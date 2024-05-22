@@ -2,10 +2,11 @@ import express from 'express'
 import { SERVICES_API_BASE_PATH } from '../../utils/constants.js'
 import { AQUARIUS_API_BASE_PATH } from './aquarius.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
+import { getConfiguration } from '../../utils/index.js'
 export const rootEndpointRoutes = express.Router()
 
-rootEndpointRoutes.get('/', (req, res) => {
-  const config = req.oceanNode.getConfig()
+rootEndpointRoutes.get('/', async (req, res) => {
+  const config = await getConfiguration()
   if (!config.supportedNetworks) {
     HTTP_LOGGER.error(`Supported networks not defined`)
     res.status(400).send(`Supported networks not defined`)
