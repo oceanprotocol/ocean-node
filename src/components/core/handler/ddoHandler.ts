@@ -17,7 +17,8 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Blockchain } from '../../../utils/blockchain.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import lzma from 'lzma-native'
+// import lzma from 'lzma-native'
+import lzmajs from 'lzma-purejs'
 import {
   getValidationSignature,
   makeDid,
@@ -296,6 +297,8 @@ export class DecryptDdoHandler extends Handler {
 
       if (flags & 1) {
         try {
+          decryptedDocument = lzmajs.decompressFile(decryptedDocument)
+          /*
           lzma.decompress(
             decryptedDocument,
             { synchronous: true },
@@ -303,6 +306,7 @@ export class DecryptDdoHandler extends Handler {
               decryptedDocument = decompressedResult
             }
           )
+          */
         } catch (error) {
           CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
           return {
