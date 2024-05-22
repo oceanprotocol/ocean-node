@@ -18,7 +18,7 @@ import { Blockchain } from '../../../utils/blockchain.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 // import lzma from 'lzma-native'
-import lzmajs from 'lzma-purejs'
+import lzmajs from 'lzma-purejs-requirejs'
 import {
   getValidationSignature,
   makeDid,
