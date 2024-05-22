@@ -325,7 +325,7 @@ In order for your node to join the network, the others nodes needs to be able to
 All options can be controlled using [environment
 variables](docs/environment-variables.md#p2p)
 
-Here are the proper steps:
+To quickly start your node, you can keep all of the default values,but most likely it will hurt performance. If you want a customised approach, here are the full steps:
 
 - decide what IP version to use (IPV4 or/and IPv6). You should use both if available.
 - decide if you want to filter private ips (if you run multiple nodes in a LAN or cloud environment, leave them on)
