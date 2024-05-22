@@ -61,7 +61,7 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           push: true
-          tags: ${{ steps.ocean_node_meta.outputs.tags }}
+          # tags: ${{ steps.ocean_node_meta.outputs.tags }}
           labels: ${{ steps.ocean_node_meta.outputs.labels }}
           outputs: type=image,name=oceanprotocol/ocean-node,push-by-digest=true,name-canonical=true,push=true
       - name: Export digest
@@ -116,4 +116,4 @@ jobs:
           $(printf 'oceanprotocol/ocean-node@sha256:%s ' *)
       - name: Inspect image
         run: |
-          docker buildx imagetools inspect oceanprotocol/ocean-node:${{ steps.meta.outputs.version }}
+          docker buildx imagetools inspect oceanprotocol/ocean-node:${{ steps.ocean_node_meta.outputs.version }}
