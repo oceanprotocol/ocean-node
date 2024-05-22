@@ -13,6 +13,7 @@ import { FeesHandler } from '../core/handler/feesHandler.js'
 import { BaseFileObject, EncryptMethod } from '../../@types/fileObject.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { getEncryptMethodFromString } from '../../utils/crypt.js'
+import { ProviderFees, ProviderInitialize } from '../../@types/Fees.js'
 
 export const providerRoutes = express.Router()
 
@@ -147,6 +148,7 @@ providerRoutes.get(`${SERVICES_API_BASE_PATH}/initialize`, async (req, res) => {
       res.status(400).send('Missing required body')
       return
     }
+    console.log(req.body)
     const result = await new FeesHandler(req.oceanNode).handle({
       command: PROTOCOL_COMMANDS.GET_FEES,
       ddoId: (req.query.documentId as string) || null,
@@ -155,9 +157,15 @@ providerRoutes.get(`${SERVICES_API_BASE_PATH}/initialize`, async (req, res) => {
       validUntil: parseInt(req.query.validUntil as string) || null
     })
     if (result.stream) {
-      const providerFees = await streamToObject(result.stream as Readable)
+      const providerFees: ProviderFees = await streamToObject(result.stream as Readable)
+      const response: ProviderInitialize = {
+        providerFee: providerFees,
+        datatoken: 'xoxo',
+        nonce: '100',
+        computeAddress: req?.query?.consumerAddress as string
+      }
       res.header('Content-Type', 'application/json')
-      res.status(200).send(providerFees)
+      res.status(200).send(response)
     } else {
       res.status(result.status.httpStatus).send(result.status.error)
     }
