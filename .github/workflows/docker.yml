@@ -62,6 +62,7 @@ jobs:
         id: build
         uses: docker/build-push-action@v5
         with:
+          builder: ${{ steps.ocean_node_meta.buildx.name }}
           context: .
           platforms: ${{ matrix.platform }}
           push: true
