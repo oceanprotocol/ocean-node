@@ -40,7 +40,7 @@ export default function NodePeers() {
 
   return (
     <div className={styles.nodes}>
-      <div className={styles.title24}>Node Peers</div>
+      <div className={styles.title24}>Connected Nodes</div>
       {isLoadingNodePeers && (
         <div className={styles.loaderContainer}>
           <Spinner />
