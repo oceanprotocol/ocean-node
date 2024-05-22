@@ -17,6 +17,8 @@ ENV PATH $NVM_DIR/versions/node/$NODE_VERSION/bin:$PATH
 ENV IPFS_GATEWAY='https://ipfs.io/'
 ENV ARWEAVE_GATEWAY='https://arweave.net/'
 RUN node -p "process.arch"
+RUN npm -v
+RUN node -v
 
 FROM base as builder
 COPY package*.json /usr/src/app/
