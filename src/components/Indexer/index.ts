@@ -163,6 +163,13 @@ export class OceanIndexer {
     return INDEXING_QUEUE.slice()
   }
 
+  public getJobsPool(jobId?: string): JobStatus[] {
+    if (jobId) {
+      return JOBS_QUEUE.filter((job: JobStatus) => job.jobId === jobId)
+    }
+    return JOBS_QUEUE.slice()
+  }
+
   public addJob(jobInfo: JobStatus) {
     JOBS_QUEUE.push(jobInfo)
   }

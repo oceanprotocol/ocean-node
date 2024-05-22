@@ -28,7 +28,8 @@ import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
 import {
   AdminReindexChainCommand,
   AdminReindexTxCommand,
-  AdminStopNodeCommand
+  AdminStopNodeCommand,
+  JobStatus
 } from '../../@types/commands.js'
 import { StopNodeHandler } from '../../components/core/admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.js'
@@ -147,6 +148,15 @@ describe('Should test admin operations', () => {
       command: PROTOCOL_COMMANDS.FIND_DDO,
       id: publishedDataset.ddo.id
     }
+
+    const responseJob: JobStatus = await streamToObject(
+      handlerResponse.stream as Readable
+    )
+    assert(indexer.getJobsPool().length >= 1, 'job id not found in pool')
+    assert(responseJob.command === PROTOCOL_COMMANDS.REINDEX_TX, 'command not expected')
+    assert(responseJob.jobId.includes(PROTOCOL_COMMANDS.REINDEX_TX))
+    assert(responseJob.timestamp <= new Date().getTime().toString())
+
     const response = await new FindDdoHandler(oceanNode).handle(findDDOTask)
     const actualDDO = await streamToObject(response.stream as Readable)
     assert(actualDDO[0].id === publishedDataset.ddo.id, 'DDO id not matching')
@@ -181,6 +191,20 @@ describe('Should test admin operations', () => {
       const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
       assert(handlerResponse, 'handler resp does not exist')
       assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
+      const responseJob: JobStatus = await streamToObject(
+        handlerResponse.stream as Readable
+      )
+
+      assert(
+        indexer.getJobsPool(responseJob.jobId).length === 1,
+        'job id not found in pool'
+      )
+      assert(
+        responseJob.command === PROTOCOL_COMMANDS.REINDEX_CHAIN,
+        'command not expected'
+      )
+      assert(responseJob.jobId.includes(PROTOCOL_COMMANDS.REINDEX_CHAIN))
+      assert(responseJob.timestamp <= new Date().getTime().toString())
     }
   })
 
