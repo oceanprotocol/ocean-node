@@ -16,9 +16,9 @@ ENV NODE_PATH $NVM_DIR/$NODE_VERSION/lib/node_modules
 ENV PATH $NVM_DIR/versions/node/$NODE_VERSION/bin:$PATH
 ENV IPFS_GATEWAY='https://ipfs.io/'
 ENV ARWEAVE_GATEWAY='https://arweave.net/'
+RUN node -p "process.arch"
 
 FROM base as builder
-RUN apt-get update && apt-get -y install wget
 COPY package*.json /usr/src/app/
 WORKDIR /usr/src/app/
 RUN npm ci
