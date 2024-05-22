@@ -1,5 +1,5 @@
 FROM ubuntu:22.04 as base
-RUN apt-get update && apt-get -y install bash curl git wget
+RUN apt-get update && apt-get -y install bash curl git wget libatomic1
 COPY .nvmrc /usr/src/app/
 RUN rm /bin/sh && ln -s /bin/bash /bin/sh
 ENV NVM_DIR /usr/local/nvm
