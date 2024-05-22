@@ -82,6 +82,9 @@ function getSupportedChains(): RPCS | null {
   return supportedNetworks
 }
 
+function getP2PAnnounceAddresses(isStartup?: boolean): string[] {
+  return readListFromEnvVariable(ENVIRONMENT_VARIABLES.P2P_ANNOUNCE_ADDRESSES, isStartup)
+}
 // valid decrypthers
 function getAuthorizedDecrypters(isStartup?: boolean): string[] {
   return readAddressListFromEnvVariable(
@@ -101,8 +104,8 @@ export function getAllowedAdmins(isStartup?: boolean): string[] {
   return readAddressListFromEnvVariable(ENVIRONMENT_VARIABLES.ALLOWED_ADMINS, isStartup)
 }
 
-// whenever we want to read an array of addresses from an env variable, use this common function
-function readAddressListFromEnvVariable(envVariable: any, isStartup?: boolean): string[] {
+// whenever we want to read an array of strings from an env variable, use this common function
+function readListFromEnvVariable(envVariable: any, isStartup?: boolean): string[] {
   const { name } = envVariable
   try {
     if (!existsEnvironmentVariable(envVariable, isStartup)) {
@@ -118,7 +121,7 @@ function readAddressListFromEnvVariable(envVariable: any, isStartup?: boolean): 
       )
       return []
     }
-    return addressesRaw.map((address) => getAddress(address))
+    return addressesRaw
   } catch (error) {
     CONFIG_LOGGER.logMessageWithEmoji(
       `Missing or Invalid address(es) in ${name} env variable`,
@@ -130,6 +133,11 @@ function readAddressListFromEnvVariable(envVariable: any, isStartup?: boolean): 
   }
 }
 
+// whenever we want to read an array of addresses from an env variable, use this common function
+function readAddressListFromEnvVariable(envVariable: any, isStartup?: boolean): string[] {
+  const addressesRaw: string[] = readListFromEnvVariable(envVariable, isStartup)
+  return addressesRaw.map((address) => getAddress(address))
+}
 /**
  * get default values for provider fee tokens
  * @param supportedNetworks chains that we support
@@ -422,26 +430,29 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     hasP2P: interfaces.includes('P2P'),
     p2pConfig: {
       bootstrapNodes: [
+        // Public IPFS bootstraps
         '/ip4/104.131.131.82/tcp/4001/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ',
         '/dnsaddr/bootstrap.libp2p.io/ipfs/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN',
         '/dnsaddr/bootstrap.libp2p.io/ipfs/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa',
-        // '/ip4/127.0.0.12/tcp/49100/p2p/12D3KooWLktGvbzuDK7gv1kS4pq6DNWxmxEREKVtBEhVFQmDNni7'
+        // OPF nodes
+        // '/dns4/node1.oceanprotocol.com/tcp/9000/p2p/'
+        '/dns4/node2.oceanprotocol.com/tcp/9000/p2p/16Uiu2HAm6u88XuC4Xke7J9NmT7qLNL4zMYEyLxqdVgAc7Rnr95o6',
+        // '/dns4/node3.oceanprotocol.com/tcp/9000/p2p/'
+        // OPF developer nodes
         '/ip4/35.198.125.13/tcp/8000/p2p/16Uiu2HAmKZuuY2Lx3JiY938rJWZrYQh6kjBZCNrh3ALkodtwFRdF', // paulo
-        '/ip4/34.159.64.236/tcp/8000/p2p/16Uiu2HAmAy1GcZGhzFT3cbARTmodg9c3M4EAmtBZyDgu5cSL1NPr', // jaime
+        '/ip4/35.209.77.64/tcp/8000/p2p/16Uiu2HAmFxPwhW5dmoLZnbqXFyUvr6j1PzCB1mBxRUZHGsoqQoSQ',
         '/ip4/34.107.3.14/tcp/8000/p2p/16Uiu2HAm4DWmX56ZX2bKjvARJQZPMUZ9xsdtAfrMmd7P8czcN4UT', // maria
-        // LOCAL
-        // TODO check: we might need to have an option to use local node as a bootstrap one
-        // '/ip4/127.0.0.1/tcp/8000/p2p/16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo',
-        '/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb',
-        '/dnsaddr/bootstrap.libp2p.io/p2p/QmZa1sAxajnQjVM8WjWXoMbmPd7NsWhfKsPkErzpm9wGkp',
-        '/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt'
+        '/dnsaddr/ocean-node3.oceanprotocol.io/tcp/8000/p2p/16Uiu2HAm96Sx6o8XCEifPL9MtJiZCSzKqiBQApnZ6JWd7be4zwNK' // bogdan
       ],
+      enableIPV4: process.env.P2P_ENABLE_IPV4 !== 'false',
+      enableIPV6: process.env.P2P_ENABLE_IPV6 !== 'false',
       ipV4BindAddress: getEnvValue(process.env.P2P_ipV4BindAddress, '0.0.0.0'),
       ipV4BindTcpPort: getIntEnvValue(process.env.P2P_ipV4BindTcpPort, 0),
       ipV4BindWsPort: getIntEnvValue(process.env.P2P_ipV4BindWsPort, 0),
       ipV6BindAddress: getEnvValue(process.env.P2P_ipV6BindAddress, '::1'),
       ipV6BindTcpPort: getIntEnvValue(process.env.P2P_ipV6BindTcpPort, 0),
       ipV6BindWsPort: getIntEnvValue(process.env.P2P_ipV6BindWsPort, 0),
+      announceAddresses: getP2PAnnounceAddresses(isStartup),
       pubsubPeerDiscoveryInterval: getIntEnvValue(
         process.env.P2P_pubsubPeerDiscoveryInterval,
         1000
@@ -453,7 +464,15 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
         process.env.P2P_connectionsMaxParallelDials,
         150
       ),
-      connectionsDialTimeout: getIntEnvValue(process.env.P2P_connectionsDialTimeout, 10e3) // 10 seconds
+      connectionsDialTimeout: getIntEnvValue(
+        process.env.P2P_connectionsDialTimeout,
+        30e3
+      ), // 10 seconds
+      upnp: process.env.P2P_ENABLE_UPNP !== 'false',
+      autoNat: process.env.P2P_ENABLE_AUTONAT !== 'false',
+      enableCircuitRelayServer: process.env.P2P_ENABLE_CIRCUIT_RELAY_SERVER !== 'false',
+      enableCircuitRelayClient: process.env.P2P_ENABLE_CIRCUIT_RELAY_CLIENT !== 'false',
+      announcePrivateIp: process.env.P2P_ANNOUNCE_PRIVATE !== 'false'
     },
     // Only enable provider if we have a DB_URL
     hasProvider: !!getEnvValue(process.env.DB_URL, ''),
