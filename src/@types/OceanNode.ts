@@ -24,6 +24,8 @@ export interface OceanNodeKeys {
 
 export interface OceanNodeP2PConfig {
   bootstrapNodes: string[]
+  enableIPV4: boolean
+  enableIPV6: boolean
   ipV4BindAddress: string | null
   ipV4BindTcpPort: number | null
   ipV4BindWsPort: number | null
@@ -36,6 +38,12 @@ export interface OceanNodeP2PConfig {
   mDNSInterval: number
   connectionsMaxParallelDials: number
   connectionsDialTimeout: number
+  announceAddresses: string[]
+  autoNat: boolean
+  upnp: boolean
+  enableCircuitRelayServer: boolean
+  enableCircuitRelayClient: boolean
+  announcePrivateIp: boolean
 }
 
 export interface OceanNodeConfig {
