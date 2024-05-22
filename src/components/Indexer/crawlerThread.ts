@@ -18,7 +18,7 @@ import { JsonRpcApiProvider, Log, Signer } from 'ethers'
 
 export interface ReindexTask {
   txId: string
-  chainId: string
+  chainId: number
   eventIndex?: number
 }
 

@@ -179,3 +179,16 @@ export interface ValidateChainId {
   validation: boolean
   networkRpc: string
 }
+/* eslint-disable no-unused-vars */
+export enum CommandStatus {
+  DELIVERED = 'DELIVERED', // command was delivered successfully
+  PENDING = 'PENDING', // command is pending excution or still running
+  FAILURE = 'FAILURE', // command failed
+  SUCCESS = 'SUCCESS' // command succeeded
+}
+export interface JobStatus {
+  command: string
+  timestamp: string
+  jobId: string
+  status: CommandStatus
+}

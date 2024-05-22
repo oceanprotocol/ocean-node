@@ -1,4 +1,4 @@
-import { AdminHandler } from './adminHandler.js'
+import { AdminHandler, buildJobIdentifier } from './adminHandler.js'
 import { AdminReindexChainCommand } from '../../../@types/commands.js'
 import {
   validateCommandParameters,
@@ -35,10 +35,16 @@ export class ReindexChainHandler extends AdminHandler {
       )
     }
     try {
-      this.getOceanNode().getIndexer().resetCrawling(task.chainId)
+      const indexer = this.getOceanNode().getIndexer()
+      if (!indexer) {
+        return buildErrorResponse('Node is not running an indexer instance!')
+      }
+      indexer.resetCrawling(task.chainId)
+      const job = buildJobIdentifier(task)
+      indexer.addJob(job)
       return {
         status: { httpStatus: 200 },
-        stream: new ReadableString('REINDEXING CHAIN...')
+        stream: new ReadableString(JSON.stringify(job))
       }
     } catch (error) {
       CORE_LOGGER.error(`REINDEX chain: ${error.message}`)

@@ -6,12 +6,15 @@ import { ReindexTask } from './crawlerThread.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { EVENTS, INDEXER_CRAWLING_EVENTS } from '../../utils/index.js'
+import { JobStatus } from '../../@types/commands.js'
 
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
 export const INDEXER_CRAWLING_EVENT_EMITTER = new EventEmitter()
 
 let INDEXING_QUEUE: ReindexTask[] = []
+// job queue for admin commands or other commands not immediately available
+const JOBS_QUEUE: JobStatus[] = []
 
 export class OceanIndexer {
   private db: Database
@@ -158,5 +161,9 @@ export class OceanIndexer {
 
   public getIndexingQueue(): ReindexTask[] {
     return INDEXING_QUEUE.slice()
+  }
+
+  public addJob(jobInfo: JobStatus) {
+    JOBS_QUEUE.push(jobInfo)
   }
 }
