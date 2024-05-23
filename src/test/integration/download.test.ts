@@ -321,7 +321,7 @@ describe('Should run a complete node flow.', () => {
   it('should fetch the updated ddo', async () => {
     const getDDOTask = {
       command: PROTOCOL_COMMANDS.GET_DDO,
-      id: publishedDataset.ddo.id
+      id: actualDDO.id
     }
     const response = await new GetDdoHandler(oceanNode).handle(getDDOTask)
     actualDDO = await streamToObject(response.stream as Readable)
@@ -350,7 +350,7 @@ describe('Should run a complete node flow.', () => {
         '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
       )
       const nonce = Date.now().toString()
-      const message = String(publishedDataset.ddo.id + nonce)
+      const message = String(actualDDO.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
         [ethers.hexlify(ethers.toUtf8Bytes(message))]
