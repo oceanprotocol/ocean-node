@@ -263,6 +263,10 @@ export class DownloadHandler extends Handler {
     let blockchain
     try {
       blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+      const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+      while (!(await blockchain.isNetworkReady()).ready) {
+        await delay(1000)
+      }
       provider = blockchain.getProvider()
     } catch (e) {
       return {
@@ -345,7 +349,7 @@ export class DownloadHandler extends Handler {
       service.datatokenAddress,
       AssetUtils.getServiceIndexById(ddo, task.serviceId),
       service.timeout,
-      await blockchain.getSigner()
+      blockchain.getSigner()
     )
 
     if (paymentValidation.isValid) {

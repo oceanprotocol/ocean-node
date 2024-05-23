@@ -40,11 +40,21 @@ export class Blockchain {
     this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
   }
 
-  public async getSigner(): Promise<Signer> {
-    if (
-      (await this.signer.getAddress()) === '0x0000000000000000000000000000000000000000'
-    ) {
-      console.log('Signer not initialized')
+  // TODO: remove this once retested
+  // public async getSigner(): Promise<Signer> {
+  //   if (
+  //     (await this.signer.getAddress()) === '0x0000000000000000000000000000000000000000'
+  //   ) {
+  //     console.log('Signer not initialized')
+  //     this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
+  //     return this.signer
+  //   }
+  //   return this.signer
+  // }
+
+  public getSigner(): Signer {
+    if (!this.signer || typeof this.signer.signMessage !== 'function') {
+      CORE_LOGGER.warn('Signer is not initialized or not a valid ethers Signer')
       this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
       return this.signer
     }
@@ -52,12 +62,11 @@ export class Blockchain {
   }
 
   public getProvider(): JsonRpcApiProvider {
-    // console.log('provider ready or not == ', this.provider.ready)
-    // if (!this.provider.ready) {
-    //   this.provider = new ethers.JsonRpcProvider(this.knownRPCs[0], this.network)
-    //   console.log('is it ready now == ', this.provider.ready)
-    //   return this.provider
-    // }
+    if (!this.provider || typeof this.provider.getNetwork !== 'function') {
+      CORE_LOGGER.warn('Provider is not initialized')
+      this.provider = new ethers.JsonRpcProvider(this.knownRPCs[0], this.network)
+      return this.provider
+    }
     return this.provider
   }
 

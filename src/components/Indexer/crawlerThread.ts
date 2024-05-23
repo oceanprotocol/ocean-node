@@ -276,7 +276,7 @@ async function retryCrawlerWithDelay(
     const result = await startCrawler(blockchain)
     if (result) {
       INDEXER_LOGGER.info('Blockchain connection succeffully established!')
-      processNetworkData(blockchain.getProvider(), await blockchain.getSigner())
+      processNetworkData(blockchain.getProvider(), blockchain.getSigner())
       return true
     } else {
       INDEXER_LOGGER.warn(

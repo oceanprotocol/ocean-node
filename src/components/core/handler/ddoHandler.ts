@@ -158,8 +158,9 @@ export class DecryptDdoHandler extends Handler {
         supportedNetwork.chainId,
         supportedNetwork.fallbackRPCs
       )
+      const networkReady = await isNetworkReady(blockchain)
       const provider = blockchain.getProvider()
-      const signer = await blockchain.getSigner()
+      const signer = blockchain.getSigner()
       // note: "getOceanArtifactsAdresses()"" is broken for at least optimism sepolia
       // if we do: artifactsAddresses[supportedNetwork.network]
       // because on the contracts we have "optimism_sepolia" instead of "optimism-sepolia"
@@ -844,7 +845,7 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
     chainId,
     network.fallbackRPCs
   )
-  const signer = await blockchain.getSigner()
+  const signer = blockchain.getSigner()
 
   const wasDeployedByUs = await wasNFTDeployedByOurFactory(
     chainId as number,
