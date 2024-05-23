@@ -157,15 +157,9 @@ providerRoutes.get(`${SERVICES_API_BASE_PATH}/initialize`, async (req, res) => {
       validUntil: parseInt(req.query.validUntil as string) || null
     })
     if (result.stream) {
-      const providerFees: ProviderFees = await streamToObject(result.stream as Readable)
-      const response: ProviderInitialize = {
-        providerFee: providerFees,
-        datatoken: 'xoxo',
-        nonce: '100',
-        computeAddress: req?.query?.consumerAddress as string
-      }
+      const initializeREsponse = await streamToObject(result.stream as Readable)
       res.header('Content-Type', 'application/json')
-      res.status(200).send(response)
+      res.status(200).send(initializeREsponse)
     } else {
       res.status(result.status.httpStatus).send(result.status.error)
     }

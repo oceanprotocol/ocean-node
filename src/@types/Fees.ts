@@ -15,6 +15,7 @@ export type FeeStrategy = {
   feeAmount: FeeAmount
 }
 
+// TODO: Remove the following since we have ProviderFees and seems a duplicate
 export interface ProviderFeeData {
   providerFeeAddress: string
   providerFeeToken: string
