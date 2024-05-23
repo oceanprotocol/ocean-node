@@ -754,13 +754,10 @@ export class OceanP2P extends EventEmitter {
           if (this._config.p2pConfig.upnp && upnpService) {
             P2P_LOGGER.info('Trying to punch a hole using UPNP')
             try {
-              ;(upnpService as any).mapIpAddresses().catch((err: any) => {
-                // hole punching errors are non-fatal
-                P2P_LOGGER.info('Failed to configure UPNP Gateway(if you have one)')
-                P2P_LOGGER.debug(err)
-              })
-            } catch (e) {
-              P2P_LOGGER.debug(e)
+              await upnpService.mapIpAddresses()
+            } catch (err) {
+              P2P_LOGGER.info('Failed to configure UPNP Gateway(if you have one)')
+              P2P_LOGGER.debug(err)
             }
             return
           }
