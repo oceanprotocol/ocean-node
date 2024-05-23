@@ -147,7 +147,6 @@ providerRoutes.get(`${SERVICES_API_BASE_PATH}/initialize`, async (req, res) => {
       res.status(400).send('Missing required body')
       return
     }
-    console.log(req.body)
     const result = await new FeesHandler(req.oceanNode).handle({
       command: PROTOCOL_COMMANDS.GET_FEES,
       ddoId: (req.query.documentId as string) || null,
