@@ -60,7 +60,10 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, r
     const computeEnvironments = await streamToObject(response.stream as Readable)
 
     // check if computeEnvironments is a valid json object and not empty
-    if (computeEnvironments && !areEmpty(computeEnvironments, req.query.chainId)) {
+    if (
+      computeEnvironments &&
+      !(await areEmpty(computeEnvironments, req.query.chainId))
+    ) {
       res.json(computeEnvironments)
     } else {
       HTTP_LOGGER.logMessage(`Compute environments not found`, true)
