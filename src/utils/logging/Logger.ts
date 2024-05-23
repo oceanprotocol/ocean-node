@@ -469,7 +469,6 @@ export class CustomNodeLogger {
   ) {
     if (!level) level = this.getLoggerLevel() || getDefaultLevel()
 
-    // let msg = includeModuleName ? this.buildMessage(message) : message
     let msg = message
     if (emoji) {
       msg = emoji.concat(' ').concat(msg)
