@@ -73,7 +73,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 config.codeHash = await computeCodebaseHash(__dirname)
 
-OCEAN_NODE_LOGGER.logMessage(`Codebase hash: ${config.codeHash}`, true)
+OCEAN_NODE_LOGGER.info(`Codebase hash: ${config.codeHash}`)
 if (!config) {
   process.exit(1)
 }
