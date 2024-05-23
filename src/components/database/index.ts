@@ -1007,6 +1007,10 @@ export class Database {
     // we cannot have this the other way around because of the dependencies cycle
     if (!isDevelopmentEnvironment()) {
       configureCustomDBTransport(this, DATABASE_LOGGER)
+    } else {
+      DATABASE_LOGGER.warn(
+        '"NODE_ENV" is set to "development". This means logs will be saved to console and file(s) only.'
+      )
     }
     return (async (): Promise<Database> => {
       this.ddo = await new DdoDatabase(this.config, schemas.ddoSchemas)
