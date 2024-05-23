@@ -186,7 +186,12 @@ export async function processNetworkData(
     await sleep(interval)
     // reindex chain command called
     if (REINDEX_BLOCK && !lockProccessing) {
-      await reindexChain(currentBlock)
+      const result = await reindexChain(currentBlock)
+      // either "true" for success or "false" otherwise
+      parentPort.postMessage({
+        method: INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
+        data: { result }
+      })
     }
 
     if (stopCrawling) {
@@ -196,7 +201,7 @@ export async function processNetworkData(
   }
 }
 
-async function reindexChain(currentBlock: number): Promise<void> {
+async function reindexChain(currentBlock: number): Promise<boolean> {
   const block = await updateLastIndexedBlockNumber(REINDEX_BLOCK)
   if (block !== -1) {
     REINDEX_BLOCK = null
@@ -204,11 +209,13 @@ async function reindexChain(currentBlock: number): Promise<void> {
     if (res === -1) {
       await updateLastIndexedBlockNumber(currentBlock)
     }
+    return true
   } else {
     // Set the reindex block to null -> force admin to trigger again the command until
     // we have a notification from worker thread to parent thread #414.
     INDEXER_LOGGER.error(`Block could not be reset. Continue indexing normally...`)
     REINDEX_BLOCK = null
+    return false
   }
 }
 

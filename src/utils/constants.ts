@@ -77,8 +77,10 @@ export const EVENTS = {
 
 export const INDEXER_CRAWLING_EVENTS = {
   CRAWLING_STARTED: 'crawlingStarted',
-  REINDEX_QUEUE_POP: 'popFromQueue'
-  // TODO REINDEX_CHAIN
+  REINDEX_QUEUE_POP: 'popFromQueue', // this is for reindex tx, not chain
+  // use same names as the corresponding commands for these events
+  REINDEX_CHAIN: PROTOCOL_COMMANDS.REINDEX_CHAIN,
+  REINDEX_TX: PROTOCOL_COMMANDS.REINDEX_TX
 }
 
 export const EVENT_HASHES: Hashes = {

@@ -1,5 +1,5 @@
-FROM --platform=${BUILDPLATFORM} ubuntu:22.04 as base
-RUN apt-get update && apt-get -y install bash curl
+FROM ubuntu:22.04 as base
+RUN apt-get update && apt-get -y install bash curl git wget libatomic1 python3 build-essential
 COPY .nvmrc /usr/src/app/
 RUN rm /bin/sh && ln -s /bin/bash /bin/sh
 ENV NVM_DIR /usr/local/nvm
@@ -17,10 +17,9 @@ ENV IPFS_GATEWAY='https://ipfs.io/'
 ENV ARWEAVE_GATEWAY='https://arweave.net/'
 
 FROM base as builder
-RUN apt-get update && apt-get -y install wget
 COPY package*.json /usr/src/app/
 WORKDIR /usr/src/app/
-RUN npm ci
+RUN npm ci --maxsockets 1
 
 
 FROM base as runner
