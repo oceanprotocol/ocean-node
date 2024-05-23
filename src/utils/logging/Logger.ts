@@ -173,7 +173,7 @@ const format: winston.Logform.Format = winston.format.combine(
   winston.format.prettyPrint()
 )
 const alignedWithColorsAndTime: winston.Logform.Format = winston.format.combine(
-  winston.format.colorize(),
+  winston.format.colorize({ all: true }),
   winston.format.timestamp(),
   winston.format.align(),
   winston.format.printf(
