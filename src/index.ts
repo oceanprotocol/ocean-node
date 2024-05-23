@@ -120,7 +120,7 @@ if (config.hasProvider && dbconn) {
 }
 
 // Singleton instance across application
-const oceanNode = OceanNode.getInstance(dbconn, node, provider, indexer)
+const oceanNode = OceanNode.getInstance(dbconn, node, provider, indexer, config)
 
 if (config.hasHttp) {
   // allow up to 25Mb file upload
