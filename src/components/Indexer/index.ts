@@ -104,10 +104,21 @@ export class OceanIndexer {
             INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
             // remove from indexing list
           } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP) {
-            // remove this one from the queue
+            // remove this one from the queue (means we processed the reindex for this tx)
             INDEXING_QUEUE = INDEXING_QUEUE.filter(
               (task) =>
                 task.txId !== event.data.txId && task.chainId !== event.data.chainId
+            )
+            // reindex tx successfully done
+            INDEXER_CRAWLING_EVENT_EMITTER.emit(
+              INDEXER_CRAWLING_EVENTS.REINDEX_TX, // explicitly set constant value for readability
+              event.data
+            )
+          } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN) {
+            // we should listen to this on the dashboard for instance
+            INDEXER_CRAWLING_EVENT_EMITTER.emit(
+              INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
+              event.data
             )
           } else if (event.method === INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED) {
             INDEXER_CRAWLING_EVENT_EMITTER.emit(event.method, event.data)
