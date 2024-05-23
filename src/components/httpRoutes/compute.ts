@@ -31,7 +31,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, r
     )
     const getEnvironmentsTask = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS,
-      chainId: parseInt(req.query.chainId as string),
+      chainId: parseInt(req.query.chainId as string) || null,
       node: (req.query.node as string) || null
     }
     const response = await new ComputeGetEnvironmentsHandler(req.oceanNode).handle(

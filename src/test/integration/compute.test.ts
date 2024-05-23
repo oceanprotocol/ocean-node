@@ -210,7 +210,6 @@ describe('Compute', () => {
       )
     }
     firstEnv = computeEnvironments[DEVELOPMENT_CHAIN_ID][0]
-    console.log(`first env: ${JSON.stringify(firstEnv)}`)
   })
 
   it('Initialize compute without transaction IDs', async () => {
@@ -476,7 +475,7 @@ describe('Compute', () => {
       consumerAddress: await wallet.getAddress(),
       signature,
       nonce,
-      environment: computeEnvironments[0].id,
+      environment: firstEnv.id,
       dataset: {
         documentId: publishedComputeDataset.ddo.id,
         serviceId: publishedComputeDataset.ddo.services[0].id,
@@ -513,7 +512,7 @@ describe('Compute', () => {
       consumerAddress: await wallet.getAddress(),
       signature,
       nonce,
-      environment: computeEnvironments[0].id,
+      environment: firstEnv.id,
       dataset: {
         documentId: publishedComputeDataset.ddo.id,
         serviceId: publishedComputeDataset.ddo.services[0].id,

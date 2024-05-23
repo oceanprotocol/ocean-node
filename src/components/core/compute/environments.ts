@@ -1,11 +1,12 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
-import { ComputeEnvByChain, ComputeEnvironment } from '../../../@types/C2D.js'
+import { ComputeEnvByChain } from '../../../@types/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
 import { ComputeGetEnvironmentsCommand } from '../../../@types/commands.js'
 import { getConfiguration } from '../../../utils/config.js'
 import { C2DEngine } from '../../c2d/compute_engines.js'
+import { fetchEnvironments } from '../utils/environments.js'
 import {
   ValidateParams,
   buildInvalidRequestMessage,
@@ -34,11 +35,13 @@ export class ComputeGetEnvironmentsHandler extends Handler {
 
       for (const cluster of c2dClusters) {
         const engine = C2DEngine.getC2DClass(cluster)
-        for (const chain of Object.keys(config.supportedNetworks)) {
-          const response: ComputeEnvironment[] = []
-          const environments = await engine.getComputeEnvironments(parseInt(chain))
-          response.push(...environments)
-          result[parseInt(chain)] = response
+        if (task.chainId) {
+          result[task.chainId] = await fetchEnvironments(task.chainId, engine)
+        } else {
+          for (const chain of Object.keys(config.supportedNetworks)) {
+            const chainId = parseInt(chain)
+            result[chainId] = await fetchEnvironments(chainId, engine)
+          }
         }
       }
 
