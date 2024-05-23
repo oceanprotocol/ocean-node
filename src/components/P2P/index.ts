@@ -83,6 +83,7 @@ export class OceanP2P extends EventEmitter {
   private _ddoDHT: DDOCache
   private _handleMessage: any
   private _interval: NodeJS.Timeout
+  private _upnp_interval: NodeJS.Timeout
   private _idx: number
   private readonly db: Database
   private readonly _config: OceanNodeConfig
@@ -366,14 +367,10 @@ export class OceanP2P extends EventEmitter {
       // })
       node.services.pubsub.subscribe(this._topic)
       node.services.pubsub.publish(this._topic, encoding('online'))
-      // ;(node.services.upnpNAT as any).mapIpAddresses()
+
       const upnpService = (node.services as any).upnpNAT
       if (config.p2pConfig.upnp && upnpService) {
-        ;(upnpService as any).mapIpAddresses().catch((err: any) => {
-          // hole punching errors are non-fatal
-          P2P_LOGGER.info('Failed to configure UPNP Gateway(if you have one)')
-          P2P_LOGGER.debug(err)
-        })
+        this._upnp_interval = setInterval(this.UPnpCron.bind(this), 3000)
       }
       return node
     } catch (e) {
@@ -742,6 +739,35 @@ export class OceanP2P extends EventEmitter {
       )
       return false
     }
+  }
+
+  async UPnpCron() {
+    // we need to wait until we have some peers connected
+    clearInterval(this._upnp_interval)
+    const node = <any>this._libp2p
+    if (node) {
+      const connManager = node.components.connectionManager
+      if (connManager) {
+        const conns = await connManager.getConnections()
+        if (conns.length > 1) {
+          const upnpService = (node.services as any).upnpNAT
+          if (this._config.p2pConfig.upnp && upnpService) {
+            P2P_LOGGER.info('Trying to punch a hole using UPNP')
+            try {
+              ;(upnpService as any).mapIpAddresses().catch((err: any) => {
+                // hole punching errors are non-fatal
+                P2P_LOGGER.info('Failed to configure UPNP Gateway(if you have one)')
+                P2P_LOGGER.debug(err)
+              })
+            } catch (e) {
+              P2P_LOGGER.debug(e)
+            }
+            return
+          }
+        }
+      }
+    }
+    this._upnp_interval = setInterval(this.UPnpCron.bind(this), 3000)
   }
 }
 
