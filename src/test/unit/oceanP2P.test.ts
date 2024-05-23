@@ -15,6 +15,7 @@ describe('OceanP2P Test', () => {
   let node2: OceanP2P
   let config1: any
   let config2: any
+  const mDNSInterval: number = 1
 
   const envOverrides = buildEnvOverrideConfig(
     [
@@ -36,6 +37,11 @@ describe('OceanP2P Test', () => {
     process.env.PRIVATE_KEY = process.env.NODE1_PRIVATE_KEY
     config1 = await getConfiguration(true)
     config1.p2pConfig.ipV4BindTcpPort = 0
+    // we don't need bootstrap nodes, we rely on Multicast DNS
+    config1.p2pConfig.mDNSInterval = mDNSInterval * 1e3
+    config1.p2pConfig.bootstrapNodes = []
+    // enable private IP
+    config1.p2pConfig.announcePrivateIp = true
     node1 = new OceanP2P(config1, null)
     await node1.start()
     assert(node1, 'Failed to create P2P Node instance')
@@ -44,6 +50,11 @@ describe('OceanP2P Test', () => {
     process.env.PRIVATE_KEY = process.env.NODE2_PRIVATE_KEY
     config2 = await getConfiguration(true)
     config2.p2pConfig.ipV4BindTcpPort = 0
+    // we don't need bootstrap nodes, we rely on Multicast DNS
+    config2.p2pConfig.mDNSInterval = mDNSInterval * 1e3
+    config2.p2pConfig.bootstrapNodes = []
+    // enable private IP
+    config2.p2pConfig.announcePrivateIp = true
     node2 = new OceanP2P(config2, null)
     await node2.start()
     assert(node2, 'Failed to create P2P Node instance')
@@ -58,7 +69,7 @@ describe('OceanP2P Test', () => {
       'Peer missmatch for node2'
     )
   })
-  delay(1000)
+  delay(mDNSInterval * 1e3 * 2)
   it('Start check if nodes are connected', async () => {
     const allPeers1 = await node1.getAllPeerStore()
     const peers1 = allPeers1.map((a: any) => a.id.toString())
@@ -74,16 +85,14 @@ describe('OceanP2P Test', () => {
     )
   })
   it('Start check if nodes are connected with pubsub', async () => {
-    let peers = await node1.getPeers()
-    const peers1 = peers.map((p) => p.toString())
+    let peers = await node1.getOceanPeers()
     assert(
-      peers1.includes(config2.keys.peerId.toString()),
+      peers.includes(config2.keys.peerId.toString()),
       'Node2 not found in node1 peer list'
     )
-    peers = await node2.getPeers()
-    const peers2 = peers.map((p) => p.toString())
+    peers = await node2.getOceanPeers()
     assert(
-      peers2.includes(config1.keys.peerId.toString()),
+      peers.includes(config1.keys.peerId.toString()),
       'Node1 not found in node2 peer list'
     )
   })
