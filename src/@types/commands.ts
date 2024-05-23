@@ -129,7 +129,7 @@ export interface BroadcastCommand {
 }
 
 export interface ComputeGetEnvironmentsCommand extends Command {
-  chainId: number
+  chainId?: number
 }
 
 export interface ComputeDetails {
