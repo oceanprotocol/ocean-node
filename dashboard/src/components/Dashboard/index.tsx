@@ -16,6 +16,7 @@ import NodePlatform from './NodePlatform'
 export default function Dashboard() {
   const [data, setData] = useState<NodeDataType>()
   const [isLoading, setLoading] = useState(true)
+  const [ipAddress, setIpAddress] = useState('')
   const { setAllAdmins, setNetworks } = useAdminContext()
 
   useEffect(() => {
@@ -45,16 +46,25 @@ export default function Dashboard() {
     }
   }, [])
 
+  useEffect(() => {
+    // Fetch the IP address
+    fetch('https://api.ipify.org?format=json')
+      .then((res) => res.json())
+      .then((data) => {
+        setIpAddress(data.ip)
+      })
+      .catch((error) => {
+        console.error('Failed to fetch IP address:', error)
+      })
+  }, [])
+
   const nodeData = [
     {
       id: data?.id,
-      dns: 'ns-380.awsdns-47.com',
-      ip: '192.0.2.44',
+      ip: ipAddress,
       indexerData: data?.indexer
     }
   ]
-
-  const [node, setNode] = useState(nodeData[0])
 
   const arrayOfPlatformObjects: { key: string; value: string | number }[] = []
 
@@ -84,7 +94,7 @@ export default function Dashboard() {
                 {nodeData.map((node) => {
                   return (
                     <div className={styles.node} key={node.id}>
-                      <div className={styles.nodeAddress} onClick={() => setNode(node)}>
+                      <div className={styles.nodeAddress}>
                         <div className={styles.node}>{truncateString(node.id, 12)}</div>
                       </div>
                       <Copy text={node?.id as string} />
@@ -107,12 +117,9 @@ export default function Dashboard() {
               </div>
               <div className={styles.nodes}>
                 <div className={styles.nodeAddress}>
-                  <h5 className={styles.title24}>DNS : </h5>
-                  <div className={styles.nodeAddress}>{node.dns}</div>
-                </div>
-                <div className={styles.nodeAddress}>
                   <h5 className={styles.title24}>IP : </h5>
-                  <div className={styles.nodeAddress}>{node.ip}</div>
+                  <div className={styles.nodeAddress}>{ipAddress}</div>
+                  <Copy text={ipAddress as string} />
                 </div>
               </div>
             </div>
