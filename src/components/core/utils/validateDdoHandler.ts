@@ -160,7 +160,7 @@ export async function validateObject(
   const flattened = await flatten(expanded)
   const nquads = await toRDF(flattened, { format: 'application/n-quads' })
   const parser = new Parser({ format: 'application/n-quads' })
-  const ddoQuads = parser.parse(JSON.stringify(nquads))
+  const ddoQuads = parser.parse(nquads.toString())
   CORE_LOGGER.logMessage(`nquads: ${JSON.stringify(nquads)}`)
   ddoQuads.forEach((quad: Quad) => {
     // CORE_LOGGER.logMessage(`quad: ${JSON.stringify(quad)}`)
