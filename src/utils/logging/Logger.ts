@@ -484,7 +484,6 @@ export class CustomNodeLogger {
   buildMessage(message: string) {
     const cpName = this.getModuleName()
     if (cpName) {
-      // message = '[' + cpName.toUpperCase() + '] => ' + message
       message = cpName.toUpperCase() + ':\t' + message
     }
     return message
