@@ -140,6 +140,8 @@ export async function orderAsset(
   const consumeMarketFeeAmount = 0
   const consumeMarketFeeToken = ZeroAddress
   const service = AssetUtils.getServiceByIndex(genericAsset, serviceIndex)
+  console.log('start an order', service)
+
   let orderTxReceipt = null
   const dataTokenContract = new Contract(
     service.datatokenAddress,
