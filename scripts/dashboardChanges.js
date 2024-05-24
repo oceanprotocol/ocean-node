@@ -83,9 +83,11 @@ function cleanDistDirectory() {
 }
 
 if (hasChanges()) {
-  console.log('Changes detected. Cleaning old build and running Next.js build...')
+  console.log(
+    'Changes detected in the dashboard. Cleaning old build and running Next.js build...'
+  )
   cleanDistDirectory()
   execSync('cd dashboard && npm install && npx next build', { stdio: 'inherit' })
 } else {
-  console.log('No changes detected. Skipping Next.js build.')
+  console.log('No changes detected in the dashboard. Skipping Next.js build.')
 }
