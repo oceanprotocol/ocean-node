@@ -145,11 +145,9 @@ export class ComputeInitializeHandler extends Handler {
               }
             }
           }
-          console.log('got c2d env successfully')
           result.consumerAddress = env.consumerAddress
           if ('transferTxId' in elem && elem.transferTxId) {
             // search for that compute env and see if it has access to dataset
-            console.log('validateOrderTransaction')
             const paymentValidation = await validateOrderTransaction(
               elem.transferTxId,
               env.consumerAddress,
@@ -160,11 +158,9 @@ export class ComputeInitializeHandler extends Handler {
               service.timeout,
               blockchain.getSigner()
             )
-            console.log('validateOrderTransaction successfully')
             if (paymentValidation.isValid === true) {
               // order is valid, so let's check providerFees
               result.validOrder = elem.transferTxId
-              console.log('verifyProviderFees')
               validFee = await verifyProviderFees(
                 elem.transferTxId,
                 task.consumerAddress,
@@ -173,7 +169,6 @@ export class ComputeInitializeHandler extends Handler {
                 task.compute.env,
                 task.compute.validUntil
               )
-              console.log('verifyProviderFees successfully')
             } else {
               // no point in checking provider fees if order is expired
               result.validOrder = false
@@ -195,7 +190,6 @@ export class ComputeInitializeHandler extends Handler {
               // we already have a valid compute fee with another asset, or it's an asset not served by us
               // in any case, we need an access providerFee
               if (canDecrypt) {
-                console.log('createProviderFee')
                 result.providerFee = await createProviderFee(
                   ddo,
                   service,
@@ -203,7 +197,6 @@ export class ComputeInitializeHandler extends Handler {
                   null,
                   null
                 )
-                console.log('createProviderFee successfully')
               } else {
                 // TO DO:  Edge case when this asset is served by a remote provider.
                 // We should connect to that provider and get the fee
@@ -211,7 +204,6 @@ export class ComputeInitializeHandler extends Handler {
             } else {
               // we need to create a compute fee
               // we can only create computeFee if the asset is ours..
-              console.log('createProviderFee 2')
               result.providerFee = await createProviderFee(
                 ddo,
                 service,
@@ -219,7 +211,6 @@ export class ComputeInitializeHandler extends Handler {
                 env,
                 task.compute.validUntil
               )
-              console.log('createProviderFee 2 successfully')
               foundValidCompute = { txId: null, chainId: ddo.chainId }
             }
           }
@@ -234,7 +225,6 @@ export class ComputeInitializeHandler extends Handler {
         // just take any asset and create provider fees with compute
         console.log('TO DO!!!!')
       }
-      console.log('fees created successfully', JSON.stringify(allFees))
       return {
         stream: Readable.from(JSON.stringify(allFees)),
         status: {

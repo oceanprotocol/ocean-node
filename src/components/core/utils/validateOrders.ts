@@ -54,7 +54,6 @@ export async function validateOrderTransaction(
 ): Promise<ValidateTransactionResponse> {
   const contractInterface = new Interface(ERC20Template.abi)
   let txReceiptMined = await fetchTransactionReceipt(txId, provider)
-  console.log(' txReceiptMined ', txReceiptMined)
   if (!txReceiptMined) {
     const errorMsg = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
     CORE_LOGGER.logMessage(errorMsg)
@@ -72,12 +71,10 @@ export async function validateOrderTransaction(
     EVENTS.ORDER_REUSED,
     contractInterface
   )
-  console.log(' orderReusedEvent ', orderReusedEvent)
 
   if (orderReusedEvent && orderReusedEvent?.length > 0) {
     const reusedTxId = orderReusedEvent[0].args[0]
     txReceiptMined = await fetchTransactionReceipt(reusedTxId, provider)
-    console.log(' txReceiptMined ', txReceiptMined)
     if (!txReceiptMined) {
       const errorMsg = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
       CORE_LOGGER.logMessage(errorMsg)
