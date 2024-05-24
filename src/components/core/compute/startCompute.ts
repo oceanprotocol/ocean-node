@@ -125,6 +125,10 @@ export class ComputeStartHandler extends Handler {
           const { rpc, network, chainId, fallbackRPCs } =
             config.supportedNetworks[ddo.chainId]
           const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+          const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+          while (!(await blockchain.isNetworkReady()).ready) {
+            await delay(1000)
+          }
           const provider = blockchain.getProvider()
           result.datatoken = service.datatokenAddress
           result.chainId = ddo.chainId
@@ -155,7 +159,8 @@ export class ComputeStartHandler extends Handler {
             ddo.nftAddress,
             service.datatokenAddress,
             AssetUtils.getServiceIndexById(ddo, service.id),
-            service.timeout
+            service.timeout,
+            blockchain.getSigner()
           )
           if (paymentValidation.isValid === false) {
             const error = `TxId Service ${elem.transferTxId} is not valid for DDO ${elem.documentId} and service ${service.id}`

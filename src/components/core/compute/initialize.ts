@@ -102,7 +102,6 @@ export class ComputeInitializeHandler extends Handler {
               Uint8Array.from(Buffer.from(sanitizedServiceFiles, 'hex')),
               EncryptMethod.ECIES
             )
-            console.log('decrypted successfully')
             canDecrypt = true
           } catch (e) {
             // do nothing
@@ -122,8 +121,11 @@ export class ComputeInitializeHandler extends Handler {
           const { rpc, network, chainId, fallbackRPCs } =
             config.supportedNetworks[ddo.chainId]
           const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+          const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+          while (!(await blockchain.isNetworkReady()).ready) {
+            await delay(1000)
+          }
           const provider = blockchain.getProvider()
-          console.log('got priveder successfully')
           result.datatoken = service.datatokenAddress
           result.chainId = ddo.chainId
           // start with assumption than we need new providerfees
@@ -155,7 +157,8 @@ export class ComputeInitializeHandler extends Handler {
               ddo.nftAddress,
               service.datatokenAddress,
               AssetUtils.getServiceIndexById(ddo, service.id),
-              service.timeout
+              service.timeout,
+              blockchain.getSigner()
             )
             console.log('validateOrderTransaction successfully')
             if (paymentValidation.isValid === true) {
