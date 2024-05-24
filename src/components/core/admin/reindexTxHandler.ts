@@ -1,4 +1,4 @@
-import { AdminHandler, buildJobIdentifier } from './adminHandler.js'
+import { AdminHandler } from './adminHandler.js'
 import {
   validateCommandParameters,
   buildInvalidRequestMessage,
@@ -42,16 +42,20 @@ export class ReindexTxHandler extends AdminHandler {
       if (!indexer) {
         return buildErrorResponse('Node is not running an indexer instance!')
       }
-      indexer.addReindexTask({
+      const job = indexer.addReindexTask({
         txId: task.txId,
         chainId: task.chainId
       })
-      const job = buildJobIdentifier(task)
-      indexer.addJob(job)
-      return {
-        status: { httpStatus: 200 },
-        stream: new ReadableString(JSON.stringify(job))
+
+      if (job) {
+        return {
+          status: { httpStatus: 200 },
+          stream: new ReadableString(JSON.stringify(job))
+        }
       }
+      return buildErrorResponse(
+        `Unable to reindex tx ${task.txId}, worker thread is not valid/running?`
+      )
     } catch (error) {
       CORE_LOGGER.error(`REINDEX tx: ${error.message}`)
       return buildErrorResponse(`REINDEX tx: ${error.message} `)

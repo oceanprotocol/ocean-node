@@ -3,12 +3,20 @@ import styles from './index.module.css'
 import { useAdminContext } from '@context/AdminProvider'
 import Button from '@mui/material/Button'
 import NetworkSelector from '../shared/NetworkSelector'
+import { CommandStatus, JobStatus } from '@/shared/types/JobTypes'
+import { checkJobPool, getSeverityFromStatus } from '@/shared/utils/jobs'
+import JobStatusPanel from '../JobStatusPanel'
+import { clearInterval } from 'timers'
 
 export default function ReIndexChain() {
   const [showChainInput, setShowChainInput] = useState(false)
   const [isLoading, setLoading] = useState(false)
   const [chainId, setChainId] = useState<string>()
   const { signature, expiryTimestamp } = useAdminContext()
+  const [severity, setSeverity] = useState<any>('info')
+  const [job, setJob] = useState<JobStatus | null>(null)
+
+  let intervalId: any = null
 
   async function reIndex() {
     setLoading(true)
@@ -29,7 +37,26 @@ export default function ReIndexChain() {
           })
         })
         if (response.status === 200) {
+          const jobData = await response.json()
+          console.log('jobs data:', jobData)
+          setSeverity(jobData.status === CommandStatus.DELIVERED ? 'info' : 'error')
+          setJob(jobData)
           alert(`Chain with ID ${chainId} is now being reindexed.`)
+          intervalId = setInterval(async () => {
+            // its an array of jobs or empty array
+            const statusJob = await checkJobPool(jobData.jobId)
+            console.log('status', statusJob)
+            if (statusJob.length === 1) {
+              const job = statusJob[0]
+              setSeverity(getSeverityFromStatus(job.status))
+              if (job.status === CommandStatus.SUCCESS && intervalId) {
+                clearInterval(intervalId)
+              }
+              setJob(job)
+            } else {
+              setJob(null)
+            }
+          }, 2000)
           setShowChainInput(false)
         } else {
           alert('Error reindexing chain. Please try again.')
@@ -57,6 +84,7 @@ export default function ReIndexChain() {
           </Button>
         </div>
       )}
+      <JobStatusPanel job={job} severity={severity} />
     </div>
   )
 }
