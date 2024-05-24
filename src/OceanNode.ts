@@ -1,7 +1,7 @@
 import { OceanP2P } from './components/P2P/index.js'
 import { OceanProvider } from './components/Provider/index.js'
 import { OceanIndexer } from './components/Indexer/index.js'
-import { P2PCommandResponse } from './@types/OceanNode.js'
+import { OceanNodeConfig, P2PCommandResponse } from './@types/OceanNode.js'
 import { Database } from './components/database/index.js'
 import { CoreHandlersRegistry } from './components/core/handler/coreHandlersRegistry.js'
 import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
@@ -36,7 +36,8 @@ export class OceanNode {
     db?: Database,
     node?: OceanP2P,
     provider?: OceanProvider,
-    indexer?: OceanIndexer
+    indexer?: OceanIndexer,
+    config?: OceanNodeConfig
   ): OceanNode {
     if (!OceanNode.instance) {
       this.instance = new OceanNode(db, node, provider, indexer)

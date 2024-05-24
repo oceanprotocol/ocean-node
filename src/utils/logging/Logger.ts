@@ -79,9 +79,10 @@ export function getLoggerLevelEmoji(level: string): string {
 export const LOG_COLORS = {
   error: 'red',
   warn: 'yellow',
-  info: 'green',
-  debug: 'white',
-  http: 'magenta'
+  info: 'cyan',
+  debug: 'green',
+  http: 'blue',
+  verbose: 'white'
 }
 
 // for a custom logger transport
@@ -141,8 +142,23 @@ export function isDevelopmentEnvironment(): boolean {
   return env === 'development'
 }
 
+// if we have something set on process.env use that
+const getConfiguredLogLevel = (): string | null => {
+  const envLevel = process.env.LOG_LEVEL
+  // do case insensitive check
+  if (envLevel && Object.values(LOG_LEVELS_STR).includes(envLevel.toLowerCase())) {
+    return envLevel.toLowerCase()
+  }
+  return null
+}
+
+const CONFIG_LOG_LEVEL = getConfiguredLogLevel()
+
 export const getDefaultLevel = (): string => {
-  return isDevelopmentEnvironment() ? 'debug' : 'info'
+  return (
+    CONFIG_LOG_LEVEL ||
+    (isDevelopmentEnvironment() ? LOG_LEVELS_STR.LEVEL_DEBUG : LOG_LEVELS_STR.LEVEL_INFO)
+  )
 }
 
 if (isDevelopmentEnvironment()) {
@@ -156,9 +172,17 @@ const format: winston.Logform.Format = winston.format.combine(
   ),
   winston.format.prettyPrint()
 )
-
+const alignedWithColorsAndTime: winston.Logform.Format = winston.format.combine(
+  winston.format.colorize({ all: true }),
+  winston.format.timestamp(),
+  winston.format.align(),
+  winston.format.printf(
+    (info) => `${info.timestamp} ${info.level}: ${info.message.trim()}`
+  )
+)
 const consoleColorFormatting: winston.Logform.Format | Record<string, any> = {
-  format: winston.format.combine(format, winston.format.colorize({ all: true }))
+  // format: winston.format.combine(format, winston.format.colorize({ all: true }))
+  format: winston.format.combine(alignedWithColorsAndTime, winston.format.colorize())
 }
 
 // ex: we caa also have a simpler format for console only
@@ -445,8 +469,7 @@ export class CustomNodeLogger {
   ) {
     if (!level) level = this.getLoggerLevel() || getDefaultLevel()
 
-    let msg = includeModuleName ? this.buildMessage(message) : message
-
+    let msg = message
     if (emoji) {
       msg = emoji.concat(' ').concat(msg)
     } else {
@@ -460,9 +483,8 @@ export class CustomNodeLogger {
   buildMessage(message: string) {
     const cpName = this.getModuleName()
     if (cpName) {
-      message = '[' + cpName.toUpperCase() + '] => ' + message
+      message = cpName.toUpperCase() + ':\t' + message
     }
-
     return message
   }
 
@@ -496,7 +518,7 @@ export function getCustomLoggerForModule(
 
   const logger: CustomNodeLogger = new CustomNodeLogger(
     /* pass any custom options here */ {
-      level: logLevel || LOG_LEVELS_STR.LEVEL_INFO,
+      level: logLevel || getDefaultLevel(),
       levels: LOG_LEVELS_NUM,
       moduleName: moduleOrComponentName,
       defaultMeta: { component: moduleOrComponentName.toUpperCase() },

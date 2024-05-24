@@ -9,7 +9,7 @@ getOceanPeersRoute.get(
   '/getOceanPeers',
   async (req: Request, res: Response): Promise<void> => {
     if (hasP2PInterface) {
-      const peers = await req.oceanNode.getP2PNode().getPeers()
+      const peers = await req.oceanNode.getP2PNode().getRunningOceanPeers()
       P2P_LOGGER.log(getDefaultLevel(), `getOceanPeers: ${peers}`, true)
       res.json(peers)
     } else {
