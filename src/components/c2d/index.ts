@@ -58,8 +58,13 @@ export async function getAlgoChecksums(
     if (!algorithmService) {
       throw new Error('Algorithm service not found')
     }
+    const sanitizedServiceFiles =
+      typeof algorithmService.files === 'string' &&
+      algorithmService.files.startsWith('0x')
+        ? algorithmService.files.substring(2)
+        : algorithmService.files
     const decryptedUrlBytes = await decrypt(
-      Uint8Array.from(Buffer.from(algorithmService.files, 'hex')),
+      Uint8Array.from(Buffer.from(sanitizedServiceFiles, 'hex')),
       EncryptMethod.ECIES
     )
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()

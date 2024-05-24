@@ -99,8 +99,12 @@ export class ComputeStartHandler extends Handler {
           // let's see if we can access this asset
           let canDecrypt = false
           try {
+            const sanitizedServiceFiles =
+              typeof service.files === 'string' && service.files.startsWith('0x')
+                ? service.files.substring(2)
+                : service.files
             await decrypt(
-              Uint8Array.from(Buffer.from(service.files, 'hex')),
+              Uint8Array.from(Buffer.from(sanitizedServiceFiles, 'hex')),
               EncryptMethod.ECIES
             )
             canDecrypt = true

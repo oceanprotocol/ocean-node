@@ -373,7 +373,11 @@ export class DownloadHandler extends Handler {
 
     try {
       // 7. Decrypt the url
-      const uint8ArrayHex = Uint8Array.from(Buffer.from(service.files.slice(2), 'hex'))
+      const sanitizedServiceFiles =
+        typeof service.files === 'string' && service.files.startsWith('0x')
+          ? service.files.substring(2)
+          : service.files
+      const uint8ArrayHex = Uint8Array.from(Buffer.from(sanitizedServiceFiles, 'hex'))
       const decryptedUrlBytes = await decrypt(uint8ArrayHex, EncryptMethod.ECIES)
       // Convert the decrypted bytes back to a string
       const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
