@@ -147,6 +147,7 @@ export class ComputeInitializeHandler extends Handler {
           result.consumerAddress = env.consumerAddress
           if ('transferTxId' in elem && elem.transferTxId) {
             // search for that compute env and see if it has access to dataset
+            console.log('validateOrderTransaction')
             const paymentValidation = await validateOrderTransaction(
               elem.transferTxId,
               env.consumerAddress,
@@ -160,6 +161,7 @@ export class ComputeInitializeHandler extends Handler {
             if (paymentValidation.isValid === true) {
               // order is valid, so let's check providerFees
               result.validOrder = elem.transferTxId
+              console.log('verifyProviderFees')
               validFee = await verifyProviderFees(
                 elem.transferTxId,
                 task.consumerAddress,
@@ -190,6 +192,7 @@ export class ComputeInitializeHandler extends Handler {
               // we already have a valid compute fee with another asset, or it's an asset not served by us
               // in any case, we need an access providerFee
               if (canDecrypt) {
+                console.log('createProviderFee')
                 result.providerFee = await createProviderFee(
                   ddo,
                   service,
@@ -205,6 +208,7 @@ export class ComputeInitializeHandler extends Handler {
             } else {
               // we need to create a compute fee
               // we can only create computeFee if the asset is ours..
+              console.log('createProviderFee 2')
               result.providerFee = await createProviderFee(
                 ddo,
                 service,
@@ -212,9 +216,9 @@ export class ComputeInitializeHandler extends Handler {
                 env,
                 task.compute.validUntil
               )
+              console.log('createProviderFee 2 successfully')
               foundValidCompute = { txId: null, chainId: ddo.chainId }
             }
-            console.log('createProviderFee 2 successfully')
           }
         }
         if (index === 0) allFees.algorithm = result
