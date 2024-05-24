@@ -19,14 +19,35 @@ const dashboardDir = join(__dirname, '../dashboard')
 const distDir = join(__dirname, '../dist')
 const hashFile = join(__dirname, 'dashboard.hash')
 
-// Function to calculate hash of a directory
+// Directories to exclude from the hash calculation
+const excludeDirs = ['.next', 'node_modules']
+
+// Function to calculate hash of a directory recursively
 function calculateHash(directory) {
-  const files = execSync(`find ${directory} -type f | sort`).toString().trim().split('\n')
   const hash = createHash('sha256')
+  const files = getAllFiles(directory)
   files.forEach((file) => {
     hash.update(readFileSync(file))
   })
   return hash.digest('hex')
+}
+
+// Function to get all files in a directory recursively
+function getAllFiles(directory) {
+  const filesInDirectory = readdirSync(directory)
+  let allFiles = []
+  filesInDirectory.forEach((file) => {
+    const absolute = join(directory, file)
+    if (excludeDirs.includes(file)) {
+      return
+    }
+    if (statSync(absolute).isDirectory()) {
+      allFiles = allFiles.concat(getAllFiles(absolute))
+    } else {
+      allFiles.push(absolute)
+    }
+  })
+  return allFiles
 }
 
 // Function to check if there are changes in the directory
