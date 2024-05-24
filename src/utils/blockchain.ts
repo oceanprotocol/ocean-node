@@ -40,18 +40,6 @@ export class Blockchain {
     this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
   }
 
-  // TODO: remove this once retested
-  // public async getSigner(): Promise<Signer> {
-  //   if (
-  //     (await this.signer.getAddress()) === '0x0000000000000000000000000000000000000000'
-  //   ) {
-  //     console.log('Signer not initialized')
-  //     this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
-  //     return this.signer
-  //   }
-  //   return this.signer
-  // }
-
   public getSigner(): Signer {
     if (!this.signer || typeof this.signer.signMessage !== 'function') {
       CORE_LOGGER.warn('Signer is not initialized or not a valid ethers Signer')
