@@ -33,3 +33,7 @@ export function getSeverityFromStatus(status: CommandStatus): string {
       return 'error'
   }
 }
+
+export function isJobDone(jobStatus: CommandStatus): boolean {
+  return [CommandStatus.SUCCESS, CommandStatus.FAILURE].includes(jobStatus)
+}

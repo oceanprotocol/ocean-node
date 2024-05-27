@@ -4,7 +4,7 @@ import { useAdminContext } from '@context/AdminProvider'
 import Button from '@mui/material/Button'
 import NetworkSelector from '../shared/NetworkSelector'
 import { CommandStatus, JobStatus } from '@/shared/types/JobTypes'
-import { checkJobPool, getSeverityFromStatus } from '@/shared/utils/jobs'
+import { checkJobPool, getSeverityFromStatus, isJobDone } from '@/shared/utils/jobs'
 import JobStatusPanel from '../JobStatusPanel'
 import { clearInterval } from 'timers'
 
@@ -48,9 +48,7 @@ export default function ReIndexChain() {
             if (statusJob.length === 1) {
               const job = statusJob[0]
               setSeverity(getSeverityFromStatus(job.status))
-              if ([CommandStatus.SUCCESS, CommandStatus.FAILURE].includes(job.status)) {
-                done = true
-              }
+              done = isJobDone(job.status)
               setJob(job)
             } else {
               // clear the Job status panel
