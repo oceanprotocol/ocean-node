@@ -42,7 +42,6 @@ export class ReindexChainHandler extends AdminHandler {
         return buildErrorResponse('Node is not running an indexer instance!')
       }
       const job = indexer.resetCrawling(task.chainId)
-      console.log('got job:', job)
       if (job) {
         return {
           status: { httpStatus: 200 },

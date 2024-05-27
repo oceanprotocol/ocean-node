@@ -127,7 +127,7 @@ export class OceanIndexer {
             this.updateJobStatus(
               PROTOCOL_COMMANDS.REINDEX_TX,
               [event.data.chainId, event.data.txId],
-              event.data.result
+              true
             )
           } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN) {
             // we should listen to this on the dashboard for instance
@@ -238,8 +238,8 @@ export class OceanIndexer {
   }
 
   private updateJobStatus(command: string, extra: string[], result: boolean) {
-    if (JOBS_QUEUE.length) {
-      for (let i = JOBS_QUEUE.length; i > 0; i--) {
+    if (JOBS_QUEUE.length > 0) {
+      for (let i = JOBS_QUEUE.length - 1; i >= 0; i--) {
         const job = JOBS_QUEUE[i]
         // make sure we always pick the correct one
         if (job.command === command && create256Hash(extra.join('')) === job.hash) {
