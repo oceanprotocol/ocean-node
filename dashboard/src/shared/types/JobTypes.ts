@@ -10,4 +10,5 @@ export type JobStatus = {
   timestamp: string
   jobId: string
   status: CommandStatus
+  hash: string
 }
