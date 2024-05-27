@@ -744,8 +744,12 @@ export class FindDdoHandler extends Handler {
 
       return null
     } catch (error) {
-      CORE_LOGGER.logMessage(`Error finding DDO: ${error}`, true)
-      throw new Error(`Error finding DDO: ${error}`)
+      CORE_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `Error finding DDO: ${error.message}`,
+        true
+      )
+      return null
     }
   }
 }
