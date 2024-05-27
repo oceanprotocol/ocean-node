@@ -63,10 +63,10 @@ async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFile
     file.type === 'url'
       ? (file as UrlFileObject).url
       : file.type === 'arweave'
-        ? urlJoin(process.env.ARWEAVE_GATEWAY, (file as ArweaveFileObject).transactionId)
-        : file.type === 'ipfs'
-          ? (file as IpfsFileObject).hash
-          : null
+      ? urlJoin(process.env.ARWEAVE_GATEWAY, (file as ArweaveFileObject).transactionId)
+      : file.type === 'ipfs'
+      ? (file as IpfsFileObject).hash
+      : null
 
   const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
     url,
@@ -122,10 +122,10 @@ export class FileInfoHandler extends Handler {
           task.type === 'url'
             ? new UrlStorage(task.file as UrlFileObject)
             : task.type === 'arweave'
-              ? new ArweaveStorage(task.file as ArweaveFileObject)
-              : task.type === 'ipfs'
-                ? new IpfsStorage(task.file as IpfsFileObject)
-                : null
+            ? new ArweaveStorage(task.file as ArweaveFileObject)
+            : task.type === 'ipfs'
+            ? new IpfsStorage(task.file as IpfsFileObject)
+            : null
 
         fileInfo = await storage.getFileInfo({
           type: task.type,
