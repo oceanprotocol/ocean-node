@@ -2,7 +2,7 @@
 import rdfDataModel from '@rdfjs/data-model'
 // eslint-disable-next-line import/no-duplicates
 import rdfDataset from '@rdfjs/dataset'
-import toNT from '@rdfjs/to-ntriples'
+// import toNT from '@rdfjs/to-ntriples'
 import { Parser, Quad } from 'n3'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
@@ -48,29 +48,29 @@ export function getSchema(version: string = CURRENT_VERSION): string {
   return schemaFilePath
 }
 
-function parseReportToErrors(results: any): Record<string, string> {
-  const paths = results
-    .filter((result: any) => result.path)
-    .map((result: any) => toNT(result.path))
-    .map((path: any) => path.replace('http://schema.org/', ''))
+// function parseReportToErrors(results: any): Record<string, string> {
+//   const paths = results
+//     .filter((result: any) => result.path)
+//     .map((result: any) => toNT(result.path))
+//     .map((path: any) => path.replace('http://schema.org/', ''))
 
-  const messages = results
-    .filter((result: any) => result.message)
-    .map((result: any) => toNT(result.message))
-    .map(beautifyMessage)
+//   const messages = results
+//     .filter((result: any) => result.message)
+//     .map((result: any) => toNT(result.message))
+//     .map(beautifyMessage)
 
-  return Object.fromEntries(
-    paths.map((path: string, index: number) => [path, messages[index]])
-  )
-}
+//   return Object.fromEntries(
+//     paths.map((path: string, index: number) => [path, messages[index]])
+//   )
+// }
 
-function beautifyMessage(message: string): string {
-  if (message.startsWith('Less than 1 values on')) {
-    const index = message.indexOf('->') + 2
-    message = 'Less than 1 value on ' + message.slice(index)
-  }
-  return message
-}
+// function beautifyMessage(message: string): string {
+//   if (message.startsWith('Less than 1 values on')) {
+//     const index = message.indexOf('->') + 2
+//     message = 'Less than 1 value on ' + message.slice(index)
+//   }
+//   return message
+// }
 
 function isIsoFormat(dateString: string): boolean {
   const isoDateRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z)?$/
@@ -196,23 +196,26 @@ export async function validateObject(
     CORE_LOGGER.logMessage(errorMsg, true)
     return [false, { error: errorMsg }]
   }
-  const errors = parseReportToErrors(report.results)
-  if (extraErrors) {
-    // Merge errors and extraErrors without overwriting existing keys
-    const mergedErrors = { ...errors, ...extraErrors }
-    // Check if there are any new errors introduced
-    const newErrorsIntroduced = Object.keys(mergedErrors).some(
-      (key) => !Object.prototype.hasOwnProperty.call(errors, key)
-    )
-    if (newErrorsIntroduced) {
-      CORE_LOGGER.logMessage(
-        `validateObject found new errors introduced: ${JSON.stringify(mergedErrors)}`,
-        true
-      )
+  CORE_LOGGER.logMessage(`report results: ${JSON.stringify(report.results)}`)
+  CORE_LOGGER.logMessage(`report conforms: ${report.conforms}`)
+  // const errors = parseReportToErrors(report.results)
+  // if (extraErrors) {
+  //   // Merge errors and extraErrors without overwriting existing keys
+  //   const mergedErrors = { ...errors, ...extraErrors }
+  //   // Check if there are any new errors introduced
+  //   const newErrorsIntroduced = Object.keys(mergedErrors).some(
+  //     (key) => !Object.prototype.hasOwnProperty.call(errors, key)
+  //   )
+  //   if (newErrorsIntroduced) {
+  //     CORE_LOGGER.logMessage(
+  //       `validateObject found new errors introduced: ${JSON.stringify(mergedErrors)}`,
+  //       true
+  //     )
 
-      return [false, mergedErrors]
-    }
-  }
+  //     return [false, mergedErrors]
+  //   }
+  // }
+  const errors: any = null
   return [report.conforms, errors]
 }
 
