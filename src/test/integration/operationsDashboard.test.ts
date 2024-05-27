@@ -44,6 +44,7 @@ import {
 } from '../../components/Indexer/index.js'
 import { getCrawlingInterval } from '../../components/Indexer/utils.js'
 import { ReindexTask } from '../../components/Indexer/crawlerThread.js'
+import { create256Hash } from '../../utils/crypt.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -174,6 +175,13 @@ describe('Should test admin operations', () => {
     assert(responseJob.command === PROTOCOL_COMMANDS.REINDEX_TX, 'command not expected')
     assert(responseJob.jobId.includes(PROTOCOL_COMMANDS.REINDEX_TX))
     assert(responseJob.timestamp <= new Date().getTime().toString())
+    assert(
+      responseJob.hash ===
+        create256Hash(
+          [reindexTxCommand.chainId.toString(), reindexTxCommand.txId].join('')
+        ),
+      'wrong job hash'
+    )
     // wait a bit
     await sleep(getCrawlingInterval() * 2)
     if (reindexResult !== null) {
@@ -239,6 +247,10 @@ describe('Should test admin operations', () => {
       )
       assert(responseJob.jobId.includes(PROTOCOL_COMMANDS.REINDEX_CHAIN))
       assert(responseJob.timestamp <= new Date().getTime().toString())
+      assert(
+        responseJob.hash === create256Hash(DEVELOPMENT_CHAIN_ID.toString()),
+        'wrong job hash'
+      )
 
       // give it a little time to respond with the event
       await sleep(getCrawlingInterval() * 2)
