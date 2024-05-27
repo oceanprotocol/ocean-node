@@ -3,6 +3,7 @@ import { expect, assert } from 'chai'
 import {
   CustomNodeLogger,
   LOGGER_MODULE_NAMES,
+  LOG_LEVELS_STR,
   configureCustomDBTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
@@ -25,7 +26,7 @@ describe('LogDatabase CRUD', () => {
     }
     database = await new Database(dbConfig)
     // Initialize logger with the custom transport that writes to the LogDatabase
-    logger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP)
+    logger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP, LOG_LEVELS_STR.LEVEL_INFO)
     // normally this is only added on production environments
     configureCustomDBTransport(database, logger)
   })

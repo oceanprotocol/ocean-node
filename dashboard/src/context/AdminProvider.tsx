@@ -9,7 +9,12 @@ import {
   useEffect
 } from 'react'
 import { useAccount, useSignMessage } from 'wagmi'
-import { sha256, toUtf8Bytes } from 'ethers'
+import { verifyMessage } from 'ethers'
+
+interface network {
+  chainId: number
+  network: string
+}
 
 interface AdminContextType {
   admin: boolean
@@ -23,6 +28,8 @@ interface AdminContextType {
   setSignature: Dispatch<SetStateAction<string | undefined>>
   validTimestamp: boolean
   setValidTimestamp: Dispatch<SetStateAction<boolean>>
+  networks: network[]
+  setNetworks: Dispatch<SetStateAction<network[]>>
 }
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined)
@@ -37,6 +44,7 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
   const [expiryTimestamp, setExpiryTimestamp] = useState<number | undefined>()
   const [signature, setSignature] = useState<string | undefined>()
   const [validTimestamp, setValidTimestamp] = useState<boolean>(true)
+  const [networks, setNetworks] = useState<network[]>([])
 
   // Ensure signature and expiry are cleared when the account is changed or disconnected
   useEffect(() => {
@@ -46,29 +54,26 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
     }
   }, [address, isConnected])
 
+  // Get expiryTimestamp and signature from localStorage
   useEffect(() => {
     const storedExpiry = localStorage.getItem('expiryTimestamp')
-    if (storedExpiry) {
-      setExpiryTimestamp(parseInt(storedExpiry, 10))
-    }
-
-    const storedSignature = localStorage.getItem('signature')
-    if (storedSignature) {
-      setSignature(storedSignature)
+    const storedExpiryTimestamp = storedExpiry ? parseInt(storedExpiry, 10) : null
+    if (storedExpiryTimestamp && storedExpiryTimestamp > Date.now()) {
+      setExpiryTimestamp(storedExpiryTimestamp)
+      const storedSignature = localStorage.getItem('signature')
+      if (storedSignature) {
+        setSignature(storedSignature)
+      }
     }
   }, [address, isConnected])
 
+  // Store signature and expiryTimestamp in localStorage
   useEffect(() => {
-    if (expiryTimestamp) {
+    if (expiryTimestamp && expiryTimestamp > Date.now()) {
       localStorage.setItem('expiryTimestamp', expiryTimestamp.toString())
+      signature && localStorage.setItem('signature', signature)
     }
-  }, [expiryTimestamp, address, isConnected])
-
-  useEffect(() => {
-    if (signature) {
-      localStorage.setItem('signature', signature)
-    }
-  }, [signature, address, isConnected])
+  }, [expiryTimestamp, signature, address, isConnected])
 
   useEffect(() => {
     if (signMessageData) {
@@ -88,14 +93,26 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
   }, [expiryTimestamp, address, isConnected])
 
   const generateSignature = () => {
-    if (isConnected && (!expiryTimestamp || Date.now() >= expiryTimestamp)) {
-      const newExpiryTimestamp = Date.now() + 12 * 60 * 60 * 1000 // 12 hours ahead in milliseconds
-      signMessage({
-        message: sha256(toUtf8Bytes(newExpiryTimestamp.toString()))
-      })
-      setExpiryTimestamp(newExpiryTimestamp)
-    }
+    const newExpiryTimestamp = Date.now() + 12 * 60 * 60 * 1000 // 12 hours ahead in milliseconds
+    signMessage({
+      message: newExpiryTimestamp.toString()
+    })
+    setExpiryTimestamp(newExpiryTimestamp)
   }
+
+  // Remove signature and expiryTimestamp from state if they are not from the currently connected account
+  useEffect(() => {
+    if (expiryTimestamp && signature) {
+      const signerAddress = verifyMessage(
+        expiryTimestamp.toString(),
+        signature
+      ).toLowerCase()
+      if (signerAddress !== address?.toLowerCase()) {
+        setExpiryTimestamp(undefined)
+        setSignature(undefined)
+      }
+    }
+  }, [address, expiryTimestamp, signature])
 
   const value: AdminContextType = {
     admin,
@@ -108,7 +125,9 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
     signature,
     setSignature,
     validTimestamp,
-    setValidTimestamp
+    setValidTimestamp,
+    networks,
+    setNetworks
   }
 
   // Update admin status based on current address

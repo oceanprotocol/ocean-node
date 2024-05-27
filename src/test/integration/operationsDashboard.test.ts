@@ -1,4 +1,4 @@
-import { assert } from 'chai'
+import { assert, expect } from 'chai'
 import { Readable } from 'stream'
 import { Signer, JsonRpcProvider, ethers } from 'ethers'
 import { Database } from '../../components/database/index.js'
@@ -8,6 +8,7 @@ import { downloadAsset } from '../data/assets.js'
 import { publishAsset } from '../utils/assets.js'
 import { homedir } from 'os'
 import {
+  DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
@@ -19,7 +20,8 @@ import {
   ENVIRONMENT_VARIABLES,
   PROTOCOL_COMMANDS,
   getConfiguration,
-  EVENTS
+  EVENTS,
+  INDEXER_CRAWLING_EVENTS
 } from '../../utils/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
@@ -33,14 +35,21 @@ import { StopNodeHandler } from '../../components/core/admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.js'
 import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
 import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
-import { streamToObject } from '../../utils/util.js'
-import { waitToIndex } from './testUtils.js'
+import { sleep, streamToObject } from '../../utils/util.js'
+import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
+import {
+  INDEXER_CRAWLING_EVENT_EMITTER,
+  OceanIndexer
+} from '../../components/Indexer/index.js'
+import { getCrawlingInterval } from '../../components/Indexer/utils.js'
+import { ReindexTask } from '../../components/Indexer/crawlerThread.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
   let publishedDataset: any
   let dbconn: Database
+  let indexer: OceanIndexer
   const currentDate = new Date()
   const expiryTimestamp = new Date(
     currentDate.getFullYear() + 1,
@@ -84,6 +93,8 @@ describe('Should test admin operations', () => {
     config = await getConfiguration(true) // Force reload the configuration
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
+    indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
+    oceanNode.addIndexer(indexer)
   })
 
   async function getSignature(message: string) {
@@ -104,11 +115,23 @@ describe('Should test admin operations', () => {
     assert(validationResponse.valid === true, 'validation for stop node command failed')
   })
 
-  it('should publish dataset', async () => {
+  it('should publish dataset', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     publishedDataset = await publishAsset(downloadAsset, wallet as Signer)
+    const { ddo, wasTimeout } = await waitToIndex(
+      publishedDataset.ddo.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT * 2
+    )
+
+    if (!ddo) {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    }
   })
 
-  it('should pass for reindex tx command', async () => {
+  it('should pass for reindex tx command', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    await waitToIndex(publishedDataset.ddo.did, EVENTS.METADATA_CREATED)
     const signature = await getSignature(expiryTimestamp.toString())
 
     const reindexTxCommand: AdminReindexTxCommand = {
@@ -124,6 +147,17 @@ describe('Should test admin operations', () => {
     assert(validationResponse, 'invalid reindex tx validation response')
     assert(validationResponse.valid === true, 'validation for reindex tx command failed')
 
+    let reindexResult: any = null
+    INDEXER_CRAWLING_EVENT_EMITTER.addListener(
+      INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP, // triggered when tx completes and removed from queue
+      (data) => {
+        // {ReindexTask}
+        reindexResult = data.result as ReindexTask
+        expect(reindexResult.txId).to.be.equal(publishedDataset.trxReceipt.hash)
+        expect(reindexResult.chainId).to.be.equal(DEVELOPMENT_CHAIN_ID)
+      }
+    )
+
     const handlerResponse = await reindexTxHandler.handle(reindexTxCommand)
     assert(handlerResponse, 'handler resp does not exist')
     assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
@@ -131,36 +165,70 @@ describe('Should test admin operations', () => {
       command: PROTOCOL_COMMANDS.FIND_DDO,
       id: publishedDataset.ddo.id
     }
+
+    // wait a bit
+    await sleep(getCrawlingInterval() * 2)
+    if (reindexResult !== null) {
+      assert('chainId' in reindexResult, 'expected a chainId')
+      assert('txId' in reindexResult, 'expected a txId')
+    }
+
     const response = await new FindDdoHandler(oceanNode).handle(findDDOTask)
     const actualDDO = await streamToObject(response.stream as Readable)
     assert(actualDDO[0].id === publishedDataset.ddo.id, 'DDO id not matching')
   })
 
   it('should pass for reindex chain command', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const signature = await getSignature(expiryTimestamp.toString())
-    await waitToIndex(publishedDataset.ddo.did, EVENTS.METADATA_CREATED)
-
-    const reindexChainCommand: AdminReindexChainCommand = {
-      command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
-      node: config.keys.peerId.toString(),
-      chainId: DEVELOPMENT_CHAIN_ID,
-      expiryTimestamp,
-      signature
-    }
-    const reindexChainHandler = new ReindexChainHandler(oceanNode)
-    const validationResponse = reindexChainHandler.validate(reindexChainCommand)
-    assert(validationResponse, 'invalid reindex chain validation response')
-    assert(
-      validationResponse.valid === true,
-      'validation for reindex chain command failed'
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    const { ddo, wasTimeout } = await waitToIndex(
+      publishedDataset.ddo.did,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT * 2
     )
+    if (!ddo) {
+      expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+    } else {
+      const reindexChainCommand: AdminReindexChainCommand = {
+        command: PROTOCOL_COMMANDS.REINDEX_CHAIN,
+        node: config.keys.peerId.toString(),
+        chainId: DEVELOPMENT_CHAIN_ID,
+        expiryTimestamp,
+        signature
+      }
+      const reindexChainHandler = new ReindexChainHandler(oceanNode)
+      const validationResponse = reindexChainHandler.validate(reindexChainCommand)
+      assert(validationResponse, 'invalid reindex chain validation response')
+      assert(
+        validationResponse.valid === true,
+        'validation for reindex chain command failed'
+      )
 
-    const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
-    assert(handlerResponse, 'handler resp does not exist')
-    assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
+      let reindexResult: any = null
+      INDEXER_CRAWLING_EVENT_EMITTER.addListener(
+        INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
+        (data) => {
+          // {result: true/false}
+          assert(typeof data.result === 'boolean', 'expected a boolean value')
+          reindexResult = data.result as boolean
+        }
+      )
+      const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
+      assert(handlerResponse, 'handler resp does not exist')
+      assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
+
+      // give it a little time to respond with the event
+      await sleep(getCrawlingInterval() * 2)
+      if (reindexResult !== null) {
+        assert(typeof reindexResult === 'boolean', 'expected a boolean value')
+      }
+    }
   })
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
+    INDEXER_CRAWLING_EVENT_EMITTER.removeAllListeners()
+    indexer.stopAllThreads()
   })
 })

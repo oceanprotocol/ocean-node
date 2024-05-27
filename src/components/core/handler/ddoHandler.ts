@@ -2,6 +2,7 @@ import { Handler } from './handler.js'
 import { EVENTS, MetadataStates, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { P2PCommandResponse, FindDDOResponse } from '../../../@types/index.js'
 import { Readable } from 'stream'
+import { decrypt, create256Hash } from '../../../utils/crypt.js'
 import {
   hasCachedDDO,
   sortFindDDOResults,
@@ -16,9 +17,13 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Blockchain } from '../../../utils/blockchain.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import { decrypt, create256Hash } from '../../../utils/crypt.js'
-import lzma from 'lzma-native'
-import { getValidationSignature, validateObject } from '../utils/validateDdoHandler.js'
+// import lzma from 'lzma-native'
+import lzmajs from 'lzma-purejs-requirejs'
+import {
+  getValidationSignature,
+  makeDid,
+  validateObject
+} from '../utils/validateDdoHandler.js'
 import { getConfiguration } from '../../../utils/config.js'
 import {
   GetDdoCommand,
@@ -148,7 +153,12 @@ export class DecryptDdoHandler extends Handler {
         }
       }
 
-      const blockchain = new Blockchain(supportedNetwork.rpc, supportedNetwork.chainId)
+      const blockchain = new Blockchain(
+        supportedNetwork.rpc,
+        supportedNetwork.network,
+        supportedNetwork.chainId,
+        supportedNetwork.fallbackRPCs
+      )
       const provider = blockchain.getProvider()
       const signer = blockchain.getSigner()
       // note: "getOceanArtifactsAdresses()"" is broken for at least optimism sepolia
@@ -287,6 +297,8 @@ export class DecryptDdoHandler extends Handler {
 
       if (flags & 1) {
         try {
+          decryptedDocument = lzmajs.decompressFile(decryptedDocument)
+          /*
           lzma.decompress(
             decryptedDocument,
             { synchronous: true },
@@ -294,6 +306,7 @@ export class DecryptDdoHandler extends Handler {
               decryptedDocument = decompressedResult
             }
           )
+          */
         } catch (error) {
           CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
           return {
@@ -302,6 +315,19 @@ export class DecryptDdoHandler extends Handler {
               httpStatus: 400,
               error: 'Decrypt DDO: Failed to lzma decompress'
             }
+          }
+        }
+      }
+
+      // did matches
+      const ddo = JSON.parse(decryptedDocument.toString())
+      if (ddo.id !== makeDid(dataNftAddress, chainId)) {
+        CORE_LOGGER.error(`Decrypted DDO ID is not matching the generated hash for DID.`)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: 'Decrypt DDO: did does not match'
           }
         }
       }
@@ -820,7 +846,12 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
     return false
   }
   // 4) check if was deployed by our factory
-  const blockchain = new Blockchain(network.rpc, chainId)
+  const blockchain = new Blockchain(
+    network.rpc,
+    network.network,
+    chainId,
+    network.fallbackRPCs
+  )
   const signer = blockchain.getSigner()
 
   const wasDeployedByUs = await wasNFTDeployedByOurFactory(

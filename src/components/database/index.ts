@@ -20,7 +20,10 @@ export class OrderDatabase {
     private schema: Schema
   ) {
     return (async (): Promise<OrderDatabase> => {
-      this.provider = new Typesense(convertTypesenseConfig(this.config.url))
+      this.provider = new Typesense({
+        ...convertTypesenseConfig(this.config.url),
+        logger: DATABASE_LOGGER
+      })
       try {
         await this.provider.collections(this.schema.name).retrieve()
       } catch (error) {
@@ -184,7 +187,10 @@ export class DdoStateDatabase {
     private schema: Schema
   ) {
     return (async (): Promise<DdoStateDatabase> => {
-      this.provider = new Typesense(convertTypesenseConfig(this.config.url))
+      this.provider = new Typesense({
+        ...convertTypesenseConfig(this.config.url),
+        logger: DATABASE_LOGGER
+      })
       try {
         await this.provider.collections(this.schema.name).retrieve()
       } catch (error) {
@@ -567,17 +573,20 @@ export class DdoDatabase {
     }
   }
 
-  async deleteAllAssetsFromChain(chainId: number) {
+  async deleteAllAssetsFromChain(chainId: number): Promise<number> {
+    let numDeleted = 0
     for (const schema of this.schemas) {
       try {
         const response = await this.provider
           .collections(schema.name)
           .documents()
           .deleteByChainId(`chainId:${chainId}`)
-        if (response.num_deleted > 0) {
-          DATABASE_LOGGER.debug(`Response for deleting the ddos: ${response.num_deleted}`)
-          return response
-        }
+
+        DATABASE_LOGGER.debug(
+          `Number of deleted ddos on schema ${schema} : ${response.num_deleted}`
+        )
+
+        numDeleted += response.num_deleted
       } catch (error) {
         if (!(error instanceof TypesenseError && error.httpStatus === 404)) {
           // Log error other than not found
@@ -588,8 +597,10 @@ export class DdoDatabase {
             LOG_LEVELS_STR.LEVEL_ERROR
           )
         }
+        return -1
       }
     }
+    return numDeleted
   }
 }
 
@@ -1002,6 +1013,10 @@ export class Database {
     // we cannot have this the other way around because of the dependencies cycle
     if (!isDevelopmentEnvironment()) {
       configureCustomDBTransport(this, DATABASE_LOGGER)
+    } else {
+      DATABASE_LOGGER.warn(
+        '"NODE_ENV" is set to "development". This means logs will be saved to console and file(s) only.'
+      )
     }
     return (async (): Promise<Database> => {
       this.ddo = await new DdoDatabase(this.config, schemas.ddoSchemas)

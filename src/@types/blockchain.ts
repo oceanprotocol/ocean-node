@@ -3,6 +3,8 @@ export interface SupportedNetwork {
   rpc: string
   network?: string
   chunkSize?: number
+  startBlock?: number
+  fallbackRPCs?: string[]
 }
 
 export interface RPCS {
@@ -24,4 +26,9 @@ export interface BlocksEvents {
 export interface ProcessingEvents {
   lastBlock: number
   foundEvents: BlocksEvents
+}
+
+export interface ConnectionStatus {
+  ready: boolean
+  error?: string
 }

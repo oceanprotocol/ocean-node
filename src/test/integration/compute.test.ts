@@ -54,7 +54,7 @@ import {
 import { ProviderFees } from '../../@types/Fees.js'
 import { homedir } from 'os'
 import { publishAlgoDDO, publishDatasetDDO } from '../data/ddo.js'
-import { getOceanArtifactsAdresses } from '../../utils/address.js'
+import { DEVELOPMENT_CHAIN_ID, getOceanArtifactsAdresses } from '../../utils/address.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { createHash } from 'crypto'
@@ -82,6 +82,7 @@ describe('Compute', () => {
   let algoOrderTxId: any
   let providerFeesComputeDataset: ProviderFees
   let providerFeesComputeAlgo: ProviderFees
+  let indexer: OceanIndexer
   const now = new Date().getTime() / 1000
   const computeJobValidUntil = now + 60 * 15 // 15 minutes from now should be enough
   let firstEnv: ComputeEnvironment
@@ -126,8 +127,8 @@ describe('Compute', () => {
     config = await getConfiguration(true)
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
-    //  eslint-disable-next-line no-unused-vars
-    const indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
+    indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
+    oceanNode.addIndexer(indexer)
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
@@ -177,8 +178,7 @@ describe('Compute', () => {
 
   it('Get compute environments', async () => {
     const getEnvironmentsTask = {
-      command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS,
-      chainId: 8996
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS
     }
     const response = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
       getEnvironmentsTask
@@ -191,8 +191,8 @@ describe('Compute', () => {
     computeEnvironments = await streamToObject(response.stream as Readable)
 
     // expect 2 envs
-    expect(computeEnvironments.length === 2, 'incorrect length')
-    for (const computeEnvironment of computeEnvironments) {
+    expect(computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 2, 'incorrect length')
+    for (const computeEnvironment of computeEnvironments[DEVELOPMENT_CHAIN_ID]) {
       assert(computeEnvironment.id, 'id missing in computeEnvironments')
       assert(
         computeEnvironment.consumerAddress,
@@ -209,7 +209,7 @@ describe('Compute', () => {
         'maxJobDuration missing in computeEnvironments'
       )
     }
-    firstEnv = computeEnvironments[0]
+    firstEnv = computeEnvironments[DEVELOPMENT_CHAIN_ID][0]
   })
 
   it('Initialize compute without transaction IDs', async () => {
@@ -475,7 +475,7 @@ describe('Compute', () => {
       consumerAddress: await wallet.getAddress(),
       signature,
       nonce,
-      environment: computeEnvironments[0].id,
+      environment: firstEnv.id,
       dataset: {
         documentId: publishedComputeDataset.ddo.id,
         serviceId: publishedComputeDataset.ddo.services[0].id,
@@ -512,7 +512,7 @@ describe('Compute', () => {
       consumerAddress: await wallet.getAddress(),
       signature,
       nonce,
-      environment: computeEnvironments[0].id,
+      environment: firstEnv.id,
       dataset: {
         documentId: publishedComputeDataset.ddo.id,
         serviceId: publishedComputeDataset.ddo.services[0].id,
@@ -825,5 +825,6 @@ describe('Compute', () => {
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
+    indexer.stopAllThreads()
   })
 })

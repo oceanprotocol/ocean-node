@@ -1,0 +1,28 @@
+.root {
+  border-radius: 12px;
+  background: #FFF;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
+  padding: 40px 28px;
+  min-width: 260px;
+}
+
+.title {
+  color: #3D4551;
+  font-family: Helvetica;
+  font-size: 20px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 140%;
+  margin-bottom: 47px;
+}
+
+@media screen and (max-width: 700px) {
+  .root {
+    max-width: none;
+    width: 90vw;
+    margin: 0 auto;
+    padding: 20px;
+  }
+}

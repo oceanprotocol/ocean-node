@@ -6,6 +6,8 @@ import { useAdminContext } from '@/context/AdminProvider'
 import { useAccount } from 'wagmi'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import Stack from '@mui/material/Stack'
+import ReIndexChain from './ReindexChain'
+import ReIndexTransaction from './ReindexTransaction'
 
 export default function AdminActions() {
   const { generateSignature, signature, validTimestamp, admin } = useAdminContext()
@@ -19,14 +21,16 @@ export default function AdminActions() {
         <div className={styles.unauthorised}>Your account does not have admin access</div>
       )}
 
-      {(!signature || !validTimestamp) && admin && (
+      {(!signature || !validTimestamp) && isConnected && admin && (
         <button type="button" className={styles.unlockButton} onClick={generateSignature}>
           Unlock
         </button>
       )}
-      {isConnected && signature && validTimestamp && admin && (
+      {isConnected && signature && validTimestamp && isConnected && admin && (
         <Stack spacing={2} direction="column">
           <DownloadLogs />
+          <ReIndexChain />
+          <ReIndexTransaction />
           <StopNode />
         </Stack>
       )}
