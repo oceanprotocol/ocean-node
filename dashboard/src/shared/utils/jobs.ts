@@ -1,7 +1,6 @@
 import { CommandStatus, JobStatus } from '../types/JobTypes'
 
 export const checkJobPool = async function (jobId?: string): Promise<JobStatus[]> {
-  console.log('Checking jobs:', jobId)
   const id = jobId || ''
 
   try {
@@ -14,8 +13,7 @@ export const checkJobPool = async function (jobId?: string): Promise<JobStatus[]
       method: 'GET'
     })
     const data = await res.json()
-    console.log('GOT JOB DATA BACK:', data)
-    return data
+    return data.jobs
   } catch (err) {
     console.error(err)
   }

@@ -126,8 +126,8 @@ export class OceanIndexer {
             )
             this.updateJobStatus(
               PROTOCOL_COMMANDS.REINDEX_TX,
-              [event.data.chainId, event.data.txId],
-              true
+              create256Hash([event.data.chainId, event.data.txId].join('')),
+              CommandStatus.SUCCESS
             )
           } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN) {
             // we should listen to this on the dashboard for instance
@@ -137,8 +137,8 @@ export class OceanIndexer {
             )
             this.updateJobStatus(
               PROTOCOL_COMMANDS.REINDEX_CHAIN,
-              [event.data.chainId],
-              event.data.result
+              create256Hash([event.data.chainId].join('')),
+              event.data.result ? CommandStatus.SUCCESS : CommandStatus.FAILURE
             )
           } else if (event.method === INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED) {
             INDEXER_CRAWLING_EVENT_EMITTER.emit(event.method, event.data)
@@ -184,7 +184,7 @@ export class OceanIndexer {
         data: { reindexTask, msgId: job.jobId }
       })
       INDEXING_QUEUE.push(reindexTask)
-      this.addJob(job)
+      this.addJob(job, [reindexTask.chainId.toString(), reindexTask.txId])
       return job
     }
     return null
@@ -200,7 +200,7 @@ export class OceanIndexer {
         method: INDEXER_MESSAGES.REINDEX_CHAIN,
         data: { msgId: job.jobId }
       })
-      this.addJob(job)
+      this.addJob(job, [chainId.toString()])
       return job
     }
     return null
@@ -212,38 +212,58 @@ export class OceanIndexer {
 
   public getJobsPool(jobId?: string): JobStatus[] {
     if (jobId) {
-      let pos = -1
-      const result = JOBS_QUEUE.filter((job: JobStatus, index: number) => {
-        if (job.jobId === jobId) {
-          pos = index
-          return true
-        }
-        return false
-      })
-
+      const pos = -1
+      const result = this.filterJobs(jobId)
       // if it finished, then we can remove it from the list of jobs
       if (
-        result.length === 1 &&
-        [CommandStatus.FAILURE, CommandStatus.SUCCESS].includes(result[0].status)
+        result.jobsResult.length === 1 &&
+        [CommandStatus.FAILURE, CommandStatus.SUCCESS].includes(
+          result.jobsResult[0].status
+        )
       ) {
         JOBS_QUEUE.splice(pos, 1)
       }
-      return result
+      return result.jobsResult
     }
     return JOBS_QUEUE.slice()
   }
 
-  public addJob(jobInfo: JobStatus) {
+  // when we add a new job, we change the status from DELIVERED to PENDING if still running after a couple secs
+  public addJob(jobInfo: JobStatus, extra: string[]) {
     JOBS_QUEUE.push(jobInfo)
+    const hash = create256Hash(extra.join(''))
+    setTimeout(() => {
+      const result = this.filterJobs(jobInfo.jobId)
+      if (
+        result.jobsResult.length === 1 &&
+        result.jobsResult[0].status === CommandStatus.DELIVERED
+      ) {
+        this.updateJobStatus(jobInfo.command, hash, CommandStatus.PENDING)
+      }
+    }, 2000)
   }
 
-  private updateJobStatus(command: string, extra: string[], result: boolean) {
+  // filter jobs by job id, return the position of the job on the queue as well
+  private filterJobs(jobId: string): { position: number; jobsResult: JobStatus[] } {
+    let pos = -1
+    const result = JOBS_QUEUE.filter((job: JobStatus, index: number) => {
+      if (job.jobId === jobId) {
+        pos = index
+        return true
+      }
+      return false
+    })
+    return { position: pos, jobsResult: result }
+  }
+
+  // update the job status, given the command and the hash
+  private updateJobStatus(command: string, hash: string, newStatus: CommandStatus) {
     if (JOBS_QUEUE.length > 0) {
       for (let i = JOBS_QUEUE.length - 1; i >= 0; i--) {
         const job = JOBS_QUEUE[i]
         // make sure we always pick the correct one
-        if (job.command === command && create256Hash(extra.join('')) === job.hash) {
-          job.status = result ? CommandStatus.SUCCESS : CommandStatus.FAILURE
+        if (job.command === command && hash === job.hash) {
+          job.status = newStatus
         }
       }
     }

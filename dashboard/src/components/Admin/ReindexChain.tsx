@@ -38,25 +38,28 @@ export default function ReIndexChain() {
         })
         if (response.status === 200) {
           const jobData = await response.json()
-          console.log('jobs data:', jobData)
           setSeverity(jobData.status === CommandStatus.DELIVERED ? 'info' : 'error')
           setJob(jobData)
           alert(`Chain with ID ${chainId} is now being reindexed.`)
+          let done = false
           intervalId = setInterval(async () => {
             // its an array of jobs or empty array
             const statusJob = await checkJobPool(jobData.jobId)
-            console.log('status', statusJob)
             if (statusJob.length === 1) {
               const job = statusJob[0]
               setSeverity(getSeverityFromStatus(job.status))
-              if (job.status === CommandStatus.SUCCESS && intervalId) {
-                clearInterval(intervalId)
+              if ([CommandStatus.SUCCESS, CommandStatus.FAILURE].includes(job.status)) {
+                done = true
               }
               setJob(job)
             } else {
+              // clear the Job status panel
               setJob(null)
             }
-          }, 2000)
+          }, 3000)
+          if (done && intervalId) {
+            clearInterval(intervalId)
+          }
           setShowChainInput(false)
         } else {
           alert('Error reindexing chain. Please try again.')

@@ -10,7 +10,6 @@ jobsRoutes.get(`${SERVICES_API_BASE_PATH}/jobs/:job`, (req, res) => {
     const indexer: OceanIndexer = req.oceanNode.getIndexer()
     if (indexer) {
       const jobs = indexer.getJobsPool((req.params.job as string) || null)
-      console.log('jobs: ', jobs)
       res.header('Content-Type', 'application/json')
       res.status(200).send(JSON.stringify({ jobs }))
     } else {
