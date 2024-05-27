@@ -21,6 +21,7 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { getOceanArtifactsAdressesByChainId } from '../../utils/address.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
+import { create256Hash } from '../../utils/crypt.js'
 
 let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor
@@ -316,12 +317,13 @@ export const getCrawlingInterval = (): number => {
 
 // when we send an admin command, we also get a job id back in the reponse
 // we can use it later to get the status of the job execution (if not immediate)
-export function buildJobIdentifier(command: string): JobStatus {
+export function buildJobIdentifier(command: string, extra: string[]): JobStatus {
   const now = new Date().getTime().toString()
   return {
     command, // which command
     timestamp: now, // when was delivered
     jobId: command + '_' + now, // job id
-    status: CommandStatus.DELIVERED
+    status: CommandStatus.DELIVERED,
+    hash: create256Hash(extra.join(''))
   }
 }

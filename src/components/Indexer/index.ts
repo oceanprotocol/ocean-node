@@ -13,6 +13,7 @@ import {
 } from '../../utils/index.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
 import { buildJobIdentifier } from './utils.js'
+import { create256Hash } from '../../utils/crypt.js'
 
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
@@ -123,18 +124,22 @@ export class OceanIndexer {
               INDEXER_CRAWLING_EVENTS.REINDEX_TX, // explicitly set constant value for readability
               event.data
             )
+            this.updateJobStatus(
+              PROTOCOL_COMMANDS.REINDEX_TX,
+              [event.data.chainId, event.data.txId],
+              event.data.result
+            )
           } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN) {
             // we should listen to this on the dashboard for instance
             INDEXER_CRAWLING_EVENT_EMITTER.emit(
               INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
               event.data
             )
-            if (JOBS_QUEUE.length) {
-              // TODO improve this (check the corresponding job id)
-              JOBS_QUEUE[JOBS_QUEUE.length - 1].status = event.data.result
-                ? CommandStatus.SUCCESS
-                : CommandStatus.FAILURE
-            }
+            this.updateJobStatus(
+              PROTOCOL_COMMANDS.REINDEX_CHAIN,
+              [event.data.chainId],
+              event.data.result
+            )
           } else if (event.method === INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED) {
             INDEXER_CRAWLING_EVENT_EMITTER.emit(event.method, event.data)
           }
@@ -170,7 +175,10 @@ export class OceanIndexer {
   public addReindexTask(reindexTask: ReindexTask): JobStatus | null {
     const worker = this.workers[reindexTask.chainId]
     if (worker) {
-      const job = buildJobIdentifier(PROTOCOL_COMMANDS.REINDEX_TX)
+      const job = buildJobIdentifier(PROTOCOL_COMMANDS.REINDEX_TX, [
+        reindexTask.chainId.toString(),
+        reindexTask.txId
+      ])
       worker.postMessage({
         method: INDEXER_MESSAGES.REINDEX_TX,
         data: { reindexTask, msgId: job.jobId }
@@ -185,7 +193,9 @@ export class OceanIndexer {
   public resetCrawling(chainId: number): JobStatus | null {
     const worker = this.workers[chainId]
     if (worker) {
-      const job = buildJobIdentifier(PROTOCOL_COMMANDS.REINDEX_CHAIN)
+      const job = buildJobIdentifier(PROTOCOL_COMMANDS.REINDEX_CHAIN, [
+        chainId.toString()
+      ])
       worker.postMessage({
         method: INDEXER_MESSAGES.REINDEX_CHAIN,
         data: { msgId: job.jobId }
@@ -225,5 +235,17 @@ export class OceanIndexer {
 
   public addJob(jobInfo: JobStatus) {
     JOBS_QUEUE.push(jobInfo)
+  }
+
+  private updateJobStatus(command: string, extra: string[], result: boolean) {
+    if (JOBS_QUEUE.length) {
+      for (let i = JOBS_QUEUE.length; i > 0; i--) {
+        const job = JOBS_QUEUE[i]
+        // make sure we always pick the correct one
+        if (job.command === command && create256Hash(extra.join('')) === job.hash) {
+          job.status = result ? CommandStatus.SUCCESS : CommandStatus.FAILURE
+        }
+      }
+    }
   }
 }

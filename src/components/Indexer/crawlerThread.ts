@@ -192,7 +192,7 @@ export async function processNetworkData(
       // TODO (check that we do not receive multiple commands for same reindex before previous finishes)
       parentPort.postMessage({
         method: INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
-        data: { result }
+        data: { result, chainId: rpcDetails.chainId }
       })
     }
 
