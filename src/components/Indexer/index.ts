@@ -184,7 +184,7 @@ export class OceanIndexer {
         data: { reindexTask, msgId: job.jobId }
       })
       INDEXING_QUEUE.push(reindexTask)
-      this.addJob(job, [reindexTask.chainId.toString(), reindexTask.txId])
+      this.addJob(job)
       return job
     }
     return null
@@ -200,7 +200,7 @@ export class OceanIndexer {
         method: INDEXER_MESSAGES.REINDEX_CHAIN,
         data: { msgId: job.jobId }
       })
-      this.addJob(job, [chainId.toString()])
+      this.addJob(job)
       return job
     }
     return null
@@ -229,16 +229,15 @@ export class OceanIndexer {
   }
 
   // when we add a new job, we change the status from DELIVERED to PENDING if still running after a couple secs
-  public addJob(jobInfo: JobStatus, extra: string[]) {
+  public addJob(jobInfo: JobStatus) {
     JOBS_QUEUE.push(jobInfo)
-    const hash = create256Hash(extra.join(''))
     setTimeout(() => {
       const result = this.filterJobs(jobInfo.jobId)
       if (
         result.jobsResult.length === 1 &&
         result.jobsResult[0].status === CommandStatus.DELIVERED
       ) {
-        this.updateJobStatus(jobInfo.command, hash, CommandStatus.PENDING)
+        this.updateJobStatus(jobInfo.command, jobInfo.hash, CommandStatus.PENDING)
       }
     }, 2000)
   }
