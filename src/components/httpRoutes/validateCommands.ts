@@ -46,6 +46,10 @@ export function validateCommandParameters(
     logCommandData.rawData = []
   }
 
+  if (commandStr === PROTOCOL_COMMANDS.COMPUTE_INITIALIZE) {
+    logCommandData.consumerAddress = 'FAKE'
+  }
+
   CORE_LOGGER.info(
     `Checking received command data for Command "${commandStr}": ${JSON.stringify(
       logCommandData,
