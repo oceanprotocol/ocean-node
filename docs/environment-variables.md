@@ -26,6 +26,7 @@ export RPC="{ \"1\": \"https://rpc.eth.gateway.fm\", \"137\": \"https://polygon.
 - `P2P_ipV6BindWsPort` : Port used on IPv6 WS connections. Defaults to `0` (Use whatever port is free. When running as docker, please set it explicitly)
 - `P2P_ANNOUNCE_ADDRESSES` : List of addresses to announce to the network. Example: ["/ip4/1.2.3.4/tcp/8000"]
 - `P2P_ANNOUNCE_PRIVATE`: Announce private IPs. Default: True
+- `P2P_FILTER_ANNOUNCED_ADDRESSES`: CIDR filters to filter announced addresses. Default: []. Example: ["192.168.0.1/27"]
 - `P2P_pubsubPeerDiscoveryInterval` : Interval (in ms) for discovery using pubsub. Defaults to `1000` (one second)
 - `P2P_dhtMaxInboundStreams` : Maximum no of DHT inbound streams. Defaults to `500`
 - `P2P_dhtMaxOutboundStreams` : Maximum no of DHT outbound streams. Defaults to `500`

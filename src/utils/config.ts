@@ -472,7 +472,11 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       autoNat: process.env.P2P_ENABLE_AUTONAT !== 'false',
       enableCircuitRelayServer: process.env.P2P_ENABLE_CIRCUIT_RELAY_SERVER !== 'false',
       enableCircuitRelayClient: process.env.P2P_ENABLE_CIRCUIT_RELAY_CLIENT !== 'false',
-      announcePrivateIp: process.env.P2P_ANNOUNCE_PRIVATE !== 'false'
+      announcePrivateIp: process.env.P2P_ANNOUNCE_PRIVATE !== 'false',
+      filterAnnouncedAddresses: readListFromEnvVariable(
+        ENVIRONMENT_VARIABLES.P2P_FILTER_ANNOUNCED_ADDRESSES,
+        isStartup
+      )
     },
     // Only enable provider if we have a DB_URL
     hasProvider: !!getEnvValue(process.env.DB_URL, ''),

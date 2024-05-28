@@ -41,6 +41,7 @@ import { Database } from '../database'
 import { OceanNodeConfig, FindDDOResponse } from '../../@types/OceanNode'
 // eslint-disable-next-line camelcase
 import is_ip_private from 'private-ip'
+import ip from 'ip'
 import {
   GENERIC_EMOJIS,
   LOG_LEVELS_STR,
@@ -184,9 +185,25 @@ export class OceanP2P extends EventEmitter {
 
   shouldAnnounce(addr: any) {
     const maddr = multiaddr(addr)
+
+    // always filter loopback
+    if (ip.isLoopback(maddr.nodeAddress().address)) {
+      // disabled logs because of flooding
+      // P2P_LOGGER.debug('Deny announcment of ' + maddr.nodeAddress().address)
+      return false
+    }
+    // check filters
+    for (const filter of this._config.p2pConfig.filterAnnouncedAddresses) {
+      if (ip.cidrSubnet(filter).contains(maddr.nodeAddress().address)) {
+        // disabled logs because of flooding
+        // P2P_LOGGER.debug('Deny announcment of ' + maddr.nodeAddress().address)
+        return false
+      }
+    }
     if (
       this._config.p2pConfig.announcePrivateIp === false &&
-      is_ip_private(maddr.nodeAddress().address)
+      (is_ip_private(maddr.nodeAddress().address) ||
+        ip.isPrivate(maddr.nodeAddress().address))
     ) {
       // disabled logs because of flooding
       // P2P_LOGGER.debug('Deny announcment of ' + maddr.nodeAddress().address)
