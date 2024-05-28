@@ -38,16 +38,13 @@ export function validateCommandParameters(
     return buildInvalidRequestMessage(`Invalid or unrecognized command: "${commandStr}"`)
   }
 
-  const logCommandData = commandData
+  // deep copy
+  const logCommandData = structuredClone(commandData)
 
   if (commandStr === PROTOCOL_COMMANDS.ENCRYPT) {
     logCommandData.files = [] // hide files data (sensitive) + rawData (long buffer) from logging
   } else if (commandStr === PROTOCOL_COMMANDS.ENCRYPT_FILE && commandData.rawData) {
     logCommandData.rawData = []
-  }
-
-  if (commandStr === PROTOCOL_COMMANDS.COMPUTE_INITIALIZE) {
-    logCommandData.consumerAddress = 'FAKE'
   }
 
   CORE_LOGGER.info(
