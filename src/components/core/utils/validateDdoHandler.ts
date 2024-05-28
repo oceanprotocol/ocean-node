@@ -24,7 +24,7 @@ import { getProviderWallet } from './feesHandler.js'
 // import fromFile from 'rdf-utils-fs/fromFile.js'
 // const { fromStream } = pkg
 import pkg from 'jsonld'
-const { expand, flatten, toRDF } = pkg
+const { expand, flatten, toRDF, fromRDF, compact } = pkg
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
@@ -146,11 +146,15 @@ export async function validateObject(
     const contents = await readFile(schemaFilePath, { encoding: 'utf8' })
     const parser = new Parser()
     const quads = parser.parse(contents)
+    const formatQuads = await fromRDF(quads)
+    CORE_LOGGER.logMessage(`Schema formatQuads: ${JSON.stringify(formatQuads)}`)
+    const compacted = await compact(formatQuads)
+    CORE_LOGGER.logMessage(`Schema compacted: ${JSON.stringify(compacted)}`)
     quads.forEach((quad: Quad) => {
       // CORE_LOGGER.logMessage(`quad: ${JSON.stringify(quad)}`)
       schemaDataset.add(quad)
     })
-    CORE_LOGGER.logMessage(`Schema quads: ${JSON.stringify(dataset)}`)
+    // CORE_LOGGER.logMessage(`Schema quads: ${JSON.stringify(dataset)}`)
     // // When the stream ends, log the dataset
   } catch (err) {
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
