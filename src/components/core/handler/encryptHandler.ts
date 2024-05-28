@@ -22,7 +22,9 @@ export const SUPPORTED_ENCRYPTION_METHODS = [
 
 export class EncryptHandler extends Handler {
   validate(command: EncryptCommand): ValidateParams {
+    console.log('BEFORE VALIDATION: ', command)
     const commandValidation = validateCommandParameters(command, ['blob'])
+    console.log('AFTER VALIDATION: ', command)
     if (!commandValidation.valid) {
       return commandValidation
     }
