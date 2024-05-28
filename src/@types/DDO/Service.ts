@@ -106,6 +106,14 @@ export interface Service {
   description?: string
 
   /**
+   * Service lifecycle state.
+   * Values have the same meaning as on nft level https://docs.oceanprotocol.com/developers/ddo-specification#state
+   * undefined state is considered active
+   * @type {number}
+   */
+  state?: number
+
+  /**
    * If service is of type compute, holds information about the compute-related privacy settings & resources.
    * @type {ServiceComputeOptions}
    */
