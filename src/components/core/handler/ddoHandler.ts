@@ -208,7 +208,10 @@ export class DecryptDdoHandler extends Handler {
             data: receipt.logs[0].data
           }
           const eventData = abiInterface.parseLog(eventObject)
-          if (eventData.name !== EVENTS.METADATA_CREATED) {
+          if (
+            eventData.name !== EVENTS.METADATA_CREATED &&
+            eventData.name !== EVENTS.METADATA_UPDATED
+          ) {
             throw new Error(`event name ${eventData.name}`)
           }
           flags = parseInt(eventData.args[3], 16)

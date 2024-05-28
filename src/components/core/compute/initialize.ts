@@ -50,10 +50,12 @@ export class ComputeInitializeHandler extends Handler {
   }
 
   async handle(task: ComputeInitializeCommand): Promise<P2PCommandResponse> {
+    console.log('BEFORE: ', task)
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
+    console.log('AFTER: ', task)
 
     try {
       let foundValidCompute = null
