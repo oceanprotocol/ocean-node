@@ -39,9 +39,13 @@ export function validateCommandParameters(
   }
 
   const logCommandData = commandData
+
   if (commandStr === PROTOCOL_COMMANDS.ENCRYPT) {
-    logCommandData.files = [] // hide files data for logging
+    logCommandData.files = [] // hide files data (sensitive) + rawData (long buffer) from logging
+  } else if (commandStr === PROTOCOL_COMMANDS.ENCRYPT_FILE && commandData.rawData) {
+    logCommandData.rawData = []
   }
+
   CORE_LOGGER.info(
     `Checking received command data for Command "${commandStr}": ${JSON.stringify(
       logCommandData,
