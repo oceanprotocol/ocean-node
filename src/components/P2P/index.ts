@@ -189,14 +189,20 @@ export class OceanP2P extends EventEmitter {
     // always filter loopback
     if (ip.isLoopback(maddr.nodeAddress().address)) {
       // disabled logs because of flooding
-      // P2P_LOGGER.debug('Deny announcment of ' + maddr.nodeAddress().address)
+      // P2P_LOGGER.debug('Deny announcment of loopback ' + maddr.nodeAddress().address)
       return false
     }
     // check filters
     for (const filter of this._config.p2pConfig.filterAnnouncedAddresses) {
       if (ip.cidrSubnet(filter).contains(maddr.nodeAddress().address)) {
         // disabled logs because of flooding
-        // P2P_LOGGER.debug('Deny announcment of ' + maddr.nodeAddress().address)
+        // P2P_LOGGER.debug(
+        //  'Deny announcment of filtered ' +
+        //    maddr.nodeAddress().address +
+        //    '(belongs to ' +
+        //    filter +
+        //    ')'
+        // )
         return false
       }
     }
@@ -206,7 +212,9 @@ export class OceanP2P extends EventEmitter {
         ip.isPrivate(maddr.nodeAddress().address))
     ) {
       // disabled logs because of flooding
-      // P2P_LOGGER.debug('Deny announcment of ' + maddr.nodeAddress().address)
+      // P2P_LOGGER.debug(
+      //  'Deny announcment of private address ' + maddr.nodeAddress().address
+      // )
       return false
     } else {
       // disabled logs because of flooding
