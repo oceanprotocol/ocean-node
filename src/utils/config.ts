@@ -486,7 +486,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       autoNat: getBoolEnvValue('P2P_ENABLE_AUTONAT', true),
       enableCircuitRelayServer: getBoolEnvValue('P2P_ENABLE_CIRCUIT_RELAY_SERVER', false),
       enableCircuitRelayClient: getBoolEnvValue('P2P_ENABLE_CIRCUIT_RELAY_CLIENT', false),
-      announcePrivateIp: getBoolEnvValue('P2P_ANNOUNCE_PRIVATE', false)
+      announcePrivateIp: getBoolEnvValue('P2P_ANNOUNCE_PRIVATE', false),
       filterAnnouncedAddresses: readListFromEnvVariable(
         ENVIRONMENT_VARIABLES.P2P_FILTER_ANNOUNCED_ADDRESSES,
         isStartup
