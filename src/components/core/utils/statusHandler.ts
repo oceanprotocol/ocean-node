@@ -29,7 +29,6 @@ export async function status(
     return
   }
   const config = await getConfiguration()
-  const { indexer: indexerDatabase } = oceanNode.getDatabase()
 
   const validAddresses = []
   if (config.allowedAdmins) {
@@ -103,6 +102,7 @@ export async function status(
       if (config.hasIndexer) {
         let blockNr = '0'
         try {
+          const { indexer: indexerDatabase } = oceanNode.getDatabase()
           const { lastIndexedBlock } = await indexerDatabase.retrieve(
             supportedNetwork.chainId
           )

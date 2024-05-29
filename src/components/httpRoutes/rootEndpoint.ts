@@ -1,19 +1,19 @@
 import express from 'express'
 import { SERVICES_API_BASE_PATH } from '../../utils/constants.js'
 import { AQUARIUS_API_BASE_PATH } from './aquarius.js'
+import { HTTP_LOGGER } from '../../utils/logging/common.js'
+import { getConfiguration } from '../../utils/index.js'
 export const rootEndpointRoutes = express.Router()
 
-rootEndpointRoutes.get('/', (req, res) => {
+rootEndpointRoutes.get('/', async (req, res) => {
+  const config = await getConfiguration()
+  if (!config.supportedNetworks) {
+    HTTP_LOGGER.error(`Supported networks not defined`)
+    res.status(400).send(`Supported networks not defined`)
+  }
   res.json({
-    chainIds: [1, 5, 10, 137, 80001, 11155111],
-    providerAddresses: {
-      '1': '0xeAFDC69612a8bF720FBfE6A5520Cfede69a9a5b5',
-      '5': '0x00c6A0BC5cD0078d6Cd0b659E8061B404cfa5704',
-      '10': '0xeAFDC69612a8bF720FBfE6A5520Cfede69a9a5b5',
-      '137': '0xC96ED22751eF6bE3e2432118B944A0cDAEDe10E8',
-      '80001': '0x4256Df50c94D9a7e04610976cde01aED91eB531E',
-      '11155111': '0x00c6A0BC5cD0078d6Cd0b659E8061B404cfa5704'
-    },
+    chainIds: Object.keys(config.supportedNetworks),
+    providerAddress: config.keys.ethAddress,
     serviceEndpoints: {
       // compute service endpoints
       computeEnvironments: ['GET', `${SERVICES_API_BASE_PATH}/computeEnvironments`],
@@ -42,6 +42,13 @@ rootEndpointRoutes.get('/', (req, res) => {
       ddoMetadataQuery: ['POST', `${AQUARIUS_API_BASE_PATH}/assets/metadata/query`],
       getDDOState: ['GET', `${AQUARIUS_API_BASE_PATH}/state/ddo`],
       validateDDO: ['POST', `${AQUARIUS_API_BASE_PATH}/assets/ddo/validate`],
+      // dids
+      advertiseDid: ['POST', '/advertiseDid'],
+      getProvidersForDid: ['GET', '/getProvidersForDid'],
+      // logs
+      logs: ['POST', '/logs'],
+      log: ['GET', '/log/:id'],
+
       // P2P related
       getOceanPeers: ['GET', '/getOceanPeers'],
       getP2PPeers: ['GET', '/getP2PPeers'],

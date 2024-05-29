@@ -172,9 +172,17 @@ const format: winston.Logform.Format = winston.format.combine(
   ),
   winston.format.prettyPrint()
 )
-
+const alignedWithColorsAndTime: winston.Logform.Format = winston.format.combine(
+  winston.format.colorize({ all: true }),
+  winston.format.timestamp(),
+  winston.format.align(),
+  winston.format.printf(
+    (info) => `${info.timestamp} ${info.level}: ${info.message.trim()}`
+  )
+)
 const consoleColorFormatting: winston.Logform.Format | Record<string, any> = {
-  format: winston.format.combine(format, winston.format.colorize({ all: true }))
+  // format: winston.format.combine(format, winston.format.colorize({ all: true }))
+  format: winston.format.combine(alignedWithColorsAndTime, winston.format.colorize())
 }
 
 // ex: we caa also have a simpler format for console only
@@ -461,8 +469,7 @@ export class CustomNodeLogger {
   ) {
     if (!level) level = this.getLoggerLevel() || getDefaultLevel()
 
-    let msg = includeModuleName ? this.buildMessage(message) : message
-
+    let msg = message
     if (emoji) {
       msg = emoji.concat(' ').concat(msg)
     } else {
@@ -476,9 +483,8 @@ export class CustomNodeLogger {
   buildMessage(message: string) {
     const cpName = this.getModuleName()
     if (cpName) {
-      message = '[' + cpName.toUpperCase() + '] => ' + message
+      message = cpName.toUpperCase() + ':\t' + message
     }
-
     return message
   }
 
