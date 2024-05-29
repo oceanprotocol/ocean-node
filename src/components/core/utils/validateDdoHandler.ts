@@ -24,7 +24,7 @@ import { getProviderWallet } from './feesHandler.js'
 // import fromFile from 'rdf-utils-fs/fromFile.js'
 // const { fromStream } = pkg
 import pkg from 'jsonld'
-const { expand, flatten, toRDF, fromRDF, compact } = pkg
+const { expand, flatten, toRDF, fromRDF } = pkg
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
@@ -145,8 +145,6 @@ export async function validateObject(
     const formatQuads = await fromRDF(quads)
     const flattenQuads = await flatten(formatQuads)
     CORE_LOGGER.logMessage(`Schema flattenQuads: ${JSON.stringify(flattenQuads)}`)
-    const compacted = await compact(flattenQuads)
-    CORE_LOGGER.logMessage(`Schema compacted: ${JSON.stringify(compacted)}`)
     // compacted.forEach((quad: any) => {})
     // CORE_LOGGER.logMessage(`Schema quads: ${JSON.stringify(dataset)}`)
     // // When the stream ends, log the dataset
@@ -159,6 +157,7 @@ export async function validateObject(
   const nquads = await toRDF(flattened, { format: 'application/n-quads' })
   const parser = new Parser({ format: 'application/n-quads' })
   const ddoQuads = parser.parse(nquads.toString())
+  CORE_LOGGER.logMessage(`nquads from RDF: ${JSON.stringify(await fromRDF(nquads))}`)
   CORE_LOGGER.logMessage(`nquads: ${JSON.stringify(nquads)}`)
   ddoQuads.forEach((quad: Quad) => {
     // CORE_LOGGER.logMessage(`quad: ${JSON.stringify(quad)}`)
