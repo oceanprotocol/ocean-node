@@ -20,7 +20,8 @@ import {
   ENVIRONMENT_VARIABLES,
   PROTOCOL_COMMANDS,
   getConfiguration,
-  EVENTS
+  EVENTS,
+  INDEXER_CRAWLING_EVENTS
 } from '../../utils/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
@@ -38,9 +39,14 @@ import { ReindexChainHandler } from '../../components/core/admin/reindexChainHan
 import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import { sleep, streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
-import { OceanIndexer } from '../../components/Indexer/index.js'
 import { IndexingThreadHandler } from '../../components/core/admin/IndexingThreadHandler.js'
 import { CoreHandlersRegistry } from '../../components/core/handler/coreHandlersRegistry.js'
+import {
+  INDEXER_CRAWLING_EVENT_EMITTER,
+  OceanIndexer
+} from '../../components/Indexer/index.js'
+import { getCrawlingInterval } from '../../components/Indexer/utils.js'
+import { ReindexTask } from '../../components/Indexer/crawlerThread.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -127,7 +133,8 @@ describe('Should test admin operations', () => {
     }
   })
 
-  it('should pass for reindex tx command', async () => {
+  it('should pass for reindex tx command', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     await waitToIndex(publishedDataset.ddo.did, EVENTS.METADATA_CREATED)
     const signature = await getSignature(expiryTimestamp.toString())
 
@@ -144,6 +151,17 @@ describe('Should test admin operations', () => {
     assert(validationResponse, 'invalid reindex tx validation response')
     assert(validationResponse.valid === true, 'validation for reindex tx command failed')
 
+    let reindexResult: any = null
+    INDEXER_CRAWLING_EVENT_EMITTER.addListener(
+      INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP, // triggered when tx completes and removed from queue
+      (data) => {
+        // {ReindexTask}
+        reindexResult = data.result as ReindexTask
+        expect(reindexResult.txId).to.be.equal(publishedDataset.trxReceipt.hash)
+        expect(reindexResult.chainId).to.be.equal(DEVELOPMENT_CHAIN_ID)
+      }
+    )
+
     const handlerResponse = await reindexTxHandler.handle(reindexTxCommand)
     assert(handlerResponse, 'handler resp does not exist')
     assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
@@ -151,12 +169,21 @@ describe('Should test admin operations', () => {
       command: PROTOCOL_COMMANDS.FIND_DDO,
       id: publishedDataset.ddo.id
     }
+
+    // wait a bit
+    await sleep(getCrawlingInterval() * 2)
+    if (reindexResult !== null) {
+      assert('chainId' in reindexResult, 'expected a chainId')
+      assert('txId' in reindexResult, 'expected a txId')
+    }
+
     const response = await new FindDdoHandler(oceanNode).handle(findDDOTask)
     const actualDDO = await streamToObject(response.stream as Readable)
     assert(actualDDO[0].id === publishedDataset.ddo.id, 'DDO id not matching')
   })
 
   it('should pass for reindex chain command', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const signature = await getSignature(expiryTimestamp.toString())
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const { ddo, wasTimeout } = await waitToIndex(
@@ -182,9 +209,24 @@ describe('Should test admin operations', () => {
         'validation for reindex chain command failed'
       )
 
+      let reindexResult: any = null
+      INDEXER_CRAWLING_EVENT_EMITTER.addListener(
+        INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
+        (data) => {
+          // {result: true/false}
+          assert(typeof data.result === 'boolean', 'expected a boolean value')
+          reindexResult = data.result as boolean
+        }
+      )
       const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
       assert(handlerResponse, 'handler resp does not exist')
       assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
+
+      // give it a little time to respond with the event
+      await sleep(getCrawlingInterval() * 2)
+      if (reindexResult !== null) {
+        assert(typeof reindexResult === 'boolean', 'expected a boolean value')
+      }
     }
   })
 
@@ -234,6 +276,7 @@ describe('Should test admin operations', () => {
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
+    INDEXER_CRAWLING_EVENT_EMITTER.removeAllListeners()
     indexer.stopAllThreads()
   })
 })
