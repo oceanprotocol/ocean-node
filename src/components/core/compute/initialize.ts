@@ -2,7 +2,6 @@ import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
-import { DDO } from '../../../@types/DDO/DDO.js'
 import { ComputeInitializeCommand } from '../../../@types/commands.js'
 import { ProviderComputeInitializeResults } from '../../../@types/Fees.js'
 import { AssetUtils } from '../../../utils/asset.js'
@@ -18,6 +17,7 @@ import {
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { isAddress } from 'ethers'
+import { FindDdoHandler } from '../handler/ddoHandler.js'
 export class ComputeInitializeHandler extends Handler {
   validate(command: ComputeInitializeCommand): ValidateParams {
     const validation = validateCommandParameters(command, [
@@ -70,7 +70,7 @@ export class ComputeInitializeHandler extends Handler {
         if ('documentId' in elem && elem.documentId) {
           result.did = elem.documentId
           result.serviceId = elem.documentId
-          const ddo = (await node.getDatabase().ddo.retrieve(elem.documentId)) as DDO
+          const ddo = await new FindDdoHandler(node).findAndFormatDdo(elem.documentId)
           if (!ddo) {
             const error = `DDO ${elem.documentId} not found`
             return {
