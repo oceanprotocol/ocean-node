@@ -31,6 +31,7 @@ import {
 import { StopNodeHandler } from '../admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../admin/reindexTxHandler.js'
 import { ReindexChainHandler } from '../admin/reindexChainHandler.js'
+import { IndexingThreadHandler } from '../admin/IndexingThreadHandler.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -111,6 +112,10 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.REINDEX_CHAIN,
       new ReindexChainHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
+      new IndexingThreadHandler(node)
     )
   }
 

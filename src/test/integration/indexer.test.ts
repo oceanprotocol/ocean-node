@@ -569,7 +569,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   it('should add reindex task', () => {
     const reindexTask = {
       txId: setMetaDataTxReceipt.hash,
-      chainId: '8996'
+      chainId: 8996
     }
     indexer.addReindexTask(reindexTask)
   })
