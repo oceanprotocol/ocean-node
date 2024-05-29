@@ -7,6 +7,14 @@ export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+export function sanitizeServiceFiles(serviceFiles: string): string {
+  if (typeof serviceFiles === 'string' && serviceFiles.startsWith('0x')) {
+    return serviceFiles.substring(2)
+  } else {
+    return serviceFiles
+  }
+}
+
 export async function streamToObject(stream: Readable): Promise<any> {
   const jsonString = await streamToString(stream)
   try {

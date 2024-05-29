@@ -21,6 +21,7 @@ import {
   buildInvalidRequestMessage,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
+import { sanitizeServiceFiles } from '../../../utils/util.js'
 
 async function getFile(
   did: string,
@@ -38,12 +39,8 @@ async function getFile(
       throw new Error(msg)
     }
     // 3. Decrypt the url
-    const sanitizedServiceFiles =
-      typeof service.files === 'string' && service.files.startsWith('0x')
-        ? service.files.substring(2)
-        : service.files
     const decryptedUrlBytes = await decrypt(
-      Uint8Array.from(Buffer.from(sanitizedServiceFiles, 'hex')),
+      Uint8Array.from(Buffer.from(sanitizeServiceFiles(service.files), 'hex')),
       EncryptMethod.ECIES
     )
     CORE_LOGGER.logMessage(`URL decrypted for Service ID: ${serviceId}`)

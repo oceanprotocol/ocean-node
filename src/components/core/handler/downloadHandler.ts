@@ -28,6 +28,7 @@ import {
   ValidateParams
 } from '../../httpRoutes/validateCommands.js'
 import { DDO } from '../../../@types/DDO/DDO.js'
+import { sanitizeServiceFiles } from '../../../utils/util.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(
@@ -373,11 +374,9 @@ export class DownloadHandler extends Handler {
 
     try {
       // 7. Decrypt the url
-      const sanitizedServiceFiles =
-        typeof service.files === 'string' && service.files.startsWith('0x')
-          ? service.files.substring(2)
-          : service.files
-      const uint8ArrayHex = Uint8Array.from(Buffer.from(sanitizedServiceFiles, 'hex'))
+      const uint8ArrayHex = Uint8Array.from(
+        Buffer.from(sanitizeServiceFiles(service.files), 'hex')
+      )
       const decryptedUrlBytes = await decrypt(uint8ArrayHex, EncryptMethod.ECIES)
       // Convert the decrypted bytes back to a string
       const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
