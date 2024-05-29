@@ -25,7 +25,8 @@ export const PROTOCOL_COMMANDS = {
   COMPUTE_INITIALIZE: 'initializeCompute',
   STOP_NODE: 'stopNode',
   REINDEX_TX: 'reindexTx',
-  REINDEX_CHAIN: 'reindexChain'
+  REINDEX_CHAIN: 'reindexChain',
+  HANDLE_INDEXING_THREAD: 'handleIndexingThread'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -51,7 +52,8 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
   PROTOCOL_COMMANDS.STOP_NODE,
   PROTOCOL_COMMANDS.REINDEX_TX,
-  PROTOCOL_COMMANDS.REINDEX_CHAIN
+  PROTOCOL_COMMANDS.REINDEX_CHAIN,
+  PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD
 ]
 
 export const MetadataStates = {

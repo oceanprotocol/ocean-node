@@ -38,9 +38,13 @@ export class ReindexTxHandler extends AdminHandler {
       )
     }
     try {
-      this.getOceanNode().getIndexer().addReindexTask({
+      const indexer = this.getOceanNode().getIndexer()
+      if (!indexer) {
+        return buildErrorResponse('Node is not running an indexer instance!')
+      }
+      indexer.addReindexTask({
         txId: task.txId,
-        chainId: task.chainId.toString()
+        chainId: task.chainId
       })
       return {
         status: { httpStatus: 200 },
