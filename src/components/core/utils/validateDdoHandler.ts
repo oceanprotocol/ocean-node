@@ -24,7 +24,7 @@ import { getProviderWallet } from './feesHandler.js'
 // import fromFile from 'rdf-utils-fs/fromFile.js'
 // const { fromStream } = pkg
 import pkg from 'jsonld'
-const { expand, flatten, toRDF, fromRDF, compact } = pkg
+const { expand, flatten, toRDF, fromRDF } = pkg
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
@@ -133,10 +133,6 @@ export async function validateObject(
     CORE_LOGGER.logMessage(`Error when retrieving address ${nftAddress}: ${err}`, true)
   }
 
-  if (!(makeDid(nftAddress, chainId.toString(10)) === obj.id)) {
-    extraErrors.id = 'did is not valid for chainId and nft address'
-  }
-
   const version = obj.version || CURRENT_VERSION
   const schemaFilePath = getSchema(version)
   // const filename = new URL(schemaFilePath, import.meta.url)
@@ -148,12 +144,7 @@ export async function validateObject(
     const quads = parser.parse(contents)
     const formatQuads = await fromRDF(quads)
     CORE_LOGGER.logMessage(`Schema formatQuads: ${JSON.stringify(formatQuads)}`)
-    const compacted = await compact(formatQuads)
-    CORE_LOGGER.logMessage(`Schema compacted: ${JSON.stringify(compacted)}`)
-    quads.forEach((quad: Quad) => {
-      // CORE_LOGGER.logMessage(`quad: ${JSON.stringify(quad)}`)
-      schemaDataset.add(quad)
-    })
+    formatQuads.forEach((quad: any) => {})
     // CORE_LOGGER.logMessage(`Schema quads: ${JSON.stringify(dataset)}`)
     // // When the stream ends, log the dataset
   } catch (err) {
@@ -174,18 +165,18 @@ export async function validateObject(
   // const ddoStore = new Store()
   // ddoStore.addQuads(nquads)
 
-  // Object.entries(ddoCopy).forEach(([key, value]) => {
-  //   const subject = factory.namedNode(`http://example.org/ddo/${key}`)
-  //   const predicate = factory.namedNode('http://example.org/ddo/property')
-  //   let stringValue = ''
-  //   if (typeof value === 'object') {
-  //     stringValue = JSON.stringify(value)
-  //   } else {
-  //     stringValue = value.toString()
-  //   }
-  //   const object = factory.literal(stringValue)
-  //   dataset.add(factory.quad(subject, predicate, object))
-  // })
+  Object.entries(ddoCopy).forEach(([key, value]) => {
+    // const subject = factory.namedNode(`http://example.org/ddo/${key}`)
+    // const predicate = factory.namedNode('http://example.org/ddo/property')
+    // let stringValue = ''
+    // if (typeof value === 'object') {
+    //   stringValue = JSON.stringify(value)
+    // } else {
+    //   stringValue = value.toString()
+    // }
+    // const object = factory.literal(stringValue)
+    // dataset.add(factory.quad(subject, predicate, object))
+  })
   CORE_LOGGER.logMessage(`dataset after the update: ${JSON.stringify(dataset)}`)
 
   const validator = new shaclEngine.Validator(schemaDataset, {
