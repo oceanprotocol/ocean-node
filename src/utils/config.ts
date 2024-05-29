@@ -59,6 +59,20 @@ function getIntEnvValue(env: any, defaultValue: number) {
   return isNaN(num) ? defaultValue : num
 }
 
+function getBoolEnvValue(envName: string, defaultValue: boolean): boolean {
+  if (!(envName in process.env)) {
+    return defaultValue
+  }
+  if (
+    process.env[envName] === 'true' ||
+    process.env[envName] === '1' ||
+    process.env[envName].toLowerCase() === 'yes'
+  ) {
+    return true
+  }
+  return false
+}
+
 function getSupportedChains(): RPCS | null {
   const logError = function (): null {
     // missing or invalid RPC list
@@ -436,8 +450,8 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
         isStartup,
         defaultBootstrapAddresses
       ),
-      enableIPV4: process.env.P2P_ENABLE_IPV4 !== 'false',
-      enableIPV6: process.env.P2P_ENABLE_IPV6 !== 'false',
+      enableIPV4: getBoolEnvValue('P2P_ENABLE_IPV4', true),
+      enableIPV6: getBoolEnvValue('P2P_ENABLE_IPV6', true),
       ipV4BindAddress: getEnvValue(process.env.P2P_ipV4BindAddress, '0.0.0.0'),
       ipV4BindTcpPort: getIntEnvValue(process.env.P2P_ipV4BindTcpPort, 0),
       ipV4BindWsPort: getIntEnvValue(process.env.P2P_ipV4BindWsPort, 0),
@@ -463,11 +477,11 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
         process.env.P2P_connectionsDialTimeout,
         30e3
       ), // 10 seconds
-      upnp: process.env.P2P_ENABLE_UPNP !== 'false',
-      autoNat: process.env.P2P_ENABLE_AUTONAT !== 'false',
-      enableCircuitRelayServer: process.env.P2P_ENABLE_CIRCUIT_RELAY_SERVER !== 'false',
-      enableCircuitRelayClient: process.env.P2P_ENABLE_CIRCUIT_RELAY_CLIENT !== 'false',
-      announcePrivateIp: process.env.P2P_ANNOUNCE_PRIVATE !== 'false'
+      upnp: getBoolEnvValue('P2P_ENABLE_UPNP', true),
+      autoNat: getBoolEnvValue('P2P_ENABLE_AUTONAT', true),
+      enableCircuitRelayServer: getBoolEnvValue('P2P_ENABLE_CIRCUIT_RELAY_SERVER', false),
+      enableCircuitRelayClient: getBoolEnvValue('P2P_ENABLE_CIRCUIT_RELAY_CLIENT', false),
+      announcePrivateIp: getBoolEnvValue('P2P_ANNOUNCE_PRIVATE', false)
     },
     // Only enable provider if we have a DB_URL
     hasProvider: !!getEnvValue(process.env.DB_URL, ''),
