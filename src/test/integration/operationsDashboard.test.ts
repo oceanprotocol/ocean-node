@@ -30,7 +30,9 @@ import {
   AdminReindexChainCommand,
   AdminReindexTxCommand,
   AdminStopNodeCommand,
-  JobStatus
+  JobStatus,
+  IndexingCommand,
+  StartStopIndexingCommand
 } from '../../@types/commands.js'
 import { StopNodeHandler } from '../../components/core/admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.js'
@@ -38,6 +40,8 @@ import { ReindexChainHandler } from '../../components/core/admin/reindexChainHan
 import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import { sleep, streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
+import { IndexingThreadHandler } from '../../components/core/admin/IndexingThreadHandler.js'
+import { CoreHandlersRegistry } from '../../components/core/handler/coreHandlersRegistry.js'
 import {
   INDEXER_CRAWLING_EVENT_EMITTER,
   OceanIndexer
@@ -258,6 +262,50 @@ describe('Should test admin operations', () => {
         assert(typeof reindexResult === 'boolean', 'expected a boolean value')
       }
     }
+  })
+
+  it('should test commands for start/stop threads', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    // -----------------------------------------
+    // IndexingThreadHandler
+    const indexingHandler: IndexingThreadHandler = CoreHandlersRegistry.getInstance(
+      oceanNode
+    ).getHandler(PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD)
+
+    const signature = await getSignature(expiryTimestamp.toString())
+    const indexingStartCommand: StartStopIndexingCommand = {
+      command: PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
+      action: IndexingCommand.START_THREAD,
+      expiryTimestamp,
+      signature
+    }
+    expect(indexingHandler.validate(indexingStartCommand).valid).to.be.equal(true) // OK
+
+    const indexingStopCommand: StartStopIndexingCommand = {
+      command: PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
+      action: IndexingCommand.STOP_THREAD,
+      expiryTimestamp: 10,
+      signature
+    }
+    expect(indexingHandler.validate(indexingStopCommand).valid).to.be.equal(false) // NOK
+
+    // OK now
+    indexingStopCommand.expiryTimestamp = expiryTimestamp
+    indexingStopCommand.chainId = 8996
+    expect(indexingHandler.validate(indexingStopCommand).valid).to.be.equal(true) // OK
+
+    // should exist a running thread for this network atm
+    const response = await indexingHandler.handle(indexingStopCommand)
+    assert(response.stream, 'Failed to get stream when stoping thread')
+    expect(response.status.httpStatus).to.be.equal(200)
+
+    await sleep(5000)
+
+    // restart it again after 5 secs
+    indexingStartCommand.chainId = 8996
+    const responseStart = await indexingHandler.handle(indexingStartCommand)
+    assert(responseStart.stream, 'Failed to get stream when starting thread')
+    expect(responseStart.status.httpStatus).to.be.equal(200)
   })
 
   after(async () => {

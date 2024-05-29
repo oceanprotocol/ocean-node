@@ -50,7 +50,9 @@ export interface DDOCommand extends Command {
   id: string
 }
 export interface GetDdoCommand extends DDOCommand {}
-export interface FindDDOCommand extends DDOCommand {}
+export interface FindDDOCommand extends DDOCommand {
+  force?: boolean
+}
 // this one gets the raw ddo
 // https://github.com/oceanprotocol/ocean-node/issues/47
 export interface ValidateDDOCommand extends Command {
@@ -192,4 +194,12 @@ export interface JobStatus {
   jobId: string
   status: CommandStatus
   hash: string
+}
+export enum IndexingCommand {
+  STOP_THREAD = 'start',
+  START_THREAD = 'stop'
+}
+export interface StartStopIndexingCommand extends AdminCommand {
+  chainId?: number
+  action: IndexingCommand
 }

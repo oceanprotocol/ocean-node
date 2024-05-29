@@ -41,6 +41,7 @@ export class ReindexChainHandler extends AdminHandler {
       if (!indexer) {
         return buildErrorResponse('Node is not running an indexer instance!')
       }
+
       const job = indexer.resetCrawling(task.chainId)
       if (job) {
         return {
