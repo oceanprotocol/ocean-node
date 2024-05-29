@@ -58,6 +58,8 @@ export function makeDid(nftAddress: string, chainId: string): string {
 
 function validate(constraints: any, data: any) {
   const errors: Array<Record<string, string>> = []
+  constraints = JSON.parse(constraints)
+  data = JSON.parse(data)
 
   constraints.forEach((constraint: any) => {
     const path = constraint['http://www.w3.org/ns/shacl#path'][0]['@id']
@@ -137,7 +139,7 @@ export async function validateObject(
     const nquads = await toRDF(flattened, { format: 'application/n-quads' })
     const nquadsFromRDF = await fromRDF(nquads)
 
-    const report = validate(flattenQuads, nquadsFromRDF)
+    const report = validate(JSON.stringify(flattenQuads), JSON.stringify(nquadsFromRDF))
     CORE_LOGGER.logMessage(`report: ${JSON.stringify(report)}`)
     if (!report) {
       const errorMsg = 'Validation report does not exist'
