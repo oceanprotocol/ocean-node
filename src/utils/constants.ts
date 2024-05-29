@@ -77,8 +77,10 @@ export const EVENTS = {
 
 export const INDEXER_CRAWLING_EVENTS = {
   CRAWLING_STARTED: 'crawlingStarted',
-  REINDEX_QUEUE_POP: 'popFromQueue'
-  // TODO REINDEX_CHAIN
+  REINDEX_QUEUE_POP: 'popFromQueue', // this is for reindex tx, not chain
+  // use same names as the corresponding commands for these events
+  REINDEX_CHAIN: PROTOCOL_COMMANDS.REINDEX_CHAIN,
+  REINDEX_TX: PROTOCOL_COMMANDS.REINDEX_TX
 }
 
 export const EVENT_HASHES: Hashes = {
@@ -173,6 +175,17 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.ADDRESS_FILE,
     required: false
   },
+  // p2p specific
+  P2P_BOOTSTRAP_NODES: {
+    name: 'P2P_BOOTSTRAP_NODES',
+    value: process.env.P2P_BOOTSTRAP_NODES,
+    required: false
+  },
+  P2P_ANNOUNCE_ADDRESSES: {
+    name: 'P2P_ANNOUNCE_ADDRESSES',
+    value: process.env.P2P_ANNOUNCE_ADDRESSES,
+    required: false
+  },
   // node specific
   NODE_ENV: { name: 'NODE_ENV', value: process.env.NODE_ENV, required: false },
   AUTHORIZED_DECRYPTERS: {
@@ -242,6 +255,12 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'MAX_CHECKSUM_LENGTH',
     value: process.env.MAX_CHECKSUM_LENGTH,
     required: false
+  },
+  LOG_LEVEL: {
+    // default log level (if not specified, "debug" for "development" and "info" for "production")
+    name: 'LOG_LEVEL',
+    value: process.env.LOG_LEVEL,
+    required: false
   }
 }
 
@@ -252,3 +271,19 @@ export const TYPESENSE_HITS_CAP = 250
 export const DDO_IDENTIFIER_PREFIX = 'did:op:'
 // global ocean node API services path
 export const SERVICES_API_BASE_PATH = '/api/services'
+
+export const defaultBootstrapAddresses = [
+  // Public IPFS bootstraps
+  '/ip4/104.131.131.82/tcp/4001/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ',
+  '/dnsaddr/bootstrap.libp2p.io/ipfs/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN',
+  '/dnsaddr/bootstrap.libp2p.io/ipfs/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa',
+  // OPF nodes
+  // '/dns4/node1.oceanprotocol.com/tcp/9000/p2p/'
+  '/dns4/node2.oceanprotocol.com/tcp/9000/p2p/16Uiu2HAm6u88XuC4Xke7J9NmT7qLNL4zMYEyLxqdVgAc7Rnr95o6',
+  // '/dns4/node3.oceanprotocol.com/tcp/9000/p2p/'
+  // OPF developer nodes
+  '/ip4/35.198.125.13/tcp/8000/p2p/16Uiu2HAmKZuuY2Lx3JiY938rJWZrYQh6kjBZCNrh3ALkodtwFRdF', // paulo
+  '/ip4/35.209.77.64/tcp/8000/p2p/16Uiu2HAmFxPwhW5dmoLZnbqXFyUvr6j1PzCB1mBxRUZHGsoqQoSQ',
+  '/ip4/34.107.3.14/tcp/8000/p2p/16Uiu2HAm4DWmX56ZX2bKjvARJQZPMUZ9xsdtAfrMmd7P8czcN4UT', // maria
+  '/dnsaddr/ocean-node3.oceanprotocol.io/tcp/8000/p2p/16Uiu2HAm96Sx6o8XCEifPL9MtJiZCSzKqiBQApnZ6JWd7be4zwNK' // bogdan
+]

@@ -36,6 +36,10 @@ export interface ComputeEnvironment {
   feeToken: string
 }
 
+export interface ComputeEnvByChain {
+  [chainId: number]: ComputeEnvironment[]
+}
+
 export type ComputeResultType =
   | 'algorithmLog'
   | 'output'
