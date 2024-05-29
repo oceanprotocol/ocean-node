@@ -144,6 +144,8 @@ export async function validateObject(
     const quads = parser.parse(contents)
     const formatQuads = await fromRDF(quads)
     CORE_LOGGER.logMessage(`Schema formatQuads: ${JSON.stringify(formatQuads)}`)
+    const flattenQuads = await flatten(formatQuads)
+    CORE_LOGGER.logMessage(`Schema flattenQuads: ${JSON.stringify(flattenQuads)}`)
     formatQuads.forEach((quad: any) => {})
     // CORE_LOGGER.logMessage(`Schema quads: ${JSON.stringify(dataset)}`)
     // // When the stream ends, log the dataset
