@@ -1,14 +1,8 @@
-// eslint-disable-next-line import/no-duplicates
-import rdfDataModel from '@rdfjs/data-model'
-// eslint-disable-next-line import/no-duplicates
-import rdfDataset from '@rdfjs/dataset'
 // import toNT from '@rdfjs/to-ntriples'
-import { Parser, Quad } from 'n3'
+import { Parser } from 'n3'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
 import { readFile } from 'node:fs/promises'
-// @ts-ignore
-import * as shaclEngine from 'shacl-engine'
 import { createHash } from 'crypto'
 import { ethers, getAddress } from 'ethers'
 // import pkg from 'rdf-dataset-ext'
@@ -48,30 +42,6 @@ export function getSchema(version: string = CURRENT_VERSION): string {
   return schemaFilePath
 }
 
-// function parseReportToErrors(results: any): Record<string, string> {
-//   const paths = results
-//     .filter((result: any) => result.path)
-//     .map((result: any) => toNT(result.path))
-//     .map((path: any) => path.replace('http://schema.org/', ''))
-
-//   const messages = results
-//     .filter((result: any) => result.message)
-//     .map((result: any) => toNT(result.message))
-//     .map(beautifyMessage)
-
-//   return Object.fromEntries(
-//     paths.map((path: string, index: number) => [path, messages[index]])
-//   )
-// }
-
-// function beautifyMessage(message: string): string {
-//   if (message.startsWith('Less than 1 values on')) {
-//     const index = message.indexOf('->') + 2
-//     message = 'Less than 1 value on ' + message.slice(index)
-//   }
-//   return message
-// }
-
 function isIsoFormat(dateString: string): boolean {
   const isoDateRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z)?$/
   return isoDateRegex.test(dateString)
@@ -86,36 +56,56 @@ export function makeDid(nftAddress: string, chainId: string): string {
   )
 }
 
-// Convert JSON-LD data to RDF quads
-// function convertJsonToRDFQuads(jsonData: any): Quad[] {
-//   const parser = new Parser({ format: 'application/ld+json' })
-//   const quads: Quad[] = []
-//   parser.parse(JSON.stringify(jsonData), (error, quad) => {
-//     if (quad) quads.push(quad)
-//   })
-//   return quads
-// }
+function validate(constraints: any, data: any) {
+  const errors: Array<Record<string, string>> = []
+
+  constraints.forEach((constraint: any) => {
+    const path = constraint['http://www.w3.org/ns/shacl#path'][0]['@id']
+    const minCount = constraint['http://www.w3.org/ns/shacl#minCount']
+      ? parseInt(constraint['http://www.w3.org/ns/shacl#minCount'][0]['@value'], 10)
+      : 0
+    const maxCount = constraint['http://www.w3.org/ns/shacl#maxCount']
+      ? parseInt(constraint['http://www.w3.org/ns/shacl#maxCount'][0]['@value'], 10)
+      : Infinity
+    const datatype = constraint['http://www.w3.org/ns/shacl#datatype'][0]['@id']
+    const pattern = constraint['http://www.w3.org/ns/shacl#pattern']
+      ? new RegExp(constraint['http://www.w3.org/ns/shacl#pattern'][0]['@value'])
+      : null
+
+    const values = data[0][path]
+    if (!values || values.length < minCount || values.length > maxCount) {
+      errors.push({
+        path: `Property ${path} does not meet minCount or maxCount constraints`
+      })
+    }
+
+    values.forEach((value: any) => {
+      if (
+        datatype === 'http://www.w3.org/2001/XMLSchema#string' &&
+        typeof value['@value'] !== 'string'
+      ) {
+        errors.push({ path: `Property ${path} does not meet datatype constraint` })
+      }
+
+      if (pattern && !pattern.test(value['@value'])) {
+        errors.push({ path: `Property ${path} does not match the required pattern` })
+      }
+    })
+  })
+
+  return errors
+}
 
 export async function validateObject(
   obj: Record<string, any>,
   chainId: number,
   nftAddress: string
-): Promise<[boolean, Record<string, string>]> {
+): Promise<[boolean, any]> {
   CORE_LOGGER.logMessage(`Validating object: ` + JSON.stringify(obj), true)
   const ddoCopy = JSON.parse(JSON.stringify(obj))
   ddoCopy['@type'] = 'DDO'
   const extraErrors: Record<string, string> = {}
-  if (!('@context' in obj)) {
-    extraErrors['@context'] = 'Context is missing.'
-  }
-  if ('@context' in obj && !Array.isArray(obj['@context'])) {
-    extraErrors['@context'] = 'Context is not an array.'
-  }
   ddoCopy['@context'] = { '@vocab': 'http://schema.org/' }
-
-  // if (!('metadata' in obj)) {
-  //   extraErrors.metadata = 'Metadata is missing or invalid.'
-  // }
   ;['created', 'updated'].forEach((attr) => {
     if ('metadata' in obj && attr in obj.metadata && !isIsoFormat(obj.metadata[attr])) {
       extraErrors.metadata = `${attr} is not in ISO format.`
@@ -135,9 +125,6 @@ export async function validateObject(
 
   const version = obj.version || CURRENT_VERSION
   const schemaFilePath = getSchema(version)
-  // const filename = new URL(schemaFilePath, import.meta.url)
-  const schemaDataset = rdfDataset.dataset()
-  const dataset = rdfDataset.dataset()
   try {
     const contents = await readFile(schemaFilePath, { encoding: 'utf8' })
     const parser = new Parser()
@@ -145,75 +132,26 @@ export async function validateObject(
     const formatQuads = await fromRDF(quads)
     const flattenQuads = await flatten(formatQuads)
     CORE_LOGGER.logMessage(`Schema flattenQuads: ${JSON.stringify(flattenQuads)}`)
-    // compacted.forEach((quad: any) => {})
-    // CORE_LOGGER.logMessage(`Schema quads: ${JSON.stringify(dataset)}`)
-    // // When the stream ends, log the dataset
+    const expanded = await expand(ddoCopy)
+    const flattened = await flatten(expanded)
+    const nquads = await toRDF(flattened, { format: 'application/n-quads' })
+    const nquadsFromRDF = await fromRDF(nquads)
+
+    const report = validate(flattenQuads, nquadsFromRDF)
+    CORE_LOGGER.logMessage(`report: ${JSON.stringify(report)}`)
+    if (!report) {
+      const errorMsg = 'Validation report does not exist'
+      CORE_LOGGER.logMessage(errorMsg, true)
+      return [false, { error: errorMsg }]
+    }
+    if (report.length === 0) {
+      return [true, {}]
+    } else {
+      return [false, report]
+    }
   } catch (err) {
     CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
   }
-
-  const expanded = await expand(ddoCopy)
-  const flattened = await flatten(expanded)
-  const nquads = await toRDF(flattened, { format: 'application/n-quads' })
-  const parser = new Parser({ format: 'application/n-quads' })
-  const ddoQuads = parser.parse(nquads.toString())
-  CORE_LOGGER.logMessage(`nquads from RDF: ${JSON.stringify(await fromRDF(nquads))}`)
-  CORE_LOGGER.logMessage(`nquads: ${JSON.stringify(nquads)}`)
-  ddoQuads.forEach((quad: Quad) => {
-    // CORE_LOGGER.logMessage(`quad: ${JSON.stringify(quad)}`)
-    dataset.add(quad)
-  })
-
-  // const ddoStore = new Store()
-  // ddoStore.addQuads(nquads)
-
-  Object.entries(ddoCopy).forEach(([key, value]) => {
-    // const subject = factory.namedNode(`http://example.org/ddo/${key}`)
-    // const predicate = factory.namedNode('http://example.org/ddo/property')
-    // let stringValue = ''
-    // if (typeof value === 'object') {
-    //   stringValue = JSON.stringify(value)
-    // } else {
-    //   stringValue = value.toString()
-    // }
-    // const object = factory.literal(stringValue)
-    // dataset.add(factory.quad(subject, predicate, object))
-  })
-  CORE_LOGGER.logMessage(`dataset after the update: ${JSON.stringify(dataset)}`)
-
-  const validator = new shaclEngine.Validator(schemaDataset, {
-    factory: rdfDataModel
-  })
-
-  // run the validation process
-  const report = await validator.validate({ dataset })
-  CORE_LOGGER.logMessage(`report: ${JSON.stringify(report)}`)
-  if (!report) {
-    const errorMsg = 'Validation report does not exist'
-    CORE_LOGGER.logMessage(errorMsg, true)
-    return [false, { error: errorMsg }]
-  }
-  CORE_LOGGER.logMessage(`report results: ${JSON.stringify(report.results)}`)
-  CORE_LOGGER.logMessage(`report conforms: ${report.conforms}`)
-  // const errors = parseReportToErrors(report.results)
-  // if (extraErrors) {
-  //   // Merge errors and extraErrors without overwriting existing keys
-  //   const mergedErrors = { ...errors, ...extraErrors }
-  //   // Check if there are any new errors introduced
-  //   const newErrorsIntroduced = Object.keys(mergedErrors).some(
-  //     (key) => !Object.prototype.hasOwnProperty.call(errors, key)
-  //   )
-  //   if (newErrorsIntroduced) {
-  //     CORE_LOGGER.logMessage(
-  //       `validateObject found new errors introduced: ${JSON.stringify(mergedErrors)}`,
-  //       true
-  //     )
-
-  //     return [false, mergedErrors]
-  //   }
-  // }
-  const errors: any = null
-  return [report.conforms, errors]
 }
 
 export async function getValidationSignature(ddo: string): Promise<any> {
