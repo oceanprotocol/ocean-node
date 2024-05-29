@@ -72,11 +72,11 @@ class TypesenseDocuments {
 
   // eslint-disable-next-line require-await
   async deleteByChainId(filterCondition: string, batchSize: number = TYPESENSE_HITS_CAP) {
-    const path = `${this.apiPath}?filter_by=${filterCondition}&batch_size=${Math.min(
-      batchSize,
-      TYPESENSE_HITS_CAP
-    )}`
-    return this.api.delete<TypesenseDocumentSchema>(path)
+    const batch = Math.min(batchSize, TYPESENSE_HITS_CAP)
+    return this.api.delete<TypesenseDocumentSchema>(this.apiPath, {
+      filter_by: filterCondition,
+      batch_size: batch
+    })
   }
 
   // eslint-disable-next-line require-await

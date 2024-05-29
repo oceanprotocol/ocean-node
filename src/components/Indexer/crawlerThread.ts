@@ -89,6 +89,9 @@ export async function processNetworkData(
     return null
   }
   // if we defined a valid startBlock use it, oterwise start from deployed one
+  console.log(' rpcDetails.startBlock : ', rpcDetails.startBlock)
+  console.log(' contractDeploymentBlock : ', contractDeploymentBlock)
+
   const crawlingStartBlock =
     rpcDetails.startBlock && rpcDetails.startBlock > contractDeploymentBlock
       ? rpcDetails.startBlock
@@ -105,7 +108,7 @@ export async function processNetworkData(
       lockProccessing = true
       const lastIndexedBlock = await getLastIndexedBlock()
       const networkHeight = await getNetworkHeight(provider)
-
+      console.log('lastIndexedBlock : ', lastIndexedBlock)
       const startBlock =
         lastIndexedBlock && lastIndexedBlock > crawlingStartBlock
           ? lastIndexedBlock
