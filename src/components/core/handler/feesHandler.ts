@@ -10,7 +10,7 @@ import {
   buildInvalidRequestMessage,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
-import { validateDDOIdentifier } from './ddoHandler.js'
+import { FindDdoHandler, validateDDOIdentifier } from './ddoHandler.js'
 import { isAddress } from 'ethers'
 import { ProviderInitialize } from '../../../@types/Fees.js'
 import { getNonce } from '../utils/nonceHandler.js'
@@ -41,7 +41,7 @@ export class FeesHandler extends Handler {
       true
     )
     let errorMsg: string = null
-    const ddo = await this.getOceanNode().getDatabase().ddo.retrieve(task.ddoId)
+    const ddo = await new FindDdoHandler(this.getOceanNode()).findAndFormatDdo(task.ddoId)
     if (!ddo) {
       errorMsg = 'Cannot resolve DID'
     }

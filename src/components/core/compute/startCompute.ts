@@ -11,8 +11,6 @@ import {
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { isAddress } from 'ethers'
-
-import { DDO } from '../../../@types/DDO/DDO.js'
 import { AssetUtils } from '../../../utils/asset.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import { decrypt } from '../../../utils/crypt.js'
@@ -21,6 +19,7 @@ import { Blockchain } from '../../../utils/blockchain.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
 import { getConfiguration } from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
+import { FindDdoHandler } from '../handler/ddoHandler.js'
 export class ComputeStartHandler extends Handler {
   validate(command: ComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
@@ -75,7 +74,7 @@ export class ComputeStartHandler extends Handler {
         if ('documentId' in elem && elem.documentId) {
           result.did = elem.documentId
           result.serviceId = elem.documentId
-          const ddo = (await node.getDatabase().ddo.retrieve(elem.documentId)) as DDO
+          const ddo = await new FindDdoHandler(node).findAndFormatDdo(elem.documentId)
           if (!ddo) {
             const error = `DDO ${elem.documentId} not found`
             return {
