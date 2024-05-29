@@ -264,9 +264,15 @@ export class DownloadHandler extends Handler {
     let blockchain
     try {
       blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-      const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-      while (!(await blockchain.isNetworkReady()).ready) {
-        await delay(1000)
+      const { ready, error } = await blockchain.isNetworkReady()
+      if (!ready) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: `Download handler: ${error}`
+          }
+        }
       }
       provider = blockchain.getProvider()
     } catch (e) {

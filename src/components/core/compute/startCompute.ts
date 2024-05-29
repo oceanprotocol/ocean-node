@@ -122,9 +122,15 @@ export class ComputeStartHandler extends Handler {
           const { rpc, network, chainId, fallbackRPCs } =
             config.supportedNetworks[ddo.chainId]
           const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-          const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-          while (!(await blockchain.isNetworkReady()).ready) {
-            await delay(1000)
+          const { ready, error } = await blockchain.isNetworkReady()
+          if (!ready) {
+            return {
+              stream: null,
+              status: {
+                httpStatus: 400,
+                error: `Start Compute : ${error}`
+              }
+            }
           }
           const provider = blockchain.getProvider()
           result.datatoken = service.datatokenAddress
