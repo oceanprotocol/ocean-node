@@ -35,7 +35,11 @@ export class ReindexChainHandler extends AdminHandler {
       )
     }
     try {
-      this.getOceanNode().getIndexer().resetCrawling(task.chainId)
+      const indexer = this.getOceanNode().getIndexer()
+      if (!indexer) {
+        return buildErrorResponse('Node is not running an indexer instance!')
+      }
+      indexer.resetCrawling(task.chainId)
       return {
         status: { httpStatus: 200 },
         stream: new ReadableString('REINDEXING CHAIN...')

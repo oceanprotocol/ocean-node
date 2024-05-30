@@ -165,8 +165,8 @@ export async function verifyMessage(
 
 export async function checkSupportedChainId(chainId: number): Promise<ValidateChainId> {
   const config = await getConfiguration()
-  if (!(`${chainId.toString()}` in config.supportedNetworks)) {
-    CORE_LOGGER.error(`Chain ID ${chainId.toString()} is not supported`)
+  if (!chainId || !(`${chainId.toString()}` in config.supportedNetworks)) {
+    CORE_LOGGER.error(`Chain ID ${chainId} is not supported`)
     return {
       validation: false,
       networkRpc: ''
