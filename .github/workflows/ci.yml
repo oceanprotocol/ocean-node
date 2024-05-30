@@ -178,3 +178,47 @@ jobs:
         with:
           name: coverage
           path: coverage/
+
+  system_tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '18.19.0'
+      - name: Cache node_modules
+        uses: actions/cache@v2
+        env:
+          cache-name: cache-node-modules
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-system-tests-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-system-tests-${{ env.cache-name }}-
+      - name: Set ADDRESS_FILE
+        run: echo "ADDRESS_FILE=${HOME}/.ocean/ocean-contracts/artifacts/address.json" >> $GITHUB_ENV
+      - name: Checkout Barge
+        uses: actions/checkout@v3
+        with:
+          repository: 'oceanprotocol/barge'
+          path: 'barge'
+          ref: 'feature/nodes'
+      - name: Login to Docker Hub
+        if: ${{ env.DOCKERHUB_PASSWORD && env.DOCKERHUB_USERNAME }}
+        run: |
+          echo "Login to Docker Hub";echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+          env:
+              DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+              DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Run Barge
+        working-directory: ${{ github.workspace }}/barge
+        run: |
+          bash -x start_ocean.sh --no-dashboard --with-c2d 2>&1 > start_ocean.log &
+      - run: npm ci
+      - run: npm run build
+      - name: Set up Ocean CLI
+        run: npm run setup-ocean-cli
+      - name: Run Ocean CLI tests
+        run: |
+          export AQUARIUS_URL='http://127.0.0.1:8000'
+          export PROVIDER_URL='http://127.0.0.1:8000'
+          npm run test-ocean-cli
