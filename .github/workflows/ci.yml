@@ -221,4 +221,4 @@ jobs:
         run: |
           export AQUARIUS_URL='http://127.0.0.1:8000'
           export PROVIDER_URL='http://127.0.0.1:8000'
-          npm run test-ocean-cli
+          npm run test:system

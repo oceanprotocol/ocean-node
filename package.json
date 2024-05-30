@@ -32,6 +32,7 @@
     "test:integration:light": "npm run build-tests && npm run mocha-light \"./dist/test/integration/**/*.test.js\"",
     "test:unit:cover": "nyc --report-dir coverage/unit npm run test:unit",
     "test:integration:cover": "nyc --report-dir coverage/integration --no-clean npm run test:integration",
+    "test:system": "npm run build-tests && npm run mocha \"./dist/test/system/**/*.test.js\"",
     "logs": "./scripts/logs.sh",
     "setup-ocean-cli": "git clone https://github.com/oceanprotocol/ocean-cli.git && cd ocean-cli && npm install && npm run build"
   },
