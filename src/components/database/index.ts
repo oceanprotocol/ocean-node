@@ -581,8 +581,6 @@ export class DdoDatabase {
     let numDeleted = 0
     for (const schema of this.schemas) {
       try {
-        console.log('Schema: ', schema)
-
         const response = await this.provider
           .collections(schema.name)
           .documents()
@@ -603,7 +601,6 @@ export class DdoDatabase {
             LOG_LEVELS_STR.LEVEL_ERROR
           )
         }
-        // return -1
       }
     }
     return numDeleted
