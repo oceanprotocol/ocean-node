@@ -43,17 +43,13 @@ export class Blockchain {
   public getSigner(): Signer {
     if (!this.signer || typeof this.signer.signMessage !== 'function') {
       CORE_LOGGER.warn('Signer is not initialized or not a valid ethers Signer')
-      this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider)
-      return this.signer
     }
     return this.signer
   }
 
   public getProvider(): JsonRpcApiProvider {
     if (!this.provider || typeof this.provider.getNetwork !== 'function') {
-      CORE_LOGGER.warn('Provider is not initialized')
-      this.provider = new ethers.JsonRpcProvider(this.knownRPCs[0], this.network)
-      return this.provider
+      CORE_LOGGER.warn('Provider is not initialized or not a valid JsonRpcApiProvider')
     }
     return this.provider
   }
