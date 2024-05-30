@@ -1,11 +1,27 @@
-import http from 'k6/http';
-import { sleep } from 'k6';
+import http from 'k6/http'
+import { sleep } from 'k6'
+import { targetEndpoint, TARGET_URL } from './util.js/index.js'
+// -----------------------------------------------------------------
+// LIST OF TESTS TO EXECUTE
+// -----------------------------------------------------------------
+
+// - Call node root enpoint (get a list of all endpoints)
+// - Call all HTTP endpoints (with & without proper params)
+// - Execute requests with & without RATE limits on the node instance
+// - Call directCommand enpoint with all supported commands
+//
+
+// -----------------------------------------------------------------
+
+console.log('Starting load tests against server: ', TARGET_URL)
 
 export const options = {
-  // A number specifying the number of VUs to run concurrently.
-  vus: 10,
-  // A string specifying the total duration of the test run.
-  duration: '30s',
+  // Key configurations for Stress in this section
+  stages: [
+    { duration: '10m', target: 200 }, // traffic ramp-up from 1 to a higher 200 users over 10 minutes.
+    { duration: '30m', target: 200 }, // stay at higher 200 users for 30 minutes
+    { duration: '5m', target: 0 } // ramp-down to 0 users
+  ]
 
   // The following section contains configuration options for execution of this
   // test script in Grafana Cloud.
@@ -46,14 +62,36 @@ export const options = {
   //     },
   //   },
   // }
-};
+}
+
+// setup k6 code
+export function setup() {
+  console.log('setup tests here')
+}
+
+// teardown k6 code
+export function teardown(data) {
+  console.log('teardown tests here')
+}
 
 // The function that defines VU logic.
 //
 // See https://grafana.com/docs/k6/latest/examples/get-started-with-k6/ to learn more
 // about authoring k6 scripts.
 //
-export default function() {
-  http.get('https://test.k6.io');
-  sleep(1);
+export default function () {
+  const response = http.get(TARGET_URL)
+  if (response.status === 200) {
+    const data = JSON.parse(response.body)
+    const endpoints = Object.keys(data.serviceEndpoints)
+    for (const endpointName of endpoints) {
+      const apiData = data.serviceEndpoints[endpointName]
+      console.log('Targeting endpoint: ', endpointName, 'Method/path:', apiData)
+      const method = targetEndpoint(apiData[0], apiData[1])
+    }
+  } else {
+    console.log('Cehck if your node is running before calling this script')
+    exit(1)
+  }
+  sleep(1)
 }
