@@ -216,9 +216,12 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Set up Ocean CLI
-        run: npm run setup-ocean-cli
-      - name: Run Ocean CLI tests
         run: |
-          export AQUARIUS_URL='http://127.0.0.1:8000'
-          export PROVIDER_URL='http://127.0.0.1:8000'
-          npm run test:system
+          npm run setup-ocean-cli
+        env:
+          PRIVATE_KEY: { { secrets.NODE1_PRIVATE_KEY } }
+          AQUARIUS_URL: 'http://127.0.0.1:8000'
+          PROVIDER_URL: 'http://127.0.0.1:8000'
+          RPC: 'http://127.0.0.1:8545'
+      - name: Run Ocean CLI tests
+        run: npm run test:system
