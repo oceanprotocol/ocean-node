@@ -581,10 +581,12 @@ export class DdoDatabase {
     let numDeleted = 0
     for (const schema of this.schemas) {
       try {
+        console.log('Schema: ', schema)
+
         const response = await this.provider
           .collections(schema.name)
           .documents()
-          .deleteByChainId(`chainId:${chainId}`)
+          .deleteByChainId(`chainId:${chainId}`, batchSize)
 
         DATABASE_LOGGER.debug(
           `Number of deleted ddos on schema ${schema} : ${response.num_deleted}`
@@ -601,7 +603,7 @@ export class DdoDatabase {
             LOG_LEVELS_STR.LEVEL_ERROR
           )
         }
-        return -1
+        // return -1
       }
     }
     return numDeleted
