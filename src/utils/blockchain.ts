@@ -41,16 +41,10 @@ export class Blockchain {
   }
 
   public getSigner(): Signer {
-    if (!this.signer || typeof this.signer.signMessage !== 'function') {
-      CORE_LOGGER.warn('Signer is not initialized or not a valid ethers Signer')
-    }
     return this.signer
   }
 
   public getProvider(): JsonRpcApiProvider {
-    if (!this.provider || typeof this.provider.getNetwork !== 'function') {
-      CORE_LOGGER.warn('Provider is not initialized or not a valid JsonRpcApiProvider')
-    }
     return this.provider
   }
 
