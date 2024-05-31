@@ -1,6 +1,5 @@
-import http from 'k6/http'
 import { sleep } from 'k6'
-import { targetEndpoint, TARGET_URL } from './util.js/index.js'
+import { stepRootEndpoint, TARGET_URL } from './util.js'
 // -----------------------------------------------------------------
 // LIST OF TESTS TO EXECUTE
 // -----------------------------------------------------------------
@@ -78,18 +77,7 @@ export function teardown(data) {
 // about authoring k6 scripts.
 //
 export default function () {
-  const response = http.get(TARGET_URL)
-  if (response.status === 200) {
-    const data = JSON.parse(response.body)
-    const endpoints = Object.keys(data.serviceEndpoints)
-    for (const endpointName of endpoints) {
-      const apiData = data.serviceEndpoints[endpointName]
-      console.log('Targeting endpoint: ', endpointName, 'Method/path:', apiData)
-      const method = targetEndpoint(apiData[0], apiData[1])
-    }
-  } else {
-    console.log('Cehck if your node is running before calling this script')
-    exit(1)
-  }
+  // 1st step
+  stepRootEndpoint()
   sleep(1)
 }

@@ -32,7 +32,10 @@
     "test:integration:light": "npm run build-tests && npm run mocha-light \"./dist/test/integration/**/*.test.js\"",
     "test:unit:cover": "nyc --report-dir coverage/unit npm run test:unit",
     "test:integration:cover": "nyc --report-dir coverage/integration --no-clean npm run test:integration",
-    "logs": "./scripts/logs.sh"
+    "logs": "./scripts/logs.sh",
+    "test:smoke": "npm run build-tests && k6 run \"./dist/test/performance/smoke_test.js\"",
+    "test:load": "npm run build-tests && k6 run \"./dist/test/performance/load_test.js\"",
+    "test:stress": "npm run build-tests && k6 run \"./dist/test/performance/stress_test.js\""
   },
   "dependencies": {
     "@chainsafe/libp2p-gossipsub": "^11.0.1",

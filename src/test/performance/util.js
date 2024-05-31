@@ -1,3 +1,4 @@
+import http from 'k6/http'
 // -----------------------------------------------------------------
 // LIST OF TESTS TO EXECUTE
 // -----------------------------------------------------------------
@@ -18,10 +19,29 @@ export const TARGET_URL = __ENV.TARGET_URL
   ? __ENV.TARGET_URL
   : `http://127.0.0.1:${HTTP_PORT}`
 
-console.log('Starting load tests against server: ', TARGET_URL)
+export async function targetEndpoint(method, path) {
+  const response = await http.asyncRequest(method.toUpperCase(), path)
+  console.log(`Response from API endpoint ${TARGET_URL}${path})`, response)
+}
 
-
-export function targetEndpoint(method, path) {
-    const response = method.toUpperCase() === 'GET' ? http.get(path) : http.post(path)
-    console.log(`Response from API ${TARGET_URL}${path})`, response)
+// 1st step - get root enpoint and call all paths
+export async function stepRootEndpoint() {
+  const response = http.get(TARGET_URL)
+  try {
+    if (response.status === 200) {
+      const data = JSON.parse(response.body)
+      const endpoints = Object.keys(data.serviceEndpoints)
+      for (const endpointName of endpoints) {
+        const apiData = data.serviceEndpoints[endpointName]
+        console.log('Targeting endpoint: ', endpointName, 'Method/path:', apiData)
+        await targetEndpoint(apiData[0], apiData[1])
+      }
+      return true
+    } else {
+      console.log('Check if your node is running before calling this script')
+    }
+  } catch (error) {
+    console.error(error)
   }
+  return false
+}
