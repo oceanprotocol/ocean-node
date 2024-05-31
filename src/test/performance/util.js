@@ -1,4 +1,4 @@
-import http from 'k6/http'
+import * as http from 'k6/http'
 // -----------------------------------------------------------------
 // LIST OF TESTS TO EXECUTE
 // -----------------------------------------------------------------
@@ -20,8 +20,15 @@ export const TARGET_URL = __ENV.TARGET_URL
   : `http://127.0.0.1:${HTTP_PORT}`
 
 export async function targetEndpoint(method, path) {
-  const response = await http.asyncRequest(method.toUpperCase(), path)
-  console.log(`Response from API endpoint ${TARGET_URL}${path})`, response)
+  // strip away path params
+  if (path.indexOf(':') >= -1) {
+    path = path.substr(0, path.indexOf(':'))
+  }
+  const url = `${TARGET_URL}${path}`
+  const response = await http.asyncRequest(method.toUpperCase(), url)
+  console.log('Response status:', response.status)
+  console.log(`Response body from API endpoint ${TARGET_URL}${path}):`)
+  console.log(response.body)
 }
 
 // 1st step - get root enpoint and call all paths
@@ -31,6 +38,7 @@ export async function stepRootEndpoint() {
     if (response.status === 200) {
       const data = JSON.parse(response.body)
       const endpoints = Object.keys(data.serviceEndpoints)
+      //query all endpoints, exclude params
       for (const endpointName of endpoints) {
         const apiData = data.serviceEndpoints[endpointName]
         console.log('Targeting endpoint: ', endpointName, 'Method/path:', apiData)
