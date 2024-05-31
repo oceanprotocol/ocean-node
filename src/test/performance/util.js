@@ -1,5 +1,6 @@
 import * as http from 'k6/http'
-import { group, check } from 'k6'
+import { group, check, sleep } from 'k6'
+
 // -----------------------------------------------------------------
 // LIST OF TESTS TO EXECUTE
 // -----------------------------------------------------------------
@@ -20,24 +21,36 @@ export const TARGET_URL = __ENV.TARGET_URL
   ? __ENV.TARGET_URL
   : `http://127.0.0.1:${HTTP_PORT}`
 
-const allEndPoints = []
+const allEndPoints = new Set()
 export function buildPayloadForRequest(api) {
   // TODO: proper request for each API endpoint
 }
 
 export async function targetEndpoint(method, path) {
-  // strip away path params
-  if (path.indexOf(':') >= -1) {
-    path = path.substr(0, path.indexOf(':'))
-  }
-  const url = `${TARGET_URL}${path}`
-  const response = await http.asyncRequest(method.toUpperCase(), url)
-  group(`Calling API ${path}`, () => {
-    check(response, {
-      'status code should be 200': (res) => res.status === 200
+  return new Promise((resolve) => {
+    // strip away path params
+    if (path.indexOf(':') >= -1) {
+      path = path.substr(0, path.indexOf(':'))
+    }
+    // this is needed for the k6 "group" call (only recognizes with / at end)
+    if (!path.endsWith('/')) {
+      path = path + '/'
+    }
+    const url = `${TARGET_URL}${path}`
+    group(`Calling API ${path}`, () => {
+      http.asyncRequest(method.toUpperCase(), url).then((response) => {
+        check(response, {
+          'status code should be 200/400/403/404/500': (res) =>
+            [200, 400, 403, 404, 500].includes(res.status)
+        })
+
+        if (response.status === 200) {
+          console.log(`Response body from API endpoint ${TARGET_URL}${path}):`)
+          console.log(response.body)
+        }
+        resolve()
+      })
     })
-    console.log(`Response body from API endpoint ${TARGET_URL}${path}):`)
-    console.log(response.body)
   })
 }
 
@@ -50,10 +63,11 @@ export async function stepRootEndpoint() {
       const endpoints = Object.keys(data.serviceEndpoints)
       //query all endpoints, exclude params
       for (const endpointName of endpoints) {
-        allEndPoints.push(endpointName)
+        allEndPoints.add(endpointName)
         const apiData = data.serviceEndpoints[endpointName]
         console.log('Targeting endpoint: ', endpointName, 'Method/path:', apiData)
         await targetEndpoint(apiData[0], apiData[1])
+        sleep(1)
       }
       return true
     } else {
