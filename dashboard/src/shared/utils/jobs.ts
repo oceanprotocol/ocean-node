@@ -1,5 +1,27 @@
 import { CommandStatus, JobStatus } from '../types/JobTypes'
 
+/**
+ * 
+ *  - Light Grey, associated with something that is neutral and not doing any actions
+    - Blue, associated with non-critical, basic information
+    - Green, associated with success and completion
+    - Red, associated with an error, or a critical message
+ */
+export function getStatusColors(status: CommandStatus): string {
+  switch (status) {
+    case CommandStatus.DELIVERED:
+      return 'DodgerBlue'
+    case CommandStatus.PENDING:
+      return 'LightSlateGrey'
+    case CommandStatus.SUCCESS:
+      return 'ForestGreen'
+    case CommandStatus.FAILURE:
+      return 'OrangeRed'
+    default:
+      return 'black'
+  }
+}
+
 export const checkJobPool = async function (jobId?: string): Promise<JobStatus[]> {
   const id = jobId || ''
 
