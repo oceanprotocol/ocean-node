@@ -1,4 +1,5 @@
 import * as http from 'k6/http'
+import { group, check } from 'k6'
 // -----------------------------------------------------------------
 // LIST OF TESTS TO EXECUTE
 // -----------------------------------------------------------------
@@ -19,6 +20,11 @@ export const TARGET_URL = __ENV.TARGET_URL
   ? __ENV.TARGET_URL
   : `http://127.0.0.1:${HTTP_PORT}`
 
+const allEndPoints = []
+export function buildPayloadForRequest(api) {
+  // TODO: proper request for each API endpoint
+}
+
 export async function targetEndpoint(method, path) {
   // strip away path params
   if (path.indexOf(':') >= -1) {
@@ -26,9 +32,13 @@ export async function targetEndpoint(method, path) {
   }
   const url = `${TARGET_URL}${path}`
   const response = await http.asyncRequest(method.toUpperCase(), url)
-  console.log('Response status:', response.status)
-  console.log(`Response body from API endpoint ${TARGET_URL}${path}):`)
-  console.log(response.body)
+  group(`Calling API ${path}`, () => {
+    check(response, {
+      'status code should be 200': (res) => res.status === 200
+    })
+    console.log(`Response body from API endpoint ${TARGET_URL}${path}):`)
+    console.log(response.body)
+  })
 }
 
 // 1st step - get root enpoint and call all paths
@@ -40,6 +50,7 @@ export async function stepRootEndpoint() {
       const endpoints = Object.keys(data.serviceEndpoints)
       //query all endpoints, exclude params
       for (const endpointName of endpoints) {
+        allEndPoints.push(endpointName)
         const apiData = data.serviceEndpoints[endpointName]
         console.log('Targeting endpoint: ', endpointName, 'Method/path:', apiData)
         await targetEndpoint(apiData[0], apiData[1])
@@ -48,6 +59,8 @@ export async function stepRootEndpoint() {
     } else {
       console.log('Check if your node is running before calling this script')
     }
+
+    console.log('All endpoints available: ', allEndPoints)
   } catch (error) {
     console.error(error)
   }

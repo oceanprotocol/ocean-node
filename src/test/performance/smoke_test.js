@@ -1,4 +1,4 @@
-import { sleep } from 'k6'
+import { sleep, group } from 'k6'
 import { stepRootEndpoint, TARGET_URL } from './util.js'
 // -----------------------------------------------------------------
 // LIST OF TESTS TO EXECUTE
@@ -79,5 +79,6 @@ export function teardown(data) {
 export default function () {
   // 1st step
   stepRootEndpoint()
+
   sleep(1)
 }
