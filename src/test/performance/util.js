@@ -21,8 +21,6 @@ export const TARGET_URL = __ENV.TARGET_URL
   ? __ENV.TARGET_URL
   : `http://127.0.0.1:${HTTP_PORT}`
 
-const allEndPoints = new Set()
-
 const PROTOCOL_COMMANDS = {
   DOWNLOAD: 'download',
   DOWNLOAD_URL: 'downloadURL', // we still use this
@@ -50,8 +48,11 @@ const PROTOCOL_COMMANDS = {
   REINDEX_CHAIN: 'reindexChain',
   HANDLE_INDEXING_THREAD: 'handleIndexingThread'
 }
-export function buildPayloadForRequest(api) {
-  // TODO: proper request for each API endpoint
+
+export const OPTIONS_TEST_TYPE = {
+  SMOKE: 'smoke',
+  LOAD: 'load',
+  STRESS: 'stress'
 }
 
 export async function targetEndpoint(api, method, path) {
@@ -91,7 +92,6 @@ export async function stepRootEndpoint() {
       const endpoints = Object.keys(data.serviceEndpoints)
       //query all endpoints, exclude params
       for (const endpointName of endpoints) {
-        allEndPoints.add(endpointName)
         const apiData = data.serviceEndpoints[endpointName]
         console.log('Targeting endpoint: ', endpointName, 'Method/path:', apiData)
         await targetEndpoint(endpointName, apiData[0], apiData[1])
@@ -157,4 +157,47 @@ export async function stepDirectCommands() {
     await targetDirectCommand(command)
     sleep(1)
   }
+}
+
+export function getTestOptions(testType) {
+  if (testType === OPTIONS_TEST_TYPE.LOAD) {
+    return getLoadTestOptions()
+  } else if (testType === OPTIONS_TEST_TYPE.STRESS) {
+    return getStressTestOptions()
+  }
+  return getSmokeTestOptions()
+}
+
+function getSmokeTestOptions() {
+  const options = {
+    // A number specifying the number of VUs to run concurrently.
+    vus: 5,
+    // A string specifying the total duration of the test run.
+    duration: '30s'
+  }
+  return options
+}
+
+function getLoadTestOptions() {
+  const options = {
+    // Key configurations for avg load test in this section
+    stages: [
+      { duration: '5m', target: 100 }, // traffic ramp-up from 1 to 100 users over 5 minutes.
+      { duration: '30m', target: 100 }, // stay at 100 users for 30 minutes
+      { duration: '5m', target: 0 } // ramp-down to 0 users
+    ]
+  }
+  return options
+}
+
+function getStressTestOptions() {
+  const options = {
+    // Key configurations for Stress in this section
+    stages: [
+      { duration: '10m', target: 200 }, // traffic ramp-up from 1 to a higher 200 users over 10 minutes.
+      { duration: '30m', target: 200 }, // stay at higher 200 users for 30 minutes
+      { duration: '5m', target: 0 } // ramp-down to 0 users
+    ]
+  }
+  return options
 }
