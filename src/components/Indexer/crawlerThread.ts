@@ -18,15 +18,15 @@ import { JsonRpcApiProvider, Log, Signer } from 'ethers'
 
 export interface ReindexTask {
   txId: string
-  chainId: string
+  chainId: number
   eventIndex?: number
 }
 
 let REINDEX_BLOCK: number = null
 const REINDEX_QUEUE: ReindexTask[] = []
 
-let stopCrawling: boolean = false
-
+let stoppedCrawling: boolean = false
+let startedCrawling: boolean = false
 interface ThreadData {
   rpcDetails: SupportedNetwork
 }
@@ -79,7 +79,7 @@ export async function processNetworkData(
   provider: JsonRpcApiProvider,
   signer: Signer
 ): Promise<void> {
-  stopCrawling = false
+  stoppedCrawling = startedCrawling = false
   const contractDeploymentBlock = getDeployedContractBlock(rpcDetails.chainId)
   if (contractDeploymentBlock == null && (await getLastIndexedBlock()) == null) {
     INDEXER_LOGGER.logMessage(
@@ -98,7 +98,7 @@ export async function processNetworkData(
   const interval = getCrawlingInterval()
   let { chunkSize } = rpcDetails
   let lockProccessing = false
-  let startedCrawling = false
+
   while (true) {
     let currentBlock
     if (!lockProccessing) {
@@ -186,17 +186,23 @@ export async function processNetworkData(
     await sleep(interval)
     // reindex chain command called
     if (REINDEX_BLOCK && !lockProccessing) {
-      await reindexChain(currentBlock)
+      const result = await reindexChain(currentBlock)
+      // either "true" for success or "false" otherwise
+      parentPort.postMessage({
+        method: INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
+        data: { result }
+      })
     }
 
-    if (stopCrawling) {
+    if (stoppedCrawling) {
       INDEXER_LOGGER.logMessage('Exiting thread...')
+      startedCrawling = false
       break
     }
   }
 }
 
-async function reindexChain(currentBlock: number): Promise<void> {
+async function reindexChain(currentBlock: number): Promise<boolean> {
   const block = await updateLastIndexedBlockNumber(REINDEX_BLOCK)
   if (block !== -1) {
     REINDEX_BLOCK = null
@@ -204,11 +210,13 @@ async function reindexChain(currentBlock: number): Promise<void> {
     if (res === -1) {
       await updateLastIndexedBlockNumber(currentBlock)
     }
+    return true
   } else {
     // Set the reindex block to null -> force admin to trigger again the command until
     // we have a notification from worker thread to parent thread #414.
     INDEXER_LOGGER.error(`Block could not be reset. Continue indexing normally...`)
     REINDEX_BLOCK = null
+    return false
   }
 }
 
@@ -331,7 +339,7 @@ parentPort.on('message', (message) => {
         : deployBlock
   }
   if (message.method === 'stop-crawling') {
-    stopCrawling = true
+    stoppedCrawling = true
     INDEXER_LOGGER.warn('Stopping crawler thread once current run finishes...')
   }
 })
