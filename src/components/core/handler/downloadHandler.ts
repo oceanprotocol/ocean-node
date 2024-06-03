@@ -1,4 +1,3 @@
-import { JsonRpcProvider } from 'ethers'
 import { Handler } from './handler.js'
 import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
 import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
@@ -13,7 +12,11 @@ import { validateOrderTransaction } from '../utils/validateOrders.js'
 import { AssetUtils } from '../../../utils/asset.js'
 import { Service } from '../../../@types/DDO/Service.js'
 import { ArweaveStorage, IpfsStorage, Storage } from '../../storage/index.js'
-import { existsEnvironmentVariable, getConfiguration } from '../../../utils/index.js'
+import {
+  Blockchain,
+  existsEnvironmentVariable,
+  getConfiguration
+} from '../../../utils/index.js'
 import { checkCredentials } from '../../../utils/credentials.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
@@ -25,6 +28,7 @@ import {
   ValidateParams
 } from '../../httpRoutes/validateCommands.js'
 import { DDO } from '../../../@types/DDO/DDO.js'
+import { sanitizeServiceFiles } from '../../../utils/util.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(
@@ -255,10 +259,22 @@ export class DownloadHandler extends Handler {
     }
     // from now on, we need blockchain checks
     const config = await getConfiguration()
-    const { rpc } = config.supportedNetworks[ddo.chainId]
+    const { rpc, network, chainId, fallbackRPCs } = config.supportedNetworks[ddo.chainId]
     let provider
+    let blockchain
     try {
-      provider = new JsonRpcProvider(rpc)
+      blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+      const { ready, error } = await blockchain.isNetworkReady()
+      if (!ready) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: `Download handler: ${error}`
+          }
+        }
+      }
+      provider = blockchain.getProvider()
     } catch (e) {
       return {
         stream: null,
@@ -299,7 +315,7 @@ export class DownloadHandler extends Handler {
         for (const env of environments)
           computeAddrs.push(env.consumerAddress.toLowerCase())
       }
-      //
+
       if (!computeAddrs.includes(task.consumerAddress.toLowerCase())) {
         const msg = 'Not allowed to download this asset of type compute'
         CORE_LOGGER.logMessage(msg)
@@ -330,6 +346,7 @@ export class DownloadHandler extends Handler {
         }
       }
     }
+
     // 6. Call the validateOrderTransaction function to check order transaction
     const paymentValidation = await validateOrderTransaction(
       task.transferTxId,
@@ -338,8 +355,10 @@ export class DownloadHandler extends Handler {
       ddo.nftAddress,
       service.datatokenAddress,
       AssetUtils.getServiceIndexById(ddo, task.serviceId),
-      service.timeout
+      service.timeout,
+      blockchain.getSigner()
     )
+
     if (paymentValidation.isValid) {
       CORE_LOGGER.logMessage(
         `Valid payment transaction. Result: ${paymentValidation.message}`,
@@ -360,11 +379,11 @@ export class DownloadHandler extends Handler {
     }
 
     try {
-      // 6. Decrypt the url
-      const decryptedUrlBytes = await decrypt(
-        Uint8Array.from(Buffer.from(service.files, 'hex')),
-        EncryptMethod.ECIES
+      // 7. Decrypt the url
+      const uint8ArrayHex = Uint8Array.from(
+        Buffer.from(sanitizeServiceFiles(service.files), 'hex')
       )
+      const decryptedUrlBytes = await decrypt(uint8ArrayHex, EncryptMethod.ECIES)
       // Convert the decrypted bytes back to a string
       const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
       const decryptedFileData = JSON.parse(decryptedFilesString)
@@ -382,7 +401,7 @@ export class DownloadHandler extends Handler {
         }
       }
 
-      // 7. Proceed to download the file
+      // 8. Proceed to download the file
       return await handleDownloadUrlCommand(node, {
         fileObject: decriptedFileObject,
         aes_encrypted_key: task.aes_encrypted_key,
