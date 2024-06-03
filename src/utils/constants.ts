@@ -85,6 +85,13 @@ export const INDEXER_CRAWLING_EVENTS = {
   REINDEX_TX: PROTOCOL_COMMANDS.REINDEX_TX
 }
 
+export const INDEXER_MESSAGES = {
+  REINDEX_TX: PROTOCOL_COMMANDS.REINDEX_TX, // use the same names, no need to add different strings all the time
+  REINDEX_CHAIN: PROTOCOL_COMMANDS.REINDEX_CHAIN,
+  START_CRAWLING: 'start-crawling',
+  STOP_CRAWLING: 'stop-crawling'
+}
+
 export const EVENT_HASHES: Hashes = {
   '0x5463569dcc320958360074a9ab27e809e8a6942c394fb151d139b5f7b4ecb1bd': {
     type: EVENTS.METADATA_CREATED,
