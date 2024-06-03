@@ -17,8 +17,8 @@ import { getProviderWallet } from './feesHandler.js'
 // import factory from '@rdfjs/data-model'
 // import fromFile from 'rdf-utils-fs/fromFile.js'
 // const { fromStream } = pkg
-import pkg from 'jsonld'
-const { expand, flatten, toRDF, fromRDF } = pkg
+import pkg, { ContextDefinition } from 'jsonld'
+const { expand, flatten, toRDF, fromRDF, compact } = pkg
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
@@ -133,7 +133,15 @@ export async function validateObject(
     const quads = parser.parse(contents)
     const formatQuads = await fromRDF(quads)
     const flattenQuads = await flatten(formatQuads)
-    CORE_LOGGER.logMessage(`Schema flattenQuads: ${JSON.stringify(flattenQuads)}`)
+    const context: ContextDefinition = {
+      '@context': 'http://schema.org/',
+      '@type': ddoCopy['@type'],
+      conformsTo: 'http://www.w3.org/ns/shacl#',
+      property: { '@id': 'sh:property' },
+      targetClass: { '@id': 'sh:targetClass' }
+    }
+    const compacted = await compact(flattenQuads, context)
+    CORE_LOGGER.logMessage(`Schema compacted: ${JSON.stringify(compacted)}`)
     const expanded = await expand(ddoCopy)
     const flattened = await flatten(expanded)
     const nquads = await toRDF(flattened, { format: 'application/n-quads' })
