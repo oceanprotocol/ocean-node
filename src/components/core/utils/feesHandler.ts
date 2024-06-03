@@ -71,7 +71,7 @@ export async function createProviderFee(
     providerFeeToken = computeEnv.feeToken
   } else {
     // it's download, take it from config
-    providerFeeToken = await getProviderFeeToken(asset.chainId)
+    providerFeeToken = await getProviderFeeToken(Number(asset.chainId))
   }
   if (providerFeeToken === ZeroAddress) {
     providerFeeAmount = 0
