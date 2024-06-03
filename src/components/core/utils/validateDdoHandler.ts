@@ -137,8 +137,17 @@ export async function validateObject(
       '@context': 'http://schema.org/',
       '@type': ddoCopy['@type'],
       conformsTo: 'http://www.w3.org/ns/shacl#',
-      property: { '@id': 'sh:property' },
-      targetClass: { '@id': 'sh:targetClass' }
+      property: {
+        '@id': 'sh:property',
+        '@context': {
+          datatype: { '@id': 'sh:datatype' },
+          minCount: { '@id': 'sh:minCount' },
+          maxCount: { '@id': 'sh:maxCount' },
+          pattern: { '@id': 'sh:pattern' },
+          name: { '@id': 'schema:name' },
+          label: { '@id': 'schema:label' }
+        }
+      }
     }
     const compacted = await compact(flattenQuads, context)
     CORE_LOGGER.logMessage(`Schema compacted: ${JSON.stringify(compacted)}`)
