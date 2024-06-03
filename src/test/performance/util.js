@@ -97,16 +97,12 @@ export async function stepRootEndpoint() {
         await targetEndpoint(endpointName, apiData[0], apiData[1])
         sleep(1)
       }
-      return true
     } else {
       console.log('Check if your node is running before calling this script')
     }
-
-    console.log('All endpoints available: ', allEndPoints)
   } catch (error) {
-    console.error(error)
+    console.error('Endpoint error:', error)
   }
-  return false
 }
 
 // targets a specific 'directCommand'
@@ -120,8 +116,10 @@ export async function targetDirectCommand(command) {
     if ([PROTOCOL_COMMANDS.FIND_DDO, PROTOCOL_COMMANDS.GET_DDO].includes(command)) {
       payload.id = 'did:op:ACce67694eD2848dd683c651Dab7Af823b7dd123'
       // some data for this one as well
-    } else if (command === PROTOCOL_COMMANDS.ENCRYPT_FILE) {
-      payload.rawData = Buffer.from('did:op:ACce67694eD2848dd683c651Dab7Af823b7dd123')
+    } else if (command === PROTOCOL_COMMANDS.ENCRYPT) {
+      payload.rawData = new Uint8Array([
+        104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100
+      ])
     }
     group(
       `Calling 

@@ -1,4 +1,4 @@
-import { sleep, group } from 'k6'
+import { sleep } from 'k6'
 import { stepRootEndpoint, stepDirectCommands, TARGET_URL } from './util.js'
 // -----------------------------------------------------------------
 // LIST OF TESTS TO EXECUTE
