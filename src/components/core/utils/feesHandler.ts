@@ -493,8 +493,11 @@ export async function getProviderFeeToken(chainId: number): Promise<string> {
   const result = (await getConfiguration()).feeStrategy.feeTokens.filter(
     (token: FeeTokens) => Number(token.chain) === chainId
   )
+  console.log('result = ', result)
   if (result.length === 0 && chainId === 8996) {
     const localOceanToken = getOceanArtifactsAdresses().development.Ocean
+    console.log(' localOceanToken = ', localOceanToken)
+    console.log(' ethers.ZeroAddress = ', ethers.ZeroAddress)
     return localOceanToken || ethers.ZeroAddress
   }
   return result.length ? result[0].token : ethers.ZeroAddress
