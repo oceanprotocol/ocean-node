@@ -215,6 +215,31 @@ jobs:
           bash -x start_ocean.sh --no-dashboard --with-c2d 2>&1 > start_ocean.log &
       - run: npm ci
       - run: npm run build
+      - run: docker image ls
+      - name: Delete default runner images
+        run: |
+          docker image rm node:20
+          docker image rm node:20-alpine
+          docker image rm node:18
+          docker image rm node:18-alpine
+          docker image rm node:16
+          docker image rm node:16-alpine
+          docker image rm debian:10
+          docker image rm debian:11
+          docker image rm ubuntu:22.04
+          docker image rm ubuntu:20.04
+          docker image rm moby/buildkit:latest
+          rm -rf /usr/share/swift/
+      - name: Wait for contracts deployment and C2D cluster to be ready
+        working-directory: ${{ github.workspace }}/barge
+        run: |
+          for i in $(seq 1 250); do
+            sleep 10
+            [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" -a -f "$HOME/.ocean/ocean-c2d/ready" ] && break
+            done
+      - name: docker logs
+        run: docker logs ocean_ocean-contracts_1 && docker logs ocean_kindcluster_1 && docker logs ocean_computetodata_1 && docker logs ocean_typesense_1
+        if: ${{ failure() }}
       - name: Set up Ocean CLI
         run: |
           npm run setup-ocean-cli
