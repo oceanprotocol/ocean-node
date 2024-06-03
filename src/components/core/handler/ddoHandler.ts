@@ -159,6 +159,17 @@ export class DecryptDdoHandler extends Handler {
         supportedNetwork.chainId,
         supportedNetwork.fallbackRPCs
       )
+      const { ready, error } = await blockchain.isNetworkReady()
+      if (!ready) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: `Decrypt DDO: ${error}`
+          }
+        }
+      }
+
       const provider = blockchain.getProvider()
       const signer = blockchain.getSigner()
       // note: "getOceanArtifactsAdresses()"" is broken for at least optimism sepolia
