@@ -140,12 +140,12 @@ export async function validateObject(
       property: {
         '@id': 'sh:property',
         '@context': {
+          path: { '@id': 'sh:path' },
           datatype: { '@id': 'sh:datatype' },
           minCount: { '@id': 'sh:minCount' },
           maxCount: { '@id': 'sh:maxCount' },
           pattern: { '@id': 'sh:pattern' },
-          name: { '@id': 'schema:name' },
-          label: { '@id': 'schema:label' }
+          maxLength: { '@id': 'sh:maxLength' }
         }
       }
     }
