@@ -188,6 +188,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.P2P_ANNOUNCE_ADDRESSES,
     required: false
   },
+  P2P_FILTER_ANNOUNCED_ADDRESSES: {
+    name: 'P2P_FILTER_ANNOUNCED_ADDRESSES',
+    value: process.env.P2P_FILTER_ANNOUNCED_ADDRESSES,
+    required: false
+  },
   // node specific
   NODE_ENV: { name: 'NODE_ENV', value: process.env.NODE_ENV, required: false },
   AUTHORIZED_DECRYPTERS: {
