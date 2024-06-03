@@ -22,11 +22,39 @@ export const TARGET_URL = __ENV.TARGET_URL
   : `http://127.0.0.1:${HTTP_PORT}`
 
 const allEndPoints = new Set()
+
+const PROTOCOL_COMMANDS = {
+  DOWNLOAD: 'download',
+  DOWNLOAD_URL: 'downloadURL', // we still use this
+  ECHO: 'echo',
+  ENCRYPT: 'encrypt',
+  ENCRYPT_FILE: 'encryptFile',
+  DECRYPT_DDO: 'decryptDDO',
+  GET_DDO: 'getDDO',
+  QUERY: 'query',
+  NONCE: 'nonce',
+  STATUS: 'status',
+  DETAILED_STATUS: 'detailedStatus',
+  FIND_DDO: 'findDDO',
+  GET_FEES: 'getFees',
+  FILE_INFO: 'fileInfo',
+  VALIDATE_DDO: 'validateDDO',
+  COMPUTE_GET_ENVIRONMENTS: 'getComputeEnvironments',
+  COMPUTE_START: 'startCompute',
+  COMPUTE_STOP: 'stopCompute',
+  COMPUTE_GET_STATUS: 'getComputeStatus',
+  COMPUTE_GET_RESULT: 'getComputeResult',
+  COMPUTE_INITIALIZE: 'initializeCompute',
+  STOP_NODE: 'stopNode',
+  REINDEX_TX: 'reindexTx',
+  REINDEX_CHAIN: 'reindexChain',
+  HANDLE_INDEXING_THREAD: 'handleIndexingThread'
+}
 export function buildPayloadForRequest(api) {
   // TODO: proper request for each API endpoint
 }
 
-export async function targetEndpoint(method, path) {
+export async function targetEndpoint(api, method, path) {
   return new Promise((resolve) => {
     // strip away path params
     if (path.indexOf(':') >= -1) {
@@ -37,7 +65,7 @@ export async function targetEndpoint(method, path) {
       path = path + '/'
     }
     const url = `${TARGET_URL}${path}`
-    group(`Calling API ${path}`, () => {
+    group(`Calling API ${api}`, () => {
       http.asyncRequest(method.toUpperCase(), url).then((response) => {
         check(response, {
           'status code should be 200/400/403/404/500': (res) =>
@@ -66,7 +94,7 @@ export async function stepRootEndpoint() {
         allEndPoints.add(endpointName)
         const apiData = data.serviceEndpoints[endpointName]
         console.log('Targeting endpoint: ', endpointName, 'Method/path:', apiData)
-        await targetEndpoint(apiData[0], apiData[1])
+        await targetEndpoint(endpointName, apiData[0], apiData[1])
         sleep(1)
       }
       return true
@@ -79,4 +107,56 @@ export async function stepRootEndpoint() {
     console.error(error)
   }
   return false
+}
+
+// targets a specific 'directCommand'
+export async function targetDirectCommand(command) {
+  return new Promise((resolve) => {
+    const url = `${TARGET_URL}/directCommand`
+    const payload = {
+      command: command
+    }
+    // supply a random did for these
+    if ([PROTOCOL_COMMANDS.FIND_DDO, PROTOCOL_COMMANDS.GET_DDO].includes(command)) {
+      payload.id = 'did:op:ACce67694eD2848dd683c651Dab7Af823b7dd123'
+      // some data for this one as well
+    } else if (command === PROTOCOL_COMMANDS.ENCRYPT_FILE) {
+      payload.rawData = Buffer.from('did:op:ACce67694eD2848dd683c651Dab7Af823b7dd123')
+    }
+    group(
+      `Calling 
+    "/directCommand": "${command}"`,
+      () => {
+        http
+          .asyncRequest('POST', url, JSON.stringify(payload), {
+            headers: { 'Content-Type': 'application/json' }
+          })
+          .then((response) => {
+            check(response, {
+              'status code should be 200/400/403/404/500': (res) =>
+                [200, 400, 403, 404, 500].includes(res.status)
+            })
+
+            if (response.status === 200) {
+              console.log(
+                `Response body from API /directCommand => command: "${command}"`
+              )
+              console.log(response.body)
+            }
+            resolve()
+          })
+      }
+    )
+  })
+}
+
+export async function stepDirectCommands() {
+  // TODO
+  const allCommands = Object.keys(PROTOCOL_COMMANDS)
+  for (const commandKey of allCommands) {
+    const command = PROTOCOL_COMMANDS[commandKey]
+    console.log('Targeting directCommand: ' + command)
+    await targetDirectCommand(command)
+    sleep(1)
+  }
 }
