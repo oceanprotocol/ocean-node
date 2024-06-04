@@ -1,4 +1,5 @@
 import { ConsumerParameter } from './ConsumerParameter'
+import { Credentials } from './Credentials'
 
 export interface PublisherTrustedAlgorithm {
   /**
@@ -81,6 +82,12 @@ export interface Service {
   serviceEndpoint: string
 
   /**
+   * Describes the credentials needed to access a service
+   * @type {Credentials}
+   */
+  credentials?: Credentials
+
+  /**
    * Describing how long the service can be used after consumption is initiated.
    * @type {number}
    */
@@ -97,6 +104,14 @@ export interface Service {
    * @type {string}
    */
   description?: string
+
+  /**
+   * Service lifecycle state.
+   * Values have the same meaning as on nft level https://docs.oceanprotocol.com/developers/ddo-specification#state
+   * undefined state is considered active
+   * @type {number}
+   */
+  state?: number
 
   /**
    * If service is of type compute, holds information about the compute-related privacy settings & resources.

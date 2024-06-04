@@ -2,6 +2,7 @@ import { Service } from './Service'
 import { Metadata } from './Metadata'
 import { Credentials } from './Credentials'
 import { Event } from './Event'
+import { Nft } from './Nft'
 
 /**
  * DID Descriptor Object.
@@ -58,6 +59,12 @@ export interface DDO {
    * @type {Credentials}
    */
   credentials?: Credentials
+
+  /**
+   * Contains information about the ERC721 NFT contract which represents the intellectual property of the publisher.
+   * @type {Nft}
+   */
+  nft?: Nft
 
   /**
    * Describes the event of last metadata event
