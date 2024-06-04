@@ -78,26 +78,26 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, r
 computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(
-      `ComputeStartCommand request received with query: ${JSON.stringify(req.query)}`,
+      `ComputeStartCommand request received with body: ${JSON.stringify(req.body)}`,
       true
     )
 
     const startComputeTask: ComputeStartCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_START,
-      node: (req.query.node as string) || null,
-      consumerAddress: (req.query.consumerAddress as string) || null,
-      signature: (req.query.signature as string) || null,
-      nonce: (req.query.nonce as string) || null,
-      environment: (req.query.environment as string) || null,
-      algorithm: (req.query.algorithm as ComputeAlgorithm) || null,
-      dataset: (req.query.dataset as unknown as ComputeAsset) || null
+      node: (req.body.node as string) || null,
+      consumerAddress: (req.body.consumerAddress as string) || null,
+      signature: (req.body.signature as string) || null,
+      nonce: (req.body.nonce as string) || null,
+      environment: (req.body.environment as string) || null,
+      algorithm: (req.body.algorithm as ComputeAlgorithm) || null,
+      dataset: (req.body.dataset as unknown as ComputeAsset) || null
     }
-    if (req.query.additionalDatasets) {
-      startComputeTask.additionalDatasets = req.query
+    if (req.body.additionalDatasets) {
+      startComputeTask.additionalDatasets = req.body
         .additionalDatasets as unknown as ComputeAsset[]
     }
-    if (req.query.output) {
-      startComputeTask.output = req.query.output as ComputeOutput
+    if (req.body.output) {
+      startComputeTask.output = req.body.output as ComputeOutput
     }
 
     const response = await new ComputeStartHandler(req.oceanNode).handle(startComputeTask) // get compute environments
@@ -112,17 +112,17 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
 computeRoutes.put(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(
-      `ComputeStopCommand request received with query: ${JSON.stringify(req.query)}`,
+      `ComputeStopCommand request received with body: ${JSON.stringify(req.body)}`,
       true
     )
 
     const stopComputeTask: ComputeStopCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_STOP,
-      node: (req.query.node as string) || null,
-      consumerAddress: (req.query.consumerAddress as string) || null,
-      signature: (req.query.signature as string) || null,
-      nonce: (req.query.nonce as string) || null,
-      jobId: (req.query.jobId as string) || null
+      node: (req.body.node as string) || null,
+      consumerAddress: (req.body.consumerAddress as string) || null,
+      signature: (req.body.signature as string) || null,
+      nonce: (req.body.nonce as string) || null,
+      jobId: (req.body.jobId as string) || null
     }
     const response = await new ComputeStopHandler(req.oceanNode).handle(stopComputeTask)
     const jobs = await streamToObject(response.stream as Readable)
