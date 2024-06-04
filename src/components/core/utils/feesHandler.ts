@@ -491,9 +491,9 @@ export async function getProviderKey(): Promise<string> {
  */
 export async function getProviderFeeToken(chainId: number): Promise<string> {
   const result = (await getConfiguration()).feeStrategy.feeTokens.filter(
-    (token: FeeTokens) => Number(token.chain) === chainId
+    (token: FeeTokens) => Number(token.chain) === Number(chainId)
   )
-  if (result.length === 0 && chainId === 8996) {
+  if (result.length === 0 && Number(chainId) === 8996) {
     const localOceanToken = getOceanArtifactsAdresses().development.Ocean
     return localOceanToken || ethers.ZeroAddress
   }

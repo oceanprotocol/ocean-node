@@ -190,6 +190,14 @@ export class ComputeStartHandler extends Handler {
               chainId: ddo.chainId,
               validUntil: validFee.validUntil
             }
+          } else {
+            return {
+              stream: null,
+              status: {
+                httpStatus: 400,
+                error: `Invalid compute validation: ${validFee.message}`
+              }
+            }
           }
         }
       }
