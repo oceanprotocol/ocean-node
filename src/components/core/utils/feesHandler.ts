@@ -7,7 +7,12 @@ import {
   parseUnits,
   ZeroAddress
 } from 'ethers'
-import { FeeTokens, ProviderFeeData, ProviderFeeValidation } from '../../../@types/Fees'
+import {
+  FeeTokens,
+  ProviderFeeData,
+  ProviderFeeValidation,
+  ProviderFees
+} from '../../../@types/Fees'
 import { DDO } from '../../../@types/DDO/DDO'
 import { Service } from '../../../@types/DDO/Service'
 import {
@@ -50,7 +55,7 @@ export async function createProviderFee(
   validUntil: number,
   computeEnv: ComputeEnvironment,
   computeValidUntil: number
-): Promise<ProviderFeeData> | undefined {
+): Promise<ProviderFees> | undefined {
   // round for safety
   validUntil = Math.round(validUntil)
   computeValidUntil = Math.round(computeValidUntil)

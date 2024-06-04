@@ -7,6 +7,21 @@ export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+/**
+ * The function checks if the input string starts with 0x, which indicates that it is a hexadecimal string.
+ * If it is, the function removes the 0x prefix and returns the remaining string.
+ * Otherwise, the function returns the input string as is.
+ * @param serviceFiles string
+ * @returns sanitized string
+ */
+export function sanitizeServiceFiles(serviceFiles: string): string {
+  if (typeof serviceFiles === 'string' && serviceFiles.startsWith('0x')) {
+    return serviceFiles.substring(2)
+  } else {
+    return serviceFiles
+  }
+}
+
 export async function streamToObject(stream: Readable): Promise<any> {
   const jsonString = await streamToString(stream)
   try {

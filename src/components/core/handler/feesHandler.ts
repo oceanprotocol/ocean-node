@@ -12,6 +12,9 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { FindDdoHandler, validateDDOIdentifier } from './ddoHandler.js'
 import { isAddress } from 'ethers'
+import { ProviderInitialize } from '../../../@types/Fees.js'
+import { getNonce } from '../utils/nonceHandler.js'
+import { streamToString } from '../../../utils/util.js'
 
 export class FeesHandler extends Handler {
   validate(command: GetFeesCommand): ValidateParams {
@@ -61,6 +64,10 @@ export class FeesHandler extends Handler {
       validUntil = task.validUntil
     }
 
+    const nonceDB = this.getOceanNode().getDatabase().nonce
+    const nonceHandlerResponse = await getNonce(nonceDB, task.consumerAddress)
+    const nonce = await streamToString(nonceHandlerResponse.stream as Readable)
+
     if (errorMsg) {
       PROVIDER_LOGGER.logMessageWithEmoji(
         errorMsg,
@@ -80,8 +87,14 @@ export class FeesHandler extends Handler {
     try {
       const providerFee = await createProviderFee(ddo, service, validUntil, null, null)
       if (providerFee) {
+        const response: ProviderInitialize = {
+          providerFee,
+          datatoken: service?.datatokenAddress,
+          nonce,
+          computeAddress: task?.consumerAddress
+        }
         return {
-          stream: Readable.from(JSON.stringify(providerFee, null, 4)),
+          stream: Readable.from(JSON.stringify(response, null, 4)),
           status: { httpStatus: 200 }
         }
       } else {

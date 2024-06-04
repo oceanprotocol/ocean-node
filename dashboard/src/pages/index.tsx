@@ -2,7 +2,6 @@ import Head from 'next/head'
 
 // import Table from '../components/Table'
 import NavBar from '../components/Navigation'
-import Search from '../components/Search'
 import Footer from '../components/Footer'
 import Dashboard from '../components/Dashboard'
 
@@ -19,7 +18,6 @@ export default function Home() {
         <NavBar />
       </header>
       <main>
-        <Search />
         <Dashboard />
         {/* <Table /> */}
       </main>

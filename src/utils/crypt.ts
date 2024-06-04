@@ -46,7 +46,9 @@ export async function decrypt(
     // use first 16 bytes of public key as an initialisation vector
     const initVector = publicKey.subarray(0, 16)
     // creates decipher object, with the given algorithm, key and initialization vector
+
     const decipher = crypto.createDecipheriv('aes-256-cbc', privateKey, initVector)
+
     // encoding is ignored because we are working with bytes and want to return a buffer
     decryptedData = Buffer.concat([decipher.update(data), decipher.final()])
   } else if (algorithm === EncryptMethod.ECIES) {
