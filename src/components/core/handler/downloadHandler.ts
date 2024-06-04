@@ -246,7 +246,8 @@ export class DownloadHandler extends Handler {
 
     if (!nonceCheckResult.valid) {
       CORE_LOGGER.logMessage(
-        `Invalid nonce or signature, unable to proceed with download: ${nonceCheckResult.error}`,
+        'Invalid nonce or signature, unable to proceed with download: ' +
+          nonceCheckResult.error,
         true
       )
       return {
@@ -297,12 +298,8 @@ export class DownloadHandler extends Handler {
         }
       }
     }
-    const network = config.supportedNetworks[ddo.chainId.toString()]
-    const blockchain = new Blockchain(rpc, network.network, ddo.chainId)
-    const signer = blockchain.getSigner()
-
     // check lifecycle state of the asset
-    const nftContract = getNFTContract(signer, ddo.nftAddress)
+    const nftContract = getNFTContract(blockchain.getSigner(), ddo.nftAddress)
     const nftState = Number(await nftContract.metaDataState())
     if (nftState !== 0 && nftState !== 5) {
       CORE_LOGGER.logMessage(
@@ -317,7 +314,6 @@ export class DownloadHandler extends Handler {
         }
       }
     }
-
     let service: Service = AssetUtils.getServiceById(ddo, task.serviceId)
     if (!service) service = AssetUtils.getServiceByIndex(ddo, Number(task.serviceId))
     if (!service) throw new Error('Cannot find service')
@@ -353,7 +349,6 @@ export class DownloadHandler extends Handler {
         }
       }
     }
-
     // 4. Check service type
     const serviceType = service.type
     if (serviceType === 'compute') {
