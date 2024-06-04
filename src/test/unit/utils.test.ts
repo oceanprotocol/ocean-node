@@ -1,5 +1,5 @@
 import { expect, assert } from 'chai'
-import { sleep, getEventFromTx } from '../../utils/util.js'
+import { sleep, getEventFromTx, sanitizeServiceFiles } from '../../utils/util.js'
 import { URLUtils } from '../../utils/url.js'
 import { validateConsumerParameters } from '../../utils/validators.js'
 import { ConsumerParameter } from '../../@types/DDO/ConsumerParameter.js'
@@ -27,6 +27,22 @@ describe('Utilities Functions', () => {
         )
       )
       assert.isFalse(URLUtils.isValidUrl('http://hello world!'))
+    })
+  })
+
+  describe('sanitizeServiceFiles function', () => {
+    it('should remove the 0x prefix from a hex string', () => {
+      const hexString = '0x1234567890abcdef'
+      const expectedResult = '1234567890abcdef'
+      const result = sanitizeServiceFiles(hexString)
+      expect(result).to.equal(expectedResult)
+    })
+
+    it('should return the same string if it does not start with 0x', () => {
+      const string = 'not a hex string'
+      const expectedResult = 'not a hex string'
+      const result = sanitizeServiceFiles(string)
+      expect(result).to.equal(expectedResult)
     })
   })
 

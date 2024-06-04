@@ -7,7 +7,7 @@ import { Storage } from '../storage/index.js'
 import { getConfiguration } from '../../utils/config.js'
 import { ComputeGetEnvironmentsHandler } from '../core/compute/index.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { streamToObject } from '../../utils/util.js'
+import { sanitizeServiceFiles, streamToObject } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { AlgoChecksums } from '../../@types/C2D.js'
@@ -28,7 +28,7 @@ export async function checkC2DEnvExists(
     )
     if (response.status.httpStatus === 200) {
       const computeEnvironments = await streamToObject(response.stream as Readable)
-      for (const computeEnvironment of computeEnvironments) {
+      for (const computeEnvironment of computeEnvironments[parseInt(supportedNetwork)]) {
         if (computeEnvironment.id === envId) {
           return true
         }
@@ -59,7 +59,7 @@ export async function getAlgoChecksums(
       throw new Error('Algorithm service not found')
     }
     const decryptedUrlBytes = await decrypt(
-      Uint8Array.from(Buffer.from(algorithmService.files, 'hex')),
+      Uint8Array.from(Buffer.from(sanitizeServiceFiles(algorithmService.files), 'hex')),
       EncryptMethod.ECIES
     )
     const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()

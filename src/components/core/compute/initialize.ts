@@ -2,12 +2,11 @@ import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
-import { DDO } from '../../../@types/DDO/DDO.js'
 import { ComputeInitializeCommand } from '../../../@types/commands.js'
 import { ProviderComputeInitializeResults } from '../../../@types/Fees.js'
 import { AssetUtils } from '../../../utils/asset.js'
 import { verifyProviderFees, createProviderFee } from '../utils/feesHandler.js'
-import { getJsonRpcProvider } from '../../../utils/blockchain.js'
+import { Blockchain } from '../../../utils/blockchain.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
 import { getExactComputeEnv } from './utils.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
@@ -18,6 +17,9 @@ import {
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { isAddress } from 'ethers'
+import { getConfiguration } from '../../../utils/index.js'
+import { sanitizeServiceFiles } from '../../../utils/util.js'
+import { FindDdoHandler } from '../handler/ddoHandler.js'
 export class ComputeInitializeHandler extends Handler {
   validate(command: ComputeInitializeCommand): ValidateParams {
     const validation = validateCommandParameters(command, [
@@ -68,7 +70,7 @@ export class ComputeInitializeHandler extends Handler {
         if ('documentId' in elem && elem.documentId) {
           result.did = elem.documentId
           result.serviceId = elem.documentId
-          const ddo = (await node.getDatabase().ddo.retrieve(elem.documentId)) as DDO
+          const ddo = await new FindDdoHandler(node).findAndFormatDdo(elem.documentId)
           if (!ddo) {
             const error = `DDO ${elem.documentId} not found`
             return {
@@ -94,12 +96,13 @@ export class ComputeInitializeHandler extends Handler {
           let canDecrypt = false
           try {
             await decrypt(
-              Uint8Array.from(Buffer.from(service.files, 'hex')),
+              Uint8Array.from(Buffer.from(sanitizeServiceFiles(service.files), 'hex')),
               EncryptMethod.ECIES
             )
             canDecrypt = true
           } catch (e) {
             // do nothing
+            CORE_LOGGER.error(`could not decrypt ddo files:  ${e.message} `)
           }
           if (service.type === 'compute' && !canDecrypt) {
             const error = `Service ${elem.serviceId} from DDO ${elem.documentId} cannot be used in compute on this provider`
@@ -111,7 +114,21 @@ export class ComputeInitializeHandler extends Handler {
               }
             }
           }
-          const provider = await getJsonRpcProvider(ddo.chainId)
+          const config = await getConfiguration()
+          const { rpc, network, chainId, fallbackRPCs } =
+            config.supportedNetworks[ddo.chainId]
+          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+          const { ready, error } = await blockchain.isNetworkReady()
+          if (!ready) {
+            return {
+              stream: null,
+              status: {
+                httpStatus: 400,
+                error: `Initialize Compute: ${error}`
+              }
+            }
+          }
+          const provider = blockchain.getProvider()
           result.datatoken = service.datatokenAddress
           result.chainId = ddo.chainId
           // start with assumption than we need new providerfees
@@ -141,7 +158,8 @@ export class ComputeInitializeHandler extends Handler {
               ddo.nftAddress,
               service.datatokenAddress,
               AssetUtils.getServiceIndexById(ddo, service.id),
-              service.timeout
+              service.timeout,
+              blockchain.getSigner()
             )
             if (paymentValidation.isValid === true) {
               // order is valid, so let's check providerFees

@@ -171,6 +171,8 @@ export async function orderAsset(
   const consumeMarketFeeAmount = 0
   const consumeMarketFeeToken = ZeroAddress
   const service = AssetUtils.getServiceByIndex(genericAsset, serviceIndex)
+  console.log('start an order', service)
+
   let orderTxReceipt = null
   const dataTokenContract = new Contract(
     service.datatokenAddress,
@@ -188,7 +190,8 @@ export async function orderAsset(
       node: oceanNodeConfig.keys.peerId.toString()
     }
     const response = await new FeesHandler(oceanNode).handle(statusCommand)
-    providerFees = await streamToObject(response.stream as Readable)
+    const fees = await streamToObject(response.stream as Readable)
+    providerFees = fees.providerFee
   }
   // call the mint function on the dataTokenContract
   const mintTx = await dataTokenContract.mint(
@@ -273,7 +276,8 @@ export async function reOrderAsset(
       node: oceanNodeConfig.keys.peerId.toString()
     }
     const response = await new FeesHandler(oceanNode).handle(statusCommand)
-    providerFees = await streamToObject(response.stream as Readable)
+    const fees = await streamToObject(response.stream as Readable)
+    providerFees = fees.providerFee
   }
   // call the mint function on the dataTokenContract
   const mintTx = await dataTokenContract.mint(

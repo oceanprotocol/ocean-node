@@ -9,6 +9,7 @@ import {
   EnvVariable,
   hexStringToByteArray
 } from '../utils/index.js'
+import { defaultBootstrapAddresses } from '../utils/constants.js'
 import type { PeerId } from '@libp2p/interface/peer-id'
 
 import { LOG_LEVELS_STR, GENERIC_EMOJIS, getLoggerLevelEmoji } from './logging/Logger.js'
@@ -58,6 +59,20 @@ function getIntEnvValue(env: any, defaultValue: number) {
   return isNaN(num) ? defaultValue : num
 }
 
+function getBoolEnvValue(envName: string, defaultValue: boolean): boolean {
+  if (!(envName in process.env)) {
+    return defaultValue
+  }
+  if (
+    process.env[envName] === 'true' ||
+    process.env[envName] === '1' ||
+    process.env[envName].toLowerCase() === 'yes'
+  ) {
+    return true
+  }
+  return false
+}
+
 function getSupportedChains(): RPCS | null {
   const logError = function (): null {
     // missing or invalid RPC list
@@ -101,12 +116,16 @@ export function getAllowedAdmins(isStartup?: boolean): string[] {
   return readAddressListFromEnvVariable(ENVIRONMENT_VARIABLES.ALLOWED_ADMINS, isStartup)
 }
 
-// whenever we want to read an array of addresses from an env variable, use this common function
-function readAddressListFromEnvVariable(envVariable: any, isStartup?: boolean): string[] {
+// whenever we want to read an array of strings from an env variable, use this common function
+function readListFromEnvVariable(
+  envVariable: any,
+  isStartup?: boolean,
+  defaultValue: string[] = []
+): string[] {
   const { name } = envVariable
   try {
     if (!existsEnvironmentVariable(envVariable, isStartup)) {
-      return []
+      return defaultValue
     }
     const addressesRaw: string[] = JSON.parse(process.env[name])
     if (!Array.isArray(addressesRaw)) {
@@ -116,9 +135,9 @@ function readAddressListFromEnvVariable(envVariable: any, isStartup?: boolean): 
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
-      return []
+      return defaultValue
     }
-    return addressesRaw.map((address) => getAddress(address))
+    return addressesRaw
   } catch (error) {
     CONFIG_LOGGER.logMessageWithEmoji(
       `Missing or Invalid address(es) in ${name} env variable`,
@@ -126,10 +145,15 @@ function readAddressListFromEnvVariable(envVariable: any, isStartup?: boolean): 
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
     )
-    return []
+    return defaultValue
   }
 }
 
+// whenever we want to read an array of addresses from an env variable, use this common function
+function readAddressListFromEnvVariable(envVariable: any, isStartup?: boolean): string[] {
+  const addressesRaw: string[] = readListFromEnvVariable(envVariable, isStartup)
+  return addressesRaw.map((address) => getAddress(address))
+}
 /**
  * get default values for provider fee tokens
  * @param supportedNetworks chains that we support
@@ -421,27 +445,23 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     hasHttp: interfaces.includes('HTTP'),
     hasP2P: interfaces.includes('P2P'),
     p2pConfig: {
-      bootstrapNodes: [
-        '/ip4/104.131.131.82/tcp/4001/ipfs/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ',
-        '/dnsaddr/bootstrap.libp2p.io/ipfs/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN',
-        '/dnsaddr/bootstrap.libp2p.io/ipfs/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa',
-        // '/ip4/127.0.0.12/tcp/49100/p2p/12D3KooWLktGvbzuDK7gv1kS4pq6DNWxmxEREKVtBEhVFQmDNni7'
-        '/ip4/35.198.125.13/tcp/8000/p2p/16Uiu2HAmKZuuY2Lx3JiY938rJWZrYQh6kjBZCNrh3ALkodtwFRdF', // paulo
-        '/ip4/34.159.64.236/tcp/8000/p2p/16Uiu2HAmAy1GcZGhzFT3cbARTmodg9c3M4EAmtBZyDgu5cSL1NPr', // jaime
-        '/ip4/34.107.3.14/tcp/8000/p2p/16Uiu2HAm4DWmX56ZX2bKjvARJQZPMUZ9xsdtAfrMmd7P8czcN4UT', // maria
-        // LOCAL
-        // TODO check: we might need to have an option to use local node as a bootstrap one
-        // '/ip4/127.0.0.1/tcp/8000/p2p/16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo',
-        '/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb',
-        '/dnsaddr/bootstrap.libp2p.io/p2p/QmZa1sAxajnQjVM8WjWXoMbmPd7NsWhfKsPkErzpm9wGkp',
-        '/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt'
-      ],
+      bootstrapNodes: readListFromEnvVariable(
+        ENVIRONMENT_VARIABLES.P2P_BOOTSTRAP_NODES,
+        isStartup,
+        defaultBootstrapAddresses
+      ),
+      enableIPV4: getBoolEnvValue('P2P_ENABLE_IPV4', true),
+      enableIPV6: getBoolEnvValue('P2P_ENABLE_IPV6', true),
       ipV4BindAddress: getEnvValue(process.env.P2P_ipV4BindAddress, '0.0.0.0'),
       ipV4BindTcpPort: getIntEnvValue(process.env.P2P_ipV4BindTcpPort, 0),
       ipV4BindWsPort: getIntEnvValue(process.env.P2P_ipV4BindWsPort, 0),
       ipV6BindAddress: getEnvValue(process.env.P2P_ipV6BindAddress, '::1'),
       ipV6BindTcpPort: getIntEnvValue(process.env.P2P_ipV6BindTcpPort, 0),
       ipV6BindWsPort: getIntEnvValue(process.env.P2P_ipV6BindWsPort, 0),
+      announceAddresses: readListFromEnvVariable(
+        ENVIRONMENT_VARIABLES.P2P_ANNOUNCE_ADDRESSES,
+        isStartup
+      ),
       pubsubPeerDiscoveryInterval: getIntEnvValue(
         process.env.P2P_pubsubPeerDiscoveryInterval,
         1000
@@ -453,7 +473,19 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
         process.env.P2P_connectionsMaxParallelDials,
         150
       ),
-      connectionsDialTimeout: getIntEnvValue(process.env.P2P_connectionsDialTimeout, 10e3) // 10 seconds
+      connectionsDialTimeout: getIntEnvValue(
+        process.env.P2P_connectionsDialTimeout,
+        30e3
+      ), // 10 seconds,
+      upnp: getBoolEnvValue('P2P_ENABLE_UPNP', true),
+      autoNat: getBoolEnvValue('P2P_ENABLE_AUTONAT', true),
+      enableCircuitRelayServer: getBoolEnvValue('P2P_ENABLE_CIRCUIT_RELAY_SERVER', false),
+      enableCircuitRelayClient: getBoolEnvValue('P2P_ENABLE_CIRCUIT_RELAY_CLIENT', false),
+      announcePrivateIp: getBoolEnvValue('P2P_ANNOUNCE_PRIVATE', false),
+      filterAnnouncedAddresses: readListFromEnvVariable(
+        ENVIRONMENT_VARIABLES.P2P_FILTER_ANNOUNCED_ADDRESSES,
+        isStartup
+      )
     },
     // Only enable provider if we have a DB_URL
     hasProvider: !!getEnvValue(process.env.DB_URL, ''),
