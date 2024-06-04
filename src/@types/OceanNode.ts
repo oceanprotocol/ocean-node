@@ -39,6 +39,7 @@ export interface OceanNodeP2PConfig {
   connectionsMaxParallelDials: number
   connectionsDialTimeout: number
   announceAddresses: string[]
+  filterAnnouncedAddresses: string[]
   autoNat: boolean
   upnp: boolean
   enableCircuitRelayServer: boolean

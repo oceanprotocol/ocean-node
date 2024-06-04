@@ -10,6 +10,7 @@ import { fileInfoRoute } from './fileInfo.js'
 import { computeRoutes } from './compute.js'
 import { queueRoutes } from './queue.js'
 import { getConfiguration } from '../../utils/config.js'
+import { jobsRoutes } from './jobs.js'
 
 export * from './getOceanPeers.js'
 
@@ -58,3 +59,5 @@ httpRoutes.use(rootEndpointRoutes)
 httpRoutes.use(computeRoutes)
 // queue routes
 httpRoutes.use(queueRoutes)
+// running jobs
+httpRoutes.use(jobsRoutes)
