@@ -16,6 +16,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "@context/*": ["./src/context/*"],
+      "@Types/*": ["./src/shared/types/*"],
       "@utils/*": ["./src/shared/utils/*"]
     }
   },
