@@ -201,3 +201,20 @@ function getStressTestOptions() {
   }
   return options
 }
+
+// we get the rate limit from the server configuration
+export function getRequestRateOptions(rateLimit) {
+  const options = {
+    scenarios: {
+      rated_scenarion: {
+        executor: 'constant-arrival-rate',
+        duration: '30s', // total duration
+        preAllocatedVUs: 50, // to allocate runtime resources     preAll
+
+        rate: rateLimit, // number of constant iterations given `timeUnit`
+        timeUnit: '1s'
+      }
+    }
+  }
+  return options
+}
