@@ -49,6 +49,16 @@ const PROTOCOL_COMMANDS = {
   HANDLE_INDEXING_THREAD: 'handleIndexingThread'
 }
 
+const ENCRIPTION_ENCODING_TYPES = {
+  STRING: 'string',
+  BASE58: 'base58'
+}
+
+const SUPPORTED_ENCRYPTION_METHODS = {
+  AES: 'AES',
+  ECIES: 'ECIES'
+}
+
 export const OPTIONS_TEST_TYPE = {
   SMOKE: 'smoke',
   LOAD: 'load',
@@ -104,6 +114,10 @@ export async function stepRootEndpoint() {
   }
 }
 
+function getRandomInt(max) {
+  return Math.floor(Math.random() * max)
+}
+
 // targets a specific 'directCommand'
 export async function targetDirectCommand(command) {
   return new Promise((resolve) => {
@@ -115,10 +129,21 @@ export async function targetDirectCommand(command) {
     if ([PROTOCOL_COMMANDS.FIND_DDO, PROTOCOL_COMMANDS.GET_DDO].includes(command)) {
       payload.id = 'did:op:ACce67694eD2848dd683c651Dab7Af823b7dd123'
       // some data for this one as well
-    } else if (command === PROTOCOL_COMMANDS.ENCRYPT) {
+    } else if (command === PROTOCOL_COMMANDS.ENCRYPT_FILE) {
       payload.rawData = new Uint8Array([
         104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100
       ])
+    } else if (command === PROTOCOL_COMMANDS.ENCRYPT) {
+      payload.blob = new Uint8Array([0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x43, 0x2f])
+      // add some randomized fields to the payload
+      payload.encoding =
+        getRandomInt(2) === 0
+          ? ENCRIPTION_ENCODING_TYPES.STRING
+          : ENCRIPTION_ENCODING_TYPES.BASE58
+      payload.encoding =
+        getRandomInt(2) === 0
+          ? SUPPORTED_ENCRYPTION_METHODS.AES
+          : SUPPORTED_ENCRYPTION_METHODS.ECIES
     }
     group(
       `Calling 
@@ -138,7 +163,7 @@ export async function targetDirectCommand(command) {
               console.log(
                 `Response body from API /directCommand => command: "${command}"`
               )
-              console.log(response.body)
+              console.log(`\n RESPONSE BODY: \n ${response.body} \n`)
             }
             resolve()
           })
