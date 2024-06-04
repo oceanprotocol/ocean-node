@@ -1,6 +1,6 @@
 import React from 'react'
 import { ExpanderComponentProps } from 'react-data-table-component'
-import { DataRowType } from '../../shared/types/RowDataType'
+import { DataRowType } from '@Types/RowDataType'
 import styles from './index.module.css'
 
 const NodeDetails: React.FC<ExpanderComponentProps<DataRowType>> = ({ data }) => {
