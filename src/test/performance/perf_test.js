@@ -32,7 +32,8 @@ let DEFAULT_RATE_LIMIT = 2
 if (doRateLimit) {
   // if we have a RATE_LIMIT env var, use it
   // NOTE: this value needs to be the less or equal the value that we have configured on the node itself)
-  // otherwise it will hit the rate limitations middleware (and we want to go a bit further down the stack here)
+  // otherwise it will hit the rate limitations middleware
+  // (and we want to go a bit further down the stack here, by not triggering that)
   if (__ENV.RATE_LIMIT && !isNaN(__ENV.RATE_LIMIT)) {
     DEFAULT_RATE_LIMIT = Math.max(Number(__ENV.RATE_LIMIT, DEFAULT_RATE_LIMIT))
   }
@@ -113,8 +114,10 @@ export function teardown(data) {
 //
 export default function () {
   // 1st step
+  // Starts from the root endpoint, gets all the available routes and tries them
   stepRootEndpoint()
   sleep(1)
   // 2nd step
+  // Starts from the /directCommands endpoint, gets all available commands and tries them
   stepDirectCommands()
 }

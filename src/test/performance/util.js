@@ -1,5 +1,5 @@
 import * as http from 'k6/http'
-import { group, check, sleep } from 'k6'
+import { group, check } from 'k6'
 
 // -----------------------------------------------------------------
 // LIST OF TESTS TO EXECUTE
@@ -95,7 +95,6 @@ export async function stepRootEndpoint() {
         const apiData = data.serviceEndpoints[endpointName]
         console.log('Targeting endpoint: ', endpointName, 'Method/path:', apiData)
         await targetEndpoint(endpointName, apiData[0], apiData[1])
-        sleep(1)
       }
     } else {
       console.log('Check if your node is running before calling this script')
@@ -155,7 +154,6 @@ export async function stepDirectCommands() {
     const command = PROTOCOL_COMMANDS[commandKey]
     console.log('Targeting directCommand: ' + command)
     await targetDirectCommand(command)
-    sleep(1)
   }
 }
 
