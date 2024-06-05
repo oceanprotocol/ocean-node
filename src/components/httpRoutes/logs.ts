@@ -11,8 +11,6 @@ const validateRequest = (
 ) => {
   const { signature } = req.body
   let { expiryTimestamp } = req.body
-  console.log('signature:', signature)
-  console.log('expiryTimestamp:', expiryTimestamp)
 
   if (!signature) {
     return res.status(400).send('Missing signature')
