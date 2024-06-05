@@ -2,7 +2,6 @@
   "name": "op_ddo_short",
   "enable_nested_fields": true,
   "fields": [
-    { "name": "chainId", "type": "string" },
     {
       "name": ".*",
       "type": "auto",
