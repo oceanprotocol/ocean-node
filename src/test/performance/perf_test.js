@@ -1,4 +1,6 @@
 import { sleep } from 'k6'
+import * as http from 'k6/http'
+import exec from 'k6/execution'
 import {
   stepRootEndpoint,
   stepDirectCommands,
@@ -39,13 +41,13 @@ if (doRateLimit) {
   }
 }
 
-console.log('###################################################################')
-console.log(`Starting ${TEST_TYPE} tests against server: ${TARGET_URL}`)
-console.log('Check the web dashboard report here: http://127.0.0.1:5665/')
-console.log('Keep the browser window open')
-console.log('Keep under the RATE limits?: ', doRateLimit)
-console.log('RATE_LIMIT: ', DEFAULT_RATE_LIMIT)
-console.log('###################################################################')
+function checkIfTargetAvailable() {
+  const response = http.get(TARGET_URL)
+  if (response.status !== 200) {
+    return false
+  }
+  return true
+}
 
 export const options = doRateLimit
   ? getRequestRateOptions(DEFAULT_RATE_LIMIT)
@@ -99,7 +101,19 @@ export const options = doRateLimit
 // }
 // setup k6 code
 export function setup() {
-  console.log('setup tests here')
+  if (!checkIfTargetAvailable()) {
+    console.log('\n################### ABORTING TESTS ######################\n')
+    exec.test.abort('Check if your node is running before calling this script!')
+    return
+  }
+
+  console.log('###################################################################')
+  console.log(`Starting ${TEST_TYPE} tests against server: ${TARGET_URL}`)
+  console.log('Check the web dashboard report here: http://127.0.0.1:5665/')
+  console.log('Keep the browser window open')
+  console.log('Keep under the RATE limits?: ', doRateLimit)
+  console.log('RATE_LIMIT: ', DEFAULT_RATE_LIMIT)
+  console.log('###################################################################')
 }
 
 // teardown k6 code

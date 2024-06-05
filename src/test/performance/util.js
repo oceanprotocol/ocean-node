@@ -1,5 +1,6 @@
 import * as http from 'k6/http'
 import { group, check } from 'k6'
+import exec from 'k6/execution'
 
 // -----------------------------------------------------------------
 // LIST OF TESTS TO EXECUTE
@@ -83,7 +84,7 @@ export async function targetEndpoint(api, method, path) {
       path = path + '/'
     }
     const url = `${TARGET_URL}${path}`
-    group(`Calling API ${api}`, () => {
+    group(`API => "${api}"`, () => {
       http.asyncRequest(method.toUpperCase(), url).then((response) => {
         check(response, {
           'status code should be 200/400/403/404/500': (res) =>
@@ -114,7 +115,7 @@ export async function stepRootEndpoint() {
         await targetEndpoint(endpointName, apiData[0], apiData[1])
       }
     } else {
-      console.log('Check if your node is running before calling this script')
+      exec.test.abort('Check if your node is running before calling this script!')
     }
   } catch (error) {
     console.error('Endpoint error:', error)
@@ -126,6 +127,7 @@ function getRandomInt(max) {
 }
 
 // targets a specific 'directCommand'
+// for some we will provide some "good" payload data
 export async function targetDirectCommand(command) {
   return new Promise((resolve) => {
     const url = `${TARGET_URL}/directCommand`
@@ -151,31 +153,33 @@ export async function targetDirectCommand(command) {
         getRandomInt(2) === 0
           ? SUPPORTED_ENCRYPTION_METHODS.AES
           : SUPPORTED_ENCRYPTION_METHODS.ECIES
-    }
-    group(
-      `Calling 
-    "/directCommand": "${command}"`,
-      () => {
-        http
-          .asyncRequest('POST', url, JSON.stringify(payload), {
-            headers: { 'Content-Type': 'application/json' }
-          })
-          .then((response) => {
-            check(response, {
-              'status code should be 200/400/403/404/500': (res) =>
-                [200, 400, 403, 404, 500].includes(res.status)
-            })
-
-            if (response.status === 200) {
-              console.log(
-                `Response body from API /directCommand => command: "${command}"`
-              )
-              console.log(`\n RESPONSE BODY: \n ${response.body} \n`)
-            }
-            resolve()
-          })
+    } else if (command === PROTOCOL_COMMANDS.NONCE) {
+      // a valid address
+      payload.address = '0x6c957a45C801035d3297d43d0Ce83a237Ec5E0d1'
+    } else if (command === PROTOCOL_COMMANDS.QUERY) {
+      payload.query = {
+        q: SAMPLE_ASSETS[getRandomInt(3)],
+        query_by: 'did'
       }
-    )
+    }
+    group(`/directCommand => "${command}"`, () => {
+      http
+        .asyncRequest('POST', url, JSON.stringify(payload), {
+          headers: { 'Content-Type': 'application/json' }
+        })
+        .then((response) => {
+          check(response, {
+            'status code should be 200/400/403/404/500': (res) =>
+              [200, 400, 403, 404, 500].includes(res.status)
+          })
+
+          if (response.status === 200) {
+            console.log(`Response body from API /directCommand => command: "${command}"`)
+            console.log(`\n RESPONSE BODY: \n ${response.body} \n`)
+          }
+          resolve()
+        })
+    })
   })
 }
 
