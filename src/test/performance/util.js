@@ -49,6 +49,13 @@ const PROTOCOL_COMMANDS = {
   HANDLE_INDEXING_THREAD: 'handleIndexingThread'
 }
 
+//first 2 are on sepolia
+const SAMPLE_ASSETS = [
+  'did:op:cb86536ccd454b893e963a9ec17938847ee35e575ae5cd2c1daa6a1da1f887c3',
+  'did:op:a5d3eaed4311873de3a677d9e54346bd403f5e04c22feb3b9899041d8c4c19fc',
+  'did:op:ACce67694eD2848dd683c651Dab7Af823b7dd123' // non existing one
+]
+
 const ENCRIPTION_ENCODING_TYPES = {
   STRING: 'string',
   BASE58: 'base58'
@@ -127,7 +134,7 @@ export async function targetDirectCommand(command) {
     }
     // supply a random did for these
     if ([PROTOCOL_COMMANDS.FIND_DDO, PROTOCOL_COMMANDS.GET_DDO].includes(command)) {
-      payload.id = 'did:op:ACce67694eD2848dd683c651Dab7Af823b7dd123'
+      payload.id = SAMPLE_ASSETS[getRandomInt(3)]
       // some data for this one as well
     } else if (command === PROTOCOL_COMMANDS.ENCRYPT_FILE) {
       payload.rawData = new Uint8Array([
