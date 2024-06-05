@@ -8,7 +8,7 @@ import { DATABASE_LOGGER } from '../../../utils/logging/common.js'
 export function getDefaultErrorResponse(errorMessage: string): P2PCommandResponse {
   return {
     stream: null,
-    status: { httpStatus: 501, error: 'Unknown error: ' + errorMessage }
+    status: { httpStatus: 500, error: 'Unknown error: ' + errorMessage }
   }
 }
 

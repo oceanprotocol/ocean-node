@@ -87,7 +87,7 @@ export async function targetEndpoint(api, method, path) {
     group(`API => "${api}"`, () => {
       http.asyncRequest(method.toUpperCase(), url).then((response) => {
         check(response, {
-          'status code should be 200/400/403/404/500': (res) =>
+          'status code should be one of [200,400,403,404,500]': (res) =>
             [200, 400, 403, 404, 500].includes(res.status)
         })
 
