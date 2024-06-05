@@ -25,7 +25,8 @@ export const PROTOCOL_COMMANDS = {
   COMPUTE_INITIALIZE: 'initializeCompute',
   STOP_NODE: 'stopNode',
   REINDEX_TX: 'reindexTx',
-  REINDEX_CHAIN: 'reindexChain'
+  REINDEX_CHAIN: 'reindexChain',
+  HANDLE_INDEXING_THREAD: 'handleIndexingThread'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -51,7 +52,8 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
   PROTOCOL_COMMANDS.STOP_NODE,
   PROTOCOL_COMMANDS.REINDEX_TX,
-  PROTOCOL_COMMANDS.REINDEX_CHAIN
+  PROTOCOL_COMMANDS.REINDEX_CHAIN,
+  PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD
 ]
 
 export const MetadataStates = {
@@ -81,6 +83,13 @@ export const INDEXER_CRAWLING_EVENTS = {
   // use same names as the corresponding commands for these events
   REINDEX_CHAIN: PROTOCOL_COMMANDS.REINDEX_CHAIN,
   REINDEX_TX: PROTOCOL_COMMANDS.REINDEX_TX
+}
+
+export const INDEXER_MESSAGES = {
+  REINDEX_TX: PROTOCOL_COMMANDS.REINDEX_TX, // use the same names, no need to add different strings all the time
+  REINDEX_CHAIN: PROTOCOL_COMMANDS.REINDEX_CHAIN,
+  START_CRAWLING: 'start-crawling',
+  STOP_CRAWLING: 'stop-crawling'
 }
 
 export const EVENT_HASHES: Hashes = {
@@ -184,6 +193,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   P2P_ANNOUNCE_ADDRESSES: {
     name: 'P2P_ANNOUNCE_ADDRESSES',
     value: process.env.P2P_ANNOUNCE_ADDRESSES,
+    required: false
+  },
+  P2P_FILTER_ANNOUNCED_ADDRESSES: {
+    name: 'P2P_FILTER_ANNOUNCED_ADDRESSES',
+    value: process.env.P2P_FILTER_ANNOUNCED_ADDRESSES,
     required: false
   },
   // node specific

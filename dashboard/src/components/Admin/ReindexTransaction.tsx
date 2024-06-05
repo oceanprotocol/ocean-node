@@ -4,6 +4,9 @@ import { useAdminContext } from '@context/AdminProvider'
 import Button from '@mui/material/Button'
 import { TextField } from '@mui/material'
 import NetworkSelector from '../shared/NetworkSelector'
+import { CommandStatus, JobStatus } from '@/shared/types/JobTypes'
+import { checkJobPool, getSeverityFromStatus, isJobDone } from '@/shared/utils/jobs'
+import JobStatusPanel from '../JobStatusPanel'
 
 export default function ReIndexTransaction() {
   const [showChainInput, setShowChainInput] = useState(false)
@@ -11,7 +14,10 @@ export default function ReIndexTransaction() {
   const [chainId, setChainId] = useState<string>()
   const [txId, setTxId] = useState<string>()
   const { signature, expiryTimestamp } = useAdminContext()
+  const [severity, setSeverity] = useState<any>('info')
+  const [job, setJob] = useState<JobStatus | null>(null)
 
+  let intervalId: any = null
   async function reIndexTx() {
     setLoading(true)
     try {
@@ -32,9 +38,29 @@ export default function ReIndexTransaction() {
           })
         })
         if (response.status === 200) {
+          const jobData = await response.json()
+          setSeverity(jobData.status === CommandStatus.DELIVERED ? 'info' : 'error')
+          setJob(jobData)
           alert(
             `Transaction with TX ID ${txId} on chain ${chainId} is now being reindexed.`
           )
+          let done = false
+          intervalId = setInterval(async () => {
+            // its an array of jobs or empty array
+            const statusJob = await checkJobPool(jobData.jobId)
+            if (statusJob.length === 1) {
+              const job = statusJob[0]
+              setSeverity(getSeverityFromStatus(job.status))
+              done = isJobDone(job.status)
+              setJob(job)
+            } else {
+              // clear the Job status panel
+              setJob(null)
+            }
+          }, 3000)
+          if (done && intervalId) {
+            clearInterval(intervalId)
+          }
           setShowChainInput(false)
         } else {
           alert('Error reindexing transaction. Please try again.')
@@ -74,6 +100,7 @@ export default function ReIndexTransaction() {
           </Button>
         </div>
       )}
+      <JobStatusPanel job={job} severity={severity} />
     </div>
   )
 }

@@ -181,3 +181,25 @@ export interface ValidateChainId {
   validation: boolean
   networkRpc: string
 }
+/* eslint-disable no-unused-vars */
+export enum CommandStatus {
+  DELIVERED = 'DELIVERED', // command was delivered successfully
+  PENDING = 'PENDING', // command is pending excution or still running
+  FAILURE = 'FAILURE', // command execution failed
+  SUCCESS = 'SUCCESS' // command execution succeeded
+}
+export interface JobStatus {
+  command: string
+  timestamp: string
+  jobId: string
+  status: CommandStatus
+  hash: string
+}
+export enum IndexingCommand {
+  STOP_THREAD = 'start',
+  START_THREAD = 'stop'
+}
+export interface StartStopIndexingCommand extends AdminCommand {
+  chainId?: number
+  action: IndexingCommand
+}

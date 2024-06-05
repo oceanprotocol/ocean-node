@@ -7,59 +7,17 @@ import AdminActions from '../Admin'
 import Spinner from '../Spinner'
 import NodePeers from '../NodePeers'
 import Copy from '../Copy'
-import IndexQueue from '../IndexQueue'
-
-type IndexerType = {
-  block: string
-  chainId: string
-  network: string
-  delayed?: boolean
-}
-
-type ProviderType = {
-  chainId: string
-  network: string
-}
-
-type SupportedStorageType = {
-  arwave: boolean
-  ipfs: boolean
-  url: boolean
-}
-
-type PlatformType = {
-  arch: string
-  cpus: number
-  freemem: number
-  loadavg: number[]
-  machine: string
-  node: string
-  osType: string
-  osVersion: string
-  platform: string
-  release: string
-  totalmem: number
-}
-
-type NodeDataType = {
-  address: string
-  id: string
-  publicKey: string
-  uptime: string
-  version: string
-  http: boolean
-  p2p: boolean
-  indexer: IndexerType[]
-  platform: PlatformType
-  provider: ProviderType[]
-  supportedStorage: SupportedStorageType
-}
+import { NodeDataType } from '@Types/dataTypes'
+import SupportedStorage from './SupportedStorage'
+import Indexer from './Indexer'
+import AdminAccounts from './AdminAccounts'
+import NodePlatform from './NodePlatform'
 
 export default function Dashboard() {
   const [data, setData] = useState<NodeDataType>()
   const [isLoading, setLoading] = useState(true)
   const [ipAddress, setIpAddress] = useState('')
-  const { setAllAdmins, allAdmins, setNetworks } = useAdminContext()
+  const { setAllAdmins, setNetworks } = useAdminContext()
 
   useEffect(() => {
     setLoading(true)
@@ -171,100 +129,6 @@ export default function Dashboard() {
     )
   }
 
-  const Indexer = () => {
-    return (
-      <div className={cs([styles.indexer, styles.borderBottom])}>
-        <div className={styles.title29}>INDEXER</div>
-        <div className={styles.rowIndexer}>
-          {data?.indexer.map((item) => {
-            return (
-              <div
-                className={cs([styles.indexBlock, item.delayed && styles.delayed])}
-                key={item.block}
-              >
-                <h5>{item.network}</h5>
-                <div>ChainID: {item.chainId}</div>
-                <div>BLOCK: {item.block}</div>
-              </div>
-            )
-          })}
-        </div>
-        <IndexQueue />
-      </div>
-    )
-  }
-
-  const AdminAccounts = () => {
-    return (
-      <div className={styles.indexer}>
-        <div className={styles.title29}>Admin Accounts</div>
-        <div className={styles.provider}>
-          {allAdmins.map((admin, i) => {
-            return (
-              <div className={styles.providerRow} key={i}>
-                {admin}
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    )
-  }
-
-  const ObjectModule = ({
-    title,
-    data
-  }: {
-    title: string
-    data: { key: string; value: string | number }[]
-  }) => {
-    return (
-      <div className={styles.indexer}>
-        <div className={styles.title29}>{title}</div>
-        <div className={styles.provider}>
-          {data.map((item) => {
-            return (
-              <div className={styles.providerRow} key={item.value}>
-                <div className={styles.providerTitle}>
-                  <b>{item.key}:</b>
-                </div>
-                <div>{item.value} </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    )
-  }
-
-  const SupportedStorage = () => {
-    return (
-      <div className={styles.indexer}>
-        <div className={styles.title29}>SUPPORTED STORAGE</div>
-        <div className={styles.provider}>
-          <div className={styles.providerRow}>
-            <div className={styles.providerTitle}>
-              <b>arwave:</b>
-            </div>
-            <div>{data?.supportedStorage.arwave.toString()} </div>
-          </div>
-          <div className={styles.providerRow}>
-            <div className={styles.providerTitle}>
-              <b>ipfs:</b>
-            </div>
-            <div>{data?.supportedStorage.ipfs.toString()} </div>
-          </div>
-          <div className={styles.providerRow}>
-            <div className={styles.providerTitle}>
-              <b>url:</b>
-            </div>
-            <div>{data?.supportedStorage.url.toString()} </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className={styles.root}>
       <AdminActions />
@@ -277,10 +141,10 @@ export default function Dashboard() {
         ) : (
           <div className={styles.body}>
             <ConnectionDetails />
-            <Indexer />
-            <ObjectModule title="PLATFORM" data={arrayOfPlatformObjects} />
-            <SupportedStorage />
+            <Indexer data={data} />
+            <SupportedStorage data={data} />
             <AdminAccounts />
+            <NodePlatform platformData={arrayOfPlatformObjects} />
           </div>
         )}
       </div>

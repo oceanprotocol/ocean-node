@@ -29,7 +29,10 @@ import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
 import {
   AdminReindexChainCommand,
   AdminReindexTxCommand,
-  AdminStopNodeCommand
+  AdminStopNodeCommand,
+  JobStatus,
+  IndexingCommand,
+  StartStopIndexingCommand
 } from '../../@types/commands.js'
 import { StopNodeHandler } from '../../components/core/admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.js'
@@ -37,12 +40,15 @@ import { ReindexChainHandler } from '../../components/core/admin/reindexChainHan
 import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import { sleep, streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
+import { IndexingThreadHandler } from '../../components/core/admin/IndexingThreadHandler.js'
+import { CoreHandlersRegistry } from '../../components/core/handler/coreHandlersRegistry.js'
 import {
   INDEXER_CRAWLING_EVENT_EMITTER,
   OceanIndexer
 } from '../../components/Indexer/index.js'
 import { getCrawlingInterval } from '../../components/Indexer/utils.js'
 import { ReindexTask } from '../../components/Indexer/crawlerThread.js'
+import { create256Hash } from '../../utils/crypt.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -166,6 +172,20 @@ describe('Should test admin operations', () => {
       id: publishedDataset.ddo.id
     }
 
+    const responseJob: JobStatus = await streamToObject(
+      handlerResponse.stream as Readable
+    )
+    assert(indexer.getJobsPool().length >= 1, 'job id not found in pool')
+    assert(responseJob.command === PROTOCOL_COMMANDS.REINDEX_TX, 'command not expected')
+    assert(responseJob.jobId.includes(PROTOCOL_COMMANDS.REINDEX_TX))
+    assert(responseJob.timestamp <= new Date().getTime().toString())
+    assert(
+      responseJob.hash ===
+        create256Hash(
+          [reindexTxCommand.chainId.toString(), reindexTxCommand.txId].join('')
+        ),
+      'wrong job hash'
+    )
     // wait a bit
     await sleep(getCrawlingInterval() * 2)
     if (reindexResult !== null) {
@@ -217,6 +237,24 @@ describe('Should test admin operations', () => {
       const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
       assert(handlerResponse, 'handler resp does not exist')
       assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
+      const responseJob: JobStatus = await streamToObject(
+        handlerResponse.stream as Readable
+      )
+
+      assert(
+        indexer.getJobsPool(responseJob.jobId).length === 1,
+        'job id not found in pool'
+      )
+      assert(
+        responseJob.command === PROTOCOL_COMMANDS.REINDEX_CHAIN,
+        'command not expected'
+      )
+      assert(responseJob.jobId.includes(PROTOCOL_COMMANDS.REINDEX_CHAIN))
+      assert(responseJob.timestamp <= new Date().getTime().toString())
+      assert(
+        responseJob.hash === create256Hash(DEVELOPMENT_CHAIN_ID.toString()),
+        'wrong job hash'
+      )
 
       // give it a little time to respond with the event
       await sleep(getCrawlingInterval() * 2)
@@ -224,6 +262,50 @@ describe('Should test admin operations', () => {
         assert(typeof reindexResult === 'boolean', 'expected a boolean value')
       }
     }
+  })
+
+  it('should test commands for start/stop threads', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    // -----------------------------------------
+    // IndexingThreadHandler
+    const indexingHandler: IndexingThreadHandler = CoreHandlersRegistry.getInstance(
+      oceanNode
+    ).getHandler(PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD)
+
+    const signature = await getSignature(expiryTimestamp.toString())
+    const indexingStartCommand: StartStopIndexingCommand = {
+      command: PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
+      action: IndexingCommand.START_THREAD,
+      expiryTimestamp,
+      signature
+    }
+    expect(indexingHandler.validate(indexingStartCommand).valid).to.be.equal(true) // OK
+
+    const indexingStopCommand: StartStopIndexingCommand = {
+      command: PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
+      action: IndexingCommand.STOP_THREAD,
+      expiryTimestamp: 10,
+      signature
+    }
+    expect(indexingHandler.validate(indexingStopCommand).valid).to.be.equal(false) // NOK
+
+    // OK now
+    indexingStopCommand.expiryTimestamp = expiryTimestamp
+    indexingStopCommand.chainId = 8996
+    expect(indexingHandler.validate(indexingStopCommand).valid).to.be.equal(true) // OK
+
+    // should exist a running thread for this network atm
+    const response = await indexingHandler.handle(indexingStopCommand)
+    assert(response.stream, 'Failed to get stream when stoping thread')
+    expect(response.status.httpStatus).to.be.equal(200)
+
+    await sleep(5000)
+
+    // restart it again after 5 secs
+    indexingStartCommand.chainId = 8996
+    const responseStart = await indexingHandler.handle(indexingStartCommand)
+    assert(responseStart.stream, 'Failed to get stream when starting thread')
+    expect(responseStart.status.httpStatus).to.be.equal(200)
   })
 
   after(async () => {

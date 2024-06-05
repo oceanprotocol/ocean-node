@@ -18,7 +18,7 @@ const mockSupportedNetworks: RPCS = {
 
 describe('OceanIndexer', () => {
   let oceanIndexer: OceanIndexer
-  it('should start threads and handle worker events', async () => {
+  it('should start threads and handle worker events', () => {
     const mockDatabase = new MockDatabase()
     oceanIndexer = new OceanIndexer(mockDatabase as any, mockSupportedNetworks)
 
@@ -28,7 +28,7 @@ describe('OceanIndexer', () => {
     }
 
     stub(oceanIndexer as any, 'startThreads').callsFake(() => {
-      oceanIndexer.startThreads = async () => {
+      oceanIndexer.startThreads = (): boolean => {
         try {
           const network = '1'
 
@@ -40,7 +40,7 @@ describe('OceanIndexer', () => {
 
           mockWorker.on.withArgs('exit').callArgWith(1, 0)
 
-          await oceanIndexer.startThreads()
+          return oceanIndexer.startThreads()
         } catch (error) {
           console.error(error)
         }
@@ -49,7 +49,7 @@ describe('OceanIndexer', () => {
 
     // stub(oceanIndexer as any, 'createWorker').returns(mockWorker)
 
-    await oceanIndexer.startThreads()
+    oceanIndexer.startThreads()
 
     // eslint-disable-next-line no-unused-expressions
     expect(mockWorker.postMessage.calledOnceWith({ method: 'start-crawling' })).to.be

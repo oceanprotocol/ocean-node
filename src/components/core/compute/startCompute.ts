@@ -15,8 +15,10 @@ import { AssetUtils } from '../../../utils/asset.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import { decrypt } from '../../../utils/crypt.js'
 import { verifyProviderFees } from '../utils/feesHandler.js'
-import { getJsonRpcProvider } from '../../../utils/blockchain.js'
+import { Blockchain } from '../../../utils/blockchain.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
+import { getConfiguration } from '../../../utils/index.js'
+import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 export class ComputeStartHandler extends Handler {
   validate(command: ComputeStartCommand): ValidateParams {
@@ -98,7 +100,7 @@ export class ComputeStartHandler extends Handler {
           let canDecrypt = false
           try {
             await decrypt(
-              Uint8Array.from(Buffer.from(service.files, 'hex')),
+              Uint8Array.from(Buffer.from(sanitizeServiceFiles(service.files), 'hex')),
               EncryptMethod.ECIES
             )
             canDecrypt = true
@@ -115,7 +117,21 @@ export class ComputeStartHandler extends Handler {
               }
             }
           }
-          const provider = await getJsonRpcProvider(ddo.chainId)
+          const config = await getConfiguration()
+          const { rpc, network, chainId, fallbackRPCs } =
+            config.supportedNetworks[ddo.chainId]
+          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+          const { ready, error } = await blockchain.isNetworkReady()
+          if (!ready) {
+            return {
+              stream: null,
+              status: {
+                httpStatus: 400,
+                error: `Start Compute : ${error}`
+              }
+            }
+          }
+          const provider = blockchain.getProvider()
           result.datatoken = service.datatokenAddress
           result.chainId = ddo.chainId
           // start with assumption than we need new providerfees
@@ -145,7 +161,8 @@ export class ComputeStartHandler extends Handler {
             ddo.nftAddress,
             service.datatokenAddress,
             AssetUtils.getServiceIndexById(ddo, service.id),
-            service.timeout
+            service.timeout,
+            blockchain.getSigner()
           )
           if (paymentValidation.isValid === false) {
             const error = `TxId Service ${elem.transferTxId} is not valid for DDO ${elem.documentId} and service ${service.id}`

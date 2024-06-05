@@ -25,21 +25,33 @@ export class ReindexChainHandler extends AdminHandler {
   async handle(task: AdminReindexChainCommand): Promise<P2PCommandResponse> {
     const validation = this.validate(task)
     if (!validation.valid) {
+      console.log('bad request:', validation)
       return buildInvalidParametersResponse(validation)
     }
     CORE_LOGGER.logMessage(`Reindexing chain command called`)
     const checkChainId = await checkSupportedChainId(task.chainId)
     if (!checkChainId.validation) {
+      console.log('bad request 2:', checkChainId)
       return buildErrorResponse(
         `Chain ID ${task.chainId} is not supported in the node's config`
       )
     }
     try {
-      this.getOceanNode().getIndexer().resetCrawling(task.chainId)
-      return {
-        status: { httpStatus: 200 },
-        stream: new ReadableString('REINDEXING CHAIN...')
+      const indexer = this.getOceanNode().getIndexer()
+      if (!indexer) {
+        return buildErrorResponse('Node is not running an indexer instance!')
       }
+
+      const job = indexer.resetCrawling(task.chainId)
+      if (job) {
+        return {
+          status: { httpStatus: 200 },
+          stream: new ReadableString(JSON.stringify(job))
+        }
+      }
+      return buildErrorResponse(
+        `Unable to reset crawling, worker thread is not valid/running?`
+      )
     } catch (error) {
       CORE_LOGGER.error(`REINDEX chain: ${error.message}`)
       return buildErrorResponse(`REINDEX chain: ${error.message}`)

@@ -11,22 +11,22 @@ import { Blockchain } from '../../utils/blockchain.js'
 import { BlocksEvents, SupportedNetwork } from '../../@types/blockchain.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { sleep } from '../../utils/util.js'
-import { EVENTS, INDEXER_CRAWLING_EVENTS } from '../../utils/index.js'
+import { EVENTS, INDEXER_CRAWLING_EVENTS, INDEXER_MESSAGES } from '../../utils/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getDatabase } from '../../utils/database.js'
 import { JsonRpcApiProvider, Log, Signer } from 'ethers'
 
 export interface ReindexTask {
   txId: string
-  chainId: string
+  chainId: number
   eventIndex?: number
 }
 
 let REINDEX_BLOCK: number = null
 const REINDEX_QUEUE: ReindexTask[] = []
 
-let stopCrawling: boolean = false
-
+let stoppedCrawling: boolean = false
+let startedCrawling: boolean = false
 interface ThreadData {
   rpcDetails: SupportedNetwork
 }
@@ -79,7 +79,7 @@ export async function processNetworkData(
   provider: JsonRpcApiProvider,
   signer: Signer
 ): Promise<void> {
-  stopCrawling = false
+  stoppedCrawling = startedCrawling = false
   const contractDeploymentBlock = getDeployedContractBlock(rpcDetails.chainId)
   if (contractDeploymentBlock == null && (await getLastIndexedBlock()) == null) {
     INDEXER_LOGGER.logMessage(
@@ -99,7 +99,7 @@ export async function processNetworkData(
   const interval = getCrawlingInterval()
   let { chunkSize } = rpcDetails
   let lockProccessing = false
-  let startedCrawling = false
+
   while (true) {
     let currentBlock
     if (!lockProccessing) {
@@ -186,16 +186,19 @@ export async function processNetworkData(
     await sleep(interval)
     // reindex chain command called
     if (REINDEX_BLOCK && !lockProccessing) {
-      const result = await reindexChain(currentBlock)
       // either "true" for success or "false" otherwise
+      const result = await reindexChain(currentBlock)
+      // get all reindex commands
+      // TODO (check that we do not receive multiple commands for same reindex before previous finishes)
       parentPort.postMessage({
         method: INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
-        data: { result }
+        data: { result, chainId: rpcDetails.chainId }
       })
     }
 
-    if (stopCrawling) {
+    if (stoppedCrawling) {
       INDEXER_LOGGER.logMessage('Exiting thread...')
+      startedCrawling = false
       break
     }
   }
@@ -232,10 +235,10 @@ async function processReindex(
         const log = receipt.logs[reindexTask.eventIndex]
         const logs = log ? [log] : receipt.logs
         await processChunkLogs(logs, signer, provider, chainId)
-        // clear from the 'top' queue
+        // send message to clear from the 'top' queue
         parentPort.postMessage({
           method: INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP,
-          data: reindexTask
+          data: { reindexTask }
         })
       } else {
         // put it back as it failed
@@ -316,7 +319,8 @@ async function startCrawler(blockchain: Blockchain): Promise<boolean> {
 }
 
 parentPort.on('message', (message) => {
-  if (message.method === 'start-crawling') {
+  if (message.method === INDEXER_MESSAGES.START_CRAWLING) {
+    // start indexing the chain
     const blockchain = new Blockchain(
       rpcDetails.rpc,
       rpcDetails.network,
@@ -324,21 +328,20 @@ parentPort.on('message', (message) => {
       rpcDetails.fallbackRPCs
     )
     return retryCrawlerWithDelay(blockchain)
-  }
-  if (message.method === 'add-reindex-task') {
-    if (message.reindexTask) {
-      REINDEX_QUEUE.push(message.reindexTask)
-    }
-  }
-  if (message.method === 'reset-crawling') {
+  } else if (message.method === INDEXER_MESSAGES.REINDEX_TX) {
+    // reindex a specific transaction
+
+    REINDEX_QUEUE.push(message.data.reindexTask)
+  } else if (message.method === INDEXER_MESSAGES.REINDEX_CHAIN) {
+    // reindex a specific chain
     const deployBlock = getDeployedContractBlock(rpcDetails.chainId)
     REINDEX_BLOCK =
       rpcDetails.startBlock && rpcDetails.startBlock >= deployBlock
         ? rpcDetails.startBlock
         : deployBlock
-  }
-  if (message.method === 'stop-crawling') {
-    stopCrawling = true
+  } else if (message.method === INDEXER_MESSAGES.STOP_CRAWLING) {
+    // stop indexing the chain
+    stoppedCrawling = true
     INDEXER_LOGGER.warn('Stopping crawler thread once current run finishes...')
   }
 })
