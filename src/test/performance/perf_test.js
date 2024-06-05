@@ -17,7 +17,7 @@ import {
 // - Execute requests with & without RATE limits on the node instance
 // - Call directCommand enpoint with all supported commands
 //
-
+console.log('ENV', __ENV.K6_WEB_DASHBOARD)
 // -----------------------------------------------------------------
 
 // Type of test, defaults to 'smoke' (less requests/load in general)

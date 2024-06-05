@@ -34,9 +34,9 @@
     "test:integration:cover": "nyc --report-dir coverage/integration --no-clean npm run test:integration",
     "logs": "./scripts/logs.sh",
     "test:k6-common": "npm run build-tests && K6_WEB_DASHBOARD=true K6_WEB_DASHBOARD_EXPORT=html-report.html",
-    "test:smoke": "npm run test:k6-common && k6 run -e TEST_TYPE=smoke \"./dist/test/performance/perf_test.js\"",
-    "test:load": "npm run test:k6-common && k6 run -e TEST_TYPE=load \"./dist/test/performance/perf_test.js\"",
-    "test:stress": "npm run test:k6-common && k6 run -e TEST_TYPE=stress \"./dist/test/performance/perf_test.js\"",
+    "test:smoke": "npm run test:k6-common k6 run -e TEST_TYPE=smoke \"./dist/test/performance/perf_test.js\"",
+    "test:load": "npm run test:k6-common k6 run -e TEST_TYPE=load \"./dist/test/performance/perf_test.js\"",
+    "test:stress": "npm run test:k6-common k6 run -e TEST_TYPE=stress \"./dist/test/performance/perf_test.js\"",
     "test:request:rate": "npm run test:k6-common && k6 run -e RATE=true \"./dist/test/performance/perf_test.js\""
   },
   "dependencies": {
