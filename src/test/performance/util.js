@@ -219,7 +219,7 @@ export function getTestOptions(testType) {
 function getSmokeTestOptions() {
   const options = {
     // A number specifying the number of VUs to run concurrently.
-    vus: 5,
+    vus: DEFAULT_TARGET_USERS / 20,
     // A string specifying the total duration of the test run.
     duration: '30s'
   }
