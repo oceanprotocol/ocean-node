@@ -10,10 +10,24 @@ import exec from 'k6/execution'
 // - Call all HTTP endpoints (with & without proper params)
 // - Execute requests with & without RATE limits on the node instance
 // - Call directCommand enpoint with all supported commands
+// - Do smoke, load and stress tests on node
+// ENV VARIABLES:
+// None of these are mandatory and some are already on the package.json scripts
+// ----------------------------------------------------------------
+// TARGET_USERS : Number of virtual simulataneous users to simulate
+// HTTP_API_PORT: node port or 8000 by default (used on localhost node no TARGET_URL is set)
+// TARGET_URL: node host/url to target
+// TEST_TYPE: This is on the scripts of package.json. Could be "stress", "load" or "smoke"
+// RATE: This is on the scripts of package.json. true/false to use rate limit
+// RATE_LIMIT: The actual rate limit to use (default on node is 3 requests per second MAX).
+// This value must be in sync (and bellow the node value) if we want to avoid rate limitations on the tests
+// K6_WEB_DASHBOARD
+// K6_WEB_DASHBOARD_EXPORT
+// These last 2 are set on package.json, they allow to have a UI while the tests are running and provide an HTML report at the end
 //
-
 // -----------------------------------------------------------------
-
+// use this value is if set, otherwise defaut to 100
+const DEFAULT_TARGET_USERS = __ENV.TARGET_USERS || 100
 // set default node port if not specified
 export const HTTP_PORT = __ENV.HTTP_API_PORT || 8000
 // we can export the target host/port as an ENV variable export TARGET_URL='http://example.com:8000'
@@ -216,8 +230,8 @@ function getLoadTestOptions() {
   const options = {
     // Key configurations for avg load test in this section
     stages: [
-      { duration: '5m', target: 100 }, // traffic ramp-up from 1 to 100 users over 5 minutes.
-      { duration: '30m', target: 100 }, // stay at 100 users for 30 minutes
+      { duration: '5m', target: DEFAULT_TARGET_USERS }, // traffic ramp-up from 1 to 100 users over 5 minutes.
+      { duration: '30m', target: DEFAULT_TARGET_USERS }, // stay at 100 users for 30 minutes
       { duration: '5m', target: 0 } // ramp-down to 0 users
     ]
   }
@@ -228,8 +242,8 @@ function getStressTestOptions() {
   const options = {
     // Key configurations for Stress in this section
     stages: [
-      { duration: '10m', target: 200 }, // traffic ramp-up from 1 to a higher 200 users over 10 minutes.
-      { duration: '30m', target: 200 }, // stay at higher 200 users for 30 minutes
+      { duration: '10m', target: DEFAULT_TARGET_USERS * 2 }, // traffic ramp-up from 1 to a higher 200 users over 10 minutes.
+      { duration: '30m', target: DEFAULT_TARGET_USERS * 2 }, // stay at higher 200 users for 30 minutes
       { duration: '5m', target: 0 } // ramp-down to 0 users
     ]
   }
@@ -243,7 +257,7 @@ export function getRequestRateOptions(rateLimit) {
       rated_scenarion: {
         executor: 'constant-arrival-rate',
         duration: '30s', // total duration
-        preAllocatedVUs: 50, // to allocate runtime resources     preAll
+        preAllocatedVUs: DEFAULT_TARGET_USERS / 2, // to allocate runtime resources     preAll
 
         rate: rateLimit, // number of constant iterations given `timeUnit`
         timeUnit: '1s'
