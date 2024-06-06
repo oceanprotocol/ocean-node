@@ -186,7 +186,7 @@ There are 3 different scenarios that can be run; `smoke` tests, `load` tests, an
 Each one of those scenarios puts the ocean node into different traffic/request pressure conditions.
 
 In order to start the suite, you need to have a running node instance first and then target the node on the tests.
-Furthermore, you need to have previously installed grafana k6 tools on your machine: `https://grafana.com/docs/k6/latest/set-up/install-k6/`.
+Furthermore, you need to have previously installed grafana k6 tools on your machine: [https://grafana.com/docs/k6/latest/set-up/install-k6/](https://grafana.com/docs/k6/latest/set-up/install-k6/).
 You can use `TARGET_URL` env variable to specify the target URL for the tests (by default runs against the local node, if any)
 
 To run them, use one of the following options;
@@ -213,7 +213,7 @@ At the end of the test suite, you can check the generated HTML report `html-repo
 Additionally, while the tests are running you can open
 a browser page at `http://127.0.0.1:5665/` and see a live report
 
-For a more detailed view of all the options available and the type of requests executed check the script: `src/test/performance/util.js`
+For a more detailed view of all the options available and the type of requests executed check the script: [./src/test/performance/util.js](./src/test/performance/util.js)
 
 ## Additional tests / helper scripts
 
