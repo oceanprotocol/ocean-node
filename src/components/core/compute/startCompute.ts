@@ -191,6 +191,7 @@ export class ComputeStartHandler extends Handler {
               validUntil: validFee.validUntil
             }
           } else {
+            CORE_LOGGER.logMessage(`Invalid compute validation: ${validFee.message}`)
             return {
               stream: null,
               status: {

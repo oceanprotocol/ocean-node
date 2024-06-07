@@ -54,17 +54,19 @@ export async function createProviderFee(
   service: Service,
   validUntil: number,
   computeEnv: ComputeEnvironment,
-  computeValidUntil: number
+  computeValidUntil: number,
+  alreadyCreated: boolean = false
 ): Promise<ProviderFees> | undefined {
   // round for safety
   validUntil = Math.round(validUntil)
   computeValidUntil = Math.round(computeValidUntil)
   const providerData = {
     environment: computeEnv ? computeEnv.id : null,
-    timestamp: computeValidUntil || 0,
+    timestamp: computeValidUntil || new Date().getTime() / 1000,
     dt: service.datatokenAddress,
     id: service.id
   }
+  CORE_LOGGER.logMessage(`providerData in createFee: ${JSON.stringify(providerData)}`)
   const providerWallet = await getProviderWallet(String(asset.chainId))
 
   const providerFeeAddress: string = providerWallet.address
@@ -80,12 +82,12 @@ export async function createProviderFee(
   }
   if (providerFeeToken === ZeroAddress) {
     providerFeeAmount = 0
-  } else {
+  } else if (alreadyCreated === false) {
     providerFeeAmount = await calculateProviderFeeAmount(validUntil, computeEnv)
   }
 
   if (providerFeeToken && providerFeeToken !== ZeroAddress) {
-    const provider = await getJsonRpcProvider(asset.chainId)
+    const provider = await getJsonRpcProvider(Number(asset.chainId))
     const decimals = await getDatatokenDecimals(providerFeeToken, provider)
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
   } else {
@@ -207,11 +209,22 @@ export async function verifyProviderFees(
   let isComputeValid = true
   if (computeEnv) {
     if (providerData.environment !== computeEnv) {
+      CORE_LOGGER.logMessage(
+        `providerData: ${JSON.stringify(providerData, (key, value) =>
+          typeof value === 'bigint' ? value.toString() : value
+        )})}`
+      )
+      CORE_LOGGER.logMessage(
+        `providerData.environment: ${JSON.stringify(providerData.environment)}`
+      )
+      CORE_LOGGER.logMessage(`computeEnv: ${JSON.stringify(computeEnv)}`)
       isComputeValid = false
     }
     if (validUntil > 0 && providerData.timestamp < validUntil) {
       isComputeValid = false
     }
+  } else {
+    isComputeValid = false
   }
 
   if (!isComputeValid) {
@@ -219,7 +232,7 @@ export async function verifyProviderFees(
     CORE_LOGGER.error(message)
     return {
       isValid: true,
-      isComputeValid,
+      isComputeValid: false,
       message,
       validUntil: providerData ? providerData.timestamp : 0
     }
@@ -493,9 +506,12 @@ export async function getProviderFeeToken(chainId: number): Promise<string> {
   const result = (await getConfiguration()).feeStrategy.feeTokens.filter(
     (token: FeeTokens) => Number(token.chain) === Number(chainId)
   )
-  if (result.length === 0 && Number(chainId) === 8996) {
+  // ([...result].length === 0) && )
+  if ([...result].length === 0 && Number(chainId) === 8996) {
+    CORE_LOGGER.logMessage(`am intrat`)
     const localOceanToken = getOceanArtifactsAdresses().development.Ocean
-    return localOceanToken || ethers.ZeroAddress
+    CORE_LOGGER.logMessage(`localOceanToken: ${localOceanToken}`)
+    return localOceanToken
   }
   return result.length ? result[0].token : ethers.ZeroAddress
 }

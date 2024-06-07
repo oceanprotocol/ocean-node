@@ -193,12 +193,14 @@ export class ComputeInitializeHandler extends Handler {
               // we already have a valid compute fee with another asset, or it's an asset not served by us
               // in any case, we need an access providerFee
               if (canDecrypt) {
+                CORE_LOGGER.logMessage(`a intrat pe aici cand env este null`)
                 result.providerFee = await createProviderFee(
                   ddo,
                   service,
                   bestValidUntil,
+                  env,
                   null,
-                  null
+                  true
                 )
               } else {
                 // TO DO:  Edge case when this asset is served by a remote provider.
