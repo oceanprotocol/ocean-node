@@ -347,7 +347,9 @@ describe('Should test admin operations', () => {
       JSON.stringify(await streamToObject(result.stream as Readable))
     )
     expect(result.status.httpStatus).to.be.equal(200) // OK
-    expect(await streamToObject(result.stream as Readable)).to.have.own.property('txId') // OK
+    const obj = await streamToObject(result.stream as Readable)
+    expect(obj.txId).to.be.not.equal(null) // OK
+    expect(obj.message).to.be.equal('Fees successfully transfered to admin!')
     expect(await token.balanceOf(await providerWallet.getAddress())).to.be.equal(
       balanceBefore + parseUnits(collectFeesCommand.tokenAmount.toString(), 'ethers')
     )

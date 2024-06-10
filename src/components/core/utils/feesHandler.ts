@@ -471,14 +471,20 @@ export async function checkFee(
  * @param chainId the chain id (not used now)
  * @returns the wallet
  */
-export async function getProviderWallet(chainId?: string): Promise<ethers.Wallet> {
-  const config = await getConfiguration()
-  const provider = new JsonRpcProvider(config.supportedNetworks[chainId].rpc)
-  const wallet: ethers.Wallet = new ethers.Wallet(
-    Buffer.from((await getConfiguration()).keys.privateKey).toString('hex'),
-    provider
+export async function getProviderWallet(chainId: string = null): Promise<ethers.Wallet> {
+  if (chainId) {
+    // to avoid breaking change for other tests
+    const config = await getConfiguration()
+    const provider = new JsonRpcProvider(config.supportedNetworks[chainId].rpc)
+    return new ethers.Wallet(
+      Buffer.from((await getConfiguration()).keys.privateKey).toString('hex'),
+      provider
+    )
+  }
+
+  return new ethers.Wallet(
+    Buffer.from((await getConfiguration()).keys.privateKey).toString('hex')
   )
-  return wallet
 }
 export async function getProviderWalletAddress(): Promise<string> {
   return (await getProviderWallet()).address
