@@ -20,11 +20,6 @@ export class CollectFeesHandler extends AdminHandler {
       !/^0x([A-Fa-f0-9]{40})$/.test(command.tokenAddress) ||
       !/^0x([A-Fa-f0-9]{40})$/.test(command.destinationAddress)
     ) {
-      CORE_LOGGER.logMessage(
-        `enters here: ${/^0x([A-Fa-f0-9]{40})$/.test(
-          command.tokenAddress
-        )}, ${/^0x([A-Fa-f0-9]{40})$/.test(command.destinationAddress)}`
-      )
       return buildInvalidRequestMessage(
         `Invalid format for token address or destination address.`
       )
@@ -46,8 +41,9 @@ export class CollectFeesHandler extends AdminHandler {
     const providerWallet = await getProviderWallet(String(task.chainId))
     try {
       const providerFeeToken = await getProviderFeeToken(task.chainId)
+      CORE_LOGGER.logMessage(`provider fee token: ${providerFeeToken}`)
       if (
-        task.tokenAddress !== providerFeeToken ||
+        task.tokenAddress.toLowerCase() !== providerFeeToken.toLowerCase() ||
         task.tokenAddress === ZeroAddress ||
         providerFeeToken === ZeroAddress
       ) {
@@ -56,7 +52,16 @@ export class CollectFeesHandler extends AdminHandler {
         )
       }
 
-      const token = new Contract(task.tokenAddress, ERC20Template.abi, providerWallet)
+      const token = new Contract(
+        task.tokenAddress.toLowerCase(),
+        ERC20Template.abi,
+        providerWallet
+      )
+      CORE_LOGGER.logMessage(
+        `provider fee token balance: ${await token.balanceOf(
+          await providerWallet.getAddress()
+        )}`
+      )
       if (
         (await token.balanceOf(await providerWallet.getAddress())) <
         parseUnits(task.tokenAmount.toString(), 'ether')
@@ -72,6 +77,7 @@ export class CollectFeesHandler extends AdminHandler {
         parseUnits(task.tokenAmount.toString(), 'ether')
       )
       await tx.wait()
+      CORE_LOGGER.logMessage(`tx: ${tx.id}`)
 
       return {
         status: { httpStatus: 200 },

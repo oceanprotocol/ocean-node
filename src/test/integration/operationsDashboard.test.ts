@@ -1,6 +1,6 @@
 import { assert, expect } from 'chai'
 import { Readable } from 'stream'
-import { Signer, JsonRpcProvider, ethers } from 'ethers'
+import { Signer, JsonRpcProvider, ethers, Contract, parseUnits } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS } from '../../@types/blockchain.js'
@@ -24,7 +24,7 @@ import {
   INDEXER_CRAWLING_EVENTS
 } from '../../utils/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' assert { type: 'json' }
 import { DEVELOPMENT_CHAIN_ID, getOceanArtifactsAdresses } from '../../utils/address.js'
 import {
   AdminReindexChainCommand,
@@ -51,6 +51,7 @@ import { getCrawlingInterval } from '../../components/Indexer/utils.js'
 import { ReindexTask } from '../../components/Indexer/crawlerThread.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandler.js'
+import { getProviderWallet } from '../../components/core/utils/feesHandler.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -332,12 +333,24 @@ describe('Should test admin operations', () => {
       'validation: ',
       JSON.stringify(collectFeesHandler.validate(collectFeesCommand))
     )
+    const providerWallet = await getProviderWallet(String(collectFeesCommand.chainId))
+    const token = new Contract(
+      collectFeesCommand.tokenAddress.toLowerCase(),
+      ERC20Template.abi,
+      providerWallet
+    )
+    const balanceBefore = await token.balanceOf(await providerWallet.getAddress())
     expect(collectFeesHandler.validate(collectFeesCommand).valid).to.be.equal(true) // OK
     const result = await collectFeesHandler.handle(collectFeesCommand)
-    console.log('res: ', JSON.stringify(await streamToObject(result.stream as Readable)))
+    console.log(
+      'result handler: ',
+      JSON.stringify(await streamToObject(result.stream as Readable))
+    )
     expect(result.status.httpStatus).to.be.equal(200) // OK
     expect(await streamToObject(result.stream as Readable)).to.have.own.property('txId') // OK
-    expect(await provider.getBalance(await wallet.getAddress())).to.be.greaterThan(0)
+    expect(await provider.getBalance(await wallet.getAddress())).to.be.equal(
+      balanceBefore + parseUnits(collectFeesCommand.tokenAmount.toString(), 'ethers')
+    )
 
     // Test incorrect values for command: node ID and big amount
     const collectFeesCommandWrongNode: AdminCollectFeesCommand = {
