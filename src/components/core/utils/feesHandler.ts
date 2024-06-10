@@ -143,7 +143,8 @@ export async function verifyProviderFees(
   provider: JsonRpcApiProvider,
   service: Service,
   computeEnv?: string,
-  validUntil?: number // only for computeEnv
+  validUntil?: number, // only for computeEnv
+  isValidPayment: boolean = false // if payment was already done
 ): Promise<ProviderFeeValidation> {
   if (!txId) {
     CORE_LOGGER.error('Invalid txId')
@@ -228,8 +229,8 @@ export async function verifyProviderFees(
   // Compute environment validation
   let isComputeValid = true
   CORE_LOGGER.logMessage(`service : ${JSON.stringify(service)}`)
-  if (computeEnv && service.type === 'compute') {
-    if (providerData.environment !== computeEnv) {
+  if (computeEnv) {
+    if (providerData.environment !== computeEnv && !isValidPayment) {
       CORE_LOGGER.logMessage(
         `providerData: ${JSON.stringify(providerData, (key, value) =>
           typeof value === 'bigint' ? value.toString() : value

@@ -181,7 +181,8 @@ export class ComputeStartHandler extends Handler {
             provider,
             service,
             task.environment,
-            0
+            0,
+            paymentValidation.isValid
           )
           CORE_LOGGER.logMessage(`validFee.isComputeValid: ${JSON.stringify(validFee)}`)
           if (validFee.isComputeValid === true) {
