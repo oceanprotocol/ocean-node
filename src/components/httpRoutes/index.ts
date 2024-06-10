@@ -23,6 +23,7 @@ export function sendMissingP2PResponse(res: Response) {
   res.status(400).send('Invalid or Non Existing P2P configuration')
 }
 
+export const allRoutesMapping = new Map<string, string[]>()
 // /getOceanPeers
 httpRoutes.use(getOceanPeersRoute)
 // /getP2PPeers
@@ -61,3 +62,52 @@ httpRoutes.use(computeRoutes)
 httpRoutes.use(queueRoutes)
 // running jobs
 httpRoutes.use(jobsRoutes)
+
+function addMapping(path: any, layer: any) {
+  if (layer.route) {
+    layer.route.stack.forEach(addMapping.bind(null, path.concat(split(layer.route.path))))
+  } else if (layer.name === 'router' && layer.handle.stack) {
+    layer.handle.stack.forEach(addMapping.bind(null, path.concat(split(layer.regexp))))
+  } else if (layer.method) {
+    const method = layer.method.toUpperCase()
+    const pathName = '/' + path.concat(split(layer.regexp)).filter(Boolean).join('/')
+    if (allRoutesMapping.has(pathName)) {
+      const existingData = allRoutesMapping.get(pathName)
+      if (existingData[0] !== method) {
+        // add with a new name
+        const name = pathName + '_' + method
+        allRoutesMapping.set(name, [method, pathName])
+      }
+    } else {
+      allRoutesMapping.set(pathName, [method, pathName])
+    }
+  }
+}
+
+function split(thing: any) {
+  if (typeof thing === 'string') {
+    return thing.split('/')
+  } else if (thing.fast_slash) {
+    return ''
+  } else {
+    const match = thing
+      .toString()
+      .replace('\\/?', '')
+      .replace('(?=\\/|$)', '$')
+      .match(/^\/\^((?:\\[.*+?^${}()|[\]\\/]|[^.*+?^${}()|[\]\\/])*)\$\//)
+    return match
+      ? match[1].replace(/\\(.)/g, '$1').split('/')
+      : '<complex:' + thing.toString() + '>'
+  }
+}
+
+export function getAllServiceEndpoints() {
+  httpRoutes.stack.forEach(addMapping.bind(null, []))
+  const data: any = {}
+  const keys = allRoutesMapping.keys()
+  for (const key of keys) {
+    data[key] = allRoutesMapping.get(key)
+  }
+  // console.log('DATA:', data)
+  return data
+}
