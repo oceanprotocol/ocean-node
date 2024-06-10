@@ -330,8 +330,10 @@ describe('Should test admin operations', () => {
     }
     expect(collectFeesHandler.validate(collectFeesCommand).valid).to.be.equal(true) // OK
     const result = await collectFeesHandler.handle(collectFeesCommand)
+    console.log('res: ', JSON.stringify(await streamToObject(result.stream as Readable)))
     expect(result.status.httpStatus).to.be.equal(200) // OK
     expect(await streamToObject(result.stream as Readable)).to.have.own.property('txId') // OK
+    expect(await provider.getBalance(await wallet.getAddress())).to.be.greaterThan(0)
 
     // Test incorrect values for command: node ID and big amount
     const collectFeesCommandWrongNode: AdminCollectFeesCommand = {
