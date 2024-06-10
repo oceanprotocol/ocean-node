@@ -12,6 +12,7 @@ import { getProviderFeeToken, getProviderWallet } from '../utils/feesHandler.js'
 import { parseUnits, Contract, ZeroAddress } from 'ethers'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' assert { type: 'json' }
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
 export class CollectFeesHandler extends AdminHandler {
   validate(command: AdminCollectFeesCommand): ValidateParams {
@@ -19,6 +20,11 @@ export class CollectFeesHandler extends AdminHandler {
       !/^0x([A-Fa-f0-9]{42})$/.test(command.tokenAddress) ||
       !/^0x([A-Fa-f0-9]{42})$/.test(command.destinationAddress)
     ) {
+      CORE_LOGGER.logMessage(
+        `enters here: ${/^0x([A-Fa-f0-9]{42})$/.test(
+          command.tokenAddress
+        )}, ${/^0x([A-Fa-f0-9]{42})$/.test(command.destinationAddress)}`
+      )
       return buildInvalidRequestMessage(
         `Invalid format for token address or destination address.`
       )

@@ -328,6 +328,10 @@ describe('Should test admin operations', () => {
       expiryTimestamp,
       signature
     }
+    console.log(
+      'validation: ',
+      JSON.stringify(collectFeesHandler.validate(collectFeesCommand))
+    )
     expect(collectFeesHandler.validate(collectFeesCommand).valid).to.be.equal(true) // OK
     const result = await collectFeesHandler.handle(collectFeesCommand)
     console.log('res: ', JSON.stringify(await streamToObject(result.stream as Readable)))
