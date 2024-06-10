@@ -183,7 +183,7 @@ export class ComputeStartHandler extends Handler {
             task.environment,
             0
           )
-
+          CORE_LOGGER.logMessage(`validFee.isComputeValid: ${JSON.stringify(validFee)}`)
           if (validFee.isComputeValid === true) {
             foundValidCompute = {
               txId: elem.transferTxId,
@@ -202,6 +202,10 @@ export class ComputeStartHandler extends Handler {
           }
         }
       }
+
+      CORE_LOGGER.logMessage(
+        `foundValidCompute in start compute: ${JSON.stringify(foundValidCompute)}`
+      )
       if (!foundValidCompute) {
         CORE_LOGGER.logMessage(`Cannot find a valid compute providerFee`, true)
         return {

@@ -36,7 +36,10 @@ export class ComputeGetEnvironmentsHandler extends Handler {
       for (const cluster of c2dClusters) {
         const engine = C2DEngine.getC2DClass(cluster)
         if (task.chainId) {
-          result[task.chainId] = await fetchEnvironments(task.chainId, engine)
+          result[Number(task.chainId)] = await fetchEnvironments(
+            Number(task.chainId),
+            engine
+          )
         } else {
           for (const chain of Object.keys(config.supportedNetworks)) {
             const chainId = parseInt(chain)

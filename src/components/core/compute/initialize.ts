@@ -180,6 +180,7 @@ export class ComputeInitializeHandler extends Handler {
           if (validFee.isComputeValid === true) {
             foundValidCompute = { txId: elem.transferTxId, chainId: ddo.chainId }
           }
+          CORE_LOGGER.logMessage(`validFee: ${JSON.stringify(validFee)}`)
           if (validFee.isValid === false) {
             // providerFee is no longer valid, so we need to create one
             const now = new Date().getTime() / 1000
@@ -189,18 +190,21 @@ export class ComputeInitializeHandler extends Handler {
             } else {
               bestValidUntil = Math.min(now + service.timeout, task.compute.validUntil)
             }
+            CORE_LOGGER.logMessage(
+              `foundValidCompute: ${JSON.stringify(foundValidCompute)}`
+            )
             if (foundValidCompute || !canDecrypt) {
               // we already have a valid compute fee with another asset, or it's an asset not served by us
               // in any case, we need an access providerFee
               if (canDecrypt) {
                 CORE_LOGGER.logMessage(`a intrat pe aici cand env este null`)
+                CORE_LOGGER.logMessage(`ddo: ${JSON.stringify(ddo)}`)
                 result.providerFee = await createProviderFee(
                   ddo,
                   service,
                   bestValidUntil,
-                  env,
                   null,
-                  true
+                  null
                 )
               } else {
                 // TO DO:  Edge case when this asset is served by a remote provider.

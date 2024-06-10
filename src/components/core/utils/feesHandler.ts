@@ -54,15 +54,15 @@ export async function createProviderFee(
   service: Service,
   validUntil: number,
   computeEnv: ComputeEnvironment,
-  computeValidUntil: number,
-  alreadyCreated: boolean = false
+  computeValidUntil: number
 ): Promise<ProviderFees> | undefined {
   // round for safety
   validUntil = Math.round(validUntil)
   computeValidUntil = Math.round(computeValidUntil)
+  CORE_LOGGER.logMessage(`computeEnv: ${JSON.stringify(computeEnv)}`)
   const providerData = {
     environment: computeEnv ? computeEnv.id : null,
-    timestamp: computeValidUntil || new Date().getTime() / 1000,
+    timestamp: new Date().getTime() / 1000,
     dt: service.datatokenAddress,
     id: service.id
   }
@@ -82,7 +82,7 @@ export async function createProviderFee(
   }
   if (providerFeeToken === ZeroAddress) {
     providerFeeAmount = 0
-  } else if (alreadyCreated === false) {
+  } else {
     providerFeeAmount = await calculateProviderFeeAmount(validUntil, computeEnv)
   }
 
@@ -175,12 +175,19 @@ export async function verifyProviderFees(
   let allEventsValid = true
   let providerData
   for (const event of providerFeesEvents) {
+    // CORE_LOGGER.logMessage(`event: ${JSON.stringify(event)}`)
     const providerAddress = event.args[0].toLowerCase()
     const validUntilContract = parseInt(event.args[7].toString())
     const utf = ethers.toUtf8String(event.args[3])
 
     try {
       providerData = JSON.parse(utf)
+
+      CORE_LOGGER.logMessage(
+        `providerData 1: ${JSON.stringify(providerData, (key, value) =>
+          typeof value === 'bigint' ? value.toString() : value
+        )}`
+      )
     } catch (e) {
       CORE_LOGGER.error('ProviderFee event JSON parsing failed')
       allEventsValid = false
@@ -194,6 +201,19 @@ export async function verifyProviderFees(
       providerData.dt.toLowerCase() !== service.datatokenAddress.toLowerCase() ||
       !(now < validUntilContract || validUntilContract === 0)
     ) {
+      CORE_LOGGER.logMessage(
+        `providerdata: ${JSON.stringify(
+          providerData
+        )}, providerAddress: ${providerAddress}, provider wallet address: ${providerWallet.address.toLowerCase()}`
+      )
+      CORE_LOGGER.logMessage(`providerData id : ${providerData.id}`)
+      CORE_LOGGER.logMessage(`service id : ${service.id}`)
+      CORE_LOGGER.logMessage(`provider dt  : ${providerData.dt.toLowerCase()}`)
+      CORE_LOGGER.logMessage(
+        `service.datatokenAddress  : ${service.datatokenAddress.toLowerCase()}`
+      )
+      CORE_LOGGER.logMessage(`now  : ${now}`)
+      CORE_LOGGER.logMessage(`validUntilContract  : ${validUntilContract}`)
       allEventsValid = false
       break // Invalid event found, no need to check further
     }
@@ -207,7 +227,8 @@ export async function verifyProviderFees(
 
   // Compute environment validation
   let isComputeValid = true
-  if (computeEnv) {
+  CORE_LOGGER.logMessage(`service : ${JSON.stringify(service)}`)
+  if (computeEnv && service.type === 'compute') {
     if (providerData.environment !== computeEnv) {
       CORE_LOGGER.logMessage(
         `providerData: ${JSON.stringify(providerData, (key, value) =>
@@ -223,8 +244,6 @@ export async function verifyProviderFees(
     if (validUntil > 0 && providerData.timestamp < validUntil) {
       isComputeValid = false
     }
-  } else {
-    isComputeValid = false
   }
 
   if (!isComputeValid) {
@@ -232,7 +251,7 @@ export async function verifyProviderFees(
     CORE_LOGGER.error(message)
     return {
       isValid: true,
-      isComputeValid: false,
+      isComputeValid,
       message,
       validUntil: providerData ? providerData.timestamp : 0
     }
@@ -277,7 +296,7 @@ export async function createFee(
   const providerFeeAddress: string = providerWallet.address
 
   // from env FEE_TOKENS
-  const providerFeeToken: string = await getProviderFeeToken(asset.chainId)
+  const providerFeeToken: string = await getProviderFeeToken(Number(asset.chainId))
 
   // from env FEE_AMOUNT
   const providerFeeAmount: number = await getProviderFeeAmount() // TODO check decimals on contract?
@@ -506,7 +525,15 @@ export async function getProviderFeeToken(chainId: number): Promise<string> {
   const result = (await getConfiguration()).feeStrategy.feeTokens.filter(
     (token: FeeTokens) => Number(token.chain) === Number(chainId)
   )
-  // ([...result].length === 0) && )
+  // ([...result].length === 0) &&
+  CORE_LOGGER.logMessage(`check: ${[...result].length === 0 && chainId === 8996}`)
+  CORE_LOGGER.logMessage(`check res: ${[...result].length === 0}`)
+  CORE_LOGGER.logMessage(`check chain: ${chainId === 8996}, type: ${typeof chainId}`)
+  CORE_LOGGER.logMessage(
+    `getOceanArtifactsAdresses().development.Ocean: ${
+      getOceanArtifactsAdresses().development.Ocean
+    }`
+  )
   if ([...result].length === 0 && Number(chainId) === 8996) {
     CORE_LOGGER.logMessage(`am intrat`)
     const localOceanToken = getOceanArtifactsAdresses().development.Ocean
