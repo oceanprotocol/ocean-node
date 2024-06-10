@@ -8,8 +8,8 @@ import {
   buildInvalidRequestMessage
 } from '../../httpRoutes/validateCommands.js'
 import { getConfiguration } from '../../../utils/index.js'
-import { getProviderWallet } from '../utils/feesHandler.js'
-import { parseUnits, Contract } from 'ethers'
+import { getProviderFeeToken, getProviderWallet } from '../utils/feesHandler.js'
+import { parseUnits, Contract, ZeroAddress } from 'ethers'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' assert { type: 'json' }
 
@@ -39,9 +39,20 @@ export class CollectFeesHandler extends AdminHandler {
     }
     const providerWallet = await getProviderWallet(String(task.chainId))
     try {
+      const providerFeeToken = await getProviderFeeToken(task.chainId)
+      if (
+        task.tokenAddress !== providerFeeToken ||
+        task.tokenAddress === ZeroAddress ||
+        providerFeeToken === ZeroAddress
+      ) {
+        return buildErrorResponse(
+          `Token address ${task.tokenAddress} is not the same with provider fee token address ${providerFeeToken}`
+        )
+      }
+
       const token = new Contract(task.tokenAddress, ERC20Template.abi, providerWallet)
       if (
-        (await token.balance(providerWallet)) <
+        (await token.balanceOf(await providerWallet.getAddress())) <
         parseUnits(task.tokenAmount.toString(), 'ether')
       ) {
         return buildErrorResponse(
@@ -50,12 +61,12 @@ export class CollectFeesHandler extends AdminHandler {
           )} vs. amount provided: ${parseUnits(task.tokenAmount.toString(), 'ether')}`
         )
       }
-
-      const tx = await providerWallet.sendTransaction({
-        to: task.destinationAddress.toLowerCase(),
-        value: parseUnits(task.tokenAmount.toString(), 'ether')
-      })
+      const tx = await token.transfer(
+        task.destinationAddress.toLowerCase(),
+        parseUnits(task.tokenAmount.toString(), 'ether')
+      )
       await tx.wait()
+
       return {
         status: { httpStatus: 200 },
         stream: new ReadableString(
