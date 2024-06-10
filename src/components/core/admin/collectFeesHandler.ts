@@ -4,15 +4,25 @@ import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import {
   ValidateParams,
   buildInvalidParametersResponse,
-  buildErrorResponse
+  buildErrorResponse,
+  buildInvalidRequestMessage
 } from '../../httpRoutes/validateCommands.js'
-import { getConfiguration, Blockchain } from '../../../utils/index.js'
+import { getConfiguration } from '../../../utils/index.js'
 import { getProviderWallet } from '../utils/feesHandler.js'
-import { parseUnits } from 'ethers'
+import { parseUnits, Contract } from 'ethers'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' assert { type: 'json' }
 
 export class CollectFeesHandler extends AdminHandler {
   validate(command: AdminCollectFeesCommand): ValidateParams {
+    if (
+      !/^0x([A-Fa-f0-9]{42})$/.test(command.tokenAddress) ||
+      !/^0x([A-Fa-f0-9]{42})$/.test(command.destinationAddress)
+    ) {
+      return buildInvalidRequestMessage(
+        `Invalid format for token address or destination address.`
+      )
+    }
     return super.validate(command)
   }
 
@@ -28,21 +38,15 @@ export class CollectFeesHandler extends AdminHandler {
       )
     }
     const providerWallet = await getProviderWallet(String(task.chainId))
-    const { rpc, network, chainId, fallbackRPCs } = config.supportedNetworks[task.chainId]
-    const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-    const { ready, error } = await blockchain.isNetworkReady()
-    if (!ready) {
-      return buildErrorResponse(`Collect Provider Fees: ${error}`)
-    }
-    const provider = blockchain.getProvider()
     try {
+      const token = new Contract(task.tokenAddress, ERC20Template.abi, providerWallet)
       if (
-        (await provider.getBalance(task.tokenAddress)) <
+        (await token.balance(providerWallet)) <
         parseUnits(task.tokenAmount.toString(), 'ether')
       ) {
         return buildErrorResponse(
-          `Amount too high to transfer! Balance: ${await provider.getBalance(
-            task.tokenAddress
+          `Amount too high to transfer! Balance: ${await token.balance(
+            providerWallet
           )} vs. amount provided: ${parseUnits(task.tokenAmount.toString(), 'ether')}`
         )
       }
