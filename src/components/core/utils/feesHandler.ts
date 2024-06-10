@@ -1,6 +1,7 @@
 import type { ComputeEnvironment } from '../../../@types/C2D.js'
 import {
   JsonRpcApiProvider,
+  JsonRpcProvider,
   ethers,
   Interface,
   BigNumberish,
@@ -471,8 +472,11 @@ export async function checkFee(
  * @returns the wallet
  */
 export async function getProviderWallet(chainId?: string): Promise<ethers.Wallet> {
+  const config = await getConfiguration()
+  const provider = new JsonRpcProvider(config.supportedNetworks[chainId].rpc)
   const wallet: ethers.Wallet = new ethers.Wallet(
-    Buffer.from((await getConfiguration()).keys.privateKey).toString('hex')
+    Buffer.from((await getConfiguration()).keys.privateKey).toString('hex'),
+    provider
   )
   return wallet
 }
@@ -495,7 +499,7 @@ export async function getProviderFeeToken(chainId: number): Promise<string> {
   )
   if (result.length === 0 && chainId === 8996) {
     const localOceanToken = getOceanArtifactsAdresses().development.Ocean
-    return localOceanToken || ethers.ZeroAddress
+    return localOceanToken
   }
   return result.length ? result[0].token : ethers.ZeroAddress
 }
