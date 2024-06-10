@@ -57,8 +57,6 @@ async function getFile(
 }
 
 async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFileObject) {
-  CORE_LOGGER.logMessage(`Starting formatMetadata for file: ${JSON.stringify(file)}`)
-
   const url =
     file.type === 'url'
       ? (file as UrlFileObject).url
