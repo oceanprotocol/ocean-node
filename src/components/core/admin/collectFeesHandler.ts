@@ -17,8 +17,8 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 export class CollectFeesHandler extends AdminHandler {
   validate(command: AdminCollectFeesCommand): ValidateParams {
     if (
-      !/^0x([A-Fa-f0-9]{42})$/.test(command.tokenAddress) ||
-      !/^0x([A-Fa-f0-9]{42})$/.test(command.destinationAddress)
+      !/^0x([A-Fa-f0-9]{4})$/.test(command.tokenAddress) ||
+      !/^0x([A-Fa-f0-9]{40})$/.test(command.destinationAddress)
     ) {
       CORE_LOGGER.logMessage(
         `enters here: ${/^0x([A-Fa-f0-9]{42})$/.test(
