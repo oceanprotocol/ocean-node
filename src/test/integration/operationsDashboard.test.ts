@@ -348,7 +348,7 @@ describe('Should test admin operations', () => {
     )
     expect(result.status.httpStatus).to.be.equal(200) // OK
     expect(await streamToObject(result.stream as Readable)).to.have.own.property('txId') // OK
-    expect(await provider.getBalance(await wallet.getAddress())).to.be.equal(
+    expect(await token.balanceOf(await providerWallet.getAddress())).to.be.equal(
       balanceBefore + parseUnits(collectFeesCommand.tokenAmount.toString(), 'ethers')
     )
 
