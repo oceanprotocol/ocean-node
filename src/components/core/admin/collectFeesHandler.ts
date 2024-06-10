@@ -40,7 +40,11 @@ export class CollectFeesHandler extends AdminHandler {
         (await provider.getBalance(task.tokenAddress)) <
         parseUnits(task.tokenAmount.toString(), 'ether')
       ) {
-        return buildErrorResponse(`Amount too high to transfer!`)
+        return buildErrorResponse(
+          `Amount too high to transfer! Balance: ${await provider.getBalance(
+            task.tokenAddress
+          )} vs. amount provided: ${parseUnits(task.tokenAmount.toString(), 'ether')}`
+        )
       }
 
       const tx = await providerWallet.sendTransaction({
