@@ -25,14 +25,15 @@ import {
 } from '../../utils/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 
-import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
+import { DEVELOPMENT_CHAIN_ID, getOceanArtifactsAdresses } from '../../utils/address.js'
 import {
   AdminReindexChainCommand,
   AdminReindexTxCommand,
   AdminStopNodeCommand,
   JobStatus,
   IndexingCommand,
-  StartStopIndexingCommand
+  StartStopIndexingCommand,
+  AdminCollectFeesCommand
 } from '../../@types/commands.js'
 import { StopNodeHandler } from '../../components/core/admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.js'
@@ -49,6 +50,7 @@ import {
 import { getCrawlingInterval } from '../../components/Indexer/utils.js'
 import { ReindexTask } from '../../components/Indexer/crawlerThread.js'
 import { create256Hash } from '../../utils/crypt.js'
+import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandler.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -306,6 +308,58 @@ describe('Should test admin operations', () => {
     const responseStart = await indexingHandler.handle(indexingStartCommand)
     assert(responseStart.stream, 'Failed to get stream when starting thread')
     expect(responseStart.status.httpStatus).to.be.equal(200)
+  })
+
+  it('should test command for collect fees', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    // -----------------------------------------
+    // CollectFeesHandler
+    const collectFeesHandler: CollectFeesHandler = CoreHandlersRegistry.getInstance(
+      oceanNode
+    ).getHandler(PROTOCOL_COMMANDS.COLLECT_FEES)
+
+    const signature = await getSignature(expiryTimestamp.toString())
+    const collectFeesCommand: AdminCollectFeesCommand = {
+      command: PROTOCOL_COMMANDS.COLLECT_FEES,
+      tokenAddress: getOceanArtifactsAdresses().development.Ocean,
+      chainId: DEVELOPMENT_CHAIN_ID,
+      tokenAmount: 0.01,
+      destinationAddress: await wallet.getAddress(),
+      expiryTimestamp,
+      signature
+    }
+    expect(collectFeesHandler.validate(collectFeesCommand).valid).to.be.equal(true) // OK
+    const result = await collectFeesHandler.handle(collectFeesCommand)
+    expect(result.status.httpStatus).to.be.equal(200) // OK
+    expect(await streamToObject(result.stream as Readable)).to.have.own.property('txId') // OK
+
+    // Test incorrect values for command: node ID and big amount
+    const collectFeesCommandWrongNode: AdminCollectFeesCommand = {
+      command: PROTOCOL_COMMANDS.COLLECT_FEES,
+      node: 'My peerID', // dummy peer ID
+      tokenAddress: getOceanArtifactsAdresses().development.Ocean,
+      chainId: DEVELOPMENT_CHAIN_ID,
+      tokenAmount: 0.01,
+      destinationAddress: await wallet.getAddress(),
+      expiryTimestamp,
+      signature
+    }
+    expect(
+      (await collectFeesHandler.handle(collectFeesCommandWrongNode)).status.httpStatus
+    ).to.be.equal(400) // NOK
+
+    const collectFeesCommandWrongAmount: AdminCollectFeesCommand = {
+      command: PROTOCOL_COMMANDS.COLLECT_FEES,
+      tokenAddress: getOceanArtifactsAdresses().development.Ocean,
+      chainId: DEVELOPMENT_CHAIN_ID,
+      tokenAmount: 366666666666, // big amount
+      destinationAddress: await wallet.getAddress(),
+      expiryTimestamp,
+      signature
+    }
+    expect(
+      (await collectFeesHandler.handle(collectFeesCommandWrongAmount)).status.httpStatus
+    ).to.be.equal(400) // NOK
   })
 
   after(async () => {

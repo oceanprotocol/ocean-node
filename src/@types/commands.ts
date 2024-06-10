@@ -116,6 +116,13 @@ export interface AdminReindexTxCommand extends AdminCommand {
   txId: string
 }
 
+export interface AdminCollectFeesCommand extends AdminCommand {
+  tokenAddress: string
+  chainId: number
+  tokenAmount: number
+  destinationAddress: string
+}
+
 export interface AdminReindexChainCommand extends AdminCommand {
   chainId: number
 }

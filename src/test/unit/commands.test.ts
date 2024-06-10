@@ -49,6 +49,7 @@ import { ComputeInitializeHandler } from '../../components/core/compute/initiali
 import { StopNodeHandler } from '../../components/core/admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.js'
 import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
+import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandler.js'
 
 describe('Commands and handlers', () => {
   it('Check that all supported commands have registered handlers', () => {
@@ -227,6 +228,12 @@ describe('Commands and handlers', () => {
       node
     ).getHandler(PROTOCOL_COMMANDS.REINDEX_CHAIN)
     expect(reindexChainHandler).to.be.not.equal(null)
+    // -----------------------------------------
+    // CollectFeesHandler
+    const collectFeesHandler: CollectFeesHandler = CoreHandlersRegistry.getInstance(
+      node
+    ).getHandler(PROTOCOL_COMMANDS.COLLECT_FEES)
+    expect(collectFeesHandler).to.be.not.equal(null)
     // -----------------------------------------
     // FileInfoHandler
     const fileInfoHandler: FileInfoHandler = CoreHandlersRegistry.getInstance(
