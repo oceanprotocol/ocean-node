@@ -169,7 +169,7 @@ describe('Should test admin operations', () => {
     expect(obj.tx).to.be.not.equal(null) // OK
     expect(obj.message).to.be.equal('Fees successfully transfered to admin!') // OK
     expect(await token.balanceOf(await providerWallet.getAddress())).to.be.equal(
-      balanceBefore + parseUnits(collectFeesCommand.tokenAmount.toString(), 'ethers')
+      balanceBefore + parseUnits(collectFeesCommand.tokenAmount.toString(), 'ether')
     )
 
     // Test incorrect values for command: node ID and big amount
