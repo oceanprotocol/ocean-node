@@ -10,9 +10,9 @@ import {
 import { getConfiguration } from '../../../utils/index.js'
 import { getProviderFeeToken, getProviderWallet } from '../utils/feesHandler.js'
 import { parseUnits, Contract, ZeroAddress } from 'ethers'
-import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' assert { type: 'json' }
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { Readable } from 'stream'
 
 export class CollectFeesHandler extends AdminHandler {
   validate(command: AdminCollectFeesCommand): ValidateParams {
@@ -81,11 +81,15 @@ export class CollectFeesHandler extends AdminHandler {
 
       return {
         status: { httpStatus: 200 },
-        stream: new ReadableString(
-          JSON.stringify({
-            txId: tx.hash,
-            message: 'Fees successfully transfered to admin!'
-          })
+        stream: Readable.from(
+          JSON.stringify(
+            {
+              message: 'Fees successfully transfered to admin!',
+              txId: tx.hash
+            },
+            null,
+            4
+          )
         )
       }
     } catch (e) {
