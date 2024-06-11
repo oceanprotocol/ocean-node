@@ -1,7 +1,7 @@
 import { LOG_LEVELS_STR } from './logging/Logger.js'
 import { Readable, Stream } from 'stream'
 import { Interface } from 'ethers'
-import { PROVIDER_LOGGER } from './logging/common.js'
+import { CONFIG_LOGGER, PROVIDER_LOGGER } from './logging/common.js'
 
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -24,6 +24,7 @@ export function sanitizeServiceFiles(serviceFiles: string): string {
 
 export async function streamToObject(stream: Readable): Promise<any> {
   const jsonString = await streamToString(stream)
+  CONFIG_LOGGER.logMessage(`json string: ${jsonString}`)
   try {
     return JSON.parse(jsonString)
   } catch (error) {

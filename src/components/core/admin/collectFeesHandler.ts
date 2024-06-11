@@ -77,20 +77,14 @@ export class CollectFeesHandler extends AdminHandler {
         parseUnits(task.tokenAmount.toString(), 'ether')
       )
       await tx.wait()
-      CORE_LOGGER.logMessage(`tx: ${tx.id}`)
-
+      CORE_LOGGER.logMessage(`tx: ${tx.hash}`)
+      const response: any = {
+        message: 'Fees successfully transfered to admin!',
+        txId: tx.hash
+      }
       return {
         status: { httpStatus: 200 },
-        stream: Readable.from(
-          JSON.stringify(
-            {
-              message: 'Fees successfully transfered to admin!',
-              txId: tx.hash
-            },
-            null,
-            4
-          )
-        )
+        stream: Readable.from(JSON.stringify(response))
       }
     } catch (e) {
       return {
