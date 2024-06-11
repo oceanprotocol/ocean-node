@@ -39,7 +39,7 @@ import { StopNodeHandler } from '../../components/core/admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.js'
 import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
 import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
-import { sleep, streamToObject } from '../../utils/util.js'
+import { sleep, streamToObject, streamToString } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 import { IndexingThreadHandler } from '../../components/core/admin/IndexingThreadHandler.js'
 import { CoreHandlersRegistry } from '../../components/core/handler/coreHandlersRegistry.js'
@@ -347,9 +347,14 @@ describe('Should test admin operations', () => {
       JSON.stringify(await streamToObject(result.stream as Readable))
     )
     expect(result.status.httpStatus).to.be.equal(200) // OK
-    const obj = await streamToObject(result.stream as Readable)
-    expect(obj.txId).to.be.not.equal(null) // OK
-    expect(obj.message).to.be.equal('Fees successfully transfered to admin!')
+
+    const obj = await streamToString(result.stream as Readable)
+    console.log('obj: ', obj)
+
+    const parsedObj = JSON.parse(obj)
+
+    expect(parsedObj.txId).to.be.not.equal(null) // OK
+    expect(parsedObj.message).to.be.equal('Fees successfully transfered to admin!')
     expect(await token.balanceOf(await providerWallet.getAddress())).to.be.equal(
       balanceBefore + parseUnits(collectFeesCommand.tokenAmount.toString(), 'ethers')
     )
