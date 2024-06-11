@@ -161,16 +161,13 @@ describe('Should test admin operations', () => {
     const balanceBefore = await token.balanceOf(await providerWallet.getAddress())
     expect(collectFeesHandler.validate(collectFeesCommand).valid).to.be.equal(true) // OK
     const result = await collectFeesHandler.handle(collectFeesCommand)
-    console.log(
-      'result handler: ',
-      JSON.stringify(await streamToObject(result.stream as Readable))
-    )
     expect(result.status.httpStatus).to.be.equal(200) // OK
 
     const obj = await streamToObject(result.stream as Readable)
-    console.log('obj: ', JSON.parse(obj))
+    console.log('obj: ', JSON.stringify(obj))
 
-    expect(obj.txId).to.be.not.equal(null) // OK
+    expect(obj.tx).to.be.not.equal(null) // OK
+    expect(obj.message).to.be.equal('Fees successfully transfered to admin!') // OK
     expect(await token.balanceOf(await providerWallet.getAddress())).to.be.equal(
       balanceBefore + parseUnits(collectFeesCommand.tokenAmount.toString(), 'ethers')
     )

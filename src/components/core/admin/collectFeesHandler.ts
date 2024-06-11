@@ -57,11 +57,6 @@ export class CollectFeesHandler extends AdminHandler {
         ERC20Template.abi,
         providerWallet
       )
-      CORE_LOGGER.logMessage(
-        `provider fee token balance: ${await token.balanceOf(
-          await providerWallet.getAddress()
-        )}`
-      )
       if (
         (await token.balanceOf(await providerWallet.getAddress())) <
         parseUnits(task.tokenAmount.toString(), 'ether')
@@ -76,11 +71,11 @@ export class CollectFeesHandler extends AdminHandler {
         task.destinationAddress.toLowerCase(),
         parseUnits(task.tokenAmount.toString(), 'ether')
       )
-      await tx.wait()
-      CORE_LOGGER.logMessage(`tx: ${tx.hash}`)
+      const txReceipt = await tx.wait()
+      CORE_LOGGER.logMessage(`tx: ${txReceipt.hash}`)
       const response: any = {
-        // message: 'Fees successfully transfered to admin!',
-        txId: tx.hash
+        tx: txReceipt.hash,
+        message: 'Fees successfully transfered to admin!'
       }
       return {
         status: { httpStatus: 200 },
