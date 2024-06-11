@@ -7,6 +7,7 @@ import {
   TypesenseDocumentSchema,
   TypesenseSearchResponse
 } from '../../@types/index.js'
+import { TYPESENSE_HITS_CAP } from '../../utils/constants.js'
 import { TypesenseApi } from './typesenseApi.js'
 import { TypesenseConfig } from './typesenseConfig.js'
 
@@ -70,11 +71,12 @@ class TypesenseDocuments {
   }
 
   // eslint-disable-next-line require-await
-  async deleteByChainId(filterCondition: string) {
-    // TODO #406 https://github.com/oceanprotocol/ocean-node/issues/406:
-    // Use the batch_size parameter to control the number of documents. A larger value will speed up deletions, but will impact performance.
-    const path = `${this.apiPath}?filter_by=${filterCondition}`
-    return this.api.delete<TypesenseDocumentSchema>(path)
+  async deleteByChainId(filterCondition: string, batchSize: number = TYPESENSE_HITS_CAP) {
+    const batch = Math.min(batchSize, TYPESENSE_HITS_CAP)
+    return this.api.delete<TypesenseDocumentSchema>(this.apiPath, {
+      filter_by: filterCondition,
+      batch_size: batch
+    })
   }
 
   // eslint-disable-next-line require-await
