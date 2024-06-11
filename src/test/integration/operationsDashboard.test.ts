@@ -51,7 +51,10 @@ import { getCrawlingInterval } from '../../components/Indexer/utils.js'
 import { ReindexTask } from '../../components/Indexer/crawlerThread.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandler.js'
-import { getProviderWallet } from '../../components/core/utils/feesHandler.js'
+import {
+  getProviderFeeToken,
+  getProviderWallet
+} from '../../components/core/utils/feesHandler.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -125,7 +128,7 @@ describe('Should test admin operations', () => {
   })
 
   it('should test command for collect fees', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     // -----------------------------------------
     // CollectFeesHandler
     const collectFeesHandler: CollectFeesHandler = CoreHandlersRegistry.getInstance(
@@ -135,7 +138,7 @@ describe('Should test admin operations', () => {
     const signature = await getSignature(expiryTimestamp.toString())
     const collectFeesCommand: AdminCollectFeesCommand = {
       command: PROTOCOL_COMMANDS.COLLECT_FEES,
-      tokenAddress: getOceanArtifactsAdresses().development.Ocean,
+      tokenAddress: await getProviderFeeToken(DEVELOPMENT_CHAIN_ID),
       chainId: DEVELOPMENT_CHAIN_ID,
       tokenAmount: 0.01,
       destinationAddress: await wallet.getAddress(),
