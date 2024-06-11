@@ -171,9 +171,6 @@ describe('Should test admin operations', () => {
     expect(result.status.httpStatus).to.be.equal(200) // OK
 
     const obj = await streamToObject(result.stream as Readable)
-    console.log('obj: ', JSON.stringify(obj))
-    console.log('wallet: ', await wallet.getAddress())
-    console.log('provider wallet: ', await providerWallet.getAddress())
 
     expect(obj.tx).to.be.not.equal(null) // OK
     expect(obj.message).to.be.equal('Fees successfully transfered to admin!') // OK
@@ -192,6 +189,10 @@ describe('Should test admin operations', () => {
       expiryTimestamp,
       signature
     }
+    console.log(
+      '(await collectFeesHandler.handle(collectFeesCommandWrongNode)): ',
+      JSON.stringify(await collectFeesHandler.handle(collectFeesCommandWrongNode))
+    )
     expect(
       (await collectFeesHandler.handle(collectFeesCommandWrongNode)).status.httpStatus
     ).to.be.equal(400) // NOK
@@ -205,6 +206,10 @@ describe('Should test admin operations', () => {
       expiryTimestamp,
       signature
     }
+    console.log(
+      '(await collectFeesHandler.handle(collectFeesCommandWrongAmount)): ',
+      JSON.stringify(await collectFeesHandler.handle(collectFeesCommandWrongAmount))
+    )
     expect(
       (await collectFeesHandler.handle(collectFeesCommandWrongAmount)).status.httpStatus
     ).to.be.equal(400) // NOK
