@@ -17,7 +17,7 @@ import { RouteOptions } from '../../@types/express.js'
 // would return:
 // {'computeStart - API that starts a C2D job': ['POST','/api/services/compute']}
 //
-// AND/OR we can also extend RouteOptions in the futire and add more fields like a short API description for instance:
+// AND/OR we can also extend RouteOptions in the future and add more fields like a short API description for instance:
 // { path, method, description'}
 
 // C2D
