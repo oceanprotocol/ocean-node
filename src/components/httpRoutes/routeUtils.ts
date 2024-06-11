@@ -2,9 +2,19 @@ import { AQUARIUS_API_BASE_PATH } from './aquarius.js'
 import { SERVICES_API_BASE_PATH } from '../../utils/index.js'
 import { RouteOptions } from '../../@types/express.js'
 // express does not support 'names' or 'descriptions' for routes
-// only a path and a method, so if we want a custom name/description, we need to create a mapping of names
+// only a path and a method, so if we want a custom name/description (the JSON field), we need to create a mapping of names
 // if the name for a path/API is available we use it, otherwise we supply a default one extracted from the path itself
 // this way, we always have dynamic routes, even if a route name is not supplied explicitly
+// NOTE that none of the above is required, its just helpful to have more meaningful/pretty names on the response
+// we could even use the string to provide a small description instead of just a name, for example:
+
+// routesNames.set('computeStart - starts a C2D job', {
+//   path: `${SERVICES_API_BASE_PATH}/compute`,
+//   method: 'post'
+// })
+// would return:
+// {'computeStart - API that starts a C2D job': ['POST','/api/services/compute']}
+
 // C2D
 export const routesNames: Map<string, RouteOptions> = new Map<string, RouteOptions>()
 export const allRoutesMapping = new Map<string, string[]>()
