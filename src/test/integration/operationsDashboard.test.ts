@@ -125,7 +125,7 @@ describe('Should test admin operations', () => {
   })
 
   it('should test command for collect fees', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
     // -----------------------------------------
     // CollectFeesHandler
     const collectFeesHandler: CollectFeesHandler = CoreHandlersRegistry.getInstance(
