@@ -7,9 +7,9 @@ import { RouteOptions } from '../../@types/express.js'
 // this way, we always have dynamic routes, even if a route name is not supplied explicitly
 
 // NOTE that none of the bellow is required/mandatory, its just helpful to have more meaningful/pretty names on the response
-// we could even use the string to provide a small description instead of just a name, for example:
+// we could even use the string to provide a small description instead of just a name/word, for example:
 
-// routesNames.set('computeStart - starts a C2D job', {
+// routesNames.set('computeStart - API that starts a C2D job', {
 //   path: `${SERVICES_API_BASE_PATH}/compute`,
 //   method: 'post'
 // })
@@ -18,7 +18,10 @@ import { RouteOptions } from '../../@types/express.js'
 // {'computeStart - API that starts a C2D job': ['POST','/api/services/compute']}
 //
 // AND/OR we can also extend RouteOptions in the future and add more fields like a short API description for instance:
-// { path, method, description'}
+// { path, method, description'}:
+// Example:
+// {'computeStart': ['POST','/api/services/compute','This API allows to start a C2D job]}
+//
 
 // C2D
 export const routesNames: Map<string, RouteOptions> = new Map<string, RouteOptions>()
