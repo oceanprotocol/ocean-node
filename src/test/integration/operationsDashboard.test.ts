@@ -168,6 +168,8 @@ describe('Should test admin operations', () => {
 
     const obj = await streamToObject(result.stream as Readable)
     console.log('obj: ', JSON.stringify(obj))
+    console.log('wallet: ', await wallet.getAddress())
+    console.log('provider wallet: ', await providerWallet.getAddress())
 
     expect(obj.tx).to.be.not.equal(null) // OK
     expect(obj.message).to.be.equal('Fees successfully transfered to admin!') // OK
