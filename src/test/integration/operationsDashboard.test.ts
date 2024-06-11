@@ -189,10 +189,6 @@ describe('Should test admin operations', () => {
       expiryTimestamp,
       signature
     }
-    console.log(
-      '(await collectFeesHandler.handle(collectFeesCommandWrongNode)): ',
-      JSON.stringify(await collectFeesHandler.handle(collectFeesCommandWrongNode))
-    )
     expect(
       (await collectFeesHandler.handle(collectFeesCommandWrongNode)).status.httpStatus
     ).to.be.equal(400) // NOK
@@ -206,10 +202,6 @@ describe('Should test admin operations', () => {
       expiryTimestamp,
       signature
     }
-    console.log(
-      '(await collectFeesHandler.handle(collectFeesCommandWrongAmount)): ',
-      JSON.stringify(await collectFeesHandler.handle(collectFeesCommandWrongAmount))
-    )
     expect(
       (await collectFeesHandler.handle(collectFeesCommandWrongAmount)).status.httpStatus
     ).to.be.equal(400) // NOK
