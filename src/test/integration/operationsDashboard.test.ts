@@ -39,7 +39,7 @@ import { StopNodeHandler } from '../../components/core/admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.js'
 import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
 import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
-import { sleep, streamToObject, streamToString } from '../../utils/util.js'
+import { sleep, streamToObject, readStream } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 import { IndexingThreadHandler } from '../../components/core/admin/IndexingThreadHandler.js'
 import { CoreHandlersRegistry } from '../../components/core/handler/coreHandlersRegistry.js'
@@ -348,7 +348,7 @@ describe('Should test admin operations', () => {
     )
     expect(result.status.httpStatus).to.be.equal(200) // OK
 
-    const obj = await streamToString(result.stream as Readable)
+    const obj = await readStream(result.stream as Readable)
     console.log('obj: ', obj)
 
     const parsedObj = JSON.parse(obj)
