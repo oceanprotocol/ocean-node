@@ -113,13 +113,6 @@
   padding-top: 55px;
 }
 
-.rowIndexer {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  /* gap: 80px; */
-}
-
 .indexBlock {
   display: flex;
   flex-direction: column;
@@ -127,7 +120,7 @@
   padding: 24px 28px;
   border-radius: 8px;
   border: 1px solid rgba(78, 203, 113, 0.7);
-  background: rgba(38, 194, 81, 0.7);
+  border-top: 10px solid rgba(38, 194, 81, 0.7);
   min-width: 240px;
 
   color: #3d4551;
@@ -149,14 +142,14 @@
 }
 
 .delayed {
-  background: rgba(234, 89, 47, 0.9);
   border: 1px solid rgba(234, 89, 47, 0.9);
+  border-top: 10px solid rgba(234, 89, 47, 0.9);
 }
 
 .provider {
   display: flex;
   flex-direction: column;
-  gap: 36px;
+  gap: 10px;
 }
 
 .providerRow {
@@ -245,10 +238,5 @@
   .columnP2P {
     width: 100%;
     border-right: 0;
-  }
-
-  .rowIndexer {
-    flex-direction: column;
-    gap: 20px;
   }
 }

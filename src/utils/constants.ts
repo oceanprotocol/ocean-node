@@ -85,6 +85,13 @@ export const INDEXER_CRAWLING_EVENTS = {
   REINDEX_TX: PROTOCOL_COMMANDS.REINDEX_TX
 }
 
+export const INDEXER_MESSAGES = {
+  REINDEX_TX: PROTOCOL_COMMANDS.REINDEX_TX, // use the same names, no need to add different strings all the time
+  REINDEX_CHAIN: PROTOCOL_COMMANDS.REINDEX_CHAIN,
+  START_CRAWLING: 'start-crawling',
+  STOP_CRAWLING: 'stop-crawling'
+}
+
 export const EVENT_HASHES: Hashes = {
   '0x5463569dcc320958360074a9ab27e809e8a6942c394fb151d139b5f7b4ecb1bd': {
     type: EVENTS.METADATA_CREATED,
@@ -188,6 +195,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.P2P_ANNOUNCE_ADDRESSES,
     required: false
   },
+  P2P_FILTER_ANNOUNCED_ADDRESSES: {
+    name: 'P2P_FILTER_ANNOUNCED_ADDRESSES',
+    value: process.env.P2P_FILTER_ANNOUNCED_ADDRESSES,
+    required: false
+  },
   // node specific
   NODE_ENV: { name: 'NODE_ENV', value: process.env.NODE_ENV, required: false },
   AUTHORIZED_DECRYPTERS: {
@@ -268,6 +280,8 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
 
 // default to 3 requests per second (configurable)
 export const DEFAULT_RATE_LIMIT_PER_SECOND = 3
+// Typesense's maximum limit to send 250 hits at a time
+export const TYPESENSE_HITS_CAP = 250
 export const DDO_IDENTIFIER_PREFIX = 'did:op:'
 // global ocean node API services path
 export const SERVICES_API_BASE_PATH = '/api/services'

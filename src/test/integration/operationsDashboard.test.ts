@@ -30,6 +30,7 @@ import {
   AdminReindexChainCommand,
   AdminReindexTxCommand,
   AdminStopNodeCommand,
+  JobStatus,
   IndexingCommand,
   StartStopIndexingCommand
 } from '../../@types/commands.js'
@@ -47,6 +48,7 @@ import {
 } from '../../components/Indexer/index.js'
 import { getCrawlingInterval } from '../../components/Indexer/utils.js'
 import { ReindexTask } from '../../components/Indexer/crawlerThread.js'
+import { create256Hash } from '../../utils/crypt.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -170,6 +172,20 @@ describe('Should test admin operations', () => {
       id: publishedDataset.ddo.id
     }
 
+    const responseJob: JobStatus = await streamToObject(
+      handlerResponse.stream as Readable
+    )
+    assert(indexer.getJobsPool().length >= 1, 'job id not found in pool')
+    assert(responseJob.command === PROTOCOL_COMMANDS.REINDEX_TX, 'command not expected')
+    assert(responseJob.jobId.includes(PROTOCOL_COMMANDS.REINDEX_TX))
+    assert(responseJob.timestamp <= new Date().getTime().toString())
+    assert(
+      responseJob.hash ===
+        create256Hash(
+          [reindexTxCommand.chainId.toString(), reindexTxCommand.txId].join('')
+        ),
+      'wrong job hash'
+    )
     // wait a bit
     await sleep(getCrawlingInterval() * 2)
     if (reindexResult !== null) {
@@ -221,6 +237,24 @@ describe('Should test admin operations', () => {
       const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
       assert(handlerResponse, 'handler resp does not exist')
       assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
+      const responseJob: JobStatus = await streamToObject(
+        handlerResponse.stream as Readable
+      )
+
+      assert(
+        indexer.getJobsPool(responseJob.jobId).length === 1,
+        'job id not found in pool'
+      )
+      assert(
+        responseJob.command === PROTOCOL_COMMANDS.REINDEX_CHAIN,
+        'command not expected'
+      )
+      assert(responseJob.jobId.includes(PROTOCOL_COMMANDS.REINDEX_CHAIN))
+      assert(responseJob.timestamp <= new Date().getTime().toString())
+      assert(
+        responseJob.hash === create256Hash(DEVELOPMENT_CHAIN_ID.toString()),
+        'wrong job hash'
+      )
 
       // give it a little time to respond with the event
       await sleep(getCrawlingInterval() * 2)

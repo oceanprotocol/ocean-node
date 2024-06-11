@@ -154,7 +154,8 @@ describe('validateOrderTransaction Function with Orders', () => {
       dataNftAddress,
       datatokenAddress,
       parseInt(serviceId),
-      timeout
+      timeout,
+      consumerAccount
     )
     assert(validationResult.isValid, 'Transaction is not valid.')
     assert(
@@ -183,7 +184,8 @@ describe('validateOrderTransaction Function with Orders', () => {
       dataNftAddress,
       datatokenAddress,
       parseInt(serviceId),
-      timeout
+      timeout,
+      consumerAccount
     )
 
     assert(validationResult.isValid, 'Reuse order transaction is not valid.')
@@ -201,7 +203,8 @@ describe('validateOrderTransaction Function with Orders', () => {
       dataNftAddress,
       datatokenAddress,
       parseInt('999'),
-      timeout
+      timeout,
+      consumerAccount
     )
 
     assert(!validationResult.isValid, 'Reuse order transaction should not be valid.')
@@ -219,7 +222,8 @@ describe('validateOrderTransaction Function with Orders', () => {
       dataNftAddress,
       datatokenAddress,
       parseInt(serviceId),
-      timeout
+      timeout,
+      consumerAccount
     )
 
     assert(!validationResult.isValid, 'Reuse order transaction should not be valid.')

@@ -212,6 +212,7 @@ describe('Should run a complete node flow.', () => {
   })
 
   it('should start an order', async function () {
+    console.log('start an order download test: ', actualDDO)
     const orderTxReceipt = await orderAsset(
       actualDDO,
       0,

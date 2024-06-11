@@ -21,6 +21,7 @@ import {
   buildInvalidRequestMessage,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
+import { sanitizeServiceFiles } from '../../../utils/util.js'
 
 async function getFile(
   did: string,
@@ -39,7 +40,7 @@ async function getFile(
     }
     // 3. Decrypt the url
     const decryptedUrlBytes = await decrypt(
-      Uint8Array.from(Buffer.from(service.files, 'hex')),
+      Uint8Array.from(Buffer.from(sanitizeServiceFiles(service.files), 'hex')),
       EncryptMethod.ECIES
     )
     CORE_LOGGER.logMessage(`URL decrypted for Service ID: ${serviceId}`)
@@ -56,8 +57,6 @@ async function getFile(
 }
 
 async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFileObject) {
-  CORE_LOGGER.logMessage(`Starting formatMetadata for file: ${JSON.stringify(file)}`)
-
   const url =
     file.type === 'url'
       ? (file as UrlFileObject).url

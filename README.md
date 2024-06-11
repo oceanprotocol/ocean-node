@@ -323,7 +323,7 @@ The dashboard will be made available at: `http://localhost:8000/dashboard/`
 
 In order for your node to join the network, the others nodes needs to be able to connect to it.
 All options can be controlled using [environment
-variables](docs/environment-variables.md#p2p)
+variables](env.md#p2p)
 
 To quickly start your node, you can keep all of the default values,but most likely it will hurt performance. If you want a customised approach, here are the full steps:
 
