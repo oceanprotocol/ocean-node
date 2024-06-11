@@ -73,6 +73,10 @@ describe('Should test admin operations', () => {
     '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
     provider
   )
+  const destinationWallet = new ethers.Wallet(
+    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209',
+    provider
+  )
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
@@ -141,7 +145,7 @@ describe('Should test admin operations', () => {
       tokenAddress: await getProviderFeeToken(DEVELOPMENT_CHAIN_ID),
       chainId: DEVELOPMENT_CHAIN_ID,
       tokenAmount: 0.01,
-      destinationAddress: await wallet.getAddress(),
+      destinationAddress: await destinationWallet.getAddress(),
       expiryTimestamp,
       signature
     }
@@ -161,7 +165,7 @@ describe('Should test admin operations', () => {
       ERC20Template.abi,
       providerWallet
     )
-    const balanceBefore = await token.balanceOf(await wallet.getAddress())
+    const balanceBefore = await token.balanceOf(await destinationWallet.getAddress())
     expect(collectFeesHandler.validate(collectFeesCommand).valid).to.be.equal(true) // OK
     const result = await collectFeesHandler.handle(collectFeesCommand)
     expect(result.status.httpStatus).to.be.equal(200) // OK
@@ -173,7 +177,7 @@ describe('Should test admin operations', () => {
 
     expect(obj.tx).to.be.not.equal(null) // OK
     expect(obj.message).to.be.equal('Fees successfully transfered to admin!') // OK
-    expect(await token.balanceOf(await wallet.getAddress())).to.be.equal(
+    expect(await token.balanceOf(await destinationWallet.getAddress())).to.be.equal(
       balanceBefore + parseUnits(collectFeesCommand.tokenAmount.toString(), 'ether')
     )
 
