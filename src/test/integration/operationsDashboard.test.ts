@@ -124,6 +124,83 @@ describe('Should test admin operations', () => {
     assert(validationResponse.valid === true, 'validation for stop node command failed')
   })
 
+  it('should test command for collect fees', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    // -----------------------------------------
+    // CollectFeesHandler
+    const collectFeesHandler: CollectFeesHandler = CoreHandlersRegistry.getInstance(
+      oceanNode
+    ).getHandler(PROTOCOL_COMMANDS.COLLECT_FEES)
+
+    const signature = await getSignature(expiryTimestamp.toString())
+    const collectFeesCommand: AdminCollectFeesCommand = {
+      command: PROTOCOL_COMMANDS.COLLECT_FEES,
+      tokenAddress: getOceanArtifactsAdresses().development.Ocean,
+      chainId: DEVELOPMENT_CHAIN_ID,
+      tokenAmount: 0.01,
+      destinationAddress: await wallet.getAddress(),
+      expiryTimestamp,
+      signature
+    }
+    console.log(
+      'validation: ',
+      JSON.stringify(collectFeesHandler.validate(collectFeesCommand))
+    )
+    const providerWallet = await getProviderWallet(String(collectFeesCommand.chainId))
+    const token = new Contract(
+      collectFeesCommand.tokenAddress.toLowerCase(),
+      ERC20Template.abi,
+      providerWallet
+    )
+    const balanceBefore = await token.balanceOf(await providerWallet.getAddress())
+    expect(collectFeesHandler.validate(collectFeesCommand).valid).to.be.equal(true) // OK
+    const result = await collectFeesHandler.handle(collectFeesCommand)
+    console.log(
+      'result handler: ',
+      JSON.stringify(await streamToObject(result.stream as Readable))
+    )
+    expect(result.status.httpStatus).to.be.equal(200) // OK
+
+    const obj = await readStream(result.stream as Readable)
+    console.log('obj: ', obj)
+
+    const parsedObj = JSON.parse(obj)
+
+    expect(parsedObj.txId).to.be.not.equal(null) // OK
+    expect(parsedObj.message).to.be.equal('Fees successfully transfered to admin!')
+    expect(await token.balanceOf(await providerWallet.getAddress())).to.be.equal(
+      balanceBefore + parseUnits(collectFeesCommand.tokenAmount.toString(), 'ethers')
+    )
+
+    // Test incorrect values for command: node ID and big amount
+    const collectFeesCommandWrongNode: AdminCollectFeesCommand = {
+      command: PROTOCOL_COMMANDS.COLLECT_FEES,
+      node: 'My peerID', // dummy peer ID
+      tokenAddress: getOceanArtifactsAdresses().development.Ocean,
+      chainId: DEVELOPMENT_CHAIN_ID,
+      tokenAmount: 0.01,
+      destinationAddress: await wallet.getAddress(),
+      expiryTimestamp,
+      signature
+    }
+    expect(
+      (await collectFeesHandler.handle(collectFeesCommandWrongNode)).status.httpStatus
+    ).to.be.equal(400) // NOK
+
+    const collectFeesCommandWrongAmount: AdminCollectFeesCommand = {
+      command: PROTOCOL_COMMANDS.COLLECT_FEES,
+      tokenAddress: getOceanArtifactsAdresses().development.Ocean,
+      chainId: DEVELOPMENT_CHAIN_ID,
+      tokenAmount: 366666666666, // big amount
+      destinationAddress: await wallet.getAddress(),
+      expiryTimestamp,
+      signature
+    }
+    expect(
+      (await collectFeesHandler.handle(collectFeesCommandWrongAmount)).status.httpStatus
+    ).to.be.equal(400) // NOK
+  })
+
   it('should publish dataset', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     publishedDataset = await publishAsset(downloadAsset, wallet as Signer)
@@ -309,83 +386,6 @@ describe('Should test admin operations', () => {
     const responseStart = await indexingHandler.handle(indexingStartCommand)
     assert(responseStart.stream, 'Failed to get stream when starting thread')
     expect(responseStart.status.httpStatus).to.be.equal(200)
-  })
-
-  it('should test command for collect fees', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
-    // -----------------------------------------
-    // CollectFeesHandler
-    const collectFeesHandler: CollectFeesHandler = CoreHandlersRegistry.getInstance(
-      oceanNode
-    ).getHandler(PROTOCOL_COMMANDS.COLLECT_FEES)
-
-    const signature = await getSignature(expiryTimestamp.toString())
-    const collectFeesCommand: AdminCollectFeesCommand = {
-      command: PROTOCOL_COMMANDS.COLLECT_FEES,
-      tokenAddress: getOceanArtifactsAdresses().development.Ocean,
-      chainId: DEVELOPMENT_CHAIN_ID,
-      tokenAmount: 0.01,
-      destinationAddress: await wallet.getAddress(),
-      expiryTimestamp,
-      signature
-    }
-    console.log(
-      'validation: ',
-      JSON.stringify(collectFeesHandler.validate(collectFeesCommand))
-    )
-    const providerWallet = await getProviderWallet(String(collectFeesCommand.chainId))
-    const token = new Contract(
-      collectFeesCommand.tokenAddress.toLowerCase(),
-      ERC20Template.abi,
-      providerWallet
-    )
-    const balanceBefore = await token.balanceOf(await providerWallet.getAddress())
-    expect(collectFeesHandler.validate(collectFeesCommand).valid).to.be.equal(true) // OK
-    const result = await collectFeesHandler.handle(collectFeesCommand)
-    console.log(
-      'result handler: ',
-      JSON.stringify(await streamToObject(result.stream as Readable))
-    )
-    expect(result.status.httpStatus).to.be.equal(200) // OK
-
-    const obj = await readStream(result.stream as Readable)
-    console.log('obj: ', obj)
-
-    const parsedObj = JSON.parse(obj)
-
-    expect(parsedObj.txId).to.be.not.equal(null) // OK
-    expect(parsedObj.message).to.be.equal('Fees successfully transfered to admin!')
-    expect(await token.balanceOf(await providerWallet.getAddress())).to.be.equal(
-      balanceBefore + parseUnits(collectFeesCommand.tokenAmount.toString(), 'ethers')
-    )
-
-    // Test incorrect values for command: node ID and big amount
-    const collectFeesCommandWrongNode: AdminCollectFeesCommand = {
-      command: PROTOCOL_COMMANDS.COLLECT_FEES,
-      node: 'My peerID', // dummy peer ID
-      tokenAddress: getOceanArtifactsAdresses().development.Ocean,
-      chainId: DEVELOPMENT_CHAIN_ID,
-      tokenAmount: 0.01,
-      destinationAddress: await wallet.getAddress(),
-      expiryTimestamp,
-      signature
-    }
-    expect(
-      (await collectFeesHandler.handle(collectFeesCommandWrongNode)).status.httpStatus
-    ).to.be.equal(400) // NOK
-
-    const collectFeesCommandWrongAmount: AdminCollectFeesCommand = {
-      command: PROTOCOL_COMMANDS.COLLECT_FEES,
-      tokenAddress: getOceanArtifactsAdresses().development.Ocean,
-      chainId: DEVELOPMENT_CHAIN_ID,
-      tokenAmount: 366666666666, // big amount
-      destinationAddress: await wallet.getAddress(),
-      expiryTimestamp,
-      signature
-    }
-    expect(
-      (await collectFeesHandler.handle(collectFeesCommandWrongAmount)).status.httpStatus
-    ).to.be.equal(400) // NOK
   })
 
   after(async () => {
