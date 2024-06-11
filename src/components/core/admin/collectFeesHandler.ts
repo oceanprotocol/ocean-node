@@ -79,7 +79,7 @@ export class CollectFeesHandler extends AdminHandler {
       await tx.wait()
       CORE_LOGGER.logMessage(`tx: ${tx.hash}`)
       const response: any = {
-        message: 'Fees successfully transfered to admin!',
+        // message: 'Fees successfully transfered to admin!',
         txId: tx.hash
       }
       return {
