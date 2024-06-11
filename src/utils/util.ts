@@ -27,7 +27,7 @@ export async function streamToObject(stream: Readable): Promise<any> {
   try {
     return JSON.parse(jsonString)
   } catch (error) {
-    throw new Error('Invalid JSON in stream')
+    throw new Error(`Invalid JSON in stream: ${error}`)
   }
 }
 
