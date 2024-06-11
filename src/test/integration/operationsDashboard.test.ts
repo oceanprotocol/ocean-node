@@ -149,10 +149,6 @@ describe('Should test admin operations', () => {
       expiryTimestamp,
       signature
     }
-    console.log(
-      'validation: ',
-      JSON.stringify(collectFeesHandler.validate(collectFeesCommand))
-    )
     const validationResponse = collectFeesHandler.validate(collectFeesCommand)
     assert(validationResponse, 'invalid collect fees validation response')
     assert(

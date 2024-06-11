@@ -20,9 +20,9 @@ export class CollectFeesHandler extends AdminHandler {
       !/^0x([A-Fa-f0-9]{40})$/.test(command.tokenAddress) ||
       !/^0x([A-Fa-f0-9]{40})$/.test(command.destinationAddress)
     ) {
-      return buildInvalidRequestMessage(
-        `Invalid format for token address or destination address.`
-      )
+      const msg: string = `Invalid format for token address or destination address.`
+      CORE_LOGGER.error(msg)
+      return buildInvalidRequestMessage(msg)
     }
     return super.validate(command)
   }
@@ -34,22 +34,23 @@ export class CollectFeesHandler extends AdminHandler {
     }
     const config = await getConfiguration()
     if (task.node && task.node !== config.keys.peerId.toString()) {
-      return buildErrorResponse(
-        `Cannot run this command ${JSON.stringify(task)} on a different node.`
-      )
+      const msg: string = `Cannot run this command ${JSON.stringify(
+        task
+      )} on a different node.`
+      CORE_LOGGER.error(msg)
+      return buildErrorResponse(msg)
     }
     const providerWallet = await getProviderWallet(String(task.chainId))
     try {
       const providerFeeToken = await getProviderFeeToken(task.chainId)
-      CORE_LOGGER.logMessage(`provider fee token: ${providerFeeToken}`)
       if (
         task.tokenAddress.toLowerCase() !== providerFeeToken.toLowerCase() ||
         task.tokenAddress === ZeroAddress ||
         providerFeeToken === ZeroAddress
       ) {
-        return buildErrorResponse(
-          `Token address ${task.tokenAddress} is not the same with provider fee token address ${providerFeeToken}`
-        )
+        const msg: string = `Token address ${task.tokenAddress} is not the same with provider fee token address ${providerFeeToken}`
+        CORE_LOGGER.error(msg)
+        return buildErrorResponse(msg)
       }
 
       const token = new Contract(
@@ -61,18 +62,17 @@ export class CollectFeesHandler extends AdminHandler {
         (await token.balanceOf(await providerWallet.getAddress())) <
         parseUnits(task.tokenAmount.toString(), 'ether')
       ) {
-        return buildErrorResponse(
-          `Amount too high to transfer! Balance: ${await token.balanceOf(
-            await providerWallet.getAddress()
-          )} vs. amount provided: ${parseUnits(task.tokenAmount.toString(), 'ether')}`
-        )
+        const msg: string = `Amount too high to transfer! Balance: ${await token.balanceOf(
+          await providerWallet.getAddress()
+        )} vs. amount provided: ${parseUnits(task.tokenAmount.toString(), 'ether')}`
+        CORE_LOGGER.error(msg)
+        return buildErrorResponse(msg)
       }
       const tx = await token.transfer(
         task.destinationAddress.toLowerCase(),
         parseUnits(task.tokenAmount.toString(), 'ether')
       )
       const txReceipt = await tx.wait()
-      CORE_LOGGER.logMessage(`tx: ${txReceipt.hash}`)
       const response: any = {
         tx: txReceipt.hash,
         message: 'Fees successfully transfered to admin!'
@@ -82,11 +82,13 @@ export class CollectFeesHandler extends AdminHandler {
         stream: Readable.from(JSON.stringify(response))
       }
     } catch (e) {
+      const msg: string = `Error in collecting provider fees: ${e}`
+      CORE_LOGGER.error(msg)
       return {
         stream: null,
         status: {
           httpStatus: 500,
-          error: `Error in collecting provider fees: ${e}`
+          error: msg
         }
       }
     }
