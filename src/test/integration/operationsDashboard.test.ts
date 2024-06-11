@@ -158,7 +158,7 @@ describe('Should test admin operations', () => {
       ERC20Template.abi,
       providerWallet
     )
-    const balanceBefore = await token.balanceOf(await providerWallet.getAddress())
+    const balanceBefore = await token.balanceOf(await wallet.getAddress())
     expect(collectFeesHandler.validate(collectFeesCommand).valid).to.be.equal(true) // OK
     const result = await collectFeesHandler.handle(collectFeesCommand)
     expect(result.status.httpStatus).to.be.equal(200) // OK
@@ -168,7 +168,7 @@ describe('Should test admin operations', () => {
 
     expect(obj.tx).to.be.not.equal(null) // OK
     expect(obj.message).to.be.equal('Fees successfully transfered to admin!') // OK
-    expect(await token.balanceOf(await providerWallet.getAddress())).to.be.equal(
+    expect(await token.balanceOf(await wallet.getAddress())).to.be.equal(
       balanceBefore + parseUnits(collectFeesCommand.tokenAmount.toString(), 'ether')
     )
 
