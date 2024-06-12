@@ -21,6 +21,7 @@ import { getConfiguration } from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { ProviderFeeValidation } from '../../../@types/Fees.js'
+import { getAlgoChecksums, validateAlgoForDataset } from '../../c2d/index.js'
 export class ComputeStartHandler extends Handler {
   validate(command: ComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
@@ -69,6 +70,21 @@ export class ComputeStartHandler extends Handler {
       const assets: ComputeAsset[] = [task.dataset]
       if (task.additionalDatasets) assets.push(...task.additionalDatasets)
       let foundValidCompute = null
+
+      const algoChecksums = await getAlgoChecksums(
+        task.algorithm.documentId,
+        task.algorithm.serviceId,
+        this.getOceanNode()
+      )
+      if (!algoChecksums) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: `Error retrieveing algorithm checksums`
+          }
+        }
+      }
       // check algo
       for (const elem of [...[task.algorithm], ...assets]) {
         const result: any = { validOrder: false }
@@ -117,6 +133,24 @@ export class ComputeStartHandler extends Handler {
                 error
               }
             }
+          }
+
+          if (ddo.metadata.type !== 'algorithm') {
+            const validAlgoForDataset = await validateAlgoForDataset(
+              task.algorithm.documentId,
+              algoChecksums,
+              ddo,
+              ddo.services[0].id,
+              node
+            )
+            if (!validAlgoForDataset) {
+              return {
+                stream: null,
+                status: {
+                  httpStatus: 500,
+                  error: `Algorithm ${task.algorithm.documentId} not allowed to run on the dataset: ${ddo.id}`
+                }
+              }
           }
           const config = await getConfiguration()
           const { rpc, network, chainId, fallbackRPCs } =

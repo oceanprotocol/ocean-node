@@ -11,6 +11,7 @@ import { sanitizeServiceFiles, streamToObject } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { AlgoChecksums } from '../../@types/C2D.js'
+import { DDO } from '../../@types/DDO/DDO.js'
 
 export async function checkC2DEnvExists(
   envId: string,
@@ -89,15 +90,11 @@ export async function validateAlgoForDataset(
     files: string
     container: string
   },
-  datasetDID: string,
+  datasetDDO: DDO,
   datasetServiceId: string,
   oceanNode: OceanNode
 ) {
   try {
-    const datasetDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(datasetDID)
-    if (!datasetDDO) {
-      throw new Error('Dataset DDO not found')
-    }
     const datasetService = datasetDDO.services.find(
       (service) => service.id === datasetServiceId
     )

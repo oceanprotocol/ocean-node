@@ -812,7 +812,7 @@ describe('Compute', () => {
           const result = await validateAlgoForDataset(
             algoDDOTest.id,
             algoChecksums,
-            datasetDDOTest.id,
+            datasetDDOTest,
             datasetDDOTest.services[0].id,
             oceanNode
           )
