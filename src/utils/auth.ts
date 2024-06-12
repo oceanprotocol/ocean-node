@@ -24,7 +24,10 @@ export function validateAdminSignature(
       return { valid: false, error: errorMsg }
     }
     for (const address of allowedAdmins) {
-      if (ethers.getAddress(address) === ethers.getAddress(signerAddress)) {
+      if (
+        ethers.getAddress(address).toLowerCase() ===
+        ethers.getAddress(signerAddress).toLowerCase()
+      ) {
         return { valid: true, error: '' }
       }
     }

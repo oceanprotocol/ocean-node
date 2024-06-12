@@ -629,7 +629,10 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if ('stats' in ddo && ddo.services[serviceIndex].datatoken === event.address) {
+      if (
+        'stats' in ddo &&
+        ddo.services[serviceIndex].datatoken.toLowerCase() === event.address.toLowerCase()
+      ) {
         ddo.stats.orders += 1
       } else {
         // Still update until we validate and polish schemas for DDO.
