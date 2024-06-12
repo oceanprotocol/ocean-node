@@ -151,6 +151,7 @@ export class ComputeStartHandler extends Handler {
                   error: `Algorithm ${task.algorithm.documentId} not allowed to run on the dataset: ${ddo.id}`
                 }
               }
+            }
           }
           const config = await getConfiguration()
           const { rpc, network, chainId, fallbackRPCs } =
