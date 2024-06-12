@@ -76,7 +76,9 @@ export class ComputeStartHandler extends Handler {
         task.algorithm.serviceId,
         this.getOceanNode()
       )
+      console.log('algo checksums ', algoChecksums)
       if (!algoChecksums) {
+        CORE_LOGGER.error(`Error retrieveing algorithm checksums`)
         return {
           stream: null,
           status: {
@@ -143,7 +145,11 @@ export class ComputeStartHandler extends Handler {
               ddo.services[0].id,
               node
             )
+            console.log('algo ', task.algorithm.documentId)
+            console.log('ddo ', ddo.id)
+            console.log('validAlgoForDataset ', validAlgoForDataset)
             if (!validAlgoForDataset) {
+              CORE_LOGGER.error(`Error retrieveing algorithm checksums`)
               return {
                 stream: null,
                 status: {
