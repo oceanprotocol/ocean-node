@@ -20,6 +20,7 @@ import { validateOrderTransaction } from '../utils/validateOrders.js'
 import { getConfiguration } from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
+import { ProviderFeeValidation } from '../../../@types/Fees.js'
 export class ComputeStartHandler extends Handler {
   validate(command: ComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
@@ -134,13 +135,7 @@ export class ComputeStartHandler extends Handler {
           const provider = blockchain.getProvider()
           result.datatoken = service.datatokenAddress
           result.chainId = ddo.chainId
-          // start with assumption than we need new providerfees
-          let validFee = {
-            isValid: false,
-            isComputeValid: false,
-            message: false,
-            validUntil: 0
-          }
+
           const env = await engine.getComputeEnvironment(ddo.chainId, task.environment)
           if (!('transferTxId' in elem) || !elem.transferTxId) {
             const error = `Missing transferTxId for DDO ${elem.documentId}`
@@ -175,16 +170,29 @@ export class ComputeStartHandler extends Handler {
             }
           }
           result.validOrder = elem.transferTxId
-          validFee = await verifyProviderFees(
-            elem.transferTxId,
-            task.consumerAddress,
-            provider,
-            service,
-            task.environment,
-            0
-          )
+          // start with assumption than we need new providerfees
+          const validFee: ProviderFeeValidation =
+            foundValidCompute === null
+              ? await verifyProviderFees(
+                  elem.transferTxId,
+                  task.consumerAddress,
+                  provider,
+                  service,
+                  task.environment,
+                  0
+                )
+              : {
+                  isValid: false,
+                  isComputeValid: false,
+                  message: false,
+                  validUntil: 0
+                }
 
           if (validFee.isComputeValid === true) {
+            CORE_LOGGER.logMessage(
+              `Found a valid compute providerFee ${elem.transferTxId}`,
+              true
+            )
             foundValidCompute = {
               txId: elem.transferTxId,
               chainId: ddo.chainId,
