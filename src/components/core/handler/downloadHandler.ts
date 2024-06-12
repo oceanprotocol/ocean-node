@@ -157,8 +157,9 @@ export function validateFilesStructure(
   decriptedFileObject: any
 ): boolean {
   if (
-    decriptedFileObject.nftAddress !== ddo.nftAddress ||
-    decriptedFileObject.datatokenAddress !== service.datatokenAddress
+    decriptedFileObject.nftAddress.toLowerCase() !== ddo.nftAddress.toLowerCase() ||
+    decriptedFileObject.datatokenAddress.toLowerCase() !==
+      service.datatokenAddress.toLowerCase()
   ) {
     return false
   }

@@ -118,7 +118,7 @@ describe('Should run a complete node flow.', () => {
     // test allowedAdmins
     assert(status.allowedAdmins.length === 1, 'incorrect length')
     assert(
-      status.allowedAdmins[0] === '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260',
+      status.allowedAdmins[0].toLowerCase() === '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'.toLowerCase(),
       'incorrect allowed admin publisherAddress'
     )
     assert(status.c2dClusters === undefined, 'clusters info should be undefined')
