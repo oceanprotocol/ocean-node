@@ -5,21 +5,32 @@ import {
   ValidateParams,
   buildInvalidParametersResponse,
   buildErrorResponse,
-  buildInvalidRequestMessage
+  buildInvalidRequestMessage,
+  validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
-import { getConfiguration } from '../../../utils/index.js'
+import { getConfiguration, checkSupportedChainId } from '../../../utils/index.js'
 import { getProviderFeeToken, getProviderWallet } from '../utils/feesHandler.js'
-import { parseUnits, Contract, ZeroAddress } from 'ethers'
+import { parseUnits, Contract, ZeroAddress, isAddress } from 'ethers'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' assert { type: 'json' }
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { getOceanArtifactsAdressesByChainId } from '../../../utils/address.js'
 import { Readable } from 'stream'
 
 export class CollectFeesHandler extends AdminHandler {
   validate(command: AdminCollectFeesCommand): ValidateParams {
     if (
-      !/^0x([A-Fa-f0-9]{40})$/.test(command.tokenAddress) ||
-      !/^0x([A-Fa-f0-9]{40})$/.test(command.destinationAddress)
+      !validateCommandParameters(command, [
+        'chainId',
+        'tokenAddress',
+        'tokenAmount',
+        'destinationAddress'
+      ])
     ) {
+      return buildInvalidRequestMessage(
+        `Missing chainId field for command: "${command}".`
+      )
+    }
+    if (!isAddress(command.tokenAddress) || !isAddress(command.destinationAddress)) {
       const msg: string = `Invalid format for token address or destination address.`
       CORE_LOGGER.error(msg)
       return buildInvalidRequestMessage(msg)
@@ -40,14 +51,25 @@ export class CollectFeesHandler extends AdminHandler {
       CORE_LOGGER.error(msg)
       return buildErrorResponse(msg)
     }
+    const checkChainId = await checkSupportedChainId(task.chainId)
+    if (!checkChainId.validation) {
+      return buildErrorResponse(
+        `Chain ID ${task.chainId} is not supported in the node's config`
+      )
+    }
     const providerWallet = await getProviderWallet(String(task.chainId))
     try {
-      const providerFeeToken = await getProviderFeeToken(task.chainId)
-      if (
-        task.tokenAddress.toLowerCase() !== providerFeeToken.toLowerCase() ||
-        task.tokenAddress === ZeroAddress ||
-        providerFeeToken === ZeroAddress
-      ) {
+      let providerFeeToken = await getProviderFeeToken(task.chainId)
+      if (task.tokenAddress === ZeroAddress) {
+        // for the moment I put Ocean token from address.json
+        if (providerFeeToken.toLowerCase() === ZeroAddress) {
+          providerFeeToken = getOceanArtifactsAdressesByChainId(
+            Number(task.chainId)
+          ).Ocean
+        }
+        task.tokenAddress = getOceanArtifactsAdressesByChainId(Number(task.chainId)).Ocean
+      }
+      if (task.tokenAddress.toLowerCase() !== providerFeeToken.toLowerCase()) {
         const msg: string = `Token address ${task.tokenAddress} is not the same with provider fee token address ${providerFeeToken}`
         CORE_LOGGER.error(msg)
         return buildErrorResponse(msg)
