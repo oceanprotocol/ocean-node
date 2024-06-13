@@ -4,7 +4,7 @@ WIP, may not compile.
 
 ## Running Locally
 
-### 1. Make sure to use nvm
+### 1. Make sure to use nvm (or make sure you're using the same node version specified on .nvmrc)
 
 ```bash
 nvm use
