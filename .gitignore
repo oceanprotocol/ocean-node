@@ -140,3 +140,6 @@ typesense-data
 
 # VS CODE
 .vscode
+
+#performance test
+html-report.html
