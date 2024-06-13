@@ -11,6 +11,7 @@ import { computeRoutes } from './compute.js'
 import { queueRoutes } from './queue.js'
 import { getConfiguration } from '../../utils/config.js'
 import { jobsRoutes } from './jobs.js'
+import { addMapping, allRoutesMapping, findPathName } from './routeUtils.js'
 
 export * from './getOceanPeers.js'
 
@@ -61,3 +62,20 @@ httpRoutes.use(computeRoutes)
 httpRoutes.use(queueRoutes)
 // running jobs
 httpRoutes.use(jobsRoutes)
+
+export function getAllServiceEndpoints() {
+  httpRoutes.stack.forEach(addMapping.bind(null, []))
+  const data: any = {}
+  const keys = allRoutesMapping.keys()
+  for (const key of keys) {
+    const pathData = allRoutesMapping.get(key)
+    const name = findPathName(pathData[0], pathData[1])
+    if (name) {
+      data[name] = pathData
+    } else {
+      // use the key
+      data[key] = pathData
+    }
+  }
+  return data
+}
