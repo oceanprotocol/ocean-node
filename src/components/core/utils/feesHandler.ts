@@ -505,7 +505,7 @@ export async function getProviderFeeToken(chainId: number): Promise<string> {
   )
   if (result.length === 0 && chainId === 8996) {
     const localOceanToken = getOceanArtifactsAdresses().development.Ocean
-    return localOceanToken
+    return localOceanToken || ethers.ZeroAddress
   }
   return result.length ? result[0].token : ethers.ZeroAddress
 }
