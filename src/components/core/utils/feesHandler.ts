@@ -28,25 +28,15 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 import { fetchEventFromTransaction } from '../../../utils/util.js'
 import { fetchTransactionReceipt } from './validateOrders.js'
 
-async function calculateProviderFeeAmount(
+function calculateProviderFeeAmount(
   validUntil: number,
   computeEnv: ComputeEnvironment
   // asset?: DDO
-): Promise<number> {
+): number {
   const now = new Date().getTime() / 1000
   const seconds = validUntil - now
-  let providerFeeAmount: number
-  // we have different ways of computing providerFee
-  if (computeEnv) {
-    // it's a compute provider fee
-    providerFeeAmount = (seconds * parseFloat(String(computeEnv.priceMin))) / 60
-  } else {
-    // it's a download provider fee
-    // we should get asset file size, and do a proper fee managment according to time
-    // something like estimated 3 downloads per day
-    providerFeeAmount = (await getConfiguration()).feeStrategy.feeAmount.amount
-  }
-  return providerFeeAmount
+
+  return (seconds * parseFloat(String(computeEnv.priceMin))) / 60
 }
 
 export async function createProviderFee(
@@ -82,8 +72,10 @@ export async function createProviderFee(
   }
   if (providerFeeToken === ZeroAddress) {
     providerFeeAmount = 0
+  } else if (computeEnv) {
+    providerFeeAmount = calculateProviderFeeAmount(validUntil, computeEnv)
   } else {
-    providerFeeAmount = await calculateProviderFeeAmount(validUntil, computeEnv)
+    providerFeeAmount = (await getConfiguration()).feeStrategy.feeAmount.amount
   }
 
   if (providerFeeToken && providerFeeToken !== ZeroAddress) {
