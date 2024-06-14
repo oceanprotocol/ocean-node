@@ -3,7 +3,9 @@
 
 current_dir=`pwd`
 scripts_directory='helpers/scripts'
-echo "Current directory: $current_dir"
+echo "#########################################################"
+echo "Running scripts for initial Ocean Node configuration"
+echo "#########################################################"
 
 #where are we running this from?
 is_root_dir=1
@@ -19,6 +21,50 @@ if [ $is_root_dir -eq 1 ]; then
     template_file_path='.env.example'
 fi
 
+#configure database
+configure_database() {
+    echo "------------------------ Configure Database ----------------------------------"
+    read -p "Database URL? [ http://localhost:8108/?apiKey=xyz ]: " DB_URL
+    DB_URL=${DB_URL:-http://localhost:8108/?apiKey=xyz}
+    REPLACE_STR="DB_URL=$DB_URL"
+    if [ "$(uname)" == "Darwin" ]; then
+        sed -i '' -e 's;DB_URL=;'$REPLACE_STR';' "$env_file_path"
+    else
+        sed -i -e 's;DB_URL=;'$REPLACE_STR';' "$env_file_path"
+    fi
+    echo "DB_URL final configuration: $REPLACE_STR"
+    echo "------------------------------------------------------------------------------"
+}
+#configure a basic RPC setting
+configure_rpc() {
+    echo "------------------------ Configure RPC ---------------------------------------"
+    echo "This basic setup only allows configuration of 1 network, but you can configure multiple RPCS, if needed."
+    echo "For a detailed list of chain names, ids and rpcs, you can check: 'https://chainlist.org/'"
+    echo "------------------------------------------------------------------------------"
+    read -p "Chain name? [ optimism-sepolia ]: " chain_name
+    chain_name=${chain_name:-optimism-sepolia}
+    read -p "Chain id? [ 11155420 ]: " chain_id
+    chain_id=${chain_id:-11155420}
+    read -p "Chain RPC Url? [ https://sepolia.optimism.io ]: " chain_rpc
+    chain_rpc=${chain_rpc:-https://sepolia.optimism.io}
+    read -p "Chunk size (number of block to process at once)? [ 100 ]: " chunk_size
+    chunk_size=${chunk_size:-100}
+    echo "Provided values: (you can always edit and add more details directly on '$env_file_path')"
+    echo "Chain name: $chain_name"
+    echo "Chain id: $chain_id"
+    echo "Chain RPC: $chain_rpc"
+    echo "Chunk size: $chunk_size"
+    RPCS="{ \"$chain_id\":{ \"rpc\":\"$chain_rpc\", \"chainId\": $chain_id, \"network\": \"$chain_name\", \"chunkSize\": $chunk_size }}"
+    echo "RPCS final configuration: $RPCS"
+    RPCS_QUOTED=${RPCS//\"/\\\"}
+    REPLACE_STR="RPCS='$RPCS_QUOTED'"
+    if [ "$(uname)" == "Darwin" ]; then
+        sed -i '' -e "s;RPCS=;$REPLACE_STR;" "$env_file_path"
+    else
+        sed -i -e "s;RPCS=;$REPLACE_STR;" "$env_file_path"
+    fi
+    echo "------------------------------------------------------------------------------"
+}
 #basic check on the length
 check_pk() {
    pk=$1
@@ -39,6 +85,13 @@ check_env_file() {
         exists_env_file=1
     fi
 }
+
+ofuscate_private_key() {
+    pk=$1
+    length=${#pk}
+    PRIVATE_KEY_CUT=${pk:length-50:50}
+    OFUSCATED_PRIVATE_KEY="${pk/$PRIVATE_KEY_CUT/*********}"
+}
 #create .env from .env.example
 create_env_file_from_template() {
     if [ -f $template_file_path ]; then
@@ -52,13 +105,12 @@ create_env_file_from_template() {
 
 if ! [ -f $pk_file ]; then
   echo "Private Key File does not exist."
-  read -p "Do you want me to generate one for you? [y/n]: " generate_key_answer
+  read -p "Do you want me to generate one for you? [ y/n ]: " generate_key_answer
   generate_key_answer=${generate_key_answer:-n}
  
   if [ "$generate_key_answer" == 'y' ]; then
     # run the script
     if [ $is_root_dir -eq 1 ]; then
-    echo "Generating ./src/$scripts_directory/generatePK.js"
         `node ./src/$scripts_directory/generatePK.js --save > /dev/null`
     else
         `node ./generatePK.js --save > /dev/null`
@@ -66,22 +118,28 @@ if ! [ -f $pk_file ]; then
     
     # read the file contents
     PRIVATE_KEY=`cat $pk_file`
-    echo "Generated Private Key: $PRIVATE_KEY"
+    ofuscate_private_key $PRIVATE_KEY
+    echo "Generated Private Key: $OFUSCATED_PRIVATE_KEY"
+    created_pk_file=1
+    
   else
         read -p "Enter your private key: " PRIVATE_KEY
-        echo "Entered private key: $PRIVATE_KEY"
+        ofuscate_private_key $PRIVATE_KEY
+        echo "Entered private key: $OFUSCATED_PRIVATE_KEY"
         check_pk $PRIVATE_KEY
    fi
 else
     echo "We found a Private Key File."
-    read -p "Do you want to use it? [y/n]: " use_file_key
+    read -p "Do you want to use it? [ y/n ]: " use_file_key
     use_file_key=${use_file_key:-y}
     if [ "$use_file_key" == 'y' ]; then
         PRIVATE_KEY=`cat $pk_file`
-        echo "Using Private key: $PRIVATE_KEY"
+        ofuscate_private_key $PRIVATE_KEY
+        echo "Using Private key: $OFUSCATED_PRIVATE_KEY"
     else
         read -p "Enter your private key: " PRIVATE_KEY
-        echo "Entered private key: $PRIVATE_KEY"
+        ofuscate_private_key $PRIVATE_KEY
+        echo "Entered private key: $OFUSCATED_PRIVATE_KEY"
         check_pk $PRIVATE_KEY
     fi
 fi
@@ -90,16 +148,17 @@ check_env_file
 #if does not exists, create it from template or ask input
 if [ $exists_env_file -eq 0 ]; then
     echo "Initial .env file not detected!"
-    read -p "Do you want me to create one from the template? [y/n]: " create_env_file
+    read -p "Do you want me to create one from the template? [ y/n ]: " create_env_file
     create_env_file=${create_env_file:-y}
     echo "Creating env file?: $create_env_file"
     if [ "$create_env_file" == 'y' ]; then
         create_env_file_from_template
         if [ $created_env_file -eq 1 ]; then
             echo "------------------------------------------------------------------------------"
-            echo "Successfully created .env file. Please update it before starting the node!"
+            echo "Successfully created an .env file. We will now try to setup a basic configuration on it."
+            echo "If you need extra customizations, please update it before starting the node!"
             echo "Once you're done with your changes, run 'source .env' (on your ocean node root folder)," 
-            echo "before building/starting the node, in order to apply the environment changes."
+            echo "before starting the node, in order to apply the environment changes."
             echo "------------------------------------------------------------------------------"
             if [ "$(uname)" == "Darwin" ]; then
                 sed -i '' -e 's/REPLACE_ME/'$PRIVATE_KEY'/' "$env_file_path"
@@ -112,7 +171,28 @@ if [ $exists_env_file -eq 0 ]; then
         created_env_file=0
     fi
 fi
-echo "Done!"
+
+read -p "Do you want to run a database on your node? [ y/n ]: " run_database
+run_database=${run_database:-n}
+if [ "$run_database" == 'y' ]; then
+    configure_database
+fi
+
+read -p "Do you want to index a network on your node? [ y/n ]: " run_indexer
+run_indexer=${run_indexer:-n}
+if [ "$run_indexer" == 'y' ]; then
+    configure_rpc
+fi
+
+if [ $created_pk_file -eq 1 ]; then
+    read -p "Do you want me to delete the generated $pk_file file? (your key is already saved): [ y/n ]" delete_pk_file
+    delete_pk_file=${delete_pk_file:-n}
+    if [ "$delete_pk_file" == 'y' ]; then
+        `rm $pk_file`
+    fi
+fi
+
+echo "All Done!"
 
 
 
