@@ -146,3 +146,6 @@ html-report.html
 
 # generate pk
 .pk.out
+
+# environment
+.env
