@@ -480,11 +480,7 @@ export async function getProviderWallet(
     const { rpc, network, chainId, fallbackRPCs } =
       config.supportedNetworks[chainIdProvided]
     const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-    const provider = blockchain.getProvider()
-    return new ethers.Wallet(
-      Buffer.from((await getConfiguration()).keys.privateKey).toString('hex'),
-      provider
-    )
+    return blockchain.getSigner() as ethers.Wallet
   }
 
   return new ethers.Wallet(
