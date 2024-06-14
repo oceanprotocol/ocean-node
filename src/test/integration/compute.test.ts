@@ -18,6 +18,7 @@ import type {
   ComputeEnvironment
 } from '../../@types/C2D.js'
 import {
+  Blockchain,
   ENVIRONMENT_VARIABLES,
   EVENTS,
   PROTOCOL_COMMANDS,
@@ -86,10 +87,9 @@ describe('Compute', () => {
   const now = new Date().getTime() / 1000
   const computeJobValidUntil = now + 60 * 15 // 15 minutes from now should be enough
   let firstEnv: ComputeEnvironment
+  let blockchain: Blockchain
 
-  const wallet = new ethers.Wallet(
-    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
-  )
+  let wallet: ethers.Wallet
   // const chainId = DEVELOPMENT_CHAIN_ID
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const chainId = 8996
@@ -103,12 +103,16 @@ describe('Compute', () => {
   let datasetDDO: any
 
   before(async () => {
+    const config = await getConfiguration(true)
+    const { rpc, network, chainId, fallbackRPCs } =
+      config.supportedNetworks[DEVELOPMENT_CHAIN_ID]
+    blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+    wallet = blockchain.getSigner() as ethers.Wallet
     previousConfiguration = await setupEnvironment(
       null,
       buildEnvOverrideConfig(
         [
           ENVIRONMENT_VARIABLES.RPCS,
-          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE,
@@ -116,7 +120,6 @@ describe('Compute', () => {
         ],
         [
           JSON.stringify(mockSupportedNetworks),
-          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
@@ -124,7 +127,6 @@ describe('Compute', () => {
         ]
       )
     )
-    config = await getConfiguration(true)
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
     indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
