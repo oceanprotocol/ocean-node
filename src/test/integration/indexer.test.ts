@@ -55,6 +55,8 @@ import {
 import { Blockchain } from '../../utils/blockchain.js'
 import { getConfiguration } from '../../utils/config.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { encrypt } from '../../utils/crypt.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
 
 describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
@@ -175,6 +177,17 @@ describe('Indexer stores a new metadata events and orders.', () => {
         .digest('hex')
     genericAsset.nftAddress = nftAddress
     assetDID = genericAsset.id
+    // create proper service.files string
+    genericAsset.services[0].files.datatokenAddress = datatokenAddress
+    genericAsset.services[0].files.nftAddress = nftAddress
+    // let's call node to encrypt
+
+    const data = Uint8Array.from(
+      Buffer.from(JSON.stringify(genericAsset.services[0].files))
+    )
+    const encryptedData = await encrypt(data, EncryptMethod.ECIES)
+    const encryptedDataString = encryptedData.toString('hex')
+    genericAsset.services[0].files = encryptedDataString
     const stringDDO = JSON.stringify(genericAsset)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
