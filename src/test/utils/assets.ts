@@ -32,7 +32,8 @@ import { FeesHandler } from '../../components/core/handler/feesHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { ProviderFees } from '../../@types/Fees.js'
 
-export async function publishAsset(genericAsset: any, publisherAccount: Signer) {
+export async function publishAsset(asset: any, publisherAccount: Signer) {
+  const genericAsset = JSON.parse(JSON.stringify(asset))
   try {
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
