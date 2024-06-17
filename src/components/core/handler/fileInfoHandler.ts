@@ -63,7 +63,7 @@ async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFile
       : file.type === 'arweave'
       ? urlJoin(process.env.ARWEAVE_GATEWAY, (file as ArweaveFileObject).transactionId)
       : file.type === 'ipfs'
-      ? (file as IpfsFileObject).hash
+      ? urlJoin(process.env.IPFS_GATEWAY, (file as IpfsFileObject).hash)
       : null
 
   const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
@@ -131,7 +131,7 @@ export class FileInfoHandler extends Handler {
         })
       } else if (task.did && task.serviceId) {
         const fileArray = await getFile(task.did, task.serviceId, oceanNode)
-
+        console.log('fileArray', fileArray)
         if (task.fileIndex) {
           const fileMetadata = await formatMetadata(fileArray[task.fileIndex])
           fileInfo.push(fileMetadata)
