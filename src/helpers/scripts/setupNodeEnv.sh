@@ -18,12 +18,18 @@ created_pk_file=0
 
 pk_file='.pk.out'
 wallet_file='.wallet.out'
+generated_files_path=''
 env_file_path='../../../.env'
 template_file_path='../../../.env.example'
 if [ $is_root_dir -eq 1 ]; then
     env_file_path='.env'
     template_file_path='.env.example'
+else 
+    generated_files_path='../../../'
 fi
+#allow script to be run from multiple paths (root or inside scripts directory)
+wallet_file_path=$generated_files_path$wallet_file
+pk_file_path+=$generated_files_path$pk_file
 
 #configure database
 configure_database() {
@@ -127,7 +133,8 @@ setup_private_key() {
 }
 
 setup_node_admin_wallet() {
-    REPLACE_STR="ALLOWED_ADMINS=[\"$ADMIN_WALLET\"]"
+    
+    REPLACE_STR="ALLOWED_ADMINS='[\"$ADMIN_WALLET\"]'"
     if [ "$(uname)" == "Darwin" ]; then
         sed -i '' -e 's;ALLOWED_ADMINS=;'$REPLACE_STR';' "$env_file_path"
     else
@@ -136,17 +143,18 @@ setup_node_admin_wallet() {
 }
 
 ask_for_same_admin_wallet() {
-    if [ -f $wallet_file ]; then
+    
+    if [ -f $wallet_file_path ]; then
        read -p "Do you want to use the wallet associated with this key ( $wallet_file ) as a node admin account?  [ y/n ]: " use_admin_wallet  
        use_admin_wallet=${use_admin_wallet:-y} 
        if [ "$use_admin_wallet" == 'y' ]; then
-         ADMIN_WALLET=`cat $wallet_file`
+         ADMIN_WALLET=`cat $wallet_file_path`
          setup_node_admin_wallet
        fi
     fi
 }
 
-if ! [ -f $pk_file ]; then
+if ! [ -f $pk_file_path ]; then
   echo "Private Key File does not exist."
   read -p "Do you want me to generate one for you? [ y/n ]: " generate_key_answer
   generate_key_answer=${generate_key_answer:-n}
@@ -160,7 +168,7 @@ if ! [ -f $pk_file ]; then
     fi
     
     # read the file contents
-    PRIVATE_KEY=`cat $pk_file`
+    PRIVATE_KEY=`cat $pk_file_path`
     ofuscate_private_key $PRIVATE_KEY
     echo "Generated Private Key: $OFUSCATED_PRIVATE_KEY"
     created_pk_file=1
@@ -176,7 +184,7 @@ else
     read -p "Do you want to use it? [ y/n ]: " use_file_key
     use_file_key=${use_file_key:-y}
     if [ "$use_file_key" == 'y' ]; then
-        PRIVATE_KEY=`cat $pk_file`
+        PRIVATE_KEY=`cat $pk_file_path`
         ofuscate_private_key $PRIVATE_KEY
         echo "Using Private key: $OFUSCATED_PRIVATE_KEY"
         created_pk_file=1
@@ -247,9 +255,9 @@ if [ $created_pk_file -eq 1 ]; then
     read -p "Do you want me to delete the generated $pk_file file? (your key is already saved): [ y/n ]" delete_pk_file
     delete_pk_file=${delete_pk_file:-n}
     if [ "$delete_pk_file" == 'y' ]; then
-        `rm -f $pk_file`
+        `rm -f $pk_file_path`
         #also remove the wallet one if present
-        `rm -f $wallet_file`
+        `rm -f $wallet_file_path`
     fi
 fi
 
