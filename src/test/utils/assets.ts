@@ -83,7 +83,7 @@ export async function publishAsset(genericAsset: any, publisherAccount: Signer) 
       Buffer.from(JSON.stringify(genericAsset.services[0].files))
     )
     const encryptedData = await encrypt(data, EncryptMethod.ECIES)
-    // const encryptedDataString = encryptedData.toString('base64')
+    const encryptedDataString = encryptedData.toString('hex')
 
     const nftContract = new ethers.Contract(
       nftAddress,
@@ -98,7 +98,7 @@ export async function publishAsset(genericAsset: any, publisherAccount: Signer) 
     genericAsset.nftAddress = nftAddress
     genericAsset.chainId = parseInt(chainId.toString(10))
 
-    genericAsset.services[0].files = encryptedData
+    genericAsset.services[0].files = encryptedDataString
     genericAsset.services[0].datatokenAddress = datatokenAddress
 
     const stringDDO = JSON.stringify(genericAsset)
