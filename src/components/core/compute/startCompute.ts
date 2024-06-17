@@ -65,7 +65,7 @@ export class ComputeStartHandler extends Handler {
           }
         }
       }
-
+      console.log('ComputeStart handle called : ', task)
       const node = this.getOceanNode()
       const assets: ComputeAsset[] = [task.dataset]
       if (task.additionalDatasets) assets.push(...task.additionalDatasets)
@@ -153,7 +153,7 @@ export class ComputeStartHandler extends Handler {
               return {
                 stream: null,
                 status: {
-                  httpStatus: 500,
+                  httpStatus: 400,
                   error: `Algorithm ${task.algorithm.documentId} not allowed to run on the dataset: ${ddo.id}`
                 }
               }

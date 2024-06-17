@@ -100,8 +100,9 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       startComputeTask.output = req.body.output as ComputeOutput
     }
 
-    const response = await new ComputeStartHandler(req.oceanNode).handle(startComputeTask) // get compute environments
-    const jobs = await streamToObject(response.stream as Readable)
+    const response = await new ComputeStartHandler(req.oceanNode).handle(startComputeTask)
+    console.log('response', response)
+    const jobs = response.stream && (await streamToObject(response.stream as Readable))
     res.status(200).json(jobs)
   } catch (error) {
     HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
