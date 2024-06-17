@@ -149,7 +149,6 @@ export class ComputeStartHandler extends Handler {
             console.log('ddo ', ddo.id)
             console.log('validAlgoForDataset ', validAlgoForDataset)
             if (!validAlgoForDataset) {
-              CORE_LOGGER.error(`Error retrieveing algorithm checksums`)
               return {
                 stream: null,
                 status: {

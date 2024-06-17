@@ -116,10 +116,27 @@ export async function validateAlgoForDataset(
       }
       // if is set only allow if match
       if (compute.publisherTrustedAlgorithms) {
+        console.log(
+          'compute.publisherTrustedAlgorithms: ',
+          compute.publisherTrustedAlgorithms
+        )
+        console.log(
+          'compute.publisherTrustedAlgorithms.length: ',
+          compute.publisherTrustedAlgorithms.length
+        )
+        console.log('algoDID: ', algoDID)
         const trustedAlgo = compute.publisherTrustedAlgorithms.find(
           (algo) => algo.did === algoDID
         )
+        console.log('trusted algo', trustedAlgo)
         if (trustedAlgo) {
+          console.log('trustedAlgo.filesChecksum: ', trustedAlgo.filesChecksum)
+          console.log('algoChecksums.files: ', algoChecksums.files)
+          console.log(
+            ' trustedAlgo.containerSectionChecksum: ',
+            trustedAlgo.containerSectionChecksum
+          )
+          console.log('algoChecksums.container: ', algoChecksums.container)
           return (
             trustedAlgo.filesChecksum === algoChecksums.files &&
             trustedAlgo.containerSectionChecksum === algoChecksums.container
