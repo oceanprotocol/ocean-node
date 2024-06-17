@@ -107,7 +107,7 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
         expiryTimestamp.toString(),
         signature
       )?.toLowerCase()
-      if (signerAddress !== address??.toLowerCase()) {
+      if (signerAddress !== address?.toLowerCase()) {
         setExpiryTimestamp(undefined)
         setSignature(undefined)
       }
