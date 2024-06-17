@@ -13,7 +13,11 @@ if [[ $current_dir =~ $scripts_directory ]]; then
   is_root_dir=0
 fi
 
+#did we generate a pk?
+created_pk_file=0
+
 pk_file='.pk.out'
+wallet_file='.wallet.out'
 env_file_path='../../../.env'
 template_file_path='../../../.env.example'
 if [ $is_root_dir -eq 1 ]; then
@@ -68,9 +72,8 @@ configure_rpc() {
 #basic check on the length
 check_pk() {
    pk=$1
-   echo "Entered private key: $pk"
    length=${#pk}
-   echo "Size is $length"
+   echo "Pk size is $length"
    if [ $length -lt 64 ]; then
      echo "The provided private Key seems invalid!"
      exit 1
@@ -100,6 +103,30 @@ create_env_file_from_template() {
     else
         echo "Could not find the example file, aborting!"
         exit 1
+    fi
+}
+
+setup_private_key() {
+    if [ "$(uname)" == "Darwin" ]; then
+        sed -i '' -e 's/REPLACE_ME/'$PRIVATE_KEY'/' "$env_file_path"
+    else
+        sed -i -e 's/REPLACE_ME/'$PRIVATE_KEY'/' "$env_file_path"
+    fi
+}
+
+ask_for_admin_wallet() {
+    if [ -f $wallet_file ]; then
+       read -p "Do you want to use the wallet associated with this key ( $wallet_file ) as a node admin account?  [ y/n ]: " use_admin_wallet  
+       use_admin_wallet=${use_admin_wallet:-y} 
+       if [ "$use_admin_wallet" == 'y' ]; then
+         ADMIN_WALLET=`cat $wallet_file`
+         REPLACE_STR="ALLOWED_ADMINS=[\"$ADMIN_WALLET\"]"
+         if [ "$(uname)" == "Darwin" ]; then
+            sed -i '' -e 's;ALLOWED_ADMINS=;'$REPLACE_STR';' "$env_file_path"
+         else
+            sed -i -e 's;ALLOWED_ADMINS=;'$REPLACE_STR';' "$env_file_path"
+         fi
+       fi
     fi
 }
 
@@ -136,6 +163,7 @@ else
         PRIVATE_KEY=`cat $pk_file`
         ofuscate_private_key $PRIVATE_KEY
         echo "Using Private key: $OFUSCATED_PRIVATE_KEY"
+        created_pk_file=1
     else
         read -p "Enter your private key: " PRIVATE_KEY
         ofuscate_private_key $PRIVATE_KEY
@@ -160,16 +188,21 @@ if [ $exists_env_file -eq 0 ]; then
             echo "Once you're done with your changes, run 'source .env' (on your ocean node root folder)," 
             echo "before starting the node, in order to apply the environment changes."
             echo "------------------------------------------------------------------------------"
-            if [ "$(uname)" == "Darwin" ]; then
-                sed -i '' -e 's/REPLACE_ME/'$PRIVATE_KEY'/' "$env_file_path"
-            else
-                sed -i -e 's/REPLACE_ME/'$PRIVATE_KEY'/' "$env_file_path"
+            setup_private_key
+            #only if we just created it
+            if [ $created_pk_file -eq 1 ]; then
+                ask_for_admin_wallet
             fi
         fi
     else 
         echo "Creating .env file aborted!"
         created_env_file=0
+        exit 1
     fi
+else
+    echo "Initial .env file already detected!"
+    echo "Please remove it first, if you want to use this script as initial setup (otherwise values might be overriden)."
+    exit 1
 fi
 
 read -p "Do you want to run a database on your node? [ y/n ]: " run_database
@@ -188,7 +221,9 @@ if [ $created_pk_file -eq 1 ]; then
     read -p "Do you want me to delete the generated $pk_file file? (your key is already saved): [ y/n ]" delete_pk_file
     delete_pk_file=${delete_pk_file:-n}
     if [ "$delete_pk_file" == 'y' ]; then
-        `rm $pk_file`
+        `rm -f $pk_file`
+        #also remove the wallet one if present
+        `rm -f $wallet_file`
     fi
 fi
 
