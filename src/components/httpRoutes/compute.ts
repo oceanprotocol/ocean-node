@@ -101,9 +101,13 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
     }
 
     const response = await new ComputeStartHandler(req.oceanNode).handle(startComputeTask)
-    console.log('response', response)
-    const jobs = response.stream && (await streamToObject(response.stream as Readable))
-    res.status(200).json(jobs)
+    if (response?.status?.httpStatus === 200) {
+      const jobs = await streamToObject(response.stream as Readable)
+      res.status(200).json(jobs)
+    } else {
+      HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_INFO, `Error: ${response?.status?.error}`)
+      res.status(response?.status.httpStatus).json(response?.status?.error)
+    }
   } catch (error) {
     HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
