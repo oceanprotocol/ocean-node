@@ -128,7 +128,9 @@ export async function validateObject(
     if (!(key in extraErrors)) extraErrors[key] = []
     extraErrors[key].push(fromRdf(result.message[0]))
   }
-  extraErrors.fullReport = await report.dataset.serialize({ format: 'text/n3' })
+  extraErrors.fullReport = await report.dataset.serialize({
+    format: 'application/ld+json'
+  })
   CORE_LOGGER.logMessage(`Failed to validate DDO: ` + JSON.stringify(obj), true)
   CORE_LOGGER.logMessage(JSON.stringify(extraErrors), true)
   return [false, extraErrors]
