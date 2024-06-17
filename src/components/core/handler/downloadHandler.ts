@@ -82,10 +82,10 @@ export async function handleDownloadUrlCommand(
       headers[key] = value
     }
     // need to check if content length is already in headers, but we don't know the case
-    const objTemp = JSON.parse(JSON.stringify(headers).toLowerCase())
-    if (!('Content-Length'.toLowerCase() in objTemp))
+    const objTemp = JSON.parse(JSON.stringify(headers)?.toLowerCase())
+    if (!('Content-Length'?.toLowerCase() in objTemp))
       headers['Transfer-Encoding'] = 'chunked'
-    if (!('Content-Disposition'.toLowerCase() in objTemp))
+    if (!('Content-Disposition'?.toLowerCase() in objTemp))
       headers['Content-Disposition'] = 'attachment;filename=unknownfile' // TO DO: use did+serviceId+fileIndex
     if (encryptFile) {
       // we parse the string into the object again
@@ -157,9 +157,9 @@ export function validateFilesStructure(
   decriptedFileObject: any
 ): boolean {
   if (
-    decriptedFileObject.nftAddress.toLowerCase() !== ddo.nftAddress.toLowerCase() ||
-    decriptedFileObject.datatokenAddress.toLowerCase() !==
-      service.datatokenAddress.toLowerCase()
+    decriptedFileObject.nftAddress?.toLowerCase() !== ddo.nftAddress?.toLowerCase() ||
+    decriptedFileObject.datatokenAddress?.toLowerCase() !==
+      service.datatokenAddress?.toLowerCase()
   ) {
     return false
   }
@@ -314,10 +314,10 @@ export class DownloadHandler extends Handler {
         const engine = C2DEngine.getC2DClass(cluster)
         const environments = await engine.getComputeEnvironments(ddo.chainId)
         for (const env of environments)
-          computeAddrs.push(env.consumerAddress.toLowerCase())
+          computeAddrs.push(env.consumerAddress?.toLowerCase())
       }
 
-      if (!computeAddrs.includes(task.consumerAddress.toLowerCase())) {
+      if (!computeAddrs.includes(task.consumerAddress?.toLowerCase())) {
         const msg = 'Not allowed to download this asset of type compute'
         CORE_LOGGER.logMessage(msg)
         return {

@@ -106,8 +106,8 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
       const signerAddress = verifyMessage(
         expiryTimestamp.toString(),
         signature
-      ).toLowerCase()
-      if (signerAddress !== address?.toLowerCase()) {
+      )?.toLowerCase()
+      if (signerAddress !== address??.toLowerCase()) {
         setExpiryTimestamp(undefined)
         setSignature(undefined)
       }
@@ -133,7 +133,7 @@ export const AdminProvider: FunctionComponent<{ children: ReactNode }> = ({
   // Update admin status based on current address
   useEffect(() => {
     const isAdmin = allAdmins.some(
-      (adminAddress) => address && adminAddress.toLowerCase() === address.toLowerCase()
+      (adminAddress) => address && adminAddress?.toLowerCase() === address?.toLowerCase()
     )
     setAdmin(isAdmin)
   }, [address, allAdmins, isConnected])

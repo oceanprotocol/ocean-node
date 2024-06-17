@@ -140,9 +140,9 @@ export class DecryptDdoHandler extends Handler {
         // allow if on authorized list or it is own node
         if (
           !config.authorizedDecrypters
-            .map((address) => address.toLowerCase())
-            .includes(decrypterAddress.toLowerCase()) &&
-          decrypterAddress.toLowerCase() !== config.keys.ethAddress.toLowerCase()
+            .map((address) => address?.toLowerCase())
+            .includes(decrypterAddress?.toLowerCase()) &&
+          decrypterAddress?.toLowerCase() !== config.keys.ethAddress?.toLowerCase()
         ) {
           CORE_LOGGER.logMessage('Decrypt DDO: Decrypter not authorized', true)
           return {
@@ -381,8 +381,8 @@ export class DecryptDdoHandler extends Handler {
         )
 
         if (
-          addressFromHashSignature.toLowerCase() !== decrypterAddress.toLowerCase() &&
-          addressFromBytesSignature.toLowerCase() !== decrypterAddress.toLowerCase()
+          addressFromHashSignature?.toLowerCase() !== decrypterAddress?.toLowerCase() &&
+          addressFromBytesSignature?.toLowerCase() !== decrypterAddress?.toLowerCase()
         ) {
           throw new Error('address does not match')
         }

@@ -78,13 +78,16 @@ export async function createProviderFee(
     // it's download, take it from config
     providerFeeToken = await getProviderFeeToken(asset.chainId)
   }
-  if (providerFeeToken.toLowerCase() === ZeroAddress.toLowerCase()) {
+  if (providerFeeToken?.toLowerCase() === ZeroAddress?.toLowerCase()) {
     providerFeeAmount = 0
   } else {
     providerFeeAmount = await calculateProviderFeeAmount(validUntil, computeEnv)
   }
 
-  if (providerFeeToken && providerFeeToken.toLowerCase() !== ZeroAddress.toLowerCase()) {
+  if (
+    providerFeeToken &&
+    providerFeeToken?.toLowerCase() !== ZeroAddress?.toLowerCase()
+  ) {
     const provider = await getJsonRpcProvider(asset.chainId)
     const decimals = await getDatatokenDecimals(providerFeeToken, provider)
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
@@ -173,7 +176,7 @@ export async function verifyProviderFees(
   let allEventsValid = true
   let providerData
   for (const event of providerFeesEvents) {
-    const providerAddress = event.args[0].toLowerCase()
+    const providerAddress = event.args[0]?.toLowerCase()
     const validUntilContract = parseInt(event.args[7].toString())
     const utf = ethers.toUtf8String(event.args[3])
 
@@ -187,9 +190,9 @@ export async function verifyProviderFees(
 
     if (
       !providerData ||
-      providerAddress !== providerWallet.address.toLowerCase() ||
+      providerAddress !== providerWallet.address?.toLowerCase() ||
       providerData.id !== service.id ||
-      providerData.dt.toLowerCase() !== service.datatokenAddress.toLowerCase() ||
+      providerData.dt?.toLowerCase() !== service.datatokenAddress?.toLowerCase() ||
       !(now < validUntilContract || validUntilContract === 0)
     ) {
       allEventsValid = false
@@ -429,7 +432,7 @@ export async function checkFee(
   const nodeAddress = wallet.address
 
   // first check if these are a match
-  if (nodeAddress.toLowerCase() !== providerFeesData.providerFeeAddress.toLowerCase()) {
+  if (nodeAddress?.toLowerCase() !== providerFeesData.providerFeeAddress?.toLowerCase()) {
     return false
   }
 

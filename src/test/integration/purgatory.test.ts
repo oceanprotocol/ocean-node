@@ -40,8 +40,8 @@ describe('Purgatory test', () => {
     let res: any
     for (const acc of accountPurgatory) {
       if (
-        acc.address.toLowerCase() ===
-        '0xAD23fC9D943018C34aC55E8DA29AF700A2Fd0FeB'.toLowerCase()
+        acc.address?.toLowerCase() ===
+        '0xAD23fC9D943018C34aC55E8DA29AF700A2Fd0FeB'?.toLowerCase()
       ) {
         res = acc
         break

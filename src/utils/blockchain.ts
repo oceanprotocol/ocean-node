@@ -148,7 +148,7 @@ export async function verifyMessage(
       return false
     }
     const signerAddr = await ethers.verifyMessage(message, signature)
-    if (signerAddr.toLowerCase() !== address.toLowerCase()) {
+    if (signerAddr?.toLowerCase() !== address?.toLowerCase()) {
       return false
     }
     return true

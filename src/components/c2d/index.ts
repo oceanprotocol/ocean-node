@@ -134,8 +134,8 @@ export async function validateAlgoForDataset(
         const algoDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(algoDID)
         if (algoDDO) {
           return compute.publisherTrustedAlgorithmPublishers
-            .map((address) => address.toLowerCase())
-            .includes(algoDDO.nftAddress.toLowerCase())
+            .map((address) => address?.toLowerCase())
+            .includes(algoDDO.nftAddress?.toLowerCase())
         }
         return false
       }

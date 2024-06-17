@@ -177,7 +177,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
       // we need to add hash to each env id
       for (const [index, val] of data.entries()) {
         data[index].id = `${clusterHash}-${val.id}`
-        if (!data[index].feeToken || data[index].feeToken.toLowerCase() === ZeroAddress)
+        if (!data[index].feeToken || data[index].feeToken?.toLowerCase() === ZeroAddress)
           data[index].feeToken = await getProviderFeeToken(chainId)
       }
       return data

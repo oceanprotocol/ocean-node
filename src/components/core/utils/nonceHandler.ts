@@ -168,10 +168,10 @@ function validateNonceAndSignature(
     const addressFromBytesSignature = ethers.verifyMessage(messageHashBytes, signature)
 
     if (
-      ethers.getAddress(addressFromHashSignature).toLowerCase() ===
-        ethers.getAddress(consumer).toLowerCase() ||
-      ethers.getAddress(addressFromBytesSignature).toLowerCase() ===
-        ethers.getAddress(consumer).toLowerCase()
+      ethers.getAddress(addressFromHashSignature)?.toLowerCase() ===
+        ethers.getAddress(consumer)?.toLowerCase() ||
+      ethers.getAddress(addressFromBytesSignature)?.toLowerCase() ===
+        ethers.getAddress(consumer)?.toLowerCase()
     ) {
       // update nonce on DB, return OK
       return {

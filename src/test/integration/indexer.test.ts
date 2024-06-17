@@ -219,7 +219,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   it('should have nft field stored in ddo', async function () {
     assert(resolvedDDO.nft, 'NFT field is not present')
     assert(
-      resolvedDDO.nft.address.toLowerCase() === nftAddress.toLowerCase(),
+      resolvedDDO.nft.address?.toLowerCase() === nftAddress?.toLowerCase(),
       'NFT address mismatch'
     )
     assert(resolvedDDO.nft.state === 0, 'NFT state mismatch') // ACTIVE
@@ -231,7 +231,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       'NFT tokeURI mismatch'
     )
     assert(
-      resolvedDDO.nft.owner.toLowerCase() === setMetaDataTxReceipt.from.toLowerCase(),
+      resolvedDDO.nft.owner?.toLowerCase() === setMetaDataTxReceipt.from?.toLowerCase(),
       'NFT owner mismatch'
     )
     assert(resolvedDDO.nft.created, 'NFT created timestamp does not exist')
@@ -380,7 +380,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     )
     const paymentCollector = await dataTokenContract.getPaymentCollector()
     assert(
-      paymentCollector.toLowerCase() === publisherAddress.toLowerCase(),
+      paymentCollector?.toLowerCase() === publisherAddress?.toLowerCase(),
       'paymentCollector not correct'
     )
 
