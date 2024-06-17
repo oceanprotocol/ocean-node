@@ -69,13 +69,25 @@ configure_rpc() {
     fi
     echo "------------------------------------------------------------------------------"
 }
-#basic check on the length
+#basic check on the pk length
 check_pk() {
    pk=$1
    length=${#pk}
    echo "Pk size is $length"
+   #66 with 0x prefix
    if [ $length -lt 64 ]; then
      echo "The provided private Key seems invalid!"
+     exit 1
+   fi 
+}
+#another basic check on the address
+check_wallet() {
+   wallet=$1
+   length=${#wallet}
+   echo "Wallet size is $length"
+   #42 with 0x prefix
+   if [ $length -lt 40 ]; then
+     echo "The provided wallet address seems invalid!"
      exit 1
    fi 
 }
@@ -114,18 +126,22 @@ setup_private_key() {
     fi
 }
 
-ask_for_admin_wallet() {
+setup_node_admin_wallet() {
+    REPLACE_STR="ALLOWED_ADMINS=[\"$ADMIN_WALLET\"]"
+    if [ "$(uname)" == "Darwin" ]; then
+        sed -i '' -e 's;ALLOWED_ADMINS=;'$REPLACE_STR';' "$env_file_path"
+    else
+        sed -i -e 's;ALLOWED_ADMINS=;'$REPLACE_STR';' "$env_file_path"
+    fi
+}
+
+ask_for_same_admin_wallet() {
     if [ -f $wallet_file ]; then
        read -p "Do you want to use the wallet associated with this key ( $wallet_file ) as a node admin account?  [ y/n ]: " use_admin_wallet  
        use_admin_wallet=${use_admin_wallet:-y} 
        if [ "$use_admin_wallet" == 'y' ]; then
          ADMIN_WALLET=`cat $wallet_file`
-         REPLACE_STR="ALLOWED_ADMINS=[\"$ADMIN_WALLET\"]"
-         if [ "$(uname)" == "Darwin" ]; then
-            sed -i '' -e 's;ALLOWED_ADMINS=;'$REPLACE_STR';' "$env_file_path"
-         else
-            sed -i -e 's;ALLOWED_ADMINS=;'$REPLACE_STR';' "$env_file_path"
-         fi
+         setup_node_admin_wallet
        fi
     fi
 }
@@ -188,10 +204,20 @@ if [ $exists_env_file -eq 0 ]; then
             echo "Once you're done with your changes, run 'source .env' (on your ocean node root folder)," 
             echo "before starting the node, in order to apply the environment changes."
             echo "------------------------------------------------------------------------------"
+            #configure the pk key on the .env file
             setup_private_key
-            #only if we just created it
+            #Use wallet address from file? only if we just created it
             if [ $created_pk_file -eq 1 ]; then
-                ask_for_admin_wallet
+                ask_for_same_admin_wallet
+            else
+              #we entered a pk ourselves
+              read -p "Do you want setup the wallet associated with this key, as a node admin account?  [ y/n ]: " set_admin_wallet  
+                set_admin_wallet=${set_admin_wallet:-y} 
+                if [ "$set_admin_wallet" == 'y' ]; then
+                    read -p "Enter your admin wallet address: " ADMIN_WALLET
+                    check_wallet $ADMIN_WALLET
+                    setup_node_admin_wallet
+                fi    
             fi
         fi
     else 
