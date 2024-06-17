@@ -123,7 +123,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccount = (await provider.getSigner(1)) as Signer
-    genericAsset = genericDDO
+    genericAsset = JSON.parse(JSON.stringify(genericDDO))
     factoryContract = new ethers.Contract(
       artifactsAddresses.ERC721Factory,
       ERC721Factory.abi,
