@@ -34,10 +34,11 @@ export function getSchema(version: string = CURRENT_VERSION): string {
   return schemaFilePath
 }
 
-function isIsoFormat(dateString: string): boolean {
+/* function isIsoFormat(dateString: string): boolean {
   const isoDateRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z)?$/
   return isoDateRegex.test(dateString)
 }
+*/
 
 export function makeDid(nftAddress: string, chainId: string): string {
   return (

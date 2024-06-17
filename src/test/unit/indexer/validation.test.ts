@@ -1,9 +1,4 @@
-import {
-  incorrectDDO,
-  DDOExample,
-  ddov5,
-  ddoValidationSignature
-} from '../../data/ddo.js'
+import { DDOExample, ddov5, ddoValidationSignature } from '../../data/ddo.js'
 import {
   getValidationSignature,
   validateObject
