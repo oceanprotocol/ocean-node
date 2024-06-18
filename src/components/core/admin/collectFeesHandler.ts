@@ -8,12 +8,15 @@ import {
   buildInvalidRequestMessage,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
-import { getConfiguration, checkSupportedChainId } from '../../../utils/index.js'
-import { getProviderFeeToken, getProviderWallet } from '../utils/feesHandler.js'
+import {
+  getConfiguration,
+  checkSupportedChainId,
+  Blockchain
+} from '../../../utils/index.js'
+import { getProviderWallet } from '../utils/feesHandler.js'
 import { parseUnits, Contract, ZeroAddress, isAddress } from 'ethers'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' assert { type: 'json' }
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { getOceanArtifactsAdressesByChainId } from '../../../utils/address.js'
 import { Readable } from 'stream'
 
 export class CollectFeesHandler extends AdminHandler {
@@ -57,46 +60,78 @@ export class CollectFeesHandler extends AdminHandler {
         `Chain ID ${task.chainId} is not supported in the node's config`
       )
     }
-    const providerWallet = await getProviderWallet(String(task.chainId))
-    try {
-      let providerFeeToken = await getProviderFeeToken(task.chainId)
-      if (task.tokenAddress === ZeroAddress) {
-        // for the moment I put Ocean token from address.json
-        if (providerFeeToken.toLowerCase() === ZeroAddress) {
-          providerFeeToken = getOceanArtifactsAdressesByChainId(
-            Number(task.chainId)
-          ).Ocean
-        }
-        task.tokenAddress = getOceanArtifactsAdressesByChainId(Number(task.chainId)).Ocean
-      }
-      if (task.tokenAddress.toLowerCase() !== providerFeeToken.toLowerCase()) {
-        const msg: string = `Token address ${task.tokenAddress} is not the same with provider fee token address ${providerFeeToken}`
-        CORE_LOGGER.error(msg)
-        return buildErrorResponse(msg)
-      }
 
-      const token = new Contract(
-        task.tokenAddress.toLowerCase(),
-        ERC20Template.abi,
-        providerWallet
-      )
-      if (
-        (await token.balanceOf(await providerWallet.getAddress())) <
-        parseUnits(task.tokenAmount.toString(), 'ether')
-      ) {
-        const msg: string = `Amount too high to transfer! Balance: ${await token.balanceOf(
-          await providerWallet.getAddress()
-        )} vs. amount provided: ${parseUnits(task.tokenAmount.toString(), 'ether')}`
-        CORE_LOGGER.error(msg)
-        return buildErrorResponse(msg)
+    try {
+      const { rpc, network, chainId, fallbackRPCs } =
+        config.supportedNetworks[task.chainId]
+      const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+      const provider = blockchain.getProvider()
+      const providerWallet = await getProviderWallet(String(task.chainId))
+      const ammountInEther = parseUnits(task.tokenAmount.toString(), 'ether')
+      const providerWalletAddress = await providerWallet.getAddress()
+
+      let receipt
+      if (task.tokenAddress === ZeroAddress) {
+        if (
+          (await provider.getBalance(providerWalletAddress)) <
+          (await blockchain.calculateGasCost(task.destinationAddress, ammountInEther))
+        ) {
+          const msg: string = `Amount too high to transfer native token! Balance: ${await provider.getBalance(
+            providerWalletAddress
+          )} vs. amount provided: ${ammountInEther}`
+          CORE_LOGGER.error(msg)
+          return buildErrorResponse(msg)
+        }
+
+        receipt = await blockchain.sendTransaction(
+          providerWallet,
+          task.destinationAddress,
+          ammountInEther
+        )
+      } else {
+        const token = new Contract(
+          task.tokenAddress.toLowerCase(),
+          ERC20Template.abi,
+          providerWallet
+        )
+
+        if ((await token.balanceOf(providerWalletAddress)) < ammountInEther) {
+          const msg: string = `Amount too high to transfer! Balance: ${await token.balanceOf(
+            providerWalletAddress
+          )} vs. amount provided: ${ammountInEther}`
+          CORE_LOGGER.error(msg)
+          return buildErrorResponse(msg)
+        }
+        const tx = await token.transfer(
+          task.destinationAddress.toLowerCase(),
+          ammountInEther
+        )
+        receipt = await tx.wait()
       }
-      const tx = await token.transfer(
-        task.destinationAddress.toLowerCase(),
-        parseUnits(task.tokenAmount.toString(), 'ether')
-      )
-      const txReceipt = await tx.wait()
+      if (!receipt) {
+        const msg: string = `Receipt does not exist`
+        CORE_LOGGER.error(msg)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 404,
+            error: msg
+          }
+        }
+      }
+      if (receipt.status !== 1) {
+        const msg: string = `Reverted transaction: ${receipt}`
+        CORE_LOGGER.error(msg)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 404,
+            error: msg
+          }
+        }
+      }
       const response: any = {
-        tx: txReceipt.hash,
+        tx: receipt.hash,
         message: 'Fees successfully transfered to admin!'
       }
       return {
