@@ -69,7 +69,7 @@ export async function getAlgoChecksums(
     for (const file of decryptedFileArray.files) {
       const storage = Storage.getStorageClass(file)
       const fileInfo = await storage.getFileInfo({ type: file.type }, true)
-      checksums.files = checksums.files.concat(fileInfo[0].contentChecksum)
+      checksums.files = checksums.files.concat(fileInfo[0].checksum)
     }
     checksums.container = createHash('sha256')
       .update(
