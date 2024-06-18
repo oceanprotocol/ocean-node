@@ -77,7 +77,7 @@ async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFile
     valid: true,
     contentLength,
     contentType,
-    contentChecksum,
+    checksum: contentChecksum,
     name: new URL(url).pathname.split('/').pop() || '',
     type: file.type
   }
