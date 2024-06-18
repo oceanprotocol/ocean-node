@@ -65,7 +65,6 @@ export class ComputeStartHandler extends Handler {
           }
         }
       }
-      console.log('ComputeStart handle called : ', task)
       const node = this.getOceanNode()
       const assets: ComputeAsset[] = [task.dataset]
       if (task.additionalDatasets) assets.push(...task.additionalDatasets)
@@ -76,7 +75,6 @@ export class ComputeStartHandler extends Handler {
         task.algorithm.serviceId,
         this.getOceanNode()
       )
-      console.log('algo checksums ', algoChecksums)
       if (!algoChecksums) {
         CORE_LOGGER.error(`Error retrieveing algorithm checksums`)
         return {
@@ -136,7 +134,6 @@ export class ComputeStartHandler extends Handler {
               }
             }
           }
-
           if (ddo.metadata.type !== 'algorithm') {
             const validAlgoForDataset = await validateAlgoForDataset(
               task.algorithm.documentId,
@@ -145,9 +142,6 @@ export class ComputeStartHandler extends Handler {
               ddo.services[0].id,
               node
             )
-            console.log('algo ', task.algorithm.documentId)
-            console.log('ddo ', ddo.id)
-            console.log('validAlgoForDataset ', validAlgoForDataset)
             if (!validAlgoForDataset) {
               return {
                 stream: null,

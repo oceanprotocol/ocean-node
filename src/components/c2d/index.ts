@@ -2,16 +2,13 @@ import { OceanNode } from '../../OceanNode.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { createHash } from 'crypto'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
-import { decrypt } from '../../utils/crypt.js'
-import { Storage } from '../storage/index.js'
 import { getConfiguration } from '../../utils/config.js'
 import { ComputeGetEnvironmentsHandler } from '../core/compute/index.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { sanitizeServiceFiles, streamToObject } from '../../utils/util.js'
+import { streamToObject } from '../../utils/util.js'
 import { Readable } from 'stream'
 import {
   ArweaveFileObject,
-  EncryptMethod,
   IpfsFileObject,
   UrlFileObject
 } from '../../@types/fileObject.js'
@@ -121,27 +118,10 @@ export async function validateAlgoForDataset(
       }
       // if is set only allow if match
       if (compute.publisherTrustedAlgorithms) {
-        console.log(
-          'compute.publisherTrustedAlgorithms: ',
-          compute.publisherTrustedAlgorithms
-        )
-        console.log(
-          'compute.publisherTrustedAlgorithms.length: ',
-          compute.publisherTrustedAlgorithms.length
-        )
-        console.log('algoDID: ', algoDID)
         const trustedAlgo = compute.publisherTrustedAlgorithms.find(
           (algo) => algo.did === algoDID
         )
-        console.log('trusted algo', trustedAlgo)
         if (trustedAlgo) {
-          console.log('trustedAlgo.filesChecksum: ', trustedAlgo.filesChecksum)
-          console.log('algoChecksums.files: ', algoChecksums.files)
-          console.log(
-            ' trustedAlgo.containerSectionChecksum: ',
-            trustedAlgo.containerSectionChecksum
-          )
-          console.log('algoChecksums.container: ', algoChecksums.container)
           return (
             trustedAlgo.filesChecksum === algoChecksums.files &&
             trustedAlgo.containerSectionChecksum === algoChecksums.container
