@@ -78,16 +78,13 @@ export async function createProviderFee(
     // it's download, take it from config
     providerFeeToken = await getProviderFeeToken(asset.chainId)
   }
-  if (providerFeeToken?.toLowerCase() === ZeroAddress?.toLowerCase()) {
+  if (providerFeeToken?.toLowerCase() === ZeroAddress) {
     providerFeeAmount = 0
   } else {
     providerFeeAmount = await calculateProviderFeeAmount(validUntil, computeEnv)
   }
 
-  if (
-    providerFeeToken &&
-    providerFeeToken?.toLowerCase() !== ZeroAddress?.toLowerCase()
-  ) {
+  if (providerFeeToken && providerFeeToken?.toLowerCase() !== ZeroAddress) {
     const provider = await getJsonRpcProvider(asset.chainId)
     const decimals = await getDatatokenDecimals(providerFeeToken, provider)
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
