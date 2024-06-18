@@ -248,9 +248,11 @@ export class ComputeStartHandler extends Handler {
       // TODO - hardcoded values.
       //  - validate algo & datasets
       //  - validate providerFees -> will generate chainId & agreementId & validUntil
+      console.log('foundValidCompute  ', foundValidCompute)
       const { chainId } = foundValidCompute
       const agreementId = foundValidCompute.txId
       const { validUntil } = foundValidCompute
+
       const response = await engine.startComputeJob(
         assets,
         task.algorithm,
