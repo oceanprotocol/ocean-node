@@ -56,7 +56,7 @@ export abstract class Storage {
   static getStorageClass(file: any): UrlStorage | IpfsStorage | ArweaveStorage {
     const { type } = file
     switch (
-      type.toLowerCase() // case insensitive
+      type?.toLowerCase() // case insensitive
     ) {
       case FileObjectType.URL:
         return new UrlStorage(file)
@@ -185,7 +185,7 @@ export class UrlStorage extends Storage {
     if (!file.url || !file.method) {
       return [false, 'URL or method are missing']
     }
-    if (!['get', 'post'].includes(file.method.toLowerCase())) {
+    if (!['get', 'post'].includes(file.method?.toLowerCase())) {
       return [false, 'Invalid method for URL']
     }
     if (this.isFilePath() === true) {

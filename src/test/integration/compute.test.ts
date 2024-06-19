@@ -243,7 +243,8 @@ describe('Compute', () => {
     const result: any = await streamToObject(resp.stream as Readable)
     assert(result.algorithm, 'algorithm does not exist')
     assert(
-      result.algorithm.datatoken === publishedAlgoDataset.datatokenAddress,
+      result.algorithm.datatoken?.toLowerCase() ===
+        publishedAlgoDataset.datatokenAddress?.toLowerCase(),
       'incorrect datatoken address for algo'
     )
     providerFeesComputeAlgo = result.algorithm.providerFee
@@ -273,7 +274,8 @@ describe('Compute', () => {
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
     providerFeesComputeDataset = resultParsed.providerFee
     assert(
-      resultParsed.datatoken === publishedComputeDataset.datatokenAddress,
+      resultParsed.datatoken?.toLowerCase() ===
+        publishedComputeDataset.datatokenAddress?.toLowerCase(),
       'incorrect datatoken address for dataset'
     )
     assert(
@@ -348,7 +350,8 @@ describe('Compute', () => {
     const result: any = await streamToObject(resp.stream as Readable)
     assert(result.algorithm, 'algorithm does not exist')
     assert(
-      result.algorithm.datatoken === publishedAlgoDataset.datatokenAddress,
+      result.algorithm.datatoken?.toLowerCase() ===
+        publishedAlgoDataset.datatokenAddress?.toLowerCase(),
       'incorrect datatoken address for algo'
     )
     assert(
@@ -375,7 +378,8 @@ describe('Compute', () => {
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
     assert(
-      resultParsed.datatoken === publishedComputeDataset.datatokenAddress,
+      resultParsed.datatoken?.toLowerCase() ===
+        publishedComputeDataset.datatokenAddress?.toLowerCase(),
       'incorrect datatoken address for dataset'
     )
     assert(
@@ -437,7 +441,8 @@ describe('Compute', () => {
     const result: any = await streamToObject(resp.stream as Readable)
     assert(result.algorithm, 'algorithm does not exist')
     assert(
-      result.algorithm.datatoken === publishedAlgoDataset.datatokenAddress,
+      result.algorithm.datatoken?.toLowerCase() ===
+        publishedAlgoDataset.datatokenAddress?.toLowerCase(),
       'incorrect datatoken address for algo'
     )
     assert(
@@ -449,7 +454,8 @@ describe('Compute', () => {
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
     assert(
-      resultParsed.datatoken === publishedComputeDataset.datatokenAddress,
+      resultParsed.datatoken?.toLowerCase() ===
+        publishedComputeDataset.datatokenAddress?.toLowerCase(),
       'incorrect datatoken address for dataset'
     )
     assert(

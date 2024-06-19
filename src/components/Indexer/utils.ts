@@ -300,7 +300,10 @@ export async function wasNFTDeployedByOurFactory(
 
   const nftAddressFromFactory = await nftFactoryContract.erc721List(dataNftAddress)
 
-  return getAddress(dataNftAddress) === getAddress(nftAddressFromFactory)
+  return (
+    getAddress(dataNftAddress)?.toLowerCase() ===
+    getAddress(nftAddressFromFactory)?.toLowerCase()
+  )
 }
 
 // default in seconds
