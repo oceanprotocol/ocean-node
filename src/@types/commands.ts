@@ -173,7 +173,7 @@ export interface ComputeGetResultCommand extends Command {
 
 export interface ComputeGetStatusCommand extends Command {
   consumerAddress?: string
-  did?: string // TODO is this needed?
+  // did?: string // TODO is this needed?
   jobId?: string
   agreementId?: string
 }
