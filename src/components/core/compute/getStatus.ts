@@ -54,7 +54,7 @@ export class ComputeGetStatusHandler extends Handler {
         const engine = await C2DEngine.getC2DByHash(cluster.hash)
         const jobs = await engine.getComputeJobStatus(
           task.consumerAddress,
-          task.did,
+          task.agreementId,
           jobId
         )
         response.push(...jobs)
