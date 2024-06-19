@@ -37,7 +37,7 @@ git checkout feature/nodes
 
 A full list of all environmental variables is available in [env.md](./env.md)
 
-The only required/mandatory setting to run a node (very basic configuration) is the PRIVATE_KEY. The node does not event start with it.
+The only required/mandatory setting to run a node (very basic configuration) is the PRIVATE_KEY. The node does not start without it.
 All the others are either optional or they have defaults. However, it is recommended that you set some of them, otherwise your node will not be able to perform most of the available features.
 
 There are 2 options for setting the initial configuration
@@ -51,7 +51,7 @@ You can further edit the file to add additional/more advanced settings. Once you
 source .env
 ```
 
-This will export all the configurations present in the `.env` file to your local environment. From now on, you can always this file as reference.
+This will export all the configurations present in the `.env` file to your local environment. From now on, you can use this file as a reference.
 
 ## Option 2 -> Export the necessary variables manually from the terminal
 
