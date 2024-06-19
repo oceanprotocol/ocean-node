@@ -21,13 +21,8 @@ export class ComputeGetStatusHandler extends Handler {
         return buildInvalidRequestMessage(
           'Parameter : "consumerAddress" is not a valid web3 address'
         )
-      } else if (
-        !command.consumerAddress &&
-        !command.jobId &&
-        !command.did &&
-        !command.agreementId
-      ) {
-        const error = 'Missing one of ["jobId","consumerAddress","did","agreementId"]'
+      } else if (!command.consumerAddress && !command.jobId && !command.agreementId) {
+        const error = 'Missing one of ["jobId","consumerAddress","agreementId"]'
         CORE_LOGGER.logMessage(error, true)
         return buildInvalidRequestMessage(error)
       }
