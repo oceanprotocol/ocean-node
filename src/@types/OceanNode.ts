@@ -44,6 +44,7 @@ export interface OceanNodeP2PConfig {
   upnp: boolean
   enableCircuitRelayServer: boolean
   enableCircuitRelayClient: boolean
+  circuitRelays: number
   announcePrivateIp: boolean
 }
 
