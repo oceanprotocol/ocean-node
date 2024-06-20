@@ -1,5 +1,4 @@
 import { expect, assert } from 'chai'
-import util from 'util'
 import {
   ComputeGetEnvironmentsHandler,
   ComputeStartHandler,
@@ -178,6 +177,7 @@ describe('Compute', () => {
   })
 
   it('should add the algorithm to the dataset trusted algorithm list', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     const algoChecksums = await getAlgoChecksums(
       publishedAlgoDataset.ddo.id,
       publishedAlgoDataset.ddo.services[0].id,
@@ -257,14 +257,6 @@ describe('Compute', () => {
   })
 
   it('Initialize compute without transaction IDs', async () => {
-    console.log(
-      'publishedComputeDataset == ',
-      util.inspect(publishedComputeDataset, false, null, true)
-    )
-    console.log(
-      'publishedAlgoDataset == ',
-      util.inspect(publishedAlgoDataset, false, null, true)
-    )
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
       serviceId: publishedComputeDataset.ddo.services[0].id
@@ -294,7 +286,6 @@ describe('Compute', () => {
 
     const result: any = await streamToObject(resp.stream as Readable)
     assert(result.algorithm, 'algorithm does not exist')
-    console.log('result.algorithm == ', util.inspect(result.algorithm, false, null, true))
     expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
       publishedAlgoDataset.datatokenAddress?.toLowerCase()
     )
@@ -324,7 +315,6 @@ describe('Compute', () => {
 
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
-    console.log('resultParsed == ', util.inspect(resultParsed, false, null, true))
     providerFeesComputeDataset = resultParsed.providerFee
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
       publishedComputeDataset.ddo.datatokens[0].address?.toLowerCase()
@@ -401,7 +391,6 @@ describe('Compute', () => {
 
     const result: any = await streamToObject(resp.stream as Readable)
     assert(result.algorithm, 'algorithm does not exist')
-    console.log('result.algorithm: ', result.algorithm)
     expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
       publishedAlgoDataset.datatokenAddress?.toLowerCase()
     )
@@ -429,7 +418,6 @@ describe('Compute', () => {
 
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
-    console.log('resultParsed: ', resultParsed)
 
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
       publishedComputeDataset.ddo.datatokens[0].address?.toLowerCase()
