@@ -361,6 +361,14 @@ describe('Compute', () => {
     //  - dataset should have valid order
     //  - dataset should have valid providerFee
     //  - algo should not have any valid order or providerFee
+    console.log(
+      'publishedComputeDataset == ',
+      util.inspect(publishedComputeDataset, false, null, true)
+    )
+    console.log(
+      'publishedAlgoDataset == ',
+      util.inspect(publishedAlgoDataset, false, null, true)
+    )
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
       serviceId: publishedComputeDataset.ddo.services[0].id,
@@ -390,11 +398,11 @@ describe('Compute', () => {
 
     const result: any = await streamToObject(resp.stream as Readable)
     assert(result.algorithm, 'algorithm does not exist')
-    assert(
-      result.algorithm.datatoken?.toLowerCase() ===
-        publishedAlgoDataset.datatokenAddress?.toLowerCase(),
-      'incorrect datatoken address for algo'
+    console.log('result.algorithm: ', result.algorithm)
+    expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
+      publishedAlgoDataset.datatokenAddress?.toLowerCase()
     )
+
     assert(
       result.algorithm.providerFee.providerFeeAddress,
       'algorithm providerFeeAddress does not exist'
@@ -418,6 +426,8 @@ describe('Compute', () => {
 
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
+    console.log('resultParsed: ', resultParsed)
+
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
       publishedComputeDataset.datatokenAddress?.toLowerCase()
     )
@@ -449,14 +459,6 @@ describe('Compute', () => {
     // expected results:
     //  - dataset should have valid order and providerFee
     //  - algo should have valid order and providerFee
-    console.log(
-      'publishedComputeDataset == ',
-      util.inspect(publishedComputeDataset, false, null, true)
-    )
-    console.log(
-      'publishedAlgoDataset == ',
-      util.inspect(publishedAlgoDataset, false, null, true)
-    )
 
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
@@ -489,11 +491,8 @@ describe('Compute', () => {
 
     const result: any = await streamToObject(resp.stream as Readable)
     assert(result.algorithm, 'algorithm does not exist')
-    console.log('result.algorithm: ', result.algorithm)
-    assert(
-      result.algorithm.datatoken?.toLowerCase() ===
-        publishedAlgoDataset.datatokenAddress?.toLowerCase(),
-      'incorrect datatoken address for algo'
+    expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
+      publishedAlgoDataset.datatokenAddress?.toLowerCase()
     )
     assert(
       !('providerFee' in result.algorithm),
@@ -503,7 +502,6 @@ describe('Compute', () => {
     // dataset checks
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
-    console.log('resultParsed: ', resultParsed)
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
       publishedComputeDataset.datatokenAddress?.toLowerCase()
     )
