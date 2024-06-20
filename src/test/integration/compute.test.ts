@@ -285,6 +285,10 @@ describe('Compute', () => {
 
     const result: any = await streamToObject(resp.stream as Readable)
     assert(result.algorithm, 'algorithm does not exist')
+    expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
+      publishedAlgoDataset.datatokenAddress?.toLowerCase()
+    )
+
     providerFeesComputeAlgo = result.algorithm.providerFee
 
     assert(
@@ -311,10 +315,8 @@ describe('Compute', () => {
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
     providerFeesComputeDataset = resultParsed.providerFee
-    assert(
-      resultParsed.datatoken?.toLowerCase() ===
-        publishedComputeDataset.datatokenAddress?.toLowerCase(),
-      'incorrect datatoken address for dataset'
+    expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
+      publishedComputeDataset.datatokenAddress?.toLowerCase()
     )
     assert(
       resultParsed.providerFee.providerFeeAddress,
@@ -415,11 +417,10 @@ describe('Compute', () => {
 
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
-    assert(
-      resultParsed.datatoken?.toLowerCase() ===
-        publishedComputeDataset.datatokenAddress?.toLowerCase(),
-      'incorrect datatoken address for dataset'
+    expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
+      publishedComputeDataset.datatokenAddress?.toLowerCase()
     )
+
     assert(
       !('providerFee' in resultParsed),
       'dataset providerFeeAddress should not exist'
@@ -491,11 +492,10 @@ describe('Compute', () => {
     // dataset checks
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
-    assert(
-      resultParsed.datatoken?.toLowerCase() ===
-        publishedComputeDataset.datatokenAddress?.toLowerCase(),
-      'incorrect datatoken address for dataset'
+    expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
+      publishedComputeDataset.datatokenAddress?.toLowerCase()
     )
+
     assert(
       !('providerFee' in resultParsed),
       'dataset providerFeeAddress should not exist'
