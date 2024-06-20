@@ -267,7 +267,7 @@ describe('Compute', () => {
     )
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
-      serviceId: publishedComputeDataset.datatok.ddo.services[0].id
+      serviceId: publishedComputeDataset.ddo.services[0].id
     }
     const algorithm: ComputeAlgorithm = {
       documentId: publishedAlgoDataset.ddo.id,
