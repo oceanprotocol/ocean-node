@@ -218,7 +218,10 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should have nft field stored in ddo', async function () {
     assert(resolvedDDO.nft, 'NFT field is not present')
-    assert(resolvedDDO.nft.address === nftAddress, 'NFT address mismatch')
+    assert(
+      resolvedDDO.nft.address?.toLowerCase() === nftAddress?.toLowerCase(),
+      'NFT address mismatch'
+    )
     assert(resolvedDDO.nft.state === 0, 'NFT state mismatch') // ACTIVE
     assert(resolvedDDO.nft.name === (await nftContract.name()), 'NFT name mismatch')
     assert(resolvedDDO.nft.symbol === (await nftContract.symbol()), 'NFT symbol mismatch')
@@ -227,7 +230,10 @@ describe('Indexer stores a new metadata events and orders.', () => {
         (await nftContract.tokenURI(await nftContract.getId())),
       'NFT tokeURI mismatch'
     )
-    assert(resolvedDDO.nft.owner === setMetaDataTxReceipt.from, 'NFT owner mismatch')
+    assert(
+      resolvedDDO.nft.owner?.toLowerCase() === setMetaDataTxReceipt.from?.toLowerCase(),
+      'NFT owner mismatch'
+    )
     assert(resolvedDDO.nft.created, 'NFT created timestamp does not exist')
   })
 
@@ -373,7 +379,10 @@ describe('Indexer stores a new metadata events and orders.', () => {
       publisherAccount
     )
     const paymentCollector = await dataTokenContract.getPaymentCollector()
-    assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
+    assert(
+      paymentCollector?.toLowerCase() === publisherAddress?.toLowerCase(),
+      'paymentCollector not correct'
+    )
 
     const feeData = await createFee(
       resolvedDDO as DDO,

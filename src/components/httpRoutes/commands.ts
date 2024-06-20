@@ -56,7 +56,7 @@ directCommandRoute.post(
             if ('headers' in decoded) {
               res.header(decoded.headers)
               // when streaming binary data we cannot convert to plain string, specially if encrypted data
-              if (str.toLowerCase().includes('application/octet-stream')) {
+              if (str?.toLowerCase().includes('application/octet-stream')) {
                 isBinaryContent = true
               }
             }

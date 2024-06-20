@@ -66,7 +66,7 @@ function getBoolEnvValue(envName: string, defaultValue: boolean): boolean {
   if (
     process.env[envName] === 'true' ||
     process.env[envName] === '1' ||
-    process.env[envName].toLowerCase() === 'yes'
+    process.env[envName]?.toLowerCase() === 'yes'
   ) {
     return true
   }

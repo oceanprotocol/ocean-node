@@ -7,8 +7,8 @@ export function findCredential(
   return credentials.find((credential) => {
     if (Array.isArray(credential?.values)) {
       if (credential.values.length > 0) {
-        const credentialType = String(credential?.type).toLowerCase()
-        const credentialValues = credential.values.map((v) => String(v).toLowerCase())
+        const credentialType = String(credential?.type)?.toLowerCase()
+        const credentialValues = credential.values.map((v) => String(v)?.toLowerCase())
         return (
           credentialType === consumerCredentials.type &&
           credentialValues.includes(consumerCredentials.values[0])
@@ -27,7 +27,7 @@ export function findCredential(
 export function checkCredentials(credentials: Credentials, consumerAddress: string) {
   const consumerCredentials = {
     type: 'address',
-    values: [String(consumerAddress).toLowerCase()]
+    values: [String(consumerAddress)?.toLowerCase()]
   }
   // check deny access
   if (Array.isArray(credentials?.deny) && credentials.deny.length > 0) {
