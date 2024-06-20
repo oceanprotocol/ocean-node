@@ -1,17 +1,17 @@
-import { DDO } from '../@types/DDO/DDO'
-import { Service } from '../@types/DDO/Service'
+import { DDO } from '../@types/DDO/DDO.js'
+import { Service } from '../@types/DDO/Service.js'
 import {
   ArweaveFileObject,
   EncryptMethod,
   IpfsFileObject,
   UrlFileObject
-} from '../@types/fileObject'
-import { OceanNode } from '../OceanNode'
-import { FindDdoHandler } from '../components/core/handler/ddoHandler'
-import { AssetUtils } from './asset'
-import { decrypt } from './crypt'
-import { CORE_LOGGER } from './logging/common'
-import { sanitizeServiceFiles } from './util'
+} from '../@types/fileObject.js'
+import { OceanNode } from '../OceanNode.js'
+import { FindDdoHandler } from '../components/core/handler/ddoHandler.js'
+import { AssetUtils } from './asset.js'
+import { decrypt } from './crypt.js'
+import { CORE_LOGGER } from './logging/common.js'
+import { sanitizeServiceFiles } from './util.js'
 
 export async function getFile(
   didOrDdo: string | DDO,
