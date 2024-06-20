@@ -267,7 +267,7 @@ describe('Compute', () => {
     )
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
-      serviceId: publishedComputeDataset.ddo.services[0].id
+      serviceId: publishedComputeDataset.datatok.ddo.services[0].id
     }
     const algorithm: ComputeAlgorithm = {
       documentId: publishedAlgoDataset.ddo.id,
@@ -327,7 +327,7 @@ describe('Compute', () => {
     console.log('resultParsed == ', util.inspect(resultParsed, false, null, true))
     providerFeesComputeDataset = resultParsed.providerFee
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
-      publishedComputeDataset.datatokenAddress?.toLowerCase()
+      publishedComputeDataset.ddo.datatokens[0].address?.toLowerCase()
     )
     assert(
       resultParsed.providerFee.providerFeeAddress,
@@ -432,7 +432,7 @@ describe('Compute', () => {
     console.log('resultParsed: ', resultParsed)
 
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
-      publishedComputeDataset.datatokenAddress?.toLowerCase()
+      publishedComputeDataset.ddo.datatokens[0].address?.toLowerCase()
     )
 
     assert(
@@ -506,7 +506,7 @@ describe('Compute', () => {
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
-      publishedComputeDataset.datatokenAddress?.toLowerCase()
+      publishedComputeDataset.ddo.datatokens[0].address?.toLowerCase()
     )
 
     assert(
