@@ -195,6 +195,7 @@ describe('Compute', () => {
         }
       ]
     }
+    console.log('BEFORE publishedComputeDataset.ddo ', publishedComputeDataset.ddo)
     const metadata = hexlify(Buffer.from(JSON.stringify(publishedComputeDataset.ddo)))
     const hash = createHash('sha256').update(metadata).digest('hex')
     const nftContract = new ethers.Contract(
@@ -213,13 +214,15 @@ describe('Compute', () => {
     )
     const txReceipt = await setMetaDataTx.wait()
     assert(txReceipt, 'set metadata failed')
-    setTimeout(() => {}, 5000)
+    setTimeout(() => {
+      console.log('set timeout metadata done')
+    }, 10000)
     publishedComputeDataset = await waitToIndex(
       publishedComputeDataset.ddo.id,
       EVENTS.METADATA_CREATED
     )
     console.log(
-      'publishedComputeDataset: ',
+      'AFTER 10s publishedComputeDataset: ',
       util.inspect(publishedComputeDataset.ddo, false, null, true)
     )
   })
@@ -291,12 +294,9 @@ describe('Compute', () => {
     const result: any = await streamToObject(resp.stream as Readable)
     assert(result.algorithm, 'algorithm does not exist')
     console.log(
-      'result.algorithm.datatoken?.toLowerCase() ',
-      result.algorithm.datatoken?.toLowerCase()
-    )
-    console.log(
-      ' publishedAlgoDataset.datatokenAddress?.toLowerCase( ',
-      publishedAlgoDataset.datatokenAddress?.toLowerCase()
+      'datatoken address comparisson',
+      result.algorithm.datatoken?.toLowerCase() ===
+        publishedAlgoDataset.datatokenAddress?.toLowerCase()
     )
     assert(
       result.algorithm.datatoken?.toLowerCase() ===
