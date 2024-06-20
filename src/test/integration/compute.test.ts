@@ -1,4 +1,5 @@
 import { expect, assert } from 'chai'
+import util from 'util'
 import {
   ComputeGetEnvironmentsHandler,
   ComputeStartHandler,
@@ -448,6 +449,15 @@ describe('Compute', () => {
     // expected results:
     //  - dataset should have valid order and providerFee
     //  - algo should have valid order and providerFee
+    console.log(
+      'publishedComputeDataset == ',
+      util.inspect(publishedComputeDataset, false, null, true)
+    )
+    console.log(
+      'publishedAlgoDataset == ',
+      util.inspect(publishedAlgoDataset, false, null, true)
+    )
+
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
       serviceId: publishedComputeDataset.ddo.services[0].id,
@@ -479,6 +489,7 @@ describe('Compute', () => {
 
     const result: any = await streamToObject(resp.stream as Readable)
     assert(result.algorithm, 'algorithm does not exist')
+    console.log('result.algorithm: ', result.algorithm)
     assert(
       result.algorithm.datatoken?.toLowerCase() ===
         publishedAlgoDataset.datatokenAddress?.toLowerCase(),
@@ -492,6 +503,7 @@ describe('Compute', () => {
     // dataset checks
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
+    console.log('resultParsed: ', resultParsed)
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
       publishedComputeDataset.datatokenAddress?.toLowerCase()
     )
