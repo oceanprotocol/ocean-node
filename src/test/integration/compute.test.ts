@@ -213,6 +213,7 @@ describe('Compute', () => {
     )
     const txReceipt = await setMetaDataTx.wait()
     assert(txReceipt, 'set metadata failed')
+    setTimeout(() => {}, 3000)
     publishedComputeDataset = await waitToIndex(
       publishedComputeDataset.ddo.id,
       EVENTS.METADATA_CREATED
@@ -293,11 +294,6 @@ describe('Compute', () => {
 
     const result: any = await streamToObject(resp.stream as Readable)
     assert(result.algorithm, 'algorithm does not exist')
-    console.log('result.algorithm: ', result.algorithm)
-    console.log(
-      'publishedAlgoDataset.datatokenAddress,: ',
-      publishedAlgoDataset.datatokenAddress
-    )
     assert(
       result.algorithm.datatoken?.toLowerCase() ===
         publishedAlgoDataset.datatokenAddress?.toLowerCase(),
