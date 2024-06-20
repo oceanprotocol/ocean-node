@@ -1,4 +1,5 @@
 import { expect, assert } from 'chai'
+import util from 'util'
 import {
   ComputeGetEnvironmentsHandler,
   ComputeStartHandler,
@@ -176,7 +177,7 @@ describe('Compute', () => {
     }
   })
 
-  it('should publish compute datasets & algos', async function () {
+  it('should add the algorithm to the dataset trusted algorithm list', async function () {
     const algoChecksums = await getAlgoChecksums(
       publishedAlgoDataset.ddo.id,
       publishedAlgoDataset.ddo.services[0].id,
@@ -215,6 +216,14 @@ describe('Compute', () => {
     publishedComputeDataset = await waitToIndex(
       publishedComputeDataset.ddo.id,
       EVENTS.METADATA_CREATED
+    )
+    console.log(
+      'publishedComputeDataset: ',
+      util.inspect(publishedComputeDataset.ddo, false, null, true)
+    )
+    console.log(
+      ' publishedAlgoDataset: ',
+      util.inspect(publishedAlgoDataset.ddo, false, null, true)
     )
   })
 
@@ -284,6 +293,11 @@ describe('Compute', () => {
 
     const result: any = await streamToObject(resp.stream as Readable)
     assert(result.algorithm, 'algorithm does not exist')
+    console.log('result.algorithm: ', result.algorithm)
+    console.log(
+      'publishedAlgoDataset.datatokenAddress,: ',
+      publishedAlgoDataset.datatokenAddress
+    )
     assert(
       result.algorithm.datatoken === publishedAlgoDataset.datatokenAddress,
       'incorrect datatoken address for algo'
