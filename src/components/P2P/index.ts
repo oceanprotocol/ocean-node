@@ -274,7 +274,10 @@ export class OceanP2P extends EventEmitter {
       // eslint-disable-next-line no-constant-condition, no-self-compare
       if (config.p2pConfig.autoNat) {
         P2P_LOGGER.info('Enabling AutoNat service')
-        servicesConfig = { ...servicesConfig, ...{ autoNAT: autoNAT() } }
+        servicesConfig = {
+          ...servicesConfig,
+          ...{ autoNAT: autoNAT({ maxInboundStreams: 20, maxOutboundStreams: 20 }) }
+        }
       }
       const bindInterfaces = []
       if (config.p2pConfig.enableIPV4) {
