@@ -185,41 +185,45 @@ export class OceanP2P extends EventEmitter {
   }
 
   shouldAnnounce(addr: any) {
-    const maddr = multiaddr(addr)
-
-    // always filter loopback
-    if (ip.isLoopback(maddr.nodeAddress().address)) {
-      // disabled logs because of flooding
-      // P2P_LOGGER.debug('Deny announcement of loopback ' + maddr.nodeAddress().address)
-      return false
-    }
-    // check filters
-    for (const filter of this._config.p2pConfig.filterAnnouncedAddresses) {
-      if (ip.cidrSubnet(filter).contains(maddr.nodeAddress().address)) {
+    try {
+      const maddr = multiaddr(addr)
+      // always filter loopback
+      if (ip.isLoopback(maddr.nodeAddress().address)) {
         // disabled logs because of flooding
-        // P2P_LOGGER.debug(
-        //  'Deny announcement of filtered ' +
-        //    maddr.nodeAddress().address +
-        //    '(belongs to ' +
-        //    filter +
-        //    ')'
-        // )
+        // P2P_LOGGER.debug('Deny announcement of loopback ' + maddr.nodeAddress().address)
         return false
       }
-    }
-    if (
-      this._config.p2pConfig.announcePrivateIp === false &&
-      (is_ip_private(maddr.nodeAddress().address) ||
-        ip.isPrivate(maddr.nodeAddress().address))
-    ) {
-      // disabled logs because of flooding
-      // P2P_LOGGER.debug(
-      //  'Deny announcement of private address ' + maddr.nodeAddress().address
-      // )
-      return false
-    } else {
-      // disabled logs because of flooding
-      // P2P_LOGGER.debug('Allow announcement of ' + maddr.nodeAddress().address)
+      // check filters
+      for (const filter of this._config.p2pConfig.filterAnnouncedAddresses) {
+        if (ip.cidrSubnet(filter).contains(maddr.nodeAddress().address)) {
+          // disabled logs because of flooding
+          // P2P_LOGGER.debug(
+          //  'Deny announcement of filtered ' +
+          //    maddr.nodeAddress().address +
+          //    '(belongs to ' +
+          //    filter +
+          //    ')'
+          // )
+          return false
+        }
+      }
+      if (
+        this._config.p2pConfig.announcePrivateIp === false &&
+        (is_ip_private(maddr.nodeAddress().address) ||
+          ip.isPrivate(maddr.nodeAddress().address))
+      ) {
+        // disabled logs because of flooding
+        // P2P_LOGGER.debug(
+        //  'Deny announcement of private address ' + maddr.nodeAddress().address
+        // )
+        return false
+      } else {
+        // disabled logs because of flooding
+        // P2P_LOGGER.debug('Allow announcement of ' + maddr.nodeAddress().address)
+        return true
+      }
+    } catch (e) {
+      // we reach this part when having circuit relay. this is fine
       return true
     }
   }
@@ -259,18 +263,22 @@ export class OceanP2P extends EventEmitter {
       }
       // eslint-disable-next-line no-constant-condition, no-self-compare
       if (config.p2pConfig.enableCircuitRelayServer) {
+        P2P_LOGGER.info('Enabling Circuit Relay Server')
         servicesConfig = { ...servicesConfig, ...{ circuitRelay: circuitRelayServer() } }
       }
       // eslint-disable-next-line no-constant-condition, no-self-compare
       if (config.p2pConfig.upnp) {
+        P2P_LOGGER.info('Enabling UPnp discovery')
         servicesConfig = { ...servicesConfig, ...{ upnpNAT: uPnPNAT() } }
       }
       // eslint-disable-next-line no-constant-condition, no-self-compare
       if (config.p2pConfig.autoNat) {
+        P2P_LOGGER.info('Enabling AutoNat service')
         servicesConfig = { ...servicesConfig, ...{ autoNAT: autoNAT() } }
       }
       const bindInterfaces = []
       if (config.p2pConfig.enableIPV4) {
+        P2P_LOGGER.info('Binding P2P sockets to IPV4')
         bindInterfaces.push(
           `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindTcpPort}`
         )
@@ -278,7 +286,8 @@ export class OceanP2P extends EventEmitter {
           `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindWsPort}/ws`
         )
       }
-      if (config.p2pConfig.enableIPV4) {
+      if (config.p2pConfig.enableIPV6) {
+        P2P_LOGGER.info('Binding P2P sockets to IPV6')
         bindInterfaces.push(
           `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindTcpPort}`
         )
@@ -288,14 +297,16 @@ export class OceanP2P extends EventEmitter {
       }
       let transports = []
       if (config.p2pConfig.enableCircuitRelayClient) {
+        P2P_LOGGER.info('Enabling P2P Transports: websockets, tcp, circuitRelay')
         transports = [
           webSockets(),
           tcp(),
-          circuitRelayTransport(/* {
-              discoverRelays: 2
-            } */)
+          circuitRelayTransport({
+            discoverRelays: config.p2pConfig.circuitRelays
+          })
         ]
       } else {
+        P2P_LOGGER.info('Enabling P2P Transports: websockets, tcp')
         transports = [webSockets(), tcp()]
       }
       let options = {
