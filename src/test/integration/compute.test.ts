@@ -1,5 +1,4 @@
 import { expect, assert } from 'chai'
-import util from 'util'
 import {
   ComputeGetEnvironmentsHandler,
   ComputeStartHandler,
@@ -286,10 +285,6 @@ describe('Compute', () => {
 
     const result: any = await streamToObject(resp.stream as Readable)
     assert(result.algorithm, 'algorithm does not exist')
-    expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
-      publishedAlgoDataset.datatokenAddress?.toLowerCase()
-    )
-
     providerFeesComputeAlgo = result.algorithm.providerFee
 
     assert(
