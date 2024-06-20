@@ -176,6 +176,48 @@ describe('Compute', () => {
     }
   })
 
+  it('should publish compute datasets & algos', async function () {
+    const algoChecksums = await getAlgoChecksums(
+      publishedAlgoDataset.ddo.id,
+      publishedAlgoDataset.ddo.services[0].id,
+      oceanNode
+    )
+    publishedComputeDataset.ddo.services[0].compute = {
+      allowRawAlgorithm: false,
+      allowNetworkAccess: true,
+      publisherTrustedAlgorithmPublishers: [],
+      publisherTrustedAlgorithms: [
+        {
+          did: publishedAlgoDataset.ddo.id,
+          filesChecksum: algoChecksums.files,
+          containerSectionChecksum: algoChecksums.container
+        }
+      ]
+    }
+    const metadata = hexlify(Buffer.from(JSON.stringify(publishedComputeDataset.ddo)))
+    const hash = createHash('sha256').update(metadata).digest('hex')
+    const nftContract = new ethers.Contract(
+      publishedComputeDataset.ddo.nftAddress,
+      ERC721Template.abi,
+      publisherAccount
+    )
+    const setMetaDataTx = await nftContract.setMetaData(
+      0,
+      'http://v4.provider.oceanprotocol.com',
+      '0x123',
+      '0x00',
+      metadata,
+      '0x' + hash,
+      []
+    )
+    const txReceipt = await setMetaDataTx.wait()
+    assert(txReceipt, 'set metadata failed')
+    publishedComputeDataset = await waitToIndex(
+      publishedComputeDataset.ddo.id,
+      EVENTS.METADATA_CREATED
+    )
+  })
+
   it('Get compute environments', async () => {
     const getEnvironmentsTask = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS
