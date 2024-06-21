@@ -51,10 +51,7 @@ import { getCrawlingInterval } from '../../components/Indexer/utils.js'
 import { ReindexTask } from '../../components/Indexer/crawlerThread.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandler.js'
-import {
-  getProviderFeeToken,
-  getProviderWallet
-} from '../../components/core/utils/feesHandler.js'
+import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -155,7 +152,7 @@ describe('Should test admin operations', () => {
       validationResponse.valid === true,
       'validation for collect fees command failed'
     )
-    const providerWallet = await getProviderWallet(String(collectFeesCommand.chainId))
+    const providerWallet = wallet
     const token = new Contract(
       collectFeesCommand.tokenAddress.toLowerCase(),
       ERC20Template.abi,
