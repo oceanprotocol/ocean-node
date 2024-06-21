@@ -1,5 +1,8 @@
 import { AdminHandler } from './adminHandler.js'
-import { AdminCollectFeesCommand } from '../../../@types/commands.js'
+import {
+  AdminCollectFeesCommand,
+  AdminCollectFeesHandlerResponse
+} from '../../../@types/commands.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import {
   ValidateParams,
@@ -13,8 +16,7 @@ import {
   checkSupportedChainId,
   Blockchain
 } from '../../../utils/index.js'
-import { getProviderWallet } from '../utils/feesHandler.js'
-import { parseUnits, Contract, ZeroAddress, isAddress } from 'ethers'
+import { parseUnits, Contract, ZeroAddress, isAddress, Wallet } from 'ethers'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' assert { type: 'json' }
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Readable } from 'stream'
@@ -66,15 +68,18 @@ export class CollectFeesHandler extends AdminHandler {
         config.supportedNetworks[task.chainId]
       const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
       const provider = blockchain.getProvider()
-      const providerWallet = await getProviderWallet(String(task.chainId))
+      const providerWallet = blockchain.getSigner() as Wallet
       const ammountInEther = parseUnits(task.tokenAmount.toString(), 'ether')
       const providerWalletAddress = await providerWallet.getAddress()
 
       let receipt
-      if (task.tokenAddress === ZeroAddress) {
+      if (task.tokenAddress.toLowerCase() === ZeroAddress) {
         if (
           (await provider.getBalance(providerWalletAddress)) <
-          (await blockchain.calculateGasCost(task.destinationAddress, ammountInEther))
+          (await blockchain.calculateGasCost(
+            task.destinationAddress.toLowerCase(),
+            ammountInEther
+          ))
         ) {
           const msg: string = `Amount too high to transfer native token! Balance: ${await provider.getBalance(
             providerWalletAddress
@@ -85,7 +90,7 @@ export class CollectFeesHandler extends AdminHandler {
 
         receipt = await blockchain.sendTransaction(
           providerWallet,
-          task.destinationAddress,
+          task.destinationAddress.toLowerCase(),
           ammountInEther
         )
       } else {
@@ -120,7 +125,7 @@ export class CollectFeesHandler extends AdminHandler {
         }
       }
       if (receipt.status !== 1) {
-        const msg: string = `Reverted transaction: ${receipt}`
+        const msg: string = `Reverted transaction: ${JSON.stringify(receipt.logs)}`
         CORE_LOGGER.error(msg)
         return {
           stream: null,
@@ -130,7 +135,7 @@ export class CollectFeesHandler extends AdminHandler {
           }
         }
       }
-      const response: any = {
+      const response: AdminCollectFeesHandlerResponse = {
         tx: receipt.hash,
         message: 'Fees successfully transfered to admin!'
       }

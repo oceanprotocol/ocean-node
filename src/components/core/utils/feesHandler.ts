@@ -18,8 +18,7 @@ import { Service } from '../../../@types/DDO/Service'
 import {
   getDatatokenDecimals,
   verifyMessage,
-  getJsonRpcProvider,
-  Blockchain
+  getJsonRpcProvider
 } from '../../../utils/blockchain.js'
 import { getConfiguration } from '../../../utils/config.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
@@ -471,18 +470,7 @@ export async function checkFee(
  * @param chainId the chain id (not used now)
  * @returns the wallet
  */
-export async function getProviderWallet(
-  chainIdProvided: string = null
-): Promise<ethers.Wallet> {
-  if (chainIdProvided) {
-    // to avoid breaking change for other tests
-    const config = await getConfiguration()
-    const { rpc, network, chainId, fallbackRPCs } =
-      config.supportedNetworks[chainIdProvided]
-    const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-    return blockchain.getSigner() as ethers.Wallet
-  }
-
+export async function getProviderWallet(chainId?: string): Promise<ethers.Wallet> {
   return new ethers.Wallet(
     Buffer.from((await getConfiguration()).keys.privateKey).toString('hex')
   )
