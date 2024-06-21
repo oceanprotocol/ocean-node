@@ -75,13 +75,13 @@ export class ComputeStartHandler extends Handler {
         task.algorithm.serviceId,
         this.getOceanNode()
       )
-      if (!algoChecksums) {
-        CORE_LOGGER.error(`Error retrieveing algorithm checksums`)
+      if (!algoChecksums.container || !algoChecksums.files) {
+        CORE_LOGGER.error(`Error retrieveing algorithm checksums!`)
         return {
           stream: null,
           status: {
             httpStatus: 500,
-            error: `Error retrieveing algorithm checksums`
+            error: `Error retrieveing algorithm checksums!`
           }
         }
       }
@@ -246,9 +246,7 @@ export class ComputeStartHandler extends Handler {
         }
       }
       // TODO - hardcoded values.
-      //  - validate algo & datasets
       //  - validate providerFees -> will generate chainId & agreementId & validUntil
-      console.log('foundValidCompute  ', foundValidCompute)
       const { chainId } = foundValidCompute
       const agreementId = foundValidCompute.txId
       const { validUntil } = foundValidCompute

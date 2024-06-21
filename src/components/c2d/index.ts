@@ -55,6 +55,10 @@ export async function getAlgoChecksums(
   }
   try {
     const algoDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(algoDID)
+    if (!algoDDO) {
+      CORE_LOGGER.error(`Algorithm with id: ${algoDID} not found!`)
+      return checksums
+    }
     const fileArray = await getFile(algoDDO, algoServiceId, oceanNode)
     for (const file of fileArray) {
       const url =
@@ -81,7 +85,7 @@ export async function getAlgoChecksums(
       .digest('hex')
     return checksums
   } catch (error) {
-    CORE_LOGGER.error(error.message)
+    CORE_LOGGER.error(`Fetching algorithm checksums failed: ${error.message}`)
     return checksums
   }
 }
