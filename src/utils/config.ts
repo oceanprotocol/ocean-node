@@ -10,7 +10,6 @@ import {
   hexStringToByteArray
 } from '../utils/index.js'
 import { defaultBootstrapAddresses } from '../utils/constants.js'
-import type { PeerId } from '@libp2p/interface/peer-id'
 
 import { LOG_LEVELS_STR, GENERIC_EMOJIS, getLoggerLevelEmoji } from './logging/Logger.js'
 import { RPCS } from '../@types/blockchain'
@@ -32,10 +31,9 @@ export async function getPeerIdFromPrivateKey(
   const key = new keys.supportedKeys.secp256k1.Secp256k1PrivateKey(
     hexStringToByteArray(privateKey.slice(2))
   )
-  const id: PeerId = await createFromPrivKey(key)
 
   return {
-    peerId: id,
+    peerId: await createFromPrivKey(key),
     publicKey: key.public.bytes,
     // Notes:
     // using 'key.public.bytes' gives extra 4 bytes: 08021221
