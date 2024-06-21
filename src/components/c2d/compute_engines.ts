@@ -22,6 +22,7 @@ import { getConfiguration } from '../../utils/config.js'
 import { ZeroAddress } from 'ethers'
 import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
 import { URLUtils } from '../../utils/url.js'
+import { getLocalIp } from './index.js'
 
 export class C2DEngine {
   private clusterConfig: C2DClusterInfo
@@ -208,7 +209,12 @@ export class C2DEngineOPFK8 extends C2DEngine {
       else
         stagesInput.push({
           index,
-          id: asset.documentId
+          id: asset.documentId,
+          remote: {
+            txId: asset.transferTxId,
+            serviceId: asset.serviceId,
+            userdata: asset.userdata ? asset.userdata : {}
+          }
         })
       index++
     }
@@ -220,12 +226,20 @@ export class C2DEngineOPFK8 extends C2DEngine {
       stageAlgorithm.rawcode = algorithm.meta.rawcode
     if ('meta' in algorithm && 'container' in algorithm.meta && algorithm.meta.container)
       stageAlgorithm.container = algorithm.meta.container
+
+    const config = await getConfiguration()
     const stage: OPFK8ComputeStage = {
       index: 0,
       input: stagesInput,
       algorithm: stageAlgorithm,
-      output: output || {},
-      compute: {} // TO DO
+      output: output || {
+        metadataUri: `http://${getLocalIp()}:${config.httpPort}`
+      },
+      compute: {
+        Instances: 1,
+        namespace: environment,
+        maxtime: 3600
+      } // TO DO
     }
     // now, let's build the workflow
     const workflow: OPFK8ComputeWorkflow = {
@@ -233,7 +247,6 @@ export class C2DEngineOPFK8 extends C2DEngine {
     }
     // and the full payload
     const nonce: number = new Date().getTime()
-    const config = await getConfiguration()
     const providerSignature = await sign(String(nonce), config.keys.privateKey)
     const payload: OPFK8ComputeStart = {
       workflow,

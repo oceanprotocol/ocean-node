@@ -284,7 +284,7 @@ export const DEFAULT_RATE_LIMIT_PER_SECOND = 3
 export const TYPESENSE_HITS_CAP = 250
 export const DDO_IDENTIFIER_PREFIX = 'did:op:'
 // global ocean node API services path
-export const SERVICES_API_BASE_PATH = '/api/services'
+export const SERVICES_API_BASE_PATH = 'api/services'
 
 export const defaultBootstrapAddresses = [
   // Public IPFS bootstraps

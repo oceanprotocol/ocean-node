@@ -245,7 +245,7 @@ export async function verifyProviderFees(
       isValid: true,
       isComputeValid,
       message,
-      validUntil: providerData ? providerData.timestamp : 0
+      validUntil: validUntil || providerData.timestamp
     }
   }
 
@@ -253,7 +253,7 @@ export async function verifyProviderFees(
     isValid: true,
     isComputeValid,
     message: 'Validation successful',
-    validUntil: providerData.timestamp
+    validUntil: validUntil || providerData.timestamp
   }
 }
 
@@ -517,22 +517,11 @@ export async function getProviderFeeToken(chainId: number): Promise<string> {
   const result = (await getConfiguration()).feeStrategy.feeTokens.filter(
     (token: FeeTokens) => Number(token.chain) === Number(chainId)
   )
-  // ([...result].length === 0) &&
-  CORE_LOGGER.logMessage(`check: ${[...result].length === 0 && chainId === 8996}`)
-  CORE_LOGGER.logMessage(`check res: ${[...result].length === 0}`)
-  CORE_LOGGER.logMessage(`check chain: ${chainId === 8996}, type: ${typeof chainId}`)
-  CORE_LOGGER.logMessage(
-    `getOceanArtifactsAdresses().development.Ocean: ${
-      getOceanArtifactsAdresses().development.Ocean
-    }`
-  )
   if ([...result].length === 0 && Number(chainId) === 8996) {
-    CORE_LOGGER.logMessage(`am intrat`)
     const localOceanToken = getOceanArtifactsAdresses().development.Ocean
-    CORE_LOGGER.logMessage(`localOceanToken: ${localOceanToken}`)
     return localOceanToken
   }
-  return result.length ? result[0].token : ethers.ZeroAddress
+  return result.length > 0 ? result[0].token : ethers.ZeroAddress
 }
 
 /**

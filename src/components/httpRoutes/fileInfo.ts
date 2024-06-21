@@ -6,7 +6,7 @@ import {
   IpfsFileObject,
   UrlFileObject
 } from '../../@types/fileObject'
-import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants.js'
 import { FileInfoHandler } from '../core/handler/fileInfoHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { FileInfoCommand } from '../../@types/commands.js'
@@ -31,7 +31,7 @@ const validateFileInfoRequest = (req: FileInfoHttpRequest): boolean => {
 }
 
 fileInfoRoute.post(
-  '/api/fileinfo',
+  `${SERVICES_API_BASE_PATH}/fileinfo`,
   express.urlencoded({ extended: true, type: '*/*' }),
   async (req: Request, res: Response): Promise<void> => {
     const fileInfoReq: FileInfoHttpRequest = req.body as unknown as FileInfoHttpRequest
