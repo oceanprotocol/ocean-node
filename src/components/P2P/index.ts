@@ -238,7 +238,7 @@ export class OceanP2P extends EventEmitter {
       let servicesConfig = {
         identify: identify(),
         pubsub: gossipsub({
-          allowPublishToZeroPeers: true
+          allowPublishToZeroTopicPeers: true
           // canRelayMessage: true,
           // enabled: true
         }),
@@ -251,7 +251,8 @@ export class OceanP2P extends EventEmitter {
 
           clientMode: false, // this should be true for edge devices
           kBucketSize: 20,
-          protocolPrefix: '/ocean/nodes/1.0.0'
+          protocol: '/ocean/nodes/1.0.0/kad/1.0.0'
+          // protocolPrefix: '/ocean/nodes/1.0.0'
           // randomWalk: {
           //  enabled: true,            // Allows to disable discovery (enabled by default)
           //  interval: 300e3,
@@ -521,7 +522,7 @@ export class OceanP2P extends EventEmitter {
       status: { httpStatus: 200, error: '' },
       stream: null
     }
-    let peerId: PeerId
+    let peerId: any
     try {
       peerId = peerIdFromString(peerName)
       await this._libp2p.peerStore.get(peerId)
