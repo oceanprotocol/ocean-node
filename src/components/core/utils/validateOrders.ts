@@ -92,10 +92,10 @@ export async function validateOrderTransaction(
   let orderEvent
   for (const event of OrderStartedEvent) {
     if (
-      (userAddress.toLowerCase() === event.args[0].toLowerCase() ||
-        userAddress.toLowerCase() === event.args[1].toLowerCase()) &&
-      erc20Address.toLowerCase() === datatokenAddress.toLowerCase() &&
-      erc721Address.toLowerCase() === dataNftAddress.toLowerCase()
+      (userAddress?.toLowerCase() === event.args[0]?.toLowerCase() ||
+        userAddress?.toLowerCase() === event.args[1]?.toLowerCase()) &&
+      erc20Address?.toLowerCase() === datatokenAddress?.toLowerCase() &&
+      erc721Address?.toLowerCase() === dataNftAddress?.toLowerCase()
     ) {
       orderEvent = event
       break

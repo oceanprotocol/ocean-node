@@ -146,8 +146,8 @@ export function isDevelopmentEnvironment(): boolean {
 const getConfiguredLogLevel = (): string | null => {
   const envLevel = process.env.LOG_LEVEL
   // do case insensitive check
-  if (envLevel && Object.values(LOG_LEVELS_STR).includes(envLevel.toLowerCase())) {
-    return envLevel.toLowerCase()
+  if (envLevel && Object.values(LOG_LEVELS_STR).includes(envLevel?.toLowerCase())) {
+    return envLevel?.toLowerCase()
   }
   return null
 }

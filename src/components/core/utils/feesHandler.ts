@@ -70,7 +70,7 @@ export async function createProviderFee(
     // it's download, take it from config
     providerFeeToken = await getProviderFeeToken(Number(asset.chainId))
   }
-  if (providerFeeToken === ZeroAddress) {
+  if (providerFeeToken?.toLowerCase() === ZeroAddress) {
     providerFeeAmount = 0
   } else if (computeEnv) {
     providerFeeAmount = calculateProviderFeeAmount(validUntil, computeEnv)
@@ -78,7 +78,7 @@ export async function createProviderFee(
     providerFeeAmount = (await getConfiguration()).feeStrategy.feeAmount.amount
   }
 
-  if (providerFeeToken && providerFeeToken !== ZeroAddress) {
+  if (providerFeeToken && providerFeeToken?.toLowerCase() !== ZeroAddress) {
     const provider = await getJsonRpcProvider(Number(asset.chainId))
     const decimals = await getDatatokenDecimals(providerFeeToken, provider)
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
@@ -168,8 +168,7 @@ export async function verifyProviderFees(
   let allEventsValid = true
   let providerData
   for (const event of providerFeesEvents) {
-    // CORE_LOGGER.logMessage(`event: ${JSON.stringify(event)}`)
-    const providerAddress = event.args[0].toLowerCase()
+    const providerAddress = event.args[0]?.toLowerCase()
     const validUntilContract = parseInt(event.args[7].toString())
     const utf = ethers.toUtf8String(event.args[3])
 
@@ -189,9 +188,9 @@ export async function verifyProviderFees(
 
     if (
       !providerData ||
-      providerAddress !== providerWallet.address.toLowerCase() ||
+      providerAddress !== providerWallet.address?.toLowerCase() ||
       providerData.id !== service.id ||
-      providerData.dt.toLowerCase() !== service.datatokenAddress.toLowerCase() ||
+      providerData.dt?.toLowerCase() !== service.datatokenAddress?.toLowerCase() ||
       !(now < validUntilContract || validUntilContract === 0)
     ) {
       CORE_LOGGER.logMessage(
@@ -454,7 +453,7 @@ export async function checkFee(
   const nodeAddress = wallet.address
 
   // first check if these are a match
-  if (nodeAddress !== providerFeesData.providerFeeAddress) {
+  if (nodeAddress?.toLowerCase() !== providerFeesData.providerFeeAddress?.toLowerCase()) {
     return false
   }
 

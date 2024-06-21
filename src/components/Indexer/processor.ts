@@ -234,7 +234,7 @@ class BaseEventProcessor {
                     const str = uint8ArrayToString(chunk.subarray()) // Obs: we need to specify the length of the subarrays
                     const decoded = JSON.parse(str)
                     if ('headers' in decoded) {
-                      if (str.toLowerCase().includes('application/octet-stream')) {
+                      if (str?.toLowerCase().includes('application/octet-stream')) {
                         isBinaryContent = true
                       }
                     }
@@ -629,7 +629,11 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if ('stats' in ddo && ddo.services[serviceIndex].datatoken === event.address) {
+      if (
+        'stats' in ddo &&
+        ddo.services[serviceIndex].datatoken?.toLowerCase() ===
+          event.address?.toLowerCase()
+      ) {
         ddo.stats.orders += 1
       } else {
         // Still update until we validate and polish schemas for DDO.
