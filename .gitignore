@@ -145,3 +145,9 @@ typesense-data
 
 #performance test
 html-report.html
+
+# generate pk
+.pk.out
+.wallet.out
+# environment
+.env
