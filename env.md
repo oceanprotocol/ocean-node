@@ -52,6 +52,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `P2P_ENABLE_AUTONAT`: Enable AutoNAT discovery. Default: `True`
 - `P2P_ENABLE_CIRCUIT_RELAY_SERVER`: Enable Circuit Relay Server. It will help the network but increase your bandwidth usage. Should be disabled for edge nodes. Default: `True`
 - `P2P_ENABLE_CIRCUIT_RELAY_CLIENT`: Enable connections through relay servers. Default: `True`
+- `P2P_CIRCUIT_RELAYS`: Numbers of relay servers. Default: `1`
 - `P2P_BOOTSTRAP_NODES` : List of bootstrap nodes. Defults to OPF nodes. Example: ["/dns4/node3.oceanprotocol.com/tcp/9000/p2p/"]
 - `P2P_FILTER_ANNOUNCED_ADDRESSES`: CIDR filters to filter announced addresses. Default: []. Example: ["192.168.0.1/27"]
 

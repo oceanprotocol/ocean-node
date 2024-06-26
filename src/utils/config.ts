@@ -10,7 +10,6 @@ import {
   hexStringToByteArray
 } from '../utils/index.js'
 import { defaultBootstrapAddresses } from '../utils/constants.js'
-import type { PeerId } from '@libp2p/interface/peer-id'
 
 import { LOG_LEVELS_STR, GENERIC_EMOJIS, getLoggerLevelEmoji } from './logging/Logger.js'
 import { RPCS } from '../@types/blockchain'
@@ -32,10 +31,9 @@ export async function getPeerIdFromPrivateKey(
   const key = new keys.supportedKeys.secp256k1.Secp256k1PrivateKey(
     hexStringToByteArray(privateKey.slice(2))
   )
-  const id: PeerId = await createFromPrivKey(key)
 
   return {
-    peerId: id,
+    peerId: await createFromPrivKey(key),
     publicKey: key.public.bytes,
     // Notes:
     // using 'key.public.bytes' gives extra 4 bytes: 08021221
@@ -66,7 +64,7 @@ function getBoolEnvValue(envName: string, defaultValue: boolean): boolean {
   if (
     process.env[envName] === 'true' ||
     process.env[envName] === '1' ||
-    process.env[envName].toLowerCase() === 'yes'
+    process.env[envName]?.toLowerCase() === 'yes'
   ) {
     return true
   }
@@ -481,6 +479,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       autoNat: getBoolEnvValue('P2P_ENABLE_AUTONAT', true),
       enableCircuitRelayServer: getBoolEnvValue('P2P_ENABLE_CIRCUIT_RELAY_SERVER', false),
       enableCircuitRelayClient: getBoolEnvValue('P2P_ENABLE_CIRCUIT_RELAY_CLIENT', false),
+      circuitRelays: getIntEnvValue(process.env.P2P_CIRCUIT_RELAYS, 1),
       announcePrivateIp: getBoolEnvValue('P2P_ANNOUNCE_PRIVATE', false),
       filterAnnouncedAddresses: readListFromEnvVariable(
         ENVIRONMENT_VARIABLES.P2P_FILTER_ANNOUNCED_ADDRESSES,

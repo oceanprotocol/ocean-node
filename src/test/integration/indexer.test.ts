@@ -55,6 +55,8 @@ import {
 import { Blockchain } from '../../utils/blockchain.js'
 import { getConfiguration } from '../../utils/config.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { encrypt } from '../../utils/crypt.js'
+import { EncryptMethod } from '../../@types/fileObject.js'
 
 describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
@@ -121,7 +123,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccount = (await provider.getSigner(1)) as Signer
-    genericAsset = genericDDO
+    genericAsset = JSON.parse(JSON.stringify(genericDDO))
     factoryContract = new ethers.Contract(
       artifactsAddresses.ERC721Factory,
       ERC721Factory.abi,
@@ -175,6 +177,17 @@ describe('Indexer stores a new metadata events and orders.', () => {
         .digest('hex')
     genericAsset.nftAddress = nftAddress
     assetDID = genericAsset.id
+    // create proper service.files string
+    genericAsset.services[0].files.datatokenAddress = datatokenAddress
+    genericAsset.services[0].files.nftAddress = nftAddress
+    // let's call node to encrypt
+
+    const data = Uint8Array.from(
+      Buffer.from(JSON.stringify(genericAsset.services[0].files))
+    )
+    const encryptedData = await encrypt(data, EncryptMethod.ECIES)
+    const encryptedDataString = encryptedData.toString('hex')
+    genericAsset.services[0].files = encryptedDataString
     const stringDDO = JSON.stringify(genericAsset)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
@@ -218,7 +231,10 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should have nft field stored in ddo', async function () {
     assert(resolvedDDO.nft, 'NFT field is not present')
-    assert(resolvedDDO.nft.address === nftAddress, 'NFT address mismatch')
+    assert(
+      resolvedDDO.nft.address?.toLowerCase() === nftAddress?.toLowerCase(),
+      'NFT address mismatch'
+    )
     assert(resolvedDDO.nft.state === 0, 'NFT state mismatch') // ACTIVE
     assert(resolvedDDO.nft.name === (await nftContract.name()), 'NFT name mismatch')
     assert(resolvedDDO.nft.symbol === (await nftContract.symbol()), 'NFT symbol mismatch')
@@ -227,7 +243,10 @@ describe('Indexer stores a new metadata events and orders.', () => {
         (await nftContract.tokenURI(await nftContract.getId())),
       'NFT tokeURI mismatch'
     )
-    assert(resolvedDDO.nft.owner === setMetaDataTxReceipt.from, 'NFT owner mismatch')
+    assert(
+      resolvedDDO.nft.owner?.toLowerCase() === setMetaDataTxReceipt.from?.toLowerCase(),
+      'NFT owner mismatch'
+    )
     assert(resolvedDDO.nft.created, 'NFT created timestamp does not exist')
   })
 
@@ -373,7 +392,10 @@ describe('Indexer stores a new metadata events and orders.', () => {
       publisherAccount
     )
     const paymentCollector = await dataTokenContract.getPaymentCollector()
-    assert(paymentCollector === publisherAddress, 'paymentCollector not correct')
+    assert(
+      paymentCollector?.toLowerCase() === publisherAddress?.toLowerCase(),
+      'paymentCollector not correct'
+    )
 
     const feeData = await createFee(
       resolvedDDO as DDO,

@@ -1,4 +1,3 @@
-import type { PeerId } from '@libp2p/interface/peer-id'
 import { Stream } from 'stream'
 import { RPCS } from './blockchain'
 import { C2DClusterInfo } from './C2D'
@@ -16,7 +15,7 @@ export interface DenyList {
 }
 
 export interface OceanNodeKeys {
-  peerId: PeerId
+  peerId: any
   publicKey: any
   privateKey: any
   ethAddress: string
@@ -44,6 +43,7 @@ export interface OceanNodeP2PConfig {
   upnp: boolean
   enableCircuitRelayServer: boolean
   enableCircuitRelayClient: boolean
+  circuitRelays: number
   announcePrivateIp: boolean
 }
 
