@@ -20,6 +20,8 @@ import { validateOrderTransaction } from '../utils/validateOrders.js'
 import { getConfiguration } from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
+import { ProviderFeeValidation } from '../../../@types/Fees.js'
+import { getAlgoChecksums, validateAlgoForDataset } from '../../c2d/index.js'
 export class ComputeStartHandler extends Handler {
   validate(command: ComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
@@ -63,11 +65,26 @@ export class ComputeStartHandler extends Handler {
           }
         }
       }
-
       const node = this.getOceanNode()
       const assets: ComputeAsset[] = [task.dataset]
       if (task.additionalDatasets) assets.push(...task.additionalDatasets)
       let foundValidCompute = null
+
+      const algoChecksums = await getAlgoChecksums(
+        task.algorithm.documentId,
+        task.algorithm.serviceId,
+        this.getOceanNode()
+      )
+      if (!algoChecksums.container || !algoChecksums.files) {
+        CORE_LOGGER.error(`Error retrieveing algorithm checksums!`)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: `Error retrieveing algorithm checksums!`
+          }
+        }
+      }
       // check algo
       for (const elem of [...[task.algorithm], ...assets]) {
         const result: any = { validOrder: false }
@@ -117,6 +134,24 @@ export class ComputeStartHandler extends Handler {
               }
             }
           }
+          if (ddo.metadata.type !== 'algorithm') {
+            const validAlgoForDataset = await validateAlgoForDataset(
+              task.algorithm.documentId,
+              algoChecksums,
+              ddo,
+              ddo.services[0].id,
+              node
+            )
+            if (!validAlgoForDataset) {
+              return {
+                stream: null,
+                status: {
+                  httpStatus: 400,
+                  error: `Algorithm ${task.algorithm.documentId} not allowed to run on the dataset: ${ddo.id}`
+                }
+              }
+            }
+          }
           const config = await getConfiguration()
           const { rpc, network, chainId, fallbackRPCs } =
             config.supportedNetworks[ddo.chainId]
@@ -134,13 +169,7 @@ export class ComputeStartHandler extends Handler {
           const provider = blockchain.getProvider()
           result.datatoken = service.datatokenAddress
           result.chainId = ddo.chainId
-          // start with assumption than we need new providerfees
-          let validFee = {
-            isValid: false,
-            isComputeValid: false,
-            message: false,
-            validUntil: 0
-          }
+
           const env = await engine.getComputeEnvironment(ddo.chainId, task.environment)
           if (!('transferTxId' in elem) || !elem.transferTxId) {
             const error = `Missing transferTxId for DDO ${elem.documentId}`
@@ -175,16 +204,29 @@ export class ComputeStartHandler extends Handler {
             }
           }
           result.validOrder = elem.transferTxId
-          validFee = await verifyProviderFees(
-            elem.transferTxId,
-            task.consumerAddress,
-            provider,
-            service,
-            task.environment,
-            0
-          )
+          // start with assumption than we need new providerfees
+          const validFee: ProviderFeeValidation =
+            foundValidCompute === null
+              ? await verifyProviderFees(
+                  elem.transferTxId,
+                  task.consumerAddress,
+                  provider,
+                  service,
+                  task.environment,
+                  0
+                )
+              : {
+                  isValid: false,
+                  isComputeValid: false,
+                  message: false,
+                  validUntil: 0
+                }
 
           if (validFee.isComputeValid === true) {
+            CORE_LOGGER.logMessage(
+              `Found a valid compute providerFee ${elem.transferTxId}`,
+              true
+            )
             foundValidCompute = {
               txId: elem.transferTxId,
               chainId: ddo.chainId,
@@ -204,11 +246,11 @@ export class ComputeStartHandler extends Handler {
         }
       }
       // TODO - hardcoded values.
-      //  - validate algo & datasets
       //  - validate providerFees -> will generate chainId & agreementId & validUntil
       const { chainId } = foundValidCompute
       const agreementId = foundValidCompute.txId
       const { validUntil } = foundValidCompute
+
       const response = await engine.startComputeJob(
         assets,
         task.algorithm,
