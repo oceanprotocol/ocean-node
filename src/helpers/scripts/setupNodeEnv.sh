@@ -18,14 +18,16 @@ created_pk_file=0
 
 pk_file='.pk.out'
 wallet_file='.wallet.out'
-generated_files_path=''
+#assume we are running on scripts directory
 env_file_path='../../../.env'
 template_file_path='../../../.env.example'
+generated_files_path='../../../'
+
 if [ $is_root_dir -eq 1 ]; then
     env_file_path='.env'
     template_file_path='.env.example'
 else 
-    generated_files_path='../../../'
+    generated_files_path=''
 fi
 #allow script to be run from multiple paths (root or inside scripts directory)
 wallet_file_path=$generated_files_path$wallet_file
