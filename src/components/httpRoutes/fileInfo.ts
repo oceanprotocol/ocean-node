@@ -87,7 +87,6 @@ fileInfoRoute.post(
           type: fileObject.type as FileObjectType
         }
       }
-
       const response = await new FileInfoHandler(req.oceanNode).handle(fileInfoTask)
       if (response.stream) {
         res.status(response.status.httpStatus)

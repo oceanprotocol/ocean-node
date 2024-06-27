@@ -92,7 +92,9 @@ out
 
 # Nuxt.js build / generate output
 .nuxt
-dist
+
+/dist/*
+!/dist/dashboard
 
 # Gatsby files
 .cache/
@@ -143,3 +145,9 @@ typesense-data
 
 #performance test
 html-report.html
+
+# generate pk
+.pk.out
+.wallet.out
+# environment
+.env

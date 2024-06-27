@@ -78,7 +78,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, r
 computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(
-      `ComputeStartCommand request received with body: ${JSON.stringify(req.body)}`,
+      `ComputeStartCommand request received as body params: ${JSON.stringify(req.body)}`,
       true
     )
 
@@ -100,9 +100,14 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       startComputeTask.output = req.body.output as ComputeOutput
     }
 
-    const response = await new ComputeStartHandler(req.oceanNode).handle(startComputeTask) // get compute environments
-    const jobs = await streamToObject(response.stream as Readable)
-    res.status(200).json(jobs)
+    const response = await new ComputeStartHandler(req.oceanNode).handle(startComputeTask)
+    if (response?.status?.httpStatus === 200) {
+      const jobs = await streamToObject(response.stream as Readable)
+      res.status(200).json(jobs)
+    } else {
+      HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_INFO, `Error: ${response?.status?.error}`)
+      res.status(response?.status.httpStatus).json(response?.status?.error)
+    }
   } catch (error) {
     HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
@@ -112,7 +117,9 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
 computeRoutes.put(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(
-      `ComputeStopCommand request received with body: ${JSON.stringify(req.body)}`,
+      `ComputeStopCommand request received as body parameters : ${JSON.stringify(
+        req.body
+      )}`,
       true
     )
 

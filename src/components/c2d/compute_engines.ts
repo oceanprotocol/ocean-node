@@ -292,6 +292,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
     // and the full payload
     const nonce: number = new Date().getTime()
     const config = await getConfiguration()
+    // current provider (python) signature is owner + job_id + nonce OR owner + nonce
     const providerSignature = await sign(String(nonce), config.keys.privateKey)
     const payload: OPFK8ComputeStop = {
       owner,
