@@ -97,7 +97,7 @@ routesNames.set('broadcastCommand', {
   method: 'post'
 })
 // fileinfo
-routesNames.set('fileInfo', {
+routesNames.set('fileinfo', {
   path: '/api/fileinfo',
   method: 'post'
 })
