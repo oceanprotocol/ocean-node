@@ -31,15 +31,7 @@ import { OceanIndexer } from '../../components/Indexer/index.js'
 import { Readable } from 'stream'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 import { getEventFromTx, streamToObject } from '../../utils/util.js'
-import {
-  Contract,
-  ethers,
-  getAddress,
-  hexlify,
-  JsonRpcProvider,
-  Signer,
-  ZeroAddress
-} from 'ethers'
+import { Contract, ethers, getAddress, hexlify, Signer, ZeroAddress } from 'ethers'
 import { publishAsset, orderAsset } from '../utils/assets.js'
 import { computeAsset, algoAsset } from '../data/assets.js'
 import { RPCS } from '../../@types/blockchain.js'
@@ -72,9 +64,7 @@ describe('Compute', () => {
   let config: OceanNodeConfig
   let dbconn: Database
   let oceanNode: OceanNode
-  let provider: any
   let publisherAccount: any
-  let consumerAccount: any
   let computeEnvironments: any
   let publishedComputeDataset: any
   let publishedAlgoDataset: any
@@ -132,18 +122,14 @@ describe('Compute', () => {
     indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
     oceanNode.addIndexer(indexer)
 
-    provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    publisherAccount = (await provider.getSigner(0)) as Signer
-    consumerAccount = (await provider.getSigner(1)) as Signer
-
     const artifactsAddresses = getOceanArtifactsAdresses()
-    publisherAddress = await publisherAccount.getAddress()
+    publisherAddress = await wallet.getAddress()
     algoDDO = { ...publishAlgoDDO }
     datasetDDO = { ...publishDatasetDDO }
     factoryContract = new ethers.Contract(
       artifactsAddresses.development.ERC721Factory,
       ERC721Factory.abi,
-      publisherAccount
+      wallet as Signer
     )
   })
 
@@ -346,7 +332,7 @@ describe('Compute', () => {
     const orderTxReceipt = await orderAsset(
       publishedComputeDataset.ddo,
       0,
-      consumerAccount,
+      wallet,
       firstEnv.consumerAddress, // for compute, consumer is always address of compute env
       publisherAccount,
       oceanNode,
@@ -436,7 +422,7 @@ describe('Compute', () => {
     const orderTxReceipt = await orderAsset(
       publishedAlgoDataset.ddo,
       0,
-      consumerAccount,
+      wallet,
       firstEnv.consumerAddress, // for compute, consumer is always address of compute env
       publisherAccount,
       oceanNode,
@@ -629,7 +615,7 @@ describe('Compute', () => {
   it('should get job status by consumer', async () => {
     const statusComputeTask: ComputeGetStatusCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
-      consumerAddress: wallet.address,
+      consumerAddress: await wallet.getAddress(),
       did: null,
       jobId: null
     }
