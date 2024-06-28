@@ -204,17 +204,9 @@ export class ComputeStartHandler extends Handler {
             }
           }
           result.validOrder = elem.transferTxId
-          // validFee = await verifyProviderFees(
-          //   elem.transferTxId,
-          //   task.consumerAddress,
-          //   provider,
-          //   service,
-          //   task.environment,
-          //   0,
-          //   paymentValidation.isValid
-          // )
-          // CORE_LOGGER.logMessage(`validFee.isComputeValid: ${JSON.stringify(validFee)}`)
-          // start with assumption than we need new providerfees
+          CORE_LOGGER.logMessage(
+            `foundValidCompute: ${JSON.stringify(foundValidCompute)}`
+          )
           const validFee: ProviderFeeValidation =
             foundValidCompute === null
               ? await verifyProviderFees(
@@ -223,7 +215,7 @@ export class ComputeStartHandler extends Handler {
                   provider,
                   service,
                   task.environment,
-                  0
+                  new Date().getTime() / 1000 + service.timeout
                 )
               : {
                   isValid: false,
