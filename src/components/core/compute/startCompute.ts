@@ -231,7 +231,9 @@ export class ComputeStartHandler extends Handler {
                   message: false,
                   validUntil: 0
                 }
-
+          CORE_LOGGER.logMessage(
+            `valid fee in start compute: ${JSON.stringify(validFee)}`
+          )
           if (validFee.isComputeValid === true) {
             CORE_LOGGER.logMessage(
               `Found a valid compute providerFee ${elem.transferTxId}`,
