@@ -205,7 +205,9 @@ export class ComputeStartHandler extends Handler {
           }
           result.validOrder = elem.transferTxId
           CORE_LOGGER.logMessage(
-            `foundValidCompute: ${JSON.stringify(foundValidCompute)}`
+            `foundValidCompute in start compute handler: ${JSON.stringify(
+              foundValidCompute
+            )}`
           )
           const validFee: ProviderFeeValidation =
             foundValidCompute === null
