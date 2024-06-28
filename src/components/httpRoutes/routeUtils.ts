@@ -97,8 +97,8 @@ routesNames.set('broadcastCommand', {
   method: 'post'
 })
 // fileinfo
-routesNames.set('fileInfo', {
-  path: '/api/fileinfo',
+routesNames.set('fileinfo', {
+  path: `${SERVICES_API_BASE_PATH}/fileinfo`,
   method: 'post'
 })
 // p2p
