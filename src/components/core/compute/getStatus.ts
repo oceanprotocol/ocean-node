@@ -50,7 +50,7 @@ export class ComputeGetStatusHandler extends Handler {
         allC2dClusters = allC2dClusters.filter((arr) => arr.hash === hash)
         jobId = task.jobId.slice(index + 1)
       }
-      // TODO check
+
       for (const cluster of allC2dClusters) {
         const engine = await C2DEngine.getC2DByHash(cluster.hash)
         const jobs = await engine.getComputeJobStatus(
