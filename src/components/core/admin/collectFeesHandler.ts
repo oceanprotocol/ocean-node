@@ -69,8 +69,10 @@ export class CollectFeesHandler extends AdminHandler {
       const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
       const provider = blockchain.getProvider()
       const providerWallet = blockchain.getSigner() as Wallet
-      const ammountInEther = parseUnits(task.tokenAmount.toString(), 'ether')
       const providerWalletAddress = await providerWallet.getAddress()
+      const ammountInEther = task.tokenAmount
+        ? parseUnits(task.tokenAmount.toString(), 'ether')
+        : await provider.getBalance(providerWalletAddress)
 
       let receipt
       if (task.tokenAddress.toLowerCase() === ZeroAddress) {
@@ -99,17 +101,20 @@ export class CollectFeesHandler extends AdminHandler {
           ERC20Template.abi,
           providerWallet
         )
+        const tokenAmount = task.tokenAmount
+          ? parseUnits(task.tokenAmount.toString(), 'ether')
+          : await token.balanceOf(providerWalletAddress)
 
-        if ((await token.balanceOf(providerWalletAddress)) < ammountInEther) {
+        if ((await token.balanceOf(providerWalletAddress)) < tokenAmount) {
           const msg: string = `Amount too high to transfer! Balance: ${await token.balanceOf(
             providerWalletAddress
-          )} vs. amount provided: ${ammountInEther}`
+          )} vs. amount provided: ${tokenAmount}`
           CORE_LOGGER.error(msg)
           return buildErrorResponse(msg)
         }
         const tx = await token.transfer(
           task.destinationAddress.toLowerCase(),
-          ammountInEther
+          tokenAmount
         )
         receipt = await tx.wait()
       }
