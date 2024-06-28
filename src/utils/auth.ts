@@ -9,7 +9,7 @@ export function validateAdminSignature(
 ): CommonValidation {
   try {
     const message = expiryTimestamp.toString()
-    const signerAddress = ethers.verifyMessage(message, signature).toLowerCase()
+    const signerAddress = ethers.verifyMessage(message, signature)?.toLowerCase()
     CORE_LOGGER.logMessage(`Resolved signer address: ${signerAddress}`)
     const allowedAdmins = getAllowedAdmins()
     if (allowedAdmins.length === 0) {
@@ -24,7 +24,10 @@ export function validateAdminSignature(
       return { valid: false, error: errorMsg }
     }
     for (const address of allowedAdmins) {
-      if (ethers.getAddress(address) === ethers.getAddress(signerAddress)) {
+      if (
+        ethers.getAddress(address)?.toLowerCase() ===
+        ethers.getAddress(signerAddress)?.toLowerCase()
+      ) {
         return { valid: true, error: '' }
       }
     }

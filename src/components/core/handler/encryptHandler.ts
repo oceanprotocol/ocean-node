@@ -34,7 +34,7 @@ export class EncryptHandler extends Handler {
       command.encryptionType = EncryptMethod.ECIES // defaults to ECIES encryption
     }
 
-    if (!SUPPORTED_ENCRYPTION_ENCODINGS.includes(command.encoding.toLowerCase())) {
+    if (!SUPPORTED_ENCRYPTION_ENCODINGS.includes(command.encoding?.toLowerCase())) {
       return buildInvalidRequestMessage(
         `Invalid parameter: "encoding" must be one of: ${SUPPORTED_ENCRYPTION_ENCODINGS}`
       )
@@ -55,11 +55,11 @@ export class EncryptHandler extends Handler {
     try {
       // prepare an empty array in case if
       let blobData: Uint8Array = new Uint8Array()
-      if (task.encoding.toLowerCase() === 'string') {
+      if (task.encoding?.toLowerCase() === 'string') {
         // get bytes from basic blob
         blobData = Uint8Array.from(Buffer.from(task.blob))
       }
-      if (task.encoding.toLowerCase() === 'base58') {
+      if (task.encoding?.toLowerCase() === 'base58') {
         // get bytes from a blob that is encoded in standard base58
         blobData = base58.base58_to_binary(task.blob)
       }

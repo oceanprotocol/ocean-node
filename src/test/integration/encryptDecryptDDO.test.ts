@@ -362,7 +362,7 @@ describe('Should encrypt and decrypt DDO', () => {
       signature
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(201)
+    expect(response.status.httpStatus).to.equal(200)
     const decryptedStringDDO = await streamToString(response.stream as Readable)
     const stringDDO = JSON.stringify(genericAsset)
     expect(decryptedStringDDO).to.equal(stringDDO)
@@ -390,7 +390,7 @@ describe('Should encrypt and decrypt DDO', () => {
       signature
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(201)
+    expect(response.status.httpStatus).to.equal(200)
     const decryptedStringDDO = await streamToString(response.stream as Readable)
     const stringDDO = JSON.stringify(genericAsset)
     expect(decryptedStringDDO).to.equal(stringDDO)
