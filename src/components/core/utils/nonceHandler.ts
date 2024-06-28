@@ -8,7 +8,7 @@ import { DATABASE_LOGGER } from '../../../utils/logging/common.js'
 export function getDefaultErrorResponse(errorMessage: string): P2PCommandResponse {
   return {
     stream: null,
-    status: { httpStatus: 501, error: 'Unknown error: ' + errorMessage }
+    status: { httpStatus: 500, error: 'Unknown error: ' + errorMessage }
   }
 }
 
@@ -168,8 +168,10 @@ function validateNonceAndSignature(
     const addressFromBytesSignature = ethers.verifyMessage(messageHashBytes, signature)
 
     if (
-      ethers.getAddress(addressFromHashSignature) === ethers.getAddress(consumer) ||
-      ethers.getAddress(addressFromBytesSignature) === ethers.getAddress(consumer)
+      ethers.getAddress(addressFromHashSignature)?.toLowerCase() ===
+        ethers.getAddress(consumer)?.toLowerCase() ||
+      ethers.getAddress(addressFromBytesSignature)?.toLowerCase() ===
+        ethers.getAddress(consumer)?.toLowerCase()
     ) {
       // update nonce on DB, return OK
       return {

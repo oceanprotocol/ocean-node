@@ -131,7 +131,7 @@ export class Purgatory {
       purgatoryAccounts = await this.parsePurgatoryAccounts()
     }
     for (const acc of purgatoryAccounts) {
-      if (acc.address.toLowerCase() === refAddress.toLowerCase()) {
+      if (acc.address?.toLowerCase() === refAddress?.toLowerCase()) {
         return true
       }
     }

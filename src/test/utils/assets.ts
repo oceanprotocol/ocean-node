@@ -32,7 +32,8 @@ import { FeesHandler } from '../../components/core/handler/feesHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { ProviderFees } from '../../@types/Fees.js'
 
-export async function publishAsset(genericAsset: any, publisherAccount: Signer) {
+export async function publishAsset(asset: any, publisherAccount: Signer) {
+  const genericAsset = JSON.parse(JSON.stringify(asset))
   try {
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
@@ -83,7 +84,7 @@ export async function publishAsset(genericAsset: any, publisherAccount: Signer) 
       Buffer.from(JSON.stringify(genericAsset.services[0].files))
     )
     const encryptedData = await encrypt(data, EncryptMethod.ECIES)
-    // const encryptedDataString = encryptedData.toString('base64')
+    const encryptedDataString = encryptedData.toString('hex')
 
     const nftContract = new ethers.Contract(
       nftAddress,
@@ -98,7 +99,7 @@ export async function publishAsset(genericAsset: any, publisherAccount: Signer) 
     genericAsset.nftAddress = nftAddress
     genericAsset.chainId = parseInt(chainId.toString(10))
 
-    genericAsset.services[0].files = encryptedData
+    genericAsset.services[0].files = encryptedDataString
     genericAsset.services[0].datatokenAddress = datatokenAddress
 
     const stringDDO = JSON.stringify(genericAsset)
@@ -140,7 +141,6 @@ export async function orderAsset(
   const consumeMarketFeeAmount = 0
   const consumeMarketFeeToken = ZeroAddress
   const service = AssetUtils.getServiceByIndex(genericAsset, serviceIndex)
-  console.log('start an order', service)
 
   let orderTxReceipt = null
   const dataTokenContract = new Contract(

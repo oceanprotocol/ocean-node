@@ -177,7 +177,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
       // we need to add hash to each env id
       for (const [index, val] of data.entries()) {
         data[index].id = `${clusterHash}-${val.id}`
-        if (!data[index].feeToken || data[index].feeToken === ZeroAddress)
+        if (!data[index].feeToken || data[index].feeToken?.toLowerCase() === ZeroAddress)
           data[index].feeToken = await getProviderFeeToken(chainId)
       }
       return data
@@ -279,6 +279,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
     // and the full payload
     const nonce: number = new Date().getTime()
     const config = await getConfiguration()
+    // current provider (python) signature is owner + job_id + nonce OR owner + nonce
     const providerSignature = await sign(String(nonce), config.keys.privateKey)
     const payload: OPFK8ComputeStop = {
       owner,

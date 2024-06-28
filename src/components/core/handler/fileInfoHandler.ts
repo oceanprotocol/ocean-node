@@ -3,7 +3,6 @@ import urlJoin from 'url-join'
 import { P2PCommandResponse } from '../../../@types/index.js'
 import {
   ArweaveFileObject,
-  EncryptMethod,
   IpfsFileObject,
   UrlFileObject
 } from '../../../@types/fileObject.js'
@@ -11,50 +10,14 @@ import { FileInfoCommand } from '../../../@types/commands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { ArweaveStorage, IpfsStorage, UrlStorage } from '../../storage/index.js'
 import { Handler } from './handler.js'
-import { decrypt } from '../../../utils/crypt.js'
-import { Service } from '../../../@types/DDO/Service.js'
-import { FindDdoHandler, validateDDOIdentifier } from './ddoHandler.js'
-import { AssetUtils, fetchFileMetadata } from '../../../utils/asset.js'
-import { OceanNode } from '../../../OceanNode.js'
+import { validateDDOIdentifier } from './ddoHandler.js'
+import { fetchFileMetadata } from '../../../utils/asset.js'
 import {
   ValidateParams,
   buildInvalidRequestMessage,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
-import { sanitizeServiceFiles } from '../../../utils/util.js'
-
-async function getFile(
-  did: string,
-  serviceId: string,
-  node: OceanNode
-): Promise<UrlFileObject[] | ArweaveFileObject[] | IpfsFileObject[]> {
-  try {
-    // 1. Get the DDO
-    const ddo = await new FindDdoHandler(node).findAndFormatDdo(did)
-    // 2. Get the service
-    const service: Service = AssetUtils.getServiceById(ddo, serviceId)
-    if (!service) {
-      const msg = `Service with id ${serviceId} not found`
-      CORE_LOGGER.error(msg)
-      throw new Error(msg)
-    }
-    // 3. Decrypt the url
-    const decryptedUrlBytes = await decrypt(
-      Uint8Array.from(Buffer.from(sanitizeServiceFiles(service.files), 'hex')),
-      EncryptMethod.ECIES
-    )
-    CORE_LOGGER.logMessage(`URL decrypted for Service ID: ${serviceId}`)
-
-    // Convert the decrypted bytes back to a string
-    const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
-    const decryptedFileArray = JSON.parse(decryptedFilesString)
-    return decryptedFileArray.files
-  } catch (error) {
-    const msg = 'Error occured while requesting the files: ' + error.message
-    CORE_LOGGER.error(msg)
-    throw new Error(msg)
-  }
-}
+import { getFile } from '../../../utils/file.js'
 
 async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFileObject) {
   const url =
@@ -63,7 +26,7 @@ async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFile
       : file.type === 'arweave'
       ? urlJoin(process.env.ARWEAVE_GATEWAY, (file as ArweaveFileObject).transactionId)
       : file.type === 'ipfs'
-      ? (file as IpfsFileObject).hash
+      ? urlJoin(process.env.IPFS_GATEWAY, (file as IpfsFileObject).hash)
       : null
 
   const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
@@ -77,7 +40,7 @@ async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFile
     valid: true,
     contentLength,
     contentType,
-    contentChecksum,
+    checksum: contentChecksum,
     name: new URL(url).pathname.split('/').pop() || '',
     type: file.type
   }
@@ -131,7 +94,6 @@ export class FileInfoHandler extends Handler {
         })
       } else if (task.did && task.serviceId) {
         const fileArray = await getFile(task.did, task.serviceId, oceanNode)
-
         if (task.fileIndex) {
           const fileMetadata = await formatMetadata(fileArray[task.fileIndex])
           fileInfo.push(fileMetadata)
