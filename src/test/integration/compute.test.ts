@@ -65,6 +65,7 @@ describe('Compute', () => {
   let dbconn: Database
   let oceanNode: OceanNode
   let publisherAccount: any
+  let consumerAccount: any
   let computeEnvironments: any
   let publishedComputeDataset: any
   let publishedAlgoDataset: any
@@ -131,6 +132,7 @@ describe('Compute', () => {
       ERC721Factory.abi,
       wallet as Signer
     )
+    consumerAccount = new ethers.Wallet(process.env.NODE1_PRIVATE_KEY)
   })
 
   it('Sets up compute envs', () => {
@@ -332,7 +334,7 @@ describe('Compute', () => {
     const orderTxReceipt = await orderAsset(
       publishedComputeDataset.ddo,
       0,
-      wallet,
+      consumerAccount,
       firstEnv.consumerAddress, // for compute, consumer is always address of compute env
       publisherAccount,
       oceanNode,
@@ -422,7 +424,7 @@ describe('Compute', () => {
     const orderTxReceipt = await orderAsset(
       publishedAlgoDataset.ddo,
       0,
-      wallet,
+      consumerAccount,
       firstEnv.consumerAddress, // for compute, consumer is always address of compute env
       publisherAccount,
       oceanNode,
