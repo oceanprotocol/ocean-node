@@ -21,8 +21,7 @@ import {
   Blockchain,
   ENVIRONMENT_VARIABLES,
   EVENTS,
-  PROTOCOL_COMMANDS,
-  getConfiguration
+  PROTOCOL_COMMANDS
 } from '../../utils/index.js'
 import { Database } from '../../components/database/index.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -94,9 +93,8 @@ describe('Compute', () => {
   let datasetDDO: any
 
   before(async () => {
-    const config = await getConfiguration(true)
     const { rpc, network, chainId, fallbackRPCs } =
-      config.supportedNetworks[DEVELOPMENT_CHAIN_ID]
+      mockSupportedNetworks[DEVELOPMENT_CHAIN_ID]
     blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
     wallet = blockchain.getSigner() as ethers.Wallet
     previousConfiguration = await setupEnvironment(
