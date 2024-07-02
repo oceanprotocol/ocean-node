@@ -35,6 +35,7 @@
     "test:unit:cover": "nyc --report-dir coverage/unit npm run test:unit",
     "test:integration:cover": "nyc --report-dir coverage/integration --no-clean npm run test:integration",
     "logs": "./scripts/logs.sh",
+    "setup-ocean-cli": "git clone https://github.com/oceanprotocol/ocean-cli.git && cd ocean-cli && npm install && npm run build",
     "test:k6-common": "npm run build-tests && K6_WEB_DASHBOARD=true K6_WEB_DASHBOARD_EXPORT=html-report.html",
     "test:smoke": "npm run test:k6-common k6 run -e TEST_TYPE=smoke \"./dist/test/performance/perf_test.js\"",
     "test:load": "npm run test:k6-common k6 run -e TEST_TYPE=load \"./dist/test/performance/perf_test.js\"",
