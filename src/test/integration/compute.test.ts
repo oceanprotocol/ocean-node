@@ -80,7 +80,7 @@ describe('Compute', () => {
   let firstEnv: ComputeEnvironment
   let blockchain: Blockchain
 
-  let wallet: ethers.Wallet
+  let wallet: ethers.Signer
   // const chainId = DEVELOPMENT_CHAIN_ID
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const chainId = 8996
@@ -97,7 +97,7 @@ describe('Compute', () => {
     const { rpc, network, chainId, fallbackRPCs } =
       mockSupportedNetworks[DEVELOPMENT_CHAIN_ID]
     blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-    wallet = blockchain.getSigner() as ethers.Wallet
+    wallet = blockchain.getSigner()
     previousConfiguration = await setupEnvironment(
       null,
       buildEnvOverrideConfig(
@@ -125,8 +125,9 @@ describe('Compute', () => {
 
     const artifactsAddresses = getOceanArtifactsAdresses()
     publisherAddress = await wallet.getAddress()
-    algoDDO = { ...publishAlgoDDO }
     datasetDDO = { ...publishDatasetDDO }
+    algoDDO = { ...publishAlgoDDO }
+
     factoryContract = new ethers.Contract(
       artifactsAddresses.development.ERC721Factory,
       ERC721Factory.abi,

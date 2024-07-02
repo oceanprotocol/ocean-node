@@ -63,7 +63,7 @@ export const computeAsset = {
   id: '',
   nftAddress: '',
   version: '4.1.0',
-  chainId: 80001,
+  chainId: 8996,
   metadata: {
     created: '2021-12-20T14:35:20Z',
     updated: '2021-12-20T14:35:20Z',
@@ -129,7 +129,7 @@ export const algoAsset = {
   id: '',
   nftAddress: '',
   version: '4.1.0',
-  chainId: 137,
+  chainId: 8996,
   metadata: {
     created: '2023-08-01T17:09:39Z',
     updated: '2023-08-01T17:09:39Z',
