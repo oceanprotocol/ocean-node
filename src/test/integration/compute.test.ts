@@ -143,8 +143,15 @@ describe('Compute', () => {
   // let's publish assets & algos
   it('should publish compute datasets & algos', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
-    publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
-    publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
+    publishedComputeDataset = await publishAsset(computeAsset, publisherAccount as Signer)
+    console.log('publishedComputeDataset: ', publishedComputeDataset)
+    console.log(
+      'publishedComputeDataset 2: ',
+      JSON.stringify(publishedComputeDataset.ddo)
+    )
+    publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount as Signer)
+    console.log('publishedAlgoDataset: ', publishedAlgoDataset)
+    console.log('publishedAlgoDataset 2: ', JSON.stringify(publishedAlgoDataset.ddo))
     const computeDatasetResult = await waitToIndex(
       publishedComputeDataset.ddo.id,
       EVENTS.METADATA_CREATED
