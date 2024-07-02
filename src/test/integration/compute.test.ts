@@ -97,7 +97,7 @@ describe('Compute', () => {
     const { rpc, network, chainId, fallbackRPCs } =
       mockSupportedNetworks[DEVELOPMENT_CHAIN_ID]
     blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-    wallet = blockchain.getSigner()
+    wallet = blockchain.getSigner() as Signer
     previousConfiguration = await setupEnvironment(
       null,
       buildEnvOverrideConfig(
@@ -133,7 +133,8 @@ describe('Compute', () => {
       ERC721Factory.abi,
       wallet as Signer
     )
-    consumerAccount = new ethers.Wallet(process.env.NODE1_PRIVATE_KEY)
+    consumerAccount = new ethers.Wallet(process.env.NODE1_PRIVATE_KEY) as Signer
+    publisherAccount = wallet as Signer
   })
 
   it('Sets up compute envs', () => {
