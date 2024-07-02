@@ -21,7 +21,8 @@ import {
   Blockchain,
   ENVIRONMENT_VARIABLES,
   EVENTS,
-  PROTOCOL_COMMANDS
+  PROTOCOL_COMMANDS,
+  getConfiguration
 } from '../../utils/index.js'
 import { Database } from '../../components/database/index.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -116,6 +117,7 @@ describe('Compute', () => {
         ]
       )
     )
+    config = await getConfiguration(true)
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
     indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
