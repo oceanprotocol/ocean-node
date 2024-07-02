@@ -79,8 +79,6 @@ describe('Compute', () => {
   const computeJobValidUntil = now + 60 * 15 // 15 minutes from now should be enough
   let firstEnv: ComputeEnvironment
   let blockchain: Blockchain
-
-  let wallet: ethers.Signer
   // const chainId = DEVELOPMENT_CHAIN_ID
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const chainId = 8996
@@ -92,12 +90,13 @@ describe('Compute', () => {
   let factoryContract: Contract
   let algoDDO: any
   let datasetDDO: any
+  const wallet = new ethers.Wallet(process.env.NODE)
 
   before(async () => {
     const { rpc, network, chainId, fallbackRPCs } =
       mockSupportedNetworks[DEVELOPMENT_CHAIN_ID]
     blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-    wallet = blockchain.getSigner() as Signer
+    publisherAccount = blockchain.getSigner() as Signer
     previousConfiguration = await setupEnvironment(
       null,
       buildEnvOverrideConfig(
@@ -124,17 +123,16 @@ describe('Compute', () => {
     oceanNode.addIndexer(indexer)
 
     const artifactsAddresses = getOceanArtifactsAdresses()
-    publisherAddress = await wallet.getAddress()
+    publisherAddress = await publisherAccount.getAddress()
     datasetDDO = { ...publishDatasetDDO }
     algoDDO = { ...publishAlgoDDO }
 
     factoryContract = new ethers.Contract(
       artifactsAddresses.development.ERC721Factory,
       ERC721Factory.abi,
-      wallet as Signer
+      publisherAccount as Signer
     )
     consumerAccount = new ethers.Wallet(process.env.NODE1_PRIVATE_KEY) as Signer
-    publisherAccount = wallet as Signer
   })
 
   it('Sets up compute envs', () => {
@@ -505,7 +503,7 @@ describe('Compute', () => {
       [ethers.hexlify(ethers.toUtf8Bytes(message))]
     )
     const messageHashBytes = ethers.toBeArray(consumerMessage)
-    const signature = await wallet.signMessage(messageHashBytes)
+    const signature = await publisherAccount.signMessage(messageHashBytes)
     const startComputeTask: ComputeStartCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_START,
       consumerAddress: await wallet.getAddress(),
