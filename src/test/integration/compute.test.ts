@@ -90,7 +90,7 @@ describe('Compute', () => {
   let factoryContract: Contract
   let algoDDO: any
   let datasetDDO: any
-  const wallet = new ethers.Wallet(process.env.NODE)
+  const wallet = new ethers.Wallet(process.env.NODE2_PRIVATE_KEY)
 
   before(async () => {
     const { rpc, network, chainId, fallbackRPCs } =
