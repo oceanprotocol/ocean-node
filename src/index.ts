@@ -122,6 +122,11 @@ if (config.hasProvider && dbconn) {
 // Singleton instance across application
 const oceanNode = OceanNode.getInstance(dbconn, node, provider, indexer, config)
 
+function removeExtraSlashes(req: any, res: any, next: any) {
+  req.url = req.url.replace(/\/{2,}/g, '/')
+  next()
+}
+
 if (config.hasHttp) {
   // allow up to 25Mb file upload
   app.use(express.raw({ limit: '25mb' }))
@@ -153,6 +158,7 @@ if (config.hasHttp) {
   })
 
   // Integrate static file serving middleware
+  app.use(removeExtraSlashes)
 
   app.use('/', httpRoutes)
 
