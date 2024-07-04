@@ -352,9 +352,11 @@ export class C2DEngineOPFK8 extends C2DEngine {
   ): Promise<Readable> {
     const nonce: number = new Date().getTime()
     const config = await getConfiguration()
-    let message: string
-    if (jobId) message = String(nonce + consumerAddress + jobId)
-    else message = String(nonce + consumerAddress + jobId)
+    // signature check on operator service is only owner + jobId
+    // nonce is not part of signature message
+    const message: string = jobId
+      ? String(consumerAddress + jobId)
+      : String(consumerAddress)
     const providerSignature = await sign(message, config.keys.privateKey)
 
     const payload: OPFK8ComputeGetResult = {
@@ -370,7 +372,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
         method: 'get',
         url: `${URLUtils.sanitizeURLPath(
           this.getC2DConfig().url
-        )}api/v1/operator/computeResult`,
+        )}api/v1/operator/getResult`,
         data: payload,
         responseType: 'stream'
       })
