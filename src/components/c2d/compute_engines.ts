@@ -220,7 +220,15 @@ export class C2DEngineOPFK8 extends C2DEngine {
     }
     // continue with algorithm
     const stageAlgorithm: OPFK8ComputeStageAlgorithm = {}
-    if (algorithm.url) stageAlgorithm.url = algorithm.url
+    if (algorithm.url) {
+      stageAlgorithm.url = algorithm.url
+    } else {
+      stageAlgorithm.remote = {
+        txId: algorithm.transferTxId,
+        serviceId: algorithm.serviceId,
+        userdata: algorithm.userdata ? algorithm.userdata : {}
+      }
+    }
     if (algorithm.documentId) stageAlgorithm.id = algorithm.documentId
     if ('meta' in algorithm && 'rawcode' in algorithm.meta && algorithm.meta.rawcode)
       stageAlgorithm.rawcode = algorithm.meta.rawcode

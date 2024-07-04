@@ -108,6 +108,7 @@ export interface OPFK8ComputeStageInput {
 export interface OPFK8ComputeStageAlgorithm {
   id?: string
   url?: string
+  remote?: any
   rawcode?: string
   container?: {
     /**
