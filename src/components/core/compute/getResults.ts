@@ -41,12 +41,14 @@ export class ComputeGetResultHandler extends Handler {
 
     let error = null
 
+    // signature message to check against
+    const message = task.consumerAddress + task.jobId + task.index.toString() + task.nonce
     const nonceCheckResult: NonceResponse = await checkNonce(
       this.getOceanNode().getDatabase().nonce,
       task.consumerAddress,
       parseInt(task.nonce),
       task.signature,
-      task.jobId + task.index.toString()
+      message // task.jobId + task.index.toString()
     )
 
     if (!nonceCheckResult.valid) {
