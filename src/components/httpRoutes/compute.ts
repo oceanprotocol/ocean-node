@@ -184,7 +184,6 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeResult`, async (req, res) =>
       resultComputeTask
     )
 
-    console.log('response: ', response)
     if (response.stream) {
       res.status(response.status.httpStatus)
       res.set(response.status.headers)
