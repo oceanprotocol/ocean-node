@@ -86,12 +86,23 @@ export class ComputeGetResultHandler extends Handler {
       }
     }
     try {
-      return {
-        stream: await engine.getComputeJobResult(task.consumerAddress, jobId, task.index),
+      const respStream = await engine.getComputeJobResult(
+        task.consumerAddress,
+        jobId,
+        task.index
+      )
+      const anyResp: any = respStream as any
+      const response: P2PCommandResponse = {
+        stream: respStream,
         status: {
           httpStatus: 200
         }
       }
+      // need to pass the headers properly
+      if (anyResp.headers) {
+        response.status.headers = anyResp.headers
+      }
+      return response
     } catch (error) {
       CORE_LOGGER.error(error.message)
       return {
