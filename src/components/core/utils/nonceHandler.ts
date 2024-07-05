@@ -101,7 +101,7 @@ export async function checkNonce(
   consumer: string,
   nonce: number,
   signature: string,
-  ddoId: string = null
+  message: string // ddoId: string = null
 ): Promise<NonceResponse> {
   try {
     // get nonce from db
@@ -116,7 +116,7 @@ export async function checkNonce(
       previousNonce, // will return 0 if none exists
       consumer,
       signature,
-      String(ddoId + nonce)
+      message // String(ddoId + nonce)
     )
     if (validate.valid) {
       const updateStatus = await updateNonce(db, consumer, nonce)

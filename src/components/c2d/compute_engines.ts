@@ -22,7 +22,7 @@ import { getConfiguration } from '../../utils/config.js'
 import { ZeroAddress } from 'ethers'
 import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
 import { URLUtils } from '../../utils/url.js'
-
+import { getLocalIp } from './index.js'
 export class C2DEngine {
   private clusterConfig: C2DClusterInfo
   public constructor(cluster: C2DClusterInfo) {
@@ -208,10 +208,17 @@ export class C2DEngineOPFK8 extends C2DEngine {
       else
         stagesInput.push({
           index,
-          id: asset.documentId
+          id: asset.documentId,
+          remote: {
+            txId: asset.transferTxId,
+            serviceId: asset.serviceId,
+            userdata: asset.userdata ? asset.userdata : {}
+          }
         })
       index++
     }
+
+    console.log('STAGES: ', stagesInput)
     // continue with algorithm
     const stageAlgorithm: OPFK8ComputeStageAlgorithm = {}
     if (algorithm.url) stageAlgorithm.url = algorithm.url
@@ -220,20 +227,26 @@ export class C2DEngineOPFK8 extends C2DEngine {
       stageAlgorithm.rawcode = algorithm.meta.rawcode
     if ('meta' in algorithm && 'container' in algorithm.meta && algorithm.meta.container)
       stageAlgorithm.container = algorithm.meta.container
+
+    const config = await getConfiguration()
     const stage: OPFK8ComputeStage = {
       index: 0,
       input: stagesInput,
       algorithm: stageAlgorithm,
-      output: output || {},
-      compute: {} // TO DO
+      output: output || {
+        metadataUri: `http://${getLocalIp()}:${config.httpPort}`
+      },
+      compute: {
+        resources: {}
+      } // TO DO
     }
     // now, let's build the workflow
     const workflow: OPFK8ComputeWorkflow = {
       stages: [stage]
     }
+    console.log('WORKFLOW:', JSON.stringify(workflow))
     // and the full payload
     const nonce: number = new Date().getTime()
-    const config = await getConfiguration()
     const providerSignature = await sign(String(nonce), config.keys.privateKey)
     const payload: OPFK8ComputeStart = {
       workflow,

@@ -102,6 +102,7 @@ export interface ComputeAlgorithm {
 export interface OPFK8ComputeStageInput {
   index: number
   id?: string
+  remote?: any
   url?: string[]
 }
 export interface OPFK8ComputeStageAlgorithm {

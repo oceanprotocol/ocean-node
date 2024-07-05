@@ -93,7 +93,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       dataset: (req.body.dataset as unknown as ComputeAsset) || null
     }
     if (req.body.additionalDatasets) {
-      startComputeTask.additionalDatasets = req.query
+      startComputeTask.additionalDatasets = req.body
         .additionalDatasets as unknown as ComputeAsset[]
     }
     if (req.body.output) {
@@ -183,6 +183,8 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeResult`, async (req, res) =>
     const response = await new ComputeGetResultHandler(req.oceanNode).handle(
       resultComputeTask
     )
+
+    console.log('response: ', response)
     if (response.stream) {
       res.status(response.status.httpStatus)
       res.set(response.status.headers)

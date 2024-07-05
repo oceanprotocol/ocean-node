@@ -41,12 +41,14 @@ export class ComputeGetResultHandler extends Handler {
 
     let error = null
 
+    const message = task.consumerAddress + task.jobId + task.index.toString() + task.nonce
     const nonceCheckResult: NonceResponse = await checkNonce(
       this.getOceanNode().getDatabase().nonce,
       task.consumerAddress,
       parseInt(task.nonce),
       task.signature,
-      task.jobId + task.index.toString()
+      // task.jobId + task.index.toString()
+      message
     )
 
     if (!nonceCheckResult.valid) {
@@ -83,6 +85,7 @@ export class ComputeGetResultHandler extends Handler {
         }
       }
     }
+
     try {
       const respStream = await engine.getComputeJobResult(
         task.consumerAddress,
@@ -102,6 +105,7 @@ export class ComputeGetResultHandler extends Handler {
       }
       return response
     } catch (error) {
+      console.log(error)
       CORE_LOGGER.error(error.message)
       return {
         stream: null,
