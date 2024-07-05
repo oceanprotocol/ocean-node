@@ -26,7 +26,7 @@ export class ComputeGetResultHandler extends Handler {
           'Parameter : "consumerAddress" is not a valid web3 address'
         )
       }
-      if (isNaN(command.index) || command.index < 1) {
+      if (isNaN(command.index) || command.index < 0) {
         return buildInvalidRequestMessage('Invalid result index')
       }
     }
