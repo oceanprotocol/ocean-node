@@ -214,6 +214,17 @@ export class C2DEngineOPFK8 extends C2DEngine {
         })
       index++
     }
+    // output stage
+    let getOuput = {}
+    if (output) {
+      getOuput = output
+    } else if (config.hasHttp && !output) {
+      getOuput = {
+        metadataUri: `http://${await publicIp()}:${config.httpPort}`
+      }
+    } else {
+      getOuput = {}
+    }
     // continue with algorithm
     const stageAlgorithm: OPFK8ComputeStageAlgorithm = {}
     if (algorithm.url) stageAlgorithm.url = algorithm.url
@@ -226,11 +237,10 @@ export class C2DEngineOPFK8 extends C2DEngine {
       index: 0,
       input: stagesInput,
       algorithm: stageAlgorithm,
-      output: output || {
-        metadataUri: `http://${await publicIp()}:${config.httpPort}`
-      },
+      output: getOuput,
       compute: {} // TO DO
     }
+
     // now, let's build the workflow
     const workflow: OPFK8ComputeWorkflow = {
       stages: [stage]
