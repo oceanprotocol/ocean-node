@@ -233,15 +233,6 @@ export class ComputeStartHandler extends Handler {
               chainId: ddo.chainId,
               validUntil: validFee.validUntil
             }
-          } else {
-            CORE_LOGGER.logMessage(`Invalid compute validation: ${validFee.message}`)
-            return {
-              stream: null,
-              status: {
-                httpStatus: 400,
-                error: `Invalid compute validation: ${validFee.message}`
-              }
-            }
           }
           if (ddo.metadata.type === 'algorithm' && !('meta' in algorithm)) {
             algorithm.meta = {
