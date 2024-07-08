@@ -76,7 +76,7 @@ export async function createProviderFee(
     providerFeeToken = computeEnv.feeToken
   } else {
     // it's download, take it from config
-    providerFeeToken = await getProviderFeeToken(asset.chainId)
+    providerFeeToken = await getProviderFeeToken(Number(asset.chainId))
   }
   if (providerFeeToken?.toLowerCase() === ZeroAddress) {
     providerFeeAmount = 0
@@ -141,7 +141,8 @@ export async function verifyProviderFees(
   provider: JsonRpcApiProvider,
   service: Service,
   computeEnv?: string,
-  validUntil?: number // only for computeEnv
+  validUntil?: number, // only for computeEnv
+  isValidPayment: boolean = false // if payment was already done
 ): Promise<ProviderFeeValidation> {
   if (!txId) {
     CORE_LOGGER.error('Invalid txId')
@@ -206,30 +207,32 @@ export async function verifyProviderFees(
   // Compute environment validation
   let isComputeValid = true
   if (computeEnv) {
-    if (providerData.environment !== computeEnv) {
-      isComputeValid = false
+    if (computeEnv) {
+      if (providerData.environment !== computeEnv && !isValidPayment) {
+        isComputeValid = false
+      }
+      if (validUntil > 0 && providerData.timestamp < validUntil) {
+        isComputeValid = false
+      }
     }
-    if (validUntil > 0 && providerData.timestamp < validUntil) {
-      isComputeValid = false
-    }
-  }
 
-  if (!isComputeValid) {
-    const message = 'Compute environment validation failed'
-    CORE_LOGGER.error(message)
+    if (!isComputeValid) {
+      const message = 'Compute environment validation failed'
+      CORE_LOGGER.error(message)
+      return {
+        isValid: true,
+        isComputeValid,
+        message,
+        validUntil: providerData ? providerData.timestamp : 0
+      }
+    }
+
     return {
       isValid: true,
       isComputeValid,
-      message,
-      validUntil: providerData ? providerData.timestamp : 0
+      message: 'Validation successful',
+      validUntil: providerData.timestamp
     }
-  }
-
-  return {
-    isValid: true,
-    isComputeValid,
-    message: 'Validation successful',
-    validUntil: providerData.timestamp
   }
 }
 

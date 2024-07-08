@@ -170,7 +170,8 @@ export class ComputeInitializeHandler extends Handler {
                 provider,
                 service,
                 task.compute.env,
-                task.compute.validUntil
+                task.compute.validUntil,
+                paymentValidation.isValid
               )
             } else {
               // no point in checking provider fees if order is expired

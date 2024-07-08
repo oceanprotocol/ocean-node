@@ -90,7 +90,7 @@ export class ComputeStartHandler extends Handler {
         const result: any = { validOrder: false }
         if ('documentId' in elem && elem.documentId) {
           result.did = elem.documentId
-          result.serviceId = elem.documentId
+          result.serviceId = elem.serviceId
           const ddo = await new FindDdoHandler(node).findAndFormatDdo(elem.documentId)
           if (!ddo) {
             const error = `DDO ${elem.documentId} not found`
@@ -213,7 +213,8 @@ export class ComputeStartHandler extends Handler {
                   provider,
                   service,
                   task.environment,
-                  0
+                  0,
+                  paymentValidation.isValid
                 )
               : {
                   isValid: false,
