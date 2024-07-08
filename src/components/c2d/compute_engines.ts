@@ -225,7 +225,11 @@ export class C2DEngineOPFK8 extends C2DEngine {
       input: stagesInput,
       algorithm: stageAlgorithm,
       output: output || {},
-      compute: {} // TO DO
+      compute: {
+        Instances: 1,
+        namespace: environment,
+        maxtime: 3600
+      }
     }
     // now, let's build the workflow
     const workflow: OPFK8ComputeWorkflow = {
