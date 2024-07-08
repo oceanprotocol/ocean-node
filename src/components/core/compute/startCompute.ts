@@ -102,6 +102,16 @@ export class ComputeStartHandler extends Handler {
               }
             }
           }
+          if (ddo && ddo.nft.state !== 0) {
+            CORE_LOGGER.logMessage('Error: DDO NOT ACTIVE', true)
+            return {
+              stream: null,
+              status: {
+                httpStatus: 500,
+                error: 'Error: DDO not active'
+              }
+            }
+          }
           const service = AssetUtils.getServiceById(ddo, elem.serviceId)
           if (!service) {
             const error = `Cannot find service ${elem.serviceId} in DDO ${elem.documentId}`

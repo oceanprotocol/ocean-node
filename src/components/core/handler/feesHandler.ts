@@ -46,6 +46,10 @@ export class FeesHandler extends Handler {
       errorMsg = 'Cannot resolve DID'
     }
 
+    if (ddo && ddo.nft.state !== 0) {
+      errorMsg = 'Error: DDO NOT ACTIVE'
+    }
+
     const service = ddo.services.find((what: any) => what.id === task.serviceId)
     if (!service) {
       errorMsg = 'Invalid serviceId'
@@ -64,10 +68,6 @@ export class FeesHandler extends Handler {
       validUntil = task.validUntil
     }
 
-    const nonceDB = this.getOceanNode().getDatabase().nonce
-    const nonceHandlerResponse = await getNonce(nonceDB, task.consumerAddress)
-    const nonce = await streamToString(nonceHandlerResponse.stream as Readable)
-
     if (errorMsg) {
       PROVIDER_LOGGER.logMessageWithEmoji(
         errorMsg,
@@ -83,6 +83,10 @@ export class FeesHandler extends Handler {
         }
       }
     }
+
+    const nonceDB = this.getOceanNode().getDatabase().nonce
+    const nonceHandlerResponse = await getNonce(nonceDB, task.consumerAddress)
+    const nonce = await streamToString(nonceHandlerResponse.stream as Readable)
 
     try {
       const providerFee = await createProviderFee(ddo, service, validUntil, null, null)

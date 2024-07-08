@@ -208,6 +208,20 @@ export class DownloadHandler extends Handler {
       }
     }
 
+    if (ddo && ddo.nft.state !== 0) {
+      CORE_LOGGER.logMessage(
+        'Error: Asset cannot be downloaded, state different than ACTIVE',
+        true
+      )
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error: 'Error: DDO not active'
+        }
+      }
+    }
+
     // 2. Validate ddo and credentials
     if (!ddo.chainId || !ddo.nftAddress || !ddo.metadata) {
       CORE_LOGGER.logMessage('Error: DDO malformed or disabled', true)

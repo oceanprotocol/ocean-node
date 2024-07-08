@@ -146,6 +146,10 @@ aquariusRoutes.post(`${AQUARIUS_API_BASE_PATH}/assets/ddo/validate`, async (req,
     }
 
     const node = req.oceanNode
+    if (ddo && ddo.nft.state !== 0) {
+      HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: DDO not active`)
+      res.status(404).send('Error: DDO not active')
+    }
     const result = await new ValidateDDOHandler(node).handle({
       ddo,
       command: PROTOCOL_COMMANDS.VALIDATE_DDO
