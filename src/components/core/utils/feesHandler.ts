@@ -206,14 +206,12 @@ export async function verifyProviderFees(
 
   // Compute environment validation
   let isComputeValid = true
-  if (computeEnv) {
-    if (computeEnv) {
-      if (providerData.environment !== computeEnv && !isValidPayment) {
-        isComputeValid = false
-      }
-      if (validUntil > 0 && providerData.timestamp < validUntil) {
-        isComputeValid = false
-      }
+  if (computeEnv !== null) {
+    if (providerData.environment !== computeEnv && !isValidPayment) {
+      isComputeValid = false
+    }
+    if (validUntil > 0 && providerData.timestamp < validUntil) {
+      isComputeValid = false
     }
 
     if (!isComputeValid) {
