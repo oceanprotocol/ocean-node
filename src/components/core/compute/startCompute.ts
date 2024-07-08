@@ -68,6 +68,7 @@ export class ComputeStartHandler extends Handler {
       const node = this.getOceanNode()
       const assets: ComputeAsset[] = [task.dataset]
       if (task.additionalDatasets) assets.push(...task.additionalDatasets)
+      const algorithm = structuredClone(task.algorithm)
       let foundValidCompute = null
 
       const algoChecksums = await getAlgoChecksums(
@@ -231,6 +232,28 @@ export class ComputeStartHandler extends Handler {
               txId: elem.transferTxId,
               chainId: ddo.chainId,
               validUntil: validFee.validUntil
+            }
+          } else {
+            CORE_LOGGER.logMessage(`Invalid compute validation: ${validFee.message}`)
+            return {
+              stream: null,
+              status: {
+                httpStatus: 400,
+                error: `Invalid compute validation: ${validFee.message}`
+              }
+            }
+          }
+          if (ddo.metadata.type === 'algorithm' && !('meta' in algorithm)) {
+            algorithm.meta = {
+              language: ddo.metadata.algorithm.language,
+              version: ddo.metadata.algorithm.version,
+              format: ddo.metadata.algorithm.format,
+              container: {
+                entrypoint: ddo.metadata.algorithm.container.entrypoint,
+                image: ddo.metadata.algorithm.container.image,
+                tag: ddo.metadata.algorithm.container.tag,
+                checksum: ddo.metadata.algorithm.container.checksum
+              }
             }
           }
         }
