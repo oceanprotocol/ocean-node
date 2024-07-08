@@ -25,6 +25,12 @@ export async function getFile(
         ? await new FindDdoHandler(node).findAndFormatDdo(didOrDdo)
         : didOrDdo
 
+    if (ddo && ddo.nft.state !== 0) {
+      const msg = 'Error: Asset cannot be downloaded, state different than ACTIVE'
+      CORE_LOGGER.logMessage(msg, true)
+      throw new Error(msg)
+    }
+
     // 2. Get the service
     const service: Service = AssetUtils.getServiceById(ddo, serviceId)
     if (!service) {
