@@ -96,6 +96,7 @@
     "n3": "^1.17.2",
     "node-cron": "^3.0.3",
     "private-ip": "^3.0.2",
+    "public-ip": "^6.0.2",
     "rdf-utils-fs": "^3.0.0",
     "rdf-validate-shacl": "^0.5.5",
     "rdflib": "^2.2.33",
