@@ -52,7 +52,7 @@ import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
 import { multiaddr } from '@multiformats/multiaddr'
 
 const DEFAULT_OPTIONS = {
-  pollInterval: 1000
+  pollInterval: 20000
 }
 // we might want this configurable
 export const CACHE_TTL = 1000 * 60 * 5 // 5 minutes
@@ -409,7 +409,7 @@ export class OceanP2P extends EventEmitter {
 
       const upnpService = (node.services as any).upnpNAT
       if (config.p2pConfig.upnp && upnpService) {
-        this._upnp_interval = setInterval(this.UPnpCron.bind(this), 3000)
+        this._upnp_interval = setInterval(this.UPnpCron.bind(this), 30000)
       }
       return node
     } catch (e) {
@@ -803,7 +803,7 @@ export class OceanP2P extends EventEmitter {
         }
       }
     }
-    this._upnp_interval = setInterval(this.UPnpCron.bind(this), 3000)
+    this._upnp_interval = setInterval(this.UPnpCron.bind(this), 30000)
   }
 }
 
