@@ -1,4 +1,4 @@
-import diff from 'hyperdiff'
+// import diff from 'hyperdiff'
 import { P2PCommandResponse, TypesenseSearchResponse } from '../../@types/index'
 import EventEmitter from 'node:events'
 import clone from 'lodash.clonedeep'
