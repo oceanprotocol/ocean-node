@@ -189,10 +189,46 @@ export class OceanIndexer {
         })
 
         worker.on('exit', (code: number) => {
-          INDEXER_LOGGER.logMessage(
-            `Worker for network ${network} exited with code: ${code}`,
-            true
-          )
+          let message = `Worker for network ${network} exited with code: ${code}.`
+          switch (code) {
+            case 0:
+              message += ' (Normal exit)'
+              break
+            case 1:
+              message += ' (General error)'
+              break
+            case 3:
+              message += ' (Internal JavaScript parse error)'
+              break
+            case 4:
+              message += ' (Fatal error)'
+              break
+            case 5:
+              message += ' (Out of memory)'
+              break
+            case 6:
+              message += ' (Uncaught exception)'
+              break
+            case 7:
+              message += ' (Signal termination)'
+              break
+            case 8:
+              message += ' (JavaScript allocation failure)'
+              break
+            default:
+              message += ' (Unknown exit code)'
+              break
+          }
+          INDEXER_LOGGER.logMessage(message, true)
+          // Restart the worker if it exits with a specific code (e.g., code 1)
+          if (code !== 0) {
+            INDEXER_LOGGER.log(
+              LOG_LEVELS_STR.LEVEL_INFO,
+              `Attempting to restart worker for network ${network} with chainID ${chainId} ...`,
+              true
+            )
+            this.startThread(chainId)
+          }
         })
       }
     }
