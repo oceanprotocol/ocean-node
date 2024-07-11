@@ -1,4 +1,4 @@
-import diff from 'hyperdiff'
+// import diff from 'hyperdiff'
 import { P2PCommandResponse, TypesenseSearchResponse } from '../../@types/index'
 import EventEmitter from 'node:events'
 import clone from 'lodash.clonedeep'
@@ -126,7 +126,7 @@ export class OceanP2P extends EventEmitter {
     this._connections = {}
     this._protocol = '/ocean/nodes/1.0.0'
 
-    this._interval = setInterval(this._pollPeers.bind(this), this._options.pollInterval)
+    // this._interval = setInterval(this._pollPeers.bind(this), this._options.pollInterval)
     this._libp2p.handle(this._protocol, handleProtocolCommands.bind(this))
 
     setInterval(this.republishStoredDDOS.bind(this), REPUBLISH_INTERVAL_HOURS)
@@ -349,9 +349,9 @@ export class OceanP2P extends EventEmitter {
               pubsubPeerDiscovery({
                 interval: config.p2pConfig.pubsubPeerDiscoveryInterval,
                 topics: [
-                  'oceanprotocoldiscovery',
-                  `oceanprotocol._peer-discovery._p2p._pubsub`, // It's recommended but not required to extend the global space
-                  '_peer-discovery._p2p._pubsub' // Include if you want to participate in the global space
+                  // 'oceanprotocoldiscovery',
+                  `oceanprotocol._peer-discovery._p2p._pubsub` // It's recommended but not required to extend the global space
+                  // '_peer-discovery._p2p._pubsub' // Include if you want to participate in the global space
                 ],
                 listenOnly: false
               })
@@ -370,9 +370,9 @@ export class OceanP2P extends EventEmitter {
               pubsubPeerDiscovery({
                 interval: config.p2pConfig.pubsubPeerDiscoveryInterval,
                 topics: [
-                  'oceanprotocoldiscovery',
-                  `oceanprotocol._peer-discovery._p2p._pubsub`, // It's recommended but not required to extend the global space
-                  '_peer-discovery._p2p._pubsub' // Include if you want to participate in the global space
+                  // 'oceanprotocoldiscovery',
+                  `oceanprotocol._peer-discovery._p2p._pubsub` // It's recommended but not required to extend the global space
+                  // '_peer-discovery._p2p._pubsub' // Include if you want to participate in the global space
                 ],
                 listenOnly: false
               })
@@ -432,7 +432,7 @@ export class OceanP2P extends EventEmitter {
   }
 
   async getRunningOceanPeers() {
-    return await this.getOceanPeers()
+    return await this.getOceanPeers(true, false)
   }
 
   async getKnownOceanPeers() {
@@ -443,19 +443,24 @@ export class OceanP2P extends EventEmitter {
     return await this.getOceanPeers(true, true)
   }
 
-  async getOceanPeers(running: boolean = true, known: boolean = false) {
+  async getOceanPeers(running: boolean = true, known: boolean = true) {
     const peers: string[] = []
-
-    // get pubsub peers
-    for (const peer of this._peers.slice(0)) {
-      if (!peers.includes(peer.toString)) peers.push(peer.toString())
+    if (running) {
+      // get pubsub peers
+      const node = <any>this._libp2p
+      const newPeers = (await node.services.pubsub.getSubscribers(this._topic)).sort()
+      for (const peer of newPeers.slice(0)) {
+        if (!peers.includes(peer.toString)) peers.push(peer.toString())
+      }
     }
-    // get p2p peers and filter them by protocol
-    for (const peer of await this._libp2p.peerStore.all()) {
-      if (peer && peer.protocols) {
-        for (const protocol of peer.protocols) {
-          if (protocol === this._protocol) {
-            if (!peers.includes(peer.id.toString())) peers.push(peer.id.toString())
+    if (known) {
+      // get p2p peers and filter them by protocol
+      for (const peer of await this._libp2p.peerStore.all()) {
+        if (peer && peer.protocols) {
+          for (const protocol of peer.protocols) {
+            if (protocol === this._protocol) {
+              if (!peers.includes(peer.id.toString())) peers.push(peer.id.toString())
+            }
           }
         }
       }
@@ -579,7 +584,7 @@ export class OceanP2P extends EventEmitter {
   //   return response
   // }
 
-  async _pollPeers() {
+  /* async _pollPeers() {
     const node = <any>this._libp2p
     const newPeers = (await node.services.pubsub.getSubscribers(this._topic)).sort()
     if (this._emitChanges(newPeers)) {
@@ -607,7 +612,7 @@ export class OceanP2P extends EventEmitter {
     const x = differences.added.length > 0 || differences.removed.length > 0
     return x
   }
-
+*/
   _onMessage(event: any) {
     const message = event.detail
 
@@ -619,7 +624,7 @@ export class OceanP2P extends EventEmitter {
   async advertiseDid(did: string) {
     P2P_LOGGER.logMessage('Advertising ' + did, true)
     try {
-      const x = (await this.getRunningOceanPeers()).length
+      const x = (await this.getAllOceanPeers()).length
       if (x > 0) {
         const cid = await cidFromRawString(did)
         const multiAddrs = this._libp2p.components.addressManager.getAddresses()

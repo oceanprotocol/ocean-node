@@ -469,7 +469,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       mDNSInterval: getIntEnvValue(process.env.P2P_mDNSInterval, 20e3), // 20 seconds
       connectionsMaxParallelDials: getIntEnvValue(
         process.env.P2P_connectionsMaxParallelDials,
-        150
+        15
       ),
       connectionsDialTimeout: getIntEnvValue(
         process.env.P2P_connectionsDialTimeout,
