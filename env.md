@@ -54,7 +54,8 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `P2P_ENABLE_CIRCUIT_RELAY_CLIENT`: Enable connections through relay servers. Default: `True`
 - `P2P_CIRCUIT_RELAYS`: Numbers of relay servers. Default: `1`
 - `P2P_BOOTSTRAP_NODES` : List of bootstrap nodes. Defults to OPF nodes. Example: ["/dns4/node3.oceanprotocol.com/tcp/9000/p2p/"]
-- `P2P_FILTER_ANNOUNCED_ADDRESSES`: CIDR filters to filter announced addresses. Default: []. Example: ["192.168.0.1/27"]
+- `P2P_MIN_CONNECTIONS`: The minimum number of connections below which libp2p will start to dial peers from the peer book. Setting this to 0 disables this behaviour. Default: 1
+- `P2P_MAX_CONNECTIONS`: The maximum number of connections libp2p is willing to have before it starts pruning connections to reduce resource usage. Default: 300
 
 ## Additional Nodes (Test Environments)
 

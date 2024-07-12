@@ -45,6 +45,8 @@ export interface OceanNodeP2PConfig {
   enableCircuitRelayClient: boolean
   circuitRelays: number
   announcePrivateIp: boolean
+  minConnections: number
+  maxConnections: number
 }
 
 export interface OceanNodeConfig {

@@ -328,7 +328,9 @@ export class OceanP2P extends EventEmitter {
         services: servicesConfig,
         connectionManager: {
           maxParallelDials: config.p2pConfig.connectionsMaxParallelDials, // 150 total parallel multiaddr dials
-          dialTimeout: config.p2pConfig.connectionsDialTimeout // 10 second dial timeout per peer dial
+          dialTimeout: config.p2pConfig.connectionsDialTimeout, // 10 second dial timeout per peer dial
+          minConnections: config.p2pConfig.minConnections,
+          maxConnections: config.p2pConfig.maxConnections
         }
       }
       if (config.p2pConfig.bootstrapNodes && config.p2pConfig.bootstrapNodes.length > 0) {

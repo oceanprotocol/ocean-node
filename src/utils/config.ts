@@ -484,7 +484,9 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       filterAnnouncedAddresses: readListFromEnvVariable(
         ENVIRONMENT_VARIABLES.P2P_FILTER_ANNOUNCED_ADDRESSES,
         isStartup
-      )
+      ),
+      minConnections: getIntEnvValue(process.env.P2P_MIN_CONNECTIONS, 1),
+      maxConnections: getIntEnvValue(process.env.P2P_MAX_CONNECTIONS, 300)
     },
     // Only enable provider if we have a DB_URL
     hasProvider: !!getEnvValue(process.env.DB_URL, ''),
