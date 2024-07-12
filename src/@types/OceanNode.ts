@@ -47,6 +47,9 @@ export interface OceanNodeP2PConfig {
   announcePrivateIp: boolean
   minConnections: number
   maxConnections: number
+  autoDialPeerRetryThreshold: number
+  autoDialConcurrency: number
+  maxPeerAddrsToDial: number
 }
 
 export interface OceanNodeConfig {

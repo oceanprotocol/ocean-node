@@ -330,7 +330,10 @@ export class OceanP2P extends EventEmitter {
           maxParallelDials: config.p2pConfig.connectionsMaxParallelDials, // 150 total parallel multiaddr dials
           dialTimeout: config.p2pConfig.connectionsDialTimeout, // 10 second dial timeout per peer dial
           minConnections: config.p2pConfig.minConnections,
-          maxConnections: config.p2pConfig.maxConnections
+          maxConnections: config.p2pConfig.maxConnections,
+          autoDialPeerRetryThreshold: config.p2pConfig.autoDialPeerRetryThreshold,
+          autoDialConcurrency: config.p2pConfig.autoDialConcurrency,
+          maxPeerAddrsToDial: config.p2pConfig.maxPeerAddrsToDial
         }
       }
       if (config.p2pConfig.bootstrapNodes && config.p2pConfig.bootstrapNodes.length > 0) {
@@ -340,7 +343,7 @@ export class OceanP2P extends EventEmitter {
             peerDiscovery: [
               bootstrap({
                 list: config.p2pConfig.bootstrapNodes,
-                timeout: 1000, // in ms,
+                timeout: 20000, // in ms,
                 tagName: 'bootstrap',
                 tagValue: 50,
                 tagTTL: 10000000000
