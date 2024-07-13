@@ -483,8 +483,17 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       announcePrivateIp: getBoolEnvValue('P2P_ANNOUNCE_PRIVATE', false),
       filterAnnouncedAddresses: readListFromEnvVariable(
         ENVIRONMENT_VARIABLES.P2P_FILTER_ANNOUNCED_ADDRESSES,
-        isStartup
-      )
+        isStartup,
+        ['172.15.0.0/24']
+      ),
+      minConnections: getIntEnvValue(process.env.P2P_MIN_CONNECTIONS, 1),
+      maxConnections: getIntEnvValue(process.env.P2P_MAX_CONNECTIONS, 300),
+      autoDialPeerRetryThreshold: getIntEnvValue(
+        process.env.P2P_AUTODIALPEERRETRYTHRESHOLD,
+        1000 * 120
+      ),
+      autoDialConcurrency: getIntEnvValue(process.env.P2P_AUTODIALCONCURRENCY, 5),
+      maxPeerAddrsToDial: getIntEnvValue(process.env.P2P_MAXPEERADDRSTODIAL, 5)
     },
     // Only enable provider if we have a DB_URL
     hasProvider: !!getEnvValue(process.env.DB_URL, ''),
