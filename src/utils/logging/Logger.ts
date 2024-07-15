@@ -445,7 +445,7 @@ export class CustomNodeLogger {
     // lazy check db custom transport, needed beacause of dependency cycles
     if (
       customDBTransport !== null && // if null then what?
-      !isDevelopmentEnvironment() &&
+      USE_DB_TRANSPORT &&
       !this.hasDBTransport()
     ) {
       this.addTransport(customDBTransport)

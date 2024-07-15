@@ -42,6 +42,7 @@ describe('LogDatabase CRUD', () => {
       'meta'
     )
     logId = result?.id // Save the auto-generated id for further operations
+    console.log('log id: ' + logId)
   })
 
   it('retrieve log', async () => {
