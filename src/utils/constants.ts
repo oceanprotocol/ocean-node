@@ -275,6 +275,24 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'LOG_LEVEL',
     value: process.env.LOG_LEVEL,
     required: false
+  },
+  LOG_CONSOLE: {
+    // log to console output?
+    name: 'LOG_CONSOLE',
+    value: process.env.LOG_CONSOLE,
+    required: false
+  },
+  LOG_FILES: {
+    // log to files?
+    name: 'LOG_FILES',
+    value: process.env.LOG_FILES,
+    required: false
+  },
+  LOG_DB: {
+    // log to DB?
+    name: 'LOG_DB',
+    value: process.env.LOG_DB,
+    required: false // default is true
   }
 }
 

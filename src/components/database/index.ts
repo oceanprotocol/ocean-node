@@ -1014,11 +1014,10 @@ export class Database {
     // once we create a DB instance, the logger will be using this transport as well
     // we cannot have this the other way around because of the dependencies cycle
     if (USE_DB_TRANSPORT) {
-      console.log('DB USE_DB_TRANSPORT ', USE_DB_TRANSPORT)
       configureCustomDBTransport(this, DATABASE_LOGGER)
     } else {
       DATABASE_LOGGER.warn(
-        '"NODE_ENV" is set to "development". This means logs will be saved to console and file(s) only.'
+        'Property "LOG_DB" is set to "false". This means logs will NOT be saved to database!'
       )
     }
     return (async (): Promise<Database> => {

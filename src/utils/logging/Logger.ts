@@ -141,9 +141,10 @@ const USE_CONSOLE_TRANSPORT: boolean =
   process.env.LOG_CONSOLE && process.env.LOG_CONSOLE !== 'false'
 const USE_FILE_TRANSPORT: boolean =
   process.env.LOG_FILES && process.env.LOG_FILES !== 'false'
-// can be affected by configuration
-export const USE_DB_TRANSPORT: boolean =
-  true || (process.env.LOG_DB && process.env.LOG_DB !== 'false')
+// default to true, if not explicitly set otherwise
+export const USE_DB_TRANSPORT: boolean = !(
+  process.env.LOG_DB && process.env.LOG_DB === 'false'
+)
 
 // if not set, then gets default 'development' level & colors
 export function isDevelopmentEnvironment(): boolean {

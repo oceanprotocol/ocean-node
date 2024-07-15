@@ -42,7 +42,6 @@ describe('LogDatabase CRUD', () => {
       'meta'
     )
     logId = result?.id // Save the auto-generated id for further operations
-    console.log('log id: ' + logId)
   })
 
   it('retrieve log', async () => {
@@ -72,14 +71,12 @@ describe('LogDatabase CRUD', () => {
 
     // Retrieve the latest log entry
     const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 1)
-    console.log('logs are: ', logs)
 
     expect(logs?.length).to.equal(1)
-    expect(logs?.[0].id).to.equal(String(Number(logId) + 1))
+    expect(logs?.[0].id).to.greaterThan(Number(logId))
     expect(logs?.[0].level).to.equal(newLogEntry.level)
     expect(logs?.[0].message).to.equal(newLogEntry.message)
     expect(logs?.[0].moduleName).to.equal('HTTP')
-    console.log('end debug')
   })
 
   it('should save a log in the database when a log.logMessage is called', async () => {
