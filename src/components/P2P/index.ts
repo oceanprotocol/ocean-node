@@ -50,7 +50,7 @@ import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
 import { multiaddr } from '@multiformats/multiaddr'
-import { getIPv4, getIPv6 } from '../../utils/ip'
+import { getIPv4, getIPv6 } from '../../utils/ip.js'
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
