@@ -28,6 +28,7 @@ export class OceanIndexer {
   private networks: RPCS
   private supportedChains: string[]
   private workers: Record<string, Worker> = {}
+  private workerRestarts: Record<number, number> = {}
 
   constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
@@ -166,7 +167,6 @@ export class OceanIndexer {
       })
 
       worker.on('exit', (code: number) => {
-        this.workers[chainID] = null
         let message = `Worker for network ${rpcDetails.network} exited with code: ${code}.`
         switch (code) {
           case 0:
@@ -200,12 +200,7 @@ export class OceanIndexer {
         INDEXER_LOGGER.logMessage(message, true)
         // Restart the worker if it exits with a specific code (e.g., code 1)
         if (code !== 0) {
-          INDEXER_LOGGER.log(
-            LOG_LEVELS_STR.LEVEL_INFO,
-            `Attempting to restart worker for network ${rpcDetails.network} with chainID ${chainID} ...`,
-            true
-          )
-          this.startThread(chainID)
+          this.restartWorkerThread(chainID)
         }
       })
       this.workers[chainID] = worker
@@ -234,6 +229,29 @@ export class OceanIndexer {
       }
     }
     return count === this.supportedChains.length
+  }
+
+  public restartWorkerThread(chainId: number) {
+    delete this.workers[chainId]
+
+    const restarts = (this.workerRestarts[chainId] || 0) + 1
+    this.workerRestarts[chainId] = restarts
+
+    if (restarts < 3) {
+      INDEXER_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_INFO,
+        `Attempting to restart worker for network with chainID ${chainId}. Restart attempt #${restarts}.`,
+        true
+      )
+
+      setTimeout(() => this.startThread(chainId), 2000)
+    } else {
+      INDEXER_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_INFO,
+        `Too many failures for the worker on chain ${chainId}. Aborting restart after ${restarts} attempts.`,
+        true
+      )
+    }
   }
 
   public addReindexTask(reindexTask: ReindexTask): JobStatus | null {
