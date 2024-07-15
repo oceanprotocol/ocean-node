@@ -3,7 +3,7 @@ export const downloadAsset = {
   id: '',
   nftAddress: '',
   version: '4.1.0',
-  chainId: 80001,
+  chainId: 8996,
   metadata: {
     created: '2021-12-20T14:35:20Z',
     updated: '2021-12-20T14:35:20Z',
@@ -20,7 +20,7 @@ export const downloadAsset = {
   services: [
     {
       id: 'ccb398c50d6abd5b456e8d7242bd856a1767a890b537c2f8c10ba8b8a10e6025',
-      type: 'download',
+      type: 'access',
       files: {
         files: [
           {
@@ -40,7 +40,7 @@ export const downloadAsset = {
     address: '',
     name: 'Ocean Data NFT',
     symbol: 'OCEAN-NFT',
-    state: 5,
+    state: 0,
     tokenURI: '',
     owner: '',
     created: ''
@@ -63,7 +63,7 @@ export const computeAsset = {
   id: '',
   nftAddress: '',
   version: '4.1.0',
-  chainId: 80001,
+  chainId: 8996,
   metadata: {
     created: '2021-12-20T14:35:20Z',
     updated: '2021-12-20T14:35:20Z',
@@ -106,7 +106,7 @@ export const computeAsset = {
     address: '',
     name: 'Ocean Data NFT',
     symbol: 'OCEAN-NFT',
-    state: 5,
+    state: 0,
     tokenURI: '',
     owner: '',
     created: ''
@@ -187,7 +187,7 @@ export const algoAsset = {
     address: '',
     name: 'Ocean Data NFT',
     symbol: 'OCEAN-NFT',
-    state: 5,
+    state: 0,
     tokenURI: '',
     owner: '',
     created: ''
