@@ -244,7 +244,7 @@ export class OceanIndexer {
         true
       )
 
-      setTimeout(() => this.startThread(chainId), 2000)
+      setTimeout(() => this.startThread(chainId), 5000)
     } else {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_INFO,
