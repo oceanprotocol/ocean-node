@@ -73,7 +73,7 @@ describe('LogDatabase CRUD', () => {
     const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 1)
 
     expect(logs?.length).to.equal(1)
-    expect(logs?.[0].id).to.greaterThan(Number(logId))
+    expect(Number(logs?.[0].id)).to.greaterThan(Number(logId))
     expect(logs?.[0].level).to.equal(newLogEntry.level)
     expect(logs?.[0].message).to.equal(newLogEntry.message)
     expect(logs?.[0].moduleName).to.equal('HTTP')
