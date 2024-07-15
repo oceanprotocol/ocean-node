@@ -136,6 +136,15 @@ let customDBTransport: CustomOceanNodesTransport = null
 export const MAX_LOGGER_INSTANCES = 10
 export const NUM_LOGGER_INSTANCES = INSTANCE_COUNT
 
+// log locations
+const USE_CONSOLE_TRANSPORT: boolean =
+  process.env.LOG_CONSOLE && process.env.LOG_CONSOLE !== 'false'
+const USE_FILE_TRANSPORT: boolean =
+  process.env.LOG_FILES && process.env.LOG_FILES !== 'false'
+// can be affected by configuration
+export const USE_DB_TRANSPORT: boolean =
+  true || (process.env.LOG_DB && process.env.LOG_DB !== 'false')
+
 // if not set, then gets default 'development' level & colors
 export function isDevelopmentEnvironment(): boolean {
   const env = process.env.NODE_ENV || 'development'
@@ -200,7 +209,7 @@ function getDefaultOptions(moduleName: string): winston.LoggerOptions {
     level: getDefaultLevel(),
     levels: LOG_LEVELS_NUM,
     format,
-    transports: [buildCustomFileTransport(moduleName), defaultConsoleTransport],
+    transports: getDefaultLoggerTransports(moduleName),
     exceptionHandlers: [
       new winston.transports.File({ dirname: 'logs/', filename: EXCEPTIONS_HANDLER })
     ]
@@ -257,12 +266,13 @@ export function buildCustomFileTransport(
 export function getDefaultLoggerTransports(
   moduleOrComponentName: string
 ): winston.transport[] {
-  // always log to file
-  const transports: winston.transport[] = [
-    buildCustomFileTransport(moduleOrComponentName)
-  ]
-  // only log to console if development
-  if (isDevelopmentEnvironment()) {
+  const transports: winston.transport[] = []
+  if (USE_FILE_TRANSPORT) {
+    // always log to file
+    transports.push(buildCustomFileTransport(moduleOrComponentName))
+  }
+
+  if (USE_CONSOLE_TRANSPORT) {
     transports.push(defaultConsoleTransport)
   }
   return transports
