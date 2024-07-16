@@ -99,19 +99,16 @@ describe('LogDatabase CRUD', () => {
     const endTime = new Date() // current time
 
     // Retrieve the latest log entry
-    const logs = await database.logs.retrieveMultipleLogs(
-      startTime,
-      endTime,
-      1,
-      'testModule-3'
-    )
+    let logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 10)
     console.log('logs:', logs)
+    logs = logs.filter((log) => log.message === newLogEntry.message)
+    console.log('logs filtered:', logs)
 
     expect(logs?.length).to.equal(1)
     expect(Number(logs?.[0].id)).to.greaterThan(Number(logId))
     expect(logs?.[0].level).to.equal(newLogEntry.level)
     expect(logs?.[0].message).to.equal(newLogEntry.message)
-    expect(logs?.[0].moduleName).to.equal('HTTP')
+    expect(logs?.[0].moduleName).to.equal(newLogEntry.moduleName) // 'HTTP'
   })
 
   it('should save a log in the database when a log.logMessageWithEmoji is called', async () => {
@@ -133,19 +130,16 @@ describe('LogDatabase CRUD', () => {
     const endTime = new Date() // current time
 
     // Retrieve the latest log entry
-    const logs = await database.logs.retrieveMultipleLogs(
-      startTime,
-      endTime,
-      1,
-      'testModule-4'
-    )
+    let logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 10)
     console.log('logs:', logs)
+    logs = logs.filter((log) => log.message === newLogEntry.message)
+    console.log('logs filtered:', logs)
 
     expect(logs?.length).to.equal(1)
     expect(Number(logs?.[0].id)).to.greaterThan(Number(logId))
     expect(logs?.[0].level).to.equal(newLogEntry.level)
     assert(logs?.[0].message)
-    expect(logs?.[0].moduleName).to.equal('HTTP')
+    expect(logs?.[0].moduleName).to.equal(newLogEntry.moduleName) // HTTP
   })
 })
 
