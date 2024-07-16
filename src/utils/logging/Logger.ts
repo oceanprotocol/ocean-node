@@ -109,14 +109,18 @@ export class CustomOceanNodesTransport extends Transport {
     const document = {
       level: info.level,
       message: info.message,
-      moduleName: info.moduleName || 'undefined',
+      moduleName: info.moduleName || LOGGER_MODULE_NAMES.ALL_COMBINED,
       timestamp: Date.now(), // Storing the current timestamp as a Unix epoch timestamp (number)
       meta: JSON.stringify(info.meta) // Ensure meta is a string
     }
 
     try {
       // Use the insertLog method of the LogDatabase instance
-      if (this.dbInstance && this.dbInstance.logs) {
+      if (
+        this.dbInstance &&
+        this.dbInstance.logs &&
+        !isTypesenseIgnoreLogMessage(document.moduleName, document.message)
+      ) {
         console.log('will insert LOG ON DB: ', document.message)
         // double check before writing
         await this.dbInstance.logs.insertLog(document)
@@ -129,6 +133,23 @@ export class CustomOceanNodesTransport extends Transport {
 
     callback()
   }
+}
+
+/**
+ * Avoid these annoyng typesense log message (too much garbage and no utility)
+ * @param loggerModuleName module name
+ * @param logMessage the actual message
+ * @returns boolean
+ */
+function isTypesenseIgnoreLogMessage(loggerModuleName: string, logMessage: string) {
+  const msg1: string = 'Request /collections/logs/documents'
+  const msg2: string = 'Response Code was 201.'
+  const msg3 = 'Request /collections/logs/documents: Attempting POST request Try #1'
+  return (
+    (loggerModuleName.toLowerCase() === LOGGER_MODULE_NAMES.DATABASE &&
+      (logMessage === msg1 || logMessage === msg3)) ||
+    (logMessage.includes(msg1) && logMessage.includes(msg2))
+  )
 }
 
 let INSTANCE_COUNT = 0
@@ -453,11 +474,14 @@ export class CustomNodeLogger {
       this.addTransport(customDBTransport)
     }
 
-    this.getLogger().log(
-      level,
-      includeModuleName ? this.buildMessage(message) : message,
-      { moduleName: this.getModuleName().toUpperCase() }
-    )
+    // ignore tons of typesense garbage
+    if (!isTypesenseIgnoreLogMessage(this.getModuleName(), message)) {
+      this.getLogger().log(
+        level,
+        includeModuleName ? this.buildMessage(message) : message,
+        { moduleName: this.getModuleName().toUpperCase() }
+      )
+    }
   }
 
   logMessage(message: string, includeModuleName: boolean = false) {
