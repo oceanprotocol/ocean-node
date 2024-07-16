@@ -121,10 +121,9 @@ export class CustomOceanNodesTransport extends Transport {
         this.dbInstance.logs &&
         !isTypesenseIgnoreLogMessage(document.moduleName, document.message)
       ) {
-        console.log('will insert LOG ON DB: ', document.message)
         // double check before writing
         await this.dbInstance.logs.insertLog(document)
-      } else console.log('will not insert LOG on DB: ', document.message)
+      }
     } catch (error) {
       // Handle the error according to your needs
       console.error('Error writing to Typesense:', error)
@@ -142,14 +141,12 @@ export class CustomOceanNodesTransport extends Transport {
  * @returns boolean
  */
 function isTypesenseIgnoreLogMessage(loggerModuleName: string, logMessage: string) {
-  const msg1: string = 'Request /collections/logs/documents'
+  const msg1: string = 'Response Code was 200.'
   const msg2: string = 'Response Code was 201.'
-  const msg3 = 'Request /collections/logs/documents: Attempting POST request Try #1'
+  const msg3 = 'request Try #1 to Node'
   return (
     loggerModuleName.toLowerCase() === LOGGER_MODULE_NAMES.DATABASE &&
-    (logMessage === msg1 ||
-      logMessage.includes(msg3) ||
-      (logMessage.includes(msg1) && logMessage.includes(msg2)))
+    (logMessage.includes(msg2) || logMessage.includes(msg3) || logMessage.includes(msg1))
   )
 }
 
