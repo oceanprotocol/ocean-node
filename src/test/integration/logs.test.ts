@@ -4,6 +4,7 @@ import {
   CustomNodeLogger,
   LOGGER_MODULE_NAMES,
   LOG_LEVELS_STR,
+  USE_DB_TRANSPORT,
   configureCustomDBTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
@@ -28,7 +29,8 @@ describe('LogDatabase CRUD', () => {
     // Initialize logger with the custom transport that writes to the LogDatabase
     logger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP, LOG_LEVELS_STR.LEVEL_INFO)
     // normally this is only added on production environments
-    configureCustomDBTransport(database, logger)
+    logger = configureCustomDBTransport(database, logger)
+    console.log('Logger has DB transport?', logger.hasDBTransport())
   })
 
   it('insert log', async () => {
@@ -60,18 +62,20 @@ describe('LogDatabase CRUD', () => {
       message: `NEW Test log message ${Date.now()}`
     }
     // Trigger a log event which should be saved in the database
+    console.log('Will save log: ', newLogEntry)
+    console.log('has db transport?', logger.hasDBTransport())
     logger.log(newLogEntry.level, newLogEntry.message)
-    console.log('log: ', newLogEntry)
-
+    console.log('USE_DB_TRANSPORT? ', USE_DB_TRANSPORT)
+    console.log('And now has db transport?', logger.hasDBTransport())
     // Wait for the log to be written to the database
-    await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay to allow log to be processed
+    await new Promise((resolve) => setTimeout(resolve, 2000)) // Delay to allow log to be processed
 
     // Define the time frame for the log retrieval
     const startTime = new Date(Date.now() - 10000) // 10 seconds ago
     const endTime = new Date() // current time
 
     // Retrieve the latest log entry
-    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 100)
+    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 1)
     console.log('logs:', logs)
 
     expect(logs?.length).to.equal(1)
