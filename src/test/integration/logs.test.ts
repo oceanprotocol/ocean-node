@@ -99,7 +99,12 @@ describe('LogDatabase CRUD', () => {
     const endTime = new Date() // current time
 
     // Retrieve the latest log entry
-    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 1)
+    const logs = await database.logs.retrieveMultipleLogs(
+      startTime,
+      endTime,
+      1,
+      'testModule-3'
+    )
     console.log('logs:', logs)
 
     expect(logs?.length).to.equal(1)
@@ -128,7 +133,12 @@ describe('LogDatabase CRUD', () => {
     const endTime = new Date() // current time
 
     // Retrieve the latest log entry
-    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 1)
+    const logs = await database.logs.retrieveMultipleLogs(
+      startTime,
+      endTime,
+      1,
+      'testModule-4'
+    )
     console.log('logs:', logs)
 
     expect(logs?.length).to.equal(1)
