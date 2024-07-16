@@ -71,7 +71,7 @@ describe('LogDatabase CRUD', () => {
     const endTime = new Date() // current time
 
     // Retrieve the latest log entry
-    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 10)
+    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 100)
     console.log('logs:', logs)
 
     expect(logs?.length).to.equal(1)
