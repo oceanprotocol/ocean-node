@@ -300,7 +300,7 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
 describe('LogDatabase deleteOldLogs', () => {
   let database: Database
   const logEntry = {
-    timestamp: new Date().getTime() - 31 * 24 * 60 * 60 * 1000, // 31 days ago
+    timestamp: new Date().getTime() - 32 * 24 * 60 * 60 * 1000, // 32 days ago
     level: 'info',
     message: 'Old log message for deletion test',
     moduleName: 'testModule-1',
@@ -344,12 +344,17 @@ describe('LogDatabase deleteOldLogs', () => {
   })
 
   it('should delete logs older than 30 days', async () => {
-    await database.logs.deleteOldLogs()
+    await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay to allow logs to be processed
+
+    const deleted = await database.logs.deleteOldLogs()
+    assert(deleted > 0, 'could not delete old logs')
+    console.log('deleted logs: ', deleted)
 
     // Adjust the time window to ensure we don't catch the newly inserted log
     const startTime = new Date(logEntry.timestamp)
     const endTime = new Date()
-    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 200)
+    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 100)
+    console.log('logs present:  ', logs)
 
     // Check that the old log is not present, but the recent one is
     const oldLogPresent = logs?.some((log) => log.message === logEntry.message)
