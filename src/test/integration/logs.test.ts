@@ -61,6 +61,7 @@ describe('LogDatabase CRUD', () => {
     }
     // Trigger a log event which should be saved in the database
     logger.log(newLogEntry.level, newLogEntry.message)
+    console.log('log: ', newLogEntry)
 
     // Wait for the log to be written to the database
     await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay to allow log to be processed
@@ -71,6 +72,7 @@ describe('LogDatabase CRUD', () => {
 
     // Retrieve the latest log entry
     const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 1)
+    console.log('logs:', logs)
 
     expect(logs?.length).to.equal(1)
     expect(Number(logs?.[0].id)).to.greaterThan(Number(logId))
