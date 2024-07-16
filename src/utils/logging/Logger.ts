@@ -117,9 +117,10 @@ export class CustomOceanNodesTransport extends Transport {
     try {
       // Use the insertLog method of the LogDatabase instance
       if (this.dbInstance && this.dbInstance.logs) {
+        console.log('will insert LOG ON DB: ', document.message)
         // double check before writing
         await this.dbInstance.logs.insertLog(document)
-      }
+      } else console.log('will not insert LOG on DB: ', document.message)
     } catch (error) {
       // Handle the error according to your needs
       console.error('Error writing to Typesense:', error)
