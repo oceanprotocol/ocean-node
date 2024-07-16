@@ -89,7 +89,7 @@ describe('LogDatabase CRUD', () => {
       meta: 'Test meta information'
     }
     // Trigger a log event which should be saved in the database
-    logger.logMessage(newLogEntry.message)
+    logger.logMessage(newLogEntry.message, true)
 
     // Wait for the log to be written to the database
     await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay to allow log to be processed
@@ -123,7 +123,7 @@ describe('LogDatabase CRUD', () => {
       meta: 'Test meta information'
     }
     // Trigger a log event which should be saved in the database
-    logger.logMessageWithEmoji(newLogEntry.message)
+    logger.logMessageWithEmoji(newLogEntry.message, true)
 
     // Wait for the log to be written to the database
     await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay to allow log to be processed
