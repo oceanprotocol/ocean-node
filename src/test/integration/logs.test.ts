@@ -349,7 +349,7 @@ describe('LogDatabase deleteOldLogs', () => {
     // Adjust the time window to ensure we don't catch the newly inserted log
     const startTime = new Date(logEntry.timestamp)
     const endTime = new Date()
-    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 100)
+    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 200)
 
     // Check that the old log is not present, but the recent one is
     const oldLogPresent = logs?.some((log) => log.message === logEntry.message)
