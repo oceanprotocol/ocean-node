@@ -329,26 +329,7 @@ export class DownloadHandler extends Handler {
         }
       }
     }
-    // 5. check that the provider fee transaction is valid
-    const validFee = await verifyProviderFees(
-      task.transferTxId,
-      task.consumerAddress,
-      provider,
-      service,
-      null,
-      null
-    )
-    if (!validFee.isValid) {
-      return {
-        stream: null,
-        status: {
-          httpStatus: 500,
-          error: 'ERROR checking fees'
-        }
-      }
-    }
-
-    // 6. Call the validateOrderTransaction function to check order transaction
+    // 5. Call the validateOrderTransaction function to check order transaction
     const paymentValidation = await validateOrderTransaction(
       task.transferTxId,
       task.consumerAddress,
@@ -375,6 +356,26 @@ export class DownloadHandler extends Handler {
         status: {
           httpStatus: 500,
           error: paymentValidation.message
+        }
+      }
+    }
+
+    // 6. check that the provider fee transaction is valid
+    const validFee = await verifyProviderFees(
+      task.transferTxId,
+      task.consumerAddress,
+      provider,
+      service,
+      null,
+      null,
+      paymentValidation.isValid
+    )
+    if (!validFee.isValid) {
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error: 'ERROR checking fees'
         }
       }
     }
