@@ -144,9 +144,13 @@ function isTypesenseIgnoreLogMessage(loggerModuleName: string, logMessage: strin
   const msg1: string = 'Response Code was 200.'
   const msg2: string = 'Response Code was 201.'
   const msg3 = 'request Try #1 to Node'
+  const msg4 = 'Request /collections/'
   return (
     loggerModuleName.toLowerCase() === LOGGER_MODULE_NAMES.DATABASE &&
-    (logMessage.includes(msg2) || logMessage.includes(msg3) || logMessage.includes(msg1))
+    (logMessage.includes(msg2) ||
+      logMessage.includes(msg3) ||
+      logMessage.includes(msg1) ||
+      logMessage.includes(msg4))
   )
 }
 

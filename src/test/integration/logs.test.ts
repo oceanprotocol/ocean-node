@@ -4,7 +4,6 @@ import {
   CustomNodeLogger,
   LOGGER_MODULE_NAMES,
   LOG_LEVELS_STR,
-  USE_DB_TRANSPORT,
   configureCustomDBTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
@@ -62,13 +61,9 @@ describe('LogDatabase CRUD', () => {
       message: `NEW Test log message ${Date.now()}`
     }
     // Trigger a log event which should be saved in the database
-    console.log('Will save log: ', newLogEntry)
-    console.log('has db transport?', logger.hasDBTransport())
     logger.log(newLogEntry.level, newLogEntry.message)
-    console.log('USE_DB_TRANSPORT? ', USE_DB_TRANSPORT)
-    console.log('And now has db transport?', logger.hasDBTransport())
     // Wait for the log to be written to the database
-    await new Promise((resolve) => setTimeout(resolve, 2000)) // Delay to allow log to be processed
+    await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay to allow log to be processed
 
     // Define the time frame for the log retrieval
     const startTime = new Date(Date.now() - 10000) // 10 seconds ago
