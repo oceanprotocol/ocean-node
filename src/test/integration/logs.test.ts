@@ -89,7 +89,7 @@ describe('LogDatabase CRUD', () => {
       meta: 'Test meta information'
     }
     // Trigger a log event which should be saved in the database
-    logger.logMessage(newLogEntry.message, true)
+    logger.logMessage(newLogEntry.message)
 
     // Wait for the log to be written to the database
     await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay to allow log to be processed
@@ -108,7 +108,7 @@ describe('LogDatabase CRUD', () => {
     expect(Number(logs?.[0].id)).to.greaterThan(Number(logId))
     expect(logs?.[0].level).to.equal(newLogEntry.level)
     expect(logs?.[0].message).to.equal(newLogEntry.message)
-    expect(logs?.[0].moduleName).to.equal(newLogEntry.moduleName) // 'HTTP'
+    expect(logs?.[0].moduleName).to.equal('HTTP')
   })
 
   it('should save a log in the database when a log.logMessageWithEmoji is called', async () => {
@@ -120,7 +120,7 @@ describe('LogDatabase CRUD', () => {
       meta: 'Test meta information'
     }
     // Trigger a log event which should be saved in the database
-    logger.logMessageWithEmoji(newLogEntry.message, true)
+    logger.logMessageWithEmoji(newLogEntry.message)
 
     // Wait for the log to be written to the database
     await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay to allow log to be processed
@@ -139,7 +139,7 @@ describe('LogDatabase CRUD', () => {
     expect(Number(logs?.[0].id)).to.greaterThan(Number(logId))
     expect(logs?.[0].level).to.equal(newLogEntry.level)
     assert(logs?.[0].message)
-    expect(logs?.[0].moduleName).to.equal(newLogEntry.moduleName) // HTTP
+    expect(logs?.[0].moduleName).to.equal('HTTP')
   })
 })
 
