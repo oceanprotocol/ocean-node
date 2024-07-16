@@ -100,6 +100,7 @@ describe('LogDatabase CRUD', () => {
 
     // Retrieve the latest log entry
     const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 1)
+    console.log('logs:', logs)
 
     expect(logs?.length).to.equal(1)
     expect(Number(logs?.[0].id)).to.greaterThan(Number(logId))
@@ -128,6 +129,7 @@ describe('LogDatabase CRUD', () => {
 
     // Retrieve the latest log entry
     const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 1)
+    console.log('logs:', logs)
 
     expect(logs?.length).to.equal(1)
     expect(Number(logs?.[0].id)).to.greaterThan(Number(logId))
