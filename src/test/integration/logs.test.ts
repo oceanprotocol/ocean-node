@@ -7,13 +7,22 @@ import {
   configureCustomDBTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
+import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import {
+  buildEnvOverrideConfig,
+  OverrideEnvConfig,
+  setupEnvironment,
+  tearDownEnvironment
+} from '../utils/utils.js'
+
+let previousConfiguration: OverrideEnvConfig[]
 
 describe('LogDatabase CRUD', () => {
   let database: Database
   let logger: CustomNodeLogger
   const logEntry = {
     timestamp: Date.now(),
-    level: 'info',
+    level: 'debug',
     message: `Test log message ${Date.now()}`,
     moduleName: 'testModule-1',
     meta: 'Test meta information'
@@ -21,6 +30,10 @@ describe('LogDatabase CRUD', () => {
   let logId: string // Variable to store the ID of the created log entry
 
   before(async () => {
+    previousConfiguration = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], [true])
+    )
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -56,7 +69,7 @@ describe('LogDatabase CRUD', () => {
   it('should save a log in the database when a log event is triggered', async () => {
     const newLogEntry = {
       timestamp: Date.now(),
-      level: 'info',
+      level: 'debug',
       message: `NEW Test log message ${Date.now()}`
     }
     // Trigger a log event which should be saved in the database
@@ -82,7 +95,7 @@ describe('LogDatabase CRUD', () => {
   it('should save a log in the database when a log.logMessage is called', async () => {
     const newLogEntry = {
       timestamp: Date.now(),
-      level: 'info',
+      level: 'debug',
       message: `logMessage: Test log message ${Date.now()}`,
       moduleName: 'testModule-3',
       meta: 'Test meta information'
@@ -111,7 +124,7 @@ describe('LogDatabase CRUD', () => {
   it('should save a log in the database when a log.logMessageWithEmoji is called', async () => {
     const newLogEntry = {
       timestamp: Date.now(),
-      level: 'info',
+      level: 'debug',
       message: `logMessageWithEmoji: Test log message ${Date.now()}`,
       moduleName: 'testModule-4',
       meta: 'Test meta information'
@@ -136,6 +149,10 @@ describe('LogDatabase CRUD', () => {
     assert(logs?.[0].message)
     expect(logs?.[0].moduleName).to.equal('HTTP')
   })
+
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
+  })
 })
 
 describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
@@ -145,6 +162,11 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
   const endTime = new Date() // now
 
   before(async () => {
+    previousConfiguration = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], [true])
+    )
+
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -165,7 +187,7 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
   })
 
   it('should retrieve logs with a specific level', async () => {
-    const level = 'info'
+    const level = 'debug'
     const logs = await database.logs.retrieveMultipleLogs(
       startTime,
       endTime,
@@ -178,7 +200,7 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
 
   it('should retrieve logs with both a specific moduleName and level', async () => {
     const moduleName = 'testModule-1'
-    const level = 'info'
+    const level = 'debug'
     const logs = await database.logs.retrieveMultipleLogs(
       startTime,
       endTime,
@@ -205,7 +227,7 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
     let database: Database
     const logEntry = {
       timestamp: Date.now(),
-      level: 'info',
+      level: 'debug',
       message: 'Test log message for single deletion',
       moduleName: 'testModule-2',
       meta: 'Test meta information for single deletion'
@@ -290,26 +312,34 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
     const elapsedTimeInMs = endPerfTime[0] * 1000 + endPerfTime[1] / 1e6
     expect(elapsedTimeInMs).to.be.below(1000) // threshold
   })
+
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
+  })
 })
 
 describe('LogDatabase deleteOldLogs', () => {
   let database: Database
   const oldLogEntry = {
     timestamp: new Date().getTime() - 31 * 24 * 60 * 60 * 1000, // 31 days ago
-    level: 'info',
+    level: 'debug',
     message: 'Old log message for deletion test',
     moduleName: 'testModule-1',
     meta: 'Test meta information'
   }
   const recentLogEntry = {
     timestamp: new Date().getTime(), // current time
-    level: 'info',
+    level: 'debug',
     message: 'Recent log message not for deletion',
     moduleName: 'testModule-1',
     meta: 'Test meta information'
   }
 
   before(async () => {
+    previousConfiguration = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], [true])
+    )
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -358,12 +388,20 @@ describe('LogDatabase deleteOldLogs', () => {
     const recentLogPresent = logs?.some((log) => log.message === recentLogEntry.message)
     assert(recentLogPresent === true, 'Recent logs are not present')
   })
+
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
+  })
 })
 describe('LogDatabase retrieveMultipleLogs with pagination', () => {
   let database: Database
   const logCount = 10 // Total number of logs to insert and also the limit for logs per page
 
   before(async () => {
+    previousConfiguration = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], [true])
+    )
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -428,5 +466,9 @@ describe('LogDatabase retrieveMultipleLogs with pagination', () => {
       nonExistentPage
     )
     assert.isEmpty(logs, 'Expected logs to be empty')
+  })
+
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
   })
 })

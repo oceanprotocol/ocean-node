@@ -114,6 +114,10 @@ export class CustomOceanNodesTransport extends Transport {
       meta: JSON.stringify(info.meta) // Ensure meta is a string
     }
 
+    if (!isLogLevelLogable(document.level)) {
+      return
+    }
+
     try {
       // Use the insertLog method of the LogDatabase instance
       if (
@@ -193,6 +197,27 @@ export const getDefaultLevel = (): string => {
     CONFIG_LOG_LEVEL ||
     (isDevelopmentEnvironment() ? LOG_LEVELS_STR.LEVEL_DEBUG : LOG_LEVELS_STR.LEVEL_INFO)
   )
+}
+
+// only log if >= configured level
+function isLogLevelLogable(level: string): boolean {
+  const configured: string = getDefaultLevel()
+  let configuredLevelNum = -1
+  let currentLevelNum = -1
+  for (const [key, value] of Object.entries(LOG_LEVELS_NUM)) {
+    if ((key as string) === configured) {
+      configuredLevelNum = value
+    }
+    if ((key as string) === level) {
+      currentLevelNum = value
+    }
+
+    if (currentLevelNum > -1 && configuredLevelNum > -1) {
+      break
+    }
+  }
+
+  return currentLevelNum >= configuredLevelNum
 }
 
 if (isDevelopmentEnvironment()) {
@@ -474,6 +499,10 @@ export class CustomNodeLogger {
       !this.hasDBTransport()
     ) {
       this.addTransport(customDBTransport)
+    }
+
+    if (!isLogLevelLogable(level)) {
+      return
     }
 
     // ignore tons of typesense garbage
