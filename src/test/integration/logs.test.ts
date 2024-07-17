@@ -29,7 +29,6 @@ describe('LogDatabase CRUD', () => {
     logger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP, LOG_LEVELS_STR.LEVEL_INFO)
     // normally this is only added on production environments
     logger = configureCustomDBTransport(database, logger)
-    console.log('Logger has DB transport?', logger.hasDBTransport())
   })
 
   it('insert log', async () => {
@@ -66,12 +65,12 @@ describe('LogDatabase CRUD', () => {
     await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay to allow log to be processed
 
     // Define the time frame for the log retrieval
-    const startTime = new Date(Date.now() - 10000) // 10 seconds ago
+    const startTime = new Date(Date.now() - 5000) // 5 seconds ago
     const endTime = new Date() // current time
 
-    // Retrieve the latest log entry
-    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 1)
-    console.log('logs:', logs)
+    // Retrieve the latest log entries
+    let logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 10)
+    logs = logs.filter((log) => log.message === newLogEntry.message)
 
     expect(logs?.length).to.equal(1)
     expect(Number(logs?.[0].id)).to.greaterThan(Number(logId))
@@ -95,14 +94,12 @@ describe('LogDatabase CRUD', () => {
     await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay to allow log to be processed
 
     // Define the time frame for the log retrieval
-    const startTime = new Date(Date.now() - 10000) // 10 seconds ago
+    const startTime = new Date(Date.now() - 5000) // 5 seconds ago
     const endTime = new Date() // current time
 
     // Retrieve the latest log entry
     let logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 10)
-    console.log('logs:', logs)
     logs = logs.filter((log) => log.message === newLogEntry.message)
-    console.log('logs filtered:', logs)
 
     expect(logs?.length).to.equal(1)
     expect(Number(logs?.[0].id)).to.greaterThan(Number(logId))
@@ -126,14 +123,12 @@ describe('LogDatabase CRUD', () => {
     await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay to allow log to be processed
 
     // Define the time frame for the log retrieval
-    const startTime = new Date(Date.now() - 10000) // 10 seconds ago
+    const startTime = new Date(Date.now() - 5000) // 5 seconds ago
     const endTime = new Date() // current time
 
     // Retrieve the latest log entry
     let logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 10)
-    console.log('logs:', logs)
     logs = logs.filter((log) => log.message.includes(newLogEntry.message))
-    console.log('logs filtered:', logs)
 
     expect(logs?.length).to.equal(1)
     expect(Number(logs?.[0].id)).to.greaterThan(Number(logId))
@@ -299,8 +294,8 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
 
 describe('LogDatabase deleteOldLogs', () => {
   let database: Database
-  const logEntry = {
-    timestamp: new Date().getTime() - 32 * 24 * 60 * 60 * 1000, // 32 days ago
+  const oldLogEntry = {
+    timestamp: new Date().getTime() - 31 * 24 * 60 * 60 * 1000, // 31 days ago
     level: 'info',
     message: 'Old log message for deletion test',
     moduleName: 'testModule-1',
@@ -322,7 +317,7 @@ describe('LogDatabase deleteOldLogs', () => {
   })
 
   it('should insert an old log and a recent log', async () => {
-    const oldLogResult = await database.logs.insertLog(logEntry)
+    const oldLogResult = await database.logs.insertLog(oldLogEntry)
     expect(oldLogResult).to.include.keys(
       'id',
       'timestamp',
@@ -344,23 +339,23 @@ describe('LogDatabase deleteOldLogs', () => {
   })
 
   it('should delete logs older than 30 days', async () => {
-    await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay to allow logs to be processed
-
     const deleted = await database.logs.deleteOldLogs()
     assert(deleted > 0, 'could not delete old logs')
-    console.log('deleted logs: ', deleted)
 
     // Adjust the time window to ensure we don't catch the newly inserted log
-    const startTime = new Date(logEntry.timestamp)
-    const endTime = new Date()
-    const logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 100)
-    console.log('logs present:  ', logs)
+    let startTime = new Date(oldLogEntry.timestamp)
+    let endTime = new Date()
+    let logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 100)
 
     // Check that the old log is not present, but the recent one is
-    const oldLogPresent = logs?.some((log) => log.message === logEntry.message)
-    const recentLogPresent = logs?.some((log) => log.message === recentLogEntry.message)
-
+    const oldLogPresent = logs?.some((log) => log.message === oldLogEntry.message)
     assert(oldLogPresent === false, 'Old logs are still present')
+
+    // since we have many logs going to DB by default, we need to re-frame the timestamp to grab it
+    startTime = new Date(recentLogEntry.timestamp - 1000)
+    endTime = new Date(recentLogEntry.timestamp + 1000)
+    logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 100)
+    const recentLogPresent = logs?.some((log) => log.message === recentLogEntry.message)
     assert(recentLogPresent === true, 'Recent logs are not present')
   })
 })
