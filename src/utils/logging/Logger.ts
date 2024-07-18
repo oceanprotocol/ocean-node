@@ -114,16 +114,12 @@ export class CustomOceanNodesTransport extends Transport {
       meta: JSON.stringify(info.meta) // Ensure meta is a string
     }
 
-    if (!isLogLevelLogable(document.level)) {
-      return
-    }
-
     try {
       // Use the insertLog method of the LogDatabase instance
       if (
         this.dbInstance &&
-        this.dbInstance.logs &&
-        !isTypesenseIgnoreLogMessage(document.moduleName, document.message)
+        this.dbInstance.logs // &&
+        // !isTypesenseIgnoreLogMessage(document.moduleName, document.message)
       ) {
         // double check before writing
         await this.dbInstance.logs.insertLog(document)
@@ -144,19 +140,19 @@ export class CustomOceanNodesTransport extends Transport {
  * @param logMessage the actual message
  * @returns boolean
  */
-function isTypesenseIgnoreLogMessage(loggerModuleName: string, logMessage: string) {
-  const msg1: string = 'Response Code was 200.'
-  const msg2: string = 'Response Code was 201.'
-  const msg3 = 'request Try #1 to Node'
-  const msg4 = 'Request /collections/'
-  return (
-    loggerModuleName.toLowerCase() === LOGGER_MODULE_NAMES.DATABASE &&
-    (logMessage.includes(msg2) ||
-      logMessage.includes(msg3) ||
-      logMessage.includes(msg1) ||
-      logMessage.includes(msg4))
-  )
-}
+// function isTypesenseIgnoreLogMessage(loggerModuleName: string, logMessage: string) {
+//   const msg1: string = 'Response Code was 200.'
+//   const msg2: string = 'Response Code was 201.'
+//   const msg3 = 'request Try #1 to Node'
+//   const msg4 = 'Request /collections/'
+//   return (
+//     loggerModuleName.toLowerCase() === LOGGER_MODULE_NAMES.DATABASE &&
+//     (logMessage.includes(msg2) ||
+//       logMessage.includes(msg3) ||
+//       logMessage.includes(msg1) ||
+//       logMessage.includes(msg4))
+//   )
+// }
 
 let INSTANCE_COUNT = 0
 let customDBTransport: CustomOceanNodesTransport = null
@@ -165,14 +161,16 @@ export const MAX_LOGGER_INSTANCES = 10
 export const NUM_LOGGER_INSTANCES = INSTANCE_COUNT
 
 // log locations
-const USE_CONSOLE_TRANSPORT: boolean =
-  process.env.LOG_CONSOLE && process.env.LOG_CONSOLE !== 'false'
 const USE_FILE_TRANSPORT: boolean =
   process.env.LOG_FILES && process.env.LOG_FILES !== 'false'
-// default to true, if not explicitly set otherwise
-export const USE_DB_TRANSPORT: boolean = !(
-  process.env.LOG_DB && process.env.LOG_DB === 'false'
-)
+
+export const USE_DB_TRANSPORT: boolean =
+  process.env.LOG_DB && process.env.LOG_DB !== 'false'
+
+// default to true, if not explicitly set otherwise AND no other locations defined
+const USE_CONSOLE_TRANSPORT: boolean =
+  (process.env.LOG_CONSOLE && process.env.LOG_CONSOLE !== 'false') ||
+  (!USE_FILE_TRANSPORT && !USE_DB_TRANSPORT)
 
 // if not set, then gets default 'development' level & colors
 export function isDevelopmentEnvironment(): boolean {
@@ -197,27 +195,6 @@ export const getDefaultLevel = (): string => {
     CONFIG_LOG_LEVEL ||
     (isDevelopmentEnvironment() ? LOG_LEVELS_STR.LEVEL_DEBUG : LOG_LEVELS_STR.LEVEL_INFO)
   )
-}
-
-// only log if >= configured level
-function isLogLevelLogable(level: string): boolean {
-  const configured: string = getDefaultLevel()
-  let configuredLevelNum = -1
-  let currentLevelNum = -1
-  for (const [key, value] of Object.entries(LOG_LEVELS_NUM)) {
-    if ((key as string) === configured) {
-      configuredLevelNum = value
-    }
-    if ((key as string) === level) {
-      currentLevelNum = value
-    }
-
-    if (currentLevelNum > -1 && configuredLevelNum > -1) {
-      break
-    }
-  }
-
-  return currentLevelNum >= configuredLevelNum
 }
 
 if (isDevelopmentEnvironment()) {
@@ -501,18 +478,18 @@ export class CustomNodeLogger {
       this.addTransport(customDBTransport)
     }
 
-    if (!isLogLevelLogable(level)) {
-      return
-    }
+    // if (!isLogLevelLogable(level)) {
+    //   return
+    // }
 
     // ignore tons of typesense garbage
-    if (!isTypesenseIgnoreLogMessage(this.getModuleName(), message)) {
-      this.getLogger().log(
-        level,
-        includeModuleName ? this.buildMessage(message) : message,
-        { moduleName: this.getModuleName().toUpperCase() }
-      )
-    }
+    // if (!isTypesenseIgnoreLogMessage(this.getModuleName(), message)) {
+    this.getLogger().log(
+      level,
+      includeModuleName ? this.buildMessage(message) : message,
+      { moduleName: this.getModuleName().toUpperCase() }
+    )
+    // }
   }
 
   logMessage(message: string, includeModuleName: boolean = false) {
