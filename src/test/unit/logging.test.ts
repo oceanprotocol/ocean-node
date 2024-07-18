@@ -36,17 +36,17 @@ describe('Logger instances and transports tests', async () => {
     expect(numExistingInstances).to.be.lessThanOrEqual(MAX_LOGGER_INSTANCES)
   })
 
-  it(`should change NODE_ENV to "production" and logger should have DB transport`, async () => {
-    expect(process.env.NODE_ENV).to.be.equal('development')
+  it(`should change LOG_DB to "true" and logger should have DB transport`, async () => {
+    expect(process.env.LOG_DB).to.be.equal('false')
     expect(OCEAN_NODE_LOGGER.hasDBTransport()).to.be.equal(false)
     const envAfter = await setupEnvironment(
       null,
       buildEnvOverrideConfig(
-        [ENVIRONMENT_VARIABLES.NODE_ENV, ENVIRONMENT_VARIABLES.DB_URL],
-        ['production', 'http://172.15.0.6:8108?apiKey=xyz']
+        [ENVIRONMENT_VARIABLES.LOG_DB, ENVIRONMENT_VARIABLES.DB_URL],
+        ['true', 'http://172.15.0.6:8108?apiKey=xyz']
       )
     )
-    expect(process.env.NODE_ENV).to.be.equal('production')
+    expect(process.env.LOG_DB).to.be.equal('true')
     // will build the DB transport layer
     const config = await getConfiguration(true)
     // eslint-disable-next-line no-unused-vars
@@ -65,7 +65,7 @@ describe('Logger instances and transports tests', async () => {
     OCEAN_NODE_LOGGER.removeTransport(transports[0])
     expect(OCEAN_NODE_LOGGER.hasDBTransport()).to.be.equal(false)
     await tearDownEnvironment(envAfter)
-    expect(process.env.NODE_ENV).to.be.equal('development')
+    expect(process.env.LOG_DB).to.be.equal('false')
   })
 
   after(() => {
