@@ -50,7 +50,7 @@ import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
 import { multiaddr } from '@multiformats/multiaddr'
-import { getIPv4, getIPv6 } from '../../utils/ip.js'
+// import { getIPv4, getIPv6 } from '../../utils/ip.js'
 
 const DEFAULT_OPTIONS = {
   pollInterval: 1000
@@ -797,71 +797,71 @@ export class OceanP2P extends EventEmitter {
     clearInterval(this._upnp_interval)
     const node = <any>this._libp2p
     // try autodiscover by using ipify.org.  This is a very long shot, but it works if you have a proper port forward
-    let haveIPv4 = false
-    let haveIPv6 = false
-    const addrs = node.components.transportManager.getAddrs()
-    for (const addr of addrs) {
-      if (addr.toOptions().family === 4) haveIPv4 = true
-      if (addr.toOptions().family === 6) haveIPv6 = true
-    }
-    P2P_LOGGER.info(`Doing discovery on IPv4: ` + haveIPv4 + ' , IPv6:' + haveIPv6)
-    if (
-      node &&
-      this._config.p2pConfig &&
-      this._config.p2pConfig.enableIPV4 &&
-      this._config.p2pConfig.ipV4BindTcpPort > 0 &&
-      haveIPv4
-    ) {
-      const ipV4 = await getIPv4()
+    // let haveIPv4 = false
+    // let haveIPv6 = false
+    // const addrs = node.components.transportManager.getAddrs()
+    // for (const addr of addrs) {
+    //   if (addr.toOptions().family === 4) haveIPv4 = true
+    //   if (addr.toOptions().family === 6) haveIPv6 = true
+    // }
+    // P2P_LOGGER.info(`Doing discovery on IPv4: ` + haveIPv4 + ' , IPv6:' + haveIPv6)
+    // if (
+    //   node &&
+    //   this._config.p2pConfig &&
+    //   this._config.p2pConfig.enableIPV4 &&
+    //   this._config.p2pConfig.ipV4BindTcpPort > 0 &&
+    //   haveIPv4
+    // ) {
+    //   const ipV4 = await getIPv4()
 
-      if (ipV4) {
-        P2P_LOGGER.info(`Looks like our external IPV4 address is ` + ipV4)
-        const addressToAdd = multiaddr(
-          '/ip4/' + ipV4 + '/tcp/' + String(this._config.p2pConfig.ipV4BindTcpPort)
-        )
-        const alreadyObserving = await node.components.addressManager.getObservedAddrs()
-        if (!alreadyObserving.includes(addressToAdd)) {
-          P2P_LOGGER.info('Adding ' + addressToAdd.toString() + ' to observed addresses')
+    //   if (ipV4) {
+    //     P2P_LOGGER.info(`Looks like our external IPV4 address is ` + ipV4)
+    //     const addressToAdd = multiaddr(
+    //       '/ip4/' + ipV4 + '/tcp/' + String(this._config.p2pConfig.ipV4BindTcpPort)
+    //     )
+    //     const alreadyObserving = await node.components.addressManager.getObservedAddrs()
+    //     if (!alreadyObserving.includes(addressToAdd)) {
+    //       P2P_LOGGER.info('Adding ' + addressToAdd.toString() + ' to observed addresses')
 
-          try {
-            await node.components.addressManager.addObservedAddr(addressToAdd)
-          } catch (e) {
-            P2P_LOGGER.info('Failed to add')
-          }
-        }
-      } else {
-        P2P_LOGGER.info(`Cannot detect our public IPv4`)
-      }
-    }
+    //       try {
+    //         await node.components.addressManager.addObservedAddr(addressToAdd)
+    //       } catch (e) {
+    //         P2P_LOGGER.info('Failed to add')
+    //       }
+    //     }
+    //   } else {
+    //     P2P_LOGGER.info(`Cannot detect our public IPv4`)
+    //   }
+    // }
 
-    if (
-      node &&
-      this._config.p2pConfig &&
-      this._config.p2pConfig.enableIPV6 &&
-      this._config.p2pConfig.ipV6BindTcpPort > 0 &&
-      haveIPv6
-    ) {
-      const ipV6 = await getIPv6()
+    // if (
+    //   node &&
+    //   this._config.p2pConfig &&
+    //   this._config.p2pConfig.enableIPV6 &&
+    //   this._config.p2pConfig.ipV6BindTcpPort > 0 &&
+    //   haveIPv6
+    // ) {
+    //   const ipV6 = await getIPv6()
 
-      if (ipV6) {
-        P2P_LOGGER.info(`Looks like our external IPV6 address is ` + ipV6)
-        const addressToAdd = multiaddr(
-          '/ip6/' + ipV6 + '/tcp/' + String(this._config.p2pConfig.ipV6BindTcpPort)
-        )
-        const alreadyObserving = await node.components.addressManager.getObservedAddrs()
-        if (!alreadyObserving.includes(addressToAdd)) {
-          P2P_LOGGER.info('Adding ' + addressToAdd.toString() + ' to observed addresses')
+    //   if (ipV6) {
+    //     P2P_LOGGER.info(`Looks like our external IPV6 address is ` + ipV6)
+    //     const addressToAdd = multiaddr(
+    //       '/ip6/' + ipV6 + '/tcp/' + String(this._config.p2pConfig.ipV6BindTcpPort)
+    //     )
+    //     const alreadyObserving = await node.components.addressManager.getObservedAddrs()
+    //     if (!alreadyObserving.includes(addressToAdd)) {
+    //       P2P_LOGGER.info('Adding ' + addressToAdd.toString() + ' to observed addresses')
 
-          try {
-            await node.components.addressManager.addObservedAddr(addressToAdd)
-          } catch (e) {
-            P2P_LOGGER.info('Failed to add')
-          }
-        }
-      } else {
-        P2P_LOGGER.info(`Cannot detect our public IPv6`)
-      }
-    }
+    //       try {
+    //         await node.components.addressManager.addObservedAddr(addressToAdd)
+    //       } catch (e) {
+    //         P2P_LOGGER.info('Failed to add')
+    //       }
+    //     }
+    //   } else {
+    //     P2P_LOGGER.info(`Cannot detect our public IPv6`)
+    //   }
+    // }
 
     if (node) {
       const connManager = node.components.connectionManager
