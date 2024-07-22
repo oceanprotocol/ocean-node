@@ -39,7 +39,10 @@ describe('LogDatabase CRUD', () => {
     }
     database = await new Database(dbConfig)
     // Initialize logger with the custom transport that writes to the LogDatabase
-    logger = getCustomLoggerForModule(LOGGER_MODULE_NAMES.HTTP, LOG_LEVELS_STR.LEVEL_INFO)
+    logger = getCustomLoggerForModule(
+      LOGGER_MODULE_NAMES.HTTP,
+      LOG_LEVELS_STR.LEVEL_DEBUG
+    )
     // normally this is only added on production environments
     logger = configureCustomDBTransport(database, logger)
   })
