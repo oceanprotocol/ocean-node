@@ -24,7 +24,10 @@ describe('Logger instances and transports tests', async () => {
   // need to do it first
   envOverrides = await setupEnvironment(
     null,
-    buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.NODE_ENV], ['development'])
+    buildEnvOverrideConfig(
+      [ENVIRONMENT_VARIABLES.NODE_ENV, ENVIRONMENT_VARIABLES.LOG_DB],
+      ['development', 'false']
+    )
   )
   // because of this
   it('should be development environment', () => {
@@ -43,14 +46,14 @@ describe('Logger instances and transports tests', async () => {
       null,
       buildEnvOverrideConfig(
         [ENVIRONMENT_VARIABLES.LOG_DB, ENVIRONMENT_VARIABLES.DB_URL],
-        ['true', 'http://172.15.0.6:8108?apiKey=xyz']
+        ['true', 'http://localhost:8108?apiKey=xyz']
       )
     )
     expect(process.env.LOG_DB).to.be.equal('true')
     // will build the DB transport layer
     const config = await getConfiguration(true)
     // eslint-disable-next-line no-unused-vars
-    const DB = new Database(config.dbConfig)
+    const DB = await new Database(config.dbConfig)
     // Could generate Typesene error if DB is not running, but does not matter for this test
     OCEAN_NODE_LOGGER.logMessage('Should build DB transport layer')
 

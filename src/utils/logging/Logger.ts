@@ -3,6 +3,7 @@ import Transport from 'winston-transport'
 import DailyRotateFile from 'winston-daily-rotate-file'
 import fs from 'fs'
 import { Database } from '../../components/database/index.js'
+import { ENVIRONMENT_VARIABLES } from '../constants.js'
 
 // all the types of modules/components
 export const LOGGER_MODULE_NAMES = {
@@ -134,26 +135,6 @@ export class CustomOceanNodesTransport extends Transport {
   }
 }
 
-/**
- * Avoid these annoyng typesense log message (too much garbage and no utility)
- * @param loggerModuleName module name
- * @param logMessage the actual message
- * @returns boolean
- */
-// function isTypesenseIgnoreLogMessage(loggerModuleName: string, logMessage: string) {
-//   const msg1: string = 'Response Code was 200.'
-//   const msg2: string = 'Response Code was 201.'
-//   const msg3 = 'request Try #1 to Node'
-//   const msg4 = 'Request /collections/'
-//   return (
-//     loggerModuleName.toLowerCase() === LOGGER_MODULE_NAMES.DATABASE &&
-//     (logMessage.includes(msg2) ||
-//       logMessage.includes(msg3) ||
-//       logMessage.includes(msg1) ||
-//       logMessage.includes(msg4))
-//   )
-// }
-
 let INSTANCE_COUNT = 0
 let customDBTransport: CustomOceanNodesTransport = null
 
@@ -164,8 +145,7 @@ export const NUM_LOGGER_INSTANCES = INSTANCE_COUNT
 const USE_FILE_TRANSPORT: boolean =
   process.env.LOG_FILES && process.env.LOG_FILES !== 'false'
 
-export const USE_DB_TRANSPORT: boolean =
-  process.env.LOG_DB && process.env.LOG_DB !== 'false'
+const USE_DB_TRANSPORT: boolean = process.env.LOG_DB && process.env.LOG_DB !== 'false'
 
 // default to true, if not explicitly set otherwise AND no other locations defined
 const USE_CONSOLE_TRANSPORT: boolean =
@@ -471,19 +451,13 @@ export class CustomNodeLogger {
   ) {
     // lazy check db custom transport, needed beacause of dependency cycles
     if (
-      customDBTransport !== null && // if null then what?
-      USE_DB_TRANSPORT &&
+      customDBTransport !== null &&
+      (USE_DB_TRANSPORT || ENVIRONMENT_VARIABLES.LOG_DB.value === 'true') &&
       !this.hasDBTransport()
     ) {
       this.addTransport(customDBTransport)
     }
 
-    // if (!isLogLevelLogable(level)) {
-    //   return
-    // }
-
-    // ignore tons of typesense garbage
-    // if (!isTypesenseIgnoreLogMessage(this.getModuleName(), message)) {
     this.getLogger().log(
       level,
       includeModuleName ? this.buildMessage(message) : message,
