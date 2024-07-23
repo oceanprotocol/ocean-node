@@ -32,7 +32,7 @@ describe('LogDatabase CRUD', () => {
   before(async () => {
     previousConfiguration = await setupEnvironment(
       null,
-      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], [true])
+      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
     )
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
@@ -167,7 +167,7 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
   before(async () => {
     previousConfiguration = await setupEnvironment(
       null,
-      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], [true])
+      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
     )
 
     const dbConfig = {
@@ -341,7 +341,7 @@ describe('LogDatabase deleteOldLogs', () => {
   before(async () => {
     previousConfiguration = await setupEnvironment(
       null,
-      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], [true])
+      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
     )
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
@@ -403,7 +403,7 @@ describe('LogDatabase retrieveMultipleLogs with pagination', () => {
   before(async () => {
     previousConfiguration = await setupEnvironment(
       null,
-      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], [true])
+      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
     )
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
