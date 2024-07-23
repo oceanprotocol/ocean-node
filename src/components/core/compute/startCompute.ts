@@ -68,7 +68,7 @@ export class ComputeStartHandler extends Handler {
       const node = this.getOceanNode()
       const assets: ComputeAsset[] = [task.dataset]
       if (task.additionalDatasets) assets.push(...task.additionalDatasets)
-      const algorithm = structuredClone(task.algorithm)
+      const { algorithm } = task
       let foundValidCompute = null
 
       const algoChecksums = await getAlgoChecksums(
@@ -234,7 +234,7 @@ export class ComputeStartHandler extends Handler {
               validUntil: validFee.validUntil
             }
           }
-          if (ddo.metadata.type === 'algorithm' && !('meta' in algorithm)) {
+          if (!('meta' in algorithm) && ddo.metadata.type === 'algorithm') {
             algorithm.meta = {
               language: ddo.metadata.algorithm.language,
               version: ddo.metadata.algorithm.version,
@@ -267,7 +267,7 @@ export class ComputeStartHandler extends Handler {
 
       const response = await engine.startComputeJob(
         assets,
-        task.algorithm,
+        algorithm,
         task.output,
         task.consumerAddress,
         envId,
