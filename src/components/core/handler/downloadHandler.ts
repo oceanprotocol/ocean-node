@@ -262,7 +262,7 @@ export class DownloadHandler extends Handler {
       task.consumerAddress,
       parseInt(task.nonce),
       task.signature,
-      ddo.id
+      String(ddo.id + task.nonce) // ddo.id
     )
 
     if (!nonceCheckResult.valid) {
