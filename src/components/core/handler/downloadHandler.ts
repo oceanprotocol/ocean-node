@@ -1,6 +1,10 @@
 import { Handler } from './handler.js'
 import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
-import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
+import {
+  ENVIRONMENT_VARIABLES,
+  MetadataStates,
+  PROTOCOL_COMMANDS
+} from '../../../utils/constants.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { verifyProviderFees } from '../utils/feesHandler.js'
 import { decrypt } from '../../../utils/crypt.js'
@@ -30,6 +34,11 @@ import {
 import { DDO } from '../../../@types/DDO/DDO.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
+
+export function isOrderingAllowedForAsset(asset: DDO): boolean {
+  if (!(asset.nft.state in [MetadataStates.ACTIVE, MetadataStates.UNLISTED])) return false
+  return true
+}
 
 export async function handleDownloadUrlCommand(
   node: OceanNode,
@@ -208,16 +217,13 @@ export class DownloadHandler extends Handler {
       }
     }
 
-    if (ddo && ddo.nft.state !== 0) {
-      CORE_LOGGER.logMessage(
-        'Error: Asset cannot be downloaded, state different than ACTIVE',
-        true
-      )
+    if (ddo && ddo.nft.state && isOrderingAllowedForAsset(ddo)) {
+      CORE_LOGGER.logMessage('Error: DDO NOT ALLOWED TO ORDER', true)
       return {
         stream: null,
         status: {
           httpStatus: 500,
-          error: 'Error: DDO not active'
+          error: 'Error: DDO NOT ALLOWED TO ORDER'
         }
       }
     }

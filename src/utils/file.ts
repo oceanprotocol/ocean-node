@@ -12,6 +12,7 @@ import { AssetUtils } from './asset.js'
 import { decrypt } from './crypt.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { sanitizeServiceFiles } from './util.js'
+import { isOrderingAllowedForAsset } from '../components/core/handler/downloadHandler.js'
 
 export async function getFile(
   didOrDdo: string | DDO,
@@ -25,8 +26,8 @@ export async function getFile(
         ? await new FindDdoHandler(node).findAndFormatDdo(didOrDdo)
         : didOrDdo
 
-    if (ddo && ddo.nft.state !== 0) {
-      const msg = 'Error: Asset cannot be downloaded, state different than ACTIVE'
+    if (ddo && ddo.nft.state && isOrderingAllowedForAsset(ddo)) {
+      const msg = 'Error: Asset cannot be downloaded'
       CORE_LOGGER.logMessage(msg, true)
       throw new Error(msg)
     }

@@ -15,6 +15,7 @@ import { isAddress } from 'ethers'
 import { ProviderInitialize } from '../../../@types/Fees.js'
 import { getNonce } from '../utils/nonceHandler.js'
 import { streamToString } from '../../../utils/util.js'
+import { isOrderingAllowedForAsset } from './downloadHandler.js'
 
 export class FeesHandler extends Handler {
   validate(command: GetFeesCommand): ValidateParams {
@@ -46,8 +47,15 @@ export class FeesHandler extends Handler {
       errorMsg = 'Cannot resolve DID'
     }
 
-    if (ddo && ddo.nft.state !== 0) {
-      errorMsg = 'Error: DDO NOT ACTIVE'
+    if (ddo && ddo.nft.state && isOrderingAllowedForAsset(ddo)) {
+      PROVIDER_LOGGER.logMessage('Error: DDO NOT ALLOWED TO ORDER', true)
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error: 'Error: DDO NOT ALLOWED TO ORDER'
+        }
+      }
     }
 
     const service = ddo.services.find((what: any) => what.id === task.serviceId)

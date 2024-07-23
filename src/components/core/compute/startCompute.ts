@@ -22,6 +22,7 @@ import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { getAlgoChecksums, validateAlgoForDataset } from '../../c2d/index.js'
+import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 export class ComputeStartHandler extends Handler {
   validate(command: ComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
@@ -102,13 +103,13 @@ export class ComputeStartHandler extends Handler {
               }
             }
           }
-          if (ddo && ddo.nft.state !== 0) {
-            CORE_LOGGER.logMessage('Error: DDO NOT ACTIVE', true)
+          if (ddo && ddo.nft.state && isOrderingAllowedForAsset(ddo)) {
+            CORE_LOGGER.logMessage('Error: DDO NOT ALLOWED TO ORDER', true)
             return {
               stream: null,
               status: {
                 httpStatus: 500,
-                error: 'Error: DDO not active'
+                error: 'Error: DDO NOT ALLOWED TO ORDER'
               }
             }
           }

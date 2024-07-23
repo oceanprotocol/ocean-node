@@ -8,6 +8,7 @@ import { QueryDdoStateHandler, QueryHandler } from '../core/handler/queryHandler
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { QueryCommand } from '../../@types/commands.js'
+import { isOrderingAllowedForAsset } from '../core/handler/downloadHandler.js'
 
 export const aquariusRoutes = express.Router()
 
@@ -146,9 +147,9 @@ aquariusRoutes.post(`${AQUARIUS_API_BASE_PATH}/assets/ddo/validate`, async (req,
     }
 
     const node = req.oceanNode
-    if (ddo && ddo.nft.state !== 0) {
-      HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: DDO not active`)
-      res.status(404).send('Error: DDO not active')
+    if (ddo && ddo.nft.state && isOrderingAllowedForAsset(ddo)) {
+      HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: DDO NOT ALLOWED TO ORDER`)
+      res.status(404).send('Error: DDO NOT ALLOWED TO ORDER')
     }
     const result = await new ValidateDDOHandler(node).handle({
       ddo,
