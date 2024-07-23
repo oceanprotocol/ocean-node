@@ -218,12 +218,10 @@ export class C2DEngineOPFK8 extends C2DEngine {
     let getOuput = {}
     if (output) {
       getOuput = output
-    } else if (config.hasHttp && !output) {
+    } else if (config.hasHttp) {
       getOuput = {
         metadataUri: `http://${await publicIp()}:${config.httpPort}`
       }
-    } else {
-      getOuput = {}
     }
     // continue with algorithm
     const stageAlgorithm: OPFK8ComputeStageAlgorithm = {}
