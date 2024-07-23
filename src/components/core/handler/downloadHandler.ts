@@ -29,7 +29,6 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { DDO } from '../../../@types/DDO/DDO.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
-import { Readable } from 'stream'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export async function handleDownloadUrlCommand(
@@ -77,17 +76,22 @@ export async function handleDownloadUrlCommand(
         }
       }
     }
+    const fileMetadata = await storage.fetchSpecificFileMetadata(task.fileObject, true)
     const inputStream = await storage.getReadableStream()
     const headers: any = {}
     for (const [key, value] of Object.entries(inputStream.headers)) {
       headers[key] = value
     }
+    // ensure that the right content length is set in the headers
+    headers['Content-Length'.toLowerCase()] = fileMetadata.contentLength
     // need to check if content length is already in headers, but we don't know the case
     const objTemp = JSON.parse(JSON.stringify(headers)?.toLowerCase())
     if (!('Content-Length'?.toLowerCase() in objTemp))
       headers['Transfer-Encoding'] = 'chunked'
     if (!('Content-Disposition'?.toLowerCase() in objTemp))
-      headers['Content-Disposition'] = 'attachment;filename=unknownfile' // TO DO: use did+serviceId+fileIndex
+      headers[
+        'Content-Disposition'.toLowerCase()
+      ] = `attachment;filename=${fileMetadata.name}`
     if (encryptFile) {
       // we parse the string into the object again
       const encryptedObject = ethCrypto.cipher.parse(task.aes_encrypted_key)
@@ -130,33 +134,13 @@ export async function handleDownloadUrlCommand(
       }
     } else {
       // Download request is not using encryption!
-      const chunks: any = []
-      return new Promise((resolve, reject) => {
-        inputStream.stream.on('data', (chunk: any) => {
-          chunks.push(chunk)
-        })
-
-        inputStream.stream.on('end', () => {
-          const completeBuffer = Buffer.concat(chunks)
-
-          // Create a readable stream from the buffer
-          const completeStream = new Readable()
-          completeStream.push(completeBuffer)
-          completeStream.push(null)
-          headers['content-length'] = completeBuffer.length
-          resolve({
-            stream: completeStream,
-            status: {
-              httpStatus: inputStream.httpStatus,
-              headers
-            }
-          })
-        })
-
-        inputStream.stream.on('error', (err) => {
-          reject(err)
-        })
-      })
+      return {
+        stream: inputStream.stream,
+        status: {
+          httpStatus: inputStream.httpStatus,
+          headers
+        }
+      }
     }
   } catch (err) {
     CORE_LOGGER.logMessageWithEmoji(
