@@ -82,12 +82,13 @@ export async function handleDownloadUrlCommand(
     for (const [key, value] of Object.entries(inputStream.headers)) {
       headers[key] = value
     }
-    // ensure that the right content length is set in the headers
-    headers['Content-Length'.toLowerCase()] = fileMetadata.contentLength
     // need to check if content length is already in headers, but we don't know the case
     const objTemp = JSON.parse(JSON.stringify(headers)?.toLowerCase())
     if (!('Content-Length'?.toLowerCase() in objTemp))
       headers['Transfer-Encoding'] = 'chunked'
+    // ensure that the right content length is set in the headers
+    headers['Content-Length'.toLowerCase()] = fileMetadata.contentLength
+
     if (!('Content-Disposition'?.toLowerCase() in objTemp))
       headers[
         'Content-Disposition'.toLowerCase()
