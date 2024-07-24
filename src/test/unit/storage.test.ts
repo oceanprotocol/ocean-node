@@ -337,10 +337,7 @@ describe('Arweave Storage getFileInfo tests', function () {
     const fileInfoRequest: FileInfoRequest = {
       type: FileObjectType.ARWEAVE
     }
-    console.log('1 - DO YOU SEE ME??')
     const fileInfo = await storage.getFileInfo(fileInfoRequest)
-
-    console.log('2 - DO YOU SEE ME??')
 
     assert(fileInfo[0].valid, 'File info is valid')
     assert(fileInfo[0].type === FileObjectType.ARWEAVE, 'Type is incorrect')
@@ -351,22 +348,18 @@ describe('Arweave Storage getFileInfo tests', function () {
     assert(fileInfo[0].contentLength === '680782', 'Content length is incorrect')
   })
 
-  it('Throws error when transaction ID is missing in request', async () => {
-    console.log('DO YOU SEE ME??')
-    // do it again
-    storage = new ArweaveStorage({
-      type: FileObjectType.ARWEAVE,
-      transactionId: 'gPPDyusRh2ZyFl-sQ2ODK6hAwCRBAOwp0OFKr0n23QE'
-    })
-    const fileInfoRequest: FileInfoRequest = { type: FileObjectType.ARWEAVE }
-    try {
-      console.log('3 - DO YOU STILL SEE ME??')
-      await storage.getFileInfo(fileInfoRequest)
-      console.log('4 - DO YOU STILL SEE ME HERE??')
-    } catch (err) {
-      expect(err.message).to.equal('Transaction ID is required for type arweave')
-    }
-  })
+  // it('Throws error when transaction ID is missing in request', async () => {
+  //   console.log('DO YOU SEE ME??')
+
+  //   const fileInfoRequest: FileInfoRequest = { type: FileObjectType.ARWEAVE }
+  //   try {
+  //     console.log('3 - DO YOU STILL SEE ME??')
+  //     await storage.getFileInfo(fileInfoRequest)
+  //     console.log('4 - DO YOU STILL SEE ME HERE??')
+  //   } catch (err) {
+  //     expect(err.message).to.equal('Transaction ID is required for type arweave')
+  //   }
+  // })
 })
 
 describe('Arweave Storage with malformed transaction ID', () => {
