@@ -347,9 +347,12 @@ describe('Arweave Storage getFileInfo tests', function () {
   })
 
   it('Throws error when transaction ID is missing in request', async () => {
+    console.log('DO YOU SEE ME??')
     const fileInfoRequest: FileInfoRequest = { type: FileObjectType.ARWEAVE }
     try {
+      console.log('DO YOU STILL SEE ME??')
       await storage.getFileInfo(fileInfoRequest)
+      console.log('DO YOU STILL SEE ME HERE??')
     } catch (err) {
       expect(err.message).to.equal('Transaction ID is required for type arweave')
     }
