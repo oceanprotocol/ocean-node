@@ -43,10 +43,12 @@ export async function fetchFileMetadata(
     const response = await axios({
       url,
       method: method || 'get',
-      responseType: 'stream'
+      responseType: 'stream',
+      timeout: 10000 // 10 seconds timeout
     })
     contentType = response.headers['content-type']
     let totalSize = 0
+    console.log('reading content')
     for await (const chunk of response.data) {
       totalSize += chunk.length
       contentChecksum.update(chunk)
@@ -56,8 +58,11 @@ export async function fetchFileMetadata(
       }
     }
     contentLength = totalSize
-  } catch (error) {}
+  } catch (error) {
+    console.log('Got error: ', error)
+  }
 
+  console.log('im out')
   return {
     contentLength: contentLength.toString(),
     contentType,

@@ -299,6 +299,7 @@ export class ArweaveStorage extends Storage {
     forceChecksum: boolean
   ): Promise<FileInfoResponse> {
     const url = urlJoin(process.env.ARWEAVE_GATEWAY, fileObject.transactionId)
+    console.log('URL:', url)
     const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
       url,
       'get',

@@ -321,7 +321,7 @@ describe('URL Storage with malformed URL', () => {
 })
 
 describe('Arweave Storage getFileInfo tests', function () {
-  this.timeout(15000)
+  // this.timeout(15000)
   let storage: ArweaveStorage
 
   console.log('STORAGE TESTING....')
@@ -348,18 +348,18 @@ describe('Arweave Storage getFileInfo tests', function () {
     assert(fileInfo[0].contentLength === '680782', 'Content length is incorrect')
   })
 
-  // it('Throws error when transaction ID is missing in request', async () => {
-  //   console.log('DO YOU SEE ME??')
+  it('Throws error when transaction ID is missing in request', async () => {
+    console.log('DO YOU SEE ME??')
 
-  //   const fileInfoRequest: FileInfoRequest = { type: FileObjectType.ARWEAVE }
-  //   try {
-  //     console.log('3 - DO YOU STILL SEE ME??')
-  //     await storage.getFileInfo(fileInfoRequest)
-  //     console.log('4 - DO YOU STILL SEE ME HERE??')
-  //   } catch (err) {
-  //     expect(err.message).to.equal('Transaction ID is required for type arweave')
-  //   }
-  // })
+    const fileInfoRequest: FileInfoRequest = { type: FileObjectType.ARWEAVE }
+    try {
+      console.log('3 - DO YOU STILL SEE ME??')
+      await storage.getFileInfo(fileInfoRequest)
+      console.log('4 - DO YOU STILL SEE ME HERE??')
+    } catch (err) {
+      expect(err.message).to.equal('Transaction ID is required for type arweave')
+    }
+  })
 })
 
 describe('Arweave Storage with malformed transaction ID', () => {
