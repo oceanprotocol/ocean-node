@@ -80,12 +80,16 @@ export abstract class Storage {
     const response: FileInfoResponse[] = []
 
     try {
+      console.log('before getFile()')
       const file = this.getFile()
 
+      console.log('after getFile()')
       if (!file) {
         throw new Error('Empty file object')
       } else {
+        console.log('before get metadata....')
         const fileInfo = await this.fetchSpecificFileMetadata(file, forceChecksum)
+        console.log('after get metadata....')
         response.push(fileInfo)
       }
     } catch (error) {
