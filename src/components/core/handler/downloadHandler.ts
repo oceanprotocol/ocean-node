@@ -85,6 +85,7 @@ export async function handleDownloadUrlCommand(
         }
       }
     }
+    const fileMetadata = await storage.fetchSpecificFileMetadata(task.fileObject, true)
     const inputStream = await storage.getReadableStream()
     const headers: any = {}
     for (const [key, value] of Object.entries(inputStream.headers)) {
@@ -94,8 +95,13 @@ export async function handleDownloadUrlCommand(
     const objTemp = JSON.parse(JSON.stringify(headers)?.toLowerCase())
     if (!('Content-Length'?.toLowerCase() in objTemp))
       headers['Transfer-Encoding'] = 'chunked'
+    // ensure that the right content length is set in the headers
+    headers['Content-Length'.toLowerCase()] = fileMetadata.contentLength
+
     if (!('Content-Disposition'?.toLowerCase() in objTemp))
-      headers['Content-Disposition'] = 'attachment;filename=unknownfile' // TO DO: use did+serviceId+fileIndex
+      headers[
+        'Content-Disposition'.toLowerCase()
+      ] = `attachment;filename=${fileMetadata.name}`
     if (encryptFile) {
       // we parse the string into the object again
       const encryptedObject = ethCrypto.cipher.parse(task.aes_encrypted_key)
