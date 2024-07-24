@@ -14,6 +14,7 @@ import urlJoin from 'url-join'
 import { encrypt as encryptData, decrypt as decryptData } from '../../utils/crypt.js'
 import { Readable } from 'stream'
 import { getConfiguration } from '../../utils/index.js'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 export abstract class Storage {
   private file: UrlFileObject | IpfsFileObject | ArweaveFileObject
@@ -80,20 +81,16 @@ export abstract class Storage {
     const response: FileInfoResponse[] = []
 
     try {
-      console.log('before getFile()')
       const file = this.getFile()
 
-      console.log('after getFile()')
       if (!file) {
         throw new Error('Empty file object')
       } else {
-        console.log('before get metadata....')
         const fileInfo = await this.fetchSpecificFileMetadata(file, forceChecksum)
-        console.log('after get metadata....')
         response.push(fileInfo)
       }
     } catch (error) {
-      console.log(error)
+      CORE_LOGGER.error(error)
     }
     return response
   }
@@ -299,7 +296,6 @@ export class ArweaveStorage extends Storage {
     forceChecksum: boolean
   ): Promise<FileInfoResponse> {
     const url = urlJoin(process.env.ARWEAVE_GATEWAY, fileObject.transactionId)
-    console.log('URL:', url)
     const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
       url,
       'get',

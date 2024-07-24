@@ -21,8 +21,7 @@ export class OrderDatabase {
     return (async (): Promise<OrderDatabase> => {
       this.provider = new Typesense({
         ...convertTypesenseConfig(this.config.url),
-        logger: DATABASE_LOGGER,
-        logLevel: LOG_LEVELS_STR.LEVEL_ERROR
+        logger: DATABASE_LOGGER
       })
       try {
         await this.provider.collections(this.schema.name).retrieve()
@@ -191,8 +190,7 @@ export class DdoStateDatabase {
     return (async (): Promise<DdoStateDatabase> => {
       this.provider = new Typesense({
         ...convertTypesenseConfig(this.config.url),
-        logger: DATABASE_LOGGER,
-        logLevel: LOG_LEVELS_STR.LEVEL_ERROR
+        logger: DATABASE_LOGGER
       })
       try {
         await this.provider.collections(this.schema.name).retrieve()
@@ -328,8 +326,7 @@ export class DdoDatabase {
     return (async (): Promise<DdoDatabase> => {
       this.provider = new Typesense({
         ...convertTypesenseConfig(this.config.url),
-        logger: DATABASE_LOGGER,
-        logLevel: LOG_LEVELS_STR.LEVEL_ERROR
+        logger: DATABASE_LOGGER
       })
       for (const ddoSchema of this.schemas) {
         try {
@@ -619,8 +616,7 @@ export class NonceDatabase {
     return (async (): Promise<NonceDatabase> => {
       this.provider = new Typesense({
         ...convertTypesenseConfig(this.config.url),
-        logger: DATABASE_LOGGER,
-        logLevel: LOG_LEVELS_STR.LEVEL_ERROR
+        logger: DATABASE_LOGGER
       })
       try {
         await this.provider.collections(this.schema.name).retrieve()
@@ -725,8 +721,7 @@ export class IndexerDatabase {
     return (async (): Promise<IndexerDatabase> => {
       this.provider = new Typesense({
         ...convertTypesenseConfig(this.config.url),
-        logger: DATABASE_LOGGER,
-        logLevel: LOG_LEVELS_STR.LEVEL_ERROR
+        logger: DATABASE_LOGGER
       })
       try {
         await this.provider.collections(this.schema.name).retrieve()
@@ -836,8 +831,7 @@ export class LogDatabase {
     return (async (): Promise<LogDatabase> => {
       this.provider = new Typesense({
         ...convertTypesenseConfig(this.config.url),
-        logger: DATABASE_LOGGER,
-        logLevel: LOG_LEVELS_STR.LEVEL_ERROR
+        logger: DATABASE_LOGGER
       })
       try {
         await this.provider.collections(this.schema.name).retrieve()
