@@ -103,13 +103,14 @@ export class ComputeStartHandler extends Handler {
               }
             }
           }
-          if (ddo && ddo.nft.state && isOrderingAllowedForAsset(ddo)) {
-            CORE_LOGGER.logMessage('Error: DDO NOT ALLOWED TO ORDER', true)
+          const isOrdable = isOrderingAllowedForAsset(ddo)
+          if (!isOrdable.isOrdable) {
+            CORE_LOGGER.error(isOrdable.reason)
             return {
               stream: null,
               status: {
                 httpStatus: 500,
-                error: 'Error: DDO NOT ALLOWED TO ORDER'
+                error: isOrdable.reason
               }
             }
           }

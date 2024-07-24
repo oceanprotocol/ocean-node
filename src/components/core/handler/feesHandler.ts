@@ -47,13 +47,14 @@ export class FeesHandler extends Handler {
       errorMsg = 'Cannot resolve DID'
     }
 
-    if (ddo && ddo.nft.state && isOrderingAllowedForAsset(ddo)) {
-      PROVIDER_LOGGER.logMessage('Error: DDO NOT ALLOWED TO ORDER', true)
+    const isOrdable = isOrderingAllowedForAsset(ddo)
+    if (!isOrdable.isOrdable) {
+      PROVIDER_LOGGER.error(isOrdable.reason)
       return {
         stream: null,
         status: {
           httpStatus: 500,
-          error: 'Error: DDO NOT ALLOWED TO ORDER'
+          error: isOrdable.reason
         }
       }
     }

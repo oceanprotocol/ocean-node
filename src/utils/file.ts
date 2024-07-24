@@ -26,10 +26,10 @@ export async function getFile(
         ? await new FindDdoHandler(node).findAndFormatDdo(didOrDdo)
         : didOrDdo
 
-    if (ddo && ddo.nft.state && isOrderingAllowedForAsset(ddo)) {
-      const msg = 'Error: Asset cannot be downloaded'
-      CORE_LOGGER.logMessage(msg, true)
-      throw new Error(msg)
+    const isOrdable = isOrderingAllowedForAsset(ddo)
+    if (!isOrdable.isOrdable) {
+      CORE_LOGGER.error(isOrdable.reason)
+      throw new Error(isOrdable.reason)
     }
 
     // 2. Get the service

@@ -33,11 +33,30 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { DDO } from '../../../@types/DDO/DDO.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
+import { OrdableAssetResponse } from '../../../@types/Asset.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
-export function isOrderingAllowedForAsset(asset: DDO): boolean {
-  if (!(asset.nft.state in [MetadataStates.ACTIVE, MetadataStates.UNLISTED])) return false
-  return true
+export function isOrderingAllowedForAsset(asset: DDO): OrdableAssetResponse {
+  if (!asset) {
+    return {
+      isOrdable: false,
+      reason: `Asset provided is either null, either undefined ${asset}`
+    }
+  } else if (
+    asset.nft &&
+    !(asset.nft.state in [MetadataStates.ACTIVE, MetadataStates.UNLISTED])
+  ) {
+    return {
+      isOrdable: false,
+      reason:
+        'Nft not present in the asset or the state is different than ACTIVE or UNLISTED.'
+    }
+  }
+
+  return {
+    isOrdable: true,
+    reason: ''
+  }
 }
 
 export async function handleDownloadUrlCommand(
@@ -223,13 +242,14 @@ export class DownloadHandler extends Handler {
       }
     }
 
-    if (ddo && ddo.nft.state && isOrderingAllowedForAsset(ddo)) {
-      CORE_LOGGER.logMessage('Error: DDO NOT ALLOWED TO ORDER', true)
+    const isOrdable = isOrderingAllowedForAsset(ddo)
+    if (!isOrdable.isOrdable) {
+      CORE_LOGGER.error(isOrdable.reason)
       return {
         stream: null,
         status: {
           httpStatus: 500,
-          error: 'Error: DDO NOT ALLOWED TO ORDER'
+          error: isOrdable.reason
         }
       }
     }
