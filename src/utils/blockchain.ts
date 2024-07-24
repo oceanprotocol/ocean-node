@@ -56,7 +56,7 @@ export class Blockchain {
   }
 
   public async isNetworkReady(): Promise<ConnectionStatus> {
-    if (this.networkAvailable || this.provider.ready) {
+    if (this.networkAvailable && this.provider.ready) {
       return { ready: true }
     }
     return await this.detectNetwork()
@@ -73,11 +73,12 @@ export class Blockchain {
         CORE_LOGGER.error(`Unable to detect provider network: (TIMEOUT)`)
         resolve({ ready: false, error: 'TIMEOUT' })
       }, 3000)
+
       this.provider
-        ._detectNetwork()
-        .then((network) => {
+        .getBlock('latest')
+        .then((block) => {
           clearTimeout(timeout)
-          resolve({ ready: network instanceof Network })
+          resolve({ ready: block.hash !== null })
         })
         .catch((err) => {
           CORE_LOGGER.error(`Unable to detect provider network: ${err.message}`)
