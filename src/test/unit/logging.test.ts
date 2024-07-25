@@ -27,8 +27,12 @@ describe('Logger instances and transports tests', async () => {
   envOverrides = await setupEnvironment(
     null,
     buildEnvOverrideConfig(
-      [ENVIRONMENT_VARIABLES.NODE_ENV, ENVIRONMENT_VARIABLES.LOG_DB],
-      ['development', 'false']
+      [
+        ENVIRONMENT_VARIABLES.NODE_ENV,
+        ENVIRONMENT_VARIABLES.LOG_DB,
+        ENVIRONMENT_VARIABLES.LOG_LEVEL
+      ],
+      ['development', 'false', 'info']
     )
   )
   // because of this
@@ -43,7 +47,7 @@ describe('Logger instances and transports tests', async () => {
 
   it(`should change LOG_DB to "true" and logger should have DB transport`, async function () {
     // when we are logging to DB, things can slow down a bit
-    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     expect(USE_DB_TRANSPORT()).to.be.equal(false)
     expect(OCEAN_NODE_LOGGER.hasDBTransport()).to.be.equal(false)
     const envAfter = await setupEnvironment(
@@ -53,11 +57,13 @@ describe('Logger instances and transports tests', async () => {
         ['true', 'http://172.15.0.6:8108?apiKey=xyz']
       )
     )
+    console.log('env after', envAfter)
     expect(USE_DB_TRANSPORT()).to.be.equal(true)
     // will build the DB transport layer
     const config = await getConfiguration(true)
     // eslint-disable-next-line no-unused-vars
     const DB = await new Database(config.dbConfig)
+    console.log('after DB')
     // Could generate Typesene error if DB is not running, but does not matter for this test
     OCEAN_NODE_LOGGER.logMessage('Should build DB transport layer')
 

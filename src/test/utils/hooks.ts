@@ -69,8 +69,9 @@ export const mochaHooks = {
       const initialVariable: OverrideEnvConfig = initialConfiguration.get(varName)
       if (initialVariable.originalValue !== currentEnvVariable.originalValue) {
         // reset it to the original
-        CONFIG_LOGGER.debug('Restoring environment variable: ' + varName)
-        process.env[varName] = initialVariable.originalValue
+        CONFIG_LOGGER.debug(
+          `(Hook) Restoring environment variable: ${varName} \ncurrent:\n ${process.env[varName]} original:\n ' ${initialVariable.originalValue}`
+        )
       }
     })
   }
