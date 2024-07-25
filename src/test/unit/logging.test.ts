@@ -54,15 +54,11 @@ describe('Logger instances and transports tests', async () => {
       null,
       buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
     )
-    console.log('env after', envAfter)
     expect(USE_DB_TRANSPORT()).to.be.equal(true)
     // will build the DB transport layer
-    console.log('before config')
     const config = await getConfiguration(true)
-    console.log('after config: ', config)
     // eslint-disable-next-line no-unused-vars
     const DB = await new Database(config.dbConfig)
-    console.log('after DB')
     // Could generate Typesene error if DB is not running, but does not matter for this test
     OCEAN_NODE_LOGGER.logMessage('Should build DB transport layer')
 
@@ -77,7 +73,7 @@ describe('Logger instances and transports tests', async () => {
     OCEAN_NODE_LOGGER.removeTransport(transports[0])
     expect(OCEAN_NODE_LOGGER.hasDBTransport()).to.be.equal(false)
     await tearDownEnvironment(envAfter)
-    expect(process.env.LOG_DB).to.be.equal('false')
+    expect(USE_DB_TRANSPORT()).to.be.equal(false)
   })
 
   after(() => {

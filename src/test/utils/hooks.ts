@@ -72,6 +72,7 @@ export const mochaHooks = {
         CONFIG_LOGGER.debug(
           `(Hook) Restoring environment variable: ${varName} \ncurrent:\n ${process.env[varName]} \noriginal:\n ${initialVariable.originalValue}`
         )
+        process.env[varName] = initialVariable.originalValue
       }
     })
   }
