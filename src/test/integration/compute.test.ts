@@ -79,9 +79,7 @@ describe('Compute', () => {
   const computeJobValidUntil = now + 60 * 15 // 15 minutes from now should be enough
   let firstEnv: ComputeEnvironment
   let blockchain: Blockchain
-  // const chainId = DEVELOPMENT_CHAIN_ID
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
-  const chainId = 8996
   // randomly use a set of trusted algos or empty arrays
   // should validate if set and match, invalidate otherwise
   const setTrustedAlgosEmpty: boolean = Math.random() <= 0.5
@@ -91,12 +89,11 @@ describe('Compute', () => {
   let algoDDO: any
   let datasetDDO: any
   const wallet = new ethers.Wallet(process.env.NODE2_PRIVATE_KEY)
-
+  const { rpc, network, chainId, fallbackRPCs } =
+    mockSupportedNetworks[DEVELOPMENT_CHAIN_ID]
+  blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+  publisherAccount = blockchain.getSigner() as Signer
   before(async () => {
-    const { rpc, network, chainId, fallbackRPCs } =
-      mockSupportedNetworks[DEVELOPMENT_CHAIN_ID]
-    blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-    publisherAccount = blockchain.getSigner() as Signer
     previousConfiguration = await setupEnvironment(
       null,
       buildEnvOverrideConfig(
