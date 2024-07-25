@@ -564,6 +564,7 @@ export function configureCustomDBTransport(
   }
   if (!logger.hasDBTransport()) {
     logger.addTransport(customDBTransport)
+    logger.logMessage('Adding DB transport to Logger: ' + logger.getModuleName())
   }
   return logger
 }

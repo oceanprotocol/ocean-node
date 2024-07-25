@@ -52,15 +52,14 @@ describe('Logger instances and transports tests', async () => {
     expect(OCEAN_NODE_LOGGER.hasDBTransport()).to.be.equal(false)
     const envAfter = await setupEnvironment(
       null,
-      buildEnvOverrideConfig(
-        [ENVIRONMENT_VARIABLES.LOG_DB, ENVIRONMENT_VARIABLES.DB_URL],
-        ['true', 'http://172.15.0.6:8108?apiKey=xyz']
-      )
+      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
     )
     console.log('env after', envAfter)
     expect(USE_DB_TRANSPORT()).to.be.equal(true)
     // will build the DB transport layer
+    console.log('before config')
     const config = await getConfiguration(true)
+    console.log('after config: ', config)
     // eslint-disable-next-line no-unused-vars
     const DB = await new Database(config.dbConfig)
     console.log('after DB')

@@ -70,7 +70,7 @@ export const mochaHooks = {
       if (initialVariable.originalValue !== currentEnvVariable.originalValue) {
         // reset it to the original
         CONFIG_LOGGER.debug(
-          `(Hook) Restoring environment variable: ${varName} \ncurrent:\n ${process.env[varName]} original:\n ' ${initialVariable.originalValue}`
+          `(Hook) Restoring environment variable: ${varName} \ncurrent:\n ${process.env[varName]} \noriginal:\n ${initialVariable.originalValue}`
         )
       }
     })
