@@ -86,7 +86,6 @@ describe('LogDatabase CRUD', () => {
 
     // Retrieve the latest log entries
     let logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 100)
-    console.log('got 100 logs?:', logs)
     logs = logs.filter((log) => log.message === newLogEntry.message)
 
     expect(logs?.length).to.equal(1)
