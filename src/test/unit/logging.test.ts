@@ -3,6 +3,7 @@ import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
 
 import { expect } from 'chai'
 import {
+  DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   setupEnvironment,
@@ -40,7 +41,9 @@ describe('Logger instances and transports tests', async () => {
     expect(numExistingInstances).to.be.lessThanOrEqual(MAX_LOGGER_INSTANCES)
   })
 
-  it(`should change LOG_DB to "true" and logger should have DB transport`, async () => {
+  it(`should change LOG_DB to "true" and logger should have DB transport`, async function () {
+    // when we are logging to DB, things can slow down a bit
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     expect(USE_DB_TRANSPORT()).to.be.equal(false)
     expect(OCEAN_NODE_LOGGER.hasDBTransport()).to.be.equal(false)
     const envAfter = await setupEnvironment(
