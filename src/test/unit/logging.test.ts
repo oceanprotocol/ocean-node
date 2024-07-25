@@ -1,17 +1,23 @@
-import { ENVIRONMENT_VARIABLES } from '../../utils/index.js'
+import { Database } from '../../components/database/index.js'
+import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
 
 import { expect } from 'chai'
 import {
+  DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
 import {
+  CustomOceanNodesTransport,
   MAX_LOGGER_INSTANCES,
   NUM_LOGGER_INSTANCES,
+  USE_DB_TRANSPORT,
   isDevelopmentEnvironment
 } from '../../utils/logging/Logger.js'
+import { OCEAN_NODE_LOGGER } from '../../utils/logging/common.js'
+import winston from 'winston'
 
 let envOverrides: OverrideEnvConfig[]
 
@@ -38,6 +44,40 @@ describe('Logger instances and transports tests', async () => {
   it(`should exist only ${MAX_LOGGER_INSTANCES} instances MAX`, () => {
     const numExistingInstances = NUM_LOGGER_INSTANCES
     expect(numExistingInstances).to.be.lessThanOrEqual(MAX_LOGGER_INSTANCES)
+  })
+
+  it(`should change LOG_DB to "true" and logger should have DB transport`, async function () {
+    // when we are logging to DB, things can slow down a bit
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    expect(USE_DB_TRANSPORT()).to.be.equal(false)
+    expect(OCEAN_NODE_LOGGER.hasDBTransport()).to.be.equal(false)
+    const envAfter = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig(
+        [ENVIRONMENT_VARIABLES.LOG_DB, ENVIRONMENT_VARIABLES.DB_URL],
+        ['true', 'http://localhost:8108/?apiKey=xyz']
+      )
+    )
+    expect(USE_DB_TRANSPORT()).to.be.equal(true)
+    // will build the DB transport layer
+    const config = await getConfiguration(true)
+    // eslint-disable-next-line no-unused-vars
+    const DB = await new Database(config.dbConfig)
+    // Could generate Typesene error if DB is not running, but does not matter for this test
+    OCEAN_NODE_LOGGER.logMessage('Should build DB transport layer')
+
+    expect(OCEAN_NODE_LOGGER.hasDBTransport()).to.be.equal(true)
+
+    const transports: winston.transport[] = OCEAN_NODE_LOGGER.getTransports().filter(
+      (transport: winston.transport) => {
+        return transport instanceof CustomOceanNodesTransport
+      }
+    )
+    expect(transports.length).to.be.equal(1)
+    OCEAN_NODE_LOGGER.removeTransport(transports[0])
+    expect(OCEAN_NODE_LOGGER.hasDBTransport()).to.be.equal(false)
+    await tearDownEnvironment(envAfter)
+    expect(USE_DB_TRANSPORT()).to.be.equal(false)
   })
 
   after(() => {

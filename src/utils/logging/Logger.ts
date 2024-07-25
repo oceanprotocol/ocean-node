@@ -458,6 +458,9 @@ export class CustomNodeLogger {
     // lazy check db custom transport, needed beacause of dependency cycles
     if (customDBTransport !== null && USE_DB_TRANSPORT() && !this.hasDBTransport()) {
       this.addTransport(customDBTransport)
+    } else if (this.hasDBTransport() && !USE_DB_TRANSPORT()) {
+      this.logMessage('Removing DB transport from Logger: ' + this.getModuleName())
+      this.removeTransport(this.getDBTransport())
     }
 
     this.getLogger().log(
