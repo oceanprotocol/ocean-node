@@ -177,8 +177,6 @@ export class OceanIndexer {
               'Missing event data (ddo) on postMessage. Something is wrong!',
               true
             )
-            INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
-            // remove from indexing list
           }
         })
 

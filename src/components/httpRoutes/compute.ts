@@ -175,7 +175,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeResult`, async (req, res) =>
       command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
       node: (req.query.node as string) || null,
       consumerAddress: (req.query.consumerAddress as string) || null,
-      index: parseInt(req.query.index as string) || null,
+      index: req.query.index ? Number(req.query.index) : null, // can't be parseInt() because that excludes index 0
       jobId: (req.query.jobId as string) || null,
       signature: (req.query.signature as string) || null,
       nonce: (req.query.nonce as string) || null
