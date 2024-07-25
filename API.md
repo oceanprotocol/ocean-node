@@ -272,7 +272,7 @@ returns decrypted document
 
 ## File Info
 
-### `HTTP` POST /api/fileinfo
+### `HTTP` POST /api/fileInfo
 
 #### Description
 
