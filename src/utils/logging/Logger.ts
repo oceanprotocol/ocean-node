@@ -3,7 +3,6 @@ import Transport from 'winston-transport'
 import DailyRotateFile from 'winston-daily-rotate-file'
 import fs from 'fs'
 import { Database } from '../../components/database/index.js'
-import { ENVIRONMENT_VARIABLES } from '../constants.js'
 
 // all the types of modules/components
 export const LOGGER_MODULE_NAMES = {
@@ -142,15 +141,21 @@ export const MAX_LOGGER_INSTANCES = 10
 export const NUM_LOGGER_INSTANCES = INSTANCE_COUNT
 
 // log locations
-const USE_FILE_TRANSPORT: boolean =
-  process.env.LOG_FILES && process.env.LOG_FILES !== 'false'
+function USE_FILE_TRANSPORT(): boolean {
+  return process.env.LOG_FILES && process.env.LOG_FILES !== 'false'
+}
 
-const USE_DB_TRANSPORT: boolean = process.env.LOG_DB && process.env.LOG_DB !== 'false'
+export function USE_DB_TRANSPORT(): boolean {
+  return process.env.LOG_DB && process.env.LOG_DB !== 'false'
+}
 
 // default to true, if not explicitly set otherwise AND no other locations defined
-const USE_CONSOLE_TRANSPORT: boolean =
-  (process.env.LOG_CONSOLE && process.env.LOG_CONSOLE !== 'false') ||
-  (!USE_FILE_TRANSPORT && !USE_DB_TRANSPORT)
+function USE_CONSOLE_TRANSPORT(): boolean {
+  return (
+    (process.env.LOG_CONSOLE && process.env.LOG_CONSOLE !== 'false') ||
+    (!USE_FILE_TRANSPORT() && !USE_DB_TRANSPORT())
+  )
+}
 
 // if not set, then gets default 'development' level & colors
 export function isDevelopmentEnvironment(): boolean {
@@ -274,12 +279,13 @@ export function getDefaultLoggerTransports(
   moduleOrComponentName: string
 ): winston.transport[] {
   const transports: winston.transport[] = []
-  if (USE_FILE_TRANSPORT) {
+  // account for runtime changes done by tests (force read again value)
+  if (USE_FILE_TRANSPORT()) {
     // always log to file
     transports.push(buildCustomFileTransport(moduleOrComponentName))
   }
 
-  if (USE_CONSOLE_TRANSPORT) {
+  if (USE_CONSOLE_TRANSPORT()) {
     transports.push(defaultConsoleTransport)
   }
   return transports
@@ -450,11 +456,7 @@ export class CustomNodeLogger {
     includeModuleName: boolean = false
   ) {
     // lazy check db custom transport, needed beacause of dependency cycles
-    if (
-      customDBTransport !== null &&
-      (USE_DB_TRANSPORT || ENVIRONMENT_VARIABLES.LOG_DB.value === 'true') &&
-      !this.hasDBTransport()
-    ) {
+    if (customDBTransport !== null && USE_DB_TRANSPORT() && !this.hasDBTransport()) {
       this.addTransport(customDBTransport)
     }
 

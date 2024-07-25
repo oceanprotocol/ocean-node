@@ -277,7 +277,7 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     required: false
   },
   LOG_CONSOLE: {
-    // log to console output?
+    // log to console output? true if no other bellow is set
     name: 'LOG_CONSOLE',
     value: process.env.LOG_CONSOLE,
     required: false
@@ -292,7 +292,7 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     // log to DB?
     name: 'LOG_DB',
     value: process.env.LOG_DB,
-    required: false // default is true
+    required: false
   }
 }
 

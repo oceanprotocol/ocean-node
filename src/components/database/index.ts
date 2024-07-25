@@ -5,7 +5,8 @@ import { TypesenseSearchParams } from '../../@types/index.js'
 import {
   LOG_LEVELS_STR,
   configureCustomDBTransport,
-  GENERIC_EMOJIS
+  GENERIC_EMOJIS,
+  USE_DB_TRANSPORT
 } from '../../utils/logging/Logger.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { validateObject } from '../core/utils/validateDdoHandler.js'
@@ -1012,7 +1013,7 @@ export class Database {
     // add this DB transport too
     // once we create a DB instance, the logger will be using this transport as well
     // we cannot have this the other way around because of the dependencies cycle
-    if (ENVIRONMENT_VARIABLES.LOG_DB.value === 'true') {
+    if (USE_DB_TRANSPORT()) {
       configureCustomDBTransport(this, DATABASE_LOGGER)
     } else {
       DATABASE_LOGGER.warn(
