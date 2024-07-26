@@ -4,7 +4,8 @@ import {
   OceanNodeStatus,
   OceanNodeProvider,
   OceanNodeIndexer,
-  StorageTypes
+  StorageTypes,
+  OceanNodeConfig
 } from '../../../@types/OceanNode.js'
 import { existsEnvironmentVariable, getConfiguration } from '../../../utils/index.js'
 import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
@@ -12,6 +13,44 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { isAddress } from 'ethers'
 import { schemas } from '../../database/schemas.js'
+
+function getAdminAddresses(config: OceanNodeConfig) {
+  const validAddresses = []
+  if (config.allowedAdmins) {
+    for (const admin of config.allowedAdmins) {
+      if (isAddress(admin) === true) {
+        validAddresses.push(admin)
+      }
+    }
+    if (validAddresses.length === 0) {
+      CORE_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `Invalid format for ETH address from ALLOWED ADMINS.`
+      )
+    }
+  }
+  return validAddresses
+}
+const supportedStorageTypes: StorageTypes = {
+  url: true,
+  arwave: existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY),
+  ipfs: existsEnvironmentVariable(ENVIRONMENT_VARIABLES.IPFS_GATEWAY)
+}
+
+// platform information
+const platformInfo = {
+  cpus: os.cpus().length,
+  freemem: os.freemem(),
+  totalmem: os.totalmem(),
+  loadavg: os.loadavg(),
+  arch: os.arch(),
+  machine: os.machine(),
+  platform: os.platform(),
+  osType: os.type(),
+  node: process.version
+}
+
+let previousStatus: OceanNodeStatus = null
 
 export async function status(
   oceanNode: OceanNode,
@@ -30,20 +69,6 @@ export async function status(
   }
   const config = await getConfiguration()
 
-  const validAddresses = []
-  if (config.allowedAdmins) {
-    for (const admin of config.allowedAdmins) {
-      if (isAddress(admin) === true) {
-        validAddresses.push(admin)
-      }
-    }
-    if (validAddresses.length === 0) {
-      CORE_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `Invalid format for ETH address from ALLOWED ADMINS.`
-      )
-    }
-  }
   const status: OceanNodeStatus = {
     id: undefined,
     publicKey: undefined,
@@ -53,22 +78,16 @@ export async function status(
     p2p: undefined,
     provider: [],
     indexer: [],
-    supportedStorage: undefined,
+    supportedStorage: supportedStorageTypes,
     uptime: process.uptime(),
-    platform: {
-      cpus: os.cpus().length,
-      freemem: os.freemem(),
-      totalmem: os.totalmem(),
-      loadavg: os.loadavg(),
-      arch: os.arch(),
-      machine: os.machine(),
-      platform: os.platform(),
-      osType: os.type(),
-      node: process.version
-    },
+    platform: platformInfo,
     codeHash: config.codeHash,
-    allowedAdmins: validAddresses
+    allowedAdmins: getAdminAddresses(config)
   }
+
+  // only these 2 might change between requests
+  status.platform.freemem = os.freemem()
+  status.platform.loadavg = os.loadavg()
 
   if (nodeId && nodeId !== undefined) {
     status.id = nodeId
@@ -77,18 +96,12 @@ export async function status(
     status.id = config.keys.peerId.toString()
   }
 
-  const supportedStorageTypes: StorageTypes = {
-    url: true,
-    arwave: existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY),
-    ipfs: existsEnvironmentVariable(ENVIRONMENT_VARIABLES.IPFS_GATEWAY)
-  }
-
   status.version = process.env.npm_package_version
   status.publicKey = Buffer.from(config.keys.publicKey).toString('hex')
   status.address = config.keys.ethAddress
   status.http = config.hasHttp
   status.p2p = config.hasP2P
-  status.supportedStorage = supportedStorageTypes
+  // status.supportedStorage = supportedStorageTypes
 
   if (config.supportedNetworks) {
     for (const [key, supportedNetwork] of Object.entries(config.supportedNetworks)) {
@@ -126,6 +139,10 @@ export async function status(
   if (detailed) {
     status.c2dClusters = config.c2dClusters
     status.supportedSchemas = schemas.ddoSchemas
+  }
+
+  if (!previousStatus) {
+    previousStatus = status
   }
   return status
 }
