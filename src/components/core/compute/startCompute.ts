@@ -235,15 +235,12 @@ export class ComputeStartHandler extends Handler {
             }
           }
           if (!('meta' in algorithm) && ddo.metadata.type === 'algorithm') {
+            const { entrypoint, image, tag, checksum } = ddo.metadata.algorithm.container
+            const container = { entrypoint, image, tag, checksum }
             algorithm.meta = {
               language: ddo.metadata.algorithm.language,
               version: ddo.metadata.algorithm.version,
-              container: {
-                entrypoint: ddo.metadata.algorithm.container.entrypoint,
-                image: ddo.metadata.algorithm.container.image,
-                tag: ddo.metadata.algorithm.container.tag,
-                checksum: ddo.metadata.algorithm.container.checksum
-              }
+              container: container
             }
             if ('format' in ddo.metadata.algorithm) {
               algorithm.meta.format = ddo.metadata.algorithm.format
