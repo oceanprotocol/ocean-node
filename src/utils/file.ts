@@ -12,6 +12,7 @@ import { AssetUtils } from './asset.js'
 import { decrypt } from './crypt.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { sanitizeServiceFiles } from './util.js'
+import { isOrderingAllowedForAsset } from '../components/core/handler/downloadHandler.js'
 
 export async function getFile(
   didOrDdo: string | DDO,
@@ -24,6 +25,12 @@ export async function getFile(
       typeof didOrDdo === 'string'
         ? await new FindDdoHandler(node).findAndFormatDdo(didOrDdo)
         : didOrDdo
+
+    const isOrdable = isOrderingAllowedForAsset(ddo)
+    if (!isOrdable.isOrdable) {
+      CORE_LOGGER.error(isOrdable.reason)
+      throw new Error(isOrdable.reason)
+    }
 
     // 2. Get the service
     const service: Service = AssetUtils.getServiceById(ddo, serviceId)
