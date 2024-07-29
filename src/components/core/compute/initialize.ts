@@ -20,6 +20,7 @@ import { isAddress } from 'ethers'
 import { getConfiguration } from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
+import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 export class ComputeInitializeHandler extends Handler {
   validate(command: ComputeInitializeCommand): ValidateParams {
     const validation = validateCommandParameters(command, [
@@ -78,6 +79,17 @@ export class ComputeInitializeHandler extends Handler {
               status: {
                 httpStatus: 500,
                 error
+              }
+            }
+          }
+          const isOrdable = isOrderingAllowedForAsset(ddo)
+          if (!isOrdable.isOrdable) {
+            CORE_LOGGER.error(isOrdable.reason)
+            return {
+              stream: null,
+              status: {
+                httpStatus: 500,
+                error: isOrdable.reason
               }
             }
           }

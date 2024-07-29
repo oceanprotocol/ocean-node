@@ -2,6 +2,7 @@ import { Service } from './Service'
 import { Metadata } from './Metadata'
 import { Credentials } from './Credentials'
 import { Event } from './Event'
+import { Nft } from './Nft'
 
 /**
  * DID Descriptor Object.
@@ -64,4 +65,6 @@ export interface DDO {
    * @type {Event}
    */
   event?: Event
+
+  nft?: Nft
 }
