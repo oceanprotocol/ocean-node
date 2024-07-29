@@ -22,7 +22,7 @@ export interface MetadataAlgorithm {
    * Format of the algorithm
    * @type {string}
    */
-  format: string
+  format?: string
 
   /**
    * Object describing the Docker container image.
