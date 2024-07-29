@@ -13,6 +13,7 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { isAddress } from 'ethers'
 import { schemas } from '../../database/schemas.js'
+import { SupportedNetwork } from '../../../@types/blockchain.js'
 
 function getAdminAddresses(config: OceanNodeConfig) {
   const validAddresses = []
@@ -50,7 +51,54 @@ const platformInfo = {
   node: process.version
 }
 
-let previousStatus: OceanNodeStatus = null
+async function getIndexerAndProviderInfo(
+  oceanNode: OceanNode,
+  config: OceanNodeConfig
+): Promise<any> {
+  const nodeStatus: any = {
+    provider: [],
+    indexer: []
+  }
+  for (const [key, supportedNetwork] of Object.entries(config.supportedNetworks)) {
+    if (config.hasProvider) {
+      const provider: OceanNodeProvider = {
+        chainId: key,
+        network: supportedNetwork.network
+      }
+      nodeStatus.provider.push(provider)
+    }
+    if (config.hasIndexer) {
+      const blockNr = await getIndexerBlockInfo(oceanNode, supportedNetwork)
+      const indexer: OceanNodeIndexer = {
+        chainId: key,
+        network: supportedNetwork.network,
+        block: blockNr
+      }
+      nodeStatus.indexer.push(indexer)
+    }
+  }
+  return nodeStatus
+}
+
+async function getIndexerBlockInfo(
+  oceanNode: OceanNode,
+  supportedNetwork: SupportedNetwork
+): Promise<string> {
+  let blockNr = '0'
+  try {
+    const { indexer: indexerDatabase } = oceanNode.getDatabase()
+    const { lastIndexedBlock } = await indexerDatabase.retrieve(supportedNetwork.chainId)
+    blockNr = lastIndexedBlock.toString()
+  } catch (error) {
+    CORE_LOGGER.log(
+      LOG_LEVELS_STR.LEVEL_ERROR,
+      `Error fetching last indexed block for network ${supportedNetwork.network}`
+    )
+  }
+  return blockNr
+}
+
+let nodeStatus: OceanNodeStatus = null
 
 export async function status(
   oceanNode: OceanNode,
@@ -69,80 +117,42 @@ export async function status(
   }
   const config = await getConfiguration()
 
-  const status: OceanNodeStatus = {
-    id: undefined,
-    publicKey: undefined,
-    address: undefined,
-    version: undefined,
-    http: undefined,
-    p2p: undefined,
-    provider: [],
-    indexer: [],
-    supportedStorage: supportedStorageTypes,
-    uptime: process.uptime(),
-    platform: platformInfo,
-    codeHash: config.codeHash,
-    allowedAdmins: getAdminAddresses(config)
-  }
-
-  // only these 2 might change between requests
-  status.platform.freemem = os.freemem()
-  status.platform.loadavg = os.loadavg()
-
-  if (nodeId && nodeId !== undefined) {
-    status.id = nodeId
-  } else {
-    // get current node ID
-    status.id = config.keys.peerId.toString()
-  }
-
-  status.version = process.env.npm_package_version
-  status.publicKey = Buffer.from(config.keys.publicKey).toString('hex')
-  status.address = config.keys.ethAddress
-  status.http = config.hasHttp
-  status.p2p = config.hasP2P
-  // status.supportedStorage = supportedStorageTypes
-
-  if (config.supportedNetworks) {
-    for (const [key, supportedNetwork] of Object.entries(config.supportedNetworks)) {
-      if (config.hasProvider) {
-        const provider: OceanNodeProvider = {
-          chainId: key,
-          network: supportedNetwork.network
-        }
-        status.provider.push(provider)
-      }
-      if (config.hasIndexer) {
-        let blockNr = '0'
-        try {
-          const { indexer: indexerDatabase } = oceanNode.getDatabase()
-          const { lastIndexedBlock } = await indexerDatabase.retrieve(
-            supportedNetwork.chainId
-          )
-          blockNr = lastIndexedBlock.toString()
-        } catch (error) {
-          CORE_LOGGER.log(
-            LOG_LEVELS_STR.LEVEL_ERROR,
-            `Error fetching last indexed block for network ${supportedNetwork.network}`
-          )
-        }
-        const indexer: OceanNodeIndexer = {
-          chainId: key,
-          network: supportedNetwork.network,
-          block: blockNr
-        }
-        status.indexer.push(indexer)
-      }
+  // no previous status?
+  if (!nodeStatus) {
+    nodeStatus = {
+      id: nodeId && nodeId !== undefined ? nodeId : config.keys.peerId.toString(), // get current node ID
+      publicKey: Buffer.from(config.keys.publicKey).toString('hex'),
+      address: config.keys.ethAddress,
+      version: process.env.npm_package_version,
+      http: config.hasHttp,
+      p2p: config.hasP2P,
+      provider: [],
+      indexer: [],
+      supportedStorage: supportedStorageTypes,
+      // uptime: process.uptime(),
+      platform: platformInfo,
+      codeHash: config.codeHash,
+      allowedAdmins: getAdminAddresses(config)
     }
   }
 
-  if (detailed) {
-    status.c2dClusters = config.c2dClusters
-    status.supportedSchemas = schemas.ddoSchemas
+  // need to update at least block info if available
+  if (config.supportedNetworks) {
+    const indexerAndProvider = await getIndexerAndProviderInfo(oceanNode, config)
+    nodeStatus.provider = indexerAndProvider.provider
+    nodeStatus.indexer = indexerAndProvider.indexer
   }
 
-  if (!previousStatus) {
-    previousStatus = status
+  // only these 2 might change between requests
+  nodeStatus.platform.freemem = os.freemem()
+  nodeStatus.platform.loadavg = os.loadavg()
+  nodeStatus.uptime = process.uptime()
+
+  // depends on request
+  if (detailed) {
+    nodeStatus.c2dClusters = config.c2dClusters
+    nodeStatus.supportedSchemas = schemas.ddoSchemas
   }
-  return status
+
+  return nodeStatus
 }
