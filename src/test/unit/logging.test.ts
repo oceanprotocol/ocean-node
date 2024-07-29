@@ -3,6 +3,7 @@ import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
 
 import { expect } from 'chai'
 import {
+  DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   setupEnvironment,
@@ -12,6 +13,7 @@ import {
   CustomOceanNodesTransport,
   MAX_LOGGER_INSTANCES,
   NUM_LOGGER_INSTANCES,
+  USE_DB_TRANSPORT,
   isDevelopmentEnvironment
 } from '../../utils/logging/Logger.js'
 import { OCEAN_NODE_LOGGER } from '../../utils/logging/common.js'
@@ -24,7 +26,15 @@ describe('Logger instances and transports tests', async () => {
   // need to do it first
   envOverrides = await setupEnvironment(
     null,
-    buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.NODE_ENV], ['development'])
+    buildEnvOverrideConfig(
+      [
+        ENVIRONMENT_VARIABLES.NODE_ENV,
+        ENVIRONMENT_VARIABLES.LOG_DB,
+        ENVIRONMENT_VARIABLES.LOG_LEVEL,
+        ENVIRONMENT_VARIABLES.DB_URL
+      ],
+      ['development', 'false', 'info', 'http://localhost:8108/?apiKey=xyz']
+    )
   )
   // because of this
   it('should be development environment', () => {
@@ -36,21 +46,23 @@ describe('Logger instances and transports tests', async () => {
     expect(numExistingInstances).to.be.lessThanOrEqual(MAX_LOGGER_INSTANCES)
   })
 
-  it(`should change NODE_ENV to "production" and logger should have DB transport`, async () => {
-    expect(process.env.NODE_ENV).to.be.equal('development')
+  it(`should change LOG_DB to "true" and logger should have DB transport`, async function () {
+    // when we are logging to DB, things can slow down a bit
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    expect(USE_DB_TRANSPORT()).to.be.equal(false)
     expect(OCEAN_NODE_LOGGER.hasDBTransport()).to.be.equal(false)
     const envAfter = await setupEnvironment(
       null,
       buildEnvOverrideConfig(
-        [ENVIRONMENT_VARIABLES.NODE_ENV, ENVIRONMENT_VARIABLES.DB_URL],
-        ['production', 'http://172.15.0.6:8108?apiKey=xyz']
+        [ENVIRONMENT_VARIABLES.LOG_DB, ENVIRONMENT_VARIABLES.DB_URL],
+        ['true', 'http://localhost:8108/?apiKey=xyz']
       )
     )
-    expect(process.env.NODE_ENV).to.be.equal('production')
+    expect(USE_DB_TRANSPORT()).to.be.equal(true)
     // will build the DB transport layer
     const config = await getConfiguration(true)
     // eslint-disable-next-line no-unused-vars
-    const DB = new Database(config.dbConfig)
+    const DB = await new Database(config.dbConfig)
     // Could generate Typesene error if DB is not running, but does not matter for this test
     OCEAN_NODE_LOGGER.logMessage('Should build DB transport layer')
 
@@ -65,7 +77,7 @@ describe('Logger instances and transports tests', async () => {
     OCEAN_NODE_LOGGER.removeTransport(transports[0])
     expect(OCEAN_NODE_LOGGER.hasDBTransport()).to.be.equal(false)
     await tearDownEnvironment(envAfter)
-    expect(process.env.NODE_ENV).to.be.equal('development')
+    expect(USE_DB_TRANSPORT()).to.be.equal(false)
   })
 
   after(() => {
