@@ -1,6 +1,10 @@
 import { Handler } from './handler.js'
 import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
-import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
+import {
+  ENVIRONMENT_VARIABLES,
+  MetadataStates,
+  PROTOCOL_COMMANDS
+} from '../../../utils/constants.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { verifyProviderFees } from '../utils/feesHandler.js'
 import { decrypt } from '../../../utils/crypt.js'
@@ -29,7 +33,31 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { DDO } from '../../../@types/DDO/DDO.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
+import { OrdableAssetResponse } from '../../../@types/Asset.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
+
+export function isOrderingAllowedForAsset(asset: DDO): OrdableAssetResponse {
+  if (!asset) {
+    return {
+      isOrdable: false,
+      reason: `Asset provided is either null, either undefined ${asset}`
+    }
+  } else if (
+    asset.nft &&
+    !(asset.nft.state in [MetadataStates.ACTIVE, MetadataStates.UNLISTED])
+  ) {
+    return {
+      isOrdable: false,
+      reason:
+        'Nft not present in the asset or the state is different than ACTIVE or UNLISTED.'
+    }
+  }
+
+  return {
+    isOrdable: true,
+    reason: ''
+  }
+}
 
 export async function handleDownloadUrlCommand(
   node: OceanNode,
@@ -210,6 +238,18 @@ export class DownloadHandler extends Handler {
         status: {
           httpStatus: 500,
           error: 'No DDO found for asset'
+        }
+      }
+    }
+
+    const isOrdable = isOrderingAllowedForAsset(ddo)
+    if (!isOrdable.isOrdable) {
+      CORE_LOGGER.error(isOrdable.reason)
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error: isOrdable.reason
         }
       }
     }
