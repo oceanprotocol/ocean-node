@@ -18,18 +18,22 @@ created_pk_file=0
 
 pk_file='.pk.out'
 wallet_file='.wallet.out'
-generated_files_path=''
+#assume we are running on scripts directory
+# these are the "target" paths
 env_file_path='../../../.env'
 template_file_path='../../../.env.example'
+generated_files_path='../../../'
+
+#current directory is ocean node directory?
 if [ $is_root_dir -eq 1 ]; then
     env_file_path='.env'
     template_file_path='.env.example'
-else 
-    generated_files_path='../../../'
+    generated_files_path=''
 fi
 #allow script to be run from multiple paths (root or inside scripts directory)
 wallet_file_path=$generated_files_path$wallet_file
 pk_file_path+=$generated_files_path$pk_file
+
 
 #configure database
 configure_database() {
@@ -144,6 +148,7 @@ setup_node_admin_wallet() {
 
 ask_for_same_admin_wallet() {
     
+    wallet_file_path=$wallet_file
     if [ -f $wallet_file_path ]; then
        read -p "Do you want to use the wallet associated with this key ( $wallet_file ) as a node admin account?  [ y/n ]: " use_admin_wallet  
        use_admin_wallet=${use_admin_wallet:-y} 
@@ -154,6 +159,7 @@ ask_for_same_admin_wallet() {
     fi
 }
 
+#check if the private key file exists
 if ! [ -f $pk_file_path ]; then
   echo "Private Key File does not exist."
   read -p "Do you want me to generate one for you? [ y/n ]: " generate_key_answer
@@ -162,9 +168,12 @@ if ! [ -f $pk_file_path ]; then
   if [ "$generate_key_answer" == 'y' ]; then
     # run the script
     if [ $is_root_dir -eq 1 ]; then
+        #run from the root directory
         `node ./src/$scripts_directory/generatePK.js --save > /dev/null`
     else
+        #run from the scripts directory
         `node ./generatePK.js --save > /dev/null`
+        pk_file_path=$pk_file
     fi
     
     # read the file contents
@@ -255,6 +264,10 @@ if [ $created_pk_file -eq 1 ]; then
     read -p "Do you want me to delete the generated $pk_file file? (your key is already saved): [ y/n ]" delete_pk_file
     delete_pk_file=${delete_pk_file:-n}
     if [ "$delete_pk_file" == 'y' ]; then
+        # set proper paths for deletion
+        pk_file_path=$pk_file
+        wallet_file_path=$wallet_file
+        #remove pk one
         `rm -f $pk_file_path`
         #also remove the wallet one if present
         `rm -f $wallet_file_path`

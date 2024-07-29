@@ -31,7 +31,7 @@ const validateFileInfoRequest = (req: FileInfoHttpRequest): boolean => {
 }
 
 fileInfoRoute.post(
-  `${SERVICES_API_BASE_PATH}/fileinfo`,
+  `${SERVICES_API_BASE_PATH}/fileInfo`,
   express.urlencoded({ extended: true, type: '*/*' }),
   async (req: Request, res: Response): Promise<void> => {
     const fileInfoReq: FileInfoHttpRequest = req.body as unknown as FileInfoHttpRequest
