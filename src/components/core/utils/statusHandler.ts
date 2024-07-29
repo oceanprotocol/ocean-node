@@ -17,7 +17,7 @@ import { SupportedNetwork } from '../../../@types/blockchain.js'
 
 function getAdminAddresses(config: OceanNodeConfig) {
   const validAddresses = []
-  if (config.allowedAdmins) {
+  if (config.allowedAdmins && config.allowedAdmins.length > 0) {
     for (const admin of config.allowedAdmins) {
       if (isAddress(admin) === true) {
         validAddresses.push(admin)
