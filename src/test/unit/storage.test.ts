@@ -321,7 +321,7 @@ describe('URL Storage with malformed URL', () => {
 })
 
 describe('Arweave Storage getFileInfo tests', function () {
-  this.timeout(15000)
+  // this.timeout(15000)
   let storage: ArweaveStorage
 
   before(() => {
