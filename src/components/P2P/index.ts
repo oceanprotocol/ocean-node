@@ -151,11 +151,9 @@ export class OceanP2P extends EventEmitter {
     if (details) {
       const peerId = details.detail
       P2P_LOGGER.debug('Connection established to:' + peerId.toString()) // Emitted when a peer has been found
-      try {
-        this._libp2p.services.pubsub.connect(peerId.toString())
-      } catch (e) {}
-    } else {
-      /* empty */
+      // try {
+      //   this._libp2p.services.pubsub.connect(peerId.toString())
+      // } catch (e) {}
     }
   }
 
