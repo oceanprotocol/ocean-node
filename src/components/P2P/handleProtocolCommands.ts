@@ -75,8 +75,9 @@ export async function handleProtocolCommands(connection: any) {
   }
   if (!task) {
     P2P_LOGGER.error('Invalid or missing task/command data!')
-    status = { httpStatus: 400, error: 'Invalid command' }
-    statusStream = new ReadableString(JSON.stringify(status))
+    statusStream = new ReadableString(
+      JSON.stringify(buildWrongCommandStatus(400, 'Invalid command'))
+    )
     pipe(statusStream, connection.stream.sink)
     return
   } else {
