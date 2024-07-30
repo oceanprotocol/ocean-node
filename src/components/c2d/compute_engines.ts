@@ -23,6 +23,7 @@ import { ZeroAddress } from 'ethers'
 import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
 import { URLUtils } from '../../utils/url.js'
 import { publicIp } from 'public-ip'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 export class C2DEngine {
   private clusterConfig: C2DClusterInfo
@@ -219,8 +220,13 @@ export class C2DEngineOPFK8 extends C2DEngine {
     if (output) {
       getOuput = output
     } else if (config.hasHttp) {
-      getOuput = {
-        metadataUri: `http://${await publicIp()}:${config.httpPort}`
+      try {
+        const ip = await publicIp()
+        getOuput = {
+          metadataUri: `http://${ip}:${config.httpPort}`
+        }
+      } catch (e) {
+        CORE_LOGGER.error(`Failed retrieving public IP: ${e}`)
       }
     }
     // continue with algorithm
