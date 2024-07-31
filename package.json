@@ -57,7 +57,6 @@
     "@libp2p/interface-address-manager": "^3.0.1",
     "@libp2p/kad-dht": "^12.1.1",
     "@libp2p/mdns": "^10.1.1",
-    "@libp2p/mplex": "^10.1.1",
     "@libp2p/peer-id": "^4.1.4",
     "@libp2p/peer-id-factory": "^4.1.4",
     "@libp2p/ping": "^1.1.1",
