@@ -59,31 +59,37 @@ export async function handleProtocolCommands(connection: any) {
     }
   }
 
-  /* eslint no-unreachable-loop: ["error", { "ignore": ["ForInStatement", "ForOfStatement"] }] */
-  for await (const chunk of connection.stream.source) {
-    try {
-      const str = uint8ArrayToString(chunk.subarray())
-      task = JSON.parse(str) as Command
-    } catch (e) {
+  try {
+    // eslint-disable-next-line no-unreachable-loop
+    for await (const chunk of connection.stream.source) {
+      try {
+        const str = uint8ArrayToString(chunk.subarray())
+        task = JSON.parse(str) as Command
+      } catch (e) {
+        statusStream = new ReadableString(
+          JSON.stringify(buildWrongCommandStatus(400, 'Invalid command'))
+        )
+        pipe(statusStream, connection.stream.sink)
+        return
+      }
+    }
+    if (!task) {
+      P2P_LOGGER.error('Invalid or missing task/command data!')
       statusStream = new ReadableString(
         JSON.stringify(buildWrongCommandStatus(400, 'Invalid command'))
       )
       pipe(statusStream, connection.stream.sink)
       return
     }
-    break
-  }
-  if (!task) {
-    P2P_LOGGER.error('Invalid or missing task/command data!')
-    statusStream = new ReadableString(
-      JSON.stringify(buildWrongCommandStatus(400, 'Invalid command'))
+  } catch (err) {
+    P2P_LOGGER.log(
+      LOG_LEVELS_STR.LEVEL_ERROR,
+      `Unable to process P2P command: ${err.message}`
     )
-    pipe(statusStream, connection.stream.sink)
     return
-  } else {
-    P2P_LOGGER.logMessage('Performing task: ' + JSON.stringify(task), true)
   }
 
+  P2P_LOGGER.logMessage('Performing P2P task: ' + JSON.stringify(task), true)
   // we get the handler from the running instance
   // no need to create a new instance of Handler on every request
   const handler: Handler = this.getCoreHandlers().getHandler(task.command)
