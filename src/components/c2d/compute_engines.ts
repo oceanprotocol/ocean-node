@@ -23,7 +23,6 @@ import { ZeroAddress } from 'ethers'
 import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
 import { URLUtils } from '../../utils/url.js'
 import { publicIp } from 'public-ip'
-import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 export class C2DEngine {
   private clusterConfig: C2DClusterInfo
