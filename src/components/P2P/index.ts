@@ -560,17 +560,33 @@ export class OceanP2P extends EventEmitter {
       return response
     }
 
-    response.stream = stream
-    pipe(
-      // Source data
-      [uint8ArrayFromString(message)],
-      // Write to the stream, and pass its output to the next function
-      stream,
-      // this is the anayze function
-      // doubler as any,
-      // Sink function
-      sink
-    )
+    if (stream) {
+      response.stream = stream
+      try {
+        pipe(
+          // Source data
+          [uint8ArrayFromString(message)],
+          // Write to the stream, and pass its output to the next function
+          stream,
+          // this is the anayze function
+          // doubler as any,
+          // Sink function
+          sink
+        )
+      } catch (err) {
+        P2P_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_ERROR,
+          `Unable to send P2P message: ${err.message}`
+        )
+        response.status.httpStatus = 404
+        response.status.error = err.message
+      }
+    } else {
+      response.status.httpStatus = 404
+      response.status.error = 'Unable to get remote P2P stream (null)'
+      P2P_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, response.status.error)
+    }
+
     return response
   }
 
