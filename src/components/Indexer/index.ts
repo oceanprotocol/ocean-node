@@ -203,7 +203,6 @@ export class OceanIndexer {
           this.restartWorkerThread(chainID)
         }
       })
-      this.workers[chainID] = worker
     }
 
     worker.postMessage({ method: 'start-crawling' })
@@ -226,6 +225,7 @@ export class OceanIndexer {
       if (worker) {
         // track if we were able to start them all
         count++
+        this.workers[chainId] = worker
       }
     }
     return count === this.supportedChains.length
@@ -243,8 +243,10 @@ export class OceanIndexer {
         `Attempting to restart worker for network with chainID ${chainId}. Restart attempt #${restarts}.`,
         true
       )
-
-      setTimeout(() => this.startThread(chainId), 5000)
+      setImmediate(() => {
+        const worker = this.startThread(chainId)
+        this.workers[chainId] = worker
+      })
     } else {
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_INFO,
