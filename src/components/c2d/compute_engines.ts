@@ -226,7 +226,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
           metadataUri: `http://${ip}:${config.httpPort}`
         }
       } catch (e) {
-        CORE_LOGGER.error(`Failed retrieving public IP: ${e}`)
+        throw new Error(`Failed retrieving public IP: ${e}`)
       }
     }
     // continue with algorithm
