@@ -16,7 +16,6 @@ import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 import { bootstrap } from '@libp2p/bootstrap'
 import { noise } from '@chainsafe/libp2p-noise'
 import { mdns } from '@libp2p/mdns'
-import { mplex } from '@libp2p/mplex'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { peerIdFromString } from '@libp2p/peer-id'
 import { pipe } from 'it-pipe'
@@ -322,7 +321,7 @@ export class OceanP2P extends EventEmitter {
         },
         peerId: config.keys.peerId,
         transports,
-        streamMuxers: [yamux(), mplex()],
+        streamMuxers: [yamux()],
         connectionEncryption: [
           noise()
           // plaintext()
