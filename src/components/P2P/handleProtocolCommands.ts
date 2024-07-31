@@ -38,15 +38,22 @@ export async function handleProtocolCommands(connection: any) {
   let statusStream
   let sendStream = null
 
+  const buildWrongCommandStatus = function (errorCode: number, message: string) {
+    status = {
+      httpStatus: errorCode,
+      error: message
+    }
+    return status
+  }
+
   const denyList = await (await getConfiguration()).denyList
   if (denyList.peers.length > 0) {
     if (denyList.peers.includes(remotePeer.toString())) {
       P2P_LOGGER.error(`Incoming request denied to peer: ${remotePeer}`)
-      status = {
-        httpStatus: 403,
-        error: 'Unauthorized request'
-      }
-      statusStream = new ReadableString(JSON.stringify(status))
+
+      statusStream = new ReadableString(
+        JSON.stringify(buildWrongCommandStatus(403, 'Unauthorized request'))
+      )
       pipe(statusStream, connection.stream.sink)
       return
     }
@@ -58,14 +65,25 @@ export async function handleProtocolCommands(connection: any) {
       const str = uint8ArrayToString(chunk.subarray())
       task = JSON.parse(str) as Command
     } catch (e) {
-      status = { httpStatus: 400, error: 'Invalid command' }
-      statusStream = new ReadableString(JSON.stringify(status))
+      statusStream = new ReadableString(
+        JSON.stringify(buildWrongCommandStatus(400, 'Invalid command'))
+      )
       pipe(statusStream, connection.stream.sink)
       return
     }
     break
   }
-  P2P_LOGGER.logMessage('Performing task: ' + JSON.stringify(task), true)
+  if (!task) {
+    P2P_LOGGER.error('Invalid or missing task/command data!')
+    statusStream = new ReadableString(
+      JSON.stringify(buildWrongCommandStatus(400, 'Invalid command'))
+    )
+    pipe(statusStream, connection.stream.sink)
+    return
+  } else {
+    P2P_LOGGER.logMessage('Performing task: ' + JSON.stringify(task), true)
+  }
+
   // we get the handler from the running instance
   // no need to create a new instance of Handler on every request
   const handler: Handler = this.getCoreHandlers().getHandler(task.command)

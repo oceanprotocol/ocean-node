@@ -259,7 +259,7 @@ jobs:
         with:
           repository: 'oceanprotocol/ocean-node'
           path: 'ocean-node'
-          ref: 'develop'
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || 'develop' }}
 
       - name: Start Ocean Node
         working-directory: ${{ github.workspace }}/ocean-node

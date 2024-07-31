@@ -14,6 +14,7 @@ import urlJoin from 'url-join'
 import { encrypt as encryptData, decrypt as decryptData } from '../../utils/crypt.js'
 import { Readable } from 'stream'
 import { getConfiguration } from '../../utils/index.js'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 export abstract class Storage {
   private file: UrlFileObject | IpfsFileObject | ArweaveFileObject
@@ -89,7 +90,7 @@ export abstract class Storage {
         response.push(fileInfo)
       }
     } catch (error) {
-      console.log(error)
+      CORE_LOGGER.error(error)
     }
     return response
   }
