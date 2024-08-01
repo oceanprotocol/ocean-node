@@ -139,100 +139,104 @@ export const processChunkLogs = async (
   provider: JsonRpcApiProvider,
   chainId: number
 ): Promise<BlocksEvents> => {
-  const storeEvents: BlocksEvents = {}
-  if (logs.length > 0) {
-    const allowedValidators = getAllowedValidators()
-    const checkMetadataValidated = allowedValidators.length > 0
-    for (const log of logs) {
-      const event = findEventByKey(log.topics[0])
+  try {
+    const storeEvents: BlocksEvents = {}
+    if (logs.length > 0) {
+      const allowedValidators = getAllowedValidators()
+      const checkMetadataValidated = allowedValidators.length > 0
+      for (const log of logs) {
+        const event = findEventByKey(log.topics[0])
 
-      if (event && Object.values(EVENTS).includes(event.type)) {
-        // only log & process the ones we support
-        INDEXER_LOGGER.logMessage(
-          `-- ${event.type} -- triggered for ${log.transactionHash}`,
-          true
-        )
-        if (
-          event.type === EVENTS.METADATA_CREATED ||
-          event.type === EVENTS.METADATA_UPDATED ||
-          event.type === EVENTS.METADATA_STATE
-        ) {
-          if (checkMetadataValidated) {
-            const txReceipt = await provider.getTransactionReceipt(log.transactionHash)
-            const metadataProofs = fetchEventFromTransaction(
-              txReceipt,
-              'MetadataValidated',
-              new Interface(ERC20Template.abi)
-            )
-            if (!metadataProofs) {
-              INDEXER_LOGGER.log(
-                LOG_LEVELS_STR.LEVEL_ERROR,
-                `Metadata Proof validator not allowed`,
-                true
+        if (event && Object.values(EVENTS).includes(event.type)) {
+          // only log & process the ones we support
+          INDEXER_LOGGER.logMessage(
+            `-- ${event.type} -- triggered for ${log.transactionHash}`,
+            true
+          )
+          if (
+            event.type === EVENTS.METADATA_CREATED ||
+            event.type === EVENTS.METADATA_UPDATED ||
+            event.type === EVENTS.METADATA_STATE
+          ) {
+            if (checkMetadataValidated) {
+              const txReceipt = await provider.getTransactionReceipt(log.transactionHash)
+              const metadataProofs = fetchEventFromTransaction(
+                txReceipt,
+                'MetadataValidated',
+                new Interface(ERC20Template.abi)
               )
-              continue
-            }
-            const validators = metadataProofs.map((metadataProof) =>
-              getAddress(metadataProof.args[0].toString())
-            )
-            const allowed = allowedValidators.filter(
-              (allowedValidator) => validators.indexOf(allowedValidator) !== -1
-            )
-            if (!allowed.length) {
-              INDEXER_LOGGER.log(
-                LOG_LEVELS_STR.LEVEL_ERROR,
-                `Metadata Proof validators list is empty`,
-                true
+              if (!metadataProofs) {
+                INDEXER_LOGGER.log(
+                  LOG_LEVELS_STR.LEVEL_ERROR,
+                  `Metadata Proof validator not allowed`,
+                  true
+                )
+                continue
+              }
+              const validators = metadataProofs.map((metadataProof) =>
+                getAddress(metadataProof.args[0].toString())
               )
-              continue
+              const allowed = allowedValidators.filter(
+                (allowedValidator) => validators.indexOf(allowedValidator) !== -1
+              )
+              if (!allowed.length) {
+                INDEXER_LOGGER.log(
+                  LOG_LEVELS_STR.LEVEL_ERROR,
+                  `Metadata Proof validators list is empty`,
+                  true
+                )
+                continue
+              }
             }
           }
-        }
-        if (
-          event.type === EVENTS.METADATA_CREATED ||
-          event.type === EVENTS.METADATA_UPDATED
-        ) {
-          const processor = getMetadataEventProcessor(chainId)
-          const rets = await processor.processEvent(
-            log,
-            chainId,
-            signer,
-            provider,
-            event.type
-          )
-          if (rets) storeEvents[event.type] = rets
-        } else if (event.type === EVENTS.METADATA_STATE) {
-          const processor = getMetadataStateEventProcessor(chainId)
-          storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
-        } else if (event.type === EVENTS.EXCHANGE_CREATED) {
-          storeEvents[event.type] = procesExchangeCreated()
-        } else if (event.type === EVENTS.EXCHANGE_RATE_CHANGED) {
-          storeEvents[event.type] = processExchangeRateChanged()
-        } else if (event.type === EVENTS.ORDER_STARTED) {
-          const processor = getOrderStartedEventProcessor(chainId)
-          storeEvents[event.type] = await processor.processEvent(
-            log,
-            chainId,
-            signer,
-            provider
-          )
-        } else if (event.type === EVENTS.ORDER_REUSED) {
-          const processor = getOrderReusedEventProcessor(chainId)
-          storeEvents[event.type] = await processor.processEvent(
-            log,
-            chainId,
-            signer,
-            provider
-          )
-        } else if (event.type === EVENTS.TOKEN_URI_UPDATE) {
-          storeEvents[event.type] = processTokenUriUpadate()
+          if (
+            event.type === EVENTS.METADATA_CREATED ||
+            event.type === EVENTS.METADATA_UPDATED
+          ) {
+            const processor = getMetadataEventProcessor(chainId)
+            const rets = await processor.processEvent(
+              log,
+              chainId,
+              signer,
+              provider,
+              event.type
+            )
+            if (rets) storeEvents[event.type] = rets
+          } else if (event.type === EVENTS.METADATA_STATE) {
+            const processor = getMetadataStateEventProcessor(chainId)
+            storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
+          } else if (event.type === EVENTS.EXCHANGE_CREATED) {
+            storeEvents[event.type] = procesExchangeCreated()
+          } else if (event.type === EVENTS.EXCHANGE_RATE_CHANGED) {
+            storeEvents[event.type] = processExchangeRateChanged()
+          } else if (event.type === EVENTS.ORDER_STARTED) {
+            const processor = getOrderStartedEventProcessor(chainId)
+            storeEvents[event.type] = await processor.processEvent(
+              log,
+              chainId,
+              signer,
+              provider
+            )
+          } else if (event.type === EVENTS.ORDER_REUSED) {
+            const processor = getOrderReusedEventProcessor(chainId)
+            storeEvents[event.type] = await processor.processEvent(
+              log,
+              chainId,
+              signer,
+              provider
+            )
+          } else if (event.type === EVENTS.TOKEN_URI_UPDATE) {
+            storeEvents[event.type] = processTokenUriUpadate()
+          }
         }
       }
+      return storeEvents
     }
-    return storeEvents
-  }
 
-  return {}
+    return {}
+  } catch (error) {
+    INDEXER_LOGGER.error(`Error processing chunk of blocks events ${error.message}`)
+  }
 }
 
 const procesExchangeCreated = (): string => {

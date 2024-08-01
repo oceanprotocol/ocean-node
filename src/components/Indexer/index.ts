@@ -332,14 +332,18 @@ export class OceanIndexer {
 
   // update the job status, given the command and the hash
   private updateJobStatus(command: string, hash: string, newStatus: CommandStatus) {
-    if (JOBS_QUEUE.length > 0) {
-      for (let i = JOBS_QUEUE.length - 1; i >= 0; i--) {
-        const job = JOBS_QUEUE[i]
-        // make sure we always pick the correct one
-        if (job.command === command && hash === job.hash) {
-          job.status = newStatus
+    try {
+      if (JOBS_QUEUE.length > 0) {
+        for (let i = JOBS_QUEUE.length - 1; i >= 0; i--) {
+          const job = JOBS_QUEUE[i]
+          // make sure we always pick the correct one
+          if (job.command === command && hash === job.hash) {
+            job.status = newStatus
+          }
         }
       }
+    } catch (error) {
+      INDEXER_LOGGER.error(`Error updating job status: ${error}`)
     }
   }
 }
