@@ -124,26 +124,38 @@ export class CoreHandlersRegistry {
   }
 
   public static getInstance(node: OceanNode): CoreHandlersRegistry {
-    if (!CoreHandlersRegistry.instance) {
-      this.instance = new CoreHandlersRegistry(node)
+    try {
+      if (!CoreHandlersRegistry.instance) {
+        this.instance = new CoreHandlersRegistry(node)
+      }
+      return this.instance
+    } catch (error) {
+      OCEAN_NODE_LOGGER.error(`Error getting CoreHandlersRegistry instance: ${error}`)
     }
-    return this.instance
   }
 
   // private method for registering the core handlers
   private registerCoreHandler(handlerName: string, handlerObj: Handler) {
-    if (!this.coreHandlers.has(handlerName)) {
-      this.coreHandlers.set(handlerName, handlerObj)
+    try {
+      if (!this.coreHandlers.has(handlerName)) {
+        this.coreHandlers.set(handlerName, handlerObj)
+      }
+    } catch (error) {
+      OCEAN_NODE_LOGGER.error(`Error registering core handler: ${error}`)
     }
   }
 
   // any new Handlers just need to call this method
   public registerHandler(handler: HandlerRegistry) {
-    if (
-      !this.coreHandlers.has(handler.handlerName) &&
-      handler.handlerImpl instanceof Handler
-    ) {
-      this.coreHandlers.set(handler.handlerName, handler.handlerImpl)
+    try {
+      if (
+        !this.coreHandlers.has(handler.handlerName) &&
+        handler.handlerImpl instanceof Handler
+      ) {
+        this.coreHandlers.set(handler.handlerName, handler.handlerImpl)
+      }
+    } catch (error) {
+      OCEAN_NODE_LOGGER.error(`Error registering handler: ${error}`)
     }
   }
 
