@@ -260,7 +260,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
         )}api/v1/operator/compute`,
         data: payload
       })
-      if (response.status !== 200) {
+      if (response?.status !== 200) {
         const message = `Exception on startCompute. Status: ${response.status}, ${response.statusText}`
         throw new Error(message)
       }
@@ -300,7 +300,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
         )}api/v1/operator/compute`,
         data: payload
       })
-      if (response.status !== 200) {
+      if (response?.status !== 200) {
         const message = `Exception on stopCompute. Status: ${response.status}, ${response.statusText}`
         throw new Error(message)
       }
@@ -337,7 +337,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
         )}api/v1/operator/compute`,
         data: payload
       })
-      if (response.status !== 200) {
+      if (response?.status !== 200) {
         // do not throw, just return []
         return []
       }
@@ -380,7 +380,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
         data: payload,
         responseType: 'stream'
       })
-      if (response.status !== 200) {
+      if (response?.status !== 200) {
         const message = `Exception on getComputeJobResult. Status: ${response.status}, ${response.statusText}`
         throw new Error(message)
       }

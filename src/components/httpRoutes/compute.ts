@@ -156,6 +156,9 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
     const response = await new ComputeGetStatusHandler(req.oceanNode).handle(
       statusComputeTask
     )
+    if (!response?.stream) {
+      res.status(500).send('Internal Server Error')
+    }
     const jobs = await streamToObject(response.stream as Readable)
     res.status(200).json(jobs)
   } catch (error) {

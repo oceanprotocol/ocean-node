@@ -37,7 +37,7 @@ export default function ReIndexTransaction() {
             signature
           })
         })
-        if (response.status === 200) {
+        if (response?.status === 200) {
           const jobData = await response.json()
           setSeverity(jobData.status === CommandStatus.DELIVERED ? 'info' : 'error')
           setJob(jobData)

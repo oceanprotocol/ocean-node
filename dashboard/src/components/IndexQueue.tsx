@@ -27,7 +27,7 @@ export default function IndexQueue() {
     const fetchQueue = () => {
       fetch('/api/services/indexQueue')
         .then((response) => {
-          if (response.status === 400) {
+          if (response?.status === 400) {
             console.warn('Cannot fetch queue: Node is not running Indexer')
             setAvoidAskQueue(true)
             if (intervalId) {

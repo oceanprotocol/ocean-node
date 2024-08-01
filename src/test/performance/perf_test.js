@@ -43,7 +43,7 @@ if (doRateLimit) {
 
 function checkIfTargetAvailable() {
   const response = http.get(TARGET_URL)
-  if (response.status !== 200) {
+  if (response?.status !== 200) {
     return false
   }
   return true

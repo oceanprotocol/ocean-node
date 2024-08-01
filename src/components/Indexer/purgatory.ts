@@ -48,12 +48,12 @@ export class Purgatory {
           url: this.assetPurgatoryUrl,
           timeout: 2000
         })
-        if (response.status !== 200) {
+        if (response?.status !== 200) {
           INDEXER_LOGGER.log(
             LOG_LEVELS_STR.LEVEL_ERROR,
             `PURGATORY: Failure when retrieving new purgatory list from ASSET_PURGATORY_URL env var.
                 Response: ${response.data}, status: ${
-                  response.status + response.statusText
+                  response?.status + response.statusText
                 }`,
             true
           )
@@ -91,12 +91,12 @@ export class Purgatory {
           url: this.accountPurgatoryUrl,
           timeout: 2000 // small increase
         })
-        if (response.status !== 200) {
+        if (response?.status !== 200) {
           INDEXER_LOGGER.log(
             LOG_LEVELS_STR.LEVEL_ERROR,
             `PURGATORY: Failure when retrieving new purgatory list from ACCOUNT_PURGATORY_URL env var.
               Response: ${response.data}, status: ${
-                response.status + response.statusText
+                response?.status + response.statusText
               }`,
             true
           )

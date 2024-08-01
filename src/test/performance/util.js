@@ -105,7 +105,7 @@ export async function targetEndpoint(api, method, path) {
             [200, 400, 403, 404, 500].includes(res.status)
         })
 
-        if (response.status === 200) {
+        if (response?.status === 200) {
           console.log(`Response body from API endpoint ${TARGET_URL}${path}):`)
           console.log(response.body)
         }
@@ -119,7 +119,7 @@ export async function targetEndpoint(api, method, path) {
 export async function stepRootEndpoint() {
   const response = http.get(TARGET_URL)
   try {
-    if (response.status === 200) {
+    if (response?.status === 200) {
       const data = JSON.parse(response.body)
       const endpoints = Object.keys(data.serviceEndpoints)
       //query all endpoints, exclude params
@@ -187,7 +187,7 @@ export async function targetDirectCommand(command) {
               [200, 400, 403, 404, 500].includes(res.status)
           })
 
-          if (response.status === 200) {
+          if (response?.status === 200) {
             console.log(`Response body from API /directCommand => command: "${command}"`)
             console.log(`\n RESPONSE BODY: \n ${response.body} \n`)
           }

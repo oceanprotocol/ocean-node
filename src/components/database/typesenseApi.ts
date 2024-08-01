@@ -139,9 +139,9 @@ export class TypesenseApi {
           `Request ${endpoint}: Request to Node ${node.host} was made. Response Code was ${response.status}.`
         )
 
-        if (response.status >= 200 && response.status < 300) {
+        if (response?.status >= 200 && response?.status < 300) {
           return Promise.resolve(response.data)
-        } else if (response.status < 500) {
+        } else if (response?.status < 500) {
           return Promise.reject(this.customError(response))
         } else {
           throw new Error(response.data?.message)

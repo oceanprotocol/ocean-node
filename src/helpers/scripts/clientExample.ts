@@ -209,7 +209,7 @@ function testEchoCommand(): Promise<string> {
     })
       .then(function (response: any) {
         console.log('Got response from server...', response.status)
-        resolve(response.status === 200 ? 'OK' : 'NOK')
+        resolve(response?.status === 200 ? 'OK' : 'NOK')
       })
       .catch((err: any) => {
         console.error('Error downloading....', err)
