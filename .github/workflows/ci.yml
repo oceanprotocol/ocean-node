@@ -43,7 +43,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        node: 'v20.16.0'
+        node: ['v20.16.0']
 
     steps:
       - uses: actions/checkout@v3
