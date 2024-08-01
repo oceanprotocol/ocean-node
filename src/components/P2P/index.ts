@@ -563,7 +563,7 @@ export class OceanP2P extends EventEmitter {
     if (stream) {
       response.stream = stream
       try {
-        pipe(
+        await pipe(
           // Source data
           [uint8ArrayFromString(message)],
           // Write to the stream, and pass its output to the next function
