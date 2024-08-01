@@ -507,8 +507,8 @@ describe('URL Storage encryption tests', () => {
     // Perform encryption
     const encryptResponse = await storage.encrypt(EncryptMethod.AES)
     assert(encryptResponse.httpStatus === 200, 'Response is not 200')
-    assert(encryptResponse.stream, 'Stream is not null')
-    assert(encryptResponse.stream instanceof Readable, 'Stream is not a ReadableStream')
+    assert(encryptresponse?.stream, 'Stream is not null')
+    assert(encryptresponse?.stream instanceof Readable, 'Stream is not a ReadableStream')
 
     // Create a writable stream for the output file
     const fileStream = fs.createWriteStream('src/test/data/organizations-100.aes')
@@ -519,12 +519,12 @@ describe('URL Storage encryption tests', () => {
     })
 
     // Handle errors in the stream
-    encryptResponse.stream.on('error', (err) => {
+    encryptresponse?.stream.on('error', (err) => {
       console.error('Stream encountered an error:', err)
     })
 
     // Pipe the encrypted content stream to the file stream
-    encryptResponse.stream.pipe(fileStream)
+    encryptresponse?.stream.pipe(fileStream)
   })
 })
 

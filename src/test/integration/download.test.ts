@@ -112,7 +112,7 @@ describe('Should run a complete node flow.', () => {
     }
     const response = await new StatusHandler(oceanNode).handle(statusCommand)
     assert(response.status.httpStatus === 200, 'http status not 200')
-    const resp = await streamToString(response.stream as Readable)
+    const resp = await streamToString(response?.stream as Readable)
     const status = JSON.parse(resp)
     assert(status.id === oceanNodeConfig.keys.peerId.toString(), 'peer id not matching ')
     // test allowedAdmins
@@ -135,7 +135,7 @@ describe('Should run a complete node flow.', () => {
     }
     const response = await new DetailedStatusHandler(oceanNode).handle(statusCommand)
     assert(response.status.httpStatus === 200, 'http status not 200')
-    const resp = await streamToString(response.stream as Readable)
+    const resp = await streamToString(response?.stream as Readable)
     const status = JSON.parse(resp)
     assert(status.c2dClusters !== undefined, 'clusters info should not be undefined')
     assert(status.supportedSchemas !== undefined, 'schemas info should not be undefined')
@@ -155,11 +155,11 @@ describe('Should run a complete node flow.', () => {
     const response = await new FileInfoHandler(oceanNode).handle(fileInfoTask)
 
     assert(response)
-    assert(response.stream, 'stream not present')
+    assert(response?.stream, 'stream not present')
     assert(response.status.httpStatus === 200, 'http status not 200')
-    expect(response.stream).to.be.instanceOf(Readable)
+    expect(response?.stream).to.be.instanceOf(Readable)
 
-    const fileInfo = await streamToObject(response.stream as Readable)
+    const fileInfo = await streamToObject(response?.stream as Readable)
 
     assert(fileInfo[0].valid, 'File info is valid')
     expect(fileInfo[0].type).to.equal('url')
@@ -184,7 +184,7 @@ describe('Should run a complete node flow.', () => {
       id: publishedDataset.ddo.id
     }
     const response = await new GetDdoHandler(oceanNode).handle(getDDOTask)
-    actualDDO = await streamToObject(response.stream as Readable)
+    actualDDO = await streamToObject(response?.stream as Readable)
     assert(actualDDO.id === publishedDataset.ddo.id, 'DDO id not matching')
   })
   it('should get file info with did', async () => {
@@ -197,11 +197,11 @@ describe('Should run a complete node flow.', () => {
     const response = await new FileInfoHandler(oceanNode).handle(fileInfoTask)
 
     assert(response)
-    assert(response.stream, 'stream not present')
+    assert(response?.stream, 'stream not present')
     assert(response.status.httpStatus === 200, 'http status not 200')
-    expect(response.stream).to.be.instanceOf(Readable)
+    expect(response?.stream).to.be.instanceOf(Readable)
 
-    const fileInfo = await streamToObject(response.stream as Readable)
+    const fileInfo = await streamToObject(response?.stream as Readable)
 
     assert(fileInfo[0].valid, 'File info is valid')
     expect(fileInfo[0].type).to.equal('url')
@@ -256,9 +256,9 @@ describe('Should run a complete node flow.', () => {
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
 
       assert(response)
-      assert(response.stream, 'stream not present')
+      assert(response?.stream, 'stream not present')
       assert(response.status.httpStatus === 200, 'http status not 200')
-      expect(response.stream).to.be.instanceOf(Readable)
+      expect(response?.stream).to.be.instanceOf(Readable)
     }
 
     setTimeout(() => {
@@ -296,7 +296,7 @@ describe('Should run a complete node flow.', () => {
       }
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
 
-      assert(response.stream === null, 'stream not null')
+      assert(response?.stream === null, 'stream not null')
       assert(response.status.httpStatus === 500, 'http status not 500')
       assert(
         response.status.error === `Error: Access to asset ${assetDID} was denied`,

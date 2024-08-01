@@ -173,7 +173,7 @@ describe('Should test admin operations', () => {
     }
 
     const responseJob: JobStatus = await streamToObject(
-      handlerResponse.stream as Readable
+      handlerresponse?.stream as Readable
     )
     assert(indexer.getJobsPool().length >= 1, 'job id not found in pool')
     assert(responseJob.command === PROTOCOL_COMMANDS.REINDEX_TX, 'command not expected')
@@ -194,7 +194,7 @@ describe('Should test admin operations', () => {
     }
 
     const response = await new FindDdoHandler(oceanNode).handle(findDDOTask)
-    const actualDDO = await streamToObject(response.stream as Readable)
+    const actualDDO = await streamToObject(response?.stream as Readable)
     assert(actualDDO[0].id === publishedDataset.ddo.id, 'DDO id not matching')
   })
 
@@ -238,7 +238,7 @@ describe('Should test admin operations', () => {
       assert(handlerResponse, 'handler resp does not exist')
       assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
       const responseJob: JobStatus = await streamToObject(
-        handlerResponse.stream as Readable
+        handlerresponse?.stream as Readable
       )
 
       assert(
@@ -296,7 +296,7 @@ describe('Should test admin operations', () => {
 
     // should exist a running thread for this network atm
     const response = await indexingHandler.handle(indexingStopCommand)
-    assert(response.stream, 'Failed to get stream when stoping thread')
+    assert(response?.stream, 'Failed to get stream when stoping thread')
     expect(response.status.httpStatus).to.be.equal(200)
 
     await sleep(5000)

@@ -159,7 +159,7 @@ export async function orderAsset(
       node: oceanNodeConfig.keys.peerId.toString()
     }
     const response = await new FeesHandler(oceanNode).handle(statusCommand)
-    const fees = await streamToObject(response.stream as Readable)
+    const fees = await streamToObject(response?.stream as Readable)
     providerFees = fees.providerFee
   }
   // call the mint function on the dataTokenContract
@@ -245,7 +245,7 @@ export async function reOrderAsset(
       node: oceanNodeConfig.keys.peerId.toString()
     }
     const response = await new FeesHandler(oceanNode).handle(statusCommand)
-    const fees = await streamToObject(response.stream as Readable)
+    const fees = await streamToObject(response?.stream as Readable)
     providerFees = fees.providerFee
   }
   // call the mint function on the dataTokenContract

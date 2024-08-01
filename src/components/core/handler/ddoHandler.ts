@@ -730,7 +730,7 @@ export class FindDdoHandler extends Handler {
       const response: P2PCommandResponse = await this.handle(task)
 
       if (response && response?.status?.httpStatus === 200 && response?.stream) {
-        const streamData = await readStream(response.stream)
+        const streamData = await readStream(response?.stream)
         const ddoList = JSON.parse(streamData)
 
         // Assuming the first DDO in the list is the one we want

@@ -51,8 +51,8 @@ describe('Encrypt File', () => {
 
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
-    assert(response.stream, 'Failed to get stream')
-    expect(response.stream).to.be.instanceOf(Readable)
+    assert(response?.stream, 'Failed to get stream')
+    expect(response?.stream).to.be.instanceOf(Readable)
 
     const expectedHeaders = {
       'Content-Type': 'application/octet-stream',
@@ -74,8 +74,8 @@ describe('Encrypt File', () => {
 
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
-    assert(response.stream, 'Failed to get stream')
-    expect(response.stream).to.be.instanceOf(Readable)
+    assert(response?.stream, 'Failed to get stream')
+    expect(response?.stream).to.be.instanceOf(Readable)
     const expectedHeaders = {
       'Content-Type': 'application/octet-stream',
       'X-Encrypted-By': config.keys.peerId.toString(),
@@ -96,8 +96,8 @@ describe('Encrypt File', () => {
 
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
-    assert(response.stream, 'Failed to get stream')
-    expect(response.stream).to.be.instanceOf(Readable)
+    assert(response?.stream, 'Failed to get stream')
+    expect(response?.stream).to.be.instanceOf(Readable)
     const expectedHeaders = {
       'Content-Type': 'application/octet-stream',
       'X-Encrypted-By': config.keys.peerId.toString(),

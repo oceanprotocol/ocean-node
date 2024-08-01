@@ -229,10 +229,10 @@ describe('Compute', () => {
     )
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
-    assert(response.stream, 'Failed to get stream')
-    expect(response.stream).to.be.instanceOf(Readable)
+    assert(response?.stream, 'Failed to get stream')
+    expect(response?.stream).to.be.instanceOf(Readable)
 
-    computeEnvironments = await streamToObject(response.stream as Readable)
+    computeEnvironments = await streamToObject(response?.stream as Readable)
 
     // expect 2 envs
     expect(computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 2, 'incorrect length')
@@ -538,7 +538,7 @@ describe('Compute', () => {
     assert(response, 'Failed to get response')
     // should fail, because txId '0x123' is not a valid order
     assert(response.status.httpStatus === 500, 'Failed to get 500 response')
-    assert(!response.stream, 'We should not have a stream')
+    assert(!response?.stream, 'We should not have a stream')
   })
 
   it('should start a compute job', async () => {
@@ -574,10 +574,10 @@ describe('Compute', () => {
     const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
-    assert(response.stream, 'Failed to get stream')
-    expect(response.stream).to.be.instanceOf(Readable)
+    assert(response?.stream, 'Failed to get stream')
+    expect(response?.stream).to.be.instanceOf(Readable)
 
-    const jobs = await streamToObject(response.stream as Readable)
+    const jobs = await streamToObject(response?.stream as Readable)
     // eslint-disable-next-line prefer-destructuring
     jobId = jobs[0].jobId
   })
@@ -602,8 +602,8 @@ describe('Compute', () => {
     const response = await new ComputeStopHandler(oceanNode).handle(stopComputeTask)
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
-    assert(response.stream, 'Failed to get stream')
-    expect(response.stream).to.be.instanceOf(Readable)
+    assert(response?.stream, 'Failed to get stream')
+    expect(response?.stream).to.be.instanceOf(Readable)
   })
 
   it('should get job status by jobId', async () => {
@@ -618,9 +618,9 @@ describe('Compute', () => {
     )
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
-    assert(response.stream, 'Failed to get stream')
-    expect(response.stream).to.be.instanceOf(Readable)
-    const jobs = await streamToObject(response.stream as Readable)
+    assert(response?.stream, 'Failed to get stream')
+    expect(response?.stream).to.be.instanceOf(Readable)
+    const jobs = await streamToObject(response?.stream as Readable)
     console.log(jobs)
   })
 
@@ -636,9 +636,9 @@ describe('Compute', () => {
     )
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
-    assert(response.stream, 'Failed to get stream')
-    expect(response.stream).to.be.instanceOf(Readable)
-    const jobs = await streamToObject(response.stream as Readable)
+    assert(response?.stream, 'Failed to get stream')
+    expect(response?.stream).to.be.instanceOf(Readable)
+    const jobs = await streamToObject(response?.stream as Readable)
     console.log(jobs)
   })
 

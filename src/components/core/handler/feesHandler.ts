@@ -95,7 +95,7 @@ export class FeesHandler extends Handler {
 
     const nonceDB = this.getOceanNode().getDatabase().nonce
     const nonceHandlerResponse = await getNonce(nonceDB, task.consumerAddress)
-    const nonce = await streamToString(nonceHandlerResponse.stream as Readable)
+    const nonce = await streamToString(nonceHandlerresponse?.stream as Readable)
 
     try {
       const providerFee = await createProviderFee(ddo, service, validUntil, null, null)
