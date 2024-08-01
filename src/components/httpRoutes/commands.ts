@@ -42,6 +42,15 @@ directCommandRoute.post(
       return
     }
 
+    let closedResponse = false
+
+    // detect connection closed
+    res.on('close', () => {
+      if (!closedResponse) {
+        HTTP_LOGGER.error('TCP connection was closed before we could send a response!')
+      }
+      closedResponse = true
+    })
     let isBinaryContent = false
     const sink = async function (source: any) {
       let first = true
@@ -63,18 +72,25 @@ directCommandRoute.post(
           } catch (e) {
             res.status(500)
             res.write(uint8ArrayToString(chunk.subarray()))
+            closedResponse = true
             res.end()
+            HTTP_LOGGER.error(e.message)
           }
         } else {
-          if (isBinaryContent) {
-            // Binary content, could be encrypted
-            res.write(chunk.subarray())
-          } else {
-            const str = uint8ArrayToString(chunk.subarray())
-            res.write(str)
+          try {
+            if (isBinaryContent) {
+              // Binary content, could be encrypted
+              res.write(chunk.subarray())
+            } else {
+              const str = uint8ArrayToString(chunk.subarray())
+              res.write(str)
+            }
+          } catch (e) {
+            HTTP_LOGGER.error(e.message)
           }
         }
       }
+      closedResponse = true
       res.end()
     }
 
@@ -117,9 +133,11 @@ directCommandRoute.post(
       }
     }
 
-    if (response.stream == null) {
+    // only if response was not already sent
+    if (response.stream == null && !closedResponse) {
       res.status(response.status.httpStatus)
       res.write(response.status.error)
+      closedResponse = true
       res.end()
     }
   }
