@@ -14,11 +14,11 @@ export class QueryHandler extends Handler {
   }
 
   async handle(task: QueryCommand): Promise<P2PCommandResponse> {
-    const validationResponse = await this.verifyParamsAndRateLimits(task)
-    if (this.shouldDenyTaskHandling(validationResponse)) {
-      return validationResponse
-    }
     try {
+      const validationResponse = await this.verifyParamsAndRateLimits(task)
+      if (this.shouldDenyTaskHandling(validationResponse)) {
+        return validationResponse
+      }
       let result = await this.getOceanNode().getDatabase().ddo.search(task.query)
       if (!result) {
         result = []
@@ -38,11 +38,11 @@ export class QueryHandler extends Handler {
 
 export class QueryDdoStateHandler extends QueryHandler {
   async handle(task: QueryCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
-    if (!validation.valid) {
-      return buildInvalidParametersResponse(validation)
-    }
     try {
+      const validation = this.validate(task)
+      if (!validation.valid) {
+        return buildInvalidParametersResponse(validation)
+      }
       const result = await this.getOceanNode().getDatabase().ddoState.search(task.query)
       return {
         stream: Readable.from(JSON.stringify(result)),

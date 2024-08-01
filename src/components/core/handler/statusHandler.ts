@@ -17,11 +17,11 @@ export class StatusHandler extends Handler {
     task: StatusCommand,
     detailed: boolean = false
   ): Promise<P2PCommandResponse> {
-    const checks = await this.verifyParamsAndRateLimits(task)
-    if (checks.status.httpStatus !== 200 || checks.status.error !== null) {
-      return checks
-    }
     try {
+      const checks = await this.verifyParamsAndRateLimits(task)
+      if (checks.status.httpStatus !== 200 || checks.status.error !== null) {
+        return checks
+      }
       const statusResult = await status(this.getOceanNode(), task.node, detailed)
       if (!statusResult) {
         return {

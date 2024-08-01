@@ -42,19 +42,23 @@ export type HandlerRegistry = {
 // and then register them on the Ocean Node instance
 export class HandlerFactory {
   static buildHandlerForTask(task: Command, impl: Handler): HandlerRegistry {
-    if (!task || !impl) {
-      const msg = 'Invalid task/handler parameters!'
-      OCEAN_NODE_LOGGER.error(msg)
-      throw new Error(msg)
-    } else if (SUPPORTED_PROTOCOL_COMMANDS.includes(task.command)) {
-      return {
-        handlerName: task.command,
-        handlerImpl: impl
+    try {
+      if (!task || !impl) {
+        const msg = 'Invalid task/handler parameters!'
+        OCEAN_NODE_LOGGER.error(msg)
+        throw new Error(msg)
+      } else if (SUPPORTED_PROTOCOL_COMMANDS.includes(task.command)) {
+        return {
+          handlerName: task.command,
+          handlerImpl: impl
+        }
+      } else {
+        const msg = `Invalid handler "${task.command}". No known associated protocol command!`
+        OCEAN_NODE_LOGGER.error(msg)
+        throw new Error(msg)
       }
-    } else {
-      const msg = `Invalid handler "${task.command}". No known associated protocol command!`
-      OCEAN_NODE_LOGGER.error(msg)
-      throw new Error(msg)
+    } catch (error) {
+      OCEAN_NODE_LOGGER.error(`Error building handler for task: ${error}`)
     }
   }
 }
@@ -145,19 +149,23 @@ export class CoreHandlersRegistry {
 
   // pass the handler name from the SUPPORTED_PROTOCOL_COMMANDS keys
   public getHandler(handlerName: string): Handler | null {
-    if (!SUPPORTED_PROTOCOL_COMMANDS.includes(handlerName)) {
-      OCEAN_NODE_LOGGER.error(
-        `Invalid handler "${handlerName}". No known associated protocol command!`
-      )
-      return null
-    } else if (!this.coreHandlers.has(handlerName)) {
-      // TODO: we can also just log the warning and create a new handler ourselfes here
-      OCEAN_NODE_LOGGER.error(
-        `No handler registered for "${handlerName}". Did you forgot to call "registerHandler()" ?`
-      )
-      return null
+    try {
+      if (!SUPPORTED_PROTOCOL_COMMANDS.includes(handlerName)) {
+        OCEAN_NODE_LOGGER.error(
+          `Invalid handler "${handlerName}". No known associated protocol command!`
+        )
+        return null
+      } else if (!this.coreHandlers.has(handlerName)) {
+        // TODO: we can also just log the warning and create a new handler ourselfes here
+        OCEAN_NODE_LOGGER.error(
+          `No handler registered for "${handlerName}". Did you forgot to call "registerHandler()" ?`
+        )
+        return null
+      }
+      return this.coreHandlers.get(handlerName)
+    } catch (error) {
+      OCEAN_NODE_LOGGER.error(`Error getting handler: ${error}`)
     }
-    return this.coreHandlers.get(handlerName)
   }
 
   public getHandlerForTask(task: Command): Handler | null {
