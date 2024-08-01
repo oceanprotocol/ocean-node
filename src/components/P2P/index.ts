@@ -557,6 +557,7 @@ export class OceanP2P extends EventEmitter {
     } catch (e) {
       response.status.httpStatus = 404
       response.status.error = 'Cannot connect to peer'
+      P2P_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Unable to connect to peer: ${peerId}`)
       return response
     }
 
