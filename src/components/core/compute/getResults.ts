@@ -100,7 +100,7 @@ export class ComputeGetResultHandler extends Handler {
       }
       // need to pass the headers properly
       if (anyResp.headers) {
-        response.status.headers = anyResp.headers
+        response?.status.headers = anyResp.headers
       }
       return response
     } catch (error) {

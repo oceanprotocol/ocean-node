@@ -546,10 +546,10 @@ export class DdoDatabase {
           .collections(schema.name)
           .documents()
           .delete(did)
-        if (response.id === did) {
+        if (response?.id === did) {
           isDeleted = true
           DATABASE_LOGGER.debug(
-            `Response for deleting the ddo: ${response.id}, isDeleted: ${isDeleted}`
+            `Response for deleting the ddo: ${response?.id}, isDeleted: ${isDeleted}`
           )
           return response
         }
@@ -587,10 +587,10 @@ export class DdoDatabase {
           .deleteByChainId(`chainId:${chainId}`, batchSize)
 
         DATABASE_LOGGER.debug(
-          `Number of deleted ddos on schema ${schema} : ${response.num_deleted}`
+          `Number of deleted ddos on schema ${schema} : ${response?.num_deleted}`
         )
 
-        numDeleted += response.num_deleted
+        numDeleted += response?.num_deleted
       } catch (error) {
         if (!(error instanceof TypesenseError && error.httpStatus === 404)) {
           // Log error other than not found

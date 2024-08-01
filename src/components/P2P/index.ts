@@ -543,8 +543,8 @@ export class OceanP2P extends EventEmitter {
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
-      response.status.httpStatus = 404
-      response.status.error = 'Invalid peer'
+      response?.status.httpStatus = 404
+      response?.status.error = 'Invalid peer'
       return response
     }
 
@@ -555,8 +555,8 @@ export class OceanP2P extends EventEmitter {
 
       stream = await this._libp2p.dialProtocol(peerId, this._protocol)
     } catch (e) {
-      response.status.httpStatus = 404
-      response.status.error = 'Cannot connect to peer'
+      response?.status.httpStatus = 404
+      response?.status.error = 'Cannot connect to peer'
       P2P_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Unable to connect to peer: ${peerId}`)
       return response
     }
@@ -579,13 +579,13 @@ export class OceanP2P extends EventEmitter {
           LOG_LEVELS_STR.LEVEL_ERROR,
           `Unable to send P2P message: ${err.message}`
         )
-        response.status.httpStatus = 404
-        response.status.error = err.message
+        response?.status.httpStatus = 404
+        response?.status.error = err.message
       }
     } else {
-      response.status.httpStatus = 404
-      response.status.error = 'Unable to get remote P2P stream (null)'
-      P2P_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, response.status.error)
+      response?.status.httpStatus = 404
+      response?.status.error = 'Unable to get remote P2P stream (null)'
+      P2P_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, response?.status.error)
     }
 
     return response

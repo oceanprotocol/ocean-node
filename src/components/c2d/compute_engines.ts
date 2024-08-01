@@ -261,10 +261,10 @@ export class C2DEngineOPFK8 extends C2DEngine {
         data: payload
       })
       if (response?.status !== 200) {
-        const message = `Exception on startCompute. Status: ${response.status}, ${response.statusText}`
+        const message = `Exception on startCompute. Status: ${response?.status}, ${response?.statusText}`
         throw new Error(message)
       }
-      const jobs: ComputeJob[] = response.data
+      const jobs: ComputeJob[] = response?.data
       const newResponse = JSON.parse(JSON.stringify(jobs)) as ComputeJob[]
       const { hash } = this.getC2DConfig()
       // we need to prepend cluster hash to each jobId
@@ -301,10 +301,10 @@ export class C2DEngineOPFK8 extends C2DEngine {
         data: payload
       })
       if (response?.status !== 200) {
-        const message = `Exception on stopCompute. Status: ${response.status}, ${response.statusText}`
+        const message = `Exception on stopCompute. Status: ${response?.status}, ${response?.statusText}`
         throw new Error(message)
       }
-      return response.data
+      return response?.data
     } catch (e) {}
     throw new Error(`stopCompute Failure`)
   }
@@ -342,7 +342,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
         return []
       }
 
-      return response.data
+      return response?.data
     } catch (e) {
       console.error(e)
     }
@@ -381,10 +381,10 @@ export class C2DEngineOPFK8 extends C2DEngine {
         responseType: 'stream'
       })
       if (response?.status !== 200) {
-        const message = `Exception on getComputeJobResult. Status: ${response.status}, ${response.statusText}`
+        const message = `Exception on getComputeJobResult. Status: ${response?.status}, ${response?.statusText}`
         throw new Error(message)
       }
-      return response.data
+      return response?.data
     } catch (e) {
       console.error(e)
     }

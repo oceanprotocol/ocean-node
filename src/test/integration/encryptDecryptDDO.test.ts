@@ -185,8 +185,8 @@ describe('Should encrypt and decrypt DDO', () => {
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(400)
-    expect(response.status.error).to.include('Decrypt DDO: Unsupported chain id')
+    expect(response?.status.httpStatus).to.equal(400)
+    expect(response?.status.error).to.include('Decrypt DDO: Unsupported chain id')
   })
 
   it('should return error duplicate nonce', async () => {
@@ -199,8 +199,8 @@ describe('Should encrypt and decrypt DDO', () => {
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
     console.log('first response:', response)
-    expect(response.status.httpStatus).to.equal(400)
-    expect(response.status.error).to.equal(`Decrypt DDO: duplicate nonce`)
+    expect(response?.status.httpStatus).to.equal(400)
+    expect(response?.status.error).to.equal(`Decrypt DDO: duplicate nonce`)
   })
 
   it('should return decrypter not authorized', async () => {
@@ -212,8 +212,8 @@ describe('Should encrypt and decrypt DDO', () => {
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(403)
-    expect(response.status.error).to.equal('Decrypt DDO: Decrypter not authorized')
+    expect(response?.status.httpStatus).to.equal(403)
+    expect(response?.status.error).to.equal('Decrypt DDO: Decrypter not authorized')
   })
 
   it('should authorize decrypter since is this node', async () => {
@@ -226,8 +226,8 @@ describe('Should encrypt and decrypt DDO', () => {
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.not.equal(403)
-    expect(response.status.error).to.not.equal('Decrypt DDO: Decrypter not authorized')
+    expect(response?.status.httpStatus).to.not.equal(403)
+    expect(response?.status.error).to.not.equal('Decrypt DDO: Decrypter not authorized')
   })
 
   it('should return asset not deployed by the data NFT factory', async () => {
@@ -240,8 +240,8 @@ describe('Should encrypt and decrypt DDO', () => {
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(400)
-    expect(response.status.error).to.equal(
+    expect(response?.status.httpStatus).to.equal(400)
+    expect(response?.status.error).to.equal(
       'Decrypt DDO: Asset not deployed by the data NFT factory'
     )
   })
@@ -257,8 +257,8 @@ describe('Should encrypt and decrypt DDO', () => {
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(400)
-    expect(response.status.error).to.equal(
+    expect(response?.status.httpStatus).to.equal(400)
+    expect(response?.status.error).to.equal(
       'Decrypt DDO: Failed to process transaction id'
     )
   })
@@ -276,8 +276,8 @@ describe('Should encrypt and decrypt DDO', () => {
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(400)
-    expect(response.status.error).to.equal(
+    expect(response?.status.httpStatus).to.equal(400)
+    expect(response?.status.error).to.equal(
       'Decrypt DDO: Failed to convert input args to bytes'
     )
   })
@@ -295,8 +295,8 @@ describe('Should encrypt and decrypt DDO', () => {
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(400)
-    expect(response.status.error).to.equal(
+    expect(response?.status.httpStatus).to.equal(400)
+    expect(response?.status.error).to.equal(
       'Decrypt DDO: Asset not deployed by the data NFT factory'
     )
   })
@@ -314,8 +314,8 @@ describe('Should encrypt and decrypt DDO', () => {
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(400)
-    expect(response.status.error).to.equal('Decrypt DDO: checksum does not match')
+    expect(response?.status.httpStatus).to.equal(400)
+    expect(response?.status.error).to.equal('Decrypt DDO: checksum does not match')
   })
 
   it('should return signature does not match', async () => {
@@ -330,8 +330,8 @@ describe('Should encrypt and decrypt DDO', () => {
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(400)
-    expect(response.status.error).to.equal(
+    expect(response?.status.httpStatus).to.equal(400)
+    expect(response?.status.error).to.equal(
       'Decrypt DDO: invalid signature or does not match'
     )
   })
@@ -362,7 +362,7 @@ describe('Should encrypt and decrypt DDO', () => {
       signature
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(200)
+    expect(response?.status.httpStatus).to.equal(200)
     const decryptedStringDDO = await streamToString(response?.stream as Readable)
     const stringDDO = JSON.stringify(genericAsset)
     expect(decryptedStringDDO).to.equal(stringDDO)
@@ -390,7 +390,7 @@ describe('Should encrypt and decrypt DDO', () => {
       signature
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    expect(response.status.httpStatus).to.equal(200)
+    expect(response?.status.httpStatus).to.equal(200)
     const decryptedStringDDO = await streamToString(response?.stream as Readable)
     const stringDDO = JSON.stringify(genericAsset)
     expect(decryptedStringDDO).to.equal(stringDDO)

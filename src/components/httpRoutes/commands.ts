@@ -135,8 +135,8 @@ directCommandRoute.post(
 
     // only if response was not already sent
     if (response?.stream == null && !closedResponse) {
-      res.status(response.status.httpStatus)
-      res.write(response.status.error)
+      res.status(response?.status.httpStatus)
+      res.write(response?.status.error)
       closedResponse = true
       res.end()
     }

@@ -6,6 +6,6 @@ export async function fetchEnvironments(
 ): Promise<ComputeEnvironment[]> {
   const response: ComputeEnvironment[] = []
   const environments = await engine.getComputeEnvironments(chainId)
-  response.push(...environments)
+  response?.push(...environments)
   return response
 }

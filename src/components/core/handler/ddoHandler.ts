@@ -639,7 +639,7 @@ export class FindDdoHandler extends Handler {
                   JSON.stringify(getCommand),
                   sink
                 )
-                if (response.status.httpStatus !== 200) {
+                if (response?.status.httpStatus !== 200) {
                   providerIds.pop() // move to the next one
                   processed++
                 }

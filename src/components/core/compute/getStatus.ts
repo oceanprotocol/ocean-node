@@ -57,7 +57,7 @@ export class ComputeGetStatusHandler extends Handler {
           task.did,
           jobId
         )
-        response.push(...jobs)
+        response?.push(...jobs)
       }
       CORE_LOGGER.logMessage(
         'ComputeGetStatusCommand Response: ' + JSON.stringify(response, null, 2),

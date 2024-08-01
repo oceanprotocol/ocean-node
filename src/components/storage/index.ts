@@ -48,9 +48,9 @@ export abstract class Storage {
     })
 
     return {
-      httpStatus: response.status,
-      stream: response.data,
-      headers: response.headers as any
+      httpStatus: response?.status,
+      stream: response?.data,
+      headers: response?.headers as any
     }
   }
 
@@ -87,7 +87,7 @@ export abstract class Storage {
         throw new Error('Empty file object')
       } else {
         const fileInfo = await this.fetchSpecificFileMetadata(file, forceChecksum)
-        response.push(fileInfo)
+        response?.push(fileInfo)
       }
     } catch (error) {
       CORE_LOGGER.error(error)
@@ -243,7 +243,7 @@ export class UrlStorage extends Storage {
       method: file.method || 'get',
       headers: file.headers
     })
-    return await encryptData(response.data, encryptionType)
+    return await encryptData(response?.data, encryptionType)
   }
 }
 
@@ -321,7 +321,7 @@ export class ArweaveStorage extends Storage {
       url: urlJoin(process.env.ARWEAVE_GATEWAY, file.transactionId),
       method: 'get'
     })
-    return await encryptData(response.data, encryptionType)
+    return await encryptData(response?.data, encryptionType)
   }
 }
 
@@ -393,6 +393,6 @@ export class IpfsStorage extends Storage {
       url: file.hash,
       method: 'get'
     })
-    return await encryptData(response.data, encryptionType)
+    return await encryptData(response?.data, encryptionType)
   }
 }

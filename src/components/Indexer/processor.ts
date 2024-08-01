@@ -173,17 +173,17 @@ class BaseEventProcessor {
             data: payload
           })
           if (response?.status !== 200) {
-            const message = `bProvider exception on decrypt DDO. Status: ${response.status}, ${response.statusText}`
+            const message = `bProvider exception on decrypt DDO. Status: ${response?.status}, ${response?.statusText}`
             INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
             throw new Error(message)
           }
 
           let responseHash
-          if (response.data instanceof Object) {
-            responseHash = create256Hash(JSON.stringify(response.data))
-            ddo = response.data
+          if (response?.data instanceof Object) {
+            responseHash = create256Hash(JSON.stringify(response?.data))
+            ddo = response?.data
           } else {
-            ddo = JSON.parse(response.data)
+            ddo = JSON.parse(response?.data)
             responseHash = create256Hash(ddo)
           }
           if (responseHash !== metadataHash) {

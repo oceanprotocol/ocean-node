@@ -223,11 +223,11 @@ providerRoutes.get(
 
       const response = await new DownloadHandler(req.oceanNode).handle(downloadTask)
       if (response?.stream) {
-        res.status(response.status.httpStatus)
-        res.set(response.status.headers)
+        res.status(response?.status.httpStatus)
+        res.set(response?.status.headers)
         response?.stream.pipe(res)
       } else {
-        res.status(response.status.httpStatus).send(response.status.error)
+        res.status(response?.status.httpStatus).send(response?.status.error)
       }
     } catch (error) {
       HTTP_LOGGER.logMessage(`Error: ${error}`, true)

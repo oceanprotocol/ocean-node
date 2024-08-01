@@ -113,7 +113,7 @@ export class OceanNode {
 
       if (response) {
         // eslint-disable-next-line prefer-destructuring
-        status = response.status
+        status = response?.status
         sendStream = response?.stream
       }
 

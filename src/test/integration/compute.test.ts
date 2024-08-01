@@ -228,7 +228,7 @@ describe('Compute', () => {
       getEnvironmentsTask
     )
     assert(response, 'Failed to get response')
-    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response?.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response?.stream, 'Failed to get stream')
     expect(response?.stream).to.be.instanceOf(Readable)
 
@@ -537,7 +537,7 @@ describe('Compute', () => {
     const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
     assert(response, 'Failed to get response')
     // should fail, because txId '0x123' is not a valid order
-    assert(response.status.httpStatus === 500, 'Failed to get 500 response')
+    assert(response?.status.httpStatus === 500, 'Failed to get 500 response')
     assert(!response?.stream, 'We should not have a stream')
   })
 
@@ -573,7 +573,7 @@ describe('Compute', () => {
     }
     const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
     assert(response, 'Failed to get response')
-    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response?.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response?.stream, 'Failed to get stream')
     expect(response?.stream).to.be.instanceOf(Readable)
 
@@ -601,7 +601,7 @@ describe('Compute', () => {
     }
     const response = await new ComputeStopHandler(oceanNode).handle(stopComputeTask)
     assert(response, 'Failed to get response')
-    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response?.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response?.stream, 'Failed to get stream')
     expect(response?.stream).to.be.instanceOf(Readable)
   })
@@ -617,7 +617,7 @@ describe('Compute', () => {
       statusComputeTask
     )
     assert(response, 'Failed to get response')
-    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response?.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response?.stream, 'Failed to get stream')
     expect(response?.stream).to.be.instanceOf(Readable)
     const jobs = await streamToObject(response?.stream as Readable)
@@ -635,7 +635,7 @@ describe('Compute', () => {
       statusComputeTask
     )
     assert(response, 'Failed to get response')
-    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response?.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response?.stream, 'Failed to get stream')
     expect(response?.stream).to.be.instanceOf(Readable)
     const jobs = await streamToObject(response?.stream as Readable)

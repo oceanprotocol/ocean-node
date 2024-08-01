@@ -50,7 +50,7 @@ export default function DownloadButton() {
           body: JSON.stringify({ expiryTimestamp, signature })
         }
       )
-      const data = await response.json()
+      const data = await response?.json()
       if (data) {
         const dataStr =
           'data:application/json;charset=utf-8,' +

@@ -506,7 +506,7 @@ describe('URL Storage encryption tests', () => {
     nodeId = keys.peerId.toString()
     // Perform encryption
     const encryptResponse = await storage.encrypt(EncryptMethod.AES)
-    assert(encryptResponse.httpStatus === 200, 'Response is not 200')
+    assert(encryptresponse?.httpStatus === 200, 'Response is not 200')
     assert(encryptresponse?.stream, 'Stream is not null')
     assert(encryptresponse?.stream instanceof Readable, 'Stream is not a ReadableStream')
 

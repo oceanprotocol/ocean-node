@@ -136,15 +136,15 @@ export class TypesenseApi {
 
         const response = await axios(requestOptions)
         this.config.logger.debug(
-          `Request ${endpoint}: Request to Node ${node.host} was made. Response Code was ${response.status}.`
+          `Request ${endpoint}: Request to Node ${node.host} was made. Response Code was ${response?.status}.`
         )
 
         if (response?.status >= 200 && response?.status < 300) {
-          return Promise.resolve(response.data)
+          return Promise.resolve(response?.data)
         } else if (response?.status < 500) {
           return Promise.reject(this.customError(response))
         } else {
-          throw new Error(response.data?.message)
+          throw new Error(response?.data?.message)
         }
       } catch (error: any) {
         lastException = error
@@ -162,8 +162,8 @@ export class TypesenseApi {
   }
 
   customError(response: AxiosResponse): TypesenseError {
-    const error = new TypesenseError(response.data?.message)
-    error.httpStatus = response.status
+    const error = new TypesenseError(response?.data?.message)
+    error.httpStatus = response?.status
     return error
   }
 }

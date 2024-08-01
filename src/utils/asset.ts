@@ -45,9 +45,9 @@ export async function fetchFileMetadata(
       method: method || 'get',
       responseType: 'stream'
     })
-    contentType = response.headers['content-type']
+    contentType = response?.headers['content-type']
     let totalSize = 0
-    for await (const chunk of response.data) {
+    for await (const chunk of response?.data) {
       totalSize += chunk.length
       contentChecksum.update(chunk)
       if (totalSize > maxLength && !forceChecksum) {

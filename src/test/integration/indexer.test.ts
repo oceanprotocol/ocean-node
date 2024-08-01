@@ -272,7 +272,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     }
     const response = await queryDdoStateHandler.handle(queryDdoState)
     assert(response, 'Failed to get response')
-    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response?.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response?.stream, 'Failed to get stream')
     const result = await streamToObject(response?.stream as Readable)
     const ddoState = result.hits[0].document
@@ -289,7 +289,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     }
     const nftQueryResponse = await queryDdoStateHandler.handle(queryDdoState)
     assert(nftQueryResponse, 'Failed to get response')
-    assert(nftQueryResponse.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(nftQueryresponse?.status.httpStatus === 200, 'Failed to get 200 response')
     assert(nftQueryresponse?.stream, 'Failed to get stream')
     const nftQueryResult = await streamToObject(nftQueryresponse?.stream as Readable)
     const nftDdoState = nftQueryResult.hits[0].document

@@ -111,7 +111,7 @@ describe('Should run a complete node flow.', () => {
       node: oceanNodeConfig.keys.peerId.toString()
     }
     const response = await new StatusHandler(oceanNode).handle(statusCommand)
-    assert(response.status.httpStatus === 200, 'http status not 200')
+    assert(response?.status.httpStatus === 200, 'http status not 200')
     const resp = await streamToString(response?.stream as Readable)
     const status = JSON.parse(resp)
     assert(status.id === oceanNodeConfig.keys.peerId.toString(), 'peer id not matching ')
@@ -134,7 +134,7 @@ describe('Should run a complete node flow.', () => {
       node: oceanNodeConfig.keys.peerId.toString()
     }
     const response = await new DetailedStatusHandler(oceanNode).handle(statusCommand)
-    assert(response.status.httpStatus === 200, 'http status not 200')
+    assert(response?.status.httpStatus === 200, 'http status not 200')
     const resp = await streamToString(response?.stream as Readable)
     const status = JSON.parse(resp)
     assert(status.c2dClusters !== undefined, 'clusters info should not be undefined')
@@ -156,7 +156,7 @@ describe('Should run a complete node flow.', () => {
 
     assert(response)
     assert(response?.stream, 'stream not present')
-    assert(response.status.httpStatus === 200, 'http status not 200')
+    assert(response?.status.httpStatus === 200, 'http status not 200')
     expect(response?.stream).to.be.instanceOf(Readable)
 
     const fileInfo = await streamToObject(response?.stream as Readable)
@@ -198,7 +198,7 @@ describe('Should run a complete node flow.', () => {
 
     assert(response)
     assert(response?.stream, 'stream not present')
-    assert(response.status.httpStatus === 200, 'http status not 200')
+    assert(response?.status.httpStatus === 200, 'http status not 200')
     expect(response?.stream).to.be.instanceOf(Readable)
 
     const fileInfo = await streamToObject(response?.stream as Readable)
@@ -257,7 +257,7 @@ describe('Should run a complete node flow.', () => {
 
       assert(response)
       assert(response?.stream, 'stream not present')
-      assert(response.status.httpStatus === 200, 'http status not 200')
+      assert(response?.status.httpStatus === 200, 'http status not 200')
       expect(response?.stream).to.be.instanceOf(Readable)
     }
 
@@ -297,9 +297,9 @@ describe('Should run a complete node flow.', () => {
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
 
       assert(response?.stream === null, 'stream not null')
-      assert(response.status.httpStatus === 500, 'http status not 500')
+      assert(response?.status.httpStatus === 500, 'http status not 500')
       assert(
-        response.status.error === `Error: Access to asset ${assetDID} was denied`,
+        response?.status.error === `Error: Access to asset ${assetDID} was denied`,
         'error contains access denied'
       )
     }

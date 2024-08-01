@@ -52,8 +52,8 @@ export class Purgatory {
           INDEXER_LOGGER.log(
             LOG_LEVELS_STR.LEVEL_ERROR,
             `PURGATORY: Failure when retrieving new purgatory list from ASSET_PURGATORY_URL env var.
-                Response: ${response.data}, status: ${
-                  response?.status + response.statusText
+                Response: ${response?.data}, status: ${
+                  response?.status + response?.statusText
                 }`,
             true
           )
@@ -63,7 +63,7 @@ export class Purgatory {
           `PURGATORY: Successfully retrieved new purgatory list from ASSET_PURGATORY_URL env var.`
         )
 
-        for (const asset of response.data) {
+        for (const asset of response?.data) {
           if (asset && 'did' in asset) {
             purgatoryAssets.push({ did: asset.did, reason: asset.reason })
           }
@@ -95,8 +95,8 @@ export class Purgatory {
           INDEXER_LOGGER.log(
             LOG_LEVELS_STR.LEVEL_ERROR,
             `PURGATORY: Failure when retrieving new purgatory list from ACCOUNT_PURGATORY_URL env var.
-              Response: ${response.data}, status: ${
-                response?.status + response.statusText
+              Response: ${response?.data}, status: ${
+                response?.status + response?.statusText
               }`,
             true
           )
@@ -105,7 +105,7 @@ export class Purgatory {
         INDEXER_LOGGER.logMessage(
           `PURGATORY: Successfully retrieved new purgatory list from ACCOUNT_PURGATORY_URL env var.`
         )
-        for (const account of response.data) {
+        for (const account of response?.data) {
           if (account && 'address' in account) {
             purgatoryAccounts.push({ address: account.address, reason: account.reason })
           }

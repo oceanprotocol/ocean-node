@@ -89,12 +89,12 @@ fileInfoRoute.post(
       }
       const response = await new FileInfoHandler(req.oceanNode).handle(fileInfoTask)
       if (response?.stream) {
-        res.status(response.status.httpStatus)
-        res.set(response.status.headers)
+        res.status(response?.status.httpStatus)
+        res.set(response?.status.headers)
         response?.stream.pipe(res)
       } else {
-        HTTP_LOGGER.error(response.status.error)
-        res.status(response.status.httpStatus).send(response.status.error)
+        HTTP_LOGGER.error(response?.status.error)
+        res.status(response?.status.httpStatus).send(response?.status.error)
       }
     } catch (error) {
       HTTP_LOGGER.error(error.message)

@@ -103,7 +103,7 @@ export async function handleProtocolCommands(connection: any) {
       response = await handler.handle(task)
       if (response) {
         // eslint-disable-next-line prefer-destructuring
-        status = response.status
+        status = response?.status
         sendStream = response?.stream
       }
       statusStream = new ReadableString(JSON.stringify(status))

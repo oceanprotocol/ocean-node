@@ -208,7 +208,7 @@ function testEchoCommand(): Promise<string> {
       }
     })
       .then(function (response: any) {
-        console.log('Got response from server...', response.status)
+        console.log('Got response from server...', response?.status)
         resolve(response?.status === 200 ? 'OK' : 'NOK')
       })
       .catch((err: any) => {
@@ -250,7 +250,7 @@ function testDownloadCommand(
       data: payload
     })
       .then(function (response: any) {
-        // console.log('Got response from server...', response.data)
+        // console.log('Got response from server...', response?.data)
 
         const fileOutput = './dist/helpers/scripts/output/received_out_'
         let suffix = '' + exampleId
@@ -264,9 +264,9 @@ function testDownloadCommand(
         if (useEncryption && DECRYPT_AFTER_RECEIVING_FILE) {
           // decrypt the stream and store it decrypted already
           // if we want to store it encrypted just do as bellow:
-          // response.data.pipe(fileOutput)
+          // response?.data.pipe(fileOutput)
           decryptFileStream(
-            response.data,
+            response?.data,
             out,
             fileSecrets.privateKey,
             fileSecrets.initVector
@@ -280,7 +280,7 @@ function testDownloadCommand(
               console.log('Error decrypting the file: ', err)
             })
         } else {
-          // response.data.on('data', function (chunk: any) {
+          // response?.data.on('data', function (chunk: any) {
           //     console.log('Got chunk: ', chunk);
           // });
 
@@ -291,7 +291,7 @@ function testDownloadCommand(
           })
 
           // just write the file output
-          response.data.pipe(out)
+          response?.data.pipe(out)
         }
       })
       .catch((err: any) => {
@@ -311,7 +311,7 @@ async function getPeerDetails(url: string, nodeId: string): Promise<PeerDetails>
     }
   })
 
-  const data = await response.data
+  const data = await response?.data
   console.log('Got data from server:', data)
   // get the PeerDetails
   const details: PeerDetails = {

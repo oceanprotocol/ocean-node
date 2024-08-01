@@ -34,7 +34,7 @@ export default function IndexQueue() {
               clearInterval(intervalId) // Stop doing this, there is no point, since we don't have Indexer
             }
           } else {
-            response.json().then((data) => {
+            response?.json().then((data) => {
               const transformedQueue = data.queue.map((item: any) => {
                 const network = networks.find((net) => net.chainId === item.chainId)
                 return {

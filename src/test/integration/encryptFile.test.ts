@@ -50,7 +50,7 @@ describe('Encrypt File', () => {
     const response = await new EncryptFileHandler(oceanNode).handle(encryptFileTask)
 
     assert(response, 'Failed to get response')
-    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response?.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response?.stream, 'Failed to get stream')
     expect(response?.stream).to.be.instanceOf(Readable)
 
@@ -59,7 +59,7 @@ describe('Encrypt File', () => {
       'X-Encrypted-By': config.keys.peerId.toString(),
       'X-Encrypted-Method': EncryptMethod.AES
     }
-    expect(response.status.headers).to.deep.equal(expectedHeaders)
+    expect(response?.status.headers).to.deep.equal(expectedHeaders)
   })
 
   it('should encrypt raw data file on body (AES)', async () => {
@@ -73,7 +73,7 @@ describe('Encrypt File', () => {
     const response = await new EncryptFileHandler(oceanNode).handle(encryptFileTask)
 
     assert(response, 'Failed to get response')
-    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response?.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response?.stream, 'Failed to get stream')
     expect(response?.stream).to.be.instanceOf(Readable)
     const expectedHeaders = {
@@ -81,7 +81,7 @@ describe('Encrypt File', () => {
       'X-Encrypted-By': config.keys.peerId.toString(),
       'X-Encrypted-Method': EncryptMethod.AES
     }
-    expect(response.status.headers).to.deep.equal(expectedHeaders)
+    expect(response?.status.headers).to.deep.equal(expectedHeaders)
   })
 
   it('should encrypt raw data file on body (ECIES)', async () => {
@@ -95,7 +95,7 @@ describe('Encrypt File', () => {
     const response = await new EncryptFileHandler(oceanNode).handle(encryptFileTask)
 
     assert(response, 'Failed to get response')
-    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response?.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response?.stream, 'Failed to get stream')
     expect(response?.stream).to.be.instanceOf(Readable)
     const expectedHeaders = {
@@ -103,7 +103,7 @@ describe('Encrypt File', () => {
       'X-Encrypted-By': config.keys.peerId.toString(),
       'X-Encrypted-Method': EncryptMethod.ECIES
     }
-    expect(response.status.headers).to.deep.equal(expectedHeaders)
+    expect(response?.status.headers).to.deep.equal(expectedHeaders)
   })
 
   it('should return unknown file type', async () => {
@@ -119,8 +119,8 @@ describe('Encrypt File', () => {
     const response = await new EncryptFileHandler(oceanNode).handle(encryptFileTask)
 
     assert(response, 'Failed to get response')
-    assert(response.status.httpStatus === 500, 'Failed to get 500 response')
-    expect(response.status.error).to.be.equal(
+    assert(response?.status.httpStatus === 500, 'Failed to get 500 response')
+    expect(response?.status.error).to.be.equal(
       'Unknown error: Invalid storage type: Unknown'
     )
   })

@@ -102,7 +102,7 @@ export class Blockchain {
       await sleep(2000)
       response = await this.isNetworkReady()
       // return as soon as we have a valid one
-      if (response.ready) {
+      if (response?.ready) {
         return response
       }
     }

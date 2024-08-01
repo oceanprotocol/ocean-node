@@ -118,7 +118,7 @@ describe('Should test admin operations', () => {
     }
     const validationResponse = new StopNodeHandler(oceanNode).validate(stopNodeCommand)
     assert(validationResponse, 'invalid stop node validation response')
-    assert(validationResponse.valid === true, 'validation for stop node command failed')
+    assert(validationresponse?.valid === true, 'validation for stop node command failed')
   })
 
   it('should publish dataset', async function () {
@@ -151,7 +151,7 @@ describe('Should test admin operations', () => {
     const reindexTxHandler = new ReindexTxHandler(oceanNode)
     const validationResponse = reindexTxHandler.validate(reindexTxCommand)
     assert(validationResponse, 'invalid reindex tx validation response')
-    assert(validationResponse.valid === true, 'validation for reindex tx command failed')
+    assert(validationresponse?.valid === true, 'validation for reindex tx command failed')
 
     let reindexResult: any = null
     INDEXER_CRAWLING_EVENT_EMITTER.addListener(
@@ -166,7 +166,7 @@ describe('Should test admin operations', () => {
 
     const handlerResponse = await reindexTxHandler.handle(reindexTxCommand)
     assert(handlerResponse, 'handler resp does not exist')
-    assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
+    assert(handlerresponse?.status.httpStatus === 200, 'incorrect http status')
     const findDDOTask = {
       command: PROTOCOL_COMMANDS.FIND_DDO,
       id: publishedDataset.ddo.id
@@ -221,7 +221,7 @@ describe('Should test admin operations', () => {
       const validationResponse = reindexChainHandler.validate(reindexChainCommand)
       assert(validationResponse, 'invalid reindex chain validation response')
       assert(
-        validationResponse.valid === true,
+        validationresponse?.valid === true,
         'validation for reindex chain command failed'
       )
 
@@ -236,7 +236,7 @@ describe('Should test admin operations', () => {
       )
       const handlerResponse = await reindexChainHandler.handle(reindexChainCommand)
       assert(handlerResponse, 'handler resp does not exist')
-      assert(handlerResponse.status.httpStatus === 200, 'incorrect http status')
+      assert(handlerresponse?.status.httpStatus === 200, 'incorrect http status')
       const responseJob: JobStatus = await streamToObject(
         handlerresponse?.stream as Readable
       )
@@ -297,7 +297,7 @@ describe('Should test admin operations', () => {
     // should exist a running thread for this network atm
     const response = await indexingHandler.handle(indexingStopCommand)
     assert(response?.stream, 'Failed to get stream when stoping thread')
-    expect(response.status.httpStatus).to.be.equal(200)
+    expect(response?.status.httpStatus).to.be.equal(200)
 
     await sleep(5000)
 

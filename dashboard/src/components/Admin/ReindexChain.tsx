@@ -37,7 +37,7 @@ export default function ReIndexChain() {
           })
         })
         if (response?.status === 200) {
-          const jobData = await response.json()
+          const jobData = await response?.json()
           setSeverity(jobData.status === CommandStatus.DELIVERED ? 'info' : 'error')
           setJob(jobData)
           alert(`Chain with ID ${chainId} is now being reindexed.`)

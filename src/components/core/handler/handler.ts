@@ -154,8 +154,8 @@ export abstract class Handler implements ICommandHandler {
 
   shouldDenyTaskHandling(validationResponse: P2PCommandResponse): boolean {
     return (
-      validationResponse.status.httpStatus !== 200 ||
-      validationResponse.status.error !== null
+      validationresponse?.status.httpStatus !== 200 ||
+      validationresponse?.status.error !== null
     )
   }
 }
