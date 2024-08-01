@@ -114,7 +114,7 @@ export class OceanNode {
       if (response) {
         // eslint-disable-next-line prefer-destructuring
         status = response.status
-        sendStream = response.stream
+        sendStream = response?.stream
       }
 
       const statusStream = new ReadableString(JSON.stringify(status))

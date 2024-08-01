@@ -57,7 +57,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, r
     const response = await new ComputeGetEnvironmentsHandler(req.oceanNode).handle(
       getEnvironmentsTask
     ) // get compute environments
-    const computeEnvironments = await streamToObject(response.stream as Readable)
+    const computeEnvironments = await streamToObject(response?.stream as Readable)
 
     // check if computeEnvironments is a valid json object and not empty
     if (
@@ -102,7 +102,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
 
     const response = await new ComputeStartHandler(req.oceanNode).handle(startComputeTask)
     if (response?.status?.httpStatus === 200) {
-      const jobs = await streamToObject(response.stream as Readable)
+      const jobs = await streamToObject(response?.stream as Readable)
       res.status(200).json(jobs)
     } else {
       HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_INFO, `Error: ${response?.status?.error}`)
@@ -132,7 +132,7 @@ computeRoutes.put(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       jobId: (req.body.jobId as string) || null
     }
     const response = await new ComputeStopHandler(req.oceanNode).handle(stopComputeTask)
-    const jobs = await streamToObject(response.stream as Readable)
+    const jobs = await streamToObject(response?.stream as Readable)
     res.status(200).json(jobs)
   } catch (error) {
     HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
@@ -159,7 +159,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
     if (!response?.stream) {
       res.status(500).send('Internal Server Error')
     }
-    const jobs = await streamToObject(response.stream as Readable)
+    const jobs = await streamToObject(response?.stream as Readable)
     res.status(200).json(jobs)
   } catch (error) {
     HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
@@ -186,10 +186,10 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeResult`, async (req, res) =>
     const response = await new ComputeGetResultHandler(req.oceanNode).handle(
       resultComputeTask
     )
-    if (response.stream) {
+    if (response?.stream) {
       res.status(response.status.httpStatus)
       res.set(response.status.headers)
-      response.stream.pipe(res)
+      response?.stream.pipe(res)
     } else {
       res.status(response.status.httpStatus).send(response.status.error)
     }

@@ -562,7 +562,7 @@ export class OceanP2P extends EventEmitter {
     }
 
     if (stream) {
-      response.stream = stream
+      response?.stream = stream
       try {
         pipe(
           // Source data
@@ -600,7 +600,7 @@ export class OceanP2P extends EventEmitter {
   //   // direct message to self
   //   // create a writable stream
   //   // const outputStream = new Stream.Writable()
-  //   response.stream = new Stream.Writable()
+  //   response?.stream = new Stream.Writable()
   //   // read from input stream to output one and move on
   //   await handleDirectProtocolCommand.call(this, message, sink)
 

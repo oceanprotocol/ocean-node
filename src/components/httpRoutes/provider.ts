@@ -222,10 +222,10 @@ providerRoutes.get(
       }
 
       const response = await new DownloadHandler(req.oceanNode).handle(downloadTask)
-      if (response.stream) {
+      if (response?.stream) {
         res.status(response.status.httpStatus)
         res.set(response.status.headers)
-        response.stream.pipe(res)
+        response?.stream.pipe(res)
       } else {
         res.status(response.status.httpStatus).send(response.status.error)
       }

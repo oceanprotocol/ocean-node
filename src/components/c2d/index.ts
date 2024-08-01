@@ -33,7 +33,7 @@ export async function checkC2DEnvExists(
       getEnvironmentsTask
     )
     if (response.status.httpStatus === 200) {
-      const computeEnvironments = await streamToObject(response.stream as Readable)
+      const computeEnvironments = await streamToObject(response?.stream as Readable)
       for (const computeEnvironment of computeEnvironments[parseInt(supportedNetwork)]) {
         if (computeEnvironment.id === envId) {
           return true

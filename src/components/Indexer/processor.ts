@@ -215,7 +215,7 @@ class BaseEventProcessor {
               .getCoreHandlers()
               .getHandler(PROTOCOL_COMMANDS.DECRYPT_DDO)
               .handle(decryptDDOTask)
-            ddo = JSON.parse(await streamToString(response.stream as Readable))
+            ddo = JSON.parse(await streamToString(response?.stream as Readable))
           } catch (error) {
             const message = `Node exception on decrypt DDO. Status: ${error.message}`
             INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
@@ -276,7 +276,7 @@ class BaseEventProcessor {
               JSON.stringify(message),
               sink
             )
-            ddo = JSON.parse(await streamToString(response.stream as Readable))
+            ddo = JSON.parse(await streamToString(response?.stream as Readable))
           } catch (error) {
             const message = `Node exception on decrypt DDO. Status: ${error.message}`
             INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
