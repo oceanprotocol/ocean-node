@@ -151,10 +151,11 @@ export class OceanP2P extends EventEmitter {
       const peerId = details.detail
       P2P_LOGGER.debug('Connection established to:' + peerId.toString()) // Emitted when a peer has been found
       try {
+        // DO WE REALLY NEED THIS?
         this._libp2p.services.pubsub.connect(peerId.toString())
-      } catch (e) {}
-    } else {
-      /* empty */
+      } catch (e) {
+        P2P_LOGGER.error(e.message)
+      }
     }
   }
 
@@ -551,19 +552,18 @@ export class OceanP2P extends EventEmitter {
     let stream
     // dial/connect to the target node
     try {
-      // stream= await this._libp2p.dialProtocol(peer, this._protocol)
-
       stream = await this._libp2p.dialProtocol(peerId, this._protocol)
     } catch (e) {
       response.status.httpStatus = 404
       response.status.error = 'Cannot connect to peer'
+      P2P_LOGGER.error(`Unable to connect to peer: ${peerId}`)
       return response
     }
 
     if (stream) {
       response.stream = stream
       try {
-        pipe(
+        await pipe(
           // Source data
           [uint8ArrayFromString(message)],
           // Write to the stream, and pass its output to the next function
@@ -574,17 +574,14 @@ export class OceanP2P extends EventEmitter {
           sink
         )
       } catch (err) {
-        P2P_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_ERROR,
-          `Unable to send P2P message: ${err.message}`
-        )
+        P2P_LOGGER.error(`Unable to send P2P message: ${err.message}`)
         response.status.httpStatus = 404
         response.status.error = err.message
       }
     } else {
       response.status.httpStatus = 404
       response.status.error = 'Unable to get remote P2P stream (null)'
-      P2P_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, response.status.error)
+      P2P_LOGGER.error(response.status.error)
     }
 
     return response
