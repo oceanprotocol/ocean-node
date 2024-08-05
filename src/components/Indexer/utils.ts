@@ -181,7 +181,7 @@ export const processChunkLogs = async (
             if (!allowed.length) {
               INDEXER_LOGGER.log(
                 LOG_LEVELS_STR.LEVEL_ERROR,
-                `Metadata Proof validator not allowed`,
+                `Metadata Proof validators list is empty`,
                 true
               )
               continue

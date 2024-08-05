@@ -7,11 +7,10 @@ export const rootEndpointRoutes = express.Router()
 rootEndpointRoutes.get('/', async (req, res) => {
   const config = await getConfiguration()
   if (!config.supportedNetworks) {
-    HTTP_LOGGER.error(`Supported networks not defined`)
-    res.status(400).send(`Supported networks not defined`)
+    HTTP_LOGGER.warn(`Supported networks not defined`)
   }
   res.json({
-    chainIds: Object.keys(config.supportedNetworks),
+    chainIds: config.supportedNetworks ? Object.keys(config.supportedNetworks) : [],
     providerAddress: config.keys.ethAddress,
     serviceEndpoints: getAllServiceEndpoints(),
     software: 'Ocean-Node',
