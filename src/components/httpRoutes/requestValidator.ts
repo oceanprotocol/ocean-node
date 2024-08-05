@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
-import { getConfiguration } from '../../utils'
-import { HTTP_LOGGER } from '../../utils/logging/common'
+import { getConfiguration } from '../../utils/index.js'
+import { HTTP_LOGGER } from '../../utils/logging/common.js'
 
 // TODO we should group common stuff,
 // we have multiple similar validation interfaces

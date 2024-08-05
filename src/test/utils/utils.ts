@@ -92,7 +92,11 @@ export async function setupEnvironment(
         element.override ||
         (element.required && process.env[element.name] === undefined) // if override OR not set but required to run
       ) {
-        CONFIG_LOGGER.debug('Overriding environment variable: ' + element.name)
+        CONFIG_LOGGER.debug(
+          `Overriding environment variable: ${element.name}\ncurrent:\n ${
+            process.env[element.name]
+          }\nnew:\n ${element.newValue}`
+        )
         element.originalValue = process.env[element.name] // save original value
         process.env[element.name] = element.newValue
         ENVIRONMENT_VARIABLES[element.name].value = element.newValue
