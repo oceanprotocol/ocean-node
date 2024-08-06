@@ -141,3 +141,7 @@ export function asyncCallWithTimeout(
     }
   })
 }
+
+export function isDefined(something: any): boolean {
+  return something !== undefined && something !== null
+}
