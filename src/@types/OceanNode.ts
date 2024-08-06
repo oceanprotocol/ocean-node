@@ -50,6 +50,7 @@ export interface OceanNodeP2PConfig {
   autoDialPeerRetryThreshold: number
   autoDialConcurrency: number
   maxPeerAddrsToDial: number
+  autoDialInterval: number
 }
 
 export interface OceanNodeConfig {

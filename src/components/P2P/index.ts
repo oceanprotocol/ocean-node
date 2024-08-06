@@ -332,7 +332,8 @@ export class OceanP2P extends EventEmitter {
           maxConnections: config.p2pConfig.maxConnections,
           autoDialPeerRetryThreshold: config.p2pConfig.autoDialPeerRetryThreshold,
           autoDialConcurrency: config.p2pConfig.autoDialConcurrency,
-          maxPeerAddrsToDial: config.p2pConfig.maxPeerAddrsToDial
+          maxPeerAddrsToDial: config.p2pConfig.maxPeerAddrsToDial,
+          autoDialInterval: config.p2pConfig.autoDialInterval
         }
       }
       if (config.p2pConfig.bootstrapNodes && config.p2pConfig.bootstrapNodes.length > 0) {
