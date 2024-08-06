@@ -32,7 +32,7 @@ declare global {
   }
 }
 
-const REQUEST_TIMEOUT = 15000 // 15 seconds for the express request timeout
+const REQUEST_TIMEOUT = 150000 // 150 seconds for the default express request timeout
 
 // Middleware to set a timeout for the request
 app.use((req, res, next) => {
