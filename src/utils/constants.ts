@@ -293,6 +293,12 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'LOG_DB',
     value: process.env.LOG_DB,
     required: false
+  },
+  EXPRESS_TIMEOUT: {
+    // express timeout in ms
+    name: 'EXPRESS_TIMEOUT',
+    value: process.env.EXPRESS_TIMEOUT,
+    required: false
   }
 }
 

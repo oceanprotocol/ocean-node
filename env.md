@@ -28,6 +28,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `LOG_CONSOLE`: Write logs to the console. Default is `false`, but becomes `true` if neither `LOG_FILES` or `LOG_DB` are set.
 - `LOG_FILES`: Write logs to files. Default is `false`
 - `LOG_DB`: Write logs to noSQL database. Default is `false`
+- `EXPRESS_TIMEOUT`: The time in milliseconds before the express server will send a 408 request timed out response. Default: 150000
 
 ## HTTP
 
