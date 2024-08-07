@@ -102,6 +102,7 @@
     "rdflib": "^2.2.33",
     "shacl-engine": "^0.1.2",
     "sinon": "^17.0.1",
+    "sqlite3": "^5.1.7",
     "stream-concat": "^1.0.0",
     "ts-node": "^10.9.1",
     "tsoa": "^5.1.1",
