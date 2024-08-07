@@ -51,30 +51,25 @@ const platformInfo = {
   node: process.version
 }
 
-async function getProviderInfo(config: OceanNodeConfig): Promise<any> {
-  const nodeStatus: any = {
-    provider: [],
-    indexer: []
-  }
+function getProviderInfo(config: OceanNodeConfig): OceanNodeProvider[] {
+  const providers: OceanNodeProvider[] = []
   for (const [key, supportedNetwork] of Object.entries(config.supportedNetworks)) {
     if (config.hasProvider) {
       const provider: OceanNodeProvider = {
         chainId: key,
         network: supportedNetwork.network
       }
-      nodeStatus.provider.push(provider)
+      providers.push(provider)
     }
   }
-  return nodeStatus
+  return providers
 }
+
 async function getIndexerInfo(
   oceanNode: OceanNode,
   config: OceanNodeConfig
-): Promise<any> {
-  const nodeStatus: any = {
-    provider: [],
-    indexer: []
-  }
+): Promise<OceanNodeIndexer[]> {
+  const indexerNetworks: OceanNodeIndexer[] = []
   for (const [key, indexedNetwork] of Object.entries(config.indexingNetworks)) {
     if (config.hasIndexer) {
       const blockNr = await getIndexerBlockInfo(oceanNode, indexedNetwork)
@@ -83,10 +78,10 @@ async function getIndexerInfo(
         network: indexedNetwork.network,
         block: blockNr
       }
-      nodeStatus.indexer.push(indexer)
+      indexerNetworks.push(indexer)
     }
   }
-  return nodeStatus
+  return indexerNetworks
 }
 
 async function getIndexerBlockInfo(
@@ -147,10 +142,8 @@ export async function status(
 
   // need to update at least block info if available
   if (config.supportedNetworks) {
-    const indexerInfo = await getIndexerInfo(oceanNode, config)
-    const providerInfo = await getProviderInfo(config)
-    nodeStatus.provider = providerInfo.provider
-    nodeStatus.indexer = indexerInfo.indexer
+    nodeStatus.provider = getProviderInfo(config)
+    nodeStatus.indexer = await getIndexerInfo(oceanNode, config)
   }
 
   // only these 2 might change between requests
