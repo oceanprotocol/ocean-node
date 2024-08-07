@@ -95,6 +95,49 @@ function getSupportedChains(): RPCS | null {
   return supportedNetworks
 }
 
+function getIndexingNetworks(supportedNetworks: RPCS): RPCS | null {
+  const indexerNetworksEnv = process.env.INDEXER_NETWORKS
+  if (!indexerNetworksEnv) {
+    CONFIG_LOGGER.logMessageWithEmoji(
+      'INDEXER_NETWORKS is not defined, running Indexer with all supported networks defined in RPCS env variable ...',
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
+    return supportedNetworks
+  }
+  try {
+    const indexerNetworks: number[] = JSON.parse(indexerNetworksEnv)
+
+    if (indexerNetworks.length === 0) {
+      CONFIG_LOGGER.logMessageWithEmoji(
+        'INDEXER_NETWORKS is an empty array, Running node without the Indexer component...',
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+
+    // Use reduce to filter supportedNetworks
+    const filteredNetworks = indexerNetworks.reduce((acc: RPCS, chainId) => {
+      if (supportedNetworks[chainId]) {
+        acc[chainId] = supportedNetworks[chainId]
+      }
+      return acc
+    }, {})
+
+    return filteredNetworks
+  } catch (e) {
+    CONFIG_LOGGER.logMessageWithEmoji(
+      'Missing or Invalid INDEXER_NETWORKS env variable format,running Indexer with all supported networks defined in RPCS env variable ...',
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
+    return supportedNetworks
+  }
+}
 // valid decrypthers
 function getAuthorizedDecrypters(isStartup?: boolean): string[] {
   return readAddressListFromEnvVariable(
@@ -418,6 +461,9 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
   }
 
   const supportedNetworks = getSupportedChains()
+  const indexingNetworks = supportedNetworks
+    ? getIndexingNetworks(supportedNetworks)
+    : null
   // Notes: we need to have this config on the class and use always that, otherwise we're processing
   // all this info every time we call getConfig(), and also loggin too much
 
@@ -439,7 +485,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     allowedValidators: getAllowedValidators(isStartup),
     keys,
     // Only enable indexer if we have a DB_URL and supportedNetworks
-    hasIndexer: !!(!!getEnvValue(process.env.DB_URL, '') && !!supportedNetworks),
+    hasIndexer: !!(!!getEnvValue(process.env.DB_URL, '') && !!indexingNetworks),
     hasHttp: interfaces.includes('HTTP'),
     hasP2P: interfaces.includes('P2P'),
     p2pConfig: {
@@ -503,6 +549,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       url: getEnvValue(process.env.DB_URL, '')
     },
     supportedNetworks,
+    indexingNetworks,
     feeStrategy: getOceanNodeFees(supportedNetworks, isStartup),
     c2dClusters: getC2DClusterEnvironment(isStartup),
     accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
