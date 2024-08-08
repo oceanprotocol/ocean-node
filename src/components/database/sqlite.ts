@@ -1,7 +1,14 @@
 import { schemas, Schema } from './schemas.js'
 import sqlite3 from 'sqlite3'
 
-export class SQLiteProvider {
+interface DatabaseProvider {
+  create(address: string, nonce: number): Promise<void>
+  retrieve(address: string): Promise<any>
+  update(address: string, nonce: number): Promise<void>
+  delete(address: string): Promise<void>
+}
+
+export class SQLiteProvider implements DatabaseProvider {
   private db: sqlite3.Database
   private schema: Schema
 
