@@ -2,10 +2,10 @@ import { schemas, Schema } from './schemas.js'
 import sqlite3 from 'sqlite3'
 
 interface DatabaseProvider {
-  create(address: string, nonce: number): Promise<void>
-  retrieve(address: string): Promise<any>
-  update(address: string, nonce: number): Promise<void>
-  delete(address: string): Promise<void>
+  create(address: string, nonce: number): Promise<{ id: string; nonce: number }>
+  retrieve(address: string): Promise<{ id: string; nonce: number | null }>
+  update(address: string, nonce: number): Promise<{ id: string; nonce: number }>
+  delete(address: string): Promise<{ id: string; nonce: null }>
 }
 
 export class SQLiteProvider implements DatabaseProvider {
@@ -40,10 +40,10 @@ export class SQLiteProvider implements DatabaseProvider {
       VALUES (?, ?)
       ON CONFLICT(id) DO UPDATE SET nonce=excluded.nonce;
     `
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<{ id: string; nonce: number }>((resolve, reject) => {
       this.db.run(insertSQL, [address, nonce], (err) => {
         if (err) reject(err)
-        else resolve()
+        else resolve({ id: address, nonce })
       })
     })
   }
@@ -53,10 +53,11 @@ export class SQLiteProvider implements DatabaseProvider {
     const selectSQL = `
       SELECT * FROM ${this.schema.name} WHERE id = ?
     `
-    return new Promise<any>((resolve, reject) => {
-      this.db.get(selectSQL, [address], (err, row) => {
+    return new Promise<{ id: string; nonce: number | null }>((resolve, reject) => {
+      this.db.get(selectSQL, [address], (err, row: { nonce: number } | undefined) => {
         if (err) reject(err)
-        else resolve(row)
+        else
+          resolve(row ? { id: address, nonce: row.nonce } : { id: address, nonce: null })
       })
     })
   }
@@ -71,10 +72,10 @@ export class SQLiteProvider implements DatabaseProvider {
     const deleteSQL = `
       DELETE FROM ${this.schema.name} WHERE id = ?
     `
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<{ id: string; nonce: null }>((resolve, reject) => {
       this.db.run(deleteSQL, [address], (err) => {
         if (err) reject(err)
-        else resolve()
+        else resolve({ id: address, nonce: null })
       })
     })
   }
