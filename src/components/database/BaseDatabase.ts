@@ -7,7 +7,7 @@ export abstract class AbstractNonceDatabase {
   protected config: OceanNodeDBConfig
   protected schema: Schema
 
-  constructor(config: OceanNodeDBConfig, schema: Schema) {
+  constructor(config: OceanNodeDBConfig, schema?: Schema) {
     this.config = config
     this.schema = schema
   }

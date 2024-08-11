@@ -500,7 +500,9 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     hasDashboard: process.env.DASHBOARD !== 'false',
     httpPort: getIntEnvValue(process.env.HTTP_API_PORT, 8000),
     dbConfig: {
-      url: getEnvValue(process.env.DB_URL, '')
+      url: getEnvValue(process.env.DB_URL, ''),
+      username: getEnvValue(process.env.DB_USERNAME, ''),
+      password: getEnvValue(process.env.DB_PASSWOED, '')
     },
     supportedNetworks,
     feeStrategy: getOceanNodeFees(supportedNetworks, isStartup),

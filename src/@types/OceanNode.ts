@@ -6,6 +6,8 @@ import { Schema } from '../components/database/schemas'
 
 export interface OceanNodeDBConfig {
   url: string | null
+  username?: string
+  password?: string
 }
 
 // deny list of peer ids and ips (for rate limiting purposes)
