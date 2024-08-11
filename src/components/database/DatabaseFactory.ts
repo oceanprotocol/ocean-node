@@ -7,6 +7,11 @@ import {
   AbstractNonceDatabase,
   AbstractOrderDatabase
 } from './BaseDatabase'
+import {
+  ElasticsearchDdoDatabase,
+  ElasticsearchIndexerDatabase,
+  ElasticsearchNonceDatabase
+} from './ElasticSearchDatabase'
 import { Schema } from './schemas'
 import {
   TypesenseDdoDatabase,
@@ -24,10 +29,9 @@ export class DatabaseFactory {
   ): AbstractNonceDatabase {
     if (process.env.DB_TYPE === 'typesense') {
       return new TypesenseNonceDatabase(config, schema)
+    } else if (process.env.DB_TYPE === 'elasticsearch') {
+      return new ElasticsearchNonceDatabase(config)
     }
-    // else if (process.env.DB_TYPE === 'elasticsearch') {
-    //   return new ElasticNonceDatabase(config, schema)
-    // }
     throw new Error('Unsupported database type')
   }
 
@@ -37,10 +41,9 @@ export class DatabaseFactory {
   ): AbstractDdoDatabase {
     if (process.env.DB_TYPE === 'typesense') {
       return new TypesenseDdoDatabase(config, schemas)
+    } else if (process.env.DB_TYPE === 'elasticsearch') {
+      return new ElasticsearchDdoDatabase(config, schemas)
     }
-    //  else if (process.env.DB_TYPE === 'elasticsearch') {
-    //   return new ElasticDdoDatabase(config, schema)
-    // }
     throw new Error('Unsupported database type')
   }
 
@@ -50,10 +53,9 @@ export class DatabaseFactory {
   ): AbstractIndexerDatabase {
     if (process.env.DB_TYPE === 'typesense') {
       return new TypesenseIndexerDatabase(config, schema)
+    } else if (process.env.DB_TYPE === 'elasticsearch') {
+      return new ElasticsearchIndexerDatabase(config)
     }
-    // else if (process.env.DB_TYPE === 'elasticsearch') {
-    //   return new ElasticIndexerDatabase(config, schema)
-    // }
     throw new Error('Unsupported database type')
   }
 

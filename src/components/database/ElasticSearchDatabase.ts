@@ -1,5 +1,9 @@
 import { Client } from '@elastic/elasticsearch'
-import { AbstractDdoDatabase, AbstractNonceDatabase } from './BaseDatabase'
+import {
+  AbstractDdoDatabase,
+  AbstractIndexerDatabase,
+  AbstractNonceDatabase
+} from './BaseDatabase'
 import { createElasticsearchClient } from './ElasticsearchConfigHelper'
 import { OceanNodeDBConfig } from '../../@types'
 import { Schema } from './schemas'
@@ -11,10 +15,10 @@ export class ElasticsearchNonceDatabase extends AbstractNonceDatabase {
   private client: Client
   private index: string
 
-  constructor(config: OceanNodeDBConfig, index: string) {
+  constructor(config: OceanNodeDBConfig) {
     super(config)
     this.client = new Client({ node: config.url })
-    this.index = index
+    this.index = 'nonce'
     this.initializeIndex()
   }
 
@@ -129,9 +133,133 @@ export class ElasticsearchNonceDatabase extends AbstractNonceDatabase {
   }
 }
 
+export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
+  private client: Client
+  private index: string
+
+  constructor(config: OceanNodeDBConfig) {
+    super(config)
+    this.client = new Client({ node: config.url })
+    this.index = 'indexer'
+
+    this.initializeIndex()
+  }
+
+  private async initializeIndex() {
+    const indexExists = await this.client.indices.exists({ index: this.index })
+    if (!indexExists) {
+      await this.client.indices.create({
+        index: this.index,
+        body: {
+          mappings: {
+            properties: {
+              id: { type: 'keyword' },
+              lastIndexedBlock: { type: 'long' }
+            }
+          }
+        }
+      })
+    }
+  }
+
+  async create(network: number, lastIndexedBlock: number) {
+    try {
+      await this.client.index({
+        index: this.index,
+        id: network.toString(),
+        body: { lastIndexedBlock },
+        refresh: 'wait_for'
+      })
+      return { id: network.toString(), lastIndexedBlock }
+    } catch (error) {
+      const errorMsg = `Error when creating indexer entry on network ${network} with last indexed block ${lastIndexedBlock}: ${error.message}`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async retrieve(network: number) {
+    try {
+      const result = await this.client.get({
+        index: this.index,
+        id: network.toString()
+      })
+      return result._source
+    } catch (error) {
+      const errorMsg = `Error when retrieving indexer entry on network ${network}: ${error.message}`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async update(network: number, lastIndexedBlock: number) {
+    try {
+      const exists = await this.client.exists({
+        index: this.index,
+        id: network.toString()
+      })
+
+      if (exists) {
+        await this.client.update({
+          index: this.index,
+          id: network.toString(),
+          body: {
+            doc: { lastIndexedBlock }
+          },
+          refresh: 'wait_for'
+        })
+      } else {
+        await this.create(network, lastIndexedBlock)
+      }
+
+      return { id: network.toString(), lastIndexedBlock }
+    } catch (error) {
+      const errorMsg = `Error when updating indexer entry on network ${network} with last indexed block ${lastIndexedBlock}: ${error.message}`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async delete(network: number) {
+    try {
+      await this.client.delete({
+        index: this.index,
+        id: network.toString(),
+        refresh: 'wait_for'
+      })
+      return { id: network.toString() }
+    } catch (error) {
+      const errorMsg = `Error when deleting indexer entry on network ${network}: ${error.message}`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+}
+
 export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
   private client: Client
 
+  // TODO: update schemas logic to fit elastic
   constructor(config: OceanNodeDBConfig, schemas: Schema[]) {
     super(config, schemas)
     this.client = createElasticsearchClient(config)

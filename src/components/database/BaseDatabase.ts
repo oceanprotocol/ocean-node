@@ -32,7 +32,7 @@ export abstract class AbstractIndexerDatabase {
   protected config: OceanNodeDBConfig
   protected schema: Schema
 
-  constructor(config: OceanNodeDBConfig, schema: Schema) {
+  constructor(config: OceanNodeDBConfig, schema?: Schema) {
     this.config = config
     this.schema = schema
   }
