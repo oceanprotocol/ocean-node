@@ -16,7 +16,6 @@ import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 import { bootstrap } from '@libp2p/bootstrap'
 import { noise } from '@chainsafe/libp2p-noise'
 import { mdns } from '@libp2p/mdns'
-import { mplex } from '@libp2p/mplex'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { peerIdFromString } from '@libp2p/peer-id'
 import { pipe } from 'it-pipe'
@@ -152,10 +151,11 @@ export class OceanP2P extends EventEmitter {
       const peerId = details.detail
       P2P_LOGGER.debug('Connection established to:' + peerId.toString()) // Emitted when a peer has been found
       try {
+        // DO WE REALLY NEED THIS?
         this._libp2p.services.pubsub.connect(peerId.toString())
-      } catch (e) {}
-    } else {
-      /* empty */
+      } catch (e) {
+        P2P_LOGGER.error(e.message)
+      }
     }
   }
 
@@ -322,7 +322,7 @@ export class OceanP2P extends EventEmitter {
         },
         peerId: config.keys.peerId,
         transports,
-        streamMuxers: [yamux(), mplex()],
+        streamMuxers: [yamux()],
         connectionEncryption: [
           noise()
           // plaintext()
@@ -552,26 +552,38 @@ export class OceanP2P extends EventEmitter {
     let stream
     // dial/connect to the target node
     try {
-      // stream= await this._libp2p.dialProtocol(peer, this._protocol)
-
       stream = await this._libp2p.dialProtocol(peerId, this._protocol)
     } catch (e) {
       response.status.httpStatus = 404
       response.status.error = 'Cannot connect to peer'
+      P2P_LOGGER.error(`Unable to connect to peer: ${peerId}`)
       return response
     }
 
-    response.stream = stream
-    pipe(
-      // Source data
-      [uint8ArrayFromString(message)],
-      // Write to the stream, and pass its output to the next function
-      stream,
-      // this is the anayze function
-      // doubler as any,
-      // Sink function
-      sink
-    )
+    if (stream) {
+      response.stream = stream
+      try {
+        await pipe(
+          // Source data
+          [uint8ArrayFromString(message)],
+          // Write to the stream, and pass its output to the next function
+          stream,
+          // this is the anayze function
+          // doubler as any,
+          // Sink function
+          sink
+        )
+      } catch (err) {
+        P2P_LOGGER.error(`Unable to send P2P message: ${err.message}`)
+        response.status.httpStatus = 404
+        response.status.error = err.message
+      }
+    } else {
+      response.status.httpStatus = 404
+      response.status.error = 'Unable to get remote P2P stream (null)'
+      P2P_LOGGER.error(response.status.error)
+    }
+
     return response
   }
 
