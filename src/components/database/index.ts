@@ -12,6 +12,7 @@ import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { validateObject } from '../core/utils/validateDdoHandler.js'
 import { ENVIRONMENT_VARIABLES, TYPESENSE_HITS_CAP } from '../../utils/constants.js'
 import { SQLiteProvider } from './sqlite.js'
+import { URLUtils } from '../../utils/url.js'
 
 export class OrderDatabase {
   private provider: Typesense
@@ -616,27 +617,30 @@ export class NonceDatabase {
     private schema: Schema
   ) {
     return (async (): Promise<NonceDatabase> => {
-      try {
-        this.provider = new Typesense({
-          ...convertTypesenseConfig(this.config.url),
-          logger: DATABASE_LOGGER
-        })
-        await this.provider.collections(this.schema.name).retrieve()
-      } catch (error) {
-        if (error instanceof TypesenseError && error.httpStatus === 404) {
-          await (this.provider as Typesense).collections().create(this.schema)
-        } else {
-          // Fall back to SQLite
-          DATABASE_LOGGER.logMessageWithEmoji(
-            'Typesense not available, falling back to SQLite',
-            true,
-            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-            LOG_LEVELS_STR.LEVEL_WARN
-          )
-          this.provider = new SQLiteProvider('nonceDatabase.sqlite')
-          await this.provider.createTable()
+      if (this.config.url && URLUtils.isValidUrl(this.config.url)) {
+        try {
+          this.provider = new Typesense({
+            ...convertTypesenseConfig(this.config.url),
+            logger: DATABASE_LOGGER
+          })
+          await this.provider.collections(this.schema.name).retrieve()
+        } catch (error) {
+          if (error instanceof TypesenseError && error.httpStatus === 404) {
+            await (this.provider as Typesense).collections().create(this.schema)
+          }
         }
+      } else {
+        // Fall back to SQLite
+        DATABASE_LOGGER.logMessageWithEmoji(
+          'Typesense not available, falling back to SQLite',
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEL_WARN
+        )
+        this.provider = new SQLiteProvider('nonceDatabase.sqlite')
+        await this.provider.createTable()
       }
+
       return this
     })() as unknown as NonceDatabase
   }
