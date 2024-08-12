@@ -23,6 +23,7 @@ import { ZeroAddress } from 'ethers'
 import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
 import { URLUtils } from '../../utils/url.js'
 import { publicIp } from 'public-ip'
+import { getIPv4 } from '../../utils/ip.js'
 
 export class C2DEngine {
   private clusterConfig: C2DClusterInfo
@@ -219,13 +220,19 @@ export class C2DEngineOPFK8 extends C2DEngine {
     if (output) {
       getOuput = output
     } else if (config.hasHttp) {
+      let ip
+
       try {
-        const ip = await publicIp()
-        getOuput = {
-          metadataUri: `http://${ip}:${config.httpPort}`
-        }
+        ip = await publicIp()
+        if (!ip) throw new Error('Empty IP returned by publicIp')
       } catch (e) {
-        throw new Error(`Failed retrieving public IP: ${e}`)
+        console.warn(`Failed to get IP: ${e.message}. Trying fallback...`)
+          ip = await getIPv4()
+          if (!ip) throw new Error('Empty IP returned by')
+      }
+
+      getOuput = {
+        metadataUri: `http://${ip}:${config.httpPort}`
       }
     }
     // continue with algorithm
