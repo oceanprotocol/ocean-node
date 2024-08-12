@@ -85,7 +85,7 @@ describe('LogDatabase CRUD', () => {
     const endTime = new Date() // current time
 
     // Retrieve the latest log entries
-    let logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 200)
+    let logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 300)
     logs = logs.filter((log) => log.message === newLogEntry.message)
 
     expect(logs?.length).to.equal(1)
@@ -459,7 +459,7 @@ describe('LogDatabase retrieveMultipleLogs with pagination', () => {
   })
 
   it('should return empty results for a non-existent page', async () => {
-    const nonExistentPage = 100 // Assuming this page doesn't exist
+    const nonExistentPage = 300 // Assuming this page doesn't exist
     const logs = await database.logs.retrieveMultipleLogs(
       new Date(Date.now() - 10000), // 10 seconds ago
       new Date(), // now
