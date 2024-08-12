@@ -12,6 +12,7 @@ import {
   buildInvalidRequestMessage,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
 // for encryption
 export const SUPPORTED_ENCRYPTION_ENCODINGS = ['string', 'base58']
@@ -70,6 +71,7 @@ export class EncryptHandler extends Handler {
         status: { httpStatus: 200 }
       }
     } catch (error) {
+      CORE_LOGGER.error(`Error while encrypting data: ${error} `)
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
@@ -130,6 +132,7 @@ export class EncryptFileHandler extends Handler {
         }
       }
     } catch (error) {
+      CORE_LOGGER.error(`Error while encrypting file: ${error} `)
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
