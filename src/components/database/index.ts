@@ -13,6 +13,8 @@ import { validateObject } from '../core/utils/validateDdoHandler.js'
 import { ENVIRONMENT_VARIABLES, TYPESENSE_HITS_CAP } from '../../utils/constants.js'
 import { SQLiteProvider } from './sqlite.js'
 import { URLUtils } from '../../utils/url.js'
+import fs from 'fs'
+import path from 'path'
 
 export class OrderDatabase {
   private provider: Typesense
@@ -637,6 +639,12 @@ export class NonceDatabase {
           GENERIC_EMOJIS.EMOJI_CROSS_MARK,
           LOG_LEVELS_STR.LEVEL_WARN
         )
+
+        // Ensure the directory exists before instantiating SQLiteProvider
+        const dbDir = path.dirname('databases/nonceDatabase.sqlite')
+        if (!fs.existsSync(dbDir)) {
+          fs.mkdirSync(dbDir, { recursive: true })
+        }
         this.provider = new SQLiteProvider('databases/nonceDatabase.sqlite')
         await this.provider.createTable()
       }
