@@ -1070,7 +1070,6 @@ export class Database {
       this.nonce = await new NonceDatabase(this.config, schemas.nonceSchemas)
       if (this.config.url && URLUtils.isValidUrl(this.config.url)) {
         this.ddo = await new DdoDatabase(this.config, schemas.ddoSchemas)
-        console.log('Created DDO database')
         this.indexer = await new IndexerDatabase(this.config, schemas.indexerSchemas)
         this.logs = await new LogDatabase(this.config, schemas.logSchemas)
         this.order = await new OrderDatabase(this.config, schemas.orderSchema)
