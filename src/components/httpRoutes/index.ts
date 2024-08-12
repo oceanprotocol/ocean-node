@@ -41,7 +41,7 @@ httpRoutes.use(directCommandRoute)
 // /logs
 // /log/:id
 httpRoutes.use(logRoutes)
-// /api/services/fileinfo
+// /api/services/fileInfo
 httpRoutes.use(fileInfoRoute)
 // /api/services/decrypt
 // /api/services/encrypt
