@@ -107,7 +107,8 @@ describe('NonceDatabase CRUD with SQLite', () => {
 
   before(async () => {
     const dbConfig = {
-      url: '' // Empty URL to simulate no Typesense. Using SQLite instead
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      url: null as null // Empty URL to simulate no Typesense. Using SQLite instead
     }
     database = await new Database(dbConfig)
   })
