@@ -637,7 +637,7 @@ export class NonceDatabase {
           GENERIC_EMOJIS.EMOJI_CROSS_MARK,
           LOG_LEVELS_STR.LEVEL_WARN
         )
-        this.provider = new SQLiteProvider('nonceDatabase.sqlite')
+        this.provider = new SQLiteProvider('databases/nonceDatabase.sqlite')
         await this.provider.createTable()
       }
 
