@@ -5,7 +5,7 @@ interface DatabaseProvider {
   create(address: string, nonce: number): Promise<{ id: string; nonce: number }>
   retrieve(address: string): Promise<{ id: string; nonce: number | null }>
   update(address: string, nonce: number): Promise<{ id: string; nonce: number }>
-  delete(address: string): Promise<{ id: string; nonce: null }>
+  delete(address: string): Promise<{ id: string; nonce: number | null }>
 }
 
 export class SQLiteProvider implements DatabaseProvider {
@@ -69,13 +69,23 @@ export class SQLiteProvider implements DatabaseProvider {
 
   // eslint-disable-next-line require-await
   async delete(address: string) {
+    const selectSQL = `
+      SELECT nonce FROM ${this.schema.name} WHERE id = ?
+    `
+
     const deleteSQL = `
       DELETE FROM ${this.schema.name} WHERE id = ?
     `
-    return new Promise<{ id: string; nonce: null }>((resolve, reject) => {
-      this.db.run(deleteSQL, [address], (err) => {
-        if (err) reject(err)
-        else resolve({ id: address, nonce: null })
+
+    return new Promise<{ id: string; nonce: number | null }>((resolve, reject) => {
+      this.db.get(selectSQL, [address], (err, row: { nonce: number } | undefined) => {
+        if (err) return reject(err)
+        if (!row) return resolve({ id: address, nonce: null })
+
+        this.db.run(deleteSQL, [address], (err) => {
+          if (err) reject(err)
+          else resolve({ id: address, nonce: row.nonce })
+        })
       })
     })
   }

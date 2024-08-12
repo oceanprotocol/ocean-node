@@ -1059,12 +1059,20 @@ export class Database {
       )
     }
     return (async (): Promise<Database> => {
-      this.ddo = await new DdoDatabase(this.config, schemas.ddoSchemas)
       this.nonce = await new NonceDatabase(this.config, schemas.nonceSchemas)
-      this.indexer = await new IndexerDatabase(this.config, schemas.indexerSchemas)
-      this.logs = await new LogDatabase(this.config, schemas.logSchemas)
-      this.order = await new OrderDatabase(this.config, schemas.orderSchema)
-      this.ddoState = await new DdoStateDatabase(this.config, schemas.ddoStateSchema)
+      if (this.config.url && URLUtils.isValidUrl(this.config.url)) {
+        this.ddo = await new DdoDatabase(this.config, schemas.ddoSchemas)
+        console.log('Created DDO database')
+        this.indexer = await new IndexerDatabase(this.config, schemas.indexerSchemas)
+        this.logs = await new LogDatabase(this.config, schemas.logSchemas)
+        this.order = await new OrderDatabase(this.config, schemas.orderSchema)
+        this.ddoState = await new DdoStateDatabase(this.config, schemas.ddoStateSchema)
+      } else {
+        DATABASE_LOGGER.info(
+          'Typesense URL is not valid, falling back to SQLite for nonce database. Other DBs will not be available.'
+        )
+      }
+
       return this
     })() as unknown as Database
   }

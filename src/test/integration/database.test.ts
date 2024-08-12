@@ -133,6 +133,7 @@ describe('NonceDatabase CRUD with SQLite', () => {
 
   it('delete nonce', async () => {
     const result = await database.nonce.delete('0x456')
+    console.log('Delete nonce result: ', result)
     expect(result?.id).to.equal('0x456')
     expect(result?.nonce).to.equal(1)
   })
