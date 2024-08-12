@@ -1,5 +1,6 @@
 import express from 'express'
 import { validateAdminSignature } from '../../utils/auth.js'
+import { HTTP_LOGGER } from '../../utils/logging/common.js'
 
 export const logRoutes = express.Router()
 
@@ -61,6 +62,7 @@ logRoutes.post('/logs', express.json(), validateRequest, async (req, res) => {
       res.status(404).send('No logs found')
     }
   } catch (error) {
+    HTTP_LOGGER.error(`Error retrieving logs: ${error.message}`)
     res.status(500).send(`Internal Server Error: ${error.message}`)
   }
 })
@@ -75,6 +77,7 @@ logRoutes.post('/log/:id', express.json(), validateRequest, async (req, res) => 
       res.status(404).send('Log not found')
     }
   } catch (error) {
+    HTTP_LOGGER.error(`Error retrieving log: ${error.message}`)
     res.status(500).send('Internal Server Error' + error.message)
   }
 })
