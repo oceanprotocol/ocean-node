@@ -18,7 +18,7 @@ export interface MetadataAlgorithm {
    * @type {string}
    */
   rawcode?: string
-  
+
   /**
    * Format
    * @type {string}
