@@ -227,8 +227,8 @@ export class C2DEngineOPFK8 extends C2DEngine {
         if (!ip) throw new Error('Empty IP returned by publicIp')
       } catch (e) {
         console.warn(`Failed to get IP: ${e.message}. Trying fallback...`)
-          ip = await getIPv4()
-          if (!ip) throw new Error('Empty IP returned by')
+        ip = await getIPv4()
+        if (!ip) throw new Error('Empty IP returned by')
       }
 
       getOuput = {
