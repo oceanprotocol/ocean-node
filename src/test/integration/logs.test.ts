@@ -459,7 +459,7 @@ describe('LogDatabase retrieveMultipleLogs with pagination', () => {
   })
 
   it('should return empty results for a non-existent page', async () => {
-    const nonExistentPage = 300 // Assuming this page doesn't exist
+    const nonExistentPage = 30000 // Assuming this page doesn't exist
     const logs = await database.logs.retrieveMultipleLogs(
       new Date(Date.now() - 10000), // 10 seconds ago
       new Date(), // now

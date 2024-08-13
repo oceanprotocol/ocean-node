@@ -309,6 +309,7 @@ async function retryCrawlerWithDelay(
       return retryCrawlerWithDelay(blockchain, retryInterval)
     }
   } catch (err) {
+    INDEXER_LOGGER.error(`Error starting crawler: ${err.message}`)
     return false
   }
 }
