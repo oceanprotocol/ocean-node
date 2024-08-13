@@ -38,7 +38,7 @@ declare global {
 
 const REQUEST_TIMEOUT = ENVIRONMENT_VARIABLES.EXPRESS_TIMEOUT
   ? Number(ENVIRONMENT_VARIABLES.EXPRESS_TIMEOUT)
-  : 100000 // 100 seconds for the default express request timeout
+  : 15000 // 15 seconds for the default express request timeout
 
 // Middleware to set a timeout for the request
 app.use((req, res, next) => {
