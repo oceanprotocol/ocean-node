@@ -21,6 +21,11 @@ export interface AdminCommand extends Command {
   signature: string
 }
 
+export interface AdminCollectFeesHandlerResponse {
+  tx: string
+  message: string
+}
+
 export interface DownloadURLCommand extends Command {
   fileObject: any
   aes_encrypted_key?: string // if not present it means download without encryption
@@ -114,6 +119,13 @@ export interface AdminStopNodeCommand extends AdminCommand {}
 export interface AdminReindexTxCommand extends AdminCommand {
   chainId: number
   txId: string
+}
+
+export interface AdminCollectFeesCommand extends AdminCommand {
+  tokenAddress: string
+  chainId: number
+  tokenAmount?: number
+  destinationAddress: string
 }
 
 export interface AdminReindexChainCommand extends AdminCommand {
