@@ -1,7 +1,9 @@
 import { Client } from '@elastic/elasticsearch'
 import {
   AbstractDdoDatabase,
+  AbstractDdoStateDatabase,
   AbstractIndexerDatabase,
+  AbstractLogDatabase,
   AbstractNonceDatabase
 } from './BaseDatabase'
 import { createElasticsearchClient } from './ElasticsearchConfigHelper'
@@ -247,6 +249,172 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
       const errorMsg = `Error when deleting indexer entry on network ${network}: ${error.message}`
       DATABASE_LOGGER.logMessageWithEmoji(
         errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+}
+export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
+  private client: Client
+  private index: string
+
+  constructor(config: OceanNodeDBConfig) {
+    super(config)
+    this.client = new Client({ node: config.url })
+    this.index = 'ddo_state'
+
+    this.initializeIndex()
+  }
+
+  private async initializeIndex() {
+    const indexExists = await this.client.indices.exists({ index: this.index })
+    if (!indexExists) {
+      await this.client.indices.create({
+        index: this.index,
+        body: {
+          mappings: {
+            properties: {
+              id: { type: 'keyword' },
+              chainId: { type: 'integer' },
+              did: { type: 'keyword' },
+              nft: { type: 'keyword' },
+              txId: { type: 'keyword' },
+              valid: { type: 'boolean' },
+              error: { type: 'text' }
+            }
+          }
+        }
+      })
+    }
+  }
+
+  async create(
+    chainId: number,
+    did: string,
+    nftAddress: string,
+    txId: string = ' ',
+    valid: boolean = true,
+    errorMsg: string = ' '
+  ) {
+    try {
+      await this.client.index({
+        index: this.index,
+        id: did,
+        body: { chainId, did, nft: nftAddress, txId, valid, error: errorMsg },
+        refresh: 'wait_for'
+      })
+      return { id: did, chainId, nft: nftAddress, txId, valid, error: errorMsg }
+    } catch (error) {
+      const errorMessage = `Error when saving ddo state for: ${did} Error: ${error.message}`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMessage,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async retrieve(did: string) {
+    try {
+      const result = await this.client.get({
+        index: this.index,
+        id: did
+      })
+      return result._source
+    } catch (error) {
+      const errorMessage = `Error when retrieving the state of the ddo with id: ${did}: ${error.message}`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMessage,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async search(query: Record<string, any>) {
+    try {
+      const result = await this.client.search({
+        index: this.index,
+        body: {
+          query: {
+            match: query
+          }
+        }
+      })
+      return result.hits.hits.map((hit: any) => hit._source)
+    } catch (error) {
+      const errorMessage = `Error when searching by query ${JSON.stringify(query)}: ${
+        error.message
+      }`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMessage,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async update(
+    chainId: number,
+    did: string,
+    nftAddress: string,
+    txId: string = ' ',
+    valid: boolean = true,
+    errorMsg: string = ' '
+  ) {
+    try {
+      const exists = await this.client.exists({
+        index: this.index,
+        id: did
+      })
+
+      if (exists) {
+        await this.client.update({
+          index: this.index,
+          id: did,
+          body: {
+            doc: { chainId, did, nft: nftAddress, txId, valid, error: errorMsg }
+          },
+          refresh: 'wait_for'
+        })
+      } else {
+        return await this.create(chainId, did, nftAddress, txId, valid, errorMsg)
+      }
+
+      return { id: did, chainId, nft: nftAddress, txId, valid, error: errorMsg }
+    } catch (error) {
+      const errorMessage = `Error when updating ddo state for: ${did} Error: ${error.message}`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMessage,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async delete(did: string) {
+    try {
+      await this.client.delete({
+        index: this.index,
+        id: did,
+        refresh: 'wait_for'
+      })
+      return { id: did }
+    } catch (error) {
+      const errorMessage = `Error when deleting ddo state ${did}: ${error.message}`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMessage,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
@@ -522,5 +690,178 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     }
 
     return numDeleted
+  }
+}
+
+export class ElasticsearchLogDatabase extends AbstractLogDatabase {
+  private client: Client
+  private index: string
+
+  constructor(config: OceanNodeDBConfig) {
+    super(config)
+    this.client = new Client({ node: config.url })
+    this.index = 'log'
+
+    this.initializeIndex()
+  }
+
+  private async initializeIndex() {
+    const indexExists = await this.client.indices.exists({ index: this.index })
+    if (!indexExists) {
+      await this.client.indices.create({
+        index: this.index,
+        body: {
+          mappings: {
+            properties: {
+              timestamp: { type: 'date' },
+              level: { type: 'keyword' },
+              moduleName: { type: 'keyword' },
+              message: { type: 'text' },
+              meta: { type: 'object', enabled: false }
+            }
+          }
+        }
+      })
+    }
+  }
+
+  async insertLog(logEntry: Record<string, any>) {
+    try {
+      const timestamp = new Date().toISOString()
+      await this.client.index({
+        index: this.index,
+        body: { ...logEntry, timestamp },
+        refresh: 'wait_for'
+      })
+      return logEntry
+    } catch (error) {
+      const errorMsg = `Error when inserting log entry: ${error.message}`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async retrieveLog(id: string): Promise<Record<string, any> | null> {
+    try {
+      const result = await this.client.get({
+        index: this.index,
+        id
+      })
+      return result._source
+    } catch (error) {
+      const errorMsg = `Error when retrieving log entry: ${error.message}`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async retrieveMultipleLogs(
+    startTime: Date,
+    endTime: Date,
+    maxLogs: number,
+    moduleName?: string,
+    level?: string,
+    page?: number
+  ): Promise<Record<string, any>[] | null> {
+    try {
+      const filterConditions: any = {
+        bool: {
+          must: [{ range: { timestamp: { gte: startTime, lte: endTime } } }]
+        }
+      }
+
+      if (moduleName) {
+        filterConditions.bool.must.push({ match: { moduleName } })
+      }
+      if (level) {
+        filterConditions.bool.must.push({ match: { level } })
+      }
+
+      const result = await this.client.search({
+        index: this.index,
+        body: {
+          query: filterConditions,
+          sort: [{ timestamp: { order: 'desc' } }]
+        },
+        size: Math.min(maxLogs, 250),
+        from: (page || 0) * Math.min(maxLogs, 250)
+      })
+
+      return result.hits.hits.map((hit: any) => hit._source)
+    } catch (error) {
+      const errorMsg = `Error when retrieving multiple log entries: ${error.message}`
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async delete(logId: string): Promise<void> {
+    if (!logId) {
+      throw new Error('Log ID is required for deletion.')
+    }
+    try {
+      await this.client.delete({
+        index: this.index,
+        id: logId,
+        refresh: 'wait_for'
+      })
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Deleted log with ID: ${logId}`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CHECK_MARK,
+        LOG_LEVELS_STR.LEVEL_INFO
+      )
+    } catch (error) {
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Error when deleting log entry: ${error.message}`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      throw error
+    }
+  }
+
+  async deleteOldLogs(): Promise<number> {
+    const defaultLogRetention = '2592000000' // 30 days in milliseconds
+    const currentTime = new Date().getTime()
+    const xTime = parseInt(process.env.LOG_RETENTION_TIME || defaultLogRetention)
+    const deleteBeforeTime = new Date(currentTime - xTime)
+
+    try {
+      const oldLogs = await this.retrieveMultipleLogs(new Date(0), deleteBeforeTime, 200)
+
+      if (oldLogs) {
+        for (const log of oldLogs) {
+          if (log.id) {
+            await this.delete(log.id)
+          }
+        }
+      }
+      return oldLogs ? oldLogs.length : 0
+    } catch (error) {
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Error when deleting old log entries: ${error.message}`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return 0
+    }
   }
 }

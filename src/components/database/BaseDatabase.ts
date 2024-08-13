@@ -47,7 +47,7 @@ export abstract class AbstractLogDatabase {
   protected config: OceanNodeDBConfig
   protected schema: Schema
 
-  constructor(config: OceanNodeDBConfig, schema: Schema) {
+  constructor(config: OceanNodeDBConfig, schema?: Schema) {
     this.config = config
     this.schema = schema
   }
@@ -71,7 +71,7 @@ export abstract class AbstractDdoStateDatabase {
   protected config: OceanNodeDBConfig
   protected schema: Schema
 
-  constructor(config: OceanNodeDBConfig, schema: Schema) {
+  constructor(config: OceanNodeDBConfig, schema?: Schema) {
     this.config = config
     this.schema = schema
   }

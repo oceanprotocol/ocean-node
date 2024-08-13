@@ -9,7 +9,9 @@ import {
 } from './BaseDatabase'
 import {
   ElasticsearchDdoDatabase,
+  ElasticsearchDdoStateDatabase,
   ElasticsearchIndexerDatabase,
+  ElasticsearchLogDatabase,
   ElasticsearchNonceDatabase
 } from './ElasticSearchDatabase'
 import { Schema } from './schemas'
@@ -65,10 +67,9 @@ export class DatabaseFactory {
   ): AbstractLogDatabase {
     if (process.env.DB_TYPE === 'typesense') {
       return new TypesenseLogDatabase(config, schema)
+    } else if (process.env.DB_TYPE === 'elasticsearch') {
+      return new ElasticsearchLogDatabase(config)
     }
-    // else if (process.env.DB_TYPE === 'elasticsearch') {
-    //   return new ElasticLogDatabase(config, schema)
-    // }
     throw new Error('Unsupported database type')
   }
 
@@ -91,10 +92,9 @@ export class DatabaseFactory {
   ): AbstractDdoStateDatabase {
     if (process.env.DB_TYPE === 'typesense') {
       return new TypesenseDdoStateDatabase(config, schema)
+    } else if (process.env.DB_TYPE === 'elasticsearch') {
+      return new ElasticsearchDdoStateDatabase(config)
     }
-    // else if (process.env.DB_TYPE === 'elasticsearch') {
-    //   return new ElasticDdoStateDatabase(config, schema)
-    // }
     throw new Error('Unsupported database type')
   }
 }
