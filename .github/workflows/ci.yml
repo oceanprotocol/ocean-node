@@ -116,7 +116,6 @@ jobs:
         with:
           repository: 'oceanprotocol/barge'
           path: 'barge'
-          ref: 'feature/nodes'
       - name: Login to Docker Hub
         if: ${{ env.DOCKERHUB_PASSWORD && env.DOCKERHUB_USERNAME }}
         run: |
@@ -127,7 +126,7 @@ jobs:
       - name: Run Barge
         working-directory: ${{ github.workspace }}/barge
         run: |
-          bash -x start_ocean.sh --no-dashboard --with-c2d 2>&1 > start_ocean.log &
+          bash -x start_ocean.sh --no-aquarius --no-provider --no-elasticsearch --no-dashboard --with-c2d --with-typesense 2>&1 > start_ocean.log &
       - run: npm ci
       - run: npm run build
       - run: docker image ls
@@ -153,7 +152,7 @@ jobs:
             [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" -a -f "$HOME/.ocean/ocean-c2d/ready" ] && break
             done
       - name: docker logs
-        run: docker logs ocean_ocean-contracts_1 && docker logs ocean_kindcluster_1 && docker logs ocean_computetodata_1 && docker logs ocean_typesense_1
+        run: docker logs ocean-ocean-contracts-1 && docker logs ocean-kindcluster-1 && docker logs ocean-computetodata-1 && docker logs ocean-typesense-1
         if: ${{ failure() }}
       - name: integration tests
         run: npm run test:integration:cover
@@ -172,7 +171,7 @@ jobs:
           ASSET_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json'
           ACCOUNT_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json'
       - name: docker logs
-        run: docker logs ocean_ocean-contracts_1 && docker logs ocean_kindcluster_1 && docker logs ocean_computetodata_1 && docker logs ocean_typesense_1
+        run: docker logs ocean-ocean-contracts-1 && docker logs ocean-kindcluster-1 && docker logs ocean-computetodata-1 && docker logs ocean-typesense-1
         if: ${{ failure() }}
       - uses: actions/upload-artifact@v2
         with:
@@ -208,7 +207,6 @@ jobs:
         with:
           repository: 'oceanprotocol/barge'
           path: 'barge'
-          ref: 'feature/nodes'
 
       - name: Login to Docker Hub
         if: ${{ env.DOCKERHUB_PASSWORD && env.DOCKERHUB_USERNAME }}
@@ -222,7 +220,7 @@ jobs:
       - name: Run Barge
         working-directory: ${{ github.workspace }}/barge
         run: |
-          bash -x start_ocean.sh --no-dashboard --with-c2d 2>&1 > start_ocean.log &
+          bash -x start_ocean.sh --no-dashboard --no-aquarius --no-provider --no-elasticsearch --with-typesense --with-c2d 2>&1 > start_ocean.log &
 
       - run: npm ci
       - run: npm run build
@@ -251,7 +249,7 @@ jobs:
           done
 
       - name: docker logs
-        run: docker logs ocean_ocean-contracts_1 && docker logs ocean_kindcluster_1 && docker logs ocean_computetodata_1 && docker logs ocean_typesense_1
+        run: docker logs ocean-ocean-contracts-1 && docker logs ocean-kindcluster-1 && docker logs ocean-computetodata-1 && docker logs ocean-typesense-1
         if: ${{ failure() }}
 
       - name: Checkout Ocean Node
