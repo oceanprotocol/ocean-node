@@ -1,4 +1,4 @@
-## Run tests
+# Tests
 
 ### Unit tests
 
