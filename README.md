@@ -38,13 +38,12 @@ Build and run the node using Docker:
 
 In a separate terminal, clone and start the necessary services using Barge:
 
-`git clone https://github.com/oceanprotocol/barge.git`
-
-`cd barge`
-
-`git checkout feature/nodes`
-
-`./start_ocean.sh`
+```bash
+git clone https://github.com/oceanprotocol/barge.git
+cd barge
+git checkout feature/nodes
+./start_ocean.sh
+```
 
 ### 4. Configure Environment Variables
 
@@ -52,9 +51,10 @@ In a separate terminal, clone and start the necessary services using Barge:
 
 Run the helper script to generate and set up the recommended environment variables:
 
-`./helpers/scripts/setupNodeEnv.sh`
-
-`source .env`
+```bash
+./helpers/scripts/setupNodeEnv.sh
+source .env
+```
 
 **Option 2: Manual Setup**
 
