@@ -173,6 +173,7 @@ export interface ComputeStopCommand extends Command {
   signature: string
   nonce: string
   jobId: string
+  agreementId?: string
 }
 
 export interface ComputeGetResultCommand extends Command {

@@ -40,6 +40,8 @@ export class ComputeStopHandler extends Handler {
       const index = task.jobId.indexOf('-')
       const hash = task.jobId.slice(0, index)
       const jobId = task.jobId.slice(index + 1)
+      // eslint-disable-next-line prefer-destructuring
+      const agreementId = task.agreementId
 
       // env might contain
       let engine
@@ -54,7 +56,11 @@ export class ComputeStopHandler extends Handler {
           }
         }
       }
-      const response = await engine.stopComputeJob(jobId, task.consumerAddress)
+      const response = await engine.stopComputeJob(
+        jobId,
+        task.consumerAddress,
+        agreementId
+      )
 
       CORE_LOGGER.logMessage(
         'StopComputeCommand Response: ' + JSON.stringify(response, null, 2),
