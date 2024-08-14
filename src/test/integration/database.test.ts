@@ -102,6 +102,43 @@ describe('NonceDatabase CRUD', () => {
   })
 })
 
+describe('NonceDatabase CRUD with SQLite', () => {
+  let database: Database
+
+  before(async () => {
+    const dbConfig = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      url: ''
+    }
+    database = await new Database(dbConfig)
+  })
+
+  it('create nonce', async () => {
+    const result = await database.nonce.create('0x456', 0)
+    expect(result?.id).to.equal('0x456')
+    expect(result?.nonce).to.equal(0)
+  })
+
+  it('retrieve nonce', async () => {
+    const result = await database.nonce.retrieve('0x456')
+    expect(result?.id).to.equal('0x456')
+    expect(result?.nonce).to.equal(0)
+  })
+
+  it('update nonce', async () => {
+    const result = await database.nonce.update('0x456', 1)
+    expect(result?.id).to.equal('0x456')
+    expect(result?.nonce).to.equal(1)
+  })
+
+  it('delete nonce', async () => {
+    const result = await database.nonce.delete('0x456')
+    console.log('Delete nonce result: ', result)
+    expect(result?.id).to.equal('0x456')
+    expect(result?.nonce).to.equal(1)
+  })
+})
+
 describe('IndexerDatabase CRUD', () => {
   let database: Database
   let existsPrevious: any = {}
