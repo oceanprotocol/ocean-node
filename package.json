@@ -41,7 +41,7 @@
     "test:load": "npm run test:k6-common k6 run -e TEST_TYPE=load \"./dist/test/performance/perf_test.js\"",
     "test:stress": "npm run test:k6-common k6 run -e TEST_TYPE=stress \"./dist/test/performance/perf_test.js\"",
     "test:request:rate": "npm run test:k6-common && k6 run -e RATE=true \"./dist/test/performance/perf_test.js\"",
-    "release": "release-it"
+    "release": "release-it --non-interactive"
   },
   "dependencies": {
     "@chainsafe/libp2p-gossipsub": "^13.1.0",
@@ -135,5 +135,20 @@
     "prettier": "^3.0.3",
     "release-it": "^17.6.0",
     "tsx": "^3.12.8"
+  },
+  "release-it": {
+    "hooks": {
+      "after:bump": "npm run changelog"
+    },
+    "plugins": {},
+    "git": {
+      "tagName": "v${version}"
+    },
+    "github": {
+      "release": true
+    },
+    "npm": {
+      "publish": false
+    }
   }
 }
