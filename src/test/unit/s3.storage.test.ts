@@ -2,6 +2,7 @@ import { expect } from 'chai'
 import { EncryptMethod, S3FileObject, S3Object } from '../../@types/fileObject.js'
 import { Readable, Transform } from 'stream'
 import { S3Storage } from '../../components/storage/index.js'
+import { getConfiguration } from '../../utils/index.js'
 
 describe('S3 Storage tests', () => {
   let s3Storage: S3Storage
@@ -9,7 +10,7 @@ describe('S3 Storage tests', () => {
 
   console.log('process.env.ACCESS_KEY_ID_S3', process.env.ACCESS_KEY_ID_S3)
 
-  beforeEach(() => {
+  beforeEach(async () => {
     s3Object = {
       endpoint: 'fra1.digitaloceanspaces.com',
       region: 'fra1',
@@ -24,7 +25,7 @@ describe('S3 Storage tests', () => {
       encryptedBy: '16Uiu2HAm7YHuXeBpoFoKHyAieKDAsdg3RNmCUEVgNxffByRS7Hdt',
       encryptMethod: EncryptMethod.ECIES
     }
-    s3Storage = new S3Storage(s3FileObject)
+    s3Storage = new S3Storage(s3FileObject, await getConfiguration())
   })
 
   it('should create an instance of S3Storage', () => {
