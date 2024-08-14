@@ -1,8 +1,18 @@
 # Ocean Node
 
-A minimal guide to quickly start and run an Ocean Node.
+A minimal guide to quickly start and run an Ocean Node. See the [docs](/docs/) directory for more detailed information on Ocean Nodes and how to customise your setup.
 
-## Quick Start
+## Running Ocean Nodes in Docker (recommended)
+
+Build and run the node using Docker:
+
+1. **Build the Docker image:**
+   `docker build -t ocean-node:mybuild .`
+
+2. **Run the Docker container:**
+   `docker run -e PRIVATE_KEY=your_private_key_here ocean-node:mybuild`
+
+## Running Ocean Nodes Locally
 
 ### Prerequisites
 
@@ -35,7 +45,7 @@ Clone and start the necessary services using Barge:
 
 ### 4. Configure Environment Variables
 
-**Option 1: Automatic Setup**
+**Option 1: Automatic Setup (Recommended)**
 
 Run the helper script to generate and set up the required environment variables:
 
@@ -49,27 +59,15 @@ Manually set the required environment variables:
 
 `export PRIVATE_KEY="your_private_key_here"`
 
-`export HTTP_API_PORT=8000`
-
 Additional configurations can be set as needed.
 
-For more advanced configurations, refer to the [Environment Variables](docs/environment-variables.md) documentation.
+For all available configurations, refer to the [Environment Variables](docs/envs.md) documentation.
 
 ### 5. Start the Node
 
 `npm run start`
 
 Your node is now running. To start additional nodes, repeat these steps in a new terminal.
-
-## Docker Setup
-
-Build and run the node using Docker:
-
-1. **Build the Docker image:**
-   `docker build -t ocean-node:mybuild .`
-
-2. **Run the Docker container:**
-   `docker run -e PRIVATE_KEY=your_private_key_here ocean-node:mybuild`
 
 ## Testing
 
