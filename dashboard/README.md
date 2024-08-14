@@ -1,3 +1,11 @@
+# Dashboard
+
+The static dashbaord files are included in ocean nodes so the dashboard doesn't have to be rebuilt every time the node is built. If there are changes to the dashboard it will be built by default with the Ocean Node. There is a [script](scripts/dashboardChanges.js) running to check for changes in this directory.
+
+When you start your node the dashboard will be made available at: `http://localhost:8000/dashboard/`
+
+## Local development
+
 This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
 ## Getting Started

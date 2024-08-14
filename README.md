@@ -92,4 +92,5 @@ For advanced testing scenarios, refer to the [Testing Guide](docs/testing.md).
 - [Testing Guide](docs/testing.md)
 - [Network Configuration](docs/networking.md)
 - [Logging & accessing logs](docs/networking.md)
+- [Dashboard: Local development](dashboard/README.md)
 - [Compute to Data V2](docs/C2DV2.md)
