@@ -508,7 +508,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       ),
       pubsubPeerDiscoveryInterval: getIntEnvValue(
         process.env.P2P_pubsubPeerDiscoveryInterval,
-        1000
+        3000 // every 3 seconds
       ),
       dhtMaxInboundStreams: getIntEnvValue(process.env.P2P_dhtMaxInboundStreams, 500),
       dhtMaxOutboundStreams: getIntEnvValue(process.env.P2P_dhtMaxOutboundStreams, 500),
@@ -539,7 +539,8 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
         1000 * 120
       ),
       autoDialConcurrency: getIntEnvValue(process.env.P2P_AUTODIALCONCURRENCY, 5),
-      maxPeerAddrsToDial: getIntEnvValue(process.env.P2P_MAXPEERADDRSTODIAL, 5)
+      maxPeerAddrsToDial: getIntEnvValue(process.env.P2P_MAXPEERADDRSTODIAL, 5),
+      autoDialInterval: getIntEnvValue(process.env.P2P_AUTODIALINTERVAL, 5000)
     },
     // Only enable provider if we have a DB_URL
     hasProvider: !!getEnvValue(process.env.DB_URL, ''),

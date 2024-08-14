@@ -150,12 +150,9 @@ export class OceanP2P extends EventEmitter {
     if (details) {
       const peerId = details.detail
       P2P_LOGGER.debug('Connection established to:' + peerId.toString()) // Emitted when a peer has been found
-      try {
-        // DO WE REALLY NEED THIS?
-        this._libp2p.services.pubsub.connect(peerId.toString())
-      } catch (e) {
-        P2P_LOGGER.error(e.message)
-      }
+      // try {
+      //   this._libp2p.services.pubsub.connect(peerId.toString())
+      // } catch (e) {}
     }
   }
 
@@ -335,7 +332,8 @@ export class OceanP2P extends EventEmitter {
           maxConnections: config.p2pConfig.maxConnections,
           autoDialPeerRetryThreshold: config.p2pConfig.autoDialPeerRetryThreshold,
           autoDialConcurrency: config.p2pConfig.autoDialConcurrency,
-          maxPeerAddrsToDial: config.p2pConfig.maxPeerAddrsToDial
+          maxPeerAddrsToDial: config.p2pConfig.maxPeerAddrsToDial,
+          autoDialInterval: config.p2pConfig.autoDialInterval
         }
       }
       if (config.p2pConfig.bootstrapNodes && config.p2pConfig.bootstrapNodes.length > 0) {

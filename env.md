@@ -46,7 +46,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `P2P_ipV6BindWsPort`: Port used on IPv6 WS connections. Defaults to `0` (Use whatever port is free. When running as docker, please set it explicitly). Example: `0`
 - `P2P_ANNOUNCE_ADDRESSES`: List of addresses to announce to the network. Example: `"[\"/ip4/1.2.3.4/tcp/8000\"]"`
 - `P2P_ANNOUNCE_PRIVATE`: Announce private IPs. Default: `True`
-- `P2P_pubsubPeerDiscoveryInterval`: Interval (in ms) for discovery using pubsub. Defaults to `1000` (one second). Example: `1000`
+- `P2P_pubsubPeerDiscoveryInterval`: Interval (in ms) for discovery using pubsub. Defaults to `3000` (three seconds). Example: `3000`
 - `P2P_dhtMaxInboundStreams`: Maximum number of DHT inbound streams. Defaults to `500`. Example: `500`
 - `P2P_dhtMaxOutboundStreams`: Maximum number of DHT outbound streams. Defaults to `500`. Example: `500`
 - `P2P_mDNSInterval`: Interval (in ms) for discovery using mDNS. Defaults to `20000` (20 seconds). Example: `20000`
@@ -64,6 +64,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `P2P_AUTODIALPEERRETRYTHRESHOLD`: When we've failed to dial a peer, do not autodial them again within this number of ms. Default: 1000 \* 120
 - `P2P_AUTODIALCONCURRENCY`: When dialling peers from the peer book to keep the number of open connections, add dials for this many peers to the dial queue at once. Default: 5
 - `P2P_MAXPEERADDRSTODIAL`: Maximum number of addresses allowed for a given peer before giving up. Default: 5
+- `P2P_AUTODIALINTERVAL`: Auto dial interval (miliseconds). Amount of time between close and open of new peer connection. Default: 5000
 
 ## Additional Nodes (Test Environments)
 
