@@ -81,11 +81,17 @@ describe('LogDatabase CRUD', () => {
     await new Promise((resolve) => setTimeout(resolve, 1000)) // Delay to allow log to be processed
 
     // Define the time frame for the log retrieval
-    const startTime = new Date(Date.now() - 5000) // 5 seconds ago
+    const startTime = new Date(Date.now() - 3000) // 3 seconds ago
     const endTime = new Date() // current time
 
     // Retrieve the latest log entries
-    let logs = await database.logs.retrieveMultipleLogs(startTime, endTime, 300)
+    let logs = await database.logs.retrieveMultipleLogs(
+      startTime,
+      endTime,
+      200,
+      LOGGER_MODULE_NAMES.HTTP,
+      LOG_LEVELS_STR.LEVEL_DEBUG
+    )
     logs = logs.filter((log) => log.message === newLogEntry.message)
 
     expect(logs?.length).to.equal(1)

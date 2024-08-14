@@ -300,6 +300,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'LOG_DB',
     value: process.env.LOG_DB,
     required: false
+  },
+  UNSAFE_URLS: {
+    name: 'UNSAFE_URLS',
+    value: process.env.UNSAFE_URLS,
+    required: false
   }
 }
 
@@ -337,4 +342,20 @@ export const defaultBootstrapAddresses = [
   '/dns4/node4.oceanprotocol.com/tcp/9001/ws/p2p/16Uiu2HAmSTVTArioKm2wVcyeASHYEsnx2ZNq467Z4GMDU4ErEPom',
   '/dns6/node4.oceanprotocol.com/tcp/9002/p2p/16Uiu2HAmSTVTArioKm2wVcyeASHYEsnx2ZNq467Z4GMDU4ErEPom',
   '/dns6/node4.oceanprotocol.com/tcp/9003/ws/p2p/16Uiu2HAmSTVTArioKm2wVcyeASHYEsnx2ZNq467Z4GMDU4ErEPom'
+]
+
+export const knownUnsafeURLs: string[] = [
+  // AWS and GCP
+  '^.*(169.254.169.254).*',
+  // GCP
+  '^.*(metadata.google.internal).*',
+  '^.*(http://metadata).*',
+  // Azure
+  '^.*(http://169.254.169.254).*',
+  // Oracle Cloud
+  '^.*(http://192.0.0.192).*',
+  // Alibaba Cloud
+  '^.*(http://100.100.100.200).*',
+  // k8s ETCD
+  '^.*(127.0.0.1).*'
 ]
