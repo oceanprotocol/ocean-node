@@ -1,5 +1,4 @@
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
-import { schemas } from './schemas.js'
 import {
   configureCustomDBTransport,
   USE_DB_TRANSPORT
@@ -14,6 +13,10 @@ import {
   AbstractOrderDatabase
 } from './BaseDatabase.js'
 import { DatabaseFactory } from './DatabaseFactory.js'
+import { ElasticsearchSchema } from './ElasticSchemas.js'
+import { TypesenseSchema } from './TypesenseSchemas.js'
+
+export type Schema = ElasticsearchSchema | TypesenseSchema
 
 export class Database {
   ddo: AbstractDdoDatabase
@@ -35,8 +38,11 @@ export class Database {
       )
     }
     return (async (): Promise<Database> => {
-      this.ddo = await DatabaseFactory.createDdoDatabase(this.config, schemas.ddoSchemas)
-      this.nonce = await DatabaseFactory.createNonceDatabase(config, schemas.nonceSchemas)
+      this.ddo = await DatabaseFactory.createDdoDatabase(this.config)
+      this.nonce = await DatabaseFactory.createNonceDatabase(
+        this.config,
+        schemas.nonceSchemas
+      )
       this.indexer = await DatabaseFactory.createIndexerDatabase(
         this.config,
         schemas.indexerSchemas

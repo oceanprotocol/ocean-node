@@ -14,7 +14,7 @@ import {
   ElasticsearchLogDatabase,
   ElasticsearchNonceDatabase
 } from './ElasticSearchDatabase'
-import { Schema } from './schemas'
+import { TypesenseSchema, typesenseSchemas } from './TypesenseSchemas'
 import {
   TypesenseDdoDatabase,
   TypesenseDdoStateDatabase,
@@ -23,11 +23,12 @@ import {
   TypesenseNonceDatabase,
   TypesenseOrderDatabase
 } from './TypenseDatabase'
+import { elasticSchemas } from './ElasticSchemas'
 
 export class DatabaseFactory {
   static createNonceDatabase(
     config: OceanNodeDBConfig,
-    schema: Schema
+    schema: TypesenseSchema
   ): AbstractNonceDatabase {
     if (process.env.DB_TYPE === 'typesense') {
       return new TypesenseNonceDatabase(config, schema)
@@ -37,21 +38,18 @@ export class DatabaseFactory {
     throw new Error('Unsupported database type')
   }
 
-  static createDdoDatabase(
-    config: OceanNodeDBConfig,
-    schemas: Schema[]
-  ): AbstractDdoDatabase {
+  static createDdoDatabase(config: OceanNodeDBConfig): AbstractDdoDatabase {
     if (process.env.DB_TYPE === 'typesense') {
-      return new TypesenseDdoDatabase(config, schemas)
+      return new TypesenseDdoDatabase(config, typesenseSchemas.ddoSchemas)
     } else if (process.env.DB_TYPE === 'elasticsearch') {
-      return new ElasticsearchDdoDatabase(config, schemas)
+      return new ElasticsearchDdoDatabase(config, elasticSchemas.ddoSchemas)
     }
     throw new Error('Unsupported database type')
   }
 
   static createIndexerDatabase(
     config: OceanNodeDBConfig,
-    schema: Schema
+    schema: TypesenseSchema
   ): AbstractIndexerDatabase {
     if (process.env.DB_TYPE === 'typesense') {
       return new TypesenseIndexerDatabase(config, schema)
@@ -63,7 +61,7 @@ export class DatabaseFactory {
 
   static createLogDatabase(
     config: OceanNodeDBConfig,
-    schema: Schema
+    schema: TypesenseSchema
   ): AbstractLogDatabase {
     if (process.env.DB_TYPE === 'typesense') {
       return new TypesenseLogDatabase(config, schema)
@@ -75,7 +73,7 @@ export class DatabaseFactory {
 
   static createOrderDatabase(
     config: OceanNodeDBConfig,
-    schema: Schema
+    schema: TypesenseSchema
   ): AbstractOrderDatabase {
     if (process.env.DB_TYPE === 'typesense') {
       return new TypesenseOrderDatabase(config, schema)
@@ -88,7 +86,7 @@ export class DatabaseFactory {
 
   static createDdoStateDatabase(
     config: OceanNodeDBConfig,
-    schema: Schema
+    schema: TypesenseSchema
   ): AbstractDdoStateDatabase {
     if (process.env.DB_TYPE === 'typesense') {
       return new TypesenseDdoStateDatabase(config, schema)

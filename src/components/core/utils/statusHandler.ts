@@ -12,7 +12,7 @@ import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { isAddress } from 'ethers'
-import { schemas } from '../../database/schemas.js'
+import { schemas } from '../../database/TypesenseSchemas.js'
 import { SupportedNetwork } from '../../../@types/blockchain.js'
 
 function getAdminAddresses(config: OceanNodeConfig) {

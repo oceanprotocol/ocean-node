@@ -1,13 +1,15 @@
+import { Schema } from '.'
 import { OceanNodeDBConfig } from '../../@types'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger'
 import { DATABASE_LOGGER } from '../../utils/logging/common'
-import { Schema } from './schemas'
+import { ElasticsearchSchema } from './ElasticSchemas'
+import { TypesenseSchema } from './TypesenseSchemas'
 
 export abstract class AbstractNonceDatabase {
   protected config: OceanNodeDBConfig
-  protected schema: Schema
+  protected schema: TypesenseSchema
 
-  constructor(config: OceanNodeDBConfig, schema?: Schema) {
+  constructor(config: OceanNodeDBConfig, schema?: TypesenseSchema) {
     this.config = config
     this.schema = schema
   }
@@ -30,9 +32,9 @@ export abstract class AbstractNonceDatabase {
 
 export abstract class AbstractIndexerDatabase {
   protected config: OceanNodeDBConfig
-  protected schema: Schema
+  protected schema: TypesenseSchema
 
-  constructor(config: OceanNodeDBConfig, schema?: Schema) {
+  constructor(config: OceanNodeDBConfig, schema?: TypesenseSchema) {
     this.config = config
     this.schema = schema
   }
@@ -45,9 +47,9 @@ export abstract class AbstractIndexerDatabase {
 
 export abstract class AbstractLogDatabase {
   protected config: OceanNodeDBConfig
-  protected schema: Schema
+  protected schema: TypesenseSchema
 
-  constructor(config: OceanNodeDBConfig, schema?: Schema) {
+  constructor(config: OceanNodeDBConfig, schema?: TypesenseSchema) {
     this.config = config
     this.schema = schema
   }
@@ -69,9 +71,9 @@ export abstract class AbstractLogDatabase {
 
 export abstract class AbstractDdoStateDatabase {
   protected config: OceanNodeDBConfig
-  protected schema: Schema
+  protected schema: TypesenseSchema
 
-  constructor(config: OceanNodeDBConfig, schema?: Schema) {
+  constructor(config: OceanNodeDBConfig, schema?: TypesenseSchema) {
     this.config = config
     this.schema = schema
   }
@@ -103,9 +105,9 @@ export abstract class AbstractDdoStateDatabase {
 
 export abstract class AbstractOrderDatabase {
   protected config: OceanNodeDBConfig
-  protected schema: Schema
+  protected schema: TypesenseSchema
 
-  constructor(config: OceanNodeDBConfig, schema: Schema) {
+  constructor(config: OceanNodeDBConfig, schema: TypesenseSchema) {
     this.config = config
     this.schema = schema
   }
@@ -148,9 +150,13 @@ export abstract class AbstractDdoDatabase {
     this.schemas = schemas
   }
 
-  abstract getSchemas(): Schema[]
+  protected isElasticsearchSchema(schema: Schema): schema is ElasticsearchSchema {
+    return (schema as ElasticsearchSchema).index !== undefined
+  }
 
-  abstract getDDOSchema(ddo: Record<string, any>): Schema | undefined
+  protected isTypesenseSchema(schema: Schema): schema is TypesenseSchema {
+    return (schema as TypesenseSchema).name !== undefined
+  }
 
   abstract validateDDO(ddo: Record<string, any>): Promise<boolean>
 

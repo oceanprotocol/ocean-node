@@ -8,10 +8,11 @@ import {
 } from './BaseDatabase'
 import { createElasticsearchClient } from './ElasticsearchConfigHelper'
 import { OceanNodeDBConfig } from '../../@types'
-import { Schema } from './schemas'
+import { ElasticsearchSchema } from './ElasticSchemas'
 import { DATABASE_LOGGER } from '../../utils/logging/common'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger'
 import { validateObject } from '../core/utils/validateDdoHandler'
+import { Schema } from '.'
 
 export class ElasticsearchNonceDatabase extends AbstractNonceDatabase {
   private client: Client
@@ -428,7 +429,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
   private client: Client
 
   // TODO: update schemas logic to fit elastic
-  constructor(config: OceanNodeDBConfig, schemas: Schema[]) {
+  constructor(config: OceanNodeDBConfig, schemas: ElasticsearchSchema[]) {
     super(config, schemas)
     this.client = createElasticsearchClient(config)
   }
@@ -437,14 +438,15 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     return this.schemas
   }
 
-  getDDOSchema(ddo: Record<string, any>): Schema | undefined {
+  getDDOSchema(ddo: Record<string, any>) {
     let schemaName: string | undefined
     if (ddo.nft?.state !== 0) {
       schemaName = 'op_ddo_short'
     } else if (ddo.version) {
       schemaName = `op_ddo_v${ddo.version}`
     }
-    const schema = this.schemas.find((s) => s.name === schemaName)
+
+    const schema = this.schemas.find((s) => s.index === schemaName)
     DATABASE_LOGGER.logMessageWithEmoji(
       `Returning schema: ${schemaName}`,
       true,
@@ -492,7 +494,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
 
       for (const schema of this.schemas) {
         const response = await this.client.search({
-          index: schema.name,
+          index: schema.index,
           body: {
             query: {
               match: query
@@ -528,7 +530,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       const validation = await this.validateDDO(ddo)
       if (validation === true) {
         const response = await this.client.index({
-          index: schema.name,
+          index: schema.index,
           id: ddo.id,
           body: ddo
         })
@@ -553,7 +555,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     for (const schema of this.schemas) {
       try {
         const response = await this.client.get({
-          index: schema.name,
+          index: schema.index,
           id
         })
         if (response.found) {
@@ -593,7 +595,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       const validation = await this.validateDDO(ddo)
       if (validation === true) {
         const response = await this.client.update({
-          index: schema.name,
+          index: schema.index,
           id: ddo.id,
           body: {
             doc: ddo
@@ -626,7 +628,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     for (const schema of this.schemas) {
       try {
         const response = await this.client.delete({
-          index: schema.name,
+          index: schema.index,
           id
         })
         isDeleted = response.result === 'deleted'
@@ -639,7 +641,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       } catch (error) {
         if (error.statusCode !== 404) {
           DATABASE_LOGGER.logMessageWithEmoji(
-            `Error when deleting DDO entry ${id} from schema ${schema.name}: ${error.message}`,
+            `Error when deleting DDO entry ${id} from schema ${schema.index}: ${error.message}`,
             true,
             GENERIC_EMOJIS.EMOJI_CROSS_MARK,
             LOG_LEVELS_STR.LEVEL_ERROR
@@ -664,7 +666,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       try {
         // add batch size logic
         const response = await this.client.deleteByQuery({
-          index: schema.name,
+          index: schema.index,
           body: {
             query: {
               match: { chainId }
@@ -673,14 +675,14 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         })
 
         DATABASE_LOGGER.debug(
-          `Number of deleted ddos on schema ${schema.name}: ${response.deleted}`
+          `Number of deleted ddos on schema ${schema.index}: ${response.deleted}`
         )
 
         numDeleted += response.deleted
       } catch (error) {
         if (error.statusCode !== 404) {
           DATABASE_LOGGER.logMessageWithEmoji(
-            `Error when deleting DDOs from schema ${schema.name}: ${error.message}`,
+            `Error when deleting DDOs from schema ${schema.index}: ${error.message}`,
             true,
             GENERIC_EMOJIS.EMOJI_CROSS_MARK,
             LOG_LEVELS_STR.LEVEL_ERROR

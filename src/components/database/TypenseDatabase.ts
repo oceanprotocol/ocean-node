@@ -1,6 +1,6 @@
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { convertTypesenseConfig, Typesense, TypesenseError } from './typesense.js'
-import { Schema } from './schemas.js'
+import { TypesenseSchema } from './TypesenseSchemas.js'
 import { TypesenseSearchParams } from '../../@types/index.js'
 import { LOG_LEVELS_STR, GENERIC_EMOJIS } from '../../utils/logging/Logger.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
@@ -19,7 +19,7 @@ import {
 export class TypesenseOrderDatabase extends AbstractOrderDatabase {
   private provider: Typesense
 
-  constructor(config: OceanNodeDBConfig, schema: Schema) {
+  constructor(config: OceanNodeDBConfig, schema: TypesenseSchema) {
     super(config, schema)
     return (async (): Promise<TypesenseOrderDatabase> => {
       this.provider = new Typesense({
@@ -186,7 +186,7 @@ export class TypesenseOrderDatabase extends AbstractOrderDatabase {
 export class TypesenseDdoStateDatabase extends AbstractDdoStateDatabase {
   private provider: Typesense
 
-  constructor(config: OceanNodeDBConfig, schema: Schema) {
+  constructor(config: OceanNodeDBConfig, schema: TypesenseSchema) {
     super(config, schema)
     return (async (): Promise<TypesenseDdoStateDatabase> => {
       this.provider = new Typesense({
@@ -320,7 +320,7 @@ export class TypesenseDdoStateDatabase extends AbstractDdoStateDatabase {
 export class TypesenseDdoDatabase extends AbstractDdoDatabase {
   private provider: Typesense
 
-  constructor(config: OceanNodeDBConfig, schemas: Schema[]) {
+  constructor(config: OceanNodeDBConfig, schemas: TypesenseSchema[]) {
     super(config, schemas)
     return (async (): Promise<TypesenseDdoDatabase> => {
       this.provider = new Typesense({
@@ -340,11 +340,11 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
     })() as unknown as TypesenseDdoDatabase
   }
 
-  getSchemas(): Schema[] {
+  getSchemas(): TypesenseSchema[] {
     return this.schemas
   }
 
-  getDDOSchema(ddo: Record<string, any>): Schema {
+  getDDOSchema(ddo: Record<string, any>): TypesenseSchema {
     // Find the schema based on the DDO version OR use the short DDO schema when state !== 0
     let schemaName: string
     if (ddo.nft?.state !== 0) {
@@ -608,7 +608,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
 export class TypesenseNonceDatabase extends AbstractNonceDatabase {
   private provider: Typesense
 
-  constructor(config: OceanNodeDBConfig, schema: Schema) {
+  constructor(config: OceanNodeDBConfig, schema: TypesenseSchema) {
     super(config, schema)
     return (async (): Promise<TypesenseNonceDatabase> => {
       this.provider = new Typesense({
@@ -711,7 +711,7 @@ export class TypesenseNonceDatabase extends AbstractNonceDatabase {
 export class TypesenseIndexerDatabase extends AbstractIndexerDatabase {
   private provider: Typesense
 
-  constructor(config: OceanNodeDBConfig, schema: Schema) {
+  constructor(config: OceanNodeDBConfig, schema: TypesenseSchema) {
     super(config, schema)
     return (async (): Promise<TypesenseIndexerDatabase> => {
       this.provider = new Typesense({
@@ -819,7 +819,7 @@ export class TypesenseIndexerDatabase extends AbstractIndexerDatabase {
 export class TypesenseLogDatabase extends AbstractLogDatabase {
   private provider: Typesense
 
-  constructor(config: OceanNodeDBConfig, schema: Schema) {
+  constructor(config: OceanNodeDBConfig, schema: TypesenseSchema) {
     super(config, schema)
     return (async (): Promise<TypesenseLogDatabase> => {
       this.provider = new Typesense({
