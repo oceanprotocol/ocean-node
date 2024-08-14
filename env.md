@@ -28,6 +28,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `LOG_CONSOLE`: Write logs to the console. Default is `false`, but becomes `true` if neither `LOG_FILES` or `LOG_DB` are set.
 - `LOG_FILES`: Write logs to files. Default is `false`
 - `LOG_DB`: Write logs to noSQL database. Default is `false`
+- `UNSAFE_URLS`: Array or regular expression URLs to be excluded from access.Example: ["^.*(169.254.169.254).*","^.*(127.0.0.1).*"]
 
 ## HTTP
 
