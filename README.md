@@ -64,7 +64,7 @@ Manually set the required environment variables:
 
 The `PRIVATE_KEY` is the only mandatory environmental variable. Additional configurations can be set as needed.
 
-For all available configurations, refer to the [Environment Variables](docs/envs.md) documentation.
+For all available configurations, refer to the [Environment Variables](docs/env.md) documentation.
 
 ### 5. Start the Node
 
