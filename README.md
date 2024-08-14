@@ -20,7 +20,7 @@ Build and run the node using Docker:
 
 ### Prerequisites
 
-- **Node Version:** Use the node version specified in `.nvmrc`.
+- **Node Version:** Install the node version specified in `.nvmrc`.
 
 ### 1. Set Up Environment
 
