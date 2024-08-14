@@ -100,6 +100,12 @@ For configuring the Indexer crawling interval in miliseconds (default, if not se
 export INDEXER_INTERVAL=10000
 ```
 
+To configure which networks the Indexer will be crawling (optional; if not set, the Indexer will index all networks defined in the RPCS environment variable):
+
+```bash
+export INDEXER_NETWORKS="[1, 137]"
+```
+
 For purgatory checks, please export the following env variables;
 
 ```bash
