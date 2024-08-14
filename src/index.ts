@@ -5,7 +5,11 @@ import { Database } from './components/database/index.js'
 import express, { Express } from 'express'
 import { OceanNode } from './OceanNode.js'
 import { httpRoutes } from './components/httpRoutes/index.js'
-import { getConfiguration, computeCodebaseHash } from './utils/index.js'
+import {
+  getConfiguration,
+  computeCodebaseHash,
+  ENVIRONMENT_VARIABLES
+} from './utils/index.js'
 
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import fs from 'fs'
@@ -31,6 +35,19 @@ declare global {
     }
   }
 }
+
+const REQUEST_TIMEOUT = ENVIRONMENT_VARIABLES.EXPRESS_TIMEOUT
+  ? Number(ENVIRONMENT_VARIABLES.EXPRESS_TIMEOUT)
+  : 15000 // 15 seconds for the default express request timeout
+
+// Middleware to set a timeout for the request
+app.use((req, res, next) => {
+  res.setTimeout(REQUEST_TIMEOUT, () => {
+    OCEAN_NODE_LOGGER.error('Request has timed out. Sending 408 Request Timeout response')
+    res.status(408).send('Request Timeout') // Send a 408 Request Timeout response
+  })
+  next()
+})
 
 // we have 5 json examples
 // we should have some DDO class too
