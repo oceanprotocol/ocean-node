@@ -291,7 +291,8 @@ export class C2DEngineOPFK8 extends C2DEngine {
 
   public override async stopComputeJob(
     jobId: string,
-    owner: string
+    owner: string,
+    agreementId?: string
   ): Promise<ComputeJob[]> {
     // and the full payload
     const nonce: number = new Date().getTime()
@@ -303,7 +304,8 @@ export class C2DEngineOPFK8 extends C2DEngine {
       providerSignature,
       providerAddress: config.keys.ethAddress,
       nonce,
-      jobId
+      jobId,
+      agreementId
     }
     try {
       const response = await axios({

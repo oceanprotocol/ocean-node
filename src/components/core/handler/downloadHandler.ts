@@ -65,10 +65,10 @@ export async function handleDownloadUrlCommand(
 ): Promise<P2PCommandResponse> {
   const encryptFile = !!task.aes_encrypted_key
   CORE_LOGGER.logMessage('DownloadCommand requires file encryption? ' + encryptFile, true)
-
+  const config = await getConfiguration()
   try {
     // Determine the type of storage and get a readable stream
-    const storage = Storage.getStorageClass(task.fileObject)
+    const storage = Storage.getStorageClass(task.fileObject, config)
     if (
       storage instanceof ArweaveStorage &&
       !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY)
@@ -125,7 +125,6 @@ export async function handleDownloadUrlCommand(
       // we parse the string into the object again
       const encryptedObject = ethCrypto.cipher.parse(task.aes_encrypted_key)
       // get the key from configuration
-      const config = await getConfiguration()
       const nodePrivateKey = Buffer.from(config.keys.privateKey).toString('hex')
       const decrypted = await ethCrypto.decryptWithPrivateKey(
         nodePrivateKey,

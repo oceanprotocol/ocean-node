@@ -119,7 +119,7 @@ export class EncryptFileHandler extends Handler {
       }
       let encryptedContent: Buffer
       if (task.files) {
-        const storage = Storage.getStorageClass(task.files)
+        const storage = Storage.getStorageClass(task.files, config)
         encryptedContent = await storage.encryptContent(task.encryptionType)
       } else if (task.rawData !== null) {
         encryptedContent = await encrypt(task.rawData, task.encryptionType)

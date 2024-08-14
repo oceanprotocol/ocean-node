@@ -3,8 +3,14 @@ import { sleep, getEventFromTx, sanitizeServiceFiles } from '../../utils/util.js
 import { URLUtils } from '../../utils/url.js'
 import { validateConsumerParameters } from '../../utils/validators.js'
 import { ConsumerParameter } from '../../@types/DDO/ConsumerParameter.js'
+import { fileURLToPath } from 'node:url'
+import path from 'node:path'
+import { computeCodebaseHash } from '../../utils/attestation.js'
+import { existsSync, rmSync, writeFileSync } from 'node:fs'
 
 describe('Utilities Functions', () => {
+  const fileName = 'hashFile.previous'
+
   describe('sleep function', () => {
     it('should resolve after specified time', async () => {
       const startTime = new Date().getTime()
@@ -269,5 +275,32 @@ describe('Utilities Functions', () => {
     const result = await validateConsumerParameters(ddoConsumerParameters, userSentObject)
     expect(result.valid).to.equal(false)
     expect(result.reason).includes('parameter is required')
+  })
+
+  it('should check code hash integrity', async () => {
+    try {
+      const __filename = fileURLToPath(import.meta.url)
+      const __dirname = path.dirname(__filename)
+      const codeHashBefore = await computeCodebaseHash(__dirname)
+      console.log(`compute code hash before`, codeHashBefore)
+      if (existsSync(fileName)) {
+        rmSync(fileName)
+      } else {
+        writeFileSync(fileName, codeHashBefore)
+        const codeHashAfter = await computeCodebaseHash(__dirname)
+        console.log(`compute code hash after`, codeHashAfter)
+        expect(codeHashBefore).to.equal(codeHashAfter)
+      }
+    } catch (error) {
+      console.error(error)
+    }
+  })
+
+  after(() => {
+    if (existsSync(fileName)) {
+      try {
+        rmSync(fileName)
+      } catch (err) {}
+    }
   })
 })

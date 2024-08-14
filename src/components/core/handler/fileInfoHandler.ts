@@ -8,7 +8,7 @@ import {
 } from '../../../@types/fileObject.js'
 import { FileInfoCommand } from '../../../@types/commands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { ArweaveStorage, IpfsStorage, UrlStorage } from '../../storage/index.js'
+import { Storage } from '../../storage/index.js'
 import { Handler } from './handler.js'
 import { validateDDOIdentifier } from './ddoHandler.js'
 import { fetchFileMetadata } from '../../../utils/asset.js'
@@ -18,7 +18,7 @@ import {
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { getFile } from '../../../utils/file.js'
-
+import { getConfiguration } from '../../../utils/index.js'
 async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFileObject) {
   const url =
     file.type === 'url'
@@ -79,14 +79,7 @@ export class FileInfoHandler extends Handler {
       let fileInfo = []
 
       if (task.file && task.type) {
-        const storage =
-          task.type === 'url'
-            ? new UrlStorage(task.file as UrlFileObject)
-            : task.type === 'arweave'
-            ? new ArweaveStorage(task.file as ArweaveFileObject)
-            : task.type === 'ipfs'
-            ? new IpfsStorage(task.file as IpfsFileObject)
-            : null
+        const storage = Storage.getStorageClass(task.file, await getConfiguration())
 
         fileInfo = await storage.getFileInfo({
           type: task.type,

@@ -101,7 +101,7 @@ if (config.hasP2P) {
   await node.start()
 }
 if (config.hasIndexer && dbconn) {
-  indexer = new OceanIndexer(dbconn, config.supportedNetworks)
+  indexer = new OceanIndexer(dbconn, config.indexingNetworks)
   // if we set this var
   // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
   // store and advertise DDOs

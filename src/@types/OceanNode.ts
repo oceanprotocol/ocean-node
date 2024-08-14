@@ -50,6 +50,7 @@ export interface OceanNodeP2PConfig {
   autoDialPeerRetryThreshold: number
   autoDialConcurrency: number
   maxPeerAddrsToDial: number
+  autoDialInterval: number
 }
 
 export interface OceanNodeConfig {
@@ -66,6 +67,7 @@ export interface OceanNodeConfig {
   httpPort: number
   feeStrategy: FeeStrategy
   supportedNetworks?: RPCS
+  indexingNetworks?: RPCS
   c2dClusters: C2DClusterInfo[]
   accountPurgatoryUrl: string
   assetPurgatoryUrl: string
@@ -73,6 +75,7 @@ export interface OceanNodeConfig {
   codeHash?: string
   rateLimit?: number
   denyList?: DenyList
+  unsafeURLs?: string[]
 }
 
 export interface P2PStatusResponse {

@@ -169,6 +169,7 @@ export interface OPFK8ComputeStart {
 export interface OPFK8ComputeStop {
   jobId: string
   owner: string
+  agreementId?: string
   providerSignature: string //  message=owner+jobId
   providerAddress: string
   nonce: number
