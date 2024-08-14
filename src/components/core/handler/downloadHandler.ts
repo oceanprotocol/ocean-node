@@ -323,6 +323,7 @@ export class DownloadHandler extends Handler {
       }
       provider = blockchain.getProvider()
     } catch (e) {
+      CORE_LOGGER.error('Download JsonRpcProvider ERROR: ' + e.message)
       return {
         stream: null,
         status: {

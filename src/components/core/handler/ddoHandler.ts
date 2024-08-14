@@ -439,6 +439,7 @@ export class GetDdoHandler extends Handler {
         status: { httpStatus: 200 }
       }
     } catch (error) {
+      CORE_LOGGER.error(`Get DDO error: ${error}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
