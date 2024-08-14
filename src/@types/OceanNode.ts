@@ -66,6 +66,7 @@ export interface OceanNodeConfig {
   httpPort: number
   feeStrategy: FeeStrategy
   supportedNetworks?: RPCS
+  indexingNetworks?: RPCS
   c2dClusters: C2DClusterInfo[]
   accountPurgatoryUrl: string
   assetPurgatoryUrl: string

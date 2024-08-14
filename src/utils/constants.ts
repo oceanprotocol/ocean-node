@@ -162,6 +162,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     required: false
   },
   RPCS: { name: 'RPCS', value: process.env.RPCS, required: false },
+  INDEXER_NETWORKS: {
+    name: 'INDEXER_NETWORKS',
+    value: process.env.INDEXER_NETWORKS,
+    required: false
+  },
   DB_URL: { name: 'DB_URL', value: process.env.DB_URL, required: false },
   // these 2 bellow will change in the future (not required, just remove functionality)
   IPFS_GATEWAY: {

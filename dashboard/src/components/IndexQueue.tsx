@@ -104,7 +104,7 @@ export default function IndexQueue() {
       )}
       {avoidAskQueue && (
         <Alert
-          style={{ width: 640 }}
+          className={styles.indexerQueueAlert}
           severity="warning"
           onClose={() => {
             setAvoidAskQueue(false)
