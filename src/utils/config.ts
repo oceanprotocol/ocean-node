@@ -9,7 +9,7 @@ import {
   EnvVariable,
   hexStringToByteArray
 } from '../utils/index.js'
-import { defaultBootstrapAddresses } from '../utils/constants.js'
+import { defaultBootstrapAddresses, knownUnsafeURLs } from '../utils/constants.js'
 
 import { LOG_LEVELS_STR, GENERIC_EMOJIS, getLoggerLevelEmoji } from './logging/Logger.js'
 import { RPCS } from '../@types/blockchain'
@@ -509,7 +509,12 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),
     allowedAdmins: getAllowedAdmins(isStartup),
     rateLimit: getRateLimit(isStartup),
-    denyList: getDenyList(isStartup)
+    denyList: getDenyList(isStartup),
+    unsafeURLs: readListFromEnvVariable(
+      ENVIRONMENT_VARIABLES.UNSAFE_URLS,
+      isStartup,
+      knownUnsafeURLs
+    )
   }
 
   if (!previousConfiguration) {

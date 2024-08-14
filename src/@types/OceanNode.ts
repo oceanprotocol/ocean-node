@@ -73,6 +73,7 @@ export interface OceanNodeConfig {
   codeHash?: string
   rateLimit?: number
   denyList?: DenyList
+  unsafeURLs?: string[]
 }
 
 export interface P2PStatusResponse {
