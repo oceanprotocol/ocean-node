@@ -39,23 +39,11 @@ export class Database {
     }
     return (async (): Promise<Database> => {
       this.ddo = await DatabaseFactory.createDdoDatabase(this.config)
-      this.nonce = await DatabaseFactory.createNonceDatabase(
-        this.config,
-        schemas.nonceSchemas
-      )
-      this.indexer = await DatabaseFactory.createIndexerDatabase(
-        this.config,
-        schemas.indexerSchemas
-      )
-      this.logs = await DatabaseFactory.createLogDatabase(this.config, schemas.logSchemas)
-      this.order = await DatabaseFactory.createOrderDatabase(
-        this.config,
-        schemas.orderSchema
-      )
-      this.ddoState = await DatabaseFactory.createDdoStateDatabase(
-        this.config,
-        schemas.ddoStateSchema
-      )
+      this.nonce = await DatabaseFactory.createNonceDatabase(this.config)
+      this.indexer = await DatabaseFactory.createIndexerDatabase(this.config)
+      this.logs = await DatabaseFactory.createLogDatabase(this.config)
+      this.order = await DatabaseFactory.createOrderDatabase(this.config)
+      this.ddoState = await DatabaseFactory.createDdoStateDatabase(this.config)
       return this
     })() as unknown as Database
   }

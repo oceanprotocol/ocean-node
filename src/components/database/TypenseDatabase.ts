@@ -327,7 +327,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
         ...convertTypesenseConfig(this.config.url),
         logger: DATABASE_LOGGER
       })
-      for (const ddoSchema of this.schemas) {
+      for (const ddoSchema of this.getSchemas()) {
         try {
           await this.provider.collections(ddoSchema.name).retrieve()
         } catch (error) {
@@ -341,7 +341,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
   }
 
   getSchemas(): TypesenseSchema[] {
-    return this.schemas
+    return this.schemas as TypesenseSchema[]
   }
 
   getDDOSchema(ddo: Record<string, any>): TypesenseSchema {
@@ -352,7 +352,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
     } else if (ddo.version) {
       schemaName = `op_ddo_v${ddo.version}`
     }
-    const schema = this.schemas.find((s) => s.name === schemaName)
+    const schema = this.getSchemas().find((s) => s.name === schemaName)
     DATABASE_LOGGER.logMessageWithEmoji(
       `Returning schema: ${schemaName}`,
       true,
@@ -411,7 +411,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
       const page = pageNumber || 1 // Default to the first page if pageNumber is not provided
       const results = []
 
-      for (const schema of this.schemas) {
+      for (const schema of this.getSchemas()) {
         // Extend the query with pagination parameters
         const searchParams: TypesenseSearchParams = {
           ...queryObj,
@@ -468,7 +468,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
 
   async retrieve(id: string): Promise<any> {
     let ddo = null
-    for (const schema of this.schemas) {
+    for (const schema of this.getSchemas()) {
       try {
         ddo = await this.provider.collections(schema.name).documents().retrieve(id)
         if (ddo) {
@@ -538,7 +538,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
 
   async delete(did: string) {
     let isDeleted = false
-    for (const schema of this.schemas) {
+    for (const schema of this.getSchemas()) {
       try {
         const response = await this.provider
           .collections(schema.name)
@@ -577,7 +577,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
 
   async deleteAllAssetsFromChain(chainId: number, batchSize?: number): Promise<number> {
     let numDeleted = 0
-    for (const schema of this.schemas) {
+    for (const schema of this.getSchemas()) {
       try {
         const response = await this.provider
           .collections(schema.name)

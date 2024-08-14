@@ -12,7 +12,6 @@ import { ElasticsearchSchema } from './ElasticSchemas'
 import { DATABASE_LOGGER } from '../../utils/logging/common'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger'
 import { validateObject } from '../core/utils/validateDdoHandler'
-import { Schema } from '.'
 
 export class ElasticsearchNonceDatabase extends AbstractNonceDatabase {
   private client: Client
@@ -428,14 +427,13 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
 export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
   private client: Client
 
-  // TODO: update schemas logic to fit elastic
   constructor(config: OceanNodeDBConfig, schemas: ElasticsearchSchema[]) {
     super(config, schemas)
     this.client = createElasticsearchClient(config)
   }
 
-  getSchemas(): Schema[] {
-    return this.schemas
+  getSchemas(): ElasticsearchSchema[] {
+    return this.schemas as ElasticsearchSchema[]
   }
 
   getDDOSchema(ddo: Record<string, any>) {
@@ -445,8 +443,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     } else if (ddo.version) {
       schemaName = `op_ddo_v${ddo.version}`
     }
-
-    const schema = this.schemas.find((s) => s.index === schemaName)
+    const schema = this.getSchemas().find((s) => s.index === schemaName)
     DATABASE_LOGGER.logMessageWithEmoji(
       `Returning schema: ${schemaName}`,
       true,
@@ -492,7 +489,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       const maxPerPage = maxResultsPerPage || 100
       const from = (pageNumber || 1) * maxPerPage - maxPerPage
 
-      for (const schema of this.schemas) {
+      for (const schema of this.getSchemas()) {
         const response = await this.client.search({
           index: schema.index,
           body: {
@@ -552,7 +549,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
 
   async retrieve(id: string): Promise<any> {
     let ddo = null
-    for (const schema of this.schemas) {
+    for (const schema of this.getSchemas()) {
       try {
         const response = await this.client.get({
           index: schema.index,
@@ -565,7 +562,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       } catch (error) {
         if (error.statusCode !== 404) {
           DATABASE_LOGGER.logMessageWithEmoji(
-            `Error when retrieving DDO entry ${id} from schema ${schema.name}: ${error.message}`,
+            `Error when retrieving DDO entry ${id} from schema ${schema.index}: ${error.message}`,
             true,
             GENERIC_EMOJIS.EMOJI_CROSS_MARK,
             LOG_LEVELS_STR.LEVEL_ERROR
@@ -625,7 +622,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
 
   async delete(id: string): Promise<any> {
     let isDeleted = false
-    for (const schema of this.schemas) {
+    for (const schema of this.getSchemas()) {
       try {
         const response = await this.client.delete({
           index: schema.index,
@@ -662,7 +659,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
 
   async deleteAllAssetsFromChain(chainId: number, batchSize?: number): Promise<number> {
     let numDeleted = 0
-    for (const schema of this.schemas) {
+    for (const schema of this.getSchemas()) {
       try {
         // add batch size logic
         const response = await this.client.deleteByQuery({

@@ -26,12 +26,9 @@ import {
 import { elasticSchemas } from './ElasticSchemas'
 
 export class DatabaseFactory {
-  static createNonceDatabase(
-    config: OceanNodeDBConfig,
-    schema: TypesenseSchema
-  ): AbstractNonceDatabase {
+  static createNonceDatabase(config: OceanNodeDBConfig): AbstractNonceDatabase {
     if (process.env.DB_TYPE === 'typesense') {
-      return new TypesenseNonceDatabase(config, schema)
+      return new TypesenseNonceDatabase(config, typesenseSchemas.nonceSchemas)
     } else if (process.env.DB_TYPE === 'elasticsearch') {
       return new ElasticsearchNonceDatabase(config)
     }
@@ -47,49 +44,37 @@ export class DatabaseFactory {
     throw new Error('Unsupported database type')
   }
 
-  static createIndexerDatabase(
-    config: OceanNodeDBConfig,
-    schema: TypesenseSchema
-  ): AbstractIndexerDatabase {
+  static createIndexerDatabase(config: OceanNodeDBConfig): AbstractIndexerDatabase {
     if (process.env.DB_TYPE === 'typesense') {
-      return new TypesenseIndexerDatabase(config, schema)
+      return new TypesenseIndexerDatabase(config, typesenseSchemas.indexerSchemas)
     } else if (process.env.DB_TYPE === 'elasticsearch') {
       return new ElasticsearchIndexerDatabase(config)
     }
     throw new Error('Unsupported database type')
   }
 
-  static createLogDatabase(
-    config: OceanNodeDBConfig,
-    schema: TypesenseSchema
-  ): AbstractLogDatabase {
+  static createLogDatabase(config: OceanNodeDBConfig): AbstractLogDatabase {
     if (process.env.DB_TYPE === 'typesense') {
-      return new TypesenseLogDatabase(config, schema)
+      return new TypesenseLogDatabase(config, typesenseSchemas.logSchemas)
     } else if (process.env.DB_TYPE === 'elasticsearch') {
       return new ElasticsearchLogDatabase(config)
     }
     throw new Error('Unsupported database type')
   }
 
-  static createOrderDatabase(
-    config: OceanNodeDBConfig,
-    schema: TypesenseSchema
-  ): AbstractOrderDatabase {
+  static createOrderDatabase(config: OceanNodeDBConfig): AbstractOrderDatabase {
     if (process.env.DB_TYPE === 'typesense') {
-      return new TypesenseOrderDatabase(config, schema)
+      return new TypesenseOrderDatabase(config, typesenseSchemas.orderSchema)
     }
     // else if (process.env.DB_TYPE === 'elasticsearch') {
-    //   return new ElasticOrderDatabase(config, schema)
+    //   return new ElasticOrderDatabase(config, typesenseSchemas.ddoSchemas)
     // }
     throw new Error('Unsupported database type')
   }
 
-  static createDdoStateDatabase(
-    config: OceanNodeDBConfig,
-    schema: TypesenseSchema
-  ): AbstractDdoStateDatabase {
+  static createDdoStateDatabase(config: OceanNodeDBConfig): AbstractDdoStateDatabase {
     if (process.env.DB_TYPE === 'typesense') {
-      return new TypesenseDdoStateDatabase(config, schema)
+      return new TypesenseDdoStateDatabase(config, typesenseSchemas.ddoStateSchema)
     } else if (process.env.DB_TYPE === 'elasticsearch') {
       return new ElasticsearchDdoStateDatabase(config)
     }
