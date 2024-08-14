@@ -85,6 +85,9 @@ For advanced testing scenarios, refer to the [Testing Guide](docs/testing.md).
 
 ## Additional Resources
 
-- [Advanced Environment Configuration](docs/environment-variables.md)
+- [Ocean Nodes Architecture](docs/Arhitecture.md)
+- [API Endpoints](docs/API.md)
+- [Environmental Variables](docs/env.md)
 - [Testing Guide](docs/testing.md)
 - [Network Configuration](docs/networking.md)
+- [COmpute to Data V2](docs/C2DV2.md)
