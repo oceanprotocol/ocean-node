@@ -50,7 +50,7 @@ Clone and start the necessary services using Barge:
 
 **Option 1: Automatic Setup (Recommended)**
 
-Run the helper script to generate and set up the required environment variables:
+Run the helper script to generate and set up the recommended environment variables:
 
 `./helpers/scripts/setupNodeEnv.sh`
 
@@ -62,7 +62,7 @@ Manually set the required environment variables:
 
 `export PRIVATE_KEY="your_private_key_here"`
 
-Additional configurations can be set as needed.
+The `PRIVATE_KEY` is the only mandatory environmental variable. Additional configurations can be set as needed.
 
 For all available configurations, refer to the [Environment Variables](docs/envs.md) documentation.
 
@@ -70,7 +70,7 @@ For all available configurations, refer to the [Environment Variables](docs/envs
 
 `npm run start`
 
-Your node is now running. To start additional nodes, repeat these steps in a new terminal.
+Your node is now running, the dashboard will be available at `http://localhost:8000/dashboard/`. To start additional nodes, repeat these steps in a new terminal.
 
 ## Testing
 
