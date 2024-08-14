@@ -71,4 +71,6 @@ export interface DDO {
    * @type {Event}
    */
   event?: Event
+
+  nft?: Nft
 }

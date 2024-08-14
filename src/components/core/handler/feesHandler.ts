@@ -15,6 +15,7 @@ import { isAddress } from 'ethers'
 import { ProviderInitialize } from '../../../@types/Fees.js'
 import { getNonce } from '../utils/nonceHandler.js'
 import { streamToString } from '../../../utils/util.js'
+import { isOrderingAllowedForAsset } from './downloadHandler.js'
 
 export class FeesHandler extends Handler {
   validate(command: GetFeesCommand): ValidateParams {
@@ -46,6 +47,18 @@ export class FeesHandler extends Handler {
       errorMsg = 'Cannot resolve DID'
     }
 
+    const isOrdable = isOrderingAllowedForAsset(ddo)
+    if (!isOrdable.isOrdable) {
+      PROVIDER_LOGGER.error(isOrdable.reason)
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error: isOrdable.reason
+        }
+      }
+    }
+
     const service = ddo.services.find((what: any) => what.id === task.serviceId)
     if (!service) {
       errorMsg = 'Invalid serviceId'
@@ -64,10 +77,6 @@ export class FeesHandler extends Handler {
       validUntil = task.validUntil
     }
 
-    const nonceDB = this.getOceanNode().getDatabase().nonce
-    const nonceHandlerResponse = await getNonce(nonceDB, task.consumerAddress)
-    const nonce = await streamToString(nonceHandlerResponse.stream as Readable)
-
     if (errorMsg) {
       PROVIDER_LOGGER.logMessageWithEmoji(
         errorMsg,
@@ -83,6 +92,10 @@ export class FeesHandler extends Handler {
         }
       }
     }
+
+    const nonceDB = this.getOceanNode().getDatabase().nonce
+    const nonceHandlerResponse = await getNonce(nonceDB, task.consumerAddress)
+    const nonce = await streamToString(nonceHandlerResponse.stream as Readable)
 
     try {
       const providerFee = await createProviderFee(ddo, service, validUntil, null, null)

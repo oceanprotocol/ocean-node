@@ -141,8 +141,10 @@ export class DecryptDdoHandler extends Handler {
       if (config.authorizedDecrypters.length > 0) {
         // allow if on authorized list or it is own node
         if (
-          !config.authorizedDecrypters.includes(decrypterAddress) &&
-          decrypterAddress !== config.keys.ethAddress
+          !config.authorizedDecrypters
+            .map((address) => address?.toLowerCase())
+            .includes(decrypterAddress?.toLowerCase()) &&
+          decrypterAddress?.toLowerCase() !== config.keys.ethAddress?.toLowerCase()
         ) {
           CORE_LOGGER.logMessage('Decrypt DDO: Decrypter not authorized', true)
           return {
@@ -381,8 +383,8 @@ export class DecryptDdoHandler extends Handler {
         )
 
         if (
-          addressFromHashSignature !== decrypterAddress &&
-          addressFromBytesSignature !== decrypterAddress
+          addressFromHashSignature?.toLowerCase() !== decrypterAddress?.toLowerCase() &&
+          addressFromBytesSignature?.toLowerCase() !== decrypterAddress?.toLowerCase()
         ) {
           throw new Error('address does not match')
         }
@@ -410,7 +412,7 @@ export class DecryptDdoHandler extends Handler {
 
       return {
         stream,
-        status: { httpStatus: 201 }
+        status: { httpStatus: 200 }
       }
     } catch (error) {
       CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
@@ -450,6 +452,7 @@ export class GetDdoHandler extends Handler {
         status: { httpStatus: 200 }
       }
     } catch (error) {
+      CORE_LOGGER.error(`Get DDO error: ${error}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }

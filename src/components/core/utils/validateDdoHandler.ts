@@ -1,17 +1,16 @@
-import rdfDataModel from '@rdfjs/data-model'
-import rdfDataset from '@rdfjs/dataset'
-import toNT from '@rdfjs/to-ntriples'
-import { Parser, Quad } from 'n3'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
 // @ts-ignore
-import * as shaclEngine from 'shacl-engine'
+import rdf from '@zazuko/env-node'
+import SHACLValidator from 'rdf-validate-shacl'
+import formats from '@rdfjs/formats-common'
+import { fromRdf } from 'rdf-literal'
 import { createHash } from 'crypto'
 import { ethers, getAddress } from 'ethers'
-import { readFile } from 'node:fs/promises'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
+import { Readable } from 'stream'
 
 const CURRENT_VERSION = '4.5.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
@@ -35,34 +34,11 @@ export function getSchema(version: string = CURRENT_VERSION): string {
   return schemaFilePath
 }
 
-function parseReportToErrors(results: any): Record<string, string> {
-  const paths = results
-    .filter((result: any) => result.path)
-    .map((result: any) => toNT(result.path))
-    .map((path: any) => path.replace('http://schema.org/', ''))
-
-  const messages = results
-    .filter((result: any) => result.message)
-    .map((result: any) => toNT(result.message))
-    .map(beautifyMessage)
-
-  return Object.fromEntries(
-    paths.map((path: string, index: number) => [path, messages[index]])
-  )
-}
-
-function beautifyMessage(message: string): string {
-  if (message.startsWith('Less than 1 values on')) {
-    const index = message.indexOf('->') + 2
-    message = 'Less than 1 value on ' + message.slice(index)
-  }
-  return message
-}
-
-function isIsoFormat(dateString: string): boolean {
+/* function isIsoFormat(dateString: string): boolean {
   const isoDateRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z)?$/
   return isoDateRegex.test(dateString)
 }
+*/
 
 export function makeDid(nftAddress: string, chainId: string): string {
   return (
@@ -77,85 +53,87 @@ export async function validateObject(
   obj: Record<string, any>,
   chainId: number,
   nftAddress: string
-): Promise<[boolean, Record<string, string>]> {
-  CORE_LOGGER.logMessage(`Validating object: ` + JSON.stringify(obj), true)
+): Promise<[boolean, Record<string, string[]>]> {
   const ddoCopy = JSON.parse(JSON.stringify(obj))
   ddoCopy['@type'] = 'DDO'
-  const extraErrors: Record<string, string> = {}
-  if (!('@context' in obj)) {
-    extraErrors['@context'] = 'Context is missing.'
+
+  const extraErrors: Record<string, string[]> = {}
+  // overwrite context
+  ddoCopy['@context'] = {
+    '@vocab': 'http://schema.org/'
   }
-  if ('@context' in obj && !Array.isArray(obj['@context'])) {
-    extraErrors['@context'] = 'Context is not an array.'
+  /* if (!('@context' in ddoCopy) || !Array.isArray(ddoCopy['@context'])) {
+    ddoCopy['@context'] = {
+      '@vocab': 'http://schema.org/'
+    }
   }
-  if (!('metadata' in obj)) {
-    extraErrors.metadata = 'Metadata is missing or invalid.'
+  if (!('@vocab' in ddoCopy['@context'])) {
+    ddoCopy['@context']['@vocab'] = 'http://schema.org/'
+  }
+  */
+  /* if (!('metadata' in obj)) {
+    if (!('metadata' in extraErrors)) extraErrors.metadata = []
+    extraErrors.metadata.push('Metadata is missing.')
+  } 
+  if (obj.metadata && !('created' in obj.metadata)) {
+    if (!('created' in extraErrors)) extraErrors.created = []
+    extraErrors.created.push('Created is missing or invalid.')
+  }
+  if (obj.metadata && !('updated' in obj.metadata)) {
+    if (!('updated' in extraErrors)) extraErrors.updated = []
+    extraErrors.updated.push('Metadata is missing or invalid.')
   }
   ;['created', 'updated'].forEach((attr) => {
     if ('metadata' in obj && attr in obj.metadata && !isIsoFormat(obj.metadata[attr])) {
-      extraErrors.metadata = `${attr} is not in ISO format.`
+      if (!('metadata' in extraErrors)) extraErrors.metadata = []
+      extraErrors.metadata.push(`${attr} is not in ISO format.`)
     }
   })
-
+  */
   if (!chainId) {
-    extraErrors.chainId = 'chainId is missing or invalid.'
+    if (!('chainId' in extraErrors)) extraErrors.chainId = []
+    extraErrors.chainId.push('chainId is missing or invalid.')
   }
 
   try {
     getAddress(nftAddress)
   } catch (err) {
-    extraErrors.nftAddress = 'nftAddress is missing or invalid.'
+    if (!('nftAddress' in extraErrors)) extraErrors.nftAddress = []
+    extraErrors.nftAddress.push('nftAddress is missing or invalid.')
     CORE_LOGGER.logMessage(`Error when retrieving address ${nftAddress}: ${err}`, true)
   }
 
   if (!(makeDid(nftAddress, chainId.toString(10)) === obj.id)) {
-    extraErrors.id = 'did is not valid for chain Id and nft address'
+    if (!('id' in extraErrors)) extraErrors.id = []
+    extraErrors.id.push('did is not valid for chain Id and nft address')
   }
-
-  const version = obj.version || CURRENT_VERSION
+  const version = ddoCopy.version || CURRENT_VERSION
   const schemaFilePath = getSchema(version)
-  const filename = new URL(schemaFilePath, import.meta.url)
-  const dataset = rdfDataset.dataset()
-  try {
-    const contents = await readFile(filename, { encoding: 'utf8' })
-    const parser = new Parser()
-    const quads = parser.parse(contents)
-    quads.forEach((quad: Quad) => {
-      dataset.add(quad)
-    })
-  } catch (err) {
-    CORE_LOGGER.logMessage(`Error detecting schema file: ${err}`, true)
+  CORE_LOGGER.logMessage(`Using ` + schemaFilePath, true)
+
+  const shapes = await rdf.dataset().import(rdf.fromFile(schemaFilePath))
+  const dataStream = Readable.from(JSON.stringify(ddoCopy))
+  const output = formats.parsers.import('application/ld+json', dataStream)
+  const data = await rdf.dataset().import(output)
+  const validator = new SHACLValidator(shapes, { factory: rdf })
+  const report = await validator.validate(data)
+  if (report.conforms) {
+    CORE_LOGGER.logMessage(`Valid object: ` + JSON.stringify(obj), true)
+    return [true, {}]
   }
-  // create a validator instance for the shapes in the given dataset
-  const validator = new shaclEngine.Validator(dataset, {
-    factory: rdfDataModel
+  for (const result of report.results) {
+    // See https://www.w3.org/TR/shacl/#results-validation-result for details
+    // about each property
+    const key = result.path.value.replace('http://schema.org/', '')
+    if (!(key in extraErrors)) extraErrors[key] = []
+    extraErrors[key].push(fromRdf(result.message[0]))
+  }
+  extraErrors.fullReport = await report.dataset.serialize({
+    format: 'application/ld+json'
   })
-
-  // run the validation process
-  const report = await validator.validate({ dataset })
-  if (!report) {
-    const errorMsg = 'Validation report does not exist'
-    CORE_LOGGER.logMessage(errorMsg, true)
-    return [false, { error: errorMsg }]
-  }
-  const errors = parseReportToErrors(report.results)
-  if (extraErrors) {
-    // Merge errors and extraErrors without overwriting existing keys
-    const mergedErrors = { ...errors, ...extraErrors }
-    // Check if there are any new errors introduced
-    const newErrorsIntroduced = Object.keys(mergedErrors).some(
-      (key) => !Object.prototype.hasOwnProperty.call(errors, key)
-    )
-    if (newErrorsIntroduced) {
-      CORE_LOGGER.logMessage(
-        `validateObject found new errors introduced: ${JSON.stringify(mergedErrors)}`,
-        true
-      )
-
-      return [false, mergedErrors]
-    }
-  }
-  return [report.conforms, errors]
+  CORE_LOGGER.logMessage(`Failed to validate DDO: ` + JSON.stringify(obj), true)
+  CORE_LOGGER.logMessage(JSON.stringify(extraErrors), true)
+  return [false, extraErrors]
 }
 
 export function isRemoteDDO(ddo: any): boolean {

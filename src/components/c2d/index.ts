@@ -2,15 +2,21 @@ import { OceanNode } from '../../OceanNode.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { createHash } from 'crypto'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
-import { decrypt } from '../../utils/crypt.js'
-import { Storage } from '../storage/index.js'
 import { getConfiguration } from '../../utils/config.js'
 import { ComputeGetEnvironmentsHandler } from '../core/compute/index.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { sanitizeServiceFiles, streamToObject } from '../../utils/util.js'
+import { streamToObject } from '../../utils/util.js'
 import { Readable } from 'stream'
-import { EncryptMethod } from '../../@types/fileObject.js'
+import {
+  ArweaveFileObject,
+  IpfsFileObject,
+  UrlFileObject
+} from '../../@types/fileObject.js'
 import { AlgoChecksums } from '../../@types/C2D.js'
+import { DDO } from '../../@types/DDO/DDO.js'
+import { getFile } from '../../utils/file.js'
+import urlJoin from 'url-join'
+import { fetchFileMetadata } from '../../utils/asset.js'
 
 export async function checkC2DEnvExists(
   envId: string,
@@ -50,26 +56,27 @@ export async function getAlgoChecksums(
   try {
     const algoDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(algoDID)
     if (!algoDDO) {
-      throw new Error('Algorithm DDO not found')
+      CORE_LOGGER.error(`Algorithm with id: ${algoDID} not found!`)
+      return checksums
     }
-    const algorithmService = algoDDO.services.find(
-      (service) => service.id === algoServiceId
-    )
-    if (!algorithmService) {
-      throw new Error('Algorithm service not found')
-    }
-    const decryptedUrlBytes = await decrypt(
-      Uint8Array.from(Buffer.from(sanitizeServiceFiles(algorithmService.files), 'hex')),
-      EncryptMethod.ECIES
-    )
-    const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
-    const decryptedFileArray = JSON.parse(decryptedFilesString)
+    const fileArray = await getFile(algoDDO, algoServiceId, oceanNode)
+    for (const file of fileArray) {
+      const url =
+        file.type === 'url'
+          ? (file as UrlFileObject).url
+          : file.type === 'arweave'
+          ? urlJoin(
+              process.env.ARWEAVE_GATEWAY,
+              (file as ArweaveFileObject).transactionId
+            )
+          : file.type === 'ipfs'
+          ? urlJoin(process.env.IPFS_GATEWAY, (file as IpfsFileObject).hash)
+          : null
 
-    for (const file of decryptedFileArray.files) {
-      const storage = Storage.getStorageClass(file)
-      const fileInfo = await storage.getFileInfo({ type: file.type }, true)
-      checksums.files = checksums.files.concat(fileInfo[0].contentChecksum)
+      const { contentChecksum } = await fetchFileMetadata(url, 'get', false)
+      checksums.files = checksums.files.concat(contentChecksum)
     }
+
     checksums.container = createHash('sha256')
       .update(
         algoDDO.metadata.algorithm.container.entrypoint +
@@ -78,7 +85,7 @@ export async function getAlgoChecksums(
       .digest('hex')
     return checksums
   } catch (error) {
-    CORE_LOGGER.error(error.message)
+    CORE_LOGGER.error(`Fetching algorithm checksums failed: ${error.message}`)
     return checksums
   }
 }
@@ -89,15 +96,11 @@ export async function validateAlgoForDataset(
     files: string
     container: string
   },
-  datasetDID: string,
+  datasetDDO: DDO,
   datasetServiceId: string,
   oceanNode: OceanNode
 ) {
   try {
-    const datasetDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(datasetDID)
-    if (!datasetDDO) {
-      throw new Error('Dataset DDO not found')
-    }
     const datasetService = datasetDDO.services.find(
       (service) => service.id === datasetServiceId
     )
@@ -133,7 +136,9 @@ export async function validateAlgoForDataset(
       if (compute.publisherTrustedAlgorithmPublishers) {
         const algoDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(algoDID)
         if (algoDDO) {
-          return compute.publisherTrustedAlgorithmPublishers.includes(algoDDO.nftAddress)
+          return compute.publisherTrustedAlgorithmPublishers
+            .map((address) => address?.toLowerCase())
+            .includes(algoDDO.nftAddress?.toLowerCase())
         }
         return false
       }

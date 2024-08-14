@@ -27,7 +27,7 @@ export async function streamToObject(stream: Readable): Promise<any> {
   try {
     return JSON.parse(jsonString)
   } catch (error) {
-    throw new Error('Invalid JSON in stream')
+    throw new Error(`Invalid JSON in stream: ${error}`)
   }
 }
 
@@ -140,4 +140,8 @@ export function asyncCallWithTimeout(
       timeout: false
     }
   })
+}
+
+export function isDefined(something: any): boolean {
+  return something !== undefined && something !== null
 }

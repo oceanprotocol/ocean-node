@@ -108,6 +108,7 @@ describe('Compute', () => {
       buildEnvOverrideConfig(
         [
           ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
@@ -116,6 +117,7 @@ describe('Compute', () => {
         ],
         [
           JSON.stringify(mockSupportedNetworks),
+          JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
@@ -127,7 +129,7 @@ describe('Compute', () => {
     config = await getConfiguration(true)
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
-    indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
+    indexer = new OceanIndexer(dbconn, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
@@ -174,6 +176,50 @@ describe('Compute', () => {
         algoDatasetResult.wasTimeout
       )
     }
+  })
+
+  it('should add the algorithm to the dataset trusted algorithm list', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    const algoChecksums = await getAlgoChecksums(
+      publishedAlgoDataset.ddo.id,
+      publishedAlgoDataset.ddo.services[0].id,
+      oceanNode
+    )
+    publishedComputeDataset.ddo.services[0].compute = {
+      allowRawAlgorithm: false,
+      allowNetworkAccess: true,
+      publisherTrustedAlgorithmPublishers: [],
+      publisherTrustedAlgorithms: [
+        {
+          did: publishedAlgoDataset.ddo.id,
+          filesChecksum: algoChecksums.files,
+          containerSectionChecksum: algoChecksums.container
+        }
+      ]
+    }
+    const metadata = hexlify(Buffer.from(JSON.stringify(publishedComputeDataset.ddo)))
+    const hash = createHash('sha256').update(metadata).digest('hex')
+    const nftContract = new ethers.Contract(
+      publishedComputeDataset.ddo.nftAddress,
+      ERC721Template.abi,
+      publisherAccount
+    )
+    const setMetaDataTx = await nftContract.setMetaData(
+      0,
+      'http://v4.provider.oceanprotocol.com',
+      '0x123',
+      '0x00',
+      metadata,
+      '0x' + hash,
+      []
+    )
+    const txReceipt = await setMetaDataTx.wait()
+    assert(txReceipt, 'set metadata failed')
+    setTimeout(() => {}, 10000)
+    publishedComputeDataset = await waitToIndex(
+      publishedComputeDataset.ddo.id,
+      EVENTS.METADATA_CREATED
+    )
   })
 
   it('Get compute environments', async () => {
@@ -242,10 +288,10 @@ describe('Compute', () => {
 
     const result: any = await streamToObject(resp.stream as Readable)
     assert(result.algorithm, 'algorithm does not exist')
-    assert(
-      result.algorithm.datatoken === publishedAlgoDataset.datatokenAddress,
-      'incorrect datatoken address for algo'
+    expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
+      publishedAlgoDataset.datatokenAddress?.toLowerCase()
     )
+
     providerFeesComputeAlgo = result.algorithm.providerFee
 
     assert(
@@ -272,9 +318,8 @@ describe('Compute', () => {
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
     providerFeesComputeDataset = resultParsed.providerFee
-    assert(
-      resultParsed.datatoken === publishedComputeDataset.datatokenAddress,
-      'incorrect datatoken address for dataset'
+    expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
+      publishedComputeDataset.ddo.datatokens[0].address?.toLowerCase()
     )
     assert(
       resultParsed.providerFee.providerFeeAddress,
@@ -318,6 +363,7 @@ describe('Compute', () => {
     //  - dataset should have valid order
     //  - dataset should have valid providerFee
     //  - algo should not have any valid order or providerFee
+
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
       serviceId: publishedComputeDataset.ddo.services[0].id,
@@ -347,10 +393,10 @@ describe('Compute', () => {
 
     const result: any = await streamToObject(resp.stream as Readable)
     assert(result.algorithm, 'algorithm does not exist')
-    assert(
-      result.algorithm.datatoken === publishedAlgoDataset.datatokenAddress,
-      'incorrect datatoken address for algo'
+    expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
+      publishedAlgoDataset.datatokenAddress?.toLowerCase()
     )
+
     assert(
       result.algorithm.providerFee.providerFeeAddress,
       'algorithm providerFeeAddress does not exist'
@@ -374,10 +420,11 @@ describe('Compute', () => {
 
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
-    assert(
-      resultParsed.datatoken === publishedComputeDataset.datatokenAddress,
-      'incorrect datatoken address for dataset'
+
+    expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
+      publishedComputeDataset.ddo.datatokens[0].address?.toLowerCase()
     )
+
     assert(
       !('providerFee' in resultParsed),
       'dataset providerFeeAddress should not exist'
@@ -405,6 +452,7 @@ describe('Compute', () => {
     // expected results:
     //  - dataset should have valid order and providerFee
     //  - algo should have valid order and providerFee
+
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
       serviceId: publishedComputeDataset.ddo.services[0].id,
@@ -436,9 +484,8 @@ describe('Compute', () => {
 
     const result: any = await streamToObject(resp.stream as Readable)
     assert(result.algorithm, 'algorithm does not exist')
-    assert(
-      result.algorithm.datatoken === publishedAlgoDataset.datatokenAddress,
-      'incorrect datatoken address for algo'
+    expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
+      publishedAlgoDataset.datatokenAddress?.toLowerCase()
     )
     assert(
       !('providerFee' in result.algorithm),
@@ -448,10 +495,10 @@ describe('Compute', () => {
     // dataset checks
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
-    assert(
-      resultParsed.datatoken === publishedComputeDataset.datatokenAddress,
-      'incorrect datatoken address for dataset'
+    expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
+      publishedComputeDataset.ddo.datatokens[0].address?.toLowerCase()
     )
+
     assert(
       !('providerFee' in resultParsed),
       'dataset providerFeeAddress should not exist'
@@ -812,7 +859,7 @@ describe('Compute', () => {
           const result = await validateAlgoForDataset(
             algoDDOTest.id,
             algoChecksums,
-            datasetDDOTest.id,
+            datasetDDOTest,
             datasetDDOTest.services[0].id,
             oceanNode
           )

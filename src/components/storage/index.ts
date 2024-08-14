@@ -10,22 +10,26 @@ import {
   S3FileObject,
   S3Object
 } from '../../@types/fileObject.js'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { fetchFileMetadata } from '../../utils/asset.js'
 import axios from 'axios'
 import urlJoin from 'url-join'
-import { fetchFileMetadata } from '../../utils/asset.js'
 import { encrypt as encryptData, decrypt as decryptData } from '../../utils/crypt.js'
 import { Readable } from 'stream'
 import { getConfiguration } from '../../utils/index.js'
 import AWS from 'aws-sdk'
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 export abstract class Storage {
   private file: UrlFileObject | IpfsFileObject | ArweaveFileObject | S3FileObject
-
+  config: OceanNodeConfig
   public constructor(
-    file: UrlFileObject | IpfsFileObject | ArweaveFileObject | S3FileObject
+    file: UrlFileObject | IpfsFileObject | ArweaveFileObject | S3FileObject,
+    config: OceanNodeConfig
   ) {
     this.file = file
+    this.config = config
   }
 
   abstract validate(): [boolean, string]
@@ -60,18 +64,19 @@ export abstract class Storage {
   }
 
   static getStorageClass(
-    file: any
+    file: any,
+    config: OceanNodeConfig
   ): UrlStorage | IpfsStorage | ArweaveStorage | S3Storage {
     const { type } = file
     switch (
-      type.toLowerCase() // case insensitive
+      type?.toLowerCase() // case insensitive
     ) {
       case FileObjectType.URL:
-        return new UrlStorage(file)
+        return new UrlStorage(file, config)
       case FileObjectType.IPFS:
-        return new IpfsStorage(file)
+        return new IpfsStorage(file, config)
       case FileObjectType.ARWEAVE:
-        return new ArweaveStorage(file)
+        return new ArweaveStorage(file, config)
       case FileObjectType.S3:
         return new S3Storage(file)
       default:
@@ -99,7 +104,7 @@ export abstract class Storage {
         response.push(fileInfo)
       }
     } catch (error) {
-      console.log(error)
+      CORE_LOGGER.error(error)
     }
     return response
   }
@@ -127,7 +132,7 @@ export abstract class Storage {
   }
 
   async decrypt() {
-    const { keys } = await getConfiguration()
+    const { keys } = this.config
     const nodeId = keys.peerId.toString()
 
     if (!this.canDecrypt(nodeId)) {
@@ -182,8 +187,8 @@ export abstract class Storage {
 }
 
 export class UrlStorage extends Storage {
-  public constructor(file: UrlFileObject) {
-    super(file)
+  public constructor(file: UrlFileObject, config: OceanNodeConfig) {
+    super(file, config)
     const [isValid, message] = this.validate()
     if (isValid === false) {
       throw new Error(`Error validationg the URL file: ${message}`)
@@ -195,8 +200,19 @@ export class UrlStorage extends Storage {
     if (!file.url || !file.method) {
       return [false, 'URL or method are missing']
     }
-    if (!['get', 'post'].includes(file.method.toLowerCase())) {
+    if (!['get', 'post'].includes(file.method?.toLowerCase())) {
       return [false, 'Invalid method for URL']
+    }
+    if (this.config && this.config.unsafeURLs) {
+      for (const regex of this.config.unsafeURLs) {
+        try {
+          // eslint-disable-next-line security/detect-non-literal-regexp
+          const pattern = new RegExp(regex)
+          if (pattern.test(file.url)) {
+            return [false, 'URL is marked as unsafe']
+          }
+        } catch (e) {}
+      }
     }
     if (this.isFilePath() === true) {
       return [false, 'URL looks like a file path']
@@ -235,7 +251,7 @@ export class UrlStorage extends Storage {
       valid: true,
       contentLength,
       contentType,
-      contentChecksum,
+      checksum: contentChecksum,
       name: new URL(url).pathname.split('/').pop() || '',
       type: 'url',
       encryptedBy: fileObject.encryptedBy,
@@ -257,8 +273,8 @@ export class UrlStorage extends Storage {
 }
 
 export class ArweaveStorage extends Storage {
-  public constructor(file: ArweaveFileObject) {
-    super(file)
+  public constructor(file: ArweaveFileObject, config: OceanNodeConfig) {
+    super(file, config)
 
     const [isValid, message] = this.validate()
     if (isValid === false) {
@@ -314,7 +330,7 @@ export class ArweaveStorage extends Storage {
       valid: true,
       contentLength,
       contentType,
-      contentChecksum,
+      checksum: contentChecksum,
       name: '', // Never send the file name for Arweave as it may leak the transaction ID
       type: 'arweave',
       encryptedBy: fileObject.encryptedBy,
@@ -335,8 +351,8 @@ export class ArweaveStorage extends Storage {
 }
 
 export class IpfsStorage extends Storage {
-  public constructor(file: IpfsFileObject) {
-    super(file)
+  public constructor(file: IpfsFileObject, config: OceanNodeConfig) {
+    super(file, config)
 
     const [isValid, message] = this.validate()
     if (isValid === false) {
@@ -386,7 +402,7 @@ export class IpfsStorage extends Storage {
       valid: true,
       contentLength,
       contentType,
-      contentChecksum,
+      checksum: contentChecksum,
       name: '',
       type: 'ipfs',
       encryptedBy: fileObject.encryptedBy,

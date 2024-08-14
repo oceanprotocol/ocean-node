@@ -6,11 +6,15 @@ import {
   LOG_LEVELS_STR,
   configureCustomDBTransport,
   GENERIC_EMOJIS,
-  isDevelopmentEnvironment
+  USE_DB_TRANSPORT
 } from '../../utils/logging/Logger.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { validateObject } from '../core/utils/validateDdoHandler.js'
-import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES, TYPESENSE_HITS_CAP } from '../../utils/constants.js'
+import { SQLiteProvider } from './sqlite.js'
+import { URLUtils } from '../../utils/url.js'
+import fs from 'fs'
+import path from 'path'
 
 export class OrderDatabase {
   private provider: Typesense
@@ -54,7 +58,9 @@ export class OrderDatabase {
       if (!queryObj.q || !queryObj.query_by) {
         throw new Error("The query object must include 'q' and 'query_by' properties.")
       }
-      const maxPerPage = maxResultsPerPage ? Math.min(maxResultsPerPage, 250) : 250 // Cap maxResultsPerPage at 250
+      const maxPerPage = maxResultsPerPage
+        ? Math.min(maxResultsPerPage, TYPESENSE_HITS_CAP)
+        : TYPESENSE_HITS_CAP // Cap maxResultsPerPage at 250
       const page = pageNumber || 1 // Default to the first page if pageNumber is not provided
 
       // Modify the query to include pagination parameters
@@ -405,7 +411,9 @@ export class DdoDatabase {
         queryObj = query as TypesenseSearchParams
       }
 
-      const maxPerPage = maxResultsPerPage ? Math.min(maxResultsPerPage, 250) : 250 // Cap maxResultsPerPage at 250
+      const maxPerPage = maxResultsPerPage
+        ? Math.min(maxResultsPerPage, TYPESENSE_HITS_CAP)
+        : TYPESENSE_HITS_CAP // Cap maxResultsPerPage at 250
       const page = pageNumber || 1 // Default to the first page if pageNumber is not provided
       const results = []
 
@@ -573,14 +581,14 @@ export class DdoDatabase {
     }
   }
 
-  async deleteAllAssetsFromChain(chainId: number): Promise<number> {
+  async deleteAllAssetsFromChain(chainId: number, batchSize?: number): Promise<number> {
     let numDeleted = 0
     for (const schema of this.schemas) {
       try {
         const response = await this.provider
           .collections(schema.name)
           .documents()
-          .deleteByChainId(`chainId:${chainId}`)
+          .deleteByChainId(`chainId:${chainId}`, batchSize)
 
         DATABASE_LOGGER.debug(
           `Number of deleted ddos on schema ${schema} : ${response.num_deleted}`
@@ -597,7 +605,6 @@ export class DdoDatabase {
             LOG_LEVELS_STR.LEVEL_ERROR
           )
         }
-        return -1
       }
     }
     return numDeleted
@@ -605,34 +612,57 @@ export class DdoDatabase {
 }
 
 export class NonceDatabase {
-  private provider: Typesense
+  private provider: Typesense | SQLiteProvider
 
   constructor(
     private config: OceanNodeDBConfig,
     private schema: Schema
   ) {
     return (async (): Promise<NonceDatabase> => {
-      this.provider = new Typesense({
-        ...convertTypesenseConfig(this.config.url),
-        logger: DATABASE_LOGGER
-      })
-      try {
-        await this.provider.collections(this.schema.name).retrieve()
-      } catch (error) {
-        if (error instanceof TypesenseError && error.httpStatus === 404) {
-          await this.provider.collections().create(this.schema)
+      if (this.config.url && URLUtils.isValidUrl(this.config.url)) {
+        try {
+          this.provider = new Typesense({
+            ...convertTypesenseConfig(this.config.url),
+            logger: DATABASE_LOGGER
+          })
+          await this.provider.collections(this.schema.name).retrieve()
+        } catch (error) {
+          if (error instanceof TypesenseError && error.httpStatus === 404) {
+            await (this.provider as Typesense).collections().create(this.schema)
+          }
         }
+      } else {
+        // Fall back to SQLite
+        DATABASE_LOGGER.logMessageWithEmoji(
+          'Typesense not available, falling back to SQLite',
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEL_WARN
+        )
+
+        // Ensure the directory exists before instantiating SQLiteProvider
+        const dbDir = path.dirname('databases/nonceDatabase.sqlite')
+        if (!fs.existsSync(dbDir)) {
+          fs.mkdirSync(dbDir, { recursive: true })
+        }
+        this.provider = new SQLiteProvider('databases/nonceDatabase.sqlite')
+        await this.provider.createTable()
       }
+
       return this
     })() as unknown as NonceDatabase
   }
 
   async create(address: string, nonce: number) {
     try {
-      return await this.provider
-        .collections(this.schema.name)
-        .documents()
-        .create({ id: address, nonce })
+      if (this.provider instanceof Typesense) {
+        return await this.provider
+          .collections(this.schema.name)
+          .documents()
+          .create({ id: address, nonce })
+      } else {
+        return await this.provider.create(address, nonce)
+      }
     } catch (error) {
       const errorMsg =
         `Error when creating new nonce entry ${nonce} for address ${address}: ` +
@@ -649,10 +679,14 @@ export class NonceDatabase {
 
   async retrieve(address: string) {
     try {
-      return await this.provider
-        .collections(this.schema.name)
-        .documents()
-        .retrieve(address)
+      if (this.provider instanceof Typesense) {
+        return await this.provider
+          .collections(this.schema.name)
+          .documents()
+          .retrieve(address)
+      } else {
+        return await this.provider.retrieve(address)
+      }
     } catch (error) {
       const errorMsg =
         `Error when retrieving nonce entry for address ${address}: ` + error.message
@@ -668,12 +702,20 @@ export class NonceDatabase {
 
   async update(address: string, nonce: number) {
     try {
-      return await this.provider
-        .collections(this.schema.name)
-        .documents()
-        .update(address, { nonce })
+      if (this.provider instanceof Typesense) {
+        return await this.provider
+          .collections(this.schema.name)
+          .documents()
+          .update(address, { nonce })
+      } else {
+        return await this.provider.update(address, nonce)
+      }
     } catch (error) {
-      if (error instanceof TypesenseError && error.httpStatus === 404) {
+      if (
+        this.provider instanceof Typesense &&
+        error instanceof TypesenseError &&
+        error.httpStatus === 404
+      ) {
         return await this.provider
           .collections(this.schema.name)
           .documents()
@@ -694,7 +736,14 @@ export class NonceDatabase {
 
   async delete(address: string) {
     try {
-      return await this.provider.collections(this.schema.name).documents().delete(address)
+      if (this.provider instanceof Typesense) {
+        return await this.provider
+          .collections(this.schema.name)
+          .documents()
+          .delete(address)
+      } else {
+        return await this.provider.delete(address)
+      }
     } catch (error) {
       const errorMsg =
         `Error when deleting nonce entry for address ${address}: ` + error.message
@@ -899,9 +948,8 @@ export class LogDatabase {
         filterConditions += ` && level:${level}`
       }
 
-      // Cap maxLogs at 250 to adhere to Typesense's maximum limit
-      const logsLimit = Math.min(maxLogs, 250)
-      if (maxLogs > 250) {
+      const logsLimit = Math.min(maxLogs, TYPESENSE_HITS_CAP)
+      if (maxLogs > TYPESENSE_HITS_CAP) {
         DATABASE_LOGGER.logMessageWithEmoji(
           `Max logs is capped at 250 as Typesense is unable to return more results per page.`,
           true,
@@ -1011,20 +1059,27 @@ export class Database {
     // add this DB transport too
     // once we create a DB instance, the logger will be using this transport as well
     // we cannot have this the other way around because of the dependencies cycle
-    if (!isDevelopmentEnvironment()) {
+    if (USE_DB_TRANSPORT()) {
       configureCustomDBTransport(this, DATABASE_LOGGER)
     } else {
       DATABASE_LOGGER.warn(
-        '"NODE_ENV" is set to "development". This means logs will be saved to console and file(s) only.'
+        'Property "LOG_DB" is set to "false". This means logs will NOT be saved to database!'
       )
     }
     return (async (): Promise<Database> => {
-      this.ddo = await new DdoDatabase(this.config, schemas.ddoSchemas)
       this.nonce = await new NonceDatabase(this.config, schemas.nonceSchemas)
-      this.indexer = await new IndexerDatabase(this.config, schemas.indexerSchemas)
-      this.logs = await new LogDatabase(this.config, schemas.logSchemas)
-      this.order = await new OrderDatabase(this.config, schemas.orderSchema)
-      this.ddoState = await new DdoStateDatabase(this.config, schemas.ddoStateSchema)
+      if (this.config.url && URLUtils.isValidUrl(this.config.url)) {
+        this.ddo = await new DdoDatabase(this.config, schemas.ddoSchemas)
+        this.indexer = await new IndexerDatabase(this.config, schemas.indexerSchemas)
+        this.logs = await new LogDatabase(this.config, schemas.logSchemas)
+        this.order = await new OrderDatabase(this.config, schemas.orderSchema)
+        this.ddoState = await new DdoStateDatabase(this.config, schemas.ddoStateSchema)
+      } else {
+        DATABASE_LOGGER.info(
+          'Typesense URL is not valid, falling back to SQLite for nonce database. Other DBs will not be available.'
+        )
+      }
+
       return this
     })() as unknown as Database
   }

@@ -68,6 +68,7 @@ describe('Should run a complete node flow.', () => {
       buildEnvOverrideConfig(
         [
           ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
@@ -76,6 +77,7 @@ describe('Should run a complete node flow.', () => {
         ],
         [
           JSON.stringify(mockSupportedNetworks),
+          JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
@@ -88,7 +90,7 @@ describe('Should run a complete node flow.', () => {
     config = await getConfiguration(true) // Force reload the configuration
     database = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(database)
-    indexer = new OceanIndexer(database, mockSupportedNetworks)
+    indexer = new OceanIndexer(database, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
@@ -118,7 +120,8 @@ describe('Should run a complete node flow.', () => {
     // test allowedAdmins
     assert(status.allowedAdmins.length === 1, 'incorrect length')
     assert(
-      status.allowedAdmins[0] === '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260',
+      status.allowedAdmins[0]?.toLowerCase() ===
+        '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'?.toLowerCase(),
       'incorrect allowed admin publisherAddress'
     )
     assert(status.c2dClusters === undefined, 'clusters info should be undefined')

@@ -259,6 +259,7 @@ export const algoAsset = {
         ]
       },
       timeout: 86400,
+      serviceEndpoint: 'https://v4.provider.oceanprotocol.com',
       compute: {
         allowRawAlgorithm: false,
         allowNetworkAccess: true,

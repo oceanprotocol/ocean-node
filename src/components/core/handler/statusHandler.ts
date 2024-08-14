@@ -7,6 +7,7 @@ import {
   ValidateParams,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
 export class StatusHandler extends Handler {
   validate(command: StatusCommand): ValidateParams {
@@ -34,6 +35,7 @@ export class StatusHandler extends Handler {
         status: { httpStatus: 200 }
       }
     } catch (error) {
+      CORE_LOGGER.error(`Error in StatusHandler: ${error.message}`)
       return {
         stream: null,
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }

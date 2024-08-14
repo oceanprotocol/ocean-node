@@ -78,13 +78,13 @@ export async function createProviderFee(
     // it's download, take it from config
     providerFeeToken = await getProviderFeeToken(asset.chainId)
   }
-  if (providerFeeToken === ZeroAddress) {
+  if (providerFeeToken?.toLowerCase() === ZeroAddress) {
     providerFeeAmount = 0
   } else {
     providerFeeAmount = await calculateProviderFeeAmount(validUntil, computeEnv)
   }
 
-  if (providerFeeToken && providerFeeToken !== ZeroAddress) {
+  if (providerFeeToken && providerFeeToken?.toLowerCase() !== ZeroAddress) {
     const provider = await getJsonRpcProvider(asset.chainId)
     const decimals = await getDatatokenDecimals(providerFeeToken, provider)
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
@@ -173,7 +173,7 @@ export async function verifyProviderFees(
   let allEventsValid = true
   let providerData
   for (const event of providerFeesEvents) {
-    const providerAddress = event.args[0].toLowerCase()
+    const providerAddress = event.args[0]?.toLowerCase()
     const validUntilContract = parseInt(event.args[7].toString())
     const utf = ethers.toUtf8String(event.args[3])
 
@@ -187,9 +187,9 @@ export async function verifyProviderFees(
 
     if (
       !providerData ||
-      providerAddress !== providerWallet.address.toLowerCase() ||
+      providerAddress !== providerWallet.address?.toLowerCase() ||
       providerData.id !== service.id ||
-      providerData.dt.toLowerCase() !== service.datatokenAddress.toLowerCase() ||
+      providerData.dt?.toLowerCase() !== service.datatokenAddress?.toLowerCase() ||
       !(now < validUntilContract || validUntilContract === 0)
     ) {
       allEventsValid = false
@@ -429,7 +429,7 @@ export async function checkFee(
   const nodeAddress = wallet.address
 
   // first check if these are a match
-  if (nodeAddress !== providerFeesData.providerFeeAddress) {
+  if (nodeAddress?.toLowerCase() !== providerFeesData.providerFeeAddress?.toLowerCase()) {
     return false
   }
 
@@ -471,10 +471,9 @@ export async function checkFee(
  * @returns the wallet
  */
 export async function getProviderWallet(chainId?: string): Promise<ethers.Wallet> {
-  const wallet: ethers.Wallet = new ethers.Wallet(
+  return new ethers.Wallet(
     Buffer.from((await getConfiguration()).keys.privateKey).toString('hex')
   )
-  return wallet
 }
 export async function getProviderWalletAddress(): Promise<string> {
   return (await getProviderWallet()).address
