@@ -72,7 +72,7 @@ At the end of the test suite, you can check the generated HTML report `html-repo
 Additionally, while the tests are running you can open
 a browser page at `http://127.0.0.1:5665/` and see a live report
 
-For a more detailed view of all the options available and the type of requests executed check the script: [./src/test/performance/util.js](./src/test/performance/util.js)
+For a more detailed view of all the options available and the type of requests executed check the script: [../src/test/performance/util.js](../src/test/performance/util.js)
 
 ## Additional tests / helper scripts
 
