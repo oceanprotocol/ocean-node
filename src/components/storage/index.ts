@@ -16,7 +16,6 @@ import axios from 'axios'
 import urlJoin from 'url-join'
 import { encrypt as encryptData, decrypt as decryptData } from '../../utils/crypt.js'
 import { Readable } from 'stream'
-import { getConfiguration } from '../../utils/index.js'
 import AWS from 'aws-sdk'
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
@@ -78,7 +77,7 @@ export abstract class Storage {
       case FileObjectType.ARWEAVE:
         return new ArweaveStorage(file, config)
       case FileObjectType.S3:
-        return new S3Storage(file)
+        return new S3Storage(file, config)
       default:
         throw new Error(`Invalid storage type: ${type}`)
     }
@@ -423,8 +422,8 @@ export class IpfsStorage extends Storage {
 }
 
 export class S3Storage extends Storage {
-  public constructor(file: S3FileObject) {
-    super(file)
+  public constructor(file: S3FileObject, config: OceanNodeConfig) {
+    super(file, config)
     const [isValid, message] = this.validate()
     if (isValid === false) {
       throw new Error(`Error validationg the S3 file: ${message}`)

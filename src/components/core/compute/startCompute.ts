@@ -252,7 +252,7 @@ export class ComputeStartHandler extends Handler {
             algorithm.meta = {
               language: ddo.metadata.algorithm.language,
               version: ddo.metadata.algorithm.version,
-              container: container
+              container
             }
             if ('format' in ddo.metadata.algorithm) {
               algorithm.meta.format = ddo.metadata.algorithm.format

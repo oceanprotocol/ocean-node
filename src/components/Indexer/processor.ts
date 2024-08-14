@@ -481,7 +481,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     if (isRemoteDDO(ddo)) {
       INDEXER_LOGGER.logMessage('DDO is remote', true)
 
-      const storage = Storage.getStorageClass(ddo.remote)
+      const storage = Storage.getStorageClass(ddo.remote, await getConfiguration())
       const result = await storage.getReadableStream()
       const streamToStringDDO = await streamToString(result.stream as Readable)
 

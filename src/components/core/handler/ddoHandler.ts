@@ -405,7 +405,7 @@ export class DecryptDdoHandler extends Handler {
       let stream = Readable.from(decryptedDocumentString)
 
       if (isRemoteDDO(ddoObject)) {
-        const storage = Storage.getStorageClass(ddoObject.remote)
+        const storage = Storage.getStorageClass(ddoObject.remote, config)
         const result = await storage.getReadableStream()
         stream = result.stream as Readable
       }
