@@ -36,7 +36,7 @@ Build and run the node using Docker:
 
 ### 3. Start Required Services
 
-Clone and start the necessary services using Barge:
+In a separate terminal, clone and start the necessary services using Barge:
 
 `git clone https://github.com/oceanprotocol/barge.git`
 
