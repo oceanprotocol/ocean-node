@@ -221,9 +221,9 @@ export class C2DEngineOPFK8 extends C2DEngine {
     let getOuput = {}
     if (output) {
       getOuput = output
-    } else if (config.hasHttp) {
+    } else if (config.hasHttp && config.c2dNodeUri) {
       getOuput = {
-        metadataUri: `${config.c2dNodeUri}:${config.httpPort}`
+        metadataUri: config.c2dNodeUri
       }
     }
     // continue with algorithm
