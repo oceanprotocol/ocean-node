@@ -1,6 +1,6 @@
 {
   "name": "ocean-node",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Ocean Node is used to run all core services in the Ocean stack",
   "author": "Ocean Protocol Foundation",
   "license": "Apache-2.0",
@@ -41,7 +41,8 @@
     "test:load": "npm run test:k6-common k6 run -e TEST_TYPE=load \"./dist/test/performance/perf_test.js\"",
     "test:stress": "npm run test:k6-common k6 run -e TEST_TYPE=stress \"./dist/test/performance/perf_test.js\"",
     "test:request:rate": "npm run test:k6-common && k6 run -e RATE=true \"./dist/test/performance/perf_test.js\"",
-    "release": "release-it --non-interactive"
+    "release": "release-it --non-interactive",
+    "changelog": "auto-changelog -p"
   },
   "dependencies": {
     "@chainsafe/libp2p-gossipsub": "^13.1.0",
@@ -124,6 +125,7 @@
     "@types/node-cron": "^3.0.11",
     "@typescript-eslint/eslint-plugin": "^6.8.0",
     "@typescript-eslint/parser": "^6.8.0",
+    "auto-changelog": "^2.4.0",
     "chai": "^4.3.10",
     "concurrently": "^8.2.1",
     "eslint": "^8.51.0",
