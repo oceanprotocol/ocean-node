@@ -34,6 +34,7 @@ import {
 import { DDO } from '../../../@types/DDO/DDO.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { OrdableAssetResponse } from '../../../@types/Asset.js'
+import { getNFTContract } from '../../Indexer/utils.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export function isOrderingAllowedForAsset(asset: DDO): OrdableAssetResponse {
@@ -344,9 +345,57 @@ export class DownloadHandler extends Handler {
         }
       }
     }
+    // check lifecycle state of the asset
+    const nftContract = getNFTContract(blockchain.getSigner(), ddo.nftAddress)
+    const nftState = Number(await nftContract.metaDataState())
+    if (nftState !== 0 && nftState !== 5) {
+      CORE_LOGGER.logMessage(
+        `Error: Asset with id ${ddo.id} is not in an active state`,
+        true
+      )
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error: `Error: Asset with id ${ddo.id} is not in an active state`
+        }
+      }
+    }
     let service: Service = AssetUtils.getServiceById(ddo, task.serviceId)
     if (!service) service = AssetUtils.getServiceByIndex(ddo, Number(task.serviceId))
     if (!service) throw new Error('Cannot find service')
+
+    // check lifecycle state of the service - undefined state is considered active
+    if (service.state && service.state !== 0 && service.state !== 5) {
+      CORE_LOGGER.logMessage(
+        `Error: Service with id ${service.id} is not in an active state`,
+        true
+      )
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error: `Error: Service with id ${service.id} is not in an active state`
+        }
+      }
+    }
+    // check credentials on service level
+    if (service.credentials) {
+      const accessGranted = checkCredentials(service.credentials, task.consumerAddress)
+      if (!accessGranted) {
+        CORE_LOGGER.logMessage(
+          `Error: Access to service with id ${service.id} was denied`,
+          true
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: `Error: Access to service with id ${service.id} was denied`
+          }
+        }
+      }
+    }
     // 4. Check service type
     const serviceType = service.type
     if (serviceType === 'compute') {

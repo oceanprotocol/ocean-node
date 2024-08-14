@@ -34,7 +34,7 @@ function getEnvOverrides(): OverrideEnvConfig[] {
       ENVIRONMENT_VARIABLES.PRIVATE_KEY
     ],
     [
-      'http://172.15.0.16:8080/',
+      'http://localhost:5005/',
       'https://arweave.net/',
       '{ "1": {"rpc": "https://rpc.eth.gateway.fm", "chainId": 1, "network": "mainet", "chunkSize": 100}, "137": {"rpc": "https://polygon.meowrpc.com", "chainId": 137, "network": "polygon", "chunkSize": 100 }}',
       '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
