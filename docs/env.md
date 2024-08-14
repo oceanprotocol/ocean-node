@@ -25,6 +25,9 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `RATE_DENY_LIST`: Blocked list of IPs and peer IDs. Example: `"{ \"peers\": [\"16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo\"], \"ips\": [\"127.0.0.1\"] }"`
 - `MAX_REQ_PER_SECOND`: Number of requests per second allowed by the same client. Example: `3`
 - `MAX_CHECKSUM_LENGTH`: Define the maximum length for a file if checksum is required (Mb). Example: `10`
+
+## Logs
+
 - `LOG_LEVEL`: Define the default log level. Example: `debug`
 - `LOG_CONSOLE`: Write logs to the console. Default is `false`, but becomes `true` if neither `LOG_FILES` or `LOG_DB` are set.
 - `LOG_FILES`: Write logs to files. Default is `false`

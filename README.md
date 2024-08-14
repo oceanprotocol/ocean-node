@@ -4,6 +4,8 @@ Ocean Nodes run everything you need in the Ocean stack, they replace three previ
 
 This is a minimal guide to quickly start and run an Ocean Node. See the [docs](/docs/) directory for more detailed information on Ocean Nodes and how to customise your setup.
 
+**Note: this repository is currently excluded from all bug bounty programs.**
+
 ## Running Ocean Nodes in Docker (recommended)
 
 Build and run the node using Docker:
@@ -19,7 +21,6 @@ Build and run the node using Docker:
 ### Prerequisites
 
 - **Node Version:** Use the node version specified in `.nvmrc`.
-- **Docker:** Ensure Docker is installed if you plan to run the node in a container.
 
 ### 1. Set Up Environment
 
@@ -90,4 +91,5 @@ For advanced testing scenarios, refer to the [Testing Guide](docs/testing.md).
 - [Environmental Variables](docs/env.md)
 - [Testing Guide](docs/testing.md)
 - [Network Configuration](docs/networking.md)
-- [COmpute to Data V2](docs/C2DV2.md)
+- [Logging & accessing logs](docs/networking.md)
+- [Compute to Data V2](docs/C2DV2.md)
