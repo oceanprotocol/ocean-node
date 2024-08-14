@@ -55,9 +55,11 @@ describe('DdoDatabase CRUD', () => {
     assert(Array.isArray(ddoSchemas))
     assert(ddoSchemas.length > 1)
     for (const ddoSchema of ddoSchemas) {
-      assert(ddoSchema.name)
-      assert(ddoSchema.fields)
-      assert(ddoSchema.fields.length > 0)
+      if (database.ddo.isTypesenseSchema(ddoSchema)) {
+        assert(ddoSchema.name)
+        assert(ddoSchema.fields)
+        assert(ddoSchema.fields.length > 0)
+      }
     }
   })
 

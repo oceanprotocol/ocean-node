@@ -2,7 +2,7 @@ import { Stream } from 'stream'
 import { RPCS } from './blockchain'
 import { C2DClusterInfo } from './C2D'
 import { FeeStrategy } from './Fees'
-import { Schema } from '../components/database/TypesenseSchemas'
+import { Schema } from '../components/database'
 
 export interface OceanNodeDBConfig {
   url: string | null

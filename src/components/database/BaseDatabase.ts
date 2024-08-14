@@ -105,9 +105,9 @@ export abstract class AbstractDdoStateDatabase {
 
 export abstract class AbstractOrderDatabase {
   protected config: OceanNodeDBConfig
-  protected schema: TypesenseSchema
+  protected schema: Schema
 
-  constructor(config: OceanNodeDBConfig, schema: TypesenseSchema) {
+  constructor(config: OceanNodeDBConfig, schema: Schema) {
     this.config = config
     this.schema = schema
   }
@@ -150,11 +150,13 @@ export abstract class AbstractDdoDatabase {
     this.schemas = schemas
   }
 
-  protected isElasticsearchSchema(schema: Schema): schema is ElasticsearchSchema {
+  abstract getSchemas(): Schema[]
+
+  public isElasticsearchSchema(schema: Schema): schema is ElasticsearchSchema {
     return (schema as ElasticsearchSchema).index !== undefined
   }
 
-  protected isTypesenseSchema(schema: Schema): schema is TypesenseSchema {
+  public isTypesenseSchema(schema: Schema): schema is TypesenseSchema {
     return (schema as TypesenseSchema).name !== undefined
   }
 

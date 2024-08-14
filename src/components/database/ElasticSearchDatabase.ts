@@ -4,7 +4,8 @@ import {
   AbstractDdoStateDatabase,
   AbstractIndexerDatabase,
   AbstractLogDatabase,
-  AbstractNonceDatabase
+  AbstractNonceDatabase,
+  AbstractOrderDatabase
 } from './BaseDatabase'
 import { createElasticsearchClient } from './ElasticsearchConfigHelper'
 import { OceanNodeDBConfig } from '../../@types'
@@ -419,6 +420,129 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
+      return null
+    }
+  }
+}
+export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
+  private provider: Client
+
+  constructor(config: OceanNodeDBConfig, schema: ElasticsearchSchema) {
+    super(config, schema)
+    this.provider = createElasticsearchClient(config)
+  }
+
+  getSchema(): ElasticsearchSchema {
+    return this.schema as ElasticsearchSchema
+  }
+
+  async search(
+    query: Record<string, any>,
+    maxResultsPerPage?: number,
+    pageNumber?: number
+  ) {
+    try {
+      const { q, ...queryObj } = query
+
+      const searchParams = {
+        index: this.getSchema().index,
+        body: {
+          query: {
+            match: q ? { _all: q } : queryObj
+          },
+          from: (pageNumber - 1) * maxResultsPerPage || 0,
+          size: maxResultsPerPage || 10
+        }
+      }
+
+      const result = await this.provider.search(searchParams)
+      return result.hits.hits.map((hit: any) => hit._source)
+    } catch (error) {
+      const errorMsg =
+        `Error when searching order entry by query ${JSON.stringify(query)}: ` +
+        error.message
+      DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
+      return null
+    }
+  }
+
+  async create(
+    orderId: string,
+    type: string,
+    timestamp: number,
+    consumer: string,
+    payer: string,
+    startOrderId?: string
+  ) {
+    try {
+      const document = { orderId, type, timestamp, consumer, payer, startOrderId }
+      await this.provider.index({
+        index: this.getSchema().index,
+        id: orderId,
+        body: document
+      })
+      return document
+    } catch (error) {
+      const errorMsg =
+        `Error when creating order entry ${orderId} at timestamp ${timestamp} by payer ${payer} for consumer ${consumer}: ` +
+        error.message
+      DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
+      return null
+    }
+  }
+
+  async retrieve(orderId: string) {
+    try {
+      const result = await this.provider.get({
+        index: this.getSchema().index,
+        id: orderId
+      })
+      return result._source
+    } catch (error) {
+      const errorMsg = `Error when retrieving order ${orderId}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
+      return null
+    }
+  }
+
+  async update(
+    orderId: string,
+    type: string,
+    timestamp: number,
+    consumer: string,
+    payer: string,
+    startOrderId?: string
+  ) {
+    try {
+      const document = { type, timestamp, consumer, payer, startOrderId }
+      await this.provider.update({
+        index: this.getSchema().index,
+        id: orderId,
+        body: {
+          doc: document,
+          doc_as_upsert: true
+        }
+      })
+      return document
+    } catch (error) {
+      const errorMsg =
+        `Error when updating order entry ${orderId} at timestamp ${timestamp} by payer ${payer} for consumer ${consumer}: ` +
+        error.message
+      DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
+      return null
+    }
+  }
+
+  async delete(orderId: string) {
+    try {
+      await this.provider.delete({
+        index: this.getSchema().index,
+        id: orderId
+      })
+      return { id: orderId }
+    } catch (error) {
+      const errorMsg = `Error when deleting order ${orderId}: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
       return null
     }
   }

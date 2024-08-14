@@ -12,7 +12,7 @@ import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { isAddress } from 'ethers'
-import { schemas } from '../../database/TypesenseSchemas.js'
+import { typesenseSchemas } from '../../database/TypesenseSchemas.js'
 import { SupportedNetwork } from '../../../@types/blockchain.js'
 
 function getAdminAddresses(config: OceanNodeConfig) {
@@ -151,7 +151,7 @@ export async function status(
   // depends on request
   if (detailed) {
     nodeStatus.c2dClusters = config.c2dClusters
-    nodeStatus.supportedSchemas = schemas.ddoSchemas
+    nodeStatus.supportedSchemas = typesenseSchemas.ddoSchemas
   }
 
   return nodeStatus

@@ -27,14 +27,18 @@ export class TypesenseOrderDatabase extends AbstractOrderDatabase {
         logger: DATABASE_LOGGER
       })
       try {
-        await this.provider.collections(this.schema.name).retrieve()
+        await this.provider.collections(this.getSchema().name).retrieve()
       } catch (error) {
         if (error instanceof TypesenseError && error.httpStatus === 404) {
-          await this.provider.collections().create(this.schema)
+          await this.provider.collections().create(this.getSchema())
         }
       }
       return this
     })() as unknown as TypesenseOrderDatabase
+  }
+
+  getSchema(): TypesenseSchema {
+    return this.schema as TypesenseSchema
   }
 
   async search(
@@ -69,7 +73,7 @@ export class TypesenseOrderDatabase extends AbstractOrderDatabase {
       }
 
       const result = await this.provider
-        .collections(this.schema.name)
+        .collections(this.getSchema().name)
         .documents()
         .search(searchParams)
 
@@ -99,7 +103,7 @@ export class TypesenseOrderDatabase extends AbstractOrderDatabase {
   ) {
     try {
       return await this.provider
-        .collections(this.schema.name)
+        .collections(this.getSchema().name)
         .documents()
         .create({ id: orderId, type, timestamp, consumer, payer, startOrderId })
     } catch (error) {
@@ -119,7 +123,7 @@ export class TypesenseOrderDatabase extends AbstractOrderDatabase {
   async retrieve(orderId: string) {
     try {
       return await this.provider
-        .collections(this.schema.name)
+        .collections(this.getSchema().name)
         .documents()
         .retrieve(orderId)
     } catch (error) {
@@ -144,13 +148,13 @@ export class TypesenseOrderDatabase extends AbstractOrderDatabase {
   ) {
     try {
       return await this.provider
-        .collections(this.schema.name)
+        .collections(this.getSchema().name)
         .documents()
         .update(orderId, { type, timestamp, consumer, payer, startOrderId })
     } catch (error) {
       if (error instanceof TypesenseError && error.httpStatus === 404) {
         return await this.provider
-          .collections(this.schema.name)
+          .collections(this.getSchema().name)
           .documents()
           .create({ id: orderId, type, timestamp, consumer, payer, startOrderId })
       }
@@ -169,7 +173,10 @@ export class TypesenseOrderDatabase extends AbstractOrderDatabase {
 
   async delete(orderId: string) {
     try {
-      return await this.provider.collections(this.schema.name).documents().delete(orderId)
+      return await this.provider
+        .collections(this.getSchema().name)
+        .documents()
+        .delete(orderId)
     } catch (error) {
       const errorMsg = `Error when deleting order ${orderId}: ` + error.message
       DATABASE_LOGGER.logMessageWithEmoji(

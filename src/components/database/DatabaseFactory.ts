@@ -12,9 +12,10 @@ import {
   ElasticsearchDdoStateDatabase,
   ElasticsearchIndexerDatabase,
   ElasticsearchLogDatabase,
-  ElasticsearchNonceDatabase
+  ElasticsearchNonceDatabase,
+  ElasticsearchOrderDatabase
 } from './ElasticSearchDatabase'
-import { TypesenseSchema, typesenseSchemas } from './TypesenseSchemas'
+import { typesenseSchemas } from './TypesenseSchemas'
 import {
   TypesenseDdoDatabase,
   TypesenseDdoStateDatabase,
@@ -65,10 +66,9 @@ export class DatabaseFactory {
   static createOrderDatabase(config: OceanNodeDBConfig): AbstractOrderDatabase {
     if (process.env.DB_TYPE === 'typesense') {
       return new TypesenseOrderDatabase(config, typesenseSchemas.orderSchema)
+    } else if (process.env.DB_TYPE === 'elasticsearch') {
+      return new ElasticsearchOrderDatabase(config, elasticSchemas.orderSchema)
     }
-    // else if (process.env.DB_TYPE === 'elasticsearch') {
-    //   return new ElasticOrderDatabase(config, typesenseSchemas.ddoSchemas)
-    // }
     throw new Error('Unsupported database type')
   }
 
