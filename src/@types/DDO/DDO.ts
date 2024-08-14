@@ -61,12 +61,6 @@ export interface DDO {
   credentials?: Credentials
 
   /**
-   * Contains information about the ERC721 NFT contract which represents the intellectual property of the publisher.
-   * @type {Nft}
-   */
-  nft?: Nft
-
-  /**
    * Describes the event of last metadata event
    * @type {Event}
    */

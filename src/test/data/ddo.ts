@@ -435,27 +435,3 @@ export const ddoValidationSignature = {
     links: ['http://data.ceda.ac.uk/badc/ukcp09/']
   }
 }
-
-export const remoteDDOTypeURLNotEncrypted = {
-  remote: {
-    type: 'url',
-    url: '',
-    method: 'GET'
-  }
-}
-
-export const remoteDDOTypeIPFSNotEncrypted = {
-  remote: {
-    type: 'ipfs',
-    hash: 'Qmb5gHKvDSFAiL98yo592CGzw95mdfZ5MLM8sVZppDxBx6'
-  }
-}
-
-export const remoteDDOTypeIPFSEncrypted = {
-  remote: {
-    type: 'ipfs',
-    hash: 'QmaD5S7TakPs3a4fijatbfqhmhhrEbCvbqGTTAp7VrZ91T',
-    encryptedBy: '16Uiu2HAmN211yBiE6dF5xu8GFXV1jqZQzK5MbzBuQDspfa6qNgXF',
-    encryptedMethod: 'ECIES'
-  }
-}

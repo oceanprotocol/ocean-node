@@ -20,15 +20,14 @@ import { getDatabase } from '../../utils/database.js'
 import { PROTOCOL_COMMANDS, EVENTS, MetadataStates } from '../../utils/constants.js'
 import { getDtContract, wasNFTDeployedByOurFactory } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
-import { Storage } from '../../components/storage/index.js'
 import { Purgatory } from './purgatory.js'
 import { getConfiguration, timestampToDateTime } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
-import { isRemoteDDO, makeDid } from '../core/utils/validateDdoHandler.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
+import { makeDid } from '../core/utils/validateDdoHandler.js'
 
 class BaseEventProcessor {
   protected networkId: number
@@ -121,11 +120,8 @@ class BaseEventProcessor {
   protected checkDdoHash(decryptedDocument: any, documentHashFromContract: any): boolean {
     const utf8Bytes = toUtf8Bytes(JSON.stringify(decryptedDocument))
     const expectedMetadata = hexlify(utf8Bytes)
-    const expectedMetadataHash = create256Hash(expectedMetadata.toString())
-    if (expectedMetadataHash !== documentHashFromContract) {
-      INDEXER_LOGGER.error(
-        `DDO checksum does not match. Expected: ${documentHashFromContract} Received: ${expectedMetadata}`
-      )
+    if (create256Hash(expectedMetadata.toString()) !== documentHashFromContract) {
+      INDEXER_LOGGER.error(`DDO checksum does not match.`)
       return false
     }
     return true
@@ -335,7 +331,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       const metadataHash = decodedEventData.args[5]
       const flag = decodedEventData.args[3]
       const owner = decodedEventData.args[0]
-      const decryptedDDO = await this.decryptDDO(
+      const ddo = await this.decryptDDO(
         decodedEventData.args[2],
         flag,
         owner,
@@ -345,7 +341,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         metadataHash,
         metadata
       )
-      const ddo = await this.processDDO(decryptedDDO)
       if (ddo.id !== makeDid(event.address, chainId.toString(10))) {
         INDEXER_LOGGER.error(
           `Decrypted DDO ID is not matching the generated hash for DID.`
@@ -353,11 +348,10 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         return
       }
       // for unencrypted DDOs
-      console.log(ddo.id)
-      console.log(metadataHash)
       if (parseInt(flag) !== 2 && !this.checkDdoHash(ddo, metadataHash)) {
         return
       }
+
       did = ddo.id
       // stuff that we overwrite
       ddo.chainId = chainId
@@ -475,20 +469,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         true
       )
     }
-  }
-
-  async processDDO(ddo: any) {
-    if (isRemoteDDO(ddo)) {
-      INDEXER_LOGGER.logMessage('DDO is remote', true)
-
-      const storage = Storage.getStorageClass(ddo.remote)
-      const result = await storage.getReadableStream()
-      const streamToStringDDO = await streamToString(result.stream as Readable)
-
-      return JSON.parse(streamToStringDDO)
-    }
-
-    return ddo
   }
 
   async updatePurgatoryStateDdo(

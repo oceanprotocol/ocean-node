@@ -20,7 +20,6 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 // import lzma from 'lzma-native'
 import lzmajs from 'lzma-purejs-requirejs'
 import {
-  isRemoteDDO,
   getValidationSignature,
   makeDid,
   validateObject
@@ -32,8 +31,7 @@ import {
   DecryptDDOCommand,
   ValidateDDOCommand
 } from '../../../@types/commands.js'
-import { Storage } from '../../../components/storage/index.js'
-import { hasP2PInterface } from '../..//httpRoutes/index.js'
+import { hasP2PInterface } from '../../httpRoutes/index.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import {
   ValidateParams,
@@ -397,17 +395,6 @@ export class DecryptDdoHandler extends Handler {
             error: 'Decrypt DDO: invalid signature or does not match'
           }
         }
-      }
-
-      const decryptedDocumentString = decryptedDocument.toString()
-      const ddoObject = JSON.parse(decryptedDocumentString)
-
-      let stream = Readable.from(decryptedDocumentString)
-
-      if (isRemoteDDO(ddoObject)) {
-        const storage = Storage.getStorageClass(ddoObject.remote)
-        const result = await storage.getReadableStream()
-        stream = result.stream as Readable
       }
 
       return {
