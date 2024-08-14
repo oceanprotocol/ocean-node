@@ -69,6 +69,7 @@ export interface OceanNodeConfig {
   supportedNetworks?: RPCS
   indexingNetworks?: RPCS
   c2dClusters: C2DClusterInfo[]
+  c2dNodeUri: string
   accountPurgatoryUrl: string
   assetPurgatoryUrl: string
   allowedAdmins?: string[]

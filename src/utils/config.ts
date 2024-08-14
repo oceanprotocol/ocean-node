@@ -552,6 +552,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     supportedNetworks,
     indexingNetworks,
     feeStrategy: getOceanNodeFees(supportedNetworks, isStartup),
+    c2dNodeUri: getEnvValue(process.env.C2D_NODE_URI, ''),
     c2dClusters: getC2DClusterEnvironment(isStartup),
     accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
     assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),

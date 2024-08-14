@@ -197,6 +197,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
   ): Promise<ComputeJob[]> {
     // let's build the stage first
     // start with stage.input
+    const config = await getConfiguration()
     const stagesInput: OPFK8ComputeStageInput[] = []
     let index = 0
     for (const asset of assets) {
@@ -216,6 +217,14 @@ export class C2DEngineOPFK8 extends C2DEngine {
           }
         })
       index++
+    }
+    let getOuput = {}
+    if (output) {
+      getOuput = output
+    } else if (config.hasHttp) {
+      getOuput = {
+        metadataUri: `${config.c2dNodeUri}:${config.httpPort}`
+      }
     }
     // continue with algorithm
     const stageAlgorithm: OPFK8ComputeStageAlgorithm = {}
@@ -237,7 +246,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
       index: 0,
       input: stagesInput,
       algorithm: stageAlgorithm,
-      output: output || {},
+      output: getOuput,
       compute: {
         Instances: 1,
         namespace: environment,
@@ -250,7 +259,6 @@ export class C2DEngineOPFK8 extends C2DEngine {
     }
     // and the full payload
     const nonce: number = new Date().getTime()
-    const config = await getConfiguration()
     const providerSignature = await sign(String(nonce), config.keys.privateKey)
     const payload: OPFK8ComputeStart = {
       workflow,

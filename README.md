@@ -88,10 +88,11 @@ For configuring allowed validators for verifying an asset signature before index
 export ALLOWED_VALIDATORS=[\"0x123\",\"0x456\"]
 ```
 
-For configuring a C2D (Compute to Data) cluster(s), please set the following environment variable (array of 1 or multiple cluster URLS):
+For configuring a C2D (Compute to Data) cluster(s), please set the following environment variable (array of 1 or multiple cluster URLS) and node URI that C2D points to, in order fetch the datasets & algorithms:
 
 ```bash
 export OPERATOR_SERVICE_URL=[\"http://example.c2d.cluster1.com\",\"http://example.cd2.cluster2.com\"]
+export C2D_NODE_URI='http://127.0.0.1:8081' #for example
 ```
 
 For configuring the Indexer crawling interval in miliseconds (default, if not set, is 30 secs)
