@@ -80,8 +80,8 @@ if (!config) {
 let node: OceanP2P = null
 let indexer = null
 let provider = null
-// If there is no DB connection only the nonce database will be available
-const dbconn: Database | null = await new Database(config.dbConfig)
+// If there is no DB URL only the nonce database will be available
+const dbconn: Database = await new Database(config.dbConfig)
 
 if (!config.dbConfig?.url) {
   // once we create a database instance, we check the environment and possibly add the DB transport
