@@ -54,13 +54,11 @@ const platformInfo = {
 function getProviderInfo(config: OceanNodeConfig): OceanNodeProvider[] {
   const providers: OceanNodeProvider[] = []
   for (const [key, supportedNetwork] of Object.entries(config.supportedNetworks)) {
-    if (config.hasProvider) {
-      const provider: OceanNodeProvider = {
-        chainId: key,
-        network: supportedNetwork.network
-      }
-      providers.push(provider)
+    const provider: OceanNodeProvider = {
+      chainId: key,
+      network: supportedNetwork.network
     }
+    providers.push(provider)
   }
   return providers
 }

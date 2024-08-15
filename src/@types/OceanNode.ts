@@ -60,7 +60,6 @@ export interface OceanNodeConfig {
   hasP2P: boolean
   p2pConfig: OceanNodeP2PConfig | null
   hasIndexer: boolean
-  hasProvider: boolean
   hasHttp: boolean
   hasDashboard: boolean
   dbConfig?: OceanNodeDBConfig

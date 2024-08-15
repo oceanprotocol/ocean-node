@@ -542,8 +542,6 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       maxPeerAddrsToDial: getIntEnvValue(process.env.P2P_MAXPEERADDRSTODIAL, 5),
       autoDialInterval: getIntEnvValue(process.env.P2P_AUTODIALINTERVAL, 5000)
     },
-    // Only enable provider if we have a DB_URL
-    hasProvider: !!getEnvValue(process.env.DB_URL, ''),
     hasDashboard: process.env.DASHBOARD !== 'false',
     httpPort: getIntEnvValue(process.env.HTTP_API_PORT, 8000),
     dbConfig: {
