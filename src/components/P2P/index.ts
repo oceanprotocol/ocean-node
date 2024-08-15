@@ -311,12 +311,27 @@ export class OceanP2P extends EventEmitter {
         P2P_LOGGER.info('Enabling P2P Transports: websockets, tcp')
         transports = [webSockets(), tcp()]
       }
-      let options = {
-        addresses: {
+
+      let addresses = {}
+      if (
+        config.p2pConfig.announceAddresses &&
+        config.p2pConfig.announceAddresses.length > 0
+      ) {
+        addresses = {
+          listen: bindInterfaces,
+          announceFilter: (multiaddrs: any[]) =>
+            multiaddrs.filter((m) => this.shouldAnnounce(m)),
+          announce: config.p2pConfig.announceAddresses
+        }
+      } else {
+        addresses = {
           listen: bindInterfaces,
           announceFilter: (multiaddrs: any[]) =>
             multiaddrs.filter((m) => this.shouldAnnounce(m))
-        },
+        }
+      }
+      let options = {
+        addresses,
         peerId: config.keys.peerId,
         transports,
         streamMuxers: [yamux()],
