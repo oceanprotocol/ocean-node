@@ -21,7 +21,7 @@ Build and run the node using Docker:
 
 ```bash
 docker build -t ocean-node:mybuild . # Build the Docker image
-docker run -e PRIVATE_KEY=your_private_key_here ocean-node:mybuild # Run the Docker container
+docker run -e PRIVATE_KEY=your_private_key_here ocean-node:mybuild # Start container
 ```
 
 ## Option 2: Running Ocean Nodes with PM2
