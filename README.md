@@ -58,33 +58,25 @@ pm2 delete ocean-node # Delete the process
 ### Prerequisites
 
 - **Node Version:** Install the node version specified in `.nvmrc`.
+- **Docker**
+- **Docker compose**
+- **nvm** (recommended but not necessary))
 
-### 1. Set Up Environment
+### 1. Start the Typesense database
 
-1. **Use the correct Node.js version:**
-   `nvm use`
+`docker-compose -f typesense-compose.yml up -d`
 
-2. **Install dependencies:**
-   `npm install`
-
-### 2. Build the Project
-
-`npm run build`
-
-### 3. Start Required Services
-
-In a separate terminal, clone and start the necessary services using Barge:
+### 2. Install dependencies & build the project
 
 ```bash
-git clone https://github.com/oceanprotocol/barge.git
-cd barge
-git checkout feature/nodes
-./start_ocean.sh --with-c2d
+nvm use # Use the correct Node.js version
+npm install # Install dependencies
+npm run build # Build the Project
 ```
 
-### 4. Configure Environment Variables
+### 3. Configure Environment Variables
 
-**Option 1: Automatic Setup (Recommended)**
+#### Option 1: Automatic Setup (Recommended)
 
 Run the helper script to generate and set up the recommended environment variables:
 
@@ -93,7 +85,7 @@ Run the helper script to generate and set up the recommended environment variabl
 source .env
 ```
 
-**Option 2: Manual Setup**
+#### Option 2: Manual Setup
 
 Manually set the required environment variables:
 
@@ -108,18 +100,6 @@ For all available configurations, refer to the [Environment Variables](docs/env.
 `npm run start`
 
 Your node is now running, the dashboard will be available at `http://localhost:8000/dashboard/`. To start additional nodes, repeat these steps in a new terminal.
-
-## Testing
-
-Run unit and integration tests to ensure everything is set up correctly:
-
-- **Unit Tests:**
-  `npm run test:unit`
-
-- **Integration Tests:**
-  `npm run test:integration`
-
-For advanced testing scenarios, refer to the [Testing Guide](docs/testing.md).
 
 ## Additional Resources
 

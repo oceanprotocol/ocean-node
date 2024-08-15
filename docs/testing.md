@@ -1,6 +1,6 @@
 # Tests
 
-### Unit tests
+## Unit tests
 
 ```bash
 npm run test:unit
@@ -8,11 +8,21 @@ npm run test:unit
 
 ## Integration tests
 
+To run the integration tests, you should start barge locally. In a separate terminal, clone and start the necessary services using Barge:
+
+````bash
+git clone https://github.com/oceanprotocol/barge.git
+cd barge
+git checkout feature/nodes
+./start_ocean.sh -with-c2d
+'''
+
+
 Now, back in your nodes terminal, you can run the tests
 
 ```bash
 npm run test:integration
-```
+````
 
 If you started barge without c2d components you can run a lighter version of integration tests that do not run the compute to data tests.
 
