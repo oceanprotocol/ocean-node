@@ -346,7 +346,7 @@ export class OceanP2P extends EventEmitter {
                 timeout: 20000, // in ms,
                 tagName: 'bootstrap',
                 tagValue: 50,
-                tagTTL: 10000000000
+                tagTTL: 120000
               }),
               mdns({
                 interval: config.p2pConfig.mDNSInterval
