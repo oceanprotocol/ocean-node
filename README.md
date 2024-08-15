@@ -19,11 +19,10 @@ We recommend the following minimum requirements, although you may be be able to 
 
 Build and run the node using Docker:
 
-1. **Build the Docker image:**
-   `docker build -t ocean-node:mybuild .`
-
-2. **Run the Docker container:**
-   `docker run -e PRIVATE_KEY=your_private_key_here ocean-node:mybuild`
+```bash
+docker build -t ocean-node:mybuild . # Build the Docker image
+docker run -e PRIVATE_KEY=your_private_key_here ocean-node:mybuild # Run the Docker container
+```
 
 ## Option 2: Running Ocean Nodes with PM2
 
@@ -64,7 +63,9 @@ pm2 delete ocean-node # Delete the process
 
 ### 1. Start the Typesense database
 
-`docker-compose -f typesense-compose.yml up -d`
+```bash
+docker-compose -f typesense-compose.yml up -d
+```
 
 ### 2. Install dependencies & build the project
 
@@ -89,13 +90,17 @@ source .env
 
 Manually set the required environment variables:
 
-`export PRIVATE_KEY="your_private_key_here"`
+```bash
+export PRIVATE_KEY="your_private_key_here"
+```
 
 The `PRIVATE_KEY` is the only mandatory environmental variable. Additional configurations can be set as needed. For all available configurations, refer to the [Environment Variables](docs/env.md) documentation.
 
 ### 5. Start the Node
 
-`npm run start`
+```bash
+npm run start
+```
 
 Your node is now running, the dashboard will be available at `http://localhost:8000/dashboard/`. To start additional nodes, repeat these steps in a new terminal.
 
