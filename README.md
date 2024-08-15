@@ -16,6 +16,34 @@ Build and run the node using Docker:
 2. **Run the Docker container:**
    `docker run -e PRIVATE_KEY=your_private_key_here ocean-node:mybuild`
 
+## Running Ocean Nodes with PM2
+
+PM2 is a process manager that makes it easy to manage and monitor your Node.js applications.
+
+1. Install PM2
+
+```bash
+ npm install -g pm2
+```
+
+2.  Start the Ocean Node with PM2
+
+```bash
+   pm2 start npm --name "ocean-node" -- run start
+```
+
+3.  Monitor and Manage the Node
+
+You can use the following PM2 commands to manage your Ocean Node:
+
+```bash
+pm2 list # View running processes
+pm2 logs ocean-node # View logs
+pm2 restart ocean-node # Restart the node
+pm2 stop ocean-node # Stop the node
+pm2 delete ocean-node # Delete the process
+```
+
 ## Running Ocean Nodes Locally
 
 ### Prerequisites
