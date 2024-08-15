@@ -57,7 +57,7 @@ function getIntEnvValue(env: any, defaultValue: number) {
   return isNaN(num) ? defaultValue : num
 }
 
-function getBoolEnvValue(envName: string, defaultValue: boolean): boolean {
+export function getBoolEnvValue(envName: string, defaultValue: boolean): boolean {
   if (!(envName in process.env)) {
     return defaultValue
   }
