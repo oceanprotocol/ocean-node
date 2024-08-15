@@ -6,6 +6,18 @@ import { hasP2PInterface, sendMissingP2PResponse } from './index.js'
 export const getOceanPeersRoute = express.Router()
 
 getOceanPeersRoute.get(
+  '/getP2pNetworkStats',
+  async (req: Request, res: Response): Promise<void> => {
+    if (hasP2PInterface) {
+      const stats = await req.oceanNode.getP2PNode().getNetworkingStats()
+      P2P_LOGGER.log(getDefaultLevel(), `getP2pNetworkStats: ${stats}`, true)
+      res.json(stats)
+    } else {
+      sendMissingP2PResponse(res)
+    }
+  }
+)
+getOceanPeersRoute.get(
   '/getOceanPeers',
   async (req: Request, res: Response): Promise<void> => {
     if (hasP2PInterface) {

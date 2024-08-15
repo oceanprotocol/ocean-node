@@ -436,6 +436,14 @@ export class OceanP2P extends EventEmitter {
     // }
   }
 
+  async getNetworkingStats() {
+    const ret: any = {}
+    ret.addrs = await this._libp2p.components.transportManager.getAddrs()
+    ret.observing = await this._libp2p.components.addressManager.getObservedAddrs()
+    ret.connections = await this._libp2p.getConnections()
+    return ret
+  }
+
   async getRunningOceanPeers() {
     return await this.getOceanPeers(true, false)
   }
