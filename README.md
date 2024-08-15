@@ -60,7 +60,7 @@ pm2 delete ocean-node # Delete the process
 - **Node Version:** Install the node version specified in `.nvmrc`.
 - **Docker**
 - **Docker compose**
-- **nvm** (recommended but not necessary))
+- **nvm** (recommended but not necessary)
 
 ### 1. Start the Typesense database
 
