@@ -44,7 +44,7 @@ pm2 stop ocean-node # Stop the node
 pm2 delete ocean-node # Delete the process
 ```
 
-## Running Ocean Nodes Locally
+## Running Ocean Nodes With NPM
 
 ### Prerequisites
 
