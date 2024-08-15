@@ -70,7 +70,7 @@ In a separate terminal, clone and start the necessary services using Barge:
 git clone https://github.com/oceanprotocol/barge.git
 cd barge
 git checkout feature/nodes
-./start_ocean.sh
+./start_ocean.sh -with-c2d
 ```
 
 ### 4. Configure Environment Variables
