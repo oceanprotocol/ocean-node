@@ -21,7 +21,8 @@ Build and run the node using Docker:
 
 ```bash
 docker build -t ocean-node:mybuild . # Build the Docker image
-docker run -e PRIVATE_KEY=your_private_key_here ocean-node:mybuild # Start container
+# Make sure you include 0x at the start of the private key
+docker run -e PRIVATE_KEY=0x_your_private_key_here ocean-node:mybuild # Start container
 ```
 
 ## Option 2: Running Ocean Nodes with PM2
@@ -91,10 +92,10 @@ source .env
 Manually set the required environment variables:
 
 ```bash
-export PRIVATE_KEY="your_private_key_here"
+export PRIVATE_KEY="0x_your_private_key_here"
 ```
 
-The `PRIVATE_KEY` is the only mandatory environmental variable. Additional configurations can be set as needed. For all available configurations, refer to the [Environment Variables](docs/env.md) documentation.
+The `PRIVATE_KEY` is the only mandatory environmental variable, you must include the `0x` at the front of your private key. Additional configurations can be set as needed. For all available configurations, refer to the [Environment Variables](docs/env.md) documentation.
 
 ### 5. Start the Node
 
