@@ -6,6 +6,14 @@ This is a minimal guide to quickly start and run an Ocean Node. See the [docs](/
 
 **Note: this repository is currently excluded from all bug bounty programs.**
 
+## System requirements
+
+We recommend the following minimum requirements, although you may be be able to run a node with less (depending on your configuration).
+
+- 1vcpu
+- 2 GB ram
+- 4 GB storage
+
 ## Running Ocean Nodes in Docker (recommended)
 
 Build and run the node using Docker:
