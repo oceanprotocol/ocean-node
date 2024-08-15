@@ -15,7 +15,7 @@ We recommend the following minimum requirements, although you may be be able to 
 - 4 GB storage
 - OS: we recommend using the latest LTS version of Ubuntu or the latest iOS. However, the nodes should also work on other operating systems including Windows.
 
-## Running Ocean Nodes in Docker (recommended)
+## Option 1: Running Ocean Nodes in Docker (recommended)
 
 Build and run the node using Docker:
 
@@ -25,7 +25,7 @@ Build and run the node using Docker:
 2. **Run the Docker container:**
    `docker run -e PRIVATE_KEY=your_private_key_here ocean-node:mybuild`
 
-## Running Ocean Nodes with PM2
+## Option 2: Running Ocean Nodes with PM2
 
 PM2 is a process manager that makes it easy to manage and monitor your Node.js applications.
 
@@ -53,7 +53,7 @@ pm2 stop ocean-node # Stop the node
 pm2 delete ocean-node # Delete the process
 ```
 
-## Running Ocean Nodes With NPM
+## Option 3: Running Ocean Nodes With NPM
 
 ### Prerequisites
 
