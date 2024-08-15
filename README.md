@@ -13,6 +13,7 @@ We recommend the following minimum requirements, although you may be be able to 
 - 1vcpu
 - 2 GB ram
 - 4 GB storage
+- OS: we recommend using the latest LTS version of Ubuntu or iOS. However, the nodes should also work on other operating systems including Windows.
 
 ## Running Ocean Nodes in Docker (recommended)
 
