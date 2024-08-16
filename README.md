@@ -83,7 +83,7 @@ npm run build # Build the Project
 Run the helper script to generate and set up the recommended environment variables:
 
 ```bash
-./helpers/scripts/setupNodeEnv.sh
+./src/helpers/scripts/setupNodeEnv.sh
 source .env
 ```
 
