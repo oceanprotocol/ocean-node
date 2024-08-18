@@ -237,10 +237,10 @@ export class OceanP2P extends EventEmitter {
         identify: identify(),
         pubsub: gossipsub({
           allowPublishToZeroTopicPeers: true,
-          doPX: true
+          doPX: true,
           // canRelayMessage: true,
           // enabled: true
-          // allowedTopics: ['`oceanprotocol._peer-discovery._p2p._pubsub`']
+          allowedTopics: ['`oceanprotocol._peer-discovery._p2p._pubsub`']
         }),
         dht: kadDHT({
           // this is necessary because this node is not connected to the public network
