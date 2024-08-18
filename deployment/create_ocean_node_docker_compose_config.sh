@@ -39,8 +39,8 @@ else
   fi
   
   echo "Generating Private Key, please wait..."
-  output=$(docker run --rm oceanprotocol/web3-account-generator)
-  PRIVATE_KEY=$(echo "$output" | grep "Private Key:" | awk '{print $3}')
+  output=$(head -c 32 /dev/urandom | xxd -p | tr -d '\n' | awk '{print "0x" $0}')
+  PRIVATE_KEY=$(echo "$output")
   echo -e "Generated Private Key: \e[1;31m$PRIVATE_KEY\e[0m" 
   validate_hex "$PRIVATE_KEY"
 fi
