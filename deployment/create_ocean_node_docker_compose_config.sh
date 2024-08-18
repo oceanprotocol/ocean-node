@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+#
+# Copyright (c) 2024 Ocean Protocol contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+
 validate_hex() {
   if [[ ! "$1" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
     echo "The private key seems invalid, exiting ..."
