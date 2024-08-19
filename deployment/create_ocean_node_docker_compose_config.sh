@@ -26,6 +26,27 @@ validate_port() {
   fi
 }
 
+validate_ip_or_fqdn() {
+  local input=$1
+  if [[ "$input" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    if [[ "$input" =~ ^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|^192\.168\.|^169\.254\.|^100\.64\.|^198\.51\.100\.|^203\.0\.113\.|^224\.|^240\. ]]; then
+      echo "The IP provided belongs to a private/non-routable range. It might not be accessible from other nodes."
+      return 1
+    fi
+  elif [[ "$input" =~ ^[a-fA-F0-9:]+$ ]]; then
+    if [[ "$input" =~ ^fc00:|^fd00:|^fe80:|^ff00: ]]; then
+      echo "The IP provided belongs to a private/non-routable range. It might not be accessible from other nodes."
+      return 1
+    fi
+  elif [[ "$input" =~ ^[a-zA-Z0-9.-]+$ ]]; then
+    return 0
+  else
+    echo "Invalid input, must be a valid IPv4/IPv6 address or FQDN."
+    return 1
+  fi
+  return 0
+}
+
 read -p "Do you have your private key for running the Ocean Node [ y/n ]: " has_key
 
 if [ "$has_key" == "y" ]; then
@@ -73,6 +94,30 @@ read P2P_ipV6BindWsPort
 P2P_ipV6BindWsPort=${P2P_ipV6BindWsPort:-9003}
 validate_port "$P2P_ipV6BindWsPort"
 
+read -p "Provide the public IPv4/IPv6 address or FQDN where this node will be accessible: " P2P_ANNOUNCE_ADDRESS
+
+if [ -n "$P2P_ANNOUNCE_ADDRESS" ]; then
+  validate_ip_or_fqdn "$P2P_ANNOUNCE_ADDRESS"
+  if [ $? -ne 0 ]; then
+    echo "Invalid address. Exiting!"
+    exit 1
+  fi
+  
+  if [[ "$P2P_ANNOUNCE_ADDRESS" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    # IPv4 
+    P2P_ANNOUNCE_ADDRESSES='["/ip4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindTcpPort'", "/ip4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'"]'
+  elif [[ "$P2P_ANNOUNCE_ADDRESS" =~ ^[a-fA-F0-9:]+$ ]]; then
+    # IPv6 
+    P2P_ANNOUNCE_ADDRESSES='["/ip6/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV6BindTcpPort'", "/ip6/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV6BindWsPort'"]'
+  elif [[ "$P2P_ANNOUNCE_ADDRESS" =~ ^[a-zA-Z0-9.-]+$ ]]; then
+    # FQDN
+    P2P_ANNOUNCE_ADDRESSES='["/dns4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindTcpPort'", "/dns4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'", "/dns6/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV6BindTcpPort'", "/dns6/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV6BindWsPort'"]'
+  fi
+else
+  P2P_ANNOUNCE_ADDRESSES=''
+  echo "No input provided, the Ocean Node might not be accessible from other nodes."
+fi
+
 cat <<EOF > docker-compose.yml
 services:
   ocean-node:
@@ -118,7 +163,7 @@ services:
       P2P_ipV6BindAddress: ''
       P2P_ipV6BindTcpPort: '$P2P_ipV6BindTcpPort'
       P2P_ipV6BindWsPort: '$P2P_ipV6BindWsPort'
-      P2P_ANNOUNCE_ADDRESSES: ''
+      P2P_ANNOUNCE_ADDRESSES: '$P2P_ANNOUNCE_ADDRESSES'
       P2P_ANNOUNCE_PRIVATE: ''
       P2P_pubsubPeerDiscoveryInterval: ''
       P2P_dhtMaxInboundStreams: ''
