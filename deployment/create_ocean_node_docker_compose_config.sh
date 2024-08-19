@@ -105,13 +105,13 @@ if [ -n "$P2P_ANNOUNCE_ADDRESS" ]; then
   
   if [[ "$P2P_ANNOUNCE_ADDRESS" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     # IPv4 
-    P2P_ANNOUNCE_ADDRESSES='["/ip4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindTcpPort'", "/ip4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'"]'
+    P2P_ANNOUNCE_ADDRESSES='["/ip4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindTcpPort'/p2p/", "/ip4/'$P2P_ANNOUNCE_ADDRESS'/ws/tcp/'$P2P_ipV4BindWsPort'"]'
   elif [[ "$P2P_ANNOUNCE_ADDRESS" =~ ^[a-fA-F0-9:]+$ ]]; then
     # IPv6 
-    P2P_ANNOUNCE_ADDRESSES='["/ip6/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV6BindTcpPort'", "/ip6/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV6BindWsPort'"]'
+    P2P_ANNOUNCE_ADDRESSES='["/ip6/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV6BindTcpPort'/p2p/", "/ip6/'$P2P_ANNOUNCE_ADDRESS'/ws/tcp/'$P2P_ipV6BindWsPort'"]'
   elif [[ "$P2P_ANNOUNCE_ADDRESS" =~ ^[a-zA-Z0-9.-]+$ ]]; then
     # FQDN
-    P2P_ANNOUNCE_ADDRESSES='["/dns4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindTcpPort'", "/dns4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindWsPort'", "/dns6/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV6BindTcpPort'", "/dns6/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV6BindWsPort'"]'
+    P2P_ANNOUNCE_ADDRESSES='["/dns4/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV4BindTcpPort'/p2p/", "/dns4/'$P2P_ANNOUNCE_ADDRESS'/ws/tcp/'$P2P_ipV4BindWsPort'", "/dns6/'$P2P_ANNOUNCE_ADDRESS'/tcp/'$P2P_ipV6BindTcpPort'/p2p/", "/dns6/'$P2P_ANNOUNCE_ADDRESS'/ws/tcp/'$P2P_ipV6BindWsPort'"]'
   fi
 else
   P2P_ANNOUNCE_ADDRESSES=''

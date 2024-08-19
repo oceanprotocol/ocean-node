@@ -15,17 +15,17 @@ bash create_ocean_node_docker_compose_config.sh
 c) provide the necessary information interactively (example)
 
 ```shell
-$ bash create_ocean_node_docker_compose_config.sh 
 Do you have your private key for running the Ocean Node [ y/n ]: n
 Do you want me to create a private key for you [ y/n ]: y
 Generating Private Key, please wait...
-Generated Private Key: << redacted >> 
+Generated Private Key: << redacted >>
 Please provide the wallet address to be added as Ocean Node admin account: << redacted >>
 Provide the HTTP_API_PORT value or accept the default (press Enter) [8000]: 
 Provide the P2P_ipV4BindTcpPort or accept the default (press Enter) [9000]: 
 Provide the P2P_ipV4BindWsPort or accept the default (press Enter) [9001]: 
 Provide the P2P_ipV6BindTcpPort or accept the default (press Enter) [9002]: 
 Provide the P2P_ipV6BindWsPort or accept the default (press Enter) [9003]: 
+Provide the public IPv4/IPv6 address or FQDN where this node will be accessible: << redacted >>
 Docker Compose file has been generated successfully.
 
 You are now ready to start your Ocean Node.
@@ -84,7 +84,7 @@ services:
       - "9002:9002"
       - "9003:9003"
     environment:
-      PRIVATE_KEY: '<< redacted >>'
+      PRIVATE_KEY: '<<redacted>>'
       RPCS: '{"1":{"rpc":"https://ethereum-rpc.publicnode.com","fallbackRPCs":["https://rpc.ankr.com/eth","https://1rpc.io/eth","https://eth.api.onfinality.io/public"],"chainId":1,"network":"mainnet","chunkSize":100},"10":{"rpc":"https://mainnet.optimism.io","fallbackRPCs":["https://optimism-mainnet.public.blastapi.io","https://rpc.ankr.com/optimism","https://optimism-rpc.publicnode.com"],"chainId":10,"network":"optimism","chunkSize":100},"137":{"rpc":"https://polygon-rpc.com/","fallbackRPCs":["https://polygon-mainnet.public.blastapi.io","https://1rpc.io/matic","https://rpc.ankr.com/polygon"],"chainId":137,"network":"polygon","chunkSize":100},"23294":{"rpc":"https://sapphire.oasis.io","fallbackRPCs":["https://1rpc.io/oasis/sapphire"],"chainId":23294,"network":"sapphire","chunkSize":100},"23295":{"rpc":"https://testnet.sapphire.oasis.io","chainId":23295,"network":"sapphire-testnet","chunkSize":100},"11155111":{"rpc":"https://eth-sepolia.public.blastapi.io","fallbackRPCs":["https://1rpc.io/sepolia","https://eth-sepolia.g.alchemy.com/v2/demo"],"chainId":11155111,"network":"sepolia","chunkSize":100},"11155420":{"rpc":"https://sepolia.optimism.io","fallbackRPCs":["https://endpoints.omniatech.io/v1/op/sepolia/public","https://optimism-sepolia.blockpi.network/v1/rpc/public"],"chainId":11155420,"network":"optimism-sepolia","chunkSize":100}}'
       DB_URL: 'http://typesense:8108/?apiKey=xyz'
       IPFS_GATEWAY: 'https://ipfs.io/'
@@ -99,7 +99,7 @@ services:
       INTERFACES: ''
       ALLOWED_VALIDATORS: ''
       INDEXER_NETWORKS: '[]'
-      ALLOWED_ADMINS: '["<< redacted >>"]'
+      ALLOWED_ADMINS: '["<<redacted>>"]'
       INDEXER_INTERVAL: ''
       DASHBOARD: 'true'
       RATE_DENY_LIST: ''
@@ -115,7 +115,7 @@ services:
       P2P_ipV6BindAddress: ''
       P2P_ipV6BindTcpPort: '9002'
       P2P_ipV6BindWsPort: '9003'
-      P2P_ANNOUNCE_ADDRESSES: ''
+      P2P_ANNOUNCE_ADDRESSES: '["/dns4/<<redacted>>/tcp/9000/p2p/", "/dns4/<<redacted>>/ws/tcp/9001", "/dns6/<<redacted>>/tcp/9002/p2p/", "/dns6/<<redacted>>/ws/tcp/9003"]'
       P2P_ANNOUNCE_PRIVATE: ''
       P2P_pubsubPeerDiscoveryInterval: ''
       P2P_dhtMaxInboundStreams: ''
@@ -153,4 +153,3 @@ networks:
   ocean_network:
     driver: bridge
 ```
-
