@@ -8,6 +8,7 @@ import { QueryDdoStateHandler, QueryHandler } from '../core/handler/queryHandler
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { QueryCommand } from '../../@types/commands.js'
+import { TypesenseDdoStateDatabase } from '../database/TypenseDatabase.js'
 
 export const aquariusRoutes = express.Router()
 
@@ -59,6 +60,7 @@ aquariusRoutes.get(
   }
 )
 
+// TODO: update this
 aquariusRoutes.post(
   `${AQUARIUS_API_BASE_PATH}/assets/metadata/query`,
   async (req, res) => {
@@ -89,24 +91,51 @@ aquariusRoutes.post(
 aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
   try {
     const queryDdoState: QueryCommand = { query: {}, command: PROTOCOL_COMMANDS.QUERY }
-    const did = String(req.query.did)
-    queryDdoState.query = {
-      q: did,
-      query_by: 'did'
-    }
+    if (req.oceanNode.getDatabase().ddoState instanceof TypesenseDdoStateDatabase) {
+      const did = String(req.query.did)
+      queryDdoState.query = {
+        q: did,
+        query_by: 'did'
+      }
 
-    const nft = String(req.query.nft)
-    queryDdoState.query = {
-      q: nft,
-      query_by: 'nft'
-    }
+      const nft = String(req.query.nft)
+      queryDdoState.query = {
+        q: nft,
+        query_by: 'nft'
+      }
 
-    const txId = String(req.query.txId)
-    queryDdoState.query = {
-      q: txId,
-      query_by: 'txId'
-    }
+      const txId = String(req.query.txId)
+      queryDdoState.query = {
+        q: txId,
+        query_by: 'txId'
+      }
+    } else {
+      const did = String(req.query.did)
+      if (did) {
+        queryDdoState.query = {
+          match: {
+            did
+        }
+      }
 
+      const nft = String(req.query.nft)
+      if (nft) {
+        queryDdoState.query = {
+          match: {
+            nft
+          }
+        }
+      }
+
+      const txId = String(req.query.txId)
+      if (txId) {
+        queryDdoState.query = {
+          match: {
+            txId
+          }
+        }
+      }
+    }
     if (!queryDdoState.query.query_by) {
       res
         .status(400)
