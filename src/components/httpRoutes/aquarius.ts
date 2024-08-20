@@ -115,34 +115,35 @@ aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
         queryDdoState.query = {
           match: {
             did
+          }
         }
-      }
 
-      const nft = String(req.query.nft)
-      if (nft) {
-        queryDdoState.query = {
-          match: {
-            nft
+        const nft = String(req.query.nft)
+        if (nft) {
+          queryDdoState.query = {
+            match: {
+              nft
+            }
+          }
+        }
+
+        const txId = String(req.query.txId)
+        if (txId) {
+          queryDdoState.query = {
+            match: {
+              txId
+            }
           }
         }
       }
-
-      const txId = String(req.query.txId)
-      if (txId) {
-        queryDdoState.query = {
-          match: {
-            txId
-          }
-        }
+      if (!queryDdoState.query.query_by) {
+        res
+          .status(400)
+          .send(
+            'Missing or invalid required parameters, you need to specify one of: "did", "txId", "nft"'
+          )
+        return
       }
-    }
-    if (!queryDdoState.query.query_by) {
-      res
-        .status(400)
-        .send(
-          'Missing or invalid required parameters, you need to specify one of: "did", "txId", "nft"'
-        )
-      return
     }
     const result = await new QueryDdoStateHandler(req.oceanNode).handle(queryDdoState)
     if (result.stream) {
