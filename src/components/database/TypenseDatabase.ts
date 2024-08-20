@@ -1,3 +1,5 @@
+import fs from 'fs'
+import path from 'path'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { convertTypesenseConfig, Typesense, TypesenseError } from './typesense.js'
 import { TypesenseSchema } from './TypesenseSchemas.js'
@@ -15,6 +17,8 @@ import {
   AbstractNonceDatabase,
   AbstractOrderDatabase
 } from './BaseDatabase.js'
+import { SQLiteProvider } from './sqlite.js'
+import { URLUtils } from '../../utils/url.js'
 
 export class TypesenseOrderDatabase extends AbstractOrderDatabase {
   private provider: Typesense
@@ -613,21 +617,39 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
 }
 
 export class TypesenseNonceDatabase extends AbstractNonceDatabase {
-  private provider: Typesense
+  private provider: Typesense | SQLiteProvider
 
   constructor(config: OceanNodeDBConfig, schema: TypesenseSchema) {
     super(config, schema)
     return (async (): Promise<TypesenseNonceDatabase> => {
-      this.provider = new Typesense({
-        ...convertTypesenseConfig(this.config.url),
-        logger: DATABASE_LOGGER
-      })
-      try {
-        await this.provider.collections(this.schema.name).retrieve()
-      } catch (error) {
-        if (error instanceof TypesenseError && error.httpStatus === 404) {
-          await this.provider.collections().create(this.schema)
+      if (this.config.url && URLUtils.isValidUrl(this.config.url)) {
+        try {
+          this.provider = new Typesense({
+            ...convertTypesenseConfig(this.config.url),
+            logger: DATABASE_LOGGER
+          })
+          await this.provider.collections(this.schema.name).retrieve()
+        } catch (error) {
+          if (error instanceof TypesenseError && error.httpStatus === 404) {
+            await (this.provider as Typesense).collections().create(this.schema)
+          }
         }
+      } else {
+        // Fall back to SQLite
+        DATABASE_LOGGER.logMessageWithEmoji(
+          'Typesense not available, falling back to SQLite',
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEL_WARN
+        )
+
+        // Ensure the directory exists before instantiating SQLiteProvider
+        const dbDir = path.dirname('databases/nonceDatabase.sqlite')
+        if (!fs.existsSync(dbDir)) {
+          fs.mkdirSync(dbDir, { recursive: true })
+        }
+        this.provider = new SQLiteProvider('databases/nonceDatabase.sqlite')
+        await this.provider.createTable()
       }
       return this
     })() as unknown as TypesenseNonceDatabase
@@ -635,10 +657,14 @@ export class TypesenseNonceDatabase extends AbstractNonceDatabase {
 
   async create(address: string, nonce: number) {
     try {
-      return await this.provider
-        .collections(this.schema.name)
-        .documents()
-        .create({ id: address, nonce })
+      if (this.provider instanceof Typesense) {
+        return await this.provider
+          .collections(this.schema.name)
+          .documents()
+          .create({ id: address, nonce })
+      } else {
+        return await this.provider.create(address, nonce)
+      }
     } catch (error) {
       const errorMsg =
         `Error when creating new nonce entry ${nonce} for address ${address}: ` +
@@ -655,10 +681,14 @@ export class TypesenseNonceDatabase extends AbstractNonceDatabase {
 
   async retrieve(address: string) {
     try {
-      return await this.provider
-        .collections(this.schema.name)
-        .documents()
-        .retrieve(address)
+      if (this.provider instanceof Typesense) {
+        return await this.provider
+          .collections(this.schema.name)
+          .documents()
+          .retrieve(address)
+      } else {
+        return await this.provider.retrieve(address)
+      }
     } catch (error) {
       const errorMsg =
         `Error when retrieving nonce entry for address ${address}: ` + error.message
@@ -674,12 +704,20 @@ export class TypesenseNonceDatabase extends AbstractNonceDatabase {
 
   async update(address: string, nonce: number) {
     try {
-      return await this.provider
-        .collections(this.schema.name)
-        .documents()
-        .update(address, { nonce })
+      if (this.provider instanceof Typesense) {
+        return await this.provider
+          .collections(this.schema.name)
+          .documents()
+          .update(address, { nonce })
+      } else {
+        return await this.provider.update(address, nonce)
+      }
     } catch (error) {
-      if (error instanceof TypesenseError && error.httpStatus === 404) {
+      if (
+        this.provider instanceof Typesense &&
+        error instanceof TypesenseError &&
+        error.httpStatus === 404
+      ) {
         return await this.provider
           .collections(this.schema.name)
           .documents()
@@ -700,7 +738,14 @@ export class TypesenseNonceDatabase extends AbstractNonceDatabase {
 
   async delete(address: string) {
     try {
-      return await this.provider.collections(this.schema.name).documents().delete(address)
+      if (this.provider instanceof Typesense) {
+        return await this.provider
+          .collections(this.schema.name)
+          .documents()
+          .delete(address)
+      } else {
+        return await this.provider.delete(address)
+      }
     } catch (error) {
       const errorMsg =
         `Error when deleting nonce entry for address ${address}: ` + error.message

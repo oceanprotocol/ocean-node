@@ -197,6 +197,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
   ): Promise<ComputeJob[]> {
     // let's build the stage first
     // start with stage.input
+    const config = await getConfiguration()
     const stagesInput: OPFK8ComputeStageInput[] = []
     let index = 0
     for (const asset of assets) {
@@ -208,13 +209,34 @@ export class C2DEngineOPFK8 extends C2DEngine {
       else
         stagesInput.push({
           index,
-          id: asset.documentId
+          id: asset.documentId,
+          remote: {
+            txId: asset.transferTxId,
+            serviceId: asset.serviceId,
+            userdata: asset.userdata ? asset.userdata : {}
+          }
         })
       index++
     }
+    let getOuput = {}
+    if (output) {
+      getOuput = output
+    } else if (config.hasHttp && config.c2dNodeUri) {
+      getOuput = {
+        metadataUri: config.c2dNodeUri
+      }
+    }
     // continue with algorithm
     const stageAlgorithm: OPFK8ComputeStageAlgorithm = {}
-    if (algorithm.url) stageAlgorithm.url = algorithm.url
+    if (algorithm.url) {
+      stageAlgorithm.url = algorithm.url
+    } else {
+      stageAlgorithm.remote = {
+        txId: algorithm.transferTxId,
+        serviceId: algorithm.serviceId,
+        userdata: algorithm.userdata ? algorithm.userdata : {}
+      }
+    }
     if (algorithm.documentId) stageAlgorithm.id = algorithm.documentId
     if ('meta' in algorithm && 'rawcode' in algorithm.meta && algorithm.meta.rawcode)
       stageAlgorithm.rawcode = algorithm.meta.rawcode
@@ -224,7 +246,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
       index: 0,
       input: stagesInput,
       algorithm: stageAlgorithm,
-      output: output || {},
+      output: getOuput,
       compute: {
         Instances: 1,
         namespace: environment,
@@ -237,7 +259,6 @@ export class C2DEngineOPFK8 extends C2DEngine {
     }
     // and the full payload
     const nonce: number = new Date().getTime()
-    const config = await getConfiguration()
     const providerSignature = await sign(String(nonce), config.keys.privateKey)
     const payload: OPFK8ComputeStart = {
       workflow,
@@ -278,7 +299,8 @@ export class C2DEngineOPFK8 extends C2DEngine {
 
   public override async stopComputeJob(
     jobId: string,
-    owner: string
+    owner: string,
+    agreementId?: string
   ): Promise<ComputeJob[]> {
     // and the full payload
     const nonce: number = new Date().getTime()
@@ -290,7 +312,8 @@ export class C2DEngineOPFK8 extends C2DEngine {
       providerSignature,
       providerAddress: config.keys.ethAddress,
       nonce,
-      jobId
+      jobId,
+      agreementId
     }
     try {
       const response = await axios({

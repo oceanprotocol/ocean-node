@@ -1,6 +1,6 @@
 {
-  "name": "Ocean-Node",
-  "version": "1.0.0",
+  "name": "ocean-node",
+  "version": "0.0.6",
   "description": "Ocean Node is used to run all core services in the Ocean stack",
   "author": "Ocean Protocol Foundation",
   "license": "Apache-2.0",
@@ -40,7 +40,9 @@
     "test:smoke": "npm run test:k6-common k6 run -e TEST_TYPE=smoke \"./dist/test/performance/perf_test.js\"",
     "test:load": "npm run test:k6-common k6 run -e TEST_TYPE=load \"./dist/test/performance/perf_test.js\"",
     "test:stress": "npm run test:k6-common k6 run -e TEST_TYPE=stress \"./dist/test/performance/perf_test.js\"",
-    "test:request:rate": "npm run test:k6-common && k6 run -e RATE=true \"./dist/test/performance/perf_test.js\""
+    "test:request:rate": "npm run test:k6-common && k6 run -e RATE=true \"./dist/test/performance/perf_test.js\"",
+    "release": "release-it --non-interactive",
+    "changelog": "auto-changelog -p"
   },
   "dependencies": {
     "@chainsafe/libp2p-gossipsub": "^13.1.0",
@@ -103,6 +105,7 @@
     "rdflib": "^2.2.33",
     "shacl-engine": "^0.1.2",
     "sinon": "^17.0.1",
+    "sqlite3": "^5.1.7",
     "stream-concat": "^1.0.0",
     "ts-node": "^10.9.1",
     "tsoa": "^5.1.1",
@@ -123,6 +126,7 @@
     "@types/node-cron": "^3.0.11",
     "@typescript-eslint/eslint-plugin": "^6.8.0",
     "@typescript-eslint/parser": "^6.8.0",
+    "auto-changelog": "^2.4.0",
     "chai": "^4.3.10",
     "concurrently": "^8.2.1",
     "eslint": "^8.51.0",
@@ -132,6 +136,22 @@
     "eslint-plugin-promise": "^6.1.1",
     "mocha": "^10.2.0",
     "prettier": "^3.0.3",
+    "release-it": "^17.6.0",
     "tsx": "^3.12.8"
+  },
+  "release-it": {
+    "hooks": {
+      "after:bump": "npm run changelog"
+    },
+    "plugins": {},
+    "git": {
+      "tagName": "v${version}"
+    },
+    "github": {
+      "release": true
+    },
+    "npm": {
+      "publish": false
+    }
   }
 }

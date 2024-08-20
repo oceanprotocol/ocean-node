@@ -98,12 +98,14 @@ describe('Indexer stores a new metadata events and orders.', () => {
       buildEnvOverrideConfig(
         [
           ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
           JSON.stringify(mockSupportedNetworks),
+          JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           dbConfig.url,
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`

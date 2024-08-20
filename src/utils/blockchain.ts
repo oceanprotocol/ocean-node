@@ -6,7 +6,10 @@ import {
   JsonRpcApiProvider,
   JsonRpcProvider,
   isAddress,
-  Network
+  Network,
+  parseUnits,
+  Wallet,
+  TransactionReceipt
 } from 'ethers'
 import { getConfiguration } from './config.js'
 import { CORE_LOGGER } from './logging/common.js'
@@ -64,6 +67,36 @@ export class Blockchain {
 
   public getKnownRPCs(): string[] {
     return this.knownRPCs
+  }
+
+  public async calculateGasCost(to: string, amount: bigint): Promise<bigint> {
+    const provider = this.getProvider()
+    const estimatedGas = await provider.estimateGas({
+      to,
+      value: amount
+    })
+
+    const block = await provider.getBlock('latest')
+    const baseFee = block.baseFeePerGas
+    const priorityFee = parseUnits('2', 'gwei')
+    const maxFee = baseFee + priorityFee
+    const gasCost = estimatedGas * maxFee
+
+    return amount + gasCost
+  }
+
+  public async sendTransaction(
+    wallet: Wallet,
+    to: string,
+    amount: bigint
+  ): Promise<TransactionReceipt> {
+    const tx = await wallet.sendTransaction({
+      to,
+      value: amount
+    })
+    const receipt = await tx.wait()
+
+    return receipt
   }
 
   private detectNetwork(): Promise<ConnectionStatus> {

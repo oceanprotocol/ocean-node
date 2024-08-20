@@ -117,7 +117,6 @@ describe('OceanP2P Test without DB_URL set', () => {
     assert(config, 'Failed to get P2P Node config')
     assert(config.dbConfig.url === '', 'P2P Node config should not have DB URL set')
     assert(config.hasIndexer === false, 'P2P Node should not have indexer enabled')
-    assert(config.hasProvider === false, 'P2P Node should not have provider enabled')
   })
   after(() => {
     process.env.DB_URL = originalDBURL

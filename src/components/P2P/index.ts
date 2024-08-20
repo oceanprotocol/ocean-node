@@ -150,12 +150,9 @@ export class OceanP2P extends EventEmitter {
     if (details) {
       const peerId = details.detail
       P2P_LOGGER.debug('Connection established to:' + peerId.toString()) // Emitted when a peer has been found
-      try {
-        // DO WE REALLY NEED THIS?
-        this._libp2p.services.pubsub.connect(peerId.toString())
-      } catch (e) {
-        P2P_LOGGER.error(e.message)
-      }
+      // try {
+      //   this._libp2p.services.pubsub.connect(peerId.toString())
+      // } catch (e) {}
     }
   }
 
@@ -314,12 +311,27 @@ export class OceanP2P extends EventEmitter {
         P2P_LOGGER.info('Enabling P2P Transports: websockets, tcp')
         transports = [webSockets(), tcp()]
       }
-      let options = {
-        addresses: {
+
+      let addresses = {}
+      if (
+        config.p2pConfig.announceAddresses &&
+        config.p2pConfig.announceAddresses.length > 0
+      ) {
+        addresses = {
+          listen: bindInterfaces,
+          announceFilter: (multiaddrs: any[]) =>
+            multiaddrs.filter((m) => this.shouldAnnounce(m)),
+          announce: config.p2pConfig.announceAddresses
+        }
+      } else {
+        addresses = {
           listen: bindInterfaces,
           announceFilter: (multiaddrs: any[]) =>
             multiaddrs.filter((m) => this.shouldAnnounce(m))
-        },
+        }
+      }
+      let options = {
+        addresses,
         peerId: config.keys.peerId,
         transports,
         streamMuxers: [yamux()],
@@ -335,7 +347,8 @@ export class OceanP2P extends EventEmitter {
           maxConnections: config.p2pConfig.maxConnections,
           autoDialPeerRetryThreshold: config.p2pConfig.autoDialPeerRetryThreshold,
           autoDialConcurrency: config.p2pConfig.autoDialConcurrency,
-          maxPeerAddrsToDial: config.p2pConfig.maxPeerAddrsToDial
+          maxPeerAddrsToDial: config.p2pConfig.maxPeerAddrsToDial,
+          autoDialInterval: config.p2pConfig.autoDialInterval
         }
       }
       if (config.p2pConfig.bootstrapNodes && config.p2pConfig.bootstrapNodes.length > 0) {
@@ -348,7 +361,7 @@ export class OceanP2P extends EventEmitter {
                 timeout: 20000, // in ms,
                 tagName: 'bootstrap',
                 tagValue: 50,
-                tagTTL: 10000000000
+                tagTTL: 120000
               }),
               mdns({
                 interval: config.p2pConfig.mDNSInterval
@@ -436,6 +449,16 @@ export class OceanP2P extends EventEmitter {
     // for await (const peer of this._libp2p.peerRouting.getClosestPeers(s[0].id.toString())) {
     //  console.log(peer.id, peer.multiaddrs)
     // }
+  }
+
+  async getNetworkingStats() {
+    const ret: any = {}
+    ret.binds = await this._libp2p.components.addressManager.getListenAddrs()
+    ret.listen = await this._libp2p.components.transportManager.getAddrs()
+    ret.observing = await this._libp2p.components.addressManager.getObservedAddrs()
+    ret.announce = await this._libp2p.components.addressManager.getAnnounceAddrs()
+    ret.connections = await this._libp2p.getConnections()
+    return ret
   }
 
   async getRunningOceanPeers() {
