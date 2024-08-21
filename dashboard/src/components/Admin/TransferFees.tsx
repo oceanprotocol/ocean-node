@@ -92,7 +92,7 @@ export default function TransferFees() {
 
   return (
     <div className={styles.column}>
-      <Button variant="contained" onClick={() => setShowChainInput(!showChainInput)}>
+      <Button variant="text" onClick={() => setShowChainInput(!showChainInput)}>
         Transfer Fees
       </Button>
 
@@ -105,6 +105,7 @@ export default function TransferFees() {
             fullWidth
             margin="normal"
             variant="outlined"
+            type="number"
           />
           <TextField
             label="Token Address"
@@ -121,6 +122,7 @@ export default function TransferFees() {
             fullWidth
             margin="normal"
             variant="outlined"
+            type="number"
           />
           <TextField
             label="Destination Address"
