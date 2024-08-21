@@ -25,6 +25,8 @@ scripts/ocean-node-quickstart.sh
 npm run quickstart
 ```
 
+This command will run you through the process of setting up the environmental variables for your node.
+
 ## Option 2: Running Ocean Nodes with PM2
 
 PM2 is a process manager that makes it easy to manage and monitor your Node.js applications.
