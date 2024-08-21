@@ -35,16 +35,15 @@ PM2 is a process manager that makes it easy to manage and monitor your Node.js a
  npm install -g pm2
 ```
 
-2. Configure Environment Variables
+2. Setup the environmental variables
 
-Either run the helper script:
+Either use the script:
 
-```bash
-./src/helpers/scripts/setupNodeEnv.sh
-source .env
+```
+npm run envSetup
 ```
 
-Or setup the environmental variables manually:
+or setup the required environment variables manually:
 
 ```bash
 export PRIVATE_KEY="0x_your_private_key_here"
@@ -52,7 +51,7 @@ export PRIVATE_KEY="0x_your_private_key_here"
 
 The `PRIVATE_KEY` is the only mandatory environmental variable, you must include the `0x` at the front of your private key. Additional configurations can be set as needed. For all available configurations, refer to the [Environment Variables](docs/env.md) documentation.
 
-3.  Build & Start the Ocean Node with PM2
+3.  Quick start the Ocean Node with PM2
 
 ```bash
    pm2 start npm --name "ocean-node" -- run build:start
