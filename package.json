@@ -13,6 +13,7 @@
     "build": "npm run clean && npm run check-changes && npm run build:tsc",
     "build:no-dashboard": "npm run clean && npm run build:tsc",
     "build:tsc": "tsc --sourceMap",
+    "build:start": "npm run build && npm run start",
     "build-tests:tsc": "tsc --sourceMap --sourceRoot ./src/test && cp ./src/test/.env.test ./dist/test",
     "build:dashboard": "cd dashboard && npm install --maxsockets 1 && NODE_ENV=production npx next build",
     "check-changes": "node scripts/dashboardChanges.js",

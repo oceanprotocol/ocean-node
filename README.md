@@ -38,7 +38,7 @@ PM2 is a process manager that makes it easy to manage and monitor your Node.js a
 2.  Start the Ocean Node with PM2
 
 ```bash
-   pm2 start npm --name "ocean-node" -- run start
+   pm2 start npm --name "ocean-node" -- run build:start
 ```
 
 3.  Monitor and Manage the Node
