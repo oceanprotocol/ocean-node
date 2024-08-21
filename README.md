@@ -130,3 +130,4 @@ Your node is now running, the dashboard will be available at `http://localhost:8
 - [Network Configuration](docs/networking.md)
 - [Logging & accessing logs](docs/networking.md)
 - [Dashboard: Local development](dashboard/README.md)
+- [Docker Deployment Guide](docs/dockerDeployment.md)
