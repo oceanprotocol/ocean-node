@@ -54,7 +54,7 @@ The `PRIVATE_KEY` is the only mandatory environmental variable, you must include
 3.  Quick start the Ocean Node with PM2
 
 ```bash
-   pm2 start npm --name "ocean-node" -- run build:start
+   pm2 start npm --name "ocean-node" -- run start
 ```
 
 4.  Monitor and Manage the Node
