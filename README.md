@@ -20,9 +20,9 @@ We recommend the following minimum requirements, although you may be be able to 
 Build and run the node using Docker:
 
 ```bash
-docker build -t ocean-node:mybuild . # Build the Docker image
-# Make sure you include 0x at the start of the private key
-docker run -e PRIVATE_KEY=0x_your_private_key_here ocean-node:mybuild # Start container
+scripts/ocean-node-quickstart.sh
+# OR
+npm run quickstart
 ```
 
 ## Option 2: Running Ocean Nodes with PM2

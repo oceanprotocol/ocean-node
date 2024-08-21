@@ -11,7 +11,7 @@ a) download the script `ocean-node-quickstart.sh` from the current directory
 b) run the script
 
 ```shell
-bash ocean-node-quickstart.sh
+bash scripts/ocean-node-quickstart.sh
 ```
 
 c) provide the necessary information interactively (example)
