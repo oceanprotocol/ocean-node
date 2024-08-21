@@ -1,25 +1,31 @@
 import React, { useState } from 'react'
-import { TextField, Button, Alert, Snackbar } from '@mui/material'
+import {
+  TextField,
+  Button,
+  Alert,
+  Snackbar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions
+} from '@mui/material'
 import { useAdminContext } from '@context/AdminProvider'
-import { CommandStatus, JobStatus } from '@/shared/types/JobTypes'
-import { checkJobPool, getSeverityFromStatus, isJobDone } from '@/shared/utils/jobs'
-import JobStatusPanel from '../JobStatusPanel'
 import styles from './index.module.css'
 
 export default function TransferFees() {
-  const [showChainInput, setShowChainInput] = useState(false)
+  const [showChainInput, setShowTransferInput] = useState(false)
   const [isLoading, setLoading] = useState(false)
   const [chainId, setChainId] = useState<string>('')
   const [tokenAddress, setTokenAddress] = useState<string>('')
   const [tokenAmount, setTokenAmount] = useState<string>('')
   const [destinationAddress, setDestinationAddress] = useState<string>('')
   const { signature, expiryTimestamp } = useAdminContext()
-  const [severity, setSeverity] = useState<any>('info')
-  const [job, setJob] = useState<JobStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [snackbarOpen, setSnackbarOpen] = useState(false)
-
-  let intervalId: any = null
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [responseMessage, setResponseMessage] = useState<string | null>(null)
+  const [txHash, setTxHash] = useState<string | null>(null)
 
   const validateInputs = () => {
     if (!chainId || !tokenAddress || !tokenAmount || !destinationAddress) {
@@ -59,26 +65,13 @@ export default function TransferFees() {
 
       if (response.status === 200) {
         const jobData = await response.json()
-        setSeverity(jobData.status === CommandStatus.DELIVERED ? 'info' : 'error')
-        setJob(jobData)
-        setSnackbarOpen(true)
-
-        let done = false
-        intervalId = setInterval(async () => {
-          const statusJob = await checkJobPool(jobData.jobId)
-          if (statusJob.length === 1) {
-            const job = statusJob[0]
-            setSeverity(getSeverityFromStatus(job.status))
-            done = isJobDone(job.status)
-            setJob(job)
-          } else {
-            setJob(null)
-          }
-        }, 3000)
-        if (done && intervalId) {
-          clearInterval(intervalId)
+        if (jobData?.tx && jobData?.message) {
+          setTxHash(jobData.tx)
+          setResponseMessage(jobData.message)
+          setDialogOpen(true)
+          setSnackbarOpen(true)
+          setShowTransferInput(false)
         }
-        setShowChainInput(false)
       } else {
         setError('Error transferring fees. Please try again.')
       }
@@ -90,9 +83,13 @@ export default function TransferFees() {
     }
   }
 
+  const handleDialogClose = () => {
+    setDialogOpen(false)
+  }
+
   return (
     <div className={styles.column}>
-      <Button variant="text" onClick={() => setShowChainInput(!showChainInput)}>
+      <Button variant="text" onClick={() => setShowTransferInput(!showChainInput)}>
         Transfer Fees
       </Button>
 
@@ -144,13 +141,38 @@ export default function TransferFees() {
           </Button>
         </div>
       )}
-      <JobStatusPanel job={job} severity={severity} />
       <Snackbar
         open={snackbarOpen}
         autoHideDuration={6000}
         onClose={() => setSnackbarOpen(false)}
         message="Fees successfully transferred!"
       />
+      <Dialog
+        open={dialogOpen}
+        onClose={handleDialogClose}
+        aria-labelledby="alert-dialog-title"
+        aria-describedby="alert-dialog-description"
+      >
+        <DialogTitle id="alert-dialog-title">{'Transfer Successful'}</DialogTitle>
+        <DialogContent>
+          <DialogContentText id="alert-dialog-description">
+            {responseMessage && (
+              <span>
+                {responseMessage} <br />
+                <strong style={{ marginTop: '10px', display: 'block' }}>
+                  Transaction Hash:
+                </strong>{' '}
+                {txHash}
+              </span>
+            )}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleDialogClose} autoFocus>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   )
 }
