@@ -1,4 +1,4 @@
-# Docker Deployment
+# Docker Deployment Guide
 
 This guide is intended to provide quick steps for starting an **Ocean Node** using Docker Engine and Docker Compose plugin.
 
