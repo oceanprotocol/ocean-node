@@ -103,7 +103,7 @@ export PRIVATE_KEY="0x_your_private_key_here"
 
 The `PRIVATE_KEY` is the only mandatory environmental variable, you must include the `0x` at the front of your private key. Additional configurations can be set as needed. For all available configurations, refer to the [Environment Variables](docs/env.md) documentation.
 
-### 5. Start the Node
+### 4. Start the Node
 
 ```bash
 npm run start
