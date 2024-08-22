@@ -227,14 +227,9 @@ if [ $exists_env_file -eq 0 ]; then
             if [ $created_pk_file -eq 1 ]; then
                 ask_for_same_admin_wallet
             else
-              #we entered a pk ourselves
-              read -p "Do you want setup the wallet associated with this key, as a node admin account?  [ y/n ]: " set_admin_wallet  
-                set_admin_wallet=${set_admin_wallet:-y} 
-                if [ "$set_admin_wallet" == 'y' ]; then
-                    read -p "Enter your admin wallet address: " ADMIN_WALLET
-                    check_wallet $ADMIN_WALLET
-                    setup_node_admin_wallet
-                fi    
+                read -p "Enter your admin wallet address: " ADMIN_WALLET
+                check_wallet $ADMIN_WALLET
+                setup_node_admin_wallet
             fi
         fi
     else 
