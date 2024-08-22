@@ -160,7 +160,7 @@ services:
 #      LOG_LEVEL: ''
       HTTP_API_PORT: '$HTTP_API_PORT'
       P2P_ENABLE_IPV4: 'true'
-      P2P_ENABLE_IPV6: 'true'
+      P2P_ENABLE_IPV6: 'false'
       P2P_ipV4BindAddress: '0.0.0.0'
       P2P_ipV4BindTcpPort: '$P2P_ipV4BindTcpPort'
       P2P_ipV4BindWsPort: '$P2P_ipV4BindWsPort'
