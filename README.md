@@ -17,6 +17,12 @@ We recommend the following minimum requirements, although you may be be able to 
 
 ## Option 1: Running Ocean Nodes in Docker (recommended)
 
+[This readme](deployment/Readme.md) is the recommended way to host a node and be eligible for incentives. 
+The other options are more recommended towards deleveopers that want to tinker.
+
+
+## Option 2: Running local build of Ocean Nodes in Docker
+
 Build and run the node using Docker:
 
 ```bash
@@ -25,7 +31,7 @@ docker build -t ocean-node:mybuild . # Build the Docker image
 docker run -e PRIVATE_KEY=0x_your_private_key_here ocean-node:mybuild # Start container
 ```
 
-## Option 2: Running Ocean Nodes with PM2
+## Option 3: Running Ocean Nodes with PM2
 
 PM2 is a process manager that makes it easy to manage and monitor your Node.js applications.
 
