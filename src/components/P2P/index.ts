@@ -233,6 +233,45 @@ export class OceanP2P extends EventEmitter {
       this._privateKey = config.keys.privateKey
       /** @type {import('libp2p').Libp2pOptions} */
       // start with some default, overwrite based on config later
+      let doPx = false
+      const bindInterfaces = []
+      if (config.p2pConfig.enableIPV4) {
+        P2P_LOGGER.info('Binding P2P sockets to IPV4')
+        bindInterfaces.push(
+          `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindTcpPort}`
+        )
+        bindInterfaces.push(
+          `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindWsPort}/ws`
+        )
+      }
+      if (config.p2pConfig.enableIPV6) {
+        P2P_LOGGER.info('Binding P2P sockets to IPV6')
+        bindInterfaces.push(
+          `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindTcpPort}`
+        )
+        bindInterfaces.push(
+          `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindWsPort}/ws`
+        )
+      }
+      let addresses = {}
+      if (
+        config.p2pConfig.announceAddresses &&
+        config.p2pConfig.announceAddresses.length > 0
+      ) {
+        doPx = true
+        addresses = {
+          listen: bindInterfaces,
+          announceFilter: (multiaddrs: any[]) =>
+            multiaddrs.filter((m) => this.shouldAnnounce(m)),
+          announce: config.p2pConfig.announceAddresses
+        }
+      } else {
+        addresses = {
+          listen: bindInterfaces,
+          announceFilter: (multiaddrs: any[]) =>
+            multiaddrs.filter((m) => this.shouldAnnounce(m))
+        }
+      }
       let servicesConfig = {
         identify: identify(),
         pubsub: gossipsub({
@@ -242,7 +281,7 @@ export class OceanP2P extends EventEmitter {
           // messageProcessingConcurrency: 5,
           seenTTL: 10 * 1000,
           runOnTransientConnection: true,
-          doPX: true,
+          doPX: doPx,
           // canRelayMessage: true,
           // enabled: true
           allowedTopics: ['oceanprotocol._peer-discovery._p2p._pubsub', 'oceanprotocol']
@@ -286,25 +325,7 @@ export class OceanP2P extends EventEmitter {
           ...{ autoNAT: autoNAT({ maxInboundStreams: 20, maxOutboundStreams: 20 }) }
         }
       }
-      const bindInterfaces = []
-      if (config.p2pConfig.enableIPV4) {
-        P2P_LOGGER.info('Binding P2P sockets to IPV4')
-        bindInterfaces.push(
-          `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindTcpPort}`
-        )
-        bindInterfaces.push(
-          `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindWsPort}/ws`
-        )
-      }
-      if (config.p2pConfig.enableIPV6) {
-        P2P_LOGGER.info('Binding P2P sockets to IPV6')
-        bindInterfaces.push(
-          `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindTcpPort}`
-        )
-        bindInterfaces.push(
-          `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindWsPort}/ws`
-        )
-      }
+
       let transports = []
       P2P_LOGGER.info('Enabling P2P Transports: websockets, tcp, circuitRelay')
       transports = [
@@ -315,24 +336,6 @@ export class OceanP2P extends EventEmitter {
         })
       ]
 
-      let addresses = {}
-      if (
-        config.p2pConfig.announceAddresses &&
-        config.p2pConfig.announceAddresses.length > 0
-      ) {
-        addresses = {
-          listen: bindInterfaces,
-          announceFilter: (multiaddrs: any[]) =>
-            multiaddrs.filter((m) => this.shouldAnnounce(m)),
-          announce: config.p2pConfig.announceAddresses
-        }
-      } else {
-        addresses = {
-          listen: bindInterfaces,
-          announceFilter: (multiaddrs: any[]) =>
-            multiaddrs.filter((m) => this.shouldAnnounce(m))
-        }
-      }
       let options = {
         addresses,
         peerId: config.keys.peerId,
