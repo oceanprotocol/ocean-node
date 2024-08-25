@@ -236,7 +236,12 @@ export class OceanP2P extends EventEmitter {
       let servicesConfig = {
         identify: identify(),
         pubsub: gossipsub({
-          allowPublishToZeroTopicPeers: true,
+          batchPublish: false,
+          allowPublishToZeroTopicPeers: false,
+          asyncValidation: true,
+          messageProcessingConcurrency: 5,
+          seenTTL: 10 * 1000,
+          runOnTransientConnection: true,
           doPX: true,
           // canRelayMessage: true,
           // enabled: true
