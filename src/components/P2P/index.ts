@@ -237,7 +237,7 @@ export class OceanP2P extends EventEmitter {
         identify: identify(),
         pubsub: gossipsub({
           batchPublish: false,
-          allowPublishToZeroTopicPeers: false,
+          allowPublishToZeroTopicPeers: true,
           asyncValidation: false,
           // messageProcessingConcurrency: 5,
           seenTTL: 10 * 1000,
