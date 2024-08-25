@@ -238,8 +238,8 @@ export class OceanP2P extends EventEmitter {
         pubsub: gossipsub({
           batchPublish: false,
           allowPublishToZeroTopicPeers: false,
-          asyncValidation: true,
-          messageProcessingConcurrency: 5,
+          asyncValidation: false,
+          // messageProcessingConcurrency: 5,
           seenTTL: 10 * 1000,
           runOnTransientConnection: true,
           doPX: true,
@@ -419,14 +419,13 @@ export class OceanP2P extends EventEmitter {
       // this._libp2p.services.pubsub.on('peer left', (peer:any) => {
       // console.log('Peer left...', peer)
       // })
+
+      /* since we don't have broadcasts implemented, comment this part of the code
       node.services.pubsub.addEventListener('message', (message: any) => {
         handleBroadcasts(this._topic, message)
       })
-      // this._libp2p.services.pubsub.on('message', (message:any) => {
-      //  console.log('Received broadcast msg...', message)
-      //  console.log("Sending back 'who are you' to "+message.from.toString())
-      //  this.sendTo(message.from,'Who are you?',null)
-      // })
+      */
+
       node.services.pubsub.subscribe(this._topic)
       node.services.pubsub.publish(this._topic, encoding('online'))
 
