@@ -4,7 +4,7 @@ import EventEmitter from 'node:events'
 import clone from 'lodash.clonedeep'
 
 import {
-  handleBroadcasts,
+  // handleBroadcasts,
   // handlePeerConnect,
   // handlePeerDiscovery,
   // handlePeerDisconnect,
