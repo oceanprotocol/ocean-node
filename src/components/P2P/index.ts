@@ -30,7 +30,7 @@ import { autoNAT } from '@libp2p/autonat'
 import { uPnPNAT } from '@libp2p/upnp-nat'
 import { ping } from '@libp2p/ping'
 import { dcutr } from '@libp2p/dcutr'
-import { kadDHT } from '@libp2p/kad-dht'
+import { kadDHT, passthroughMapper } from '@libp2p/kad-dht'
 import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 
 import { EVENTS, cidFromRawString } from '../../utils/index.js'
@@ -240,7 +240,7 @@ export class OceanP2P extends EventEmitter {
           doPX: true,
           // canRelayMessage: true,
           // enabled: true
-          allowedTopics: ['`oceanprotocol._peer-discovery._p2p._pubsub`']
+          allowedTopics: ['oceanprotocol._peer-discovery._p2p._pubsub', 'oceanprotocol']
         }),
         dht: kadDHT({
           // this is necessary because this node is not connected to the public network
@@ -251,7 +251,8 @@ export class OceanP2P extends EventEmitter {
 
           clientMode: false, // this should be true for edge devices
           kBucketSize: 20,
-          protocol: '/ocean/nodes/1.0.0/kad/1.0.0'
+          protocol: '/ocean/nodes/1.0.0/kad/1.0.0',
+          peerInfoMapper: passthroughMapper
           // protocolPrefix: '/ocean/nodes/1.0.0'
           // randomWalk: {
           //  enabled: true,            // Allows to disable discovery (enabled by default)
