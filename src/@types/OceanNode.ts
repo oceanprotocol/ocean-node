@@ -34,6 +34,7 @@ export interface OceanNodeP2PConfig {
   pubsubPeerDiscoveryInterval: number
   dhtMaxInboundStreams: number
   dhtMaxOutboundStreams: number
+  enableDHTServer: boolean
   mDNSInterval: number
   connectionsMaxParallelDials: number
   connectionsDialTimeout: number
