@@ -298,19 +298,14 @@ export class OceanP2P extends EventEmitter {
         )
       }
       let transports = []
-      if (config.p2pConfig.enableCircuitRelayClient) {
-        P2P_LOGGER.info('Enabling P2P Transports: websockets, tcp, circuitRelay')
-        transports = [
-          webSockets(),
-          tcp(),
-          circuitRelayTransport({
-            discoverRelays: config.p2pConfig.circuitRelays
-          })
-        ]
-      } else {
-        P2P_LOGGER.info('Enabling P2P Transports: websockets, tcp')
-        transports = [webSockets(), tcp()]
-      }
+      P2P_LOGGER.info('Enabling P2P Transports: websockets, tcp, circuitRelay')
+      transports = [
+        webSockets(),
+        tcp(),
+        circuitRelayTransport({
+          discoverRelays: config.p2pConfig.circuitRelays
+        })
+      ]
 
       let addresses = {}
       if (
