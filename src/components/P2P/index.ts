@@ -557,11 +557,16 @@ export class OceanP2P extends EventEmitter {
     searchDHT: boolean = true
   ): Promise<Multiaddr[]> {
     const multiaddrs: Multiaddr[] = []
+    let peerId
+    try {
+      peerId = peerIdFromString(peerName)
+    } catch (e) {
+      return []
+    }
     if (searchPeerStore) {
       // search peerStore
       try {
-        if (process.env.DEBUG) console.log('Search peer store')
-        const peerData = await this._libp2p.peerStore.get(peerName, {
+        const peerData = await this._libp2p.peerStore.get(peerId, {
           signal: AbortSignal.timeout(3000)
         })
         if (peerData) {
@@ -575,7 +580,7 @@ export class OceanP2P extends EventEmitter {
     }
     if (searchDHT) {
       try {
-        const peerData = await this._libp2p.peerRouting.findPeer(peerName, {
+        const peerData = await this._libp2p.peerRouting.findPeer(peerId, {
           signal: AbortSignal.timeout(3000),
           useCache: false
         })
@@ -658,8 +663,8 @@ export class OceanP2P extends EventEmitter {
       })
     } catch (e) {
       response.status.httpStatus = 404
-      response.status.error = 'Cannot connect to peer'
-      P2P_LOGGER.error(`Unable to connect to peer: ${peerId}`)
+      response.status.error = `Cannot connect to peer: ${peerId}`
+      P2P_LOGGER.error(response.status.error)
       return response
     }
 
