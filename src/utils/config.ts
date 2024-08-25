@@ -508,7 +508,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       ),
       pubsubPeerDiscoveryInterval: getIntEnvValue(
         process.env.P2P_pubsubPeerDiscoveryInterval,
-        3000 // every 3 seconds
+        10000 // every 10 seconds
       ),
       dhtMaxInboundStreams: getIntEnvValue(process.env.P2P_dhtMaxInboundStreams, 500),
       dhtMaxOutboundStreams: getIntEnvValue(process.env.P2P_dhtMaxOutboundStreams, 500),
