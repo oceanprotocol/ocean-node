@@ -50,17 +50,17 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `P2P_ipV6BindWsPort`: Port used on IPv6 WS connections. Defaults to `0` (Use whatever port is free. When running as docker, please set it explicitly). Example: `0`
 - `P2P_ANNOUNCE_ADDRESSES`: List of addresses to announce to the network. Example: `"[\"/ip4/1.2.3.4/tcp/8000\"]"`
 - `P2P_ANNOUNCE_PRIVATE`: Announce private IPs. Default: `True`
-- `P2P_pubsubPeerDiscoveryInterval`: Interval (in ms) for discovery using pubsub. Defaults to `3000` (three seconds). Example: `3000`
+- `P2P_pubsubPeerDiscoveryInterval`: Interval (in ms) for discovery using pubsub. Defaults to `10000` (three seconds). Example: `10000`
 - `P2P_dhtMaxInboundStreams`: Maximum number of DHT inbound streams. Defaults to `500`. Example: `500`
 - `P2P_dhtMaxOutboundStreams`: Maximum number of DHT outbound streams. Defaults to `500`. Example: `500`
+- `P2P_ENABLE_DHT_SERVER`: Enable DHT server mode. This should be enabled for bootstrapers & well established nodes. Default: `false`
 - `P2P_mDNSInterval`: Interval (in ms) for discovery using mDNS. Defaults to `20000` (20 seconds). Example: `20000`
 - `P2P_connectionsMaxParallelDials`: Maximum number of parallel dials. Defaults to `150`. Example: `150`
 - `P2P_connectionsDialTimeout`: Timeout for dial commands. Defaults to `10000` (10 seconds). Example: `10000`
 - `P2P_ENABLE_UPNP`: Enable UPNP gateway discovery. Default: `True`
 - `P2P_ENABLE_AUTONAT`: Enable AutoNAT discovery. Default: `True`
 - `P2P_ENABLE_CIRCUIT_RELAY_SERVER`: Enable Circuit Relay Server. It will help the network but increase your bandwidth usage. Should be disabled for edge nodes. Default: `True`
-- `P2P_ENABLE_CIRCUIT_RELAY_CLIENT`: Enable connections through relay servers. Default: `True`
-- `P2P_CIRCUIT_RELAYS`: Numbers of relay servers. Default: `1`
+- `P2P_CIRCUIT_RELAYS`: Numbers of relay servers. Default: `0`
 - `P2P_BOOTSTRAP_NODES` : List of bootstrap nodes. Defults to OPF nodes. Example: ["/dns4/node3.oceanprotocol.com/tcp/9000/p2p/"]
 - `P2P_FILTER_ANNOUNCED_ADDRESSES`: CIDR filters to filter announced addresses. Default: ["172.15.0.0/24"] (docker ip range). Example: ["192.168.0.1/27"]
 - `P2P_MIN_CONNECTIONS`: The minimum number of connections below which libp2p will start to dial peers from the peer book. Setting this to 0 disables this behaviour. Default: 1
