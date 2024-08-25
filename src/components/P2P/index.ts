@@ -249,7 +249,7 @@ export class OceanP2P extends EventEmitter {
           maxInboundStreams: config.p2pConfig.dhtMaxInboundStreams,
           maxOutboundStreams: config.p2pConfig.dhtMaxOutboundStreams,
 
-          clientMode: false, // this should be true for edge devices
+          clientMode: false,
           kBucketSize: 20,
           protocol: '/ocean/nodes/1.0.0/kad/1.0.0',
           peerInfoMapper: passthroughMapper
@@ -428,6 +428,14 @@ export class OceanP2P extends EventEmitter {
       const upnpService = (node.services as any).upnpNAT
       if (config.p2pConfig.upnp && upnpService) {
         this._upnp_interval = setInterval(this.UPnpCron.bind(this), 3000)
+      }
+
+      if (config.p2pConfig.enableDHTServer) {
+        try {
+          await node.services.dht.setMode('server')
+        } catch (e) {
+          P2P_LOGGER.warn(`Failed to set mode server for DHT`)
+        }
       }
       return node
     } catch (e) {
