@@ -290,7 +290,7 @@ export class OceanP2P extends EventEmitter {
           allowPublishToZeroTopicPeers: true,
           asyncValidation: false,
           // messageProcessingConcurrency: 5,
-          seenTTL: 10 * 1000,
+          seenTTL: 2 * 1000,
           runOnTransientConnection: true,
           doPX: doPx,
           awaitRpcHandler: true,
