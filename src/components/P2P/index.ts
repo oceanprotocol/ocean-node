@@ -294,7 +294,7 @@ export class OceanP2P extends EventEmitter {
           asyncValidation: false,
           gossipFactor: 0.9,
           // messageProcessingConcurrency: 5,
-          seenTTL: 2 * 1000,
+          
           runOnTransientConnection: true,
           doPX: doPx,
           awaitRpcHandler: true,
@@ -302,6 +302,9 @@ export class OceanP2P extends EventEmitter {
           // canRelayMessage: true,
           // enabled: true
           */
+          enabled: true,
+          emitSelf: false,
+          seenTTL: 2 * 1000,
           allowedTopics: [this._topic]
         }),
         dht: kadDHT({
