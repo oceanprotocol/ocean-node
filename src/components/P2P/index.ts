@@ -505,21 +505,26 @@ export class OceanP2P extends EventEmitter {
       // get pubsub peers
       const node = <any>this._libp2p
       const newPeers = (await node.services.pubsub.getSubscribers(this._topic)).sort()
+      // console.log('pubsub')
+      // console.log(newPeers)
       for (const peer of newPeers.slice(0)) {
         if (!peers.includes(peer.toString)) peers.push(peer.toString())
       }
     }
     if (known) {
       // get p2p peers and filter them by protocol
-      for (const peer of await this._libp2p.peerStore.all()) {
-        if (peer && peer.protocols) {
-          for (const protocol of peer.protocols) {
-            if (protocol === this._protocol) {
-              if (!peers.includes(peer.id.toString())) peers.push(peer.id.toString())
-            }
-          }
-        }
+      const peerStorePeers = await this._libp2p.peerStore.all()
+      // console.log('peerStore')
+      // console.log(peerStorePeers)
+      for (const peer of peerStorePeers) {
+        // if (peer && peer.protocols) {
+        // for (const protocol of peer.protocols) {
+        // if (protocol === this._protocol) {
+        if (!peers.includes(peer.id.toString())) peers.push(peer.id.toString())
       }
+      // }
+      // }
+      // }
     }
 
     return peers
