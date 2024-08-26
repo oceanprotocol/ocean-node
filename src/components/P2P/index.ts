@@ -275,15 +275,17 @@ export class OceanP2P extends EventEmitter {
       }
       const defaultDecodeRPCLimits = {
         maxSubscriptions: 200,
-        maxMessages: 200,
-        maxIhaveMessageIDs: 200,
-        maxIwantMessageIDs: 200,
-        maxControlMessages: 200,
-        maxPeerInfos: 300
+        maxMessages: 20,
+        maxIhaveMessageIDs: 20,
+        maxIwantMessageIDs: 20,
+        maxControlMessages: 20,
+        maxPeerInfos: 30
       }
       let servicesConfig = {
         identify: identify(),
         pubsub: gossipsub({
+          maxInboundStreams: 1,
+          maxOutboundStreams: 10,
           decodeRpcLimits: defaultDecodeRPCLimits,
           fallbackToFloodsub: false,
           floodPublish: false,
