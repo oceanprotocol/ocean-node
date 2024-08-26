@@ -119,9 +119,53 @@ export class OceanP2P extends EventEmitter {
     this._libp2p.addEventListener('peer:disconnect', (evt: any) => {
       this.handlePeerDisconnect(evt)
     })
-    this._libp2p.addEventListener('peer:discovery', (evt: any) => {
-      this.handlePeerDiscovery(evt)
+    this._libp2p.addEventListener('peer:discovery', (details: any) => {
+      // this.handlePeerDiscovery(evt)
+      try {
+        console.log(details)
+        const peerInfo = details.detail
+        console.log(peerInfo)
+        P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
+        if (peerInfo.multiaddrs) {
+          this._libp2p.peerStore.save(peerInfo.id, {
+            multiaddrs: peerInfo.multiaddrs
+          })
+          this._libp2p.peerStore.patch(peerInfo.id, {
+            multiaddrs: peerInfo.multiaddrs
+          })
+          console.log('Added on peer:discovery')
+          console.log({
+            multiaddrs: peerInfo.multiaddrs
+          })
+        }
+      } catch (e) {
+        console.error(e)
+      }
     })
+
+    this._libp2p.addEventListener('kad-dht:query:final-peer', (details: any) => {
+      try {
+        console.log(details)
+        const peerInfo = details.detail
+        console.log(peerInfo)
+        P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
+        if (peerInfo.multiaddrs) {
+          this._libp2p.peerStore.save(peerInfo.id, {
+            multiaddrs: peerInfo.multiaddrs
+          })
+          this._libp2p.peerStore.patch(peerInfo.id, {
+            multiaddrs: peerInfo.multiaddrs
+          })
+          console.log('Added on kad-dht:query:final-peer')
+          console.log({
+            multiaddrs: peerInfo.multiaddrs
+          })
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    })
+
     this._options = Object.assign({}, clone(DEFAULT_OPTIONS), clone(options))
     this._peers = []
     this._connections = {}
@@ -161,21 +205,40 @@ export class OceanP2P extends EventEmitter {
     P2P_LOGGER.debug('Connection closed to:' + peerId.toString()) // Emitted when a peer has been found
   }
 
-  async handlePeerDiscovery(details: any) {
-    let peerData: any = null
+  async handlePeerDiscovery2(details: any) {
     try {
       console.log(details)
       const peerInfo = details.detail
       console.log(peerInfo)
       P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
-      peerData = await this._libp2p.peerRouting.findPeer(peerInfo.id, {
-        signal: AbortSignal.timeout(3000),
-        useCache: false
-      })
-      try {
-        if (peerData) await this._libp2p.peerStore.save(peerInfo.id, peerData)
-      } catch (e) {
-        console.error(e)
+      if (peerInfo.multiaddrs) {
+        const peerData = { multiaddrs: peerInfo.multiaddrs }
+        await this._libp2p.peerStore.save(peerInfo.id, peerData)
+        console.log('Added')
+        console.log(peerData)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  async handlePeerDiscovery(details: any) {
+    try {
+      console.log(details)
+      const peerInfo = details.detail
+      console.log(peerInfo)
+      P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
+      if (peerInfo.multiaddrs) {
+        await this._libp2p.peerStore.save(peerInfo.id, {
+          multiaddrs: peerInfo.multiaddrs
+        })
+        await this._libp2p.peerStore.patch(peerInfo.id, {
+          multiaddrs: peerInfo.multiaddrs
+        })
+        console.log('Added')
+        console.log({
+          multiaddrs: peerInfo.multiaddrs
+        })
       }
     } catch (e) {
       console.error(e)
@@ -517,13 +580,13 @@ export class OceanP2P extends EventEmitter {
     if (known) {
       // get p2p peers and filter them by protocol
       for (const peer of await this._libp2p.peerStore.all()) {
-        if (peer && peer.protocols) {
-          for (const protocol of peer.protocols) {
-            if (protocol === this._protocol) {
-              if (!peers.includes(peer.id.toString())) peers.push(peer.id.toString())
-            }
-          }
-        }
+        // if (peer && peer.protocols) {
+        // for (const protocol of peer.protocols) {
+        //  if (protocol === this._protocol) {
+        if (!peers.includes(peer.id.toString())) peers.push(peer.id.toString())
+        // }
+        // }
+        // }
       }
     }
 
