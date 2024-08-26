@@ -289,6 +289,7 @@ export class OceanP2P extends EventEmitter {
           batchPublish: false,
           allowPublishToZeroTopicPeers: true,
           asyncValidation: false,
+          gossipFactor: 0.9,
           // messageProcessingConcurrency: 5,
           seenTTL: 2 * 1000,
           runOnTransientConnection: true,

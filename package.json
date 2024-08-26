@@ -45,7 +45,7 @@
     "changelog": "auto-changelog -p"
   },
   "dependencies": {
-    "@chainsafe/libp2p-gossipsub": "^13.1.0",
+    "@chainsafe/libp2p-gossipsub": "^13.2.0",
     "@chainsafe/libp2p-noise": "^15.1.0",
     "@chainsafe/libp2p-yamux": "^6.0.2",
     "@libp2p/autonat": "^1.1.1",
