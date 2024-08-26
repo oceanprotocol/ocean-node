@@ -471,10 +471,9 @@ export async function checkFee(
  * @returns the wallet
  */
 export async function getProviderWallet(chainId?: string): Promise<ethers.Wallet> {
-  const wallet: ethers.Wallet = new ethers.Wallet(
+  return new ethers.Wallet(
     Buffer.from((await getConfiguration()).keys.privateKey).toString('hex')
   )
-  return wallet
 }
 export async function getProviderWalletAddress(): Promise<string> {
   return (await getProviderWallet()).address

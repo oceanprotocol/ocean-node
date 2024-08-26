@@ -80,16 +80,14 @@ if (!config) {
 let node: OceanP2P = null
 let indexer = null
 let provider = null
-let dbconn: Database | null = null
+// If there is no DB URL only the nonce database will be available
+const dbconn: Database = await new Database(config.dbConfig)
 
-if (config.dbConfig?.url) {
+if (!config.dbConfig?.url) {
   // once we create a database instance, we check the environment and possibly add the DB transport
   // after that, all loggers will eventually have it too (if in production/staging environments)
   // it creates dinamically DDO schemas
-  dbconn = await new Database(config.dbConfig)
-} else {
   config.hasIndexer = false
-  config.hasProvider = false
 }
 
 if (config.hasP2P) {
@@ -101,7 +99,7 @@ if (config.hasP2P) {
   await node.start()
 }
 if (config.hasIndexer && dbconn) {
-  indexer = new OceanIndexer(dbconn, config.supportedNetworks)
+  indexer = new OceanIndexer(dbconn, config.indexingNetworks)
   // if we set this var
   // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
   // store and advertise DDOs
@@ -115,7 +113,7 @@ if (config.hasIndexer && dbconn) {
     }
   }
 }
-if (config.hasProvider && dbconn) {
+if (dbconn) {
   provider = new OceanProvider(dbconn)
 }
 

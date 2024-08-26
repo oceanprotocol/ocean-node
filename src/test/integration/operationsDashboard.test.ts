@@ -1,6 +1,6 @@
 import { assert, expect } from 'chai'
 import { Readable } from 'stream'
-import { Signer, JsonRpcProvider, ethers } from 'ethers'
+import { Signer, JsonRpcProvider, ethers, Contract, parseUnits } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS } from '../../@types/blockchain.js'
@@ -24,15 +24,16 @@ import {
   INDEXER_CRAWLING_EVENTS
 } from '../../utils/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-
-import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' assert { type: 'json' }
+import { DEVELOPMENT_CHAIN_ID, getOceanArtifactsAdresses } from '../../utils/address.js'
 import {
   AdminReindexChainCommand,
   AdminReindexTxCommand,
   AdminStopNodeCommand,
   JobStatus,
   IndexingCommand,
-  StartStopIndexingCommand
+  StartStopIndexingCommand,
+  AdminCollectFeesCommand
 } from '../../@types/commands.js'
 import { StopNodeHandler } from '../../components/core/admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.js'
@@ -49,6 +50,8 @@ import {
 import { getCrawlingInterval } from '../../components/Indexer/utils.js'
 import { ReindexTask } from '../../components/Indexer/crawlerThread.js'
 import { create256Hash } from '../../utils/crypt.js'
+import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandler.js'
+import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
 
 describe('Should test admin operations', () => {
   let config: OceanNodeConfig
@@ -67,6 +70,10 @@ describe('Should test admin operations', () => {
     '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
     provider
   )
+  const destinationWallet = new ethers.Wallet(
+    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209',
+    provider
+  )
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
@@ -79,6 +86,7 @@ describe('Should test admin operations', () => {
       buildEnvOverrideConfig(
         [
           ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
@@ -87,6 +95,7 @@ describe('Should test admin operations', () => {
         ],
         [
           JSON.stringify(mockSupportedNetworks),
+          JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
@@ -99,7 +108,7 @@ describe('Should test admin operations', () => {
     config = await getConfiguration(true) // Force reload the configuration
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
-    indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
+    indexer = new OceanIndexer(dbconn, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
   })
 
@@ -119,6 +128,78 @@ describe('Should test admin operations', () => {
     const validationResponse = new StopNodeHandler(oceanNode).validate(stopNodeCommand)
     assert(validationResponse, 'invalid stop node validation response')
     assert(validationResponse.valid === true, 'validation for stop node command failed')
+  })
+
+  it('should test command for collect fees', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    // -----------------------------------------
+    // CollectFeesHandler
+    const collectFeesHandler: CollectFeesHandler = CoreHandlersRegistry.getInstance(
+      oceanNode
+    ).getHandler(PROTOCOL_COMMANDS.COLLECT_FEES)
+
+    const signature = await getSignature(expiryTimestamp.toString())
+    const collectFeesCommand: AdminCollectFeesCommand = {
+      command: PROTOCOL_COMMANDS.COLLECT_FEES,
+      tokenAddress: await getProviderFeeToken(DEVELOPMENT_CHAIN_ID),
+      chainId: DEVELOPMENT_CHAIN_ID,
+      tokenAmount: 0.01,
+      destinationAddress: await destinationWallet.getAddress(),
+      expiryTimestamp,
+      signature
+    }
+    const validationResponse = collectFeesHandler.validate(collectFeesCommand)
+    assert(validationResponse, 'invalid collect fees validation response')
+    assert(
+      validationResponse.valid === true,
+      'validation for collect fees command failed'
+    )
+    const providerWallet = wallet
+    const token = new Contract(
+      collectFeesCommand.tokenAddress.toLowerCase(),
+      ERC20Template.abi,
+      providerWallet
+    )
+    const balanceBefore = await token.balanceOf(await destinationWallet.getAddress())
+    expect(collectFeesHandler.validate(collectFeesCommand).valid).to.be.equal(true) // OK
+    const result = await collectFeesHandler.handle(collectFeesCommand)
+    expect(result.status.httpStatus).to.be.equal(200) // OK
+
+    const obj = await streamToObject(result.stream as Readable)
+
+    expect(obj.tx).to.be.not.equal(null) // OK
+    expect(obj.message).to.be.equal('Fees successfully transfered to admin!') // OK
+    expect(await token.balanceOf(await destinationWallet.getAddress())).to.be.equal(
+      balanceBefore + parseUnits(collectFeesCommand.tokenAmount.toString(), 'ether')
+    )
+
+    // Test incorrect values for command: node ID and big amount
+    const collectFeesCommandWrongNode: AdminCollectFeesCommand = {
+      command: PROTOCOL_COMMANDS.COLLECT_FEES,
+      node: 'My peerID', // dummy peer ID
+      tokenAddress: getOceanArtifactsAdresses().development.Ocean,
+      chainId: DEVELOPMENT_CHAIN_ID,
+      tokenAmount: 0.01,
+      destinationAddress: await wallet.getAddress(),
+      expiryTimestamp,
+      signature
+    }
+    expect(
+      (await collectFeesHandler.handle(collectFeesCommandWrongNode)).status.httpStatus
+    ).to.be.equal(400) // NOK
+
+    const collectFeesCommandWrongAmount: AdminCollectFeesCommand = {
+      command: PROTOCOL_COMMANDS.COLLECT_FEES,
+      tokenAddress: getOceanArtifactsAdresses().development.Ocean,
+      chainId: DEVELOPMENT_CHAIN_ID,
+      tokenAmount: 366666666666, // big amount
+      destinationAddress: await wallet.getAddress(),
+      expiryTimestamp,
+      signature
+    }
+    expect(
+      (await collectFeesHandler.handle(collectFeesCommandWrongAmount)).status.httpStatus
+    ).to.be.equal(400) // NOK
   })
 
   it('should publish dataset', async function () {

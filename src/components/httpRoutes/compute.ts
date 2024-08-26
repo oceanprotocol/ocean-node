@@ -125,11 +125,12 @@ computeRoutes.put(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
 
     const stopComputeTask: ComputeStopCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_STOP,
-      node: (req.body.node as string) || null,
-      consumerAddress: (req.body.consumerAddress as string) || null,
-      signature: (req.body.signature as string) || null,
-      nonce: (req.body.nonce as string) || null,
-      jobId: (req.body.jobId as string) || null
+      node: (req.query.node as string) || null,
+      consumerAddress: (req.query.consumerAddress as string) || null,
+      signature: (req.query.signature as string) || null,
+      nonce: (req.query.nonce as string) || null,
+      jobId: (req.query.jobId as string) || null,
+      agreementId: (req.query.agreementId as string) || null
     }
     const response = await new ComputeStopHandler(req.oceanNode).handle(stopComputeTask)
     const jobs = await streamToObject(response.stream as Readable)

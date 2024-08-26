@@ -34,6 +34,7 @@ export interface OceanNodeP2PConfig {
   pubsubPeerDiscoveryInterval: number
   dhtMaxInboundStreams: number
   dhtMaxOutboundStreams: number
+  enableDHTServer: boolean
   mDNSInterval: number
   connectionsMaxParallelDials: number
   connectionsDialTimeout: number
@@ -50,6 +51,7 @@ export interface OceanNodeP2PConfig {
   autoDialPeerRetryThreshold: number
   autoDialConcurrency: number
   maxPeerAddrsToDial: number
+  autoDialInterval: number
 }
 
 export interface OceanNodeConfig {
@@ -59,20 +61,22 @@ export interface OceanNodeConfig {
   hasP2P: boolean
   p2pConfig: OceanNodeP2PConfig | null
   hasIndexer: boolean
-  hasProvider: boolean
   hasHttp: boolean
   hasDashboard: boolean
   dbConfig?: OceanNodeDBConfig
   httpPort: number
   feeStrategy: FeeStrategy
   supportedNetworks?: RPCS
+  indexingNetworks?: RPCS
   c2dClusters: C2DClusterInfo[]
+  c2dNodeUri: string
   accountPurgatoryUrl: string
   assetPurgatoryUrl: string
   allowedAdmins?: string[]
   codeHash?: string
   rateLimit?: number
   denyList?: DenyList
+  unsafeURLs?: string[]
 }
 
 export interface P2PStatusResponse {

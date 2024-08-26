@@ -26,7 +26,8 @@ export const PROTOCOL_COMMANDS = {
   STOP_NODE: 'stopNode',
   REINDEX_TX: 'reindexTx',
   REINDEX_CHAIN: 'reindexChain',
-  HANDLE_INDEXING_THREAD: 'handleIndexingThread'
+  HANDLE_INDEXING_THREAD: 'handleIndexingThread',
+  COLLECT_FEES: 'collectFees'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -53,7 +54,8 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.STOP_NODE,
   PROTOCOL_COMMANDS.REINDEX_TX,
   PROTOCOL_COMMANDS.REINDEX_CHAIN,
-  PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD
+  PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
+  PROTOCOL_COMMANDS.COLLECT_FEES
 ]
 
 export const MetadataStates = {
@@ -160,6 +162,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     required: false
   },
   RPCS: { name: 'RPCS', value: process.env.RPCS, required: false },
+  INDEXER_NETWORKS: {
+    name: 'INDEXER_NETWORKS',
+    value: process.env.INDEXER_NETWORKS,
+    required: false
+  },
   DB_URL: { name: 'DB_URL', value: process.env.DB_URL, required: false },
   // these 2 bellow will change in the future (not required, just remove functionality)
   IPFS_GATEWAY: {
@@ -293,6 +300,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'LOG_DB',
     value: process.env.LOG_DB,
     required: false
+  },
+  UNSAFE_URLS: {
+    name: 'UNSAFE_URLS',
+    value: process.env.UNSAFE_URLS,
+    required: false
   }
 }
 
@@ -330,4 +342,20 @@ export const defaultBootstrapAddresses = [
   '/dns4/node4.oceanprotocol.com/tcp/9001/ws/p2p/16Uiu2HAmSTVTArioKm2wVcyeASHYEsnx2ZNq467Z4GMDU4ErEPom',
   '/dns6/node4.oceanprotocol.com/tcp/9002/p2p/16Uiu2HAmSTVTArioKm2wVcyeASHYEsnx2ZNq467Z4GMDU4ErEPom',
   '/dns6/node4.oceanprotocol.com/tcp/9003/ws/p2p/16Uiu2HAmSTVTArioKm2wVcyeASHYEsnx2ZNq467Z4GMDU4ErEPom'
+]
+
+export const knownUnsafeURLs: string[] = [
+  // AWS and GCP
+  '^.*(169.254.169.254).*',
+  // GCP
+  '^.*(metadata.google.internal).*',
+  '^.*(http://metadata).*',
+  // Azure
+  '^.*(http://169.254.169.254).*',
+  // Oracle Cloud
+  '^.*(http://192.0.0.192).*',
+  // Alibaba Cloud
+  '^.*(http://100.100.100.200).*',
+  // k8s ETCD
+  '^.*(127.0.0.1).*'
 ]
