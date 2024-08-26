@@ -294,6 +294,7 @@ export class OceanP2P extends EventEmitter {
           runOnTransientConnection: true,
           doPX: doPx,
           awaitRpcHandler: true,
+          awaitRpcMessageHandler: true,
           // canRelayMessage: true,
           // enabled: true
           allowedTopics: [this._topic]
