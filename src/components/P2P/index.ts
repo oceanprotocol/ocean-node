@@ -272,9 +272,18 @@ export class OceanP2P extends EventEmitter {
             multiaddrs.filter((m) => this.shouldAnnounce(m))
         }
       }
+      const defaultDecodeRPCLimits = {
+        maxSubscriptions: 200,
+        maxMessages: 200,
+        maxIhaveMessageIDs: 200,
+        maxIwantMessageIDs: 200,
+        maxControlMessages: 200,
+        maxPeerInfos: 300
+      }
       let servicesConfig = {
         identify: identify(),
         pubsub: gossipsub({
+          decodeRpcLimits: defaultDecodeRPCLimits,
           fallbackToFloodsub: false,
           batchPublish: false,
           allowPublishToZeroTopicPeers: true,
@@ -431,7 +440,7 @@ export class OceanP2P extends EventEmitter {
       */
 
       node.services.pubsub.subscribe(this._topic)
-      node.services.pubsub.publish(this._topic, encoding('online'))
+      // node.services.pubsub.publish(this._topic, encoding('online'))
 
       const upnpService = (node.services as any).upnpNAT
       if (config.p2pConfig.upnp && upnpService) {
