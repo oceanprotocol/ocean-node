@@ -286,6 +286,7 @@ export class OceanP2P extends EventEmitter {
         pubsub: gossipsub({
           decodeRpcLimits: defaultDecodeRPCLimits,
           fallbackToFloodsub: false,
+          floodPublish: false,
           batchPublish: false,
           allowPublishToZeroTopicPeers: true,
           asyncValidation: false,
