@@ -110,7 +110,8 @@ export class OceanP2P extends EventEmitter {
   }
 
   async start(options: any = null) {
-    this._topic = 'oceanprotocol'
+    // this._topic = 'oceanprotocol'
+    this._topic = 'oceanprotocol._peer-discovery._p2p._pubsub'
     this._libp2p = await this.createNode(this._config)
 
     this._libp2p.addEventListener('peer:connect', (evt: any) => {
@@ -292,9 +293,10 @@ export class OceanP2P extends EventEmitter {
           seenTTL: 10 * 1000,
           runOnTransientConnection: true,
           doPX: doPx,
+          awaitRpcHandler: true,
           // canRelayMessage: true,
           // enabled: true
-          allowedTopics: ['oceanprotocol._peer-discovery._p2p._pubsub', 'oceanprotocol']
+          allowedTopics: [this._topic]
         }),
         dht: kadDHT({
           // this is necessary because this node is not connected to the public network
@@ -384,11 +386,7 @@ export class OceanP2P extends EventEmitter {
               }),
               pubsubPeerDiscovery({
                 interval: config.p2pConfig.pubsubPeerDiscoveryInterval,
-                topics: [
-                  // 'oceanprotocoldiscovery',
-                  `oceanprotocol._peer-discovery._p2p._pubsub` // It's recommended but not required to extend the global space
-                  // '_peer-discovery._p2p._pubsub' // Include if you want to participate in the global space
-                ],
+                topics: [this._topic],
                 listenOnly: false
               })
             ]
@@ -433,12 +431,17 @@ export class OceanP2P extends EventEmitter {
       // console.log('Peer left...', peer)
       // })
 
-      /* since we don't have broadcasts implemented, comment this part of the code
+      /* since we don't have broadcasts implemented, comment this part of the code 
       node.services.pubsub.addEventListener('message', (message: any) => {
-        handleBroadcasts(this._topic, message)
+        // handleBroadcasts(this._topic, message)
+        console.log(message)
+        console.log(message.detail)
+        console.log(
+          `${message.detail.topic}:`,
+          new TextDecoder().decode(message.detail.data)
+        )
       })
       */
-
       node.services.pubsub.subscribe(this._topic)
       // node.services.pubsub.publish(this._topic, encoding('online'))
 
