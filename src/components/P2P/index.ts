@@ -284,7 +284,7 @@ export class OceanP2P extends EventEmitter {
       let servicesConfig = {
         identify: identify(),
         pubsub: gossipsub({
-          maxInboundStreams: 1,
+          /* maxInboundStreams: 1,
           maxOutboundStreams: 10,
           decodeRpcLimits: defaultDecodeRPCLimits,
           fallbackToFloodsub: false,
@@ -301,6 +301,7 @@ export class OceanP2P extends EventEmitter {
           awaitRpcMessageHandler: true,
           // canRelayMessage: true,
           // enabled: true
+          */
           allowedTopics: [this._topic]
         }),
         dht: kadDHT({
@@ -419,7 +420,13 @@ export class OceanP2P extends EventEmitter {
           }
         }
       }
+
       const node = await createLibp2p(options)
+      try {
+        node.services.pubsub.multicodecs = ['/meshsub/1.1.0']
+      } catch (e) {
+        console.error(e)
+      }
       await node.start()
 
       // node.services.pubsub.addEventListener(  'peer joined', (evt:any) => {handlePeerJoined(evt)})
