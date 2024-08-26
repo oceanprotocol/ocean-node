@@ -19,7 +19,7 @@ import { mdns } from '@libp2p/mdns'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { peerIdFromString } from '@libp2p/peer-id'
 import { pipe } from 'it-pipe'
-import { pubsubPeerDiscovery } from '@libp2p/pubsub-peer-discovery'
+// import { pubsubPeerDiscovery } from '@libp2p/pubsub-peer-discovery'
 
 import { tcp } from '@libp2p/tcp'
 import { webSockets } from '@libp2p/websockets'
@@ -31,7 +31,7 @@ import { uPnPNAT } from '@libp2p/upnp-nat'
 import { ping } from '@libp2p/ping'
 import { dcutr } from '@libp2p/dcutr'
 import { kadDHT, passthroughMapper } from '@libp2p/kad-dht'
-import { gossipsub } from '@chainsafe/libp2p-gossipsub'
+// import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 
 import { EVENTS, cidFromRawString } from '../../utils/index.js'
 import { Transform } from 'stream'
@@ -161,9 +161,25 @@ export class OceanP2P extends EventEmitter {
     P2P_LOGGER.debug('Connection closed to:' + peerId.toString()) // Emitted when a peer has been found
   }
 
-  handlePeerDiscovery(details: any) {
-    const peerInfo = details.detail
-    P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
+  async handlePeerDiscovery(details: any) {
+    let peerData: any = null
+    try {
+      console.log(details)
+      const peerInfo = details.detail
+      console.log(peerInfo)
+      P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
+      peerData = await this._libp2p.peerRouting.findPeer(peerInfo.id, {
+        signal: AbortSignal.timeout(3000),
+        useCache: false
+      })
+      try {
+        if (peerData) await this._libp2p.peerStore.save(peerInfo.id, peerData)
+      } catch (e) {
+        console.error(e)
+      }
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   handlePeerJoined(details: any) {
@@ -274,6 +290,7 @@ export class OceanP2P extends EventEmitter {
       }
       let servicesConfig = {
         identify: identify(),
+        /*
         pubsub: gossipsub({
           fallbackToFloodsub: false,
           batchPublish: false,
@@ -286,7 +303,7 @@ export class OceanP2P extends EventEmitter {
           // canRelayMessage: true,
           // enabled: true
           allowedTopics: ['oceanprotocol._peer-discovery._p2p._pubsub', 'oceanprotocol']
-        }),
+        }), */
         dht: kadDHT({
           // this is necessary because this node is not connected to the public network
           // it can be removed if, for example bootstrappers are configured
@@ -372,7 +389,7 @@ export class OceanP2P extends EventEmitter {
               }),
               mdns({
                 interval: config.p2pConfig.mDNSInterval
-              }),
+              }) /*,
               pubsubPeerDiscovery({
                 interval: config.p2pConfig.pubsubPeerDiscoveryInterval,
                 topics: [
@@ -381,7 +398,7 @@ export class OceanP2P extends EventEmitter {
                   // '_peer-discovery._p2p._pubsub' // Include if you want to participate in the global space
                 ],
                 listenOnly: false
-              })
+              }) */
             ]
           }
         }
@@ -393,7 +410,7 @@ export class OceanP2P extends EventEmitter {
             peerDiscovery: [
               mdns({
                 interval: config.p2pConfig.mDNSInterval
-              }),
+              }) /*,
               pubsubPeerDiscovery({
                 interval: config.p2pConfig.pubsubPeerDiscoveryInterval,
                 topics: [
@@ -402,7 +419,7 @@ export class OceanP2P extends EventEmitter {
                   // '_peer-discovery._p2p._pubsub' // Include if you want to participate in the global space
                 ],
                 listenOnly: false
-              })
+              }) */
             ]
           }
         }
@@ -430,8 +447,8 @@ export class OceanP2P extends EventEmitter {
       })
       */
 
-      node.services.pubsub.subscribe(this._topic)
-      node.services.pubsub.publish(this._topic, encoding('online'))
+      // node.services.pubsub.subscribe(this._topic)
+      // node.services.pubsub.publish(this._topic, encoding('online'))
 
       const upnpService = (node.services as any).upnpNAT
       if (config.p2pConfig.upnp && upnpService) {
@@ -489,14 +506,14 @@ export class OceanP2P extends EventEmitter {
 
   async getOceanPeers(running: boolean = true, known: boolean = true) {
     const peers: string[] = []
-    if (running) {
+    /* if (running) {
       // get pubsub peers
       const node = <any>this._libp2p
       const newPeers = (await node.services.pubsub.getSubscribers(this._topic)).sort()
       for (const peer of newPeers.slice(0)) {
         if (!peers.includes(peer.toString)) peers.push(peer.toString())
       }
-    }
+    } */
     if (known) {
       // get p2p peers and filter them by protocol
       for (const peer of await this._libp2p.peerStore.all()) {
@@ -527,7 +544,7 @@ export class OceanP2P extends EventEmitter {
       LOG_LEVELS_STR.LEVEL_INFO
     )
     const message = encoding(_message)
-    await this._libp2p.services.pubsub.publish(this._topic, message)
+    // await this._libp2p.services.pubsub.publish(this._topic, message)
   }
 
   async getPeerDetails(peerName: string) {
