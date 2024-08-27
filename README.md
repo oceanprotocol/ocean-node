@@ -17,6 +17,11 @@ We recommend the following minimum requirements, although you may be be able to 
 
 ## Option 1: Running Ocean Nodes in Docker (recommended)
 
+[This readme](deployment/README.md) is the recommended way to host a node and be eligible for incentives.
+The other options are more recommended towards deleveopers that want to tinker.
+
+## Option 2: Running local build of Ocean Nodes in Docker
+
 Build and run the node using Docker:
 
 ```bash
@@ -25,7 +30,7 @@ docker build -t ocean-node:mybuild . # Build the Docker image
 docker run -e PRIVATE_KEY=0x_your_private_key_here ocean-node:mybuild # Start container
 ```
 
-## Option 2: Running Ocean Nodes with PM2
+## Option 3: Running Ocean Nodes with PM2
 
 PM2 is a process manager that makes it easy to manage and monitor your Node.js applications.
 
@@ -80,7 +85,7 @@ npm run build # Build the Project
 
 #### Option 1: Automatic Setup (Recommended)
 
-Run the helper script to generate and set up the recommended environment variables:
+Run the helper script to generate and set up the minimum required environment variables:
 
 ```bash
 ./src/helpers/scripts/setupNodeEnv.sh
@@ -97,7 +102,7 @@ export PRIVATE_KEY="0x_your_private_key_here"
 
 The `PRIVATE_KEY` is the only mandatory environmental variable, you must include the `0x` at the front of your private key. Additional configurations can be set as needed. For all available configurations, refer to the [Environment Variables](docs/env.md) documentation.
 
-### 5. Start the Node
+### 4. Start the Node
 
 ```bash
 npm run start

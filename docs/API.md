@@ -404,32 +404,6 @@ returns list of logs
 
 ---
 
-## Broadcast Command
-
-### `HTTP` POST /broadcastCommand
-
-#### Description
-
-returns an empty if command is valid
-
-#### Parameters
-
-| name    | type   | required | description                  |
-| ------- | ------ | -------- | ---------------------------- |
-| command | string | v        | command name                 |
-| ...     | any    |          | any other command parameters |
-
-#### Request
-
-```json
-{
-  "command": "echo",
-  "...": "..."
-}
-```
-
----
-
 ## Advertise Did
 
 ### `HTTP` GET /advertiseDid/?did=did:op:123"
