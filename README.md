@@ -22,7 +22,7 @@ The other options are more recommended towards deleveopers that want to tinker.
 
 ## Option 2: Running local build of Ocean Nodes in Docker
 
-Build and run the node using Docker:
+Run the following script to deploy node:
 
 ```bash
 scripts/ocean-node-quickstart.sh
