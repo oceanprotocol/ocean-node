@@ -1,7 +1,7 @@
 import express, { Response } from 'express'
 import { getOceanPeersRoute, getP2PPeersRoute, getP2PPeerRoute } from './getOceanPeers.js'
 import { advertiseDidRoute, getProvidersForDidRoute } from './dids.js'
-import { broadcastCommandRoute, directCommandRoute } from './commands.js'
+import { directCommandRoute } from './commands.js'
 import { logRoutes } from './logs.js'
 import { providerRoutes } from './provider.js'
 import { aquariusRoutes } from './aquarius.js'
@@ -34,8 +34,6 @@ httpRoutes.use(getP2PPeerRoute)
 httpRoutes.use(advertiseDidRoute)
 // /getProvidersForDid
 httpRoutes.use(getProvidersForDidRoute)
-// /broadcastCommand
-httpRoutes.use(broadcastCommandRoute)
 // /directCommand
 httpRoutes.use(directCommandRoute)
 // /logs
