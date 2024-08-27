@@ -441,29 +441,34 @@ describe('LogDatabase retrieveMultipleLogs with pagination', () => {
     expect(logs.length).to.be.at.most(5)
   })
 
+  it('should retrieve the total number of log entries', async () => {
+    const numLogs = await database.logs.getLogsCount()
+    expect(numLogs).to.be.at.least(logCount)
+  })
+
   it('should retrieve logs for a specific page', async () => {
-    const page = 2
+    const LOGS_PER_PAGE = 5
     const logsPage1 = await database.logs.retrieveMultipleLogs(
       new Date(Date.now() - 10000), // 10 seconds ago
       new Date(), // now
-      5, // Limit the number of logs to 5 for pagination
+      LOGS_PER_PAGE, // Limit the number of logs to 5 for pagination
       undefined,
       undefined,
       1 // Page 1
     )
-    console.log('logs 1:', logsPage1)
     const logsPage2 = await database.logs.retrieveMultipleLogs(
       new Date(Date.now() - 10000), // 10 seconds ago
       new Date(), // now
-      5, // Limit the number of logs to 5 for pagination
+      LOGS_PER_PAGE, // Limit the number of logs to 5 for pagination
       undefined,
       undefined,
-      page // Page 2
+      2 // Page 2
     )
-    console.log('logs 2:', logsPage2)
 
+    // make sure we have enough logs for 2 pages
+    const logsCount = await database.logs.getLogsCount()
     // Ensure that the logs on page 2 are different from those on page 1 if logsPage2 is not empty
-    if (logsPage2.length > 0) {
+    if (logsCount > LOGS_PER_PAGE && logsPage2.length > 0) {
       expect(logsPage1[0].id).to.not.equal(logsPage2[0].id)
     } else {
       assert.isEmpty(logsPage2, 'Expected logs to be empty')
