@@ -17,7 +17,7 @@ We recommend the following minimum requirements, although you may be be able to 
 
 ## Option 1: Running Ocean Nodes in Docker (recommended)
 
-[This readme](deployment/README.md) is the recommended way to host a node and be eligible for incentives.
+[This readme](docs/dockerDeployment.md) is the recommended way to host a node and be eligible for incentives.
 The other options are more recommended towards deleveopers that want to tinker.
 
 ## Option 2: Running local build of Ocean Nodes in Docker
