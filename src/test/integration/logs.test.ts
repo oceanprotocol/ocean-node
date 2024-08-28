@@ -148,7 +148,7 @@ describe('LogDatabase CRUD', () => {
     const startTime = new Date(Date.now() - 3000) // 3 seconds ago
     const endTime = new Date() // current time
 
-    // we cannot predict the amount of logs wriiten on DB (Typesense adds tons on its own), so we need:
+    // we cannot predict the amount of logs written on DB (Typesense adds tons on its own), so we need:
     // 1 ) set a smaller interval
     // 2 ) retrieve a bigger number of logs
     // 3 ) filter the appropriate message
