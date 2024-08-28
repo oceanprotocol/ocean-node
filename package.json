@@ -13,6 +13,8 @@
     "build": "npm run clean && npm run check-changes && npm run build:tsc",
     "build:no-dashboard": "npm run clean && npm run build:tsc",
     "build:tsc": "tsc --sourceMap",
+    "quickstart": "bash scripts/ocean-node-quickstart.sh",
+    "setupEnv": "bash -c './src/helpers/scripts/setupNodeEnv.sh && source .env'",
     "build-tests:tsc": "tsc --sourceMap --sourceRoot ./src/test && cp ./src/test/.env.test ./dist/test",
     "build:dashboard": "cd dashboard && npm install --maxsockets 1 && NODE_ENV=production npx next build",
     "check-changes": "node scripts/dashboardChanges.js",
