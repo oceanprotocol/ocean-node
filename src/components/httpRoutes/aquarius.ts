@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import express from 'express'
 import { streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
@@ -8,7 +9,7 @@ import { QueryDdoStateHandler, QueryHandler } from '../core/handler/queryHandler
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { QueryCommand } from '../../@types/commands.js'
-import { TypesenseDdoStateDatabase } from '../database/TypenseDatabase.js'
+import { DatabaseFactory } from '../database/DatabaseFactory.js'
 
 export const aquariusRoutes = express.Router()
 
@@ -90,62 +91,23 @@ aquariusRoutes.post(
 
 aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
   try {
-    const queryDdoState: QueryCommand = { query: {}, command: PROTOCOL_COMMANDS.QUERY }
-    if (req.oceanNode.getDatabase().ddoState instanceof TypesenseDdoStateDatabase) {
-      const did = String(req.query.did)
-      queryDdoState.query = {
-        q: did,
-        query_by: 'did'
-      }
-
-      const nft = String(req.query.nft)
-      queryDdoState.query = {
-        q: nft,
-        query_by: 'nft'
-      }
-
-      const txId = String(req.query.txId)
-      queryDdoState.query = {
-        q: txId,
-        query_by: 'txId'
-      }
-    } else {
-      const did = String(req.query.did)
-      if (did) {
-        queryDdoState.query = {
-          match: {
-            did
-          }
-        }
-
-        const nft = String(req.query.nft)
-        if (nft) {
-          queryDdoState.query = {
-            match: {
-              nft
-            }
-          }
-        }
-
-        const txId = String(req.query.txId)
-        if (txId) {
-          queryDdoState.query = {
-            match: {
-              txId
-            }
-          }
-        }
-      }
-      if (!queryDdoState.query.query_by) {
-        res
-          .status(400)
-          .send(
-            'Missing or invalid required parameters, you need to specify one of: "did", "txId", "nft"'
-          )
-        return
-      }
+    const queryStrategy = DatabaseFactory.createDdoStateQuery()
+    const queryDdoState: QueryCommand = {
+      query: queryStrategy.buildQuery(String(req.query.did), String(req.query.nft), String(req.query.txId)),
+      command: PROTOCOL_COMMANDS.QUERY
     }
+
+    if (!Object.keys(queryDdoState.query).length) {
+      res
+        .status(400)
+        .send(
+          'Missing or invalid required parameters, you need to specify one of: "did", "txId", "nft"'
+        )
+      return
+    }
+
     const result = await new QueryDdoStateHandler(req.oceanNode).handle(queryDdoState)
+
     if (result.stream) {
       const queryResult = JSON.parse(await streamToString(result.stream as Readable))
       if (queryResult[0].found) {

@@ -25,6 +25,9 @@ import {
   TypesenseOrderDatabase
 } from './TypenseDatabase'
 import { elasticSchemas } from './ElasticSchemas'
+import { IDdoStateQuery } from '../../@types/DDO/IDdoStateQuery'
+import { TypesenseDdoStateQuery } from './TypesenseDdoStateQuery'
+import { ElasticSearchDdoStateQuery } from './ElasticSearchDdoStateQuery'
 
 export class DatabaseFactory {
   static createNonceDatabase(config: OceanNodeDBConfig): AbstractNonceDatabase {
@@ -77,6 +80,15 @@ export class DatabaseFactory {
       return new TypesenseDdoStateDatabase(config, typesenseSchemas.ddoStateSchema)
     } else if (process.env.DB_TYPE === 'elasticsearch') {
       return new ElasticsearchDdoStateDatabase(config)
+    }
+    throw new Error('Unsupported database type')
+  }
+
+  static createDdoStateQuery(): IDdoStateQuery {
+    if (process.env.DB_TYPE === 'typesense') {
+      return new TypesenseDdoStateQuery()
+    } else if (process.env.DB_TYPE === 'elasticsearch') {
+      return new ElasticSearchDdoStateQuery()
     }
     throw new Error('Unsupported database type')
   }
