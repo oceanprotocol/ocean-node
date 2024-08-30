@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import cs from 'classnames'
 import styles from './index.module.css'
-import { truncateString } from '../../shared/utils/truncateString'
 import { useAdminContext } from '@/context/AdminProvider'
 import AdminActions from '../Admin'
 import Spinner from '../Spinner'
@@ -13,6 +11,7 @@ import SupportedNetworks from './SupportedNetworks'
 import Indexer from './Indexer'
 import AdminAccounts from './AdminAccounts'
 import NodePlatform from './NodePlatform'
+import { Box, Typography, Divider } from '@mui/material'
 
 export default function Dashboard() {
   const [data, setData] = useState<NodeDataType>()
@@ -82,51 +81,52 @@ export default function Dashboard() {
 
   const ConnectionDetails = () => {
     return (
-      <div>
-        <div className={styles.title29}>NETWORK</div>
-        <div className={styles.details}>
-          <div className={styles.details}>
-            <div className={styles.columnP2P}>
-              <div className={cs([styles.title24, styles.borderBottom])}>
-                P2P - {data?.p2p ? 'UP' : 'DOWN'}
-              </div>
-              <div className={styles.nodes}>
-                <div className={styles.title24}>NODE ID</div>
-                {nodeData.map((node) => {
-                  return (
-                    <div className={styles.node} key={node.id}>
-                      <div className={styles.nodeAddress}>
-                        <div className={styles.node}>{truncateString(node.id, 12)}</div>
-                      </div>
-                      <Copy text={node?.id as string} />
-                    </div>
-                  )
-                })}
-              </div>
-              <div className={styles.nodes}>
-                <div className={styles.title24}>Address</div>
-                <div className={styles.node}>
-                  {truncateString(data?.address, 12)}
-                  <Copy text={data?.address as string} />
-                </div>
-              </div>
-              <NodePeers />
-            </div>
-            <div className={styles.columnHTTP}>
-              <div className={cs([styles.title24, styles.borderBottom])}>
-                HTTP - {data?.http ? 'UP' : 'DOWN'}
-              </div>
-              <div className={styles.nodes}>
-                <div className={styles.nodeAddress}>
-                  <h5 className={styles.title24}>IP : </h5>
-                  <div className={styles.nodeAddress}>{ipAddress}</div>
-                  <Copy text={ipAddress as string} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <Box p={2}>
+        <Typography variant="h5" gutterBottom>
+          NETWORK
+        </Typography>
+        <Divider />
+
+        <Box mt={2} mb={2}>
+          <Typography variant="h6">HTTP Status</Typography>
+          <Typography variant="body1">HTTP - {data?.http ? 'UP' : 'DOWN'}</Typography>
+        </Box>
+        <Divider />
+
+        <Box mt={2} mb={2}>
+          <Typography variant="h6">P2P Status</Typography>
+          <Typography variant="body1">P2P - {data?.p2p ? 'UP' : 'DOWN'}</Typography>
+        </Box>
+        <Divider />
+
+        <Box mt={2} mb={2}>
+          <Typography variant="h6">NODE ID</Typography>
+          {nodeData.map((node) => (
+            <Box key={node.id} display="flex" alignItems="center" mb={1}>
+              <Typography variant="body1" className={styles.node}>
+                {node.id}
+              </Typography>
+              <Copy text={node?.id as string} />
+            </Box>
+          ))}
+        </Box>
+        <Divider />
+
+        <Box mt={2} mb={2}>
+          <Typography variant="h6">Address</Typography>
+          <Box display="flex" alignItems="center">
+            <Typography variant="body1" className={styles.node}>
+              {data?.address}
+            </Typography>
+            <Copy text={data?.address as string} />
+          </Box>
+        </Box>
+        <Divider />
+
+        <Box mt={2}>
+          <NodePeers />
+        </Box>
+      </Box>
     )
   }
 
