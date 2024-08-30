@@ -34,6 +34,7 @@ export interface OceanNodeP2PConfig {
   pubsubPeerDiscoveryInterval: number
   dhtMaxInboundStreams: number
   dhtMaxOutboundStreams: number
+  enableDHTServer: boolean
   mDNSInterval: number
   connectionsMaxParallelDials: number
   connectionsDialTimeout: number
@@ -60,7 +61,6 @@ export interface OceanNodeConfig {
   hasP2P: boolean
   p2pConfig: OceanNodeP2PConfig | null
   hasIndexer: boolean
-  hasProvider: boolean
   hasHttp: boolean
   hasDashboard: boolean
   dbConfig?: OceanNodeDBConfig
@@ -69,6 +69,7 @@ export interface OceanNodeConfig {
   supportedNetworks?: RPCS
   indexingNetworks?: RPCS
   c2dClusters: C2DClusterInfo[]
+  c2dNodeUri: string
   accountPurgatoryUrl: string
   assetPurgatoryUrl: string
   allowedAdmins?: string[]
@@ -122,12 +123,6 @@ export interface OceanNodeStatus {
   // detailed information
   c2dClusters?: C2DClusterInfo[]
   supportedSchemas?: Schema[]
-}
-
-export interface P2PBroadcastResponse {
-  command: string // original broadcast command
-  message: any // original broadcast message
-  response: any // the actual response to the original command and message
 }
 
 export interface FindDDOResponse {

@@ -1,6 +1,6 @@
 {
   "name": "ocean-node",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Ocean Node is used to run all core services in the Ocean stack",
   "author": "Ocean Protocol Foundation",
   "license": "Apache-2.0",
@@ -13,6 +13,8 @@
     "build": "npm run clean && npm run check-changes && npm run build:tsc",
     "build:no-dashboard": "npm run clean && npm run build:tsc",
     "build:tsc": "tsc --sourceMap",
+    "quickstart": "bash scripts/ocean-node-quickstart.sh",
+    "setupEnv": "bash -c './src/helpers/scripts/setupNodeEnv.sh && source .env'",
     "build-tests:tsc": "tsc --sourceMap --sourceRoot ./src/test && cp ./src/test/.env.test ./dist/test",
     "build:dashboard": "cd dashboard && npm install --maxsockets 1 && NODE_ENV=production npx next build",
     "check-changes": "node scripts/dashboardChanges.js",
@@ -41,7 +43,8 @@
     "test:load": "npm run test:k6-common k6 run -e TEST_TYPE=load \"./dist/test/performance/perf_test.js\"",
     "test:stress": "npm run test:k6-common k6 run -e TEST_TYPE=stress \"./dist/test/performance/perf_test.js\"",
     "test:request:rate": "npm run test:k6-common && k6 run -e RATE=true \"./dist/test/performance/perf_test.js\"",
-    "release": "release-it"
+    "release": "release-it --non-interactive",
+    "changelog": "auto-changelog -p"
   },
   "dependencies": {
     "@chainsafe/libp2p-gossipsub": "^13.1.0",
@@ -124,6 +127,7 @@
     "@types/node-cron": "^3.0.11",
     "@typescript-eslint/eslint-plugin": "^6.8.0",
     "@typescript-eslint/parser": "^6.8.0",
+    "auto-changelog": "^2.4.0",
     "chai": "^4.3.10",
     "concurrently": "^8.2.1",
     "eslint": "^8.51.0",
@@ -135,5 +139,20 @@
     "prettier": "^3.0.3",
     "release-it": "^17.6.0",
     "tsx": "^3.12.8"
+  },
+  "release-it": {
+    "hooks": {
+      "after:bump": "npm run changelog"
+    },
+    "plugins": {},
+    "git": {
+      "tagName": "v${version}"
+    },
+    "github": {
+      "release": true
+    },
+    "npm": {
+      "publish": false
+    }
   }
 }

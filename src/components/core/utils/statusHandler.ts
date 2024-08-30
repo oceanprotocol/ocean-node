@@ -54,13 +54,11 @@ const platformInfo = {
 function getProviderInfo(config: OceanNodeConfig): OceanNodeProvider[] {
   const providers: OceanNodeProvider[] = []
   for (const [key, supportedNetwork] of Object.entries(config.supportedNetworks)) {
-    if (config.hasProvider) {
-      const provider: OceanNodeProvider = {
-        chainId: key,
-        network: supportedNetwork.network
-      }
-      providers.push(provider)
+    const provider: OceanNodeProvider = {
+      chainId: key,
+      network: supportedNetwork.network
     }
+    providers.push(provider)
   }
   return providers
 }
@@ -70,15 +68,17 @@ async function getIndexerInfo(
   config: OceanNodeConfig
 ): Promise<OceanNodeIndexer[]> {
   const indexerNetworks: OceanNodeIndexer[] = []
-  for (const [key, indexedNetwork] of Object.entries(config.indexingNetworks)) {
-    if (config.hasIndexer) {
-      const blockNr = await getIndexerBlockInfo(oceanNode, indexedNetwork)
-      const indexer: OceanNodeIndexer = {
-        chainId: key,
-        network: indexedNetwork.network,
-        block: blockNr
+  if (config.indexingNetworks) {
+    for (const [key, indexedNetwork] of Object.entries(config.indexingNetworks)) {
+      if (config.hasIndexer) {
+        const blockNr = await getIndexerBlockInfo(oceanNode, indexedNetwork)
+        const indexer: OceanNodeIndexer = {
+          chainId: key,
+          network: indexedNetwork.network,
+          block: blockNr
+        }
+        indexerNetworks.push(indexer)
       }
-      indexerNetworks.push(indexer)
     }
   }
   return indexerNetworks
@@ -139,13 +139,11 @@ export async function status(
       allowedAdmins: getAdminAddresses(config)
     }
   }
-
   // need to update at least block info if available
   if (config.supportedNetworks) {
     nodeStatus.provider = getProviderInfo(config)
     nodeStatus.indexer = await getIndexerInfo(oceanNode, config)
   }
-
   // only these 2 might change between requests
   nodeStatus.platform.freemem = os.freemem()
   nodeStatus.platform.loadavg = os.loadavg()
@@ -156,6 +154,5 @@ export async function status(
     nodeStatus.c2dClusters = config.c2dClusters
     nodeStatus.supportedSchemas = schemas.ddoSchemas
   }
-
   return nodeStatus
 }

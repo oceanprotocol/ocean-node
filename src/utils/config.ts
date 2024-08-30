@@ -57,7 +57,7 @@ function getIntEnvValue(env: any, defaultValue: number) {
   return isNaN(num) ? defaultValue : num
 }
 
-function getBoolEnvValue(envName: string, defaultValue: boolean): boolean {
+export function getBoolEnvValue(envName: string, defaultValue: boolean): boolean {
   if (!(envName in process.env)) {
     return defaultValue
   }
@@ -508,10 +508,11 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       ),
       pubsubPeerDiscoveryInterval: getIntEnvValue(
         process.env.P2P_pubsubPeerDiscoveryInterval,
-        3000 // every 3 seconds
+        10000 // every 10 seconds
       ),
       dhtMaxInboundStreams: getIntEnvValue(process.env.P2P_dhtMaxInboundStreams, 500),
       dhtMaxOutboundStreams: getIntEnvValue(process.env.P2P_dhtMaxOutboundStreams, 500),
+      enableDHTServer: getBoolEnvValue(process.env.P2P_ENABLE_DHT_SERVER, false),
       mDNSInterval: getIntEnvValue(process.env.P2P_mDNSInterval, 20e3), // 20 seconds
       connectionsMaxParallelDials: getIntEnvValue(
         process.env.P2P_connectionsMaxParallelDials,
@@ -525,7 +526,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       autoNat: getBoolEnvValue('P2P_ENABLE_AUTONAT', true),
       enableCircuitRelayServer: getBoolEnvValue('P2P_ENABLE_CIRCUIT_RELAY_SERVER', false),
       enableCircuitRelayClient: getBoolEnvValue('P2P_ENABLE_CIRCUIT_RELAY_CLIENT', false),
-      circuitRelays: getIntEnvValue(process.env.P2P_CIRCUIT_RELAYS, 1),
+      circuitRelays: getIntEnvValue(process.env.P2P_CIRCUIT_RELAYS, 0),
       announcePrivateIp: getBoolEnvValue('P2P_ANNOUNCE_PRIVATE', false),
       filterAnnouncedAddresses: readListFromEnvVariable(
         ENVIRONMENT_VARIABLES.P2P_FILTER_ANNOUNCED_ADDRESSES,
@@ -542,8 +543,6 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       maxPeerAddrsToDial: getIntEnvValue(process.env.P2P_MAXPEERADDRSTODIAL, 5),
       autoDialInterval: getIntEnvValue(process.env.P2P_AUTODIALINTERVAL, 5000)
     },
-    // Only enable provider if we have a DB_URL
-    hasProvider: !!getEnvValue(process.env.DB_URL, ''),
     hasDashboard: process.env.DASHBOARD !== 'false',
     httpPort: getIntEnvValue(process.env.HTTP_API_PORT, 8000),
     dbConfig: {
@@ -553,6 +552,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     indexingNetworks,
     feeStrategy: getOceanNodeFees(supportedNetworks, isStartup),
     c2dClusters: getC2DClusterEnvironment(isStartup),
+    c2dNodeUri: getEnvValue(process.env.C2D_NODE_URI, ''),
     accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
     assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),
     allowedAdmins: getAllowedAdmins(isStartup),

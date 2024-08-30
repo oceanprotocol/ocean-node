@@ -92,10 +92,6 @@ routesNames.set('directCommand', {
   method: 'post'
 })
 
-routesNames.set('broadcastCommand', {
-  path: '/broadcastCommand',
-  method: 'post'
-})
 // fileInfo
 routesNames.set('fileInfo', {
   path: `${SERVICES_API_BASE_PATH}/fileInfo`,

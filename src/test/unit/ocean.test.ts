@@ -57,7 +57,6 @@ describe('Status command tests', async () => {
     expect(oceanNode.getDatabase()).to.not.eql(null)
     expect(config.hasP2P).to.eql(true)
     expect(config.hasIndexer).to.eql(true)
-    expect(config.hasProvider).to.eql(true)
   })
   it('Ocean P2P should be initialized correctly', () => {
     expect(oceanNode.getP2PNode()).to.not.eql(null)

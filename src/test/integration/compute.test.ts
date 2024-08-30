@@ -569,7 +569,8 @@ describe('Compute', () => {
         serviceId: publishedAlgoDataset.ddo.services[0].id,
         transferTxId: algoOrderTxId,
         meta: publishedAlgoDataset.ddo.metadata.algorithm
-      }
+      },
+      output: {}
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
