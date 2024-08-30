@@ -6,7 +6,7 @@ Note: For installing each of these prerequisites, a good starting point is the o
 
 Before starting, confirm that the [system requirements](https://github.com/oceanprotocol/ocean-node?tab=readme-ov-file#system-requirements) are met.
 
-a) download the script `ocean-node-quickstart.sh` from the current directory
+a) download the script `ocean-node-quickstart.sh` from the scripts directory
 
 b) run the script
 
