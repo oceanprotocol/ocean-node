@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import styles from './style.module.css'
 import Spinner from '../Spinner'
-import { truncateString } from '../../shared/utils/truncateString'
 import Copy from '../Copy'
 
 export default function NodePeers() {
@@ -50,7 +49,7 @@ export default function NodePeers() {
       {nodePeers.length > 0 ? (
         nodePeers.map((address) => (
           <div className={styles.nodeAddress} key={address}>
-            {truncateString(address, 12)} <Copy text={address} />
+            {address} <Copy text={address} />
           </div>
         ))
       ) : (
