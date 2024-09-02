@@ -2,6 +2,7 @@ import { getStatusColors } from '@/shared/utils/jobs'
 import Alert from '@mui/material/Alert'
 
 export default function JobStatusPanel(props: any) {
+  console.log('PROPS: ', props)
   const color: string = props.job ? getStatusColors(props.job.status) : 'black'
   return (
     <div>
