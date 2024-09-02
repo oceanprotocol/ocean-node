@@ -2,7 +2,7 @@ import { IDdoStateQuery } from '../../@types/DDO/IDdoStateQuery'
 
 export class ElasticSearchDdoStateQuery implements IDdoStateQuery {
   buildQuery(did?: string, nft?: string, txId?: string): Record<string, any> {
-    let query: any = {}
+    let query: Record<string, any> = {}
 
     if (did) {
       query = {

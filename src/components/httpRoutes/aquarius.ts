@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import express from 'express'
 import { streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
@@ -93,7 +92,11 @@ aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
   try {
     const queryStrategy = DatabaseFactory.createDdoStateQuery()
     const queryDdoState: QueryCommand = {
-      query: queryStrategy.buildQuery(String(req.query.did), String(req.query.nft), String(req.query.txId)),
+      query: queryStrategy.buildQuery(
+        String(req.query.did),
+        String(req.query.nft),
+        String(req.query.txId)
+      ),
       command: PROTOCOL_COMMANDS.QUERY
     }
 
