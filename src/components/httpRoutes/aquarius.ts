@@ -9,6 +9,7 @@ import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { QueryCommand } from '../../@types/commands.js'
 import { DatabaseFactory } from '../database/DatabaseFactory.js'
+import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
 
 export const aquariusRoutes = express.Router()
 
@@ -60,19 +61,21 @@ aquariusRoutes.get(
   }
 )
 
-// TODO: update this
 aquariusRoutes.post(
   `${AQUARIUS_API_BASE_PATH}/assets/metadata/query`,
   async (req, res) => {
     try {
-      const query = req.body
-      if (!query) {
+      const searchQuery: SearchQuery = req.body
+      if (!searchQuery) {
         res.status(400).send('Missing required body')
         return
       }
 
+      const queryStrategy = DatabaseFactory.createMetadataQuery()
+      const transformedQuery = queryStrategy.buildQuery(searchQuery)
+
       const result = await new QueryHandler(req.oceanNode).handle({
-        query,
+        query: transformedQuery,
         command: PROTOCOL_COMMANDS.QUERY
       })
       if (result.stream) {

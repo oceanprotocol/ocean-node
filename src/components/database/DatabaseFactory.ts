@@ -28,6 +28,9 @@ import { elasticSchemas } from './ElasticSchemas'
 import { IDdoStateQuery } from '../../@types/DDO/IDdoStateQuery'
 import { TypesenseDdoStateQuery } from './TypesenseDdoStateQuery'
 import { ElasticSearchDdoStateQuery } from './ElasticSearchDdoStateQuery'
+import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery'
+import { TypesenseMetadataQuery } from './TypesenseMetadataQuery'
+import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery'
 
 export class DatabaseFactory {
   static createNonceDatabase(config: OceanNodeDBConfig): AbstractNonceDatabase {
@@ -89,6 +92,15 @@ export class DatabaseFactory {
       return new TypesenseDdoStateQuery()
     } else if (process.env.DB_TYPE === 'elasticsearch') {
       return new ElasticSearchDdoStateQuery()
+    }
+    throw new Error('Unsupported database type')
+  }
+
+  static createMetadataQuery(): IMetadataQuery {
+    if (process.env.DB_TYPE === 'typesense') {
+      return new TypesenseMetadataQuery()
+    } else if (process.env.DB_TYPE === 'elasticsearch') {
+      return new ElasticSearchMetadataQuery()
     }
     throw new Error('Unsupported database type')
   }

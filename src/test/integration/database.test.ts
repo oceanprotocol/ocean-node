@@ -1,3 +1,5 @@
+import { AbstractOrderDatabase } from '../../components/database/BaseDatabase.js'
+import { DatabaseFactory } from '../../components/database/DatabaseFactory.js'
 import { Database } from '../../components/database/index.js'
 import { expect, assert } from 'chai'
 
@@ -244,5 +246,105 @@ describe('OrderDatabase CRUD', () => {
     expect(result?.payer).to.equal('0x4567')
     expect(result?.type).to.equal('startOrder')
     expect(result?.timestamp).to.equal(1678593730)
+  })
+
+  describe('Elasticsearch OrderDatabase CRUD', () => {
+    let database: AbstractOrderDatabase
+
+    before(async () => {
+      process.env.DB_TYPE = 'elasticsearch'
+      const dbConfig = {
+        url: 'http://localhost:8108/?apiKey=xyz'
+      }
+      database = await DatabaseFactory.createOrderDatabase(dbConfig)
+    })
+
+    after(() => {
+      delete process.env.DB_TYPE
+    })
+
+    it('creates an order in Elasticsearch', async () => {
+      const result = await database.create(
+        'orderElastic1',
+        'startOrder',
+        1678593728,
+        '0x1234',
+        '0x4567'
+      )
+      expect(result?.id).to.equal('orderElastic1')
+      expect(result?.consumer).to.equal('0x1234')
+    })
+
+    it('retrieves an order from Elasticsearch', async () => {
+      const result = await database.retrieve('orderElastic1')
+      expect(result?.id).to.equal('orderElastic1')
+      expect(result?.consumer).to.equal('0x1234')
+    })
+
+    it('updates an order in Elasticsearch', async () => {
+      const result = await database.update(
+        'orderElastic1',
+        'startOrder',
+        1678593730,
+        '0x1235',
+        '0x4567'
+      )
+      expect(result?.consumer).to.equal('0x1235')
+    })
+
+    it('deletes an order from Elasticsearch', async () => {
+      const result = await database.delete('orderElastic1')
+      expect(result?.id).to.equal('orderElastic1')
+    })
+  })
+
+  describe('Typesense OrderDatabase CRUD', () => {
+    let database: AbstractOrderDatabase
+
+    before(async () => {
+      process.env.DB_TYPE = 'typesense'
+      const dbConfig = {
+        url: 'http://localhost:8108/?apiKey=xyz'
+      }
+      database = await DatabaseFactory.createOrderDatabase(dbConfig)
+    })
+
+    after(() => {
+      delete process.env.DB_TYPE
+    })
+
+    it('creates an order in Typesense', async () => {
+      const result = await database.create(
+        'orderTypesense1',
+        'startOrder',
+        1678593728,
+        '0x1234',
+        '0x4567'
+      )
+      expect(result?.id).to.equal('orderTypesense1')
+      expect(result?.consumer).to.equal('0x1234')
+    })
+
+    it('retrieves an order from Typesense', async () => {
+      const result = await database.retrieve('orderTypesense1')
+      expect(result?.id).to.equal('orderTypesense1')
+      expect(result?.consumer).to.equal('0x1234')
+    })
+
+    it('updates an order in Typesense', async () => {
+      const result = await database.update(
+        'orderTypesense1',
+        'startOrder',
+        1678593730,
+        '0x1235',
+        '0x4567'
+      )
+      expect(result?.consumer).to.equal('0x1235')
+    })
+
+    it('deletes an order from Typesense', async () => {
+      const result = await database.delete('orderTypesense1')
+      expect(result?.id).to.equal('orderTypesense1')
+    })
   })
 })
