@@ -150,7 +150,7 @@ export async function processNetworkData(
         } catch (error) {
           INDEXER_LOGGER.log(
             LOG_LEVELS_STR.LEVEL_WARN,
-            `Get events for network: ${rpcDetails.network} failure: ${error.message} `,
+            `Get events for network: ${rpcDetails.network} failure: ${error.message} \n\nConsider that there may be an issue with your RPC provider. We recommend using private RPCs from reliable providers such as Infura or Alchemy.`,
             true
           )
           chunkSize = Math.floor(chunkSize / 2) < 1 ? 1 : Math.floor(chunkSize / 2)
