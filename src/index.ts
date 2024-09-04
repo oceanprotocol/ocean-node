@@ -134,19 +134,26 @@ if (config.hasHttp) {
     // Serve static files expected at the root, under the '/_next' path
     app.use('/_next', express.static(path.join(__dirname, '/dashboard/_next')))
 
-    // Serve static files for Next.js under '/dashboard'
+    // Serve static files for Next.js under both '/dashboard' and '/controlpanel'
     const dashboardPath = path.join(__dirname, '/dashboard')
     app.use('/dashboard', express.static(dashboardPath))
+    app.use('/controlpanel', express.static(dashboardPath))
 
-    // Custom middleware for SPA routing: Serve index.html for non-static asset requests under '/dashboard'
-    app.use('/dashboard', (req, res, next) => {
+    // Custom middleware for SPA routing: Serve index.html for non-static asset requests
+    const serveIndexHtml = (
+      req: express.Request,
+      res: express.Response,
+      next: express.NextFunction
+    ) => {
       if (/(.ico|.js|.css|.jpg|.png|.svg|.map)$/i.test(req.path)) {
         return next() // Skip this middleware if the request is for a static asset
       }
-
-      // For any other requests under '/dashboard', serve index.html
+      // For any other requests, serve index.html
       res.sendFile(path.join(dashboardPath, 'index.html'))
-    })
+    }
+
+    app.use('/dashboard', serveIndexHtml)
+    app.use('/controlpanel', serveIndexHtml)
   }
 
   app.use(requestValidator, (req, res, next) => {
