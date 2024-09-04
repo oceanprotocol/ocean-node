@@ -149,7 +149,7 @@ export async function processNetworkData(
           )
         } catch (error) {
           INDEXER_LOGGER.log(
-            LOG_LEVELS_STR.LEVEL_ERROR,
+            LOG_LEVELS_STR.LEVEL_WARN,
             `Get events for network: ${rpcDetails.network} failure: ${error.message} `,
             true
           )
