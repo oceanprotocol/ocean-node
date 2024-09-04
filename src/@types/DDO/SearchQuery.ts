@@ -11,11 +11,18 @@ export interface BoolQuery {
   }
 }
 
+export enum SortDirectionOptions {
+  // eslint-disable-next-line no-unused-vars
+  Ascending = 'asc',
+  // eslint-disable-next-line no-unused-vars
+  Descending = 'desc'
+}
+
 export interface SearchQuery {
   from?: number
   size?: number
   query: BoolQuery
-  sort?: { [jsonPath: string]: string }
+  sort?: { [jsonPath: string]: SortDirectionOptions }
   aggs?: any
 }
 

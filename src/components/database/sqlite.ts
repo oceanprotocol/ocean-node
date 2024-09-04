@@ -1,4 +1,4 @@
-import { TypesenseSchema, typesenseSchemas } from './TypesenseSchemas'
+import { TypesenseSchema, typesenseSchemas } from './TypesenseSchemas.js'
 import sqlite3 from 'sqlite3'
 
 interface DatabaseProvider {

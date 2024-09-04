@@ -1,4 +1,4 @@
-import { IDdoStateQuery } from '../../@types/DDO/IDdoStateQuery'
+import { IDdoStateQuery } from '../../@types/DDO/IDdoStateQuery.js'
 
 export class TypesenseDdoStateQuery implements IDdoStateQuery {
   buildQuery(did?: string, nft?: string, txId?: string): Record<string, any> {

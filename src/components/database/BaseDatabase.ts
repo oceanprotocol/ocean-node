@@ -1,9 +1,9 @@
 import { Schema } from '.'
 import { OceanNodeDBConfig } from '../../@types'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger'
-import { DATABASE_LOGGER } from '../../utils/logging/common'
-import { ElasticsearchSchema } from './ElasticSchemas'
-import { TypesenseSchema } from './TypesenseSchemas'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { DATABASE_LOGGER } from '../../utils/logging/common.js'
+import { ElasticsearchSchema } from './ElasticSchemas.js'
+import { TypesenseSchema } from './TypesenseSchemas.js'
 
 export abstract class AbstractNonceDatabase {
   protected config: OceanNodeDBConfig

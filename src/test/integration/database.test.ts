@@ -6,11 +6,16 @@ import { expect, assert } from 'chai'
 describe('Database', () => {
   let database: Database
 
-  before(() => {
+  before(async () => {
+    process.env.DB_TYPE = 'typesense'
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
-    database = new Database(dbConfig)
+    database = await new Database(dbConfig)
+  })
+
+  after(() => {
+    delete process.env.DB_TYPE
   })
 
   it('instance Database', () => {
@@ -44,11 +49,16 @@ describe('DdoDatabase CRUD', () => {
     }
   }
 
-  before(() => {
+  before(async () => {
+    process.env.DB_TYPE = 'typesense'
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
-    database = new Database(dbConfig)
+    database = await new Database(dbConfig)
+  })
+
+  after(() => {
+    delete process.env.DB_TYPE
   })
 
   it('creates ddo schema as an array', () => {
@@ -74,11 +84,16 @@ describe('DdoDatabase CRUD', () => {
 describe('NonceDatabase CRUD', () => {
   let database: Database
 
-  before(() => {
+  before(async () => {
+    process.env.DB_TYPE = 'typesense'
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
-    database = new Database(dbConfig)
+    database = await new Database(dbConfig)
+  })
+
+  after(() => {
+    delete process.env.DB_TYPE
   })
 
   it('create nonce', async () => {
@@ -109,11 +124,16 @@ describe('NonceDatabase CRUD', () => {
 describe('NonceDatabase CRUD with SQLite', () => {
   let database: Database
 
-  before(() => {
+  before(async () => {
+    process.env.DB_TYPE = 'typesense'
     const dbConfig = {
-      url: ''
+      url: 'http://localhost:8108/?apiKey=xyz'
     }
-    database = new Database(dbConfig)
+    database = await new Database(dbConfig)
+  })
+
+  after(() => {
+    delete process.env.DB_TYPE
   })
 
   it('create nonce', async () => {
@@ -146,11 +166,16 @@ describe('IndexerDatabase CRUD', () => {
   let database: Database
   let existsPrevious: any = {}
 
-  before(() => {
+  before(async () => {
+    process.env.DB_TYPE = 'typesense'
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
-    database = new Database(dbConfig)
+    database = await new Database(dbConfig)
+  })
+
+  after(() => {
+    delete process.env.DB_TYPE
   })
 
   it('create indexer', async () => {
@@ -192,11 +217,16 @@ describe('IndexerDatabase CRUD', () => {
 describe('OrderDatabase CRUD', () => {
   let database: Database
 
-  before(() => {
+  before(async () => {
+    process.env.DB_TYPE = 'typesense'
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
-    database = new Database(dbConfig)
+    database = await new Database(dbConfig)
+  })
+
+  after(() => {
+    delete process.env.DB_TYPE
   })
 
   it('create order', async () => {
@@ -246,104 +276,104 @@ describe('OrderDatabase CRUD', () => {
     expect(result?.type).to.equal('startOrder')
     expect(result?.timestamp).to.equal(1678593730)
   })
+})
 
-  describe('Elasticsearch OrderDatabase CRUD', () => {
-    let database: AbstractOrderDatabase
+describe('Typesense OrderDatabase CRUD', () => {
+  let database: AbstractOrderDatabase
 
-    before(() => {
-      process.env.DB_TYPE = 'elasticsearch'
-      const dbConfig = {
-        url: 'http://localhost:8108/?apiKey=xyz'
-      }
-      database = DatabaseFactory.createOrderDatabase(dbConfig)
-    })
-
-    after(() => {
-      delete process.env.DB_TYPE
-    })
-
-    it('creates an order in Elasticsearch', async () => {
-      const result = await database.create(
-        'orderElastic1',
-        'startOrder',
-        1678593728,
-        '0x1234',
-        '0x4567'
-      )
-      expect(result?.id).to.equal('orderElastic1')
-      expect(result?.consumer).to.equal('0x1234')
-    })
-
-    it('retrieves an order from Elasticsearch', async () => {
-      const result = await database.retrieve('orderElastic1')
-      expect(result?.id).to.equal('orderElastic1')
-      expect(result?.consumer).to.equal('0x1234')
-    })
-
-    it('updates an order in Elasticsearch', async () => {
-      const result = await database.update(
-        'orderElastic1',
-        'startOrder',
-        1678593730,
-        '0x1235',
-        '0x4567'
-      )
-      expect(result?.consumer).to.equal('0x1235')
-    })
-
-    it('deletes an order from Elasticsearch', async () => {
-      const result = await database.delete('orderElastic1')
-      expect(result?.id).to.equal('orderElastic1')
-    })
+  before(async () => {
+    process.env.DB_TYPE = 'typesense'
+    const dbConfig = {
+      url: 'http://localhost:8108/?apiKey=xyz'
+    }
+    database = await DatabaseFactory.createOrderDatabase(dbConfig)
   })
 
-  describe('Typesense OrderDatabase CRUD', () => {
-    let database: AbstractOrderDatabase
+  after(() => {
+    delete process.env.DB_TYPE
+  })
 
-    before(() => {
-      process.env.DB_TYPE = 'typesense'
-      const dbConfig = {
-        url: 'http://localhost:8108/?apiKey=xyz'
-      }
-      database = DatabaseFactory.createOrderDatabase(dbConfig)
-    })
+  it('creates an order in Typesense', async () => {
+    const result = await database.create(
+      'orderTypesense1',
+      'startOrder',
+      1678593728,
+      '0x1234',
+      '0x4567'
+    )
+    expect(result?.id).to.equal('orderTypesense1')
+    expect(result?.consumer).to.equal('0x1234')
+  })
 
-    after(() => {
-      delete process.env.DB_TYPE
-    })
+  it('retrieves an order from Typesense', async () => {
+    const result = await database.retrieve('orderTypesense1')
+    expect(result?.id).to.equal('orderTypesense1')
+    expect(result?.consumer).to.equal('0x1234')
+  })
 
-    it('creates an order in Typesense', async () => {
-      const result = await database.create(
-        'orderTypesense1',
-        'startOrder',
-        1678593728,
-        '0x1234',
-        '0x4567'
-      )
-      expect(result?.id).to.equal('orderTypesense1')
-      expect(result?.consumer).to.equal('0x1234')
-    })
+  it('updates an order in Typesense', async () => {
+    const result = await database.update(
+      'orderTypesense1',
+      'startOrder',
+      1678593730,
+      '0x1235',
+      '0x4567'
+    )
+    expect(result?.consumer).to.equal('0x1235')
+  })
 
-    it('retrieves an order from Typesense', async () => {
-      const result = await database.retrieve('orderTypesense1')
-      expect(result?.id).to.equal('orderTypesense1')
-      expect(result?.consumer).to.equal('0x1234')
-    })
+  it('deletes an order from Typesense', async () => {
+    const result = await database.delete('orderTypesense1')
+    expect(result?.id).to.equal('orderTypesense1')
+  })
+})
 
-    it('updates an order in Typesense', async () => {
-      const result = await database.update(
-        'orderTypesense1',
-        'startOrder',
-        1678593730,
-        '0x1235',
-        '0x4567'
-      )
-      expect(result?.consumer).to.equal('0x1235')
-    })
+describe('Elasticsearch OrderDatabase CRUD', () => {
+  let database: AbstractOrderDatabase
 
-    it('deletes an order from Typesense', async () => {
-      const result = await database.delete('orderTypesense1')
-      expect(result?.id).to.equal('orderTypesense1')
-    })
+  before(async () => {
+    process.env.DB_TYPE = 'elasticsearch'
+    const dbConfig = {
+      url: 'http://localhost:8108/?apiKey=xyz'
+    }
+    database = await DatabaseFactory.createOrderDatabase(dbConfig)
+  })
+
+  after(() => {
+    delete process.env.DB_TYPE
+  })
+
+  it('creates an order in Elasticsearch', async () => {
+    const result = await database.create(
+      'orderElastic1',
+      'startOrder',
+      1678593728,
+      '0x1234',
+      '0x4567'
+    )
+    expect(result?.id).to.equal('orderElastic1')
+    expect(result?.consumer).to.equal('0x1234')
+  })
+
+  it('retrieves an order from Elasticsearch', async () => {
+    const result = await database.retrieve('orderElastic1')
+    expect(result?.id).to.equal('orderElastic1')
+    expect(result?.consumer).to.equal('0x1234')
+  })
+
+  it('updates an order in Elasticsearch', async () => {
+    const result = await database.update(
+      'orderElastic1',
+      'startOrder',
+      1678593730,
+      '0x1235',
+      '0x4567'
+    )
+    expect(result?.consumer).to.equal('0x1235')
+  })
+
+  it('deletes an order from Elasticsearch', async () => {
+    const result = await database.delete('orderElastic1')
+    expect(result?.id).to.equal('orderElastic1')
   })
 })

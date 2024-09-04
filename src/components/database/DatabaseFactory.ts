@@ -6,7 +6,7 @@ import {
   AbstractLogDatabase,
   AbstractNonceDatabase,
   AbstractOrderDatabase
-} from './BaseDatabase'
+} from './BaseDatabase.js'
 import {
   ElasticsearchDdoDatabase,
   ElasticsearchDdoStateDatabase,
@@ -14,8 +14,8 @@ import {
   ElasticsearchLogDatabase,
   ElasticsearchNonceDatabase,
   ElasticsearchOrderDatabase
-} from './ElasticSearchDatabase'
-import { typesenseSchemas } from './TypesenseSchemas'
+} from './ElasticSearchDatabase.js'
+import { typesenseSchemas } from './TypesenseSchemas.js'
 import {
   TypesenseDdoDatabase,
   TypesenseDdoStateDatabase,
@@ -23,14 +23,14 @@ import {
   TypesenseLogDatabase,
   TypesenseNonceDatabase,
   TypesenseOrderDatabase
-} from './TypenseDatabase'
-import { elasticSchemas } from './ElasticSchemas'
-import { IDdoStateQuery } from '../../@types/DDO/IDdoStateQuery'
-import { TypesenseDdoStateQuery } from './TypesenseDdoStateQuery'
-import { ElasticSearchDdoStateQuery } from './ElasticSearchDdoStateQuery'
-import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery'
-import { TypesenseMetadataQuery } from './TypesenseMetadataQuery'
-import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery'
+} from './TypenseDatabase.js'
+import { elasticSchemas } from './ElasticSchemas.js'
+import { IDdoStateQuery } from '../../@types/DDO/IDdoStateQuery.js'
+import { TypesenseDdoStateQuery } from './TypesenseDdoStateQuery.js'
+import { ElasticSearchDdoStateQuery } from './ElasticSearchDdoStateQuery.js'
+import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery.js'
+import { TypesenseMetadataQuery } from './TypesenseMetadataQuery.js'
+import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery.js'
 
 export class DatabaseFactory {
   static createNonceDatabase(config: OceanNodeDBConfig): AbstractNonceDatabase {

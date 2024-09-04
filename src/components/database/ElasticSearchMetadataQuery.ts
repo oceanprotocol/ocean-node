@@ -1,9 +1,14 @@
-import { SearchQuery } from './../../@types/DDO/SearchQuery'
-import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery'
+import { SearchQuery } from './../../@types/DDO/SearchQuery.js'
+import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery.js'
 
 export class ElasticSearchMetadataQuery implements IMetadataQuery {
   buildQuery(searchQuery: SearchQuery): Record<string, any> {
     const { query } = searchQuery
+
+    if (this.isElasticSearchQuery(query)) {
+      return query
+    }
+
     const elasticsearchQuery: Record<string, any> = {
       from: searchQuery.from || 0,
       size: searchQuery.size || 10,
@@ -58,5 +63,9 @@ export class ElasticSearchMetadataQuery implements IMetadataQuery {
     }
 
     return elasticsearchQuery
+  }
+
+  private isElasticSearchQuery(query: any): boolean {
+    return query && query.bool !== undefined
   }
 }

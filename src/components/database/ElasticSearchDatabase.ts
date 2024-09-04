@@ -6,13 +6,13 @@ import {
   AbstractLogDatabase,
   AbstractNonceDatabase,
   AbstractOrderDatabase
-} from './BaseDatabase'
-import { createElasticsearchClient } from './ElasticsearchConfigHelper'
+} from './BaseDatabase.js'
+import { createElasticsearchClient } from './ElasticsearchConfigHelper.js'
 import { OceanNodeDBConfig } from '../../@types'
-import { ElasticsearchSchema } from './ElasticSchemas'
-import { DATABASE_LOGGER } from '../../utils/logging/common'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger'
-import { validateObject } from '../core/utils/validateDdoHandler'
+import { ElasticsearchSchema } from './ElasticSchemas.js'
+import { DATABASE_LOGGER } from '../../utils/logging/common.js'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { validateObject } from '../core/utils/validateDdoHandler.js'
 
 export class ElasticsearchNonceDatabase extends AbstractNonceDatabase {
   private client: Client
