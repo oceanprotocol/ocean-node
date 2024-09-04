@@ -6,11 +6,11 @@ import { expect, assert } from 'chai'
 describe('Database', () => {
   let database: Database
 
-  before(async () => {
+  before(() => {
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
-    database = await new Database(dbConfig)
+    database = new Database(dbConfig)
   })
 
   it('instance Database', () => {
@@ -44,11 +44,11 @@ describe('DdoDatabase CRUD', () => {
     }
   }
 
-  before(async () => {
+  before(() => {
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
-    database = await new Database(dbConfig)
+    database = new Database(dbConfig)
   })
 
   it('creates ddo schema as an array', () => {
@@ -74,11 +74,11 @@ describe('DdoDatabase CRUD', () => {
 describe('NonceDatabase CRUD', () => {
   let database: Database
 
-  before(async () => {
+  before(() => {
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
-    database = await new Database(dbConfig)
+    database = new Database(dbConfig)
   })
 
   it('create nonce', async () => {
@@ -109,12 +109,11 @@ describe('NonceDatabase CRUD', () => {
 describe('NonceDatabase CRUD with SQLite', () => {
   let database: Database
 
-  before(async () => {
+  before(() => {
     const dbConfig = {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       url: ''
     }
-    database = await new Database(dbConfig)
+    database = new Database(dbConfig)
   })
 
   it('create nonce', async () => {
@@ -147,11 +146,11 @@ describe('IndexerDatabase CRUD', () => {
   let database: Database
   let existsPrevious: any = {}
 
-  before(async () => {
+  before(() => {
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
-    database = await new Database(dbConfig)
+    database = new Database(dbConfig)
   })
 
   it('create indexer', async () => {
@@ -193,11 +192,11 @@ describe('IndexerDatabase CRUD', () => {
 describe('OrderDatabase CRUD', () => {
   let database: Database
 
-  before(async () => {
+  before(() => {
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
-    database = await new Database(dbConfig)
+    database = new Database(dbConfig)
   })
 
   it('create order', async () => {
@@ -251,12 +250,12 @@ describe('OrderDatabase CRUD', () => {
   describe('Elasticsearch OrderDatabase CRUD', () => {
     let database: AbstractOrderDatabase
 
-    before(async () => {
+    before(() => {
       process.env.DB_TYPE = 'elasticsearch'
       const dbConfig = {
         url: 'http://localhost:8108/?apiKey=xyz'
       }
-      database = await DatabaseFactory.createOrderDatabase(dbConfig)
+      database = DatabaseFactory.createOrderDatabase(dbConfig)
     })
 
     after(() => {
@@ -301,12 +300,12 @@ describe('OrderDatabase CRUD', () => {
   describe('Typesense OrderDatabase CRUD', () => {
     let database: AbstractOrderDatabase
 
-    before(async () => {
+    before(() => {
       process.env.DB_TYPE = 'typesense'
       const dbConfig = {
         url: 'http://localhost:8108/?apiKey=xyz'
       }
-      database = await DatabaseFactory.createOrderDatabase(dbConfig)
+      database = DatabaseFactory.createOrderDatabase(dbConfig)
     })
 
     after(() => {
