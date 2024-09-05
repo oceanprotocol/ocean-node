@@ -1,3 +1,5 @@
+import { SearchQuery } from './SearchQuery'
+
 export interface IMetadataQuery {
-  buildQuery(query: any): Record<string, any>
+  buildQuery(query: SearchQuery): Record<string, any>
 }
