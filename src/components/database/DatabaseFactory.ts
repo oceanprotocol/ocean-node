@@ -28,8 +28,8 @@ import { elasticSchemas } from './ElasticSchemas.js'
 import { IDdoStateQuery } from '../../@types/DDO/IDdoStateQuery.js'
 import { TypesenseDdoStateQuery } from './TypesenseDdoStateQuery.js'
 import { ElasticSearchDdoStateQuery } from './ElasticSearchDdoStateQuery.js'
-import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery.js'
 import { TypesenseMetadataQuery } from './TypesenseMetadataQuery.js'
+import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery.js'
 import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery.js'
 
 export class DatabaseFactory {

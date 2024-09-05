@@ -15,13 +15,7 @@
     "no-useless-constructor": ["warn"],
     "constructor-super": ["warn"],
     "require-await": "error",
-    "no-unused-vars": ["error"],
-    "prettier/prettier": [
-      "error",
-      {
-        "endOfLine": "auto"
-      }
-    ]
+    "no-unused-vars": ["error"]
   },
   "env": {
     "es6": true,
