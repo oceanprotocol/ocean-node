@@ -1,4 +1,4 @@
-import { SearchQuery, SortDirectionOptions } from '../../@types/DDO/SearchQuery.js'
+import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
 import { AbstractOrderDatabase } from '../../components/database/BaseDatabase.js'
 import { DatabaseFactory } from '../../components/database/DatabaseFactory.js'
 import { Database } from '../../components/database/index.js'
@@ -481,7 +481,7 @@ describe('MetadataQuery', () => {
       },
       size: 10,
       from: 0,
-      sort: { name: SortDirectionOptions.Ascending }
+      sort: { name: 'asc' }
     }
 
     const query = DatabaseFactory.createMetadataQuery().buildQuery(searchQuery)
@@ -533,7 +533,7 @@ describe('MetadataQuery', () => {
       },
       size: 10,
       from: 0,
-      sort: { name: SortDirectionOptions.Ascending }
+      sort: { name: 'asc' }
     }
 
     const query = DatabaseFactory.createMetadataQuery().buildQuery(searchQuery)

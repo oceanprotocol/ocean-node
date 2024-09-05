@@ -15,10 +15,6 @@ export interface BoolQuery {
     filter?: FilterTerm[]
   }
 }
-export enum SortDirectionOptions {
-  Ascending = 'asc',
-  Descending = 'desc'
-}
 
 export interface SearchQuery {
   q?: string
@@ -29,7 +25,7 @@ export interface SearchQuery {
   from?: number
   size?: number
   query?: any
-  sort?: { [jsonPath: string]: SortDirectionOptions }
+  sort?: { [jsonPath: string]: string }
   aggs?: any
 }
 

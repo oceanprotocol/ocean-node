@@ -1,5 +1,5 @@
 import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery.js'
-import { SearchQuery, SortDirectionOptions } from '../../@types/DDO/SearchQuery.js'
+import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
 
 export class TypesenseMetadataQuery implements IMetadataQuery {
   buildQuery(searchQuery: SearchQuery): Record<string, any> {
@@ -51,7 +51,7 @@ export class TypesenseMetadataQuery implements IMetadataQuery {
 
     if (searchQuery.sort) {
       typesenseQuery.sort_by = Object.entries(searchQuery.sort)
-        .map(([field, direction]: [string, SortDirectionOptions]) => {
+        .map(([field, direction]: [string, string]) => {
           return `${field}:${direction}`
         })
         .join(',')
