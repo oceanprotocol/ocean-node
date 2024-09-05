@@ -16,9 +16,7 @@ export interface BoolQuery {
   }
 }
 export enum SortDirectionOptions {
-  // eslint-disable-next-line no-unused-vars
   Ascending = 'asc',
-  // eslint-disable-next-line no-unused-vars
   Descending = 'desc'
 }
 
