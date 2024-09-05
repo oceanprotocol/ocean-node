@@ -5,8 +5,8 @@ export class TypesenseMetadataQuery implements IMetadataQuery {
   buildQuery(searchQuery: SearchQuery): Record<string, any> {
     const { query } = searchQuery
 
-    if (this.isTypesenseQuery(query)) {
-      return query
+    if (this.isTypesenseQuery(searchQuery)) {
+      return searchQuery
     }
 
     const typesenseQuery: Record<string, any> = {
@@ -17,8 +17,7 @@ export class TypesenseMetadataQuery implements IMetadataQuery {
     }
 
     const filters: string[] = []
-
-    if (query.bool && query.bool.filter) {
+    if (query.bool.filter) {
       query.bool.filter.forEach((filter: any) => {
         if (filter.term) {
           const field = Object.keys(filter.term)[0]

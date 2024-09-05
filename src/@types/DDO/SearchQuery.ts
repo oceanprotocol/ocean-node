@@ -1,5 +1,10 @@
 export interface FilterTerm {
-  [key: string]: string | number | boolean | string[] | number[]
+  term?: { [key: string]: string | number | boolean }
+  terms?: { [key: string]: (string | number | boolean)[] }
+  range?: { [key: string]: { gte?: number; lte?: number } }
+  bool?: any
+  exists?: { field: string }
+  match?: { [key: string]: string | number }
 }
 
 export interface BoolQuery {
@@ -10,7 +15,6 @@ export interface BoolQuery {
     filter?: FilterTerm[]
   }
 }
-
 export enum SortDirectionOptions {
   // eslint-disable-next-line no-unused-vars
   Ascending = 'asc',
@@ -19,9 +23,14 @@ export enum SortDirectionOptions {
 }
 
 export interface SearchQuery {
+  q?: string
+  filter_by?: any
+  num_hits?: number
+  start?: number
+  sort_by?: string
   from?: number
   size?: number
-  query: BoolQuery
+  query?: any
   sort?: { [jsonPath: string]: SortDirectionOptions }
   aggs?: any
 }

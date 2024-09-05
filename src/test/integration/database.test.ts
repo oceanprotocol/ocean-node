@@ -1,3 +1,4 @@
+import { SearchQuery, SortDirectionOptions } from '../../@types/DDO/SearchQuery.js'
 import { AbstractOrderDatabase } from '../../components/database/BaseDatabase.js'
 import { DatabaseFactory } from '../../components/database/DatabaseFactory.js'
 import { Database } from '../../components/database/index.js'
@@ -334,7 +335,7 @@ describe('Elasticsearch OrderDatabase CRUD', () => {
   before(async () => {
     process.env.DB_TYPE = 'elasticsearch'
     const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
+      url: 'http://localhost:9200'
     }
     database = await DatabaseFactory.createOrderDatabase(dbConfig)
   })
@@ -351,14 +352,16 @@ describe('Elasticsearch OrderDatabase CRUD', () => {
       '0x1234',
       '0x4567'
     )
-    expect(result?.id).to.equal('orderElastic1')
+    expect(result?.orderId).to.equal('orderElastic1')
     expect(result?.consumer).to.equal('0x1234')
   })
 
   it('retrieves an order from Elasticsearch', async () => {
     const result = await database.retrieve('orderElastic1')
-    expect(result?.id).to.equal('orderElastic1')
+    expect(result?.orderId).to.equal('orderElastic1')
     expect(result?.consumer).to.equal('0x1234')
+    expect(result?.payer).to.equal('0x4567')
+    expect(result?.type).to.equal('startOrder')
   })
 
   it('updates an order in Elasticsearch', async () => {
@@ -375,5 +378,174 @@ describe('Elasticsearch OrderDatabase CRUD', () => {
   it('deletes an order from Elasticsearch', async () => {
     const result = await database.delete('orderElastic1')
     expect(result?.id).to.equal('orderElastic1')
+  })
+})
+
+describe('DdoStateQuery', () => {
+  before(() => {
+    process.env.DB_TYPE = 'typesense'
+  })
+
+  after(() => {
+    delete process.env.DB_TYPE
+  })
+
+  it('should build Typesense query for did', () => {
+    const query = DatabaseFactory.createDdoStateQuery().buildQuery('did:op:abc123')
+    expect(query.q).to.equal('did:op:abc123')
+    expect(query.query_by).to.equal('did')
+  })
+
+  it('should build Typesense query for nft', () => {
+    const query = DatabaseFactory.createDdoStateQuery().buildQuery(
+      undefined,
+      'nft:op:abc123'
+    )
+    expect(query.q).to.equal('nft:op:abc123')
+    expect(query.query_by).to.equal('nft')
+  })
+
+  it('should build Typesense query for txId', () => {
+    const query = DatabaseFactory.createDdoStateQuery().buildQuery(
+      undefined,
+      undefined,
+      'txId123'
+    )
+    expect(query.q).to.equal('txId123')
+    expect(query.query_by).to.equal('txId')
+  })
+
+  it('should build Elasticsearch query for did', () => {
+    process.env.DB_TYPE = 'elasticsearch'
+    const query = DatabaseFactory.createDdoStateQuery().buildQuery('did:op:abc123')
+    expect(query.match.did).to.equal('did:op:abc123')
+  })
+
+  it('should build Elasticsearch query for nft', () => {
+    const query = DatabaseFactory.createDdoStateQuery().buildQuery(
+      undefined,
+      'nft:op:abc123'
+    )
+    expect(query.match.nft).to.equal('nft:op:abc123')
+  })
+
+  it('should build Elasticsearch query for txId', () => {
+    const query = DatabaseFactory.createDdoStateQuery().buildQuery(
+      undefined,
+      undefined,
+      'txId123'
+    )
+    expect(query.match.txId).to.equal('txId123')
+  })
+})
+
+describe('MetadataQuery', () => {
+  afterEach(() => {
+    delete process.env.DB_TYPE
+  })
+
+  it('should return a Typesense query when DB is Typesense and a Typesense query is passed', () => {
+    process.env.DB_TYPE = 'typesense'
+
+    const typesenseQuery = {
+      q: '*',
+      filter_by:
+        'author:=Ocean && metadata.type:=[dataset,algorithm] && purgatory_state:!=true',
+      num_hits: 10,
+      start: 0,
+      sort_by: 'name:asc'
+    }
+
+    const query = DatabaseFactory.createMetadataQuery().buildQuery(typesenseQuery)
+    expect(query.q).to.equal('*')
+    expect(query.num_hits).to.equal(10)
+    expect(query.start).to.equal(0)
+    expect(query.filter_by).to.equal(
+      'author:=Ocean && metadata.type:=[dataset,algorithm] && purgatory_state:!=true'
+    )
+    expect(query.sort_by).to.equal('name:asc')
+  })
+
+  it('should convert an Elasticsearch query to a Typesense query when DB is Typesense', () => {
+    process.env.DB_TYPE = 'typesense'
+
+    const searchQuery: SearchQuery = {
+      query: {
+        bool: {
+          filter: [
+            { term: { author: 'Ocean' } },
+            { terms: { 'metadata.type': ['dataset', 'algorithm'] } }
+          ],
+          must_not: [{ term: { purgatory_state: true } }]
+        }
+      },
+      size: 10,
+      from: 0,
+      sort: { name: SortDirectionOptions.Ascending }
+    }
+
+    const query = DatabaseFactory.createMetadataQuery().buildQuery(searchQuery)
+    expect(query.q).to.equal('*')
+    expect(query.num_hits).to.equal(10)
+    expect(query.start).to.equal(0)
+    expect(query.filter_by).to.contain('author:=Ocean')
+    expect(query.filter_by).to.contain('metadata.type:=[dataset,algorithm]')
+    expect(query.filter_by).to.contain('purgatory_state:!=true')
+    expect(query.sort_by).to.equal('name:asc')
+  })
+
+  it('should convert a Typesense query to an Elasticsearch query when DB is Elasticsearch', () => {
+    process.env.DB_TYPE = 'elasticsearch'
+
+    const typesenseQuery = {
+      q: '*',
+      filter_by:
+        'author:=Ocean && metadata.type:=[dataset,algorithm] && purgatory_state:!=true',
+      num_hits: 10,
+      start: 0,
+      sort_by: 'name:asc'
+    }
+
+    const query = DatabaseFactory.createMetadataQuery().buildQuery(typesenseQuery)
+    expect(query.size).to.equal(10)
+    expect(query.from).to.equal(0)
+    expect(query.query.bool.filter[0].term.author).to.equal('Ocean')
+    expect(query.query.bool.filter[1].terms['metadata.type']).to.eql([
+      'dataset',
+      'algorithm'
+    ])
+    expect(query.query.bool.must_not[0].term.purgatory_state).to.equal('true')
+    expect(query.sort[0].name.order).to.equal('asc')
+  })
+
+  it('should return an Elasticsearch query when DB is Elasticsearch and an Elasticsearch query is passed', () => {
+    process.env.DB_TYPE = 'elasticsearch'
+
+    const searchQuery: SearchQuery = {
+      query: {
+        bool: {
+          filter: [
+            { term: { author: 'Ocean' } },
+            { terms: { 'metadata.type': ['dataset', 'algorithm'] } }
+          ],
+          must_not: [{ term: { purgatory_state: true } }]
+        }
+      },
+      size: 10,
+      from: 0,
+      sort: { name: SortDirectionOptions.Ascending }
+    }
+
+    const query = DatabaseFactory.createMetadataQuery().buildQuery(searchQuery)
+
+    expect(query.size).to.equal(10)
+    expect(query.from).to.equal(0)
+    expect(query.query.bool.filter[0].term.author).to.equal('Ocean')
+    expect(query.query.bool.filter[1].terms['metadata.type']).to.eql([
+      'dataset',
+      'algorithm'
+    ])
+    expect(query.query.bool.must_not[0].term.purgatory_state).to.equal(true)
+    expect(query.sort.name).to.equal('asc')
   })
 })
