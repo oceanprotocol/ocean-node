@@ -1,10 +1,13 @@
 import axios from 'axios'
 import { DDO } from '../@types/DDO/DDO'
 import { Service } from '../@types/DDO/Service'
-import { DDO_IDENTIFIER_PREFIX, KNOWN_CONFIDENTIAL_EVMS } from './constants.js'
+import { DDO_IDENTIFIER_PREFIX } from './constants.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { createHash } from 'crypto'
-import { getAddress } from 'ethers'
+import { ethers, getAddress, Signer } from 'ethers'
+import { KNOWN_CONFIDENTIAL_EVMS } from './address'
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/interfaces/IERC20Template.sol/IERC20Template.json'
+import { getContractAddress, getNFTFactory } from '../components/Indexer/utils'
 
 // Notes:
 // Asset as per asset.py on provider, is a class there, while on ocean.Js we only have a type
@@ -125,4 +128,46 @@ export function isConfidentialEVM(network: string | number): boolean {
     })
   }
   return search.length > 0
+}
+
+export async function isERC20Template4Active(
+  network: number,
+  owner: Signer
+): Promise<boolean> {
+  const nftFactoryAddress = getContractAddress(network, 'ERC721Factory')
+  const factoryERC721 = await getNFTFactory(owner, nftFactoryAddress)
+  const currentTokenCount = await factoryERC721.getCurrentTokenTemplateCount()
+  for (let i = 1; i <= currentTokenCount; i++) {
+    const tokenTemplate = await factoryERC721.getTokenTemplate(i)
+
+    const erc20Template: any = new ethers.Contract(
+      tokenTemplate.templateAddress,
+      ERC20Template.abi,
+      owner
+    )
+
+    // check for ID
+    const id = await erc20Template.connect(owner).getId()
+    if (tokenTemplate.isActive && id.toString() === '4') {
+      return true
+    }
+  }
+
+  return false
+}
+
+export async function isTemplate4AndConfidentialEVM(
+  network: number,
+  owner: Signer
+): Promise<boolean> {
+  const isConfidential = isConfidentialEVM(network)
+  if (!isConfidential) {
+    return false
+  }
+  return isConfidential && (await isERC20Template4Active(network, owner))
+}
+
+export function isConfidentialChainDDO(ddoChain: number, ddoService: Service): boolean {
+  const isConfidential = isConfidentialEVM(ddoChain)
+  return isConfidential && !ddoService.files
 }

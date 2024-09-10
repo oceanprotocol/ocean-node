@@ -359,14 +359,3 @@ export const knownUnsafeURLs: string[] = [
   // k8s ETCD
   '^.*(127.0.0.1).*'
 ]
-
-export const KNOWN_CONFIDENTIAL_EVMS = {
-  // there are some typos around these names (e.g; on addresses.json is just one 'p' on 'sapphire')
-  networks: [
-    {
-      name: ['oasis_sapphire', 'oasis_saphire'], // include name alias or typos
-      chainId: 23294
-    },
-    { name: ['oasis_sapphire_testnet', 'oasis_saphire_testnet'], chainId: 23295 }
-  ]
-}

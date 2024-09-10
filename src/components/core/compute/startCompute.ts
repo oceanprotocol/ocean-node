@@ -11,7 +11,7 @@ import {
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { isAddress } from 'ethers'
-import { AssetUtils } from '../../../utils/asset.js'
+import { AssetUtils, isConfidentialChainDDO } from '../../../utils/asset.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import { decrypt } from '../../../utils/crypt.js'
 import { verifyProviderFees } from '../utils/feesHandler.js'
@@ -127,13 +127,20 @@ export class ComputeStartHandler extends Handler {
             }
           }
           // let's see if we can access this asset
+          // check if oasis evm or similar
+          const confidentialEVM = isConfidentialChainDDO(ddo.chainId, service)
           let canDecrypt = false
           try {
-            await decrypt(
-              Uint8Array.from(Buffer.from(sanitizeServiceFiles(service.files), 'hex')),
-              EncryptMethod.ECIES
-            )
-            canDecrypt = true
+            if (!confidentialEVM) {
+              await decrypt(
+                Uint8Array.from(Buffer.from(sanitizeServiceFiles(service.files), 'hex')),
+                EncryptMethod.ECIES
+              )
+              canDecrypt = true
+            } else {
+              // TODO use oasis sdk to decrypt
+              console.log('TODO use oasis sdk to decrypt')
+            }
           } catch (e) {
             // do nothing
           }
@@ -252,7 +259,7 @@ export class ComputeStartHandler extends Handler {
             algorithm.meta = {
               language: ddo.metadata.algorithm.language,
               version: ddo.metadata.algorithm.version,
-              container: container
+              container
             }
             if ('format' in ddo.metadata.algorithm) {
               algorithm.meta.format = ddo.metadata.algorithm.format

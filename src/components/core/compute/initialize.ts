@@ -4,7 +4,7 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
 import { ComputeInitializeCommand } from '../../../@types/commands.js'
 import { ProviderComputeInitializeResults } from '../../../@types/Fees.js'
-import { AssetUtils } from '../../../utils/asset.js'
+import { AssetUtils, isConfidentialChainDDO } from '../../../utils/asset.js'
 import { verifyProviderFees, createProviderFee } from '../utils/feesHandler.js'
 import { Blockchain } from '../../../utils/blockchain.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
@@ -104,14 +104,22 @@ export class ComputeInitializeHandler extends Handler {
               }
             }
           }
+
+          // check if oasis evm or similar
+          const confidentialEVM = isConfidentialChainDDO(ddo.chainId, service)
           // let's see if we can access this asset
           let canDecrypt = false
           try {
-            await decrypt(
-              Uint8Array.from(Buffer.from(sanitizeServiceFiles(service.files), 'hex')),
-              EncryptMethod.ECIES
-            )
-            canDecrypt = true
+            if (!confidentialEVM) {
+              await decrypt(
+                Uint8Array.from(Buffer.from(sanitizeServiceFiles(service.files), 'hex')),
+                EncryptMethod.ECIES
+              )
+              canDecrypt = true
+            } else {
+              // TODO use oasis sdk to decrypt
+              console.log('TODO use oasis sdk to decrypt')
+            }
           } catch (e) {
             // do nothing
             CORE_LOGGER.error(`could not decrypt ddo files:  ${e.message} `)

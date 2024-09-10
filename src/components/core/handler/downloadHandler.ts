@@ -13,7 +13,11 @@ import crypto from 'crypto'
 import * as ethCrypto from 'eth-crypto'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
-import { AssetUtils } from '../../../utils/asset.js'
+import {
+  AssetUtils,
+  isConfidentialChainDDO,
+  isERC20Template4Active
+} from '../../../utils/asset.js'
 import { Service } from '../../../@types/DDO/Service.js'
 import { ArweaveStorage, IpfsStorage, Storage } from '../../storage/index.js'
 import {
@@ -427,6 +431,28 @@ export class DownloadHandler extends Handler {
 
     try {
       // 7. Decrypt the url
+
+      // check if confidential EVM
+      const confidentialEVM = isConfidentialChainDDO(ddo.chainId, service)
+      // check that files is missing and template 4 is active on the chain
+      if (confidentialEVM) {
+        if (!isERC20Template4Active(ddo.chainId, blockchain.getSigner())) {
+          const errorMsg =
+            'Cannot decrypt DDO files, Template 4 is not active for confidential EVM!'
+          CORE_LOGGER.error(errorMsg)
+          return {
+            stream: null,
+            status: {
+              httpStatus: 403,
+              error: errorMsg
+            }
+          }
+        } else {
+          // TODO decrypt using Oasis SDK
+          console.log('TODO decrypt using Oasis SDK')
+        }
+      }
+
       const uint8ArrayHex = Uint8Array.from(
         Buffer.from(sanitizeServiceFiles(service.files), 'hex')
       )
