@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { DDO } from '../@types/DDO/DDO'
 import { Service } from '../@types/DDO/Service'
-import { DDO_IDENTIFIER_PREFIX } from './constants.js'
+import { DDO_IDENTIFIER_PREFIX, KNOWN_CONFIDENTIAL_EVMS } from './constants.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { createHash } from 'crypto'
 import { getAddress } from 'ethers'
@@ -103,4 +103,26 @@ export function generateDDOHash(nftAddress: string, chainId: number): string | n
     .digest('hex')
 
   return DDO_IDENTIFIER_PREFIX + hashAddressAndChain
+}
+
+/**
+ * Checks if the given network is a confidential evm (oasis mainnet and testnet for now)
+ * @param network name or chain id
+ * @returns true if confidential evm
+ */
+export function isConfidentialEVM(network: string | number): boolean {
+  let search
+  // search by network name
+  if (typeof network === 'string') {
+    search = KNOWN_CONFIDENTIAL_EVMS.networks.filter((netInfo) => {
+      return netInfo.name.includes(network.toString())
+    })
+
+    // search by chain id
+  } else {
+    search = KNOWN_CONFIDENTIAL_EVMS.networks.filter((netInfo) => {
+      return netInfo.chainId === Number(network)
+    })
+  }
+  return search.length > 0
 }
