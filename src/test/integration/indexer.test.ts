@@ -246,7 +246,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(resolvedDDO.nft.symbol === (await nftContract.symbol()), 'NFT symbol mismatch')
     assert(
       resolvedDDO.nft.tokenURI ===
-      (await nftContract.tokenURI(await nftContract.getId())),
+        (await nftContract.tokenURI(await nftContract.getId())),
       'NFT tokeURI mismatch'
     )
     assert(
@@ -257,7 +257,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should store the ddo state in the db with no errors and retrieve it using did', async function () {
-    sleep(10000)
+    sleep(5000)
     const ddoState = await database.ddoState.retrieve(resolvedDDO.id)
     expect(resolvedDDO.id).to.equal(ddoState.did)
     expect(resolvedDDO.nftAddress).to.equal(ddoState.nft)
