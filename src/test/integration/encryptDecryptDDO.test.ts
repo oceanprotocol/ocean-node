@@ -343,10 +343,10 @@ describe('Should encrypt and decrypt DDO', () => {
     const wallet = new ethers.Wallet(process.env.PRIVATE_KEY)
     const message = String(
       txReceiptEncryptDDO.hash +
-      dataNftAddress +
-      publisherAddress +
-      chainId.toString() +
-      nonce
+        dataNftAddress +
+        publisherAddress +
+        chainId.toString() +
+        nonce
     )
     const messageHash = ethers.solidityPackedKeccak256(
       ['bytes'],
