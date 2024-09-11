@@ -15,7 +15,9 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js
 import { validateOrderTransaction } from '../utils/validateOrders.js'
 import {
   AssetUtils,
+  getFilesObjectFromConfidentialEVM,
   isConfidentialChainDDO,
+  isDataTokenTemplate4,
   isERC20Template4Active
 } from '../../../utils/asset.js'
 import { Service } from '../../../@types/DDO/Service.js'
@@ -38,6 +40,7 @@ import {
 import { DDO } from '../../../@types/DDO/DDO.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { OrdableAssetResponse } from '../../../@types/Asset.js'
+
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export function isOrderingAllowedForAsset(asset: DDO): OrdableAssetResponse {
@@ -432,11 +435,15 @@ export class DownloadHandler extends Handler {
     try {
       // 7. Decrypt the url
 
+      let filesObject: string = null
       // check if confidential EVM
       const confidentialEVM = isConfidentialChainDDO(ddo.chainId, service)
       // check that files is missing and template 4 is active on the chain
       if (confidentialEVM) {
-        if (!isERC20Template4Active(ddo.chainId, blockchain.getSigner())) {
+        const signer = blockchain.getSigner()
+        const isTemplate4 = isDataTokenTemplate4(service.datatokenAddress, signer)
+
+        if (!isTemplate4 || !isERC20Template4Active(ddo.chainId, signer)) {
           const errorMsg =
             'Cannot decrypt DDO files, Template 4 is not active for confidential EVM!'
           CORE_LOGGER.error(errorMsg)
@@ -450,11 +457,18 @@ export class DownloadHandler extends Handler {
         } else {
           // TODO decrypt using Oasis SDK
           console.log('TODO decrypt using Oasis SDK')
+          filesObject = await getFilesObjectFromConfidentialEVM(
+            service.datatokenAddress,
+            signer
+          )
         }
+      } else {
+        // non confidential EVM
+        filesObject = service.files
       }
 
       const uint8ArrayHex = Uint8Array.from(
-        Buffer.from(sanitizeServiceFiles(service.files), 'hex')
+        Buffer.from(sanitizeServiceFiles(filesObject), 'hex')
       )
       const decryptedUrlBytes = await decrypt(uint8ArrayHex, EncryptMethod.ECIES)
       // Convert the decrypted bytes back to a string

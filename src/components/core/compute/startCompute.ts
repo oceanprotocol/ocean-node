@@ -11,7 +11,13 @@ import {
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { isAddress } from 'ethers'
-import { AssetUtils, isConfidentialChainDDO } from '../../../utils/asset.js'
+import {
+  AssetUtils,
+  getFilesObjectFromConfidentialEVM,
+  isConfidentialChainDDO,
+  isDataTokenTemplate4,
+  isERC20Template4Active
+} from '../../../utils/asset.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import { decrypt } from '../../../utils/crypt.js'
 import { verifyProviderFees } from '../utils/feesHandler.js'
@@ -126,6 +132,23 @@ export class ComputeStartHandler extends Handler {
               }
             }
           }
+
+          const config = await getConfiguration()
+          const { rpc, network, chainId, fallbackRPCs } =
+            config.supportedNetworks[ddo.chainId]
+          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+          const { ready, error } = await blockchain.isNetworkReady()
+          if (!ready) {
+            return {
+              stream: null,
+              status: {
+                httpStatus: 400,
+                error: `Start Compute : ${error}`
+              }
+            }
+          }
+
+          const signer = blockchain.getSigner()
           // let's see if we can access this asset
           // check if oasis evm or similar
           const confidentialEVM = isConfidentialChainDDO(ddo.chainId, service)
@@ -140,6 +163,19 @@ export class ComputeStartHandler extends Handler {
             } else {
               // TODO use oasis sdk to decrypt
               console.log('TODO use oasis sdk to decrypt')
+
+              const isTemplate4 = isDataTokenTemplate4(service.datatokenAddress, signer)
+              if (isTemplate4 && isERC20Template4Active(ddo.chainId, signer)) {
+                // call smart contract to decrypt
+                console.log('do it')
+                const filesObject = await getFilesObjectFromConfidentialEVM(
+                  service.datatokenAddress,
+                  signer
+                )
+                if (filesObject != null) {
+                  canDecrypt = true
+                }
+              }
             }
           } catch (e) {
             // do nothing
@@ -172,20 +208,7 @@ export class ComputeStartHandler extends Handler {
               }
             }
           }
-          const config = await getConfiguration()
-          const { rpc, network, chainId, fallbackRPCs } =
-            config.supportedNetworks[ddo.chainId]
-          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-          const { ready, error } = await blockchain.isNetworkReady()
-          if (!ready) {
-            return {
-              stream: null,
-              status: {
-                httpStatus: 400,
-                error: `Start Compute : ${error}`
-              }
-            }
-          }
+
           const provider = blockchain.getProvider()
           result.datatoken = service.datatokenAddress
           result.chainId = ddo.chainId

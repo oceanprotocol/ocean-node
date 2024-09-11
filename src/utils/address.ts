@@ -59,13 +59,7 @@ export function getOceanArtifactsAdressesByChainId(chain: number): any {
 export const OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN = addresses
 export const DEVELOPMENT_CHAIN_ID = 8996
 
-export const KNOWN_CONFIDENTIAL_EVMS = {
-  // there are some typos around these names (e.g; on addresses.json is just one 'p' on 'sapphire')
-  networks: [
-    {
-      name: ['oasis_sapphire', 'oasis_saphire'], // include name alias or typos
-      chainId: 23294
-    },
-    { name: ['oasis_sapphire_testnet', 'oasis_saphire_testnet'], chainId: 23295 }
-  ]
-}
+export const KNOWN_CONFIDENTIAL_EVMS = [
+  23294, // mainnet oasis_sapphire,
+  23295 // oasis_sapphire_testnet
+]
