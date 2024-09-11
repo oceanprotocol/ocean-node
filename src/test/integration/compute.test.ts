@@ -113,7 +113,8 @@ describe('Compute', () => {
           ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE,
-          ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL
+          ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL,
+          ENVIRONMENT_VARIABLES.DB_TYPE
         ],
         [
           JSON.stringify(mockSupportedNetworks),
@@ -122,7 +123,8 @@ describe('Compute', () => {
           'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          JSON.stringify(['http://localhost:31000'])
+          JSON.stringify(['http://localhost:31000']),
+          'typesense'
         ]
       )
     )
@@ -215,7 +217,7 @@ describe('Compute', () => {
     )
     const txReceipt = await setMetaDataTx.wait()
     assert(txReceipt, 'set metadata failed')
-    setTimeout(() => {}, 10000)
+    setTimeout(() => { }, 10000)
     publishedComputeDataset = await waitToIndex(
       publishedComputeDataset.ddo.id,
       EVENTS.METADATA_CREATED
@@ -235,7 +237,6 @@ describe('Compute', () => {
     expect(response.stream).to.be.instanceOf(Readable)
 
     computeEnvironments = await streamToObject(response.stream as Readable)
-
     // expect 2 envs
     expect(computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 2, 'incorrect length')
     for (const computeEnvironment of computeEnvironments[DEVELOPMENT_CHAIN_ID]) {
@@ -259,6 +260,7 @@ describe('Compute', () => {
   })
 
   it('Initialize compute without transaction IDs', async () => {
+    publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
       serviceId: publishedComputeDataset.ddo.services[0].id
@@ -267,6 +269,15 @@ describe('Compute', () => {
       documentId: publishedAlgoDataset.ddo.id,
       serviceId: publishedAlgoDataset.ddo.services[0].id
     }
+    const getEnvironmentsTask = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS
+    }
+    const response = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
+      getEnvironmentsTask
+    )
+    computeEnvironments = await streamToObject(response.stream as Readable)
+    firstEnv = computeEnvironments[DEVELOPMENT_CHAIN_ID][0]
+
     const initializeComputeTask: ComputeInitializeCommand = {
       datasets: [dataset],
       algorithm,
@@ -786,14 +797,14 @@ describe('Compute', () => {
         publisherTrustedAlgorithms: setTrustedAlgosEmpty
           ? []
           : [
-              {
-                did: algoDDO.id,
-                filesChecksum:
-                  'f6a7b95e4a2e3028957f69fdd2dac27bd5103986b2171bc8bfee68b52f874dcd',
-                containerSectionChecksum:
-                  'ba8885fcc7d366f058d6c3bb0b7bfe191c5f85cb6a4ee3858895342436c23504'
-              }
-            ]
+            {
+              did: algoDDO.id,
+              filesChecksum:
+                'f6a7b95e4a2e3028957f69fdd2dac27bd5103986b2171bc8bfee68b52f874dcd',
+              containerSectionChecksum:
+                'ba8885fcc7d366f058d6c3bb0b7bfe191c5f85cb6a4ee3858895342436c23504'
+            }
+          ]
       }
 
       const metadata = hexlify(Buffer.from(JSON.stringify(datasetDDO)))

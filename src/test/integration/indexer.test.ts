@@ -90,7 +90,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   before(async () => {
     const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
+      url: 'http://localhost:9200'
     }
 
     previousConfiguration = await setupEnvironment(
@@ -101,14 +101,16 @@ describe('Indexer stores a new metadata events and orders.', () => {
           ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.DB_URL,
-          ENVIRONMENT_VARIABLES.ADDRESS_FILE
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE,
+          ENVIRONMENT_VARIABLES.DB_TYPE
         ],
         [
           JSON.stringify(mockSupportedNetworks),
           JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           dbConfig.url,
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
+          'elasticsearch'
         ]
       )
     )
@@ -217,6 +219,8 @@ describe('Indexer stores a new metadata events and orders.', () => {
     genericAsset.nft.owner = setMetaDataTxReceipt.from
     genericAsset.nft.state = 0
     genericAsset.nft.created = '2022-12-30T08:40:43'
+
+    await sleep(5000)
   })
 
   it('should store the ddo in the database and return it ', async function () {
@@ -242,7 +246,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(resolvedDDO.nft.symbol === (await nftContract.symbol()), 'NFT symbol mismatch')
     assert(
       resolvedDDO.nft.tokenURI ===
-        (await nftContract.tokenURI(await nftContract.getId())),
+      (await nftContract.tokenURI(await nftContract.getId())),
       'NFT tokeURI mismatch'
     )
     assert(
@@ -253,6 +257,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should store the ddo state in the db with no errors and retrieve it using did', async function () {
+    sleep(10000)
     const ddoState = await database.ddoState.retrieve(resolvedDDO.id)
     expect(resolvedDDO.id).to.equal(ddoState.did)
     expect(resolvedDDO.nftAddress).to.equal(ddoState.nft)
@@ -272,7 +277,9 @@ describe('Indexer stores a new metadata events and orders.', () => {
       },
       command: PROTOCOL_COMMANDS.QUERY
     }
+    console.log('here')
     const response = await queryDdoStateHandler.handle(queryDdoState)
+    console.log('here2')
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
