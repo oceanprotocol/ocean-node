@@ -175,17 +175,50 @@ export function isConfidentialChainDDO(ddoChain: number, ddoService: Service): b
   return isConfidential && !ddoService.files
 }
 
+/**
+ * get files object from SC
+ * @param serviceId service id
+ * @param datatokenAddress data token address
+ * @param signer provider wallet
+ * @param consumerAddress consumer wallet address
+ * @param consumerSignature signature
+ * @param consumerData consumer data
+ * @returns files object or null
+ */
 export async function getFilesObjectFromConfidentialEVM(
+  serviceId: string,
   datatokenAddress: string,
-  signer: Signer
+  signer: Signer,
+  consumerAddress: string,
+  consumerSignature: string,
+  consumerData: string // ddo id + nonce
 ): Promise<string> {
   try {
-    console.log('TRY decrypt using Oasis SDK')
+    const currentProviderAddress = await signer.getAddress()
+    // now try to get the url
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(consumerData))]
+    )
+    // const consumerHash = ethers.solidityPackedKeccak256(['bytes'], [consumerMessage])
+    // const consumerSignature = await signMessageShort(consumerHash, signer)
+    const providerMessage = ethers.solidityPackedKeccak256(
+      ['uint256', 'bytes'],
+      [serviceId, consumerSignature]
+    )
+    const providerSignature = await signMessageShort(providerMessage, signer)
+    CORE_LOGGER.info('Try getFilesObject from Confidential EVM (SC call)')
     const contract = new ethers.Contract(datatokenAddress, ERC20Template4.abi, signer)
 
     // call smart contract to decrypt
-    console.log('do it')
-    const bytesData = await contract.getFilesObject()
+    const bytesData = await contract.getFilesObject(
+      serviceId,
+      currentProviderAddress,
+      providerSignature,
+      consumerMessage,
+      consumerSignature,
+      consumerAddress
+    )
     const filesObject: string = ethers.toUtf8String(bytesData)
     console.log('files object is: ' + filesObject)
     return filesObject
@@ -195,4 +228,14 @@ export async function getFilesObjectFromConfidentialEVM(
     )
     return null
   }
+}
+
+export async function signMessageShort(message: string, wallet: Signer): Promise<string> {
+  const consumerMessage = ethers.solidityPackedKeccak256(
+    ['bytes'],
+    [ethers.hexlify(ethers.toUtf8Bytes(message))]
+  )
+  const messageHashBytes = ethers.toBeArray(consumerMessage)
+  const signature = await wallet.signMessage(messageHashBytes)
+  return signature
 }

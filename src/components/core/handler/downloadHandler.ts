@@ -456,10 +456,17 @@ export class DownloadHandler extends Handler {
           }
         } else {
           // TODO decrypt using Oasis SDK
-          console.log('TODO decrypt using Oasis SDK')
+          CORE_LOGGER.info(
+            'Downloading from Confidential EVM, try get filesObject from Smart Contract'
+          )
+          const consumerMessage = String(ddo.id + task.nonce) // ddo.id
           filesObject = await getFilesObjectFromConfidentialEVM(
+            service.id,
             service.datatokenAddress,
-            signer
+            signer,
+            task.consumerAddress,
+            task.signature,
+            consumerMessage
           )
         }
       } else {

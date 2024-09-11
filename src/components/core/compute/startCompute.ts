@@ -161,16 +161,18 @@ export class ComputeStartHandler extends Handler {
               )
               canDecrypt = true
             } else {
-              // TODO use oasis sdk to decrypt
-              console.log('TODO use oasis sdk to decrypt')
-
+              // TODO
+              CORE_LOGGER.warn('TODO confidential EVM start compute')
               const isTemplate4 = isDataTokenTemplate4(service.datatokenAddress, signer)
               if (isTemplate4 && isERC20Template4Active(ddo.chainId, signer)) {
                 // call smart contract to decrypt
-                console.log('do it')
                 const filesObject = await getFilesObjectFromConfidentialEVM(
+                  service.id,
                   service.datatokenAddress,
-                  signer
+                  signer,
+                  task.consumerAddress,
+                  null, // TODO
+                  service.id
                 )
                 if (filesObject != null) {
                   canDecrypt = true
