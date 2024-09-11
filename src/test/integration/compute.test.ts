@@ -217,7 +217,7 @@ describe('Compute', () => {
     )
     const txReceipt = await setMetaDataTx.wait()
     assert(txReceipt, 'set metadata failed')
-    setTimeout(() => { }, 10000)
+    setTimeout(() => {}, 10000)
     publishedComputeDataset = await waitToIndex(
       publishedComputeDataset.ddo.id,
       EVENTS.METADATA_CREATED
@@ -797,14 +797,14 @@ describe('Compute', () => {
         publisherTrustedAlgorithms: setTrustedAlgosEmpty
           ? []
           : [
-            {
-              did: algoDDO.id,
-              filesChecksum:
-                'f6a7b95e4a2e3028957f69fdd2dac27bd5103986b2171bc8bfee68b52f874dcd',
-              containerSectionChecksum:
-                'ba8885fcc7d366f058d6c3bb0b7bfe191c5f85cb6a4ee3858895342436c23504'
-            }
-          ]
+              {
+                did: algoDDO.id,
+                filesChecksum:
+                  'f6a7b95e4a2e3028957f69fdd2dac27bd5103986b2171bc8bfee68b52f874dcd',
+                containerSectionChecksum:
+                  'ba8885fcc7d366f058d6c3bb0b7bfe191c5f85cb6a4ee3858895342436c23504'
+              }
+            ]
       }
 
       const metadata = hexlify(Buffer.from(JSON.stringify(datasetDDO)))
