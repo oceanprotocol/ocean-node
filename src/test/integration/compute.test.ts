@@ -298,6 +298,7 @@ describe('Compute', () => {
     expect(resp.stream).to.be.instanceOf(Readable)
 
     const result: any = await streamToObject(resp.stream as Readable)
+    console.log('result:', result)
     assert(result.algorithm, 'algorithm does not exist')
     expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
       publishedAlgoDataset.datatokenAddress?.toLowerCase()
@@ -329,6 +330,7 @@ describe('Compute', () => {
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
     providerFeesComputeDataset = resultParsed.providerFee
+    console.log('publishedComputeDataset', publishedComputeDataset)
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
       publishedComputeDataset.ddo.datatokens[0].address?.toLowerCase()
     )
