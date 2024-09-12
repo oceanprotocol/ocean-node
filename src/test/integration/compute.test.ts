@@ -224,7 +224,7 @@ describe('Compute', () => {
       EVENTS.METADATA_CREATED
     )
     await sleep(5000)
-    console.log('publishedComputeDataset:', publishedComputeDataset)
+    console.log('publishedComputeDataset:', JSON.stringify(publishedComputeDataset))
   })
 
   it('Get compute environments', async () => {
