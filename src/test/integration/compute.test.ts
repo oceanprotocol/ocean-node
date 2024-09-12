@@ -244,11 +244,6 @@ describe('Compute', () => {
       throw new Error('Dataset update not reflected in the index after multiple retries')
     }
 
-    console.log(
-      'publishedComputeDataset updated:',
-      publishedComputeDataset?.ddo?.services[0]?.compute
-    )
-
     assert(
       publishedComputeDataset?.ddo?.services[0]?.compute?.publisherTrustedAlgorithms
         .length > 0,
@@ -622,6 +617,7 @@ describe('Compute', () => {
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
+    console.log('task_:', startComputeTask)
     const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
     console.log('response:', response)
     assert(response, 'Failed to get response')
