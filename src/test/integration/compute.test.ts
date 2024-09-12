@@ -161,7 +161,8 @@ describe('Compute', () => {
     publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
     const computeDatasetResult = await waitToIndex(
       publishedComputeDataset.ddo.id,
-      EVENTS.METADATA_CREATED
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
     )
     // consider possible timeouts
     if (!computeDatasetResult.ddo) {
