@@ -135,12 +135,11 @@ export class OceanIndexer {
                 EVENTS.ORDER_REUSED
               ].includes(event.method)
             ) {
-              console.log('id:', event.data)
               // will emit the metadata created/updated event and advertise it to the other peers (on create only)
               INDEXER_LOGGER.logMessage(
                 `Emiting "${event.method}" for DDO : ${event.data._id} from network: ${network} `
               )
-              INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
+              INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data._id)
               // remove from indexing list
             } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP) {
               // remove this one from the queue (means we processed the reindex for this tx)
