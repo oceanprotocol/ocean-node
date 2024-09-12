@@ -90,13 +90,15 @@ class BaseEventProcessor {
       const saveDDO = await ddoDatabase.update({ ...ddo })
       await ddoState.update(
         this.networkId,
-        saveDDO._id,
+        saveDDO._id ?? saveDDO.id,
         saveDDO.nftAddress,
         saveDDO.event?.tx,
         true
       )
       INDEXER_LOGGER.logMessage(
-        `Saved or updated DDO  : ${saveDDO._id} from network: ${this.networkId} triggered by: ${method}`
+        `Saved or updated DDO  : ${saveDDO._id ?? saveDDO.idd} from network: ${
+          this.networkId
+        } triggered by: ${method}`
       )
       return saveDDO
     } catch (err) {
@@ -632,7 +634,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
       if (
         'stats' in ddo &&
         ddo.services[serviceIndex].datatoken?.toLowerCase() ===
-          event.address?.toLowerCase()
+        event.address?.toLowerCase()
       ) {
         ddo.stats.orders += 1
       } else {
