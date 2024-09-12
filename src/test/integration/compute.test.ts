@@ -218,10 +218,13 @@ describe('Compute', () => {
     const txReceipt = await setMetaDataTx.wait()
     assert(txReceipt, 'set metadata failed')
     setTimeout(() => {}, 10000)
+    await sleep(5000)
     publishedComputeDataset = await waitToIndex(
       publishedComputeDataset.ddo.id,
       EVENTS.METADATA_CREATED
     )
+    await sleep(5000)
+    console.log('publishedComputeDataset:', publishedComputeDataset)
   })
 
   it('Get compute environments', async () => {

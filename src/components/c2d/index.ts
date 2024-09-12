@@ -101,6 +101,7 @@ export async function validateAlgoForDataset(
   oceanNode: OceanNode
 ) {
   try {
+    console.log('find dataservice by id:', datasetServiceId)
     const datasetService = datasetDDO.services.find(
       (service) => service.id === datasetServiceId
     )
