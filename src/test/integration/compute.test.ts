@@ -380,7 +380,6 @@ describe('Compute', () => {
     )
 
     assert(resultParsed.providerFee.validUntil, 'algorithm validUntil does not exist')
-    console.log('check result.datasets[0].validOrder', result.datasets)
     assert(result.datasets[0].validOrder === false, 'incorrect validOrder') // expect false because tx id was not provided and no start order was called before
   })
 
@@ -434,7 +433,13 @@ describe('Compute', () => {
     expect(resp.stream).to.be.instanceOf(Readable)
 
     const result: any = await streamToObject(resp.stream as Readable)
+    console.log('result:', result)
     assert(result.algorithm, 'algorithm does not exist')
+    console.log(
+      'result.algorithm.datatoken',
+      result.algorithm.datatoken,
+      publishedAlgoDataset
+    )
     expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
       publishedAlgoDataset.datatokenAddress?.toLowerCase()
     )
@@ -464,7 +469,7 @@ describe('Compute', () => {
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
 
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
-      publishedComputeDataset.datatokenAddress?.toLowerCase()
+      publishedComputeDataset.ddo.datatokens[0].address?.toLowerCase()
     )
 
     assert(
@@ -538,7 +543,7 @@ describe('Compute', () => {
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
-      publishedComputeDataset.datatokenAddress?.toLowerCase()
+      publishedComputeDataset.ddo.datatokens[0].address?.toLowerCase()
     )
 
     assert(
@@ -616,7 +621,6 @@ describe('Compute', () => {
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
-    console.log('task_:', startComputeTask)
     const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
     console.log('response:', response)
     assert(response, 'Failed to get response')
