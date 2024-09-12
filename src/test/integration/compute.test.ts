@@ -586,6 +586,7 @@ describe('Compute', () => {
       // output?: ComputeOutput
     }
     const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
+    console.log('response:', response)
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
