@@ -98,11 +98,11 @@ describe('Should test admin operations', () => {
           JSON.stringify(mockSupportedNetworks),
           JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          'http://localhost:8108/?apiKey=xyz',
+          'http://localhost:9200',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify([await wallet.getAddress()]),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          'typesense'
+          'elasticsearch'
         ]
       )
     )
@@ -210,7 +210,7 @@ describe('Should test admin operations', () => {
     const { ddo, wasTimeout } = await waitToIndex(
       publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT * 2
+      DEFAULT_TEST_TIMEOUT
     )
     await sleep(1000)
     if (!ddo) {
