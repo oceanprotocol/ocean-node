@@ -293,6 +293,7 @@ describe('Compute', () => {
 
   it('Initialize compute without transaction IDs', async () => {
     console.log('publishedComputeDataset', publishedComputeDataset.datatoken)
+    console.log('publishedAlgoDataset', publishedAlgoDataset)
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
       serviceId: publishedComputeDataset.ddo.services[0].id
@@ -331,6 +332,11 @@ describe('Compute', () => {
     const result: any = await streamToObject(resp.stream as Readable)
     console.log('result:', result)
     assert(result.algorithm, 'algorithm does not exist')
+    console.log(
+      'check result.algorithm.datatoken:',
+      result.algorithm.datatoken,
+      publishedAlgoDataset
+    )
     expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
       publishedAlgoDataset.datatoken[0]?.address?.toLowerCase()
     )
@@ -361,6 +367,11 @@ describe('Compute', () => {
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
     providerFeesComputeDataset = resultParsed.providerFee
+    console.log(
+      'check resultParsed.datatoken',
+      resultParsed.datatoken,
+      publishedAlgoDataset.datatoken
+    )
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
       publishedAlgoDataset.datatoken[0]?.address?.toLowerCase()
     )
@@ -382,6 +393,7 @@ describe('Compute', () => {
     )
 
     assert(resultParsed.providerFee.validUntil, 'algorithm validUntil does not exist')
+    console.log('check result.datasets[0].validOrder', result.datasets)
     assert(result.datasets[0].validOrder === false, 'incorrect validOrder') // expect false because tx id was not provided and no start order was called before
   })
 
