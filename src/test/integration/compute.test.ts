@@ -292,7 +292,6 @@ describe('Compute', () => {
   })
 
   it('Initialize compute without transaction IDs', async () => {
-    publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
     await sleep(5000)
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
