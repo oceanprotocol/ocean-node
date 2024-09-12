@@ -292,14 +292,10 @@ describe('Compute', () => {
   })
 
   it('Initialize compute without transaction IDs', async () => {
-    const publishedComputeDatasetPublished = await publishAsset(
-      computeAsset,
-      publisherAccount
-    )
-    await sleep(5000)
+    console.log('publishedComputeDataset', publishedComputeDataset)
     const dataset: ComputeAsset = {
-      documentId: publishedComputeDatasetPublished.ddo.id,
-      serviceId: publishedComputeDatasetPublished.ddo.services[0].id
+      documentId: publishedComputeDataset.ddo.id,
+      serviceId: publishedComputeDataset.ddo.services[0].id
     }
     const algorithm: ComputeAlgorithm = {
       documentId: publishedAlgoDataset.ddo.id,
@@ -365,7 +361,7 @@ describe('Compute', () => {
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
     providerFeesComputeDataset = resultParsed.providerFee
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
-      publishedComputeDatasetPublished.datatokenAddress?.toLowerCase()
+      publishedComputeDataset.datatokenAddress?.toLowerCase()
     )
     assert(
       resultParsed.providerFee.providerFeeAddress,
