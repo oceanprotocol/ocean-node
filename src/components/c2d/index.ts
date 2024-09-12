@@ -101,11 +101,9 @@ export async function validateAlgoForDataset(
   oceanNode: OceanNode
 ) {
   try {
-    console.log('find dataservice by id in:', datasetServiceId, datasetDDO)
     const datasetService = datasetDDO.services.find(
       (service) => service.id === datasetServiceId
     )
-    console.log('dataservice:', datasetService)
     if (!datasetService) {
       throw new Error('Dataset service not found')
     }
@@ -113,12 +111,6 @@ export async function validateAlgoForDataset(
     if (datasetService.type !== 'compute' || !compute) {
       throw new Error('Service not compute')
     }
-    console.log('algoDID:', algoDID)
-    console.log('compute.publisherTrustedAlgorithms', compute.publisherTrustedAlgorithms)
-    console.log(
-      'compute.publisherTrustedAlgorithmPublishers',
-      compute.publisherTrustedAlgorithmPublishers
-    )
     if (algoDID) {
       if (
         // if not set allow them all
@@ -133,18 +125,6 @@ export async function validateAlgoForDataset(
           (algo) => algo.did === algoDID
         )
         if (trustedAlgo) {
-          console.log(
-            'trustedAlgo:',
-            trustedAlgo.filesChecksum === algoChecksums.files &&
-              trustedAlgo.containerSectionChecksum === algoChecksums.container
-          )
-          console.log('trustedAlgo.filesChecksum', trustedAlgo.filesChecksum)
-          console.log('algoChecksums.files', algoChecksums.files)
-          console.log(
-            ' trustedAlgo.containerSectionChecksum',
-            trustedAlgo.containerSectionChecksum
-          )
-          console.log('algoChecksums.container', algoChecksums.container)
           return (
             trustedAlgo.filesChecksum === algoChecksums.files &&
             trustedAlgo.containerSectionChecksum === algoChecksums.container

@@ -65,7 +65,6 @@ import {
   getAlgoChecksums,
   validateAlgoForDataset
 } from '../../components/c2d/index.js'
-import { FindDdoHandler } from '../../components/core/handler/ddoHandler.js'
 
 describe('Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
@@ -103,20 +102,6 @@ describe('Compute', () => {
   let algoDDO: any
   let datasetDDO: any
 
-  async function waitForDDOUpdate(ddoId: string, retries = 10, delay = 5000) {
-    for (let i = 0; i < retries; i++) {
-      const updatedDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(ddoId)
-      if (
-        updatedDDO &&
-        updatedDDO.services[0].compute.publisherTrustedAlgorithms.length > 0
-      ) {
-        return updatedDDO
-      }
-      await sleep(delay)
-    }
-    throw new Error('DDO update was not indexed in time')
-  }
-
   before(async () => {
     previousConfiguration = await setupEnvironment(
       null,
@@ -135,11 +120,11 @@ describe('Compute', () => {
           JSON.stringify(mockSupportedNetworks),
           JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          'http://localhost:8108/?apiKey=xyz',
+          'http://localhost:9200',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
           JSON.stringify(['http://localhost:31000']),
-          'typesense'
+          'elasticsearch'
         ]
       )
     )
@@ -232,8 +217,14 @@ describe('Compute', () => {
     )
     const txReceipt = await setMetaDataTx.wait()
     assert(txReceipt, 'set metadata failed')
-    publishedComputeDataset = await waitForDDOUpdate(publishedComputeDataset.ddo.id)
-    console.log('published updated:', publishedComputeDataset)
+    setTimeout(() => {}, 10000)
+    await sleep(5000)
+    publishedComputeDataset = await waitToIndex(
+      publishedComputeDataset.ddo.id,
+      EVENTS.METADATA_CREATED
+    )
+    await sleep(5000)
+    console.log('publishedComputeDataset:', publishedComputeDataset)
   })
 
   it('Get compute environments', async () => {
