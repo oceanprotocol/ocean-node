@@ -29,7 +29,7 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { Readable } from 'stream'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
-import { getEventFromTx, streamToObject } from '../../utils/util.js'
+import { getEventFromTx, sleep, streamToObject } from '../../utils/util.js'
 import {
   Contract,
   ethers,
@@ -261,6 +261,7 @@ describe('Compute', () => {
 
   it('Initialize compute without transaction IDs', async () => {
     publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
+    await sleep(5000)
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
       serviceId: publishedComputeDataset.ddo.services[0].id
