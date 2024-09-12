@@ -8,7 +8,7 @@ import { ethers, getAddress, Signer } from 'ethers'
 import { KNOWN_CONFIDENTIAL_EVMS } from './address.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/interfaces/IERC20Template.sol/IERC20Template.json' assert { type: 'json' }
 import ERC20Template4 from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template4.sol/ERC20Template4.json' assert { type: 'json' }
-import { getContractAddress, getNFTFactory } from '../components/Indexer/utils'
+import { getContractAddress, getNFTFactory } from '../components/Indexer/utils.js'
 
 // Notes:
 // Asset as per asset.py on provider, is a class there, while on ocean.Js we only have a type
