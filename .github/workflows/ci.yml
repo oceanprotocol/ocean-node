@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: 'v20.16.0'
       - name: Cache node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v2
         env:
           cache-name: cache-node-modules
         with:
@@ -51,7 +51,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - name: Cache node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v2
         env:
           cache-name: cache-node-modules
         with:
@@ -69,7 +69,7 @@ jobs:
         with:
           node-version: 'v20.16.0'
       - name: Cache node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v2
         env:
           cache-name: cache-node-modules
         with:
@@ -102,7 +102,7 @@ jobs:
         with:
           node-version: 'v20.16.0'
       - name: Cache node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v2
         env:
           cache-name: cache-node-modules
         with:
@@ -191,7 +191,7 @@ jobs:
           node-version: 'v20.16.0'
 
       - name: Cache node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v2
         env:
           cache-name: cache-node-modules
         with:
