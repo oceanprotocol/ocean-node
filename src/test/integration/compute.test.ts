@@ -172,7 +172,8 @@ describe('Compute', () => {
     }
     const algoDatasetResult = await waitToIndex(
       publishedAlgoDataset.ddo.id,
-      EVENTS.METADATA_CREATED
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
     )
     if (!algoDatasetResult.ddo) {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(
@@ -222,10 +223,11 @@ describe('Compute', () => {
     await sleep(5000)
     publishedComputeDataset = await waitToIndex(
       publishedComputeDataset.ddo.id,
-      EVENTS.METADATA_CREATED
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
     )
     await sleep(5000)
-    console.log('publishedComputeDataset:', JSON.stringify(publishedComputeDataset))
+    console.log('publishedComputeDataset updated:', publishedComputeDataset.ddo.compute)
   })
 
   it('Get compute environments', async () => {
