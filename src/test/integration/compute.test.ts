@@ -227,7 +227,7 @@ describe('Compute', () => {
       DEFAULT_TEST_TIMEOUT
     )
     await sleep(5000)
-    console.log('publishedComputeDataset updated:', publishedComputeDataset.ddo.compute)
+    console.log('publishedComputeDataset updated:', publishedComputeDataset.ddo)
   })
 
   it('Get compute environments', async () => {
