@@ -183,7 +183,7 @@ describe('Compute', () => {
   })
 
   it('should add the algorithm to the dataset trusted algorithm list', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 5)
     const algoChecksums = await getAlgoChecksums(
       publishedAlgoDataset.ddo.id,
       publishedAlgoDataset.ddo.services[0].id,
@@ -219,15 +219,46 @@ describe('Compute', () => {
     )
     const txReceipt = await setMetaDataTx.wait()
     assert(txReceipt, 'set metadata failed')
-    setTimeout(() => {}, 10000)
-    await sleep(5000)
-    publishedComputeDataset = await waitToIndex(
-      publishedComputeDataset.ddo.id,
-      EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT
+    await sleep(10000)
+    let retries = 10
+    while (retries > 0) {
+      publishedComputeDataset = await waitToIndex(
+        publishedComputeDataset.ddo.id,
+        EVENTS.METADATA_CREATED,
+        DEFAULT_TEST_TIMEOUT
+      )
+
+      if (
+        publishedComputeDataset?.ddo?.services[0]?.compute?.publisherTrustedAlgorithms
+          ?.length > 0
+      ) {
+        break
+      }
+
+      console.log(`Retrying... (${11 - retries} of 10)`)
+      retries--
+      await sleep(5000)
+    }
+
+    if (retries === 0) {
+      throw new Error('Dataset update not reflected in the index after multiple retries')
+    }
+
+    console.log(
+      'publishedComputeDataset updated:',
+      publishedComputeDataset?.ddo?.services[0]?.compute
     )
-    await sleep(5000)
-    console.log('publishedComputeDataset updated:', publishedComputeDataset.ddo)
+
+    assert(
+      publishedComputeDataset?.ddo?.services[0]?.compute?.publisherTrustedAlgorithms
+        .length > 0,
+      'Trusted algorithms not updated'
+    )
+    assert(
+      publishedComputeDataset?.ddo?.services[0]?.compute?.publisherTrustedAlgorithms[0]
+        .did === publishedAlgoDataset.ddo.id,
+      'Algorithm DID mismatch in trusted algorithms'
+    )
   })
 
   it('Get compute environments', async () => {
