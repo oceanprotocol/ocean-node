@@ -93,9 +93,7 @@ export class ComputeStartHandler extends Handler {
         if ('documentId' in elem && elem.documentId) {
           result.did = elem.documentId
           result.serviceId = elem.documentId
-          console.log('find ddo with:', elem.documentId)
           const ddo = await new FindDdoHandler(node).findAndFormatDdo(elem.documentId)
-          console.log('ddo:', ddo)
           if (!ddo) {
             const error = `DDO ${elem.documentId} not found`
             return {
@@ -150,12 +148,6 @@ export class ComputeStartHandler extends Handler {
             }
           }
           if (ddo.metadata.type !== 'algorithm') {
-            console.log(
-              'validate for:',
-              ddo,
-              task.algorithm.documentId,
-              ddo.services[0].id
-            )
             const validAlgoForDataset = await validateAlgoForDataset(
               task.algorithm.documentId,
               algoChecksums,

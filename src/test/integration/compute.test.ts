@@ -220,30 +220,11 @@ describe('Compute', () => {
     const txReceipt = await setMetaDataTx.wait()
     assert(txReceipt, 'set metadata failed')
     await sleep(10000)
-    let retries = 10
-    while (retries > 0) {
-      publishedComputeDataset = await waitToIndex(
-        publishedComputeDataset.ddo.id,
-        EVENTS.METADATA_CREATED,
-        DEFAULT_TEST_TIMEOUT
-      )
-
-      if (
-        publishedComputeDataset?.ddo?.services[0]?.compute?.publisherTrustedAlgorithms
-          ?.length > 0
-      ) {
-        break
-      }
-
-      console.log(`Retrying... (${11 - retries} of 10)`)
-      retries--
-      await sleep(5000)
-    }
-
-    if (retries === 0) {
-      throw new Error('Dataset update not reflected in the index after multiple retries')
-    }
-
+    publishedComputeDataset = await waitToIndex(
+      publishedComputeDataset.ddo.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
     assert(
       publishedComputeDataset?.ddo?.services[0]?.compute?.publisherTrustedAlgorithms
         .length > 0,
@@ -433,13 +414,7 @@ describe('Compute', () => {
     expect(resp.stream).to.be.instanceOf(Readable)
 
     const result: any = await streamToObject(resp.stream as Readable)
-    console.log('result:', result)
     assert(result.algorithm, 'algorithm does not exist')
-    console.log(
-      'result.algorithm.datatoken',
-      result.algorithm.datatoken,
-      publishedAlgoDataset
-    )
     expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
       publishedAlgoDataset.datatokenAddress?.toLowerCase()
     )
@@ -622,7 +597,6 @@ describe('Compute', () => {
       // output?: ComputeOutput
     }
     const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
-    console.log('response:', response)
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')

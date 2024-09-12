@@ -321,7 +321,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
     await sleep(1000)
     const updatedDDO: any = ddo
     if (updatedDDO) {
-      console.log('updated:', updatedDDO)
       expect(updatedDDO.metadata.name).to.equal('dataset-name-updated')
       expect(updatedDDO.metadata.description).to.equal(
         'Updated description for the Ocean protocol test dataset'
