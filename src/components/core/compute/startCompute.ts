@@ -94,6 +94,7 @@ export class ComputeStartHandler extends Handler {
           result.did = elem.documentId
           result.serviceId = elem.documentId
           const ddo = await new FindDdoHandler(node).findAndFormatDdo(elem.documentId)
+          console.log('ddo:', ddo)
           if (!ddo) {
             const error = `DDO ${elem.documentId} not found`
             return {
