@@ -433,7 +433,7 @@ describe('Compute', () => {
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
 
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
-      publishedComputeDataset.ddo.datatokens[0].address?.toLowerCase()
+      publishedComputeDataset.datatokenAddress?.toLowerCase()
     )
 
     assert(
@@ -507,7 +507,7 @@ describe('Compute', () => {
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
-      publishedComputeDataset.ddo.datatokens[0].address?.toLowerCase()
+      publishedComputeDataset.datatokenAddress?.toLowerCase()
     )
 
     assert(
