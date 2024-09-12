@@ -291,27 +291,15 @@ describe('Compute', () => {
     firstEnv = computeEnvironments[DEVELOPMENT_CHAIN_ID][0]
   })
 
-  it('should start an order', async function () {
-    const orderTxReceipt = await orderAsset(
-      publishedComputeDataset.ddo,
-      0,
-      consumerAccount,
-      firstEnv.consumerAddress, // for compute, consumer is always address of compute env
-      publisherAccount,
-      oceanNode,
-      providerFeesComputeDataset
-    )
-    assert(orderTxReceipt, 'order transaction failed')
-    datasetOrderTxId = orderTxReceipt.hash
-    assert(datasetOrderTxId, 'transaction id not found')
-  })
-
   it('Initialize compute without transaction IDs', async () => {
-    publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
+    const publishedComputeDatasetPublished = await publishAsset(
+      computeAsset,
+      publisherAccount
+    )
     await sleep(5000)
     const dataset: ComputeAsset = {
-      documentId: publishedComputeDataset.ddo.id,
-      serviceId: publishedComputeDataset.ddo.services[0].id
+      documentId: publishedComputeDatasetPublished.ddo.id,
+      serviceId: publishedComputeDatasetPublished.ddo.services[0].id
     }
     const algorithm: ComputeAlgorithm = {
       documentId: publishedAlgoDataset.ddo.id,
@@ -377,7 +365,7 @@ describe('Compute', () => {
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
     providerFeesComputeDataset = resultParsed.providerFee
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
-      publishedComputeDataset.datatokenAddress?.toLowerCase()
+      publishedComputeDatasetPublished.datatokenAddress?.toLowerCase()
     )
     assert(
       resultParsed.providerFee.providerFeeAddress,
@@ -398,6 +386,21 @@ describe('Compute', () => {
 
     assert(resultParsed.providerFee.validUntil, 'algorithm validUntil does not exist')
     assert(result.datasets[0].validOrder === false, 'incorrect validOrder') // expect false because tx id was not provided and no start order was called before
+  })
+
+  it('should start an order', async function () {
+    const orderTxReceipt = await orderAsset(
+      publishedComputeDataset.ddo,
+      0,
+      consumerAccount,
+      firstEnv.consumerAddress, // for compute, consumer is always address of compute env
+      publisherAccount,
+      oceanNode,
+      providerFeesComputeDataset
+    )
+    assert(orderTxReceipt, 'order transaction failed')
+    datasetOrderTxId = orderTxReceipt.hash
+    assert(datasetOrderTxId, 'transaction id not found')
   })
 
   it('Initialize compute with dataset tx and without algoritm tx', async () => {
