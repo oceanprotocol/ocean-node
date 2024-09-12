@@ -292,7 +292,7 @@ describe('Compute', () => {
   })
 
   it('Initialize compute without transaction IDs', async () => {
-    console.log('publishedComputeDataset', publishedComputeDataset)
+    console.log('publishedComputeDataset', publishedComputeDataset.datatoken)
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
       serviceId: publishedComputeDataset.ddo.services[0].id
@@ -329,9 +329,10 @@ describe('Compute', () => {
     expect(resp.stream).to.be.instanceOf(Readable)
 
     const result: any = await streamToObject(resp.stream as Readable)
+    console.log('result:', result)
     assert(result.algorithm, 'algorithm does not exist')
     expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
-      publishedAlgoDataset.datatokenAddress?.toLowerCase()
+      publishedAlgoDataset.datatoken[0]?.address?.toLowerCase()
     )
 
     providerFeesComputeAlgo = result.algorithm.providerFee
@@ -361,7 +362,7 @@ describe('Compute', () => {
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
     providerFeesComputeDataset = resultParsed.providerFee
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
-      publishedComputeDataset.datatokenAddress?.toLowerCase()
+      publishedAlgoDataset.datatoken[0]?.address?.toLowerCase()
     )
     assert(
       resultParsed.providerFee.providerFeeAddress,
