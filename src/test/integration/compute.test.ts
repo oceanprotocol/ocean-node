@@ -585,6 +585,7 @@ describe('Compute', () => {
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
+    console.log('startComputeTask:', startComputeTask)
     const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
     console.log('response:', response)
     assert(response, 'Failed to get response')
