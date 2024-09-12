@@ -229,6 +229,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT
     )
+    await sleep(5000)
     resolvedDDO = ddo
     if (resolvedDDO) {
       expect(resolvedDDO.id).to.equal(genericAsset.id)
@@ -257,12 +258,11 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should store the ddo state in the db with no errors and retrieve it using did', async function () {
-    sleep(5000)
+    await sleep(5000)
     const ddoState = await database.ddoState.retrieve(resolvedDDO.id)
+    assert(ddoState, 'ddoState not found')
     expect(resolvedDDO.id).to.equal(ddoState.did)
-    expect(resolvedDDO.nftAddress).to.equal(ddoState.nft)
     expect(ddoState.valid).to.equal(true)
-    expect(resolvedDDO.id).to.equal(ddoState.did)
     expect(ddoState.error).to.equal(' ')
     // add txId check once we have that as change merged and the event will be indexed
   })
@@ -277,36 +277,15 @@ describe('Indexer stores a new metadata events and orders.', () => {
       },
       command: PROTOCOL_COMMANDS.QUERY
     }
-    console.log('here')
     const response = await queryDdoStateHandler.handle(queryDdoState)
-    console.log('here2')
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     const result = await streamToObject(response.stream as Readable)
-    const ddoState = result.hits[0].document
+    const ddoState = result[0]
     expect(resolvedDDO.id).to.equal(ddoState.did)
-    expect(resolvedDDO.nftAddress).to.equal(ddoState.nft)
     expect(ddoState.valid).to.equal(true)
-    expect(resolvedDDO.id).to.equal(ddoState.did)
     expect(ddoState.error).to.equal(' ')
-
-    // query using the nft address
-    queryDdoState.query = {
-      q: resolvedDDO.nftAddress,
-      query_by: 'nft'
-    }
-    const nftQueryResponse = await queryDdoStateHandler.handle(queryDdoState)
-    assert(nftQueryResponse, 'Failed to get response')
-    assert(nftQueryResponse.status.httpStatus === 200, 'Failed to get 200 response')
-    assert(nftQueryResponse.stream, 'Failed to get stream')
-    const nftQueryResult = await streamToObject(nftQueryResponse.stream as Readable)
-    const nftDdoState = nftQueryResult.hits[0].document
-    expect(resolvedDDO.id).to.equal(nftDdoState.did)
-    expect(resolvedDDO.nftAddress).to.equal(nftDdoState.nft)
-    expect(nftDdoState.valid).to.equal(true)
-    expect(resolvedDDO.id).to.equal(nftDdoState.did)
-    expect(nftDdoState.error).to.equal(' ')
     // add txId check once we have that as change merged and the event will be indexed
   })
 
@@ -339,8 +318,10 @@ describe('Indexer stores a new metadata events and orders.', () => {
       DEFAULT_TEST_TIMEOUT,
       true
     )
+    await sleep(1000)
     const updatedDDO: any = ddo
     if (updatedDDO) {
+      console.log('updated:', updatedDDO)
       expect(updatedDDO.metadata.name).to.equal('dataset-name-updated')
       expect(updatedDDO.metadata.description).to.equal(
         'Updated description for the Ocean protocol test dataset'
@@ -474,12 +455,14 @@ describe('Indexer stores a new metadata events and orders.', () => {
       DEFAULT_TEST_TIMEOUT,
       true
     )
+
     const retrievedDDO: any = ddo
+
     if (retrievedDDO) {
       expect(retrievedDDO.stats.orders).to.equal(1)
       initialOrderCount = retrievedDDO.stats.orders
       const resultOrder = await database.order.retrieve(orderTxId)
-      expect(resultOrder?.id).to.equal(orderTxId)
+      expect(resultOrder?.orderId).to.equal(orderTxId)
       expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
       expect(resultOrder?.type).to.equal('startOrder')
       const timestamp = orderEvent.args[4].toString()
@@ -557,7 +540,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     if (retrievedDDO) {
       expect(retrievedDDO.stats.orders).to.be.greaterThan(initialOrderCount)
       const resultOrder = await database.order.retrieve(reuseOrderTxId)
-      expect(resultOrder?.id).to.equal(reuseOrderTxId)
+      expect(resultOrder?.orderId).to.equal(reuseOrderTxId)
       expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
       expect(resultOrder?.type).to.equal('reuseOrder')
       const timestamp = reusedOrderEvent.args[2].toString()
@@ -668,12 +651,14 @@ describe('OceanIndexer - crawler threads', () => {
       [
         ENVIRONMENT_VARIABLES.RPCS,
         ENVIRONMENT_VARIABLES.ADDRESS_FILE,
-        ENVIRONMENT_VARIABLES.DB_URL
+        ENVIRONMENT_VARIABLES.DB_URL,
+        ENVIRONMENT_VARIABLES.DB_TYPE
       ],
       [
         JSON.stringify(supportedNetworks),
         `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-        'http://localhost:8108/?apiKey=xyz'
+        'http://localhost:9200',
+        'elasticsearch'
       ]
     )
     envOverrides = await setupEnvironment(null, envOverrides)

@@ -91,7 +91,8 @@ describe('Should test admin operations', () => {
           ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
-          ENVIRONMENT_VARIABLES.ADDRESS_FILE
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE,
+          ENVIRONMENT_VARIABLES.DB_TYPE
         ],
         [
           JSON.stringify(mockSupportedNetworks),
@@ -100,7 +101,8 @@ describe('Should test admin operations', () => {
           'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify([await wallet.getAddress()]),
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
+          'typesense'
         ]
       )
     )
@@ -210,7 +212,7 @@ describe('Should test admin operations', () => {
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 2
     )
-
+    await sleep(1000)
     if (!ddo) {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     }

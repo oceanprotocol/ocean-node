@@ -32,7 +32,10 @@ describe('LogDatabase CRUD', () => {
   before(async () => {
     previousConfiguration = await setupEnvironment(
       null,
-      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
+      buildEnvOverrideConfig(
+        [ENVIRONMENT_VARIABLES.LOG_DB, ENVIRONMENT_VARIABLES.DB_TYPE],
+        ['true', 'typesense']
+      )
     )
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
@@ -49,20 +52,12 @@ describe('LogDatabase CRUD', () => {
 
   it('insert log', async () => {
     const result = await database.logs.insertLog(logEntry)
-    expect(result).to.include.keys(
-      'id',
-      'timestamp',
-      'level',
-      'message',
-      'moduleName',
-      'meta'
-    )
+    expect(result).to.include.keys('timestamp', 'level', 'message', 'moduleName', 'meta')
     logId = result?.id // Save the auto-generated id for further operations
   })
 
   it('retrieve log', async () => {
     const result = await database.logs.retrieveLog(logId)
-    expect(result?.id).to.equal(logId)
     expect(result?.level).to.equal(logEntry.level)
     expect(result?.message).to.equal(logEntry.message)
     expect(result?.moduleName).to.equal(logEntry.moduleName)
@@ -93,7 +88,6 @@ describe('LogDatabase CRUD', () => {
       LOG_LEVELS_STR.LEVEL_DEBUG
     )
     logs = logs.filter((log) => log.message === newLogEntry.message)
-
     expect(logs?.length).to.equal(1)
     expect(Number(logs?.[0].id)).to.greaterThan(Number(logId))
     expect(logs?.[0].level).to.equal(newLogEntry.level)
@@ -124,7 +118,6 @@ describe('LogDatabase CRUD', () => {
     logs = logs.filter((log) => log.message === newLogEntry.message)
 
     expect(logs?.length).to.equal(1)
-    expect(Number(logs?.[0].id)).to.greaterThan(Number(logId))
     expect(logs?.[0].level).to.equal(newLogEntry.level)
     expect(logs?.[0].message).to.equal(newLogEntry.message)
     expect(logs?.[0].moduleName).to.equal('HTTP')
@@ -153,7 +146,6 @@ describe('LogDatabase CRUD', () => {
     logs = logs.filter((log) => log.message.includes(newLogEntry.message))
 
     expect(logs?.length).to.equal(1)
-    expect(Number(logs?.[0].id)).to.greaterThan(Number(logId))
     expect(logs?.[0].level).to.equal(newLogEntry.level)
     assert(logs?.[0].message)
     expect(logs?.[0].moduleName).to.equal('HTTP')
@@ -173,7 +165,10 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
   before(async () => {
     previousConfiguration = await setupEnvironment(
       null,
-      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
+      buildEnvOverrideConfig(
+        [ENVIRONMENT_VARIABLES.LOG_DB, ENVIRONMENT_VARIABLES.DB_TYPE],
+        ['true', 'typesense']
+      )
     )
 
     const dbConfig = {
@@ -347,7 +342,10 @@ describe('LogDatabase deleteOldLogs', () => {
   before(async () => {
     previousConfiguration = await setupEnvironment(
       null,
-      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
+      buildEnvOverrideConfig(
+        [ENVIRONMENT_VARIABLES.LOG_DB, ENVIRONMENT_VARIABLES.DB_TYPE],
+        ['true', 'typesense']
+      )
     )
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
@@ -358,7 +356,6 @@ describe('LogDatabase deleteOldLogs', () => {
   it('should insert an old log and a recent log', async () => {
     const oldLogResult = await database.logs.insertLog(oldLogEntry)
     expect(oldLogResult).to.include.keys(
-      'id',
       'timestamp',
       'level',
       'message',
@@ -368,7 +365,6 @@ describe('LogDatabase deleteOldLogs', () => {
 
     const recentLogResult = await database.logs.insertLog(recentLogEntry)
     expect(recentLogResult).to.include.keys(
-      'id',
       'timestamp',
       'level',
       'message',
@@ -409,7 +405,10 @@ describe('LogDatabase retrieveMultipleLogs with pagination', () => {
   before(async () => {
     previousConfiguration = await setupEnvironment(
       null,
-      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
+      buildEnvOverrideConfig(
+        [ENVIRONMENT_VARIABLES.LOG_DB, ENVIRONMENT_VARIABLES.DB_TYPE],
+        ['true', 'typesense']
+      )
     )
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'

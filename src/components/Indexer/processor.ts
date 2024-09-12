@@ -90,7 +90,7 @@ class BaseEventProcessor {
       const saveDDO = await ddoDatabase.update({ ...ddo })
       await ddoState.update(
         this.networkId,
-        saveDDO.id,
+        saveDDO._id,
         saveDDO.nftAddress,
         saveDDO.event?.tx,
         true
