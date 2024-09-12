@@ -292,8 +292,6 @@ describe('Compute', () => {
   })
 
   it('Initialize compute without transaction IDs', async () => {
-    console.log('publishedComputeDataset', publishedComputeDataset)
-    console.log('publishedAlgoDataset', publishedAlgoDataset)
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
       serviceId: publishedComputeDataset.ddo.services[0].id
@@ -330,13 +328,7 @@ describe('Compute', () => {
     expect(resp.stream).to.be.instanceOf(Readable)
 
     const result: any = await streamToObject(resp.stream as Readable)
-    console.log('result:', result)
     assert(result.algorithm, 'algorithm does not exist')
-    console.log(
-      'check result.algorithm.datatoken:',
-      result.algorithm.datatoken,
-      publishedAlgoDataset.datatokenAddress
-    )
     expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
       publishedAlgoDataset.datatokenAddress?.toLowerCase()
     )
@@ -367,14 +359,8 @@ describe('Compute', () => {
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
     providerFeesComputeDataset = resultParsed.providerFee
-    console.log(
-      'check resultParsed.datatoken',
-      resultParsed.datatoken,
-      publishedComputeDataset.ddo.datatokens,
-      publishedComputeDataset.datatokenAddress
-    )
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
-      publishedComputeDataset.datatokenAddress?.toLowerCase()
+      publishedComputeDataset.ddo.datatokens[0].address?.toLowerCase()
     )
     assert(
       resultParsed.providerFee.providerFeeAddress,
