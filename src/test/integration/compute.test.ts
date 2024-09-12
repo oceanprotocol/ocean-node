@@ -292,7 +292,7 @@ describe('Compute', () => {
   })
 
   it('Initialize compute without transaction IDs', async () => {
-    console.log('publishedComputeDataset', publishedComputeDataset.datatoken)
+    console.log('publishedComputeDataset', publishedComputeDataset)
     console.log('publishedAlgoDataset', publishedAlgoDataset)
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
@@ -370,10 +370,11 @@ describe('Compute', () => {
     console.log(
       'check resultParsed.datatoken',
       resultParsed.datatoken,
-      publishedAlgoDataset.datatoken
+      publishedComputeDataset.ddo.datatokens,
+      publishedComputeDataset.datatokenAddress
     )
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
-      publishedAlgoDataset.datatokenAddress?.toLowerCase()
+      publishedComputeDataset.datatokenAddress?.toLowerCase()
     )
     assert(
       resultParsed.providerFee.providerFeeAddress,
