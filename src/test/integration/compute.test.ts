@@ -335,10 +335,10 @@ describe('Compute', () => {
     console.log(
       'check result.algorithm.datatoken:',
       result.algorithm.datatoken,
-      publishedAlgoDataset
+      publishedAlgoDataset.datatokenAddress
     )
     expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
-      publishedAlgoDataset.datatoken[0]?.address?.toLowerCase()
+      publishedAlgoDataset.datatokenAddress?.toLowerCase()
     )
 
     providerFeesComputeAlgo = result.algorithm.providerFee
@@ -373,7 +373,7 @@ describe('Compute', () => {
       publishedAlgoDataset.datatoken
     )
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
-      publishedAlgoDataset.datatoken[0]?.address?.toLowerCase()
+      publishedAlgoDataset.datatokenAddress?.toLowerCase()
     )
     assert(
       resultParsed.providerFee.providerFeeAddress,
