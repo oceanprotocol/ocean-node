@@ -6,13 +6,13 @@ import {
   AbstractLogDatabase,
   AbstractNonceDatabase,
   AbstractOrderDatabase
-} from './BaseDatabase'
-import { createElasticsearchClient } from './ElasticsearchConfigHelper'
+} from './BaseDatabase.js'
+import { createElasticsearchClient } from './ElasticsearchConfigHelper.js'
 import { OceanNodeDBConfig } from '../../@types'
-import { ElasticsearchSchema } from './ElasticSchemas'
-import { DATABASE_LOGGER } from '../../utils/logging/common'
-import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger'
-import { validateObject } from '../core/utils/validateDdoHandler'
+import { ElasticsearchSchema } from './ElasticSchemas.js'
+import { DATABASE_LOGGER } from '../../utils/logging/common.js'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { validateObject } from '../core/utils/validateDdoHandler.js'
 
 export class ElasticsearchNonceDatabase extends AbstractNonceDatabase {
   private client: Client
@@ -343,19 +343,19 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
     try {
       const result = await this.client.search({
         index: this.index,
-        body: {
-          query: {
-            match: query
+        query: {
+          match: {
+            [query.query_by]: query.q
           }
         }
       })
       return result.hits.hits.map((hit: any) => hit._source)
     } catch (error) {
-      const errorMessage = `Error when searching by query ${JSON.stringify(query)}: ${
+      const errorMsg = `Error when searching by query ${JSON.stringify(query)}: ${
         error.message
       }`
       DATABASE_LOGGER.logMessageWithEmoji(
-        errorMessage,
+        errorMsg,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR

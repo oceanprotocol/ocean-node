@@ -90,13 +90,15 @@ class BaseEventProcessor {
       const saveDDO = await ddoDatabase.update({ ...ddo })
       await ddoState.update(
         this.networkId,
-        saveDDO.id,
+        saveDDO._id ?? saveDDO.id,
         saveDDO.nftAddress,
         saveDDO.event?.tx,
         true
       )
       INDEXER_LOGGER.logMessage(
-        `Saved or updated DDO  : ${saveDDO.id} from network: ${this.networkId} triggered by: ${method}`
+        `Saved or updated DDO  : ${saveDDO._id ?? saveDDO.idd} from network: ${
+          this.networkId
+        } triggered by: ${method}`
       )
       return saveDDO
     } catch (err) {

@@ -111,7 +111,6 @@ export async function validateAlgoForDataset(
     if (datasetService.type !== 'compute' || !compute) {
       throw new Error('Service not compute')
     }
-
     if (algoDID) {
       if (
         // if not set allow them all

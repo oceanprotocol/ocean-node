@@ -305,6 +305,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'UNSAFE_URLS',
     value: process.env.UNSAFE_URLS,
     required: false
+  },
+  DB_TYPE: {
+    name: 'DB_TYPE',
+    value: process.env.DB_TYPE,
+    required: false
   }
 }
 
