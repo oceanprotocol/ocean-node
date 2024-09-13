@@ -1,8 +1,8 @@
-# Dashboard
+# Control Panel
 
-The static dashbaord files are included in ocean nodes so the dashboard doesn't have to be rebuilt every time the node is built. If there are changes to the dashboard it will be built by default with the Ocean Node. There is a [script](scripts/dashboardChanges.js) running to check for changes in this directory.
+The static dashbaord files are included in ocean nodes so the control panel doesn't have to be rebuilt every time the node is built. If there are changes to the control panel it will be built by default with the Ocean Node. There is a [script](scripts/dashboardChanges.js) running to check for changes in this directory.
 
-When you start your node the dashboard will be made available at: `http://localhost:8000/dashboard/`
+When you start your node the control panel will be made available at: `http://localhost:8000/controlpanel/`
 
 ## Local development
 
@@ -30,11 +30,11 @@ This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-opti
 
 ## Build & run
 
-The dashboard is built by default with the Ocean Node. Set the environmental variables and then run the following commands from the root of the project:
+The control panel is built by default with the Ocean Node. Set the environmental variables and then run the following commands from the root of the project:
 
 ```
 npm run build
 npm run start
 ```
 
-The dashboard will be made available at: `http://localhost:8000/dashboard/`
+The control panel will be made available at: `http://localhost:8000/controlpanel/`

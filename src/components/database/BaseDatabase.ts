@@ -67,6 +67,7 @@ export abstract class AbstractLogDatabase {
 
   abstract delete(logId: string): Promise<void>
   abstract deleteOldLogs(): Promise<number>
+  abstract getLogsCount(): Promise<number>
 }
 
 export abstract class AbstractDdoStateDatabase {

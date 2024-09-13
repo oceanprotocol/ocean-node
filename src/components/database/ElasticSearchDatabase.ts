@@ -987,4 +987,16 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
       return 0
     }
   }
+
+  async getLogsCount(): Promise<number> {
+    try {
+      const res = await this.client.count({
+        index: this.index
+      })
+      return res && res.count ? res.count : 0
+    } catch (e) {
+      DATABASE_LOGGER.error('Unable to retrieve logs count: ' + e.message)
+      return 0
+    }
+  }
 }

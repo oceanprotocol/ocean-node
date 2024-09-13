@@ -36,6 +36,7 @@ export interface OceanNodeP2PConfig {
   pubsubPeerDiscoveryInterval: number
   dhtMaxInboundStreams: number
   dhtMaxOutboundStreams: number
+  enableDHTServer: boolean
   mDNSInterval: number
   connectionsMaxParallelDials: number
   connectionsDialTimeout: number
@@ -124,12 +125,6 @@ export interface OceanNodeStatus {
   // detailed information
   c2dClusters?: C2DClusterInfo[]
   supportedSchemas?: Schema[]
-}
-
-export interface P2PBroadcastResponse {
-  command: string // original broadcast command
-  message: any // original broadcast message
-  response: any // the actual response to the original command and message
 }
 
 export interface FindDDOResponse {

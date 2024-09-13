@@ -146,19 +146,6 @@ setup_node_admin_wallet() {
     fi
 }
 
-ask_for_same_admin_wallet() {
-    
-    wallet_file_path=$wallet_file
-    if [ -f $wallet_file_path ]; then
-       read -p "Do you want to use the wallet associated with this key ( $wallet_file ) as a node admin account?  [ y/n ]: " use_admin_wallet  
-       use_admin_wallet=${use_admin_wallet:-y} 
-       if [ "$use_admin_wallet" == 'y' ]; then
-         ADMIN_WALLET=`cat $wallet_file_path`
-         setup_node_admin_wallet
-       fi
-    fi
-}
-
 #check if the private key file exists
 if ! [ -f $pk_file_path ]; then
   echo "Private Key File does not exist."
@@ -224,20 +211,12 @@ if [ $exists_env_file -eq 0 ]; then
             #configure the pk key on the .env file
             setup_private_key
             #Use wallet address from file? only if we just created it
-            if [ $created_pk_file -eq 1 ]; then
-                ask_for_same_admin_wallet
-            else
-              #we entered a pk ourselves
-              read -p "Do you want setup the wallet associated with this key, as a node admin account?  [ y/n ]: " set_admin_wallet  
-                set_admin_wallet=${set_admin_wallet:-y} 
-                if [ "$set_admin_wallet" == 'y' ]; then
-                    read -p "Enter your admin wallet address: " ADMIN_WALLET
-                    check_wallet $ADMIN_WALLET
-                    setup_node_admin_wallet
-                fi    
-            fi
+            read -p "Enter your admin wallet address: " ADMIN_WALLET
+            check_wallet $ADMIN_WALLET
+            setup_node_admin_wallet
+            
         fi
-    else 
+    else ``
         echo "Creating .env file aborted!"
         created_env_file=0
         exit 1
