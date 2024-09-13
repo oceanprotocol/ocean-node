@@ -32,7 +32,6 @@
     "test:unit": "npm run build-tests && npm run mocha \"./dist/test/unit/**/*.test.js\"",
     "test:integration": "npm run build-tests && npm run mocha \"./dist/test/integration/**/*.test.js\"",
     "test:integration:light": "npm run build-tests && npm run mocha-light \"./dist/test/integration/**/*.test.js\"",
-    "test:integration:db": "npm run build-tests && npm run mocha-light \"./dist/test/integration/database.test.js\"",
     "test:unit:cover": "nyc --report-dir coverage/unit npm run test:unit",
     "test:integration:cover": "nyc --report-dir coverage/integration --no-clean npm run test:integration",
     "logs": "./scripts/logs.sh",
