@@ -611,7 +611,6 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     try {
       const maxPerPage = maxResultsPerPage || 100
       const from = (pageNumber || 1) * maxPerPage - maxPerPage
-
       for (const schema of this.getSchemas()) {
         const response = await this.client.search({
           index: schema.index,
