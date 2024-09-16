@@ -454,7 +454,6 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
           size: maxResultsPerPage || 10
         }
       }
-
       const result = await this.provider.search(searchParams)
       return result.hits.hits.map((hit: any) => hit._source)
     } catch (error) {
@@ -608,8 +607,8 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     maxResultsPerPage?: number,
     pageNumber?: number
   ): Promise<any> {
+    const results = []
     try {
-      const results = []
       const maxPerPage = maxResultsPerPage || 100
       const from = (pageNumber || 1) * maxPerPage - maxPerPage
 
@@ -617,9 +616,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         const response = await this.client.search({
           index: schema.index,
           body: {
-            query: {
-              match: query
-            },
+            ...query,
             from,
             size: maxPerPage
           }
@@ -638,7 +635,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
-      return null
+      return results
     }
   }
 

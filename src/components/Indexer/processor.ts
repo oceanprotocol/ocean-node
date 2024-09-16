@@ -144,7 +144,7 @@ class BaseEventProcessor {
       INDEXER_LOGGER.logMessage(
         `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
       )
-      const nonce = Date.now().toString()
+      const nonce = Math.floor(Date.now() / 1000).toString()
       const { keys } = await getConfiguration()
       const nodeId = keys.peerId.toString()
 
