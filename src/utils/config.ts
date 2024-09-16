@@ -101,8 +101,8 @@ function getIndexingNetworks(supportedNetworks: RPCS): RPCS | null {
     CONFIG_LOGGER.logMessageWithEmoji(
       'INDEXER_NETWORKS is not defined, running Indexer with all supported networks defined in RPCS env variable ...',
       true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_ERROR
+      GENERIC_EMOJIS.EMOJI_CHECK_MARK,
+      LOG_LEVELS_STR.LEVEL_INFO
     )
     return supportedNetworks
   }

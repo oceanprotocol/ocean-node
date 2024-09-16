@@ -125,12 +125,6 @@ export interface OceanNodeStatus {
   supportedSchemas?: Schema[]
 }
 
-export interface P2PBroadcastResponse {
-  command: string // original broadcast command
-  message: any // original broadcast message
-  response: any // the actual response to the original command and message
-}
-
 export interface FindDDOResponse {
   provider: string
   id: string

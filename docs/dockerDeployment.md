@@ -1,15 +1,17 @@
+# Docker Deployment Guide
+
 This guide is intended to provide quick steps for starting an **Ocean Node** using Docker Engine and Docker Compose plugin.
 
 Note: For installing each of these prerequisites, a good starting point is the official documentation: [Install Docker Engine](https://docs.docker.com/engine/install/) and [Overview of installing Docker Compose](https://docs.docker.com/compose/install/)
 
 Before starting, confirm that the [system requirements](https://github.com/oceanprotocol/ocean-node?tab=readme-ov-file#system-requirements) are met.
 
-a) download the script `ocean-node-quickstart.sh` from the current directory
+a) download the script `ocean-node-quickstart.sh` from the scripts directory
 
 b) run the script
 
 ```shell
-bash ocean-node-quickstart.sh
+bash scripts/ocean-node-quickstart.sh
 ```
 
 c) provide the necessary information interactively (example)

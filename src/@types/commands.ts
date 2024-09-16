@@ -137,11 +137,6 @@ export interface ICommandHandler {
   validate(command: Command): ValidateParams
 }
 
-export interface BroadcastCommand {
-  command: string // the name of the command
-  message: any // the message to broadcast
-}
-
 export interface ComputeGetEnvironmentsCommand extends Command {
   chainId?: number
 }
