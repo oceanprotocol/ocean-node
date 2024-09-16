@@ -151,8 +151,8 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
       node: (req.query.node as string) || null,
       consumerAddress: (req.query.consumerAddress as string) || null,
-      did: (req.query.did as string) || null,
-      jobId: (req.query.jobId as string) || null
+      jobId: (req.query.jobId as string) || null,
+      agreementId: (req.query.agreementId as string) || null
     }
     const response = await new ComputeGetStatusHandler(req.oceanNode).handle(
       statusComputeTask
