@@ -613,7 +613,7 @@ describe('Compute', () => {
     const statusComputeTask: ComputeGetStatusCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
       consumerAddress: null,
-      did: null,
+      agreementId: null,
       jobId
     }
     const response = await new ComputeGetStatusHandler(oceanNode).handle(
@@ -631,7 +631,7 @@ describe('Compute', () => {
     const statusComputeTask: ComputeGetStatusCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
       consumerAddress: wallet.address,
-      did: null,
+      agreementId: null,
       jobId: null
     }
     const response = await new ComputeGetStatusHandler(oceanNode).handle(
