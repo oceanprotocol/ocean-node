@@ -607,8 +607,8 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     maxResultsPerPage?: number,
     pageNumber?: number
   ): Promise<any> {
+    const results = []
     try {
-      const results = []
       const maxPerPage = maxResultsPerPage || 100
       const from = (pageNumber || 1) * maxPerPage - maxPerPage
 
@@ -616,7 +616,9 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         const response = await this.client.search({
           index: schema.index,
           body: {
-            ...query,
+            query: {
+              match: query
+            },
             from,
             size: maxPerPage
           }
@@ -635,7 +637,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
-      return null
+      return results
     }
   }
 
