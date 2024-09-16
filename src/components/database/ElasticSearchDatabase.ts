@@ -616,9 +616,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         const response = await this.client.search({
           index: schema.index,
           body: {
-            query: {
-              match: query
-            },
+            ...query,
             from,
             size: maxPerPage
           }
