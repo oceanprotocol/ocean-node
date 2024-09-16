@@ -126,7 +126,7 @@ The `PRIVATE_KEY` is the only mandatory environmental variable, you must include
 npm run start
 ```
 
-Your node is now running, the dashboard will be available at `http://localhost:8000/dashboard/`. To start additional nodes, repeat these steps in a new terminal.
+Your node is now running, the control panel will be available at `http://localhost:8000/controlpanel/`. To start additional nodes, repeat these steps in a new terminal.
 
 ## Additional Resources
 
@@ -136,5 +136,5 @@ Your node is now running, the dashboard will be available at `http://localhost:8
 - [Testing Guide](docs/testing.md)
 - [Network Configuration](docs/networking.md)
 - [Logging & accessing logs](docs/networking.md)
-- [Dashboard: Local development](dashboard/README.md)
+- [Control Panel: Local development](dashboard/README.md)
 - [Docker Deployment Guide](docs/dockerDeployment.md)
