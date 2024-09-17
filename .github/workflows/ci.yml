@@ -15,12 +15,12 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v2
         with:
           node-version: 'v20.16.0'
       - name: Cache node_modules
-        uses: actions/cache@v3
+        uses: actions/cache@v2
         env:
           cache-name: cache-node-modules
         with:
@@ -33,7 +33,7 @@ jobs:
   dockertest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
       - run: docker build -t 'ocean-node:mybuild' .
 
   build:
@@ -46,12 +46,12 @@ jobs:
         node: ['18.20.4', 'v20.16.0', 'v22.5.1']
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v2
         with:
           node-version: ${{ matrix.node }}
       - name: Cache node_modules
-        uses: actions/cache@v3
+        uses: actions/cache@v2
         env:
           cache-name: cache-node-modules
         with:
@@ -64,12 +64,12 @@ jobs:
   test_unit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v2
         with:
           node-version: 'v20.16.0'
       - name: Cache node_modules
-        uses: actions/cache@v3
+        uses: actions/cache@v2
         env:
           cache-name: cache-node-modules
         with:
@@ -97,12 +97,12 @@ jobs:
   test_integration:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v2
         with:
           node-version: 'v20.16.0'
       - name: Cache node_modules
-        uses: actions/cache@v3
+        uses: actions/cache@v2
         env:
           cache-name: cache-node-modules
         with:
@@ -183,15 +183,15 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v2
         with:
           node-version: 'v20.16.0'
 
       - name: Cache node_modules
-        uses: actions/cache@v3
+        uses: actions/cache@v2
         env:
           cache-name: cache-node-modules
         with:
@@ -253,7 +253,7 @@ jobs:
         if: ${{ failure() }}
 
       - name: Checkout Ocean Node
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           repository: 'oceanprotocol/ocean-node'
           path: 'ocean-node'
@@ -279,7 +279,6 @@ jobs:
           P2P_ENABLE_UPNP: 'false'
           P2P_ENABLE_AUTONAT: 'false'
           ALLOWED_ADMINS: '["0xe2DD09d719Da89e5a3D0F2549c7E24566e947260"]'
-          DB_TYPE: 'typesense'
       - name: Check Ocean Node is running
         run: |
           for i in $(seq 1 90); do
@@ -292,7 +291,7 @@ jobs:
           echo "Ocean Node did not start in time"
           exit 1
       - name: Checkout Ocean CLI
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           repository: 'oceanprotocol/ocean-cli'
           path: 'ocean-cli'
