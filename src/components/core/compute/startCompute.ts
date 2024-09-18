@@ -163,16 +163,20 @@ export class ComputeStartHandler extends Handler {
             } else {
               // TODO
               CORE_LOGGER.warn('TODO confidential EVM start compute')
-              const isTemplate4 = isDataTokenTemplate4(service.datatokenAddress, signer)
-              if (isTemplate4 && isERC20Template4Active(ddo.chainId, signer)) {
+              const isTemplate4 = await isDataTokenTemplate4(
+                service.datatokenAddress,
+                signer
+              )
+              if (isTemplate4 && (await isERC20Template4Active(ddo.chainId, signer))) {
                 // call smart contract to decrypt
+                const serviceIndex = AssetUtils.getServiceIndexById(ddo, service.id)
                 const filesObject = await getFilesObjectFromConfidentialEVM(
-                  service.id,
+                  serviceIndex,
                   service.datatokenAddress,
                   signer,
                   task.consumerAddress,
                   null, // TODO
-                  service.id
+                  ddo.id
                 )
                 if (filesObject != null) {
                   canDecrypt = true

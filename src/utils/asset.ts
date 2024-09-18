@@ -125,7 +125,8 @@ export async function isERC20Template4Active(
   try {
     const nftFactoryAddress = getContractAddress(network, 'ERC721Factory')
     const factoryERC721 = await getNFTFactory(owner, nftFactoryAddress)
-    const currentTokenCount = await factoryERC721.getCurrentTokenTemplateCount()
+    const currentTokenCount = await factoryERC721.getCurrentTemplateCount()
+
     for (let i = 1; i <= currentTokenCount; i++) {
       const tokenTemplate = await factoryERC721.getTokenTemplate(i)
 
@@ -177,7 +178,7 @@ export function isConfidentialChainDDO(ddoChain: number, ddoService: Service): b
 
 /**
  * get files object from SC
- * @param serviceId service id
+ * @param serviceIndex service id
  * @param datatokenAddress data token address
  * @param signer provider wallet
  * @param consumerAddress consumer wallet address
@@ -186,7 +187,7 @@ export function isConfidentialChainDDO(ddoChain: number, ddoService: Service): b
  * @returns files object or null
  */
 export async function getFilesObjectFromConfidentialEVM(
-  serviceId: string,
+  serviceIndex: number,
   datatokenAddress: string,
   signer: Signer,
   consumerAddress: string,
@@ -196,23 +197,22 @@ export async function getFilesObjectFromConfidentialEVM(
   try {
     const currentProviderAddress = await signer.getAddress()
     // now try to get the url
-    const consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(consumerData))]
-    )
-    // const consumerHash = ethers.solidityPackedKeccak256(['bytes'], [consumerMessage])
-    // const consumerSignature = await signMessageShort(consumerHash, signer)
+    const consumerMessage = ethers.hexlify(ethers.toUtf8Bytes(consumerData))
+
     const providerMessage = ethers.solidityPackedKeccak256(
       ['uint256', 'bytes'],
-      [serviceId, consumerSignature]
+      [serviceIndex, consumerSignature]
     )
-    const providerSignature = await signMessageShort(providerMessage, signer)
+
+    const providerMessageHashBytes = ethers.toBeArray(providerMessage)
+    const providerSignature = await signer.signMessage(providerMessageHashBytes)
+
     CORE_LOGGER.info('Try getFilesObject from Confidential EVM (SC call)')
     const contract = new ethers.Contract(datatokenAddress, ERC20Template4.abi, signer)
 
     // call smart contract to decrypt
     const bytesData = await contract.getFilesObject(
-      serviceId,
+      serviceIndex,
       currentProviderAddress,
       providerSignature,
       consumerMessage,
@@ -220,7 +220,6 @@ export async function getFilesObjectFromConfidentialEVM(
       consumerAddress
     )
     const filesObject: string = ethers.toUtf8String(bytesData)
-    console.log('files object is: ' + filesObject)
     return filesObject
   } catch (err) {
     CORE_LOGGER.error(
@@ -228,14 +227,4 @@ export async function getFilesObjectFromConfidentialEVM(
     )
     return null
   }
-}
-
-export async function signMessageShort(message: string, wallet: Signer): Promise<string> {
-  const consumerMessage = ethers.solidityPackedKeccak256(
-    ['bytes'],
-    [ethers.hexlify(ethers.toUtf8Bytes(message))]
-  )
-  const messageHashBytes = ethers.toBeArray(consumerMessage)
-  const signature = await wallet.signMessage(messageHashBytes)
-  return signature
 }
