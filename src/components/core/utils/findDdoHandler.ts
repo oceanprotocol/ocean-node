@@ -5,7 +5,6 @@ import { FindDDOResponse } from '../../../@types/index.js'
 import { Service } from '../../../@types/DDO/Service.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
-// import { hasP2PInterface } from '../../httpRoutes/index.js'
 import { getConfiguration, hasP2PInterface } from '../../../utils/config.js'
 
 /**

@@ -175,7 +175,7 @@ export class ComputeStartHandler extends Handler {
                   service.datatokenAddress,
                   signer,
                   task.consumerAddress,
-                  null, // TODO
+                  task.signature, // TODO, we will need to have a signature verification
                   ddo.id
                 )
                 if (filesObject != null) {
