@@ -140,8 +140,7 @@ export class ComputeInitializeHandler extends Handler {
               )
               canDecrypt = true
             } else {
-              // TODO use oasis sdk to decrypt
-              CORE_LOGGER.warn('TODO confidential EVM initialize compute')
+              // TODO 'Initialize compute on confidential EVM!
               const isTemplate4 = await isDataTokenTemplate4(
                 service.datatokenAddress,
                 signer
@@ -164,7 +163,7 @@ export class ComputeInitializeHandler extends Handler {
             }
           } catch (e) {
             // do nothing
-            CORE_LOGGER.error(`could not decrypt ddo files:  ${e.message} `)
+            CORE_LOGGER.error(`Could not decrypt ddo files:  ${e.message} `)
           }
           if (service.type === 'compute' && !canDecrypt) {
             const error = `Service ${elem.serviceId} from DDO ${elem.documentId} cannot be used in compute on this provider`

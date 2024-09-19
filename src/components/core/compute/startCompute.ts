@@ -161,8 +161,7 @@ export class ComputeStartHandler extends Handler {
               )
               canDecrypt = true
             } else {
-              // TODO
-              CORE_LOGGER.warn('TODO confidential EVM start compute')
+              // TODO 'Start compute on confidential EVM!'
               const isTemplate4 = await isDataTokenTemplate4(
                 service.datatokenAddress,
                 signer
@@ -185,6 +184,7 @@ export class ComputeStartHandler extends Handler {
             }
           } catch (e) {
             // do nothing
+            CORE_LOGGER.error('Could not decrypt DDO files Object: ' + e.message)
           }
           if (service.type === 'compute' && !canDecrypt) {
             const error = `Service ${elem.serviceId} from DDO ${elem.documentId} cannot be used in compute on this provider`
