@@ -173,7 +173,7 @@ export async function isDataTokenTemplate4(
 
 export function isConfidentialChainDDO(ddoChain: number, ddoService: Service): boolean {
   const isConfidential = isConfidentialEVM(ddoChain)
-  return isConfidential && !ddoService.files
+  return isConfidential && (!ddoService.files || ddoService.files.length === 0)
 }
 
 /**

@@ -12,6 +12,8 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 import { expectedTimeoutFailure } from '../integration/testUtils.js'
+import { DEVELOPMENT_CHAIN_ID, KNOWN_CONFIDENTIAL_EVMS } from '../../utils/address.js'
+import { isConfidentialEVM } from '../../utils/asset.js'
 
 let envOverrides: OverrideEnvConfig[]
 let config: OceanNodeConfig
@@ -68,6 +70,13 @@ describe('Should validate blockchain network connections', () => {
       status = await blockchain.isNetworkReady()
       expect(status.ready).to.be.equal(true)
     }
+  })
+
+  it('should check if chain is confidential EVM', () => {
+    for (const chain of KNOWN_CONFIDENTIAL_EVMS) {
+      expect(isConfidentialEVM(chain)).to.be.equal(true)
+    }
+    expect(isConfidentialEVM(DEVELOPMENT_CHAIN_ID)).to.be.equal(false)
   })
 
   after(async () => {
