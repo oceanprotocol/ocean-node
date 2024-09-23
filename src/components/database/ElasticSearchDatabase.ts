@@ -13,7 +13,6 @@ import { ElasticsearchSchema } from './ElasticSchemas.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { validateObject } from '../core/utils/validateDdoHandler.js'
-import { ElasticSearchResponse } from '../../@types/ElasticSearch.js'
 
 export class ElasticsearchNonceDatabase extends AbstractNonceDatabase {
   private client: Client
@@ -607,31 +606,57 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     const results = []
     const maxPerPage = query.size || 100
     const from = (query.from || 1) * maxPerPage - maxPerPage
-    for (const schema of this.getSchemas()) {
+
+    if (query.index) {
+      const { index, ...queryWithoutIndex } = query
       try {
-        const response: ElasticSearchResponse = await this.client.search({
-          index: schema.index,
+        const response = await this.client.search({
+          index,
           body: {
-            ...query,
+            ...queryWithoutIndex,
             from,
             size: maxPerPage
           }
         })
         if (response.hits?.hits.length > 0) {
-          response.schema = schema.index
           results.push(response)
         }
       } catch (error) {
-        const schemaErrorMsg = `Error for schema ${schema.index}: ${error.message}`
+        const schemaErrorMsg = `Error for schema ${query.index}: ${error.message}`
         DATABASE_LOGGER.logMessageWithEmoji(
           schemaErrorMsg,
           true,
           GENERIC_EMOJIS.EMOJI_CROSS_MARK,
           LOG_LEVELS_STR.LEVEL_WARN
         )
-        continue
+      }
+    } else {
+      for (const schema of this.getSchemas()) {
+        try {
+          const response = await this.client.search({
+            index: schema.index,
+            body: {
+              ...query,
+              from,
+              size: maxPerPage
+            }
+          })
+          if (response.hits?.hits.length > 0) {
+            results.push(response)
+          }
+        } catch (error) {
+          const schemaErrorMsg = `Error for schema ${schema.index}: ${error.message}`
+          DATABASE_LOGGER.logMessageWithEmoji(
+            schemaErrorMsg,
+            true,
+            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+            LOG_LEVELS_STR.LEVEL_WARN
+          )
+          continue
+        }
       }
     }
+
     return results
   }
 
