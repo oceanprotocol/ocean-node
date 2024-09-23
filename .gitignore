@@ -155,5 +155,3 @@ html-report.html
 # databases
 *.sqlite
 databases/*
-
-barge/*
