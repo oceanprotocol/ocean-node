@@ -602,40 +602,62 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     }
   }
 
-  async search(
-    query: Record<string, any>,
-    maxResultsPerPage?: number,
-    pageNumber?: number
-  ): Promise<any> {
+  async search(query: Record<string, any>): Promise<any> {
     const results = []
-    try {
-      const maxPerPage = maxResultsPerPage || 100
-      const from = (pageNumber || 1) * maxPerPage - maxPerPage
-      for (const schema of this.getSchemas()) {
+    const maxPerPage = query.size || 100
+    const from = (query.from || 1) * maxPerPage - maxPerPage
+
+    if (query.index) {
+      const { index, ...queryWithoutIndex } = query
+      try {
         const response = await this.client.search({
-          index: schema.index,
+          index,
           body: {
-            ...query,
+            ...queryWithoutIndex,
             from,
             size: maxPerPage
           }
         })
-        results.push(response.hits.hits)
+        if (response.hits?.hits.length > 0) {
+          results.push(response)
+        }
+      } catch (error) {
+        const schemaErrorMsg = `Error for schema ${query.index}: ${error.message}`
+        DATABASE_LOGGER.logMessageWithEmoji(
+          schemaErrorMsg,
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEL_WARN
+        )
       }
-
-      return results
-    } catch (error) {
-      const errorMsg = `Error when searching by query ${JSON.stringify(query)}: ${
-        error.message
-      }`
-      DATABASE_LOGGER.logMessageWithEmoji(
-        errorMsg,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
-      return results
+    } else {
+      for (const schema of this.getSchemas()) {
+        try {
+          const response = await this.client.search({
+            index: schema.index,
+            body: {
+              ...query,
+              from,
+              size: maxPerPage
+            }
+          })
+          if (response.hits?.hits.length > 0) {
+            results.push(response)
+          }
+        } catch (error) {
+          const schemaErrorMsg = `Error for schema ${schema.index}: ${error.message}`
+          DATABASE_LOGGER.logMessageWithEmoji(
+            schemaErrorMsg,
+            true,
+            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+            LOG_LEVELS_STR.LEVEL_WARN
+          )
+          continue
+        }
+      }
     }
+
+    return results
   }
 
   async create(ddo: Record<string, any>): Promise<any> {
