@@ -121,7 +121,7 @@ describe('Should run a complete node flow.', () => {
     assert(status.allowedAdmins.length === 1, 'incorrect length')
     assert(
       status.allowedAdmins[0]?.toLowerCase() ===
-        '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'?.toLowerCase(),
+      '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'?.toLowerCase(),
       'incorrect allowed admin publisherAddress'
     )
     assert(status.c2dClusters === undefined, 'clusters info should be undefined')
@@ -299,7 +299,7 @@ describe('Should run a complete node flow.', () => {
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
 
       assert(response.stream === null, 'stream not null')
-      assert(response.status.httpStatus === 500, 'http status not 500')
+      assert(response.status.httpStatus === 403, 'http status not 403')
       assert(
         response.status.error === `Error: Access to asset ${assetDID} was denied`,
         'error contains access denied'

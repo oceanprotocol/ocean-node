@@ -273,7 +273,7 @@ export class DownloadHandler extends Handler {
         return {
           stream: null,
           status: {
-            httpStatus: 500,
+            httpStatus: 403,
             error: `Error: Access to asset ${ddo.id} was denied`
           }
         }
@@ -359,7 +359,7 @@ export class DownloadHandler extends Handler {
         return {
           stream: null,
           status: {
-            httpStatus: 500,
+            httpStatus: 403,
             error: `Error: Access to service with id ${service.id} was denied`
           }
         }

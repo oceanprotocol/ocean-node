@@ -230,7 +230,7 @@ describe('Should run a complete node flow.', () => {
 
       assert(response)
       assert(response.stream === null, 'stream is present')
-      assert(response.status.httpStatus === 500, 'http status not 500')
+      assert(response.status.httpStatus === 403, 'http status not 403')
     }
 
     setTimeout(() => {
@@ -272,7 +272,7 @@ describe('Should run a complete node flow.', () => {
 
       assert(response)
       assert(response.stream === null, 'stream is present')
-      assert(response.status.httpStatus === 500, 'http status not 500')
+      assert(response.status.httpStatus === 403, 'http status not 403')
     }
 
     setTimeout(() => {
