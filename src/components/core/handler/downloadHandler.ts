@@ -192,7 +192,7 @@ export function validateFilesStructure(
   if (
     decriptedFileObject.nftAddress?.toLowerCase() !== ddo.nftAddress?.toLowerCase() ||
     decriptedFileObject.datatokenAddress?.toLowerCase() !==
-    service.datatokenAddress?.toLowerCase()
+      service.datatokenAddress?.toLowerCase()
   ) {
     return false
   }
@@ -292,7 +292,7 @@ export class DownloadHandler extends Handler {
     if (!nonceCheckResult.valid) {
       CORE_LOGGER.logMessage(
         'Invalid nonce or signature, unable to proceed with download: ' +
-        nonceCheckResult.error,
+          nonceCheckResult.error,
         true
       )
       return {
