@@ -584,3 +584,6 @@ export async function printCurrentConfig() {
   const conf = await getConfiguration(true)
   console.log(JSON.stringify(conf, null, 4))
 }
+
+// P2P routes related
+export const hasP2PInterface = (await (await getConfiguration())?.hasP2P) || false

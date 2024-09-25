@@ -160,7 +160,7 @@ export class OceanP2P extends EventEmitter {
   async handlePeerDiscovery(details: any) {
     try {
       const peerInfo = details.detail
-      P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
+      // P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
       if (peerInfo.multiaddrs) {
         await this._libp2p.peerStore.save(peerInfo.id, {
           multiaddrs: peerInfo.multiaddrs
