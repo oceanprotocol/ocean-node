@@ -31,7 +31,7 @@ import { ElasticSearchDdoStateQuery } from './ElasticSearchDdoStateQuery.js'
 import { TypesenseMetadataQuery } from './TypesenseMetadataQuery.js'
 import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery.js'
 import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery.js'
-import { DB_TYPES } from '../../utils'
+import { DB_TYPES } from '../../utils/index.js'
 
 export class DatabaseFactory {
   private static databaseMap = {
