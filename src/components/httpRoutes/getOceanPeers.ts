@@ -1,8 +1,8 @@
 import express, { Request, Response } from 'express'
 import { getDefaultLevel } from '../../utils/logging/Logger.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
-import { hasP2PInterface, sendMissingP2PResponse } from './index.js'
-import { getBoolEnvValue } from '../../utils/config.js'
+import { sendMissingP2PResponse } from './index.js'
+import { getBoolEnvValue, hasP2PInterface } from '../../utils/config.js'
 export const getOceanPeersRoute = express.Router()
 
 getOceanPeersRoute.get(

@@ -305,7 +305,7 @@ describe('Should run a complete node flow.', () => {
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
 
       assert(response.stream === null, 'stream not null')
-      assert(response.status.httpStatus === 500, 'http status not 500')
+      assert(response.status.httpStatus === 403, 'http status not 403')
       assert(
         response.status.error === `Error: Access to asset ${assetDID} was denied`,
         'error contains access denied'

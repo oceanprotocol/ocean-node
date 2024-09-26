@@ -5,8 +5,7 @@ import { FindDDOResponse } from '../../../@types/index.js'
 import { Service } from '../../../@types/DDO/Service.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
-import { hasP2PInterface } from '../../httpRoutes/index.js'
-import { getConfiguration } from '../../../utils/config.js'
+import { getConfiguration, hasP2PInterface } from '../../../utils/config.js'
 
 /**
  * Check if the specified ddo is cached and if the cached version is recent enough
