@@ -14,7 +14,12 @@ import { RPCS } from '../../@types/blockchain.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import { ENVIRONMENT_VARIABLES, EVENTS, getConfiguration } from '../../utils/index.js'
+import {
+  DB_TYPES,
+  ENVIRONMENT_VARIABLES,
+  EVENTS,
+  getConfiguration
+} from '../../utils/index.js'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
@@ -64,7 +69,7 @@ describe('validateOrderTransaction Function with Orders', () => {
           'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          'typesense'
+          DB_TYPES.TYPESENSE
         ]
       )
     )

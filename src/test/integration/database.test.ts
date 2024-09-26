@@ -3,12 +3,13 @@ import { AbstractOrderDatabase } from '../../components/database/BaseDatabase.js
 import { DatabaseFactory } from '../../components/database/DatabaseFactory.js'
 import { Database } from '../../components/database/index.js'
 import { expect, assert } from 'chai'
+import { DB_TYPES } from '../../utils/constants.js'
 
 describe('Database', () => {
   let database: Database
 
   before(async () => {
-    process.env.DB_TYPE = 'typesense'
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -51,7 +52,7 @@ describe('DdoDatabase CRUD', () => {
   }
 
   before(async () => {
-    process.env.DB_TYPE = 'typesense'
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -86,7 +87,7 @@ describe('NonceDatabase CRUD', () => {
   let database: Database
 
   before(async () => {
-    process.env.DB_TYPE = 'typesense'
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -126,7 +127,7 @@ describe('NonceDatabase CRUD with SQLite', () => {
   let database: Database
 
   before(async () => {
-    process.env.DB_TYPE = 'typesense'
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -168,7 +169,7 @@ describe('IndexerDatabase CRUD', () => {
   let existsPrevious: any = {}
 
   before(async () => {
-    process.env.DB_TYPE = 'typesense'
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -219,7 +220,7 @@ describe('OrderDatabase CRUD', () => {
   let database: Database
 
   before(async () => {
-    process.env.DB_TYPE = 'typesense'
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -283,7 +284,7 @@ describe('Typesense OrderDatabase CRUD', () => {
   let database: AbstractOrderDatabase
 
   before(async () => {
-    process.env.DB_TYPE = 'typesense'
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -333,7 +334,7 @@ describe('Elasticsearch OrderDatabase CRUD', () => {
   let database: AbstractOrderDatabase
 
   before(async () => {
-    process.env.DB_TYPE = 'elasticsearch'
+    process.env.DB_TYPE = DB_TYPES.ELASTIC_SEARCH
     const dbConfig = {
       url: 'http://localhost:9200'
     }
@@ -383,7 +384,7 @@ describe('Elasticsearch OrderDatabase CRUD', () => {
 
 describe('DdoStateQuery', () => {
   before(() => {
-    process.env.DB_TYPE = 'typesense'
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
   })
 
   after(() => {
@@ -418,7 +419,7 @@ describe('DdoStateQuery', () => {
   })
 
   it('should build Elasticsearch query for did', async () => {
-    process.env.DB_TYPE = 'elasticsearch'
+    process.env.DB_TYPE = DB_TYPES.ELASTIC_SEARCH
     const query = (await DatabaseFactory.createDdoStateQuery()).buildQuery(
       'did:op:abc123'
     )
@@ -449,7 +450,7 @@ describe('MetadataQuery', () => {
   })
 
   it('should return a Typesense query when DB is Typesense and a Typesense query is passed', async () => {
-    process.env.DB_TYPE = 'typesense'
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
 
     const typesenseQuery = {
       q: '*',
@@ -471,7 +472,7 @@ describe('MetadataQuery', () => {
   })
 
   it('should convert an Elasticsearch query to a Typesense query when DB is Typesense', async () => {
-    process.env.DB_TYPE = 'typesense'
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
 
     const searchQuery: SearchQuery = {
       query: {
@@ -499,7 +500,7 @@ describe('MetadataQuery', () => {
   })
 
   it('should convert a Typesense query to an Elasticsearch query when DB is Elasticsearch', async () => {
-    process.env.DB_TYPE = 'elasticsearch'
+    process.env.DB_TYPE = DB_TYPES.ELASTIC_SEARCH
 
     const typesenseQuery = {
       q: '*',
@@ -523,7 +524,7 @@ describe('MetadataQuery', () => {
   })
 
   it('should return an Elasticsearch query when DB is Elasticsearch and an Elasticsearch query is passed', async () => {
-    process.env.DB_TYPE = 'elasticsearch'
+    process.env.DB_TYPE = DB_TYPES.ELASTIC_SEARCH
 
     const searchQuery: SearchQuery = {
       query: {

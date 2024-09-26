@@ -1,7 +1,11 @@
 import { expect, assert } from 'chai'
 import { getConfiguration } from '../../utils/config.js'
 import { OceanNode } from '../../OceanNode.js'
-import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import {
+  DB_TYPES,
+  ENVIRONMENT_VARIABLES,
+  PROTOCOL_COMMANDS
+} from '../../utils/constants.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
 import { EncryptFileHandler } from '../../components/core/handler/encryptHandler.js'
@@ -33,7 +37,7 @@ describe('Encrypt File', () => {
         [
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           'http://localhost:8108/?apiKey=xyz',
-          'typesense'
+          DB_TYPES.TYPESENSE
         ]
       )
     )

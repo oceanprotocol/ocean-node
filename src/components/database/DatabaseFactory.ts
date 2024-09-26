@@ -31,6 +31,7 @@ import { ElasticSearchDdoStateQuery } from './ElasticSearchDdoStateQuery.js'
 import { TypesenseMetadataQuery } from './TypesenseMetadataQuery.js'
 import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery.js'
 import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery.js'
+import { DB_TYPES } from '../../utils'
 
 export class DatabaseFactory {
   private static databaseMap = {
@@ -65,7 +66,7 @@ export class DatabaseFactory {
   }
 
   private static getDatabaseType() {
-    return process.env.DB_TYPE === 'elasticsearch' ? 'elasticsearch' : 'typesense'
+    return process.env.DB_TYPE === DB_TYPES.ELASTIC_SEARCH ? 'elasticsearch' : 'typesense'
   }
 
   private static createDatabase<T>(

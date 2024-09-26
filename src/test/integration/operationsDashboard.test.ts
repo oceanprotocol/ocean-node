@@ -21,7 +21,8 @@ import {
   PROTOCOL_COMMANDS,
   getConfiguration,
   EVENTS,
-  INDEXER_CRAWLING_EVENTS
+  INDEXER_CRAWLING_EVENTS,
+  DB_TYPES
 } from '../../utils/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' assert { type: 'json' }
@@ -102,7 +103,7 @@ describe('Should test admin operations', () => {
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify([await wallet.getAddress()]),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          'elasticsearch'
+          DB_TYPES.ELASTIC_SEARCH
         ]
       )
     )

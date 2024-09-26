@@ -23,6 +23,7 @@ import { encrypt } from '../../utils/crypt.js'
 import { Database } from '../../components/database/index.js'
 import { DecryptDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import {
+  DB_TYPES,
   ENVIRONMENT_VARIABLES,
   getConfiguration,
   PROTOCOL_COMMANDS
@@ -93,7 +94,7 @@ describe('Should encrypt and decrypt DDO', () => {
           JSON.stringify([publisherAddress]),
           'http://localhost:8108/?apiKey=xyz',
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          'typesense'
+          DB_TYPES.TYPESENSE
         ]
       )
     )

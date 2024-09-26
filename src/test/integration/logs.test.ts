@@ -7,7 +7,7 @@ import {
   configureCustomDBTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
-import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { DB_TYPES, ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,
@@ -34,7 +34,7 @@ describe('LogDatabase CRUD', () => {
       null,
       buildEnvOverrideConfig(
         [ENVIRONMENT_VARIABLES.LOG_DB, ENVIRONMENT_VARIABLES.DB_TYPE],
-        ['true', 'typesense']
+        ['true', DB_TYPES.TYPESENSE]
       )
     )
     const dbConfig = {
@@ -180,7 +180,7 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
       null,
       buildEnvOverrideConfig(
         [ENVIRONMENT_VARIABLES.LOG_DB, ENVIRONMENT_VARIABLES.DB_TYPE],
-        ['true', 'typesense']
+        ['true', DB_TYPES.TYPESENSE]
       )
     )
 
@@ -357,7 +357,7 @@ describe('LogDatabase deleteOldLogs', () => {
       null,
       buildEnvOverrideConfig(
         [ENVIRONMENT_VARIABLES.LOG_DB, ENVIRONMENT_VARIABLES.DB_TYPE],
-        ['true', 'typesense']
+        ['true', DB_TYPES.TYPESENSE]
       )
     )
     const dbConfig = {
@@ -420,7 +420,7 @@ describe('LogDatabase retrieveMultipleLogs with pagination', () => {
       null,
       buildEnvOverrideConfig(
         [ENVIRONMENT_VARIABLES.LOG_DB, ENVIRONMENT_VARIABLES.DB_TYPE],
-        ['true', 'typesense']
+        ['true', DB_TYPES.TYPESENSE]
       )
     )
     const dbConfig = {

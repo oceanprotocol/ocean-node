@@ -39,6 +39,7 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 import {
+  DB_TYPES,
   ENVIRONMENT_VARIABLES,
   EVENTS,
   INDEXER_CRAWLING_EVENTS,
@@ -110,7 +111,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           dbConfig.url,
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          'elasticsearch'
+          DB_TYPES.ELASTIC_SEARCH
         ]
       )
     )
@@ -657,7 +658,7 @@ describe('OceanIndexer - crawler threads', () => {
         JSON.stringify(supportedNetworks),
         `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
         'http://localhost:9200',
-        'elasticsearch'
+        DB_TYPES.ELASTIC_SEARCH
       ]
     )
     envOverrides = await setupEnvironment(null, envOverrides)

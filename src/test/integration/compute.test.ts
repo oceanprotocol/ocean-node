@@ -18,6 +18,7 @@ import type {
   ComputeEnvironment
 } from '../../@types/C2D.js'
 import {
+  DB_TYPES,
   ENVIRONMENT_VARIABLES,
   EVENTS,
   PROTOCOL_COMMANDS,
@@ -124,7 +125,7 @@ describe('Compute', () => {
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
           JSON.stringify(['http://localhost:31000']),
-          'elasticsearch'
+          DB_TYPES.ELASTIC_SEARCH
         ]
       )
     )
