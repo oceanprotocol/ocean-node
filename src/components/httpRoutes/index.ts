@@ -9,16 +9,13 @@ import { rootEndpointRoutes } from './rootEndpoint.js'
 import { fileInfoRoute } from './fileInfo.js'
 import { computeRoutes } from './compute.js'
 import { queueRoutes } from './queue.js'
-import { getConfiguration } from '../../utils/config.js'
+// import { getConfiguration } from '../../utils/config.js'
 import { jobsRoutes } from './jobs.js'
 import { addMapping, allRoutesMapping, findPathName } from './routeUtils.js'
 
 export * from './getOceanPeers.js'
 
 export const httpRoutes = express.Router()
-
-// P2P routes related
-export const hasP2PInterface = (await (await getConfiguration())?.hasP2P) || false
 
 export function sendMissingP2PResponse(res: Response) {
   res.status(400).send('Invalid or Non Existing P2P configuration')

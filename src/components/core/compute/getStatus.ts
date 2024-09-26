@@ -21,8 +21,8 @@ export class ComputeGetStatusHandler extends Handler {
         return buildInvalidRequestMessage(
           'Parameter : "consumerAddress" is not a valid web3 address'
         )
-      } else if (!command.consumerAddress && !command.jobId && !command.did) {
-        const error = 'Missing jobId or consumerAddress or did'
+      } else if (!command.consumerAddress && !command.jobId && !command.agreementId) {
+        const error = 'Missing one of ["jobId","consumerAddress","agreementId"]'
         CORE_LOGGER.logMessage(error, true)
         return buildInvalidRequestMessage(error)
       }
@@ -50,11 +50,12 @@ export class ComputeGetStatusHandler extends Handler {
         allC2dClusters = allC2dClusters.filter((arr) => arr.hash === hash)
         jobId = task.jobId.slice(index + 1)
       }
+
       for (const cluster of allC2dClusters) {
         const engine = await C2DEngine.getC2DByHash(cluster.hash)
         const jobs = await engine.getComputeJobStatus(
           task.consumerAddress,
-          task.did,
+          task.agreementId,
           jobId
         )
         response.push(...jobs)

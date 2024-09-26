@@ -160,7 +160,7 @@ export class OceanP2P extends EventEmitter {
   async handlePeerDiscovery(details: any) {
     try {
       const peerInfo = details.detail
-      P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
+      // P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
       if (peerInfo.multiaddrs) {
         await this._libp2p.peerStore.save(peerInfo.id, {
           multiaddrs: peerInfo.multiaddrs
@@ -373,10 +373,10 @@ export class OceanP2P extends EventEmitter {
             peerDiscovery: [
               bootstrap({
                 list: config.p2pConfig.bootstrapNodes,
-                timeout: 20000, // in ms,
-                tagName: 'bootstrap',
-                tagValue: 50,
-                tagTTL: 120000
+                timeout: config.p2pConfig.bootstrapTimeout, // in ms,
+                tagName: config.p2pConfig.bootstrapTagName,
+                tagValue: config.p2pConfig.bootstrapTagValue,
+                tagTTL: config.p2pConfig.bootstrapTTL
               }),
               mdns({
                 interval: config.p2pConfig.mDNSInterval

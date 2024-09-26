@@ -1045,6 +1045,16 @@ export class LogDatabase {
       )
     }
   }
+
+  async getLogsCount(): Promise<number> {
+    try {
+      const res = await this.provider.collections(this.schema.name).retrieve()
+      return res && res.num_documents ? res.num_documents : 0
+    } catch (e) {
+      DATABASE_LOGGER.error('Unable to retrieve logs count: ' + e.message)
+      return 0
+    }
+  }
 }
 
 export class Database {

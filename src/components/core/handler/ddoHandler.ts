@@ -24,14 +24,13 @@ import {
   makeDid,
   validateObject
 } from '../utils/validateDdoHandler.js'
-import { getConfiguration } from '../../../utils/config.js'
+import { getConfiguration, hasP2PInterface } from '../../../utils/config.js'
 import {
   GetDdoCommand,
   FindDDOCommand,
   DecryptDDOCommand,
   ValidateDDOCommand
 } from '../../../@types/commands.js'
-import { hasP2PInterface } from '../../httpRoutes/index.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import {
   ValidateParams,

@@ -13,22 +13,24 @@ We recommend the following minimum requirements, although you may be be able to 
 - 1vcpu
 - 2 GB ram
 - 4 GB storage
-- OS: we recommend using the latest LTS version of Ubuntu or the latest iOS. However, the nodes should also work on other operating systems including Windows.
+- OS: we recommend using the latest LTS version of Ubuntu or the latest macOS. However, the nodes should also work on other operating systems including Windows.
 
 ## Option 1: Running Ocean Nodes in Docker (recommended)
 
-[This readme](deployment/README.md) is the recommended way to host a node and be eligible for incentives.
-The other options are more recommended towards deleveopers that want to tinker.
+[This readme](docs/dockerDeployment.md) is the recommended way to host a node and be eligible for incentives.
+The other options are more recommended towards developers that want to tinker.
 
 ## Option 2: Running local build of Ocean Nodes in Docker
 
-Build and run the node using Docker:
+Run the following script to deploy node:
 
 ```bash
-docker build -t ocean-node:mybuild . # Build the Docker image
-# Make sure you include 0x at the start of the private key
-docker run -e PRIVATE_KEY=0x_your_private_key_here ocean-node:mybuild # Start container
+scripts/ocean-node-quickstart.sh
+# OR
+npm run quickstart
 ```
+
+This command will run you through the process of setting up the environmental variables for your node.
 
 ## Option 3: Running Ocean Nodes with PM2
 
@@ -40,13 +42,29 @@ PM2 is a process manager that makes it easy to manage and monitor your Node.js a
  npm install -g pm2
 ```
 
-2.  Start the Ocean Node with PM2
+2. Setup the environmental variables
+
+Either use the script:
+
+```
+npm run envSetup
+```
+
+or setup the required environment variables manually:
+
+```bash
+export PRIVATE_KEY="0x_your_private_key_here"
+```
+
+The `PRIVATE_KEY` is the only mandatory environmental variable, you must include the `0x` at the front of your private key. Additional configurations can be set as needed. For all available configurations, refer to the [Environment Variables](docs/env.md) documentation.
+
+3.  Quick start the Ocean Node with PM2
 
 ```bash
    pm2 start npm --name "ocean-node" -- run start
 ```
 
-3.  Monitor and Manage the Node
+4.  Monitor and Manage the Node
 
 You can use the following PM2 commands to manage your Ocean Node:
 
@@ -108,7 +126,7 @@ The `PRIVATE_KEY` is the only mandatory environmental variable, you must include
 npm run start
 ```
 
-Your node is now running, the dashboard will be available at `http://localhost:8000/dashboard/`. To start additional nodes, repeat these steps in a new terminal.
+Your node is now running, the control panel will be available at `http://localhost:8000/controlpanel/`. To start additional nodes, repeat these steps in a new terminal.
 
 ## Additional Resources
 
@@ -118,4 +136,5 @@ Your node is now running, the dashboard will be available at `http://localhost:8
 - [Testing Guide](docs/testing.md)
 - [Network Configuration](docs/networking.md)
 - [Logging & accessing logs](docs/networking.md)
-- [Dashboard: Local development](dashboard/README.md)
+- [Control Panel: Local development](dashboard/README.md)
+- [Docker Deployment Guide](docs/dockerDeployment.md)

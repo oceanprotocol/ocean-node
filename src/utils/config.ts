@@ -101,8 +101,8 @@ function getIndexingNetworks(supportedNetworks: RPCS): RPCS | null {
     CONFIG_LOGGER.logMessageWithEmoji(
       'INDEXER_NETWORKS is not defined, running Indexer with all supported networks defined in RPCS env variable ...',
       true,
-      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-      LOG_LEVELS_STR.LEVEL_ERROR
+      GENERIC_EMOJIS.EMOJI_CHECK_MARK,
+      LOG_LEVELS_STR.LEVEL_INFO
     )
     return supportedNetworks
   }
@@ -479,7 +479,8 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
 
   // http and/or p2p connections
   const interfaces = getNodeInterfaces(isStartup)
-
+  let bootstrapTtl = getIntEnvValue(process.env.P2P_BOOTSTRAP_TTL, 120000)
+  if (bootstrapTtl === 0) bootstrapTtl = Infinity
   const config: OceanNodeConfig = {
     authorizedDecrypters: getAuthorizedDecrypters(isStartup),
     allowedValidators: getAllowedValidators(isStartup),
@@ -494,6 +495,10 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
         isStartup,
         defaultBootstrapAddresses
       ),
+      bootstrapTimeout: getIntEnvValue(process.env.P2P_BOOTSTRAP_TIMEOUT, 20000),
+      bootstrapTagName: getEnvValue(process.env.P2P_BOOTSTRAP_TAGNAME, 'bootstrap'),
+      bootstrapTagValue: getIntEnvValue(process.env.P2P_BOOTSTRAP_TAGVALUE, 50),
+      bootstrapTTL: bootstrapTtl,
       enableIPV4: getBoolEnvValue('P2P_ENABLE_IPV4', true),
       enableIPV6: getBoolEnvValue('P2P_ENABLE_IPV6', true),
       ipV4BindAddress: getEnvValue(process.env.P2P_ipV4BindAddress, '0.0.0.0'),
@@ -584,3 +589,6 @@ export async function printCurrentConfig() {
   const conf = await getConfiguration(true)
   console.log(JSON.stringify(conf, null, 4))
 }
+
+// P2P routes related
+export const hasP2PInterface = (await (await getConfiguration())?.hasP2P) || false

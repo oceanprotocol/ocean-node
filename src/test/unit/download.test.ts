@@ -16,9 +16,10 @@ import {
 } from '../utils/utils.js'
 import { decrypt } from '../../utils/crypt.js'
 import { validateFilesStructure } from '../../components/core/handler/downloadHandler.js'
-import { AssetUtils } from '../../utils/asset.js'
+import { AssetUtils, isConfidentialChainDDO } from '../../utils/asset.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { Service } from '../../@types/DDO/Service.js'
+import { DEVELOPMENT_CHAIN_ID, KNOWN_CONFIDENTIAL_EVMS } from '../../utils/address.js'
 
 let envOverrides: OverrideEnvConfig[]
 let config: OceanNodeConfig
@@ -150,6 +151,25 @@ describe('Should validate files structure for download', () => {
         otherDatatokenAddress?.toLowerCase()
     )
     assert(decryptedFileData.nftAddress?.toLowerCase() === otherNFTAddress?.toLowerCase())
+  })
+
+  it('should check if DDO service files is missing or empty (exected for confidential EVM, dt4)', () => {
+    const otherDDOConfidential: DDO = structuredClone(ddoObj)
+    expect(
+      isConfidentialChainDDO(KNOWN_CONFIDENTIAL_EVMS[0], otherDDOConfidential.services[0])
+    ).to.be.equal(false)
+
+    // now it should return true
+    otherDDOConfidential.services[0].files = ''
+
+    expect(
+      isConfidentialChainDDO(KNOWN_CONFIDENTIAL_EVMS[0], otherDDOConfidential.services[0])
+    ).to.be.equal(true)
+
+    // not confidential evm anymore
+    expect(
+      isConfidentialChainDDO(DEVELOPMENT_CHAIN_ID, otherDDOConfidential.services[0])
+    ).to.be.equal(false)
   })
 
   after(async () => {
