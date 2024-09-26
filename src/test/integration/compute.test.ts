@@ -223,7 +223,8 @@ describe('Compute', () => {
     publishedComputeDataset = await waitToIndex(
       publishedComputeDataset.ddo.id,
       EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT * 2
+      DEFAULT_TEST_TIMEOUT * 2,
+      true
     )
     assert(
       publishedComputeDataset?.ddo?.services[0]?.compute?.publisherTrustedAlgorithms
@@ -838,7 +839,8 @@ describe('Compute', () => {
       const { ddo, wasTimeout } = await waitToIndex(
         algoDDO.id,
         EVENTS.METADATA_CREATED,
-        DEFAULT_TEST_TIMEOUT
+        DEFAULT_TEST_TIMEOUT,
+        true
       )
       const algoDDOTest = ddo
       if (algoDDOTest) {
@@ -861,7 +863,8 @@ describe('Compute', () => {
       const { ddo, wasTimeout } = await waitToIndex(
         algoDDO.id,
         EVENTS.METADATA_CREATED,
-        DEFAULT_TEST_TIMEOUT * 2
+        DEFAULT_TEST_TIMEOUT * 2,
+        true
       )
 
       const algoDDOTest = ddo
@@ -874,7 +877,8 @@ describe('Compute', () => {
         const { ddo, wasTimeout } = await waitToIndex(
           datasetDDO.id,
           EVENTS.METADATA_CREATED,
-          DEFAULT_TEST_TIMEOUT * 2
+          DEFAULT_TEST_TIMEOUT * 2,
+          true
         )
 
         const datasetDDOTest = ddo
