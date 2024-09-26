@@ -71,7 +71,7 @@ aquariusRoutes.post(
         return
       }
 
-      const queryStrategy = DatabaseFactory.createMetadataQuery()
+      const queryStrategy = await DatabaseFactory.createMetadataQuery()
       const transformedQuery = queryStrategy.buildQuery(searchQuery)
 
       const result = await new QueryHandler(req.oceanNode).handle({
@@ -93,7 +93,7 @@ aquariusRoutes.post(
 
 aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
   try {
-    const queryStrategy = DatabaseFactory.createDdoStateQuery()
+    const queryStrategy = await DatabaseFactory.createDdoStateQuery()
     const queryDdoState: QueryCommand = {
       query: queryStrategy.buildQuery(
         String(req.query.did),

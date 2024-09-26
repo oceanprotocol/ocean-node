@@ -4,6 +4,7 @@ import {
   USE_DB_TRANSPORT
 } from '../../utils/logging/Logger.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
+import { URLUtils } from '../../utils/url.js'
 import {
   AbstractDdoDatabase,
   AbstractDdoStateDatabase,
@@ -38,13 +39,25 @@ export class Database {
       )
     }
     return (async (): Promise<Database> => {
-      this.ddo = await DatabaseFactory.createDdoDatabase(this.config)
-      this.nonce = await DatabaseFactory.createNonceDatabase(this.config)
-      this.indexer = await DatabaseFactory.createIndexerDatabase(this.config)
-      this.logs = await DatabaseFactory.createLogDatabase(this.config)
-      this.order = await DatabaseFactory.createOrderDatabase(this.config)
-      this.ddoState = await DatabaseFactory.createDdoStateDatabase(this.config)
-      return this
+      try {
+        this.nonce = await DatabaseFactory.createNonceDatabase(this.config)
+
+        if (this.config.url && URLUtils.isValidUrl(this.config.url)) {
+          this.ddo = await DatabaseFactory.createDdoDatabase(this.config)
+          this.indexer = await DatabaseFactory.createIndexerDatabase(this.config)
+          this.logs = await DatabaseFactory.createLogDatabase(this.config)
+          this.order = await DatabaseFactory.createOrderDatabase(this.config)
+          this.ddoState = await DatabaseFactory.createDdoStateDatabase(this.config)
+        } else {
+          DATABASE_LOGGER.info(
+            'Invalid URL. Only Nonce Database is initialized. Other databases are not available.'
+          )
+        }
+        return this
+      } catch (error) {
+        DATABASE_LOGGER.error(`Database initialization failed: ${error}`)
+        throw new Error('Failed to initialize databases.')
+      }
     })() as unknown as Database
   }
 }
