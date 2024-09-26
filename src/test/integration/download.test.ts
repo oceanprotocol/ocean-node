@@ -177,14 +177,10 @@ describe('Should run a complete node flow.', () => {
   })
   it('should publish compute datasets & algos', async () => {
     publishedDataset = await publishAsset(downloadAsset, publisherAccount)
-    function sleep(ms: number) {
-      return new Promise((resolve) => setTimeout(resolve, ms))
-    }
-    await sleep(5000)
     await waitToIndex(
       publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT
+      DEFAULT_TEST_TIMEOUT * 2
     )
   })
   it('should fetch the published ddo', async () => {
@@ -193,6 +189,7 @@ describe('Should run a complete node flow.', () => {
       id: publishedDataset.ddo.id
     }
     const response = await new GetDdoHandler(oceanNode).handle(getDDOTask)
+    console.log('response', response)
     actualDDO = await streamToObject(response.stream as Readable)
     assert(actualDDO.id === publishedDataset.ddo.id, 'DDO id not matching')
   })

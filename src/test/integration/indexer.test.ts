@@ -220,17 +220,14 @@ describe('Indexer stores a new metadata events and orders.', () => {
     genericAsset.nft.owner = setMetaDataTxReceipt.from
     genericAsset.nft.state = 0
     genericAsset.nft.created = '2022-12-30T08:40:43'
-
-    await sleep(5000)
   })
 
   it('should store the ddo in the database and return it ', async function () {
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT
+      DEFAULT_TEST_TIMEOUT * 2
     )
-    await sleep(5000)
     resolvedDDO = ddo
     if (resolvedDDO) {
       expect(resolvedDDO.id).to.equal(genericAsset.id)
@@ -259,7 +256,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should store the ddo state in the db with no errors and retrieve it using did', async function () {
-    await sleep(5000)
     const ddoState = await database.ddoState.retrieve(resolvedDDO.id)
     assert(ddoState, 'ddoState not found')
     expect(resolvedDDO.id).to.equal(ddoState.did)
@@ -316,10 +312,9 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.METADATA_UPDATED,
-      DEFAULT_TEST_TIMEOUT,
+      DEFAULT_TEST_TIMEOUT * 2,
       true
     )
-    await sleep(1000)
     const updatedDDO: any = ddo
     if (updatedDDO) {
       expect(updatedDDO.metadata.name).to.equal('dataset-name-updated')
@@ -529,7 +524,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should increase number of orders', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
-    await sleep(2000)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.ORDER_REUSED,
