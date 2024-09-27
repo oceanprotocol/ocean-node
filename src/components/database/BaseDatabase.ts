@@ -126,6 +126,8 @@ export abstract class AbstractOrderDatabase {
     consumer: string,
     payer: string,
     datatokenAddress: string,
+    nftAddress: string,
+    did: string,
     startOrderId?: string
   ): Promise<any>
 

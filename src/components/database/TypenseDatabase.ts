@@ -104,6 +104,8 @@ export class TypesenseOrderDatabase extends AbstractOrderDatabase {
     consumer: string,
     payer: string,
     datatokenAddress: string,
+    nftAddress: string,
+    did: string,
     startOrderId?: string
   ) {
     try {
@@ -114,6 +116,8 @@ export class TypesenseOrderDatabase extends AbstractOrderDatabase {
         consumer,
         payer,
         datatokenAddress,
+        nftAddress,
+        did,
         startOrderId
       })
     } catch (error) {

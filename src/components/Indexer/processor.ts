@@ -650,7 +650,9 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         timestamp,
         consumer,
         payer,
-        ddo.services[serviceIndex].datatokenAddress
+        ddo.services[serviceIndex].datatokenAddress,
+        nftAddress,
+        did
       )
       INDEXER_LOGGER.logMessage(
         `Found did ${did} for order starting on network ${chainId}`
@@ -714,6 +716,8 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
           startOrder.consumer,
           payer,
           ddo.services[0].datatokenAddress,
+          nftAddress,
+          did,
           startOrderId
         )
       } catch (error) {

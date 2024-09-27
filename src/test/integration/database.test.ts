@@ -238,7 +238,9 @@ describe('OrderDatabase CRUD', () => {
       1678593728,
       '0x1234',
       '0x4567',
-      '0x1111'
+      '0x1111',
+      '0x1',
+      'did'
     )
     expect(result?.id).to.equal('order1.0')
     expect(result?.consumer).to.equal('0x1234')
@@ -304,7 +306,9 @@ describe('Typesense OrderDatabase CRUD', () => {
       1678593728,
       '0x1234',
       '0x4567',
-      '0x1111'
+      '0x1111',
+      '0x2',
+      'did:'
     )
     expect(result?.id).to.equal('orderTypesense1')
     expect(result?.consumer).to.equal('0x1234')
@@ -355,7 +359,9 @@ describe('Elasticsearch OrderDatabase CRUD', () => {
       1678593728,
       '0x1234',
       '0x4567',
-      '0x1111'
+      '0x1111',
+      '0x1',
+      'did:'
     )
     expect(result?.orderId).to.equal('orderElastic1')
     expect(result?.consumer).to.equal('0x1234')

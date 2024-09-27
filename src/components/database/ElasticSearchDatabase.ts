@@ -472,6 +472,8 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
     consumer: string,
     payer: string,
     datatokenAddress: string,
+    nftAddress: string,
+    did: string,
     startOrderId?: string
   ) {
     try {
@@ -482,6 +484,8 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
         consumer,
         payer,
         datatokenAddress,
+        nftAddress,
+        did,
         startOrderId
       }
       await this.provider.index({
