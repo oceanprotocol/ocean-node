@@ -89,11 +89,11 @@ describe('Should run a complete node flow.', () => {
           JSON.stringify(mockSupportedNetworks),
           JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          'http://localhost:8108/?apiKey=xyz',
+          'http://localhost:9200',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          DB_TYPES.TYPESENSE
+          DB_TYPES.ELASTIC_SEARCH
         ]
       )
     )
@@ -144,7 +144,6 @@ describe('Should run a complete node flow.', () => {
       id: did
     }
     const response = await new GetDdoHandler(oceanNode).handle(getDDOTask)
-    console.log('GetDdoHandler response ==  ', response)
     ddo = await streamToObject(response.stream as Readable)
     assert(ddo.id === did, 'DDO id not matching')
   })
@@ -177,7 +176,7 @@ describe('Should run a complete node flow.', () => {
       const transferTxId = orderTxIds[0]
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
-      const nonce = Date.now().toString()
+      const nonce = Math.floor(Date.now() / 1000).toString()
       const message = String(ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
@@ -219,7 +218,7 @@ describe('Should run a complete node flow.', () => {
       const transferTxId = orderTxIds[1]
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
-      const nonce = Date.now().toString()
+      const nonce = Math.floor(Date.now() / 1000).toString()
       const message = String(ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
@@ -239,7 +238,6 @@ describe('Should run a complete node flow.', () => {
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
-
       assert(response)
       assert(response.stream === null, 'stream is present')
       assert(response.status.httpStatus === 403, 'http status not 403')
@@ -261,7 +259,7 @@ describe('Should run a complete node flow.', () => {
       const transferTxId = orderTxIds[1]
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
-      const nonce = Date.now().toString()
+      const nonce = Math.floor(Date.now() / 1000).toString()
       const message = String(ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
