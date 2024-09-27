@@ -144,7 +144,6 @@ describe('Should run a complete node flow.', () => {
       id: did
     }
     const response = await new GetDdoHandler(oceanNode).handle(getDDOTask)
-    console.log('response:', response)
     ddo = await streamToObject(response.stream as Readable)
     assert(ddo.id === did, 'DDO id not matching')
   })
@@ -280,7 +279,6 @@ describe('Should run a complete node flow.', () => {
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
-      console.log('response:', response)
       assert(response)
       assert(response.stream === null, 'stream is present')
       assert(response.status.httpStatus === 403, 'http status not 403')
