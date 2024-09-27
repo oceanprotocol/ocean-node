@@ -258,7 +258,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   it('should store the ddo state in the db with no errors and retrieve it using did', async function () {
     const ddoState = await database.ddoState.retrieve(resolvedDDO.id)
     assert(ddoState, 'ddoState not found')
-    expect(resolvedDDO.id).to.equal(ddoState.id)
+    expect(resolvedDDO.id).to.equal(ddoState.did)
     expect(ddoState.valid).to.equal(true)
     expect(ddoState.error).to.equal(' ')
     // add txId check once we have that as change merged and the event will be indexed
@@ -267,6 +267,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   it('should find the state of the ddo using query ddo state handler', async function () {
     const queryDdoStateHandler = new QueryDdoStateHandler(oceanNode)
     // query using the did
+    console.log('search for:', resolvedDDO)
     const queryDdoState: QueryCommand = {
       query: {
         q: resolvedDDO.id,
@@ -275,10 +276,12 @@ describe('Indexer stores a new metadata events and orders.', () => {
       command: PROTOCOL_COMMANDS.QUERY
     }
     const response = await queryDdoStateHandler.handle(queryDdoState)
+    console.log('response here:,response', response)
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     const result = await streamToObject(response.stream as Readable)
+    console.log('result:', result)
     const ddoState = result.hits[0].document
     expect(resolvedDDO.id).to.equal(ddoState.did)
     expect(ddoState.valid).to.equal(true)
