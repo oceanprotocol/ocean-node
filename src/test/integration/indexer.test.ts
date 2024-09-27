@@ -245,7 +245,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(resolvedDDO.nft.symbol === (await nftContract.symbol()), 'NFT symbol mismatch')
     assert(
       resolvedDDO.nft.tokenURI ===
-      (await nftContract.tokenURI(await nftContract.getId())),
+        (await nftContract.tokenURI(await nftContract.getId())),
       'NFT tokeURI mismatch'
     )
     assert(
