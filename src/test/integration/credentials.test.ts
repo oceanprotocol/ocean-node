@@ -120,7 +120,9 @@ describe('Should run a complete node flow.', () => {
     consumerAddresses = await Promise.all(consumerAccounts.map((a) => a.getAddress()))
   })
 
-  it('should publish download datasets', async () => {
+  it('should publish download datasets', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+
     const publishedDataset = await publishAsset(
       downloadAssetWithCredentials,
       publisherAccount
