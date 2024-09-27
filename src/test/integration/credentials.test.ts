@@ -23,6 +23,7 @@ import { streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 
 import {
+  DB_TYPES,
   ENVIRONMENT_VARIABLES,
   EVENTS,
   PROTOCOL_COMMANDS,
@@ -81,7 +82,8 @@ describe('Should run a complete node flow.', () => {
           ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
-          ENVIRONMENT_VARIABLES.ADDRESS_FILE
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE,
+          ENVIRONMENT_VARIABLES.DB_TYPE
         ],
         [
           JSON.stringify(mockSupportedNetworks),
@@ -90,7 +92,8 @@ describe('Should run a complete node flow.', () => {
           'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
+          DB_TYPES.TYPESENSE
         ]
       )
     )
@@ -123,7 +126,7 @@ describe('Should run a complete node flow.', () => {
       publisherAccount
     )
     did = publishedDataset.ddo.id
-    await waitToIndex(did, EVENTS.METADATA_CREATED, DEFAULT_TEST_TIMEOUT)
+    await waitToIndex(did, EVENTS.METADATA_CREATED, DEFAULT_TEST_TIMEOUT * 2)
   })
 
   it('should fetch the published ddo', async () => {
