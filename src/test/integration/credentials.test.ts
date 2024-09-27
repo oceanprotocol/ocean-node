@@ -93,7 +93,7 @@ describe('Should run a complete node flow.', () => {
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          DB_TYPES.ELASTIC_SEARCH
+          DB_TYPES.TYPESENSE
         ]
       )
     )
