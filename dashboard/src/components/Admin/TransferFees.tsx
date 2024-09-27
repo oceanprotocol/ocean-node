@@ -73,7 +73,11 @@ export default function TransferFees() {
           setShowTransferInput(false)
         }
       } else {
-        setError('Error transferring fees. Please try again.')
+        setError(
+          response.statusText
+            ? response.statusText
+            : 'Error transferring fees. Please try again.'
+        )
       }
     } catch (error) {
       console.error('error', error)
