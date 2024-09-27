@@ -91,7 +91,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   before(async () => {
     const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
+      url: 'http://localhost:9200'
     }
 
     previousConfiguration = await setupEnvironment(
@@ -111,7 +111,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           dbConfig.url,
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          DB_TYPES.TYPESENSE
+          DB_TYPES.ELASTIC_SEARCH
         ]
       )
     )
