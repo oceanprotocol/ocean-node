@@ -142,6 +142,7 @@ export const elasticSchemas: ElasticsearchSchemas = {
           timestamp: { type: 'date' },
           consumer: { type: 'keyword' },
           payer: { type: 'keyword' },
+          datatokenAddress: { type: 'keyword' },
           startOrderId: { type: 'keyword' }
         }
       }

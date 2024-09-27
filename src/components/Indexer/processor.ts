@@ -633,7 +633,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
       }
       if (
         'stats' in ddo &&
-        ddo.services[serviceIndex].datatoken?.toLowerCase() ===
+        ddo.services[serviceIndex].datatokenAddress?.toLowerCase() ===
           event.address?.toLowerCase()
       ) {
         ddo.stats.orders += 1
@@ -649,7 +649,8 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         'startOrder',
         timestamp,
         consumer,
-        payer
+        payer,
+        ddo.services[serviceIndex].datatokenAddress
       )
       INDEXER_LOGGER.logMessage(
         `Found did ${did} for order starting on network ${chainId}`
@@ -712,6 +713,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
           timestamp,
           startOrder.consumer,
           payer,
+          ddo.services[0].datatokenAddress,
           startOrderId
         )
       } catch (error) {

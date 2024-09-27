@@ -471,10 +471,19 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
     timestamp: number,
     consumer: string,
     payer: string,
+    datatokenAddress: string,
     startOrderId?: string
   ) {
     try {
-      const document = { orderId, type, timestamp, consumer, payer, startOrderId }
+      const document = {
+        orderId,
+        type,
+        timestamp,
+        consumer,
+        payer,
+        datatokenAddress,
+        startOrderId
+      }
       await this.provider.index({
         index: this.getSchema().index,
         id: orderId,
@@ -510,10 +519,18 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
     timestamp: number,
     consumer: string,
     payer: string,
+    datatokenAddress?: string,
     startOrderId?: string
   ) {
     try {
-      const document = { type, timestamp, consumer, payer, startOrderId }
+      const document = {
+        type,
+        timestamp,
+        consumer,
+        payer,
+        datatokenAddress,
+        startOrderId
+      }
       await this.provider.update({
         index: this.getSchema().index,
         id: orderId,
