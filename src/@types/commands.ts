@@ -183,8 +183,8 @@ export interface ComputeGetResultCommand extends Command {
 
 export interface ComputeGetStatusCommand extends Command {
   consumerAddress?: string
-  did?: string
   jobId?: string
+  agreementId?: string
 }
 
 export interface ValidateChainId {

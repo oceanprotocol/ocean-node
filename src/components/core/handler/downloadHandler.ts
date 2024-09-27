@@ -13,7 +13,13 @@ import crypto from 'crypto'
 import * as ethCrypto from 'eth-crypto'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
-import { AssetUtils } from '../../../utils/asset.js'
+import {
+  AssetUtils,
+  getFilesObjectFromConfidentialEVM,
+  isConfidentialChainDDO,
+  isDataTokenTemplate4,
+  isERC20Template4Active
+} from '../../../utils/asset.js'
 import { Service } from '../../../@types/DDO/Service.js'
 import { ArweaveStorage, IpfsStorage, Storage } from '../../storage/index.js'
 import {
@@ -274,7 +280,7 @@ export class DownloadHandler extends Handler {
         return {
           stream: null,
           status: {
-            httpStatus: 500,
+            httpStatus: 403,
             error: `Error: Access to asset ${ddo.id} was denied`
           }
         }
@@ -287,7 +293,7 @@ export class DownloadHandler extends Handler {
       task.consumerAddress,
       parseInt(task.nonce),
       task.signature,
-      String(ddo.id + task.nonce) // ddo.id
+      String(ddo.id + task.nonce)
     )
 
     if (!nonceCheckResult.valid) {
@@ -348,6 +354,25 @@ export class DownloadHandler extends Handler {
     let service: Service = AssetUtils.getServiceById(ddo, task.serviceId)
     if (!service) service = AssetUtils.getServiceByIndex(ddo, Number(task.serviceId))
     if (!service) throw new Error('Cannot find service')
+
+    // check credentials on service level
+    if (service.credentials) {
+      const accessGranted = checkCredentials(service.credentials, task.consumerAddress)
+      if (!accessGranted) {
+        CORE_LOGGER.logMessage(
+          `Error: Access to service with id ${service.id} was denied`,
+          true
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 403,
+            error: `Error: Access to service with id ${service.id} was denied`
+          }
+        }
+      }
+    }
+
     // 4. Check service type
     const serviceType = service.type
     if (serviceType === 'compute') {
@@ -448,14 +473,61 @@ export class DownloadHandler extends Handler {
 
     try {
       // 7. Decrypt the url
-      const uint8ArrayHex = Uint8Array.from(
-        Buffer.from(sanitizeServiceFiles(service.files), 'hex')
-      )
-      const decryptedUrlBytes = await decrypt(uint8ArrayHex, EncryptMethod.ECIES)
-      // Convert the decrypted bytes back to a string
-      const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
-      const decryptedFileData = JSON.parse(decryptedFilesString)
-      const decriptedFileObject: any = decryptedFileData.files[task.fileIndex]
+
+      let filesObject: string = null
+      let decriptedFileObject: any = null
+      let decryptedFileData: any = null
+      // check if confidential EVM
+      const confidentialEVM = isConfidentialChainDDO(ddo.chainId, service)
+      // check that files is missing and template 4 is active on the chain
+      if (confidentialEVM) {
+        const signer = blockchain.getSigner()
+        const isTemplate4 = await isDataTokenTemplate4(service.datatokenAddress, signer)
+
+        if (!isTemplate4 || !(await isERC20Template4Active(ddo.chainId, signer))) {
+          const errorMsg =
+            'Cannot decrypt DDO files, Template 4 is not active for confidential EVM!'
+          CORE_LOGGER.error(errorMsg)
+          return {
+            stream: null,
+            status: {
+              httpStatus: 403,
+              error: errorMsg
+            }
+          }
+        } else {
+          // TODO decrypt using Oasis SDK
+          CORE_LOGGER.info(
+            'Downloading from Confidential EVM, try get filesObject from Smart Contract'
+          )
+
+          const serviceIndex = AssetUtils.getServiceIndexById(ddo, task.serviceId)
+          const consumerMessage = String(ddo.id + task.nonce)
+          filesObject = await getFilesObjectFromConfidentialEVM(
+            serviceIndex,
+            service.datatokenAddress,
+            signer,
+            task.consumerAddress,
+            task.signature,
+            consumerMessage
+          )
+
+          decryptedFileData = JSON.parse(filesObject)
+          decriptedFileObject = decryptedFileData.files[task.fileIndex]
+        }
+      } else {
+        // non confidential EVM
+        filesObject = service.files
+        const uint8ArrayHex = Uint8Array.from(
+          Buffer.from(sanitizeServiceFiles(filesObject), 'hex')
+        )
+        const decryptedUrlBytes = await decrypt(uint8ArrayHex, EncryptMethod.ECIES)
+        // Convert the decrypted bytes back to a string
+        const decryptedFilesString = Buffer.from(decryptedUrlBytes).toString()
+        decryptedFileData = JSON.parse(decryptedFilesString)
+        decriptedFileObject = decryptedFileData.files[task.fileIndex]
+      }
+
       if (!validateFilesStructure(ddo, service, decryptedFileData)) {
         CORE_LOGGER.error(
           'Unauthorized download operation. Decrypted "nftAddress" and "datatokenAddress" do not match the original DDO'
@@ -476,7 +548,7 @@ export class DownloadHandler extends Handler {
         command: PROTOCOL_COMMANDS.DOWNLOAD_URL
       })
     } catch (e) {
-      CORE_LOGGER.logMessage('decryption error' + e, true)
+      CORE_LOGGER.logMessage('Decryption error: ' + e, true)
       return {
         stream: null,
         status: {

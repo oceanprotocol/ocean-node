@@ -62,6 +62,10 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `P2P_ENABLE_CIRCUIT_RELAY_SERVER`: Enable Circuit Relay Server. It will help the network but increase your bandwidth usage. Should be disabled for edge nodes. Default: `True`
 - `P2P_CIRCUIT_RELAYS`: Numbers of relay servers. Default: `0`
 - `P2P_BOOTSTRAP_NODES` : List of bootstrap nodes. Defults to OPF nodes. Example: ["/dns4/node3.oceanprotocol.com/tcp/9000/p2p/"]
+- `P2P_BOOTSTRAP_TIMEOUT` : How long to wait before discovering bootstrap nodes. In ms. Default: 2000 ms
+- `P2P_BOOTSTRAP_TAGNAME` : Tag a bootstrap peer with this name before "discovering" it. Default: 'bootstrap'
+- `P2P_BOOTSTRAP_TAGVALUE` : The bootstrap peer tag will have this value (default: 50)
+- `P2P_BOOTSTRAP_TTL` : Cause the bootstrap peer tag to be removed after this number of ms. Default: 120000 ms
 - `P2P_FILTER_ANNOUNCED_ADDRESSES`: CIDR filters to filter announced addresses. Default: ["172.15.0.0/24"] (docker ip range). Example: ["192.168.0.1/27"]
 - `P2P_MIN_CONNECTIONS`: The minimum number of connections below which libp2p will start to dial peers from the peer book. Setting this to 0 disables this behaviour. Default: 1
 - `P2P_MAX_CONNECTIONS`: The maximum number of connections libp2p is willing to have before it starts pruning connections to reduce resource usage. Default: 300

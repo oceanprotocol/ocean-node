@@ -4,7 +4,11 @@ import { Service } from '../@types/DDO/Service'
 import { DDO_IDENTIFIER_PREFIX } from './constants.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { createHash } from 'crypto'
-import { getAddress } from 'ethers'
+import { ethers, getAddress, Signer } from 'ethers'
+import { KNOWN_CONFIDENTIAL_EVMS } from './address.js'
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/interfaces/IERC20Template.sol/IERC20Template.json' assert { type: 'json' }
+import ERC20Template4 from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template4.sol/ERC20Template4.json' assert { type: 'json' }
+import { getContractAddress, getNFTFactory } from '../components/Indexer/utils.js'
 
 // Notes:
 // Asset as per asset.py on provider, is a class there, while on ocean.Js we only have a type
@@ -103,4 +107,124 @@ export function generateDDOHash(nftAddress: string, chainId: number): string | n
     .digest('hex')
 
   return DDO_IDENTIFIER_PREFIX + hashAddressAndChain
+}
+
+/**
+ * Checks if the given network is a confidential evm (oasis mainnet and testnet for now)
+ * @param network name or chain id
+ * @returns true if confidential evm
+ */
+export function isConfidentialEVM(network: number): boolean {
+  return KNOWN_CONFIDENTIAL_EVMS.includes(network)
+}
+
+export async function isERC20Template4Active(
+  network: number,
+  owner: Signer
+): Promise<boolean> {
+  try {
+    const nftFactoryAddress = getContractAddress(network, 'ERC721Factory')
+    const factoryERC721 = await getNFTFactory(owner, nftFactoryAddress)
+    const currentTokenCount = await factoryERC721.getCurrentTemplateCount()
+
+    for (let i = 1; i <= currentTokenCount; i++) {
+      const tokenTemplate = await factoryERC721.getTokenTemplate(i)
+
+      const erc20Template: any = new ethers.Contract(
+        tokenTemplate.templateAddress,
+        ERC20Template.abi,
+        owner
+      )
+
+      // check for ID
+      const id = await erc20Template.connect(owner).getId()
+      if (tokenTemplate.isActive && id.toString() === '4') {
+        return true
+      }
+    }
+  } catch (err) {
+    CORE_LOGGER.error(
+      'Error checking if ERCTemplate4 is active on confidential EVM: ' + err.message
+    )
+  }
+
+  return false
+}
+
+export async function isDataTokenTemplate4(
+  templateAddress: string, // template address
+  owner: Signer
+): Promise<boolean> {
+  try {
+    const erc20Template: any = new ethers.Contract(
+      templateAddress,
+      ERC20Template.abi,
+      owner
+    )
+    const id = await erc20Template.connect(owner).getId()
+    return id.toString() === '4'
+  } catch (err) {
+    CORE_LOGGER.error(
+      'Error checking if datatoken at address ' + templateAddress + ' has id 4'
+    )
+    return false
+  }
+}
+
+export function isConfidentialChainDDO(ddoChain: number, ddoService: Service): boolean {
+  const isConfidential = isConfidentialEVM(ddoChain)
+  return isConfidential && (!ddoService.files || ddoService.files.length === 0)
+}
+
+/**
+ * get files object from SC
+ * @param serviceIndex service id
+ * @param datatokenAddress data token address
+ * @param signer provider wallet
+ * @param consumerAddress consumer wallet address
+ * @param consumerSignature signature
+ * @param consumerData consumer data
+ * @returns files object or null
+ */
+export async function getFilesObjectFromConfidentialEVM(
+  serviceIndex: number,
+  datatokenAddress: string,
+  signer: Signer,
+  consumerAddress: string,
+  consumerSignature: string,
+  consumerData: string // ddo id + nonce
+): Promise<string> {
+  try {
+    const currentProviderAddress = await signer.getAddress()
+    // now try to get the url
+    const consumerMessage = ethers.hexlify(ethers.toUtf8Bytes(consumerData))
+
+    const providerMessage = ethers.solidityPackedKeccak256(
+      ['uint256', 'bytes'],
+      [serviceIndex, consumerSignature]
+    )
+
+    const providerMessageHashBytes = ethers.toBeArray(providerMessage)
+    const providerSignature = await signer.signMessage(providerMessageHashBytes)
+
+    CORE_LOGGER.info('Try getFilesObject from Confidential EVM (SC call)')
+    const contract = new ethers.Contract(datatokenAddress, ERC20Template4.abi, signer)
+
+    // call smart contract to decrypt
+    const bytesData = await contract.getFilesObject(
+      serviceIndex,
+      currentProviderAddress,
+      providerSignature,
+      consumerMessage,
+      consumerSignature,
+      consumerAddress
+    )
+    const filesObject: string = ethers.toUtf8String(bytesData)
+    return filesObject
+  } catch (err) {
+    CORE_LOGGER.error(
+      'Unable to decrypt files object from Template4 on confidential EVM: ' + err.message
+    )
+    return null
+  }
 }
