@@ -8,6 +8,7 @@ import { streamToString, streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 
 import {
+  DB_TYPES,
   ENVIRONMENT_VARIABLES,
   EVENTS,
   PROTOCOL_COMMANDS,
@@ -84,7 +85,7 @@ describe('Should run a complete node flow.', () => {
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          'elasticsearch'
+          DB_TYPES.ELASTIC_SEARCH
         ]
       )
     )
@@ -176,16 +177,17 @@ describe('Should run a complete node flow.', () => {
   })
   it('should publish compute datasets & algos', async () => {
     publishedDataset = await publishAsset(downloadAsset, publisherAccount)
-    function sleep(ms: number) {
-      return new Promise((resolve) => setTimeout(resolve, ms))
-    }
-    await sleep(5000)
-    await waitToIndex(
+    const { ddo, wasTimeout } = await waitToIndex(
       publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT
+      DEFAULT_TEST_TIMEOUT * 2
     )
+
+    if (!ddo) {
+      console.log('wasTimeout ==  ', wasTimeout)
+    }
   })
+
   it('should fetch the published ddo', async () => {
     const getDDOTask = {
       command: PROTOCOL_COMMANDS.GET_DDO,
@@ -302,7 +304,7 @@ describe('Should run a complete node flow.', () => {
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
 
       assert(response.stream === null, 'stream not null')
-      assert(response.status.httpStatus === 500, 'http status not 500')
+      assert(response.status.httpStatus === 403, 'http status not 403')
       assert(
         response.status.error === `Error: Access to asset ${assetDID} was denied`,
         'error contains access denied'

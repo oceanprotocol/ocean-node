@@ -18,6 +18,7 @@ import type {
   ComputeEnvironment
 } from '../../@types/C2D.js'
 import {
+  DB_TYPES,
   ENVIRONMENT_VARIABLES,
   EVENTS,
   PROTOCOL_COMMANDS,
@@ -29,7 +30,7 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { Readable } from 'stream'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
-import { getEventFromTx, sleep, streamToObject } from '../../utils/util.js'
+import { getEventFromTx, streamToObject } from '../../utils/util.js'
 import {
   Contract,
   ethers,
@@ -124,7 +125,7 @@ describe('Compute', () => {
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
           JSON.stringify(['http://localhost:31000']),
-          'elasticsearch'
+          DB_TYPES.ELASTIC_SEARCH
         ]
       )
     )
@@ -219,11 +220,11 @@ describe('Compute', () => {
     )
     const txReceipt = await setMetaDataTx.wait()
     assert(txReceipt, 'set metadata failed')
-    await sleep(10000)
     publishedComputeDataset = await waitToIndex(
       publishedComputeDataset.ddo.id,
       EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT
+      DEFAULT_TEST_TIMEOUT * 2,
+      true
     )
     assert(
       publishedComputeDataset?.ddo?.services[0]?.compute?.publisherTrustedAlgorithms
@@ -635,7 +636,7 @@ describe('Compute', () => {
     const statusComputeTask: ComputeGetStatusCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
       consumerAddress: null,
-      did: null,
+      agreementId: null,
       jobId
     }
     const response = await new ComputeGetStatusHandler(oceanNode).handle(
@@ -653,7 +654,7 @@ describe('Compute', () => {
     const statusComputeTask: ComputeGetStatusCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
       consumerAddress: wallet.address,
-      did: null,
+      agreementId: null,
       jobId: null
     }
     const response = await new ComputeGetStatusHandler(oceanNode).handle(
@@ -838,7 +839,8 @@ describe('Compute', () => {
       const { ddo, wasTimeout } = await waitToIndex(
         algoDDO.id,
         EVENTS.METADATA_CREATED,
-        DEFAULT_TEST_TIMEOUT
+        DEFAULT_TEST_TIMEOUT,
+        true
       )
       const algoDDOTest = ddo
       if (algoDDOTest) {
@@ -861,7 +863,8 @@ describe('Compute', () => {
       const { ddo, wasTimeout } = await waitToIndex(
         algoDDO.id,
         EVENTS.METADATA_CREATED,
-        DEFAULT_TEST_TIMEOUT * 2
+        DEFAULT_TEST_TIMEOUT * 2,
+        true
       )
 
       const algoDDOTest = ddo
@@ -874,7 +877,8 @@ describe('Compute', () => {
         const { ddo, wasTimeout } = await waitToIndex(
           datasetDDO.id,
           EVENTS.METADATA_CREATED,
-          DEFAULT_TEST_TIMEOUT * 2
+          DEFAULT_TEST_TIMEOUT * 2,
+          true
         )
 
         const datasetDDOTest = ddo

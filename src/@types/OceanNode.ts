@@ -25,6 +25,10 @@ export interface OceanNodeKeys {
 
 export interface OceanNodeP2PConfig {
   bootstrapNodes: string[]
+  bootstrapTimeout: number
+  bootstrapTagName: string
+  bootstrapTagValue: number
+  bootstrapTTL: number
   enableIPV4: boolean
   enableIPV6: boolean
   ipV4BindAddress: string | null

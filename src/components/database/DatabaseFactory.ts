@@ -31,61 +31,86 @@ import { ElasticSearchDdoStateQuery } from './ElasticSearchDdoStateQuery.js'
 import { TypesenseMetadataQuery } from './TypesenseMetadataQuery.js'
 import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery.js'
 import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery.js'
+import { DB_TYPES } from '../../utils/index.js'
 
 export class DatabaseFactory {
-  static createNonceDatabase(config: OceanNodeDBConfig): AbstractNonceDatabase {
-    if (process.env.DB_TYPE === 'elasticsearch') {
-      return new ElasticsearchNonceDatabase(config)
+  private static databaseMap = {
+    elasticsearch: {
+      nonce: (config: OceanNodeDBConfig) => new ElasticsearchNonceDatabase(config),
+      ddo: (config: OceanNodeDBConfig) =>
+        new ElasticsearchDdoDatabase(config, elasticSchemas.ddoSchemas),
+      indexer: (config: OceanNodeDBConfig) => new ElasticsearchIndexerDatabase(config),
+      log: (config: OceanNodeDBConfig) => new ElasticsearchLogDatabase(config),
+      order: (config: OceanNodeDBConfig) =>
+        new ElasticsearchOrderDatabase(config, elasticSchemas.orderSchema),
+      ddoState: (config: OceanNodeDBConfig) => new ElasticsearchDdoStateDatabase(config),
+      ddoStateQuery: () => new ElasticSearchDdoStateQuery(),
+      metadataQuery: () => new ElasticSearchMetadataQuery()
+    },
+    typesense: {
+      nonce: (config: OceanNodeDBConfig) =>
+        new TypesenseNonceDatabase(config, typesenseSchemas.nonceSchemas),
+      ddo: (config: OceanNodeDBConfig) =>
+        new TypesenseDdoDatabase(config, typesenseSchemas.ddoSchemas),
+      indexer: (config: OceanNodeDBConfig) =>
+        new TypesenseIndexerDatabase(config, typesenseSchemas.indexerSchemas),
+      log: (config: OceanNodeDBConfig) =>
+        new TypesenseLogDatabase(config, typesenseSchemas.logSchemas),
+      order: (config: OceanNodeDBConfig) =>
+        new TypesenseOrderDatabase(config, typesenseSchemas.orderSchema),
+      ddoState: (config: OceanNodeDBConfig) =>
+        new TypesenseDdoStateDatabase(config, typesenseSchemas.ddoStateSchema),
+      ddoStateQuery: () => new TypesenseDdoStateQuery(),
+      metadataQuery: () => new TypesenseMetadataQuery()
     }
-    return new TypesenseNonceDatabase(config, typesenseSchemas.nonceSchemas)
   }
 
-  static createDdoDatabase(config: OceanNodeDBConfig): AbstractDdoDatabase {
-    if (process.env.DB_TYPE === 'elasticsearch') {
-      return new ElasticsearchDdoDatabase(config, elasticSchemas.ddoSchemas)
-    }
-    return new TypesenseDdoDatabase(config, typesenseSchemas.ddoSchemas)
+  private static getDatabaseType() {
+    return process.env.DB_TYPE === DB_TYPES.ELASTIC_SEARCH ? 'elasticsearch' : 'typesense'
   }
 
-  static createIndexerDatabase(config: OceanNodeDBConfig): AbstractIndexerDatabase {
-    if (process.env.DB_TYPE === 'elasticsearch') {
-      return new ElasticsearchIndexerDatabase(config)
-    }
-    return new TypesenseIndexerDatabase(config, typesenseSchemas.indexerSchemas)
+  private static createDatabase<T>(
+    databaseType: keyof (typeof DatabaseFactory.databaseMap)['elasticsearch'],
+    config?: OceanNodeDBConfig
+  ): T {
+    const dbType = this.getDatabaseType()
+    const databaseCreator = this.databaseMap[dbType][databaseType]
+    return databaseCreator(config) as T
   }
 
-  static createLogDatabase(config: OceanNodeDBConfig): AbstractLogDatabase {
-    if (process.env.DB_TYPE === 'elasticsearch') {
-      return new ElasticsearchLogDatabase(config)
-    }
-    return new TypesenseLogDatabase(config, typesenseSchemas.logSchemas)
+  static createNonceDatabase(config: OceanNodeDBConfig): Promise<AbstractNonceDatabase> {
+    return this.createDatabase('nonce', config)
   }
 
-  static createOrderDatabase(config: OceanNodeDBConfig): AbstractOrderDatabase {
-    if (process.env.DB_TYPE === 'elasticsearch') {
-      return new ElasticsearchOrderDatabase(config, elasticSchemas.orderSchema)
-    }
-    return new TypesenseOrderDatabase(config, typesenseSchemas.orderSchema)
+  static createDdoDatabase(config: OceanNodeDBConfig): Promise<AbstractDdoDatabase> {
+    return this.createDatabase('ddo', config)
   }
 
-  static createDdoStateDatabase(config: OceanNodeDBConfig): AbstractDdoStateDatabase {
-    if (process.env.DB_TYPE === 'elasticsearch') {
-      return new ElasticsearchDdoStateDatabase(config)
-    }
-    return new TypesenseDdoStateDatabase(config, typesenseSchemas.ddoStateSchema)
+  static createIndexerDatabase(
+    config: OceanNodeDBConfig
+  ): Promise<AbstractIndexerDatabase> {
+    return this.createDatabase('indexer', config)
   }
 
-  static createDdoStateQuery(): IDdoStateQuery {
-    if (process.env.DB_TYPE === 'elasticsearch') {
-      return new ElasticSearchDdoStateQuery()
-    }
-    return new TypesenseDdoStateQuery()
+  static createLogDatabase(config: OceanNodeDBConfig): Promise<AbstractLogDatabase> {
+    return this.createDatabase('log', config)
   }
 
-  static createMetadataQuery(): IMetadataQuery {
-    if (process.env.DB_TYPE === 'elasticsearch') {
-      return new ElasticSearchMetadataQuery()
-    }
-    return new TypesenseMetadataQuery()
+  static createOrderDatabase(config: OceanNodeDBConfig): Promise<AbstractOrderDatabase> {
+    return this.createDatabase('order', config)
+  }
+
+  static createDdoStateDatabase(
+    config: OceanNodeDBConfig
+  ): Promise<AbstractDdoStateDatabase> {
+    return this.createDatabase('ddoState', config)
+  }
+
+  static createDdoStateQuery(): Promise<IDdoStateQuery> {
+    return this.createDatabase('ddoStateQuery')
+  }
+
+  static createMetadataQuery(): Promise<IMetadataQuery> {
+    return this.createDatabase('metadataQuery')
   }
 }

@@ -3,12 +3,13 @@ import { AbstractOrderDatabase } from '../../components/database/BaseDatabase.js
 import { DatabaseFactory } from '../../components/database/DatabaseFactory.js'
 import { Database } from '../../components/database/index.js'
 import { expect, assert } from 'chai'
+import { DB_TYPES } from '../../utils/constants.js'
 
 describe('Database', () => {
   let database: Database
 
   before(async () => {
-    process.env.DB_TYPE = 'typesense'
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -51,7 +52,7 @@ describe('DdoDatabase CRUD', () => {
   }
 
   before(async () => {
-    process.env.DB_TYPE = 'typesense'
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -86,7 +87,7 @@ describe('NonceDatabase CRUD', () => {
   let database: Database
 
   before(async () => {
-    process.env.DB_TYPE = 'typesense'
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -126,7 +127,7 @@ describe('NonceDatabase CRUD with SQLite', () => {
   let database: Database
 
   before(async () => {
-    process.env.DB_TYPE = 'typesense'
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -168,7 +169,7 @@ describe('IndexerDatabase CRUD', () => {
   let existsPrevious: any = {}
 
   before(async () => {
-    process.env.DB_TYPE = 'typesense'
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -219,7 +220,7 @@ describe('OrderDatabase CRUD', () => {
   let database: Database
 
   before(async () => {
-    process.env.DB_TYPE = 'typesense'
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -285,7 +286,7 @@ describe('Typesense OrderDatabase CRUD', () => {
   let database: AbstractOrderDatabase
 
   before(async () => {
-    process.env.DB_TYPE = 'typesense'
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
     const dbConfig = {
       url: 'http://localhost:8108/?apiKey=xyz'
     }
@@ -336,7 +337,7 @@ describe('Elasticsearch OrderDatabase CRUD', () => {
   let database: AbstractOrderDatabase
 
   before(async () => {
-    process.env.DB_TYPE = 'elasticsearch'
+    process.env.DB_TYPE = DB_TYPES.ELASTIC_SEARCH
     const dbConfig = {
       url: 'http://localhost:9200'
     }
@@ -388,21 +389,23 @@ describe('Elasticsearch OrderDatabase CRUD', () => {
 
 describe('DdoStateQuery', () => {
   before(() => {
-    process.env.DB_TYPE = 'typesense'
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
   })
 
   after(() => {
     delete process.env.DB_TYPE
   })
 
-  it('should build Typesense query for did', () => {
-    const query = DatabaseFactory.createDdoStateQuery().buildQuery('did:op:abc123')
+  it('should build Typesense query for did', async () => {
+    const query = (await DatabaseFactory.createDdoStateQuery()).buildQuery(
+      'did:op:abc123'
+    )
     expect(query.q).to.equal('did:op:abc123')
     expect(query.query_by).to.equal('did')
   })
 
-  it('should build Typesense query for nft', () => {
-    const query = DatabaseFactory.createDdoStateQuery().buildQuery(
+  it('should build Typesense query for nft', async () => {
+    const query = (await DatabaseFactory.createDdoStateQuery()).buildQuery(
       undefined,
       'nft:op:abc123'
     )
@@ -410,8 +413,8 @@ describe('DdoStateQuery', () => {
     expect(query.query_by).to.equal('nft')
   })
 
-  it('should build Typesense query for txId', () => {
-    const query = DatabaseFactory.createDdoStateQuery().buildQuery(
+  it('should build Typesense query for txId', async () => {
+    const query = (await DatabaseFactory.createDdoStateQuery()).buildQuery(
       undefined,
       undefined,
       'txId123'
@@ -420,22 +423,24 @@ describe('DdoStateQuery', () => {
     expect(query.query_by).to.equal('txId')
   })
 
-  it('should build Elasticsearch query for did', () => {
-    process.env.DB_TYPE = 'elasticsearch'
-    const query = DatabaseFactory.createDdoStateQuery().buildQuery('did:op:abc123')
+  it('should build Elasticsearch query for did', async () => {
+    process.env.DB_TYPE = DB_TYPES.ELASTIC_SEARCH
+    const query = (await DatabaseFactory.createDdoStateQuery()).buildQuery(
+      'did:op:abc123'
+    )
     expect(query.match.did).to.equal('did:op:abc123')
   })
 
-  it('should build Elasticsearch query for nft', () => {
-    const query = DatabaseFactory.createDdoStateQuery().buildQuery(
+  it('should build Elasticsearch query for nft', async () => {
+    const query = (await DatabaseFactory.createDdoStateQuery()).buildQuery(
       undefined,
       'nft:op:abc123'
     )
     expect(query.match.nft).to.equal('nft:op:abc123')
   })
 
-  it('should build Elasticsearch query for txId', () => {
-    const query = DatabaseFactory.createDdoStateQuery().buildQuery(
+  it('should build Elasticsearch query for txId', async () => {
+    const query = (await DatabaseFactory.createDdoStateQuery()).buildQuery(
       undefined,
       undefined,
       'txId123'
@@ -449,8 +454,8 @@ describe('MetadataQuery', () => {
     delete process.env.DB_TYPE
   })
 
-  it('should return a Typesense query when DB is Typesense and a Typesense query is passed', () => {
-    process.env.DB_TYPE = 'typesense'
+  it('should return a Typesense query when DB is Typesense and a Typesense query is passed', async () => {
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
 
     const typesenseQuery = {
       q: '*',
@@ -461,7 +466,7 @@ describe('MetadataQuery', () => {
       sort_by: 'name:asc'
     }
 
-    const query = DatabaseFactory.createMetadataQuery().buildQuery(typesenseQuery)
+    const query = (await DatabaseFactory.createMetadataQuery()).buildQuery(typesenseQuery)
     expect(query.q).to.equal('*')
     expect(query.num_hits).to.equal(10)
     expect(query.start).to.equal(0)
@@ -471,8 +476,8 @@ describe('MetadataQuery', () => {
     expect(query.sort_by).to.equal('name:asc')
   })
 
-  it('should convert an Elasticsearch query to a Typesense query when DB is Typesense', () => {
-    process.env.DB_TYPE = 'typesense'
+  it('should convert an Elasticsearch query to a Typesense query when DB is Typesense', async () => {
+    process.env.DB_TYPE = DB_TYPES.TYPESENSE
 
     const searchQuery: SearchQuery = {
       query: {
@@ -489,7 +494,7 @@ describe('MetadataQuery', () => {
       sort: { name: 'asc' }
     }
 
-    const query = DatabaseFactory.createMetadataQuery().buildQuery(searchQuery)
+    const query = (await DatabaseFactory.createMetadataQuery()).buildQuery(searchQuery)
     expect(query.q).to.equal('*')
     expect(query.num_hits).to.equal(10)
     expect(query.start).to.equal(0)
@@ -499,8 +504,8 @@ describe('MetadataQuery', () => {
     expect(query.sort_by).to.equal('name:asc')
   })
 
-  it('should convert a Typesense query to an Elasticsearch query when DB is Elasticsearch', () => {
-    process.env.DB_TYPE = 'elasticsearch'
+  it('should convert a Typesense query to an Elasticsearch query when DB is Elasticsearch', async () => {
+    process.env.DB_TYPE = DB_TYPES.ELASTIC_SEARCH
 
     const typesenseQuery = {
       q: '*',
@@ -511,7 +516,7 @@ describe('MetadataQuery', () => {
       sort_by: 'name:asc'
     }
 
-    const query = DatabaseFactory.createMetadataQuery().buildQuery(typesenseQuery)
+    const query = (await DatabaseFactory.createMetadataQuery()).buildQuery(typesenseQuery)
     expect(query.size).to.equal(10)
     expect(query.from).to.equal(0)
     expect(query.query.bool.filter[0].term.author).to.equal('Ocean')
@@ -523,8 +528,8 @@ describe('MetadataQuery', () => {
     expect(query.sort[0].name.order).to.equal('asc')
   })
 
-  it('should return an Elasticsearch query when DB is Elasticsearch and an Elasticsearch query is passed', () => {
-    process.env.DB_TYPE = 'elasticsearch'
+  it('should return an Elasticsearch query when DB is Elasticsearch and an Elasticsearch query is passed', async () => {
+    process.env.DB_TYPE = DB_TYPES.ELASTIC_SEARCH
 
     const searchQuery: SearchQuery = {
       query: {
@@ -541,7 +546,7 @@ describe('MetadataQuery', () => {
       sort: { name: 'asc' }
     }
 
-    const query = DatabaseFactory.createMetadataQuery().buildQuery(searchQuery)
+    const query = (await DatabaseFactory.createMetadataQuery()).buildQuery(searchQuery)
 
     expect(query.size).to.equal(10)
     expect(query.from).to.equal(0)

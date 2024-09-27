@@ -140,6 +140,11 @@ export interface EnvVariable {
   required: boolean
 }
 
+export const DB_TYPES = {
+  ELASTIC_SEARCH: 'elasticsearch',
+  TYPESENSE: 'typesense'
+}
+
 // usefull to keep track of what all the env variables we are using
 // (faster to read than README and we can easily use the constants if needed)
 // required means its not mandatory OR we have defaults
