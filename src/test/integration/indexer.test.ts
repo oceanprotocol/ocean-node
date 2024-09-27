@@ -652,8 +652,8 @@ describe('OceanIndexer - crawler threads', () => {
       [
         JSON.stringify(supportedNetworks),
         `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-        'http://localhost:9200',
-        DB_TYPES.ELASTIC_SEARCH
+        'http://localhost:8108/?apiKey=xyz',
+        DB_TYPES.TYPESENSE
       ]
     )
     envOverrides = await setupEnvironment(null, envOverrides)
