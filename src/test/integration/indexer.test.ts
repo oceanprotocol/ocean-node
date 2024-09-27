@@ -534,6 +534,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     if (retrievedDDO) {
       expect(retrievedDDO.stats.orders).to.be.greaterThan(initialOrderCount)
       const resultOrder = await database.order.retrieve(reuseOrderTxId)
+      console.log('resultOrder:', resultOrder)
       expect(resultOrder?.id).to.equal(reuseOrderTxId)
       expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
       expect(resultOrder?.type).to.equal('reuseOrder')
