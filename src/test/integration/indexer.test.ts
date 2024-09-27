@@ -256,7 +256,8 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should store the ddo state in the db with no errors and retrieve it using did', async function () {
-    console.log('resolvedDDO', resolvedDDO)
+    await sleep(5000)
+    console.log('resolvedDDO', resolvedDDO.id)
     const ddoState = await database.ddoState.retrieve(resolvedDDO.id)
     console.log('ddoState:', ddoState)
     assert(ddoState, 'ddoState not found')
