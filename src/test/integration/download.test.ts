@@ -81,11 +81,11 @@ describe('Should run a complete node flow.', () => {
           JSON.stringify(mockSupportedNetworks),
           JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          'http://localhost:9200',
+          'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          DB_TYPES.ELASTIC_SEARCH
+          DB_TYPES.TYPESENSE
         ]
       )
     )
@@ -243,7 +243,7 @@ describe('Should run a complete node flow.', () => {
       const wallet = new ethers.Wallet(
         '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
       )
-      const nonce = Math.floor(Date.now() / 1000).toString()
+      const nonce = Date.now().toString()
       const message = String(publishedDataset.ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
