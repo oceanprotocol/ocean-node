@@ -28,7 +28,7 @@ import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
 import { makeDid } from '../core/utils/validateDdoHandler.js'
-
+import { PolicyServer } from '../policyServer/index.js'
 class BaseEventProcessor {
   protected networkId: number
 
@@ -442,8 +442,36 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         } else {
           ddo.event.block = -1
         }
-      }
 
+        // policyServer check
+        const policyServer = new PolicyServer()
+        let policyStatus
+        if (eventName === EVENTS.METADATA_UPDATED)
+          policyStatus = await policyServer.checkUpdateDDO(
+            ddo,
+            this.networkId,
+            event.transactionHash,
+            event
+          )
+        else
+          policyStatus = await policyServer.checknewDDO(
+            ddo,
+            this.networkId,
+            event.transactionHash,
+            event
+          )
+        if (!policyStatus.success) {
+          await ddoState.update(
+            this.networkId,
+            did,
+            event.address,
+            event.transactionHash,
+            false,
+            policyStatus.message
+          )
+          return
+        }
+      }
       // always call, but only create instance once
       const purgatory = await Purgatory.getInstance()
       // if purgatory is disabled just return false
