@@ -93,7 +93,7 @@ describe('Should run a complete node flow.', () => {
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          DB_TYPES.TYPESENSE
+          DB_TYPES.ELASTIC_SEARCH
         ]
       )
     )
@@ -128,7 +128,14 @@ describe('Should run a complete node flow.', () => {
       publisherAccount
     )
     did = publishedDataset.ddo.id
-    await waitToIndex(did, EVENTS.METADATA_CREATED, DEFAULT_TEST_TIMEOUT * 2)
+    const { ddo, wasTimeout } = await waitToIndex(
+      did,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT * 2
+    )
+    if (!ddo) {
+      console.log('wasTimeout ==  ', wasTimeout)
+    }
   })
 
   it('should fetch the published ddo', async () => {
@@ -137,6 +144,7 @@ describe('Should run a complete node flow.', () => {
       id: did
     }
     const response = await new GetDdoHandler(oceanNode).handle(getDDOTask)
+    console.log('GetDdoHandler response ==  ', response)
     ddo = await streamToObject(response.stream as Readable)
     assert(ddo.id === did, 'DDO id not matching')
   })

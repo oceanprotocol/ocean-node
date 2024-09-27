@@ -194,7 +194,6 @@ describe('Should run a complete node flow.', () => {
       id: publishedDataset.ddo.id
     }
     const response = await new GetDdoHandler(oceanNode).handle(getDDOTask)
-    console.log('response stream log ', response)
     actualDDO = await streamToObject(response.stream as Readable)
     assert(actualDDO.id === publishedDataset.ddo.id, 'DDO id not matching')
   })
