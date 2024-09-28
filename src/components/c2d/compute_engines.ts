@@ -21,6 +21,20 @@ export class C2DEngines {
     return this.engines
   }
 
+  async startAllEngines(): Promise<void> {
+    for (const engine of this.engines) {
+      await engine.start()
+    }
+    return null
+  }
+
+  async stopAllEngines(): Promise<void> {
+    for (const engine of this.engines) {
+      await engine.stop()
+    }
+    return null
+  }
+
   async getExactComputeEnv(
     id: string,
     chainId: number

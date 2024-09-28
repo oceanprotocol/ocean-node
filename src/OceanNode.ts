@@ -59,9 +59,10 @@ export class OceanNode {
     this.indexer = _indexer
   }
 
-  public addC2DEngines(_config: OceanNodeConfig) {
-    // TO DO:  implement start.stop
-    if (this.c2dEngines) return
+  public async addC2DEngines(_config: OceanNodeConfig) {
+    if (this.c2dEngines) {
+      await this.c2dEngines.stopAllEngines()
+    }
     this.c2dEngines = new C2DEngines(_config)
   }
 

@@ -31,6 +31,14 @@ export class C2DEngine {
     throw new Error(`Not implemented`)
   }
 
+  public async start(): Promise<void> {
+    // overwritten by classes for start actions
+  }
+
+  public async stop(): Promise<void> {
+    // overwritten by classes for cleanup
+  }
+
   public async envExists(
     chainId: number,
     envIdWithHash?: string,
