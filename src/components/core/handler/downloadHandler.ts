@@ -32,7 +32,7 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { DownloadCommand, DownloadURLCommand } from '../../../@types/commands.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
-import { C2DEngine } from '../../c2d/index.js'
+
 import {
   validateCommandParameters,
   ValidateParams
@@ -379,15 +379,12 @@ export class DownloadHandler extends Handler {
       // only compute envs are allowed to download compute assets
       // get all compute envs
       const computeAddrs: string[] = []
-      const config = await getConfiguration()
-      const { c2dClusters } = config
 
-      for (const cluster of c2dClusters) {
-        const engine = C2DEngine.getC2DClass(cluster)
-        const environments = await engine.getComputeEnvironments(ddo.chainId)
-        for (const env of environments)
-          computeAddrs.push(env.consumerAddress?.toLowerCase())
-      }
+      const environments = await this.getOceanNode()
+        .getC2DEngines()
+        .fetchEnvironments(ddo.chainId)
+      for (const env of environments)
+        computeAddrs.push(env.consumerAddress?.toLowerCase())
 
       if (!computeAddrs.includes(task.consumerAddress?.toLowerCase())) {
         const msg = 'Not allowed to download this asset of type compute'

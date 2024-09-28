@@ -8,8 +8,6 @@ import type {
   ComputeOutput
 } from '../../@types/C2D.js'
 import { C2DClusterType } from '../../@types/C2D.js'
-import { C2DEngineOPFK8 } from './compute_engine_opf_k8.js'
-import { getConfiguration } from '../../utils/config.js'
 
 export class C2DEngine {
   private clusterConfig: C2DClusterInfo
@@ -25,40 +23,6 @@ export class C2DEngine {
   getC2DType(): C2DClusterType {
     /** Returns cluster type */
     return this.clusterConfig.type
-  }
-
-  static async getC2DByHash(
-    clusterHash: string
-  ): Promise<C2DEngineOPFK8 | C2DEngineLocal> {
-    /**
-     * Searches the config by c2d engine hash and returns C2D Class. Throws error if not found
-     *
-     * @param clusterHash - C2D Engine hash
-     *
-     */
-    const clustersInfo: C2DClusterInfo[] = (await getConfiguration()).c2dClusters
-    const cluster = clustersInfo.find(({ hash }) => hash === clusterHash)
-    if (cluster) {
-      return this.getC2DClass(cluster)
-    }
-    throw new Error(`C2D Engine not found by hash: ${clusterHash}`)
-  }
-
-  static getC2DClass(clusterConfig: C2DClusterInfo): C2DEngineOPFK8 | C2DEngineLocal {
-    /**
-     * Returns C2D Class, based on config. Throws error if not type not supported
-     *
-     * @param clusterConfig - cluster config
-     *
-     */
-    switch (clusterConfig.type) {
-      case C2DClusterType.OPF_K8:
-        return new C2DEngineOPFK8(clusterConfig)
-      case C2DClusterType.NODE_LOCAL:
-        return new C2DEngineLocal(clusterConfig)
-      default:
-        throw new Error(`Invalid compute engine type: ${clusterConfig.type}`)
-    }
   }
 
   // functions which need to be implemented by all engine types

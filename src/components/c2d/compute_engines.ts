@@ -7,9 +7,12 @@ export class C2DEngines {
 
   public constructor(config: OceanNodeConfig) {
     // let's see what engines do we have and initialize them one by one
-    for (const cluster of config.c2dClusters) {
-      if (cluster.type === C2DClusterType.OPF_K8) {
-        this.engines.push(new C2DEngineOPFK8(cluster))
+    if (config && config.c2dClusters) {
+      this.engines = []
+      for (const cluster of config.c2dClusters) {
+        if (cluster.type === C2DClusterType.OPF_K8) {
+          this.engines.push(new C2DEngineOPFK8(cluster))
+        }
       }
     }
   }

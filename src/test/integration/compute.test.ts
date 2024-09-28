@@ -131,6 +131,7 @@ describe('Compute', () => {
     oceanNode = await OceanNode.getInstance(dbconn)
     indexer = new OceanIndexer(dbconn, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
+    oceanNode.addC2DEngines(config)
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
