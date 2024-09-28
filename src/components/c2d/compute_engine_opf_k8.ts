@@ -37,7 +37,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
      */
     const envs: ComputeEnvironment[] = []
     const clusterHash = this.getC2DConfig().hash
-    const baseUrl = URLUtils.sanitizeURLPath(this.getC2DConfig().url)
+    const baseUrl = URLUtils.sanitizeURLPath(this.getC2DConfig().connection)
     const url = `${baseUrl}api/v1/operator/environments?chain_id=${chainId}`
     try {
       const { data } = await axios.get(url)
@@ -145,7 +145,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
       const response = await axios({
         method: 'post',
         url: `${URLUtils.sanitizeURLPath(
-          this.getC2DConfig().url
+          this.getC2DConfig().connection
         )}api/v1/operator/compute`,
         data: payload
       })
@@ -187,7 +187,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
       const response = await axios({
         method: 'put',
         url: `${URLUtils.sanitizeURLPath(
-          this.getC2DConfig().url
+          this.getC2DConfig().connection
         )}api/v1/operator/compute`,
         data: payload
       })
@@ -224,7 +224,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
       const response = await axios({
         method: 'get',
         url: `${URLUtils.sanitizeURLPath(
-          this.getC2DConfig().url
+          this.getC2DConfig().connection
         )}api/v1/operator/compute`,
         data: payload
       })
@@ -266,7 +266,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
       const response = await axios({
         method: 'get',
         url: `${URLUtils.sanitizeURLPath(
-          this.getC2DConfig().url
+          this.getC2DConfig().connection
         )}api/v1/operator/getResult`,
         data: payload,
         responseType: 'stream'
@@ -281,12 +281,4 @@ export class C2DEngineOPFK8 extends C2DEngine {
     }
     throw new Error(`getComputeJobStatus Failure`)
   }
-}
-
-export class C2DEngineLocal extends C2DEngine {
-  // eslint-disable-next-line no-useless-constructor
-  public constructor(clusterConfig: C2DClusterInfo) {
-    super(clusterConfig)
-  }
-  // not implemented yet
 }
