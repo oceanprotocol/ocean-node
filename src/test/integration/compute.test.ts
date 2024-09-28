@@ -60,11 +60,11 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
+import { checkC2DEnvExists } from '../../components/c2d/index.js'
 import {
-  checkC2DEnvExists,
   getAlgoChecksums,
   validateAlgoForDataset
-} from '../../components/c2d/index.js'
+} from '../../components/core/compute/utils.js'
 
 describe('Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]

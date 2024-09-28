@@ -14,7 +14,6 @@ import {
 import { verifyProviderFees, createProviderFee } from '../utils/feesHandler.js'
 import { Blockchain } from '../../../utils/blockchain.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
-import { getExactComputeEnv } from './utils.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import { decrypt } from '../../../utils/crypt.js'
 import {
@@ -185,7 +184,9 @@ export class ComputeInitializeHandler extends Handler {
             isComputeValid: false,
             message: false
           }
-          const env = await getExactComputeEnv(task.compute.env, ddo.chainId)
+          const env = await this.getOceanNode()
+            .getC2DEngines()
+            .getExactComputeEnv(task.compute.env, ddo.chainId)
           if (!env) {
             const error = `Compute environment: ${task.compute.env} not available on chainId: ${ddo.chainId}`
             return {

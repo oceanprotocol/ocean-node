@@ -32,7 +32,7 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { DownloadCommand, DownloadURLCommand } from '../../../@types/commands.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
-import { C2DEngine } from '../../c2d/compute_engines.js'
+import { C2DEngine } from '../../c2d/index.js'
 import {
   validateCommandParameters,
   ValidateParams
