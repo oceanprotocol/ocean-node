@@ -112,7 +112,7 @@ jobs:
       - name: Set ADDRESS_FILE
         run: echo "ADDRESS_FILE=${HOME}/.ocean/ocean-contracts/artifacts/address.json" >> $GITHUB_ENV
       - name: Checkout Barge
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: 'oceanprotocol/barge'
           path: 'barge'
@@ -203,7 +203,7 @@ jobs:
         run: echo "ADDRESS_FILE=${HOME}/.ocean/ocean-contracts/artifacts/address.json" >> $GITHUB_ENV
 
       - name: Checkout Barge
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: 'oceanprotocol/barge'
           path: 'barge'
