@@ -91,7 +91,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   before(async () => {
     const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
+      url: 'http://localhost:9200'
     }
 
     previousConfiguration = await setupEnvironment(
@@ -111,7 +111,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           dbConfig.url,
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          DB_TYPES.TYPESENSE
+          DB_TYPES.ELASTIC_SEARCH
         ]
       )
     )
@@ -258,7 +258,8 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should store the ddo state in the db with no errors and retrieve it using did', async function () {
     await sleep(5000)
-    console.log('resolvedDDO', resolvedDDO.id)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    console.log('resolvedDDO id', resolvedDDO.id)
     const ddoState = await database.ddoState.retrieve(resolvedDDO.id)
     console.log('ddoState response:', ddoState)
     assert(ddoState, 'ddoState not found')
@@ -271,6 +272,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   it('should find the state of the ddo using query ddo state handler', async function () {
     const queryDdoStateHandler = new QueryDdoStateHandler(oceanNode)
     // query using the did
+    console.log('search for:', resolvedDDO)
     const queryDdoState: QueryCommand = {
       query: {
         q: resolvedDDO.id,
@@ -450,11 +452,10 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should get number of orders', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.ORDER_STARTED,
-      DEFAULT_TEST_TIMEOUT * 3,
+      DEFAULT_TEST_TIMEOUT,
       true
     )
 
@@ -462,11 +463,9 @@ describe('Indexer stores a new metadata events and orders.', () => {
     if (retrievedDDO) {
       expect(retrievedDDO.stats.orders).to.equal(1)
       initialOrderCount = retrievedDDO.stats.orders
-      console.log('retrievedDdo:', retrievedDDO)
-      console.log('orderTxId:', orderTxId)
       const resultOrder = await database.order.retrieve(orderTxId)
       console.log('resultOrder', resultOrder)
-      expect(resultOrder?.id).to.equal(orderTxId)
+      expect(resultOrder?.orderId).to.equal(orderTxId)
       expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
       expect(resultOrder?.type).to.equal('startOrder')
       const timestamp = orderEvent.args[4].toString()
@@ -544,7 +543,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       expect(retrievedDDO.stats.orders).to.be.greaterThan(initialOrderCount)
       const resultOrder = await database.order.retrieve(reuseOrderTxId)
       console.log('resultOrder:', resultOrder)
-      expect(resultOrder?.id).to.equal(reuseOrderTxId)
+      expect(resultOrder?.orderId).to.equal(reuseOrderTxId)
       expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
       expect(resultOrder?.type).to.equal('reuseOrder')
       const timestamp = reusedOrderEvent.args[2].toString()
@@ -661,8 +660,8 @@ describe('OceanIndexer - crawler threads', () => {
       [
         JSON.stringify(supportedNetworks),
         `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-        'http://localhost:8108/?apiKey=xyz',
-        DB_TYPES.TYPESENSE
+        'http://localhost:9200',
+        DB_TYPES.ELASTIC_SEARCH
       ]
     )
     envOverrides = await setupEnvironment(null, envOverrides)

@@ -141,8 +141,7 @@ export class TypesenseOrderDatabase extends AbstractOrderDatabase {
         .documents()
         .retrieve(orderId)
     } catch (error) {
-      const errorMsg =
-        `Error when retrieving order ${orderId} from typesense:` + error.message
+      const errorMsg = `Error when retrieving order ${orderId}:` + error.message
       DATABASE_LOGGER.logMessageWithEmoji(
         errorMsg,
         true,
