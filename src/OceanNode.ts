@@ -25,14 +25,12 @@ export class OceanNode {
     private db?: Database,
     private node?: OceanP2P,
     private provider?: OceanProvider,
-    private indexer?: OceanIndexer,
-    private config?: OceanNodeConfig
+    private indexer?: OceanIndexer
   ) {
     this.coreHandlers = CoreHandlersRegistry.getInstance(this)
     if (node) {
       node.setCoreHandlers(this.coreHandlers)
     }
-    if (config && config.c2dClusters) this.c2dEngines = new C2DEngines(config)
   }
 
   // Singleton instance
@@ -40,12 +38,11 @@ export class OceanNode {
     db?: Database,
     node?: OceanP2P,
     provider?: OceanProvider,
-    indexer?: OceanIndexer,
-    config?: OceanNodeConfig
+    indexer?: OceanIndexer
   ): OceanNode {
     if (!OceanNode.instance) {
       // prepare compute engines
-      this.instance = new OceanNode(db, node, provider, indexer, config)
+      this.instance = new OceanNode(db, node, provider, indexer)
     }
     return this.instance
   }
@@ -63,7 +60,7 @@ export class OceanNode {
     if (this.c2dEngines) {
       await this.c2dEngines.stopAllEngines()
     }
-    this.c2dEngines = new C2DEngines(_config)
+    if (_config && _config.c2dClusters) this.c2dEngines = new C2DEngines(_config)
   }
 
   public getP2PNode(): OceanP2P | undefined {
