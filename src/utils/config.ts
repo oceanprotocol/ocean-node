@@ -536,7 +536,20 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       filterAnnouncedAddresses: readListFromEnvVariable(
         ENVIRONMENT_VARIABLES.P2P_FILTER_ANNOUNCED_ADDRESSES,
         isStartup,
-        ['172.15.0.0/24']
+        [
+          '127.0.0.0/8',
+          '10.0.0.0/8',
+          '172.16.0.0/12',
+          '192.168.0.0/16',
+          '100.64.0.0/10',
+          '169.254.0.0/16',
+          '192.0.0.0/24',
+          '192.0.2.0/24',
+          '198.51.100.0/24',
+          '203.0.113.0/24',
+          '224.0.0.0/4',
+          '240.0.0.0/4'
+        ] // list of all non-routable IP addresses, not availabe from public internet, private networks or specific reserved use
       ),
       minConnections: getIntEnvValue(process.env.P2P_MIN_CONNECTIONS, 1),
       maxConnections: getIntEnvValue(process.env.P2P_MAX_CONNECTIONS, 300),
