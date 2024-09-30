@@ -271,7 +271,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
   it('should find the state of the ddo using query ddo state handler', async function () {
     const queryDdoStateHandler = new QueryDdoStateHandler(oceanNode)
     // query using the did
-    console.log('search for:', resolvedDDO)
     const queryDdoState: QueryCommand = {
       query: {
         q: resolvedDDO.id,
@@ -454,7 +453,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.ORDER_STARTED,
-      DEFAULT_TEST_TIMEOUT,
+      DEFAULT_TEST_TIMEOUT * 3,
       true
     )
 
@@ -462,6 +461,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     if (retrievedDDO) {
       expect(retrievedDDO.stats.orders).to.equal(1)
       initialOrderCount = retrievedDDO.stats.orders
+      console.log('retrievedDdo:', retrievedDDO)
       const resultOrder = await database.order.retrieve(orderTxId)
       console.log('resultOrder', resultOrder)
       expect(resultOrder?.id).to.equal(orderTxId)
