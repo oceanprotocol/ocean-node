@@ -260,7 +260,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     await sleep(5000)
     console.log('resolvedDDO', resolvedDDO.id)
     const ddoState = await database.ddoState.retrieve(resolvedDDO.id)
-    console.log('ddoState:', ddoState)
+    console.log('ddoState response:', ddoState)
     assert(ddoState, 'ddoState not found')
     expect(resolvedDDO.id).to.equal(ddoState.did)
     expect(ddoState.valid).to.equal(true)
