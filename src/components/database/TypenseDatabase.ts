@@ -103,13 +103,23 @@ export class TypesenseOrderDatabase extends AbstractOrderDatabase {
     timestamp: number,
     consumer: string,
     payer: string,
+    datatokenAddress: string,
+    nftAddress: string,
+    did: string,
     startOrderId?: string
   ) {
     try {
-      return await this.provider
-        .collections(this.getSchema().name)
-        .documents()
-        .create({ id: orderId, type, timestamp, consumer, payer, startOrderId })
+      return await this.provider.collections(this.getSchema().name).documents().create({
+        id: orderId,
+        type,
+        timestamp,
+        consumer,
+        payer,
+        datatokenAddress,
+        nftAddress,
+        did,
+        startOrderId
+      })
     } catch (error) {
       const errorMsg =
         `Error when creating order entry ${orderId} at timestamp ${timestamp} by payer ${payer} for consumer ${consumer}: ` +
@@ -148,13 +158,21 @@ export class TypesenseOrderDatabase extends AbstractOrderDatabase {
     timestamp: number,
     consumer: string,
     payer: string,
+    datatokenAddress?: string,
     startOrderId?: string
   ) {
     try {
       return await this.provider
         .collections(this.getSchema().name)
         .documents()
-        .update(orderId, { type, timestamp, consumer, payer, startOrderId })
+        .update(orderId, {
+          type,
+          timestamp,
+          consumer,
+          payer,
+          datatokenAddress,
+          startOrderId
+        })
     } catch (error) {
       if (error instanceof TypesenseError && error.httpStatus === 404) {
         return await this.provider

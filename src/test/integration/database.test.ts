@@ -237,13 +237,17 @@ describe('OrderDatabase CRUD', () => {
       'startOrder',
       1678593728,
       '0x1234',
-      '0x4567'
+      '0x4567',
+      '0x1111',
+      '0x1',
+      'did'
     )
     expect(result?.id).to.equal('order1.0')
     expect(result?.consumer).to.equal('0x1234')
     expect(result?.payer).to.equal('0x4567')
     expect(result?.type).to.equal('startOrder')
     expect(result?.timestamp).to.equal(1678593728)
+    expect(result?.datatokenAddress).to.equal('0x1111')
   })
 
   it('retrieve order', async () => {
@@ -301,7 +305,10 @@ describe('Typesense OrderDatabase CRUD', () => {
       'startOrder',
       1678593728,
       '0x1234',
-      '0x4567'
+      '0x4567',
+      '0x1111',
+      '0x2',
+      'did:'
     )
     expect(result?.id).to.equal('orderTypesense1')
     expect(result?.consumer).to.equal('0x1234')
@@ -351,7 +358,10 @@ describe('Elasticsearch OrderDatabase CRUD', () => {
       'startOrder',
       1678593728,
       '0x1234',
-      '0x4567'
+      '0x4567',
+      '0x1111',
+      '0x1',
+      'did:'
     )
     expect(result?.orderId).to.equal('orderElastic1')
     expect(result?.consumer).to.equal('0x1234')
@@ -371,7 +381,8 @@ describe('Elasticsearch OrderDatabase CRUD', () => {
       'startOrder',
       1678593730,
       '0x1235',
-      '0x4567'
+      '0x4567',
+      '0x1111'
     )
     expect(result?.consumer).to.equal('0x1235')
   })

@@ -125,6 +125,9 @@ export abstract class AbstractOrderDatabase {
     timestamp: number,
     consumer: string,
     payer: string,
+    datatokenAddress: string,
+    nftAddress: string,
+    did: string,
     startOrderId?: string
   ): Promise<any>
 
@@ -136,7 +139,8 @@ export abstract class AbstractOrderDatabase {
     timestamp: number,
     consumer: string,
     payer: string,
-    startOrderId?: string
+    startOrderId?: string,
+    datatokenAddress?: string
   ): Promise<any>
 
   abstract delete(orderId: string): Promise<any>

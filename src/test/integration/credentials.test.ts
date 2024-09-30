@@ -196,7 +196,6 @@ describe('Should run a complete node flow.', () => {
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
-
       assert(response)
       assert(response.stream, 'stream not present')
       assert(response.status.httpStatus === 200, 'http status not 200')
@@ -239,7 +238,6 @@ describe('Should run a complete node flow.', () => {
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
-
       assert(response)
       assert(response.stream === null, 'stream is present')
       assert(response.status.httpStatus === 403, 'http status not 403')
@@ -256,7 +254,7 @@ describe('Should run a complete node flow.', () => {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
     const doCheck = async () => {
-      const consumerAddress = consumerAddresses[1]
+      const consumerAddress = consumerAddresses[2]
       const consumerPrivateKey = ganachePrivateKeys[consumerAddress]
       const transferTxId = orderTxIds[1]
 
@@ -281,7 +279,6 @@ describe('Should run a complete node flow.', () => {
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
-
       assert(response)
       assert(response.stream === null, 'stream is present')
       assert(response.status.httpStatus === 403, 'http status not 403')

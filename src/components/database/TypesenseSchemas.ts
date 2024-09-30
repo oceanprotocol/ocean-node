@@ -85,6 +85,9 @@ export const typesenseSchemas: TypesenseSchemas = {
       { name: 'timestamp', type: 'int64' },
       { name: 'consumer', type: 'string' },
       { name: 'payer', type: 'string' },
+      { name: 'datatokenAddress', type: 'string' },
+      { name: 'nftAddress', type: 'string' },
+      { name: 'did', type: 'string' },
       {
         name: 'startOrderId',
         type: 'string',

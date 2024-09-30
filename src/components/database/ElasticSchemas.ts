@@ -142,6 +142,9 @@ export const elasticSchemas: ElasticsearchSchemas = {
           timestamp: { type: 'date' },
           consumer: { type: 'keyword' },
           payer: { type: 'keyword' },
+          datatokenAddress: { type: 'keyword' },
+          nftAddress: { type: 'keyword' },
+          did: { type: 'keyword' },
           startOrderId: { type: 'keyword' }
         }
       }
