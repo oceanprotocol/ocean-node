@@ -511,7 +511,8 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
       })
       return result._source
     } catch (error) {
-      const errorMsg = `Error when retrieving order ${orderId}: ` + error.message
+      const errorMsg =
+        `Error when retrieving order ${orderId} from elasticsearch: ` + error.message
       DATABASE_LOGGER.logMessageWithEmoji(errorMsg, true, LOG_LEVELS_STR.LEVEL_ERROR)
       return null
     }
