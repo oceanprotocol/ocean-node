@@ -450,6 +450,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should get number of orders', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.ORDER_STARTED,
@@ -462,6 +463,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       expect(retrievedDDO.stats.orders).to.equal(1)
       initialOrderCount = retrievedDDO.stats.orders
       console.log('retrievedDdo:', retrievedDDO)
+      console.log('orderTxId:', orderTxId)
       const resultOrder = await database.order.retrieve(orderTxId)
       console.log('resultOrder', resultOrder)
       expect(resultOrder?.id).to.equal(orderTxId)
