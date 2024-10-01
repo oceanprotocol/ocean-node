@@ -91,7 +91,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   before(async () => {
     const dbConfig = {
-      url: 'http://localhost:9200'
+      url: 'http://localhost:8108/?apiKey=xyz'
     }
 
     previousConfiguration = await setupEnvironment(
@@ -111,7 +111,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           dbConfig.url,
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          DB_TYPES.ELASTIC_SEARCH
+          DB_TYPES.TYPESENSE
         ]
       )
     )
@@ -268,6 +268,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   it('should find the state of the ddo using query ddo state handler', async function () {
     const queryDdoStateHandler = new QueryDdoStateHandler(oceanNode)
     // query using the did
+    console.log('resolved ddo ', resolvedDDO)
     const queryDdoState: QueryCommand = {
       query: {
         q: resolvedDDO.id,
@@ -280,7 +281,8 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     const result = await streamToObject(response.stream as Readable)
-    const ddoState = result[0]
+    console.log(' result[0] ', result)
+    const ddoState = result.hits[0].document
     expect(resolvedDDO.id).to.equal(ddoState.did)
     expect(ddoState.valid).to.equal(true)
     expect(ddoState.error).to.equal(' ')
@@ -451,13 +453,13 @@ describe('Indexer stores a new metadata events and orders.', () => {
       DEFAULT_TEST_TIMEOUT,
       true
     )
-
-    const retrievedDDO: any = ddo
-    if (retrievedDDO) {
+    if (ddo) {
+      const retrievedDDO: any = {}
+      Object.assign(retrievedDDO, ddo)
       expect(retrievedDDO.stats.orders).to.equal(1)
       initialOrderCount = retrievedDDO.stats.orders
       const resultOrder = await database.order.retrieve(orderTxId)
-      expect(resultOrder?.orderId).to.equal(orderTxId)
+      expect(resultOrder?.id).to.equal(orderTxId)
       expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
       expect(resultOrder?.type).to.equal('startOrder')
       const timestamp = orderEvent.args[4].toString()
@@ -530,11 +532,12 @@ describe('Indexer stores a new metadata events and orders.', () => {
       DEFAULT_TEST_TIMEOUT * 2,
       true
     )
-    const retrievedDDO: any = ddo
-    if (retrievedDDO) {
+    if (ddo) {
+      const retrievedDDO: any = {}
+      Object.assign(retrievedDDO, ddo)
       expect(retrievedDDO.stats.orders).to.be.greaterThan(initialOrderCount)
       const resultOrder = await database.order.retrieve(reuseOrderTxId)
-      expect(resultOrder?.orderId).to.equal(reuseOrderTxId)
+      expect(resultOrder?.id).to.equal(reuseOrderTxId)
       expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
       expect(resultOrder?.type).to.equal('reuseOrder')
       const timestamp = reusedOrderEvent.args[2].toString()
