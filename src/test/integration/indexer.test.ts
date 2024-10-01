@@ -268,7 +268,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
   it('should find the state of the ddo using query ddo state handler', async function () {
     const queryDdoStateHandler = new QueryDdoStateHandler(oceanNode)
     // query using the did
-    console.log('resolved ddo ', resolvedDDO)
     const queryDdoState: QueryCommand = {
       query: {
         q: resolvedDDO.id,
@@ -281,8 +280,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     const result = await streamToObject(response.stream as Readable)
-    console.log(' result[0] ', result)
-    const ddoState = result.hits[0].document
+    const ddoState = result.did ? result : result.hits[0].document
     expect(resolvedDDO.id).to.equal(ddoState.did)
     expect(ddoState.valid).to.equal(true)
     expect(ddoState.error).to.equal(' ')
