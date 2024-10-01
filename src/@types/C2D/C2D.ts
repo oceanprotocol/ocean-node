@@ -69,6 +69,7 @@ export interface ComputeJob {
   algoDID?: string
   agreementId?: string
   expireTimestamp: number
+  environment?: string
 }
 
 export interface ComputeOutput {
@@ -104,4 +105,12 @@ export interface ComputeAlgorithm {
 export interface AlgoChecksums {
   files: string
   container: string
+}
+
+export interface DBComputeJob extends ComputeJob {
+  configlogURL: string
+  publishlogURL: string
+  algologURL: string
+  outputsURL: string
+  stopRequested: boolean
 }

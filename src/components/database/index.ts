@@ -2,6 +2,7 @@ import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { convertTypesenseConfig, Typesense, TypesenseError } from './typesense.js'
 import { Schema, schemas } from './schemas.js'
 import { TypesenseSearchParams } from '../../@types/index.js'
+import type { DBComputeJob } from '../../@types/C2D/C2D.js'
 import {
   LOG_LEVELS_STR,
   configureCustomDBTransport,
@@ -12,6 +13,7 @@ import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { validateObject } from '../core/utils/validateDdoHandler.js'
 import { ENVIRONMENT_VARIABLES, TYPESENSE_HITS_CAP } from '../../utils/constants.js'
 import { SQLiteProvider } from './sqlite.js'
+import { SQLiteCompute } from './sqliteCompute.js'
 import { URLUtils } from '../../utils/url.js'
 import fs from 'fs'
 import path from 'path'
@@ -1058,7 +1060,7 @@ export class LogDatabase {
 }
 
 export class C2DDatabase {
-  private provider: Typesense | SQLiteProvider
+  private provider: Typesense | SQLiteCompute
 
   constructor(
     private config: OceanNodeDBConfig,
@@ -1091,23 +1093,27 @@ export class C2DDatabase {
         if (!fs.existsSync(dbDir)) {
           fs.mkdirSync(dbDir, { recursive: true })
         }
-        this.provider = new SQLiteProvider('databases/c2dDatabase.sqlite')
-        await this.provider.createC2DTables()
+        this.provider = new SQLiteCompute('databases/c2dDatabase.sqlite')
+        await this.provider.createTable()
       }
 
       return this
     })() as unknown as C2DDatabase
   }
 
-  async newJob(job: any) {
+  async newJob(job: DBComputeJob): Promise<string> {
     // TO DO C2D
   }
 
-  async updateJob(job: any) {
+  async getJob(jobId: string): Promise<DBComputeJob> {
     // TO DO C2D
   }
 
-  async getRunningJobs(job: any) {
+  async updateJob(job: DBComputeJob) {
+    // TO DO C2D
+  }
+
+  async getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]> {
     // TO DO C2D
   }
 }
