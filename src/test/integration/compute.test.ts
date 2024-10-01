@@ -61,11 +61,11 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
+import { checkC2DEnvExists } from '../../components/c2d/index.js'
 import {
-  checkC2DEnvExists,
   getAlgoChecksums,
   validateAlgoForDataset
-} from '../../components/c2d/index.js'
+} from '../../components/core/compute/utils.js'
 
 describe('Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
@@ -134,6 +134,7 @@ describe('Compute', () => {
     oceanNode = await OceanNode.getInstance(dbconn)
     indexer = new OceanIndexer(dbconn, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
+    oceanNode.addC2DEngines(config)
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer

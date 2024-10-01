@@ -1,4 +1,9 @@
-import type { DenyList, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
+import type {
+  DenyList,
+  OceanNodeConfig,
+  OceanNodeKeys,
+  OceanNodeDockerConfig
+} from '../@types/OceanNode'
 import type { C2DClusterInfo } from '../@types/C2D.js'
 import { C2DClusterType } from '../@types/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
@@ -300,6 +305,18 @@ function getOceanNodeFees(supportedNetworks: RPCS, isStartup?: boolean): FeeStra
   }
 }
 
+function getC2DDockerConfig(isStartup?: boolean): OceanNodeDockerConfig {
+  const config = {
+    socketPath: getEnvValue(process.env.DOCKER_SOCKET_PATH, null),
+    protocol: getEnvValue(process.env.DOCKER_PROTOCOL, null),
+    host: getEnvValue(process.env.DOCKER_HOST, null),
+    port: getIntEnvValue(process.env.DOCKER_PORT, 0),
+    caPath: getEnvValue(process.env.DOCKER_CA_PATH, null),
+    certPath: getEnvValue(process.env.DOCKER_CERT_PATH, null),
+    keyPath: getEnvValue(process.env.DOCKER_KEY_PATH, null)
+  }
+  return config
+}
 // get C2D environments
 function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
   const clusters: C2DClusterInfo[] = []
@@ -312,7 +329,7 @@ function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
 
       for (const theURL of clustersURLS) {
         clusters.push({
-          url: theURL,
+          connection: theURL,
           hash: create256Hash(theURL),
           type: C2DClusterType.OPF_K8
         })
@@ -536,7 +553,20 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       filterAnnouncedAddresses: readListFromEnvVariable(
         ENVIRONMENT_VARIABLES.P2P_FILTER_ANNOUNCED_ADDRESSES,
         isStartup,
-        ['172.15.0.0/24']
+        [
+          '127.0.0.0/8',
+          '10.0.0.0/8',
+          '172.16.0.0/12',
+          '192.168.0.0/16',
+          '100.64.0.0/10',
+          '169.254.0.0/16',
+          '192.0.0.0/24',
+          '192.0.2.0/24',
+          '198.51.100.0/24',
+          '203.0.113.0/24',
+          '224.0.0.0/4',
+          '240.0.0.0/4'
+        ] // list of all non-routable IP addresses, not availabe from public internet, private networks or specific reserved use
       ),
       minConnections: getIntEnvValue(process.env.P2P_MIN_CONNECTIONS, 1),
       maxConnections: getIntEnvValue(process.env.P2P_MAX_CONNECTIONS, 300),
@@ -559,6 +589,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     indexingNetworks,
     feeStrategy: getOceanNodeFees(supportedNetworks, isStartup),
     c2dClusters: getC2DClusterEnvironment(isStartup),
+    dockerConfig: getC2DDockerConfig(isStartup),
     c2dNodeUri: getEnvValue(process.env.C2D_NODE_URI, ''),
     accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
     assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),
