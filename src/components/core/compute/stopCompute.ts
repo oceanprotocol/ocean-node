@@ -3,7 +3,6 @@ import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
 import { ComputeStopCommand } from '../../../@types/commands.js'
-import { C2DEngine } from '../../c2d/compute_engines.js'
 import {
   ValidateParams,
   buildInvalidRequestMessage,
@@ -46,7 +45,7 @@ export class ComputeStopHandler extends Handler {
       // env might contain
       let engine
       try {
-        engine = await C2DEngine.getC2DByHash(hash)
+        engine = await this.getOceanNode().getC2DEngines().getC2DByHash(hash)
       } catch (e) {
         return {
           stream: null,
