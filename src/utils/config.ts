@@ -1,11 +1,6 @@
-import type {
-  DenyList,
-  OceanNodeConfig,
-  OceanNodeKeys,
-  OceanNodeDockerConfig
-} from '../@types/OceanNode'
-import type { C2DClusterInfo } from '../@types/C2D.js'
-import { C2DClusterType } from '../@types/C2D.js'
+import type { DenyList, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
+import type { C2DClusterInfo } from '../@types/C2D/C2D.js'
+import { C2DClusterType } from '../@types/C2D/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
 import {
@@ -305,18 +300,6 @@ function getOceanNodeFees(supportedNetworks: RPCS, isStartup?: boolean): FeeStra
   }
 }
 
-function getC2DDockerConfig(isStartup?: boolean): OceanNodeDockerConfig {
-  const config = {
-    socketPath: getEnvValue(process.env.DOCKER_SOCKET_PATH, null),
-    protocol: getEnvValue(process.env.DOCKER_PROTOCOL, null),
-    host: getEnvValue(process.env.DOCKER_HOST, null),
-    port: getIntEnvValue(process.env.DOCKER_PORT, 0),
-    caPath: getEnvValue(process.env.DOCKER_CA_PATH, null),
-    certPath: getEnvValue(process.env.DOCKER_CERT_PATH, null),
-    keyPath: getEnvValue(process.env.DOCKER_KEY_PATH, null)
-  }
-  return config
-}
 // get C2D environments
 function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
   const clusters: C2DClusterInfo[] = []
@@ -342,6 +325,24 @@ function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
         LOG_LEVELS_STR.LEVEL_ERROR
       )
     }
+  }
+  // docker clusters
+  const dockerConfig = {
+    socketPath: getEnvValue(process.env.DOCKER_SOCKET_PATH, null),
+    protocol: getEnvValue(process.env.DOCKER_PROTOCOL, null),
+    host: getEnvValue(process.env.DOCKER_HOST, null),
+    port: getIntEnvValue(process.env.DOCKER_PORT, 0),
+    caPath: getEnvValue(process.env.DOCKER_CA_PATH, null),
+    certPath: getEnvValue(process.env.DOCKER_CERT_PATH, null),
+    keyPath: getEnvValue(process.env.DOCKER_KEY_PATH, null),
+    environments: getEnvValue(process.env.DOCKER_COMPUTE_ENVIRONMENTS, null)
+  }
+  if (dockerConfig.socketPath || dockerConfig.host) {
+    clusters.push({
+      connection: dockerConfig,
+      hash: create256Hash(JSON.stringify(dockerConfig)),
+      type: C2DClusterType.DOCKER
+    })
   }
 
   return clusters
@@ -587,7 +588,6 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     indexingNetworks,
     feeStrategy: getOceanNodeFees(supportedNetworks, isStartup),
     c2dClusters: getC2DClusterEnvironment(isStartup),
-    dockerConfig: getC2DDockerConfig(isStartup),
     c2dNodeUri: getEnvValue(process.env.C2D_NODE_URI, ''),
     accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
     assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),

@@ -16,7 +16,7 @@ import type {
   ComputeAsset,
   ComputeAlgorithm,
   ComputeEnvironment
-} from '../../@types/C2D.js'
+} from '../../@types/C2D/C2D.js'
 import {
   ENVIRONMENT_VARIABLES,
   EVENTS,

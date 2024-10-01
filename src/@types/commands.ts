@@ -1,7 +1,7 @@
 import { ValidateParams } from '../components/httpRoutes/validateCommands.js'
 import { DDO } from './DDO/DDO'
 import { P2PCommandResponse } from './OceanNode'
-import type { ComputeAsset, ComputeAlgorithm, ComputeOutput } from './C2D'
+import type { ComputeAsset, ComputeAlgorithm, ComputeOutput } from './C2D/C2D.js'
 import {
   ArweaveFileObject,
   FileObjectType,

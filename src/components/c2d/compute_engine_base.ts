@@ -6,8 +6,8 @@ import type {
   ComputeAsset,
   ComputeJob,
   ComputeOutput
-} from '../../@types/C2D.js'
-import { C2DClusterType } from '../../@types/C2D.js'
+} from '../../@types/C2D/C2D.js'
+import { C2DClusterType } from '../../@types/C2D/C2D.js'
 
 export class C2DEngine {
   private clusterConfig: C2DClusterInfo

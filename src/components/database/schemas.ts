@@ -48,6 +48,7 @@ export type Schema = TypesenseCollectionCreateSchema
 export type Schemas = {
   ddoSchemas: Schema[]
   nonceSchemas: Schema
+  c2dSchemas: Schema
   indexerSchemas: Schema
   logSchemas: Schema
   orderSchema: Schema
@@ -60,6 +61,13 @@ export const schemas: Schemas = {
     name: 'nonce',
     enable_nested_fields: true,
     fields: [{ name: 'nonce', type: 'int64' }]
+  },
+  c2dSchemas: {
+    name: 'c2djobs',
+    enable_nested_fields: true,
+    fields: [
+      // TO DO C2D
+    ]
   },
   indexerSchemas: {
     name: 'indexer',

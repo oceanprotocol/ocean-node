@@ -1057,6 +1057,61 @@ export class LogDatabase {
   }
 }
 
+export class C2DDatabase {
+  private provider: Typesense | SQLiteProvider
+
+  constructor(
+    private config: OceanNodeDBConfig,
+    private schema: Schema
+  ) {
+    return (async (): Promise<C2DDatabase> => {
+      if (this.config.url && URLUtils.isValidUrl(this.config.url)) {
+        try {
+          this.provider = new Typesense({
+            ...convertTypesenseConfig(this.config.url),
+            logger: DATABASE_LOGGER
+          })
+          await this.provider.collections(this.schema.name).retrieve()
+        } catch (error) {
+          if (error instanceof TypesenseError && error.httpStatus === 404) {
+            await (this.provider as Typesense).collections().create(this.schema)
+          }
+        }
+      } else {
+        // Fall back to SQLite
+        DATABASE_LOGGER.logMessageWithEmoji(
+          'C2DDatabase:  Typesense not available, falling back to SQLite',
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEL_WARN
+        )
+
+        // Ensure the directory exists before instantiating SQLiteProvider
+        const dbDir = path.dirname('databases/c2dDatabase.sqlite')
+        if (!fs.existsSync(dbDir)) {
+          fs.mkdirSync(dbDir, { recursive: true })
+        }
+        this.provider = new SQLiteProvider('databases/c2dDatabase.sqlite')
+        await this.provider.createC2DTables()
+      }
+
+      return this
+    })() as unknown as C2DDatabase
+  }
+
+  async newJob(job: any) {
+    // TO DO C2D
+  }
+
+  async updateJob(job: any) {
+    // TO DO C2D
+  }
+
+  async getRunningJobs(job: any) {
+    // TO DO C2D
+  }
+}
+
 export class Database {
   ddo: DdoDatabase
   nonce: NonceDatabase
@@ -1064,6 +1119,7 @@ export class Database {
   logs: LogDatabase
   order: OrderDatabase
   ddoState: DdoStateDatabase
+  c2d: C2DDatabase
 
   constructor(private config: OceanNodeDBConfig) {
     // add this DB transport too
@@ -1078,6 +1134,7 @@ export class Database {
     }
     return (async (): Promise<Database> => {
       this.nonce = await new NonceDatabase(this.config, schemas.nonceSchemas)
+      this.c2d = await new C2DDatabase(this.config, schemas.c2dSchemas)
       if (this.config.url && URLUtils.isValidUrl(this.config.url)) {
         this.ddo = await new DdoDatabase(this.config, schemas.ddoSchemas)
         this.indexer = await new IndexerDatabase(this.config, schemas.indexerSchemas)
