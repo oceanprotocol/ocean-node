@@ -1,6 +1,6 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
-import { ComputeJob } from '../../../@types/C2D.js'
+import { ComputeJob } from '../../../@types/C2D/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
 import { ComputeGetStatusCommand } from '../../../@types/commands.js'

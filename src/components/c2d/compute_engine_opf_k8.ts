@@ -5,7 +5,9 @@ import type {
   ComputeAlgorithm,
   ComputeAsset,
   ComputeJob,
-  ComputeOutput,
+  ComputeOutput
+} from '../../@types/C2D/C2D.js'
+import type {
   OPFK8ComputeStage,
   OPFK8ComputeStageAlgorithm,
   OPFK8ComputeStageInput,
@@ -14,7 +16,7 @@ import type {
   OPFK8ComputeStop,
   OPFK8ComputeGetStatus,
   OPFK8ComputeGetResult
-} from '../../@types/C2D.js'
+} from '../../@types/C2D/C2D_OPFK8.js'
 import { sign } from '../core/utils/nonceHandler.js'
 import axios from 'axios'
 import { getConfiguration } from '../../utils/config.js'
@@ -45,6 +47,8 @@ export class C2DEngineOPFK8 extends C2DEngine {
       // we need to add hash to each env id
       for (const [index, val] of data.entries()) {
         data[index].id = `${clusterHash}-${val.id}`
+        // k8 envs are not free envs
+        data[index].free = false
         if (!data[index].feeToken || data[index].feeToken?.toLowerCase() === ZeroAddress)
           data[index].feeToken = await getProviderFeeToken(chainId)
       }
