@@ -283,7 +283,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     console.log('result == ', result)
 
     if (result) {
-      const ddoState = result.did ? result : result?.hits?.[0]?.document
+      const ddoState = result?.[0]?.did ? result[0] : result?.hits?.[0]?.document
       expect(resolvedDDO.id).to.equal(ddoState.did)
       expect(ddoState.valid).to.equal(true)
       expect(ddoState.error).to.equal(' ')
