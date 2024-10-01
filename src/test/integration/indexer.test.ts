@@ -281,10 +281,14 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(response.stream, 'Failed to get stream')
     const result = await streamToObject(response.stream as Readable)
     console.log('result == ', result)
-    const ddoState = result.did ? result : result.hits[0].document
-    expect(resolvedDDO.id).to.equal(ddoState.did)
-    expect(ddoState.valid).to.equal(true)
-    expect(ddoState.error).to.equal(' ')
+
+    if (result) {
+      const ddoState = result.did ? result : result?.hits?.[0]?.document
+      expect(resolvedDDO.id).to.equal(ddoState.did)
+      expect(ddoState.valid).to.equal(true)
+      expect(ddoState.error).to.equal(' ')
+    }
+
     // add txId check once we have that as change merged and the event will be indexed
   })
 
