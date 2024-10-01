@@ -10,7 +10,7 @@ export class PolicyServer {
   }
 
   private async askServer(command: any): Promise<PolicyServerResult> {
-    if (!this.serverUrl) return { success: true, message: '' }
+    if (!this.serverUrl) return { success: true, message: '', httpStatus: 0 }
     const response = await fetch(this.serverUrl, {
       headers: {
         'Content-Type': 'application/json'
@@ -20,9 +20,9 @@ export class PolicyServer {
     })
 
     if (response.status === 200) {
-      return { success: true, message: '' }
+      return { success: true, message: '', httpStatus: response.status }
     }
-    return { success: false, message: await response.text() }
+    return { success: false, message: await response.text(), httpStatus: response.status }
   }
 
   async checknewDDO(
@@ -95,5 +95,9 @@ export class PolicyServer {
       policyServer
     }
     return await this.askServer(command)
+  }
+
+  async passThrough(request: any): Promise<PolicyServerResult> {
+    return await this.askServer(request)
   }
 }

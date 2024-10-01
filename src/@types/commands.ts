@@ -213,3 +213,7 @@ export interface StartStopIndexingCommand extends AdminCommand {
   chainId?: number
   action: IndexingCommand
 }
+
+export interface PolicyServerPassthroughCommand extends Command {
+  policyServerPassthrough?: any
+}
