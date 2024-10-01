@@ -1146,28 +1146,30 @@ Forwards request to PolicyServer (if any)
 
 #### HTTP Example
 
-````json
+```json
 {
-"policyServerPassthrough": {
-    "action":"newDDO",
+  "policyServerPassthrough": {
+    "action": "newDDO",
     "rawDDO": {},
     "chainId": 1,
     "txId": "0x123",
     "eventRaw": "raw event data"
   }
 }
+```
 
 #### P2P Example
+
 ```json
 {
   "command": "echo",
   "node": "PeerId",
   "policyServerPassthrough": {
-    "action":"newDDO",
+    "action": "newDDO",
     "rawDDO": {},
     "chainId": 1,
     "txId": "0x123",
     "eventRaw": "raw event data"
   }
 }
-````
+```
