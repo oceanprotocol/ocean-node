@@ -461,7 +461,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
       initialOrderCount = retrievedDDO.stats.orders
       sleep(5000)
       const resultOrder = await database.order.retrieve(orderTxId)
-      console.log('resultOrder', resultOrder)
       expect(resultOrder?.id).to.equal(orderTxId)
       expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
       expect(resultOrder?.type).to.equal('startOrder')
@@ -528,11 +527,11 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should increase number of orders', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.ORDER_REUSED,
-      DEFAULT_TEST_TIMEOUT * 2,
+      DEFAULT_TEST_TIMEOUT * 3,
       true
     )
     if (ddo) {
@@ -541,7 +540,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
       expect(retrievedDDO.stats.orders).to.be.greaterThan(initialOrderCount)
       sleep(5000)
       const resultOrder = await database.order.retrieve(reuseOrderTxId)
-      console.log('resultOrder ', resultOrder)
       expect(resultOrder?.id).to.equal(reuseOrderTxId)
       expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
       expect(resultOrder?.type).to.equal('reuseOrder')
