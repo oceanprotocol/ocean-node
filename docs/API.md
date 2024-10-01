@@ -1162,7 +1162,7 @@ Forwards request to PolicyServer (if any)
 
 ```json
 {
-  "command": "echo",
+  "command": "PolicyServerPassthrough",
   "node": "PeerId",
   "policyServerPassthrough": {
     "action": "newDDO",
