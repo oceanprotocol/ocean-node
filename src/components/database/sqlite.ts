@@ -34,6 +34,23 @@ export class SQLiteProvider implements DatabaseProvider {
   }
 
   // eslint-disable-next-line require-await
+  async createC2DTables() {
+    // TO DO C2D
+    const createTableSQL = `
+      CREATE TABLE IF NOT EXISTS ${this.schema.name} (
+        id TEXT PRIMARY KEY,
+        nonce INTEGER
+      );
+    `
+    return new Promise<void>((resolve, reject) => {
+      this.db.run(createTableSQL, (err) => {
+        if (err) reject(err)
+        else resolve()
+      })
+    })
+  }
+
+  // eslint-disable-next-line require-await
   async create(address: string, nonce: number) {
     const insertSQL = `
       INSERT INTO ${this.schema.name} (id, nonce)

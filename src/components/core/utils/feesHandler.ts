@@ -1,4 +1,4 @@
-import type { ComputeEnvironment } from '../../../@types/C2D.js'
+import type { ComputeEnvironment } from '../../../@types/C2D/C2D.js'
 import {
   JsonRpcApiProvider,
   ethers,

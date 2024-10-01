@@ -7,7 +7,11 @@ import {
   ComputeGetResultHandler,
   ComputeInitializeHandler
 } from '../core/compute/index.js'
-import type { ComputeAlgorithm, ComputeAsset, ComputeOutput } from '../../@types/C2D.js'
+import type {
+  ComputeAlgorithm,
+  ComputeAsset,
+  ComputeOutput
+} from '../../@types/C2D/C2D.js'
 import type {
   ComputeStartCommand,
   ComputeStopCommand,

@@ -48,6 +48,7 @@ export type TypesenseSchema = TypesenseCollectionCreateSchema
 export type TypesenseSchemas = {
   ddoSchemas: TypesenseSchema[]
   nonceSchemas: TypesenseSchema
+  c2dSchemas: TypesenseSchema
   indexerSchemas: TypesenseSchema
   logSchemas: TypesenseSchema
   orderSchema: TypesenseSchema
@@ -60,6 +61,24 @@ export const typesenseSchemas: TypesenseSchemas = {
     name: 'nonce',
     enable_nested_fields: true,
     fields: [{ name: 'nonce', type: 'int64' }]
+  },
+  c2dSchemas: {
+    name: 'c2djobs',
+    enable_nested_fields: true,
+    fields: [
+      // not really needed because it will be SQL Lite
+      { name: 'clusterHash', type: 'string', optional: false },
+      { name: 'configlogURL', type: 'string', optional: false },
+      { name: 'publishlogURL', type: 'string', optional: false },
+      { name: 'algologURL', type: 'string', optional: false },
+      { name: 'outputsURL', type: 'auto', optional: false },
+      { name: 'stopRequested', type: 'bool', optional: false },
+      { name: 'algorithm', type: 'auto', optional: false },
+      { name: 'assets', type: 'auto', optional: false },
+      { name: 'isRunning', type: 'bool', optional: false },
+      { name: 'isStarted', type: 'bool', optional: false },
+      { name: 'containerImage', type: 'string', optional: false }
+    ]
   },
   indexerSchemas: {
     name: 'indexer',
