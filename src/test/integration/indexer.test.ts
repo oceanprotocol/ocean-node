@@ -460,6 +460,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       expect(retrievedDDO.stats.orders).to.equal(1)
       initialOrderCount = retrievedDDO.stats.orders
       const resultOrder = await database.order.retrieve(orderTxId)
+      console.log('resultOrder', resultOrder)
       expect(resultOrder?.id).to.equal(orderTxId)
       expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
       expect(resultOrder?.type).to.equal('startOrder')
@@ -538,6 +539,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       Object.assign(retrievedDDO, ddo)
       expect(retrievedDDO.stats.orders).to.be.greaterThan(initialOrderCount)
       const resultOrder = await database.order.retrieve(reuseOrderTxId)
+      console.log('resultOrder ', resultOrder)
       expect(resultOrder?.id).to.equal(reuseOrderTxId)
       expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
       expect(resultOrder?.type).to.equal('reuseOrder')
