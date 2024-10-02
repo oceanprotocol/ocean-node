@@ -42,6 +42,7 @@ describe('OceanP2P Test', () => {
     config1.p2pConfig.bootstrapNodes = []
     // enable private IP
     config1.p2pConfig.announcePrivateIp = true
+    config1.p2pConfig.filterAnnouncedAddresses = ['172.15.0.0/24']
     node1 = new OceanP2P(config1, null)
     await node1.start()
     assert(node1, 'Failed to create P2P Node instance')
@@ -55,6 +56,7 @@ describe('OceanP2P Test', () => {
     config2.p2pConfig.bootstrapNodes = []
     // enable private IP
     config2.p2pConfig.announcePrivateIp = true
+    config2.p2pConfig.filterAnnouncedAddresses = ['172.15.0.0/24'] // allow nodes to see each other locally for tests
     node2 = new OceanP2P(config2, null)
     await node2.start()
     assert(node2, 'Failed to create P2P Node instance')

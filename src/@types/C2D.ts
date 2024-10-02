@@ -12,8 +12,8 @@ export interface C2DClusterInfo {
   type: C2DClusterType
   /** Hash of cluster.  hash(url) for remote, hash(nodeId) for local */
   hash: string
-  /** Remote url */
-  url?: string
+  /** Connection URI */
+  connection?: string
 }
 
 export interface ComputeEnvironment {

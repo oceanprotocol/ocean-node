@@ -4,7 +4,7 @@ import { ComputeAsset } from '../../../@types/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
 import { ComputeStartCommand } from '../../../@types/commands.js'
-import { C2DEngine } from '../../c2d/compute_engines.js'
+import { getAlgoChecksums, validateAlgoForDataset } from './utils.js'
 import {
   ValidateParams,
   buildInvalidRequestMessage,
@@ -27,7 +27,6 @@ import { getConfiguration } from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { ProviderFeeValidation } from '../../../@types/Fees.js'
-import { getAlgoChecksums, validateAlgoForDataset } from '../../c2d/index.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 export class ComputeStartHandler extends Handler {
   validate(command: ComputeStartCommand): ValidateParams {
@@ -62,7 +61,7 @@ export class ComputeStartHandler extends Handler {
       const envId = task.environment.slice(eIndex + 1)
       let engine
       try {
-        engine = await C2DEngine.getC2DByHash(hash)
+        engine = await this.getOceanNode().getC2DEngines().getC2DByHash(hash)
       } catch (e) {
         return {
           stream: null,

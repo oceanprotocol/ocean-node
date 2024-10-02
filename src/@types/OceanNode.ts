@@ -58,6 +58,15 @@ export interface OceanNodeP2PConfig {
   autoDialInterval: number
 }
 
+export interface OceanNodeDockerConfig {
+  socketPath?: string
+  protocol?: string
+  host?: string
+  port?: number
+  caPath?: string
+  certPath?: string
+  keyPath?: string
+}
 export interface OceanNodeConfig {
   authorizedDecrypters: string[]
   allowedValidators: string[]
@@ -74,6 +83,7 @@ export interface OceanNodeConfig {
   indexingNetworks?: RPCS
   c2dClusters: C2DClusterInfo[]
   c2dNodeUri: string
+  dockerConfig?: OceanNodeDockerConfig
   accountPurgatoryUrl: string
   assetPurgatoryUrl: string
   allowedAdmins?: string[]
