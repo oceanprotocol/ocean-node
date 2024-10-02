@@ -4,9 +4,9 @@ import sqlite3 from 'sqlite3'
 
 interface ComputeDatabaseProvider {
   newJob(job: DBComputeJob): Promise<string>
-  getJob(jobId: string): Promise<DBComputeJob>
+  getJob(jobId: string): Promise<DBComputeJob | null>
   updateJob(job: DBComputeJob): void
-  getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]>
+  getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[] | null>
 }
 
 export class SQLiteCompute implements ComputeDatabaseProvider {
@@ -26,17 +26,25 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   // eslint-disable-next-line require-await
   async newJob(job: DBComputeJob): Promise<string> {
     // TO DO C2D
+    return null
   }
 
-  async getJob(jobId: string): Promise<DBComputeJob> {
+  // eslint-disable-next-line require-await
+  async getJob(jobId: string): Promise<DBComputeJob | null> {
     // TO DO C2D
+    return null
   }
 
   async updateJob(job: DBComputeJob) {
     // TO DO C2D
   }
 
-  async getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]> {
+  // eslint-disable-next-line require-await
+  async getRunningJobs(
+    engine?: string,
+    environment?: string
+  ): Promise<DBComputeJob[] | null> {
     // TO DO C2D
+    return null
   }
 }

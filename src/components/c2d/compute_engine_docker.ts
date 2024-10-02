@@ -11,12 +11,16 @@ import type {
 import { ZeroAddress } from 'ethers'
 // import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
 import { C2DEngine } from './compute_engine_base.js'
+import { C2DDatabase } from '../database/index.js'
 import { create256Hash } from '../../utils/crypt.js'
 export class C2DEngineDocker extends C2DEngine {
   // eslint-disable-next-line no-useless-constructor
   private envs: ComputeEnvironment[] = []
-  public constructor(clusterConfig: C2DClusterInfo) {
+  private db: C2DDatabase
+  public constructor(clusterConfig: C2DClusterInfo, db: C2DDatabase) {
     super(clusterConfig)
+    this.db = db
+
     // TO DO C2D - create envs
   }
 
@@ -82,7 +86,7 @@ export class C2DEngineDocker extends C2DEngine {
 
 // this uses the docker engine, but exposes only one env, the free one
 export class C2DEngineDockerFree extends C2DEngineDocker {
-  public constructor(clusterConfig: C2DClusterInfo) {
+  public constructor(clusterConfig: C2DClusterInfo, db: C2DDatabase) {
     // we remove envs, cause we have our own
     const owerwrite = {
       type: C2DClusterType.DOCKER,
@@ -97,7 +101,7 @@ export class C2DEngineDockerFree extends C2DEngineDocker {
         keyPath: clusterConfig.connection.keyPath
       }
     }
-    super(owerwrite)
+    super(owerwrite, db)
   }
 
   // eslint-disable-next-line require-await
