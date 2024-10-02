@@ -1101,20 +1101,28 @@ export class C2DDatabase {
     })() as unknown as C2DDatabase
   }
 
+  // eslint-disable-next-line require-await
   async newJob(job: DBComputeJob): Promise<string> {
     // TO DO C2D
+    return ''
   }
 
-  async getJob(jobId: string): Promise<DBComputeJob> {
-    // TO DO C2D
+  // eslint-disable-next-line require-await
+  async getJob(jobId: string): Promise<DBComputeJob | null> {
+    return null
   }
 
   async updateJob(job: DBComputeJob) {
     // TO DO C2D
   }
 
-  async getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]> {
+  // eslint-disable-next-line require-await
+  async getRunningJobs(
+    engine?: string,
+    environment?: string
+  ): Promise<DBComputeJob[] | null> {
     // TO DO C2D
+    return null
   }
 }
 
