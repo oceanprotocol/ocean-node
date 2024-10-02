@@ -67,6 +67,7 @@ export const schemas: Schemas = {
     enable_nested_fields: true,
     fields: [
       // TO DO C2D
+      { name: '.*', type: 'auto', optional: true }
     ]
   },
   indexerSchemas: {
