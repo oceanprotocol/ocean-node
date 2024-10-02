@@ -451,7 +451,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.ORDER_STARTED,
-      DEFAULT_TEST_TIMEOUT * 3,
+      DEFAULT_TEST_TIMEOUT * 1,
       true
     )
     if (ddo) {
@@ -459,7 +459,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       Object.assign(retrievedDDO, ddo)
       expect(retrievedDDO.stats.orders).to.equal(1)
       initialOrderCount = retrievedDDO.stats.orders
-      sleep(5000)
+      sleep(DEFAULT_TEST_TIMEOUT / 2)
       const resultOrder = await database.order.retrieve(orderTxId)
       expect(resultOrder?.id).to.equal(orderTxId)
       expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
@@ -531,14 +531,14 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.ORDER_REUSED,
-      DEFAULT_TEST_TIMEOUT * 3,
+      DEFAULT_TEST_TIMEOUT * 2,
       true
     )
     if (ddo) {
       const retrievedDDO: any = {}
       Object.assign(retrievedDDO, ddo)
       expect(retrievedDDO.stats.orders).to.be.greaterThan(initialOrderCount)
-      sleep(5000)
+      sleep(DEFAULT_TEST_TIMEOUT / 2)
       const resultOrder = await database.order.retrieve(reuseOrderTxId)
       expect(resultOrder?.id).to.equal(reuseOrderTxId)
       expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
