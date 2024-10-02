@@ -3,10 +3,11 @@ import { C2DEngine } from './compute_engine_base.js'
 import { C2DEngineOPFK8 } from './compute_engine_opf_k8.js'
 import { C2DEngineDocker, C2DEngineDockerFree } from './compute_engine_docker.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { C2DDatabase } from '../database/index.js'
 export class C2DEngines {
   public engines: C2DEngine[]
 
-  public constructor(config: OceanNodeConfig) {
+  public constructor(config: OceanNodeConfig, db: C2DDatabase) {
     // let's see what engines do we have and initialize them one by one
     // for docker, we need to add the "free"
     let haveFree = false
@@ -17,9 +18,9 @@ export class C2DEngines {
           this.engines.push(new C2DEngineOPFK8(cluster))
         }
         if (cluster.type === C2DClusterType.DOCKER) {
-          this.engines.push(new C2DEngineDocker(cluster))
+          this.engines.push(new C2DEngineDocker(cluster, db))
           if (!haveFree) {
-            this.engines.push(new C2DEngineDockerFree(cluster))
+            this.engines.push(new C2DEngineDockerFree(cluster, db))
             haveFree = true
           }
         }
