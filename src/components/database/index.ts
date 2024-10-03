@@ -56,7 +56,7 @@ export class Database {
         return this
       } catch (error) {
         DATABASE_LOGGER.error(`Database initialization failed: ${error}`)
-        throw new Error('Failed to initialize databases.')
+        return null
       }
     })() as unknown as Database
   }

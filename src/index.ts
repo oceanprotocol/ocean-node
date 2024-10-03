@@ -88,7 +88,7 @@ let provider = null
 // If there is no DB URL only the nonce database will be available
 const dbconn: Database = await new Database(config.dbConfig)
 
-if (!hasValidDBConfiguration(config.dbConfig)) {
+if (!dbconn || !hasValidDBConfiguration(config.dbConfig)) {
   // once we create a database instance, we check the environment and possibly add the DB transport
   // after that, all loggers will eventually have it too (if in production/staging environments)
   // it creates dinamically DDO schemas
