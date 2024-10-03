@@ -75,6 +75,10 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `P2P_AUTODIALINTERVAL`: Auto dial interval (miliseconds). Amount of time between close and open of new peer connection. Default: 5000
 - `P2P_ENABLE_NETWORK_STATS`: Enables 'getP2pNetworkStats' http endpoint. Since this contains private informations (like your ip addresses), this is disabled by default
 
+## Policy Server
+
+- `POLICY_SERVER_URL`: URI definition of PolicyServer, if any
+
 ## Additional Nodes (Test Environments)
 
 - `NODE1_PRIVATE_KEY`: Used on test environments, specifically CI, represents the private key for node 1. Example: `"0xfd5c1ccea015b6d663618850824154a3b3fb2882c46cefb05b9a93fea8c3d215"`
