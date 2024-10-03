@@ -1,4 +1,5 @@
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
+import { hasValidDBConfiguration } from '../../utils/database.js'
 import {
   configureCustomDBTransport,
   USE_DB_TRANSPORT
@@ -28,35 +29,30 @@ export class Database {
   ddoState: AbstractDdoStateDatabase
 
   constructor(private config: OceanNodeDBConfig) {
-    // add this DB transport too
-    // once we create a DB instance, the logger will be using this transport as well
-    // we cannot have this the other way around because of the dependencies cycle
-    if (USE_DB_TRANSPORT()) {
-      configureCustomDBTransport(this, DATABASE_LOGGER)
-    } else {
-      DATABASE_LOGGER.warn(
-        'Property "LOG_DB" is set to "false". This means logs will NOT be saved to database!'
-      )
-    }
     return (async (): Promise<Database> => {
       try {
-        this.nonce = await DatabaseFactory.createNonceDatabase(this.config)
-
-        if (this.config.url && URLUtils.isValidUrl(this.config.url)) {
+        if (hasValidDBConfiguration(this.config)) {
+          // add this DB transport too
+          // once we create a DB instance, the logger will be using this transport as well
+          // we cannot have this the other way around because of the dependencies cycle
+          if (USE_DB_TRANSPORT()) {
+            configureCustomDBTransport(this, DATABASE_LOGGER)
+          } else {
+            DATABASE_LOGGER.warn(
+              'Property "LOG_DB" is set to "false". This means logs will NOT be saved to database!'
+            )
+          }
           this.ddo = await DatabaseFactory.createDdoDatabase(this.config)
           this.indexer = await DatabaseFactory.createIndexerDatabase(this.config)
           this.logs = await DatabaseFactory.createLogDatabase(this.config)
           this.order = await DatabaseFactory.createOrderDatabase(this.config)
           this.ddoState = await DatabaseFactory.createDdoStateDatabase(this.config)
-        } else {
-          DATABASE_LOGGER.info(
-            'Invalid URL. Only Nonce Database is initialized. Other databases are not available.'
-          )
+          this.nonce = await DatabaseFactory.createNonceDatabase(this.config)
         }
         return this
       } catch (error) {
         DATABASE_LOGGER.error(`Database initialization failed: ${error}`)
-        throw new Error('Failed to initialize databases.')
+        return null
       }
     })() as unknown as Database
   }
