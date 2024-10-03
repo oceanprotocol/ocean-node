@@ -6,13 +6,13 @@ For this, we will adopt a simple, but flexible arhitecture:
 
 For every command, Ocean Node will query PolicyServer (if such env is defined) and wait for it to perform all needed checks.
 
-For 200 OK responses, Ocean Node will continue and perform the action. For everything else, will deny. If there is a body in response, we will forward that body to the caller. (so users can see the PolicyServer error messages and act accordingly)
+For 200 OK responses, Ocean Node will continue to perform the action. For everything else, it will deny. If there is a body in response, we will forward that body to the caller. (so users can see the PolicyServer error messages and act accordingly)
 
-Every Ocean Node command will also accept a data field, called "policyServer" which will be added to the query (so we can pass data from user to PolicyServer)
+Every Ocean Node command will also accept a data field, called "policyServer" which will be added to the query (so we can pass data from the user to PolicyServer)
 
-# PolicyServer API definition
+## PolicyServer API definition
 
-All querys will be performed by sending a POST request to PolicyServer Endpoint, with a json payload that looks like:
+All queries will be performed by sending a POST request to PolicyServer Endpoint, with a json payload that looks like this:
 
 ```json
 {
