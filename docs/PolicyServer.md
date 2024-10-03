@@ -21,8 +21,8 @@ All queries will be performed by sending a POST request to PolicyServer Endpoint
 }
 ```
 
-Every command will have it's own set of data, in addition to "action" field.
-I will describe them below
+Every command will have its own set of data, in addition to the "action" field.
+I will describe them below:
 
 ### newDDO
 
