@@ -14,7 +14,11 @@ import {
   EnvVariable,
   hexStringToByteArray
 } from '../utils/index.js'
-import { defaultBootstrapAddresses, knownUnsafeURLs } from '../utils/constants.js'
+import {
+  DB_TYPES,
+  defaultBootstrapAddresses,
+  knownUnsafeURLs
+} from '../utils/constants.js'
 
 import { LOG_LEVELS_STR, GENERIC_EMOJIS, getLoggerLevelEmoji } from './logging/Logger.js'
 import { RPCS } from '../@types/blockchain'
@@ -583,7 +587,8 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     dbConfig: {
       url: getEnvValue(process.env.DB_URL, ''),
       username: getEnvValue(process.env.DB_USERNAME, ''),
-      password: getEnvValue(process.env.DB_PASSWOED, '')
+      password: getEnvValue(process.env.DB_PASSWORD, ''),
+      dbType: getEnvValue(process.env.DB_TYPE, DB_TYPES.TYPESENSE)
     },
     supportedNetworks,
     indexingNetworks,

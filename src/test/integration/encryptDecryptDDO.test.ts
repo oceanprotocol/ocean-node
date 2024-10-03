@@ -109,7 +109,8 @@ describe('Should encrypt and decrypt DDO', () => {
     )
 
     const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
+      url: 'http://localhost:8108/?apiKey=xyz',
+      dbType: DB_TYPES.TYPESENSE
     }
     database = await new Database(dbConfig)
     oceanNode = OceanNode.getInstance(database)

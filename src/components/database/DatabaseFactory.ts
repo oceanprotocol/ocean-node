@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { OceanNodeDBConfig } from '../../@types'
 import {
   AbstractDdoDatabase,
@@ -33,6 +34,17 @@ import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery.js'
 import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery.js'
 import { DB_TYPES } from '../../utils/index.js'
 
+export enum DatabaseCollections {
+  nonce = 'nonce',
+  ddo = 'ddo',
+  indexer = 'indexer',
+  log = 'log',
+  order = 'order',
+  ddoState = 'ddoState',
+  ddoStateQuery = 'ddoStateQuery',
+  metadataQuery = 'metadataQuery'
+}
+
 export class DatabaseFactory {
   private static databaseMap = {
     elasticsearch: {
@@ -65,16 +77,18 @@ export class DatabaseFactory {
     }
   }
 
-  private static getDatabaseType() {
-    return process.env.DB_TYPE === DB_TYPES.ELASTIC_SEARCH ? 'elasticsearch' : 'typesense'
+  private static getDatabaseType(config: OceanNodeDBConfig): any {
+    return config.dbType === DB_TYPES.ELASTIC_SEARCH
+      ? DB_TYPES.ELASTIC_SEARCH
+      : DB_TYPES.TYPESENSE
   }
 
   private static createDatabase<T>(
     databaseType: keyof (typeof DatabaseFactory.databaseMap)['elasticsearch'],
-    config?: OceanNodeDBConfig
+    config: OceanNodeDBConfig
   ): T {
-    const dbType = this.getDatabaseType()
-    const databaseCreator = this.databaseMap[dbType][databaseType]
+    const dbTypeKey: keyof typeof this.databaseMap = this.getDatabaseType(config)
+    const databaseCreator = this.databaseMap[dbTypeKey][databaseType]
     return databaseCreator(config) as T
   }
 
@@ -106,11 +120,11 @@ export class DatabaseFactory {
     return this.createDatabase('ddoState', config)
   }
 
-  static createDdoStateQuery(): Promise<IDdoStateQuery> {
-    return this.createDatabase('ddoStateQuery')
+  static createDdoStateQuery(config: OceanNodeDBConfig): Promise<IDdoStateQuery> {
+    return this.createDatabase('ddoStateQuery', config)
   }
 
-  static createMetadataQuery(): Promise<IMetadataQuery> {
-    return this.createDatabase('metadataQuery')
+  static createMetadataQuery(config: OceanNodeDBConfig): Promise<IMetadataQuery> {
+    return this.createDatabase('metadataQuery', config)
   }
 }

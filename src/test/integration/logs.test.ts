@@ -38,7 +38,8 @@ describe('LogDatabase CRUD', () => {
       )
     )
     const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
+      url: 'http://localhost:8108/?apiKey=xyz',
+      dbType: DB_TYPES.TYPESENSE
     }
     database = await new Database(dbConfig)
     // Initialize logger with the custom transport that writes to the LogDatabase
@@ -185,7 +186,8 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
     )
 
     const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
+      url: 'http://localhost:8108/?apiKey=xyz',
+      dbType: DB_TYPES.TYPESENSE
     }
     database = await new Database(dbConfig)
   })
@@ -253,7 +255,8 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
 
     before(async () => {
       const dbConfig = {
-        url: 'http://localhost:8108/?apiKey=xyz'
+        url: 'http://localhost:8108/?apiKey=xyz',
+        dbType: DB_TYPES.TYPESENSE
       }
       database = await new Database(dbConfig)
     })
@@ -361,7 +364,8 @@ describe('LogDatabase deleteOldLogs', () => {
       )
     )
     const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
+      url: 'http://localhost:8108/?apiKey=xyz',
+      dbType: DB_TYPES.TYPESENSE
     }
     database = await new Database(dbConfig)
   })
@@ -424,7 +428,8 @@ describe('LogDatabase retrieveMultipleLogs with pagination', () => {
       )
     )
     const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
+      url: 'http://localhost:8108/?apiKey=xyz',
+      dbType: DB_TYPES.TYPESENSE
     }
     database = await new Database(dbConfig)
 

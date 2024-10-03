@@ -91,7 +91,8 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   before(async () => {
     const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
+      url: 'http://localhost:8108/?apiKey=xyz',
+      dbType: DB_TYPES.TYPESENSE
     }
 
     previousConfiguration = await setupEnvironment(
