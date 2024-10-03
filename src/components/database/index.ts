@@ -5,7 +5,6 @@ import {
   USE_DB_TRANSPORT
 } from '../../utils/logging/Logger.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
-import { URLUtils } from '../../utils/url.js'
 import {
   AbstractDdoDatabase,
   AbstractDdoStateDatabase,
