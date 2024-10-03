@@ -80,9 +80,7 @@ describe('Elastic Search DDO collections', () => {
   // })
 
   it('delete document in ddo collection', async () => {
-    const newMetadataName = 'new metadata name'
     const result = await elasticsearch.ddo.delete(ddo.id)
-    console.log('delete result:', result)
     expect(result.result).to.equal('deleted')
     expect(result._id).to.equal(ddo.id)
   })
