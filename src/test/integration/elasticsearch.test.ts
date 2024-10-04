@@ -30,14 +30,15 @@ describe('Elastic Search', () => {
 describe('Elastic Search DDO collections', () => {
   it('create document in ddo collection', async () => {
     const result = await elasticsearch.ddo.create(ddo)
-    console.log('result: ', result)
-    expect(result.id).to.equal(ddo.id)
-    expect(result.metadata).to.not.be.an('undefined')
-    expect(result.metadata.name).to.be.equal(ddo.metadata.name)
+    expect(result.result).to.equal('created')
+    expect(result._id).to.equal(ddo.id)
+    // expect(result.metadata).to.not.be.an('undefined')
+    // expect(result.metadata.name).to.be.equal(ddo.metadata.name)
   })
 
   it('retrieve document in ddo collection', async () => {
     const result = await elasticsearch.ddo.retrieve(ddo.id)
+    console.log('retrive result: ', result)
     expect(result.id).to.equal(ddo.id)
     expect(result.metadata).to.not.be.an('undefined')
     expect(result.metadata.name).to.be.equal(ddo.metadata.name)
@@ -48,6 +49,7 @@ describe('Elastic Search DDO collections', () => {
     const updatedData = ddo
     updatedData.metadata.name = newMetadataName
     const result = await elasticsearch.ddo.update(updatedData)
+    console.log('update result: ', result)
     expect(result.id).to.equal(ddo.id)
     expect(result.metadata).to.not.be.an('undefined')
     expect(result.metadata.name).to.be.equal(newMetadataName)

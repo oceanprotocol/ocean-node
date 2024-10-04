@@ -5,6 +5,7 @@ import { Database } from '../../components/database/index.js'
 import { expect, assert } from 'chai'
 import { DB_TYPES } from '../../utils/constants.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
+import { isDefined } from '../../utils/util.js'
 
 const typesenseConfig: OceanNodeDBConfig = {
   url: 'http://localhost:8108/?apiKey=xyz',
@@ -74,7 +75,7 @@ describe('DdoDatabase CRUD', () => {
 
   it('Database will not create ddo when did is invalid', async () => {
     const result = await database.ddo.create(ddoWithInvalidDid)
-    expect(result?.id).to.be.undefined
+    expect(isDefined(result?.id)).to.be.false
   })
 })
 
