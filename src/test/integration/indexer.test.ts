@@ -560,6 +560,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       // }
       // if (resultOrder) {
       const resultOrder = await database.order.retrieve(reuseOrderTxId)
+      console.log('result order: ', resultOrder)
       expect(resultOrder?.id).to.equal(reuseOrderTxId)
       expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
       expect(resultOrder?.type).to.equal('reuseOrder')
