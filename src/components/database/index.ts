@@ -55,4 +55,8 @@ export class Database {
       }
     })() as unknown as Database
   }
+  // useful to know which configuration was passed to DB
+  getConfig(): OceanNodeDBConfig {
+    return this.config
+  }
 }

@@ -282,6 +282,8 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(response.stream, 'Failed to get stream')
     const result = await streamToObject(response.stream as Readable)
     if (result) {
+      console.log('result is:', result)
+      console.log('database configured:', database.getConfig())
       const ddoState = result[0].did ? result[0] : result.hits[0].document
       expect(resolvedDDO.id).to.equal(ddoState.did)
       expect(ddoState.valid).to.equal(true)
