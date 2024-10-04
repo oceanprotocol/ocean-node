@@ -11,7 +11,7 @@ import {
   ElasticsearchOrderDatabase
 } from '../../components/database/ElasticSearchDatabase.js'
 
-const elasticsearch: Database = new Database({
+const elasticsearch: Database = await new Database({
   url: 'http://localhost:9200',
   dbType: DB_TYPES.ELASTIC_SEARCH
 })
