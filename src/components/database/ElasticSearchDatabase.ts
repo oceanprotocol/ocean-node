@@ -757,13 +757,18 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     try {
       const validation = await this.validateDDO(ddo)
       if (validation === true) {
-        const response = await this.client.update({
+        const response: any = await this.client.update({
           index: schema.index,
           id: ddo.id,
           body: {
             doc: ddo
           }
         })
+        // make sure we do not have different responses 4 between DBs
+        // do the same thing on other methods
+        if (response._id === ddo.id) {
+          response.id = response._id
+        }
         return response
       } else {
         throw new Error(
