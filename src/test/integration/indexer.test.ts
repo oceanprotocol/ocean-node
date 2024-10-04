@@ -118,7 +118,9 @@ describe('Indexer stores a new metadata events and orders.', () => {
     )
 
     database = await new Database(dbConfig)
+    console.log('This database:', database.getConfig())
     oceanNode = await OceanNode.getInstance(database)
+    console.log('Node CONFIG HERE', oceanNode.getDatabase().getConfig())
     indexer = new OceanIndexer(database, mockSupportedNetworks)
     oceanNode.addIndexer(indexer)
     let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
@@ -279,7 +281,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const response = await queryDdoStateHandler.handle(queryDdoState)
     console.log('response: ', response)
     console.log(
-      'DB state: ',
+      'DB config here: ',
       queryDdoStateHandler.getOceanNode().getDatabase().getConfig()
     )
     assert(response, 'Failed to get response')

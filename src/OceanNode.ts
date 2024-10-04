@@ -161,4 +161,9 @@ export class OceanNode {
       }
     }
   }
+
+  // to allow switch DB config
+  public updateDatabase(db: Database) {
+    this.db = db
+  }
 }
