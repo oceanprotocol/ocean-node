@@ -157,6 +157,8 @@ describe('Typesense documents', () => {
 
   it('create document in ddo collection', async () => {
     const result = await typesense.collections(ddoSchema.name).documents().create(ddo)
+    console.log('scheam name: ' + ddoSchema.name)
+    console.log('result create:', result)
     expect(result.id).to.equal(ddo.id)
     expect(result.metadata).to.not.be.an('undefined')
     expect(result.metadata.name).to.be.equal(ddo.metadata.name)
@@ -165,10 +167,13 @@ describe('Typesense documents', () => {
   it('search document in ddo collection', async () => {
     const result = await typesense.collections(ddoSchema.name).documents().search({
       q: 'DEX',
-      query_by: 'metadata.name',
+      query_by: 'metadata.author',
       filter_by: 'chainId:<138',
       sort_by: 'version:desc'
     })
+    console.log('scheam name: ' + ddoSchema.name)
+    console.log('result search:', result)
+
     expect(result.found).to.equal(1)
     expect(result.hits[0]).to.not.be.an('undefined')
     expect(result.hits[0].document).to.not.be.an('undefined')

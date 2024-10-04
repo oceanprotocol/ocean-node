@@ -52,33 +52,6 @@ describe('Elastic Search DDO collections', () => {
     expect(result._id).to.equal(updatedData.id)
   })
 
-  // it('search document in ddo collection', async () => {
-  //   const result = await elasticsearch.ddo.search({
-  //     q: 'DEX',
-  //     query_by: 'metadata.name',
-  //     filter_by: 'chainId:<138',
-  //     sort_by: 'version:desc'
-  //   })
-
-  //   const searchQuery: SearchQuery = {
-  //     query: {
-  //       bool: {
-  //         filter: [
-  //           { term: { author: 'Ocean' } },
-  //           { terms: { 'metadata.type': ['dataset', 'algorithm'] } }
-  //         ],
-  //         must_not: [{ term: { purgatory_state: true } }]
-  //       }
-  //     },
-  //     size: 10,
-  //     from: 0,
-  //     sort: { name: 'asc' }
-  //   }
-  //   expect(result.found).to.equal(1)
-  //   expect(result.hits[0]).to.not.be.an('undefined')
-  //   expect(result.hits[0].document).to.not.be.an('undefined')
-  // })
-
   it('delete document in ddo collection', async () => {
     const result = await elasticsearch.ddo.delete(ddo.id)
     expect(result.result).to.equal('deleted')
