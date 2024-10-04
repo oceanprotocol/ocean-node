@@ -688,6 +688,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     }
     try {
       const validation = await this.validateDDO(ddo)
+      console.log('validation', validation)
       if (validation === true) {
         const response = await this.client.index({
           index: schema.index,
@@ -696,10 +697,12 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         })
         return response
       } else {
+        console.log(`Validation of DDO with schema version ${ddo.version} failed`)
         throw new Error(`Validation of DDO with schema version ${ddo.version} failed`)
       }
     } catch (error) {
       const errorMsg = `Error when creating DDO entry ${ddo.id}: ${error.message}`
+      console.log(errorMsg)
       DATABASE_LOGGER.logMessageWithEmoji(
         errorMsg,
         true,

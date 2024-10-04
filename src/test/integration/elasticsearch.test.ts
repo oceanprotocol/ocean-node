@@ -27,9 +27,10 @@ describe('Elastic Search', () => {
   })
 })
 
-describe('Typesense collections', () => {
+describe('Elastic Search DDO collections', () => {
   it('create document in ddo collection', async () => {
     const result = await elasticsearch.ddo.create(ddo)
+    console.log('result: ', result)
     expect(result.id).to.equal(ddo.id)
     expect(result.metadata).to.not.be.an('undefined')
     expect(result.metadata.name).to.be.equal(ddo.metadata.name)
