@@ -768,6 +768,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         // do the same thing on other methods
         if (response._id === ddo.id) {
           response.id = response._id
+          console.log('response now:', response)
         }
         return response
       } else {
