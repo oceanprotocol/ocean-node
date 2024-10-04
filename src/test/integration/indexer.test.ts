@@ -282,8 +282,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(response.stream, 'Failed to get stream')
     const result = await streamToObject(response.stream as Readable)
     if (result) {
-      console.log('result is:', result)
-      console.log('database configured:', database.getConfig())
       const ddoState = result[0].did ? result[0] : result.hits[0].document
       expect(resolvedDDO.id).to.equal(ddoState.did)
       expect(ddoState.valid).to.equal(true)
@@ -542,29 +540,33 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.ORDER_REUSED,
-      DEFAULT_TEST_TIMEOUT * 2,
+      DEFAULT_TEST_TIMEOUT * 3,
       true
     )
-    if (ddo) {
-      const retrievedDDO: any = {}
-      Object.assign(retrievedDDO, ddo)
+
+    const retrievedDDO: any = ddo
+
+    if (retrievedDDO) {
+      // const retrievedDDO: any = {}
+      // Object.assign(retrievedDDO, ddo)
+
       expect(retrievedDDO.stats.orders).to.be.greaterThan(initialOrderCount)
       // TODO: remove the logic bellow
-      let resultOrder
-      for (let i = 0; i < 3; i++) {
-        sleep(DEFAULT_TEST_TIMEOUT / 2)
-        resultOrder = await database.order.retrieve(orderTxId)
-        if (resultOrder) break
-      }
-      if (resultOrder) {
-        const resultOrder = await database.order.retrieve(reuseOrderTxId)
-        expect(resultOrder?.id).to.equal(reuseOrderTxId)
-        expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
-        expect(resultOrder?.type).to.equal('reuseOrder')
-        const timestamp = reusedOrderEvent.args[2].toString()
-        expect(resultOrder?.timestamp.toString()).to.equal(timestamp)
-        expect(resultOrder?.startOrderId).to.equal(orderTxId)
-      }
+      // let resultOrder
+      // for (let i = 0; i < 3; i++) {
+      //   sleep(DEFAULT_TEST_TIMEOUT / 2)
+      //   resultOrder = await database.order.retrieve(orderTxId)
+      //   if (resultOrder) break
+      // }
+      // if (resultOrder) {
+      const resultOrder = await database.order.retrieve(reuseOrderTxId)
+      expect(resultOrder?.id).to.equal(reuseOrderTxId)
+      expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
+      expect(resultOrder?.type).to.equal('reuseOrder')
+      const timestamp = reusedOrderEvent.args[2].toString()
+      expect(resultOrder?.timestamp.toString()).to.equal(timestamp)
+      expect(resultOrder?.startOrderId).to.equal(orderTxId)
+      // }
     } else {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     }
