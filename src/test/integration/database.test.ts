@@ -75,7 +75,7 @@ describe('DdoDatabase CRUD', () => {
 
   it('Database will not create ddo when did is invalid', async () => {
     const result = await database.ddo.create(ddoWithInvalidDid)
-    expect(isDefined(result?.id)).to.be.false
+    expect(isDefined(result?.id)).to.equal(false)
   })
 })
 

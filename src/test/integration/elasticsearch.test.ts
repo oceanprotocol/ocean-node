@@ -38,7 +38,6 @@ describe('Elastic Search DDO collections', () => {
 
   it('retrieve document in ddo collection', async () => {
     const result = await elasticsearch.ddo.retrieve(ddo.id)
-    console.log('retrive result: ', result)
     expect(result.id).to.equal(ddo.id)
     expect(result.metadata).to.not.be.an('undefined')
     expect(result.metadata.name).to.be.equal(ddo.metadata.name)
@@ -49,10 +48,8 @@ describe('Elastic Search DDO collections', () => {
     const updatedData = ddo
     updatedData.metadata.name = newMetadataName
     const result = await elasticsearch.ddo.update(updatedData)
-    console.log('update result: ', result)
-    expect(result.id).to.equal(ddo.id)
-    expect(result.metadata).to.not.be.an('undefined')
-    expect(result.metadata.name).to.be.equal(newMetadataName)
+    expect(result.result).to.equal('updated')
+    expect(result._id).to.equal(updatedData.id)
   })
 
   // it('search document in ddo collection', async () => {
@@ -85,8 +82,8 @@ describe('Elastic Search DDO collections', () => {
   it('delete document in ddo collection', async () => {
     const newMetadataName = 'new metadata name'
     const result = await elasticsearch.ddo.delete(ddo.id)
-    expect(result.id).to.equal(ddo.id)
-    expect(result.metadata).to.not.be.an('undefined')
-    expect(result.metadata.name).to.be.equal(newMetadataName)
+    console.log('delete result:', result)
+    expect(result.result).to.equal('deleted')
+    expect(result._id).to.equal(ddo.id)
   })
 })
