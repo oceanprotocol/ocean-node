@@ -32,7 +32,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
   }
 
   public override async getComputeEnvironments(
-    chainId: number
+    chainId?: number
   ): Promise<ComputeEnvironment[]> {
     /**
      * Returns all cluster's compute environments for a specific chainId. Env's id already contains the cluster hash
@@ -40,7 +40,8 @@ export class C2DEngineOPFK8 extends C2DEngine {
     const envs: ComputeEnvironment[] = []
     const clusterHash = this.getC2DConfig().hash
     const baseUrl = URLUtils.sanitizeURLPath(this.getC2DConfig().connection)
-    const url = `${baseUrl}api/v1/operator/environments?chain_id=${chainId}`
+    let url = `${baseUrl}api/v1/operator/environments`
+    if (chainId) url += `?chain_id=${chainId}`
     try {
       const { data } = await axios.get(url)
       if (!data) return envs
@@ -61,12 +62,17 @@ export class C2DEngineOPFK8 extends C2DEngine {
     assets: ComputeAsset[],
     algorithm: ComputeAlgorithm,
     output: ComputeOutput,
-    owner: string,
     environment: string,
-    validUntil: number,
-    chainId: number,
-    agreementId: string
+    owner?: string,
+    validUntil?: number,
+    chainId?: number,
+    agreementId?: string
   ): Promise<ComputeJob[]> {
+    // owner, validUntil,chainId, agreementId are not optional for OPF K8
+    if (!owner) throw new Error(`Cannot start a c2d job without owner`)
+    if (!validUntil) throw new Error(`Cannot start a c2d job without validUntil`)
+    if (!chainId) throw new Error(`Cannot start a c2d job without chainId`)
+    if (!agreementId) throw new Error(`Cannot start a c2d job without agreementId`)
     // let's build the stage first
     // start with stage.input
     const config = await getConfiguration()

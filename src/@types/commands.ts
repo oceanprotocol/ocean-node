@@ -164,6 +164,11 @@ export interface ComputeStartCommand extends Command {
   datasets?: ComputeAsset[]
   output?: ComputeOutput
 }
+export interface FreeComputeStartCommand extends Command {
+  algorithm: ComputeAlgorithm
+  datasets?: ComputeAsset[]
+  output?: ComputeOutput
+}
 
 export interface ComputeStopCommand extends Command {
   consumerAddress: string

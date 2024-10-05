@@ -24,6 +24,7 @@ import { Command } from '../../../@types/commands.js'
 import {
   ComputeGetEnvironmentsHandler,
   ComputeStartHandler,
+  FreeComputeStartHandler,
   ComputeStopHandler,
   ComputeGetStatusHandler,
   ComputeGetResultHandler,
@@ -100,6 +101,10 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.COMPUTE_START,
       new ComputeStartHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+      new FreeComputeStartHandler(node)
     )
     this.registerCoreHandler(PROTOCOL_COMMANDS.COMPUTE_STOP, new ComputeStopHandler(node))
     this.registerCoreHandler(

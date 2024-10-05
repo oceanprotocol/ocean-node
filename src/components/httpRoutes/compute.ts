@@ -2,6 +2,7 @@ import express from 'express'
 import {
   ComputeGetEnvironmentsHandler,
   ComputeStartHandler,
+  FreeComputeStartHandler,
   ComputeStopHandler,
   ComputeGetStatusHandler,
   ComputeGetResultHandler,
@@ -14,6 +15,7 @@ import type {
 } from '../../@types/C2D/C2D.js'
 import type {
   ComputeStartCommand,
+  FreeComputeStartCommand,
   ComputeStopCommand,
   ComputeGetResultCommand,
   ComputeGetStatusCommand
@@ -114,6 +116,43 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   }
 })
 
+// free compute
+computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => {
+  try {
+    HTTP_LOGGER.logMessage(
+      `FreeComputeStartCommand request received as body params: ${JSON.stringify(
+        req.body
+      )}`,
+      true
+    )
+
+    const startComputeTask: FreeComputeStartCommand = {
+      command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+      node: (req.body.node as string) || null,
+      algorithm: (req.body.algorithm as ComputeAlgorithm) || null,
+      datasets: (req.body.dataset as unknown as ComputeAsset[]) || null
+    }
+    if (req.body.output) {
+      startComputeTask.output = req.body.output as ComputeOutput
+    }
+
+    const response = await new FreeComputeStartHandler(req.oceanNode).handle(
+      startComputeTask
+    )
+    if (response?.status?.httpStatus === 200) {
+      const jobs = await streamToObject(response.stream as Readable)
+      res.status(200).json(jobs)
+    } else {
+      HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_INFO, `Error: ${response?.status?.error}`)
+      res.status(response?.status.httpStatus).json(response?.status?.error)
+    }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send('Internal Server Error')
+  }
+})
+
+// stop compute
 computeRoutes.put(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(
@@ -141,6 +180,7 @@ computeRoutes.put(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   }
 })
 
+// get status
 computeRoutes.get(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(
@@ -165,6 +205,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   }
 })
 
+// compute results
 computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeResult`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(
