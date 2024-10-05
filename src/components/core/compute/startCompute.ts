@@ -1,6 +1,5 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
-import { ComputeAsset } from '../../../@types/C2D/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
 import { ComputeStartCommand } from '../../../@types/commands.js'
@@ -36,7 +35,7 @@ export class ComputeStartHandler extends Handler {
       'nonce',
       'environment',
       'algorithm',
-      'dataset'
+      'datasets'
     ])
     if (commandValidation.valid) {
       if (!isAddress(command.consumerAddress)) {
@@ -72,8 +71,6 @@ export class ComputeStartHandler extends Handler {
         }
       }
       const node = this.getOceanNode()
-      const assets: ComputeAsset[] = [task.dataset]
-      if (task.additionalDatasets) assets.push(...task.additionalDatasets)
       const { algorithm } = task
       let foundValidCompute = null
 
@@ -93,7 +90,8 @@ export class ComputeStartHandler extends Handler {
         }
       }
       // check algo
-      for (const elem of [...[task.algorithm], ...assets]) {
+      for (const elem of [...[task.algorithm], ...task.datasets]) {
+        console.log(elem)
         const result: any = { validOrder: false }
         if ('documentId' in elem && elem.documentId) {
           result.did = elem.documentId
@@ -322,7 +320,7 @@ export class ComputeStartHandler extends Handler {
       const { validUntil } = foundValidCompute
 
       const response = await engine.startComputeJob(
-        assets,
+        task.datasets,
         algorithm,
         task.output,
         task.consumerAddress,

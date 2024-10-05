@@ -547,11 +547,13 @@ describe('Compute', () => {
       signature,
       nonce,
       environment: firstEnv.id,
-      dataset: {
-        documentId: publishedComputeDataset.ddo.id,
-        serviceId: publishedComputeDataset.ddo.services[0].id,
-        transferTxId: '0x123'
-      },
+      datasets: [
+        {
+          documentId: publishedComputeDataset.ddo.id,
+          serviceId: publishedComputeDataset.ddo.services[0].id,
+          transferTxId: '0x123'
+        }
+      ],
       algorithm: {
         documentId: publishedAlgoDataset.ddo.id,
         serviceId: publishedAlgoDataset.ddo.services[0].id,
@@ -562,6 +564,8 @@ describe('Compute', () => {
       // output?: ComputeOutput
     }
     const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
+    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+    console.log(response)
     assert(response, 'Failed to get response')
     // should fail, because txId '0x123' is not a valid order
     assert(response.status.httpStatus === 500, 'Failed to get 500 response')
@@ -584,11 +588,13 @@ describe('Compute', () => {
       signature,
       nonce,
       environment: firstEnv.id,
-      dataset: {
-        documentId: publishedComputeDataset.ddo.id,
-        serviceId: publishedComputeDataset.ddo.services[0].id,
-        transferTxId: datasetOrderTxId
-      },
+      datasets: [
+        {
+          documentId: publishedComputeDataset.ddo.id,
+          serviceId: publishedComputeDataset.ddo.services[0].id,
+          transferTxId: datasetOrderTxId
+        }
+      ],
       algorithm: {
         documentId: publishedAlgoDataset.ddo.id,
         serviceId: publishedAlgoDataset.ddo.services[0].id,
