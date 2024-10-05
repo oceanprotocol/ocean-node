@@ -24,7 +24,7 @@ import { ZeroAddress } from 'ethers'
 import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
 import { URLUtils } from '../../utils/url.js'
 import { C2DEngine } from './compute_engine_base.js'
-
+import { Storage } from '../storage/index.js'
 export class C2DEngineOPFK8 extends C2DEngine {
   // eslint-disable-next-line no-useless-constructor
   public constructor(clusterConfig: C2DClusterInfo) {
@@ -73,12 +73,19 @@ export class C2DEngineOPFK8 extends C2DEngine {
     const stagesInput: OPFK8ComputeStageInput[] = []
     let index = 0
     for (const asset of assets) {
-      if (asset.url)
-        stagesInput.push({
-          index,
-          url: [asset.url]
-        })
-      else
+      if (asset.fileObject) {
+        try {
+          // since opf k8 supports only urls, we need to extract them
+          const storage = Storage.getStorageClass(asset.fileObject, config)
+          stagesInput.push({
+            index,
+            url: [storage.getDownloadUrl()]
+          })
+        } catch (e) {
+          const message = `Exception on startCompute. Cannot get URL of asset`
+          throw new Error(message)
+        }
+      } else
         stagesInput.push({
           index,
           id: asset.documentId,
@@ -100,8 +107,16 @@ export class C2DEngineOPFK8 extends C2DEngine {
     }
     // continue with algorithm
     const stageAlgorithm: OPFK8ComputeStageAlgorithm = {}
-    if (algorithm.url) {
-      stageAlgorithm.url = algorithm.url
+
+    if (algorithm.fileObject) {
+      try {
+        // since opf k8 supports only urls, we need to extract them
+        const storage = Storage.getStorageClass(algorithm.fileObject, config)
+        stageAlgorithm.url = storage.getDownloadUrl()
+      } catch (e) {
+        const message = `Exception on startCompute. Cannot get URL of asset`
+        throw new Error(message)
+      }
     } else {
       stageAlgorithm.remote = {
         txId: algorithm.transferTxId,

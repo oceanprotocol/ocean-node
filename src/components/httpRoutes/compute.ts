@@ -94,11 +94,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       nonce: (req.body.nonce as string) || null,
       environment: (req.body.environment as string) || null,
       algorithm: (req.body.algorithm as ComputeAlgorithm) || null,
-      dataset: (req.body.dataset as unknown as ComputeAsset) || null
-    }
-    if (req.body.additionalDatasets) {
-      startComputeTask.additionalDatasets = req.query
-        .additionalDatasets as unknown as ComputeAsset[]
+      datasets: (req.body.dataset as unknown as ComputeAsset[]) || null
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output as ComputeOutput
