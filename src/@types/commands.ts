@@ -40,6 +40,7 @@ export interface DownloadCommand extends Command {
   consumerAddress: string
   signature: string
   aes_encrypted_key?: string // if not present it means download without encryption
+  policyServer?: any // object to pass to policy server
 }
 
 export interface FileInfoCommand extends Command {
@@ -113,6 +114,7 @@ export interface GetFeesCommand extends Command {
   serviceId: string
   consumerAddress?: string
   validUntil?: number // this allows a user to request a fee that is valid only for a limited period of time, less than service.timeout
+  policyServer?: any // object to pass to policyServer
 }
 // admin commands
 export interface AdminStopNodeCommand extends AdminCommand {}
@@ -214,4 +216,8 @@ export enum IndexingCommand {
 export interface StartStopIndexingCommand extends AdminCommand {
   chainId?: number
   action: IndexingCommand
+}
+
+export interface PolicyServerPassthroughCommand extends Command {
+  policyServerPassthrough?: any
 }

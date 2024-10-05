@@ -5,7 +5,11 @@ import { Database } from './components/database/index.js'
 import express, { Express } from 'express'
 import { OceanNode } from './OceanNode.js'
 import { httpRoutes } from './components/httpRoutes/index.js'
-import { getConfiguration, computeCodebaseHash } from './utils/index.js'
+import {
+  getConfiguration,
+  computeCodebaseHash,
+  ENVIRONMENT_VARIABLES
+} from './utils/index.js'
 
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import fs from 'fs'
@@ -15,6 +19,7 @@ import { fileURLToPath } from 'url'
 import cors from 'cors'
 import { scheduleCronJobs } from './utils/logging/logDeleteCron.js'
 import { requestValidator } from './components/httpRoutes/requestValidator.js'
+import { hasValidDBConfiguration } from './utils/database.js'
 
 const app: Express = express()
 
@@ -83,11 +88,15 @@ let provider = null
 // If there is no DB URL only the nonce database will be available
 const dbconn: Database = await new Database(config.dbConfig)
 
-if (!config.dbConfig?.url) {
+if (!hasValidDBConfiguration(config.dbConfig)) {
   // once we create a database instance, we check the environment and possibly add the DB transport
   // after that, all loggers will eventually have it too (if in production/staging environments)
   // it creates dinamically DDO schemas
   config.hasIndexer = false
+} else {
+  OCEAN_NODE_LOGGER.warn(
+    `Missing or invalid property: "${ENVIRONMENT_VARIABLES.DB_URL.name}". This means Indexer module will not be enabled.`
+  )
 }
 
 if (config.hasP2P) {

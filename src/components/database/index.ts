@@ -17,6 +17,7 @@ import { SQLiteCompute } from './sqliteCompute.js'
 import { URLUtils } from '../../utils/url.js'
 import fs from 'fs'
 import path from 'path'
+import { hasValidDBConfiguration } from '../../utils/database.js'
 
 export class OrderDatabase {
   private provider: Typesense
@@ -621,7 +622,7 @@ export class NonceDatabase {
     private schema: Schema
   ) {
     return (async (): Promise<NonceDatabase> => {
-      if (this.config.url && URLUtils.isValidUrl(this.config.url)) {
+      if (hasValidDBConfiguration(this.config)) {
         try {
           this.provider = new Typesense({
             ...convertTypesenseConfig(this.config.url),
@@ -1136,20 +1137,18 @@ export class Database {
   c2d: C2DDatabase
 
   constructor(private config: OceanNodeDBConfig) {
-    // add this DB transport too
-    // once we create a DB instance, the logger will be using this transport as well
-    // we cannot have this the other way around because of the dependencies cycle
-    if (USE_DB_TRANSPORT()) {
-      configureCustomDBTransport(this, DATABASE_LOGGER)
-    } else {
-      DATABASE_LOGGER.warn(
-        'Property "LOG_DB" is set to "false". This means logs will NOT be saved to database!'
-      )
-    }
     return (async (): Promise<Database> => {
-      this.nonce = await new NonceDatabase(this.config, schemas.nonceSchemas)
-      this.c2d = await new C2DDatabase(this.config, schemas.c2dSchemas)
-      if (this.config.url && URLUtils.isValidUrl(this.config.url)) {
+      if (hasValidDBConfiguration(this.config)) {
+        // add this DB transport too
+        // once we create a DB instance, the logger will be using this transport as well
+        // we cannot have this the other way around because of the dependencies cycle
+        if (USE_DB_TRANSPORT()) {
+          configureCustomDBTransport(this, DATABASE_LOGGER)
+        } else {
+          DATABASE_LOGGER.warn(
+            `Property "${ENVIRONMENT_VARIABLES.LOG_DB.name}" is set to "false". This means logs will NOT be saved to database!`
+          )
+        }
         this.ddo = await new DdoDatabase(this.config, schemas.ddoSchemas)
         this.indexer = await new IndexerDatabase(this.config, schemas.indexerSchemas)
         this.logs = await new LogDatabase(this.config, schemas.logSchemas)
@@ -1160,7 +1159,8 @@ export class Database {
           'Typesense URL is not valid, falling back to SQLite for nonce database. Other DBs will not be available.'
         )
       }
-
+      this.nonce = await new NonceDatabase(this.config, schemas.nonceSchemas)
+      this.c2d = await new C2DDatabase(this.config, schemas.c2dSchemas)
       return this
     })() as unknown as Database
   }
