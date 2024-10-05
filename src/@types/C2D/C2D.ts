@@ -1,5 +1,5 @@
 import type { MetadataAlgorithm } from '../DDO/Metadata.js'
-
+import type { BaseFileObject } from '../fileObject.js'
 export enum C2DClusterType {
   // eslint-disable-next-line no-unused-vars
   OPF_K8 = 0,
@@ -85,9 +85,9 @@ export interface ComputeOutput {
 }
 
 export interface ComputeAsset {
-  url?: string
-  documentId: string
-  serviceId: string
+  fileObject?: BaseFileObject
+  documentId?: string
+  serviceId?: string
   transferTxId?: string
   userdata?: { [key: string]: any }
 }
@@ -95,7 +95,7 @@ export interface ComputeAsset {
 export interface ComputeAlgorithm {
   documentId?: string
   serviceId?: string
-  url?: string
+  fileObject?: BaseFileObject
   meta?: MetadataAlgorithm
   transferTxId?: string
   algocustomdata?: { [key: string]: any }

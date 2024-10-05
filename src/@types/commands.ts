@@ -158,8 +158,7 @@ export interface ComputeStartCommand extends Command {
   nonce: string
   environment: string
   algorithm: ComputeAlgorithm
-  dataset: ComputeAsset
-  additionalDatasets?: ComputeAsset[]
+  datasets?: ComputeAsset[]
   output?: ComputeOutput
 }
 
