@@ -2,7 +2,7 @@ import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
-import { ComputeStartCommand } from '../../../@types/commands.js'
+import { FreeComputeStartCommand, ComputeStartCommand } from '../../../@types/commands.js'
 import { getAlgoChecksums, validateAlgoForDataset } from './utils.js'
 import {
   ValidateParams,
@@ -323,8 +323,8 @@ export class ComputeStartHandler extends Handler {
         task.datasets,
         algorithm,
         task.output,
-        task.consumerAddress,
         envId,
+        task.consumerAddress,
         validUntil,
         chainId,
         agreementId
@@ -332,6 +332,70 @@ export class ComputeStartHandler extends Handler {
 
       CORE_LOGGER.logMessage(
         'ComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
+        true
+      )
+
+      return {
+        stream: Readable.from(JSON.stringify(response)),
+        status: {
+          httpStatus: 200
+        }
+      }
+    } catch (error) {
+      CORE_LOGGER.error(error.message)
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error: error.message
+        }
+      }
+    }
+  }
+}
+
+// free compute
+// - has no validation
+export class FreeComputeStartHandler extends Handler {
+  validate(command: ComputeStartCommand): ValidateParams {
+    const commandValidation = validateCommandParameters(command, ['algorithm'])
+    return commandValidation
+  }
+
+  async handle(task: FreeComputeStartCommand): Promise<P2PCommandResponse> {
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
+    }
+    let environment = null
+    try {
+      // get all envs and see if we have a free one
+      const allEnvs = await this.getOceanNode().getC2DEngines().fetchEnvironments()
+      for (const env of allEnvs) {
+        if (env.free) {
+          environment = env
+        }
+      }
+      if (!environment)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: 'This node does not have a free compute env'
+          }
+        }
+      const engine = await this.getOceanNode()
+        .getC2DEngines()
+        .getC2DByEnvId(environment.id)
+      const response = await engine.startComputeJob(
+        task.datasets,
+        task.algorithm,
+        task.output,
+        environment.id
+      )
+
+      CORE_LOGGER.logMessage(
+        'FreeComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
         true
       )
 
