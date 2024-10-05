@@ -27,7 +27,7 @@ export class C2DEngine {
 
   // functions which need to be implemented by all engine types
   // eslint-disable-next-line require-await
-  public async getComputeEnvironments(chainId: number): Promise<ComputeEnvironment[]> {
+  public async getComputeEnvironments(chainId?: number): Promise<ComputeEnvironment[]> {
     throw new Error(`Not implemented`)
   }
 
@@ -82,11 +82,11 @@ export class C2DEngine {
     assets: ComputeAsset[],
     algorithm: ComputeAlgorithm,
     output: ComputeOutput,
-    owner: string,
     environment: string,
-    validUntil: number,
-    chainId: number,
-    agreementId: string
+    owner?: string,
+    validUntil?: number,
+    chainId?: number,
+    agreementId?: string
   ): Promise<ComputeJob[]> {
     throw new Error(`Not implemented`)
   }

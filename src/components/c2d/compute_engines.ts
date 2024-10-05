@@ -75,8 +75,25 @@ export class C2DEngines {
     throw new Error(`C2D Engine not found by hash: ${clusterHash}`)
   }
 
+  async getC2DByEnvId(envId: string): Promise<C2DEngine> {
+    /**
+     * Searches all envs and returns engine class
+     *
+     * @param envId - Environment Id
+     *
+     */
+    const { engines } = this
+    for (const i of engines) {
+      const environments = await i.getComputeEnvironments()
+      for (const env of environments) {
+        if (env.id === envId) return i
+      }
+    }
+    throw new Error(`C2D Engine not found by id: ${envId}`)
+  }
+
   async fetchEnvironments(
-    chainId: number,
+    chainId?: number,
     engine?: C2DEngine
   ): Promise<ComputeEnvironment[]> {
     /**

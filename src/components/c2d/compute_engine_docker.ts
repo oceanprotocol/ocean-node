@@ -26,7 +26,7 @@ export class C2DEngineDocker extends C2DEngine {
 
   // eslint-disable-next-line require-await
   public override async getComputeEnvironments(
-    chainId: number
+    chainId?: number
   ): Promise<ComputeEnvironment[]> {
     /**
      * Returns all cluster's compute environments for a specific chainId. Env's id already contains the cluster hash
@@ -40,11 +40,11 @@ export class C2DEngineDocker extends C2DEngine {
     assets: ComputeAsset[],
     algorithm: ComputeAlgorithm,
     output: ComputeOutput,
-    owner: string,
     environment: string,
-    validUntil: number,
-    chainId: number,
-    agreementId: string
+    owner?: string,
+    validUntil?: number,
+    chainId?: number,
+    agreementId?: string
   ): Promise<ComputeJob[]> {
     return null
   }
@@ -106,7 +106,7 @@ export class C2DEngineDockerFree extends C2DEngineDocker {
 
   // eslint-disable-next-line require-await
   public override async getComputeEnvironments(
-    chainId: number
+    chainId?: number
   ): Promise<ComputeEnvironment[]> {
     /**
      * Returns all cluster's compute environments for a specific chainId. Env's id already contains the cluster hash
