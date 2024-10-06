@@ -338,10 +338,12 @@ function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
     environments: getEnvValue(process.env.DOCKER_COMPUTE_ENVIRONMENTS, null)
   }
   if (dockerConfig.socketPath || dockerConfig.host) {
+    const hash = create256Hash(JSON.stringify(dockerConfig))
     clusters.push({
       connection: dockerConfig,
-      hash: create256Hash(JSON.stringify(dockerConfig)),
-      type: C2DClusterType.DOCKER
+      hash,
+      type: C2DClusterType.DOCKER,
+      tempFolder: './c2d_storage/' + hash
     })
   }
 

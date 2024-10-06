@@ -28,7 +28,8 @@ import {
   ComputeStopHandler,
   ComputeGetStatusHandler,
   ComputeGetResultHandler,
-  ComputeInitializeHandler
+  ComputeInitializeHandler,
+  ComputeGetStreamableLogsHandler
 } from '../compute/index.js'
 import { StopNodeHandler } from '../admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../admin/reindexTxHandler.js'
@@ -114,6 +115,10 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
       new ComputeGetResultHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.COMPUTE_GET_STREAMABLE_LOGS,
+      new ComputeGetStreamableLogsHandler(node)
     )
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,

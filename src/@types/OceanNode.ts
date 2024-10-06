@@ -125,7 +125,7 @@ export interface OceanNodeStatus {
   codeHash?: string
   allowedAdmins?: string[]
   // detailed information
-  c2dClusters?: C2DClusterInfo[]
+  c2dClusters?: any[]
   supportedSchemas?: Schema[]
 }
 

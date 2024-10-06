@@ -1062,11 +1062,12 @@ export class LogDatabase {
 
 export class C2DDatabase {
   private provider: Typesense | SQLiteCompute
-
+  private tempMem: DBComputeJob[]
   constructor(
     private config: OceanNodeDBConfig,
     private schema: Schema
   ) {
+    this.tempMem = []
     return (async (): Promise<C2DDatabase> => {
       if (this.config.url && URLUtils.isValidUrl(this.config.url)) {
         try {
@@ -1105,25 +1106,40 @@ export class C2DDatabase {
   // eslint-disable-next-line require-await
   async newJob(job: DBComputeJob): Promise<string> {
     // TO DO C2D
-    return ''
+    this.tempMem.push(job)
+    return job.agreementId
   }
 
   // eslint-disable-next-line require-await
   async getJob(jobId: string): Promise<DBComputeJob | null> {
+    console.log('GetJob jobId:' + jobId)
+    console.log(this.tempMem)
+    for (const i in this.tempMem) {
+      if (this.tempMem[i].jobId === jobId) return this.tempMem[i]
+    }
     return null
-  }
-
-  async updateJob(job: DBComputeJob) {
-    // TO DO C2D
   }
 
   // eslint-disable-next-line require-await
-  async getRunningJobs(
-    engine?: string,
-    environment?: string
-  ): Promise<DBComputeJob[] | null> {
+  async updateJob(job: DBComputeJob) {
     // TO DO C2D
-    return null
+    for (const i in this.tempMem) {
+      if (this.tempMem[i].jobId === job.jobId) this.tempMem[i] = job
+    }
+  }
+
+  // eslint-disable-next-line require-await
+  async getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]> {
+    // TO DO C2D
+    const runningJobs: DBComputeJob[] = []
+    for (const i in this.tempMem) {
+      if (this.tempMem[i].isRunning === true) {
+        if (engine && this.tempMem[i].clusterHash !== engine) continue
+        if (environment && this.tempMem[i].environment !== environment) continue
+        runningJobs.push(this.tempMem[i])
+      }
+    }
+    return runningJobs
   }
 }
 
