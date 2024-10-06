@@ -2,7 +2,7 @@ import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
 import { ComputeGetStreamableLogsCommand } from '../../../@types/commands.js'
-import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
+// import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
 import { Stream } from 'stream'
 import {
   buildInvalidRequestMessage,
