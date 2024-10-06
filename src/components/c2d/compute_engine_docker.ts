@@ -174,8 +174,11 @@ export class C2DEngineDocker extends C2DEngine {
   public override async getStreamableLogs(jobId: string): Promise<NodeJS.ReadableStream> {
     const job = await this.db.getJob(jobId)
     if (!job) return null
+    if (!job.isRunning) return null
     try {
       const container = await this.docker.getContainer(job.jobId + '-algoritm')
+      const details = await container.inspect()
+      if (details.State.Running === false) return null
       return await container.logs({
         stdout: true,
         stderr: true,
@@ -371,9 +374,8 @@ export class C2DEngineDocker extends C2DEngine {
           if (details.State.Running === true) {
             try {
               await container.stop()
-              do {} while ((await container.inspect()).State.Running === true)
             } catch (e) {
-              // we should never reach this, unless the container is already stopped
+              // we should never reach this, unless the container is already stopped or deleted by someone else
               console.log(e)
             }
           }
