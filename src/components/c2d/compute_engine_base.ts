@@ -117,6 +117,11 @@ export class C2DEngine {
   ): Promise<Readable> {
     throw new Error(`Not implemented`)
   }
+
+  // eslint-disable-next-line require-await
+  public async getStreamableLogs(jobId: string): Promise<NodeJS.ReadableStream> {
+    throw new Error(`Not implemented for this engine type`)
+  }
 }
 
 export class C2DEngineLocal extends C2DEngine {

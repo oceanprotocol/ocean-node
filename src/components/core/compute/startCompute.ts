@@ -358,7 +358,20 @@ export class ComputeStartHandler extends Handler {
 // - has no validation
 export class FreeComputeStartHandler extends Handler {
   validate(command: ComputeStartCommand): ValidateParams {
-    const commandValidation = validateCommandParameters(command, ['algorithm'])
+    const commandValidation = validateCommandParameters(command, [
+      'algorithm',
+      'datasets',
+      'consumerAddress',
+      'signature',
+      'nonce'
+    ])
+    if (commandValidation.valid) {
+      if (!isAddress(command.consumerAddress)) {
+        return buildInvalidRequestMessage(
+          'Parameter : "consumerAddress" is not a valid web3 address'
+        )
+      }
+    }
     return commandValidation
   }
 
@@ -391,7 +404,8 @@ export class FreeComputeStartHandler extends Handler {
         task.datasets,
         task.algorithm,
         task.output,
-        environment.id
+        environment.id,
+        task.consumerAddress
       )
 
       CORE_LOGGER.logMessage(
