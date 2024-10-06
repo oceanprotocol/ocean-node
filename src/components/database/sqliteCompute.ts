@@ -6,7 +6,7 @@ interface ComputeDatabaseProvider {
   newJob(job: DBComputeJob): Promise<string>
   getJob(jobId: string): Promise<DBComputeJob | null>
   updateJob(job: DBComputeJob): void
-  getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[] | null>
+  getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]>
 }
 
 export class SQLiteCompute implements ComputeDatabaseProvider {
@@ -35,16 +35,14 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     return null
   }
 
+  // eslint-disable-next-line require-await
   async updateJob(job: DBComputeJob) {
     // TO DO C2D
   }
 
   // eslint-disable-next-line require-await
-  async getRunningJobs(
-    engine?: string,
-    environment?: string
-  ): Promise<DBComputeJob[] | null> {
+  async getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]> {
     // TO DO C2D
-    return null
+    return []
   }
 }

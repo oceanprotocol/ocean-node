@@ -65,7 +65,9 @@ export interface ValidateDDOCommand extends Command {
   ddo: DDO
 }
 
-export interface StatusCommand extends Command {}
+export interface StatusCommand extends Command {
+  detailed?: boolean
+}
 export interface DetailedStatusCommand extends StatusCommand {}
 export interface EchoCommand extends Command {}
 
@@ -165,6 +167,9 @@ export interface ComputeStartCommand extends Command {
   output?: ComputeOutput
 }
 export interface FreeComputeStartCommand extends Command {
+  consumerAddress: string
+  signature: string
+  nonce: string
   algorithm: ComputeAlgorithm
   datasets?: ComputeAsset[]
   output?: ComputeOutput
@@ -184,6 +189,12 @@ export interface ComputeGetResultCommand extends Command {
   nonce: string
   jobId: string
   index: number
+}
+export interface ComputeGetStreamableLogsCommand extends Command {
+  consumerAddress: string
+  signature: string
+  nonce: string
+  jobId: string
 }
 
 export interface ComputeGetStatusCommand extends Command {
