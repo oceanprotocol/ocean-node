@@ -6,8 +6,8 @@ import type {
   ComputeAsset,
   ComputeJob,
   ComputeOutput
-} from '../../@types/C2D.js'
-import { C2DClusterType } from '../../@types/C2D.js'
+} from '../../@types/C2D/C2D.js'
+import { C2DClusterType } from '../../@types/C2D/C2D.js'
 
 export class C2DEngine {
   private clusterConfig: C2DClusterInfo
@@ -27,7 +27,7 @@ export class C2DEngine {
 
   // functions which need to be implemented by all engine types
   // eslint-disable-next-line require-await
-  public async getComputeEnvironments(chainId: number): Promise<ComputeEnvironment[]> {
+  public async getComputeEnvironments(chainId?: number): Promise<ComputeEnvironment[]> {
     throw new Error(`Not implemented`)
   }
 
@@ -82,11 +82,11 @@ export class C2DEngine {
     assets: ComputeAsset[],
     algorithm: ComputeAlgorithm,
     output: ComputeOutput,
-    owner: string,
     environment: string,
-    validUntil: number,
-    chainId: number,
-    agreementId: string
+    owner?: string,
+    validUntil?: number,
+    chainId?: number,
+    agreementId?: string
   ): Promise<ComputeJob[]> {
     throw new Error(`Not implemented`)
   }
@@ -116,6 +116,11 @@ export class C2DEngine {
     index: number
   ): Promise<Readable> {
     throw new Error(`Not implemented`)
+  }
+
+  // eslint-disable-next-line require-await
+  public async getStreamableLogs(jobId: string): Promise<NodeJS.ReadableStream> {
+    throw new Error(`Not implemented for this engine type`)
   }
 }
 
