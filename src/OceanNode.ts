@@ -43,6 +43,7 @@ export class OceanNode {
     if (!OceanNode.instance) {
       // prepare compute engines
       this.instance = new OceanNode(db, node, provider, indexer)
+      console.log('NODE NEW INSTANCE', this.instance)
     }
     return this.instance
   }

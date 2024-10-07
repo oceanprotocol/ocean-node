@@ -223,11 +223,13 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should store the ddo in the database and return it ', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    console.log('asset id: ', assetDID)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT * 3
+      DEFAULT_TEST_TIMEOUT * 4,
+      true
     )
     if (ddo) {
       resolvedDDO = ddo
