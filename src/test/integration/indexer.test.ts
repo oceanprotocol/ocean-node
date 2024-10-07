@@ -224,20 +224,21 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should store the ddo in the database and return it ', async function () {
     console.log('asset id: ', assetDID)
-    this.timeout(DEFAULT_TEST_TIMEOUT * 4)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT * 4,
-      true
+      DEFAULT_TEST_TIMEOUT * 2
     )
     if (ddo) {
       resolvedDDO = ddo
+      console.log('after index resolved ddo: ', resolvedDDO)
       expect(resolvedDDO.id).to.equal(genericAsset.id)
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
   it('should have nft field stored in ddo', async function () {
+    console.log('here:', resolvedDDO)
     assert(resolvedDDO.nft, 'NFT field is not present')
     assert(
       resolvedDDO.nft.address?.toLowerCase() === nftAddress?.toLowerCase(),
