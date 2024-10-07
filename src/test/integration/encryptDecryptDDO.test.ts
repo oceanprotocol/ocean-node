@@ -114,6 +114,7 @@ describe('Should encrypt and decrypt DDO', () => {
     }
     database = await new Database(dbConfig)
     oceanNode = OceanNode.getInstance(database)
+    oceanNode.addDatabase(database)
     // will be used later
     indexer = new OceanIndexer(database, mockSupportedNetworks)
     oceanNode.addIndexer(indexer)

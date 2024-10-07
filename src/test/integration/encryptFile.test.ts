@@ -44,6 +44,7 @@ describe('Encrypt File', () => {
     config = await getConfiguration(true) // Force reload the configuration
     const dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
+    oceanNode.addDatabase(dbconn)
   })
 
   it('should encrypt files', async () => {
