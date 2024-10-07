@@ -379,6 +379,10 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
       })
 
       if (exists) {
+        console.log('Elastic DDO state update, will update existing state entry:')
+        console.log(
+          `chainId: ${chainId}, did: ${did}, nftAddress: ${nftAddress}, txId: ${txId}, valid: ${valid}, errorMsg: ${errorMsg}`
+        )
         await this.client.update({
           index: this.index,
           id: did,
@@ -388,6 +392,10 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
           refresh: 'wait_for'
         })
       } else {
+        console.log('Elastic DDO state update, will create a new state entry:')
+        console.log(
+          `chainId: ${chainId}, did: ${did}, nftAddress: ${nftAddress}, txId: ${txId}, valid: ${valid}, errorMsg: ${errorMsg}`
+        )
         return await this.create(chainId, did, nftAddress, txId, valid, errorMsg)
       }
 
@@ -749,6 +757,9 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     return ddo
   }
 
+  // This is called from indexer "createOrUpdateDDO"
+  // we add the "id" field to match the response API with typesense
+  // since here we have an "_id"
   async update(ddo: Record<string, any>): Promise<any> {
     const schema = this.getDDOSchema(ddo)
     if (!schema) {
@@ -779,7 +790,12 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     } catch (error) {
       if (error.statusCode === 404) {
         await this.delete(ddo.id)
-        return await this.create(ddo)
+        const response = await this.create(ddo)
+        if (response._id === ddo.id) {
+          response.id = response._id
+          console.log('create response now:', response)
+        }
+        return response
       }
       const errorMsg = `Error when updating DDO entry ${ddo.id}: ${error.message}`
       DATABASE_LOGGER.logMessageWithEmoji(

@@ -88,6 +88,7 @@ class BaseEventProcessor {
     try {
       const { ddo: ddoDatabase, ddoState } = await getDatabase()
       console.log('createOrUpdateDDO for ddo id: ', ddo.id)
+      console.log('DB config:', await (await getDatabase()).getConfig())
       const saveDDO = await ddoDatabase.update({ ...ddo })
       console.log('saved DDO: ', saveDDO)
       const stateUpdate = await ddoState.update(
