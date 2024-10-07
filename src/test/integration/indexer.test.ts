@@ -71,7 +71,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   let datatokenAddress: string
   const chainId = 8996
   let assetDID: string
-  const resolvedDDO: Record<string, any> = {}
+  let resolvedDDO: Record<string, any> = {}
   let genericAsset: any
   let setMetaDataTxReceipt: any
   let orderTxId: string
@@ -230,7 +230,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       DEFAULT_TEST_TIMEOUT * 3
     )
     if (ddo) {
-      Object.assign(resolvedDDO, ddo)
+      resolvedDDO = ddo
       expect(resolvedDDO.id).to.equal(genericAsset.id)
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
