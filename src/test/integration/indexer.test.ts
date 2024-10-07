@@ -90,11 +90,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
   let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz',
-      dbType: DB_TYPES.TYPESENSE
-    }
-
     previousConfiguration = await setupEnvironment(
       null,
       buildEnvOverrideConfig(
@@ -110,14 +105,15 @@ describe('Indexer stores a new metadata events and orders.', () => {
           JSON.stringify(mockSupportedNetworks),
           JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          dbConfig.url,
+          'http://localhost:8108/?apiKey=xyz',
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
           DB_TYPES.TYPESENSE
         ]
       )
     )
 
-    database = await new Database(dbConfig)
+    const config = await getConfiguration(true)
+    database = await new Database(config.dbConfig)
     console.log('This database:', database.getConfig())
     oceanNode = await OceanNode.getInstance(database)
     oceanNode.addDatabase(database)

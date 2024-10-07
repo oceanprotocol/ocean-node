@@ -294,5 +294,6 @@ describe('Should run a complete node flow.', () => {
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
+    oceanNode.getIndexer().stopAllThreads()
   })
 })
