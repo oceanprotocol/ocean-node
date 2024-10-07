@@ -33,13 +33,13 @@ import { DDO } from '../../@types/DDO/DDO.js'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
+  TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
 import {
-  DB_TYPES,
   ENVIRONMENT_VARIABLES,
   EVENTS,
   INDEXER_CRAWLING_EVENTS,
@@ -97,17 +97,13 @@ describe('Indexer stores a new metadata events and orders.', () => {
           ENVIRONMENT_VARIABLES.RPCS,
           ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
-          ENVIRONMENT_VARIABLES.DB_URL,
-          ENVIRONMENT_VARIABLES.ADDRESS_FILE,
-          ENVIRONMENT_VARIABLES.DB_TYPE
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
           JSON.stringify(mockSupportedNetworks),
           JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          'http://localhost:8108/?apiKey=xyz',
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          DB_TYPES.TYPESENSE
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
     )
@@ -115,8 +111,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const config = await getConfiguration(true)
     database = await new Database(config.dbConfig)
     console.log('This database:', database.getConfig())
-    oceanNode = await OceanNode.getInstance(database)
-    oceanNode.addDatabase(database)
+    oceanNode = await OceanNode.getInstance()
     console.log('Node CONFIG HERE', oceanNode.getDatabase().getConfig())
     indexer = new OceanIndexer(database, mockSupportedNetworks)
     oceanNode.addIndexer(indexer)
@@ -678,20 +673,13 @@ describe('OceanIndexer - crawler threads', () => {
     supportedNetworks[chainID].startBlock = startingBlock
 
     envOverrides = buildEnvOverrideConfig(
-      [
-        ENVIRONMENT_VARIABLES.RPCS,
-        ENVIRONMENT_VARIABLES.ADDRESS_FILE,
-        ENVIRONMENT_VARIABLES.DB_URL,
-        ENVIRONMENT_VARIABLES.DB_TYPE
-      ],
+      [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.ADDRESS_FILE],
       [
         JSON.stringify(supportedNetworks),
-        `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-        'http://localhost:9200',
-        DB_TYPES.ELASTIC_SEARCH
+        `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
       ]
     )
-    envOverrides = await setupEnvironment(null, envOverrides)
+    envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
     db = await new Database(config.dbConfig)
     console.log('last db configuration:', db.getConfig())

@@ -1,7 +1,6 @@
 import { ddo } from '../data/ddo.js'
 import { expect } from 'chai'
 import { Database } from '../../components/database/index.js'
-import { DB_TYPES } from '../../utils/constants.js'
 import {
   ElasticsearchDdoDatabase,
   ElasticsearchDdoStateDatabase,
@@ -10,11 +9,9 @@ import {
   ElasticsearchNonceDatabase,
   ElasticsearchOrderDatabase
 } from '../../components/database/ElasticSearchDatabase.js'
+import { getConfiguration } from '../../utils/index.js'
 
-const elasticsearch: Database = await new Database({
-  url: 'http://localhost:9200',
-  dbType: DB_TYPES.ELASTIC_SEARCH
-})
+const elasticsearch: Database = new Database(await (await getConfiguration()).dbConfig)
 
 describe('Elastic Search', () => {
   it('Get instances of Elastic Search', () => {

@@ -1,11 +1,7 @@
 import { expect, assert } from 'chai'
 import { getConfiguration } from '../../utils/config.js'
 import { OceanNode } from '../../OceanNode.js'
-import {
-  DB_TYPES,
-  ENVIRONMENT_VARIABLES,
-  PROTOCOL_COMMANDS
-} from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
 import { EncryptFileHandler } from '../../components/core/handler/encryptHandler.js'
@@ -14,6 +10,7 @@ import { EncryptMethod, FileObjectType, UrlFileObject } from '../../@types/fileO
 import fs from 'fs'
 import {
   OverrideEnvConfig,
+  TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   setupEnvironment,
   tearDownEnvironment
@@ -27,24 +24,15 @@ describe('Encrypt File', () => {
 
   before(async () => {
     previousConfiguration = await setupEnvironment(
-      null,
+      TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
-        [
-          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
-          ENVIRONMENT_VARIABLES.DB_URL,
-          ENVIRONMENT_VARIABLES.DB_TYPE
-        ],
-        [
-          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          'http://localhost:8108/?apiKey=xyz',
-          DB_TYPES.TYPESENSE
-        ]
+        [ENVIRONMENT_VARIABLES.PRIVATE_KEY],
+        ['0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58']
       )
     )
     config = await getConfiguration(true) // Force reload the configuration
     const dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
-    oceanNode.addDatabase(dbconn)
   })
 
   it('should encrypt files', async () => {

@@ -11,7 +11,7 @@ let dbConnection: Database = null
 // we should be able to use this every where without dep cycle issues
 export async function getDatabase(): Promise<Database> {
   if (!dbConnection) {
-    const { dbConfig } = await getConfiguration()
+    const { dbConfig } = await getConfiguration(true)
     if (dbConfig && dbConfig.url) {
       dbConnection = await new Database(dbConfig)
     }

@@ -43,7 +43,6 @@ export class OceanNode {
     if (!OceanNode.instance) {
       // prepare compute engines
       this.instance = new OceanNode(db, node, provider, indexer)
-      console.log('NODE NEW INSTANCE', this.instance)
     }
     return this.instance
   }
@@ -55,11 +54,6 @@ export class OceanNode {
 
   public addIndexer(_indexer: OceanIndexer) {
     this.indexer = _indexer
-  }
-
-  // to allow switch DB config
-  public addDatabase(db: Database) {
-    this.db = db
   }
 
   public async addC2DEngines(_config: OceanNodeConfig) {

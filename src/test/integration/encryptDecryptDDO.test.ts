@@ -23,7 +23,6 @@ import { encrypt } from '../../utils/crypt.js'
 import { Database } from '../../components/database/index.js'
 import { DecryptDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import {
-  DB_TYPES,
   ENVIRONMENT_VARIABLES,
   getConfiguration,
   PROTOCOL_COMMANDS
@@ -34,7 +33,8 @@ import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,
   setupEnvironment,
-  tearDownEnvironment
+  tearDownEnvironment,
+  TEST_ENV_CONFIG_FILE
 } from '../utils/utils.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
@@ -76,25 +76,21 @@ describe('Should encrypt and decrypt DDO', () => {
     publisherAddress = await publisherAccount.getAddress()
     genericAsset = genericDDO
     previousConfiguration = await setupEnvironment(
-      null,
+      TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
         [
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.RPCS,
           ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
-          ENVIRONMENT_VARIABLES.DB_URL,
-          ENVIRONMENT_VARIABLES.ADDRESS_FILE,
-          ENVIRONMENT_VARIABLES.DB_TYPE
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           JSON.stringify(mockSupportedNetworks),
           JSON.stringify([8996]),
           JSON.stringify([publisherAddress]),
-          'http://localhost:8108/?apiKey=xyz',
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          DB_TYPES.TYPESENSE
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
     )
@@ -108,13 +104,8 @@ describe('Should encrypt and decrypt DDO', () => {
       publisherAccount
     )
 
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz',
-      dbType: DB_TYPES.TYPESENSE
-    }
-    database = await new Database(dbConfig)
+    database = await new Database(await (await getConfiguration()).dbConfig)
     oceanNode = OceanNode.getInstance(database)
-    oceanNode.addDatabase(database)
     // will be used later
     indexer = new OceanIndexer(database, mockSupportedNetworks)
     oceanNode.addIndexer(indexer)

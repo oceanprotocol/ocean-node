@@ -12,8 +12,10 @@ import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,
   setupEnvironment,
-  tearDownEnvironment
+  tearDownEnvironment,
+  TEST_ENV_CONFIG_FILE
 } from '../utils/utils.js'
+import { getConfiguration } from '../../utils/index.js'
 
 let previousConfiguration: OverrideEnvConfig[]
 
@@ -31,16 +33,10 @@ describe('LogDatabase CRUD', () => {
 
   before(async () => {
     previousConfiguration = await setupEnvironment(
-      null,
-      buildEnvOverrideConfig(
-        [ENVIRONMENT_VARIABLES.LOG_DB, ENVIRONMENT_VARIABLES.DB_TYPE],
-        ['true', DB_TYPES.TYPESENSE]
-      )
+      TEST_ENV_CONFIG_FILE,
+      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
     )
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz',
-      dbType: DB_TYPES.TYPESENSE
-    }
+    const { dbConfig } = await getConfiguration(true)
     database = await new Database(dbConfig)
     // Initialize logger with the custom transport that writes to the LogDatabase
     logger = getCustomLoggerForModule(
@@ -178,17 +174,11 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
 
   before(async () => {
     previousConfiguration = await setupEnvironment(
-      null,
-      buildEnvOverrideConfig(
-        [ENVIRONMENT_VARIABLES.LOG_DB, ENVIRONMENT_VARIABLES.DB_TYPE],
-        ['true', DB_TYPES.TYPESENSE]
-      )
+      TEST_ENV_CONFIG_FILE,
+      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
     )
 
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz',
-      dbType: DB_TYPES.TYPESENSE
-    }
+    const { dbConfig } = await getConfiguration(true)
     database = await new Database(dbConfig)
   })
 
@@ -357,16 +347,10 @@ describe('LogDatabase deleteOldLogs', () => {
 
   before(async () => {
     previousConfiguration = await setupEnvironment(
-      null,
-      buildEnvOverrideConfig(
-        [ENVIRONMENT_VARIABLES.LOG_DB, ENVIRONMENT_VARIABLES.DB_TYPE],
-        ['true', DB_TYPES.TYPESENSE]
-      )
+      TEST_ENV_CONFIG_FILE,
+      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
     )
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz',
-      dbType: DB_TYPES.TYPESENSE
-    }
+    const { dbConfig } = await getConfiguration(true)
     database = await new Database(dbConfig)
   })
 
@@ -422,15 +406,9 @@ describe('LogDatabase retrieveMultipleLogs with pagination', () => {
   before(async () => {
     previousConfiguration = await setupEnvironment(
       null,
-      buildEnvOverrideConfig(
-        [ENVIRONMENT_VARIABLES.LOG_DB, ENVIRONMENT_VARIABLES.DB_TYPE],
-        ['true', DB_TYPES.TYPESENSE]
-      )
+      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
     )
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz',
-      dbType: DB_TYPES.TYPESENSE
-    }
+    const { dbConfig } = await getConfiguration(true)
     database = await new Database(dbConfig)
 
     // Insert multiple log entries to ensure there are enough logs for pagination
