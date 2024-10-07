@@ -120,7 +120,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     database = await new Database(dbConfig)
     console.log('This database:', database.getConfig())
     oceanNode = await OceanNode.getInstance(database)
-    oceanNode.updateDatabase(database)
+    oceanNode.addDatabase(database)
     console.log('Node CONFIG HERE', oceanNode.getDatabase().getConfig())
     indexer = new OceanIndexer(database, mockSupportedNetworks)
     oceanNode.addIndexer(indexer)

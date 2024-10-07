@@ -56,6 +56,11 @@ export class OceanNode {
     this.indexer = _indexer
   }
 
+  // to allow switch DB config
+  public addDatabase(db: Database) {
+    this.db = db
+  }
+
   public async addC2DEngines(_config: OceanNodeConfig) {
     if (this.c2dEngines) {
       await this.c2dEngines.stopAllEngines()
@@ -160,10 +165,5 @@ export class OceanNode {
         stream: null
       }
     }
-  }
-
-  // to allow switch DB config
-  public updateDatabase(db: Database) {
-    this.db = db
   }
 }

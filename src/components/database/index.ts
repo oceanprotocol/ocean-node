@@ -30,6 +30,7 @@ export class Database {
   constructor(private config: OceanNodeDBConfig) {
     return (async (): Promise<Database> => {
       try {
+        this.nonce = await DatabaseFactory.createNonceDatabase(this.config)
         if (hasValidDBConfiguration(this.config)) {
           // add this DB transport too
           // once we create a DB instance, the logger will be using this transport as well
@@ -46,7 +47,10 @@ export class Database {
           this.logs = await DatabaseFactory.createLogDatabase(this.config)
           this.order = await DatabaseFactory.createOrderDatabase(this.config)
           this.ddoState = await DatabaseFactory.createDdoStateDatabase(this.config)
-          this.nonce = await DatabaseFactory.createNonceDatabase(this.config)
+        } else {
+          DATABASE_LOGGER.info(
+            'Invalid URL. Only Nonce Database is initialized. Other databases are not available.'
+          )
         }
         return this
       } catch (error) {

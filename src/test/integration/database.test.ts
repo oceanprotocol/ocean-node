@@ -17,6 +17,11 @@ const elasticConfig: OceanNodeDBConfig = {
   dbType: DB_TYPES.ELASTIC_SEARCH
 }
 
+const confSQLLite: OceanNodeDBConfig = {
+  url: '',
+  dbType: undefined
+}
+
 describe('Database', () => {
   let database: Database
 
@@ -115,7 +120,7 @@ describe('NonceDatabase CRUD with SQLite', () => {
   let database: Database
 
   before(async () => {
-    database = await new Database(typesenseConfig)
+    database = await new Database(confSQLLite)
   })
 
   it('create nonce', async () => {

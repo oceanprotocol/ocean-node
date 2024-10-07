@@ -101,6 +101,7 @@ describe('Should run a complete node flow.', () => {
     config = await getConfiguration(true) // Force reload the configuration
     const database = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(database)
+    oceanNode.addDatabase(database)
     const indexer = new OceanIndexer(database, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
 
