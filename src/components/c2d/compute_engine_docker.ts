@@ -7,7 +7,8 @@ import type {
   ComputeAsset,
   ComputeJob,
   ComputeOutput,
-  DBComputeJob
+  DBComputeJob,
+  ComputeResult
 } from '../../@types/C2D/C2D.js'
 import { ZeroAddress } from 'ethers'
 // import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
@@ -19,7 +20,15 @@ import { Storage } from '../storage/index.js'
 import Dockerode from 'dockerode'
 import type { ContainerCreateOptions, VolumeCreateOptions } from 'dockerode'
 import * as tar from 'tar'
-import { createWriteStream, existsSync, mkdirSync, rmSync, writeFileSync } from 'fs'
+import {
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  rmSync,
+  writeFileSync,
+  statSync,
+  createReadStream
+} from 'fs'
 import { pipeline } from 'node:stream/promises'
 
 export class C2DEngineDocker extends C2DEngine {
@@ -148,17 +157,50 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   // eslint-disable-next-line require-await
+  private async getResults(jobId: string): Promise<ComputeResult[]> {
+    const res: ComputeResult[] = []
+    let index = 0
+    const logStat = statSync(
+      this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/algorithmLog'
+    )
+    if (logStat) {
+      res.push({
+        filename: 'algorithmLog',
+        filesize: logStat.size,
+        type: 'algorithmLog',
+        index
+      })
+      index = index + 1
+    }
+    const outputStat = statSync(
+      this.getC2DConfig().tempFolder + '/' + jobId + '/data/outputs/outputs.tar'
+    )
+    if (outputStat) {
+      res.push({
+        filename: 'outputs.tar',
+        filesize: outputStat.size,
+        type: 'output',
+        index
+      })
+      index = index + 1
+    }
+    return res
+  }
+
+  // eslint-disable-next-line require-await
   public override async getComputeJobStatus(
     consumerAddress?: string,
     agreementId?: string,
     jobId?: string
   ): Promise<ComputeJob[]> {
     const job = await this.db.getJob(jobId)
-    if (job) {
-      const res: ComputeJob[] = [job as ComputeJob]
-      return res
+    if (!job) {
+      return []
     }
-    return null
+    const res: ComputeJob = job as ComputeJob
+    // add results for algoLogs
+    res.results = await this.getResults(job.jobId)
+    return [res]
   }
 
   // eslint-disable-next-line require-await
@@ -167,6 +209,25 @@ export class C2DEngineDocker extends C2DEngine {
     jobId: string,
     index: number
   ): Promise<Readable> {
+    const job = await this.db.getJob(jobId)
+    if (!job) {
+      return null
+    }
+    const results = await this.getResults(jobId)
+    for (const i of results) {
+      if (i.index === index) {
+        if (i.type === 'algorithmLog') {
+          return createReadStream(
+            this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/algorithmLog'
+          )
+        }
+        if (i.type === 'output') {
+          return createReadStream(
+            this.getC2DConfig().tempFolder + '/' + jobId + '/data/outputs/outputs.tar'
+          )
+        }
+      }
+    }
     return null
   }
 
