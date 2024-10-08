@@ -269,10 +269,14 @@ describe('Indexer stores a new metadata events and orders.', () => {
       command: PROTOCOL_COMMANDS.QUERY
     }
     const response = await queryDdoStateHandler.handle(queryDdoState)
+    console.log('response: ', response)
+    console.log('ocean DB: ', oceanNode.getDatabase().getConfig())
+    console.log('indexer DB: ', indexer.getDatabase().getConfig())
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     const result = await streamToObject(response.stream as Readable)
+    console.log('result:', result)
     if (result) {
       const ddoState = result[0].did ? result[0] : result.hits[0].document
       expect(resolvedDDO.id).to.equal(ddoState.did)
