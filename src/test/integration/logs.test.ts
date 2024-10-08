@@ -389,6 +389,7 @@ describe('LogDatabase deleteOldLogs', () => {
 
   it('should delete logs older than 30 days', async () => {
     const deleted = await database.logs.deleteOldLogs()
+    console.log('deleted logs:', deleted)
     if (deleted > 0) {
       // IF DB is new there are no logs older than 30 days!!
       // assert(deleted > 0, 'could not delete old logs')
