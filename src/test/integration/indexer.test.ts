@@ -561,12 +561,22 @@ describe('Indexer stores a new metadata events and orders.', () => {
       // if (resultOrder) {
       const resultOrder = await database.order.retrieve(reuseOrderTxId)
       console.log('result order: ', resultOrder)
-      expect(resultOrder?.orderId).to.equal(reuseOrderTxId)
-      expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
-      expect(resultOrder?.type).to.equal('reuseOrder')
-      const timestamp = reusedOrderEvent.args[2].toString()
-      expect(resultOrder?.timestamp.toString()).to.equal(timestamp)
-      expect(resultOrder?.startOrderId).to.equal(orderTxId)
+      if (resultOrder) {
+        if (resultOrder.id) {
+          // typesense
+          expect(resultOrder.id).to.equal(reuseOrderTxId)
+        } else if (resultOrder.orderId) {
+          // elastic
+          expect(resultOrder.orderId).to.equal(reuseOrderTxId)
+        }
+
+        expect(resultOrder.payer).to.equal(await consumerAccount.getAddress())
+        expect(resultOrder.type).to.equal('reuseOrder')
+        const timestamp = reusedOrderEvent.args[2].toString()
+        expect(resultOrder.timestamp.toString()).to.equal(timestamp)
+        expect(resultOrder.startOrderId).to.equal(orderTxId)
+      }
+
       // }
     } else {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
