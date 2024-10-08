@@ -12,8 +12,8 @@ import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
 import { Readable } from 'stream'
 
-const CURRENT_VERSION = '4.5.0'
-const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0']
+const CURRENT_VERSION = '4.7.0'
+const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0', '4.7.0']
 
 export function getSchema(version: string = CURRENT_VERSION): string {
   if (!ALLOWED_VERSIONS.includes(version)) {

@@ -1,4 +1,4 @@
-import { DDOExample, ddov5, ddoValidationSignature } from '../../data/ddo.js'
+import { DDOExample, ddov5, ddov7, ddoValidationSignature } from '../../data/ddo.js'
 import {
   getValidationSignature,
   validateObject
@@ -72,5 +72,20 @@ describe('Schema validation tests', async () => {
       s: '0x008b965fa2df393765d32942a7d8114d529a602cd7aa672d23d21f90dbeae2fd',
       v: 28
     })
+  })
+
+  it('should pass the validation on version 4.7.0', async () => {
+    const validationResult = await validateObject(ddov7, 137, ddov7.nftAddress)
+    console.log('Validation 4.7.0 result: ', validationResult)
+    expect(validationResult[0]).to.eql(true)
+    expect(validationResult[1]).to.eql({})
+  })
+
+  it('should pass the validation on version 4.7.0 without credentials', async () => {
+    const newDDO = structuredClone(ddov7)
+    delete newDDO.services[0].credentials
+    const validationResult = await validateObject(newDDO, 137, newDDO.nftAddress)
+    expect(validationResult[0]).to.eql(true)
+    expect(validationResult[1]).to.eql({})
   })
 })
