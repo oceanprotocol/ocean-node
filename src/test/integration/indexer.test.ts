@@ -451,16 +451,13 @@ describe('Indexer stores a new metadata events and orders.', () => {
       true
     )
     if (ddo) {
-      console.log('got DDO: ', ddo)
       const retrievedDDO: any = ddo
       expect(retrievedDDO.stats.orders).to.equal(1)
       initialOrderCount = retrievedDDO.stats.orders
-      console.log('initialOrderCount: ', initialOrderCount)
-      console.log('order tx id: ', orderTxId)
       const resultOrder = await database.order.retrieve(orderTxId)
       if (resultOrder) {
-        console.log('resultOrder: ', resultOrder)
-        expect(resultOrder?.id).to.equal(orderTxId)
+        console.log('resultOrder:', resultOrder)
+        expect(resultOrder?.orderId).to.equal(orderTxId)
         expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
         expect(resultOrder?.type).to.equal('startOrder')
         const timestamp = orderEvent.args[4].toString()
@@ -552,7 +549,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       // if (resultOrder) {
       const resultOrder = await database.order.retrieve(reuseOrderTxId)
       console.log('result order: ', resultOrder)
-      expect(resultOrder?.id).to.equal(reuseOrderTxId)
+      expect(resultOrder?.orderId).to.equal(reuseOrderTxId)
       expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
       expect(resultOrder?.type).to.equal('reuseOrder')
       const timestamp = reusedOrderEvent.args[2].toString()
