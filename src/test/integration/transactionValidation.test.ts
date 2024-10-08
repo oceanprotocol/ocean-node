@@ -93,10 +93,7 @@ describe('validateOrderTransaction Function with Orders', () => {
       artifactsAddresses = getOceanArtifactsAdresses().development
     }
 
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz',
-      dbType: DB_TYPES.TYPESENSE
-    }
+    const { dbConfig } = await getConfiguration(true)
     database = await new Database(dbConfig)
   })
 

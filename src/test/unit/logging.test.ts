@@ -80,8 +80,8 @@ describe('Logger instances and transports tests', async () => {
     expect(USE_DB_TRANSPORT()).to.be.equal(false)
   })
 
-  after(() => {
+  after(async () => {
     // Restore original local setup / env variables after test
-    tearDownEnvironment(envOverrides)
+    await tearDownEnvironment(envOverrides)
   })
 })

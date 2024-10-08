@@ -244,10 +244,7 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
     let singleLogId: string
 
     before(async () => {
-      const dbConfig = {
-        url: 'http://localhost:8108/?apiKey=xyz',
-        dbType: DB_TYPES.TYPESENSE
-      }
+      const { dbConfig } = await getConfiguration(true)
       database = await new Database(dbConfig)
     })
 
