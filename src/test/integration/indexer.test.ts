@@ -434,7 +434,9 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(orderTxReceipt, 'order transaction failed')
     orderTxId = orderTxReceipt.hash
     assert(orderTxId, 'transaction id not found')
+    console.log('Got order tx id = ', orderTxId)
 
+    console.log('Got order started for ddo id: ', resolvedDDO.id)
     orderEvent = getEventFromTx(orderTxReceipt, 'OrderStarted')
     expect(orderEvent.args[1]).to.equal(consumerAddress) // payer
     expect(parseInt(orderEvent.args[3].toString())).to.equal(serviceIndex) // serviceIndex
@@ -454,6 +456,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       expect(retrievedDDO.stats.orders).to.equal(1)
       initialOrderCount = retrievedDDO.stats.orders
       console.log('initialOrderCount: ', initialOrderCount)
+      console.log('order tx id: ', orderTxId)
       const resultOrder = await database.order.retrieve(orderTxId)
       if (resultOrder) {
         console.log('resultOrder: ', resultOrder)
