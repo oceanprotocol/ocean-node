@@ -920,7 +920,10 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
         body: { ...logEntry, timestamp },
         refresh: 'wait_for'
       })
-      console.log('logEntry result', result)
+      // uniformize result response (we need an id for the retrieveLog API)
+      if (result._id) {
+        logEntry.id = result._id
+      }
       return logEntry
     } catch (error) {
       const errorMsg = `Error when inserting log entry: ${error.message}`
