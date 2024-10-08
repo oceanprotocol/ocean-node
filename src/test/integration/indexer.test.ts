@@ -278,7 +278,8 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const result = await streamToObject(response.stream as Readable)
     console.log('result:', result)
     if (result) {
-      const ddoState = result[0].did ? result[0] : result.hits[0].document
+      // Elastic Search returns Array type
+      const ddoState = Array.isArray(result) ? result[0] : result.hits[0].document
       expect(resolvedDDO.id).to.equal(ddoState.did)
       expect(ddoState.valid).to.equal(true)
       expect(ddoState.error).to.equal(' ')
