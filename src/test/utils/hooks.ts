@@ -2,7 +2,7 @@
 // beforeAll() and afterAll() are called before starting the tests
 // and after finishing them respectively.
 
-import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { DB_TYPES, ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { CONFIG_LOGGER } from '../../utils/logging/common.js'
 import {
   setupEnvironment,
@@ -11,7 +11,8 @@ import {
   getExistingEnvironment,
   TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
-  DEFAULT_TEST_TIMEOUT
+  DEFAULT_TEST_TIMEOUT,
+  SELECTED_RUN_DATABASE
 } from './utils.js'
 
 // current process.env environment
@@ -31,13 +32,19 @@ function getEnvOverrides(): OverrideEnvConfig[] {
       ENVIRONMENT_VARIABLES.IPFS_GATEWAY,
       ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY,
       ENVIRONMENT_VARIABLES.RPCS,
-      ENVIRONMENT_VARIABLES.PRIVATE_KEY
+      ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+      ENVIRONMENT_VARIABLES.DB_TYPE,
+      ENVIRONMENT_VARIABLES.DB_URL
     ],
     [
       'http://172.15.0.16:8080/',
       'https://arweave.net/',
       '{ "1": {"rpc": "https://rpc.eth.gateway.fm", "chainId": 1, "network": "mainet", "chunkSize": 100}, "137": {"rpc": "https://polygon.meowrpc.com", "chainId": 137, "network": "polygon", "chunkSize": 100 }}',
-      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58'
+      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+      SELECTED_RUN_DATABASE,
+      SELECTED_RUN_DATABASE === DB_TYPES.ELASTIC_SEARCH
+        ? 'http://localhost:9200'
+        : 'http://localhost:8108/?apiKey=xyz'
     ]
   )
 }
@@ -53,6 +60,7 @@ export const mochaHooks = {
       envOverrides = overrides
     })
     initialSetupDone = true
+    CONFIG_LOGGER.debug(`(Hook) Initial test setup: ${envOverrides} `)
 
     // just in case the configuration value fails
     this.timeout(DEFAULT_TEST_TIMEOUT)
