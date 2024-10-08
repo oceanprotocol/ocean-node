@@ -110,9 +110,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
     const config = await getConfiguration(true)
     database = await new Database(config.dbConfig)
-    console.log('This database:', database.getConfig())
     oceanNode = await OceanNode.getInstance()
-    console.log('Node CONFIG HERE', oceanNode.getDatabase().getConfig())
     indexer = new OceanIndexer(database, mockSupportedNetworks)
     oceanNode.addIndexer(indexer)
     let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
@@ -218,7 +216,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should store the ddo in the database and return it ', async function () {
-    console.log('asset id: ', assetDID)
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
@@ -227,13 +224,11 @@ describe('Indexer stores a new metadata events and orders.', () => {
     )
     if (ddo) {
       resolvedDDO = ddo
-      console.log('after index resolved ddo: ', resolvedDDO)
       expect(resolvedDDO.id).to.equal(genericAsset.id)
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
   it('should have nft field stored in ddo', async function () {
-    console.log('here:', resolvedDDO)
     assert(resolvedDDO.nft, 'NFT field is not present')
     assert(
       resolvedDDO.nft.address?.toLowerCase() === nftAddress?.toLowerCase(),
@@ -274,17 +269,11 @@ describe('Indexer stores a new metadata events and orders.', () => {
       command: PROTOCOL_COMMANDS.QUERY
     }
     const response = await queryDdoStateHandler.handle(queryDdoState)
-    console.log('response: ', response)
-    console.log(
-      'DB config here: ',
-      queryDdoStateHandler.getOceanNode().getDatabase().getConfig()
-    )
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     const result = await streamToObject(response.stream as Readable)
     if (result) {
-      console.log('result: ', result)
       const ddoState = result[0].did ? result[0] : result.hits[0].document
       expect(resolvedDDO.id).to.equal(ddoState.did)
       expect(ddoState.valid).to.equal(true)
@@ -452,7 +441,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should get number of orders', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.ORDER_STARTED,
@@ -460,18 +449,14 @@ describe('Indexer stores a new metadata events and orders.', () => {
       true
     )
     if (ddo) {
-      const retrievedDDO: any = {}
-      Object.assign(retrievedDDO, ddo)
+      console.log('got DDO: ', ddo)
+      const retrievedDDO: any = ddo
       expect(retrievedDDO.stats.orders).to.equal(1)
       initialOrderCount = retrievedDDO.stats.orders
-      // TODO: remove the logic bellow
-      let resultOrder
-      for (let i = 0; i < 3; i++) {
-        sleep(DEFAULT_TEST_TIMEOUT / 2)
-        resultOrder = await database.order.retrieve(orderTxId)
-        if (resultOrder) break
-      }
+      console.log('initialOrderCount: ', initialOrderCount)
+      const resultOrder = await database.order.retrieve(orderTxId)
       if (resultOrder) {
+        console.log('resultOrder: ', resultOrder)
         expect(resultOrder?.id).to.equal(orderTxId)
         expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
         expect(resultOrder?.type).to.equal('startOrder')

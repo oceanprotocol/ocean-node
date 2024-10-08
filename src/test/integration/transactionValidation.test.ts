@@ -14,12 +14,7 @@ import { RPCS } from '../../@types/blockchain.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import {
-  DB_TYPES,
-  ENVIRONMENT_VARIABLES,
-  EVENTS,
-  getConfiguration
-} from '../../utils/index.js'
+import { ENVIRONMENT_VARIABLES, EVENTS, getConfiguration } from '../../utils/index.js'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
