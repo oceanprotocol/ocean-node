@@ -988,6 +988,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
         from: (page || 0) * Math.min(maxLogs, 250)
       })
 
+      console.log('retrieveMultipleLogs: ', result)
       return result.hits.hits.map((hit: any) => hit._source)
     } catch (error) {
       const errorMsg = `Error when retrieving multiple log entries: ${error.message}`
@@ -1036,6 +1037,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
 
     try {
       const oldLogs = await this.retrieveMultipleLogs(new Date(0), deleteBeforeTime, 200)
+      console.log('OLD LOGS:', oldLogs)
 
       if (oldLogs) {
         for (const log of oldLogs) {
