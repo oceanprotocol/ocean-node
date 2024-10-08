@@ -18,7 +18,7 @@ import type {
   ComputeEnvironment
 } from '../../@types/C2D.js'
 import {
-  DB_TYPES,
+  // DB_TYPES,
   ENVIRONMENT_VARIABLES,
   EVENTS,
   PROTOCOL_COMMANDS,
@@ -114,9 +114,9 @@ describe('Compute', () => {
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE,
-          ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL,
-          ENVIRONMENT_VARIABLES.DB_URL,
-          ENVIRONMENT_VARIABLES.DB_TYPE
+          ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL
+          // ENVIRONMENT_VARIABLES.DB_URL,
+          // ENVIRONMENT_VARIABLES.DB_TYPE
         ],
         [
           JSON.stringify(mockSupportedNetworks),
@@ -124,9 +124,9 @@ describe('Compute', () => {
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          JSON.stringify(['http://localhost:31000']),
-          'http://localhost:9200',
-          DB_TYPES.ELASTIC_SEARCH
+          JSON.stringify(['http://localhost:31000'])
+          // 'http://localhost:9200',
+          // DB_TYPES.ELASTIC_SEARCH
         ]
       )
     )
