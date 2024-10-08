@@ -348,11 +348,6 @@ schema:ServiceShape
         sh:maxCount 1;
     ] ;
     sh:property [
-        sh:path schema:compute;
-        sh:node schema:ComputeShape ;
-        sh:maxCount 1;
-    ] ;
-    sh:property [
         sh:path schema:credentials;
         sh:node schema:CredentialsShape ;
         sh:maxCount 64;

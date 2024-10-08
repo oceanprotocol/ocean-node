@@ -13,6 +13,8 @@ schema:DDOShape
         sh:pattern "^did\\:op\\:(.*)$" ;
         sh:minCount 1 ;
         sh:maxCount 1 ;
+        sh:maxLength 71;
+        sh:minLength 71;
     ] ;
     sh:property [
         sh:path schema:version ;
@@ -20,6 +22,7 @@ schema:DDOShape
         sh:pattern "^(.*)$" ;
         sh:minCount 1 ;
         sh:maxCount 1 ;
+        sh:maxLength 16;
     ] ;
     sh:property [
         sh:path schema:chainId;
@@ -32,6 +35,8 @@ schema:DDOShape
         sh:datatype xsd:string ;
         sh:minCount 1 ;
         sh:maxCount 1 ;
+        sh:minLength 42;
+        sh:maxLength 42;
     ] ;
     sh:property [
         sh:path schema:metadata ;
@@ -42,11 +47,13 @@ schema:DDOShape
     sh:property [
         sh:path schema:services ;
         sh:node schema:ServiceShape ;
-        sh:minCount 1;
+        sh:minCount 0;
+        sh:maxCount 64;
     ] ;
     sh:property [
         sh:path schema:credentials;
         sh:node schema:CredentialsShape ;
+        sh:maxCount 64;
     ] ; .
 
 
@@ -58,12 +65,15 @@ schema:MetadataShape
         sh:pattern "^((.|\n)*)$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:maxLength 7000;
+        sh:minLength 10;
     ] ;
     sh:property [
         sh:path schema:copyrightHolder;
         sh:datatype xsd:string ;
         sh:pattern "^(.|\\s)*$" ;
         sh:maxCount 1;
+        sh:maxLength 512;
     ] ;
     sh:property [
         sh:path schema:name ;
@@ -71,6 +81,8 @@ schema:MetadataShape
         sh:pattern "^(.|\\s)*$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:maxLength 512;
+        sh:minLength 4;
     ] ;
     sh:property [
         sh:path schema:type;
@@ -78,6 +90,7 @@ schema:MetadataShape
         sh:pattern "^(.|\\s)*$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:author;
@@ -85,6 +98,7 @@ schema:MetadataShape
         sh:pattern "^(.|\\s)*$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:license;
@@ -92,27 +106,35 @@ schema:MetadataShape
         sh:pattern "^(.|\\s)*$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:links;
         sh:datatype xsd:string ;
         sh:pattern "^(.|\\s)*$" ;
+        sh:maxLength 512;
+        sh:maxCount 64;
     ] ;
     sh:property [
         sh:path schema:tags;
         sh:datatype xsd:string ;
         sh:pattern "^(.|\\s)*$" ;
+        sh:maxLength 256;
+        sh:maxCount 64;
     ] ;
     sh:property [
         sh:path schema:categories;
         sh:datatype xsd:string ;
         sh:pattern "^(.|\\s)*$" ;
+        sh:maxLength 256;
+        sh:maxCount 64;
     ] ;
     sh:property [
         sh:path schema:contentLanguage;
         sh:datatype xsd:string ;
         sh:pattern "^(.|\\s)*$" ;
         sh:maxCount 1;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:additionalInformation;
@@ -145,12 +167,14 @@ schema:AlgorithmShape
         sh:datatype xsd:string ;
         sh:pattern "^(.*)$" ;
         sh:maxCount 1;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:language ;
         sh:datatype xsd:string ;
         sh:pattern "^(.*)$" ;
         sh:maxCount 1;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:container ;
@@ -161,6 +185,7 @@ schema:AlgorithmShape
     sh:property [
         sh:path schema:consumerParameters;
         sh:node schema:ConsumerParametersShape ;
+        sh:maxCount 64;
     ] ;.
 
 
@@ -172,6 +197,7 @@ schema:ConsumerParametersShape
         sh:pattern "^(.*)$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:type;
@@ -179,6 +205,7 @@ schema:ConsumerParametersShape
         sh:pattern "^(.*)$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:label;
@@ -186,6 +213,7 @@ schema:ConsumerParametersShape
         sh:pattern "^(.*)$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:required ;
@@ -199,6 +227,7 @@ schema:ConsumerParametersShape
         sh:pattern "^((.|\n)*)$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:maxLength 7000;
     ] ;
     sh:property [
         sh:path schema:default;
@@ -206,11 +235,13 @@ schema:ConsumerParametersShape
         sh:pattern "^(.*)$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:options;
         sh:datatype xsd:string ;
         sh:pattern "^(.*)$" ;
+        sh:maxLength 256;
     ] ;.
 
 
@@ -222,6 +253,8 @@ schema:ContainerShape
         sh:pattern "^(.*)$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:minLength 3;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:image ;
@@ -229,6 +262,8 @@ schema:ContainerShape
         sh:pattern "^(.*)$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:minLength 1;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:tag ;
@@ -236,11 +271,15 @@ schema:ContainerShape
         sh:pattern "^(.*)$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:minLength 1;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:checksum ;
         sh:datatype xsd:string ;
         sh:pattern "^(.*)$" ;
+        sh:maxLength 512;
+        sh:minLength 7;
         sh:minCount 1;
         sh:maxCount 1;
     ] ;.
@@ -254,6 +293,7 @@ schema:ServiceShape
         sh:pattern "^(.*)$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:type ;
@@ -261,18 +301,23 @@ schema:ServiceShape
         sh:pattern "^(.*)$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:name ;
         sh:datatype xsd:string ;
         sh:pattern "^(.*)$" ;
         sh:maxCount 1;
+        sh:minLength 4;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:description ;
         sh:datatype xsd:string ;
         sh:pattern "^((.|\n)*)$" ;
         sh:maxCount 1;
+        sh:minLength 10;
+        sh:maxLength 7000;
     ] ;
     sh:property [
         sh:path schema:datatokenAddress ;
@@ -280,6 +325,8 @@ schema:ServiceShape
         sh:pattern "^(.*)$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:minLength 42;
+        sh:maxLength 42;
     ] ;
     sh:property [
         sh:path schema:serviceEndpoint ;
@@ -287,6 +334,8 @@ schema:ServiceShape
         sh:pattern "^(.*)$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:minLength 10;
+        sh:maxLength 2048;
     ] ;
     sh:property [
         sh:path schema:files;
@@ -294,6 +343,7 @@ schema:ServiceShape
         sh:pattern "^(.*)$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:maxLength 8192;
     ] ;
     sh:property [
         sh:path schema:timeout ;
@@ -306,6 +356,11 @@ schema:ServiceShape
         sh:path schema:compute;
         sh:node schema:ComputeShape ;
         sh:maxCount 1;
+    ] ;
+    sh:property [
+        sh:path schema:credentials;
+        sh:node schema:CredentialsShape ;
+        sh:maxCount 64;
     ] ;
     sh:property [
         sh:path schema:additionalInformation ;
@@ -334,6 +389,7 @@ schema:ComputeShape
         sh:path schema:publisherTrustedAlgorithmPublishers ;
         sh:datatype xsd:string ;
         sh:pattern "^(.*)$" ;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:publisherTrustedAlgorithms;
@@ -349,6 +405,7 @@ schema:TrustedAlgoShape
         sh:pattern "^(.*)$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:filesChecksum ;
@@ -356,6 +413,7 @@ schema:TrustedAlgoShape
         sh:pattern "^(.*)$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:maxLength 1024;
     ] ;
     sh:property [
         sh:path schema:containerSectionChecksum ;
@@ -363,6 +421,7 @@ schema:TrustedAlgoShape
         sh:pattern "^(.*)$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:maxLength 1024;
     ] ; .
 
 
@@ -386,10 +445,12 @@ schema:CredentialsItemShape
         sh:pattern "^(.*)$" ;
         sh:minCount 1;
         sh:maxCount 1;
+        sh:maxLength 256;
     ] ;
     sh:property [
         sh:path schema:values ;
         sh:datatype xsd:string ;
         sh:pattern "^(.*)$" ;
         sh:minCount 1;
+        sh:maxLength 1024;
     ] ; .
