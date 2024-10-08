@@ -37,6 +37,7 @@ describe('LogDatabase CRUD', () => {
       buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
     )
     const { dbConfig } = await getConfiguration(true)
+    console.log('dbConfig: ', dbConfig)
     database = await new Database(dbConfig)
     // Initialize logger with the custom transport that writes to the LogDatabase
     logger = getCustomLoggerForModule(
@@ -50,11 +51,13 @@ describe('LogDatabase CRUD', () => {
   it('insert log', async () => {
     const result = await database.logs.insertLog(logEntry)
     expect(result).to.include.keys('timestamp', 'level', 'message', 'moduleName', 'meta')
+    console.log('log result:', result)
     logId = result?.id // Save the auto-generated id for further operations
   })
 
   it('retrieve log', async () => {
     const result = await database.logs.retrieveLog(logId)
+    console.log('result: ', result)
     expect(result?.level).to.equal(logEntry.level)
     expect(result?.message).to.equal(logEntry.message)
     expect(result?.moduleName).to.equal(logEntry.moduleName)
