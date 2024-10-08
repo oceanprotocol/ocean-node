@@ -44,17 +44,17 @@ export function readJsonSchemas(): TypesenseCollectionCreateSchema[] {
   return []
 }
 
-export type Schema = TypesenseCollectionCreateSchema
-export type Schemas = {
-  ddoSchemas: Schema[]
-  nonceSchemas: Schema
-  indexerSchemas: Schema
-  logSchemas: Schema
-  orderSchema: Schema
-  ddoStateSchema: Schema
+export type TypesenseSchema = TypesenseCollectionCreateSchema
+export type TypesenseSchemas = {
+  ddoSchemas: TypesenseSchema[]
+  nonceSchemas: TypesenseSchema
+  indexerSchemas: TypesenseSchema
+  logSchemas: TypesenseSchema
+  orderSchema: TypesenseSchema
+  ddoStateSchema: TypesenseSchema
 }
 const ddoSchemas = readJsonSchemas()
-export const schemas: Schemas = {
+export const typesenseSchemas: TypesenseSchemas = {
   ddoSchemas,
   nonceSchemas: {
     name: 'nonce',
@@ -85,6 +85,9 @@ export const schemas: Schemas = {
       { name: 'timestamp', type: 'int64' },
       { name: 'consumer', type: 'string' },
       { name: 'payer', type: 'string' },
+      { name: 'datatokenAddress', type: 'string' },
+      { name: 'nftAddress', type: 'string' },
+      { name: 'did', type: 'string' },
       {
         name: 'startOrderId',
         type: 'string',

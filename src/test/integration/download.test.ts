@@ -8,6 +8,7 @@ import { streamToString, streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 
 import {
+  DB_TYPES,
   ENVIRONMENT_VARIABLES,
   EVENTS,
   PROTOCOL_COMMANDS,
@@ -73,16 +74,18 @@ describe('Should run a complete node flow.', () => {
           ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
-          ENVIRONMENT_VARIABLES.ADDRESS_FILE
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE,
+          ENVIRONMENT_VARIABLES.DB_TYPE
         ],
         [
           JSON.stringify(mockSupportedNetworks),
           JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          'http://localhost:8108/?apiKey=xyz',
+          'http://localhost:9200',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
+          DB_TYPES.ELASTIC_SEARCH
         ]
       )
     )
@@ -174,12 +177,17 @@ describe('Should run a complete node flow.', () => {
   })
   it('should publish compute datasets & algos', async () => {
     publishedDataset = await publishAsset(downloadAsset, publisherAccount)
-    await waitToIndex(
+    const { ddo, wasTimeout } = await waitToIndex(
       publishedDataset.ddo.id,
       EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT
+      DEFAULT_TEST_TIMEOUT * 2
     )
+
+    if (!ddo) {
+      console.log('wasTimeout ==  ', wasTimeout)
+    }
   })
+
   it('should fetch the published ddo', async () => {
     const getDDOTask = {
       command: PROTOCOL_COMMANDS.GET_DDO,
@@ -215,7 +223,6 @@ describe('Should run a complete node flow.', () => {
   })
 
   it('should start an order', async function () {
-    console.log('start an order download test: ', actualDDO)
     const orderTxReceipt = await orderAsset(
       actualDDO,
       0,
@@ -236,7 +243,7 @@ describe('Should run a complete node flow.', () => {
       const wallet = new ethers.Wallet(
         '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
       )
-      const nonce = Date.now().toString()
+      const nonce = Math.floor(Date.now() / 1000).toString()
       const message = String(publishedDataset.ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
@@ -244,7 +251,6 @@ describe('Should run a complete node flow.', () => {
       )
       const messageHashBytes = ethers.toBeArray(consumerMessage)
       const signature = await wallet.signMessage(messageHashBytes)
-
       const downloadTask = {
         fileIndex: 0,
         documentId: publishedDataset.ddo.id,
@@ -256,7 +262,6 @@ describe('Should run a complete node flow.', () => {
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
-
       assert(response)
       assert(response.stream, 'stream not present')
       assert(response.status.httpStatus === 200, 'http status not 200')

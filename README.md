@@ -133,6 +133,7 @@ Your node is now running, the control panel will be available at `http://localho
 - [Ocean Nodes Architecture](docs/Arhitecture.md)
 - [API Endpoints](docs/API.md)
 - [Environmental Variables](docs/env.md)
+- [Database Guide](docs/database.md)
 - [Testing Guide](docs/testing.md)
 - [Network Configuration](docs/networking.md)
 - [Logging & accessing logs](docs/networking.md)
