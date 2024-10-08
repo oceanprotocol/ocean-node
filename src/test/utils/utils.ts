@@ -1,7 +1,7 @@
 import path from 'path'
 import dotenv from 'dotenv'
 import { fileURLToPath } from 'url'
-import { ENVIRONMENT_VARIABLES, EnvVariable } from '../../utils/constants.js'
+import { DB_TYPES, ENVIRONMENT_VARIABLES, EnvVariable } from '../../utils/constants.js'
 import { CONFIG_LOGGER } from '../../utils/logging/common.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { getConfiguration } from '../../utils/config.js'
@@ -156,3 +156,8 @@ export function isRunningContinousIntegrationEnv(): boolean {
     process.env.NODE3_PRIVATE_KEY !== undefined
   )
 }
+
+// does a random run; sometimes elastic, others typesense
+export const SELECTED_RUN_DATABASE =
+  new Date().getTime() % 2 === 0 ? DB_TYPES.ELASTIC_SEARCH : DB_TYPES.TYPESENSE
+CONFIG_LOGGER.debug(`SELECTED_RUN_DATABASE: ${SELECTED_RUN_DATABASE}`)

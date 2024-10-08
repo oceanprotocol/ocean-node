@@ -915,11 +915,12 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
   async insertLog(logEntry: Record<string, any>) {
     try {
       const timestamp = new Date().toISOString()
-      await this.client.index({
+      const result = await this.client.index({
         index: this.index,
         body: { ...logEntry, timestamp },
         refresh: 'wait_for'
       })
+      console.log('logEntry result', result)
       return logEntry
     } catch (error) {
       const errorMsg = `Error when inserting log entry: ${error.message}`
