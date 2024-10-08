@@ -462,11 +462,18 @@ describe('Indexer stores a new metadata events and orders.', () => {
       const resultOrder = await database.order.retrieve(orderTxId)
       if (resultOrder) {
         console.log('resultOrder:', resultOrder)
-        expect(resultOrder?.orderId).to.equal(orderTxId)
-        expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
-        expect(resultOrder?.type).to.equal('startOrder')
+        if (resultOrder.id) {
+          // typesense response
+          expect(resultOrder.id).to.equal(orderTxId)
+        } else if (resultOrder.orderId) {
+          // elastic search response
+          expect(resultOrder.orderId).to.equal(orderTxId)
+        }
+
+        expect(resultOrder.payer).to.equal(await consumerAccount.getAddress())
+        expect(resultOrder.type).to.equal('startOrder')
         const timestamp = orderEvent.args[4].toString()
-        expect(resultOrder?.timestamp.toString()).to.equal(timestamp)
+        expect(resultOrder.timestamp.toString()).to.equal(timestamp)
       }
     } else {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
