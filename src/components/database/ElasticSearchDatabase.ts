@@ -978,6 +978,8 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
         filterConditions.bool.must.push({ match: { level } })
       }
 
+      console.log('size: ', Math.min(maxLogs, 250))
+      console.log('from', (page || 0) * Math.min(maxLogs, 250))
       const result = await this.client.search({
         index: this.index,
         body: {
@@ -988,6 +990,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
         from: (page || 0) * Math.min(maxLogs, 250)
       })
 
+      // illegal_argument_exception: Result window is too large, from + size must be less than or equal to: [10000] but was [150005]
       console.log('retrieveMultipleLogs: ', result)
       return result.hits.hits.map((hit: any) => hit._source)
     } catch (error) {
