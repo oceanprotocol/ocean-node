@@ -7,7 +7,7 @@ import {
   configureCustomDBTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
-import { DB_TYPES, ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,

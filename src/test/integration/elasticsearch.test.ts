@@ -9,9 +9,13 @@ import {
   ElasticsearchNonceDatabase,
   ElasticsearchOrderDatabase
 } from '../../components/database/ElasticSearchDatabase.js'
-import { getConfiguration } from '../../utils/index.js'
+import { DB_TYPES } from '../../utils/index.js'
 
-const elasticsearch: Database = new Database(await (await getConfiguration()).dbConfig)
+const dbConfig = {
+  url: 'http://localhost:9200',
+  dbType: DB_TYPES.ELASTIC_SEARCH
+}
+const elasticsearch: Database = await new Database(dbConfig)
 
 describe('Elastic Search', () => {
   it('Get instances of Elastic Search', () => {
