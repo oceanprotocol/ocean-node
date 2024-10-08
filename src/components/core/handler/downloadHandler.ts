@@ -40,7 +40,7 @@ import {
 import { DDO } from '../../../@types/DDO/DDO.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { OrdableAssetResponse } from '../../../@types/Asset.js'
-
+import { PolicyServer } from '../../policyServer/index.js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export function isOrderingAllowedForAsset(asset: DDO): OrdableAssetResponse {
@@ -444,6 +444,26 @@ export class DownloadHandler extends Handler {
         status: {
           httpStatus: 500,
           error: paymentValidation.message
+        }
+      }
+    }
+    // policyServer check
+    const policyServer = new PolicyServer()
+    const policyStatus = await policyServer.checkDownload(
+      ddo.id,
+      ddo,
+      service.id,
+      task.fileIndex,
+      task.transferTxId,
+      task.consumerAddress,
+      task.policyServer
+    )
+    if (!policyStatus.success) {
+      return {
+        stream: null,
+        status: {
+          httpStatus: 405,
+          error: policyStatus.message
         }
       }
     }
