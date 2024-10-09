@@ -386,7 +386,7 @@ describe('Arweave Storage getFileInfo tests', function () {
   let storage: ArweaveStorage
 
   before(async () => {
-    const config = await getConfiguration()
+    const config = await getConfiguration(true)
     storage = new ArweaveStorage(
       {
         type: FileObjectType.ARWEAVE,

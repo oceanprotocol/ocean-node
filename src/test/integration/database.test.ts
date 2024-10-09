@@ -4,20 +4,29 @@ import { DatabaseFactory } from '../../components/database/DatabaseFactory.js'
 import { Database } from '../../components/database/index.js'
 import { expect, assert } from 'chai'
 import { DB_TYPES } from '../../utils/constants.js'
+import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
+import { isDefined } from '../../utils/util.js'
+
+const typesenseConfig: OceanNodeDBConfig = {
+  url: 'http://localhost:8108/?apiKey=xyz',
+  dbType: DB_TYPES.TYPESENSE
+}
+
+const elasticConfig: OceanNodeDBConfig = {
+  url: 'http://localhost:9200',
+  dbType: DB_TYPES.ELASTIC_SEARCH
+}
+
+const confSQLLite: OceanNodeDBConfig = {
+  url: '',
+  dbType: null
+}
 
 describe('Database', () => {
   let database: Database
 
   before(async () => {
-    process.env.DB_TYPE = DB_TYPES.TYPESENSE
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
-    }
-    database = await new Database(dbConfig)
-  })
-
-  after(() => {
-    delete process.env.DB_TYPE
+    database = await new Database(typesenseConfig)
   })
 
   it('instance Database', () => {
@@ -52,15 +61,7 @@ describe('DdoDatabase CRUD', () => {
   }
 
   before(async () => {
-    process.env.DB_TYPE = DB_TYPES.TYPESENSE
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
-    }
-    database = await new Database(dbConfig)
-  })
-
-  after(() => {
-    delete process.env.DB_TYPE
+    database = await new Database(typesenseConfig)
   })
 
   it('creates ddo schema as an array', () => {
@@ -79,7 +80,7 @@ describe('DdoDatabase CRUD', () => {
 
   it('Database will not create ddo when did is invalid', async () => {
     const result = await database.ddo.create(ddoWithInvalidDid)
-    expect(result?.id).to.equal(null || undefined)
+    expect(isDefined(result?.id)).to.equal(false)
   })
 })
 
@@ -87,15 +88,7 @@ describe('NonceDatabase CRUD', () => {
   let database: Database
 
   before(async () => {
-    process.env.DB_TYPE = DB_TYPES.TYPESENSE
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
-    }
-    database = await new Database(dbConfig)
-  })
-
-  after(() => {
-    delete process.env.DB_TYPE
+    database = await new Database(typesenseConfig)
   })
 
   it('create nonce', async () => {
@@ -127,15 +120,7 @@ describe('NonceDatabase CRUD with SQLite', () => {
   let database: Database
 
   before(async () => {
-    process.env.DB_TYPE = DB_TYPES.TYPESENSE
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
-    }
-    database = await new Database(dbConfig)
-  })
-
-  after(() => {
-    delete process.env.DB_TYPE
+    database = await new Database(confSQLLite)
   })
 
   it('create nonce', async () => {
@@ -158,7 +143,6 @@ describe('NonceDatabase CRUD with SQLite', () => {
 
   it('delete nonce', async () => {
     const result = await database.nonce.delete('0x456')
-    console.log('Delete nonce result: ', result)
     expect(result?.id).to.equal('0x456')
     expect(result?.nonce).to.equal(1)
   })
@@ -169,15 +153,7 @@ describe('IndexerDatabase CRUD', () => {
   let existsPrevious: any = {}
 
   before(async () => {
-    process.env.DB_TYPE = DB_TYPES.TYPESENSE
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
-    }
-    database = await new Database(dbConfig)
-  })
-
-  after(() => {
-    delete process.env.DB_TYPE
+    database = await new Database(typesenseConfig)
   })
 
   it('create indexer', async () => {
@@ -220,15 +196,7 @@ describe('OrderDatabase CRUD', () => {
   let database: Database
 
   before(async () => {
-    process.env.DB_TYPE = DB_TYPES.TYPESENSE
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
-    }
-    database = await new Database(dbConfig)
-  })
-
-  after(() => {
-    delete process.env.DB_TYPE
+    database = await new Database(typesenseConfig)
   })
 
   it('create order', async () => {
@@ -288,15 +256,7 @@ describe('Typesense OrderDatabase CRUD', () => {
   let database: AbstractOrderDatabase
 
   before(async () => {
-    process.env.DB_TYPE = DB_TYPES.TYPESENSE
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
-    }
-    database = await DatabaseFactory.createOrderDatabase(dbConfig)
-  })
-
-  after(() => {
-    delete process.env.DB_TYPE
+    database = await DatabaseFactory.createOrderDatabase(typesenseConfig)
   })
 
   it('creates an order in Typesense', async () => {
@@ -341,15 +301,7 @@ describe('Elasticsearch OrderDatabase CRUD', () => {
   let database: AbstractOrderDatabase
 
   before(async () => {
-    process.env.DB_TYPE = DB_TYPES.ELASTIC_SEARCH
-    const dbConfig = {
-      url: 'http://localhost:9200'
-    }
-    database = await DatabaseFactory.createOrderDatabase(dbConfig)
-  })
-
-  after(() => {
-    delete process.env.DB_TYPE
+    database = await DatabaseFactory.createOrderDatabase(elasticConfig)
   })
 
   it('creates an order in Elasticsearch', async () => {
@@ -394,16 +346,8 @@ describe('Elasticsearch OrderDatabase CRUD', () => {
 })
 
 describe('DdoStateQuery', () => {
-  before(() => {
-    process.env.DB_TYPE = DB_TYPES.TYPESENSE
-  })
-
-  after(() => {
-    delete process.env.DB_TYPE
-  })
-
   it('should build Typesense query for did', async () => {
-    const query = (await DatabaseFactory.createDdoStateQuery()).buildQuery(
+    const query = (await DatabaseFactory.createDdoStateQuery(typesenseConfig)).buildQuery(
       'did:op:abc123'
     )
     expect(query.q).to.equal('did:op:abc123')
@@ -411,7 +355,7 @@ describe('DdoStateQuery', () => {
   })
 
   it('should build Typesense query for nft', async () => {
-    const query = (await DatabaseFactory.createDdoStateQuery()).buildQuery(
+    const query = (await DatabaseFactory.createDdoStateQuery(typesenseConfig)).buildQuery(
       undefined,
       'nft:op:abc123'
     )
@@ -420,7 +364,7 @@ describe('DdoStateQuery', () => {
   })
 
   it('should build Typesense query for txId', async () => {
-    const query = (await DatabaseFactory.createDdoStateQuery()).buildQuery(
+    const query = (await DatabaseFactory.createDdoStateQuery(typesenseConfig)).buildQuery(
       undefined,
       undefined,
       'txId123'
@@ -430,15 +374,14 @@ describe('DdoStateQuery', () => {
   })
 
   it('should build Elasticsearch query for did', async () => {
-    process.env.DB_TYPE = DB_TYPES.ELASTIC_SEARCH
-    const query = (await DatabaseFactory.createDdoStateQuery()).buildQuery(
+    const query = (await DatabaseFactory.createDdoStateQuery(elasticConfig)).buildQuery(
       'did:op:abc123'
     )
     expect(query.match.did).to.equal('did:op:abc123')
   })
 
   it('should build Elasticsearch query for nft', async () => {
-    const query = (await DatabaseFactory.createDdoStateQuery()).buildQuery(
+    const query = (await DatabaseFactory.createDdoStateQuery(elasticConfig)).buildQuery(
       undefined,
       'nft:op:abc123'
     )
@@ -446,7 +389,7 @@ describe('DdoStateQuery', () => {
   })
 
   it('should build Elasticsearch query for txId', async () => {
-    const query = (await DatabaseFactory.createDdoStateQuery()).buildQuery(
+    const query = (await DatabaseFactory.createDdoStateQuery(elasticConfig)).buildQuery(
       undefined,
       undefined,
       'txId123'
@@ -456,13 +399,7 @@ describe('DdoStateQuery', () => {
 })
 
 describe('MetadataQuery', () => {
-  afterEach(() => {
-    delete process.env.DB_TYPE
-  })
-
   it('should return a Typesense query when DB is Typesense and a Typesense query is passed', async () => {
-    process.env.DB_TYPE = DB_TYPES.TYPESENSE
-
     const typesenseQuery = {
       q: '*',
       filter_by:
@@ -472,7 +409,9 @@ describe('MetadataQuery', () => {
       sort_by: 'name:asc'
     }
 
-    const query = (await DatabaseFactory.createMetadataQuery()).buildQuery(typesenseQuery)
+    const query = (await DatabaseFactory.createMetadataQuery(typesenseConfig)).buildQuery(
+      typesenseQuery
+    )
     expect(query.q).to.equal('*')
     expect(query.num_hits).to.equal(10)
     expect(query.start).to.equal(0)
@@ -483,8 +422,6 @@ describe('MetadataQuery', () => {
   })
 
   it('should convert an Elasticsearch query to a Typesense query when DB is Typesense', async () => {
-    process.env.DB_TYPE = DB_TYPES.TYPESENSE
-
     const searchQuery: SearchQuery = {
       query: {
         bool: {
@@ -500,7 +437,9 @@ describe('MetadataQuery', () => {
       sort: { name: 'asc' }
     }
 
-    const query = (await DatabaseFactory.createMetadataQuery()).buildQuery(searchQuery)
+    const query = (await DatabaseFactory.createMetadataQuery(typesenseConfig)).buildQuery(
+      searchQuery
+    )
     expect(query.q).to.equal('*')
     expect(query.num_hits).to.equal(10)
     expect(query.start).to.equal(0)
@@ -511,8 +450,6 @@ describe('MetadataQuery', () => {
   })
 
   it('should convert a Typesense query to an Elasticsearch query when DB is Elasticsearch', async () => {
-    process.env.DB_TYPE = DB_TYPES.ELASTIC_SEARCH
-
     const typesenseQuery = {
       q: '*',
       filter_by:
@@ -522,7 +459,9 @@ describe('MetadataQuery', () => {
       sort_by: 'name:asc'
     }
 
-    const query = (await DatabaseFactory.createMetadataQuery()).buildQuery(typesenseQuery)
+    const query = (await DatabaseFactory.createMetadataQuery(elasticConfig)).buildQuery(
+      typesenseQuery
+    )
     expect(query.size).to.equal(10)
     expect(query.from).to.equal(0)
     expect(query.query.bool.filter[0].term.author).to.equal('Ocean')
@@ -535,8 +474,6 @@ describe('MetadataQuery', () => {
   })
 
   it('should return an Elasticsearch query when DB is Elasticsearch and an Elasticsearch query is passed', async () => {
-    process.env.DB_TYPE = DB_TYPES.ELASTIC_SEARCH
-
     const searchQuery: SearchQuery = {
       query: {
         bool: {
@@ -552,7 +489,9 @@ describe('MetadataQuery', () => {
       sort: { name: 'asc' }
     }
 
-    const query = (await DatabaseFactory.createMetadataQuery()).buildQuery(searchQuery)
+    const query = (await DatabaseFactory.createMetadataQuery(elasticConfig)).buildQuery(
+      searchQuery
+    )
 
     expect(query.size).to.equal(10)
     expect(query.from).to.equal(0)

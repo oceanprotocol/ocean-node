@@ -8,6 +8,7 @@ export interface OceanNodeDBConfig {
   url: string | null
   username?: string
   password?: string
+  dbType: string | null
 }
 
 // deny list of peer ids and ips (for rate limiting purposes)

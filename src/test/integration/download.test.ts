@@ -8,7 +8,6 @@ import { streamToString, streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 
 import {
-  DB_TYPES,
   ENVIRONMENT_VARIABLES,
   EVENTS,
   PROTOCOL_COMMANDS,
@@ -28,6 +27,7 @@ import { FileObjectType, UrlFileObject } from '../../@types/fileObject.js'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
+  TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
   setupEnvironment,
@@ -65,27 +65,23 @@ describe('Should run a complete node flow.', () => {
   before(async () => {
     // override and save configuration (always before calling getConfig())
     previousConfiguration = await setupEnvironment(
-      null,
+      TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
         [
           ENVIRONMENT_VARIABLES.RPCS,
           ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
-          ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
-          ENVIRONMENT_VARIABLES.ADDRESS_FILE,
-          ENVIRONMENT_VARIABLES.DB_TYPE
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
           JSON.stringify(mockSupportedNetworks),
           JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          'http://localhost:9200',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          DB_TYPES.ELASTIC_SEARCH
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
     )
@@ -175,7 +171,8 @@ describe('Should run a complete node flow.', () => {
       expect(fileInfo[0].name).to.equal('algo.js')
     }
   })
-  it('should publish compute datasets & algos', async () => {
+  it('should publish compute datasets & algos', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     publishedDataset = await publishAsset(downloadAsset, publisherAccount)
     const { ddo, wasTimeout } = await waitToIndex(
       publishedDataset.ddo.id,
@@ -184,7 +181,7 @@ describe('Should run a complete node flow.', () => {
     )
 
     if (!ddo) {
-      console.log('wasTimeout ==  ', wasTimeout)
+      assert(wasTimeout === true, 'published failed due to timeout!')
     }
   })
 

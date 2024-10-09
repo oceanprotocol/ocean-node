@@ -746,6 +746,9 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     return ddo
   }
 
+  // This is called from indexer "createOrUpdateDDO"
+  // we add the "id" field to match the response API with typesense
+  // since here we have an "_id"
   async update(ddo: Record<string, any>): Promise<any> {
     const schema = this.getDDOSchema(ddo)
     if (!schema) {
@@ -754,13 +757,18 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     try {
       const validation = await this.validateDDO(ddo)
       if (validation === true) {
-        const response = await this.client.update({
+        const response: any = await this.client.update({
           index: schema.index,
           id: ddo.id,
           body: {
             doc: ddo
           }
         })
+        // make sure we do not have different responses 4 between DBs
+        // do the same thing on other methods
+        if (response._id === ddo.id) {
+          response.id = response._id
+        }
         return response
       } else {
         throw new Error(
@@ -770,7 +778,11 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     } catch (error) {
       if (error.statusCode === 404) {
         await this.delete(ddo.id)
-        return await this.create(ddo)
+        const response = await this.create(ddo)
+        if (response._id === ddo.id) {
+          response.id = response._id
+        }
+        return response
       }
       const errorMsg = `Error when updating DDO entry ${ddo.id}: ${error.message}`
       DATABASE_LOGGER.logMessageWithEmoji(
@@ -890,11 +902,15 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
   async insertLog(logEntry: Record<string, any>) {
     try {
       const timestamp = new Date().toISOString()
-      await this.client.index({
+      const result = await this.client.index({
         index: this.index,
         body: { ...logEntry, timestamp },
         refresh: 'wait_for'
       })
+      // uniformize result response (we need an id for the retrieveLog API)
+      if (result._id) {
+        logEntry.id = result._id
+      }
       return logEntry
     } catch (error) {
       const errorMsg = `Error when inserting log entry: ${error.message}`
@@ -949,14 +965,27 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
         filterConditions.bool.must.push({ match: { level } })
       }
 
+      const numLogs = await this.getLogsCount()
+      const from = (page || 0) * Math.min(maxLogs, 250)
+      const size = Math.min(maxLogs, 250)
+      // illegal_argument_exception: Result window is too large, from + size must be less than or equal to: [10000] but was [150005]
+      if (from > 10000 || size > 10000 || size > numLogs) {
+        DATABASE_LOGGER.logMessageWithEmoji(
+          'Result window is too large, from + size must be less than or equal to: [10000]',
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEL_ERROR
+        )
+        return []
+      }
       const result = await this.client.search({
         index: this.index,
         body: {
           query: filterConditions,
           sort: [{ timestamp: { order: 'desc' } }]
         },
-        size: Math.min(maxLogs, 250),
-        from: (page || 0) * Math.min(maxLogs, 250)
+        size,
+        from
       })
 
       return result.hits.hits.map((hit: any) => hit._source)

@@ -30,10 +30,9 @@ describe('Logger instances and transports tests', async () => {
       [
         ENVIRONMENT_VARIABLES.NODE_ENV,
         ENVIRONMENT_VARIABLES.LOG_DB,
-        ENVIRONMENT_VARIABLES.LOG_LEVEL,
-        ENVIRONMENT_VARIABLES.DB_URL
+        ENVIRONMENT_VARIABLES.LOG_LEVEL
       ],
-      ['development', 'false', 'info', 'http://localhost:8108/?apiKey=xyz']
+      ['development', 'false', 'info']
     )
   )
   // because of this
@@ -53,10 +52,7 @@ describe('Logger instances and transports tests', async () => {
     expect(OCEAN_NODE_LOGGER.hasDBTransport()).to.be.equal(false)
     const envAfter = await setupEnvironment(
       null,
-      buildEnvOverrideConfig(
-        [ENVIRONMENT_VARIABLES.LOG_DB, ENVIRONMENT_VARIABLES.DB_URL],
-        ['true', 'http://localhost:8108/?apiKey=xyz']
-      )
+      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
     )
     expect(USE_DB_TRANSPORT()).to.be.equal(true)
     // will build the DB transport layer
@@ -80,8 +76,8 @@ describe('Logger instances and transports tests', async () => {
     expect(USE_DB_TRANSPORT()).to.be.equal(false)
   })
 
-  after(() => {
+  after(async () => {
     // Restore original local setup / env variables after test
-    tearDownEnvironment(envOverrides)
+    await tearDownEnvironment(envOverrides)
   })
 })
