@@ -172,7 +172,7 @@ describe('Should run a complete node flow.', () => {
     }
   })
   it('should publish compute datasets & algos', async function () {
-    this.setTimeout(DEFAULT_TEST_TIMEOUT * 2)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     publishedDataset = await publishAsset(downloadAsset, publisherAccount)
     const { ddo, wasTimeout } = await waitToIndex(
       publishedDataset.ddo.id,
