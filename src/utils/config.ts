@@ -14,11 +14,7 @@ import {
   EnvVariable,
   hexStringToByteArray
 } from '../utils/index.js'
-import {
-  DB_TYPES,
-  defaultBootstrapAddresses,
-  knownUnsafeURLs
-} from '../utils/constants.js'
+import { defaultBootstrapAddresses, knownUnsafeURLs } from '../utils/constants.js'
 
 import { LOG_LEVELS_STR, GENERIC_EMOJIS, getLoggerLevelEmoji } from './logging/Logger.js'
 import { RPCS } from '../@types/blockchain'
