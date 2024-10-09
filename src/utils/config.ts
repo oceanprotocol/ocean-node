@@ -588,7 +588,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       url: getEnvValue(process.env.DB_URL, ''),
       username: getEnvValue(process.env.DB_USERNAME, ''),
       password: getEnvValue(process.env.DB_PASSWORD, ''),
-      dbType: getEnvValue(process.env.DB_TYPE, DB_TYPES.TYPESENSE)
+      dbType: getEnvValue(process.env.DB_TYPE, null)
     },
     supportedNetworks,
     indexingNetworks,

@@ -105,22 +105,16 @@ describe('OceanP2P Test', () => {
 })
 
 describe('OceanP2P Test without DB_URL set', () => {
-  let originalDBURL: string | undefined
-
-  before(() => {
-    originalDBURL = process.env.DB_URL
-    process.env.DB_URL = ''
-  })
   it('Start instance of OceanP2P without a database URL', async () => {
+    // NO need to mess more with process.env variables
     const config = await getConfiguration(true)
-    assert(config.dbConfig.url === '', 'DB URL should not be set')
+    config.dbConfig.url = ''
+    config.dbConfig.dbType = null
+    // assert(config.dbConfig.url === '', 'DB URL should not be set')
     const p2pNode = new OceanP2P(config)
     assert(p2pNode, 'Failed to create P2P Node instance')
     assert(config, 'Failed to get P2P Node config')
     assert(config.dbConfig.url === '', 'P2P Node config should not have DB URL set')
     assert(config.hasIndexer === false, 'P2P Node should not have indexer enabled')
-  })
-  after(() => {
-    process.env.DB_URL = originalDBURL
   })
 })

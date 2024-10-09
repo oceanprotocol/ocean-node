@@ -19,7 +19,7 @@ const elasticConfig: OceanNodeDBConfig = {
 
 const confSQLLite: OceanNodeDBConfig = {
   url: '',
-  dbType: undefined
+  dbType: null
 }
 
 describe('Database', () => {
