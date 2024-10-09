@@ -120,7 +120,9 @@ export async function tearDownEnvironment(overrideVars?: OverrideEnvConfig[]) {
     overrideVars.forEach((element: OverrideEnvConfig) => {
       if (element.override && element.newValue !== element.originalValue) {
         // only restore what we have explicilty touched
-        CONFIG_LOGGER.debug('Restoring environment variable: ' + element.originalValue)
+        CONFIG_LOGGER.debug(
+          `Restoring environment variable: ${element.name} \ncurrent:\n ${element.newValue} \noriginal:\n ${element.originalValue}`
+        )
         if (element.originalValue) {
           process.env[element.name] = element.originalValue
         } else {
