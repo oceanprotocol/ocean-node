@@ -87,11 +87,8 @@ class BaseEventProcessor {
   protected async createOrUpdateDDO(ddo: any, method: string): Promise<any> {
     try {
       const { ddo: ddoDatabase, ddoState } = await getDatabase()
-      console.log('createOrUpdateDDO for ddo id: ', ddo.id)
-      console.log('DB config:', await (await getDatabase()).getConfig())
       const saveDDO = await ddoDatabase.update({ ...ddo })
-      console.log('saved DDO: ', saveDDO)
-      const stateUpdate = await ddoState.update(
+      await ddoState.update(
         this.networkId,
         saveDDO.id,
         saveDDO.nftAddress,
@@ -101,7 +98,6 @@ class BaseEventProcessor {
       INDEXER_LOGGER.logMessage(
         `Saved or updated DDO  : ${saveDDO.id} from network: ${this.networkId} triggered by: ${method}`
       )
-      console.log('state update: ', stateUpdate)
       return saveDDO
     } catch (err) {
       const { ddoState } = await getDatabase()

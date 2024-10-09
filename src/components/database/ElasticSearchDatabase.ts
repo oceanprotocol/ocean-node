@@ -379,10 +379,6 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
       })
 
       if (exists) {
-        console.log('Elastic DDO state update, will update existing state entry:')
-        console.log(
-          `chainId: ${chainId}, did: ${did}, nftAddress: ${nftAddress}, txId: ${txId}, valid: ${valid}, errorMsg: ${errorMsg}`
-        )
         await this.client.update({
           index: this.index,
           id: did,
@@ -392,10 +388,6 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
           refresh: 'wait_for'
         })
       } else {
-        console.log('Elastic DDO state update, will create a new state entry:')
-        console.log(
-          `chainId: ${chainId}, did: ${did}, nftAddress: ${nftAddress}, txId: ${txId}, valid: ${valid}, errorMsg: ${errorMsg}`
-        )
         return await this.create(chainId, did, nftAddress, txId, valid, errorMsg)
       }
 
@@ -696,7 +688,6 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     }
     try {
       const validation = await this.validateDDO(ddo)
-      console.log('validation', validation)
       if (validation === true) {
         const response = await this.client.index({
           index: schema.index,
@@ -705,12 +696,10 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         })
         return response
       } else {
-        console.log(`Validation of DDO with schema version ${ddo.version} failed`)
         throw new Error(`Validation of DDO with schema version ${ddo.version} failed`)
       }
     } catch (error) {
       const errorMsg = `Error when creating DDO entry ${ddo.id}: ${error.message}`
-      console.log(errorMsg)
       DATABASE_LOGGER.logMessageWithEmoji(
         errorMsg,
         true,
@@ -779,7 +768,6 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         // do the same thing on other methods
         if (response._id === ddo.id) {
           response.id = response._id
-          console.log('response now:', response)
         }
         return response
       } else {
@@ -793,7 +781,6 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         const response = await this.create(ddo)
         if (response._id === ddo.id) {
           response.id = response._id
-          console.log('create response now:', response)
         }
         return response
       }
@@ -991,8 +978,6 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
         )
         return []
       }
-      console.log('size: ', Math.min(maxLogs, 250))
-      console.log('from', (page || 0) * Math.min(maxLogs, 250))
       const result = await this.client.search({
         index: this.index,
         body: {
@@ -1003,7 +988,6 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
         from
       })
 
-      console.log('retrieveMultipleLogs: ', result)
       return result.hits.hits.map((hit: any) => hit._source)
     } catch (error) {
       const errorMsg = `Error when retrieving multiple log entries: ${error.message}`
@@ -1052,7 +1036,6 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
 
     try {
       const oldLogs = await this.retrieveMultipleLogs(new Date(0), deleteBeforeTime, 200)
-      console.log('OLD LOGS:', oldLogs)
 
       if (oldLogs) {
         for (const log of oldLogs) {
