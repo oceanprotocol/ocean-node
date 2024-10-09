@@ -100,9 +100,6 @@ describe('Should run a complete node flow.', () => {
     const indexer = new OceanIndexer(database, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
 
-    console.log('Ocean node DB:', oceanNode.getDatabase())
-    console.log('indexer DB: ', indexer.getDatabase())
-
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
       network = getOceanArtifactsAdresses().development
@@ -126,7 +123,7 @@ describe('Should run a complete node flow.', () => {
       downloadAssetWithCredentials,
       publisherAccount
     )
-    console.log('published dataset: ', publishedDataset)
+
     did = publishedDataset.ddo.id
     const { ddo, wasTimeout } = await waitToIndex(
       did,
@@ -134,7 +131,7 @@ describe('Should run a complete node flow.', () => {
       DEFAULT_TEST_TIMEOUT * 3
     )
     if (!ddo) {
-      console.log('wasTimeout ==  ', wasTimeout)
+      assert(wasTimeout === true, 'published failed due to timeout!')
     }
   })
 

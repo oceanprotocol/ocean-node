@@ -171,7 +171,8 @@ describe('Should run a complete node flow.', () => {
       expect(fileInfo[0].name).to.equal('algo.js')
     }
   })
-  it('should publish compute datasets & algos', async () => {
+  it('should publish compute datasets & algos', async function () {
+    this.setTimeout(DEFAULT_TEST_TIMEOUT * 2)
     publishedDataset = await publishAsset(downloadAsset, publisherAccount)
     const { ddo, wasTimeout } = await waitToIndex(
       publishedDataset.ddo.id,
@@ -180,7 +181,7 @@ describe('Should run a complete node flow.', () => {
     )
 
     if (!ddo) {
-      console.log('wasTimeout ==  ', wasTimeout)
+      assert(wasTimeout === true, 'published failed due to timeout!')
     }
   })
 

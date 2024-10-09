@@ -269,14 +269,10 @@ describe('Indexer stores a new metadata events and orders.', () => {
       command: PROTOCOL_COMMANDS.QUERY
     }
     const response = await queryDdoStateHandler.handle(queryDdoState)
-    console.log('response: ', response)
-    console.log('ocean DB: ', oceanNode.getDatabase().getConfig())
-    console.log('indexer DB: ', indexer.getDatabase().getConfig())
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     const result = await streamToObject(response.stream as Readable)
-    console.log('result:', result)
     if (result) {
       // Elastic Search returns Array type
       const ddoState = Array.isArray(result) ? result[0] : result.hits[0].document
@@ -439,9 +435,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(orderTxReceipt, 'order transaction failed')
     orderTxId = orderTxReceipt.hash
     assert(orderTxId, 'transaction id not found')
-    console.log('Got order tx id = ', orderTxId)
-
-    console.log('Got order started for ddo id: ', resolvedDDO.id)
     orderEvent = getEventFromTx(orderTxReceipt, 'OrderStarted')
     expect(orderEvent.args[1]).to.equal(consumerAddress) // payer
     expect(parseInt(orderEvent.args[3].toString())).to.equal(serviceIndex) // serviceIndex
@@ -461,7 +454,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
       initialOrderCount = retrievedDDO.stats.orders
       const resultOrder = await database.order.retrieve(orderTxId)
       if (resultOrder) {
-        console.log('resultOrder:', resultOrder)
         if (resultOrder.id) {
           // typesense response
           expect(resultOrder.id).to.equal(orderTxId)
@@ -547,20 +539,8 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const retrievedDDO: any = ddo
 
     if (retrievedDDO) {
-      // const retrievedDDO: any = {}
-      // Object.assign(retrievedDDO, ddo)
-
       expect(retrievedDDO.stats.orders).to.be.greaterThan(initialOrderCount)
-      // TODO: remove the logic bellow
-      // let resultOrder
-      // for (let i = 0; i < 3; i++) {
-      //   sleep(DEFAULT_TEST_TIMEOUT / 2)
-      //   resultOrder = await database.order.retrieve(orderTxId)
-      //   if (resultOrder) break
-      // }
-      // if (resultOrder) {
       const resultOrder = await database.order.retrieve(reuseOrderTxId)
-      console.log('result order: ', resultOrder)
       if (resultOrder) {
         if (resultOrder.id) {
           // typesense
@@ -689,7 +669,6 @@ describe('OceanIndexer - crawler threads', () => {
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
     db = await new Database(config.dbConfig)
-    console.log('last db configuration:', db.getConfig())
     // oceanNode = OceanNode.getInstance(db)
   })
 
