@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 import { OceanNodeDBConfig } from '../../@types'
 import {
   AbstractDdoDatabase,
@@ -33,17 +32,6 @@ import { TypesenseMetadataQuery } from './TypesenseMetadataQuery.js'
 import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery.js'
 import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery.js'
 import { DB_TYPES } from '../../utils/index.js'
-
-export enum DatabaseCollections {
-  nonce = 'nonce',
-  ddo = 'ddo',
-  indexer = 'indexer',
-  log = 'log',
-  order = 'order',
-  ddoState = 'ddoState',
-  ddoStateQuery = 'ddoStateQuery',
-  metadataQuery = 'metadataQuery'
-}
 
 export class DatabaseFactory {
   private static databaseMap = {
