@@ -9,8 +9,8 @@ let dbConnection: Database = null
 
 // lazy load env configuration and then db configuration
 // we should be able to use this every where without dep cycle issues
-export async function getDatabase(): Promise<Database> {
-  if (!dbConnection) {
+export async function getDatabase(forceReload: boolean = false): Promise<Database> {
+  if (!dbConnection || forceReload) {
     const { dbConfig } = await getConfiguration(true)
     if (dbConfig && dbConfig.url) {
       dbConnection = await new Database(dbConfig)
