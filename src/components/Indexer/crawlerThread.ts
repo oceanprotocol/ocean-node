@@ -285,48 +285,60 @@ export function checkNewlyIndexedAssets(events: BlocksEvents): void {
   })
 }
 
-async function retryCrawlerWithDelay(
-  blockchain: Blockchain,
-  interval: number = 5000 // in milliseconds, default 5 secs
-): Promise<boolean> {
-  try {
-    const retryInterval = Math.max(blockchain.getKnownRPCs().length * 3000, interval) // give 2 secs per each one
-    // try
-    const result = await startCrawler(blockchain)
-    if (result) {
-      INDEXER_LOGGER.info('Blockchain connection succeffully established!')
-      processNetworkData(blockchain.getProvider(), blockchain.getSigner())
-      return true
-    } else {
-      INDEXER_LOGGER.warn(
-        `Blockchain connection is not established, retrying again in ${
-          retryInterval / 1000
-        } secs....`
-      )
-      // delay the next call
-      await sleep(retryInterval)
-      // recursively call the same func
-      return retryCrawlerWithDelay(blockchain, retryInterval)
-    }
-  } catch (err) {
-    INDEXER_LOGGER.error(`Error starting crawler: ${err.message}`)
-    return false
-  }
-}
+// async function retryCrawlerWithDelay(
+//   blockchain: Blockchain,
+//   interval: number = 5000 // in milliseconds, default 5 secs
+// ): Promise<boolean> {
+//   try {
+//     const retryInterval = Math.max(blockchain.getKnownRPCs().length * 3000, interval) // give 2 secs per each one
+//     // try
+//     const result = await startCrawler(blockchain)
+//     const dbActive = await getDatabase(true)
+//     if (!dbActive || !(await isReachableConnection(dbActive.getConfig().url))) {
+//       console.log('Crawler cannot start because of DB connection')
+//       return false
+//     } else console.log('Crawler OK')
+//     if (result) {
+//       INDEXER_LOGGER.info('Blockchain connection succeffully established!')
+//       processNetworkData(blockchain.getProvider(), blockchain.getSigner())
+//       return true
+//     } else {
+//       INDEXER_LOGGER.warn(
+//         `Blockchain connection is not established, retrying again in ${
+//           retryInterval / 1000
+//         } secs....`
+//       )
+//       numCrawlAttempts++
+//       console.log('NUM CRAWL ATTEMPTS: ' + numCrawlAttempts)
+//       if (numCrawlAttempts <= MAX_CRAWL_RETRIES) {
+//         // delay the next call
+//         await sleep(retryInterval)
+//         // recursively call the same func
+//         return retryCrawlerWithDelay(blockchain, retryInterval)
+//       } else {
+//         console.log('GIVING UP AFTER MAX RETRIES')
+//         return false
+//       }
+//     }
+//   } catch (err) {
+//     INDEXER_LOGGER.error(`Error starting crawler: ${err.message}`)
+//     return false
+//   }
+// }
 
 // it does not start crawling until the network connectin is ready
-async function startCrawler(blockchain: Blockchain): Promise<boolean> {
-  if ((await blockchain.isNetworkReady()).ready) {
-    return true
-  } else {
-    // try other RPCS if any available (otherwise will just retry the same RPC)
-    const connectionStatus = await blockchain.tryFallbackRPCs()
-    if (connectionStatus.ready || (await blockchain.isNetworkReady()).ready) {
-      return true
-    }
-  }
-  return false
-}
+// async function startCrawler(blockchain: Blockchain): Promise<boolean> {
+//   if ((await blockchain.isNetworkReady()).ready) {
+//     return true
+//   } else {
+//     // try other RPCS if any available (otherwise will just retry the same RPC)
+//     const connectionStatus = await blockchain.tryFallbackRPCs()
+//     if (connectionStatus.ready || (await blockchain.isNetworkReady()).ready) {
+//       return true
+//     }
+//   }
+//   return false
+// }
 
 parentPort.on('message', (message) => {
   if (message.method === INDEXER_MESSAGES.START_CRAWLING) {
@@ -337,7 +349,8 @@ parentPort.on('message', (message) => {
       rpcDetails.chainId,
       rpcDetails.fallbackRPCs
     )
-    return retryCrawlerWithDelay(blockchain)
+    // return retryCrawlerWithDelay(blockchain)
+    processNetworkData(blockchain.getProvider(), blockchain.getSigner())
   } else if (message.method === INDEXER_MESSAGES.REINDEX_TX) {
     // reindex a specific transaction
 
