@@ -2,7 +2,7 @@ import { expect } from 'chai'
 import { stub } from 'sinon'
 import { describe, it } from 'mocha'
 import { OceanIndexer } from '../../../components/Indexer/index.js'
-import { RPCS } from '../../../@types/blockchain'
+import { RPCS } from '../../../@types/blockchain.js'
 
 class MockDatabase {
   indexer = {
