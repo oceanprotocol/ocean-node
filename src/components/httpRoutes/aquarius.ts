@@ -10,6 +10,7 @@ import { DDO } from '../../@types/DDO/DDO.js'
 import { QueryCommand } from '../../@types/commands.js'
 import { DatabaseFactory } from '../database/DatabaseFactory.js'
 import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
+import { getConfiguration } from '../../utils/index.js'
 
 export const aquariusRoutes = express.Router()
 
@@ -71,7 +72,8 @@ aquariusRoutes.post(
         return
       }
 
-      const queryStrategy = await DatabaseFactory.createMetadataQuery()
+      const config = await getConfiguration()
+      const queryStrategy = await DatabaseFactory.createMetadataQuery(config.dbConfig)
       const transformedQuery = queryStrategy.buildQuery(searchQuery)
 
       const result = await new QueryHandler(req.oceanNode).handle({
@@ -93,7 +95,8 @@ aquariusRoutes.post(
 
 aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
   try {
-    const queryStrategy = await DatabaseFactory.createDdoStateQuery()
+    const config = await getConfiguration()
+    const queryStrategy = await DatabaseFactory.createDdoStateQuery(config.dbConfig)
     const queryDdoState: QueryCommand = {
       query: queryStrategy.buildQuery(
         String(req.query.did),
