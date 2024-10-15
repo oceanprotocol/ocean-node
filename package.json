@@ -91,7 +91,7 @@
     "eciesjs": "^0.4.5",
     "eth-crypto": "^2.6.0",
     "ethers": "^6.8.1",
-    "express": "^4.21.0",
+    "express": "^4.21.1",
     "hyperdiff": "^2.0.16",
     "ip": "^2.0.1",
     "it-pipe": "^3.0.1",
