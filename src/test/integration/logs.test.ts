@@ -409,7 +409,7 @@ describe('LogDatabase retrieveMultipleLogs with pagination', () => {
 
   before(async () => {
     previousConfiguration = await setupEnvironment(
-      null,
+      TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
     )
     const { dbConfig } = await getConfiguration(true)

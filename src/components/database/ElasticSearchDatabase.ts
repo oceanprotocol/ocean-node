@@ -26,19 +26,23 @@ export class ElasticsearchNonceDatabase extends AbstractNonceDatabase {
   }
 
   private async initializeIndex() {
-    const indexExists = await this.client.indices.exists({ index: this.index })
-    if (!indexExists) {
-      await this.client.indices.create({
-        index: this.index,
-        body: {
-          mappings: {
-            properties: {
-              id: { type: 'keyword' },
-              nonce: { type: 'integer' }
+    try {
+      const indexExists = await this.client.indices.exists({ index: this.index })
+      if (!indexExists) {
+        await this.client.indices.create({
+          index: this.index,
+          body: {
+            mappings: {
+              properties: {
+                id: { type: 'keyword' },
+                nonce: { type: 'integer' }
+              }
             }
           }
-        }
-      })
+        })
+      }
+    } catch (e) {
+      DATABASE_LOGGER.error(e.message)
     }
   }
 
@@ -149,19 +153,23 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
   }
 
   private async initializeIndex() {
-    const indexExists = await this.client.indices.exists({ index: this.index })
-    if (!indexExists) {
-      await this.client.indices.create({
-        index: this.index,
-        body: {
-          mappings: {
-            properties: {
-              id: { type: 'keyword' },
-              lastIndexedBlock: { type: 'long' }
+    try {
+      const indexExists = await this.client.indices.exists({ index: this.index })
+      if (!indexExists) {
+        await this.client.indices.create({
+          index: this.index,
+          body: {
+            mappings: {
+              properties: {
+                id: { type: 'keyword' },
+                lastIndexedBlock: { type: 'long' }
+              }
             }
           }
-        }
-      })
+        })
+      }
+    } catch (e) {
+      DATABASE_LOGGER.error(e.message)
     }
   }
 
@@ -271,24 +279,28 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
   }
 
   private async initializeIndex() {
-    const indexExists = await this.client.indices.exists({ index: this.index })
-    if (!indexExists) {
-      await this.client.indices.create({
-        index: this.index,
-        body: {
-          mappings: {
-            properties: {
-              id: { type: 'keyword' },
-              chainId: { type: 'integer' },
-              did: { type: 'keyword' },
-              nft: { type: 'keyword' },
-              txId: { type: 'keyword' },
-              valid: { type: 'boolean' },
-              error: { type: 'text' }
+    try {
+      const indexExists = await this.client.indices.exists({ index: this.index })
+      if (!indexExists) {
+        await this.client.indices.create({
+          index: this.index,
+          body: {
+            mappings: {
+              properties: {
+                id: { type: 'keyword' },
+                chainId: { type: 'integer' },
+                did: { type: 'keyword' },
+                nft: { type: 'keyword' },
+                txId: { type: 'keyword' },
+                valid: { type: 'boolean' },
+                error: { type: 'text' }
+              }
             }
           }
-        }
-      })
+        })
+      }
+    } catch (e) {
+      DATABASE_LOGGER.error(e.message)
     }
   }
 
@@ -880,22 +892,26 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
   }
 
   private async initializeIndex() {
-    const indexExists = await this.client.indices.exists({ index: this.index })
-    if (!indexExists) {
-      await this.client.indices.create({
-        index: this.index,
-        body: {
-          mappings: {
-            properties: {
-              timestamp: { type: 'date' },
-              level: { type: 'keyword' },
-              moduleName: { type: 'keyword' },
-              message: { type: 'text' },
-              meta: { type: 'object', enabled: false }
+    try {
+      const indexExists = await this.client.indices.exists({ index: this.index })
+      if (!indexExists) {
+        await this.client.indices.create({
+          index: this.index,
+          body: {
+            mappings: {
+              properties: {
+                timestamp: { type: 'date' },
+                level: { type: 'keyword' },
+                moduleName: { type: 'keyword' },
+                message: { type: 'text' },
+                meta: { type: 'object', enabled: false }
+              }
             }
           }
-        }
-      })
+        })
+      }
+    } catch (e) {
+      DATABASE_LOGGER.error(e.message)
     }
   }
 
@@ -971,7 +987,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
       // illegal_argument_exception: Result window is too large, from + size must be less than or equal to: [10000] but was [150005]
       if (from > 10000 || size > 10000 || size > numLogs) {
         DATABASE_LOGGER.logMessageWithEmoji(
-          'Result window is too large, from + size must be less than or equal to: [10000]',
+          `Result window is too large, from + size must be less than or equal to: [10000]. "from": ${size}", "size": ${size}, "num": ${numLogs}`,
           true,
           GENERIC_EMOJIS.EMOJI_CROSS_MARK,
           LOG_LEVELS_STR.LEVEL_ERROR

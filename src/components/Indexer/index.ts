@@ -156,6 +156,9 @@ export class OceanIndexer {
       return null
     }
 
+    // check the network before starting crawling
+    // having this code inside the thread itself is problematic because
+    // the worker thread can exit and we keep processing code inside, leading to segfaults
     const blockchain = new Blockchain(
       rpcDetails.rpc,
       rpcDetails.network,
@@ -164,7 +167,7 @@ export class OceanIndexer {
     )
     const canStartWorker = await this.retryCrawlerWithDelay(blockchain)
     if (!canStartWorker) {
-      INDEXER_LOGGER.error(`Cannot start worker thread. check DB and RPC connections!`)
+      INDEXER_LOGGER.error(`Cannot start worker thread. Check DB and RPC connections!`)
       return null
     }
     const workerData = { rpcDetails }
