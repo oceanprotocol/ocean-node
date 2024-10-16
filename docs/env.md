@@ -77,7 +77,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 
 ## Policy Server
 
-- `POLICY_SERVER_URL`: URI definition of PolicyServer, if any
+- `POLICY_SERVER_URL`: URI definition of PolicyServer, if any. See [the policy server documentation for more details](docs/PolicyServer.md).
 
 ## Additional Nodes (Test Environments)
 
