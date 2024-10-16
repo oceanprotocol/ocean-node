@@ -142,7 +142,7 @@ class BaseEventProcessor {
       INDEXER_LOGGER.logMessage(
         `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
       )
-      const nonce = Date.now().toString()
+      const nonce = Math.floor(Date.now() / 1000).toString()
       const { keys } = await getConfiguration()
       const nodeId = keys.peerId.toString()
 
@@ -659,7 +659,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
       }
       if (
         'stats' in ddo &&
-        ddo.services[serviceIndex].datatoken?.toLowerCase() ===
+        ddo.services[serviceIndex].datatokenAddress?.toLowerCase() ===
           event.address?.toLowerCase()
       ) {
         ddo.stats.orders += 1
@@ -675,7 +675,10 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         'startOrder',
         timestamp,
         consumer,
-        payer
+        payer,
+        ddo.services[serviceIndex].datatokenAddress,
+        nftAddress,
+        did
       )
       INDEXER_LOGGER.logMessage(
         `Found did ${did} for order starting on network ${chainId}`
@@ -738,6 +741,9 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
           timestamp,
           startOrder.consumer,
           payer,
+          ddo.services[0].datatokenAddress,
+          nftAddress,
+          did,
           startOrderId
         )
       } catch (error) {
