@@ -11,8 +11,8 @@ import {
   getExistingEnvironment,
   TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
-  DEFAULT_TEST_TIMEOUT
-  // SELECTED_RUN_DATABASE
+  DEFAULT_TEST_TIMEOUT,
+  SELECTED_RUN_DATABASE
 } from './utils.js'
 
 // current process.env environment
@@ -41,11 +41,10 @@ function getEnvOverrides(): OverrideEnvConfig[] {
       'https://arweave.net/',
       '{ "1": {"rpc": "https://rpc.eth.gateway.fm", "chainId": 1, "network": "mainet", "chunkSize": 100}, "137": {"rpc": "https://polygon.meowrpc.com", "chainId": 137, "network": "polygon", "chunkSize": 100 }}',
       '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-      DB_TYPES.ELASTIC_SEARCH, // SELECTED_RUN_DATABASE,
-      'http://localhost:9200'
-      //   SELECTED_RUN_DATABASE === DB_TYPES.ELASTIC_SEARCH
-      //     ? 'http://localhost:9200'
-      //     : 'http://localhost:8108/?apiKey=xyz'
+      SELECTED_RUN_DATABASE,
+      SELECTED_RUN_DATABASE === DB_TYPES.ELASTIC_SEARCH
+        ? 'http://localhost:9200'
+        : 'http://localhost:8108/?apiKey=xyz'
     ]
   )
 }
