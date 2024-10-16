@@ -1005,6 +1005,10 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
         from
       })
 
+      console.log('logs results:', result)
+      console.log('logs results hits:', result.hits)
+      console.log('logs results hits hits:', result.hits.hits)
+
       return result.hits.hits.map((hit: any) => hit._source)
     } catch (error) {
       const errorMsg = `Error when retrieving multiple log entries: ${error.message}`

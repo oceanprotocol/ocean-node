@@ -451,6 +451,7 @@ describe('LogDatabase retrieveMultipleLogs with pagination', () => {
       undefined,
       1 // Page 1
     )
+    console.log('logs page1: ', logsPage1)
     const logsPage2 = await database.logs.retrieveMultipleLogs(
       new Date(Date.now() - 10000), // 10 seconds ago
       new Date(), // now
@@ -460,6 +461,7 @@ describe('LogDatabase retrieveMultipleLogs with pagination', () => {
       2 // Page 2
     )
 
+    console.log('logs page2: ', logsPage1)
     // make sure we have enough logs for 2 pages
     const logsCount = await database.logs.getLogsCount()
     // Ensure that the logs on page 2 are different from those on page 1 if logsPage2 is not empty
