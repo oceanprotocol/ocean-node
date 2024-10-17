@@ -13,9 +13,10 @@ import {
   AbstractNonceDatabase,
   AbstractOrderDatabase
 } from './BaseDatabase.js'
+import { C2DDatabase } from './C2DDatabase.js'
 import { DatabaseFactory } from './DatabaseFactory.js'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
-import { TypesenseSchema } from './TypesenseSchemas.js'
+import { TypesenseSchema, typesenseSchemas } from './TypesenseSchemas.js'
 
 export type Schema = ElasticsearchSchema | TypesenseSchema
 
@@ -26,6 +27,7 @@ export class Database {
   logs: AbstractLogDatabase
   order: AbstractOrderDatabase
   ddoState: AbstractDdoStateDatabase
+  c2d: C2DDatabase
 
   constructor(private config: OceanNodeDBConfig) {
     return (async (): Promise<Database> => {
@@ -42,6 +44,7 @@ export class Database {
               'Property "LOG_DB" is set to "false". This means logs will NOT be saved to database!'
             )
           }
+          this.c2d = await new C2DDatabase(this.config, typesenseSchemas.c2dSchemas)
           this.ddo = await DatabaseFactory.createDdoDatabase(this.config)
           this.indexer = await DatabaseFactory.createIndexerDatabase(this.config)
           this.logs = await DatabaseFactory.createLogDatabase(this.config)

@@ -48,6 +48,7 @@ export type TypesenseSchema = TypesenseCollectionCreateSchema
 export type TypesenseSchemas = {
   ddoSchemas: TypesenseSchema[]
   nonceSchemas: TypesenseSchema
+  c2dSchemas: TypesenseSchema
   indexerSchemas: TypesenseSchema
   logSchemas: TypesenseSchema
   orderSchema: TypesenseSchema
@@ -60,6 +61,14 @@ export const typesenseSchemas: TypesenseSchemas = {
     name: 'nonce',
     enable_nested_fields: true,
     fields: [{ name: 'nonce', type: 'int64' }]
+  },
+  c2dSchemas: {
+    name: 'c2djobs',
+    enable_nested_fields: true,
+    fields: [
+      // TO DO C2D
+      { name: '.*', type: 'auto', optional: true }
+    ]
   },
   indexerSchemas: {
     name: 'indexer',

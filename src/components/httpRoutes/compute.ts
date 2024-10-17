@@ -2,17 +2,25 @@ import express from 'express'
 import {
   ComputeGetEnvironmentsHandler,
   ComputeStartHandler,
+  FreeComputeStartHandler,
   ComputeStopHandler,
   ComputeGetStatusHandler,
   ComputeGetResultHandler,
-  ComputeInitializeHandler
+  ComputeInitializeHandler,
+  ComputeGetStreamableLogsHandler
 } from '../core/compute/index.js'
-import type { ComputeAlgorithm, ComputeAsset, ComputeOutput } from '../../@types/C2D.js'
+import type {
+  ComputeAlgorithm,
+  ComputeAsset,
+  ComputeOutput
+} from '../../@types/C2D/C2D.js'
 import type {
   ComputeStartCommand,
+  FreeComputeStartCommand,
   ComputeStopCommand,
   ComputeGetResultCommand,
-  ComputeGetStatusCommand
+  ComputeGetStatusCommand,
+  ComputeGetStreamableLogsCommand
 } from '../../@types/commands.js'
 
 import { streamToObject, streamToString } from '../../utils/util.js'
@@ -75,6 +83,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, r
   }
 })
 
+// start compute
 computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(
@@ -90,11 +99,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       nonce: (req.body.nonce as string) || null,
       environment: (req.body.environment as string) || null,
       algorithm: (req.body.algorithm as ComputeAlgorithm) || null,
-      dataset: (req.body.dataset as unknown as ComputeAsset) || null
-    }
-    if (req.body.additionalDatasets) {
-      startComputeTask.additionalDatasets = req.query
-        .additionalDatasets as unknown as ComputeAsset[]
+      datasets: (req.body.datasets as unknown as ComputeAsset[]) || null
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output as ComputeOutput
@@ -114,6 +119,46 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   }
 })
 
+// free compute
+computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => {
+  try {
+    HTTP_LOGGER.logMessage(
+      `FreeComputeStartCommand request received as body params: ${JSON.stringify(
+        req.body
+      )}`,
+      true
+    )
+
+    const startComputeTask: FreeComputeStartCommand = {
+      command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+      node: (req.body.node as string) || null,
+      consumerAddress: (req.body.consumerAddress as string) || null,
+      signature: (req.body.signature as string) || null,
+      nonce: (req.body.nonce as string) || null,
+      algorithm: (req.body.algorithm as ComputeAlgorithm) || null,
+      datasets: (req.body.datasets as unknown as ComputeAsset[]) || null
+    }
+    if (req.body.output) {
+      startComputeTask.output = req.body.output as ComputeOutput
+    }
+
+    const response = await new FreeComputeStartHandler(req.oceanNode).handle(
+      startComputeTask
+    )
+    if (response?.status?.httpStatus === 200) {
+      const jobs = await streamToObject(response.stream as Readable)
+      res.status(200).json(jobs)
+    } else {
+      HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_INFO, `Error: ${response?.status?.error}`)
+      res.status(response?.status.httpStatus).json(response?.status?.error)
+    }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send('Internal Server Error')
+  }
+})
+
+// stop compute
 computeRoutes.put(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(
@@ -141,6 +186,7 @@ computeRoutes.put(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   }
 })
 
+// get status
 computeRoutes.get(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(
@@ -165,6 +211,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
   }
 })
 
+// compute results
 computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeResult`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(
@@ -196,6 +243,41 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeResult`, async (req, res) =>
     res.status(500).send('Internal Server Error')
   }
 })
+
+// streaming logs
+computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeStreamableLogs`, async (req, res) => {
+  try {
+    HTTP_LOGGER.logMessage(
+      `ComputeGetStreamableLogsCommand request received with query: ${JSON.stringify(
+        req.query
+      )}`,
+      true
+    )
+    const resultComputeTask: ComputeGetStreamableLogsCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
+      node: (req.query.node as string) || null,
+      consumerAddress: (req.query.consumerAddress as string) || null,
+      jobId: (req.query.jobId as string) || null,
+      signature: (req.query.signature as string) || null,
+      nonce: (req.query.nonce as string) || null
+    }
+
+    const response = await new ComputeGetStreamableLogsHandler(req.oceanNode).handle(
+      resultComputeTask
+    )
+    if (response.stream) {
+      res.status(response.status.httpStatus)
+      res.set(response.status.headers)
+      response.stream.pipe(res)
+    } else {
+      res.status(response.status.httpStatus).send(response.status.error)
+    }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send('Internal Server Error')
+  }
+})
+
 computeRoutes.post(`${SERVICES_API_BASE_PATH}/initializeCompute`, async (req, res) => {
   try {
     HTTP_LOGGER.logMessage(

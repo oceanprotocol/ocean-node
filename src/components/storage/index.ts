@@ -77,6 +77,11 @@ export abstract class Storage {
     }
   }
 
+  getStorageType(file: any): FileObjectType {
+    const { type } = file
+    return type
+  }
+
   async getFileInfo(
     fileInfoRequest: FileInfoRequest,
     forceChecksum: boolean = false
