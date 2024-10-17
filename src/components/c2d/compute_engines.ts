@@ -3,7 +3,7 @@ import { C2DEngine } from './compute_engine_base.js'
 import { C2DEngineOPFK8 } from './compute_engine_opf_k8.js'
 import { C2DEngineDocker, C2DEngineDockerFree } from './compute_engine_docker.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import { C2DDatabase } from '../database/index.js'
+import { C2DDatabase } from '../database/C2DDatabase.js'
 export class C2DEngines {
   public engines: C2DEngine[]
 

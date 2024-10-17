@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import { checkCredentials } from '../../utils/credentials.js'
-import { Credentials } from '../../@types/DDO/Credentials'
+import { Credentials } from '../../@types/DDO/Credentials.js'
 
 describe('credentials', () => {
   it('should allow access with undefined or empty credentials', () => {

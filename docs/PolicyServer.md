@@ -2,7 +2,7 @@
 
 Sometimes, actions performed by Ocean Node have to be double-checked on a higher level of authorization. This might include Oath tokens, SSI verifiable credentials, Enterprise LDAP, etc...
 
-For this, we will adopt a simple, but flexible arhitecture:
+For this, we will adopt a simple, but flexible architecture:
 
 For every command, Ocean Node will query PolicyServer (if such env is defined) and wait for it to perform all needed checks.
 

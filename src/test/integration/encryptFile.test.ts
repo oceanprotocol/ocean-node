@@ -10,6 +10,7 @@ import { EncryptMethod, FileObjectType, UrlFileObject } from '../../@types/fileO
 import fs from 'fs'
 import {
   OverrideEnvConfig,
+  TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   setupEnvironment,
   tearDownEnvironment
@@ -23,13 +24,10 @@ describe('Encrypt File', () => {
 
   before(async () => {
     previousConfiguration = await setupEnvironment(
-      null,
+      TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
-        [ENVIRONMENT_VARIABLES.PRIVATE_KEY, ENVIRONMENT_VARIABLES.DB_URL],
-        [
-          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          'http://localhost:8108/?apiKey=xyz'
-        ]
+        [ENVIRONMENT_VARIABLES.PRIVATE_KEY],
+        ['0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58']
       )
     )
     config = await getConfiguration(true) // Force reload the configuration
