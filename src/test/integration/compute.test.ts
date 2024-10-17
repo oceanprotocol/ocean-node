@@ -18,6 +18,7 @@ import type {
   ComputeEnvironment
 } from '../../@types/C2D/C2D.js'
 import {
+  // DB_TYPES,
   ENVIRONMENT_VARIABLES,
   EVENTS,
   PROTOCOL_COMMANDS,
@@ -45,6 +46,7 @@ import { RPCS } from '../../@types/blockchain.js'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
+  TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
   setupEnvironment,
@@ -104,25 +106,27 @@ describe('Compute', () => {
 
   before(async () => {
     previousConfiguration = await setupEnvironment(
-      null,
+      TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
         [
           ENVIRONMENT_VARIABLES.RPCS,
           ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
-          ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE,
           ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL
+          // ENVIRONMENT_VARIABLES.DB_URL,
+          // ENVIRONMENT_VARIABLES.DB_TYPE
         ],
         [
           JSON.stringify(mockSupportedNetworks),
           JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
           JSON.stringify(['http://localhost:31000'])
+          // 'http://localhost:9200',
+          // DB_TYPES.ELASTIC_SEARCH
         ]
       )
     )
@@ -160,7 +164,8 @@ describe('Compute', () => {
     publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
     const computeDatasetResult = await waitToIndex(
       publishedComputeDataset.ddo.id,
-      EVENTS.METADATA_CREATED
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
     )
     // consider possible timeouts
     if (!computeDatasetResult.ddo) {
@@ -170,7 +175,8 @@ describe('Compute', () => {
     }
     const algoDatasetResult = await waitToIndex(
       publishedAlgoDataset.ddo.id,
-      EVENTS.METADATA_CREATED
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
     )
     if (!algoDatasetResult.ddo) {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(
@@ -180,7 +186,7 @@ describe('Compute', () => {
   })
 
   it('should add the algorithm to the dataset trusted algorithm list', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 5)
     const algoChecksums = await getAlgoChecksums(
       publishedAlgoDataset.ddo.id,
       publishedAlgoDataset.ddo.services[0].id,
@@ -216,10 +222,21 @@ describe('Compute', () => {
     )
     const txReceipt = await setMetaDataTx.wait()
     assert(txReceipt, 'set metadata failed')
-    setTimeout(() => {}, 10000)
     publishedComputeDataset = await waitToIndex(
       publishedComputeDataset.ddo.id,
-      EVENTS.METADATA_CREATED
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT * 2,
+      true
+    )
+    assert(
+      publishedComputeDataset?.ddo?.services[0]?.compute?.publisherTrustedAlgorithms
+        .length > 0,
+      'Trusted algorithms not updated'
+    )
+    assert(
+      publishedComputeDataset?.ddo?.services[0]?.compute?.publisherTrustedAlgorithms[0]
+        .did === publishedAlgoDataset.ddo.id,
+      'Algorithm DID mismatch in trusted algorithms'
     )
   })
 
@@ -236,7 +253,6 @@ describe('Compute', () => {
     expect(response.stream).to.be.instanceOf(Readable)
 
     computeEnvironments = await streamToObject(response.stream as Readable)
-
     // expect 2 envs
     expect(computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 2, 'incorrect length')
     for (const computeEnvironment of computeEnvironments[DEVELOPMENT_CHAIN_ID]) {
@@ -268,6 +284,15 @@ describe('Compute', () => {
       documentId: publishedAlgoDataset.ddo.id,
       serviceId: publishedAlgoDataset.ddo.services[0].id
     }
+    const getEnvironmentsTask = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS
+    }
+    const response = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
+      getEnvironmentsTask
+    )
+    computeEnvironments = await streamToObject(response.stream as Readable)
+    firstEnv = computeEnvironments[DEVELOPMENT_CHAIN_ID][0]
+
     const initializeComputeTask: ComputeInitializeCommand = {
       datasets: [dataset],
       algorithm,
@@ -281,7 +306,6 @@ describe('Compute', () => {
     const resp = await new ComputeInitializeHandler(oceanNode).handle(
       initializeComputeTask
     )
-
     assert(resp, 'Failed to get response')
     assert(resp.status.httpStatus === 200, 'Failed to get 200 response')
     assert(resp.stream, 'Failed to get stream')
@@ -823,7 +847,8 @@ describe('Compute', () => {
       const { ddo, wasTimeout } = await waitToIndex(
         algoDDO.id,
         EVENTS.METADATA_CREATED,
-        DEFAULT_TEST_TIMEOUT
+        DEFAULT_TEST_TIMEOUT,
+        true
       )
       const algoDDOTest = ddo
       if (algoDDOTest) {
@@ -846,7 +871,8 @@ describe('Compute', () => {
       const { ddo, wasTimeout } = await waitToIndex(
         algoDDO.id,
         EVENTS.METADATA_CREATED,
-        DEFAULT_TEST_TIMEOUT * 2
+        DEFAULT_TEST_TIMEOUT * 2,
+        true
       )
 
       const algoDDOTest = ddo
@@ -859,7 +885,8 @@ describe('Compute', () => {
         const { ddo, wasTimeout } = await waitToIndex(
           datasetDDO.id,
           EVENTS.METADATA_CREATED,
-          DEFAULT_TEST_TIMEOUT * 2
+          DEFAULT_TEST_TIMEOUT * 2,
+          true
         )
 
         const datasetDDOTest = ddo

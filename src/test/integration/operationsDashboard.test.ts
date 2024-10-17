@@ -10,6 +10,7 @@ import { homedir } from 'os'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
+  TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
   setupEnvironment,
@@ -82,13 +83,12 @@ describe('Should test admin operations', () => {
   before(async () => {
     // override and save configuration (always before calling getConfig())
     previousConfiguration = await setupEnvironment(
-      null,
+      TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
         [
           ENVIRONMENT_VARIABLES.RPCS,
           ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
-          ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE
@@ -97,7 +97,6 @@ describe('Should test admin operations', () => {
           JSON.stringify(mockSupportedNetworks),
           JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify([await wallet.getAddress()]),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
@@ -210,7 +209,6 @@ describe('Should test admin operations', () => {
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 2
     )
-
     if (!ddo) {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     }

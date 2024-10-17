@@ -125,6 +125,7 @@ export async function publishAsset(asset: any, publisherAccount: Signer) {
     }
   } catch (ex) {
     console.log('publish asset error: ', ex)
+    return null
   }
 }
 

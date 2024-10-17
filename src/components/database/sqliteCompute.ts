@@ -1,4 +1,4 @@
-import { schemas, Schema } from './schemas.js'
+import { typesenseSchemas, TypesenseSchema } from './TypesenseSchemas.js'
 import type { DBComputeJob } from '../../@types/C2D/C2D.js'
 import sqlite3 from 'sqlite3'
 
@@ -11,11 +11,11 @@ interface ComputeDatabaseProvider {
 
 export class SQLiteCompute implements ComputeDatabaseProvider {
   private db: sqlite3.Database
-  private schema: Schema
+  private schema: TypesenseSchema
 
   constructor(private dbFilePath: string) {
     this.db = new sqlite3.Database(dbFilePath)
-    this.schema = schemas.nonceSchemas
+    this.schema = typesenseSchemas.nonceSchemas
   }
 
   // eslint-disable-next-line require-await

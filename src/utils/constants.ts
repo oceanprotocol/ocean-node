@@ -146,6 +146,11 @@ export interface EnvVariable {
   required: boolean
 }
 
+export const DB_TYPES = {
+  ELASTIC_SEARCH: 'elasticsearch',
+  TYPESENSE: 'typesense'
+}
+
 // usefull to keep track of what all the env variables we are using
 // (faster to read than README and we can easily use the constants if needed)
 // required means its not mandatory OR we have defaults
@@ -310,6 +315,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   UNSAFE_URLS: {
     name: 'UNSAFE_URLS',
     value: process.env.UNSAFE_URLS,
+    required: false
+  },
+  DB_TYPE: {
+    name: 'DB_TYPE',
+    value: process.env.DB_TYPE,
     required: false
   }
 }
