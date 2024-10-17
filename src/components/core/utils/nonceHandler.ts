@@ -39,9 +39,9 @@ export async function getNonce(
 ): Promise<P2PCommandResponse> {
   // get nonce from db
   try {
-    const nonce = await db.retrieve(address)
-    if (nonce !== null) {
-      return getDefaultResponse(nonce.nonce)
+    const nonceResponse = await db.retrieve(address)
+    if (nonceResponse && nonceResponse.nonce !== null) {
+      return getDefaultResponse(nonceResponse.nonce)
     }
     // // did not found anything, try add it and return default
     const setFirst = await db.create(address, 0)
@@ -107,7 +107,7 @@ export async function checkNonce(
     // get nonce from db
     let previousNonce = 0 // if none exists
     const existingNonce = await db.retrieve(consumer)
-    if (existingNonce !== null) {
+    if (existingNonce && existingNonce.nonce !== null) {
       previousNonce = existingNonce.nonce
     }
     // check if bigger than previous stored one and validate signature

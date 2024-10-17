@@ -6,6 +6,7 @@ import { expect, assert } from 'chai'
 import { DB_TYPES } from '../../utils/constants.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { isDefined } from '../../utils/util.js'
+import { SQLLiteNonceDatabase } from '../../components/database/SQLLiteNonceDatabase.js'
 
 const typesenseConfig: OceanNodeDBConfig = {
   url: 'http://localhost:8108/?apiKey=xyz',
@@ -17,7 +18,7 @@ const elasticConfig: OceanNodeDBConfig = {
   dbType: DB_TYPES.ELASTIC_SEARCH
 }
 
-const confSQLLite: OceanNodeDBConfig = {
+const emptyDBConfig: OceanNodeDBConfig = {
   url: '',
   dbType: null
 }
@@ -84,11 +85,15 @@ describe('DdoDatabase CRUD', () => {
   })
 })
 
-describe('NonceDatabase CRUD', () => {
+describe('NonceDatabase CRUD - SQL lite (With typesense DB config)', () => {
   let database: Database
 
   before(async () => {
     database = await new Database(typesenseConfig)
+  })
+
+  it('check nonce DB instance of SQL Lite', () => {
+    expect(database.nonce).to.be.instanceOf(SQLLiteNonceDatabase)
   })
 
   it('create nonce', async () => {
@@ -116,11 +121,15 @@ describe('NonceDatabase CRUD', () => {
   })
 })
 
-describe('NonceDatabase CRUD with SQLite', () => {
+describe('NonceDatabase CRUD (without Elastic or Typesense config)', () => {
   let database: Database
 
   before(async () => {
-    database = await new Database(confSQLLite)
+    database = await new Database(emptyDBConfig)
+  })
+
+  it('check nonce DB instance of SQL Lite', () => {
+    expect(database.nonce).to.be.instanceOf(SQLLiteNonceDatabase)
   })
 
   it('create nonce', async () => {

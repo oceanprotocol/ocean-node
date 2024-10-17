@@ -196,6 +196,7 @@ providerRoutes.get(
       res.sendStatus(400)
       return
     }
+    console.log(`Download request received: ${JSON.stringify(req.query)}`)
     HTTP_LOGGER.logMessage(
       `Download request received: ${JSON.stringify(req.query)}`,
       true
@@ -222,8 +223,10 @@ providerRoutes.get(
         command: PROTOCOL_COMMANDS.DOWNLOAD,
         policyServer: req.query.policyServer || null
       }
+      console.log('downloadTask ', downloadTask)
 
       const response = await new DownloadHandler(req.oceanNode).handle(downloadTask)
+      console.log('Download response', response)
       if (response.stream) {
         res.status(response.status.httpStatus)
         res.set(response.status.headers)

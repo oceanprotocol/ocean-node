@@ -6,10 +6,10 @@ import {
   ElasticsearchDdoStateDatabase,
   ElasticsearchIndexerDatabase,
   ElasticsearchLogDatabase,
-  ElasticsearchNonceDatabase,
   ElasticsearchOrderDatabase
 } from '../../components/database/ElasticSearchDatabase.js'
 import { DB_TYPES } from '../../utils/index.js'
+import { SQLLiteNonceDatabase } from '../../components/database/SQLLiteNonceDatabase.js'
 
 const dbConfig = {
   url: 'http://localhost:9200',
@@ -23,7 +23,7 @@ describe('Elastic Search', () => {
     expect(elasticsearch.indexer).to.be.instanceOf(ElasticsearchIndexerDatabase)
     expect(elasticsearch.ddoState).to.be.instanceOf(ElasticsearchDdoStateDatabase)
     expect(elasticsearch.order).to.be.instanceOf(ElasticsearchOrderDatabase)
-    expect(elasticsearch.nonce).to.be.instanceOf(ElasticsearchNonceDatabase)
+    expect(elasticsearch.nonce).to.be.instanceOf(SQLLiteNonceDatabase)
     expect(elasticsearch.logs).to.be.instanceOf(ElasticsearchLogDatabase)
   })
 })
