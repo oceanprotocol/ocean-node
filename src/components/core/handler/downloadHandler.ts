@@ -231,7 +231,6 @@ export class DownloadHandler extends Handler {
       .getCoreHandlers()
       .getHandler(PROTOCOL_COMMANDS.FIND_DDO) as FindDdoHandler
     const ddo = await handler.findAndFormatDdo(task.documentId)
-    console.log('find DDO:', ddo)
 
     if (ddo) {
       CORE_LOGGER.logMessage('DDO for asset found: ' + ddo, true)
@@ -296,7 +295,6 @@ export class DownloadHandler extends Handler {
       task.signature,
       String(ddo.id + task.nonce)
     )
-    console.log('nonceCheckResult ', nonceCheckResult)
 
     if (!nonceCheckResult.valid) {
       CORE_LOGGER.logMessage(
