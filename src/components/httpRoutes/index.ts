@@ -1,7 +1,7 @@
 import express, { Response } from 'express'
 import { getOceanPeersRoute, getP2PPeersRoute, getP2PPeerRoute } from './getOceanPeers.js'
 import { advertiseDidRoute, getProvidersForDidRoute } from './dids.js'
-import { broadcastCommandRoute, directCommandRoute } from './commands.js'
+import { directCommandRoute } from './commands.js'
 import { logRoutes } from './logs.js'
 import { providerRoutes } from './provider.js'
 import { aquariusRoutes } from './aquarius.js'
@@ -9,16 +9,13 @@ import { rootEndpointRoutes } from './rootEndpoint.js'
 import { fileInfoRoute } from './fileInfo.js'
 import { computeRoutes } from './compute.js'
 import { queueRoutes } from './queue.js'
-import { getConfiguration } from '../../utils/config.js'
+// import { getConfiguration } from '../../utils/config.js'
 import { jobsRoutes } from './jobs.js'
 import { addMapping, allRoutesMapping, findPathName } from './routeUtils.js'
 
 export * from './getOceanPeers.js'
 
 export const httpRoutes = express.Router()
-
-// P2P routes related
-export const hasP2PInterface = (await (await getConfiguration())?.hasP2P) || false
 
 export function sendMissingP2PResponse(res: Response) {
   res.status(400).send('Invalid or Non Existing P2P configuration')
@@ -34,8 +31,6 @@ httpRoutes.use(getP2PPeerRoute)
 httpRoutes.use(advertiseDidRoute)
 // /getProvidersForDid
 httpRoutes.use(getProvidersForDidRoute)
-// /broadcastCommand
-httpRoutes.use(broadcastCommandRoute)
 // /directCommand
 httpRoutes.use(directCommandRoute)
 // /logs

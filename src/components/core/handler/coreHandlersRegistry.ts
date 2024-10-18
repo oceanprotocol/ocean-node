@@ -11,6 +11,7 @@ import {
 } from './ddoHandler.js'
 import { DownloadHandler } from './downloadHandler.js'
 import { FileInfoHandler } from './fileInfoHandler.js'
+import { PolicyServerPassthroughHandler } from './policyServer.js'
 import { EchoHandler } from './echoHandler.js'
 import { EncryptHandler, EncryptFileHandler } from './encryptHandler.js'
 import { FeesHandler } from './feesHandler.js'
@@ -32,6 +33,7 @@ import { StopNodeHandler } from '../admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../admin/reindexTxHandler.js'
 import { ReindexChainHandler } from '../admin/reindexChainHandler.js'
 import { IndexingThreadHandler } from '../admin/IndexingThreadHandler.js'
+import { CollectFeesHandler } from '../admin/collectFeesHandler.js'
 
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -85,6 +87,11 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(PROTOCOL_COMMANDS.GET_FEES, new FeesHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.ECHO, new EchoHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.FILE_INFO, new FileInfoHandler(node))
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH,
+      new PolicyServerPassthroughHandler(node)
+    )
+
     this.registerCoreHandler(PROTOCOL_COMMANDS.VALIDATE_DDO, new ValidateDDOHandler(node))
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS,
@@ -117,6 +124,7 @@ export class CoreHandlersRegistry {
       PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
       new IndexingThreadHandler(node)
     )
+    this.registerCoreHandler(PROTOCOL_COMMANDS.COLLECT_FEES, new CollectFeesHandler(node))
   }
 
   public static getInstance(node: OceanNode): CoreHandlersRegistry {

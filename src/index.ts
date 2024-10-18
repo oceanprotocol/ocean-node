@@ -5,7 +5,11 @@ import { Database } from './components/database/index.js'
 import express, { Express } from 'express'
 import { OceanNode } from './OceanNode.js'
 import { httpRoutes } from './components/httpRoutes/index.js'
-import { getConfiguration, computeCodebaseHash } from './utils/index.js'
+import {
+  getConfiguration,
+  computeCodebaseHash,
+  ENVIRONMENT_VARIABLES
+} from './utils/index.js'
 
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import fs from 'fs'
@@ -15,6 +19,7 @@ import { fileURLToPath } from 'url'
 import cors from 'cors'
 import { scheduleCronJobs } from './utils/logging/logDeleteCron.js'
 import { requestValidator } from './components/httpRoutes/requestValidator.js'
+import { hasValidDBConfiguration } from './utils/database.js'
 
 const app: Express = express()
 
@@ -80,16 +85,18 @@ if (!config) {
 let node: OceanP2P = null
 let indexer = null
 let provider = null
-let dbconn: Database | null = null
+// If there is no DB URL only the nonce database will be available
+const dbconn: Database = await new Database(config.dbConfig)
 
-if (config.dbConfig?.url) {
+if (!hasValidDBConfiguration(config.dbConfig)) {
   // once we create a database instance, we check the environment and possibly add the DB transport
   // after that, all loggers will eventually have it too (if in production/staging environments)
   // it creates dinamically DDO schemas
-  dbconn = await new Database(config.dbConfig)
-} else {
   config.hasIndexer = false
-  config.hasProvider = false
+} else {
+  OCEAN_NODE_LOGGER.warn(
+    `Missing or invalid property: "${ENVIRONMENT_VARIABLES.DB_URL.name}". This means Indexer module will not be enabled.`
+  )
 }
 
 if (config.hasP2P) {
@@ -101,7 +108,7 @@ if (config.hasP2P) {
   await node.start()
 }
 if (config.hasIndexer && dbconn) {
-  indexer = new OceanIndexer(dbconn, config.supportedNetworks)
+  indexer = new OceanIndexer(dbconn, config.indexingNetworks)
   // if we set this var
   // it also loads initial data (useful for testing, or we might actually want to have a bootstrap list)
   // store and advertise DDOs
@@ -115,12 +122,13 @@ if (config.hasIndexer && dbconn) {
     }
   }
 }
-if (config.hasProvider && dbconn) {
+if (dbconn) {
   provider = new OceanProvider(dbconn)
 }
 
 // Singleton instance across application
-const oceanNode = OceanNode.getInstance(dbconn, node, provider, indexer, config)
+const oceanNode = OceanNode.getInstance(dbconn, node, provider, indexer)
+oceanNode.addC2DEngines(config)
 
 function removeExtraSlashes(req: any, res: any, next: any) {
   req.url = req.url.replace(/\/{2,}/g, '/')
@@ -136,19 +144,26 @@ if (config.hasHttp) {
     // Serve static files expected at the root, under the '/_next' path
     app.use('/_next', express.static(path.join(__dirname, '/dashboard/_next')))
 
-    // Serve static files for Next.js under '/dashboard'
+    // Serve static files for Next.js under both '/dashboard' and '/controlpanel'
     const dashboardPath = path.join(__dirname, '/dashboard')
     app.use('/dashboard', express.static(dashboardPath))
+    app.use('/controlpanel', express.static(dashboardPath))
 
-    // Custom middleware for SPA routing: Serve index.html for non-static asset requests under '/dashboard'
-    app.use('/dashboard', (req, res, next) => {
+    // Custom middleware for SPA routing: Serve index.html for non-static asset requests
+    const serveIndexHtml = (
+      req: express.Request,
+      res: express.Response,
+      next: express.NextFunction
+    ) => {
       if (/(.ico|.js|.css|.jpg|.png|.svg|.map)$/i.test(req.path)) {
         return next() // Skip this middleware if the request is for a static asset
       }
-
-      // For any other requests under '/dashboard', serve index.html
+      // For any other requests, serve index.html
       res.sendFile(path.join(dashboardPath, 'index.html'))
-    })
+    }
+
+    app.use('/dashboard', serveIndexHtml)
+    app.use('/controlpanel', serveIndexHtml)
   }
 
   app.use(requestValidator, (req, res, next) => {

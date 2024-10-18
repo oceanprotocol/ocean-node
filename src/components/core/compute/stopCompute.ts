@@ -3,7 +3,6 @@ import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
 import { ComputeStopCommand } from '../../../@types/commands.js'
-import { C2DEngine } from '../../c2d/compute_engines.js'
 import {
   ValidateParams,
   buildInvalidRequestMessage,
@@ -40,11 +39,13 @@ export class ComputeStopHandler extends Handler {
       const index = task.jobId.indexOf('-')
       const hash = task.jobId.slice(0, index)
       const jobId = task.jobId.slice(index + 1)
+      // eslint-disable-next-line prefer-destructuring
+      const agreementId = task.agreementId
 
       // env might contain
       let engine
       try {
-        engine = await C2DEngine.getC2DByHash(hash)
+        engine = await this.getOceanNode().getC2DEngines().getC2DByHash(hash)
       } catch (e) {
         return {
           stream: null,
@@ -54,7 +55,11 @@ export class ComputeStopHandler extends Handler {
           }
         }
       }
-      const response = await engine.stopComputeJob(jobId, task.consumerAddress)
+      const response = await engine.stopComputeJob(
+        jobId,
+        task.consumerAddress,
+        agreementId
+      )
 
       CORE_LOGGER.logMessage(
         'StopComputeCommand Response: ' + JSON.stringify(response, null, 2),

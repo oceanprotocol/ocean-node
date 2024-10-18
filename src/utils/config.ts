@@ -1,4 +1,9 @@
-import type { DenyList, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
+import type {
+  DenyList,
+  OceanNodeConfig,
+  OceanNodeKeys,
+  OceanNodeDockerConfig
+} from '../@types/OceanNode'
 import type { C2DClusterInfo } from '../@types/C2D.js'
 import { C2DClusterType } from '../@types/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
@@ -9,7 +14,7 @@ import {
   EnvVariable,
   hexStringToByteArray
 } from '../utils/index.js'
-import { defaultBootstrapAddresses } from '../utils/constants.js'
+import { defaultBootstrapAddresses, knownUnsafeURLs } from '../utils/constants.js'
 
 import { LOG_LEVELS_STR, GENERIC_EMOJIS, getLoggerLevelEmoji } from './logging/Logger.js'
 import { RPCS } from '../@types/blockchain'
@@ -57,7 +62,7 @@ function getIntEnvValue(env: any, defaultValue: number) {
   return isNaN(num) ? defaultValue : num
 }
 
-function getBoolEnvValue(envName: string, defaultValue: boolean): boolean {
+export function getBoolEnvValue(envName: string, defaultValue: boolean): boolean {
   if (!(envName in process.env)) {
     return defaultValue
   }
@@ -95,6 +100,49 @@ function getSupportedChains(): RPCS | null {
   return supportedNetworks
 }
 
+function getIndexingNetworks(supportedNetworks: RPCS): RPCS | null {
+  const indexerNetworksEnv = process.env.INDEXER_NETWORKS
+  if (!indexerNetworksEnv) {
+    CONFIG_LOGGER.logMessageWithEmoji(
+      'INDEXER_NETWORKS is not defined, running Indexer with all supported networks defined in RPCS env variable ...',
+      true,
+      GENERIC_EMOJIS.EMOJI_CHECK_MARK,
+      LOG_LEVELS_STR.LEVEL_INFO
+    )
+    return supportedNetworks
+  }
+  try {
+    const indexerNetworks: number[] = JSON.parse(indexerNetworksEnv)
+
+    if (indexerNetworks.length === 0) {
+      CONFIG_LOGGER.logMessageWithEmoji(
+        'INDEXER_NETWORKS is an empty array, Running node without the Indexer component...',
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+
+    // Use reduce to filter supportedNetworks
+    const filteredNetworks = indexerNetworks.reduce((acc: RPCS, chainId) => {
+      if (supportedNetworks[chainId]) {
+        acc[chainId] = supportedNetworks[chainId]
+      }
+      return acc
+    }, {})
+
+    return filteredNetworks
+  } catch (e) {
+    CONFIG_LOGGER.logMessageWithEmoji(
+      'Missing or Invalid INDEXER_NETWORKS env variable format,running Indexer with all supported networks defined in RPCS env variable ...',
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
+    return supportedNetworks
+  }
+}
 // valid decrypthers
 function getAuthorizedDecrypters(isStartup?: boolean): string[] {
   return readAddressListFromEnvVariable(
@@ -257,6 +305,18 @@ function getOceanNodeFees(supportedNetworks: RPCS, isStartup?: boolean): FeeStra
   }
 }
 
+function getC2DDockerConfig(isStartup?: boolean): OceanNodeDockerConfig {
+  const config = {
+    socketPath: getEnvValue(process.env.DOCKER_SOCKET_PATH, null),
+    protocol: getEnvValue(process.env.DOCKER_PROTOCOL, null),
+    host: getEnvValue(process.env.DOCKER_HOST, null),
+    port: getIntEnvValue(process.env.DOCKER_PORT, 0),
+    caPath: getEnvValue(process.env.DOCKER_CA_PATH, null),
+    certPath: getEnvValue(process.env.DOCKER_CERT_PATH, null),
+    keyPath: getEnvValue(process.env.DOCKER_KEY_PATH, null)
+  }
+  return config
+}
 // get C2D environments
 function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
   const clusters: C2DClusterInfo[] = []
@@ -269,7 +329,7 @@ function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
 
       for (const theURL of clustersURLS) {
         clusters.push({
-          url: theURL,
+          connection: theURL,
           hash: create256Hash(theURL),
           type: C2DClusterType.OPF_K8
         })
@@ -418,6 +478,9 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
   }
 
   const supportedNetworks = getSupportedChains()
+  const indexingNetworks = supportedNetworks
+    ? getIndexingNetworks(supportedNetworks)
+    : null
   // Notes: we need to have this config on the class and use always that, otherwise we're processing
   // all this info every time we call getConfig(), and also loggin too much
 
@@ -433,13 +496,14 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
 
   // http and/or p2p connections
   const interfaces = getNodeInterfaces(isStartup)
-
+  let bootstrapTtl = getIntEnvValue(process.env.P2P_BOOTSTRAP_TTL, 120000)
+  if (bootstrapTtl === 0) bootstrapTtl = Infinity
   const config: OceanNodeConfig = {
     authorizedDecrypters: getAuthorizedDecrypters(isStartup),
     allowedValidators: getAllowedValidators(isStartup),
     keys,
     // Only enable indexer if we have a DB_URL and supportedNetworks
-    hasIndexer: !!(!!getEnvValue(process.env.DB_URL, '') && !!supportedNetworks),
+    hasIndexer: !!(!!getEnvValue(process.env.DB_URL, '') && !!indexingNetworks),
     hasHttp: interfaces.includes('HTTP'),
     hasP2P: interfaces.includes('P2P'),
     p2pConfig: {
@@ -448,6 +512,10 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
         isStartup,
         defaultBootstrapAddresses
       ),
+      bootstrapTimeout: getIntEnvValue(process.env.P2P_BOOTSTRAP_TIMEOUT, 20000),
+      bootstrapTagName: getEnvValue(process.env.P2P_BOOTSTRAP_TAGNAME, 'bootstrap'),
+      bootstrapTagValue: getIntEnvValue(process.env.P2P_BOOTSTRAP_TAGVALUE, 50),
+      bootstrapTTL: bootstrapTtl,
       enableIPV4: getBoolEnvValue('P2P_ENABLE_IPV4', true),
       enableIPV6: getBoolEnvValue('P2P_ENABLE_IPV6', true),
       ipV4BindAddress: getEnvValue(process.env.P2P_ipV4BindAddress, '0.0.0.0'),
@@ -462,10 +530,11 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       ),
       pubsubPeerDiscoveryInterval: getIntEnvValue(
         process.env.P2P_pubsubPeerDiscoveryInterval,
-        1000
+        10000 // every 10 seconds
       ),
       dhtMaxInboundStreams: getIntEnvValue(process.env.P2P_dhtMaxInboundStreams, 500),
       dhtMaxOutboundStreams: getIntEnvValue(process.env.P2P_dhtMaxOutboundStreams, 500),
+      enableDHTServer: getBoolEnvValue(process.env.P2P_ENABLE_DHT_SERVER, false),
       mDNSInterval: getIntEnvValue(process.env.P2P_mDNSInterval, 20e3), // 20 seconds
       connectionsMaxParallelDials: getIntEnvValue(
         process.env.P2P_connectionsMaxParallelDials,
@@ -479,12 +548,25 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       autoNat: getBoolEnvValue('P2P_ENABLE_AUTONAT', true),
       enableCircuitRelayServer: getBoolEnvValue('P2P_ENABLE_CIRCUIT_RELAY_SERVER', false),
       enableCircuitRelayClient: getBoolEnvValue('P2P_ENABLE_CIRCUIT_RELAY_CLIENT', false),
-      circuitRelays: getIntEnvValue(process.env.P2P_CIRCUIT_RELAYS, 1),
+      circuitRelays: getIntEnvValue(process.env.P2P_CIRCUIT_RELAYS, 0),
       announcePrivateIp: getBoolEnvValue('P2P_ANNOUNCE_PRIVATE', false),
       filterAnnouncedAddresses: readListFromEnvVariable(
         ENVIRONMENT_VARIABLES.P2P_FILTER_ANNOUNCED_ADDRESSES,
         isStartup,
-        ['172.15.0.0/24']
+        [
+          '127.0.0.0/8',
+          '10.0.0.0/8',
+          '172.16.0.0/12',
+          '192.168.0.0/16',
+          '100.64.0.0/10',
+          '169.254.0.0/16',
+          '192.0.0.0/24',
+          '192.0.2.0/24',
+          '198.51.100.0/24',
+          '203.0.113.0/24',
+          '224.0.0.0/4',
+          '240.0.0.0/4'
+        ] // list of all non-routable IP addresses, not availabe from public internet, private networks or specific reserved use
       ),
       minConnections: getIntEnvValue(process.env.P2P_MIN_CONNECTIONS, 1),
       maxConnections: getIntEnvValue(process.env.P2P_MAX_CONNECTIONS, 300),
@@ -493,23 +575,33 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
         1000 * 120
       ),
       autoDialConcurrency: getIntEnvValue(process.env.P2P_AUTODIALCONCURRENCY, 5),
-      maxPeerAddrsToDial: getIntEnvValue(process.env.P2P_MAXPEERADDRSTODIAL, 5)
+      maxPeerAddrsToDial: getIntEnvValue(process.env.P2P_MAXPEERADDRSTODIAL, 5),
+      autoDialInterval: getIntEnvValue(process.env.P2P_AUTODIALINTERVAL, 5000)
     },
-    // Only enable provider if we have a DB_URL
-    hasProvider: !!getEnvValue(process.env.DB_URL, ''),
     hasDashboard: process.env.DASHBOARD !== 'false',
     httpPort: getIntEnvValue(process.env.HTTP_API_PORT, 8000),
     dbConfig: {
-      url: getEnvValue(process.env.DB_URL, '')
+      url: getEnvValue(process.env.DB_URL, ''),
+      username: getEnvValue(process.env.DB_USERNAME, ''),
+      password: getEnvValue(process.env.DB_PASSWORD, ''),
+      dbType: getEnvValue(process.env.DB_TYPE, null)
     },
     supportedNetworks,
+    indexingNetworks,
     feeStrategy: getOceanNodeFees(supportedNetworks, isStartup),
     c2dClusters: getC2DClusterEnvironment(isStartup),
+    dockerConfig: getC2DDockerConfig(isStartup),
+    c2dNodeUri: getEnvValue(process.env.C2D_NODE_URI, ''),
     accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
     assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),
     allowedAdmins: getAllowedAdmins(isStartup),
     rateLimit: getRateLimit(isStartup),
-    denyList: getDenyList(isStartup)
+    denyList: getDenyList(isStartup),
+    unsafeURLs: readListFromEnvVariable(
+      ENVIRONMENT_VARIABLES.UNSAFE_URLS,
+      isStartup,
+      knownUnsafeURLs
+    )
   }
 
   if (!previousConfiguration) {
@@ -531,3 +623,6 @@ export async function printCurrentConfig() {
   const conf = await getConfiguration(true)
   console.log(JSON.stringify(conf, null, 4))
 }
+
+// P2P routes related
+export const hasP2PInterface = (await (await getConfiguration())?.hasP2P) || false

@@ -4,7 +4,6 @@ import EventEmitter from 'node:events'
 import clone from 'lodash.clonedeep'
 
 import {
-  handleBroadcasts,
   // handlePeerConnect,
   // handlePeerDiscovery,
   // handlePeerDisconnect,
@@ -19,7 +18,7 @@ import { mdns } from '@libp2p/mdns'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { peerIdFromString } from '@libp2p/peer-id'
 import { pipe } from 'it-pipe'
-import { pubsubPeerDiscovery } from '@libp2p/pubsub-peer-discovery'
+// import { pubsubPeerDiscovery } from '@libp2p/pubsub-peer-discovery'
 
 import { tcp } from '@libp2p/tcp'
 import { webSockets } from '@libp2p/websockets'
@@ -30,8 +29,8 @@ import { autoNAT } from '@libp2p/autonat'
 import { uPnPNAT } from '@libp2p/upnp-nat'
 import { ping } from '@libp2p/ping'
 import { dcutr } from '@libp2p/dcutr'
-import { kadDHT } from '@libp2p/kad-dht'
-import { gossipsub } from '@chainsafe/libp2p-gossipsub'
+import { kadDHT, passthroughMapper } from '@libp2p/kad-dht'
+// import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 
 import { EVENTS, cidFromRawString } from '../../utils/index.js'
 import { Transform } from 'stream'
@@ -40,15 +39,11 @@ import { OceanNodeConfig, FindDDOResponse } from '../../@types/OceanNode'
 // eslint-disable-next-line camelcase
 import is_ip_private from 'private-ip'
 import ip from 'ip'
-import {
-  GENERIC_EMOJIS,
-  LOG_LEVELS_STR,
-  getLoggerLevelEmoji
-} from '../../utils/logging/Logger.js'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
-import { multiaddr } from '@multiformats/multiaddr'
+import { type Multiaddr, multiaddr } from '@multiformats/multiaddr'
 // import { getIPv4, getIPv6 } from '../../utils/ip.js'
 
 const DEFAULT_OPTIONS = {
@@ -119,9 +114,10 @@ export class OceanP2P extends EventEmitter {
     this._libp2p.addEventListener('peer:disconnect', (evt: any) => {
       this.handlePeerDisconnect(evt)
     })
-    this._libp2p.addEventListener('peer:discovery', (evt: any) => {
-      this.handlePeerDiscovery(evt)
+    this._libp2p.addEventListener('peer:discovery', (details: any) => {
+      this.handlePeerDiscovery(details)
     })
+
     this._options = Object.assign({}, clone(DEFAULT_OPTIONS), clone(options))
     this._peers = []
     this._connections = {}
@@ -150,12 +146,9 @@ export class OceanP2P extends EventEmitter {
     if (details) {
       const peerId = details.detail
       P2P_LOGGER.debug('Connection established to:' + peerId.toString()) // Emitted when a peer has been found
-      try {
-        // DO WE REALLY NEED THIS?
-        this._libp2p.services.pubsub.connect(peerId.toString())
-      } catch (e) {
-        P2P_LOGGER.error(e.message)
-      }
+      // try {
+      //   this._libp2p.services.pubsub.connect(peerId.toString())
+      // } catch (e) {}
     }
   }
 
@@ -164,9 +157,22 @@ export class OceanP2P extends EventEmitter {
     P2P_LOGGER.debug('Connection closed to:' + peerId.toString()) // Emitted when a peer has been found
   }
 
-  handlePeerDiscovery(details: any) {
-    const peerInfo = details.detail
-    P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
+  async handlePeerDiscovery(details: any) {
+    try {
+      const peerInfo = details.detail
+      // P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
+      if (peerInfo.multiaddrs) {
+        await this._libp2p.peerStore.save(peerInfo.id, {
+          multiaddrs: peerInfo.multiaddrs
+        })
+        await this._libp2p.peerStore.patch(peerInfo.id, {
+          multiaddrs: peerInfo.multiaddrs
+        })
+      }
+    } catch (e) {
+      // no panic if it failed
+      // console.error(e)
+    }
   }
 
   handlePeerJoined(details: any) {
@@ -236,13 +242,59 @@ export class OceanP2P extends EventEmitter {
       this._privateKey = config.keys.privateKey
       /** @type {import('libp2p').Libp2pOptions} */
       // start with some default, overwrite based on config later
+      const bindInterfaces = []
+      if (config.p2pConfig.enableIPV4) {
+        P2P_LOGGER.info('Binding P2P sockets to IPV4')
+        bindInterfaces.push(
+          `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindTcpPort}`
+        )
+        bindInterfaces.push(
+          `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindWsPort}/ws`
+        )
+      }
+      if (config.p2pConfig.enableIPV6) {
+        P2P_LOGGER.info('Binding P2P sockets to IPV6')
+        bindInterfaces.push(
+          `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindTcpPort}`
+        )
+        bindInterfaces.push(
+          `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindWsPort}/ws`
+        )
+      }
+      let addresses = {}
+      if (
+        config.p2pConfig.announceAddresses &&
+        config.p2pConfig.announceAddresses.length > 0
+      ) {
+        addresses = {
+          listen: bindInterfaces,
+          announceFilter: (multiaddrs: any[]) =>
+            multiaddrs.filter((m) => this.shouldAnnounce(m)),
+          announce: config.p2pConfig.announceAddresses
+        }
+      } else {
+        addresses = {
+          listen: bindInterfaces,
+          announceFilter: (multiaddrs: any[]) =>
+            multiaddrs.filter((m) => this.shouldAnnounce(m))
+        }
+      }
       let servicesConfig = {
         identify: identify(),
+        /*
         pubsub: gossipsub({
-          allowPublishToZeroTopicPeers: true
+          fallbackToFloodsub: false,
+          batchPublish: false,
+          allowPublishToZeroTopicPeers: true,
+          asyncValidation: false,
+          // messageProcessingConcurrency: 5,
+          seenTTL: 10 * 1000,
+          runOnTransientConnection: true,
+          doPX: doPx,
           // canRelayMessage: true,
           // enabled: true
-        }),
+          allowedTopics: ['oceanprotocol._peer-discovery._p2p._pubsub', 'oceanprotocol']
+        }), */
         dht: kadDHT({
           // this is necessary because this node is not connected to the public network
           // it can be removed if, for example bootstrappers are configured
@@ -250,9 +302,10 @@ export class OceanP2P extends EventEmitter {
           maxInboundStreams: config.p2pConfig.dhtMaxInboundStreams,
           maxOutboundStreams: config.p2pConfig.dhtMaxOutboundStreams,
 
-          clientMode: false, // this should be true for edge devices
+          clientMode: false,
           kBucketSize: 20,
-          protocol: '/ocean/nodes/1.0.0/kad/1.0.0'
+          protocol: '/ocean/nodes/1.0.0/kad/1.0.0',
+          peerInfoMapper: passthroughMapper
           // protocolPrefix: '/ocean/nodes/1.0.0'
           // randomWalk: {
           //  enabled: true,            // Allows to disable discovery (enabled by default)
@@ -281,45 +334,19 @@ export class OceanP2P extends EventEmitter {
           ...{ autoNAT: autoNAT({ maxInboundStreams: 20, maxOutboundStreams: 20 }) }
         }
       }
-      const bindInterfaces = []
-      if (config.p2pConfig.enableIPV4) {
-        P2P_LOGGER.info('Binding P2P sockets to IPV4')
-        bindInterfaces.push(
-          `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindTcpPort}`
-        )
-        bindInterfaces.push(
-          `/ip4/${config.p2pConfig.ipV4BindAddress}/tcp/${config.p2pConfig.ipV4BindWsPort}/ws`
-        )
-      }
-      if (config.p2pConfig.enableIPV6) {
-        P2P_LOGGER.info('Binding P2P sockets to IPV6')
-        bindInterfaces.push(
-          `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindTcpPort}`
-        )
-        bindInterfaces.push(
-          `/ip6/${config.p2pConfig.ipV6BindAddress}/tcp/${config.p2pConfig.ipV6BindWsPort}/ws`
-        )
-      }
+
       let transports = []
-      if (config.p2pConfig.enableCircuitRelayClient) {
-        P2P_LOGGER.info('Enabling P2P Transports: websockets, tcp, circuitRelay')
-        transports = [
-          webSockets(),
-          tcp(),
-          circuitRelayTransport({
-            discoverRelays: config.p2pConfig.circuitRelays
-          })
-        ]
-      } else {
-        P2P_LOGGER.info('Enabling P2P Transports: websockets, tcp')
-        transports = [webSockets(), tcp()]
-      }
+      P2P_LOGGER.info('Enabling P2P Transports: websockets, tcp, circuitRelay')
+      transports = [
+        webSockets(),
+        tcp(),
+        circuitRelayTransport({
+          discoverRelays: config.p2pConfig.circuitRelays
+        })
+      ]
+
       let options = {
-        addresses: {
-          listen: bindInterfaces,
-          announceFilter: (multiaddrs: any[]) =>
-            multiaddrs.filter((m) => this.shouldAnnounce(m))
-        },
+        addresses,
         peerId: config.keys.peerId,
         transports,
         streamMuxers: [yamux()],
@@ -335,7 +362,8 @@ export class OceanP2P extends EventEmitter {
           maxConnections: config.p2pConfig.maxConnections,
           autoDialPeerRetryThreshold: config.p2pConfig.autoDialPeerRetryThreshold,
           autoDialConcurrency: config.p2pConfig.autoDialConcurrency,
-          maxPeerAddrsToDial: config.p2pConfig.maxPeerAddrsToDial
+          maxPeerAddrsToDial: config.p2pConfig.maxPeerAddrsToDial,
+          autoDialInterval: config.p2pConfig.autoDialInterval
         }
       }
       if (config.p2pConfig.bootstrapNodes && config.p2pConfig.bootstrapNodes.length > 0) {
@@ -345,14 +373,14 @@ export class OceanP2P extends EventEmitter {
             peerDiscovery: [
               bootstrap({
                 list: config.p2pConfig.bootstrapNodes,
-                timeout: 20000, // in ms,
-                tagName: 'bootstrap',
-                tagValue: 50,
-                tagTTL: 10000000000
+                timeout: config.p2pConfig.bootstrapTimeout, // in ms,
+                tagName: config.p2pConfig.bootstrapTagName,
+                tagValue: config.p2pConfig.bootstrapTagValue,
+                tagTTL: config.p2pConfig.bootstrapTTL
               }),
               mdns({
                 interval: config.p2pConfig.mDNSInterval
-              }),
+              }) /*,
               pubsubPeerDiscovery({
                 interval: config.p2pConfig.pubsubPeerDiscoveryInterval,
                 topics: [
@@ -361,7 +389,7 @@ export class OceanP2P extends EventEmitter {
                   // '_peer-discovery._p2p._pubsub' // Include if you want to participate in the global space
                 ],
                 listenOnly: false
-              })
+              }) */
             ]
           }
         }
@@ -373,7 +401,7 @@ export class OceanP2P extends EventEmitter {
             peerDiscovery: [
               mdns({
                 interval: config.p2pConfig.mDNSInterval
-              }),
+              }) /*,
               pubsubPeerDiscovery({
                 interval: config.p2pConfig.pubsubPeerDiscoveryInterval,
                 topics: [
@@ -382,7 +410,7 @@ export class OceanP2P extends EventEmitter {
                   // '_peer-discovery._p2p._pubsub' // Include if you want to participate in the global space
                 ],
                 listenOnly: false
-              })
+              }) */
             ]
           }
         }
@@ -390,33 +418,17 @@ export class OceanP2P extends EventEmitter {
       const node = await createLibp2p(options)
       await node.start()
 
-      // node.services.pubsub.addEventListener(  'peer joined', (evt:any) => {handlePeerJoined(evt)})
-      // node.services.pubsub.addEventListener('peer left', (evt:any) => {handlePeerLeft(evt)})
-      // node.services.pubsub.addEventListener('subscription-change', (evt:any) => { handleSubscriptionCHange(evt)})
-
-      // this._libp2p.services.pubsub.on('peer joined', (peer:any) => {
-      // console.log('New peer joined us:', peer)
-      // })
-      // this._libp2p.services.pubsub.addEventListener('peer left', (evt:any) => {
-      // console.log('Peer left...', evt)
-      // })
-      // this._libp2p.services.pubsub.on('peer left', (peer:any) => {
-      // console.log('Peer left...', peer)
-      // })
-      node.services.pubsub.addEventListener('message', (message: any) => {
-        handleBroadcasts(this._topic, message)
-      })
-      // this._libp2p.services.pubsub.on('message', (message:any) => {
-      //  console.log('Received broadcast msg...', message)
-      //  console.log("Sending back 'who are you' to "+message.from.toString())
-      //  this.sendTo(message.from,'Who are you?',null)
-      // })
-      node.services.pubsub.subscribe(this._topic)
-      node.services.pubsub.publish(this._topic, encoding('online'))
-
       const upnpService = (node.services as any).upnpNAT
       if (config.p2pConfig.upnp && upnpService) {
         this._upnp_interval = setInterval(this.UPnpCron.bind(this), 3000)
+      }
+
+      if (config.p2pConfig.enableDHTServer) {
+        try {
+          await node.services.dht.setMode('server')
+        } catch (e) {
+          P2P_LOGGER.warn(`Failed to set mode server for DHT`)
+        }
       }
       return node
     } catch (e) {
@@ -438,6 +450,16 @@ export class OceanP2P extends EventEmitter {
     // }
   }
 
+  async getNetworkingStats() {
+    const ret: any = {}
+    ret.binds = await this._libp2p.components.addressManager.getListenAddrs()
+    ret.listen = await this._libp2p.components.transportManager.getAddrs()
+    ret.observing = await this._libp2p.components.addressManager.getObservedAddrs()
+    ret.announce = await this._libp2p.components.addressManager.getAnnounceAddrs()
+    ret.connections = await this._libp2p.getConnections()
+    return ret
+  }
+
   async getRunningOceanPeers() {
     return await this.getOceanPeers(true, false)
   }
@@ -452,24 +474,24 @@ export class OceanP2P extends EventEmitter {
 
   async getOceanPeers(running: boolean = true, known: boolean = true) {
     const peers: string[] = []
-    if (running) {
+    /* if (running) {
       // get pubsub peers
       const node = <any>this._libp2p
       const newPeers = (await node.services.pubsub.getSubscribers(this._topic)).sort()
       for (const peer of newPeers.slice(0)) {
         if (!peers.includes(peer.toString)) peers.push(peer.toString())
       }
-    }
+    } */
     if (known) {
       // get p2p peers and filter them by protocol
       for (const peer of await this._libp2p.peerStore.all()) {
-        if (peer && peer.protocols) {
-          for (const protocol of peer.protocols) {
-            if (protocol === this._protocol) {
-              if (!peers.includes(peer.id.toString())) peers.push(peer.id.toString())
-            }
-          }
-        }
+        // if (peer && peer.protocols) {
+        // for (const protocol of peer.protocols) {
+        //  if (protocol === this._protocol) {
+        if (!peers.includes(peer.id.toString())) peers.push(peer.id.toString())
+        // }
+        // }
+        // }
       }
     }
 
@@ -479,18 +501,6 @@ export class OceanP2P extends EventEmitter {
   async hasPeer(peer: any) {
     const s = await this._libp2p.peerStore.all()
     return Boolean(s.find((p: any) => p.toString() === peer.toString()))
-  }
-
-  async broadcast(_message: any) {
-    P2P_LOGGER.logMessage('Broadcasting:', true)
-    P2P_LOGGER.logMessageWithEmoji(
-      _message,
-      true,
-      getLoggerLevelEmoji(LOG_LEVELS_STR.LEVEL_INFO),
-      LOG_LEVELS_STR.LEVEL_INFO
-    )
-    const message = encoding(_message)
-    await this._libp2p.services.pubsub.publish(this._topic, message)
   }
 
   async getPeerDetails(peerName: string) {
@@ -522,6 +532,75 @@ export class OceanP2P extends EventEmitter {
     }
   }
 
+  async getPeerMultiaddrs(
+    peerName: string,
+    searchPeerStore: boolean = true,
+    searchDHT: boolean = true
+  ): Promise<Multiaddr[]> {
+    const multiaddrs: Multiaddr[] = []
+    let peerId
+    try {
+      peerId = peerIdFromString(peerName)
+    } catch (e) {
+      return []
+    }
+    if (searchPeerStore) {
+      // search peerStore
+      try {
+        const peerData = await this._libp2p.peerStore.get(peerId, {
+          signal: AbortSignal.timeout(3000)
+        })
+        if (peerData) {
+          for (const x of peerData.addresses) {
+            multiaddrs.push(x.multiaddr)
+          }
+        }
+      } catch (e) {
+        // console.log(e)
+      }
+    }
+    if (searchDHT) {
+      try {
+        const peerData = await this._libp2p.peerRouting.findPeer(peerId, {
+          signal: AbortSignal.timeout(3000),
+          useCache: false
+        })
+        if (peerData) {
+          for (const index in peerData.multiaddrs) {
+            multiaddrs.push(peerData.multiaddrs[index])
+          }
+        }
+      } catch (e) {
+        // console.log(e)
+      }
+    }
+
+    // now we should have peer multiaddrs
+    // but there is a catch
+    // when dialing multiaddrs, either all of them have peerId, or none..
+    // so decide which one to use
+    let finalmultiaddrs: Multiaddr[] = []
+    const finalmultiaddrsWithAddress: Multiaddr[] = []
+    const finalmultiaddrsWithoutAddress: Multiaddr[] = []
+    for (const x of multiaddrs) {
+      if (x.toString().includes(peerName)) finalmultiaddrsWithAddress.push(x)
+      else {
+        let sd = x.toString()
+        if (x.toString().includes('p2p-circuit')) {
+          // because a p2p-circuit should always include peerId, if it's missing we will add it
+          sd = sd + '/p2p/' + peerName
+          finalmultiaddrsWithAddress.push(multiaddr(sd))
+        } else {
+          finalmultiaddrsWithoutAddress.push(multiaddr(sd))
+        }
+      }
+    }
+    if (finalmultiaddrsWithAddress.length > finalmultiaddrsWithoutAddress.length)
+      finalmultiaddrs = finalmultiaddrsWithAddress
+    else finalmultiaddrs = finalmultiaddrsWithoutAddress
+    return finalmultiaddrs
+  }
+
   async sendTo(
     peerName: string,
     message: string,
@@ -536,7 +615,6 @@ export class OceanP2P extends EventEmitter {
     let peerId: any
     try {
       peerId = peerIdFromString(peerName)
-      await this._libp2p.peerStore.get(peerId)
     } catch (e) {
       P2P_LOGGER.logMessageWithEmoji(
         'Invalid peer (for id): ' + peerId,
@@ -548,15 +626,26 @@ export class OceanP2P extends EventEmitter {
       response.status.error = 'Invalid peer'
       return response
     }
+    const multiaddrs: Multiaddr[] = await this.getPeerMultiaddrs(peerName)
+    if (multiaddrs.length < 1) {
+      response.status.httpStatus = 404
+      response.status.error = `Cannot find any address to dial for peer: ${peerId}`
+      P2P_LOGGER.error(response.status.error)
+      return response
+    }
 
     let stream
     // dial/connect to the target node
     try {
-      stream = await this._libp2p.dialProtocol(peerId, this._protocol)
+      stream = await this._libp2p.dialProtocol(multiaddrs, this._protocol, {
+        signal: AbortSignal.timeout(3000),
+        priority: 100,
+        runOnTransientConnection: true
+      })
     } catch (e) {
       response.status.httpStatus = 404
-      response.status.error = 'Cannot connect to peer'
-      P2P_LOGGER.error(`Unable to connect to peer: ${peerId}`)
+      response.status.error = `Cannot connect to peer: ${peerId}`
+      P2P_LOGGER.error(response.status.error)
       return response
     }
 
@@ -896,12 +985,4 @@ export class OceanP2P extends EventEmitter {
     }
     this._upnp_interval = setInterval(this.UPnpCron.bind(this), 3000)
   }
-}
-
-function encoding(message: any) {
-  if (!(message instanceof Uint8Array)) {
-    return uint8ArrayFromString(message)
-  }
-
-  return message
 }

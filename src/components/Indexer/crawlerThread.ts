@@ -10,11 +10,12 @@ import {
 import { Blockchain } from '../../utils/blockchain.js'
 import { BlocksEvents, SupportedNetwork } from '../../@types/blockchain.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { sleep } from '../../utils/util.js'
+import { isDefined, sleep } from '../../utils/util.js'
 import { EVENTS, INDEXER_CRAWLING_EVENTS, INDEXER_MESSAGES } from '../../utils/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getDatabase } from '../../utils/database.js'
 import { JsonRpcApiProvider, Log, Signer } from 'ethers'
+import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
 
 export interface ReindexTask {
   txId: string
@@ -80,13 +81,21 @@ export async function processNetworkData(
   signer: Signer
 ): Promise<void> {
   stoppedCrawling = startedCrawling = false
-  const contractDeploymentBlock = getDeployedContractBlock(rpcDetails.chainId)
-  if (contractDeploymentBlock == null && (await getLastIndexedBlock()) == null) {
-    INDEXER_LOGGER.logMessage(
-      `chain: ${rpcDetails.chainId} Both deployed block and last indexed block are null. Cannot proceed further on this chain`,
-      true
-    )
-    return null
+  let contractDeploymentBlock = getDeployedContractBlock(rpcDetails.chainId)
+  if (!isDefined(contractDeploymentBlock) && !isDefined(await getLastIndexedBlock())) {
+    if (rpcDetails.chainId === DEVELOPMENT_CHAIN_ID) {
+      rpcDetails.startBlock = contractDeploymentBlock = 0
+      INDEXER_LOGGER.warn(
+        'Cannot get block info for local network, starting from block 0'
+      )
+    } else {
+      INDEXER_LOGGER.logMessage(
+        `chain: ${rpcDetails.chainId} Both deployed block and last indexed block are null/undefined. Cannot proceed further on this chain`,
+        true
+      )
+
+      return null
+    }
   }
   // if we defined a valid startBlock use it, oterwise start from deployed one
 
@@ -140,8 +149,8 @@ export async function processNetworkData(
           )
         } catch (error) {
           INDEXER_LOGGER.log(
-            LOG_LEVELS_STR.LEVEL_ERROR,
-            `Get events for network: ${rpcDetails.network} failure: ${error.message} `,
+            LOG_LEVELS_STR.LEVEL_WARN,
+            `Get events for network: ${rpcDetails.network} failure: ${error.message} \n\nConsider that there may be an issue with your RPC provider. We recommend using private RPCs from reliable providers such as Infura or Alchemy.`,
             true
           )
           chunkSize = Math.floor(chunkSize / 2) < 1 ? 1 : Math.floor(chunkSize / 2)
@@ -276,48 +285,6 @@ export function checkNewlyIndexedAssets(events: BlocksEvents): void {
   })
 }
 
-async function retryCrawlerWithDelay(
-  blockchain: Blockchain,
-  interval: number = 5000 // in milliseconds, default 5 secs
-): Promise<boolean> {
-  try {
-    const retryInterval = Math.max(blockchain.getKnownRPCs().length * 3000, interval) // give 2 secs per each one
-    // try
-    const result = await startCrawler(blockchain)
-    if (result) {
-      INDEXER_LOGGER.info('Blockchain connection succeffully established!')
-      processNetworkData(blockchain.getProvider(), blockchain.getSigner())
-      return true
-    } else {
-      INDEXER_LOGGER.warn(
-        `Blockchain connection is not established, retrying again in ${
-          retryInterval / 1000
-        } secs....`
-      )
-      // delay the next call
-      await sleep(retryInterval)
-      // recursively call the same func
-      return retryCrawlerWithDelay(blockchain, retryInterval)
-    }
-  } catch (err) {
-    return false
-  }
-}
-
-// it does not start crawling until the network connectin is ready
-async function startCrawler(blockchain: Blockchain): Promise<boolean> {
-  if ((await blockchain.isNetworkReady()).ready) {
-    return true
-  } else {
-    // try other RPCS if any available (otherwise will just retry the same RPC)
-    const connectionStatus = await blockchain.tryFallbackRPCs()
-    if (connectionStatus.ready || (await blockchain.isNetworkReady()).ready) {
-      return true
-    }
-  }
-  return false
-}
-
 parentPort.on('message', (message) => {
   if (message.method === INDEXER_MESSAGES.START_CRAWLING) {
     // start indexing the chain
@@ -327,7 +294,8 @@ parentPort.on('message', (message) => {
       rpcDetails.chainId,
       rpcDetails.fallbackRPCs
     )
-    return retryCrawlerWithDelay(blockchain)
+    // return retryCrawlerWithDelay(blockchain)
+    processNetworkData(blockchain.getProvider(), blockchain.getSigner())
   } else if (message.method === INDEXER_MESSAGES.REINDEX_TX) {
     // reindex a specific transaction
 

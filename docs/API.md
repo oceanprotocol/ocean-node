@@ -404,32 +404,6 @@ returns list of logs
 
 ---
 
-## Broadcast Command
-
-### `HTTP` POST /broadcastCommand
-
-#### Description
-
-returns an empty if command is valid
-
-#### Parameters
-
-| name    | type   | required | description                  |
-| ------- | ------ | -------- | ---------------------------- |
-| command | string | v        | command name                 |
-| ...     | any    |          | any other command parameters |
-
-#### Request
-
-```json
-{
-  "command": "echo",
-  "...": "..."
-}
-```
-
----
-
 ## Advertise Did
 
 ### `HTTP` GET /advertiseDid/?did=did:op:123"
@@ -1149,5 +1123,53 @@ returns the current indexing queue, as an array of objects
 ```
 {
   queue: []
+}
+```
+
+## PolicyServer Passthrough
+
+### `HTTP` POST /PolicyServerPassthrough
+
+### `P2P` command: PolicyServerPassthrough
+
+#### Description
+
+Forwards request to PolicyServer (if any)
+
+#### Parameters
+
+| name                    | type   | required | description                                    |
+| ----------------------- | ------ | -------- | ---------------------------------------------- |
+| command                 | string | v        | command name                                   |
+| node                    | string |          | if not present it means current node           |
+| policyServerPassthrough | any    |          | command and params for PolicyServer (see docs) |
+
+#### HTTP Example
+
+```json
+{
+  "policyServerPassthrough": {
+    "action": "newDDO",
+    "rawDDO": {},
+    "chainId": 1,
+    "txId": "0x123",
+    "eventRaw": "raw event data"
+  }
+}
+```
+
+#### P2P Example
+
+```json
+{
+  "command": "PolicyServerPassthrough",
+  "node": "PeerId",
+  "policyServerPassthrough": {
+    "action": "newDDO",
+    "rawDDO": {},
+    "chainId": 1,
+    "txId": "0x123",
+    "eventRaw": "raw event data"
+  }
 }
 ```

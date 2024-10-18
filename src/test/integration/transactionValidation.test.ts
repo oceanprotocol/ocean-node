@@ -18,6 +18,7 @@ import { ENVIRONMENT_VARIABLES, EVENTS, getConfiguration } from '../../utils/ind
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
+  TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
   setupEnvironment,
@@ -46,19 +47,19 @@ describe('validateOrderTransaction Function with Orders', () => {
   let previousConfiguration: OverrideEnvConfig[]
   before(async () => {
     previousConfiguration = await setupEnvironment(
-      null,
+      TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
         [
           ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
-          ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
           JSON.stringify(mockSupportedNetworks),
+          JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
@@ -68,7 +69,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     config = await getConfiguration(true) // Force reload the configuration
     const dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
-    indexer = new OceanIndexer(dbconn, mockSupportedNetworks)
+    indexer = new OceanIndexer(dbconn, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
@@ -87,9 +88,7 @@ describe('validateOrderTransaction Function with Orders', () => {
       artifactsAddresses = getOceanArtifactsAdresses().development
     }
 
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
-    }
+    const { dbConfig } = await getConfiguration(true)
     database = await new Database(dbConfig)
   })
 

@@ -151,3 +151,7 @@ html-report.html
 .wallet.out
 # environment
 .env
+
+# databases
+*.sqlite
+databases/*

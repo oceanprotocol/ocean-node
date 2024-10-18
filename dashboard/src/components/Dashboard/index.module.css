@@ -58,6 +58,10 @@
   line-height: 140%; /* 25.2px */
 }
 
+.indexerQueueAlert{
+  width: 640 
+}
+
 .borderBottom {
   border-bottom: 1.5px solid #eef1f5;
 }

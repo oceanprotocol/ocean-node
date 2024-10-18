@@ -4,14 +4,20 @@ import { ComputeAsset } from '../../../@types/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
 import { ComputeStartCommand } from '../../../@types/commands.js'
-import { C2DEngine } from '../../c2d/compute_engines.js'
+import { getAlgoChecksums, validateAlgoForDataset } from './utils.js'
 import {
   ValidateParams,
   buildInvalidRequestMessage,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { isAddress } from 'ethers'
-import { AssetUtils } from '../../../utils/asset.js'
+import {
+  AssetUtils,
+  getFilesObjectFromConfidentialEVM,
+  isConfidentialChainDDO,
+  isDataTokenTemplate4,
+  isERC20Template4Active
+} from '../../../utils/asset.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import { decrypt } from '../../../utils/crypt.js'
 import { verifyProviderFees } from '../utils/feesHandler.js'
@@ -21,7 +27,6 @@ import { getConfiguration } from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { ProviderFeeValidation } from '../../../@types/Fees.js'
-import { getAlgoChecksums, validateAlgoForDataset } from '../../c2d/index.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 export class ComputeStartHandler extends Handler {
   validate(command: ComputeStartCommand): ValidateParams {
@@ -56,7 +61,7 @@ export class ComputeStartHandler extends Handler {
       const envId = task.environment.slice(eIndex + 1)
       let engine
       try {
-        engine = await C2DEngine.getC2DByHash(hash)
+        engine = await this.getOceanNode().getC2DEngines().getC2DByHash(hash)
       } catch (e) {
         return {
           stream: null,
@@ -126,16 +131,59 @@ export class ComputeStartHandler extends Handler {
               }
             }
           }
+
+          const config = await getConfiguration()
+          const { rpc, network, chainId, fallbackRPCs } =
+            config.supportedNetworks[ddo.chainId]
+          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
+          const { ready, error } = await blockchain.isNetworkReady()
+          if (!ready) {
+            return {
+              stream: null,
+              status: {
+                httpStatus: 400,
+                error: `Start Compute : ${error}`
+              }
+            }
+          }
+
+          const signer = blockchain.getSigner()
           // let's see if we can access this asset
+          // check if oasis evm or similar
+          const confidentialEVM = isConfidentialChainDDO(ddo.chainId, service)
           let canDecrypt = false
           try {
-            await decrypt(
-              Uint8Array.from(Buffer.from(sanitizeServiceFiles(service.files), 'hex')),
-              EncryptMethod.ECIES
-            )
-            canDecrypt = true
+            if (!confidentialEVM) {
+              await decrypt(
+                Uint8Array.from(Buffer.from(sanitizeServiceFiles(service.files), 'hex')),
+                EncryptMethod.ECIES
+              )
+              canDecrypt = true
+            } else {
+              // TODO 'Start compute on confidential EVM!'
+              const isTemplate4 = await isDataTokenTemplate4(
+                service.datatokenAddress,
+                signer
+              )
+              if (isTemplate4 && (await isERC20Template4Active(ddo.chainId, signer))) {
+                // call smart contract to decrypt
+                const serviceIndex = AssetUtils.getServiceIndexById(ddo, service.id)
+                const filesObject = await getFilesObjectFromConfidentialEVM(
+                  serviceIndex,
+                  service.datatokenAddress,
+                  signer,
+                  task.consumerAddress,
+                  task.signature, // TODO, we will need to have a signature verification
+                  ddo.id
+                )
+                if (filesObject != null) {
+                  canDecrypt = true
+                }
+              }
+            }
           } catch (e) {
             // do nothing
+            CORE_LOGGER.error('Could not decrypt DDO files Object: ' + e.message)
           }
           if (service.type === 'compute' && !canDecrypt) {
             const error = `Service ${elem.serviceId} from DDO ${elem.documentId} cannot be used in compute on this provider`
@@ -165,20 +213,7 @@ export class ComputeStartHandler extends Handler {
               }
             }
           }
-          const config = await getConfiguration()
-          const { rpc, network, chainId, fallbackRPCs } =
-            config.supportedNetworks[ddo.chainId]
-          const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-          const { ready, error } = await blockchain.isNetworkReady()
-          if (!ready) {
-            return {
-              stream: null,
-              status: {
-                httpStatus: 400,
-                error: `Start Compute : ${error}`
-              }
-            }
-          }
+
           const provider = blockchain.getProvider()
           result.datatoken = service.datatokenAddress
           result.chainId = ddo.chainId
@@ -252,7 +287,7 @@ export class ComputeStartHandler extends Handler {
             algorithm.meta = {
               language: ddo.metadata.algorithm.language,
               version: ddo.metadata.algorithm.version,
-              container: container
+              container
             }
             if ('format' in ddo.metadata.algorithm) {
               algorithm.meta.format = ddo.metadata.algorithm.format

@@ -3,34 +3,9 @@ import express, { Request, Response } from 'express'
 import { P2PCommandResponse } from '../../@types'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 
-import { getDefaultLevel } from '../../utils/logging/Logger.js'
-
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
-import { hasP2PInterface, sendMissingP2PResponse } from './index.js'
+import { hasP2PInterface } from '../../utils/config.js'
 import { validateCommandParameters } from './validateCommands.js'
-
-export const broadcastCommandRoute = express.Router()
-
-broadcastCommandRoute.post(
-  '/broadcastCommand',
-  express.json(),
-  async (req: Request, res: Response): Promise<void> => {
-    const validate = validateCommandParameters(req.body, [])
-    if (!validate.valid) {
-      res.status(validate.status).send(validate.reason)
-      return
-    }
-
-    HTTP_LOGGER.log(getDefaultLevel(), `broadcastCommand received ${req.body}`, true)
-
-    if (hasP2PInterface) {
-      await req.oceanNode.getP2PNode().broadcast(JSON.stringify(req.body))
-      res.sendStatus(200)
-    } else {
-      sendMissingP2PResponse(res)
-    }
-  }
-)
 
 export const directCommandRoute = express.Router()
 directCommandRoute.post(
@@ -138,8 +113,8 @@ directCommandRoute.post(
       // only if response was not already sent
       if (response.stream == null && !closedResponse) {
         try {
-          res.status(response.status.httpStatus)
-          res.write(response.status.error)
+          res.statusMessage = response.status.error
+          res.status(response.status.httpStatus).send(response.status.error)
           closedResponse = true
           res.end()
         } catch (e) {

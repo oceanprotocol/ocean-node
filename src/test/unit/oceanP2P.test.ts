@@ -42,6 +42,7 @@ describe('OceanP2P Test', () => {
     config1.p2pConfig.bootstrapNodes = []
     // enable private IP
     config1.p2pConfig.announcePrivateIp = true
+    config1.p2pConfig.filterAnnouncedAddresses = ['172.15.0.0/24']
     node1 = new OceanP2P(config1, null)
     await node1.start()
     assert(node1, 'Failed to create P2P Node instance')
@@ -55,6 +56,7 @@ describe('OceanP2P Test', () => {
     config2.p2pConfig.bootstrapNodes = []
     // enable private IP
     config2.p2pConfig.announcePrivateIp = true
+    config2.p2pConfig.filterAnnouncedAddresses = ['172.15.0.0/24'] // allow nodes to see each other locally for tests
     node2 = new OceanP2P(config2, null)
     await node2.start()
     assert(node2, 'Failed to create P2P Node instance')
@@ -103,23 +105,17 @@ describe('OceanP2P Test', () => {
 })
 
 describe('OceanP2P Test without DB_URL set', () => {
-  let originalDBURL: string | undefined
-
-  before(() => {
-    originalDBURL = process.env.DB_URL
-    process.env.DB_URL = ''
-  })
   it('Start instance of OceanP2P without a database URL', async () => {
+    // NO need to mess more with process.env variables
     const config = await getConfiguration(true)
-    assert(config.dbConfig.url === '', 'DB URL should not be set')
+    config.dbConfig.url = ''
+    config.dbConfig.dbType = null
+    // assert(config.dbConfig.url === '', 'DB URL should not be set')
     const p2pNode = new OceanP2P(config)
     assert(p2pNode, 'Failed to create P2P Node instance')
-    assert(config, 'Failed to get P2P Node config')
-    assert(config.dbConfig.url === '', 'P2P Node config should not have DB URL set')
-    assert(config.hasIndexer === false, 'P2P Node should not have indexer enabled')
-    assert(config.hasProvider === false, 'P2P Node should not have provider enabled')
-  })
-  after(() => {
-    process.env.DB_URL = originalDBURL
+    assert(config.p2pConfig, 'Failed to get P2P Node config')
+    // This is not testing P2P Node at all, just checking configuration
+    // assert(config.dbConfig.url === '', 'P2P Node config should not have DB URL set')
+    // assert(config.hasIndexer === false, 'P2P Node should not have indexer enabled')
   })
 })

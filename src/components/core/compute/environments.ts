@@ -5,8 +5,6 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
 import { ComputeGetEnvironmentsCommand } from '../../../@types/commands.js'
 import { getConfiguration } from '../../../utils/config.js'
-import { C2DEngine } from '../../c2d/compute_engines.js'
-import { fetchEnvironments } from '../utils/environments.js'
 import {
   ValidateParams,
   buildInvalidRequestMessage,
@@ -30,19 +28,12 @@ export class ComputeGetEnvironmentsHandler extends Handler {
     }
     try {
       const result: ComputeEnvByChain = {}
+      const computeEngines = this.getOceanNode().getC2DEngines()
       const config = await getConfiguration()
-      const { c2dClusters } = config
-
-      for (const cluster of c2dClusters) {
-        const engine = C2DEngine.getC2DClass(cluster)
-        if (task.chainId) {
-          result[task.chainId] = await fetchEnvironments(task.chainId, engine)
-        } else {
-          for (const chain of Object.keys(config.supportedNetworks)) {
-            const chainId = parseInt(chain)
-            result[chainId] = await fetchEnvironments(chainId, engine)
-          }
-        }
+      for (const chain of Object.keys(config.supportedNetworks)) {
+        const chainId = parseInt(chain)
+        if (task.chainId && task.chainId !== chainId) continue
+        result[chainId] = await computeEngines.fetchEnvironments(chainId)
       }
 
       CORE_LOGGER.logMessage(

@@ -21,6 +21,11 @@ export interface AdminCommand extends Command {
   signature: string
 }
 
+export interface AdminCollectFeesHandlerResponse {
+  tx: string
+  message: string
+}
+
 export interface DownloadURLCommand extends Command {
   fileObject: any
   aes_encrypted_key?: string // if not present it means download without encryption
@@ -35,6 +40,7 @@ export interface DownloadCommand extends Command {
   consumerAddress: string
   signature: string
   aes_encrypted_key?: string // if not present it means download without encryption
+  policyServer?: any // object to pass to policy server
 }
 
 export interface FileInfoCommand extends Command {
@@ -108,12 +114,20 @@ export interface GetFeesCommand extends Command {
   serviceId: string
   consumerAddress?: string
   validUntil?: number // this allows a user to request a fee that is valid only for a limited period of time, less than service.timeout
+  policyServer?: any // object to pass to policyServer
 }
 // admin commands
 export interface AdminStopNodeCommand extends AdminCommand {}
 export interface AdminReindexTxCommand extends AdminCommand {
   chainId: number
   txId: string
+}
+
+export interface AdminCollectFeesCommand extends AdminCommand {
+  tokenAddress: string
+  chainId: number
+  tokenAmount?: number
+  destinationAddress: string
 }
 
 export interface AdminReindexChainCommand extends AdminCommand {
@@ -123,11 +137,6 @@ export interface AdminReindexChainCommand extends AdminCommand {
 export interface ICommandHandler {
   handle(command: Command): Promise<P2PCommandResponse>
   validate(command: Command): ValidateParams
-}
-
-export interface BroadcastCommand {
-  command: string // the name of the command
-  message: any // the message to broadcast
 }
 
 export interface ComputeGetEnvironmentsCommand extends Command {
@@ -161,6 +170,7 @@ export interface ComputeStopCommand extends Command {
   signature: string
   nonce: string
   jobId: string
+  agreementId?: string
 }
 
 export interface ComputeGetResultCommand extends Command {
@@ -173,8 +183,8 @@ export interface ComputeGetResultCommand extends Command {
 
 export interface ComputeGetStatusCommand extends Command {
   consumerAddress?: string
-  did?: string
   jobId?: string
+  agreementId?: string
 }
 
 export interface ValidateChainId {
@@ -202,4 +212,8 @@ export enum IndexingCommand {
 export interface StartStopIndexingCommand extends AdminCommand {
   chainId?: number
   action: IndexingCommand
+}
+
+export interface PolicyServerPassthroughCommand extends Command {
+  policyServerPassthrough?: any
 }

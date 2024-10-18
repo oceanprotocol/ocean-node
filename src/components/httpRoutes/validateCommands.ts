@@ -10,12 +10,6 @@ export type ValidateParams = {
   status?: number
 }
 
-export function validateBroadcastParameters(requestBody: any): ValidateParams {
-  // for now we can use the same validation function,
-  // but later we might need to have separate validation functions
-  // if we many different commands of each type
-  return validateCommandParameters(requestBody, [])
-}
 // add others when we add suppor
 
 // request level validation, just check if we have a "command" field and its a supported one
