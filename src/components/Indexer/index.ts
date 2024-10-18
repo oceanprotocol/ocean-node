@@ -33,6 +33,7 @@ export class OceanIndexer {
   private networks: RPCS
   private supportedChains: string[]
   private workers: Record<string, Worker> = {}
+  private workerRestarts: Record<number, number> = {}
 
   constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
@@ -177,6 +178,107 @@ export class OceanIndexer {
       worker = new Worker('./dist/components/Indexer/crawlerThread.js', {
         workerData
       })
+      worker.on('message', (event: any) => {
+        if (event.data) {
+          if (
+            [
+              EVENTS.METADATA_CREATED,
+              EVENTS.METADATA_UPDATED,
+              EVENTS.METADATA_STATE,
+              EVENTS.ORDER_STARTED,
+              EVENTS.ORDER_REUSED
+            ].includes(event.method)
+          ) {
+            // will emit the metadata created/updated event and advertise it to the other peers (on create only)
+            INDEXER_LOGGER.logMessage(
+              `Emiting "${event.method}" for DDO : ${event.data.id} from network: ${rpcDetails.network} `
+            )
+            INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
+            // remove from indexing list
+          } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP) {
+            // remove this one from the queue (means we processed the reindex for this tx)
+            INDEXING_QUEUE = INDEXING_QUEUE.filter(
+              (task) =>
+                task.txId !== event.data.txId && task.chainId !== event.data.chainId
+            )
+            // reindex tx successfully done
+            INDEXER_CRAWLING_EVENT_EMITTER.emit(
+              INDEXER_CRAWLING_EVENTS.REINDEX_TX, // explicitly set constant value for readability
+              event.data
+            )
+            this.updateJobStatus(
+              PROTOCOL_COMMANDS.REINDEX_TX,
+              create256Hash([event.data.chainId, event.data.txId].join('')),
+              CommandStatus.SUCCESS
+            )
+          } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN) {
+            // we should listen to this on the dashboard for instance
+            INDEXER_CRAWLING_EVENT_EMITTER.emit(
+              INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
+              event.data
+            )
+            this.updateJobStatus(
+              PROTOCOL_COMMANDS.REINDEX_CHAIN,
+              create256Hash([event.data.chainId].join('')),
+              event.data.result ? CommandStatus.SUCCESS : CommandStatus.FAILURE
+            )
+          } else if (event.method === INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED) {
+            INDEXER_CRAWLING_EVENT_EMITTER.emit(event.method, event.data)
+          }
+        } else {
+          INDEXER_LOGGER.log(
+            LOG_LEVELS_STR.LEVEL_ERROR,
+            'Missing event data (ddo) on postMessage. Something is wrong!',
+            true
+          )
+        }
+      })
+
+      worker.on('error', (err: Error) => {
+        INDEXER_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_ERROR,
+          `Error in worker for network ${rpcDetails.network}: ${err.message}`,
+          true
+        )
+      })
+
+      worker.on('exit', (code: number) => {
+        let message = `Worker for network ${rpcDetails.network} exited with code: ${code}.`
+        switch (code) {
+          case 0:
+            message += ' (Normal exit)'
+            break
+          case 1:
+            message += ' (General error)'
+            break
+          case 3:
+            message += ' (Internal JavaScript parse error)'
+            break
+          case 4:
+            message += ' (Fatal error)'
+            break
+          case 5:
+            message += ' (Out of memory)'
+            break
+          case 6:
+            message += ' (Uncaught exception)'
+            break
+          case 7:
+            message += ' (Signal termination)'
+            break
+          case 8:
+            message += ' (JavaScript allocation failure)'
+            break
+          default:
+            message += ' (Unknown exit code)'
+            break
+        }
+        INDEXER_LOGGER.logMessage(message, true)
+        // Restart the worker if it exits with a specific code (e.g., code 1)
+        if (code !== 0) {
+          this.restartWorkerThread(chainID)
+        }
+      })
     }
 
     worker.postMessage({ method: 'start-crawling' })
@@ -200,79 +302,34 @@ export class OceanIndexer {
         // track if we were able to start them all
         count++
         this.workers[chainId] = worker
-        worker.on('message', (event: any) => {
-          if (event.data) {
-            if (
-              [
-                EVENTS.METADATA_CREATED,
-                EVENTS.METADATA_UPDATED,
-                EVENTS.METADATA_STATE,
-                EVENTS.ORDER_STARTED,
-                EVENTS.ORDER_REUSED
-              ].includes(event.method)
-            ) {
-              // will emit the metadata created/updated event and advertise it to the other peers (on create only)
-              INDEXER_LOGGER.logMessage(
-                `Emiting "${event.method}" for DDO : ${event.data.id} from network: ${network} `
-              )
-              INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
-              // remove from indexing list
-            } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP) {
-              // remove this one from the queue (means we processed the reindex for this tx)
-              INDEXING_QUEUE = INDEXING_QUEUE.filter(
-                (task) =>
-                  task.txId !== event.data.txId && task.chainId !== event.data.chainId
-              )
-              // reindex tx successfully done
-              INDEXER_CRAWLING_EVENT_EMITTER.emit(
-                INDEXER_CRAWLING_EVENTS.REINDEX_TX, // explicitly set constant value for readability
-                event.data
-              )
-              this.updateJobStatus(
-                PROTOCOL_COMMANDS.REINDEX_TX,
-                create256Hash([event.data.chainId, event.data.txId].join('')),
-                CommandStatus.SUCCESS
-              )
-            } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN) {
-              // we should listen to this on the dashboard for instance
-              INDEXER_CRAWLING_EVENT_EMITTER.emit(
-                INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
-                event.data
-              )
-              this.updateJobStatus(
-                PROTOCOL_COMMANDS.REINDEX_CHAIN,
-                create256Hash([event.data.chainId].join('')),
-                event.data.result ? CommandStatus.SUCCESS : CommandStatus.FAILURE
-              )
-            } else if (event.method === INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED) {
-              INDEXER_CRAWLING_EVENT_EMITTER.emit(event.method, event.data)
-            }
-          } else {
-            INDEXER_LOGGER.log(
-              LOG_LEVELS_STR.LEVEL_ERROR,
-              'Missing event data (ddo) on postMessage. Something is wrong!',
-              true
-            )
-          }
-        })
-
-        worker.on('error', (err: Error) => {
-          INDEXER_LOGGER.log(
-            LOG_LEVELS_STR.LEVEL_ERROR,
-            `Error in worker for network ${network}: ${err.message}`,
-            true
-          )
-        })
-
-        worker.on('exit', (code: number) => {
-          INDEXER_LOGGER.logMessage(
-            `Worker for network ${network} exited with code: ${code}`,
-            true
-          )
-        })
       }
     }
     return count === this.supportedChains.length
+  }
+
+  public restartWorkerThread(chainId: number) {
+    delete this.workers[chainId]
+
+    const restarts = (this.workerRestarts[chainId] || 0) + 1
+    this.workerRestarts[chainId] = restarts
+
+    if (restarts < 3) {
+      INDEXER_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_INFO,
+        `Attempting to restart worker for network with chainID ${chainId}. Restart attempt #${restarts}.`,
+        true
+      )
+      setImmediate(() => {
+        const worker = this.startThread(chainId)
+        this.workers[chainId] = worker
+      })
+    } else {
+      INDEXER_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_INFO,
+        `Too many failures for the worker on chain ${chainId}. Aborting restart after ${restarts} attempts.`,
+        true
+      )
+    }
   }
 
   public addReindexTask(reindexTask: ReindexTask): JobStatus | null {
