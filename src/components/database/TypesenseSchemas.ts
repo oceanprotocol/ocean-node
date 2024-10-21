@@ -67,7 +67,17 @@ export const typesenseSchemas: TypesenseSchemas = {
     enable_nested_fields: true,
     fields: [
       // TO DO C2D
-      { name: '.*', type: 'auto', optional: true }
+      { name: 'clusterHash', type: 'string', optional: false },
+      { name: 'configlogURL', type: 'string', optional: false },
+      { name: 'publishlogURL', type: 'string', optional: false },
+      { name: 'algologURL', type: 'string', optional: false },
+      { name: 'outputsURL', type: 'auto', optional: false },
+      { name: 'stopRequested', type: 'bool', optional: false },
+      // { name: 'algorithm', type: 'ComputeAlgorithm', optional: false },
+      // { name: 'assets', type: 'ComputeAsset[]', optional: false }
+      { name: 'isRunning', type: 'bool', optional: false },
+      { name: 'isStarted', type: 'bool', optional: false },
+      { name: 'containerImage', type: 'string', optional: false }
     ]
   },
   indexerSchemas: {
