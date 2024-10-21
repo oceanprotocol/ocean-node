@@ -54,7 +54,7 @@ export class OceanIndexer {
   public getSupportedNetwork(chainId: number): SupportedNetwork {
     let network: SupportedNetwork
     // the following will us to quickly define rpc
-    //  export RPCS="{ \"8996\": \"http://127.0.0.1:8545\"}
+    // export RPCS="{ \"8996\": \"http://127.0.0.1:8545\"}
     if (typeof this.networks[chainId] === 'string') {
       network = {
         chainId,
@@ -178,6 +178,7 @@ export class OceanIndexer {
       worker = new Worker('./dist/components/Indexer/crawlerThread.js', {
         workerData
       })
+
       worker.on('message', (event: any) => {
         if (event.data) {
           if (
@@ -279,6 +280,10 @@ export class OceanIndexer {
           this.restartWorkerThread(chainID)
         }
       })
+    }
+
+    if (this.supportedChains.length > 0) {
+      setTimeout(() => this.killThread(Number(this.supportedChains[0])), 20000)
     }
 
     worker.postMessage({ method: 'start-crawling' })
@@ -400,6 +405,14 @@ export class OceanIndexer {
         this.updateJobStatus(jobInfo.command, jobInfo.hash, CommandStatus.PENDING)
       }
     }, 2000)
+  }
+
+  public killThread(chain: number): void {
+    console.log('kill thread for chain:', chain)
+    const worker = this.workers[chain]
+    if (worker) {
+      worker.terminate()
+    }
   }
 
   // filter jobs by job id, return the position of the job on the queue as well
