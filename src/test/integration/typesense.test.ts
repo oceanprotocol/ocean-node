@@ -165,10 +165,11 @@ describe('Typesense documents', () => {
   it('search document in ddo collection', async () => {
     const result = await typesense.collections(ddoSchema.name).documents().search({
       q: 'DEX',
-      query_by: 'metadata.name',
+      query_by: 'metadata.author',
       filter_by: 'chainId:<138',
       sort_by: 'version:desc'
     })
+
     expect(result.found).to.equal(1)
     expect(result.hits[0]).to.not.be.an('undefined')
     expect(result.hits[0].document).to.not.be.an('undefined')

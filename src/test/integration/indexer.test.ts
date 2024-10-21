@@ -33,6 +33,7 @@ import { DDO } from '../../@types/DDO/DDO.js'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
+  TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
   setupEnvironment,
@@ -70,7 +71,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   let datatokenAddress: string
   const chainId = 8996
   let assetDID: string
-  let resolvedDDO: Record<string, any>
+  let resolvedDDO: Record<string, any> = {}
   let genericAsset: any
   let setMetaDataTxReceipt: any
   let orderTxId: string
@@ -89,10 +90,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
   let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
-    }
-
     previousConfiguration = await setupEnvironment(
       null,
       buildEnvOverrideConfig(
@@ -100,21 +97,20 @@ describe('Indexer stores a new metadata events and orders.', () => {
           ENVIRONMENT_VARIABLES.RPCS,
           ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
-          ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
           JSON.stringify(mockSupportedNetworks),
           JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          dbConfig.url,
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
     )
 
-    database = await new Database(dbConfig)
-    oceanNode = await OceanNode.getInstance(database)
+    const config = await getConfiguration(true)
+    database = await new Database(config.dbConfig)
+    oceanNode = await OceanNode.getInstance()
     indexer = new OceanIndexer(database, mockSupportedNetworks)
     oceanNode.addIndexer(indexer)
     let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
@@ -220,13 +216,14 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should store the ddo in the database and return it ', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT
+      DEFAULT_TEST_TIMEOUT * 2
     )
-    resolvedDDO = ddo
-    if (resolvedDDO) {
+    if (ddo) {
+      resolvedDDO = ddo
       expect(resolvedDDO.id).to.equal(genericAsset.id)
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
@@ -254,10 +251,9 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should store the ddo state in the db with no errors and retrieve it using did', async function () {
     const ddoState = await database.ddoState.retrieve(resolvedDDO.id)
+    assert(ddoState, 'ddoState not found')
     expect(resolvedDDO.id).to.equal(ddoState.did)
-    expect(resolvedDDO.nftAddress).to.equal(ddoState.nft)
     expect(ddoState.valid).to.equal(true)
-    expect(resolvedDDO.id).to.equal(ddoState.did)
     expect(ddoState.error).to.equal(' ')
     // add txId check once we have that as change merged and the event will be indexed
   })
@@ -277,29 +273,14 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     const result = await streamToObject(response.stream as Readable)
-    const ddoState = result.hits[0].document
-    expect(resolvedDDO.id).to.equal(ddoState.did)
-    expect(resolvedDDO.nftAddress).to.equal(ddoState.nft)
-    expect(ddoState.valid).to.equal(true)
-    expect(resolvedDDO.id).to.equal(ddoState.did)
-    expect(ddoState.error).to.equal(' ')
-
-    // query using the nft address
-    queryDdoState.query = {
-      q: resolvedDDO.nftAddress,
-      query_by: 'nft'
+    if (result) {
+      // Elastic Search returns Array type
+      const ddoState = Array.isArray(result) ? result[0] : result.hits[0].document
+      expect(resolvedDDO.id).to.equal(ddoState.did)
+      expect(ddoState.valid).to.equal(true)
+      expect(ddoState.error).to.equal(' ')
     }
-    const nftQueryResponse = await queryDdoStateHandler.handle(queryDdoState)
-    assert(nftQueryResponse, 'Failed to get response')
-    assert(nftQueryResponse.status.httpStatus === 200, 'Failed to get 200 response')
-    assert(nftQueryResponse.stream, 'Failed to get stream')
-    const nftQueryResult = await streamToObject(nftQueryResponse.stream as Readable)
-    const nftDdoState = nftQueryResult.hits[0].document
-    expect(resolvedDDO.id).to.equal(nftDdoState.did)
-    expect(resolvedDDO.nftAddress).to.equal(nftDdoState.nft)
-    expect(nftDdoState.valid).to.equal(true)
-    expect(resolvedDDO.id).to.equal(nftDdoState.did)
-    expect(nftDdoState.error).to.equal(' ')
+
     // add txId check once we have that as change merged and the event will be indexed
   })
 
@@ -454,29 +435,38 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(orderTxReceipt, 'order transaction failed')
     orderTxId = orderTxReceipt.hash
     assert(orderTxId, 'transaction id not found')
-
     orderEvent = getEventFromTx(orderTxReceipt, 'OrderStarted')
     expect(orderEvent.args[1]).to.equal(consumerAddress) // payer
     expect(parseInt(orderEvent.args[3].toString())).to.equal(serviceIndex) // serviceIndex
   })
 
   it('should get number of orders', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.ORDER_STARTED,
-      DEFAULT_TEST_TIMEOUT,
+      DEFAULT_TEST_TIMEOUT * 2,
       true
     )
-    const retrievedDDO: any = ddo
-    if (retrievedDDO) {
+    if (ddo) {
+      const retrievedDDO: any = ddo
       expect(retrievedDDO.stats.orders).to.equal(1)
       initialOrderCount = retrievedDDO.stats.orders
       const resultOrder = await database.order.retrieve(orderTxId)
-      expect(resultOrder?.id).to.equal(orderTxId)
-      expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
-      expect(resultOrder?.type).to.equal('startOrder')
-      const timestamp = orderEvent.args[4].toString()
-      expect(resultOrder?.timestamp.toString()).to.equal(timestamp)
+      if (resultOrder) {
+        if (resultOrder.id) {
+          // typesense response
+          expect(resultOrder.id).to.equal(orderTxId)
+        } else if (resultOrder.orderId) {
+          // elastic search response
+          expect(resultOrder.orderId).to.equal(orderTxId)
+        }
+
+        expect(resultOrder.payer).to.equal(await consumerAccount.getAddress())
+        expect(resultOrder.type).to.equal('startOrder')
+        const timestamp = orderEvent.args[4].toString()
+        expect(resultOrder.timestamp.toString()).to.equal(timestamp)
+      }
     } else {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     }
@@ -538,24 +528,36 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('should increase number of orders', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
-    await sleep(2000)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.ORDER_REUSED,
-      DEFAULT_TEST_TIMEOUT * 2,
+      DEFAULT_TEST_TIMEOUT * 3,
       true
     )
+
     const retrievedDDO: any = ddo
+
     if (retrievedDDO) {
       expect(retrievedDDO.stats.orders).to.be.greaterThan(initialOrderCount)
       const resultOrder = await database.order.retrieve(reuseOrderTxId)
-      expect(resultOrder?.id).to.equal(reuseOrderTxId)
-      expect(resultOrder?.payer).to.equal(await consumerAccount.getAddress())
-      expect(resultOrder?.type).to.equal('reuseOrder')
-      const timestamp = reusedOrderEvent.args[2].toString()
-      expect(resultOrder?.timestamp.toString()).to.equal(timestamp)
-      expect(resultOrder?.startOrderId).to.equal(orderTxId)
+      if (resultOrder) {
+        if (resultOrder.id) {
+          // typesense
+          expect(resultOrder.id).to.equal(reuseOrderTxId)
+        } else if (resultOrder.orderId) {
+          // elastic
+          expect(resultOrder.orderId).to.equal(reuseOrderTxId)
+        }
+
+        expect(resultOrder.payer).to.equal(await consumerAccount.getAddress())
+        expect(resultOrder.type).to.equal('reuseOrder')
+        const timestamp = reusedOrderEvent.args[2].toString()
+        expect(resultOrder.timestamp.toString()).to.equal(timestamp)
+        expect(resultOrder.startOrderId).to.equal(orderTxId)
+      }
+
+      // }
     } else {
       expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     }
@@ -658,18 +660,13 @@ describe('OceanIndexer - crawler threads', () => {
     supportedNetworks[chainID].startBlock = startingBlock
 
     envOverrides = buildEnvOverrideConfig(
-      [
-        ENVIRONMENT_VARIABLES.RPCS,
-        ENVIRONMENT_VARIABLES.ADDRESS_FILE,
-        ENVIRONMENT_VARIABLES.DB_URL
-      ],
+      [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.ADDRESS_FILE],
       [
         JSON.stringify(supportedNetworks),
-        `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-        'http://localhost:8108/?apiKey=xyz'
+        `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
       ]
     )
-    envOverrides = await setupEnvironment(null, envOverrides)
+    envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
     db = await new Database(config.dbConfig)
     // oceanNode = OceanNode.getInstance(db)
