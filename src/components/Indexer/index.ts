@@ -283,6 +283,7 @@ export class OceanIndexer {
     }
 
     if (this.supportedChains.length > 0) {
+      console.log('Kill thread: ', Number(this.supportedChains[0]))
       setTimeout(() => this.killThread(Number(this.supportedChains[0])), 20000)
     }
 
@@ -412,6 +413,7 @@ export class OceanIndexer {
     const worker = this.workers[chain]
     if (worker) {
       worker.terminate()
+      console.log(' >>>> Killed <<<<.. ')
     }
   }
 
