@@ -319,8 +319,8 @@ export class OceanIndexer {
         `Attempting to restart worker for network with chainID ${chainId}. Restart attempt #${restarts}.`,
         true
       )
-      setImmediate(() => {
-        const worker = this.startThread(chainId)
+      setImmediate(async () => {
+        const worker = await this.startThread(chainId)
         this.workers[chainId] = worker
       })
     } else {
