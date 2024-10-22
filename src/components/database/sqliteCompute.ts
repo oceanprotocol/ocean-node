@@ -117,7 +117,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         did TEXT,
         jobId TEXT PRIMARY KEY,
         dateCreated TEXT,
-        dateFinished TEXT,
+        dateFinished TEXT DEFAULT NULL,
         status INTEGER,
         statusText TEXT,
         results BLOB,
@@ -210,8 +210,10 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     })
   }
 
-  // eslint-disable-next-line require-await
-  async updateJob(job: DBComputeJob): Promise<number> {
+  updateJob(job: DBComputeJob): Promise<number> {
+    if (job.dateFinished && job.isRunning) {
+      job.isRunning = false
+    }
     // TO DO C2D
     const data: any[] = [
       job.owner,
@@ -244,9 +246,41 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     })
   }
 
-  // eslint-disable-next-line require-await
-  async getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]> {
-    // TO DO C2D
-    return []
+  getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]> {
+    const selectSQL = `
+      SELECT * FROM ${this.schema.name} WHERE dateFinished IS NULL
+    `
+    return new Promise<DBComputeJob[]>((resolve, reject) => {
+      this.db.all(selectSQL, (err, rows: any[] | undefined) => {
+        if (err) {
+          reject(err)
+        } else {
+          // also decode the internal data into job data
+          // get them all running
+          if (rows && rows.length > 0) {
+            const all: DBComputeJob[] = rows.map((row) => {
+              const body = generateJSONFromBlob(row.body)
+              delete row.body
+              const job: DBComputeJob = { ...row, ...body }
+              return job
+            })
+            // filter them out
+            const filtered = all.filter((job) => {
+              let include = true
+              if (engine && engine !== job.clusterHash) {
+                include = false
+              }
+              if (environment && environment !== job.environment) {
+                include = false
+              }
+              return include
+            })
+            resolve(filtered)
+          } else {
+            resolve([])
+          }
+        }
+      })
+    })
   }
 }
