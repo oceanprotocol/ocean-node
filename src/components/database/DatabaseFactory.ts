@@ -12,7 +12,6 @@ import {
   ElasticsearchDdoStateDatabase,
   ElasticsearchIndexerDatabase,
   ElasticsearchLogDatabase,
-  ElasticsearchNonceDatabase,
   ElasticsearchOrderDatabase
 } from './ElasticSearchDatabase.js'
 import { typesenseSchemas } from './TypesenseSchemas.js'
@@ -21,7 +20,6 @@ import {
   TypesenseDdoStateDatabase,
   TypesenseIndexerDatabase,
   TypesenseLogDatabase,
-  TypesenseNonceDatabase,
   TypesenseOrderDatabase
 } from './TypenseDatabase.js'
 import { elasticSchemas } from './ElasticSchemas.js'
@@ -33,11 +31,13 @@ import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery.js'
 import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery.js'
 import { DB_TYPES } from '../../utils/index.js'
 import { C2DDatabase } from './C2DDatabase.js'
+import { SQLLiteNonceDatabase } from './SQLLiteNonceDatabase.js'
 
 export class DatabaseFactory {
   private static databaseMap = {
     elasticsearch: {
-      nonce: (config: OceanNodeDBConfig) => new ElasticsearchNonceDatabase(config),
+      nonce: (config: OceanNodeDBConfig) =>
+        new SQLLiteNonceDatabase(config, typesenseSchemas.nonceSchemas),
       ddo: (config: OceanNodeDBConfig) =>
         new ElasticsearchDdoDatabase(config, elasticSchemas.ddoSchemas),
       indexer: (config: OceanNodeDBConfig) => new ElasticsearchIndexerDatabase(config),
@@ -50,7 +50,7 @@ export class DatabaseFactory {
     },
     typesense: {
       nonce: (config: OceanNodeDBConfig) =>
-        new TypesenseNonceDatabase(config, typesenseSchemas.nonceSchemas),
+        new SQLLiteNonceDatabase(config, typesenseSchemas.nonceSchemas),
       ddo: (config: OceanNodeDBConfig) =>
         new TypesenseDdoDatabase(config, typesenseSchemas.ddoSchemas),
       indexer: (config: OceanNodeDBConfig) =>
