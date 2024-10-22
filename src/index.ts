@@ -93,7 +93,6 @@ if (!hasValidDBConfiguration(config.dbConfig)) {
   // after that, all loggers will eventually have it too (if in production/staging environments)
   // it creates dinamically DDO schemas
   config.hasIndexer = false
-} else {
   OCEAN_NODE_LOGGER.warn(
     `Missing or invalid property: "${ENVIRONMENT_VARIABLES.DB_URL.name}". This means Indexer module will not be enabled.`
   )
