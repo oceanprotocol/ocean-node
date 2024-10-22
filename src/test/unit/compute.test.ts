@@ -2,7 +2,13 @@
 import { C2DDatabase } from '../../components/database/C2DDatabase.js'
 import { getConfiguration } from '../../utils/config.js'
 import { typesenseSchemas } from '../../components/database/TypesenseSchemas.js'
-import { ComputeAlgorithm, ComputeAsset, DBComputeJob } from '../../@types/C2D/C2D.js'
+import {
+  C2DStatusNumber,
+  C2DStatusText,
+  ComputeAlgorithm,
+  ComputeAsset,
+  DBComputeJob
+} from '../../@types/C2D/C2D.js'
 // import { computeAsset } from '../data/assets'
 import { assert } from 'console'
 import { expect } from 'chai'
@@ -12,7 +18,7 @@ import {
   STRING_SEPARATOR
 } from '../../components/database/sqliteCompute.js'
 
-describe('Compute Jobs', () => {
+describe('Compute Jobs Database', () => {
   let db: C2DDatabase = null
   let jobId: string = null
   before(async () => {
@@ -21,36 +27,6 @@ describe('Compute Jobs', () => {
   })
 
   it('should create a new C2D Job', async () => {
-    /**
-     * export interface ComputeJob {
-     owner: string
-    did?: string
-    jobId: string
-    dateCreated: string
-    dateFinished: string
-    status: number
-    statusText: string
-    results: ComputeResult[]
-    inputDID?: string[]
-    algoDID?: string
-    agreementId?: string
-    expireTimestamp: number
-    environment?: string
-
-    // internal structure
-    clusterHash: string
-    configlogURL: string
-    publishlogURL: string
-    algologURL: string
-    outputsURL: string
-    stopRequested: boolean
-    algorithm: ComputeAlgorithm
-    assets: ComputeAsset[]
-    isRunning: boolean
-    isStarted: boolean
-    containerImage: string
-    }
- */
     const algorithm: ComputeAlgorithm = {
       documentId: 'did:op:12345',
       serviceId: '0x1828228'
@@ -65,8 +41,8 @@ describe('Compute Jobs', () => {
       jobId: null,
       dateCreated: null,
       dateFinished: null,
-      status: 1,
-      statusText: 'Warming up',
+      status: C2DStatusNumber.JobStarted,
+      statusText: C2DStatusText.JobStarted,
       results: null,
       inputDID: ['did:op:1', 'did:op:2', 'did:op:3'],
       expireTimestamp: 0,
@@ -92,6 +68,24 @@ describe('Compute Jobs', () => {
   it('should get job by jobId', async () => {
     const job = await db.getJob(jobId)
     assert(job, 'Job should not be null')
+  })
+
+  it('should update job', async () => {
+    const job = await db.getJob(jobId)
+    console.log('job before update', job)
+    // will update some fields
+    job.status = C2DStatusNumber.PullImage
+    job.isRunning = true
+    job.statusText = C2DStatusText.PullImage
+
+    // update on DB
+    const updates = await db.updateJob(job)
+    expect(updates).to.be.equal(1) // updated 1 row
+    const updatedJob = await db.getJob(jobId)
+    assert(updatedJob, 'Job should not be null')
+    expect(updatedJob.status).to.be.equal(C2DStatusNumber.PullImage)
+    expect(updatedJob.isRunning).to.be.equal(true)
+    expect(updatedJob.statusText).to.be.equal(C2DStatusText.PullImage)
   })
 
   it('should delete the job by jobId', async () => {
