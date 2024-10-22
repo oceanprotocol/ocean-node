@@ -1,11 +1,16 @@
 import { typesenseSchemas, TypesenseSchema } from './TypesenseSchemas.js'
-import type { DBComputeJob } from '../../@types/C2D/C2D.js'
-import sqlite3 from 'sqlite3'
+import {
+  C2DStatusNumber,
+  C2DStatusText,
+  type DBComputeJob
+} from '../../@types/C2D/C2D.js'
+import sqlite3, { RunResult } from 'sqlite3'
+import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 
 interface ComputeDatabaseProvider {
   newJob(job: DBComputeJob): Promise<string>
   getJob(jobId: string): Promise<DBComputeJob | null>
-  updateJob(job: DBComputeJob): void
+  updateJob(job: DBComputeJob): Promise<number>
   getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]>
   deleteJob(jobId: string): Promise<boolean>
 }
@@ -25,28 +30,42 @@ interface ComputeDatabaseProvider {
   agreementId?: string
   expireTimestamp: number
   environment?: string
-
-  // internal structure
-  clusterHash: string
-  configlogURL: string
-  publishlogURL: string
-  algologURL: string
-  outputsURL: string
-  stopRequested: boolean
-  algorithm: ComputeAlgorithm
-  assets: ComputeAsset[]
-  isRunning: boolean
-  isStarted: boolean
-  containerImage: string
 }
  */
 
 export function generateUniqueID(): string {
   return crypto.randomUUID().toString()
 }
-
-export function generateBlobFromJSON(obj: any): Buffer {
-  return Buffer.from(JSON.stringify(obj))
+// internal structure, added by DBComputeJob
+// clusterHash: string
+// configlogURL: string
+// publishlogURL: string
+// algologURL: string
+// outputsURL: string
+// stopRequested: boolean
+// algorithm: ComputeAlgorithm
+// assets: ComputeAsset[]
+// isRunning: boolean
+// isStarted: boolean
+// containerImage: string
+function getInternalStructure(job: DBComputeJob): any {
+  const internalBlob = {
+    clusterHash: job.clusterHash,
+    configlogURL: job.configlogURL,
+    publishlogURL: job.publishlogURL,
+    algologURL: job.algologURL,
+    outputsURL: job.outputsURL,
+    stopRequested: job.stopRequested,
+    algorithm: job.algorithm,
+    assets: job.assets,
+    isRunning: job.isRunning,
+    isStarted: job.isStarted,
+    containerImage: job.containerImage
+  }
+  return internalBlob
+}
+export function generateBlobFromJSON(job: DBComputeJob): Buffer {
+  return Buffer.from(JSON.stringify(getInternalStructure(job)))
 }
 
 export function generateJSONFromBlob(blob: any): Promise<any> {
@@ -84,9 +103,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       DELETE FROM ${this.schema.name} WHERE jobId = ?
     `
     return new Promise<boolean>((resolve, reject) => {
-      this.db.run(deleteSQL, [jobId], (err) => {
+      this.db.run(deleteSQL, [jobId], function (this: RunResult, err) {
         if (err) reject(err)
-        else resolve(true)
+        else resolve(this.changes === 1)
       })
     })
   }
@@ -140,6 +159,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     `
     const jobId = generateUniqueID()
     job.jobId = jobId
+    job.dateCreated = new Date().toISOString()
     return new Promise<string>((resolve, reject) => {
       this.db.run(
         insertSQL,
@@ -147,9 +167,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
           job.owner,
           job.did,
           jobId,
-          new Date().toISOString(),
-          job.status || 1,
-          job.statusText || 'Warming up',
+          job.dateCreated,
+          job.status || C2DStatusNumber.JobStarted,
+          job.statusText || C2DStatusText.JobStarted,
           job.inputDID ? convertArrayToString(job.inputDID) : job.inputDID,
           job.algoDID,
           job.agreementId,
@@ -177,8 +197,10 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         } else {
           // also decode the internal data into job data
           if (row && row.body) {
-            const body: any = generateJSONFromBlob(row.body)
-            const job: DBComputeJob = { ...body }
+            const bodyEncoded = row.body
+            const body: any = generateJSONFromBlob(bodyEncoded)
+            delete row.body
+            const job: DBComputeJob = { ...row, ...body }
             resolve(job)
           } else {
             resolve(null)
@@ -189,8 +211,37 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   }
 
   // eslint-disable-next-line require-await
-  async updateJob(job: DBComputeJob) {
+  async updateJob(job: DBComputeJob): Promise<number> {
     // TO DO C2D
+    const data: any[] = [
+      job.owner,
+      job.status,
+      job.statusText,
+      job.expireTimestamp,
+      generateBlobFromJSON(job),
+      job.jobId
+    ]
+    const updateSQL = `
+      UPDATE ${this.schema.name} 
+      SET 
+      owner = ?,
+      status = ?,
+      statusText = ?,
+      expireTimestamp = ?, 
+      body = ?
+      WHERE jobId = ?;
+    `
+    return new Promise((resolve, reject) => {
+      this.db.run(updateSQL, data, function (this: RunResult, err: Error | null) {
+        if (err) {
+          DATABASE_LOGGER.error(`Error while updating job: ${err.message}`)
+          reject(err)
+        } else {
+          // number of rows updated successfully
+          resolve(this.changes)
+        }
+      })
+    })
   }
 
   // eslint-disable-next-line require-await

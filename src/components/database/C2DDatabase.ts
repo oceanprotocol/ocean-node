@@ -29,7 +29,6 @@ export class C2DDatabase extends AbstractDatabase {
     })() as unknown as C2DDatabase
   }
 
-  // eslint-disable-next-line require-await
   async newJob(job: DBComputeJob): Promise<string> {
     // TO DO C2D
     // this.tempMem.push(job)
@@ -37,18 +36,27 @@ export class C2DDatabase extends AbstractDatabase {
     return jobId
   }
 
-  // eslint-disable-next-line require-await
   async getJob(jobId: string): Promise<DBComputeJob | null> {
-    const job = this.provider.getJob(jobId)
+    const job = await this.provider.getJob(jobId)
     return job || null
   }
 
   // eslint-disable-next-line require-await
-  async updateJob(job: DBComputeJob) {
+  async updateJob(job: DBComputeJob): Promise<number> {
     // TO DO C2D
     // for (const i in this.tempMem) {
     //   if (this.tempMem[i].jobId === job.jobId) this.tempMem[i] = job
     // }
+    let updated = 0
+    let previouslySaved: DBComputeJob = await this.getJob(job.jobId)
+    if (previouslySaved) {
+      previouslySaved = job
+      updated = await this.provider.updateJob(previouslySaved)
+      if (!updated) {
+        DATABASE_LOGGER.error('Unable to update job')
+      }
+    }
+    return updated
   }
 
   // eslint-disable-next-line require-await
