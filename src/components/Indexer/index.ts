@@ -275,12 +275,12 @@ export class OceanIndexer {
             true
           )
           this.stopThread(chainId)
-          console.log('will restart in 30 secs')
+          console.log('will restart in 3 secs')
           setTimeout(() => {
-            console.log('restarting after 30 secs')
+            console.log('restarting after 3 secs')
             // this.workers[chainId] = null
             this.startThread(chainId)
-          }, 30000)
+          }, 3000)
         })
       }
     }
