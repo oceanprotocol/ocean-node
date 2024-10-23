@@ -112,6 +112,7 @@ export async function processNetworkData(
   while (true) {
     let currentBlock
     if (!lockProccessing) {
+      console.log('t ...')
       lockProccessing = true
       const lastIndexedBlock = await getLastIndexedBlock()
       const networkHeight = await getNetworkHeight(provider)
@@ -192,7 +193,9 @@ export async function processNetworkData(
         true
       )
     }
+    console.log('will sleep for ', interval)
     await sleep(interval)
+    console.log('wake up')
     // reindex chain command called
     if (REINDEX_BLOCK && !lockProccessing) {
       // either "true" for success or "false" otherwise
