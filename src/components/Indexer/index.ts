@@ -238,85 +238,90 @@ export class OceanIndexer {
       return
     }
     console.log('worker setup events:', worker)
-    worker.on('message', (event: any) => {
-      console.log('got event:', event)
-      if (event.data) {
-        if (
-          [
-            EVENTS.METADATA_CREATED,
-            EVENTS.METADATA_UPDATED,
-            EVENTS.METADATA_STATE,
-            EVENTS.ORDER_STARTED,
-            EVENTS.ORDER_REUSED
-          ].includes(event.method)
-        ) {
-          // will emit the metadata created/updated event and advertise it to the other peers (on create only)
-          INDEXER_LOGGER.logMessage(
-            `Emiting "${event.method}" for DDO : ${event.data.id} from network: ${chainID} `
+    try {
+      worker.on('message', (event: any) => {
+        console.log('got event:', event)
+        if (event.data) {
+          if (
+            [
+              EVENTS.METADATA_CREATED,
+              EVENTS.METADATA_UPDATED,
+              EVENTS.METADATA_STATE,
+              EVENTS.ORDER_STARTED,
+              EVENTS.ORDER_REUSED
+            ].includes(event.method)
+          ) {
+            // will emit the metadata created/updated event and advertise it to the other peers (on create only)
+            INDEXER_LOGGER.logMessage(
+              `Emiting "${event.method}" for DDO : ${event.data.id} from network: ${chainID} `
+            )
+            INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
+            // remove from indexing list
+          } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP) {
+            // remove this one from the queue (means we processed the reindex for this tx)
+            INDEXING_QUEUE = INDEXING_QUEUE.filter(
+              (task) =>
+                task.txId !== event.data.txId && task.chainId !== event.data.chainId
+            )
+            // reindex tx successfully done
+            INDEXER_CRAWLING_EVENT_EMITTER.emit(
+              INDEXER_CRAWLING_EVENTS.REINDEX_TX, // explicitly set constant value for readability
+              event.data
+            )
+            this.updateJobStatus(
+              PROTOCOL_COMMANDS.REINDEX_TX,
+              create256Hash([event.data.chainId, event.data.txId].join('')),
+              CommandStatus.SUCCESS
+            )
+          } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN) {
+            // we should listen to this on the dashboard for instance
+            INDEXER_CRAWLING_EVENT_EMITTER.emit(
+              INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
+              event.data
+            )
+            this.updateJobStatus(
+              PROTOCOL_COMMANDS.REINDEX_CHAIN,
+              create256Hash([event.data.chainId].join('')),
+              event.data.result ? CommandStatus.SUCCESS : CommandStatus.FAILURE
+            )
+          } else if (event.method === INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED) {
+            INDEXER_CRAWLING_EVENT_EMITTER.emit(event.method, event.data)
+          }
+        } else {
+          INDEXER_LOGGER.log(
+            LOG_LEVELS_STR.LEVEL_ERROR,
+            'Missing event data (ddo) on postMessage. Something is wrong!',
+            true
           )
-          INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
-          // remove from indexing list
-        } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP) {
-          // remove this one from the queue (means we processed the reindex for this tx)
-          INDEXING_QUEUE = INDEXING_QUEUE.filter(
-            (task) => task.txId !== event.data.txId && task.chainId !== event.data.chainId
-          )
-          // reindex tx successfully done
-          INDEXER_CRAWLING_EVENT_EMITTER.emit(
-            INDEXER_CRAWLING_EVENTS.REINDEX_TX, // explicitly set constant value for readability
-            event.data
-          )
-          this.updateJobStatus(
-            PROTOCOL_COMMANDS.REINDEX_TX,
-            create256Hash([event.data.chainId, event.data.txId].join('')),
-            CommandStatus.SUCCESS
-          )
-        } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN) {
-          // we should listen to this on the dashboard for instance
-          INDEXER_CRAWLING_EVENT_EMITTER.emit(
-            INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
-            event.data
-          )
-          this.updateJobStatus(
-            PROTOCOL_COMMANDS.REINDEX_CHAIN,
-            create256Hash([event.data.chainId].join('')),
-            event.data.result ? CommandStatus.SUCCESS : CommandStatus.FAILURE
-          )
-        } else if (event.method === INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED) {
-          INDEXER_CRAWLING_EVENT_EMITTER.emit(event.method, event.data)
         }
-      } else {
+      })
+
+      worker.on('error', (err: Error) => {
         INDEXER_LOGGER.log(
           LOG_LEVELS_STR.LEVEL_ERROR,
-          'Missing event data (ddo) on postMessage. Something is wrong!',
+          `Error in worker for network ${chainID}: ${err.message}`,
           true
         )
-      }
-    })
+      })
 
-    worker.on('error', (err: Error) => {
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `Error in worker for network ${chainID}: ${err.message}`,
-        true
-      )
-    })
-
-    worker.on('exit', (code: number) => {
-      INDEXER_LOGGER.logMessage(
-        `Worker for network ${chainID} exited with code: ${code}`,
-        true
-      )
-      if (this.intervals[chainID]) {
-        clearInterval(this.intervals[chainID])
-      }
-      this.restartWorker(chainID)
-    })
+      worker.on('exit', (code: number) => {
+        INDEXER_LOGGER.logMessage(
+          `Worker for network ${chainID} exited with code: ${code}`,
+          true
+        )
+        if (this.intervals[chainID]) {
+          clearInterval(this.intervals[chainID])
+        }
+        this.restartWorker(chainID)
+      })
+    } catch (err) {
+      console.log('error: ', err)
+    }
   }
 
   private restartWorker(chainId: number) {
-    // delete this.workers[chainId]
-    // this.stopThread(chainId)
+    delete this.workers[chainId]
+    this.stopThread(chainId)
     console.log('will restart in 3 secs')
     setTimeout(async () => {
       console.log('restarting after 3 secs')
@@ -329,7 +334,7 @@ export class OceanIndexer {
         console.log('got new worker...')
         // track if we were able to start them all
         console.log(this.workers)
-        // this.workers[chainId] = newWorker
+        this.workers[chainId] = newWorker
         console.log(this.workers)
         // sets the check interval
         this.setupRecurringWork(chainId)

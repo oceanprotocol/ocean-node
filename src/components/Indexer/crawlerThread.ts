@@ -302,7 +302,11 @@ parentPort.on('message', (message) => {
       rpcDetails.fallbackRPCs
     )
     // return retryCrawlerWithDelay(blockchain)
-    processNetworkData(blockchain.getProvider(), blockchain.getSigner())
+    try {
+      processNetworkData(blockchain.getProvider(), blockchain.getSigner())
+    } catch (err) {
+      console.log('error process: ', err)
+    }
   } else if (message.method === INDEXER_MESSAGES.REINDEX_TX) {
     // reindex a specific transaction
 
