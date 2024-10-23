@@ -207,6 +207,7 @@ export class OceanIndexer {
       }
       console.log('before interval: ', interval)
       this.intervals[chainId] = setInterval(() => {
+        console.log('inside interval: ', interval)
         worker.postMessage({ method: 'do-check' })
       }, interval)
     }
@@ -238,6 +239,7 @@ export class OceanIndexer {
     }
     console.log('worker setup events:', worker)
     worker.on('message', (event: any) => {
+      console.log('got event:', event)
       if (event.data) {
         if (
           [
