@@ -114,18 +114,18 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     const createTableSQL = `
       CREATE TABLE IF NOT EXISTS ${this.schema.name} (
         owner TEXT,
-        did TEXT,
+        did TEXT DEFAULT NULL,
         jobId TEXT PRIMARY KEY,
         dateCreated TEXT,
         dateFinished TEXT DEFAULT NULL,
         status INTEGER,
         statusText TEXT,
         results BLOB,
-        inputDID TEXT,
-        algoDID TEXT,
-        agreementId TEXT,
+        inputDID TEXT DEFAULT NULL,
+        algoDID TEXT DEFAULT NULL,
+        agreementId TEXT DEFAULT NULL,
         expireTimestamp INTEGER,
-        environment TEXT,
+        environment TEXT DEFAULT NULL,
         body BLOB
       );
     `
@@ -159,7 +159,6 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     `
     const jobId = generateUniqueID()
     job.jobId = jobId
-    job.dateCreated = new Date().toISOString()
     return new Promise<string>((resolve, reject) => {
       this.db.run(
         insertSQL,
@@ -167,7 +166,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
           job.owner,
           job.did,
           jobId,
-          job.dateCreated,
+          job.dateCreated || String(Date.now() / 1000), // seconds from epoch,
           job.status || C2DStatusNumber.JobStarted,
           job.statusText || C2DStatusText.JobStarted,
           job.inputDID ? convertArrayToString(job.inputDID) : job.inputDID,
