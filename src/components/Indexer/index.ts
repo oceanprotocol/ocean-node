@@ -13,7 +13,7 @@ import {
   PROTOCOL_COMMANDS
 } from '../../utils/index.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
-import { buildJobIdentifier } from './utils.js'
+import { buildJobIdentifier, getCrawlingInterval } from './utils.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { isReachableConnection } from '../../utils/database.js'
 import { sleep } from '../../utils/util.js'
@@ -195,6 +195,10 @@ export class OceanIndexer {
     return worker
   }
 
+  public doCheck(worker: Worker): void {
+    worker.postMessage({ method: 'do-check' })
+  }
+
   // eslint-disable-next-line require-await
   public async startThreads(): Promise<boolean> {
     let count = 0
@@ -202,6 +206,10 @@ export class OceanIndexer {
       const chainId = parseInt(network)
       const worker = await this.startThread(chainId)
       if (worker) {
+        const interval = getCrawlingInterval()
+        setInterval(() => {
+          this.doCheck(worker)
+        }, interval)
         // track if we were able to start them all
         count++
         this.workers[chainId] = worker

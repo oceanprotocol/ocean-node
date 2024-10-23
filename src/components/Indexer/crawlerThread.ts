@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'worker_threads'
 import {
-  getCrawlingInterval,
+  // getCrawlingInterval,
   getDeployedContractBlock,
   getNetworkHeight,
   processBlocks,
@@ -10,7 +10,7 @@ import {
 import { Blockchain } from '../../utils/blockchain.js'
 import { BlocksEvents, SupportedNetwork } from '../../@types/blockchain.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { isDefined, sleep } from '../../utils/util.js'
+import { isDefined } from '../../utils/util.js'
 import { EVENTS, INDEXER_CRAWLING_EVENTS, INDEXER_MESSAGES } from '../../utils/index.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getDatabase } from '../../utils/database.js'
@@ -105,115 +105,115 @@ export async function processNetworkData(
       : contractDeploymentBlock
 
   // we can override the default value of 30 secs, by setting process.env.INDEXER_INTERVAL
-  const interval = getCrawlingInterval()
+  // const interval = getCrawlingInterval()
   let { chunkSize } = rpcDetails
   let lockProccessing = false
 
-  while (true) {
-    let currentBlock
-    if (!lockProccessing) {
-      console.log('t ...')
-      lockProccessing = true
-      const lastIndexedBlock = await getLastIndexedBlock()
-      const networkHeight = await getNetworkHeight(provider)
-      const startBlock =
-        lastIndexedBlock && lastIndexedBlock > crawlingStartBlock
-          ? lastIndexedBlock
-          : crawlingStartBlock
+  // while (true) {
+  let currentBlock
+  if (!lockProccessing) {
+    console.log('t ...')
+    lockProccessing = true
+    const lastIndexedBlock = await getLastIndexedBlock()
+    const networkHeight = await getNetworkHeight(provider)
+    const startBlock =
+      lastIndexedBlock && lastIndexedBlock > crawlingStartBlock
+        ? lastIndexedBlock
+        : crawlingStartBlock
 
-      INDEXER_LOGGER.logMessage(
-        `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`,
-        true
-      )
-      if (networkHeight > startBlock) {
-        // emit an one shot event when we actually start the crawling process
-        if (!startedCrawling) {
-          startedCrawling = true
-          parentPort.postMessage({
-            method: INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED,
-            data: { startBlock, networkHeight, contractDeploymentBlock }
-          })
-        }
-        const remainingBlocks = networkHeight - startBlock
-        const blocksToProcess = Math.min(chunkSize, remainingBlocks)
-        INDEXER_LOGGER.logMessage(
-          `network: ${rpcDetails.network} processing ${blocksToProcess} blocks ...`
-        )
-        let chunkEvents: Log[] = []
-        try {
-          chunkEvents = await retrieveChunkEvents(
-            signer,
-            provider,
-            rpcDetails.chainId,
-            startBlock,
-            blocksToProcess
-          )
-        } catch (error) {
-          INDEXER_LOGGER.log(
-            LOG_LEVELS_STR.LEVEL_WARN,
-            `Get events for network: ${rpcDetails.network} failure: ${error.message} \n\nConsider that there may be an issue with your RPC provider. We recommend using private RPCs from reliable providers such as Infura or Alchemy.`,
-            true
-          )
-          chunkSize = Math.floor(chunkSize / 2) < 1 ? 1 : Math.floor(chunkSize / 2)
-          INDEXER_LOGGER.logMessage(
-            `network: ${rpcDetails.network} Reducing chunk size  ${chunkSize} `,
-            true
-          )
-        }
-        try {
-          const processedBlocks = await processBlocks(
-            chunkEvents,
-            signer,
-            provider,
-            rpcDetails.chainId,
-            startBlock,
-            blocksToProcess
-          )
-          currentBlock = await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
-          // we can't just update currentBlock to processedBlocks.lastBlock if the DB action failed
-          if (currentBlock < 0 && lastIndexedBlock !== null) {
-            currentBlock = lastIndexedBlock
-          }
-          checkNewlyIndexedAssets(processedBlocks.foundEvents)
-          chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
-        } catch (error) {
-          INDEXER_LOGGER.log(
-            LOG_LEVELS_STR.LEVEL_ERROR,
-            `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `,
-            true
-          )
-          await updateLastIndexedBlockNumber(startBlock + blocksToProcess)
-        }
+    INDEXER_LOGGER.logMessage(
+      `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`,
+      true
+    )
+    if (networkHeight > startBlock) {
+      // emit an one shot event when we actually start the crawling process
+      if (!startedCrawling) {
+        startedCrawling = true
+        parentPort.postMessage({
+          method: INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED,
+          data: { startBlock, networkHeight, contractDeploymentBlock }
+        })
       }
-      await processReindex(provider, signer, rpcDetails.chainId)
-      lockProccessing = false
-    } else {
+      const remainingBlocks = networkHeight - startBlock
+      const blocksToProcess = Math.min(chunkSize, remainingBlocks)
       INDEXER_LOGGER.logMessage(
-        `Processing already in progress for network ${rpcDetails.network}, waiting until finishing the current processing ...`,
-        true
+        `network: ${rpcDetails.network} processing ${blocksToProcess} blocks ...`
       )
+      let chunkEvents: Log[] = []
+      try {
+        chunkEvents = await retrieveChunkEvents(
+          signer,
+          provider,
+          rpcDetails.chainId,
+          startBlock,
+          blocksToProcess
+        )
+      } catch (error) {
+        INDEXER_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_WARN,
+          `Get events for network: ${rpcDetails.network} failure: ${error.message} \n\nConsider that there may be an issue with your RPC provider. We recommend using private RPCs from reliable providers such as Infura or Alchemy.`,
+          true
+        )
+        chunkSize = Math.floor(chunkSize / 2) < 1 ? 1 : Math.floor(chunkSize / 2)
+        INDEXER_LOGGER.logMessage(
+          `network: ${rpcDetails.network} Reducing chunk size  ${chunkSize} `,
+          true
+        )
+      }
+      try {
+        const processedBlocks = await processBlocks(
+          chunkEvents,
+          signer,
+          provider,
+          rpcDetails.chainId,
+          startBlock,
+          blocksToProcess
+        )
+        currentBlock = await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
+        // we can't just update currentBlock to processedBlocks.lastBlock if the DB action failed
+        if (currentBlock < 0 && lastIndexedBlock !== null) {
+          currentBlock = lastIndexedBlock
+        }
+        checkNewlyIndexedAssets(processedBlocks.foundEvents)
+        chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
+      } catch (error) {
+        INDEXER_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_ERROR,
+          `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `,
+          true
+        )
+        await updateLastIndexedBlockNumber(startBlock + blocksToProcess)
+      }
     }
-    console.log('will sleep for ', interval)
-    await sleep(interval)
-    console.log('wake up')
-    // reindex chain command called
-    if (REINDEX_BLOCK && !lockProccessing) {
-      // either "true" for success or "false" otherwise
-      const result = await reindexChain(currentBlock)
-      // get all reindex commands
-      // TODO (check that we do not receive multiple commands for same reindex before previous finishes)
-      parentPort.postMessage({
-        method: INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
-        data: { result, chainId: rpcDetails.chainId }
-      })
-    }
-
-    if (stoppedCrawling) {
-      INDEXER_LOGGER.logMessage('Exiting thread...')
-      startedCrawling = false
-      break
-    }
+    await processReindex(provider, signer, rpcDetails.chainId)
+    lockProccessing = false
+  } else {
+    INDEXER_LOGGER.logMessage(
+      `Processing already in progress for network ${rpcDetails.network}, waiting until finishing the current processing ...`,
+      true
+    )
   }
+  // console.log('will sleep for ', interval)
+  // await sleep(interval)
+  // console.log('wake up')
+  // reindex chain command called
+  if (REINDEX_BLOCK && !lockProccessing) {
+    // either "true" for success or "false" otherwise
+    const result = await reindexChain(currentBlock)
+    // get all reindex commands
+    // TODO (check that we do not receive multiple commands for same reindex before previous finishes)
+    parentPort.postMessage({
+      method: INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
+      data: { result, chainId: rpcDetails.chainId }
+    })
+  }
+
+  if (stoppedCrawling) {
+    INDEXER_LOGGER.logMessage('Exiting thread...')
+    startedCrawling = false
+    // break
+  }
+  // }
 }
 
 async function reindexChain(currentBlock: number): Promise<boolean> {
@@ -290,7 +290,10 @@ export function checkNewlyIndexedAssets(events: BlocksEvents): void {
 
 parentPort.on('message', (message) => {
   console.log('got message:', message)
-  if (message.method === INDEXER_MESSAGES.START_CRAWLING) {
+  if (
+    message.method === INDEXER_MESSAGES.START_CRAWLING ||
+    message.method === 'do-check'
+  ) {
     // start indexing the chain
     const blockchain = new Blockchain(
       rpcDetails.rpc,
