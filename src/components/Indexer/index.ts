@@ -345,12 +345,12 @@ export class OceanIndexer {
     }, 3000)
   }
 
-  public killThread(chain: number): void {
+  public async killThread(chain: number): Promise<void> {
     console.log('kill thread for chain:', chain)
     const worker = this.workers[chain]
     if (worker) {
-      worker.terminate()
-      console.log(' >>>> Killed <<<<.. ')
+      const pr = await worker.terminate()
+      console.log(' >>>> Killed <<<<.. ', pr)
     }
   }
 
