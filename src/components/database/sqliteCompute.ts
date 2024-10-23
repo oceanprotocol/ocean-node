@@ -15,39 +15,10 @@ interface ComputeDatabaseProvider {
   deleteJob(jobId: string): Promise<boolean>
 }
 
-/**
- * export interface ComputeJob {
-  owner: string
-  did?: string
-  jobId: string
-  dateCreated: string
-  dateFinished: string
-  status: number
-  statusText: string
-  results: ComputeResult[]
-  inputDID?: string[]
-  algoDID?: string
-  agreementId?: string
-  expireTimestamp: number
-  environment?: string
-}
- */
-
 export function generateUniqueID(): string {
   return crypto.randomUUID().toString()
 }
-// internal structure, added by DBComputeJob
-// clusterHash: string
-// configlogURL: string
-// publishlogURL: string
-// algologURL: string
-// outputsURL: string
-// stopRequested: boolean
-// algorithm: ComputeAlgorithm
-// assets: ComputeAsset[]
-// isRunning: boolean
-// isStarted: boolean
-// containerImage: string
+
 function getInternalStructure(job: DBComputeJob): any {
   const internalBlob = {
     clusterHash: job.clusterHash,
@@ -72,7 +43,9 @@ export function generateJSONFromBlob(blob: any): Promise<any> {
   return JSON.parse(blob.toString())
 }
 
+// we cannot store array of strings, so we use string separators instead
 export const STRING_SEPARATOR = '__,__'
+
 export function convertArrayToString(array: string[]) {
   let str: string = ''
   for (let i = 0; i < array.length; i++) {
@@ -177,8 +150,13 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
           generateBlobFromJSON(job)
         ],
         (err) => {
-          if (err) reject(err)
-          else resolve(jobId)
+          if (err) {
+            DATABASE_LOGGER.error(err.message)
+            reject(err)
+          } else {
+            DATABASE_LOGGER.info('Successfully inserted job with id:' + jobId)
+            resolve(jobId)
+          }
         }
       )
     })
@@ -192,6 +170,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     return new Promise<DBComputeJob | null>((resolve, reject) => {
       this.db.get(selectSQL, [jobId], (err, row: any | undefined) => {
         if (err) {
+          DATABASE_LOGGER.error(err.message)
           reject(err)
         } else {
           // also decode the internal data into job data
@@ -202,6 +181,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
             const job: DBComputeJob = { ...row, ...body }
             resolve(job)
           } else {
+            DATABASE_LOGGER.error(`Could not find job id: ${jobId} in database!`)
             resolve(null)
           }
         }
@@ -252,6 +232,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     return new Promise<DBComputeJob[]>((resolve, reject) => {
       this.db.all(selectSQL, (err, rows: any[] | undefined) => {
         if (err) {
+          DATABASE_LOGGER.error(err.message)
           reject(err)
         } else {
           // also decode the internal data into job data
@@ -276,6 +257,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
             })
             resolve(filtered)
           } else {
+            DATABASE_LOGGER.info('Could not find any running jobs!')
             resolve([])
           }
         }

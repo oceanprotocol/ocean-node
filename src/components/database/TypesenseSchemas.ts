@@ -66,15 +66,15 @@ export const typesenseSchemas: TypesenseSchemas = {
     name: 'c2djobs',
     enable_nested_fields: true,
     fields: [
-      // TO DO C2D
+      // not really needed because it will be SQL Lite
       { name: 'clusterHash', type: 'string', optional: false },
       { name: 'configlogURL', type: 'string', optional: false },
       { name: 'publishlogURL', type: 'string', optional: false },
       { name: 'algologURL', type: 'string', optional: false },
       { name: 'outputsURL', type: 'auto', optional: false },
       { name: 'stopRequested', type: 'bool', optional: false },
-      // { name: 'algorithm', type: 'ComputeAlgorithm', optional: false },
-      // { name: 'assets', type: 'ComputeAsset[]', optional: false }
+      { name: 'algorithm', type: 'auto', optional: false },
+      { name: 'assets', type: 'auto', optional: false },
       { name: 'isRunning', type: 'bool', optional: false },
       { name: 'isStarted', type: 'bool', optional: false },
       { name: 'containerImage', type: 'string', optional: false }
