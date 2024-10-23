@@ -33,7 +33,7 @@ export class OceanIndexer {
   private networks: RPCS
   private supportedChains: string[]
   private workers: Record<string, Worker> = {}
-  private intervals: Record<any, number> = {}
+  private intervals: Record<number, any> = {}
 
   constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
@@ -197,10 +197,14 @@ export class OceanIndexer {
   }
 
   private setupRecurringWork(chainId: number) {
+    console.log(`setup recurring work for chain ${chainId}`)
     const worker = this.workers[chainId]
     if (worker) {
       const interval = getCrawlingInterval()
-      setInterval(() => {
+      if (this.intervals[chainId]) {
+        clearInterval(this.intervals[chainId])
+      }
+      this.intervals[chainId] = setInterval(() => {
         worker.postMessage({ method: 'do-check' })
       }, interval)
     }
@@ -226,6 +230,10 @@ export class OceanIndexer {
   }
 
   private setupWorkerEvents(worker: Worker, chainID: number) {
+    if (!worker) {
+      console.log('worker missing?')
+      return
+    }
     worker.on('message', (event: any) => {
       if (event.data) {
         if (
@@ -304,9 +312,13 @@ export class OceanIndexer {
     console.log('will restart in 3 secs')
     setTimeout(async () => {
       console.log('restarting after 3 secs')
-      // this.workers[chainId] = null
+      // clear any intervals before
+      if (this.intervals[chainId]) {
+        clearInterval(this.intervals[chainId])
+      }
       const newWorker = await this.startThread(chainId)
       if (newWorker) {
+        console.log('got new worker...')
         // track if we were able to start them all
         this.workers[chainId] = newWorker
         // sets the check interval
