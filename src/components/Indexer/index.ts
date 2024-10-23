@@ -307,6 +307,9 @@ export class OceanIndexer {
         `Worker for network ${chainID} exited with code: ${code}`,
         true
       )
+      if (this.intervals[chainID]) {
+        clearInterval(this.intervals[chainID])
+      }
       this.restartWorker(chainID)
     })
   }
@@ -327,8 +330,10 @@ export class OceanIndexer {
         // track if we were able to start them all
         console.log(this.workers)
         this.workers[chainId] = newWorker
+        console.log(this.workers)
         // sets the check interval
         this.setupRecurringWork(chainId)
+        console.log(this.intervals)
         console.log('setup events')
         this.setupWorkerEvents(newWorker, chainId)
       }
