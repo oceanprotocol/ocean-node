@@ -901,7 +901,7 @@ describe('Compute', () => {
   it('should kill thread then restart it', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 5)
     console.log('Kill thread for chain 8996: ')
-    setTimeout(() => indexer.killThread(8996), 3000)
+    setTimeout(async () => await indexer.killThread(8996), 3000)
     await sleep(DEFAULT_TEST_TIMEOUT * 2)
     console.log('is thread running again?')
     assert(indexer, 'dummy check')
