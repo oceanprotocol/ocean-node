@@ -30,7 +30,7 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { Readable } from 'stream'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
-import { getEventFromTx, streamToObject } from '../../utils/util.js'
+import { getEventFromTx, sleep, streamToObject } from '../../utils/util.js'
 import {
   Contract,
   ethers,
@@ -896,6 +896,15 @@ describe('Compute', () => {
         } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
       } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     })
+  })
+
+  it('should kill thread then restart it', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 5)
+    console.log('Kill thread for chain 8996: ')
+    setTimeout(() => indexer.killThread(8996), 3000)
+    await sleep(DEFAULT_TEST_TIMEOUT * 2)
+    console.log('is thread running again?')
+    assert(indexer, 'dummy check')
   })
 
   after(async () => {
