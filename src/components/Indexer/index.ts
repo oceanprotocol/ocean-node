@@ -273,8 +273,12 @@ export class OceanIndexer {
             true
           )
           this.stopThread(chainId)
-          this.workers[chainId] = null
-          this.startThread(chainId)
+          console.log('will restart in 30 secs')
+          setTimeout(() => {
+            console.log('restarting after 30 secs')
+            this.workers[chainId] = null
+            this.startThread(chainId)
+          }, 30000)
         })
       }
     }
