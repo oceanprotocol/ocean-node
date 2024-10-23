@@ -70,6 +70,7 @@ export class OceanIndexer {
 
   // stops all worker threads
   public stopAllThreads(): boolean {
+    console.log('stopAllThreads called')
     let count = 0
     for (const chainID of this.supportedChains) {
       if (this.stopThread(parseInt(chainID))) {
@@ -83,9 +84,11 @@ export class OceanIndexer {
   public stopThread(chainID: number): boolean {
     const worker = this.workers[chainID]
     if (worker) {
+      console.log('got worker thread')
       worker.postMessage({ method: 'stop-crawling' })
       return true
     }
+    console.log('got nothing')
     INDEXER_LOGGER.error('Unable to find running worker thread for chain ' + chainID)
     return false
   }
@@ -269,10 +272,28 @@ export class OceanIndexer {
             `Worker for network ${network} exited with code: ${code}`,
             true
           )
+          this.stopThread(Number(network))
+          this.startThread(Number(network))
         })
       }
     }
+
+    process.on('SIGTERM', this.stopAllThreads)
+    process.on('SIGINT', this.stopAllThreads)
+    if (this.supportedChains.length > 0) {
+      console.log('Kill thread: ', Number(this.supportedChains[0]))
+      setTimeout(() => this.killThread(Number(this.supportedChains[0])), 20000)
+    }
     return count === this.supportedChains.length
+  }
+
+  public killThread(chain: number): void {
+    console.log('kill thread for chain:', chain)
+    const worker = this.workers[chain]
+    if (worker) {
+      worker.terminate()
+      console.log(' >>>> Killed <<<<.. ')
+    }
   }
 
   public addReindexTask(reindexTask: ReindexTask): JobStatus | null {

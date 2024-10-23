@@ -286,6 +286,7 @@ export function checkNewlyIndexedAssets(events: BlocksEvents): void {
 }
 
 parentPort.on('message', (message) => {
+  console.log('got message:', message)
   if (message.method === INDEXER_MESSAGES.START_CRAWLING) {
     // start indexing the chain
     const blockchain = new Blockchain(
