@@ -285,8 +285,12 @@ export class OceanIndexer {
       }
     }
 
-    process.on('SIGTERM', this.stopAllThreads)
-    process.on('SIGINT', this.stopAllThreads)
+    process.on('SIGTERM', () => {
+      console.log('got sigterm signal')
+    })
+    process.on('SIGINT', () => {
+      console.log('got sigint signal')
+    })
     if (this.supportedChains.length > 0) {
       console.log('Kill thread: ', Number(this.supportedChains[0]))
       setTimeout(() => this.killThread(Number(this.supportedChains[0])), 20000)
