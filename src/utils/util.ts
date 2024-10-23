@@ -145,3 +145,12 @@ export function asyncCallWithTimeout(
 export function isDefined(something: any): boolean {
   return something !== undefined && something !== null
 }
+
+export function deleteKeysFromObject(source: any, keys: string[]): any {
+  keys.forEach((keyName) => {
+    if (keyName in source) {
+      delete source[keyName]
+    }
+  })
+  return source
+}

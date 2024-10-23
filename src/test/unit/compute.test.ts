@@ -1,13 +1,15 @@
-// import { expect } from 'chai'
 import { C2DDatabase } from '../../components/database/C2DDatabase.js'
-import { getConfiguration } from '../../utils/config.js'
+import { existsEnvironmentVariable, getConfiguration } from '../../utils/config.js'
 import { typesenseSchemas } from '../../components/database/TypesenseSchemas.js'
 import {
   C2DStatusNumber,
   C2DStatusText,
   ComputeAlgorithm,
   ComputeAsset,
-  DBComputeJob
+  ComputeEnvironment,
+  ComputeJob,
+  DBComputeJob,
+  DockerPlatform
 } from '../../@types/C2D/C2D.js'
 // import { computeAsset } from '../data/assets'
 import { assert, expect } from 'chai'
@@ -16,8 +18,22 @@ import {
   convertStringToArray,
   STRING_SEPARATOR
 } from '../../components/database/sqliteCompute.js'
+import {
+  buildEnvOverrideConfig,
+  OverrideEnvConfig,
+  setupEnvironment,
+  tearDownEnvironment
+} from '../utils/utils.js'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { completeDBComputeJob, dockerImageManifest } from '../data/assets.js'
+import { omitDBComputeFieldsFromComputeJob } from '../../components/c2d/index.js'
+import os from 'os'
+import { checkManifestPlatform } from '../../components/c2d/compute_engine_docker.js'
 
 describe('Compute Jobs Database', () => {
+  let envOverrides: OverrideEnvConfig[]
+  let config: OceanNodeConfig
   let db: C2DDatabase = null
   let jobId: string = null
 
@@ -30,8 +46,28 @@ describe('Compute Jobs Database', () => {
     serviceId: '0x12345abc'
   }
   before(async () => {
-    const config = await getConfiguration(true)
+    envOverrides = buildEnvOverrideConfig(
+      [ENVIRONMENT_VARIABLES.DOCKER_SOCKET_PATH],
+      ['/var/lib/docker']
+    )
+    envOverrides = await setupEnvironment(null, envOverrides)
+    config = await getConfiguration(true)
     db = await new C2DDatabase(config.dbConfig, typesenseSchemas.c2dSchemas)
+  })
+
+  it('should have at least a free docker compute environment', () => {
+    let size = 1
+    if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL, false)) {
+      expect(config.c2dClusters.length).to.be.at.least(2)
+      size = 2
+    } else {
+      expect(config.c2dClusters.length).to.be.at.least(1)
+    }
+    const dockerConfig = config.c2dClusters[size - 1].connection
+    const freeEnv: ComputeEnvironment = dockerConfig.freeComputeOptions
+    expect(freeEnv.desc).to.be.equal('Free')
+    expect(freeEnv.free).to.be.equal(true)
+    expect(freeEnv.id).to.be.equal(config.c2dClusters[size - 1].hash + '-free')
   })
 
   it('should create a new C2D Job', async () => {
@@ -65,12 +101,15 @@ describe('Compute Jobs Database', () => {
   })
 
   it('should get job by jobId', async () => {
-    const job = await db.getJob(jobId)
-    assert(job, 'Job should not be null')
+    const jobs = await db.getJob(jobId)
+    assert(jobs.length === 1, 'Could not get any job')
+    assert(jobs[0], 'Job should not be null')
+    assert(jobs[0].jobId === jobId, 'JobId mismatches')
   })
 
   it('should update job', async () => {
-    const job = await db.getJob(jobId)
+    const jobs = await db.getJob(jobId)
+    const job = jobs[0]
     // will update some fields
     job.status = C2DStatusNumber.PullImage
     job.isRunning = true
@@ -79,7 +118,8 @@ describe('Compute Jobs Database', () => {
     // update on DB
     const updates = await db.updateJob(job)
     expect(updates).to.be.equal(1) // updated 1 row
-    const updatedJob = await db.getJob(jobId)
+    const updatedJobs = await db.getJob(jobId)
+    const updatedJob = updatedJobs[0]
     assert(updatedJob, 'Job should not be null')
     expect(updatedJob.status).to.be.equal(C2DStatusNumber.PullImage)
     expect(updatedJob.isRunning).to.be.equal(true)
@@ -141,5 +181,57 @@ describe('Compute Jobs Database', () => {
     const expectedArray = ['did:op:1', 'did:op:2', 'did:op:3']
     const str = 'did:op:1' + STRING_SEPARATOR + 'did:op:2' + STRING_SEPARATOR + 'did:op:3'
     expect(convertStringToArray(str)).to.deep.equal(expectedArray)
+  })
+
+  it('should convert DBComputeJob to ComputeJob and omit internal DB data', () => {
+    const source: any = completeDBComputeJob
+    const output: ComputeJob = omitDBComputeFieldsFromComputeJob(source as DBComputeJob)
+
+    expect(Object.prototype.hasOwnProperty.call(output, 'clusterHash')).to.be.equal(false)
+    expect(Object.prototype.hasOwnProperty.call(output, 'configlogURL')).to.be.equal(
+      false
+    )
+    expect(Object.prototype.hasOwnProperty.call(output, 'publishlogURL')).to.be.equal(
+      false
+    )
+    expect(Object.prototype.hasOwnProperty.call(output, 'algologURL')).to.be.equal(false)
+    expect(Object.prototype.hasOwnProperty.call(output, 'outputsURL')).to.be.equal(false)
+    expect(Object.prototype.hasOwnProperty.call(output, 'stopRequested')).to.be.equal(
+      false
+    )
+    expect(Object.prototype.hasOwnProperty.call(output, 'algorithm')).to.be.equal(false)
+    expect(Object.prototype.hasOwnProperty.call(output, 'assets')).to.be.equal(false)
+    expect(Object.prototype.hasOwnProperty.call(output, 'isRunning')).to.be.equal(false)
+    expect(Object.prototype.hasOwnProperty.call(output, 'isStarted')).to.be.equal(false)
+    expect(Object.prototype.hasOwnProperty.call(output, 'containerImage')).to.be.equal(
+      false
+    )
+  })
+
+  it('should check manifest platform against local platform env', () => {
+    const arch = os.machine() // ex: arm
+    const platform = os.platform() // ex: linux
+    const env: DockerPlatform = {
+      architecture: arch,
+      os: platform
+    }
+    const result: boolean = checkManifestPlatform(dockerImageManifest.platform, env)
+    // if all defined and a match its OK
+    if (
+      dockerImageManifest.platform.os === env.os &&
+      dockerImageManifest.platform.architecture === env.architecture
+    ) {
+      expect(result).to.be.equal(true)
+    } else {
+      // oterwise its NOT
+      expect(result).to.be.equal(false)
+    }
+
+    // all good anyway, nothing on the manifest
+    expect(checkManifestPlatform(null, env)).to.be.equal(true)
+  })
+
+  after(async () => {
+    await tearDownEnvironment(envOverrides)
   })
 })
