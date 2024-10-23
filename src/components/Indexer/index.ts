@@ -274,9 +274,9 @@ export class OceanIndexer {
             `Worker for network ${network} exited with code: ${code}`,
             true
           )
+          delete this.workers[chainId]
           this.stopThread(chainId)
           console.log('will restart in 3 secs')
-          delete this.workers[chainId]
           setTimeout(() => {
             console.log('restarting after 3 secs')
             // this.workers[chainId] = null
