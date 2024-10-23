@@ -150,10 +150,7 @@ export class OceanIndexer {
   }
 
   // starts crawling for a specific chain
-  public async startThread(
-    chainID: number,
-    force: boolean = false
-  ): Promise<Worker | null> {
+  public async startThread(chainID: number): Promise<Worker | null> {
     const rpcDetails: SupportedNetwork = this.getSupportedNetwork(chainID)
     if (!rpcDetails) {
       INDEXER_LOGGER.error(
@@ -180,8 +177,8 @@ export class OceanIndexer {
     // see if it exists already, otherwise create a new one
     console.log('... creating worker thread...')
     let worker = this.workers[chainID]
-    if (!worker || force) {
-      console.log('force: ', force)
+    console.log('worker thread? ', worker)
+    if (!worker) {
       worker = new Worker('./dist/components/Indexer/crawlerThread.js', {
         workerData
       })
@@ -282,7 +279,7 @@ export class OceanIndexer {
           setTimeout(() => {
             console.log('restarting after 30 secs')
             // this.workers[chainId] = null
-            this.startThread(chainId, true)
+            this.startThread(chainId)
           }, 30000)
         })
       }
