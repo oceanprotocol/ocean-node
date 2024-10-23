@@ -272,8 +272,9 @@ export class OceanIndexer {
             `Worker for network ${network} exited with code: ${code}`,
             true
           )
-          this.stopThread(Number(network))
-          this.startThread(Number(network))
+          this.stopThread(chainId)
+          this.workers[chainId] = null
+          this.startThread(chainId)
         })
       }
     }
