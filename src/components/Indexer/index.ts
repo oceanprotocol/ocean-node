@@ -315,7 +315,7 @@ export class OceanIndexer {
   }
 
   private restartWorker(chainId: number) {
-    delete this.workers[chainId]
+    // delete this.workers[chainId]
     // this.stopThread(chainId)
     console.log('will restart in 3 secs')
     setTimeout(async () => {
@@ -329,7 +329,7 @@ export class OceanIndexer {
         console.log('got new worker...')
         // track if we were able to start them all
         console.log(this.workers)
-        this.workers[chainId] = newWorker
+        // this.workers[chainId] = newWorker
         console.log(this.workers)
         // sets the check interval
         this.setupRecurringWork(chainId)
