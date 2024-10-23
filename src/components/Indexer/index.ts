@@ -199,11 +199,13 @@ export class OceanIndexer {
   private setupRecurringWork(chainId: number) {
     console.log(`setup recurring work for chain ${chainId}`)
     const worker = this.workers[chainId]
+    console.log('got worker thread? ', worker)
     if (worker) {
       const interval = getCrawlingInterval()
       if (this.intervals[chainId]) {
         clearInterval(this.intervals[chainId])
       }
+      console.log('before interval: ', interval)
       this.intervals[chainId] = setInterval(() => {
         worker.postMessage({ method: 'do-check' })
       }, interval)
@@ -234,6 +236,7 @@ export class OceanIndexer {
       console.log('worker missing?')
       return
     }
+    console.log('worker setup events:', worker)
     worker.on('message', (event: any) => {
       if (event.data) {
         if (
@@ -320,9 +323,11 @@ export class OceanIndexer {
       if (newWorker) {
         console.log('got new worker...')
         // track if we were able to start them all
+        console.log(this.workers)
         this.workers[chainId] = newWorker
         // sets the check interval
         this.setupRecurringWork(chainId)
+        console.log('setup events')
         this.setupWorkerEvents(newWorker, chainId)
       }
     }, 3000)
