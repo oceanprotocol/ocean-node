@@ -296,6 +296,7 @@ export class DownloadHandler extends Handler {
       String(ddo.id + task.nonce)
     )
 
+    console.log('nonce check result:', nonceCheckResult)
     if (!nonceCheckResult.valid) {
       CORE_LOGGER.logMessage(
         'Invalid nonce or signature, unable to proceed with download: ' +
