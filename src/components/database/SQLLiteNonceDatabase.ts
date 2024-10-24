@@ -13,13 +13,7 @@ export class SQLLiteNonceDatabase extends AbstractNonceDatabase {
   constructor(config: OceanNodeDBConfig, schema: TypesenseSchema) {
     super(config, schema)
     return (async (): Promise<SQLLiteNonceDatabase> => {
-      // Fall back to SQLite
-      DATABASE_LOGGER.logMessageWithEmoji(
-        'Nonce Database initiated with SQLite provider',
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_WARN
-      )
+      DATABASE_LOGGER.info('Nonce Database initiated with SQLite provider')
 
       // Ensure the directory exists before instantiating SQLiteProvider
       const dbDir = path.dirname('databases/nonceDatabase.sqlite')

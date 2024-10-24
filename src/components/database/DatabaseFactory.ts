@@ -35,8 +35,6 @@ import { SQLLiteNonceDatabase } from './SQLLiteNonceDatabase.js'
 export class DatabaseFactory {
   private static databaseMap = {
     elasticsearch: {
-      nonce: (config: OceanNodeDBConfig) =>
-        new SQLLiteNonceDatabase(config, typesenseSchemas.nonceSchemas),
       ddo: (config: OceanNodeDBConfig) =>
         new ElasticsearchDdoDatabase(config, elasticSchemas.ddoSchemas),
       indexer: (config: OceanNodeDBConfig) => new ElasticsearchIndexerDatabase(config),
@@ -48,8 +46,6 @@ export class DatabaseFactory {
       metadataQuery: () => new ElasticSearchMetadataQuery()
     },
     typesense: {
-      nonce: (config: OceanNodeDBConfig) =>
-        new SQLLiteNonceDatabase(config, typesenseSchemas.nonceSchemas),
       ddo: (config: OceanNodeDBConfig) =>
         new TypesenseDdoDatabase(config, typesenseSchemas.ddoSchemas),
       indexer: (config: OceanNodeDBConfig) =>
@@ -80,8 +76,10 @@ export class DatabaseFactory {
     return databaseCreator(config) as T
   }
 
-  static createNonceDatabase(config: OceanNodeDBConfig): Promise<AbstractNonceDatabase> {
-    return this.createDatabase('nonce', config)
+  static async createNonceDatabase(
+    config: OceanNodeDBConfig
+  ): Promise<AbstractNonceDatabase> {
+    return await new SQLLiteNonceDatabase(config, typesenseSchemas.nonceSchemas)
   }
 
   static createDdoDatabase(config: OceanNodeDBConfig): Promise<AbstractDdoDatabase> {
