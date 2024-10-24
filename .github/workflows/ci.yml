@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - develop
     tags:
       - '**'
   pull_request:
@@ -259,7 +258,7 @@ jobs:
         with:
           repository: 'oceanprotocol/ocean-node'
           path: 'ocean-node'
-          ref: ${{ github.event_name == 'pull_request' && github.head_ref || 'develop' }}
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || 'main' }}
 
       - name: Start Ocean Node
         working-directory: ${{ github.workspace }}/ocean-node
