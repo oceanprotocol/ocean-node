@@ -4,7 +4,6 @@ import {
   AbstractDdoStateDatabase,
   AbstractIndexerDatabase,
   AbstractLogDatabase,
-  AbstractNonceDatabase,
   AbstractOrderDatabase
 } from './BaseDatabase.js'
 import {
@@ -78,7 +77,7 @@ export class DatabaseFactory {
 
   static async createNonceDatabase(
     config: OceanNodeDBConfig
-  ): Promise<AbstractNonceDatabase> {
+  ): Promise<SQLLiteNonceDatabase> {
     return await new SQLLiteNonceDatabase(config, typesenseSchemas.nonceSchemas)
   }
 
