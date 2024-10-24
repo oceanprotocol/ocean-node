@@ -10,19 +10,19 @@ import {
   AbstractDdoStateDatabase,
   AbstractIndexerDatabase,
   AbstractLogDatabase,
-  AbstractNonceDatabase,
   AbstractOrderDatabase
 } from './BaseDatabase.js'
 import { C2DDatabase } from './C2DDatabase.js'
 import { DatabaseFactory } from './DatabaseFactory.js'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
+import { SQLLiteNonceDatabase } from './SQLLiteNonceDatabase.js'
 import { TypesenseSchema } from './TypesenseSchemas.js'
 
 export type Schema = ElasticsearchSchema | TypesenseSchema
 
 export class Database {
   ddo: AbstractDdoDatabase
-  nonce: AbstractNonceDatabase
+  nonce: SQLLiteNonceDatabase
   indexer: AbstractIndexerDatabase
   logs: AbstractLogDatabase
   order: AbstractOrderDatabase
