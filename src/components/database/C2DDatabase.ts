@@ -1,6 +1,6 @@
 import path from 'path'
 import fs from 'fs'
-import { DBComputeJob } from '../../@types/C2D/C2D.js'
+import { ComputeEnvironment, DBComputeJob } from '../../@types/C2D/C2D.js'
 import { SQLiteCompute } from './sqliteCompute.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
@@ -61,5 +61,18 @@ export class C2DDatabase extends AbstractDatabase {
 
   async deleteJob(jobId: string): Promise<boolean> {
     return await this.provider.deleteJob(jobId)
+  }
+
+  async cleanExpiredJobs(computeEnvironment?: ComputeEnvironment) {
+    const finishedOrExpired: DBComputeJob[] =
+      await this.provider.getFinishedOrExpiredJobs(computeEnvironment)
+    for (const job of finishedOrExpired) {
+      if (computeEnvironment && computeEnvironment.storageExpiry > Date.now() / 1000) {
+        // TODO
+        // delete the storage
+      }
+      // delete the job
+      await this.provider.deleteJob(job.jobId)
+    }
   }
 }
