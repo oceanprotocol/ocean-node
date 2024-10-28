@@ -309,7 +309,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
   }
 
   // eslint-disable-next-line require-await
-  public override async cleanupExpiredStorage(job: DBComputeJob) {
+  public override async cleanupExpiredStorage(job: DBComputeJob): Promise<boolean> {
     throw new Error(`Not implemented`)
   }
 }
