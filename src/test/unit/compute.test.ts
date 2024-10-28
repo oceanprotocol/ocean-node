@@ -7,6 +7,7 @@ import {
   C2DStatusText,
   ComputeAlgorithm,
   ComputeAsset,
+  ComputeEnvironment,
   DBComputeJob
 } from '../../@types/C2D/C2D.js'
 // import { computeAsset } from '../data/assets'
@@ -16,6 +17,9 @@ import {
   convertStringToArray,
   STRING_SEPARATOR
 } from '../../components/database/sqliteCompute.js'
+import { DEFAULT_TEST_TIMEOUT } from '../utils/utils.js'
+import { sleep } from '../../utils/util.js'
+import { ZeroAddress } from 'ethers'
 
 describe('Compute Jobs Database', () => {
   let db: C2DDatabase = null
@@ -141,5 +145,60 @@ describe('Compute Jobs Database', () => {
     const expectedArray = ['did:op:1', 'did:op:2', 'did:op:3']
     const str = 'did:op:1' + STRING_SEPARATOR + 'did:op:2' + STRING_SEPARATOR + 'did:op:3'
     expect(convertStringToArray(str)).to.deep.equal(expectedArray)
+  })
+
+  it('should clean expired job', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    const job: DBComputeJob = {
+      owner: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947265',
+      jobId: null,
+      dateCreated: null,
+      dateFinished: null,
+      status: C2DStatusNumber.JobStarted,
+      statusText: C2DStatusText.JobStarted,
+      results: null,
+      inputDID: ['did:op:1', 'did:op:2'],
+      expireTimestamp: DEFAULT_TEST_TIMEOUT - 1000, // after 19 seconds
+      environment: 'env_1_id',
+
+      // internal structure
+      clusterHash: 'clusterHash',
+      configlogURL: 'http://localhost:8000',
+      publishlogURL: 'http://localhost:8000',
+      algologURL: 'http://localhost:8000',
+      outputsURL: 'http://localhost:8000',
+      stopRequested: false,
+      algorithm,
+      assets: [dataset],
+      isRunning: true,
+      isStarted: false,
+      containerImage: 'another container image'
+    }
+
+    const jobId = await db.newJob(job)
+    assert(jobId, 'Missing jobId identifier')
+    console.log('Waiting for job to expire...')
+    await sleep(DEFAULT_TEST_TIMEOUT) // sleep enough for the job to expire
+    const env: ComputeEnvironment = {
+      id: 'env_1_id', // id of the environment (same as environment on DBComputeJob above)
+      cpuNumber: 1,
+      ramGB: 250,
+      diskGB: 250,
+      priceMin: 1,
+      desc: 'Test compute environment',
+      currentJobs: 0,
+      maxJobs: 10,
+      consumerAddress: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947265',
+      storageExpiry: DEFAULT_TEST_TIMEOUT,
+      maxJobDuration: DEFAULT_TEST_TIMEOUT,
+      feeToken: ZeroAddress,
+      free: true
+    }
+    // delete it
+    const jobsDeleted = await db.cleanExpiredJobs(env)
+    expect(jobsDeleted).to.be.equal(1)
+    // try delete it again directly (fails if already deleted before)
+    const deleted = await db.deleteJob(jobId)
+    expect(deleted === false, `Job ${jobId} was already deleted!`)
   })
 })
