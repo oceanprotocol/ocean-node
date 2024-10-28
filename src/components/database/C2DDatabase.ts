@@ -92,16 +92,14 @@ export class C2DDatabase extends AbstractDatabase {
             computeEnvironment.storageExpiry > Date.now() / 1000
           ) {
             // TODO
-            // delete the storage
-            engine.cleanupExpiredStorage(job)
+
+            if (await engine.cleanupExpiredStorage(job)) {
+              cleaned++
+            }
           }
-          // delete the job
-          await this.provider.deleteJob(job.jobId)
-          cleaned++
         }
       }
     }
-
     return cleaned
   }
 }

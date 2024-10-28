@@ -125,7 +125,7 @@ export class C2DEngine {
   }
 
   // eslint-disable-next-line require-await
-  public async cleanupExpiredStorage(job: DBComputeJob) {
+  public async cleanupExpiredStorage(job: DBComputeJob): Promise<boolean> {
     throw new Error(`Not implemented`)
   }
 }

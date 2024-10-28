@@ -30,6 +30,7 @@ import {
   createReadStream
 } from 'fs'
 import { pipeline } from 'node:stream/promises'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 export class C2DEngineDocker extends C2DEngine {
   // eslint-disable-next-line no-useless-constructor
@@ -636,8 +637,17 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   // clean up temporary files
-  public override async cleanupExpiredStorage(job: DBComputeJob) {
-    await this.cleanupJob(job)
+  public override async cleanupExpiredStorage(job: DBComputeJob): Promise<boolean> {
+    try {
+      // delete the storage
+      await this.cleanupJob(job)
+      // delete the job
+      await this.db.deleteJob(job.jobId)
+      return true
+    } catch (e) {
+      CORE_LOGGER.error('Error cleaning up C2D storage and Job: ' + e.message)
+    }
+    return false
   }
 }
 
