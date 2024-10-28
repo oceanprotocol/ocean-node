@@ -14,7 +14,7 @@ interface ComputeDatabaseProvider {
   updateJob(job: DBComputeJob): Promise<number>
   getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]>
   deleteJob(jobId: string): Promise<boolean>
-  getFinishedOrExpiredJobs(): Promise<DBComputeJob[]>
+  getFinishedJobs(): Promise<DBComputeJob[]>
 }
 
 export function generateUniqueID(): string {
@@ -267,57 +267,42 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     })
   }
 
-  /**
-   *
-   * @param environment compute environment to check for
-   *
-   * All compute engines have compute environments,
-   * and each compute environment specifies how long the output produced by
-   * a job is held by the node, before being deleted.
-   * When a job expiry is overdue, the node will delete all storage used by that job,
-   * and also delete the job record from the database
-   * @returns array of eexpired jobs
-   */
-  getFinishedOrExpiredJobs(environment?: ComputeEnvironment): Promise<DBComputeJob[]> {
+  getFinishedJobs(environment?: ComputeEnvironment): Promise<DBComputeJob[]> {
     // get jobs that already finished (have results), for this environment, and clear storage + job if expired
     const selectSQL = `
-    SELECT * FROM ${this.schema.name} WHERE environment = ? AND dateFinished IS NOT NULL OR expireTimestamp < ?
+    SELECT * FROM ${this.schema.name} WHERE environment = ? AND dateFinished IS NOT NULL OR results IS NOT NULL
   `
     return new Promise<DBComputeJob[]>((resolve, reject) => {
-      this.db.all(
-        selectSQL,
-        [environment.id, Date.now() / 1000],
-        (err, rows: any[] | undefined) => {
-          if (err) {
-            DATABASE_LOGGER.error(err.message)
-            reject(err)
-          } else {
-            // also decode the internal data into job data
-            // get them all running
-            if (rows && rows.length > 0) {
-              const all: DBComputeJob[] = rows.map((row) => {
-                const body = generateJSONFromBlob(row.body)
-                delete row.body
-                const job: DBComputeJob = { ...row, ...body }
-                return job
-              })
-              if (!environment) {
-                resolve(all)
-              }
-              // filter them out
-              const filtered = all.filter((job) => {
-                return environment && environment.id === job.environment
-              })
-              resolve(filtered)
-            } else {
-              DATABASE_LOGGER.info(
-                'Could not find any jobs for the specified enviroment: ' + environment.id
-              )
-              resolve([])
+      this.db.all(selectSQL, [environment.id], (err, rows: any[] | undefined) => {
+        if (err) {
+          DATABASE_LOGGER.error(err.message)
+          reject(err)
+        } else {
+          // also decode the internal data into job data
+          // get them all running
+          if (rows && rows.length > 0) {
+            const all: DBComputeJob[] = rows.map((row) => {
+              const body = generateJSONFromBlob(row.body)
+              delete row.body
+              const job: DBComputeJob = { ...row, ...body }
+              return job
+            })
+            if (!environment) {
+              resolve(all)
             }
+            // filter them out
+            const filtered = all.filter((job) => {
+              return environment && environment.id === job.environment
+            })
+            resolve(filtered)
+          } else {
+            DATABASE_LOGGER.info(
+              'Could not find any jobs for the specified enviroment: ' + environment.id
+            )
+            resolve([])
           }
         }
-      )
+      })
     })
   }
 }

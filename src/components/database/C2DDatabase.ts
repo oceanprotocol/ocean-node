@@ -1,11 +1,13 @@
 import path from 'path'
 import fs from 'fs'
-import { ComputeEnvironment, DBComputeJob } from '../../@types/C2D/C2D.js'
+import { DBComputeJob } from '../../@types/C2D/C2D.js'
 import { SQLiteCompute } from './sqliteCompute.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { TypesenseSchema } from './TypesenseSchemas.js'
 import { AbstractDatabase } from './BaseDatabase.js'
+import { OceanNode } from '../../OceanNode.js'
+import { getDatabase } from '../../utils/database.js'
 
 export class C2DDatabase extends AbstractDatabase {
   private provider: SQLiteCompute
@@ -63,19 +65,43 @@ export class C2DDatabase extends AbstractDatabase {
     return await this.provider.deleteJob(jobId)
   }
 
-  async cleanExpiredJobs(computeEnvironment?: ComputeEnvironment): Promise<number> {
+  /**
+   *
+   * @param environment compute environment to check for
+   *
+   * All compute engines have compute environments,
+   * and each compute environment specifies how long the output produced by
+   * a job is held by the node, before being deleted.
+   * When a job expiry is overdue, the node will delete all storage used by that job,
+   * and also delete the job record from the database
+   * @returns array of eexpired jobs
+   */
+  async cleanStorageExpiredJobs(): Promise<number> {
+    const allEngines = await OceanNode.getInstance(await getDatabase()).getC2DEngines()
+      .engines
+
     let cleaned = 0
-    const finishedOrExpired: DBComputeJob[] =
-      await this.provider.getFinishedOrExpiredJobs(computeEnvironment)
-    for (const job of finishedOrExpired) {
-      if (computeEnvironment && computeEnvironment.storageExpiry > Date.now() / 1000) {
-        // TODO
-        // delete the storage
+    for (const engine of allEngines) {
+      const allEnvironments = await engine.getComputeEnvironments()
+      for (const computeEnvironment of allEnvironments) {
+        const finishedOrExpired: DBComputeJob[] =
+          await this.provider.getFinishedJobs(computeEnvironment)
+        for (const job of finishedOrExpired) {
+          if (
+            computeEnvironment &&
+            computeEnvironment.storageExpiry > Date.now() / 1000
+          ) {
+            // TODO
+            // delete the storage
+            engine.cleanupExpiredStorage(job)
+          }
+          // delete the job
+          await this.provider.deleteJob(job.jobId)
+          cleaned++
+        }
       }
-      // delete the job
-      await this.provider.deleteJob(job.jobId)
-      cleaned++
     }
+
     return cleaned
   }
 }

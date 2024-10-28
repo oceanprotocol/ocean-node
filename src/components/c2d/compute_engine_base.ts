@@ -5,7 +5,8 @@ import type {
   ComputeAlgorithm,
   ComputeAsset,
   ComputeJob,
-  ComputeOutput
+  ComputeOutput,
+  DBComputeJob
 } from '../../@types/C2D/C2D.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 
@@ -121,6 +122,11 @@ export class C2DEngine {
   // eslint-disable-next-line require-await
   public async getStreamableLogs(jobId: string): Promise<NodeJS.ReadableStream> {
     throw new Error(`Not implemented for this engine type`)
+  }
+
+  // eslint-disable-next-line require-await
+  public async cleanupExpiredStorage(job: DBComputeJob) {
+    throw new Error(`Not implemented`)
   }
 }
 

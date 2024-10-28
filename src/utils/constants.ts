@@ -321,6 +321,16 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'DB_TYPE',
     value: process.env.DB_TYPE,
     required: false
+  },
+  CRON_DELETE_DB_LOGS: {
+    name: 'CRON_DELETE_DB_LOGS',
+    value: process.env.CRON_DELETE_DB_LOGS,
+    required: false
+  },
+  CRON_CLEANUP_C2D_STORAGE: {
+    name: 'CRON_CLEANUP_C2D_STORAGE',
+    value: process.env.CRON_CLEANUP_C2D_STORAGE,
+    required: false
   }
 }
 
