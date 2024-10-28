@@ -83,3 +83,8 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 
 - `NODE1_PRIVATE_KEY`: Used on test environments, specifically CI, represents the private key for node 1. Example: `"0xfd5c1ccea015b6d663618850824154a3b3fb2882c46cefb05b9a93fea8c3d215"`
 - `NODE2_PRIVATE_KEY`: Used on test environments, specifically CI, represents the private key for node 2. Example: `"0x1263dc73bef43a9da06149c7e598f52025bf4027f1d6c13896b71e81bb9233fb"`
+
+## Cron Jobs
+
+- `CRON_DELETE_DB_LOGS`: Delete old logs from database Cron expression. Example: `0 0 * * *` (runs every day at midnight)
+- `CRON_CLEANUP_C2D_STORAGE`: Clear c2d expired resources/storage and delete old jobs. Example: `*/5 * * * *` (runs every 5 minutes)

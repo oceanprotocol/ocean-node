@@ -5,7 +5,8 @@ import type {
   ComputeAlgorithm,
   ComputeAsset,
   ComputeJob,
-  ComputeOutput
+  ComputeOutput,
+  DBComputeJob
 } from '../../@types/C2D/C2D.js'
 import type {
   OPFK8ComputeStage,
@@ -305,5 +306,10 @@ export class C2DEngineOPFK8 extends C2DEngine {
       console.error(e)
     }
     throw new Error(`getComputeJobStatus Failure`)
+  }
+
+  // eslint-disable-next-line require-await
+  public override async cleanupExpiredStorage(job: DBComputeJob) {
+    throw new Error(`Not implemented`)
   }
 }
