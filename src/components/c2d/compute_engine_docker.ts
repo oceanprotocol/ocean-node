@@ -634,6 +634,11 @@ export class C2DEngineDocker extends C2DEngine {
       if (!existsSync(baseFolder + '/tarData')) mkdirSync(baseFolder + '/tarData') // used to upload and download data
     } catch (e) {}
   }
+
+  // clean up temporary files
+  public override async cleanupExpiredStorage(job: DBComputeJob) {
+    await this.cleanupJob(job)
+  }
 }
 
 // this uses the docker engine, but exposes only one env, the free one
