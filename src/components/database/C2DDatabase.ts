@@ -63,7 +63,8 @@ export class C2DDatabase extends AbstractDatabase {
     return await this.provider.deleteJob(jobId)
   }
 
-  async cleanExpiredJobs(computeEnvironment?: ComputeEnvironment) {
+  async cleanExpiredJobs(computeEnvironment?: ComputeEnvironment): Promise<number> {
+    let cleaned = 0
     const finishedOrExpired: DBComputeJob[] =
       await this.provider.getFinishedOrExpiredJobs(computeEnvironment)
     for (const job of finishedOrExpired) {
@@ -73,6 +74,8 @@ export class C2DDatabase extends AbstractDatabase {
       }
       // delete the job
       await this.provider.deleteJob(job.jobId)
+      cleaned++
     }
+    return cleaned
   }
 }

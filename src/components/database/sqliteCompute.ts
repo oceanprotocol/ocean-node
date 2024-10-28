@@ -281,7 +281,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   getFinishedOrExpiredJobs(environment?: ComputeEnvironment): Promise<DBComputeJob[]> {
     // get jobs that already finished (have results), for this environment, and clear storage + job if expired
     const selectSQL = `
-    SELECT * FROM ${this.schema.name} WHERE environment = ? AND dateFinished IS NOT NULL OR expireTimestamp > ?
+    SELECT * FROM ${this.schema.name} WHERE environment = ? AND dateFinished IS NOT NULL OR expireTimestamp < ?
   `
     return new Promise<DBComputeJob[]>((resolve, reject) => {
       this.db.all(
