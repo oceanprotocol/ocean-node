@@ -38,30 +38,37 @@ export async function updateLastIndexedBlockNumber(block: number): Promise<numbe
   try {
     const { indexer } = await getDatabase()
     const updatedIndex = await indexer.update(rpcDetails.chainId, block)
-    INDEXER_LOGGER.logMessage(
-      `New last indexed block : ${updatedIndex.lastIndexedBlock}`,
-      true
-    )
-    return updatedIndex.lastIndexedBlock
+    if (updatedIndex) {
+      INDEXER_LOGGER.logMessage(
+        `New last indexed block : ${updatedIndex.lastIndexedBlock}`,
+        true
+      )
+      return updatedIndex.lastIndexedBlock
+    } else {
+      INDEXER_LOGGER.error('Unable to update last indexed block to ' + block)
+    }
   } catch (err) {
     INDEXER_LOGGER.log(
       LOG_LEVELS_STR.LEVEL_ERROR,
       `Error updating last indexed block ${err.message}`,
       true
     )
-    return -1
   }
+  return -1
 }
 
 async function getLastIndexedBlock(): Promise<number> {
   const { indexer } = await getDatabase()
   try {
     const networkDetails = await indexer.retrieve(rpcDetails.chainId)
-    return networkDetails?.lastIndexedBlock
+    if (networkDetails && networkDetails.lastIndexedBlock) {
+      return networkDetails.lastIndexedBlock
+    }
+    INDEXER_LOGGER.error('Unable to get last indexed block from DB')
   } catch (err) {
     INDEXER_LOGGER.error(`Error retrieving last indexed block: ${err}`)
-    return null
   }
+  return null
 }
 
 async function deleteAllAssetsFromChain(): Promise<number> {
@@ -104,6 +111,10 @@ export async function processNetworkData(
       ? rpcDetails.startBlock
       : contractDeploymentBlock
 
+  INDEXER_LOGGER.info(
+    `Initial details: RPCS start block: ${rpcDetails.startBlock}, Contract deployment block: ${contractDeploymentBlock}, Crawling start block: ${crawlingStartBlock}`
+  )
+
   // we can override the default value of 30 secs, by setting process.env.INDEXER_INTERVAL
   const interval = getCrawlingInterval()
   let { chunkSize } = rpcDetails
@@ -120,9 +131,8 @@ export async function processNetworkData(
           ? lastIndexedBlock
           : crawlingStartBlock
 
-      INDEXER_LOGGER.logMessage(
-        `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`,
-        true
+      INDEXER_LOGGER.info(
+        `Indexing network '${rpcDetails.network}', Last indexed block: ${lastIndexedBlock}, Start block: ${startBlock}, Network height: ${networkHeight}`
       )
       if (networkHeight > startBlock) {
         // emit an one shot event when we actually start the crawling process
