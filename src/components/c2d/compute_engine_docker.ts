@@ -33,9 +33,8 @@ import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 export class C2DEngineDocker extends C2DEngine {
-  // eslint-disable-next-line no-useless-constructor
   private envs: ComputeEnvironment[] = []
-  private db: C2DDatabase
+  protected db: C2DDatabase
   public docker: Dockerode
   private cronTimer: any
   private cronTime: number = 2000
@@ -158,7 +157,7 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   // eslint-disable-next-line require-await
-  private async getResults(jobId: string): Promise<ComputeResult[]> {
+  protected async getResults(jobId: string): Promise<ComputeResult[]> {
     const res: ComputeResult[] = []
     let index = 0
     const logStat = statSync(
@@ -211,7 +210,7 @@ export class C2DEngineDocker extends C2DEngine {
     index: number
   ): Promise<Readable> {
     const job = await this.db.getJob(jobId)
-    if (!job) {
+    if (!job || job.owner !== consumerAddress) {
       return null
     }
     const results = await this.getResults(jobId)
@@ -638,6 +637,7 @@ export class C2DEngineDocker extends C2DEngine {
 
   // clean up temporary files
   public override async cleanupExpiredStorage(job: DBComputeJob): Promise<boolean> {
+    if (!job) return false
     try {
       // delete the storage
       await this.cleanupJob(job)
@@ -743,5 +743,21 @@ export class C2DEngineDockerFree extends C2DEngineDocker {
       chainId,
       agreementId
     )
+  }
+
+  // eslint-disable-next-line require-await
+  public override async getComputeJobResult(
+    consumerAddress: string,
+    jobId: string,
+    index: number
+  ): Promise<Readable> {
+    const result = await super.getComputeJobResult(consumerAddress, jobId, index)
+    if (result !== null) {
+      setTimeout(async () => {
+        const job = await this.db.getJob(jobId)
+        this.cleanupExpiredStorage(job) //
+      }, 5000)
+    }
+    return result
   }
 }
