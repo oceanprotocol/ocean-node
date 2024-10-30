@@ -515,6 +515,13 @@ export class C2DEngineDocker extends C2DEngine {
     })
   }
 
+  private deleteOutputFolder(job: DBComputeJob) {
+    rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/outputs/', {
+      recursive: true,
+      force: true
+    })
+  }
+
   private async uploadData(
     job: DBComputeJob
   ): Promise<{ status: C2DStatusNumber; statusText: C2DStatusText }> {
@@ -638,9 +645,12 @@ export class C2DEngineDocker extends C2DEngine {
   // clean up temporary files
   public override async cleanupExpiredStorage(job: DBComputeJob): Promise<boolean> {
     if (!job) return false
+    CORE_LOGGER.info('Cleaning up C2D storage for Job: ' + job.jobId)
     try {
       // delete the storage
       await this.cleanupJob(job)
+      // delete output folders
+      await this.deleteOutputFolder(job)
       // delete the job
       await this.db.deleteJob(job.jobId)
       return true
@@ -755,7 +765,10 @@ export class C2DEngineDockerFree extends C2DEngineDocker {
     if (result !== null) {
       setTimeout(async () => {
         const job = await this.db.getJob(jobId)
-        this.cleanupExpiredStorage(job) //
+        CORE_LOGGER.info(
+          'Cleaning storage for free container, after retrieving results...'
+        )
+        this.cleanupExpiredStorage(job) // clean the storage, do not wait for it to expire
       }, 5000)
     }
     return result
