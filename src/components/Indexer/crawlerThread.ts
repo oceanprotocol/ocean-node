@@ -34,34 +34,50 @@ interface ThreadData {
 
 const { rpcDetails } = workerData as ThreadData
 
-export async function updateLastIndexedBlockNumber(block: number): Promise<number> {
+export async function updateLastIndexedBlockNumber(
+  block: number,
+  lastKnownBlock?: number
+): Promise<number> {
   try {
+    if (isDefined(lastKnownBlock) && lastKnownBlock > block) {
+      INDEXER_LOGGER.error(
+        'Newest block number is lower than last known block, something is wrong'
+      )
+      return -1
+    }
     const { indexer } = await getDatabase()
     const updatedIndex = await indexer.update(rpcDetails.chainId, block)
-    INDEXER_LOGGER.logMessage(
-      `New last indexed block : ${updatedIndex.lastIndexedBlock}`,
-      true
-    )
-    return updatedIndex.lastIndexedBlock
+    if (updatedIndex) {
+      INDEXER_LOGGER.logMessage(
+        `New last indexed block : ${updatedIndex.lastIndexedBlock}`,
+        true
+      )
+      return updatedIndex.lastIndexedBlock
+    } else {
+      INDEXER_LOGGER.error('Unable to update last indexed block to ' + block)
+    }
   } catch (err) {
     INDEXER_LOGGER.log(
       LOG_LEVELS_STR.LEVEL_ERROR,
       `Error updating last indexed block ${err.message}`,
       true
     )
-    return -1
   }
+  return -1
 }
 
 async function getLastIndexedBlock(): Promise<number> {
   const { indexer } = await getDatabase()
   try {
     const networkDetails = await indexer.retrieve(rpcDetails.chainId)
-    return networkDetails?.lastIndexedBlock
+    if (networkDetails && networkDetails.lastIndexedBlock) {
+      return networkDetails.lastIndexedBlock
+    }
+    INDEXER_LOGGER.error('Unable to get last indexed block from DB')
   } catch (err) {
     INDEXER_LOGGER.error(`Error retrieving last indexed block: ${err}`)
-    return null
   }
+  return null
 }
 
 async function deleteAllAssetsFromChain(): Promise<number> {
@@ -104,6 +120,10 @@ export async function processNetworkData(
       ? rpcDetails.startBlock
       : contractDeploymentBlock
 
+  INDEXER_LOGGER.info(
+    `Initial details: RPCS start block: ${rpcDetails.startBlock}, Contract deployment block: ${contractDeploymentBlock}, Crawling start block: ${crawlingStartBlock}`
+  )
+
   // we can override the default value of 30 secs, by setting process.env.INDEXER_INTERVAL
   const interval = getCrawlingInterval()
   let { chunkSize } = rpcDetails
@@ -120,9 +140,8 @@ export async function processNetworkData(
           ? lastIndexedBlock
           : crawlingStartBlock
 
-      INDEXER_LOGGER.logMessage(
-        `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`,
-        true
+      INDEXER_LOGGER.info(
+        `Indexing network '${rpcDetails.network}', Last indexed block: ${lastIndexedBlock}, Start block: ${startBlock}, Network height: ${networkHeight}`
       )
       if (networkHeight > startBlock) {
         // emit an one shot event when we actually start the crawling process
@@ -168,7 +187,10 @@ export async function processNetworkData(
             startBlock,
             blocksToProcess
           )
-          currentBlock = await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
+          currentBlock = await updateLastIndexedBlockNumber(
+            processedBlocks.lastBlock,
+            lastIndexedBlock
+          )
           // we can't just update currentBlock to processedBlocks.lastBlock if the DB action failed
           if (currentBlock < 0 && lastIndexedBlock !== null) {
             currentBlock = lastIndexedBlock
@@ -181,7 +203,10 @@ export async function processNetworkData(
             `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `,
             true
           )
-          await updateLastIndexedBlockNumber(startBlock + blocksToProcess)
+          await updateLastIndexedBlockNumber(
+            startBlock + blocksToProcess,
+            lastIndexedBlock
+          )
         }
       }
       await processReindex(provider, signer, rpcDetails.chainId)
@@ -214,6 +239,7 @@ export async function processNetworkData(
 }
 
 async function reindexChain(currentBlock: number): Promise<boolean> {
+  // for reindex command we don't care about last known/saved block
   const block = await updateLastIndexedBlockNumber(REINDEX_BLOCK)
   if (block !== -1) {
     REINDEX_BLOCK = null
