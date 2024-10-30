@@ -34,8 +34,17 @@ interface ThreadData {
 
 const { rpcDetails } = workerData as ThreadData
 
-export async function updateLastIndexedBlockNumber(block: number): Promise<number> {
+export async function updateLastIndexedBlockNumber(
+  block: number,
+  lastKnownBlock?: number
+): Promise<number> {
   try {
+    if (isDefined(lastKnownBlock) && lastKnownBlock > block) {
+      INDEXER_LOGGER.error(
+        'Newest block number is lower than last known block, something is wrong'
+      )
+      return -1
+    }
     const { indexer } = await getDatabase()
     const updatedIndex = await indexer.update(rpcDetails.chainId, block)
     if (updatedIndex) {
@@ -178,7 +187,10 @@ export async function processNetworkData(
             startBlock,
             blocksToProcess
           )
-          currentBlock = await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
+          currentBlock = await updateLastIndexedBlockNumber(
+            processedBlocks.lastBlock,
+            lastIndexedBlock
+          )
           // we can't just update currentBlock to processedBlocks.lastBlock if the DB action failed
           if (currentBlock < 0 && lastIndexedBlock !== null) {
             currentBlock = lastIndexedBlock
@@ -191,7 +203,10 @@ export async function processNetworkData(
             `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `,
             true
           )
-          await updateLastIndexedBlockNumber(startBlock + blocksToProcess)
+          await updateLastIndexedBlockNumber(
+            startBlock + blocksToProcess,
+            lastIndexedBlock
+          )
         }
       }
       await processReindex(provider, signer, rpcDetails.chainId)
@@ -224,6 +239,7 @@ export async function processNetworkData(
 }
 
 async function reindexChain(currentBlock: number): Promise<boolean> {
+  // for reindex command we don't care about last known/saved block
   const block = await updateLastIndexedBlockNumber(REINDEX_BLOCK)
   if (block !== -1) {
     REINDEX_BLOCK = null
