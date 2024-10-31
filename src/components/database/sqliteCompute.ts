@@ -132,7 +132,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     `
-    const jobId = generateUniqueID()
+    const jobId = job.jobId || generateUniqueID()
     job.jobId = jobId
     return new Promise<string>((resolve, reject) => {
       this.db.run(
@@ -153,7 +153,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         ],
         (err) => {
           if (err) {
-            DATABASE_LOGGER.error(err.message)
+            DATABASE_LOGGER.error('Could not insert C2D job on DB: ' + err.message)
             reject(err)
           } else {
             DATABASE_LOGGER.info('Successfully inserted job with id:' + jobId)
@@ -255,11 +255,14 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
               if (environment && environment !== job.environment) {
                 include = false
               }
+              if (!job.isRunning) {
+                include = false
+              }
               return include
             })
             resolve(filtered)
           } else {
-            DATABASE_LOGGER.info('Could not find any running jobs!')
+            DATABASE_LOGGER.info('Could not find any running C2D jobs!')
             resolve([])
           }
         }
