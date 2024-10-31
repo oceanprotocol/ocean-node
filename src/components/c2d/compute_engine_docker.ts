@@ -31,6 +31,7 @@ import {
 } from 'fs'
 import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
+import { generateUniqueID } from '../database/sqliteCompute.js'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
@@ -46,7 +47,7 @@ export class C2DEngineDocker extends C2DEngine {
       try {
         this.docker = new Dockerode({ socketPath: clusterConfig.connection.socketPath })
       } catch (e) {
-        console.log(e)
+        CORE_LOGGER.error('Could not create Docker container: ' + e.message)
       }
     }
     if (
@@ -61,15 +62,21 @@ export class C2DEngineDocker extends C2DEngine {
           port: clusterConfig.connection.port
         })
       } catch (e) {
-        console.log(e)
+        CORE_LOGGER.error('Could not create Docker container: ' + e.message)
       }
     }
     // TO DO C2D - create envs
     try {
       if (!existsSync(clusterConfig.tempFolder))
         mkdirSync(clusterConfig.tempFolder, { recursive: true })
-    } catch (e) {}
-    this.setNewTimer()
+    } catch (e) {
+      CORE_LOGGER.error(
+        'Could not create Docker container temporary folders: ' + e.message
+      )
+    }
+    // only when we got the first request to start a compute job,
+    // no need to start doing this right away
+    // this.setNewTimer()
   }
 
   // eslint-disable-next-line require-await
@@ -95,18 +102,22 @@ export class C2DEngineDocker extends C2DEngine {
     agreementId?: string
   ): Promise<ComputeJob[]> {
     if (!this.docker) return []
-    const jobId = create256Hash(
-      JSON.stringify({
-        assets,
-        algorithm,
-        output,
-        environment,
-        owner,
-        validUntil,
-        chainId,
-        agreementId
-      })
-    )
+
+    const jobId = generateUniqueID()
+    // NOTE: this does not generate a unique ID...
+    // if i send 2 times the same startComputeJob parameters i get the same ID twice
+    //  const jobId = create256Hash(
+    //   JSON.stringify({
+    //     assets,
+    //     algorithm,
+    //     output,
+    //     environment,
+    //     owner,
+    //     validUntil,
+    //     chainId,
+    //     agreementId
+    //   })
+    // )
     // TO DO C2D - Check image, check arhitecture, etc
     let { image } = algorithm.meta.container
     if (algorithm.meta.container.checksum)
@@ -140,10 +151,20 @@ export class C2DEngineDocker extends C2DEngine {
       isStarted: false
     }
     await this.makeJobFolders(job)
-    this.db.newJob(job)
+    // make sure we actually were able to insert on DB
+    const addedId = await this.db.newJob(job)
+    if (!addedId) {
+      return []
+    }
+
+    // only now set the timer
+    if (!this.cronTimer) {
+      this.setNewTimer()
+    }
     const cjob: ComputeJob = JSON.parse(JSON.stringify(job)) as ComputeJob
     // we add cluster hash to user output
-    cjob.jobId = this.getC2DConfig().hash + '-' + cjob.jobId
+    // cjob.jobId = this.getC2DConfig().hash + '-' + cjob.jobId
+    cjob.jobId = jobId
     return [cjob]
   }
 
