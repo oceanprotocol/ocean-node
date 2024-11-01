@@ -28,6 +28,8 @@ const JOBS_QUEUE: JobStatus[] = []
 
 const MAX_CRAWL_RETRIES = 10
 let numCrawlAttempts = 0
+
+const runningThreads = new Map<number, boolean>()
 export class OceanIndexer {
   private db: Database
   private networks: RPCS
@@ -72,7 +74,7 @@ export class OceanIndexer {
   public stopAllThreads(): boolean {
     let count = 0
     for (const chainID of this.supportedChains) {
-      if (this.stopThread(parseInt(chainID))) {
+      if (this.stopThread(Number(chainID))) {
         count++
       }
     }
@@ -84,6 +86,7 @@ export class OceanIndexer {
     const worker = this.workers[chainID]
     if (worker) {
       worker.postMessage({ method: 'stop-crawling' })
+      runningThreads.set(chainID, false)
       return true
     }
     INDEXER_LOGGER.error('Unable to find running worker thread for chain ' + chainID)
@@ -187,6 +190,7 @@ export class OceanIndexer {
       )}`,
       true
     )
+    runningThreads.set(chainID, true)
     return worker
   }
 
@@ -269,6 +273,7 @@ export class OceanIndexer {
             `Worker for network ${network} exited with code: ${code}`,
             true
           )
+          runningThreads.set(chainId, false)
         })
       }
     }
@@ -293,7 +298,19 @@ export class OceanIndexer {
     return null
   }
 
-  public resetCrawling(chainId: number): JobStatus | null {
+  public async resetCrawling(
+    chainId: number,
+    blockNumber?: number
+  ): Promise<JobStatus | null> {
+    const isRunning = runningThreads.get(chainId)
+    // not running, but still on the array
+    if (!isRunning && this.workers[chainId]) {
+      INDEXER_LOGGER.warn(
+        'Thread for chain: ' + chainId + ' is not running, restarting first...'
+      )
+      delete this.workers[chainId]
+      this.workers[chainId] = await this.startThread(chainId)
+    }
     const worker = this.workers[chainId]
     if (worker) {
       const job = buildJobIdentifier(PROTOCOL_COMMANDS.REINDEX_CHAIN, [
@@ -301,7 +318,7 @@ export class OceanIndexer {
       ])
       worker.postMessage({
         method: INDEXER_MESSAGES.REINDEX_CHAIN,
-        data: { msgId: job.jobId }
+        data: { msgId: job.jobId, block: blockNumber }
       })
       this.addJob(job)
       return job
