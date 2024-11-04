@@ -28,6 +28,8 @@ const JOBS_QUEUE: JobStatus[] = []
 
 const MAX_CRAWL_RETRIES = 10
 let numCrawlAttempts = 0
+
+const runningThreads: Map<number, boolean> = new Map<number, boolean>()
 export class OceanIndexer {
   private db: Database
   private networks: RPCS
@@ -72,7 +74,7 @@ export class OceanIndexer {
   public stopAllThreads(): boolean {
     let count = 0
     for (const chainID of this.supportedChains) {
-      if (this.stopThread(parseInt(chainID))) {
+      if (this.stopThread(Number(chainID))) {
         count++
       }
     }
@@ -84,6 +86,7 @@ export class OceanIndexer {
     const worker = this.workers[chainID]
     if (worker) {
       worker.postMessage({ method: 'stop-crawling' })
+      runningThreads.set(chainID, false)
       return true
     }
     INDEXER_LOGGER.error('Unable to find running worker thread for chain ' + chainID)
@@ -187,6 +190,7 @@ export class OceanIndexer {
       )}`,
       true
     )
+    runningThreads.set(chainID, true)
     return worker
   }
 
@@ -200,79 +204,83 @@ export class OceanIndexer {
         // track if we were able to start them all
         count++
         this.workers[chainId] = worker
-        worker.on('message', (event: any) => {
-          if (event.data) {
-            if (
-              [
-                EVENTS.METADATA_CREATED,
-                EVENTS.METADATA_UPDATED,
-                EVENTS.METADATA_STATE,
-                EVENTS.ORDER_STARTED,
-                EVENTS.ORDER_REUSED
-              ].includes(event.method)
-            ) {
-              // will emit the metadata created/updated event and advertise it to the other peers (on create only)
-              INDEXER_LOGGER.logMessage(
-                `Emiting "${event.method}" for DDO : ${event.data.id} from network: ${network} `
-              )
-              INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
-              // remove from indexing list
-            } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP) {
-              // remove this one from the queue (means we processed the reindex for this tx)
-              INDEXING_QUEUE = INDEXING_QUEUE.filter(
-                (task) =>
-                  task.txId !== event.data.txId && task.chainId !== event.data.chainId
-              )
-              // reindex tx successfully done
-              INDEXER_CRAWLING_EVENT_EMITTER.emit(
-                INDEXER_CRAWLING_EVENTS.REINDEX_TX, // explicitly set constant value for readability
-                event.data
-              )
-              this.updateJobStatus(
-                PROTOCOL_COMMANDS.REINDEX_TX,
-                create256Hash([event.data.chainId, event.data.txId].join('')),
-                CommandStatus.SUCCESS
-              )
-            } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN) {
-              // we should listen to this on the dashboard for instance
-              INDEXER_CRAWLING_EVENT_EMITTER.emit(
-                INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
-                event.data
-              )
-              this.updateJobStatus(
-                PROTOCOL_COMMANDS.REINDEX_CHAIN,
-                create256Hash([event.data.chainId].join('')),
-                event.data.result ? CommandStatus.SUCCESS : CommandStatus.FAILURE
-              )
-            } else if (event.method === INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED) {
-              INDEXER_CRAWLING_EVENT_EMITTER.emit(event.method, event.data)
-            }
-          } else {
-            INDEXER_LOGGER.log(
-              LOG_LEVELS_STR.LEVEL_ERROR,
-              'Missing event data (ddo) on postMessage. Something is wrong!',
-              true
-            )
-          }
-        })
-
-        worker.on('error', (err: Error) => {
-          INDEXER_LOGGER.log(
-            LOG_LEVELS_STR.LEVEL_ERROR,
-            `Error in worker for network ${network}: ${err.message}`,
-            true
-          )
-        })
-
-        worker.on('exit', (code: number) => {
-          INDEXER_LOGGER.logMessage(
-            `Worker for network ${network} exited with code: ${code}`,
-            true
-          )
-        })
+        this.setupEventListeners(worker, chainId)
       }
     }
     return count === this.supportedChains.length
+  }
+
+  private setupEventListeners(worker: Worker, chainId: number) {
+    worker.on('message', (event: any) => {
+      if (event.data) {
+        if (
+          [
+            EVENTS.METADATA_CREATED,
+            EVENTS.METADATA_UPDATED,
+            EVENTS.METADATA_STATE,
+            EVENTS.ORDER_STARTED,
+            EVENTS.ORDER_REUSED
+          ].includes(event.method)
+        ) {
+          // will emit the metadata created/updated event and advertise it to the other peers (on create only)
+          INDEXER_LOGGER.logMessage(
+            `Emiting "${event.method}" for DDO : ${event.data.id} from network: ${chainId} `
+          )
+          INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
+          // remove from indexing list
+        } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP) {
+          // remove this one from the queue (means we processed the reindex for this tx)
+          INDEXING_QUEUE = INDEXING_QUEUE.filter(
+            (task) => task.txId !== event.data.txId && task.chainId !== event.data.chainId
+          )
+          // reindex tx successfully done
+          INDEXER_CRAWLING_EVENT_EMITTER.emit(
+            INDEXER_CRAWLING_EVENTS.REINDEX_TX, // explicitly set constant value for readability
+            event.data
+          )
+          this.updateJobStatus(
+            PROTOCOL_COMMANDS.REINDEX_TX,
+            create256Hash([event.data.chainId, event.data.txId].join('')),
+            CommandStatus.SUCCESS
+          )
+        } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN) {
+          // we should listen to this on the dashboard for instance
+          INDEXER_CRAWLING_EVENT_EMITTER.emit(
+            INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
+            event.data
+          )
+          this.updateJobStatus(
+            PROTOCOL_COMMANDS.REINDEX_CHAIN,
+            create256Hash([event.data.chainId].join('')),
+            event.data.result ? CommandStatus.SUCCESS : CommandStatus.FAILURE
+          )
+        } else if (event.method === INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED) {
+          INDEXER_CRAWLING_EVENT_EMITTER.emit(event.method, event.data)
+        }
+      } else {
+        INDEXER_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_ERROR,
+          'Missing event data (ddo) on postMessage. Something is wrong!',
+          true
+        )
+      }
+    })
+
+    worker.on('error', (err: Error) => {
+      INDEXER_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `Error in worker for network ${chainId}: ${err.message}`,
+        true
+      )
+    })
+
+    worker.on('exit', (code: number) => {
+      INDEXER_LOGGER.logMessage(
+        `Worker for network ${chainId} exited with code: ${code}`,
+        true
+      )
+      runningThreads.set(chainId, false)
+    })
   }
 
   public addReindexTask(reindexTask: ReindexTask): JobStatus | null {
@@ -293,7 +301,25 @@ export class OceanIndexer {
     return null
   }
 
-  public resetCrawling(chainId: number): JobStatus | null {
+  public async resetCrawling(
+    chainId: number,
+    blockNumber?: number
+  ): Promise<JobStatus | null> {
+    const isRunning = runningThreads.get(chainId)
+    // not running, but still on the array
+    if (!isRunning && this.workers[chainId]) {
+      INDEXER_LOGGER.warn(
+        'Thread for chain: ' + chainId + ' is not running, restarting first...'
+      )
+      delete this.workers[chainId]
+      const worker = await this.startThread(chainId)
+      if (!worker) {
+        INDEXER_LOGGER.error('Could not restart worker thread, aborting...')
+        return null
+      }
+      this.workers[chainId] = worker
+      this.setupEventListeners(worker, chainId)
+    }
     const worker = this.workers[chainId]
     if (worker) {
       const job = buildJobIdentifier(PROTOCOL_COMMANDS.REINDEX_CHAIN, [
@@ -301,10 +327,14 @@ export class OceanIndexer {
       ])
       worker.postMessage({
         method: INDEXER_MESSAGES.REINDEX_CHAIN,
-        data: { msgId: job.jobId }
+        data: { msgId: job.jobId, block: blockNumber }
       })
       this.addJob(job)
       return job
+    } else {
+      INDEXER_LOGGER.error(
+        `Could not find a worker thread for chain ${chainId}, aborting...`
+      )
     }
     return null
   }

@@ -134,6 +134,7 @@ export interface AdminCollectFeesCommand extends AdminCommand {
 
 export interface AdminReindexChainCommand extends AdminCommand {
   chainId: number
+  block?: number
 }
 
 export interface ICommandHandler {
