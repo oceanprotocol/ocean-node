@@ -220,8 +220,9 @@ export async function processNetworkData(
     await sleep(interval)
     // reindex chain command called
     if (REINDEX_BLOCK && !lockProccessing) {
+      const networkHeight = await getNetworkHeight(provider)
       // either "true" for success or "false" otherwise
-      const result = await reindexChain(currentBlock)
+      const result = await reindexChain(currentBlock, networkHeight)
       // get all reindex commands
       // TODO (check that we do not receive multiple commands for same reindex before previous finishes)
       parentPort.postMessage({
@@ -238,7 +239,17 @@ export async function processNetworkData(
   }
 }
 
-async function reindexChain(currentBlock: number): Promise<boolean> {
+async function reindexChain(
+  currentBlock: number,
+  networkHeight: number
+): Promise<boolean> {
+  if (REINDEX_BLOCK > networkHeight) {
+    INDEXER_LOGGER.error(
+      `Invalid reindex block! ${REINDEX_BLOCK} is bigger than network height: ${networkHeight}. Continue indexing normally...`
+    )
+    REINDEX_BLOCK = null
+    return false
+  }
   // for reindex command we don't care about last known/saved block
   const block = await updateLastIndexedBlockNumber(REINDEX_BLOCK)
   if (block !== -1) {
@@ -328,11 +339,24 @@ parentPort.on('message', (message) => {
     REINDEX_QUEUE.push(message.data.reindexTask)
   } else if (message.method === INDEXER_MESSAGES.REINDEX_CHAIN) {
     // reindex a specific chain
+
+    // get the deploy block number
     const deployBlock = getDeployedContractBlock(rpcDetails.chainId)
-    REINDEX_BLOCK =
+    // first option
+    let possibleBlock =
       rpcDetails.startBlock && rpcDetails.startBlock >= deployBlock
         ? rpcDetails.startBlock
         : deployBlock
+
+    // do we have a specific block number?
+    const { block } = message.data
+    if (block && !isNaN(block)) {
+      // we still need to check network height
+      if (block > deployBlock) {
+        possibleBlock = block
+      }
+    }
+    REINDEX_BLOCK = possibleBlock
   } else if (message.method === INDEXER_MESSAGES.STOP_CRAWLING) {
     // stop indexing the chain
     stoppedCrawling = true
