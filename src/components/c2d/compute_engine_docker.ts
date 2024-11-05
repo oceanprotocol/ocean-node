@@ -577,26 +577,30 @@ export class C2DEngineDocker extends C2DEngine {
     for (const i in job.assets) {
       const asset = job.assets[i]
       console.log(asset)
-      const storage = Storage.getStorageClass(asset.fileObject, config)
-      const fileInfo = await storage.getFileInfo({
-        type: storage.getStorageType(asset.fileObject)
-      })
-      const fullPath =
-        this.getC2DConfig().tempFolder +
-        '/' +
-        job.jobId +
-        '/data/inputs/' +
-        fileInfo[0].name
-      try {
-        await pipeline(
-          (await storage.getReadableStream()).stream,
-          createWriteStream(fullPath)
-        )
-      } catch (e) {
-        console.log(e)
-        return {
-          status: C2DStatusNumber.DataProvisioningFailed,
-          statusText: C2DStatusText.DataProvisioningFailed
+      // without this check it would break if no fileObject is present
+      if (asset.fileObject) {
+        const storage = Storage.getStorageClass(asset.fileObject, config)
+        const fileInfo = await storage.getFileInfo({
+          type: storage.getStorageType(asset.fileObject)
+        })
+        const fullPath =
+          this.getC2DConfig().tempFolder +
+          '/' +
+          job.jobId +
+          '/data/inputs/' +
+          fileInfo[0].name
+
+        try {
+          await pipeline(
+            (await storage.getReadableStream()).stream,
+            createWriteStream(fullPath)
+          )
+        } catch (e) {
+          console.log(e)
+          return {
+            status: C2DStatusNumber.DataProvisioningFailed,
+            statusText: C2DStatusText.DataProvisioningFailed
+          }
         }
       }
     }
