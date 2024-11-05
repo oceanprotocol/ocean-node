@@ -669,6 +669,7 @@ function configChanged(previous: OceanNodeConfig, current: OceanNodeConfig): boo
 // useful for debugging purposes
 export async function printCurrentConfig() {
   const conf = await getConfiguration(true)
+  conf.keys.privateKey = '[*** HIDDEN CONTENT ***]' // hide private key
   console.log(JSON.stringify(conf, null, 4))
 }
 
