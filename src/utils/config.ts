@@ -1,5 +1,5 @@
 import type { DenyList, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
-import type { C2DClusterInfo } from '../@types/C2D/C2D.js'
+import type { C2DClusterInfo, ComputeEnvironment } from '../@types/C2D/C2D.js'
 import { C2DClusterType } from '../@types/C2D/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
@@ -13,7 +13,7 @@ import { defaultBootstrapAddresses, knownUnsafeURLs } from '../utils/constants.j
 
 import { LOG_LEVELS_STR, GENERIC_EMOJIS, getLoggerLevelEmoji } from './logging/Logger.js'
 import { RPCS } from '../@types/blockchain'
-import { getAddress, Wallet } from 'ethers'
+import { getAddress, Wallet, ZeroAddress } from 'ethers'
 import { FeeAmount, FeeStrategy, FeeTokens } from '../@types/Fees'
 import {
   getOceanArtifactsAdresses,
@@ -363,6 +363,52 @@ function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
   }
 
   return clusters
+}
+
+// TODO C2D v2.0
+// eslint-disable-next-line no-unused-vars
+function getDockerFreeComputeOptions(
+  clusterHash: string,
+  isStartup?: boolean
+): ComputeEnvironment {
+  const defaultOptions: ComputeEnvironment = {
+    id: `${clusterHash}-free`,
+    cpuNumber: 1,
+    cpuType: '',
+    gpuNumber: 0,
+    ramGB: 1,
+    diskGB: 1,
+    priceMin: 0,
+    desc: 'Free',
+    currentJobs: 0,
+    maxJobs: 1,
+    consumerAddress: '',
+    storageExpiry: 600,
+    maxJobDuration: 30,
+    feeToken: ZeroAddress,
+    free: true
+  }
+
+  if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.DOCKER_FREE_COMPUTE, isStartup)) {
+    try {
+      const options: ComputeEnvironment = JSON.parse(
+        process.env.DOCKER_FREE_COMPUTE
+      ) as ComputeEnvironment
+      return options
+    } catch (error) {
+      CONFIG_LOGGER.logMessageWithEmoji(
+        `Invalid "${ENVIRONMENT_VARIABLES.DOCKER_FREE_COMPUTE.name}" env variable => ${process.env.DOCKER_FREE_COMPUTE}...`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+    }
+  } else {
+    CONFIG_LOGGER.warn(
+      `No options for ${ENVIRONMENT_VARIABLES.DOCKER_FREE_COMPUTE.name} were specified, using defaults.`
+    )
+  }
+  return defaultOptions
 }
 
 // connect interfaces (p2p or/and http)
