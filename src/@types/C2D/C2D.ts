@@ -41,6 +41,18 @@ export interface ComputeEnvironment {
   free: boolean
 }
 
+export interface C2DDockerConfig {
+  socketPath: string
+  protocol: string
+  host: string
+  port: number
+  caPath: string
+  certPath: string
+  keyPath: string
+  environments: ComputeEnvironment[]
+  freeComputeOptions?: ComputeEnvironment
+}
+
 export interface ComputeEnvByChain {
   [chainId: number]: ComputeEnvironment[]
 }
