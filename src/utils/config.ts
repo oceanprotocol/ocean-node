@@ -1,5 +1,9 @@
 import type { DenyList, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
-import type { C2DClusterInfo, ComputeEnvironment } from '../@types/C2D/C2D.js'
+import type {
+  C2DClusterInfo,
+  ComputeEnvironment,
+  C2DDockerConfig
+} from '../@types/C2D/C2D.js'
 import { C2DClusterType } from '../@types/C2D/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
@@ -342,7 +346,7 @@ function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
     }
   }
   // docker clusters
-  const dockerConfig = {
+  const dockerConfig: C2DDockerConfig = {
     socketPath: getEnvValue(process.env.DOCKER_SOCKET_PATH, null),
     protocol: getEnvValue(process.env.DOCKER_PROTOCOL, null),
     host: getEnvValue(process.env.DOCKER_HOST, null),
@@ -350,10 +354,12 @@ function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
     caPath: getEnvValue(process.env.DOCKER_CA_PATH, null),
     certPath: getEnvValue(process.env.DOCKER_CERT_PATH, null),
     keyPath: getEnvValue(process.env.DOCKER_KEY_PATH, null),
-    environments: getEnvValue(process.env.DOCKER_COMPUTE_ENVIRONMENTS, null)
+    environments: getDockerComputeEnvironments(isStartup)
   }
   if (dockerConfig.socketPath || dockerConfig.host) {
     const hash = create256Hash(JSON.stringify(dockerConfig))
+    // get env values
+    dockerConfig.freeComputeOptions = getDockerFreeComputeOptions(hash, isStartup)
     clusters.push({
       connection: dockerConfig,
       hash,
@@ -409,6 +415,34 @@ function getDockerFreeComputeOptions(
     )
   }
   return defaultOptions
+}
+
+function getDockerComputeEnvironments(isStartup?: boolean): ComputeEnvironment[] {
+  if (
+    existsEnvironmentVariable(
+      ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS,
+      isStartup
+    )
+  ) {
+    try {
+      const options: ComputeEnvironment[] = JSON.parse(
+        process.env.DOCKER_COMPUTE_ENVIRONMENTS
+      ) as ComputeEnvironment[]
+      return options
+    } catch (error) {
+      CONFIG_LOGGER.logMessageWithEmoji(
+        `Invalid "${ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS.name}" env variable => ${process.env.DOCKER_COMPUTE_ENVIRONMENTS}...`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+    }
+  } else {
+    CONFIG_LOGGER.warn(
+      `No options for ${ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS.name} were specified.`
+    )
+  }
+  return null
 }
 
 // connect interfaces (p2p or/and http)
