@@ -332,9 +332,9 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.CRON_CLEANUP_C2D_STORAGE,
     required: false
   },
-  DOCKER_COMPUTE_ENVS: {
-    name: 'DOCKER_COMPUTE_ENVS',
-    value: process.env.DOCKER_COMPUTE_ENVS,
+  DOCKER_COMPUTE_ENVIRONMENTS: {
+    name: 'DOCKER_COMPUTE_ENVIRONMENTS',
+    value: process.env.DOCKER_COMPUTE_ENVIRONMENTS,
     required: false
   },
   DOCKER_FREE_COMPUTE: {
