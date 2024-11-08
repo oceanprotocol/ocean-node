@@ -1,3 +1,4 @@
+/* eslint-disable security/detect-non-literal-fs-filename */
 import { Readable } from 'stream'
 import { C2DClusterType, C2DStatusNumber, C2DStatusText } from '../../@types/C2D/C2D.js'
 import type {
@@ -10,7 +11,6 @@ import type {
   DBComputeJob,
   ComputeResult
 } from '../../@types/C2D/C2D.js'
-import { ZeroAddress } from 'ethers'
 // import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
 import { getConfiguration } from '../../utils/config.js'
 import { C2DEngine } from './compute_engine_base.js'
@@ -32,6 +32,7 @@ import {
 import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { generateUniqueID } from '../database/sqliteCompute.js'
+// import { UrlFileObject } from '../../@types/fileObject.js'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
@@ -182,11 +183,11 @@ export class C2DEngineDocker extends C2DEngine {
     const res: ComputeResult[] = []
     let index = 0
     const logStat = statSync(
-      this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/algorithmLog'
+      this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/algorithm.log'
     )
     if (logStat) {
       res.push({
-        filename: 'algorithmLog',
+        filename: 'algorithm.log',
         filesize: logStat.size,
         type: 'algorithmLog',
         index
@@ -239,7 +240,7 @@ export class C2DEngineDocker extends C2DEngine {
       if (i.index === index) {
         if (i.type === 'algorithmLog') {
           return createReadStream(
-            this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/algorithmLog'
+            this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/algorithm.log'
           )
         }
         if (i.type === 'output') {
@@ -298,7 +299,7 @@ export class C2DEngineDocker extends C2DEngine {
 
   // eslint-disable-next-line require-await
   private async processJob(job: DBComputeJob) {
-    console.log('Process job started')
+    console.log(`Process job started: [STATUS: ${job.status}: ${job.statusText}]`)
     console.log(job)
     // has to :
     //  - monitor running containers and stop them if over limits
@@ -381,16 +382,19 @@ export class C2DEngineDocker extends C2DEngine {
         HostConfig: hostConfig
       }
       // TO DO - fix the following
-      if (job.algorithm.meta.container.entrypoint) {
-        const newEntrypoint = job.algorithm.meta.container.entrypoint.replace(
-          '$ALGO',
-          '/data/transformation/algorithm'
-        )
-        containerInfo.Entrypoint = newEntrypoint
-      }
+
       try {
         const container = await this.docker.createContainer(containerInfo)
         console.log(container)
+        const containerId = container.id
+
+        if (job.algorithm.meta.container.entrypoint) {
+          const newEntrypoint = job.algorithm.meta.container.entrypoint.replace(
+            '$ALGO',
+            containerId + '/data/transformations/algorithm'
+          )
+          containerInfo.Entrypoint = newEntrypoint
+        }
         job.status = C2DStatusNumber.Provisioning
         job.statusText = C2DStatusText.Provisioning
         await this.db.updateJob(job)
@@ -434,6 +438,7 @@ export class C2DEngineDocker extends C2DEngine {
             return
           } catch (e) {
             // container failed to start
+            console.error('could not start container: ' + e.message)
             console.log(e)
             job.status = C2DStatusNumber.AlgorithmFailed
             job.statusText = C2DStatusText.AlgorithmFailed
@@ -446,6 +451,7 @@ export class C2DEngineDocker extends C2DEngine {
         }
       } else {
         // is running, we need to stop it..
+        console.log('running, need to stop it?')
         const timeNow = Date.now() / 1000
         console.log('timeNow: ' + timeNow + ' , Expiry: ' + job.expireTimestamp)
         if (timeNow > job.expireTimestamp || job.stopRequested) {
@@ -511,7 +517,7 @@ export class C2DEngineDocker extends C2DEngine {
     const container = await this.docker.getContainer(job.jobId + '-algoritm')
     try {
       writeFileSync(
-        this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/algorithmLog',
+        this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/algorithm.log',
         await container.logs({
           stdout: true,
           stderr: true,
@@ -551,38 +557,57 @@ export class C2DEngineDocker extends C2DEngine {
       status: C2DStatusNumber.RunningAlgorithm,
       statusText: C2DStatusText.RunningAlgorithm
     }
+    // for testing purposes
+    // if (!job.algorithm.fileObject) {
+    //   console.log('no file object')
+    //   const file: UrlFileObject = {
+    //     type: 'url',
+    //     url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
+    //     method: 'get'
+    //   }
+    //   job.algorithm.fileObject = file
+    // }
     // download algo
     if (job.algorithm.fileObject) {
       console.log(job.algorithm.fileObject)
-      const storage = Storage.getStorageClass(job.algorithm.fileObject, config)
-
       const fullAlgoPath =
         this.getC2DConfig().tempFolder +
         '/' +
         job.jobId +
         '/data/transformations/algorithm'
       try {
+        const storage = Storage.getStorageClass(job.algorithm.fileObject, config)
+
+        console.log('fullAlgoPath', fullAlgoPath)
         await pipeline(
           (await storage.getReadableStream()).stream,
           createWriteStream(fullAlgoPath)
         )
       } catch (e) {
-        console.log(e)
+        CORE_LOGGER.error(
+          'Unable to write algorithm to path: ' + fullAlgoPath + ': ' + e.message
+        )
         return {
           status: C2DStatusNumber.AlgorithmProvisioningFailed,
           statusText: C2DStatusText.AlgorithmProvisioningFailed
         }
       }
     }
+
+    // now for the assets
     for (const i in job.assets) {
       const asset = job.assets[i]
-      console.log(asset)
+      let storage = null
+      let fileInfo = null
+      console.log('checking now asset: ', asset)
       // without this check it would break if no fileObject is present
       if (asset.fileObject) {
-        const storage = Storage.getStorageClass(asset.fileObject, config)
-        const fileInfo = await storage.getFileInfo({
+        storage = Storage.getStorageClass(asset.fileObject, config)
+        // we need the file info for the name (but could be something else here)
+        fileInfo = await storage.getFileInfo({
           type: storage.getStorageType(asset.fileObject)
         })
+
         const fullPath =
           this.getC2DConfig().tempFolder +
           '/' +
@@ -590,13 +615,16 @@ export class C2DEngineDocker extends C2DEngine {
           '/data/inputs/' +
           fileInfo[0].name
 
+        console.log('asset full path: ' + fullPath)
         try {
           await pipeline(
             (await storage.getReadableStream()).stream,
             createWriteStream(fullPath)
           )
         } catch (e) {
-          console.log(e)
+          CORE_LOGGER.error(
+            'Unable to write input data to path: ' + fullPath + ': ' + e.message
+          )
           return {
             status: C2DStatusNumber.DataProvisioningFailed,
             statusText: C2DStatusText.DataProvisioningFailed
@@ -604,6 +632,7 @@ export class C2DEngineDocker extends C2DEngine {
         }
       }
     }
+    CORE_LOGGER.info('All good with data provisioning, will start uploading it...')
     // now, we have to create a tar arhive
     const folderToTar = this.getC2DConfig().tempFolder + '/' + job.jobId + '/data'
     const destination =
@@ -619,8 +648,10 @@ export class C2DEngineDocker extends C2DEngine {
     )
     // now, upload it to the container
     const container = await this.docker.getContainer(job.jobId + '-algoritm')
+
     console.log('Start uploading')
     try {
+      // await container2.putArchive(destination, {
       const stream = await container.putArchive(destination, {
         path: '/data'
       })
@@ -655,11 +686,16 @@ export class C2DEngineDocker extends C2DEngine {
   private async makeJobFolders(job: DBComputeJob) {
     try {
       const baseFolder = this.getC2DConfig().tempFolder + '/' + job.jobId
+      console.log('BASE FOLDER: ' + baseFolder)
       if (!existsSync(baseFolder)) mkdirSync(baseFolder)
       if (!existsSync(baseFolder + '/data')) mkdirSync(baseFolder + '/data')
       if (!existsSync(baseFolder + '/data/inputs')) mkdirSync(baseFolder + '/data/inputs')
       if (!existsSync(baseFolder + '/data/transformations'))
         mkdirSync(baseFolder + '/data/transformations')
+      // ddo directory
+      if (!existsSync(baseFolder + '/data/ddos')) {
+        mkdirSync(baseFolder + '/data/ddos')
+      }
       if (!existsSync(baseFolder + '/data/outputs'))
         mkdirSync(baseFolder + '/data/outputs')
       if (!existsSync(baseFolder + '/data/logs')) mkdirSync(baseFolder + '/data/logs')
@@ -701,7 +737,8 @@ export class C2DEngineDockerFree extends C2DEngineDocker {
         port: clusterConfig.connection.port,
         caPath: clusterConfig.connection.caPath,
         certPath: clusterConfig.connection.certPath,
-        keyPath: clusterConfig.connection.keyPath
+        keyPath: clusterConfig.connection.keyPath,
+        freeComputeOptions: clusterConfig.connection.freeComputeOptions
       },
       tempFolder: './c2d_storage/' + hash
     }
@@ -717,27 +754,11 @@ export class C2DEngineDockerFree extends C2DEngineDocker {
      */
     // TO DO C2D - fill consts below
     if (!this.docker) return []
-    const cpuType = ''
-    const currentJobs = 0
-    const consumerAddress = ''
+    // const cpuType = ''
+    // const currentJobs = 0
+    // const consumerAddress = ''
     const envs: ComputeEnvironment[] = [
-      {
-        id: `${this.getC2DConfig().hash}-free`,
-        cpuNumber: 1,
-        cpuType,
-        gpuNumber: 0,
-        ramGB: 1,
-        diskGB: 1,
-        priceMin: 0,
-        desc: 'Free',
-        currentJobs,
-        maxJobs: 1,
-        consumerAddress,
-        storageExpiry: 600,
-        maxJobDuration: 30,
-        feeToken: ZeroAddress,
-        free: true
-      }
+      this.getC2DConfig().connection?.freeComputeOptions
     ]
     return envs
   }
