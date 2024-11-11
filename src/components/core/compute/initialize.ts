@@ -33,6 +33,7 @@ export class ComputeInitializeHandler extends Handler {
       'algorithm',
       'compute',
       'consumerAddress'
+      // we might also need a "signature" (did + nonce) for confidential evm template 4
     ])
     if (validation.valid) {
       if (command.consumerAddress && !isAddress(command.consumerAddress)) {
@@ -144,19 +145,29 @@ export class ComputeInitializeHandler extends Handler {
                 service.datatokenAddress,
                 signer
               )
-              if (isTemplate4 && (await isERC20Template4Active(ddo.chainId, signer))) {
-                // call smart contract to decrypt
-                const serviceIndex = AssetUtils.getServiceIndexById(ddo, service.id)
-                const filesObject = await getFilesObjectFromConfidentialEVM(
-                  serviceIndex,
-                  service.datatokenAddress,
-                  signer,
-                  task.consumerAddress,
-                  null, // TODO, we will need to have a signature verification
-                  ddo.id
-                )
-                if (filesObject !== null) {
-                  canDecrypt = true
+              if (isTemplate4) {
+                if (!task.signature) {
+                  CORE_LOGGER.error(
+                    'Could not decrypt ddo files on template 4, missing consumer signature!'
+                  )
+                } else if (await isERC20Template4Active(ddo.chainId, signer)) {
+                  // call smart contract to decrypt
+                  const serviceIndex = AssetUtils.getServiceIndexById(ddo, service.id)
+                  const filesObject = await getFilesObjectFromConfidentialEVM(
+                    serviceIndex,
+                    service.datatokenAddress,
+                    signer,
+                    task.consumerAddress,
+                    task.signature, // TODO, we will need to have a signature verification
+                    ddo.id
+                  )
+                  if (filesObject !== null) {
+                    canDecrypt = true
+                  }
+                } else {
+                  CORE_LOGGER.error(
+                    'Could not decrypt ddo files on template 4, template is not active!'
+                  )
                 }
               }
             }
