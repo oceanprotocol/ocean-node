@@ -80,6 +80,9 @@ export class C2DEngineOPFK8 extends C2DEngine {
     const stagesInput: OPFK8ComputeStageInput[] = []
     let index = 0
     for (const asset of assets) {
+      // TODO: we do not have a way (from CLI/SDK) to set this fileObject unencrypted
+      // Previously we had "url" property but that was never used anywhere for the same reason (we used "remote")
+      // we don't have the "url" anymore once we publish
       if (asset.fileObject) {
         try {
           // since opf k8 supports only urls, we need to extract them
@@ -115,6 +118,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
     // continue with algorithm
     const stageAlgorithm: OPFK8ComputeStageAlgorithm = {}
 
+    // TODO: we do not have a way (from CLI/SDK) to set this fileObject unencrypted
     if (algorithm.fileObject) {
       try {
         // since opf k8 supports only urls, we need to extract them
