@@ -155,6 +155,7 @@ export interface ComputeInitializeCommand extends Command {
   algorithm: ComputeAlgorithm
   compute: ComputeDetails
   consumerAddress: string
+  signature?: string
 }
 
 export interface ComputeStartCommand extends Command {
