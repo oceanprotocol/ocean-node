@@ -568,6 +568,9 @@ export class C2DEngineDocker extends C2DEngine {
     //   job.algorithm.fileObject = file
     // }
     // download algo
+    // TODO: we currently DO NOT have a way to set this field unencrypted (once we publish the asset its encrypted)
+    // So we cannot test this from the CLI for instance... Only Option is to actually send it encrypted
+    // OR extract the files object from the passed DDO, decrypt it and use it
     if (job.algorithm.fileObject) {
       console.log(job.algorithm.fileObject)
       const fullAlgoPath =
