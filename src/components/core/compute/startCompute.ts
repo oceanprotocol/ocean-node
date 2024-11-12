@@ -2,7 +2,7 @@ import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
-import { FreeComputeStartCommand, ComputeStartCommand } from '../../../@types/commands.js'
+import { ComputeStartCommand, FreeComputeStartCommand } from '../../../@types/commands.js'
 import { getAlgoChecksums, validateAlgoForDataset } from './utils.js'
 import {
   ValidateParams,
@@ -27,6 +27,7 @@ import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
+import { getNonceAsNumber } from '../utils/nonceHandler.js'
 export class ComputeStartHandler extends Handler {
   validate(command: ComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
@@ -164,6 +165,11 @@ export class ComputeStartHandler extends Handler {
                 signer
               )
               if (isTemplate4 && (await isERC20Template4Active(ddo.chainId, signer))) {
+                // we need to get the proper data for the signature
+                const consumeData =
+                  task.consumerAddress +
+                  task.datasets[0].documentId +
+                  getNonceAsNumber(task.consumerAddress)
                 // call smart contract to decrypt
                 const serviceIndex = AssetUtils.getServiceIndexById(ddo, service.id)
                 const filesObject = await getFilesObjectFromConfidentialEVM(
@@ -171,8 +177,8 @@ export class ComputeStartHandler extends Handler {
                   service.datatokenAddress,
                   signer,
                   task.consumerAddress,
-                  task.signature, // TODO, we will need to have a signature verification
-                  ddo.id
+                  task.signature, // we will need to have a signature verification
+                  consumeData
                 )
                 if (filesObject != null) {
                   canDecrypt = true

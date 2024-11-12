@@ -26,6 +26,7 @@ import { getConfiguration } from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
+import { getNonceAsNumber } from '../utils/nonceHandler.js'
 export class ComputeInitializeHandler extends Handler {
   validate(command: ComputeInitializeCommand): ValidateParams {
     const validation = validateCommandParameters(command, [
@@ -151,6 +152,11 @@ export class ComputeInitializeHandler extends Handler {
                     'Could not decrypt ddo files on template 4, missing consumer signature!'
                   )
                 } else if (await isERC20Template4Active(ddo.chainId, signer)) {
+                  // we need to get the proper data for the signature
+                  const consumeData =
+                    task.consumerAddress +
+                    task.datasets[0].documentId +
+                    getNonceAsNumber(task.consumerAddress)
                   // call smart contract to decrypt
                   const serviceIndex = AssetUtils.getServiceIndexById(ddo, service.id)
                   const filesObject = await getFilesObjectFromConfidentialEVM(
@@ -158,8 +164,8 @@ export class ComputeInitializeHandler extends Handler {
                     service.datatokenAddress,
                     signer,
                     task.consumerAddress,
-                    task.signature, // TODO, we will need to have a signature verification
-                    ddo.id
+                    task.signature, // we will need to have a signature verification
+                    consumeData
                   )
                   if (filesObject !== null) {
                     canDecrypt = true
