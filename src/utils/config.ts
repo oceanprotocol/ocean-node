@@ -52,7 +52,10 @@ export async function getPeerIdFromPrivateKey(
 
 function getEnvValue(env: any, defaultValue: any) {
   /* Gets value for an ENV var, returning defaultValue if not defined */
-  return env != null ? (env as string) : defaultValue
+  if (env === null || env === undefined || (env as string).length === 0) {
+    return defaultValue
+  }
+  return env as string
 }
 
 function getIntEnvValue(env: any, defaultValue: number) {
@@ -341,6 +344,7 @@ function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
     keyPath: getEnvValue(process.env.DOCKER_KEY_PATH, null),
     environments: getDockerComputeEnvironments(isStartup)
   }
+
   if (dockerConfig.socketPath || dockerConfig.host) {
     const hash = create256Hash(JSON.stringify(dockerConfig))
     // get env values
