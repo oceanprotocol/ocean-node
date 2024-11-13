@@ -138,6 +138,23 @@ if [ "$run_c2d_jobs" == "y" ]; then
   DOCKER_CERT_PATH=${DOCKER_CERT_PATH:-''}
   read -p "Enter the docker key path: " DOCKER_KEY_PATH
   DOCKER_KEY_PATH=${DOCKER_KEY_PATH:-''}
+  echo ""
+  echo "########################################################"
+  echo "### Docker Engine Compute Environments Configuration ###"
+  echo "########################################################"
+  echo "Check 'ComputeEnvironment' definition for more details on the format"
+  echo "_____________________________________________________"
+  echo ""
+  read -p "Do you want to add a specific docker environment (payed) configuration?
+  (Hint: You can enter multiple in JSON format) [ y/n ]: " c2d_payed_env
+  if [ "$c2d_payed_env" == "y" ]; then
+    read -p "Enter the array of payed docker environment(s): " DOCKER_COMPUTE_ENVIRONMENTS 
+  fi
+  read -p "Do you want to add a specific docker environment (free) configuration?
+  (Hint: You can enter only one in JSON format)  [ y/n ]: " c2d_free_env
+  if [ "$c2d_free_env" == "y" ]; then
+    read -p "Enter the settings of the free docker environment: " DOCKER_FREE_COMPUTE
+  fi
 else
   echo "Running node without docker C2D capabilities!"
 fi
@@ -208,6 +225,8 @@ services:
       DOCKER_CA_PATH: '$DOCKER_CA_PATH'
       DOCKER_CERT_PATH: '$DOCKER_CERT_PATH'
       DOCKER_KEY_PATH: '$DOCKER_KEY_PATH'
+      DOCKER_COMPUTE_ENVIRONMENTS: '$DOCKER_COMPUTE_ENVIRONMENTS'
+      DOCKER_FREE_COMPUTE: '$DOCKER_FREE_COMPUTE'
     networks:
       - ocean_network
     depends_on:
