@@ -121,6 +121,26 @@ else
   echo "No input provided, the Ocean Node might not be accessible from other nodes."
 fi
 
+read -p "Do you want to run docker C2D jobs on your Ocean Node [ y/n ]: " run_c2d_jobs
+
+if [ "$run_c2d_jobs" == "y" ]; then
+  read -p "Enter the docker socket path: " DOCKER_SOCKET_PATH
+  DOCKER_SOCKET_PATH=${DOCKER_SOCKET_PATH:-''}
+  read -p "Enter the docker protocol: " DOCKER_PROTOCOL
+  DOCKER_PROTOCOL=${DOCKER_PROTOCOL:-''}
+  read -p "Enter the docker host: " DOCKER_HOST
+  DOCKER_HOST=${DOCKER_HOST:-''}
+  read -p "Enter the docker port: " DOCKER_PORT
+  DOCKER_PORT=${DOCKER_PORT:-0}
+  read -p "Enter the docker certificate authority path: " DOCKER_CA_PATH
+  DOCKER_CA_PATH=${DOCKER_CA_PATH:-''}
+  read -p "Enter the docker certificate path: " DOCKER_CERT_PATH
+  DOCKER_CERT_PATH=${DOCKER_CERT_PATH:-''}
+  read -p "Enter the docker key path: " DOCKER_KEY_PATH
+  DOCKER_KEY_PATH=${DOCKER_KEY_PATH:-''}
+else
+  echo "Running node without docker C2D capabilities!"
+fi
 
 cat <<EOF > docker-compose.yml
 services:
@@ -181,6 +201,13 @@ services:
 #      P2P_ENABLE_CIRCUIT_RELAY_CLIENT: ''
 #      P2P_BOOTSTRAP_NODES: ''
 #      P2P_FILTER_ANNOUNCED_ADDRESSES: ''
+      DOCKER_SOCKET_PATH: '$DOCKER_SOCKET_PATH'
+      DOCKER_PROTOCOL: '$DOCKER_PROTOCOL'
+      DOCKER_HOST: '$DOCKER_HOST'
+      DOCKER_PORT: '$DOCKER_PORT'
+      DOCKER_CA_PATH: '$DOCKER_CA_PATH'
+      DOCKER_CERT_PATH: '$DOCKER_CERT_PATH'
+      DOCKER_KEY_PATH: '$DOCKER_KEY_PATH'
     networks:
       - ocean_network
     depends_on:
