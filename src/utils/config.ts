@@ -139,7 +139,9 @@ function getIndexingNetworks(supportedNetworks: RPCS): RPCS | null {
     // if variables are not aligned we might end up not running indexer at all, so at least we should log a warning
     if (Object.keys(filteredNetworks).length === 0) {
       CONFIG_LOGGER.logMessageWithEmoji(
-        '"RPCS" and "INDEXER_NETWORKS" env variables are not aligned! Running node without the Indexer component...',
+        `"RPCS" chains: "${Object.keys(
+          supportedNetworks
+        )}" and "INDEXER_NETWORKS" chains: "${indexerNetworks}" mismatch! Running node without the Indexer component...`,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
