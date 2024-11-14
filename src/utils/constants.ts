@@ -341,6 +341,41 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'DOCKER_FREE_COMPUTE',
     value: process.env.DOCKER_FREE_COMPUTE,
     required: false
+  },
+  DOCKER_SOCKET_PATH: {
+    name: 'DOCKER_SOCKET_PATH',
+    value: process.env.DOCKER_SOCKET_PATH,
+    required: false
+  },
+  DOCKER_PROTOCOL: {
+    name: 'DOCKER_PROTOCOL',
+    value: process.env.DOCKER_PROTOCOL,
+    required: false
+  },
+  DOCKER_HOST: {
+    name: 'DOCKER_HOST',
+    value: process.env.DOCKER_HOST,
+    required: false
+  },
+  DOCKER_PORT: {
+    name: 'DOCKER_PORT',
+    value: process.env.DOCKER_PORT,
+    required: false
+  },
+  DOCKER_CA_PATH: {
+    name: 'DOCKER_CA_PATH',
+    value: process.env.DOCKER_CA_PATH,
+    required: false
+  },
+  DOCKER_CERT_PATH: {
+    name: 'DOCKER_CERT_PATH',
+    value: process.env.DOCKER_CERT_PATH,
+    required: false
+  },
+  DOCKER_KEY_PATH: {
+    name: 'DOCKER_KEY_PATH',
+    value: process.env.DOCKER_KEY_PATH,
+    required: false
   }
 }
 
