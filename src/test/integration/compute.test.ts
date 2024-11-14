@@ -254,6 +254,7 @@ describe('Compute', () => {
     expect(response.stream).to.be.instanceOf(Readable)
 
     computeEnvironments = await streamToObject(response.stream as Readable)
+    console.log('computeEnvironments: ', computeEnvironments)
     // expect 2 envs
     expect(computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 2, 'incorrect length')
     for (const computeEnvironment of computeEnvironments[DEVELOPMENT_CHAIN_ID]) {
@@ -660,7 +661,7 @@ describe('Compute', () => {
 
     const jobs = await streamToObject(response.stream as Readable)
     // eslint-disable-next-line prefer-destructuring
-    jobId = jobs[0].jobId
+    assert(jobs[0].jobId, 'failed to got job id')
   })
 
   it('should stop a compute job', async () => {
