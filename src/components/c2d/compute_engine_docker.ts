@@ -32,6 +32,7 @@ import {
 import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { generateUniqueID } from '../database/sqliteCompute.js'
+import { Blockchain } from '../../utils/blockchain.js'
 // import { UrlFileObject } from '../../@types/fileObject.js'
 
 export class C2DEngineDocker extends C2DEngine {
@@ -74,6 +75,10 @@ export class C2DEngineDocker extends C2DEngine {
       CORE_LOGGER.error(
         'Could not create Docker container temporary folders: ' + e.message
       )
+    }
+
+    if (clusterConfig.connection?.environments) {
+      this.envs = clusterConfig.connection.environments
     }
     // only when we got the first request to start a compute job,
     // no need to start doing this right away
@@ -760,6 +765,32 @@ export class C2DEngineDockerFree extends C2DEngineDocker {
     // const cpuType = ''
     // const currentJobs = 0
     // const consumerAddress = ''
+    if (chainId) {
+      const config = await getConfiguration()
+      const supportedNetwork = config.supportedNetworks[chainId]
+      if (supportedNetwork) {
+        const blockchain = new Blockchain(
+          supportedNetwork.rpc,
+          supportedNetwork.network,
+          chainId,
+          supportedNetwork.fallbackRPCs
+        )
+
+        // write the consumer address (compute env address)
+        const consumerAddress = await blockchain.getWalletAddress()
+        const computeEnv: ComputeEnvironment =
+          this.getC2DConfig().connection?.freeComputeOptions
+        if (computeEnv.chainId === chainId) {
+          computeEnv.consumerAddress = consumerAddress
+          const envs: ComputeEnvironment[] = [computeEnv]
+          return envs
+        }
+      }
+      // no compute envs or networ is not supported
+      CORE_LOGGER.error(`There are no free compute environments for network ${chainId}`)
+      return []
+    }
+    // get them all
     const envs: ComputeEnvironment[] = [
       this.getC2DConfig().connection?.freeComputeOptions
     ]

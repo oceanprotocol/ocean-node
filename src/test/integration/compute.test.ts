@@ -254,9 +254,8 @@ describe('Compute', () => {
     expect(response.stream).to.be.instanceOf(Readable)
 
     computeEnvironments = await streamToObject(response.stream as Readable)
-    console.log('computeEnvironments: ', computeEnvironments)
-    // expect 2 envs
-    expect(computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 2, 'incorrect length')
+    // expect 3 envs
+    expect(computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 3, 'incorrect length')
     for (const computeEnvironment of computeEnvironments[DEVELOPMENT_CHAIN_ID]) {
       assert(computeEnvironment.id, 'id missing in computeEnvironments')
       assert(
