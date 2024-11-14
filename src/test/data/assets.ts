@@ -252,6 +252,7 @@ export const algoAsset = {
       files: {
         files: [
           {
+            type: 'url',
             url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
             contentType: 'text/js',
             encoding: 'UTF-8'
