@@ -396,6 +396,7 @@ function getDockerFreeComputeOptions(
     storageExpiry: 600,
     maxJobDuration: 30,
     feeToken: ZeroAddress,
+    chainId: 8996,
     free: true
   }
 
