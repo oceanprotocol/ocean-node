@@ -1,4 +1,3 @@
-// import { expect } from 'chai'
 import { C2DDatabase } from '../../components/database/C2DDatabase.js'
 import { existsEnvironmentVariable, getConfiguration } from '../../utils/config.js'
 import { typesenseSchemas } from '../../components/database/TypesenseSchemas.js'
@@ -20,7 +19,8 @@ import {
 import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,
-  setupEnvironment
+  setupEnvironment,
+  tearDownEnvironment
 } from '../utils/utils.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
@@ -41,11 +41,8 @@ describe('Compute Jobs Database', () => {
   }
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
-      [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.DOCKER_SOCKET_PATH],
-      [
-        '{ "8996":{ "rpc":"http://172.0.0.1:8545", "fallbackRPCs": ["http://172.0.0.3:8545","http://127.0.0.1:8545"], "chainId": 8996, "network": "development", "chunkSize": 100 }}',
-        '/var/lib/docker'
-      ]
+      [ENVIRONMENT_VARIABLES.DOCKER_SOCKET_PATH],
+      ['/var/lib/docker']
     )
     envOverrides = await setupEnvironment(null, envOverrides)
     config = await getConfiguration(true)
@@ -174,5 +171,9 @@ describe('Compute Jobs Database', () => {
     const expectedArray = ['did:op:1', 'did:op:2', 'did:op:3']
     const str = 'did:op:1' + STRING_SEPARATOR + 'did:op:2' + STRING_SEPARATOR + 'did:op:3'
     expect(convertStringToArray(str)).to.deep.equal(expectedArray)
+  })
+
+  after(async () => {
+    await tearDownEnvironment(envOverrides)
   })
 })
