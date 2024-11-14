@@ -1,12 +1,13 @@
 // import { expect } from 'chai'
 import { C2DDatabase } from '../../components/database/C2DDatabase.js'
-import { getConfiguration } from '../../utils/config.js'
+import { existsEnvironmentVariable, getConfiguration } from '../../utils/config.js'
 import { typesenseSchemas } from '../../components/database/TypesenseSchemas.js'
 import {
   C2DStatusNumber,
   C2DStatusText,
   ComputeAlgorithm,
   ComputeAsset,
+  ComputeEnvironment,
   DBComputeJob
 } from '../../@types/C2D/C2D.js'
 // import { computeAsset } from '../data/assets'
@@ -16,8 +17,17 @@ import {
   convertStringToArray,
   STRING_SEPARATOR
 } from '../../components/database/sqliteCompute.js'
+import {
+  buildEnvOverrideConfig,
+  OverrideEnvConfig,
+  setupEnvironment
+} from '../utils/utils.js'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 
 describe('Compute Jobs Database', () => {
+  let envOverrides: OverrideEnvConfig[]
+  let config: OceanNodeConfig
   let db: C2DDatabase = null
   let jobId: string = null
 
@@ -30,8 +40,31 @@ describe('Compute Jobs Database', () => {
     serviceId: '0x12345abc'
   }
   before(async () => {
-    const config = await getConfiguration(true)
+    envOverrides = buildEnvOverrideConfig(
+      [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.DOCKER_SOCKET_PATH],
+      [
+        '{ "8996":{ "rpc":"http://172.0.0.1:8545", "fallbackRPCs": ["http://172.0.0.3:8545","http://127.0.0.1:8545"], "chainId": 8996, "network": "development", "chunkSize": 100 }}',
+        '/var/lib/docker'
+      ]
+    )
+    envOverrides = await setupEnvironment(null, envOverrides)
+    config = await getConfiguration(true)
     db = await new C2DDatabase(config.dbConfig, typesenseSchemas.c2dSchemas)
+  })
+
+  it('should have at least a free docker compute environment', () => {
+    let size = 1
+    if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL, false)) {
+      expect(config.c2dClusters.length).to.be.at.least(2)
+      size = 2
+    } else {
+      expect(config.c2dClusters.length).to.be.at.least(1)
+    }
+    const dockerConfig = config.c2dClusters[size - 1].connection
+    const freeEnv: ComputeEnvironment = dockerConfig.freeComputeOptions
+    expect(freeEnv.desc).to.be.equal('Free')
+    expect(freeEnv.free).to.be.equal(true)
+    expect(freeEnv.id).to.be.equal(config.c2dClusters[size - 1].hash + '-free')
   })
 
   it('should create a new C2D Job', async () => {
