@@ -93,6 +93,33 @@ export class C2DEngineDocker extends C2DEngine {
      * Returns all cluster's compute environments for a specific chainId. Env's id already contains the cluster hash
      */
     if (!this.docker) return []
+
+    if (chainId) {
+      const config = await getConfiguration()
+      const supportedNetwork = config.supportedNetworks[chainId]
+      if (supportedNetwork) {
+        const blockchain = new Blockchain(
+          supportedNetwork.rpc,
+          supportedNetwork.network,
+          chainId,
+          supportedNetwork.fallbackRPCs
+        )
+
+        // write the consumer address (compute env address)
+        const consumerAddress = await blockchain.getWalletAddress()
+        const filteredEnvs = []
+        for (const computeEnv of this.envs) {
+          if (computeEnv.chainId === chainId) {
+            computeEnv.consumerAddress = consumerAddress
+            filteredEnvs.push(computeEnv)
+          }
+        }
+        return filteredEnvs
+      }
+      // no compute envs or network is not supported
+      CORE_LOGGER.error(`There are no free compute environments for network ${chainId}`)
+      return []
+    }
     return this.envs
   }
 
@@ -786,7 +813,7 @@ export class C2DEngineDockerFree extends C2DEngineDocker {
           return envs
         }
       }
-      // no compute envs or networ is not supported
+      // no compute envs or network is not supported
       CORE_LOGGER.error(`There are no free compute environments for network ${chainId}`)
       return []
     }
