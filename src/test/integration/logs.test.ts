@@ -467,7 +467,7 @@ describe('LogDatabase retrieveMultipleLogs with pagination', () => {
       undefined,
       2 // Page 2
     )
-    console.log('LOGS_PAGE 2: ', logsPage1)
+    console.log('LOGS_PAGE 2: ', logsPage2)
     // make sure we have enough logs for 2 pages
     const logsCount = await database.logs.getLogsCount()
     console.log('LOGS_COUNT: ', logsCount)
