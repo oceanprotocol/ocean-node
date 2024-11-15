@@ -825,6 +825,22 @@ export class TypesenseLogDatabase extends AbstractLogDatabase {
         )
       }
 
+      console.log('PAGE: ', page || 1)
+
+      const searchParametersTest = {
+        q: '*',
+        query_by: 'message,level,meta',
+        filter_by: filterConditions,
+        sort_by: 'timestamp:desc'
+      }
+      const resultTest = await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .search(searchParametersTest)
+
+      // Map and return the search hits as log entries
+      const out = resultTest.hits.map((hit) => hit.document)
+      console.log('Without page filtering. ', out)
       // Define search parameters
       const searchParameters = {
         q: '*',
