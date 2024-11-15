@@ -7,7 +7,7 @@ import {
   configureCustomDBTransport,
   getCustomLoggerForModule
 } from '../../utils/logging/Logger.js'
-import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { DB_TYPES, ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,
@@ -34,7 +34,14 @@ describe('LogDatabase CRUD', () => {
   before(async () => {
     previousConfiguration = await setupEnvironment(
       TEST_ENV_CONFIG_FILE,
-      buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
+      buildEnvOverrideConfig(
+        [
+          ENVIRONMENT_VARIABLES.LOG_DB,
+          ENVIRONMENT_VARIABLES.DB_TYPE,
+          ENVIRONMENT_VARIABLES.DB_URL
+        ],
+        ['true', DB_TYPES.TYPESENSE, 'http://localhost:8108/?apiKey=xyz']
+      )
     )
     const { dbConfig } = await getConfiguration(true)
     database = await new Database(dbConfig)
