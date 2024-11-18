@@ -20,24 +20,27 @@ export interface C2DClusterInfo {
   tempFolder?: string
 }
 
-export interface ComputeEnvironment {
-  id: string
+export interface ComputeEnvironmentBaseConfig {
   cpuNumber: number
+  ramGB: number
+  diskGB: number
+  desc: string
+  maxJobs: number
+  storageExpiry: number
+  maxJobDuration: number
+  chainId?: number
+  feeToken: string
+  priceMin: number
+}
+export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
+  id: string
+
   cpuType?: string
   gpuNumber?: number
   gpuType?: string
-  ramGB: number
-  diskGB: number
-  priceMin: number
-  desc: string
   currentJobs: number
-  maxJobs: number
   consumerAddress: string
-  storageExpiry: number
-  maxJobDuration: number
   lastSeen?: number
-  chainId?: number
-  feeToken: string
   free: boolean
 }
 
