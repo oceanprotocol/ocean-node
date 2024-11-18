@@ -2,7 +2,8 @@ import type { DenyList, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNo
 import type {
   C2DClusterInfo,
   ComputeEnvironment,
-  C2DDockerConfig
+  C2DDockerConfig,
+  ComputeEnvironmentBaseConfig
 } from '../@types/C2D/C2D.js'
 import { C2DClusterType } from '../@types/C2D/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
@@ -402,10 +403,10 @@ function getDockerFreeComputeOptions(
 
   if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.DOCKER_FREE_COMPUTE, isStartup)) {
     try {
-      const options: ComputeEnvironment = JSON.parse(
+      const options: ComputeEnvironmentBaseConfig = JSON.parse(
         process.env.DOCKER_FREE_COMPUTE
-      ) as ComputeEnvironment
-      return options
+      ) as ComputeEnvironmentBaseConfig
+      return { ...options } as ComputeEnvironment
     } catch (error) {
       CONFIG_LOGGER.logMessageWithEmoji(
         `Invalid "${ENVIRONMENT_VARIABLES.DOCKER_FREE_COMPUTE.name}" env variable => ${process.env.DOCKER_FREE_COMPUTE}...`,
@@ -422,6 +423,25 @@ function getDockerFreeComputeOptions(
   return defaultOptions
 }
 
+/**
+ * Reads a partial ComputeEnvironment setting (array of)
+ * @param isStartup for logging purposes
+ * @returns 
+ * 
+ * example:
+ * {
+    "cpuNumber": 2,
+    "ramGB": 4,
+    "diskGB": 10,
+    "desc": "2Cpu,2gbRam - price 1 OCEAN/minute, max 1 hour",
+    "maxJobs": 10,
+    "storageExpiry": 36000,
+    "maxJobDuration": 3600,
+    "chainId": 1,
+    "feeToken": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48",
+    "priceMin": 1
+  },
+ */
 function getDockerComputeEnvironments(isStartup?: boolean): ComputeEnvironment[] {
   if (
     existsEnvironmentVariable(
@@ -430,10 +450,10 @@ function getDockerComputeEnvironments(isStartup?: boolean): ComputeEnvironment[]
     )
   ) {
     try {
-      const options: ComputeEnvironment[] = JSON.parse(
+      const options: ComputeEnvironmentBaseConfig[] = JSON.parse(
         process.env.DOCKER_COMPUTE_ENVIRONMENTS
-      ) as ComputeEnvironment[]
-      return options
+      ) as ComputeEnvironmentBaseConfig[]
+      return { ...options } as ComputeEnvironment[]
     } catch (error) {
       CONFIG_LOGGER.logMessageWithEmoji(
         `Invalid "${ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS.name}" env variable => ${process.env.DOCKER_COMPUTE_ENVIRONMENTS}...`,
