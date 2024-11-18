@@ -1,0 +1,12 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: REPLACE_PVC_NAME
+  namespace: REPLACE_NAMESPACE
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 'REPLACE_STORAGE_SIZE'
+  storageClassName: 'REPLACE_STORAGE_CLASS_NAME'

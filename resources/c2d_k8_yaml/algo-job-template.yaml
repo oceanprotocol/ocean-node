@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    app: ""
+    workflow: ""
+  name: ""
+  namespace: ""
+spec:
+  template:
+    metadata:
+      labels:
+        workflow: ""
+    spec:
+      containers:
+      - args: []
+        command: []
+        image: ""
+        imagePullPolicy: Always
+        name: "workflow-executor"
+        resources: {}
+        env: []
+        securityContext:
+          allowPrivilegeEscalation: false
+      restartPolicy: OnFailure
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: default
+      serviceAccountName: default
+      automountServiceAccountToken: false
+status: {}

@@ -2,6 +2,7 @@ import { C2DClusterType, ComputeEnvironment } from '../../@types/C2D/C2D.js'
 import { C2DEngine } from './compute_engine_base.js'
 import { C2DEngineOPFK8 } from './compute_engine_opf_k8.js'
 import { C2DEngineDocker, C2DEngineDockerFree } from './compute_engine_docker.js'
+import { C2DEngineK8, C2DEngineK8Free } from './compute_engine_k8.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 export class C2DEngines {
@@ -21,6 +22,13 @@ export class C2DEngines {
           this.engines.push(new C2DEngineDocker(cluster, db))
           if (!haveFree) {
             this.engines.push(new C2DEngineDockerFree(cluster, db))
+            haveFree = true
+          }
+        }
+        if (cluster.type === C2DClusterType.K8) {
+          this.engines.push(new C2DEngineK8(cluster, db))
+          if (!haveFree) {
+            this.engines.push(new C2DEngineK8Free(cluster, db))
             haveFree = true
           }
         }

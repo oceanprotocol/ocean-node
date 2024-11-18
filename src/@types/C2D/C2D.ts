@@ -6,7 +6,9 @@ export enum C2DClusterType {
   // eslint-disable-next-line no-unused-vars
   NODE_LOCAL = 1,
   // eslint-disable-next-line no-unused-vars
-  DOCKER = 2
+  DOCKER = 2,
+  // eslint-disable-next-line no-unused-vars
+  K8 = 3
 }
 
 export interface C2DClusterInfo {
@@ -49,6 +51,21 @@ export interface C2DDockerConfig {
   caPath: string
   certPath: string
   keyPath: string
+  environments: ComputeEnvironment[]
+  freeComputeOptions?: ComputeEnvironment
+}
+
+export interface C2DK8User {
+  name: string
+  certData?: string
+  keyData?: string
+}
+export interface C2DK8ClusterConfig {
+  name?: string
+  server: string
+  context: string
+  skipTLSVerify?: boolean
+  user: C2DK8User
   environments: ComputeEnvironment[]
   freeComputeOptions?: ComputeEnvironment
 }

@@ -2,7 +2,8 @@ import type { DenyList, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNo
 import type {
   C2DClusterInfo,
   ComputeEnvironment,
-  C2DDockerConfig
+  C2DDockerConfig,
+  C2DK8ClusterConfig
 } from '../@types/C2D/C2D.js'
 import { C2DClusterType } from '../@types/C2D/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
@@ -352,11 +353,58 @@ function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
       tempFolder: './c2d_storage/' + hash
     })
   }
-
+  // K* clusters
+  const k8Clusters = JSON.parse(getEnvValue(process.env.K8_CLUSTERS, null))
+  if (k8Clusters) {
+    for (const cluster of k8Clusters) {
+      const k8Config: C2DK8ClusterConfig = {
+        name: cluster.name,
+        server: cluster.server,
+        user: {
+          name: cluster.username
+        },
+        context: cluster.context,
+        environments: null
+      }
+      const hash = create256Hash(JSON.stringify(k8Config))
+      k8Config.environments = getK8ComputeEnvironments(cluster.name, hash, isStartup)
+      clusters.push({
+        connection: k8Config,
+        hash,
+        type: C2DClusterType.DOCKER,
+        tempFolder: './c2d_storage/' + hash
+      })
+    }
+  }
   return clusters
 }
 
 // TODO C2D v2.0
+function getK8ComputeEnvironments(
+  clusterName: string,
+  clusterHash: string,
+  isStartup?: boolean
+): ComputeEnvironment[] {
+  // TO DO = get env definitions for clusterName.. ignore the rest
+  const defaultOptions: ComputeEnvironment = {
+    id: `${clusterHash}-env`,
+    cpuNumber: 1,
+    cpuType: '',
+    gpuNumber: 0,
+    ramGB: 1,
+    diskGB: 1,
+    priceMin: 0,
+    desc: 'Free',
+    currentJobs: 0,
+    maxJobs: 1,
+    consumerAddress: '',
+    storageExpiry: 600,
+    maxJobDuration: 30,
+    feeToken: ZeroAddress,
+    free: true
+  }
+  return [defaultOptions]
+}
 // eslint-disable-next-line no-unused-vars
 function getDockerFreeComputeOptions(
   clusterHash: string,
