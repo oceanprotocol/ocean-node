@@ -26,6 +26,7 @@ import {
 } from '../utils/address.js'
 import { CONFIG_LOGGER } from './logging/common.js'
 import { create256Hash } from './crypt.js'
+import { isDefined } from './util.js'
 
 // usefull for lazy loading and avoid boilerplate on other places
 let previousConfiguration: OceanNodeConfig = null
@@ -406,6 +407,7 @@ function getDockerFreeComputeOptions(
       const options: ComputeEnvironmentBaseConfig = JSON.parse(
         process.env.DOCKER_FREE_COMPUTE
       ) as ComputeEnvironmentBaseConfig
+      doComputeEnvChecks([options])
       return { ...options } as ComputeEnvironment
     } catch (error) {
       CONFIG_LOGGER.logMessageWithEmoji(
@@ -453,6 +455,7 @@ function getDockerComputeEnvironments(isStartup?: boolean): ComputeEnvironment[]
       const options: ComputeEnvironmentBaseConfig[] = JSON.parse(
         process.env.DOCKER_COMPUTE_ENVIRONMENTS
       ) as ComputeEnvironmentBaseConfig[]
+      doComputeEnvChecks(options)
       return { ...options } as ComputeEnvironment[]
     } catch (error) {
       CONFIG_LOGGER.logMessageWithEmoji(
@@ -468,6 +471,29 @@ function getDockerComputeEnvironments(isStartup?: boolean): ComputeEnvironment[]
     )
   }
   return null
+}
+
+function doComputeEnvChecks(configEnv: ComputeEnvironmentBaseConfig[]): boolean {
+  for (const config of configEnv) {
+    if (config.feeToken && !isDefined(config.priceMin)) {
+      CONFIG_LOGGER.error(
+        "Please check your compute env settings: We have a fee token but we don't have a price!"
+      )
+      return false
+    }
+    if (isDefined(config.priceMin) && !isDefined(config.feeToken)) {
+      CONFIG_LOGGER.error(
+        "Please check your compute env settings: We have a price but we don't have a fee token!"
+      )
+      return false
+    }
+    if (config.storageExpiry < config.maxJobDuration) {
+      CONFIG_LOGGER.error(
+        'Please check your compute env settings: "storageExpiry" should be greater than "maxJobDuration"!'
+      )
+      return false
+    }
+  }
 }
 
 // connect interfaces (p2p or/and http)
