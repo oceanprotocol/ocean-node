@@ -361,7 +361,14 @@ export class C2DEngineDocker extends C2DEngine {
        */
     if (job.status === C2DStatusNumber.JobStarted) {
       // pull docker image
-      await this.docker.pull(job.containerImage)
+      try {
+        await this.docker.pull(job.containerImage)
+      } catch (err) {
+        CORE_LOGGER.error(
+          `Unable to pull docker image: ${job.containerImage}: ${err.message}`
+        )
+      }
+
       job.status = C2DStatusNumber.PullImage
       job.statusText = C2DStatusText.PullImage
       await this.db.updateJob(job)
@@ -370,7 +377,7 @@ export class C2DEngineDocker extends C2DEngine {
     if (job.status === C2DStatusNumber.PullImage) {
       try {
         const imageInfo = await this.docker.getImage(job.containerImage)
-        // console.log(imageInfo)
+        console.log('imageInfo', imageInfo)
         const details = await imageInfo.inspect()
         console.log(details)
         job.status = C2DStatusNumber.ConfiguringVolumes
