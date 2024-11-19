@@ -219,30 +219,34 @@ export class C2DEngineDocker extends C2DEngine {
   protected async getResults(jobId: string): Promise<ComputeResult[]> {
     const res: ComputeResult[] = []
     let index = 0
-    const logStat = statSync(
-      this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/algorithm.log'
-    )
-    if (logStat) {
-      res.push({
-        filename: 'algorithm.log',
-        filesize: logStat.size,
-        type: 'algorithmLog',
-        index
-      })
-      index = index + 1
-    }
-    const outputStat = statSync(
-      this.getC2DConfig().tempFolder + '/' + jobId + '/data/outputs/outputs.tar'
-    )
-    if (outputStat) {
-      res.push({
-        filename: 'outputs.tar',
-        filesize: outputStat.size,
-        type: 'output',
-        index
-      })
-      index = index + 1
-    }
+    try {
+      const logStat = statSync(
+        this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/algorithm.log'
+      )
+      if (logStat) {
+        res.push({
+          filename: 'algorithm.log',
+          filesize: logStat.size,
+          type: 'algorithmLog',
+          index
+        })
+        index = index + 1
+      }
+    } catch (e) {}
+    try {
+      const outputStat = statSync(
+        this.getC2DConfig().tempFolder + '/' + jobId + '/data/outputs/outputs.tar'
+      )
+      if (outputStat) {
+        res.push({
+          filename: 'outputs.tar',
+          filesize: outputStat.size,
+          type: 'output',
+          index
+        })
+        index = index + 1
+      }
+    } catch (e) {}
     return res
   }
 
