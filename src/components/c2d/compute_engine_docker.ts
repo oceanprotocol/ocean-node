@@ -33,6 +33,11 @@ import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { generateUniqueID } from '../database/sqliteCompute.js'
 import { Blockchain } from '../../utils/blockchain.js'
+import { AssetUtils } from '../../utils/asset.js'
+import { FindDdoHandler } from '../core/handler/ddoHandler.js'
+import { OceanNode } from '../../OceanNode.js'
+import { Service } from '../../@types/DDO/Service.js'
+import { decryptFilesObject } from './index.js'
 // import { UrlFileObject } from '../../@types/fileObject.js'
 
 export class C2DEngineDocker extends C2DEngine {
@@ -603,29 +608,68 @@ export class C2DEngineDocker extends C2DEngine {
     // TODO: we currently DO NOT have a way to set this field unencrypted (once we publish the asset its encrypted)
     // So we cannot test this from the CLI for instance... Only Option is to actually send it encrypted
     // OR extract the files object from the passed DDO, decrypt it and use it
-    if (job.algorithm.fileObject) {
-      console.log(job.algorithm.fileObject)
-      const fullAlgoPath =
-        this.getC2DConfig().tempFolder +
-        '/' +
-        job.jobId +
-        '/data/transformations/algorithm'
-      try {
-        const storage = Storage.getStorageClass(job.algorithm.fileObject, config)
 
+    console.log(job.algorithm.fileObject)
+    const fullAlgoPath =
+      this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/transformations/algorithm'
+    try {
+      let storage = null
+      // do we have a files object?
+      if (job.algorithm.fileObject) {
+        // is it unencrypted?
+        if (job.algorithm.fileObject.type) {
+          // we can get the storage directly
+          storage = Storage.getStorageClass(job.algorithm.fileObject, config)
+        } else {
+          // ok, maybe we have this encrypted instead
+          CORE_LOGGER.info('algorithm file object seems to be encrypted, checking it...')
+          // 1. Decrypt the files object
+          const decryptedFileObject = await decryptFilesObject(job.algorithm.fileObject)
+          console.log('decryptedFileObject: ', decryptedFileObject)
+          // 2. Get default storage settings
+          storage = Storage.getStorageClass(decryptedFileObject, config)
+        }
+      } else {
+        // no files object, try to get information from documentId and serviceId
+        CORE_LOGGER.info(
+          'algorithm file object seems to be missing, checking "serviceId" and "documentId"...'
+        )
+        const { serviceId, documentId } = job.algorithm
+        // we can get it from this info
+        if (serviceId && documentId) {
+          const algoDdo = await new FindDdoHandler(
+            OceanNode.getInstance()
+          ).findAndFormatDdo(documentId)
+          console.log('algo ddo:', algoDdo)
+          // 1. Get the service
+          const service: Service = AssetUtils.getServiceById(algoDdo, serviceId)
+
+          // 2. Decrypt the files object
+          const decryptedFileObject = await decryptFilesObject(service.files)
+          console.log('decryptedFileObject: ', decryptedFileObject)
+          // 4. Get default storage settings
+          storage = Storage.getStorageClass(decryptedFileObject, config)
+        }
+      }
+
+      if (storage) {
         console.log('fullAlgoPath', fullAlgoPath)
         await pipeline(
           (await storage.getReadableStream()).stream,
           createWriteStream(fullAlgoPath)
         )
-      } catch (e) {
-        CORE_LOGGER.error(
-          'Unable to write algorithm to path: ' + fullAlgoPath + ': ' + e.message
+      } else {
+        CORE_LOGGER.info(
+          'Could not extract any files object from the compute algorithm, skipping...'
         )
-        return {
-          status: C2DStatusNumber.AlgorithmProvisioningFailed,
-          statusText: C2DStatusText.AlgorithmProvisioningFailed
-        }
+      }
+    } catch (e) {
+      CORE_LOGGER.error(
+        'Unable to write algorithm to path: ' + fullAlgoPath + ': ' + e.message
+      )
+      return {
+        status: C2DStatusNumber.AlgorithmProvisioningFailed,
+        statusText: C2DStatusText.AlgorithmProvisioningFailed
       }
     }
 
@@ -637,12 +681,42 @@ export class C2DEngineDocker extends C2DEngine {
       console.log('checking now asset: ', asset)
       // without this check it would break if no fileObject is present
       if (asset.fileObject) {
-        storage = Storage.getStorageClass(asset.fileObject, config)
+        if (asset.fileObject.type) {
+          storage = Storage.getStorageClass(asset.fileObject, config)
+        } else {
+          CORE_LOGGER.info('asset file object seems to be encrypted, checking it...')
+          // get the encrypted bytes
+          const filesObject: any = await decryptFilesObject(asset.fileObject)
+          storage = Storage.getStorageClass(filesObject, config)
+        }
+
         // we need the file info for the name (but could be something else here)
         fileInfo = await storage.getFileInfo({
           type: storage.getStorageType(asset.fileObject)
         })
+      } else {
+        // we need to go the hard way
+        const { serviceId, documentId } = asset
+        if (serviceId && documentId) {
+          // need to get the file
+          const ddo = await new FindDdoHandler(OceanNode.getInstance()).findAndFormatDdo(
+            documentId
+          )
 
+          // 2. Get the service
+          const service: Service = AssetUtils.getServiceById(ddo, serviceId)
+          // 3. Decrypt the url
+          const decryptedFileObject = await decryptFilesObject(service.files)
+          console.log('decryptedFileObject: ', decryptedFileObject)
+          storage = Storage.getStorageClass(decryptedFileObject, config)
+
+          fileInfo = await storage.getFileInfo({
+            type: storage.getStorageType(decryptedFileObject)
+          })
+        }
+      }
+
+      if (storage && fileInfo) {
         const fullPath =
           this.getC2DConfig().tempFolder +
           '/' +
@@ -665,6 +739,10 @@ export class C2DEngineDocker extends C2DEngine {
             statusText: C2DStatusText.DataProvisioningFailed
           }
         }
+      } else {
+        CORE_LOGGER.info(
+          'Could not extract any files object from the compute asset, skipping...'
+        )
       }
     }
     CORE_LOGGER.info('All good with data provisioning, will start uploading it...')
