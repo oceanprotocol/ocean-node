@@ -161,7 +161,7 @@ export class C2DEngineDocker extends C2DEngine {
     if (algorithm.meta.container.checksum)
       image = image + '@' + algorithm.meta.container.checksum
     else if (algorithm.meta.container.tag)
-      image = image + ':' + algorithm.meta.container.checksum
+      image = image + ':' + algorithm.meta.container.tag
     else image = image + ':latest'
     console.log('Using image: ' + image)
 
@@ -201,8 +201,8 @@ export class C2DEngineDocker extends C2DEngine {
     }
     const cjob: ComputeJob = JSON.parse(JSON.stringify(job)) as ComputeJob
     // we add cluster hash to user output
-    // cjob.jobId = this.getC2DConfig().hash + '-' + cjob.jobId
-    cjob.jobId = jobId
+    cjob.jobId = this.getC2DConfig().hash + '-' + cjob.jobId
+    // cjob.jobId = jobId
     return [cjob]
   }
 
