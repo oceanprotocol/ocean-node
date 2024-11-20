@@ -443,20 +443,18 @@ export class C2DEngineDocker extends C2DEngine {
         Volumes: mountVols,
         HostConfig: hostConfig
       }
-      // TO DO - fix the following
+
+      if (job.algorithm.meta.container.entrypoint) {
+        const newEntrypoint = job.algorithm.meta.container.entrypoint.replace(
+          '$ALGO',
+          'data/transformations/algorithm'
+        )
+        containerInfo.Entrypoint = newEntrypoint.split(' ')
+      }
 
       try {
         const container = await this.docker.createContainer(containerInfo)
         console.log(container)
-        const containerId = container.id
-
-        if (job.algorithm.meta.container.entrypoint) {
-          const newEntrypoint = job.algorithm.meta.container.entrypoint.replace(
-            '$ALGO',
-            containerId + '/data/transformations/algorithm'
-          )
-          containerInfo.Entrypoint = newEntrypoint
-        }
         job.status = C2DStatusNumber.Provisioning
         job.statusText = C2DStatusText.Provisioning
         await this.db.updateJob(job)
