@@ -382,7 +382,7 @@ function getDockerFreeComputeOptions(
     maxJobs: 1,
     consumerAddress: '',
     storageExpiry: 600,
-    maxJobDuration: 30,
+    maxJobDuration: 600, // 10 minutes
     feeToken: ZeroAddress,
     chainId: 8996,
     free: true,
