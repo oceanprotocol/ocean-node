@@ -27,6 +27,7 @@ import {
 import { CONFIG_LOGGER } from './logging/common.js'
 import { create256Hash } from './crypt.js'
 import { isDefined } from './util.js'
+import os from 'os'
 
 // usefull for lazy loading and avoid boilerplate on other places
 let previousConfiguration: OceanNodeConfig = null
@@ -399,7 +400,8 @@ function getDockerFreeComputeOptions(
     maxJobDuration: 30,
     feeToken: ZeroAddress,
     chainId: 8996,
-    free: true
+    free: true,
+    platform: [{ architecture: os.machine(), os: os.platform() }]
   }
 
   if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.DOCKER_FREE_COMPUTE, isStartup)) {
@@ -408,7 +410,9 @@ function getDockerFreeComputeOptions(
         process.env.DOCKER_FREE_COMPUTE
       ) as ComputeEnvironmentBaseConfig
       doComputeEnvChecks([options])
-      return { ...options } as ComputeEnvironment
+      const env = { ...options } as ComputeEnvironment
+      env.platform = [{ architecture: os.machine(), os: os.platform() }]
+      return env
     } catch (error) {
       CONFIG_LOGGER.logMessageWithEmoji(
         `Invalid "${ENVIRONMENT_VARIABLES.DOCKER_FREE_COMPUTE.name}" env variable => ${process.env.DOCKER_FREE_COMPUTE}...`,
@@ -456,7 +460,11 @@ function getDockerComputeEnvironments(isStartup?: boolean): ComputeEnvironment[]
         process.env.DOCKER_COMPUTE_ENVIRONMENTS
       ) as ComputeEnvironmentBaseConfig[]
       doComputeEnvChecks(options)
-      return { ...options } as ComputeEnvironment[]
+      const envs = { ...options } as ComputeEnvironment[]
+      envs.forEach((env) => {
+        env.platform = [{ architecture: os.machine(), os: os.platform() }]
+      })
+      return envs
     } catch (error) {
       CONFIG_LOGGER.logMessageWithEmoji(
         `Invalid "${ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS.name}" env variable => ${process.env.DOCKER_COMPUTE_ENVIRONMENTS}...`,
