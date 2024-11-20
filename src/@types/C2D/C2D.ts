@@ -32,6 +32,11 @@ export interface ComputeEnvironmentBaseConfig {
   feeToken: string
   priceMin: number
 }
+
+export interface DockerPlatform {
+  architecture: string
+  os: string
+}
 export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
   id: string
 
@@ -42,6 +47,7 @@ export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
   consumerAddress: string
   lastSeen?: number
   free: boolean
+  platform?: DockerPlatform[]
 }
 
 export interface C2DDockerConfig {
