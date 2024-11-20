@@ -805,7 +805,7 @@ export class TypesenseLogDatabase extends AbstractLogDatabase {
     moduleName?: string,
     level?: string,
     page?: number
-  ): Promise<Record<string, any>[] | null> {
+  ): Promise<Record<string, any>[]> {
     try {
       let filterConditions = `timestamp:>=${startTime.getTime()} && timestamp:<${endTime.getTime()}`
       if (moduleName) {
@@ -851,7 +851,7 @@ export class TypesenseLogDatabase extends AbstractLogDatabase {
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
-      return null
+      return []
     }
   }
 
@@ -902,7 +902,7 @@ export class TypesenseLogDatabase extends AbstractLogDatabase {
           }
         }
       }
-      return oldLogs ? oldLogs.length : 0
+      return oldLogs.length
     } catch (error) {
       DATABASE_LOGGER.logMessageWithEmoji(
         `Error when deleting old log entries: ${error.message}`,
