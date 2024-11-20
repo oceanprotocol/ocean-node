@@ -368,7 +368,13 @@ export class C2DEngineDocker extends C2DEngine {
     if (job.status === C2DStatusNumber.JobStarted) {
       // pull docker image
       try {
-        await this.docker.pull(job.containerImage)
+        const pullStream = await this.docker.pull(job.containerImage)
+        await new Promise((resolve, reject) => {
+          this.docker.modem.followProgress(pullStream, (err, res) => {
+            if (err) return reject(err)
+            resolve(res)
+          })
+        })
       } catch (err) {
         CORE_LOGGER.error(
           `Unable to pull docker image: ${job.containerImage}: ${err.message}`
