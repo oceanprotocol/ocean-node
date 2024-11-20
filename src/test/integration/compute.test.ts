@@ -11,7 +11,8 @@ import type {
   ComputeStartCommand,
   ComputeStopCommand,
   ComputeGetStatusCommand,
-  ComputeInitializeCommand
+  ComputeInitializeCommand,
+  FreeComputeStartCommand
 } from '../../@types/commands.js'
 import type {
   ComputeAsset,
@@ -68,6 +69,8 @@ import {
   getAlgoChecksums,
   validateAlgoForDataset
 } from '../../components/core/compute/utils.js'
+
+import { freeComputeStartPayload } from '../data/commands.js'
 
 describe('Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
@@ -724,6 +727,13 @@ describe('Compute', () => {
     expect(response.stream).to.be.instanceOf(Readable)
     const jobs = await streamToObject(response.stream as Readable)
     console.log(jobs)
+  })
+
+  it('should reject the Free job due to bad container image (directCommand payload)', async () => {
+    const command: FreeComputeStartCommand = freeComputeStartPayload
+    const handler = new FreeComputeStartHandler(oceanNode)
+    const response = await handler.handle(command)
+    console.log('response:', response)
   })
 
   it('should checkC2DEnvExists', async () => {
