@@ -849,7 +849,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
     moduleName?: string,
     level?: string,
     page?: number
-  ): Promise<Record<string, any>[] | null> {
+  ): Promise<Record<string, any>[]> {
     try {
       const filterConditions: any = {
         bool: {
@@ -888,10 +888,6 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
         from
       })
 
-      console.log('logs results:', result)
-      console.log('logs results hits:', result.hits)
-      console.log('logs results hits hits:', result.hits.hits)
-
       return result.hits.hits.map((hit: any) => {
         return normalizeDocumentId(hit._source, hit._id)
       })
@@ -903,7 +899,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
-      return null
+      return []
     }
   }
 
@@ -943,13 +939,12 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
     try {
       const oldLogs = await this.retrieveMultipleLogs(new Date(0), deleteBeforeTime, 200)
 
-      if (oldLogs) {
-        for (const log of oldLogs) {
-          if (log.id) {
-            await this.delete(log.id)
-          }
+      for (const log of oldLogs) {
+        if (log.id) {
+          await this.delete(log.id)
         }
       }
+
       return oldLogs ? oldLogs.length : 0
     } catch (error) {
       DATABASE_LOGGER.logMessageWithEmoji(

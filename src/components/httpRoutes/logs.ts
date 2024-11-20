@@ -56,7 +56,7 @@ logRoutes.post('/logs', express.json(), validateRequest, async (req, res) => {
       .getDatabase()
       .logs.retrieveMultipleLogs(startTime, endTime, maxLogs, moduleName, level, page)
 
-    if (logs) {
+    if (logs.length > 0) {
       res.json(logs)
     } else {
       res.status(404).send('No logs found')

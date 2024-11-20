@@ -48,7 +48,7 @@ export abstract class AbstractLogDatabase extends AbstractDatabase {
     moduleName?: string,
     level?: string,
     page?: number
-  ): Promise<Record<string, any>[] | null>
+  ): Promise<Record<string, any>[]>
 
   abstract delete(logId: string): Promise<void>
   abstract deleteOldLogs(): Promise<number>
