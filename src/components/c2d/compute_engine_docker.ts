@@ -326,8 +326,14 @@ export class C2DEngineDocker extends C2DEngine {
     this.cronTimer = null
     // get all running jobs
     const jobs = await this.db.getRunningJobs(this.getC2DConfig().hash)
-    console.log('Got jobs for engine ' + this.getC2DConfig().hash)
-    console.log(jobs)
+
+    if (jobs.length === 0) {
+      CORE_LOGGER.info('No C2D jobs found for engine ' + this.getC2DConfig().hash)
+      return
+    } else {
+      CORE_LOGGER.info(`Got ${jobs.length} jobs for engine ${this.getC2DConfig().hash}`)
+      CORE_LOGGER.debug(JSON.stringify(jobs))
+    }
     const promises: any = []
     for (const job of jobs) {
       promises.push(this.processJob(job))
@@ -367,6 +373,8 @@ export class C2DEngineDocker extends C2DEngine {
         CORE_LOGGER.error(
           `Unable to pull docker image: ${job.containerImage}: ${err.message}`
         )
+        await this.db.deleteJob(job.jobId)
+        return
       }
 
       job.status = C2DStatusNumber.PullImage
