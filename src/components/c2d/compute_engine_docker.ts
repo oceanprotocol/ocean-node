@@ -128,6 +128,52 @@ export class C2DEngineDocker extends C2DEngine {
     return this.envs
   }
 
+  /**
+   * Checks the docker image by looking at the manifest
+   * @param image name or tag
+   * @returns boolean
+   */
+  public async checkDockerImage(image: string): Promise<boolean> {
+    try {
+      const info = drc.default.parseRepoAndRef(image)
+      /**
+     * info:  {
+        index: { name: 'docker.io', official: true },
+        official: true,
+        remoteName: 'library/node',
+        localName: 'node',
+        canonicalName: 'docker.io/node',
+        digest: 'sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36'
+      }
+     */
+      const client = drc.createClientV2({ name: info.localName })
+      const tagOrDigest = info.tag || info.digest
+
+      // try get manifest from registry
+      return await new Promise<any>((resolve, reject) => {
+        client.getManifest(
+          { ref: tagOrDigest, maxSchemaVersion: 2 },
+          function (err: any, manifest: any) {
+            client.close()
+            if (manifest) {
+              return resolve(true)
+            }
+
+            if (err) {
+              CORE_LOGGER.error(
+                `Unable to get Manifest for image ${image}: ${err.message}`
+              )
+              reject(err)
+            }
+          }
+        )
+      })
+    } catch (err) {
+      CORE_LOGGER.error(err)
+      return false
+    }
+  }
+
   // eslint-disable-next-line require-await
   public override async startComputeJob(
     assets: ComputeAsset[],
@@ -142,20 +188,7 @@ export class C2DEngineDocker extends C2DEngine {
     if (!this.docker) return []
 
     const jobId = generateUniqueID()
-    // NOTE: this does not generate a unique ID...
-    // if i send 2 times the same startComputeJob parameters i get the same ID twice
-    //  const jobId = create256Hash(
-    //   JSON.stringify({
-    //     assets,
-    //     algorithm,
-    //     output,
-    //     environment,
-    //     owner,
-    //     validUntil,
-    //     chainId,
-    //     agreementId
-    //   })
-    // )
+
     // TO DO C2D - Check image, check arhitecture, etc
     let { image } = algorithm.meta.container
     if (algorithm.meta.container.checksum)
@@ -165,55 +198,11 @@ export class C2DEngineDocker extends C2DEngine {
     else image = image + ':latest'
     console.log('Using image: ' + image)
 
-    // Using image: node@sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36
-    // const REPO = 'alpine'
-    // TODO
-    const info = drc.default.parseRepoAndRef(image)
-    console.log('#### info: ', info)
-    /**
-     * info:  {
-        index: { name: 'docker.io', official: true },
-        official: true,
-        remoteName: 'library/node',
-        localName: 'node',
-        canonicalName: 'docker.io/node',
-        digest: 'sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36'
-      }
-     */
-    // const client = drc.createClient(
-    //   { name: info.index.name },
-    //   (some: any, theClient: any) => {
-    //     const tagOrDigest = info.tag || info.digest
-    //     console.log('# tagOrDigest: ', tagOrDigest)
-    //     theClient.getManifest(
-    //       { ref: tagOrDigest },
-    //       function (err: any, manifest: any, res: { headers: any }, manifestStr: any) {
-    //         theClient.close()
-    //         // body: { code: 'NotFoundError', message: '' },
-    //         if (err) {
-    //           console.log('error: ', err)
-    //         }
-    //         console.error('# response headers')
-    //         console.error(JSON.stringify(res.headers, null, 4))
-    //         console.error('# manifest')
-    //         console.log(manifestStr)
-    //       }
-    //     )
-    //   }
-    // )
-
-    /**
-     * Parse a docker repo and tag/digest string: [INDEX/]REPO[:TAG|@DIGEST]
-     *
-     * Examples:
-     *    busybox
-     *    busybox:latest
-     *    google/python:3.3
-     *    docker.io/ubuntu
-     *    localhost:5000/blarg
-     *    http://localhost:5000/blarg:latest
-     *    alpine@sha256:fb9f16730ac6316afa4d97caa5130219927bfcecf0b0...
-     */
+    // ex: node@sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36
+    if (!(await this.checkDockerImage(image))) {
+      // send a 500 with the error message
+      throw new Error(`Unable to validate docker image: ${image}`)
+    }
 
     const job: DBComputeJob = {
       clusterHash: this.getC2DConfig().hash,
