@@ -38,7 +38,7 @@ import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { Service } from '../../@types/DDO/Service.js'
 import { decryptFilesObject } from './index.js'
-// import { UrlFileObject } from '../../@types/fileObject.js'
+import * as drc from 'docker-registry-client'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
@@ -164,6 +164,56 @@ export class C2DEngineDocker extends C2DEngine {
       image = image + ':' + algorithm.meta.container.tag
     else image = image + ':latest'
     console.log('Using image: ' + image)
+
+    // Using image: node@sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36
+    // const REPO = 'alpine'
+    // TODO
+    const info = drc.default.parseRepoAndRef(image)
+    console.log('#### info: ', info)
+    /**
+     * info:  {
+        index: { name: 'docker.io', official: true },
+        official: true,
+        remoteName: 'library/node',
+        localName: 'node',
+        canonicalName: 'docker.io/node',
+        digest: 'sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36'
+      }
+     */
+    // const client = drc.createClient(
+    //   { name: info.index.name },
+    //   (some: any, theClient: any) => {
+    //     const tagOrDigest = info.tag || info.digest
+    //     console.log('# tagOrDigest: ', tagOrDigest)
+    //     theClient.getManifest(
+    //       { ref: tagOrDigest },
+    //       function (err: any, manifest: any, res: { headers: any }, manifestStr: any) {
+    //         theClient.close()
+    //         // body: { code: 'NotFoundError', message: '' },
+    //         if (err) {
+    //           console.log('error: ', err)
+    //         }
+    //         console.error('# response headers')
+    //         console.error(JSON.stringify(res.headers, null, 4))
+    //         console.error('# manifest')
+    //         console.log(manifestStr)
+    //       }
+    //     )
+    //   }
+    // )
+
+    /**
+     * Parse a docker repo and tag/digest string: [INDEX/]REPO[:TAG|@DIGEST]
+     *
+     * Examples:
+     *    busybox
+     *    busybox:latest
+     *    google/python:3.3
+     *    docker.io/ubuntu
+     *    localhost:5000/blarg
+     *    http://localhost:5000/blarg:latest
+     *    alpine@sha256:fb9f16730ac6316afa4d97caa5130219927bfcecf0b0...
+     */
 
     const job: DBComputeJob = {
       clusterHash: this.getC2DConfig().hash,
@@ -370,10 +420,20 @@ export class C2DEngineDocker extends C2DEngine {
       try {
         const pullStream = await this.docker.pull(job.containerImage)
         await new Promise((resolve, reject) => {
-          this.docker.modem.followProgress(pullStream, (err, res) => {
-            if (err) return reject(err)
-            resolve(res)
-          })
+          this.docker.modem.followProgress(
+            pullStream,
+            (err, res) => {
+              // onFinished
+              if (err) return reject(err)
+              CORE_LOGGER.info('############# Pull docker image complete ##############')
+              resolve(res)
+            },
+            (progress) => {
+              // onProgress
+              CORE_LOGGER.info('############# Pull docker image status: ##############')
+              CORE_LOGGER.info(progress.status)
+            }
+          )
         })
       } catch (err) {
         CORE_LOGGER.error(
@@ -393,14 +453,14 @@ export class C2DEngineDocker extends C2DEngine {
         const imageInfo = await this.docker.getImage(job.containerImage)
         console.log('imageInfo', imageInfo)
         const details = await imageInfo.inspect()
-        console.log(details)
+        console.log('details:', details)
         job.status = C2DStatusNumber.ConfiguringVolumes
         job.statusText = C2DStatusText.ConfiguringVolumes
         await this.db.updateJob(job)
         // now we can move forward
       } catch (e) {
         // not ready yet
-        // console.log(e)
+        console.log('ERROR: Unable to inspect', e.message)
       }
       return
     }
@@ -454,7 +514,7 @@ export class C2DEngineDocker extends C2DEngine {
 
       try {
         const container = await this.docker.createContainer(containerInfo)
-        console.log(container)
+        console.log('container: ', container)
         job.status = C2DStatusNumber.Provisioning
         job.statusText = C2DStatusText.Provisioning
         await this.db.updateJob(job)
@@ -840,12 +900,20 @@ export class C2DEngineDocker extends C2DEngine {
   }
 
   // clean up temporary files
-  public override async cleanupExpiredStorage(job: DBComputeJob): Promise<boolean> {
+  public override async cleanupExpiredStorage(
+    job: DBComputeJob,
+    isCleanAfterDownload: boolean = false
+  ): Promise<boolean> {
     if (!job) return false
     CORE_LOGGER.info('Cleaning up C2D storage for Job: ' + job.jobId)
     try {
       // delete the storage
-      await this.cleanupJob(job)
+      // for free env, the container is deleted as soon as we download the results
+      // so we avoid trying to do it again
+      if (!isCleanAfterDownload) {
+        await this.cleanupJob(job)
+      }
+
       // delete output folders
       await this.deleteOutputFolder(job)
       // delete the job
@@ -976,7 +1044,7 @@ export class C2DEngineDockerFree extends C2DEngineDocker {
         CORE_LOGGER.info(
           'Cleaning storage for free container, after retrieving results...'
         )
-        this.cleanupExpiredStorage(job) // clean the storage, do not wait for it to expire
+        this.cleanupExpiredStorage(job, true) // clean the storage, do not wait for it to expire
       }, 5000)
     }
     return result
