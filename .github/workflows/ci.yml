@@ -136,8 +136,6 @@ jobs:
           docker image rm node:20-alpine
           docker image rm node:18
           docker image rm node:18-alpine
-          docker image rm node:16
-          docker image rm node:16-alpine
           docker image rm debian:10
           docker image rm debian:11
           docker image rm ubuntu:22.04
@@ -232,8 +230,6 @@ jobs:
           docker image rm node:20-alpine
           docker image rm node:18
           docker image rm node:18-alpine
-          docker image rm node:16
-          docker image rm node:16-alpine
           docker image rm debian:10
           docker image rm debian:11
           docker image rm ubuntu:22.04
