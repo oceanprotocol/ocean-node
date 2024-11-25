@@ -32,7 +32,7 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { Readable } from 'stream'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
-import { getEventFromTx, sleep, streamToObject } from '../../utils/util.js'
+import { getEventFromTx, streamToObject } from '../../utils/util.js'
 import {
   Contract,
   ethers,
@@ -729,20 +729,18 @@ describe('Compute', () => {
     console.log(jobs)
   })
 
-  // TODO this might change once we check images, architectures, etc
-  it('should delete the Free job due to bad container image (directCommand payload)', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+  it('should deny the Free job due to bad container image (directCommand payload)', async function () {
     const command: FreeComputeStartCommand = freeComputeStartPayload
     const handler = new FreeComputeStartHandler(oceanNode)
     const response = await handler.handle(command)
-    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
-    assert(response.stream, 'Failed to get stream')
-    const jobs = await streamToObject(response.stream as Readable)
-    console.log('jobs: ', jobs)
-    assert(jobs, 'Failed to get compute job')
-    sleep(DEFAULT_TEST_TIMEOUT / 2)
-    const { c2d } = oceanNode.getDatabase()
-    expect((await c2d.getJob(jobs[0].jobId)) === null, ' job should have been deleted')
+    assert(response.status.httpStatus === 500, 'Failed to get 500 response')
+    assert(response.stream === null, 'Should not get stream')
+    assert(
+      response.status.error.includes(
+        freeComputeStartPayload.algorithm.meta.container.image
+      ),
+      'Should have image error'
+    )
   })
 
   it('should checkC2DEnvExists', async () => {
