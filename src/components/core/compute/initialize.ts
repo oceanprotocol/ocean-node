@@ -1,5 +1,6 @@
 import { Readable } from 'stream'
-import { C2DClusterType, P2PCommandResponse } from '../../../@types/index.js'
+import { P2PCommandResponse } from '../../../@types/OceanNode.js'
+import { C2DClusterType } from '../../../@types/C2D/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
 import { ComputeInitializeCommand } from '../../../@types/commands.js'
