@@ -88,7 +88,7 @@ describe('URL Storage tests', () => {
       error = err
     }
     expect(error.message).to.eql(
-      'Error validationg the URL file: URL or method are missing'
+      'Error validating the URL file: URL or method are missing'
     )
     file = {
       type: 'url',
@@ -106,7 +106,7 @@ describe('URL Storage tests', () => {
       error = err
     }
     expect(error.message).to.eql(
-      'Error validationg the URL file: URL or method are missing'
+      'Error validating the URL file: URL or method are missing'
     )
   })
   it('URL validation fails on invalid method', () => {
@@ -126,7 +126,7 @@ describe('URL Storage tests', () => {
     } catch (err) {
       error = err
     }
-    expect(error.message).to.eql('Error validationg the URL file: Invalid method for URL')
+    expect(error.message).to.eql('Error validating the URL file: Invalid method for URL')
   })
 
   it('URL validation fails on filename', () => {
@@ -147,7 +147,7 @@ describe('URL Storage tests', () => {
       error = err
     }
     expect(error.message).to.eql(
-      'Error validationg the URL file: URL looks like a file path'
+      'Error validating the URL file: URL looks like a file path'
     )
   })
   it('Gets download URL', () => {
@@ -205,9 +205,7 @@ describe('Unsafe URL tests', () => {
     } catch (err) {
       error = err
     }
-    expect(error.message).to.eql(
-      'Error validationg the URL file: URL is marked as unsafe'
-    )
+    expect(error.message).to.eql('Error validating the URL file: URL is marked as unsafe')
   })
   it('Should allow safe URL', () => {
     file = {
@@ -254,7 +252,7 @@ describe('IPFS Storage tests', () => {
     } catch (err) {
       error = err
     }
-    expect(error.message).to.eql('Error validationg the IPFS file: Missing CID')
+    expect(error.message).to.eql('Error validating the IPFS file: Missing CID')
   })
 
   after(() => {
@@ -296,7 +294,7 @@ describe('Arweave Storage tests', () => {
       error = err
     }
     expect(error.message).to.eql(
-      'Error validationg the Arweave file: Missing transaction ID'
+      'Error validating the Arweave file: Missing transaction ID'
     )
   })
 
@@ -376,7 +374,7 @@ describe('URL Storage with malformed URL', () => {
       error = err
     }
     expect(error.message).to.equal(
-      'Error validationg the URL file: URL looks like a file path'
+      'Error validating the URL file: URL looks like a file path'
     )
   })
 })
@@ -442,7 +440,7 @@ describe('Arweave Storage with malformed transaction ID', () => {
       error = err
     }
     expect(error.message).to.equal(
-      'Error validationg the Arweave file: Transaction ID looks like an URL. Please specify URL storage instead.'
+      'Error validating the Arweave file: Transaction ID looks like an URL. Please specify URL storage instead.'
     )
   })
 
@@ -460,7 +458,7 @@ describe('Arweave Storage with malformed transaction ID', () => {
       error = err
     }
     expect(error.message).to.equal(
-      'Error validationg the Arweave file: Transaction ID looks like a file path'
+      'Error validating the Arweave file: Transaction ID looks like a file path'
     )
   })
 })
@@ -485,7 +483,7 @@ describe('Arweave Storage with malformed transaction ID', () => {
       error = err
     }
     expect(error.message).to.equal(
-      'Error validationg the IPFS file: CID looks like an URL. Please specify URL storage instead.'
+      'Error validating the IPFS file: CID looks like an URL. Please specify URL storage instead.'
     )
   })
 
@@ -503,7 +501,7 @@ describe('Arweave Storage with malformed transaction ID', () => {
       error = err
     }
     expect(error.message).to.equal(
-      'Error validationg the IPFS file: CID looks like a file path'
+      'Error validating the IPFS file: CID looks like a file path'
     )
   })
 })
