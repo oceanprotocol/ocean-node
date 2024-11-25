@@ -192,7 +192,7 @@ export class C2DEngineDocker extends C2DEngine {
     // TO DO C2D - Check image, check arhitecture, etc
     const image = getAlgorithmImage(algorithm)
     // ex: node@sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36
-    if (!(await C2DEngineDocker.checkDockerImage(image))) {
+    if (!image || !(await C2DEngineDocker.checkDockerImage(image))) {
       // send a 500 with the error message
       throw new Error(`Unable to validate docker image: ${image}`)
     }
@@ -1034,6 +1034,9 @@ export class C2DEngineDockerFree extends C2DEngineDocker {
 }
 
 export function getAlgorithmImage(algorithm: ComputeAlgorithm): string {
+  if (!algorithm.meta || !algorithm.meta.container) {
+    return null
+  }
   let { image } = algorithm.meta.container
   if (algorithm.meta.container.checksum)
     image = image + '@' + algorithm.meta.container.checksum
