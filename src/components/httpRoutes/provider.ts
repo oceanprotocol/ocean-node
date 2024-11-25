@@ -152,7 +152,8 @@ providerRoutes.get(`${SERVICES_API_BASE_PATH}/initialize`, async (req, res) => {
       ddoId: (req.query.documentId as string) || null,
       serviceId: (req.query.serviceId as string) || null,
       consumerAddress: (req.query.consumerAddress as string) || null,
-      validUntil: parseInt(req.query.validUntil as string) || null
+      validUntil: parseInt(req.query.validUntil as string) || null,
+      policyServer: req.query.policyServer || null
     })
     if (result.stream) {
       const initializeREsponse = await streamToObject(result.stream as Readable)
@@ -218,10 +219,12 @@ providerRoutes.get(
         nonce: nonce as string,
         consumerAddress: consumerAddress as string,
         signature: signature as string,
-        command: PROTOCOL_COMMANDS.DOWNLOAD
+        command: PROTOCOL_COMMANDS.DOWNLOAD,
+        policyServer: req.query.policyServer || null
       }
 
       const response = await new DownloadHandler(req.oceanNode).handle(downloadTask)
+
       if (response.stream) {
         res.status(response.status.httpStatus)
         res.set(response.status.headers)

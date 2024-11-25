@@ -2,10 +2,13 @@ import { Stream } from 'stream'
 import { RPCS } from './blockchain'
 import { C2DClusterInfo } from './C2D'
 import { FeeStrategy } from './Fees'
-import { Schema } from '../components/database/schemas'
+import { Schema } from '../components/database'
 
 export interface OceanNodeDBConfig {
   url: string | null
+  username?: string
+  password?: string
+  dbType: string | null
 }
 
 // deny list of peer ids and ips (for rate limiting purposes)
@@ -23,6 +26,10 @@ export interface OceanNodeKeys {
 
 export interface OceanNodeP2PConfig {
   bootstrapNodes: string[]
+  bootstrapTimeout: number
+  bootstrapTagName: string
+  bootstrapTagValue: number
+  bootstrapTTL: number
   enableIPV4: boolean
   enableIPV6: boolean
   ipV4BindAddress: string | null
@@ -54,6 +61,15 @@ export interface OceanNodeP2PConfig {
   autoDialInterval: number
 }
 
+export interface OceanNodeDockerConfig {
+  socketPath?: string
+  protocol?: string
+  host?: string
+  port?: number
+  caPath?: string
+  certPath?: string
+  keyPath?: string
+}
 export interface OceanNodeConfig {
   authorizedDecrypters: string[]
   allowedValidators: string[]
@@ -70,6 +86,7 @@ export interface OceanNodeConfig {
   indexingNetworks?: RPCS
   c2dClusters: C2DClusterInfo[]
   c2dNodeUri: string
+  dockerConfig?: OceanNodeDockerConfig
   accountPurgatoryUrl: string
   assetPurgatoryUrl: string
   allowedAdmins?: string[]

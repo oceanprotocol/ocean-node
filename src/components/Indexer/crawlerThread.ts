@@ -34,34 +34,50 @@ interface ThreadData {
 
 const { rpcDetails } = workerData as ThreadData
 
-export async function updateLastIndexedBlockNumber(block: number): Promise<number> {
+export async function updateLastIndexedBlockNumber(
+  block: number,
+  lastKnownBlock?: number
+): Promise<number> {
   try {
+    if (isDefined(lastKnownBlock) && lastKnownBlock > block) {
+      INDEXER_LOGGER.error(
+        'Newest block number is lower than last known block, something is wrong'
+      )
+      return -1
+    }
     const { indexer } = await getDatabase()
     const updatedIndex = await indexer.update(rpcDetails.chainId, block)
-    INDEXER_LOGGER.logMessage(
-      `New last indexed block : ${updatedIndex.lastIndexedBlock}`,
-      true
-    )
-    return updatedIndex.lastIndexedBlock
+    if (updatedIndex) {
+      INDEXER_LOGGER.logMessage(
+        `New last indexed block : ${updatedIndex.lastIndexedBlock}`,
+        true
+      )
+      return updatedIndex.lastIndexedBlock
+    } else {
+      INDEXER_LOGGER.error('Unable to update last indexed block to ' + block)
+    }
   } catch (err) {
     INDEXER_LOGGER.log(
       LOG_LEVELS_STR.LEVEL_ERROR,
       `Error updating last indexed block ${err.message}`,
       true
     )
-    return -1
   }
+  return -1
 }
 
 async function getLastIndexedBlock(): Promise<number> {
   const { indexer } = await getDatabase()
   try {
     const networkDetails = await indexer.retrieve(rpcDetails.chainId)
-    return networkDetails?.lastIndexedBlock
+    if (networkDetails && networkDetails.lastIndexedBlock) {
+      return networkDetails.lastIndexedBlock
+    }
+    INDEXER_LOGGER.error('Unable to get last indexed block from DB')
   } catch (err) {
     INDEXER_LOGGER.error(`Error retrieving last indexed block: ${err}`)
-    return null
   }
+  return null
 }
 
 async function deleteAllAssetsFromChain(): Promise<number> {
@@ -104,6 +120,10 @@ export async function processNetworkData(
       ? rpcDetails.startBlock
       : contractDeploymentBlock
 
+  INDEXER_LOGGER.info(
+    `Initial details: RPCS start block: ${rpcDetails.startBlock}, Contract deployment block: ${contractDeploymentBlock}, Crawling start block: ${crawlingStartBlock}`
+  )
+
   // we can override the default value of 30 secs, by setting process.env.INDEXER_INTERVAL
   const interval = getCrawlingInterval()
   let { chunkSize } = rpcDetails
@@ -120,9 +140,8 @@ export async function processNetworkData(
           ? lastIndexedBlock
           : crawlingStartBlock
 
-      INDEXER_LOGGER.logMessage(
-        `network: ${rpcDetails.network} Start block ${startBlock} network height ${networkHeight}`,
-        true
+      INDEXER_LOGGER.info(
+        `Indexing network '${rpcDetails.network}', Last indexed block: ${lastIndexedBlock}, Start block: ${startBlock}, Network height: ${networkHeight}`
       )
       if (networkHeight > startBlock) {
         // emit an one shot event when we actually start the crawling process
@@ -168,7 +187,10 @@ export async function processNetworkData(
             startBlock,
             blocksToProcess
           )
-          currentBlock = await updateLastIndexedBlockNumber(processedBlocks.lastBlock)
+          currentBlock = await updateLastIndexedBlockNumber(
+            processedBlocks.lastBlock,
+            lastIndexedBlock
+          )
           // we can't just update currentBlock to processedBlocks.lastBlock if the DB action failed
           if (currentBlock < 0 && lastIndexedBlock !== null) {
             currentBlock = lastIndexedBlock
@@ -181,7 +203,10 @@ export async function processNetworkData(
             `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `,
             true
           )
-          await updateLastIndexedBlockNumber(startBlock + blocksToProcess)
+          await updateLastIndexedBlockNumber(
+            startBlock + blocksToProcess,
+            lastIndexedBlock
+          )
         }
       }
       await processReindex(provider, signer, rpcDetails.chainId)
@@ -195,8 +220,9 @@ export async function processNetworkData(
     await sleep(interval)
     // reindex chain command called
     if (REINDEX_BLOCK && !lockProccessing) {
+      const networkHeight = await getNetworkHeight(provider)
       // either "true" for success or "false" otherwise
-      const result = await reindexChain(currentBlock)
+      const result = await reindexChain(currentBlock, networkHeight)
       // get all reindex commands
       // TODO (check that we do not receive multiple commands for same reindex before previous finishes)
       parentPort.postMessage({
@@ -213,7 +239,18 @@ export async function processNetworkData(
   }
 }
 
-async function reindexChain(currentBlock: number): Promise<boolean> {
+async function reindexChain(
+  currentBlock: number,
+  networkHeight: number
+): Promise<boolean> {
+  if (REINDEX_BLOCK > networkHeight) {
+    INDEXER_LOGGER.error(
+      `Invalid reindex block! ${REINDEX_BLOCK} is bigger than network height: ${networkHeight}. Continue indexing normally...`
+    )
+    REINDEX_BLOCK = null
+    return false
+  }
+  // for reindex command we don't care about last known/saved block
   const block = await updateLastIndexedBlockNumber(REINDEX_BLOCK)
   if (block !== -1) {
     REINDEX_BLOCK = null
@@ -285,49 +322,6 @@ export function checkNewlyIndexedAssets(events: BlocksEvents): void {
   })
 }
 
-async function retryCrawlerWithDelay(
-  blockchain: Blockchain,
-  interval: number = 5000 // in milliseconds, default 5 secs
-): Promise<boolean> {
-  try {
-    const retryInterval = Math.max(blockchain.getKnownRPCs().length * 3000, interval) // give 2 secs per each one
-    // try
-    const result = await startCrawler(blockchain)
-    if (result) {
-      INDEXER_LOGGER.info('Blockchain connection succeffully established!')
-      processNetworkData(blockchain.getProvider(), blockchain.getSigner())
-      return true
-    } else {
-      INDEXER_LOGGER.warn(
-        `Blockchain connection is not established, retrying again in ${
-          retryInterval / 1000
-        } secs....`
-      )
-      // delay the next call
-      await sleep(retryInterval)
-      // recursively call the same func
-      return retryCrawlerWithDelay(blockchain, retryInterval)
-    }
-  } catch (err) {
-    INDEXER_LOGGER.error(`Error starting crawler: ${err.message}`)
-    return false
-  }
-}
-
-// it does not start crawling until the network connectin is ready
-async function startCrawler(blockchain: Blockchain): Promise<boolean> {
-  if ((await blockchain.isNetworkReady()).ready) {
-    return true
-  } else {
-    // try other RPCS if any available (otherwise will just retry the same RPC)
-    const connectionStatus = await blockchain.tryFallbackRPCs()
-    if (connectionStatus.ready || (await blockchain.isNetworkReady()).ready) {
-      return true
-    }
-  }
-  return false
-}
-
 parentPort.on('message', (message) => {
   if (message.method === INDEXER_MESSAGES.START_CRAWLING) {
     // start indexing the chain
@@ -337,18 +331,32 @@ parentPort.on('message', (message) => {
       rpcDetails.chainId,
       rpcDetails.fallbackRPCs
     )
-    return retryCrawlerWithDelay(blockchain)
+    // return retryCrawlerWithDelay(blockchain)
+    processNetworkData(blockchain.getProvider(), blockchain.getSigner())
   } else if (message.method === INDEXER_MESSAGES.REINDEX_TX) {
     // reindex a specific transaction
 
     REINDEX_QUEUE.push(message.data.reindexTask)
   } else if (message.method === INDEXER_MESSAGES.REINDEX_CHAIN) {
     // reindex a specific chain
+
+    // get the deploy block number
     const deployBlock = getDeployedContractBlock(rpcDetails.chainId)
-    REINDEX_BLOCK =
+    // first option
+    let possibleBlock =
       rpcDetails.startBlock && rpcDetails.startBlock >= deployBlock
         ? rpcDetails.startBlock
         : deployBlock
+
+    // do we have a specific block number?
+    const { block } = message.data
+    if (block && !isNaN(block)) {
+      // we still need to check network height
+      if (block > deployBlock) {
+        possibleBlock = block
+      }
+    }
+    REINDEX_BLOCK = possibleBlock
   } else if (message.method === INDEXER_MESSAGES.STOP_CRAWLING) {
     // stop indexing the chain
     stoppedCrawling = true

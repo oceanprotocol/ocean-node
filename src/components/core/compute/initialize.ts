@@ -4,11 +4,16 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
 import { ComputeInitializeCommand } from '../../../@types/commands.js'
 import { ProviderComputeInitializeResults } from '../../../@types/Fees.js'
-import { AssetUtils } from '../../../utils/asset.js'
+import {
+  AssetUtils,
+  getFilesObjectFromConfidentialEVM,
+  isConfidentialChainDDO,
+  isDataTokenTemplate4,
+  isERC20Template4Active
+} from '../../../utils/asset.js'
 import { verifyProviderFees, createProviderFee } from '../utils/feesHandler.js'
 import { Blockchain } from '../../../utils/blockchain.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
-import { getExactComputeEnv } from './utils.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import { decrypt } from '../../../utils/crypt.js'
 import {
@@ -104,28 +109,7 @@ export class ComputeInitializeHandler extends Handler {
               }
             }
           }
-          // let's see if we can access this asset
-          let canDecrypt = false
-          try {
-            await decrypt(
-              Uint8Array.from(Buffer.from(sanitizeServiceFiles(service.files), 'hex')),
-              EncryptMethod.ECIES
-            )
-            canDecrypt = true
-          } catch (e) {
-            // do nothing
-            CORE_LOGGER.error(`could not decrypt ddo files:  ${e.message} `)
-          }
-          if (service.type === 'compute' && !canDecrypt) {
-            const error = `Service ${elem.serviceId} from DDO ${elem.documentId} cannot be used in compute on this provider`
-            return {
-              stream: null,
-              status: {
-                httpStatus: 500,
-                error
-              }
-            }
-          }
+
           const config = await getConfiguration()
           const { rpc, network, chainId, fallbackRPCs } =
             config.supportedNetworks[ddo.chainId]
@@ -140,6 +124,57 @@ export class ComputeInitializeHandler extends Handler {
               }
             }
           }
+
+          const signer = blockchain.getSigner()
+
+          // check if oasis evm or similar
+          const confidentialEVM = isConfidentialChainDDO(ddo.chainId, service)
+          // let's see if we can access this asset
+          let canDecrypt = false
+          try {
+            if (!confidentialEVM) {
+              await decrypt(
+                Uint8Array.from(Buffer.from(sanitizeServiceFiles(service.files), 'hex')),
+                EncryptMethod.ECIES
+              )
+              canDecrypt = true
+            } else {
+              // TODO 'Initialize compute on confidential EVM!
+              const isTemplate4 = await isDataTokenTemplate4(
+                service.datatokenAddress,
+                signer
+              )
+              if (isTemplate4 && (await isERC20Template4Active(ddo.chainId, signer))) {
+                // call smart contract to decrypt
+                const serviceIndex = AssetUtils.getServiceIndexById(ddo, service.id)
+                const filesObject = await getFilesObjectFromConfidentialEVM(
+                  serviceIndex,
+                  service.datatokenAddress,
+                  signer,
+                  task.consumerAddress,
+                  null, // TODO, we will need to have a signature verification
+                  ddo.id
+                )
+                if (filesObject !== null) {
+                  canDecrypt = true
+                }
+              }
+            }
+          } catch (e) {
+            // do nothing
+            CORE_LOGGER.error(`Could not decrypt ddo files:  ${e.message} `)
+          }
+          if (service.type === 'compute' && !canDecrypt) {
+            const error = `Service ${elem.serviceId} from DDO ${elem.documentId} cannot be used in compute on this provider`
+            return {
+              stream: null,
+              status: {
+                httpStatus: 500,
+                error
+              }
+            }
+          }
+
           const provider = blockchain.getProvider()
           result.datatoken = service.datatokenAddress
           result.chainId = ddo.chainId
@@ -149,7 +184,9 @@ export class ComputeInitializeHandler extends Handler {
             isComputeValid: false,
             message: false
           }
-          const env = await getExactComputeEnv(task.compute.env, ddo.chainId)
+          const env = await this.getOceanNode()
+            .getC2DEngines()
+            .getExactComputeEnv(task.compute.env, ddo.chainId)
           if (!env) {
             const error = `Compute environment: ${task.compute.env} not available on chainId: ${ddo.chainId}`
             return {

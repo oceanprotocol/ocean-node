@@ -1,11 +1,9 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
-import { C2DClusterInfo, ComputeJob } from '../../../@types/C2D.js'
+import { ComputeJob } from '../../../@types/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
 import { ComputeGetStatusCommand } from '../../../@types/commands.js'
-import { getConfiguration } from '../../../utils/config.js'
-import { C2DEngine } from '../../c2d/compute_engines.js'
 import {
   ValidateParams,
   buildInvalidRequestMessage,
@@ -40,19 +38,20 @@ export class ComputeGetStatusHandler extends Handler {
       // two scenarios here:
       // 1. if we have a jobId, then we know what C2D Cluster to query
       // 2. if not, we query all clusters using owner and/or did
-      let allC2dClusters: C2DClusterInfo[] = (await getConfiguration()).c2dClusters
       let jobId = null
+      let engines
       if (task.jobId) {
         // split jobId (which is already in hash-jobId format) and get the hash
         // then get jobId which might contain dashes as well
         const index = task.jobId.indexOf('-')
         const hash = task.jobId.slice(0, index)
-        allC2dClusters = allC2dClusters.filter((arr) => arr.hash === hash)
+        engines = [await this.getOceanNode().getC2DEngines().getC2DByHash(hash)]
         jobId = task.jobId.slice(index + 1)
+      } else {
+        engines = await this.getOceanNode().getC2DEngines().getAllEngines()
       }
 
-      for (const cluster of allC2dClusters) {
-        const engine = await C2DEngine.getC2DByHash(cluster.hash)
+      for (const engine of engines) {
         const jobs = await engine.getComputeJobStatus(
           task.consumerAddress,
           task.agreementId,
