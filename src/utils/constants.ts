@@ -27,7 +27,8 @@ export const PROTOCOL_COMMANDS = {
   REINDEX_TX: 'reindexTx',
   REINDEX_CHAIN: 'reindexChain',
   HANDLE_INDEXING_THREAD: 'handleIndexingThread',
-  COLLECT_FEES: 'collectFees'
+  COLLECT_FEES: 'collectFees',
+  POLICY_SERVER_PASSTHROUGH: 'PolicyServerPassthrough'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -55,7 +56,8 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.REINDEX_TX,
   PROTOCOL_COMMANDS.REINDEX_CHAIN,
   PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
-  PROTOCOL_COMMANDS.COLLECT_FEES
+  PROTOCOL_COMMANDS.COLLECT_FEES,
+  PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH
 ]
 
 export const MetadataStates = {
@@ -138,6 +140,11 @@ export interface EnvVariable {
   name: string
   value: any
   required: boolean
+}
+
+export const DB_TYPES = {
+  ELASTIC_SEARCH: 'elasticsearch',
+  TYPESENSE: 'typesense'
 }
 
 // usefull to keep track of what all the env variables we are using
@@ -304,6 +311,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   UNSAFE_URLS: {
     name: 'UNSAFE_URLS',
     value: process.env.UNSAFE_URLS,
+    required: false
+  },
+  DB_TYPE: {
+    name: 'DB_TYPE',
+    value: process.env.DB_TYPE,
     required: false
   }
 }

@@ -58,3 +58,8 @@ export function getOceanArtifactsAdressesByChainId(chain: number): any {
 // default token addresses per chain
 export const OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN = addresses
 export const DEVELOPMENT_CHAIN_ID = 8996
+
+export const KNOWN_CONFIDENTIAL_EVMS = [
+  23294, // mainnet oasis_sapphire,
+  23295 // oasis_sapphire_testnet
+]

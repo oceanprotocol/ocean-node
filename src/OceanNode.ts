@@ -10,12 +10,14 @@ import StreamConcat from 'stream-concat'
 import { pipe } from 'it-pipe'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import { Handler } from './components/core/handler/handler.js'
-
+import { C2DEngines } from './components/c2d/compute_engines.js'
 export class OceanNode {
   // eslint-disable-next-line no-use-before-define
   private static instance: OceanNode
   // handlers
   private coreHandlers: CoreHandlersRegistry
+  // compute engines
+  private c2dEngines: C2DEngines
   // requester
   private remoteCaller: string | string[]
   // eslint-disable-next-line no-useless-constructor
@@ -36,10 +38,10 @@ export class OceanNode {
     db?: Database,
     node?: OceanP2P,
     provider?: OceanProvider,
-    indexer?: OceanIndexer,
-    config?: OceanNodeConfig
+    indexer?: OceanIndexer
   ): OceanNode {
     if (!OceanNode.instance) {
+      // prepare compute engines
       this.instance = new OceanNode(db, node, provider, indexer)
     }
     return this.instance
@@ -52,6 +54,13 @@ export class OceanNode {
 
   public addIndexer(_indexer: OceanIndexer) {
     this.indexer = _indexer
+  }
+
+  public async addC2DEngines(_config: OceanNodeConfig) {
+    if (this.c2dEngines) {
+      await this.c2dEngines.stopAllEngines()
+    }
+    if (_config && _config.c2dClusters) this.c2dEngines = new C2DEngines(_config)
   }
 
   public getP2PNode(): OceanP2P | undefined {
@@ -68,6 +77,10 @@ export class OceanNode {
 
   public getDatabase(): Database {
     return this.db
+  }
+
+  public getC2DEngines(): C2DEngines {
+    return this.c2dEngines
   }
 
   public getCoreHandlers(): CoreHandlersRegistry {
