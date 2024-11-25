@@ -1,5 +1,5 @@
 import { Readable } from 'stream'
-import { P2PCommandResponse } from '../../../@types/index.js'
+import { C2DClusterType, P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
 import { ComputeInitializeCommand } from '../../../@types/commands.js'
@@ -27,6 +27,7 @@ import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
+import { C2DEngineDocker, getAlgorithmImage } from '../../c2d/compute_engine_docker.js'
 export class ComputeInitializeHandler extends Handler {
   validate(command: ComputeInitializeCommand): ValidateParams {
     const validation = validateCommandParameters(command, [
@@ -123,6 +124,28 @@ export class ComputeInitializeHandler extends Handler {
               status: {
                 httpStatus: 400,
                 error: `Initialize Compute: ${error}`
+              }
+            }
+          }
+
+          // docker images?
+          const clusters = config.c2dClusters
+          let hasDockerImages = false
+          for (const cluster of clusters) {
+            if (cluster.type === C2DClusterType.DOCKER) {
+              hasDockerImages = true
+              break
+            }
+          }
+          if (hasDockerImages) {
+            const algoImage = getAlgorithmImage(task.algorithm)
+            if (!(await C2DEngineDocker.checkDockerImage(algoImage))) {
+              return {
+                stream: null,
+                status: {
+                  httpStatus: 404,
+                  error: `Initialize Compute failed: Invalid image ${algoImage}`
+                }
               }
             }
           }
