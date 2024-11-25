@@ -189,7 +189,7 @@ export class UrlStorage extends Storage {
     super(file, config)
     const [isValid, message] = this.validate()
     if (isValid === false) {
-      throw new Error(`Error validationg the URL file: ${message}`)
+      throw new Error(`Error validating the URL file: ${message}`)
     }
   }
 
@@ -276,7 +276,7 @@ export class ArweaveStorage extends Storage {
 
     const [isValid, message] = this.validate()
     if (isValid === false) {
-      throw new Error(`Error validationg the Arweave file: ${message}`)
+      throw new Error(`Error validating the Arweave file: ${message}`)
     }
   }
 
@@ -354,7 +354,7 @@ export class IpfsStorage extends Storage {
 
     const [isValid, message] = this.validate()
     if (isValid === false) {
-      throw new Error(`Error validationg the IPFS file: ${message}`)
+      throw new Error(`Error validating the IPFS file: ${message}`)
     }
   }
 
