@@ -140,7 +140,7 @@ export class ComputeInitializeHandler extends Handler {
           }
           if (hasDockerImages) {
             const algoImage = getAlgorithmImage(task.algorithm)
-            if (!(await C2DEngineDocker.checkDockerImage(algoImage))) {
+            if (algoImage && !(await C2DEngineDocker.checkDockerImage(algoImage))) {
               return {
                 stream: null,
                 status: {
