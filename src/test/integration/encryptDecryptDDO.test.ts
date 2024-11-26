@@ -33,7 +33,8 @@ import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,
   setupEnvironment,
-  tearDownEnvironment
+  tearDownEnvironment,
+  TEST_ENV_CONFIG_FILE
 } from '../utils/utils.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
@@ -55,7 +56,7 @@ describe('Should encrypt and decrypt DDO', () => {
   let encryptedMetaData: any
   let documentHash: any
   let indexer: OceanIndexer
-  const nonce = Date.now().toString()
+  const nonce = Math.floor(Date.now() / 1000).toString()
 
   const chainId = 8996
   const mockSupportedNetworks: RPCS = {
@@ -74,16 +75,14 @@ describe('Should encrypt and decrypt DDO', () => {
     publisherAccount = (await provider.getSigner(0)) as Signer
     publisherAddress = await publisherAccount.getAddress()
     genericAsset = genericDDO
-
     previousConfiguration = await setupEnvironment(
-      null,
+      TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
         [
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.RPCS,
           ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
-          ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
@@ -91,7 +90,6 @@ describe('Should encrypt and decrypt DDO', () => {
           JSON.stringify(mockSupportedNetworks),
           JSON.stringify([8996]),
           JSON.stringify([publisherAddress]),
-          'http://localhost:8108/?apiKey=xyz',
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
@@ -100,16 +98,13 @@ describe('Should encrypt and decrypt DDO', () => {
     if (!artifactsAddresses) {
       artifactsAddresses = getOceanArtifactsAdresses().development
     }
-
     factoryContract = new ethers.Contract(
       artifactsAddresses.ERC721Factory,
       ERC721Factory.abi,
       publisherAccount
     )
-    const dbConfig = {
-      url: 'http://localhost:8108/?apiKey=xyz'
-    }
-    database = await new Database(dbConfig)
+
+    database = await new Database(await (await getConfiguration()).dbConfig)
     oceanNode = OceanNode.getInstance(database)
     // will be used later
     indexer = new OceanIndexer(database, mockSupportedNetworks)
@@ -200,7 +195,6 @@ describe('Should encrypt and decrypt DDO', () => {
       signature: '0x123'
     }
     const response = await new DecryptDdoHandler(oceanNode).handle(decryptDDOTask)
-    console.log('first response:', response)
     expect(response.status.httpStatus).to.equal(400)
     expect(response.status.error).to.equal(`Decrypt DDO: duplicate nonce`)
   })

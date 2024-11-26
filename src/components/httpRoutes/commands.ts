@@ -4,7 +4,7 @@ import { P2PCommandResponse } from '../../@types'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
-import { hasP2PInterface } from './index.js'
+import { hasP2PInterface } from '../../utils/config.js'
 import { validateCommandParameters } from './validateCommands.js'
 
 export const directCommandRoute = express.Router()
@@ -113,8 +113,8 @@ directCommandRoute.post(
       // only if response was not already sent
       if (response.stream == null && !closedResponse) {
         try {
-          res.status(response.status.httpStatus)
-          res.write(response.status.error)
+          res.statusMessage = response.status.error
+          res.status(response.status.httpStatus).send(response.status.error)
           closedResponse = true
           res.end()
         } catch (e) {

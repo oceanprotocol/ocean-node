@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express'
-import { sendMissingP2PResponse, hasP2PInterface } from './index.js'
+import { sendMissingP2PResponse } from './index.js'
+import { hasP2PInterface } from '../../utils/config.js'
 
 export const advertiseDidRoute = express.Router()
 
