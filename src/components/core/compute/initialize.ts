@@ -140,12 +140,16 @@ export class ComputeInitializeHandler extends Handler {
           }
           if (hasDockerImages) {
             const algoImage = getAlgorithmImage(task.algorithm)
-            if (algoImage && !(await C2DEngineDocker.checkDockerImage(algoImage))) {
-              return {
-                stream: null,
-                status: {
-                  httpStatus: 404,
-                  error: `Initialize Compute failed: Invalid image ${algoImage}`
+            if (algoImage) {
+              const validation: ValidateParams =
+                await C2DEngineDocker.checkDockerImage(algoImage)
+              if (!validation.valid) {
+                return {
+                  stream: null,
+                  status: {
+                    httpStatus: validation.status,
+                    error: `Initialize Compute failed for image ${algoImage} :${validation.reason}`
+                  }
                 }
               }
             }
