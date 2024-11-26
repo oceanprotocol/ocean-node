@@ -418,6 +418,7 @@ export class C2DEngineDocker extends C2DEngine {
       try {
         const pullStream = await this.docker.pull(job.containerImage)
         await new Promise((resolve, reject) => {
+          let wroteStatusBanner = false
           this.docker.modem.followProgress(
             pullStream,
             (err, res) => {
@@ -428,7 +429,11 @@ export class C2DEngineDocker extends C2DEngine {
             },
             (progress) => {
               // onProgress
-              CORE_LOGGER.info('############# Pull docker image status: ##############')
+              if (!wroteStatusBanner) {
+                wroteStatusBanner = true
+                CORE_LOGGER.info('############# Pull docker image status: ##############')
+              }
+              // only write the status banner once, its cleaner
               CORE_LOGGER.info(progress.status)
             }
           )
