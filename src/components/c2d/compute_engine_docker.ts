@@ -39,6 +39,7 @@ import { OceanNode } from '../../OceanNode.js'
 import { Service } from '../../@types/DDO/Service.js'
 import { decryptFilesObject } from './index.js'
 import * as drc from 'docker-registry-client'
+import { ValidateParams } from '../httpRoutes/validateCommands.js'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
@@ -133,7 +134,7 @@ export class C2DEngineDocker extends C2DEngine {
    * @param image name or tag
    * @returns boolean
    */
-  public static async checkDockerImage(image: string): Promise<boolean> {
+  public static async checkDockerImage(image: string): Promise<ValidateParams> {
     try {
       const info = drc.default.parseRepoAndRef(image)
       /**
@@ -170,8 +171,13 @@ export class C2DEngineDocker extends C2DEngine {
       })
     } catch (err) {
       // show all aggregated errors, if present
-      err.errors ? CORE_LOGGER.error(JSON.stringify(err.errors)) : CORE_LOGGER.error(err)
-      return false
+      const aggregated = err.errors && err.errors.length > 0
+      aggregated ? CORE_LOGGER.error(JSON.stringify(err.errors)) : CORE_LOGGER.error(err)
+      return {
+        valid: false,
+        status: 404,
+        reason: aggregated ? JSON.stringify(err.errors) : err.message
+      }
     }
   }
 
@@ -193,10 +199,17 @@ export class C2DEngineDocker extends C2DEngine {
     // TO DO C2D - Check image, check arhitecture, etc
     const image = getAlgorithmImage(algorithm)
     // ex: node@sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36
-    if (!image || !(await C2DEngineDocker.checkDockerImage(image))) {
+    if (!image) {
       // send a 500 with the error message
-      throw new Error(`Unable to validate docker image: ${image}`)
+      throw new Error(
+        `Unable to extract docker image ${image} from algoritm: ${JSON.stringify(
+          algorithm
+        )}`
+      )
     }
+    const validation = await C2DEngineDocker.checkDockerImage(image)
+    if (!validation.valid)
+      throw new Error(`Unable to validate docker image ${image}: ${validation.reason}`)
 
     const job: DBComputeJob = {
       clusterHash: this.getC2DConfig().hash,
