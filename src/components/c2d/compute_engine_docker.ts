@@ -169,7 +169,8 @@ export class C2DEngineDocker extends C2DEngine {
         )
       })
     } catch (err) {
-      CORE_LOGGER.error(err)
+      // show all aggregated errors, if present
+      err.errors ? CORE_LOGGER.error(JSON.stringify(err.errors)) : CORE_LOGGER.error(err)
       return false
     }
   }
