@@ -4,7 +4,6 @@ import {
   AbstractDdoStateDatabase,
   AbstractIndexerDatabase,
   AbstractLogDatabase,
-  AbstractNonceDatabase,
   AbstractOrderDatabase
 } from './BaseDatabase.js'
 import {
@@ -12,7 +11,6 @@ import {
   ElasticsearchDdoStateDatabase,
   ElasticsearchIndexerDatabase,
   ElasticsearchLogDatabase,
-  ElasticsearchNonceDatabase,
   ElasticsearchOrderDatabase
 } from './ElasticSearchDatabase.js'
 import { typesenseSchemas } from './TypesenseSchemas.js'
@@ -21,7 +19,6 @@ import {
   TypesenseDdoStateDatabase,
   TypesenseIndexerDatabase,
   TypesenseLogDatabase,
-  TypesenseNonceDatabase,
   TypesenseOrderDatabase
 } from './TypenseDatabase.js'
 import { elasticSchemas } from './ElasticSchemas.js'
@@ -32,11 +29,11 @@ import { TypesenseMetadataQuery } from './TypesenseMetadataQuery.js'
 import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery.js'
 import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery.js'
 import { DB_TYPES } from '../../utils/index.js'
+import { SQLLiteNonceDatabase } from './SQLLiteNonceDatabase.js'
 
 export class DatabaseFactory {
   private static databaseMap = {
     elasticsearch: {
-      nonce: (config: OceanNodeDBConfig) => new ElasticsearchNonceDatabase(config),
       ddo: (config: OceanNodeDBConfig) =>
         new ElasticsearchDdoDatabase(config, elasticSchemas.ddoSchemas),
       indexer: (config: OceanNodeDBConfig) => new ElasticsearchIndexerDatabase(config),
@@ -48,8 +45,6 @@ export class DatabaseFactory {
       metadataQuery: () => new ElasticSearchMetadataQuery()
     },
     typesense: {
-      nonce: (config: OceanNodeDBConfig) =>
-        new TypesenseNonceDatabase(config, typesenseSchemas.nonceSchemas),
       ddo: (config: OceanNodeDBConfig) =>
         new TypesenseDdoDatabase(config, typesenseSchemas.ddoSchemas),
       indexer: (config: OceanNodeDBConfig) =>
@@ -80,8 +75,10 @@ export class DatabaseFactory {
     return databaseCreator(config) as T
   }
 
-  static createNonceDatabase(config: OceanNodeDBConfig): Promise<AbstractNonceDatabase> {
-    return this.createDatabase('nonce', config)
+  static async createNonceDatabase(
+    config: OceanNodeDBConfig
+  ): Promise<SQLLiteNonceDatabase> {
+    return await new SQLLiteNonceDatabase(config, typesenseSchemas.nonceSchemas)
   }
 
   static createDdoDatabase(config: OceanNodeDBConfig): Promise<AbstractDdoDatabase> {

@@ -224,6 +224,7 @@ providerRoutes.get(
       }
 
       const response = await new DownloadHandler(req.oceanNode).handle(downloadTask)
+
       if (response.stream) {
         res.status(response.status.httpStatus)
         res.set(response.status.headers)

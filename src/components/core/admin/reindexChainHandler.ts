@@ -25,13 +25,11 @@ export class ReindexChainHandler extends AdminHandler {
   async handle(task: AdminReindexChainCommand): Promise<P2PCommandResponse> {
     const validation = this.validate(task)
     if (!validation.valid) {
-      console.log('bad request:', validation)
       return buildInvalidParametersResponse(validation)
     }
     CORE_LOGGER.logMessage(`Reindexing chain command called`)
     const checkChainId = await checkSupportedChainId(task.chainId)
     if (!checkChainId.validation) {
-      console.log('bad request 2:', checkChainId)
       return buildErrorResponse(
         `Chain ID ${task.chainId} is not supported in the node's config`
       )
@@ -42,7 +40,7 @@ export class ReindexChainHandler extends AdminHandler {
         return buildErrorResponse('Node is not running an indexer instance!')
       }
 
-      const job = indexer.resetCrawling(task.chainId)
+      const job = await indexer.resetCrawling(Number(task.chainId), task.block)
       if (job) {
         return {
           status: { httpStatus: 200 },
