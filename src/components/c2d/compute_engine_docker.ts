@@ -157,7 +157,9 @@ export class C2DEngineDocker extends C2DEngine {
           function (err: any, manifest: any) {
             client.close()
             if (manifest) {
-              return resolve(true)
+              return resolve({
+                valid: true
+              })
             }
 
             if (err) {
