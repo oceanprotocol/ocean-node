@@ -304,14 +304,19 @@ export class C2DEngineDocker extends C2DEngine {
     agreementId?: string,
     jobId?: string
   ): Promise<ComputeJob[]> {
-    const job = await this.db.getJob(jobId)
-    if (!job) {
+    const jobs = await this.db.getJob(jobId, agreementId, consumerAddress)
+    if (jobs.length === 0) {
       return []
     }
-    const res: ComputeJob = job as ComputeJob
-    // add results for algoLogs
-    res.results = await this.getResults(job.jobId)
-    return [res]
+    const statusResults = []
+    for (const job of jobs) {
+      const res: ComputeJob = job as ComputeJob
+      // add results for algoLogs
+      res.results = await this.getResults(job.jobId)
+      statusResults.push(res)
+    }
+
+    return statusResults
   }
 
   // eslint-disable-next-line require-await
@@ -320,8 +325,8 @@ export class C2DEngineDocker extends C2DEngine {
     jobId: string,
     index: number
   ): Promise<Readable> {
-    const job = await this.db.getJob(jobId)
-    if (!job || job.owner !== consumerAddress) {
+    const jobs = await this.db.getJob(jobId, null, consumerAddress)
+    if (jobs.length === 0) {
       return null
     }
     const results = await this.getResults(jobId)
@@ -344,10 +349,11 @@ export class C2DEngineDocker extends C2DEngine {
 
   // eslint-disable-next-line require-await
   public override async getStreamableLogs(jobId: string): Promise<NodeJS.ReadableStream> {
-    const job = await this.db.getJob(jobId)
-    if (!job) return null
-    if (!job.isRunning) return null
+    const jobRes: DBComputeJob[] = await this.db.getJob(jobId)
+    if (jobRes.length === 0) return null
+    if (!jobRes[0].isRunning) return null
     try {
+      const job = jobRes[0]
       const container = await this.docker.getContainer(job.jobId + '-algoritm')
       const details = await container.inspect()
       if (details.State.Running === false) return null
@@ -1043,11 +1049,13 @@ export class C2DEngineDockerFree extends C2DEngineDocker {
     const result = await super.getComputeJobResult(consumerAddress, jobId, index)
     if (result !== null) {
       setTimeout(async () => {
-        const job = await this.db.getJob(jobId)
+        const jobs: DBComputeJob[] = await this.db.getJob(jobId)
         CORE_LOGGER.info(
           'Cleaning storage for free container, after retrieving results...'
         )
-        this.cleanupExpiredStorage(job, true) // clean the storage, do not wait for it to expire
+        if (jobs.length === 1) {
+          this.cleanupExpiredStorage(jobs[0], true) // clean the storage, do not wait for it to expire
+        }
       }, 5000)
     }
     return result
