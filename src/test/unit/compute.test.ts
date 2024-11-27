@@ -7,6 +7,7 @@ import {
   ComputeAlgorithm,
   ComputeAsset,
   ComputeEnvironment,
+  ComputeJob,
   DBComputeJob
 } from '../../@types/C2D/C2D.js'
 // import { computeAsset } from '../data/assets'
@@ -24,6 +25,8 @@ import {
 } from '../utils/utils.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { completeDBComputeJob } from '../data/assets.js'
+import { omitDBComputeFieldsFromComputeJob } from '../../components/c2d/index.js'
 
 describe('Compute Jobs Database', () => {
   let envOverrides: OverrideEnvConfig[]
@@ -175,6 +178,31 @@ describe('Compute Jobs Database', () => {
     const expectedArray = ['did:op:1', 'did:op:2', 'did:op:3']
     const str = 'did:op:1' + STRING_SEPARATOR + 'did:op:2' + STRING_SEPARATOR + 'did:op:3'
     expect(convertStringToArray(str)).to.deep.equal(expectedArray)
+  })
+
+  it('should convert DBComputeJob to ComputeJob and omit internal DB data', () => {
+    const source: any = completeDBComputeJob
+    const output: ComputeJob = omitDBComputeFieldsFromComputeJob(source as DBComputeJob)
+
+    expect(Object.prototype.hasOwnProperty.call(output, 'clusterHash')).to.be.equal(false)
+    expect(Object.prototype.hasOwnProperty.call(output, 'configlogURL')).to.be.equal(
+      false
+    )
+    expect(Object.prototype.hasOwnProperty.call(output, 'publishlogURL')).to.be.equal(
+      false
+    )
+    expect(Object.prototype.hasOwnProperty.call(output, 'algologURL')).to.be.equal(false)
+    expect(Object.prototype.hasOwnProperty.call(output, 'outputsURL')).to.be.equal(false)
+    expect(Object.prototype.hasOwnProperty.call(output, 'stopRequested')).to.be.equal(
+      false
+    )
+    expect(Object.prototype.hasOwnProperty.call(output, 'algorithm')).to.be.equal(false)
+    expect(Object.prototype.hasOwnProperty.call(output, 'assets')).to.be.equal(false)
+    expect(Object.prototype.hasOwnProperty.call(output, 'isRunning')).to.be.equal(false)
+    expect(Object.prototype.hasOwnProperty.call(output, 'isStarted')).to.be.equal(false)
+    expect(Object.prototype.hasOwnProperty.call(output, 'containerImage')).to.be.equal(
+      false
+    )
   })
 
   after(async () => {
