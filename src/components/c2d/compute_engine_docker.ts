@@ -38,7 +38,7 @@ import { AssetUtils } from '../../utils/asset.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { Service } from '../../@types/DDO/Service.js'
-import { decryptFilesObject } from './index.js'
+import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.js'
 import * as drc from 'docker-registry-client'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
 
@@ -311,7 +311,7 @@ export class C2DEngineDocker extends C2DEngine {
     }
     const statusResults = []
     for (const job of jobs) {
-      const res: ComputeJob = job as ComputeJob
+      const res: ComputeJob = omitDBComputeFieldsFromComputeJob(job)
       // add results for algoLogs
       res.results = await this.getResults(job.jobId)
       statusResults.push(res)
