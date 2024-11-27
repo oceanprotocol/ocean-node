@@ -95,12 +95,15 @@ describe('Compute Jobs Database', () => {
   })
 
   it('should get job by jobId', async () => {
-    const job = await db.getJob(jobId)
-    assert(job, 'Job should not be null')
+    const jobs = await db.getJob(jobId)
+    assert(jobs.length === 1, 'Could not get any job')
+    assert(jobs[0], 'Job should not be null')
+    assert(jobs[0].jobId === jobId, 'JobId mismatches')
   })
 
   it('should update job', async () => {
-    const job = await db.getJob(jobId)
+    const jobs = await db.getJob(jobId)
+    const job = jobs[0]
     // will update some fields
     job.status = C2DStatusNumber.PullImage
     job.isRunning = true
@@ -109,7 +112,8 @@ describe('Compute Jobs Database', () => {
     // update on DB
     const updates = await db.updateJob(job)
     expect(updates).to.be.equal(1) // updated 1 row
-    const updatedJob = await db.getJob(jobId)
+    const updatedJobs = await db.getJob(jobId)
+    const updatedJob = updatedJobs[0]
     assert(updatedJob, 'Job should not be null')
     expect(updatedJob.status).to.be.equal(C2DStatusNumber.PullImage)
     expect(updatedJob.isRunning).to.be.equal(true)

@@ -35,17 +35,21 @@ export class C2DDatabase extends AbstractDatabase {
     return jobId
   }
 
-  async getJob(jobId: string): Promise<DBComputeJob | null> {
-    const job = await this.provider.getJob(jobId)
-    return job || null
+  async getJob(
+    jobId?: string,
+    agreementId?: string,
+    owner?: string
+  ): Promise<DBComputeJob[]> {
+    const jobs = await this.provider.getJob(jobId, agreementId, owner)
+    return jobs
   }
 
   async updateJob(job: DBComputeJob): Promise<number> {
     let updated = 0
-    let previouslySaved: DBComputeJob = await this.getJob(job.jobId)
-    if (previouslySaved) {
-      previouslySaved = job
-      updated = await this.provider.updateJob(previouslySaved)
+    const previouslySaved: DBComputeJob[] = await this.getJob(job.jobId)
+    if (previouslySaved.length === 1) {
+      previouslySaved[0] = job
+      updated = await this.provider.updateJob(previouslySaved[0])
       if (!updated) {
         DATABASE_LOGGER.error(`Unable to update job: ${job.jobId}. No rows affected!`)
       }

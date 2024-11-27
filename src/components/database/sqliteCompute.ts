@@ -10,7 +10,7 @@ import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 
 interface ComputeDatabaseProvider {
   newJob(job: DBComputeJob): Promise<string>
-  getJob(jobId: string): Promise<DBComputeJob | null>
+  getJob(jobId?: string, agreementId?: string, owner?: string): Promise<DBComputeJob[]>
   updateJob(job: DBComputeJob): Promise<number>
   getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]>
   deleteJob(jobId: string): Promise<boolean>
@@ -164,27 +164,52 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     })
   }
 
-  getJob(jobId: string): Promise<DBComputeJob | null> {
-    // TO DO C2D
-    const selectSQL = `
-      SELECT * FROM ${this.schema.name} WHERE jobId = ?
-    `
-    return new Promise<DBComputeJob | null>((resolve, reject) => {
-      this.db.get(selectSQL, [jobId], (err, row: any | undefined) => {
+  /**
+   * on a get status for instance, all params are optional
+   * but at least one is required... In case we don't have a jobId,
+   * we have multiple results (by owner for instance)
+   * So, it refines the query or we can have more than 1 result (same as current implementation)
+   * @param jobId the job identifier
+   * @param agreementId the agreement identifier (did ?)
+   * @param owner the consumer address / job owner
+   * @returns job(s)
+   */
+  getJob(jobId?: string, agreementId?: string, owner?: string): Promise<DBComputeJob[]> {
+    const params: any = []
+    let selectSQL = `SELECT * FROM ${this.schema.name} WHERE 1=1`
+    if (jobId) {
+      selectSQL += ` AND jobId = ?`
+      params.push(jobId)
+    }
+    if (agreementId) {
+      selectSQL += ` AND agreementId = ?`
+      params.push(agreementId)
+    }
+    if (owner) {
+      selectSQL += ` AND owner = ?`
+      params.push(owner)
+    }
+
+    return new Promise<DBComputeJob[]>((resolve, reject) => {
+      this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
         if (err) {
           DATABASE_LOGGER.error(err.message)
           reject(err)
         } else {
           // also decode the internal data into job data
-          if (row && row.body) {
-            const bodyEncoded = row.body
-            const body: any = generateJSONFromBlob(bodyEncoded)
-            delete row.body
-            const job: DBComputeJob = { ...row, ...body }
-            resolve(job)
+          if (rows && rows.length > 0) {
+            const all: DBComputeJob[] = rows.map((row) => {
+              const body = generateJSONFromBlob(row.body)
+              delete row.body
+              const job: DBComputeJob = { ...row, ...body }
+              return job
+            })
+            resolve(all)
           } else {
-            DATABASE_LOGGER.error(`Could not find job id: ${jobId} in database!`)
-            resolve(null)
+            DATABASE_LOGGER.error(
+              `Could not find any job with jobId: ${jobId}, agreementId: ${agreementId}, or owner: ${owner} in database!`
+            )
+            resolve([])
           }
         }
       })
