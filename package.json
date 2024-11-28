@@ -137,6 +137,7 @@
     "eslint-plugin-prettier": "^5.0.1",
     "eslint-plugin-promise": "^6.1.1",
     "mocha": "^10.2.0",
+    "nyc": "^17.1.0",
     "prettier": "^3.0.3",
     "release-it": "^17.6.0",
     "tsx": "^3.12.8"
