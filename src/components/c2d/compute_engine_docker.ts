@@ -247,7 +247,7 @@ export class C2DEngineDocker extends C2DEngine {
     if (!this.cronTimer) {
       this.setNewTimer()
     }
-    const cjob: ComputeJob = JSON.parse(JSON.stringify(job)) as ComputeJob
+    const cjob: ComputeJob = omitDBComputeFieldsFromComputeJob(job)
     // we add cluster hash to user output
     cjob.jobId = this.getC2DConfig().hash + '-' + cjob.jobId
     // cjob.jobId = jobId
