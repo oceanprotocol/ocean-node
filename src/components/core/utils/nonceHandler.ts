@@ -2,8 +2,8 @@ import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { ethers } from 'ethers'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
-import { NonceDatabase } from '../../database/index.js'
 import { DATABASE_LOGGER } from '../../../utils/logging/common.js'
+import { AbstractNonceDatabase } from '../../database/BaseDatabase.js'
 
 export function getDefaultErrorResponse(errorMessage: string): P2PCommandResponse {
   return {
@@ -34,14 +34,14 @@ export type NonceResponse = {
 
 // get stored nonce for an address ( 0 if not found)
 export async function getNonce(
-  db: NonceDatabase,
+  db: AbstractNonceDatabase,
   address: string
 ): Promise<P2PCommandResponse> {
   // get nonce from db
   try {
-    const nonce = await db.retrieve(address)
-    if (nonce !== null) {
-      return getDefaultResponse(nonce.nonce)
+    const nonceResponse = await db.retrieve(address)
+    if (nonceResponse && nonceResponse.nonce !== null) {
+      return getDefaultResponse(nonceResponse.nonce)
     }
     // // did not found anything, try add it and return default
     const setFirst = await db.create(address, 0)
@@ -69,7 +69,7 @@ export async function getNonce(
 
 // update stored nonce for an address
 async function updateNonce(
-  db: NonceDatabase,
+  db: AbstractNonceDatabase,
   address: string,
   nonce: number
 ): Promise<NonceResponse> {
@@ -97,7 +97,7 @@ async function updateNonce(
 
 // get stored nonce for an address, update it on db, validate signature
 export async function checkNonce(
-  db: NonceDatabase,
+  db: AbstractNonceDatabase,
   consumer: string,
   nonce: number,
   signature: string,
@@ -107,7 +107,7 @@ export async function checkNonce(
     // get nonce from db
     let previousNonce = 0 // if none exists
     const existingNonce = await db.retrieve(consumer)
-    if (existingNonce !== null) {
+    if (existingNonce && existingNonce.nonce !== null) {
       previousNonce = existingNonce.nonce
     }
     // check if bigger than previous stored one and validate signature

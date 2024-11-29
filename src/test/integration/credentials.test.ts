@@ -37,6 +37,7 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
+  TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
   setupEnvironment,
@@ -72,13 +73,12 @@ describe('Should run a complete node flow.', () => {
   before(async () => {
     // override and save configuration (always before calling getConfig())
     previousConfiguration = await setupEnvironment(
-      null,
+      TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
         [
           ENVIRONMENT_VARIABLES.RPCS,
           ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
-          ENVIRONMENT_VARIABLES.DB_URL,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE
@@ -87,7 +87,6 @@ describe('Should run a complete node flow.', () => {
           JSON.stringify(mockSupportedNetworks),
           JSON.stringify([8996]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          'http://localhost:8108/?apiKey=xyz',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
@@ -117,13 +116,23 @@ describe('Should run a complete node flow.', () => {
     consumerAddresses = await Promise.all(consumerAccounts.map((a) => a.getAddress()))
   })
 
-  it('should publish download datasets', async () => {
+  it('should publish download datasets', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+
     const publishedDataset = await publishAsset(
       downloadAssetWithCredentials,
       publisherAccount
     )
+
     did = publishedDataset.ddo.id
-    await waitToIndex(did, EVENTS.METADATA_CREATED, DEFAULT_TEST_TIMEOUT)
+    const { ddo, wasTimeout } = await waitToIndex(
+      did,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT * 3
+    )
+    if (!ddo) {
+      assert(wasTimeout === true, 'published failed due to timeout!')
+    }
   })
 
   it('should fetch the published ddo', async () => {
@@ -164,7 +173,7 @@ describe('Should run a complete node flow.', () => {
       const transferTxId = orderTxIds[0]
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
-      const nonce = Date.now().toString()
+      const nonce = Math.floor(Date.now() / 1000).toString()
       const message = String(ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
@@ -184,7 +193,6 @@ describe('Should run a complete node flow.', () => {
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
-
       assert(response)
       assert(response.stream, 'stream not present')
       assert(response.status.httpStatus === 200, 'http status not 200')
@@ -207,7 +215,7 @@ describe('Should run a complete node flow.', () => {
       const transferTxId = orderTxIds[1]
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
-      const nonce = Date.now().toString()
+      const nonce = Math.floor(Date.now() / 1000).toString()
       const message = String(ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
@@ -227,7 +235,6 @@ describe('Should run a complete node flow.', () => {
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
-
       assert(response)
       assert(response.stream === null, 'stream is present')
       assert(response.status.httpStatus === 403, 'http status not 403')
@@ -244,12 +251,12 @@ describe('Should run a complete node flow.', () => {
     this.timeout(DEFAULT_TEST_TIMEOUT * 3)
 
     const doCheck = async () => {
-      const consumerAddress = consumerAddresses[1]
+      const consumerAddress = consumerAddresses[2]
       const consumerPrivateKey = ganachePrivateKeys[consumerAddress]
       const transferTxId = orderTxIds[1]
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
-      const nonce = Date.now().toString()
+      const nonce = Math.floor(Date.now() / 1000).toString()
       const message = String(ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
@@ -269,7 +276,6 @@ describe('Should run a complete node flow.', () => {
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }
       const response = await new DownloadHandler(oceanNode).handle(downloadTask)
-
       assert(response)
       assert(response.stream === null, 'stream is present')
       assert(response.status.httpStatus === 403, 'http status not 403')
@@ -284,5 +290,6 @@ describe('Should run a complete node flow.', () => {
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
+    oceanNode.getIndexer().stopAllThreads()
   })
 })

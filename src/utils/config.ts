@@ -102,9 +102,12 @@ function getSupportedChains(): RPCS | null {
 
 function getIndexingNetworks(supportedNetworks: RPCS): RPCS | null {
   const indexerNetworksEnv = process.env.INDEXER_NETWORKS
+
+  const defaultErrorMsg =
+    'Missing or invalid "INDEXER_NETWORKS" variable. Running Indexer with all supported networks defined in RPCS env variable...'
   if (!indexerNetworksEnv) {
     CONFIG_LOGGER.logMessageWithEmoji(
-      'INDEXER_NETWORKS is not defined, running Indexer with all supported networks defined in RPCS env variable ...',
+      defaultErrorMsg,
       true,
       GENERIC_EMOJIS.EMOJI_CHECK_MARK,
       LOG_LEVELS_STR.LEVEL_INFO
@@ -114,9 +117,10 @@ function getIndexingNetworks(supportedNetworks: RPCS): RPCS | null {
   try {
     const indexerNetworks: number[] = JSON.parse(indexerNetworksEnv)
 
+    // env var exists but is wrong, so it does not index anything, but we still log the error
     if (indexerNetworks.length === 0) {
       CONFIG_LOGGER.logMessageWithEmoji(
-        'INDEXER_NETWORKS is an empty array, Running node without the Indexer component...',
+        '"INDEXER_NETWORKS" is an empty array, Running node without the Indexer component...',
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
@@ -132,10 +136,21 @@ function getIndexingNetworks(supportedNetworks: RPCS): RPCS | null {
       return acc
     }, {})
 
+    // if variables are not aligned we might end up not running indexer at all, so at least we should log a warning
+    if (Object.keys(filteredNetworks).length === 0) {
+      CONFIG_LOGGER.logMessageWithEmoji(
+        `"RPCS" chains: "${Object.keys(
+          supportedNetworks
+        )}" and "INDEXER_NETWORKS" chains: "${indexerNetworks}" mismatch! Running node without the Indexer component...`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+    }
     return filteredNetworks
   } catch (e) {
     CONFIG_LOGGER.logMessageWithEmoji(
-      'Missing or Invalid INDEXER_NETWORKS env variable format,running Indexer with all supported networks defined in RPCS env variable ...',
+      defaultErrorMsg,
       true,
       GENERIC_EMOJIS.EMOJI_CROSS_MARK,
       LOG_LEVELS_STR.LEVEL_ERROR
@@ -581,7 +596,10 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     hasDashboard: process.env.DASHBOARD !== 'false',
     httpPort: getIntEnvValue(process.env.HTTP_API_PORT, 8000),
     dbConfig: {
-      url: getEnvValue(process.env.DB_URL, '')
+      url: getEnvValue(process.env.DB_URL, ''),
+      username: getEnvValue(process.env.DB_USERNAME, ''),
+      password: getEnvValue(process.env.DB_PASSWORD, ''),
+      dbType: getEnvValue(process.env.DB_TYPE, null)
     },
     supportedNetworks,
     indexingNetworks,

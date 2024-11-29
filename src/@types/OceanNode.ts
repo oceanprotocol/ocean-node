@@ -2,10 +2,13 @@ import { Stream } from 'stream'
 import { RPCS } from './blockchain'
 import { C2DClusterInfo } from './C2D'
 import { FeeStrategy } from './Fees'
-import { Schema } from '../components/database/schemas'
+import { Schema } from '../components/database'
 
 export interface OceanNodeDBConfig {
   url: string | null
+  username?: string
+  password?: string
+  dbType: string | null
 }
 
 // deny list of peer ids and ips (for rate limiting purposes)
