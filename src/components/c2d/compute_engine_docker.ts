@@ -9,7 +9,8 @@ import type {
   ComputeJob,
   ComputeOutput,
   DBComputeJob,
-  ComputeResult
+  ComputeResult,
+  DockerPlatform
 } from '../../@types/C2D/C2D.js'
 // import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
 import { getConfiguration } from '../../utils/config.js'
@@ -158,7 +159,7 @@ export class C2DEngineDocker extends C2DEngine {
             client.close()
             if (manifest) {
               return resolve({
-                valid: true
+                valid: checkManifestPlatform(manifest, null) // TODO:
               })
             }
 
@@ -1074,4 +1075,16 @@ export function getAlgorithmImage(algorithm: ComputeAlgorithm): string {
   else image = image + ':latest'
   console.log('Using image: ' + image)
   return image
+}
+
+export function checkManifestPlatform(
+  manifestPlatform: any,
+  envPlatform: DockerPlatform
+): boolean {
+  if (!manifestPlatform || !envPlatform) return true // skipping
+  if (
+    envPlatform.architecture !== manifestPlatform.architecture ||
+    envPlatform.os !== manifestPlatform.os
+  )
+    return false
 }
