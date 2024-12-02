@@ -141,8 +141,13 @@ export class ComputeInitializeHandler extends Handler {
           if (hasDockerImages) {
             const algoImage = getAlgorithmImage(task.algorithm)
             if (algoImage) {
-              const validation: ValidateParams =
-                await C2DEngineDocker.checkDockerImage(algoImage)
+              const env = await this.getOceanNode()
+                .getC2DEngines()
+                .getExactComputeEnv(task.compute.env, ddo.chainId)
+              const validation: ValidateParams = await C2DEngineDocker.checkDockerImage(
+                algoImage,
+                env.platform
+              )
               if (!validation.valid) {
                 return {
                   stream: null,
