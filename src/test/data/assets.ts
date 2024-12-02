@@ -326,3 +326,59 @@ export const completeDBComputeJob = {
   containerImage:
     'node@sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36'
 }
+
+export const dockerImageManifest = {
+  schemaVersion: 2,
+  mediaType: 'application/vnd.docker.distribution.manifest.v2+json',
+  config: {
+    mediaType: 'application/vnd.docker.container.image.v1+json',
+    size: 7286,
+    digest: 'sha256:386e0be86bde5eff9f85ea9eda02727dd4641664d746688b4049f79ef0cdb1c9'
+  },
+  platform: {
+    architecture: 'amd64',
+    os: 'linux'
+  },
+  layers: [
+    {
+      mediaType: 'application/vnd.docker.image.rootfs.diff.tar.gzip',
+      size: 49557601,
+      digest: 'sha256:167b8a53ca4504bc6aa3182e336fa96f4ef76875d158c1933d3e2fa19c57e0c3'
+    },
+    {
+      mediaType: 'application/vnd.docker.image.rootfs.diff.tar.gzip',
+      size: 24030522,
+      digest: 'sha256:b47a222d28fa95680198398973d0a29b82a968f03e7ef361cc8ded562e4d84a3'
+    },
+    {
+      mediaType: 'application/vnd.docker.image.rootfs.diff.tar.gzip',
+      size: 64112257,
+      digest: 'sha256:debce5f9f3a9709885f7f2ad3cf41f036a3b57b406b27ba3a883928315787042'
+    },
+    {
+      mediaType: 'application/vnd.docker.image.rootfs.diff.tar.gzip',
+      size: 211039785,
+      digest: 'sha256:1d7ca7cd2e066ae77ac6284a9d027f72a31a02a18bfc2a249ef2e7b01074338b'
+    },
+    {
+      mediaType: 'application/vnd.docker.image.rootfs.diff.tar.gzip',
+      size: 3371,
+      digest: 'sha256:94c7791033e87c3ab82bf56f778253138bbd5caf172ead6fc0ce39d459560607'
+    },
+    {
+      mediaType: 'application/vnd.docker.image.rootfs.diff.tar.gzip',
+      size: 47856943,
+      digest: 'sha256:72ab0dfaf5cb14ab09fd3478f8a01e3c3e21b7ad06e7b04ccac2f304d455ff45'
+    },
+    {
+      mediaType: 'application/vnd.docker.image.rootfs.diff.tar.gzip',
+      size: 2280920,
+      digest: 'sha256:3316ed2852d408595e2dfc601d96f39f4a39747bd1eb2eb1b63b1f3d49c42919'
+    },
+    {
+      mediaType: 'application/vnd.docker.image.rootfs.diff.tar.gzip',
+      size: 451,
+      digest: 'sha256:ef5505406bea98d0f6adb559b937c0dad0aef6d98500b1120c6e27c50fdf172b'
+    }
+  ]
+}

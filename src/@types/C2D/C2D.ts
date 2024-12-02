@@ -47,7 +47,7 @@ export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
   consumerAddress: string
   lastSeen?: number
   free: boolean
-  platform?: DockerPlatform[]
+  platform?: DockerPlatform
 }
 
 export interface C2DDockerConfig {

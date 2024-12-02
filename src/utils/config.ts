@@ -401,7 +401,7 @@ function getDockerFreeComputeOptions(
     feeToken: ZeroAddress,
     chainId: 8996,
     free: true,
-    platform: [{ architecture: os.machine(), os: os.platform() }]
+    platform: { architecture: os.machine(), os: os.platform() }
   }
 
   if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.DOCKER_FREE_COMPUTE, isStartup)) {
@@ -411,7 +411,7 @@ function getDockerFreeComputeOptions(
       ) as ComputeEnvironmentBaseConfig
       doComputeEnvChecks([options])
       const env = { ...options } as ComputeEnvironment
-      env.platform = [{ architecture: os.machine(), os: os.platform() }]
+      env.platform = { architecture: os.machine(), os: os.platform() }
       return env
     } catch (error) {
       CONFIG_LOGGER.logMessageWithEmoji(
@@ -462,7 +462,7 @@ function getDockerComputeEnvironments(isStartup?: boolean): ComputeEnvironment[]
       doComputeEnvChecks(options)
       const envs = { ...options } as ComputeEnvironment[]
       envs.forEach((env) => {
-        env.platform = [{ architecture: os.machine(), os: os.platform() }]
+        env.platform = { architecture: os.machine(), os: os.platform() }
       })
       return envs
     } catch (error) {

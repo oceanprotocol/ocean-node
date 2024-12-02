@@ -135,7 +135,10 @@ export class C2DEngineDocker extends C2DEngine {
    * @param image name or tag
    * @returns boolean
    */
-  public static async checkDockerImage(image: string): Promise<ValidateParams> {
+  public static async checkDockerImage(
+    image: string,
+    platform?: DockerPlatform
+  ): Promise<ValidateParams> {
     try {
       const info = drc.default.parseRepoAndRef(image)
       /**
@@ -159,7 +162,7 @@ export class C2DEngineDocker extends C2DEngine {
             client.close()
             if (manifest) {
               return resolve({
-                valid: checkManifestPlatform(manifest, null) // TODO:
+                valid: checkManifestPlatform(manifest.platform, platform)
               })
             }
 
@@ -210,7 +213,13 @@ export class C2DEngineDocker extends C2DEngine {
         )}`
       )
     }
-    const validation = await C2DEngineDocker.checkDockerImage(image)
+    const envIdWithHash = environment && environment.indexOf('-') > -1
+    const env = await this.getComputeEnvironment(
+      chainId,
+      envIdWithHash ? environment : null,
+      environment
+    )
+    const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
     if (!validation.valid)
       throw new Error(`Unable to validate docker image ${image}: ${validation.reason}`)
 
@@ -1081,10 +1090,11 @@ export function checkManifestPlatform(
   manifestPlatform: any,
   envPlatform: DockerPlatform
 ): boolean {
-  if (!manifestPlatform || !envPlatform) return true // skipping
+  if (!manifestPlatform || !envPlatform) return true // skips if not present
   if (
     envPlatform.architecture !== manifestPlatform.architecture ||
     envPlatform.os !== manifestPlatform.os
   )
     return false
+  return true
 }
