@@ -1,6 +1,9 @@
 # Dahsboard
 dashboard/.env
 
+# Docker compose
+**/docker-compose.yml
+
 # Logs
 logs
 *.log
