@@ -5,11 +5,12 @@ import type {
   ComputeAlgorithm,
   ComputeAsset,
   ComputeJob,
-  ComputeOutput
-} from '../../@types/C2D.js'
-import { C2DClusterType } from '../../@types/C2D.js'
+  ComputeOutput,
+  DBComputeJob
+} from '../../@types/C2D/C2D.js'
+import { C2DClusterType } from '../../@types/C2D/C2D.js'
 
-export class C2DEngine {
+export abstract class C2DEngine {
   private clusterConfig: C2DClusterInfo
   public constructor(cluster: C2DClusterInfo) {
     this.clusterConfig = cluster
@@ -26,18 +27,48 @@ export class C2DEngine {
   }
 
   // functions which need to be implemented by all engine types
-  // eslint-disable-next-line require-await
-  public async getComputeEnvironments(chainId: number): Promise<ComputeEnvironment[]> {
-    throw new Error(`Not implemented`)
+  public abstract getComputeEnvironments(chainId?: number): Promise<ComputeEnvironment[]>
+
+  // overwritten by classes for start actions
+  public start(): Promise<void> {
+    throw new Error('Method not implemented.')
   }
 
-  public async start(): Promise<void> {
-    // overwritten by classes for start actions
+  // overwritten by classes for cleanup
+  public stop(): Promise<void> {
+    throw new Error('Method not implemented.')
   }
 
-  public async stop(): Promise<void> {
-    // overwritten by classes for cleanup
-  }
+  public abstract startComputeJob(
+    assets: ComputeAsset[],
+    algorithm: ComputeAlgorithm,
+    output: ComputeOutput,
+    environment: string,
+    owner?: string,
+    validUntil?: number,
+    chainId?: number,
+    agreementId?: string
+  ): Promise<ComputeJob[]>
+
+  public abstract stopComputeJob(
+    jobId: string,
+    owner: string,
+    agreementId?: string
+  ): Promise<ComputeJob[]>
+
+  public abstract getComputeJobStatus(
+    consumerAddress?: string,
+    agreementId?: string,
+    jobId?: string
+  ): Promise<ComputeJob[]>
+
+  public abstract getComputeJobResult(
+    consumerAddress: string,
+    jobId: string,
+    index: number
+  ): Promise<Readable>
+
+  public abstract cleanupExpiredStorage(job: DBComputeJob): Promise<boolean>
 
   public async envExists(
     chainId: number,
@@ -77,49 +108,57 @@ export class C2DEngine {
     return null
   }
 
-  // eslint-disable-next-line require-await
-  public async startComputeJob(
-    assets: ComputeAsset[],
-    algorithm: ComputeAlgorithm,
-    output: ComputeOutput,
-    owner: string,
-    environment: string,
-    validUntil: number,
-    chainId: number,
-    agreementId: string
-  ): Promise<ComputeJob[]> {
-    throw new Error(`Not implemented`)
-  }
-
-  // eslint-disable-next-line require-await
-  public async stopComputeJob(
-    jobId: string,
-    owner: string,
-    agreementId?: string
-  ): Promise<ComputeJob[]> {
-    throw new Error(`Not implemented`)
-  }
-
-  // eslint-disable-next-line require-await
-  public async getComputeJobStatus(
-    consumerAddress?: string,
-    agreementId?: string,
-    jobId?: string
-  ): Promise<ComputeJob[]> {
-    throw new Error(`Not implemented`)
-  }
-
-  // eslint-disable-next-line require-await
-  public async getComputeJobResult(
-    consumerAddress: string,
-    jobId: string,
-    index: number
-  ): Promise<Readable> {
-    throw new Error(`Not implemented`)
+  public getStreamableLogs(jobId: string): Promise<NodeJS.ReadableStream> {
+    throw new Error(`Not implemented for this engine type`)
   }
 }
 
 export class C2DEngineLocal extends C2DEngine {
+  public getComputeEnvironments(chainId?: number): Promise<ComputeEnvironment[]> {
+    throw new Error('Method not implemented.')
+  }
+
+  public startComputeJob(
+    assets: ComputeAsset[],
+    algorithm: ComputeAlgorithm,
+    output: ComputeOutput,
+    environment: string,
+    owner?: string,
+    validUntil?: number,
+    chainId?: number,
+    agreementId?: string
+  ): Promise<ComputeJob[]> {
+    throw new Error('Method not implemented.')
+  }
+
+  public stopComputeJob(
+    jobId: string,
+    owner: string,
+    agreementId?: string
+  ): Promise<ComputeJob[]> {
+    throw new Error('Method not implemented.')
+  }
+
+  public getComputeJobStatus(
+    consumerAddress?: string,
+    agreementId?: string,
+    jobId?: string
+  ): Promise<ComputeJob[]> {
+    throw new Error('Method not implemented.')
+  }
+
+  public getComputeJobResult(
+    consumerAddress: string,
+    jobId: string,
+    index: number
+  ): Promise<Readable> {
+    throw new Error('Method not implemented.')
+  }
+
+  public cleanupExpiredStorage(job: DBComputeJob): Promise<boolean> {
+    throw new Error('Method not implemented.')
+  }
+
   // eslint-disable-next-line no-useless-constructor
   public constructor(clusterConfig: C2DClusterInfo) {
     super(clusterConfig)

@@ -4,19 +4,21 @@ import {
   ComputeStartHandler,
   ComputeStopHandler,
   ComputeGetStatusHandler,
-  ComputeInitializeHandler
+  ComputeInitializeHandler,
+  FreeComputeStartHandler
 } from '../../components/core/compute/index.js'
 import type {
   ComputeStartCommand,
   ComputeStopCommand,
   ComputeGetStatusCommand,
-  ComputeInitializeCommand
+  ComputeInitializeCommand,
+  FreeComputeStartCommand
 } from '../../@types/commands.js'
 import type {
   ComputeAsset,
   ComputeAlgorithm,
   ComputeEnvironment
-} from '../../@types/C2D.js'
+} from '../../@types/C2D/C2D.js'
 import {
   // DB_TYPES,
   ENVIRONMENT_VARIABLES,
@@ -68,6 +70,8 @@ import {
   validateAlgoForDataset
 } from '../../components/core/compute/utils.js'
 
+import { freeComputeStartPayload } from '../data/commands.js'
+
 describe('Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
   let config: OceanNodeConfig
@@ -114,8 +118,8 @@ describe('Compute', () => {
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE,
-          ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL
-          // ENVIRONMENT_VARIABLES.DB_URL,
+          ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL,
+          ENVIRONMENT_VARIABLES.DOCKER_SOCKET_PATH
           // ENVIRONMENT_VARIABLES.DB_TYPE
         ],
         [
@@ -124,8 +128,8 @@ describe('Compute', () => {
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          JSON.stringify(['http://localhost:31000'])
-          // 'http://localhost:9200',
+          JSON.stringify(['http://localhost:31000']),
+          '/var/run/docker.sock'
           // DB_TYPES.ELASTIC_SEARCH
         ]
       )
@@ -253,15 +257,18 @@ describe('Compute', () => {
     expect(response.stream).to.be.instanceOf(Readable)
 
     computeEnvironments = await streamToObject(response.stream as Readable)
-    // expect 2 envs
-    expect(computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 2, 'incorrect length')
+    // expect 3 envs
+    expect(computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 3, 'incorrect length')
     for (const computeEnvironment of computeEnvironments[DEVELOPMENT_CHAIN_ID]) {
       assert(computeEnvironment.id, 'id missing in computeEnvironments')
       assert(
         computeEnvironment.consumerAddress,
         'consumerAddress missing in computeEnvironments'
       )
-      assert(computeEnvironment.lastSeen, 'lastSeen missing in computeEnvironments')
+      // what is this? not present on free envs, so skip.. in any case the field is optional
+      if (!computeEnvironment.free) {
+        assert(computeEnvironment.lastSeen, 'lastSeen missing in computeEnvironments')
+      }
       assert(computeEnvironment.id.startsWith('0x'), 'id should start with 0x')
       assert(computeEnvironment.cpuNumber > 0, 'cpuNumber missing in computeEnvironments')
       assert(computeEnvironment.ramGB > 0, 'ramGB missing in computeEnvironments')
@@ -547,11 +554,13 @@ describe('Compute', () => {
       signature,
       nonce,
       environment: firstEnv.id,
-      dataset: {
-        documentId: publishedComputeDataset.ddo.id,
-        serviceId: publishedComputeDataset.ddo.services[0].id,
-        transferTxId: '0x123'
-      },
+      datasets: [
+        {
+          documentId: publishedComputeDataset.ddo.id,
+          serviceId: publishedComputeDataset.ddo.services[0].id,
+          transferTxId: '0x123'
+        }
+      ],
       algorithm: {
         documentId: publishedAlgoDataset.ddo.id,
         serviceId: publishedAlgoDataset.ddo.services[0].id,
@@ -562,6 +571,8 @@ describe('Compute', () => {
       // output?: ComputeOutput
     }
     const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
+    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+    console.log(response)
     assert(response, 'Failed to get response')
     // should fail, because txId '0x123' is not a valid order
     assert(response.status.httpStatus === 500, 'Failed to get 500 response')
@@ -584,11 +595,13 @@ describe('Compute', () => {
       signature,
       nonce,
       environment: firstEnv.id,
-      dataset: {
-        documentId: publishedComputeDataset.ddo.id,
-        serviceId: publishedComputeDataset.ddo.services[0].id,
-        transferTxId: datasetOrderTxId
-      },
+      datasets: [
+        {
+          documentId: publishedComputeDataset.ddo.id,
+          serviceId: publishedComputeDataset.ddo.services[0].id,
+          transferTxId: datasetOrderTxId
+        }
+      ],
       algorithm: {
         documentId: publishedAlgoDataset.ddo.id,
         serviceId: publishedAlgoDataset.ddo.services[0].id,
@@ -608,6 +621,52 @@ describe('Compute', () => {
     const jobs = await streamToObject(response.stream as Readable)
     // eslint-disable-next-line prefer-destructuring
     jobId = jobs[0].jobId
+  })
+
+  it('should start a free docker compute job', async () => {
+    const nonce = Date.now().toString()
+    const message = String(nonce)
+    // sign message/nonce
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await wallet.signMessage(messageHashBytes)
+    const startComputeTask: ComputeStartCommand = {
+      command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+      consumerAddress: await wallet.getAddress(),
+      signature,
+      nonce,
+      environment: firstEnv.id,
+      datasets: [
+        {
+          fileObject: computeAsset.services[0].files.files[0],
+          documentId: publishedComputeDataset.ddo.id,
+          serviceId: publishedComputeDataset.ddo.services[0].id,
+          transferTxId: datasetOrderTxId
+        }
+      ],
+      algorithm: {
+        fileObject: algoAsset.services[0].files.files[0],
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: algoOrderTxId,
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      },
+      output: {}
+      // additionalDatasets?: ComputeAsset[]
+      // output?: ComputeOutput
+    }
+    const response = await new FreeComputeStartHandler(oceanNode).handle(startComputeTask)
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response.stream, 'Failed to get stream')
+    expect(response.stream).to.be.instanceOf(Readable)
+
+    const jobs = await streamToObject(response.stream as Readable)
+    // eslint-disable-next-line prefer-destructuring
+    assert(jobs[0].jobId, 'failed to got job id')
   })
 
   it('should stop a compute job', async () => {
@@ -668,6 +727,20 @@ describe('Compute', () => {
     expect(response.stream).to.be.instanceOf(Readable)
     const jobs = await streamToObject(response.stream as Readable)
     console.log(jobs)
+  })
+
+  it('should deny the Free job due to bad container image (directCommand payload)', async function () {
+    const command: FreeComputeStartCommand = freeComputeStartPayload
+    const handler = new FreeComputeStartHandler(oceanNode)
+    const response = await handler.handle(command)
+    assert(response.status.httpStatus === 500, 'Failed to get 500 response')
+    assert(response.stream === null, 'Should not get stream')
+    assert(
+      response.status.error.includes(
+        freeComputeStartPayload.algorithm.meta.container.image
+      ),
+      'Should have image error'
+    )
   })
 
   it('should checkC2DEnvExists', async () => {
