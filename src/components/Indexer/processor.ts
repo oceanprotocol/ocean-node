@@ -765,6 +765,11 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         ddo.indexedMetadata.stats = {
           orders: 1
         }
+      } else {
+        // this cause breaking change - will be removed
+        ddo.stats = {
+          orders: 1
+        }
       }
       await orderDatabase.create(
         event.transactionHash,
@@ -821,11 +826,16 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      for (const stat of ddo.indexedMetadata.stats) {
-        if (stat.datatokenAddress.toLowerCase() === event.address?.toLowerCase()) {
-          stat.orders += 1
-          break
+      if ('indexedMetadata' in ddo) {
+        for (const stat of ddo.indexedMetadata.stats) {
+          if (stat.datatokenAddress.toLowerCase() === event.address?.toLowerCase()) {
+            stat.orders += 1
+            break
+          }
         }
+      } else {
+        // this cause breaking change - will be removed
+        ddo.stats.orders += 1
       }
 
       try {
