@@ -42,7 +42,7 @@ import {
   getNetworkHeight,
   wasNFTDeployedByOurFactory
 } from '../../Indexer/utils.js'
-import { validateDDOHash } from '../../../utils/asset.js'
+import { deleteIndexedMetadataIfExists, validateDDOHash } from '../../../utils/asset.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -336,7 +336,9 @@ export class DecryptDdoHandler extends Handler {
 
       // did matches
       const ddo = JSON.parse(decryptedDocument.toString())
-      if (ddo.id !== makeDid(dataNftAddress, chainId)) {
+      const clonedDdo = structuredClone(ddo)
+      const updatedDdo = deleteIndexedMetadataIfExists(clonedDdo)
+      if (updatedDdo.id !== makeDid(dataNftAddress, chainId)) {
         CORE_LOGGER.error(`Decrypted DDO ID is not matching the generated hash for DID.`)
         return {
           stream: null,
@@ -843,11 +845,12 @@ export function validateDDOIdentifier(identifier: string): ValidateParams {
  * @returns validation result
  */
 async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
-  const { nftAddress, chainId, event } = ddo
-  let isValid = validateDDOHash(ddo.id, nftAddress, chainId)
+  const updatedDdo = deleteIndexedMetadataIfExists(ddo)
+  const { nftAddress, chainId, event } = updatedDdo
+  let isValid = validateDDOHash(updatedDdo.id, nftAddress, chainId)
   // 1) check hash sha256(nftAddress + chainId)
   if (!isValid) {
-    CORE_LOGGER.error(`Asset ${ddo.id} does not have a valid hash`)
+    CORE_LOGGER.error(`Asset ${updatedDdo.id} does not have a valid hash`)
     return false
   }
 
@@ -881,7 +884,7 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
   )
 
   if (!wasDeployedByUs) {
-    CORE_LOGGER.error(`Asset ${ddo.id} not deployed by the data NFT factory`)
+    CORE_LOGGER.error(`Asset ${updatedDdo.id} not deployed by the data NFT factory`)
     return false
   }
 

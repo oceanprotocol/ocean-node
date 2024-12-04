@@ -11,6 +11,7 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
 import { Readable } from 'stream'
+import { deleteIndexedMetadataIfExists } from '../../../utils/asset.js'
 
 const CURRENT_VERSION = '4.7.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0', '4.7.0']
@@ -47,17 +48,6 @@ export function makeDid(nftAddress: string, chainId: string): string {
       .update(getAddress(nftAddress) + chainId)
       .digest('hex')
   )
-}
-
-export function deleteIndexedMetadataIfExists(
-  ddo: Record<string, any>
-): Record<string, any> {
-  let ddoCopy: Record<string, any> = ddo
-  if ('indexedMetadata' in ddoCopy) {
-    delete ddoCopy.indexedMetadata
-    return ddoCopy
-  }
-  return ddo
 }
 
 export async function validateObject(

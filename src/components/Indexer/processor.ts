@@ -21,7 +21,11 @@ import { PROTOCOL_COMMANDS, EVENTS, MetadataStates } from '../../utils/constants
 import { getDtContract, wasNFTDeployedByOurFactory } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
-import { getConfiguration, timestampToDateTime } from '../../utils/index.js'
+import {
+  deleteIndexedMetadataIfExists,
+  getConfiguration,
+  timestampToDateTime
+} from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
@@ -29,6 +33,7 @@ import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
 import { makeDid } from '../core/utils/validateDdoHandler.js'
 import { PolicyServer } from '../policyServer/index.js'
+import { DDO } from '../../@types/DDO/DDO.js'
 class BaseEventProcessor {
   protected networkId: number
 
@@ -341,14 +346,16 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         metadataHash,
         metadata
       )
-      if (ddo.id !== makeDid(event.address, chainId.toString(10))) {
+      const clonedDdo = structuredClone(ddo)
+      const updatedDdo = deleteIndexedMetadataIfExists(clonedDdo)
+      if (updatedDdo.id !== makeDid(event.address, chainId.toString(10))) {
         INDEXER_LOGGER.error(
           `Decrypted DDO ID is not matching the generated hash for DID.`
         )
         return
       }
       // for unencrypted DDOs
-      if (parseInt(flag) !== 2 && !this.checkDdoHash(ddo, metadataHash)) {
+      if (parseInt(flag) !== 2 && !this.checkDdoHash(updatedDdo, metadataHash)) {
         return
       }
 
