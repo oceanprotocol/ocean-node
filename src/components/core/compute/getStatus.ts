@@ -61,8 +61,7 @@ export class ComputeGetStatusHandler extends Handler {
           task.agreementId,
           jobId
         )
-        console.log('GOT JOBS')
-        console.log(jobs)
+
         if (jobs && jobs.length > 0) response.push(...jobs)
       }
       CORE_LOGGER.logMessage(
