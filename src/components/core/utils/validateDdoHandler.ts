@@ -49,12 +49,24 @@ export function makeDid(nftAddress: string, chainId: string): string {
   )
 }
 
+export function deleteIndexedMetadataIfExists(
+  ddo: Record<string, any>
+): Record<string, any> {
+  let ddoCopy: Record<string, any> = ddo
+  if ('indexedMetadata' in ddoCopy) {
+    delete ddoCopy.indexedMetadata
+    return ddoCopy
+  }
+  return ddo
+}
+
 export async function validateObject(
   obj: Record<string, any>,
   chainId: number,
   nftAddress: string
 ): Promise<[boolean, Record<string, string[]>]> {
-  const ddoCopy = JSON.parse(JSON.stringify(obj))
+  const updatedDdo = deleteIndexedMetadataIfExists(obj)
+  const ddoCopy = JSON.parse(JSON.stringify(updatedDdo))
   ddoCopy['@type'] = 'DDO'
 
   const extraErrors: Record<string, string[]> = {}
