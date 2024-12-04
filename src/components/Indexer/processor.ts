@@ -33,7 +33,6 @@ import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
 import { makeDid } from '../core/utils/validateDdoHandler.js'
 import { PolicyServer } from '../policyServer/index.js'
-import { DDO } from '../../@types/DDO/DDO.js'
 class BaseEventProcessor {
   protected networkId: number
 
