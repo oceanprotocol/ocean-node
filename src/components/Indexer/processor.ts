@@ -45,19 +45,25 @@ class BaseEventProcessor {
 
   protected async getTokenInfo(services: any[], signer: Signer): Promise<any[]> {
     const datatokens: any[] = []
-    services.forEach(async (service) => {
+
+    for (const service of services) {
       const datatoken = new ethers.Contract(
         service.datatokenAddress,
         ERC20Template.abi,
         signer
       )
+
+      const name = await datatoken.name()
+      const symbol = await datatoken.symbol()
+
       datatokens.push({
         address: service.datatokenAddress,
-        name: await datatoken.name(),
-        symbol: await datatoken.symbol(),
+        name,
+        symbol,
         serviceId: service.id
       })
-    })
+    }
+
     return datatokens
   }
 
@@ -448,7 +454,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
             )
             let dispensers = []
             let fixedRates = []
-            let prices = []
+            const prices = []
             try {
               dispensers = await datatoken.getDispensers()
             } catch (e) {
@@ -500,7 +506,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
                     prices: prices.push({
                       type: 'fixedRate',
                       price: exchange[5],
-                      token: exchange[1],
+                      token: exchange[3],
                       contract: fixedRate,
                       exchangeId: fixedRate.id
                     })
