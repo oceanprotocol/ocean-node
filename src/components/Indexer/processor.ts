@@ -753,10 +753,10 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
             break
           }
         }
-      } else {
+      } else if (!('indexedMetadata' in ddo)) {
         // Still update until we validate and polish schemas for DDO.
         // But it should update ONLY if first condition is met.
-        ddo.stats = {
+        ddo.indexedMetadata.stats = {
           orders: 1
         }
       }
@@ -815,7 +815,12 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      ddo.stats.orders += 1
+      for (const stat of ddo.indexedMetadata.stats) {
+        if (stat.datatokenAddress.toLowerCase() === event.address?.toLowerCase()) {
+          stat.orders += 1
+          break
+        }
+      }
 
       try {
         const startOrder = await orderDatabase.retrieve(startOrderId)
