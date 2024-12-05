@@ -445,73 +445,120 @@ export class MetadataEventProcessor extends BaseEventProcessor {
 
       // we need to store the event data (either metadata created or update and is updatable)
       if ([EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED].includes(eventName)) {
-        if (eventName === EVENTS.METADATA_CREATED) {
-          for (const service of ddo.services) {
+        for (const service of ddo.services) {
+          const datatoken = new ethers.Contract(
+            service.datatokenAddress,
+            ERC20Template.abi,
+            signer
+          )
+          let dispensers = []
+          let fixedRates = []
+          const prices = []
+          try {
+            dispensers = await datatoken.getDispensers()
+          } catch (e) {
+            INDEXER_LOGGER.error(`Contract call fails when retrieving dispensers: ${e}`)
+          }
+          if (dispensers) {
+            for (const dispenser of dispensers) {
+              const dispenserContract = new ethers.Contract(
+                dispenser,
+                Dispenser.abi,
+                signer
+              )
+              if ((await dispenserContract.status())[0] === true) {
+                ddo.indexedMetadata.stats.push({
+                  datatokenAddress: service.datatokenAddress,
+                  name: await datatoken.name(),
+                  serviceId: service.id,
+                  orders: 0, // just created
+                  prices: prices.push({
+                    type: 'dispenser',
+                    price: '0',
+                    contract: dispenser
+                  })
+                })
+              }
+            }
+          }
+          try {
+            fixedRates = await datatoken.getFixedRates()
+          } catch (e) {
+            INDEXER_LOGGER.error(
+              `Contract call fails when retrieving fixed rate exchanges: ${e}`
+            )
+          }
+          if (fixedRates) {
+            for (const fixedRate of fixedRates) {
+              const fixedRateContract = new ethers.Contract(
+                fixedRate.address,
+                FixedRateExchange.abi,
+                signer
+              )
+              const exchange = await fixedRateContract.getExchange(fixedRate.id)
+              if (exchange[6] === true) {
+                ddo.indexedMetadata.stats.push({
+                  datatokenAddress: service.datatokenAddress,
+                  name: await datatoken.name(),
+                  serviceId: service.id,
+                  orders: 0, // just created
+                  prices: prices.push({
+                    type: 'fixedRate',
+                    price: exchange[5],
+                    token: exchange[3],
+                    contract: fixedRate,
+                    exchangeId: fixedRate.id
+                  })
+                })
+              }
+            }
+          }
+        }
+        if (eventName === EVENTS.METADATA_UPDATED && 'indexedMetadata' in ddo) {
+          for (const stat of ddo.indexedMetadata.stats) {
             const datatoken = new ethers.Contract(
-              service.datatokenAddress,
+              stat.datatokenAddress,
               ERC20Template.abi,
               signer
             )
-            let dispensers = []
-            let fixedRates = []
-            const prices = []
-            try {
-              dispensers = await datatoken.getDispensers()
-            } catch (e) {
-              INDEXER_LOGGER.error(`Contract call fails when retrieving dispensers: ${e}`)
-            }
-            if (dispensers) {
-              for (const dispenser of dispensers) {
-                const dispenserContract = new ethers.Contract(
-                  dispenser,
-                  Dispenser.abi,
-                  signer
-                )
-                if ((await dispenserContract.status())[0] === true) {
-                  ddo.indexedMetadata.stats.push({
-                    datatokenAddress: service.datatokenAddress,
-                    name: await datatoken.name(),
-                    serviceId: service.id,
-                    orders: 0, // just created
-                    prices: prices.push({
-                      type: 'dispenser',
-                      price: '0',
-                      contract: dispenser
-                    })
-                  })
+            if (stat.type === 'dispenser') {
+              try {
+                const dispensers = await datatoken.getDispensers()
+                for (const dispenser of dispensers) {
+                  const dispenserContract = new ethers.Contract(
+                    dispenser,
+                    Dispenser.abi,
+                    signer
+                  )
+                  if ((await dispenserContract.status())[0] === false) {
+                    const index = ddo.indexedMetadata.stats.indexOf(stat)
+                    ddo.indexedMetadata.stats.splice(index, 1)
+                  }
                 }
+              } catch (e) {
+                INDEXER_LOGGER.error(
+                  `Contract call fails when retrieving dispensers for METADATA_UPDATED: ${e}`
+                )
               }
-            }
-            try {
-              fixedRates = await datatoken.getFixedRates()
-            } catch (e) {
-              INDEXER_LOGGER.error(
-                `Contract call fails when retrieving fixed rate exchanges: ${e}`
-              )
-            }
-            if (fixedRates) {
-              for (const fixedRate of fixedRates) {
-                const fixedRateContract = new ethers.Contract(
-                  fixedRate.address,
-                  FixedRateExchange.abi,
-                  signer
-                )
-                const exchange = await fixedRateContract.getExchange(fixedRate.id)
-                if (exchange[6] === true) {
-                  ddo.indexedMetadata.stats.push({
-                    datatokenAddress: service.datatokenAddress,
-                    name: await datatoken.name(),
-                    serviceId: service.id,
-                    orders: 0, // just created
-                    prices: prices.push({
-                      type: 'fixedRate',
-                      price: exchange[5],
-                      token: exchange[3],
-                      contract: fixedRate,
-                      exchangeId: fixedRate.id
-                    })
-                  })
+            } else if (stat.type === 'fixedrate') {
+              try {
+                const fixedRates = await datatoken.getFixedRates()
+                for (const fixedRate of fixedRates) {
+                  const fixedRateContract = new ethers.Contract(
+                    fixedRate.address,
+                    FixedRateExchange.abi,
+                    signer
+                  )
+                  const exchange = await fixedRateContract.getExchange(fixedRate.id)
+                  if (exchange[6] === false) {
+                    const index = ddo.indexedMetadata.stats.indexOf(stat)
+                    ddo.indexedMetadata.stats.splice(index, 1)
+                  }
                 }
+              } catch (e) {
+                INDEXER_LOGGER.error(
+                  `Contract call fails when retrieving fixed rate exchanges for METADATA_UPDATED: ${e}`
+                )
               }
             }
           }
