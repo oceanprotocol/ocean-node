@@ -30,6 +30,7 @@ import {
 } from '../../utils/address.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
+import { Stats } from '../../@types/DDO/IndexedMetadata.js'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
@@ -449,9 +450,15 @@ describe('Indexer stores a new metadata events and orders.', () => {
       true
     )
     if (ddo) {
-      const retrievedDDO: any = ddo
-      expect(retrievedDDO.stats.orders).to.equal(1)
-      initialOrderCount = retrievedDDO.stats.orders
+      const retrievedDDO: DDO = ddo
+      console.log('indexer retrieved ddo: ', JSON.stringify(retrievedDDO))
+      for (const stat of retrievedDDO.indexedMetadata.stats) {
+        if (stat.datatokenAddress === datatokenAddress) {
+          expect(stat.orders).to.equal(1)
+          initialOrderCount = stat.orders
+          break
+        }
+      }
       const resultOrder = await database.order.retrieve(orderTxId)
       if (resultOrder) {
         if (resultOrder.id) {
@@ -536,10 +543,15 @@ describe('Indexer stores a new metadata events and orders.', () => {
       true
     )
 
-    const retrievedDDO: any = ddo
+    const retrievedDDO: DDO = ddo
 
     if (retrievedDDO) {
-      expect(retrievedDDO.stats.orders).to.be.greaterThan(initialOrderCount)
+      for (const stat of retrievedDDO.indexedMetadata.stats) {
+        if (stat.datatokenAddress === datatokenAddress) {
+          expect(stat.orders).to.be.greaterThan(initialOrderCount)
+          break
+        }
+      }
       const resultOrder = await database.order.retrieve(reuseOrderTxId)
       if (resultOrder) {
         if (resultOrder.id) {
