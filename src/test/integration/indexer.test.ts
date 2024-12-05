@@ -30,7 +30,6 @@ import {
 } from '../../utils/address.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
 import { DDO } from '../../@types/DDO/DDO.js'
-import { Stats } from '../../@types/DDO/IndexedMetadata.js'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
