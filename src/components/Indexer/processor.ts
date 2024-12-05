@@ -514,6 +514,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
             }
           }
         }
+        INDEXER_LOGGER.logMessage(`ddo with indexedMetadata: ${JSON.stringify(ddo)}`)
         if (eventName === EVENTS.METADATA_UPDATED && 'indexedMetadata' in ddo) {
           for (const stat of ddo.indexedMetadata.stats) {
             const datatoken = new ethers.Contract(
@@ -810,11 +811,9 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         // Still update until we validate and polish schemas for DDO.
         // But it should update ONLY if first condition is met.
         ddo.indexedMetadata.stats = {
-          orders: 1
-        }
-      } else {
-        // this cause breaking change - will be removed
-        ddo.stats = {
+          datatokenAddress: event.address,
+          name: await datatokenContract.name(),
+          serviceId: ddo.services[serviceIndex].id,
           orders: 1
         }
       }
