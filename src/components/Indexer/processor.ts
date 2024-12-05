@@ -503,7 +503,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
                   serviceId: service.id,
                   orders: 0, // just created
                   prices: prices.push({
-                    type: 'fixedRate',
+                    type: 'fixedrate',
                     price: exchange[5],
                     token: exchange[3],
                     contract: fixedRate,
@@ -512,6 +512,15 @@ export class MetadataEventProcessor extends BaseEventProcessor {
                 })
               }
             }
+          }
+          if (!dispensers && !fixedRates) {
+            ddo.indexedMetadata.stats.push({
+              datatokenAddress: service.datatokenAddress,
+              name: await datatoken.name(),
+              serviceId: service.id,
+              orders: 0, // just created
+              prices: []
+            })
           }
         }
         INDEXER_LOGGER.logMessage(`ddo with indexedMetadata: ${JSON.stringify(ddo)}`)
