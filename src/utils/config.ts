@@ -616,7 +616,8 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       ENVIRONMENT_VARIABLES.UNSAFE_URLS,
       isStartup,
       knownUnsafeURLs
-    )
+    ),
+    isBootstrap: getBoolEnvValue(process.env.IS_BOOTSTRAP, false)
   }
 
   if (!previousConfiguration) {
