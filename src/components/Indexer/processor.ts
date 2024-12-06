@@ -451,22 +451,29 @@ export class MetadataEventProcessor extends BaseEventProcessor {
             ERC20Template.abi,
             signer
           )
+          INDEXER_LOGGER.logMessage(`datatoken: ${datatoken}`)
           let dispensers = []
           let fixedRates = []
           const prices = []
           try {
             dispensers = await datatoken.getDispensers()
+            INDEXER_LOGGER.logMessage(`dispensers: ${dispensers}`)
           } catch (e) {
             INDEXER_LOGGER.error(`Contract call fails when retrieving dispensers: ${e}`)
           }
           if (dispensers) {
+            INDEXER_LOGGER.logMessage(`a intrat pe disp: ${dispensers}`)
             for (const dispenser of dispensers) {
               const dispenserContract = new ethers.Contract(
                 dispenser,
                 Dispenser.abi,
                 signer
               )
+              INDEXER_LOGGER.logMessage(`disp ctr: ${dispenserContract}`)
               if ((await dispenserContract.status())[0] === true) {
+                INDEXER_LOGGER.logMessage(
+                  `disp ctr call: ${await dispenserContract.status()}`
+                )
                 ddo.indexedMetadata.stats.push({
                   datatokenAddress: service.datatokenAddress,
                   name: await datatoken.name(),
