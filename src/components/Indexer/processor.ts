@@ -445,6 +445,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
 
       // we need to store the event data (either metadata created or update and is updatable)
       if ([EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED].includes(eventName)) {
+        ddo.indexedMetadata.stats = {}
         for (const service of ddo.services) {
           const datatoken = new ethers.Contract(
             service.datatokenAddress,
