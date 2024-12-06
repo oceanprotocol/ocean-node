@@ -474,7 +474,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
               `Contract call fails when retrieving fixed rate exchanges: ${e}`
             )
           }
-          if (!dispensers && !fixedRates) {
+          if (dispensers.length() === 0 && fixedRates.length() === 0) {
             INDEXER_LOGGER.logMessage(`a intrat pe aici`)
             ddo.indexedMetadata.stats.push({
               datatokenAddress: service.datatokenAddress,
