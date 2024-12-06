@@ -141,8 +141,11 @@ class BaseEventProcessor {
   }
 
   protected checkDdoHash(decryptedDocument: any, documentHashFromContract: any): boolean {
+    INDEXER_LOGGER.logMessage(`decrypted document: ${JSON.stringify(decryptedDocument)}`)
     const utf8Bytes = toUtf8Bytes(JSON.stringify(decryptedDocument))
     const expectedMetadata = hexlify(utf8Bytes)
+    INDEXER_LOGGER.logMessage(`hash: ${create256Hash(expectedMetadata.toString())}`)
+    INDEXER_LOGGER.logMessage(`ctr hash: ${documentHashFromContract}`)
     if (create256Hash(expectedMetadata.toString()) !== documentHashFromContract) {
       INDEXER_LOGGER.error(`DDO checksum does not match.`)
       return false
@@ -372,6 +375,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         )
         return
       }
+      INDEXER_LOGGER.logMessage(
+        `decrypted document from contract: ${JSON.stringify(ddo)}`
+      )
       // for unencrypted DDOs
       if (parseInt(flag) !== 2 && !this.checkDdoHash(updatedDdo, metadataHash)) {
         return
