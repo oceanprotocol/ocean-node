@@ -24,6 +24,7 @@ import { PROTOCOL_COMMANDS, EVENTS, MetadataStates } from '../../utils/constants
 import {
   findServiceIdByDatatoken,
   getDtContract,
+  getPricingStatsForDddo,
   wasNFTDeployedByOurFactory
 } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
@@ -449,113 +450,15 @@ export class MetadataEventProcessor extends BaseEventProcessor {
 
       // we need to store the event data (either metadata created or update and is updatable)
       if ([EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED].includes(eventName)) {
-        if (!ddo.indexedMetadata) {
-          ddo.indexedMetadata = {}
-        }
-
-        if (!Array.isArray(ddo.indexedMetadata.stats)) {
-          ddo.indexedMetadata.stats = []
-        }
-        for (const service of ddo.services) {
-          const datatoken = new ethers.Contract(
-            service.datatokenAddress,
-            ERC20Template.abi,
-            signer
-          )
-          INDEXER_LOGGER.logMessage(`datatoken: ${datatoken}`)
-          let dispensers = []
-          let fixedRates = []
-          const prices = []
-          try {
-            dispensers = await datatoken.getDispensers()
-            INDEXER_LOGGER.logMessage(
-              `dt ctr call for disp: ${await datatoken.getDispensers()}`
-            )
-            INDEXER_LOGGER.logMessage(`dispensers: ${dispensers}`)
-          } catch (e) {
-            INDEXER_LOGGER.error(`Contract call fails when retrieving dispensers: ${e}`)
-          }
-          try {
-            fixedRates = await datatoken.getFixedRates()
-            INDEXER_LOGGER.logMessage(
-              `dt ctr call for fre: ${await datatoken.getFixedRates()}`
-            )
-          } catch (e) {
-            INDEXER_LOGGER.error(
-              `Contract call fails when retrieving fixed rate exchanges: ${e}`
-            )
-          }
-          if (dispensers.length === 0 && fixedRates.length === 0) {
-            INDEXER_LOGGER.logMessage(`a intrat pe aici`)
-            ddo.indexedMetadata.stats.push({
-              datatokenAddress: service.datatokenAddress,
-              name: await datatoken.name(),
-              serviceId: service.id,
-              orders: 0, // just created
-              prices: []
-            })
-            INDEXER_LOGGER.logMessage(
-              `ddo with indexedMetadata w/o disp and fre: ${JSON.stringify(ddo)}`
-            )
-          } else {
-            if (dispensers) {
-              INDEXER_LOGGER.logMessage(`a intrat pe disp: ${dispensers}`)
-              for (const dispenser of dispensers) {
-                const dispenserContract = new ethers.Contract(
-                  dispenser,
-                  Dispenser.abi,
-                  signer
-                )
-                INDEXER_LOGGER.logMessage(`disp ctr: ${dispenserContract}`)
-                if ((await dispenserContract.status())[0] === true) {
-                  INDEXER_LOGGER.logMessage(
-                    `disp ctr call: ${await dispenserContract.status()}`
-                  )
-                  ddo.indexedMetadata.stats.push({
-                    datatokenAddress: service.datatokenAddress,
-                    name: await datatoken.name(),
-                    serviceId: service.id,
-                    orders: 0, // just created
-                    prices: prices.push({
-                      type: 'dispenser',
-                      price: '0',
-                      contract: dispenser
-                    })
-                  })
-                }
-              }
-            }
-
-            if (fixedRates) {
-              for (const fixedRate of fixedRates) {
-                const fixedRateContract = new ethers.Contract(
-                  fixedRate.address,
-                  FixedRateExchange.abi,
-                  signer
-                )
-                const exchange = await fixedRateContract.getExchange(fixedRate.id)
-                if (exchange[6] === true) {
-                  ddo.indexedMetadata.stats.push({
-                    datatokenAddress: service.datatokenAddress,
-                    name: await datatoken.name(),
-                    serviceId: service.id,
-                    orders: 0, // just created
-                    prices: prices.push({
-                      type: 'fixedrate',
-                      price: exchange[5],
-                      token: exchange[3],
-                      contract: fixedRate,
-                      exchangeId: fixedRate.id
-                    })
-                  })
-                }
-              }
-            }
-          }
-        }
-        INDEXER_LOGGER.logMessage(`ddo with indexedMetadata: ${JSON.stringify(ddo)}`)
-        if (eventName === EVENTS.METADATA_UPDATED && 'indexedMetadata' in ddo) {
-          for (const stat of ddo.indexedMetadata.stats) {
+        const ddoWithPricing = await getPricingStatsForDddo(ddo, signer)
+        INDEXER_LOGGER.logMessage(
+          `ddo with indexedMetadata: ${JSON.stringify(ddoWithPricing)}`
+        )
+        if (
+          eventName === EVENTS.METADATA_UPDATED &&
+          ddoWithPricing.indexedMetadata.stats.length !== 0
+        ) {
+          for (const stat of ddoWithPricing.indexedMetadata.stats) {
             const datatoken = new ethers.Contract(
               stat.datatokenAddress,
               ERC20Template.abi,
@@ -571,8 +474,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
                     signer
                   )
                   if ((await dispenserContract.status())[0] === false) {
-                    const index = ddo.indexedMetadata.stats.indexOf(stat)
-                    ddo.indexedMetadata.stats.splice(index, 1)
+                    const index = ddoWithPricing.indexedMetadata.stats.indexOf(stat)
+                    ddoWithPricing.indexedMetadata.stats.splice(index, 1)
                   }
                 }
               } catch (e) {
@@ -591,8 +494,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
                   )
                   const exchange = await fixedRateContract.getExchange(fixedRate.id)
                   if (exchange[6] === false) {
-                    const index = ddo.indexedMetadata.stats.indexOf(stat)
-                    ddo.indexedMetadata.stats.splice(index, 1)
+                    const index = ddoWithPricing.indexedMetadata.stats.indexOf(stat)
+                    ddoWithPricing.indexedMetadata.stats.splice(index, 1)
                   }
                 }
               } catch (e) {
