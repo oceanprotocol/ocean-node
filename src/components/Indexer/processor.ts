@@ -21,7 +21,11 @@ import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pool
 
 import { getDatabase } from '../../utils/database.js'
 import { PROTOCOL_COMMANDS, EVENTS, MetadataStates } from '../../utils/constants.js'
-import { getDtContract, wasNFTDeployedByOurFactory } from './utils.js'
+import {
+  findServiceIdByDatatoken,
+  getDtContract,
+  wasNFTDeployedByOurFactory
+} from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
 import {
@@ -445,6 +449,13 @@ export class MetadataEventProcessor extends BaseEventProcessor {
 
       // we need to store the event data (either metadata created or update and is updatable)
       if ([EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED].includes(eventName)) {
+        if (!ddo.indexedMetadata) {
+          ddo.indexedMetadata = {}
+        }
+
+        if (!Array.isArray(ddo.indexedMetadata.stats)) {
+          ddo.indexedMetadata.stats = []
+        }
         for (const service of ddo.services) {
           const datatoken = new ethers.Contract(
             service.datatokenAddress,
@@ -824,8 +835,15 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         )
         return
       }
+      if (!ddo.indexedMetadata) {
+        ddo.indexedMetadata = {}
+      }
+
+      if (!Array.isArray(ddo.indexedMetadata.stats)) {
+        ddo.indexedMetadata.stats = []
+      }
       if (
-        'indexedMetadata' in ddo &&
+        ddo.indexedMetadata.stats.length !== 0 &&
         ddo.services[serviceIndex].datatokenAddress?.toLowerCase() ===
           event.address?.toLowerCase()
       ) {
@@ -835,15 +853,14 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
             break
           }
         }
-      } else if (!('indexedMetadata' in ddo)) {
-        // Still update until we validate and polish schemas for DDO.
-        // But it should update ONLY if first condition is met.
-        ddo.indexedMetadata.stats = {
+      } else if (ddo.indexedMetadata.stats.length === 0) {
+        ddo.indexedMetadata.stats.push({
           datatokenAddress: event.address,
           name: await datatokenContract.name(),
           serviceId: ddo.services[serviceIndex].id,
-          orders: 1
-        }
+          orders: 1,
+          prices: [] // needs fixing, to retrieve pricing
+        })
       }
       await orderDatabase.create(
         event.transactionHash,
@@ -900,7 +917,14 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if ('indexedMetadata' in ddo) {
+      if (!ddo.indexedMetadata) {
+        ddo.indexedMetadata = {}
+      }
+
+      if (!Array.isArray(ddo.indexedMetadata.stats)) {
+        ddo.indexedMetadata.stats = []
+      }
+      if (ddo.indexedMetadata.stats.length !== 0) {
         for (const stat of ddo.indexedMetadata.stats) {
           if (stat.datatokenAddress.toLowerCase() === event.address?.toLowerCase()) {
             stat.orders += 1
@@ -908,8 +932,21 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
           }
         }
       } else {
-        // this cause breaking change - will be removed
-        ddo.stats.orders += 1
+        INDEXER_LOGGER.logMessage(`[OrderReused] - No stats were found on the ddo`)
+        const serviceIdToFind = findServiceIdByDatatoken(ddo, event.address)
+        if (serviceIdToFind === '') {
+          INDEXER_LOGGER.logMessage(
+            `[OrderReused] - This datatoken does not contain this service. Invalid service id!`
+          )
+          return
+        }
+        ddo.indexedMetadata.stats.push({
+          datatokenAddress: event.address,
+          name: await datatokenContract.name(),
+          serviceId: serviceIdToFind,
+          orders: 1,
+          prices: [] // needs fixing, to retrieve pricing -> add util function for fres and dispensers
+        })
       }
 
       try {
@@ -926,7 +963,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
           timestamp,
           startOrder.consumer,
           payer,
-          ddo.services[0].datatokenAddress,
+          event.address,
           nftAddress,
           did,
           startOrderId

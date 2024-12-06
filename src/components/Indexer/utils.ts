@@ -330,3 +330,14 @@ export function buildJobIdentifier(command: string, extra: string[]): JobStatus 
     hash: create256Hash(extra.join(''))
   }
 }
+
+export function findServiceIdByDatatoken(ddo: any, datatokenAddress: string): string {
+  let serviceIdToFind = ''
+  for (const s of ddo.services) {
+    if (s.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase()) {
+      serviceIdToFind = s.id
+      break
+    }
+  }
+  return serviceIdToFind
+}
