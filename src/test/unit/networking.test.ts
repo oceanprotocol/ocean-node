@@ -1,5 +1,5 @@
 import {
-  DEFAULT_RATE_LIMIT_PER_SECOND,
+  DEFAULT_RATE_LIMIT_PER_MINUTE,
   ENVIRONMENT_VARIABLES,
   PROTOCOL_COMMANDS,
   getConfiguration
@@ -105,7 +105,7 @@ describe('Test rate limitations and deny list defaults', () => {
   // const node: OceanNode = OceanNode.getInstance()
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
-      [ENVIRONMENT_VARIABLES.RATE_DENY_LIST, ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND],
+      [ENVIRONMENT_VARIABLES.RATE_DENY_LIST, ENVIRONMENT_VARIABLES.MAX_REQ_PER_MINUTE],
       [undefined, undefined]
     )
     await setupEnvironment(null, envOverrides)
@@ -115,7 +115,7 @@ describe('Test rate limitations and deny list defaults', () => {
     const config = await getConfiguration(true)
     expect(config.denyList.ips).to.be.length(0)
     expect(config.denyList.peers).to.be.length(0)
-    expect(config.rateLimit).to.be.equal(DEFAULT_RATE_LIMIT_PER_SECOND)
+    expect(config.rateLimit).to.be.equal(DEFAULT_RATE_LIMIT_PER_MINUTE)
   })
 
   // put it back
@@ -132,7 +132,7 @@ describe('Test rate limitations and deny list settings', () => {
       [
         ENVIRONMENT_VARIABLES.PRIVATE_KEY,
         ENVIRONMENT_VARIABLES.RATE_DENY_LIST,
-        ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND
+        ENVIRONMENT_VARIABLES.MAX_REQ_PER_MINUTE
       ],
       [
         '0xcb345bd2b11264d523ddaf383094e2675c420a17511c3102a53817f13474a7ff',

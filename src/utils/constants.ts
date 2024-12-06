@@ -266,10 +266,16 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.DASHBOARD,
     required: false
   },
-  MAX_REQ_PER_SECOND: {
-    // rate limit per second
-    name: 'MAX_REQ_PER_SECOND',
-    value: process.env.MAX_REQ_PER_SECOND,
+  MAX_REQ_PER_MINUTE: {
+    // rate limit per minute (MAX requests per minute for a given IP or peer ID)
+    name: 'MAX_REQ_PER_MINUTE',
+    value: process.env.MAX_REQ_PER_MINUTE,
+    required: false
+  },
+  MAX_CONNECTIONS_PER_MINUTE: {
+    // rate connections limit per minute (MAX requests per minute that the node will process)
+    name: 'MAX_CONNECTIONS_PER_MINUTE',
+    value: process.env.MAX_CONNECTIONS_PER_MINUTE,
     required: false
   },
   RATE_DENY_LIST: {
@@ -325,8 +331,10 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   }
 }
 
-// default to 3 requests per second (configurable)
-export const DEFAULT_RATE_LIMIT_PER_SECOND = 3
+// default to 30 requests per minute (configurable), per ip/peer
+export const DEFAULT_RATE_LIMIT_PER_MINUTE = 30
+// max connections per minute (configurable), all connections
+export const DEFAULT_MAX_CONNECTIONS_PER_MINUTE = 60 * 2 // 120 requests per minute
 // Typesense's maximum limit to send 250 hits at a time
 export const TYPESENSE_HITS_CAP = 250
 export const DDO_IDENTIFIER_PREFIX = 'did:op:'
