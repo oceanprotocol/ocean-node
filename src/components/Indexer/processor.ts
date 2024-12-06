@@ -445,7 +445,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
 
       // we need to store the event data (either metadata created or update and is updatable)
       if ([EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED].includes(eventName)) {
-        ddo.indexedMetadata.stats = {}
         for (const service of ddo.services) {
           const datatoken = new ethers.Contract(
             service.datatokenAddress,
@@ -515,6 +514,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
             }
           }
           if (!dispensers && !fixedRates) {
+            INDEXER_LOGGER.logMessage(`a intrat pe aici`)
             ddo.indexedMetadata.stats.push({
               datatokenAddress: service.datatokenAddress,
               name: await datatoken.name(),
@@ -522,6 +522,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
               orders: 0, // just created
               prices: []
             })
+            INDEXER_LOGGER.logMessage(
+              `ddo with indexedMetadata w/o disp and fre: ${JSON.stringify(ddo)}`
+            )
           }
         }
         INDEXER_LOGGER.logMessage(`ddo with indexedMetadata: ${JSON.stringify(ddo)}`)
