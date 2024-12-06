@@ -38,7 +38,7 @@ export abstract class Handler implements ICommandHandler {
 
   // TODO LOG, implement all handlers
   async checkRateLimit(): Promise<boolean> {
-    const ratePerSecond = (await getConfiguration()).rateLimit
+    const ratePerMinute = (await getConfiguration()).rateLimit
     const caller: string | string[] = this.getOceanNode().getRemoteCaller()
     const requestTime = new Date().getTime()
     let isOK = true
@@ -49,7 +49,7 @@ export abstract class Handler implements ICommandHandler {
       const updatedRequestData = self.checkRequestData(
         remoteCaller,
         requestTime,
-        ratePerSecond
+        ratePerMinute
       )
       isOK = updatedRequestData.valid
       self.requestMap.set(remoteCaller, updatedRequestData.updatedRequestData)
@@ -105,18 +105,18 @@ export abstract class Handler implements ICommandHandler {
   /**
    * Checks if the request is within the rate limit defined
    * @param remote remote endpoint (ip or peer identifier)
-   * @param ratePerSecond number of calls per second allowed
+   * @param ratePerMinute number of calls per minute allowed (per ip or peer identifier)
    * @returns updated request data
    */
   checkRequestData(
     remote: string,
     currentTime: number,
-    ratePerSecond: number
+    ratePerMinute: number
   ): RequestDataCheck {
     const requestData: RequestLimiter = this.requestMap.get(remote)
-    const diffSeconds = (currentTime - requestData.lastRequestTime) / 1000
-    // more than 1 sec difference means no problem
-    if (diffSeconds >= 1) {
+    const diffMinutes = ((currentTime - requestData.lastRequestTime) / 1000) * 60
+    // more than 1 minute difference means no problem
+    if (diffMinutes >= 1) {
       // its fine
       requestData.lastRequestTime = currentTime
       requestData.numRequests = 1
@@ -128,7 +128,7 @@ export abstract class Handler implements ICommandHandler {
       // requests in the same interval of 1 second
       requestData.numRequests++
       return {
-        valid: requestData.numRequests <= ratePerSecond,
+        valid: requestData.numRequests <= ratePerMinute,
         updatedRequestData: requestData
       }
     }

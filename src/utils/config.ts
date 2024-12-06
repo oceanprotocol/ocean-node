@@ -9,7 +9,7 @@ import { C2DClusterType } from '../@types/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
 import {
-  DEFAULT_RATE_LIMIT_PER_SECOND,
+  DEFAULT_RATE_LIMIT_PER_MINUTE,
   ENVIRONMENT_VARIABLES,
   EnvVariable,
   hexStringToByteArray
@@ -428,19 +428,19 @@ function logMissingVariableWithDefault(envVariable: EnvVariable) {
 }
 // have a rate limit for handler calls
 function getRateLimit(isStartup: boolean = false) {
-  if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND)) {
+  if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.MAX_REQ_PER_MINUTE)) {
     if (isStartup) {
-      logMissingVariableWithDefault(ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND)
+      logMissingVariableWithDefault(ENVIRONMENT_VARIABLES.MAX_REQ_PER_MINUTE)
     }
-    return DEFAULT_RATE_LIMIT_PER_SECOND
+    return DEFAULT_RATE_LIMIT_PER_MINUTE
   } else {
     try {
-      return getIntEnvValue(process.env.MAX_REQ_PER_SECOND, DEFAULT_RATE_LIMIT_PER_SECOND)
+      return getIntEnvValue(process.env.MAX_REQ_PER_MINUTE, DEFAULT_RATE_LIMIT_PER_MINUTE)
     } catch (err) {
       CONFIG_LOGGER.error(
-        `Invalid "${ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND.name}" env variable...`
+        `Invalid "${ENVIRONMENT_VARIABLES.MAX_REQ_PER_MINUTE.name}" env variable...`
       )
-      return DEFAULT_RATE_LIMIT_PER_SECOND
+      return DEFAULT_RATE_LIMIT_PER_MINUTE
     }
   }
 }
@@ -549,7 +549,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       ),
       dhtMaxInboundStreams: getIntEnvValue(process.env.P2P_dhtMaxInboundStreams, 500),
       dhtMaxOutboundStreams: getIntEnvValue(process.env.P2P_dhtMaxOutboundStreams, 500),
-      enableDHTServer: getBoolEnvValue(process.env.P2P_ENABLE_DHT_SERVER, false),
+      enableDHTServer: getBoolEnvValue('P2P_ENABLE_DHT_SERVER', false),
       mDNSInterval: getIntEnvValue(process.env.P2P_mDNSInterval, 20e3), // 20 seconds
       connectionsMaxParallelDials: getIntEnvValue(
         process.env.P2P_connectionsMaxParallelDials,
@@ -617,7 +617,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       isStartup,
       knownUnsafeURLs
     ),
-    isBootstrap: getBoolEnvValue(process.env.IS_BOOTSTRAP, false)
+    isBootstrap: getBoolEnvValue('IS_BOOTSTRAP', false)
   }
 
   if (!previousConfiguration) {
