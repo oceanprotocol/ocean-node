@@ -58,6 +58,7 @@ import { getConfiguration } from '../../utils/config.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
+import { deleteIndexedMetadataIfExists } from '../../utils/asset.js'
 
 describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
@@ -288,6 +289,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     resolvedDDO.metadata.name = 'dataset-name-updated'
     resolvedDDO.metadata.description =
       'Updated description for the Ocean protocol test dataset'
+    resolvedDDO = deleteIndexedMetadataIfExists(resolvedDDO)
     const stringDDO = JSON.stringify(resolvedDDO)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
