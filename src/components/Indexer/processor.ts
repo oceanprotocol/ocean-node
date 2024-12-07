@@ -16,12 +16,24 @@ import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
+import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
+
 import { getDatabase } from '../../utils/database.js'
 import { PROTOCOL_COMMANDS, EVENTS, MetadataStates } from '../../utils/constants.js'
-import { getDtContract, wasNFTDeployedByOurFactory } from './utils.js'
+import {
+  findServiceIdByDatatoken,
+  getDtContract,
+  getPricingStatsForDddo,
+  wasNFTDeployedByOurFactory
+} from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
-import { getConfiguration, timestampToDateTime } from '../../utils/index.js'
+import {
+  deleteIndexedMetadataIfExists,
+  getConfiguration,
+  timestampToDateTime
+} from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
@@ -36,16 +48,27 @@ class BaseEventProcessor {
     this.networkId = chainId
   }
 
-  protected getTokenInfo(services: any[]): any[] {
+  protected async getTokenInfo(services: any[], signer: Signer): Promise<any[]> {
     const datatokens: any[] = []
-    services.forEach((service) => {
+
+    for (const service of services) {
+      const datatoken = new ethers.Contract(
+        service.datatokenAddress,
+        ERC20Template.abi,
+        signer
+      )
+
+      const name = await datatoken.name()
+      const symbol = await datatoken.symbol()
+
       datatokens.push({
         address: service.datatokenAddress,
-        name: 'Datatoken',
-        symbol: 'DT1',
+        name,
+        symbol,
         serviceId: service.id
       })
-    })
+    }
+
     return datatokens
   }
 
@@ -118,8 +141,11 @@ class BaseEventProcessor {
   }
 
   protected checkDdoHash(decryptedDocument: any, documentHashFromContract: any): boolean {
+    INDEXER_LOGGER.logMessage(`decrypted document: ${JSON.stringify(decryptedDocument)}`)
     const utf8Bytes = toUtf8Bytes(JSON.stringify(decryptedDocument))
     const expectedMetadata = hexlify(utf8Bytes)
+    INDEXER_LOGGER.logMessage(`hash: ${create256Hash(expectedMetadata.toString())}`)
+    INDEXER_LOGGER.logMessage(`ctr hash: ${documentHashFromContract}`)
     if (create256Hash(expectedMetadata.toString()) !== documentHashFromContract) {
       INDEXER_LOGGER.error(`DDO checksum does not match.`)
       return false
@@ -341,14 +367,16 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         metadataHash,
         metadata
       )
-      if (ddo.id !== makeDid(event.address, chainId.toString(10))) {
+      const clonedDdo = structuredClone(ddo)
+      const updatedDdo = deleteIndexedMetadataIfExists(clonedDdo)
+      if (updatedDdo.id !== makeDid(event.address, chainId.toString(10))) {
         INDEXER_LOGGER.error(
           `Decrypted DDO ID is not matching the generated hash for DID.`
         )
         return
       }
       // for unencrypted DDOs
-      if (parseInt(flag) !== 2 && !this.checkDdoHash(ddo, metadataHash)) {
+      if (parseInt(flag) !== 2 && !this.checkDdoHash(updatedDdo, metadataHash)) {
         return
       }
 
@@ -356,7 +384,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       // stuff that we overwrite
       ddo.chainId = chainId
       ddo.nftAddress = event.address
-      ddo.datatokens = this.getTokenInfo(ddo.services)
+      ddo.datatokens = await this.getTokenInfo(ddo.services, signer)
       ddo.nft = await this.getNFTInfo(
         ddo.nftAddress,
         signer,
@@ -425,6 +453,59 @@ export class MetadataEventProcessor extends BaseEventProcessor {
 
       // we need to store the event data (either metadata created or update and is updatable)
       if ([EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED].includes(eventName)) {
+        const ddoWithPricing = await getPricingStatsForDddo(ddo, signer)
+        if (
+          eventName === EVENTS.METADATA_UPDATED &&
+          ddoWithPricing.indexedMetadata.stats.length !== 0
+        ) {
+          for (const stat of ddoWithPricing.indexedMetadata.stats) {
+            const datatoken = new ethers.Contract(
+              stat.datatokenAddress,
+              ERC20Template.abi,
+              signer
+            )
+            if (stat.type === 'dispenser') {
+              try {
+                const dispensers = await datatoken.getDispensers()
+                for (const dispenser of dispensers) {
+                  const dispenserContract = new ethers.Contract(
+                    dispenser,
+                    Dispenser.abi,
+                    signer
+                  )
+                  if ((await dispenserContract.status())[0] === false) {
+                    const index = ddoWithPricing.indexedMetadata.stats.indexOf(stat)
+                    ddoWithPricing.indexedMetadata.stats.splice(index, 1)
+                  }
+                }
+              } catch (e) {
+                INDEXER_LOGGER.error(
+                  `Contract call fails when retrieving dispensers for METADATA_UPDATED: ${e}`
+                )
+              }
+            } else if (stat.type === 'fixedrate') {
+              try {
+                const fixedRates = await datatoken.getFixedRates()
+                for (const fixedRate of fixedRates) {
+                  const fixedRateContract = new ethers.Contract(
+                    fixedRate.address,
+                    FixedRateExchange.abi,
+                    signer
+                  )
+                  const exchange = await fixedRateContract.getExchange(fixedRate.id)
+                  if (exchange[6] === false) {
+                    const index = ddoWithPricing.indexedMetadata.stats.indexOf(stat)
+                    ddoWithPricing.indexedMetadata.stats.splice(index, 1)
+                  }
+                }
+              } catch (e) {
+                INDEXER_LOGGER.error(
+                  `Contract call fails when retrieving fixed rate exchanges for METADATA_UPDATED: ${e}`
+                )
+              }
+            }
+          }
+        }
         if (!ddo.event) {
           ddo.event = {}
         }
@@ -657,18 +738,32 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         )
         return
       }
+      if (!ddo.indexedMetadata) {
+        ddo.indexedMetadata = {}
+      }
+
+      if (!Array.isArray(ddo.indexedMetadata.stats)) {
+        ddo.indexedMetadata.stats = []
+      }
       if (
-        'stats' in ddo &&
+        ddo.indexedMetadata.stats.length !== 0 &&
         ddo.services[serviceIndex].datatokenAddress?.toLowerCase() ===
           event.address?.toLowerCase()
       ) {
-        ddo.stats.orders += 1
-      } else {
-        // Still update until we validate and polish schemas for DDO.
-        // But it should update ONLY if first condition is met.
-        ddo.stats = {
-          orders: 1
+        for (const stat of ddo.indexedMetadata.stats) {
+          if (stat.datatokenAddress.toLowerCase() === event.address?.toLowerCase()) {
+            stat.orders += 1
+            break
+          }
         }
+      } else if (ddo.indexedMetadata.stats.length === 0) {
+        ddo.indexedMetadata.stats.push({
+          datatokenAddress: event.address,
+          name: await datatokenContract.name(),
+          serviceId: ddo.services[serviceIndex].id,
+          orders: 1,
+          prices: [] // needs fixing, to retrieve pricing -> add util function for fres and dispensers
+        })
       }
       await orderDatabase.create(
         event.transactionHash,
@@ -725,7 +820,37 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      ddo.stats.orders += 1
+      if (!ddo.indexedMetadata) {
+        ddo.indexedMetadata = {}
+      }
+
+      if (!Array.isArray(ddo.indexedMetadata.stats)) {
+        ddo.indexedMetadata.stats = []
+      }
+      if (ddo.indexedMetadata.stats.length !== 0) {
+        for (const stat of ddo.indexedMetadata.stats) {
+          if (stat.datatokenAddress.toLowerCase() === event.address?.toLowerCase()) {
+            stat.orders += 1
+            break
+          }
+        }
+      } else {
+        INDEXER_LOGGER.logMessage(`[OrderReused] - No stats were found on the ddo`)
+        const serviceIdToFind = findServiceIdByDatatoken(ddo, event.address)
+        if (serviceIdToFind === '') {
+          INDEXER_LOGGER.logMessage(
+            `[OrderReused] - This datatoken does not contain this service. Invalid service id!`
+          )
+          return
+        }
+        ddo.indexedMetadata.stats.push({
+          datatokenAddress: event.address,
+          name: await datatokenContract.name(),
+          serviceId: serviceIdToFind,
+          orders: 1,
+          prices: [] // needs fixing, to retrieve pricing -> add util function for fres and dispensers
+        })
+      }
 
       try {
         const startOrder = await orderDatabase.retrieve(startOrderId)
@@ -741,7 +866,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
           timestamp,
           startOrder.consumer,
           payer,
-          ddo.services[0].datatokenAddress,
+          event.address,
           nftAddress,
           did,
           startOrderId

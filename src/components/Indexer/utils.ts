@@ -22,6 +22,8 @@ import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { getOceanArtifactsAdressesByChainId } from '../../utils/address.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
+import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
+import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
 
 let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor
@@ -329,4 +331,103 @@ export function buildJobIdentifier(command: string, extra: string[]): JobStatus 
     status: CommandStatus.DELIVERED,
     hash: create256Hash(extra.join(''))
   }
+}
+
+export function findServiceIdByDatatoken(ddo: any, datatokenAddress: string): string {
+  let serviceIdToFind = ''
+  for (const s of ddo.services) {
+    if (s.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase()) {
+      serviceIdToFind = s.id
+      break
+    }
+  }
+  return serviceIdToFind
+}
+
+export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<any> {
+  if (!ddo.indexedMetadata) {
+    ddo.indexedMetadata = {}
+  }
+
+  if (!Array.isArray(ddo.indexedMetadata.stats)) {
+    ddo.indexedMetadata.stats = []
+  }
+  for (const service of ddo.services) {
+    const datatoken = new ethers.Contract(
+      service.datatokenAddress,
+      ERC20Template.abi,
+      signer
+    )
+    INDEXER_LOGGER.logMessage(`datatoken: ${datatoken}`)
+    let dispensers = []
+    let fixedRates = []
+    const prices = []
+    try {
+      dispensers = await datatoken.getDispensers()
+    } catch (e) {
+      INDEXER_LOGGER.error(`Contract call fails when retrieving dispensers: ${e}`)
+    }
+    try {
+      fixedRates = await datatoken.getFixedRates()
+    } catch (e) {
+      INDEXER_LOGGER.error(
+        `Contract call fails when retrieving fixed rate exchanges: ${e}`
+      )
+    }
+    if (dispensers.length === 0 && fixedRates.length === 0) {
+      ddo.indexedMetadata.stats.push({
+        datatokenAddress: service.datatokenAddress,
+        name: await datatoken.name(),
+        serviceId: service.id,
+        orders: 0,
+        prices: []
+      })
+    } else {
+      if (dispensers) {
+        for (const dispenser of dispensers) {
+          const dispenserContract = new ethers.Contract(dispenser, Dispenser.abi, signer)
+          if ((await dispenserContract.status())[0] === true) {
+            ddo.indexedMetadata.stats.push({
+              datatokenAddress: service.datatokenAddress,
+              name: await datatoken.name(),
+              serviceId: service.id,
+              orders: 0,
+              prices: prices.push({
+                type: 'dispenser',
+                price: '0',
+                contract: dispenser
+              })
+            })
+          }
+        }
+      }
+
+      if (fixedRates) {
+        for (const fixedRate of fixedRates) {
+          const fixedRateContract = new ethers.Contract(
+            fixedRate.address,
+            FixedRateExchange.abi,
+            signer
+          )
+          const exchange = await fixedRateContract.getExchange(fixedRate.id)
+          if (exchange[6] === true) {
+            ddo.indexedMetadata.stats.push({
+              datatokenAddress: service.datatokenAddress,
+              name: await datatoken.name(),
+              serviceId: service.id,
+              orders: 0, // just created
+              prices: prices.push({
+                type: 'fixedrate',
+                price: exchange[5],
+                token: exchange[3],
+                contract: fixedRate,
+                exchangeId: fixedRate.id
+              })
+            })
+          }
+        }
+      }
+    }
+  }
+  return ddo
 }
