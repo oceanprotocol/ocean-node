@@ -344,91 +344,7 @@ export function findServiceIdByDatatoken(ddo: any, datatokenAddress: string): st
   return serviceIdToFind
 }
 
-// export async function getPricingSchemas(datatoken: ethers.Contract, signer: Signer) {
-//   let dispensers = []
-//   let fixedRates = []
-//   const prices = []
-//   try {
-//     dispensers = await datatoken.getDispensers()
-//     INDEXER_LOGGER.logMessage(`dt ctr call for disp: ${await datatoken.getDispensers()}`)
-//     INDEXER_LOGGER.logMessage(`dispensers: ${dispensers}`)
-//   } catch (e) {
-//     INDEXER_LOGGER.error(`Contract call fails when retrieving dispensers: ${e}`)
-//   }
-//   try {
-//     fixedRates = await datatoken.getFixedRates()
-//     INDEXER_LOGGER.logMessage(`dt ctr call for fre: ${await datatoken.getFixedRates()}`)
-//   } catch (e) {
-//     INDEXER_LOGGER.error(`Contract call fails when retrieving fixed rate exchanges: ${e}`)
-//   }
-//   if (dispensers.length === 0 && fixedRates.length === 0) {
-//     INDEXER_LOGGER.logMessage(`a intrat pe aici`)
-//     ddo.indexedMetadata.stats.push({
-//       datatokenAddress: service.datatokenAddress,
-//       name: await datatoken.name(),
-//       serviceId: service.id,
-//       orders: 0,
-//       prices: []
-//     })
-//     INDEXER_LOGGER.logMessage(
-//       `ddo with indexedMetadata w/o disp and fre: ${JSON.stringify(ddo)}`
-//     )
-//   } else {
-//     if (dispensers) {
-//       INDEXER_LOGGER.logMessage(`a intrat pe disp: ${dispensers}`)
-//       for (const dispenser of dispensers) {
-//         const dispenserContract = new ethers.Contract(dispenser, Dispenser.abi, signer)
-//         INDEXER_LOGGER.logMessage(`disp ctr: ${dispenserContract}`)
-//         if ((await dispenserContract.status())[0] === true) {
-//           INDEXER_LOGGER.logMessage(`disp ctr call: ${await dispenserContract.status()}`)
-//           ddo.indexedMetadata.stats.push({
-//             datatokenAddress: service.datatokenAddress,
-//             name: await datatoken.name(),
-//             serviceId: service.id,
-//             orders: 0,
-//             prices: prices.push({
-//               type: 'dispenser',
-//               price: '0',
-//               contract: dispenser
-//             })
-//           })
-//         }
-//       }
-//     }
-
-//     if (fixedRates) {
-//       for (const fixedRate of fixedRates) {
-//         const fixedRateContract = new ethers.Contract(
-//           fixedRate.address,
-//           FixedRateExchange.abi,
-//           signer
-//         )
-//         const exchange = await fixedRateContract.getExchange(fixedRate.id)
-//         if (exchange[6] === true) {
-//           ddo.indexedMetadata.stats.push({
-//             datatokenAddress: service.datatokenAddress,
-//             name: await datatoken.name(),
-//             serviceId: service.id,
-//             orders: 0, // just created
-//             prices: prices.push({
-//               type: 'fixedrate',
-//               price: exchange[5],
-//               token: exchange[3],
-//               contract: fixedRate,
-//               exchangeId: fixedRate.id
-//             })
-//           })
-//         }
-//       }
-//     }
-//   }
-// }
-
-export async function getPricingStatsForDddo(
-  ddo: any,
-  signer: Signer,
-  datatokenAddress?: string
-): Promise<any> {
+export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<any> {
   if (!ddo.indexedMetadata) {
     ddo.indexedMetadata = {}
   }
@@ -448,23 +364,17 @@ export async function getPricingStatsForDddo(
     const prices = []
     try {
       dispensers = await datatoken.getDispensers()
-      INDEXER_LOGGER.logMessage(
-        `dt ctr call for disp: ${await datatoken.getDispensers()}`
-      )
-      INDEXER_LOGGER.logMessage(`dispensers: ${dispensers}`)
     } catch (e) {
       INDEXER_LOGGER.error(`Contract call fails when retrieving dispensers: ${e}`)
     }
     try {
       fixedRates = await datatoken.getFixedRates()
-      INDEXER_LOGGER.logMessage(`dt ctr call for fre: ${await datatoken.getFixedRates()}`)
     } catch (e) {
       INDEXER_LOGGER.error(
         `Contract call fails when retrieving fixed rate exchanges: ${e}`
       )
     }
     if (dispensers.length === 0 && fixedRates.length === 0) {
-      INDEXER_LOGGER.logMessage(`a intrat pe aici`)
       ddo.indexedMetadata.stats.push({
         datatokenAddress: service.datatokenAddress,
         name: await datatoken.name(),
@@ -472,19 +382,11 @@ export async function getPricingStatsForDddo(
         orders: 0,
         prices: []
       })
-      INDEXER_LOGGER.logMessage(
-        `ddo with indexedMetadata w/o disp and fre: ${JSON.stringify(ddo)}`
-      )
     } else {
       if (dispensers) {
-        INDEXER_LOGGER.logMessage(`a intrat pe disp: ${dispensers}`)
         for (const dispenser of dispensers) {
           const dispenserContract = new ethers.Contract(dispenser, Dispenser.abi, signer)
-          INDEXER_LOGGER.logMessage(`disp ctr: ${dispenserContract}`)
           if ((await dispenserContract.status())[0] === true) {
-            INDEXER_LOGGER.logMessage(
-              `disp ctr call: ${await dispenserContract.status()}`
-            )
             ddo.indexedMetadata.stats.push({
               datatokenAddress: service.datatokenAddress,
               name: await datatoken.name(),

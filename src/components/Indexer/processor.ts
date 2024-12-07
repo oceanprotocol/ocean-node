@@ -375,9 +375,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      INDEXER_LOGGER.logMessage(
-        `decrypted document from contract: ${JSON.stringify(ddo)}`
-      )
       // for unencrypted DDOs
       if (parseInt(flag) !== 2 && !this.checkDdoHash(updatedDdo, metadataHash)) {
         return
@@ -457,9 +454,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       // we need to store the event data (either metadata created or update and is updatable)
       if ([EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED].includes(eventName)) {
         const ddoWithPricing = await getPricingStatsForDddo(ddo, signer)
-        INDEXER_LOGGER.logMessage(
-          `ddo with indexedMetadata: ${JSON.stringify(ddoWithPricing)}`
-        )
         if (
           eventName === EVENTS.METADATA_UPDATED &&
           ddoWithPricing.indexedMetadata.stats.length !== 0
@@ -768,7 +762,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
           name: await datatokenContract.name(),
           serviceId: ddo.services[serviceIndex].id,
           orders: 1,
-          prices: [] // needs fixing, to retrieve pricing
+          prices: [] // needs fixing, to retrieve pricing -> add util function for fres and dispensers
         })
       }
       await orderDatabase.create(
