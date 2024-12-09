@@ -335,6 +335,8 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
 export const DEFAULT_RATE_LIMIT_PER_MINUTE = 30
 // max connections per minute (configurable), all connections
 export const DEFAULT_MAX_CONNECTIONS_PER_MINUTE = 60 * 2 // 120 requests per minute
+// 1 minute
+export const CONNECTIONS_RATE_INTERVAL = 60 * 1000
 // Typesense's maximum limit to send 250 hits at a time
 export const TYPESENSE_HITS_CAP = 250
 export const DDO_IDENTIFIER_PREFIX = 'did:op:'

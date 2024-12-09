@@ -7,8 +7,17 @@ import { Command } from '../../@types/commands.js'
 import { P2PCommandResponse } from '../../@types/OceanNode'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import StreamConcat from 'stream-concat'
-import { Handler } from '../core/handler/handler.js'
+import { Handler, RequestLimiter } from '../core/handler/handler.js'
 import { getConfiguration } from '../../utils/index.js'
+import { checkConnectionsRateLimit } from '../httpRoutes/requestValidator.js'
+import { CONNECTIONS_RATE_INTERVAL } from '../../utils/constants.js'
+
+// hold data about last request made
+const connectionsData: RequestLimiter = {
+  lastRequestTime: Date.now(),
+  requester: '',
+  numRequests: 0
+}
 
 export class ReadableString extends Readable {
   private sent = false
@@ -60,7 +69,9 @@ export async function handleProtocolCommands(otherPeerConnection: any) {
     return status
   }
 
-  const denyList = await (await getConfiguration()).denyList
+  const configuration = await getConfiguration()
+  // check deny list configs
+  const { denyList } = configuration
   if (denyList.peers.length > 0) {
     if (denyList.peers.includes(remotePeer.toString())) {
       P2P_LOGGER.error(`Incoming request denied to peer: ${remotePeer}`)
@@ -78,6 +89,27 @@ export async function handleProtocolCommands(otherPeerConnection: any) {
       await closeStreamConnection(otherPeerConnection.connection, remotePeer)
       return
     }
+  }
+  // check connections rate limit
+  const requestTime = Date.now()
+  if (requestTime - connectionsData.lastRequestTime > CONNECTIONS_RATE_INTERVAL) {
+    // last one was more than 1 minute ago? reset counter
+    connectionsData.numRequests = 0
+  }
+  // always increment counter
+  connectionsData.numRequests += 1
+  // update time and requester information
+  connectionsData.lastRequestTime = requestTime
+  connectionsData.requester = remoteAddr
+
+  // check global rate limits (not ip related)
+  const requestRateValidation = checkConnectionsRateLimit(configuration, connectionsData)
+  if (!requestRateValidation.valid) {
+    await closeStreamConnection(otherPeerConnection.connection, remotePeer)
+    P2P_LOGGER.warn(
+      `Incoming request denied to peer: ${remotePeer} due to rate limit exceeded!`
+    )
+    return
   }
 
   try {

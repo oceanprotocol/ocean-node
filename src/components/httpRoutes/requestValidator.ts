@@ -3,7 +3,10 @@ import { getConfiguration } from '../../utils/config.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { RequestLimiter } from '../core/handler/handler.js'
-import { DEFAULT_MAX_CONNECTIONS_PER_MINUTE } from '../../utils/constants.js'
+import {
+  CONNECTIONS_RATE_INTERVAL,
+  DEFAULT_MAX_CONNECTIONS_PER_MINUTE
+} from '../../utils/constants.js'
 
 // TODO we should group common stuff,
 // we have multiple similar validation interfaces
@@ -27,7 +30,7 @@ export const requestValidator = async function (req: Request, res: Response, nex
 
   // grab request time
   const requestTime = Date.now()
-  if (requestTime - connectionsData.lastRequestTime > 1000 * 60) {
+  if (requestTime - connectionsData.lastRequestTime > CONNECTIONS_RATE_INTERVAL) {
     // last one was more than 1 minute ago? reset counter
     connectionsData.numRequests = 0
   }
@@ -47,7 +50,7 @@ export const requestValidator = async function (req: Request, res: Response, nex
     return
   }
   // check global rate limits (not ip related)
-  const requestRateValidation = checkConnectionsRateLimit(configuration)
+  const requestRateValidation = checkConnectionsRateLimit(configuration, connectionsData)
   if (!requestRateValidation.valid) {
     res.status(403).send(requestRateValidation.error)
     return
@@ -56,7 +59,10 @@ export const requestValidator = async function (req: Request, res: Response, nex
   next()
 }
 
-function checkConnectionsRateLimit(configuration: OceanNodeConfig): CommonValidation {
+export function checkConnectionsRateLimit(
+  configuration: OceanNodeConfig,
+  connectionsData: RequestLimiter
+): CommonValidation {
   const connectionLimits =
     configuration.maxConnections || DEFAULT_MAX_CONNECTIONS_PER_MINUTE
   const ok = connectionsData.numRequests <= connectionLimits
