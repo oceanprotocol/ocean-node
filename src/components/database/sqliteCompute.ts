@@ -182,6 +182,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       params.push(jobId)
     }
     if (agreementId) {
+      if (!agreementId.startsWith('0x')) {
+        agreementId = '0x' + agreementId
+      }
       selectSQL += ` AND agreementId = ?`
       params.push(agreementId)
     }
