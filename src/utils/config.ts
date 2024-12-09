@@ -26,6 +26,7 @@ import {
 } from '../utils/address.js'
 import { CONFIG_LOGGER } from './logging/common.js'
 import { create256Hash } from './crypt.js'
+import { recalculateCodeHash } from '..'
 
 // usefull for lazy loading and avoid boilerplate on other places
 let previousConfiguration: OceanNodeConfig = null
@@ -475,6 +476,10 @@ export async function getConfiguration(
   if (!previousConfiguration || forceReload) {
     previousConfiguration = await getEnvConfig(isStartup)
   }
+  if (!previousConfiguration.codeHash) {
+    previousConfiguration.codeHash = await recalculateCodeHash()
+  }
+
   return previousConfiguration
 }
 
