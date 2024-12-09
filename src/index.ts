@@ -37,12 +37,6 @@ declare global {
   }
 }
 
-export async function recalculateCodeHash(): Promise<string> {
-  const __filename = fileURLToPath(import.meta.url)
-  const __dirname = path.dirname(__filename)
-  const codeHash = await computeCodebaseHash(__dirname)
-  return codeHash
-}
 // we have 5 json examples
 // we should have some DDO class too
 function loadInitialDDOS(): any[] {
@@ -80,7 +74,9 @@ OCEAN_NODE_LOGGER.logMessageWithEmoji(
 )
 
 const config = await getConfiguration(true, isStartup)
-config.codeHash = await recalculateCodeHash()
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+config.codeHash = await computeCodebaseHash(__dirname)
 
 OCEAN_NODE_LOGGER.info(`Codebase hash: ${config.codeHash}`)
 if (!config) {
