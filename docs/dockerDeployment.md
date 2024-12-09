@@ -99,7 +99,7 @@ services:
       #      INDEXER_INTERVAL: ''
       DASHBOARD: 'true'
       #      RATE_DENY_LIST: ''
-      #      MAX_REQ_PER_SECOND: ''
+      #      MAX_REQ_PER_MINUTE: ''
       #      MAX_CHECKSUM_LENGTH: ''
       #      LOG_LEVEL: ''
       HTTP_API_PORT: '8000'
