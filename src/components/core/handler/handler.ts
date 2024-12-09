@@ -9,6 +9,7 @@ import {
 import { getConfiguration } from '../../../utils/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { ReadableString } from '../../P2P/handlers.js'
+import { CONNECTION_HISTORY_DELETE_THRESHOLD } from '../../../utils/constants.js'
 
 export interface RequestLimiter {
   requester: string | string[] // IP address or peer ID
@@ -42,6 +43,11 @@ export abstract class Handler implements ICommandHandler {
     const caller: string | string[] = this.getOceanNode().getRemoteCaller()
     const requestTime = new Date().getTime()
     let isOK = true
+
+    // we have to clear this from time to time, so it does not grow forever
+    if (this.requestMap.size > CONNECTION_HISTORY_DELETE_THRESHOLD) {
+      this.requestMap.clear()
+    }
 
     const self = this
     // common stuff

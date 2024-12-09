@@ -330,7 +330,7 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     required: false
   }
 }
-
+export const CONNECTION_HISTORY_DELETE_THRESHOLD = 300
 // default to 30 requests per minute (configurable), per ip/peer
 export const DEFAULT_RATE_LIMIT_PER_MINUTE = 30
 // max connections per minute (configurable), all connections
