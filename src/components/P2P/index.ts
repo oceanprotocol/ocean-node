@@ -779,7 +779,7 @@ export class OceanP2P extends EventEmitter {
   // related: https://github.com/libp2p/go-libp2p-kad-dht/issues/323
   async republishStoredDDOS() {
     try {
-      if (!this.db) {
+      if (!this.db || !this.db.ddo) {
         P2P_LOGGER.logMessage(
           `republishStoredDDOS() attempt aborted because there is no database!`,
           true
