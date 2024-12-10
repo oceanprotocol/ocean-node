@@ -94,6 +94,7 @@ export interface OceanNodeConfig {
   rateLimit?: number
   denyList?: DenyList
   unsafeURLs?: string[]
+  isBootstrap?: boolean
 }
 
 export interface P2PStatusResponse {
