@@ -91,7 +91,8 @@ export interface OceanNodeConfig {
   assetPurgatoryUrl: string
   allowedAdmins?: string[]
   codeHash?: string
-  rateLimit?: number
+  rateLimit?: number // per request ip or peer
+  maxConnections?: number // global, regardless of client address(es)
   denyList?: DenyList
   unsafeURLs?: string[]
   isBootstrap?: boolean
