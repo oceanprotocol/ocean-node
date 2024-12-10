@@ -691,7 +691,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       ),
       dhtMaxInboundStreams: getIntEnvValue(process.env.P2P_dhtMaxInboundStreams, 500),
       dhtMaxOutboundStreams: getIntEnvValue(process.env.P2P_dhtMaxOutboundStreams, 500),
-      enableDHTServer: getBoolEnvValue(process.env.P2P_ENABLE_DHT_SERVER, false),
+      enableDHTServer: getBoolEnvValue('P2P_ENABLE_DHT_SERVER', false),
       mDNSInterval: getIntEnvValue(process.env.P2P_mDNSInterval, 20e3), // 20 seconds
       connectionsMaxParallelDials: getIntEnvValue(
         process.env.P2P_connectionsMaxParallelDials,
@@ -757,7 +757,8 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       ENVIRONMENT_VARIABLES.UNSAFE_URLS,
       isStartup,
       knownUnsafeURLs
-    )
+    ),
+    isBootstrap: getBoolEnvValue('IS_BOOTSTRAP', false)
   }
 
   if (!previousConfiguration) {

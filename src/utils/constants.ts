@@ -376,6 +376,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'DOCKER_KEY_PATH',
     value: process.env.DOCKER_KEY_PATH,
     required: false
+  },
+  IS_BOOTSTRAP: {
+    name: 'IS_BOOTSTRAP',
+    value: process.env.IS_BOOTSTRAP,
+    required: false
   }
 }
 
