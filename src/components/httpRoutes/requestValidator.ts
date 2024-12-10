@@ -2,7 +2,7 @@ import { Request, Response } from 'express'
 import { getConfiguration } from '../../utils/config.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import { RequestLimiter } from '../core/handler/handler.js'
+import { RequestLimiter } from '../../OceanNode.js'
 import {
   CONNECTIONS_RATE_INTERVAL,
   DEFAULT_MAX_CONNECTIONS_PER_MINUTE

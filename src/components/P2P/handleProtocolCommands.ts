@@ -7,10 +7,11 @@ import { Command } from '../../@types/commands.js'
 import { P2PCommandResponse } from '../../@types/OceanNode'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import StreamConcat from 'stream-concat'
-import { Handler, RequestLimiter } from '../core/handler/handler.js'
+import { Handler } from '../core/handler/handler.js'
 import { getConfiguration } from '../../utils/index.js'
 import { checkConnectionsRateLimit } from '../httpRoutes/requestValidator.js'
 import { CONNECTIONS_RATE_INTERVAL } from '../../utils/constants.js'
+import { RequestLimiter } from '../../OceanNode.js'
 
 // hold data about last request made
 const connectionsData: RequestLimiter = {
@@ -74,7 +75,9 @@ export async function handleProtocolCommands(otherPeerConnection: any) {
   const { denyList } = configuration
   if (denyList.peers.length > 0) {
     if (denyList.peers.includes(remotePeer.toString())) {
-      P2P_LOGGER.error(`Incoming request denied to peer: ${remotePeer}`)
+      P2P_LOGGER.warn(
+        `Incoming request denied to peer: ${remotePeer} (peer its on deny list)`
+      )
 
       if (connectionStatus === 'open') {
         statusStream = new ReadableString(
@@ -105,10 +108,20 @@ export async function handleProtocolCommands(otherPeerConnection: any) {
   // check global rate limits (not ip related)
   const requestRateValidation = checkConnectionsRateLimit(configuration, connectionsData)
   if (!requestRateValidation.valid) {
-    await closeStreamConnection(otherPeerConnection.connection, remotePeer)
     P2P_LOGGER.warn(
-      `Incoming request denied to peer: ${remotePeer} due to rate limit exceeded!`
+      `Incoming request denied to peer: ${remotePeer} (rate limit exceeded)`
     )
+    if (connectionStatus === 'open') {
+      statusStream = new ReadableString(
+        JSON.stringify(buildWrongCommandStatus(403, 'Rate limit exceeded'))
+      )
+      try {
+        await pipe(statusStream, otherPeerConnection.stream.sink)
+      } catch (e) {
+        P2P_LOGGER.error(e)
+      }
+    }
+    await closeStreamConnection(otherPeerConnection.connection, remotePeer)
     return
   }
 
