@@ -124,7 +124,11 @@ export class OceanP2P extends EventEmitter {
     this._protocol = '/ocean/nodes/1.0.0'
 
     // this._interval = setInterval(this._pollPeers.bind(this), this._options.pollInterval)
-    this._libp2p.handle(this._protocol, handleProtocolCommands.bind(this))
+
+    // only enable handling of commands if not bootstrap node
+    if (!this._config.isBootstrap) {
+      this._libp2p.handle(this._protocol, handleProtocolCommands.bind(this))
+    }
 
     setInterval(this.republishStoredDDOS.bind(this), REPUBLISH_INTERVAL_HOURS)
 
