@@ -19,7 +19,11 @@ import { C2DDatabase } from '../database/C2DDatabase.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { Storage } from '../storage/index.js'
 import Dockerode from 'dockerode'
-import type { ContainerCreateOptions, VolumeCreateOptions } from 'dockerode'
+import type {
+  ContainerCreateOptions,
+  // ContainerStats,
+  VolumeCreateOptions
+} from 'dockerode'
 import * as tar from 'tar'
 import {
   createWriteStream,
@@ -41,6 +45,7 @@ import { Service } from '../../@types/DDO/Service.js'
 import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.js'
 import * as drc from 'docker-registry-client'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
+import { streamToString } from '../../utils/util.js'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
@@ -202,7 +207,7 @@ export class C2DEngineDocker extends C2DEngine {
 
     const jobId = generateUniqueID()
 
-    // TO DO C2D - Check image, check arhitecture, etc
+    // C2D - Check image, check arhitecture, etc
     const image = getAlgorithmImage(algorithm)
     // ex: node@sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36
     if (!image) {
@@ -219,6 +224,7 @@ export class C2DEngineDocker extends C2DEngine {
       envIdWithHash ? environment : null,
       environment
     )
+
     const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
     if (!validation.valid)
       throw new Error(`Unable to validate docker image ${image}: ${validation.reason}`)
@@ -533,7 +539,9 @@ export class C2DEngineDocker extends C2DEngine {
 
       try {
         const container = await this.docker.createContainer(containerInfo)
-        console.log('container: ', container)
+        // TODO
+        this.checkResources(job, container)
+        // console.log('container: ', container)
         job.status = C2DStatusNumber.Provisioning
         job.statusText = C2DStatusText.Provisioning
         await this.db.updateJob(job)
@@ -589,6 +597,8 @@ export class C2DEngineDocker extends C2DEngine {
           }
         }
       } else {
+        // TODO
+        this.checkResources(job, container)
         // is running, we need to stop it..
         console.log('running, need to stop it?')
         const timeNow = Date.now() / 1000
@@ -643,6 +653,92 @@ export class C2DEngineDocker extends C2DEngine {
       job.isRunning = false
       await this.db.updateJob(job)
       await this.cleanupJob(job)
+    }
+  }
+
+  private async checkResources(job: DBComputeJob, container: Dockerode.Container) {
+    // need to have this mapped maybe already
+    const environments: ComputeEnvironment[] = await (
+      await this.getComputeEnvironments()
+    ).filter((env: ComputeEnvironment) => env.id === job.environment)
+    // TODO
+    if (environments.length === 1) {
+      const environment = environments[0]
+      const statsRaw: any = await container.stats({ stream: true })
+      const stats = await JSON.parse(await streamToString(statsRaw as Readable))
+      console.log('container stats1: ', stats)
+      const memory = stats.memory_stats
+      console.log('memory stats: ', memory)
+      const cpu = stats.cpu_stats
+      console.log('cpu stats: ', cpu)
+      console.log('got environment:', environment)
+      /**
+       * stats:
+       * {
+  "read": "0001-01-01T00:00:00Z",
+  "preread": "0001-01-01T00:00:00Z",
+  "pids_stats": {},
+  "blkio_stats": {
+    "io_service_bytes_recursive": null,
+    "io_serviced_recursive": null,
+    "io_queue_recursive": null,
+    "io_service_time_recursive": null,
+    "io_wait_time_recursive": null,
+    "io_merged_recursive": null,
+    "io_time_recursive": null,
+    "sectors_recursive": null
+  },
+  "num_procs": 0,
+  "storage_stats": {},
+  "cpu_stats": {
+    "cpu_usage": {
+      "total_usage": 0,
+      "usage_in_kernelmode": 0,
+      "usage_in_usermode": 0
+    },
+    "throttling_data": {
+      "periods": 0,
+      "throttled_periods": 0,
+      "throttled_time": 0
+    }
+  },
+  "precpu_stats": {
+    "cpu_usage": {
+      "total_usage": 0,
+      "usage_in_kernelmode": 0,
+      "usage_in_usermode": 0
+    },
+    "throttling_data": {
+      "periods": 0,
+      "throttled_periods": 0,
+      "throttled_time": 0
+    }
+  },
+  "memory_stats": {},
+  "name": "/8a44fe02-b3dc-4677-90e8-9f29090ad279-algoritm",
+  "id": "47b13b90ac02709adb7ac03140ca9ec2cd9731ec084f2eaa5c0b1c046551d6d3"
+}
+       * got environment: {
+id: '0x46f61c90309fcffa02e887e1a8a1ebdfeabe4f1ff279e306de2803df36bd46f7-free',
+cpuNumber: 1,
+cpuType: '',
+gpuNumber: 0,
+ramGB: 1,
+diskGB: 1,
+priceMin: 0,
+desc: 'Free',
+currentJobs: 0,
+maxJobs: 1,
+consumerAddress: '0x8F292046bb73595A978F4e7A131b4EBd03A15e8a',
+storageExpiry: 600,
+maxJobDuration: 600,
+feeToken: '0x0000000000000000000000000000000000000000',
+chainId: 8996,
+free: true,
+platform: { architecture: 'x86_64', os: 'linux' }
+}
+
+       */
     }
   }
 

@@ -25,6 +25,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `RATE_DENY_LIST`: Blocked list of IPs and peer IDs. Example: `"{ \"peers\": [\"16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo\"], \"ips\": [\"127.0.0.1\"] }"`
 - `MAX_REQ_PER_SECOND`: Number of requests per second allowed by the same client. Example: `3`
 - `MAX_CHECKSUM_LENGTH`: Define the maximum length for a file if checksum is required (Mb). Example: `10`
+- `IS_BOOTSTRAP`: Is this node to be used as bootstrap node or not. Default is `false`.
 
 ## Logs
 
