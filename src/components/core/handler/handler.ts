@@ -35,7 +35,7 @@ export abstract class Handler implements ICommandHandler {
 
     // we have to clear this from time to time, so it does not grow forever
     if (requestMap.size > CONNECTION_HISTORY_DELETE_THRESHOLD) {
-      console.log('will clear the connection history')
+      CORE_LOGGER.info('Request history reached threeshold, cleaning cache...')
       requestMap.clear()
     }
 

@@ -156,6 +156,7 @@ services:
       DASHBOARD: 'true'
 #      RATE_DENY_LIST: ''
 #      MAX_REQ_PER_MINUTE: ''
+#      MAX_CONNECTIONS_PER_MINUTE: ''
 #      MAX_CHECKSUM_LENGTH: ''
 #      LOG_LEVEL: ''
       HTTP_API_PORT: '$HTTP_API_PORT'
