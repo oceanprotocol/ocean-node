@@ -154,3 +154,13 @@ export function deleteKeysFromObject(source: any, keys: string[]): any {
   })
   return source
 }
+
+export function convertGigabytesToBytes(gigabytes: number): number {
+  if (gigabytes < 0) {
+    throw new Error('Input must be a non-negative number')
+  }
+
+  const bytesInAGigabyte = 1024 ** 3 // 1 gigabyte = 1024^3 bytes
+  const bytes = gigabytes * bytesInAGigabyte
+  return bytes
+}

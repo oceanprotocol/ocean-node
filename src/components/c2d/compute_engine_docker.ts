@@ -21,6 +21,7 @@ import { Storage } from '../storage/index.js'
 import Dockerode from 'dockerode'
 import type {
   ContainerCreateOptions,
+  HostConfig,
   // ContainerStats,
   VolumeCreateOptions
 } from 'dockerode'
@@ -45,7 +46,7 @@ import { Service } from '../../@types/DDO/Service.js'
 import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.js'
 import * as drc from 'docker-registry-client'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
-import { streamToString } from '../../utils/util.js'
+import { convertGigabytesToBytes } from '../../utils/util.js'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
@@ -504,9 +505,11 @@ export class C2DEngineDocker extends C2DEngine {
         await this.db.updateJob(job)
         await this.cleanupJob(job)
       }
+      // get env info
+      const environment = await this.getJobEnvironment(job)
       // create the container
       const mountVols: any = { '/data': {} }
-      const hostConfig: any = {
+      const hostConfig: HostConfig = {
         Mounts: [
           {
             Type: 'volume',
@@ -516,6 +519,15 @@ export class C2DEngineDocker extends C2DEngine {
           }
         ]
       }
+      if (environment != null) {
+        // limit container CPU & Memory usage according to env specs
+        hostConfig.CpuCount = 1 || environment.cpuNumber
+        hostConfig.CpusetCpus = environment.cpuNumber
+          ? `0-${environment.cpuNumber}`
+          : '0-1'
+        hostConfig.Memory = 0 || convertGigabytesToBytes(environment.ramGB)
+      }
+      // console.log('host config: ', hostConfig)
       const containerInfo: ContainerCreateOptions = {
         name: job.jobId + '-algoritm',
         Image: job.containerImage,
@@ -539,9 +551,8 @@ export class C2DEngineDocker extends C2DEngine {
 
       try {
         const container = await this.docker.createContainer(containerInfo)
-        // TODO
-        this.checkResources(job, container)
-        // console.log('container: ', container)
+        // this.checkResources(job, container)
+        console.log('container: ', container)
         job.status = C2DStatusNumber.Provisioning
         job.statusText = C2DStatusText.Provisioning
         await this.db.updateJob(job)
@@ -580,6 +591,7 @@ export class C2DEngineDocker extends C2DEngine {
         if (details.State.Running === false) {
           try {
             await container.start()
+            // this.checkResources(job, container)
             job.isStarted = true
             await this.db.updateJob(job)
             return
@@ -597,8 +609,7 @@ export class C2DEngineDocker extends C2DEngine {
           }
         }
       } else {
-        // TODO
-        this.checkResources(job, container)
+        // this.checkResources(job, container)
         // is running, we need to stop it..
         console.log('running, need to stop it?')
         const timeNow = Date.now() / 1000
@@ -656,91 +667,20 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
-  private async checkResources(job: DBComputeJob, container: Dockerode.Container) {
-    // need to have this mapped maybe already
-    const environments: ComputeEnvironment[] = await (
-      await this.getComputeEnvironments()
-    ).filter((env: ComputeEnvironment) => env.id === job.environment)
-    // TODO
-    if (environments.length === 1) {
-      const environment = environments[0]
-      const statsRaw: any = await container.stats({ stream: true })
-      const stats = await JSON.parse(await streamToString(statsRaw as Readable))
-      console.log('container stats1: ', stats)
-      const memory = stats.memory_stats
-      console.log('memory stats: ', memory)
-      const cpu = stats.cpu_stats
-      console.log('cpu stats: ', cpu)
-      console.log('got environment:', environment)
-      /**
-       * stats:
-       * {
-  "read": "0001-01-01T00:00:00Z",
-  "preread": "0001-01-01T00:00:00Z",
-  "pids_stats": {},
-  "blkio_stats": {
-    "io_service_bytes_recursive": null,
-    "io_serviced_recursive": null,
-    "io_queue_recursive": null,
-    "io_service_time_recursive": null,
-    "io_wait_time_recursive": null,
-    "io_merged_recursive": null,
-    "io_time_recursive": null,
-    "sectors_recursive": null
-  },
-  "num_procs": 0,
-  "storage_stats": {},
-  "cpu_stats": {
-    "cpu_usage": {
-      "total_usage": 0,
-      "usage_in_kernelmode": 0,
-      "usage_in_usermode": 0
-    },
-    "throttling_data": {
-      "periods": 0,
-      "throttled_periods": 0,
-      "throttled_time": 0
-    }
-  },
-  "precpu_stats": {
-    "cpu_usage": {
-      "total_usage": 0,
-      "usage_in_kernelmode": 0,
-      "usage_in_usermode": 0
-    },
-    "throttling_data": {
-      "periods": 0,
-      "throttled_periods": 0,
-      "throttled_time": 0
-    }
-  },
-  "memory_stats": {},
-  "name": "/8a44fe02-b3dc-4677-90e8-9f29090ad279-algoritm",
-  "id": "47b13b90ac02709adb7ac03140ca9ec2cd9731ec084f2eaa5c0b1c046551d6d3"
-}
-       * got environment: {
-id: '0x46f61c90309fcffa02e887e1a8a1ebdfeabe4f1ff279e306de2803df36bd46f7-free',
-cpuNumber: 1,
-cpuType: '',
-gpuNumber: 0,
-ramGB: 1,
-diskGB: 1,
-priceMin: 0,
-desc: 'Free',
-currentJobs: 0,
-maxJobs: 1,
-consumerAddress: '0x8F292046bb73595A978F4e7A131b4EBd03A15e8a',
-storageExpiry: 600,
-maxJobDuration: 600,
-feeToken: '0x0000000000000000000000000000000000000000',
-chainId: 8996,
-free: true,
-platform: { architecture: 'x86_64', os: 'linux' }
-}
-
-       */
-    }
-  }
+  // Seems like monitoring container stats is useles... everything related with cpu/mem is at zeros
+  // private async checkResources(job: DBComputeJob, container: Dockerode.Container) {
+  //   const environment = await this.getJobEnvironment(job)
+  //   try {
+  //     const statsRaw: any = await container.stats({ stream: false })
+  //     const stats = await JSON.parse(
+  //       JSON.stringify(statsRaw) // await streamToString(statsRaw as Readable))
+  //     )
+  //     const memory = stats.memory_stats
+  //     const cpu = stats.cpu_stats
+  //   } catch (e) {
+  //     console.error('error getting stats: ', e)
+  //   }
+  // }
 
   // eslint-disable-next-line require-await
   private async cleanupJob(job: DBComputeJob) {
