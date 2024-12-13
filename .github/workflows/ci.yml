@@ -278,6 +278,7 @@ jobs:
           P2P_ENABLE_AUTONAT: 'false'
           ALLOWED_ADMINS: '["0xe2DD09d719Da89e5a3D0F2549c7E24566e947260"]'
           DB_TYPE: 'elasticsearch'
+          MAX_REQ_PER_MINUTE: 120
       - name: Check Ocean Node is running
         run: |
           for i in $(seq 1 90); do
