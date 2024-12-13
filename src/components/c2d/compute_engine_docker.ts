@@ -521,7 +521,7 @@ export class C2DEngineDocker extends C2DEngine {
       }
       if (environment != null) {
         // limit container CPU & Memory usage according to env specs
-        hostConfig.CpuCount = 1 || environment.cpuNumber
+        hostConfig.CpuCount = environment.cpuNumber || 1
         // if more than 1 CPU
         if (hostConfig.CpuCount > 1) {
           hostConfig.CpusetCpus = `0-${hostConfig.CpuCount - 1}`
