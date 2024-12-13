@@ -522,9 +522,10 @@ export class C2DEngineDocker extends C2DEngine {
       if (environment != null) {
         // limit container CPU & Memory usage according to env specs
         hostConfig.CpuCount = 1 || environment.cpuNumber
-        hostConfig.CpusetCpus = environment.cpuNumber
-          ? `0-${environment.cpuNumber}`
-          : '0-1'
+        // if more than 1 CPU
+        if (hostConfig.CpuCount > 1) {
+          hostConfig.CpusetCpus = `0-${hostConfig.CpuCount - 1}`
+        }
         hostConfig.Memory = 0 || convertGigabytesToBytes(environment.ramGB)
         // set swap to same memory value means no swap (otherwise it use like 2X mem)
         hostConfig.MemorySwap = hostConfig.Memory
