@@ -29,13 +29,22 @@ import { autoNAT } from '@libp2p/autonat'
 import { uPnPNAT } from '@libp2p/upnp-nat'
 import { ping } from '@libp2p/ping'
 import { dcutr } from '@libp2p/dcutr'
-import { kadDHT, passthroughMapper } from '@libp2p/kad-dht'
+import {
+  kadDHT,
+  passthroughMapper,
+  removePrivateAddressesMapper,
+  removePublicAddressesMapper
+} from '@libp2p/kad-dht'
 // import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 
 import { EVENTS, cidFromRawString } from '../../utils/index.js'
 import { Transform } from 'stream'
 import { Database } from '../database'
-import { OceanNodeConfig, FindDDOResponse } from '../../@types/OceanNode'
+import {
+  OceanNodeConfig,
+  FindDDOResponse,
+  dhtFilterMethod
+} from '../../@types/OceanNode.js'
 // eslint-disable-next-line camelcase
 import is_ip_private from 'private-ip'
 import ip from 'ip'
@@ -283,43 +292,26 @@ export class OceanP2P extends EventEmitter {
             multiaddrs.filter((m) => this.shouldAnnounce(m))
         }
       }
+      const dhtOptions = {
+        allowQueryWithZeroPeers: false,
+        maxInboundStreams: config.p2pConfig.dhtMaxInboundStreams,
+        maxOutboundStreams: config.p2pConfig.dhtMaxOutboundStreams,
+        clientMode: false, // always be a server
+        kBucketSize: 20,
+        protocol: '/ocean/nodes/1.0.0/kad/1.0.0',
+        peerInfoMapper: passthroughMapper // see below
+      }
+      if (config.p2pConfig.dhtFilter === dhtFilterMethod.filterPrivate)
+        dhtOptions.peerInfoMapper = removePrivateAddressesMapper
+      if (config.p2pConfig.dhtFilter === dhtFilterMethod.filterPublic)
+        dhtOptions.peerInfoMapper = removePublicAddressesMapper
       let servicesConfig = {
         identify: identify(),
-        /*
-        pubsub: gossipsub({
-          fallbackToFloodsub: false,
-          batchPublish: false,
-          allowPublishToZeroTopicPeers: true,
-          asyncValidation: false,
-          // messageProcessingConcurrency: 5,
-          seenTTL: 10 * 1000,
-          runOnTransientConnection: true,
-          doPX: doPx,
-          // canRelayMessage: true,
-          // enabled: true
-          allowedTopics: ['oceanprotocol._peer-discovery._p2p._pubsub', 'oceanprotocol']
-        }), */
-        dht: kadDHT({
-          // this is necessary because this node is not connected to the public network
-          // it can be removed if, for example bootstrappers are configured
-          allowQueryWithZeroPeers: true,
-          maxInboundStreams: config.p2pConfig.dhtMaxInboundStreams,
-          maxOutboundStreams: config.p2pConfig.dhtMaxOutboundStreams,
-
-          clientMode: false,
-          kBucketSize: 20,
-          protocol: '/ocean/nodes/1.0.0/kad/1.0.0',
-          peerInfoMapper: passthroughMapper
-          // protocolPrefix: '/ocean/nodes/1.0.0'
-          // randomWalk: {
-          //  enabled: true,            // Allows to disable discovery (enabled by default)
-          //  interval: 300e3,
-          //  timeout: 10e3
-          // }
-        }),
+        dht: kadDHT(dhtOptions),
         ping: ping(),
         dcutr: dcutr()
       }
+
       // eslint-disable-next-line no-constant-condition, no-self-compare
       if (config.p2pConfig.enableCircuitRelayServer) {
         P2P_LOGGER.info('Enabling Circuit Relay Server')
@@ -427,13 +419,6 @@ export class OceanP2P extends EventEmitter {
         this._upnp_interval = setInterval(this.UPnpCron.bind(this), 3000)
       }
 
-      if (config.p2pConfig.enableDHTServer) {
-        try {
-          await node.services.dht.setMode('server')
-        } catch (e) {
-          P2P_LOGGER.warn(`Failed to set mode server for DHT`)
-        }
-      }
       return node
     } catch (e) {
       P2P_LOGGER.logMessageWithEmoji(
@@ -603,6 +588,25 @@ export class OceanP2P extends EventEmitter {
       finalmultiaddrs = finalmultiaddrsWithAddress
     else finalmultiaddrs = finalmultiaddrsWithoutAddress
     return finalmultiaddrs
+  }
+
+  async findPeerInDht(peerName: string, timeout?: number) {
+    const peer = peerIdFromString(peerName)
+    console.log(peerName)
+    console.log(peer)
+    console.log(timeout)
+    try {
+      const data = await this._libp2p.peerRouting.findPeer(peer, {
+        signal:
+          isNaN(timeout) || timeout === 0
+            ? AbortSignal.timeout(5000)
+            : AbortSignal.timeout(timeout),
+        useCache: true,
+        useNetwork: true
+      })
+      return data
+    } catch (e) {}
+    return null
   }
 
   async sendTo(

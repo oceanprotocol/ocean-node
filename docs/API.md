@@ -449,6 +449,38 @@ returns P2P peer
 
 ---
 
+## find peer multiaddress
+
+### `HTTP` GET /findPeer/?
+
+#### Description
+
+returns P2P peer multiaddresses if found in DHT
+
+#### Query Parameters
+
+| name    | type   | required | description |
+| ------- | ------ | -------- | ----------- |
+| peerId  | string | v        | peer id     |
+| timeout | int    | optional | timeout     |
+
+#### Response
+
+```
+{
+    "id": "16Uiu2HAmLhRDqfufZiQnxvQs2XHhd6hwkLSPfjAQg1gH8wgRixiP",
+    "multiaddrs": [
+        "/ip4/127.0.0.1/tcp/9000",
+        "/ip4/127.0.0.1/tcp/9001/ws",
+        "/ip4/172.18.0.2/tcp/9000",
+        "/ip4/172.18.0.2/tcp/9001/ws",
+        "/ip6/::1/tcp/9002"
+    ]
+}
+```
+
+---
+
 ## Get P2P Peers
 
 ### `HTTP` GET /getP2PPeers
