@@ -41,7 +41,7 @@ import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
 import { makeDid } from '../core/utils/validateDdoHandler.js'
 import { PolicyServer } from '../policyServer/index.js'
-import { getPricesForDt } from './utils.js'
+import { getPricesByDt } from './utils.js'
 class BaseEventProcessor {
   protected networkId: number
 
@@ -763,7 +763,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
           name: await datatokenContract.name(),
           serviceId: ddo.services[serviceIndex].id,
           orders: 1,
-          prices: getPricesForDt(datatokenContract, signer)
+          prices: getPricesByDt(datatokenContract, signer)
         })
       }
       await orderDatabase.create(
@@ -849,7 +849,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
           orders: 1,
-          prices: getPricesForDt(datatokenContract, signer)
+          prices: getPricesByDt(datatokenContract, signer)
         })
       }
 

@@ -345,7 +345,7 @@ export function findServiceIdByDatatoken(ddo: any, datatokenAddress: string): st
   return serviceIdToFind
 }
 
-export async function getPricesForDt(
+export async function getPricesByDt(
   datatoken: ethers.Contract,
   signer: Signer
 ): Promise<Price[]> {
