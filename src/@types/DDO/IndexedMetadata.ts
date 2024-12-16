@@ -10,8 +10,8 @@ export interface Stats {
   datatokenAddress: string
   name: string
   serviceId: string
-  orders: number
-  prices: Price[]
+  orders?: number
+  prices?: Price[]
 }
 
 export interface IndexedMetadata {

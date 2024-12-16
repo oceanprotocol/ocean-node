@@ -24,6 +24,7 @@ import { CommandStatus, JobStatus } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
+import { Price } from '../../@types/DDO/IndexedMetadata.js'
 
 let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor
@@ -342,6 +343,64 @@ export function findServiceIdByDatatoken(ddo: any, datatokenAddress: string): st
     }
   }
   return serviceIdToFind
+}
+
+export async function getPricesForDt(
+  datatoken: ethers.Contract,
+  signer: Signer
+): Promise<Price[]> {
+  let dispensers = []
+  let fixedRates = []
+  let prices: Price[] = []
+  try {
+    dispensers = await datatoken.getDispensers()
+  } catch (e) {
+    INDEXER_LOGGER.error(`[GET PRICES] failure when retrieving dispensers: ${e}`)
+  }
+  try {
+    fixedRates = await datatoken.getFixedRates()
+  } catch (e) {
+    INDEXER_LOGGER.error(
+      `[GET PRICES] failure when retrieving fixed rate exchanges: ${e}`
+    )
+  }
+  if (dispensers.length === 0 && fixedRates.length === 0) {
+    prices = []
+  } else {
+    if (dispensers) {
+      for (const dispenser of dispensers) {
+        const dispenserContract = new ethers.Contract(dispenser, Dispenser.abi, signer)
+        if ((await dispenserContract.status())[0] === true) {
+          prices.push({
+            type: 'dispenser',
+            price: '0',
+            contract: dispenser
+          })
+        }
+      }
+    }
+
+    if (fixedRates) {
+      for (const fixedRate of fixedRates) {
+        const fixedRateContract = new ethers.Contract(
+          fixedRate.address,
+          FixedRateExchange.abi,
+          signer
+        )
+        const exchange = await fixedRateContract.getExchange(fixedRate.id)
+        if (exchange[6] === true) {
+          prices.push({
+            type: 'fixedrate',
+            price: exchange[5],
+            token: exchange[3],
+            contract: fixedRate,
+            exchangeId: fixedRate.id
+          })
+        }
+      }
+    }
+  }
+  return prices
 }
 
 export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<any> {
