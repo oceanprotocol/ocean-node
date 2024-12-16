@@ -9,7 +9,7 @@ import {
   ComputeEnvironment,
   ComputeJob,
   DBComputeJob,
-  DockerPlatform
+  RunningPlatform
 } from '../../@types/C2D/C2D.js'
 // import { computeAsset } from '../data/assets'
 import { assert, expect } from 'chai'
@@ -211,7 +211,7 @@ describe('Compute Jobs Database', () => {
   it('should check manifest platform against local platform env', () => {
     const arch = os.machine() // ex: arm
     const platform = os.platform() // ex: linux
-    const env: DockerPlatform = {
+    const env: RunningPlatform = {
       architecture: arch,
       os: platform
     }

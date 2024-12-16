@@ -33,7 +33,7 @@ export interface ComputeEnvironmentBaseConfig {
   priceMin: number
 }
 
-export interface DockerPlatform {
+export interface RunningPlatform {
   architecture: string
   os: string
 }
@@ -47,7 +47,7 @@ export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
   consumerAddress: string
   lastSeen?: number
   free: boolean
-  platform?: DockerPlatform
+  platform?: RunningPlatform[] // array due to k8 support
 }
 
 export interface C2DDockerConfig {

@@ -10,7 +10,7 @@ import type {
   ComputeOutput,
   DBComputeJob,
   ComputeResult,
-  DockerPlatform
+  RunningPlatform
 } from '../../@types/C2D/C2D.js'
 import { getConfiguration } from '../../utils/config.js'
 import { C2DEngine } from './compute_engine_base.js'
@@ -137,7 +137,7 @@ export class C2DEngineDocker extends C2DEngine {
    */
   public static async checkDockerImage(
     image: string,
-    platform?: DockerPlatform
+    platform?: RunningPlatform
   ): Promise<ValidateParams> {
     try {
       const info = drc.default.parseRepoAndRef(image)
@@ -220,7 +220,10 @@ export class C2DEngineDocker extends C2DEngine {
       environment
     )
 
-    const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
+    const validation = await C2DEngineDocker.checkDockerImage(
+      image,
+      env.platform && env.platform.length > 0 ? env.platform[0] : null
+    )
     if (!validation.valid)
       throw new Error(`Unable to validate docker image ${image}: ${validation.reason}`)
 
@@ -1103,7 +1106,7 @@ export function getAlgorithmImage(algorithm: ComputeAlgorithm): string {
 
 export function checkManifestPlatform(
   manifestPlatform: any,
-  envPlatform: DockerPlatform
+  envPlatform?: RunningPlatform
 ): boolean {
   if (!manifestPlatform || !envPlatform) return true // skips if not present
   if (
