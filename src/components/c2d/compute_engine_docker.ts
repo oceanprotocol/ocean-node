@@ -12,14 +12,13 @@ import type {
   ComputeResult,
   DockerPlatform
 } from '../../@types/C2D/C2D.js'
-// import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
 import { getConfiguration } from '../../utils/config.js'
 import { C2DEngine } from './compute_engine_base.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { Storage } from '../storage/index.js'
 import Dockerode from 'dockerode'
-import type { ContainerCreateOptions, VolumeCreateOptions } from 'dockerode'
+import type { ContainerCreateOptions, HostConfig, VolumeCreateOptions } from 'dockerode'
 import * as tar from 'tar'
 import {
   createWriteStream,
@@ -41,6 +40,7 @@ import { Service } from '../../@types/DDO/Service.js'
 import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.js'
 import * as drc from 'docker-registry-client'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
+import { convertGigabytesToBytes } from '../../utils/util.js'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
@@ -202,7 +202,7 @@ export class C2DEngineDocker extends C2DEngine {
 
     const jobId = generateUniqueID()
 
-    // TO DO C2D - Check image, check arhitecture, etc
+    // C2D - Check image, check arhitecture, etc
     const image = getAlgorithmImage(algorithm)
     // ex: node@sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36
     if (!image) {
@@ -219,6 +219,7 @@ export class C2DEngineDocker extends C2DEngine {
       envIdWithHash ? environment : null,
       environment
     )
+
     const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
     if (!validation.valid)
       throw new Error(`Unable to validate docker image ${image}: ${validation.reason}`)
@@ -498,9 +499,11 @@ export class C2DEngineDocker extends C2DEngine {
         await this.db.updateJob(job)
         await this.cleanupJob(job)
       }
+      // get env info
+      const environment = await this.getJobEnvironment(job)
       // create the container
       const mountVols: any = { '/data': {} }
-      const hostConfig: any = {
+      const hostConfig: HostConfig = {
         Mounts: [
           {
             Type: 'volume',
@@ -510,6 +513,18 @@ export class C2DEngineDocker extends C2DEngine {
           }
         ]
       }
+      if (environment != null) {
+        // limit container CPU & Memory usage according to env specs
+        hostConfig.CpuCount = environment.cpuNumber || 1
+        // if more than 1 CPU
+        if (hostConfig.CpuCount > 1) {
+          hostConfig.CpusetCpus = `0-${hostConfig.CpuCount - 1}`
+        }
+        hostConfig.Memory = 0 || convertGigabytesToBytes(environment.ramGB)
+        // set swap to same memory value means no swap (otherwise it use like 2X mem)
+        hostConfig.MemorySwap = hostConfig.Memory
+      }
+      // console.log('host config: ', hostConfig)
       const containerInfo: ContainerCreateOptions = {
         name: job.jobId + '-algoritm',
         Image: job.containerImage,
