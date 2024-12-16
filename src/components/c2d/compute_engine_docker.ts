@@ -202,6 +202,7 @@ export class C2DEngineDocker extends C2DEngine {
 
     const jobId = generateUniqueID()
 
+    // TODO check storage limits
     // C2D - Check image, check arhitecture, etc
     const image = getAlgorithmImage(algorithm)
     // ex: node@sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36
