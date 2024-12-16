@@ -66,11 +66,6 @@ export function checkConnectionsRateLimit(
   const connectionLimits =
     configuration.maxConnections || DEFAULT_MAX_CONNECTIONS_PER_MINUTE
   const ok = connectionsData.numRequests <= connectionLimits
-  if (!ok) {
-    console.log(
-      `Connection limit exceeded ${connectionsData.numRequests} limit: ${connectionLimits}`
-    )
-  }
   return {
     valid: ok,
     error: ok ? '' : 'Unauthorized request. Rate limit exceeded!'

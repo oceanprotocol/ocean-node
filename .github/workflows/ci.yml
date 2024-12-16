@@ -279,6 +279,7 @@ jobs:
           ALLOWED_ADMINS: '["0xe2DD09d719Da89e5a3D0F2549c7E24566e947260"]'
           DB_TYPE: 'elasticsearch'
           MAX_REQ_PER_MINUTE: 320
+          MAX_CONNECTIONS_PER_MINUTE: 320
       - name: Check Ocean Node is running
         run: |
           for i in $(seq 1 90); do
