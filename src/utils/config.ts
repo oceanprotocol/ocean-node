@@ -1,11 +1,11 @@
+import type { DenyList, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
 import type {
-  DenyList,
-  OceanNodeConfig,
-  OceanNodeKeys,
-  OceanNodeDockerConfig
-} from '../@types/OceanNode'
-import type { C2DClusterInfo } from '../@types/C2D.js'
-import { C2DClusterType } from '../@types/C2D.js'
+  C2DClusterInfo,
+  ComputeEnvironment,
+  C2DDockerConfig,
+  ComputeEnvironmentBaseConfig
+} from '../@types/C2D/C2D.js'
+import { C2DClusterType } from '../@types/C2D/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
 import {
@@ -18,7 +18,7 @@ import { defaultBootstrapAddresses, knownUnsafeURLs } from '../utils/constants.j
 
 import { LOG_LEVELS_STR, GENERIC_EMOJIS, getLoggerLevelEmoji } from './logging/Logger.js'
 import { RPCS } from '../@types/blockchain'
-import { getAddress, Wallet } from 'ethers'
+import { getAddress, Wallet, ZeroAddress } from 'ethers'
 import { FeeAmount, FeeStrategy, FeeTokens } from '../@types/Fees'
 import {
   getOceanArtifactsAdresses,
@@ -26,6 +26,8 @@ import {
 } from '../utils/address.js'
 import { CONFIG_LOGGER } from './logging/common.js'
 import { create256Hash } from './crypt.js'
+import { isDefined } from './util.js'
+import os from 'os'
 
 // usefull for lazy loading and avoid boilerplate on other places
 let previousConfiguration: OceanNodeConfig = null
@@ -53,7 +55,10 @@ export async function getPeerIdFromPrivateKey(
 
 function getEnvValue(env: any, defaultValue: any) {
   /* Gets value for an ENV var, returning defaultValue if not defined */
-  return env != null ? (env as string) : defaultValue
+  if (env === null || env === undefined || (env as string).length === 0) {
+    return defaultValue
+  }
+  return env as string
 }
 
 function getIntEnvValue(env: any, defaultValue: number) {
@@ -320,18 +325,6 @@ function getOceanNodeFees(supportedNetworks: RPCS, isStartup?: boolean): FeeStra
   }
 }
 
-function getC2DDockerConfig(isStartup?: boolean): OceanNodeDockerConfig {
-  const config = {
-    socketPath: getEnvValue(process.env.DOCKER_SOCKET_PATH, null),
-    protocol: getEnvValue(process.env.DOCKER_PROTOCOL, null),
-    host: getEnvValue(process.env.DOCKER_HOST, null),
-    port: getIntEnvValue(process.env.DOCKER_PORT, 0),
-    caPath: getEnvValue(process.env.DOCKER_CA_PATH, null),
-    certPath: getEnvValue(process.env.DOCKER_CERT_PATH, null),
-    keyPath: getEnvValue(process.env.DOCKER_KEY_PATH, null)
-  }
-  return config
-}
 // get C2D environments
 function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
   const clusters: C2DClusterInfo[] = []
@@ -358,8 +351,157 @@ function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
       )
     }
   }
+  // docker clusters
+  const dockerConfig: C2DDockerConfig = {
+    socketPath: getEnvValue(process.env.DOCKER_SOCKET_PATH, null),
+    protocol: getEnvValue(process.env.DOCKER_PROTOCOL, null),
+    host: getEnvValue(process.env.DOCKER_HOST, null),
+    port: getIntEnvValue(process.env.DOCKER_PORT, 0),
+    caPath: getEnvValue(process.env.DOCKER_CA_PATH, null),
+    certPath: getEnvValue(process.env.DOCKER_CERT_PATH, null),
+    keyPath: getEnvValue(process.env.DOCKER_KEY_PATH, null),
+    environments: getDockerComputeEnvironments(isStartup)
+  }
+
+  if (dockerConfig.socketPath || dockerConfig.host) {
+    const hash = create256Hash(JSON.stringify(dockerConfig))
+    // get env values
+    dockerConfig.freeComputeOptions = getDockerFreeComputeOptions(hash, isStartup)
+    clusters.push({
+      connection: dockerConfig,
+      hash,
+      type: C2DClusterType.DOCKER,
+      tempFolder: './c2d_storage/' + hash
+    })
+  }
 
   return clusters
+}
+
+// TODO C2D v2.0
+// eslint-disable-next-line no-unused-vars
+function getDockerFreeComputeOptions(
+  clusterHash: string,
+  isStartup?: boolean
+): ComputeEnvironment {
+  const defaultOptions: ComputeEnvironment = {
+    id: `${clusterHash}-free`,
+    cpuNumber: 1,
+    cpuType: '',
+    gpuNumber: 0,
+    ramGB: 1,
+    diskGB: 1,
+    priceMin: 0,
+    desc: 'Free',
+    currentJobs: 0,
+    maxJobs: 1,
+    consumerAddress: '',
+    storageExpiry: 600,
+    maxJobDuration: 600, // 10 minutes
+    feeToken: ZeroAddress,
+    chainId: 8996,
+    free: true,
+    platform: [{ architecture: os.machine(), os: os.platform() }]
+  }
+
+  if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.DOCKER_FREE_COMPUTE, isStartup)) {
+    try {
+      const options: ComputeEnvironmentBaseConfig = JSON.parse(
+        process.env.DOCKER_FREE_COMPUTE
+      ) as ComputeEnvironmentBaseConfig
+      doComputeEnvChecks([options])
+      const env = { ...options } as ComputeEnvironment
+      env.platform = [{ architecture: os.machine(), os: os.platform() }]
+      return env
+    } catch (error) {
+      CONFIG_LOGGER.logMessageWithEmoji(
+        `Invalid "${ENVIRONMENT_VARIABLES.DOCKER_FREE_COMPUTE.name}" env variable => ${process.env.DOCKER_FREE_COMPUTE}...`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+    }
+  } else {
+    CONFIG_LOGGER.warn(
+      `No options for ${ENVIRONMENT_VARIABLES.DOCKER_FREE_COMPUTE.name} were specified, using defaults.`
+    )
+  }
+  return defaultOptions
+}
+
+/**
+ * Reads a partial ComputeEnvironment setting (array of)
+ * @param isStartup for logging purposes
+ * @returns 
+ * 
+ * example:
+ * {
+    "cpuNumber": 2,
+    "ramGB": 4,
+    "diskGB": 10,
+    "desc": "2Cpu,2gbRam - price 1 OCEAN/minute, max 1 hour",
+    "maxJobs": 10,
+    "storageExpiry": 36000,
+    "maxJobDuration": 3600,
+    "chainId": 1,
+    "feeToken": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48",
+    "priceMin": 1
+  },
+ */
+function getDockerComputeEnvironments(isStartup?: boolean): ComputeEnvironment[] {
+  if (
+    existsEnvironmentVariable(
+      ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS,
+      isStartup
+    )
+  ) {
+    try {
+      const options: ComputeEnvironmentBaseConfig[] = JSON.parse(
+        process.env.DOCKER_COMPUTE_ENVIRONMENTS
+      ) as ComputeEnvironmentBaseConfig[]
+      doComputeEnvChecks(options)
+      const envs = { ...options } as ComputeEnvironment[]
+      envs.forEach((env) => {
+        env.platform = [{ architecture: os.machine(), os: os.platform() }]
+      })
+      return envs
+    } catch (error) {
+      CONFIG_LOGGER.logMessageWithEmoji(
+        `Invalid "${ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS.name}" env variable => ${process.env.DOCKER_COMPUTE_ENVIRONMENTS}...`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+    }
+  } else {
+    CONFIG_LOGGER.warn(
+      `No options for ${ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS.name} were specified.`
+    )
+  }
+  return null
+}
+
+function doComputeEnvChecks(configEnv: ComputeEnvironmentBaseConfig[]): boolean {
+  for (const config of configEnv) {
+    if (config.feeToken && !isDefined(config.priceMin)) {
+      CONFIG_LOGGER.error(
+        "Please check your compute env settings: We have a fee token but we don't have a price!"
+      )
+      return false
+    }
+    if (isDefined(config.priceMin) && !isDefined(config.feeToken)) {
+      CONFIG_LOGGER.error(
+        "Please check your compute env settings: We have a price but we don't have a fee token!"
+      )
+      return false
+    }
+    if (config.storageExpiry < config.maxJobDuration) {
+      CONFIG_LOGGER.error(
+        'Please check your compute env settings: "storageExpiry" should be greater than "maxJobDuration"!'
+      )
+      return false
+    }
+  }
 }
 
 // connect interfaces (p2p or/and http)
@@ -605,7 +747,6 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     indexingNetworks,
     feeStrategy: getOceanNodeFees(supportedNetworks, isStartup),
     c2dClusters: getC2DClusterEnvironment(isStartup),
-    dockerConfig: getC2DDockerConfig(isStartup),
     c2dNodeUri: getEnvValue(process.env.C2D_NODE_URI, ''),
     accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
     assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),
@@ -637,6 +778,7 @@ function configChanged(previous: OceanNodeConfig, current: OceanNodeConfig): boo
 // useful for debugging purposes
 export async function printCurrentConfig() {
   const conf = await getConfiguration(true)
+  conf.keys.privateKey = '[*** HIDDEN CONTENT ***]' // hide private key
   console.log(JSON.stringify(conf, null, 4))
 }
 
