@@ -78,7 +78,8 @@ export const EVENTS = {
   TOKEN_URI_UPDATE: 'TokenURIUpdate',
   EXCHANGE_CREATED: 'ExchangeCreated',
   EXCHANGE_RATE_CHANGED: 'ExchangeRateChanged',
-  DISPENSER_CREATED: 'DispenserCreated'
+  DISPENSER_CREATED: 'DispenserCreated',
+  DISPENSER_ACTIVATED: 'DispenserActivated'
 }
 
 export const INDEXER_CRAWLING_EVENTS = {

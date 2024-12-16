@@ -219,7 +219,8 @@ export class OceanIndexer {
             EVENTS.METADATA_UPDATED,
             EVENTS.METADATA_STATE,
             EVENTS.ORDER_STARTED,
-            EVENTS.ORDER_REUSED
+            EVENTS.ORDER_REUSED,
+            EVENTS.DISPENSER_ACTIVATED
           ].includes(event.method)
         ) {
           // will emit the metadata created/updated event and advertise it to the other peers (on create only)

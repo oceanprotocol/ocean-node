@@ -10,6 +10,7 @@ import {
 } from '../../utils/index.js'
 import { BlocksEvents, NetworkEvent, ProcessingEvents } from '../../@types/blockchain.js'
 import {
+  DispenserActivatedEventProcessor,
   MetadataEventProcessor,
   MetadataStateEventProcessor,
   OrderReusedEventProcessor,
@@ -30,6 +31,7 @@ let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor
 let orderReusedEventProcessor: OrderReusedEventProcessor
 let orderStartedEventProcessor: OrderStartedEventProcessor
+let dispenserActivatedEventProcessor: DispenserActivatedEventProcessor
 
 function getMetadataEventProcessor(chainId: number): MetadataEventProcessor {
   if (!metadataEventProccessor) {
@@ -57,6 +59,15 @@ function getOrderStartedEventProcessor(chainId: number): OrderStartedEventProces
     orderStartedEventProcessor = new OrderStartedEventProcessor(chainId)
   }
   return orderStartedEventProcessor
+}
+
+function getDispenserActivatedEventProcessor(
+  chainId: number
+): DispenserActivatedEventProcessor {
+  if (!dispenserActivatedEventProcessor) {
+    dispenserActivatedEventProcessor = new DispenserActivatedEventProcessor(chainId)
+  }
+  return dispenserActivatedEventProcessor
 }
 
 export const getContractAddress = (chainId: number, contractName: string): string => {
@@ -229,6 +240,14 @@ export const processChunkLogs = async (
           )
         } else if (event.type === EVENTS.TOKEN_URI_UPDATE) {
           storeEvents[event.type] = processTokenUriUpadate()
+        } else if (event.type === EVENTS.DISPENSER_ACTIVATED) {
+          const processor = getDispenserActivatedEventProcessor(chainId)
+          storeEvents[event.type] = await processor.processEvent(
+            log,
+            chainId,
+            signer,
+            provider
+          )
         }
       }
     }
@@ -343,6 +362,18 @@ export function findServiceIdByDatatoken(ddo: any, datatokenAddress: string): st
     }
   }
   return serviceIdToFind
+}
+
+export function doesDispenserAlreadyExist(
+  dispenserAddress: string,
+  prices: Price[]
+): boolean {
+  for (const price of prices) {
+    if (dispenserAddress.toLowerCase() === price.contract.toLowerCase()) {
+      return true
+    }
+  }
+  return false
 }
 
 export async function getPricesByDt(
