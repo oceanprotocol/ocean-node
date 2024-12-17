@@ -527,7 +527,9 @@ export class C2DEngineDocker extends C2DEngine {
         // set swap to same memory value means no swap (otherwise it use like 2X mem)
         hostConfig.MemorySwap = hostConfig.Memory
         // storage
-        hostConfig.StorageOpt = { size: environment.diskGB + 'G' }
+        hostConfig.StorageOpt = {
+          size: environment.diskGB > 0 ? `${environment.diskGB}G` : '1G'
+        }
       }
 
       const containerInfo: ContainerCreateOptions = {
