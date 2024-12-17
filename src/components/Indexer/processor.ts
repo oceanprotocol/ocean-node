@@ -1273,13 +1273,20 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
             const price = doesFreAlreadyExist(exchangeId, stat.prices)[1]
             price.price = newRate
             break
-          } else {
-            INDEXER_LOGGER.logMessage(`[ExchangeRateChanged] - Could not find the exchange in DDO ${did} prices`)
+          } else if (
+            stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
+            !doesFreAlreadyExist(exchangeId, stat.prices)[0]
+          ) {
+            INDEXER_LOGGER.logMessage(
+              `[ExchangeRateChanged] - Could not find the exchange in DDO ${did} prices`
+            )
             return
           }
         }
       } else {
-        INDEXER_LOGGER.logMessage(`[ExchangeRateChanged] - No stats were found on the ddo`)
+        INDEXER_LOGGER.logMessage(
+          `[ExchangeRateChanged] - No stats were found on the ddo`
+        )
         const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
         if (serviceIdToFind === '') {
           INDEXER_LOGGER.logMessage(
@@ -1298,6 +1305,7 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
 
       const savedDDO = this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_RATE_CHANGED)
       return savedDDO
+
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
     }

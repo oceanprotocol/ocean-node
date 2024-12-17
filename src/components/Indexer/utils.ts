@@ -41,7 +41,6 @@ let exchangeActivatedEventProcessor: ExchangeActivatedEventProcessor
 let exchangeDeactivatedEventProcessor: ExchangeDeactivatedEventProcessor
 let exchangeNewRateEventProcessor: ExchangeRateChangedEventProcessor
 
-
 function getMetadataEventProcessor(chainId: number): MetadataEventProcessor {
   if (!metadataEventProccessor) {
     metadataEventProccessor = new MetadataEventProcessor(chainId)
@@ -91,7 +90,7 @@ function getDispenserDeactivatedEventProcessor(
 function getExchangeActivatedEventProcessor(
   chainId: number
 ): ExchangeActivatedEventProcessor {
-  if(!exchangeActivatedEventProcessor) {
+  if (!exchangeActivatedEventProcessor) {
     exchangeActivatedEventProcessor = new ExchangeActivatedEventProcessor(chainId)
   }
   return exchangeActivatedEventProcessor
@@ -100,16 +99,14 @@ function getExchangeActivatedEventProcessor(
 function getExchangeDeactivatedEventProcessor(
   chainId: number
 ): ExchangeDeactivatedEventProcessor {
-  if(!exchangeDeactivatedEventProcessor) {
+  if (!exchangeDeactivatedEventProcessor) {
     exchangeDeactivatedEventProcessor = new ExchangeDeactivatedEventProcessor(chainId)
   }
   return exchangeDeactivatedEventProcessor
 }
 
-function getExchangeNewRateEventProcessor(
-  chainId: number
-) {
-  if(!exchangeNewRateEventProcessor) {
+function getExchangeNewRateEventProcessor(chainId: number) {
+  if (!exchangeNewRateEventProcessor) {
     exchangeNewRateEventProcessor = new ExchangeRateChangedEventProcessor(chainId)
   }
   return exchangeNewRateEventProcessor
