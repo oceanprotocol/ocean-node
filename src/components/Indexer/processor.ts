@@ -25,7 +25,10 @@ import {
   findServiceIdByDatatoken,
   getDtContract,
   getPricingStatsForDddo,
-  wasNFTDeployedByOurFactory
+  wasNFTDeployedByOurFactory,
+  getPricesByDt,
+  doesDispenserAlreadyExist,
+  doesFreAlreadyExist
 } from './utils.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
@@ -41,7 +44,6 @@ import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
 import { makeDid } from '../core/utils/validateDdoHandler.js'
 import { PolicyServer } from '../policyServer/index.js'
-import { getPricesByDt, doesDispenserAlreadyExist, doesFreAlreadyExist } from './utils.js'
 class BaseEventProcessor {
   protected networkId: number
 
@@ -1126,6 +1128,90 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
       }
 
       const savedDDO = this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_ACTIVATED)
+      return savedDDO
+    } catch (err) {
+      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
+    }
+  }
+}
+
+export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
+  async processEvent(
+    event: ethers.Log,
+    chainId: number,
+    signer: Signer,
+    provider: JsonRpcApiProvider
+  ): Promise<any> {
+    const decodedEventData = await this.getEventData(
+      provider,
+      event.transactionHash,
+      FixedRateExchange.abi
+    )
+    const exchangeId = ethers.toUtf8Bytes(decodedEventData.args[0].toString())
+    const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
+    const exchange = await freContract.getExchange(exchangeId)
+    const datatokenAddress = exchange[1]
+    const datatokenContract = getDtContract(signer, datatokenAddress)
+    const nftAddress = await datatokenContract.getERC721Address()
+    const did =
+      'did:op:' +
+      createHash('sha256')
+        .update(getAddress(nftAddress) + chainId.toString(10))
+        .digest('hex')
+    try {
+      const { ddo: ddoDatabase } = await getDatabase()
+      const ddo = await ddoDatabase.retrieve(did)
+      if (!ddo) {
+        INDEXER_LOGGER.logMessage(
+          `Detected ExchangeDeactivated changed for ${did}, but it does not exists.`
+        )
+        return
+      }
+      if (!ddo.indexedMetadata) {
+        ddo.indexedMetadata = {}
+      }
+
+      if (!Array.isArray(ddo.indexedMetadata.stats)) {
+        ddo.indexedMetadata.stats = []
+      }
+      if (ddo.indexedMetadata.stats.length !== 0) {
+        for (const stat of ddo.indexedMetadata.stats) {
+          if (
+            stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
+            doesFreAlreadyExist(exchangeId, stat.prices)[0]
+          ) {
+            const price = doesFreAlreadyExist(exchangeId, stat.prices)[1]
+            const index = stat.prices.indexOf(price)
+            stat.prices.splice(index, 1)
+            break
+          } else if (!doesFreAlreadyExist(exchangeId, stat.prices)[0]) {
+            INDEXER_LOGGER.logMessage(
+              `Detected ExchangeDeactivated changed for ${event.address}, but exchange ${exchangeId} does not exist in the DDO pricing.`
+            )
+            break
+          }
+        }
+      } else {
+        INDEXER_LOGGER.logMessage(
+          `[ExchangeDeactivated] - No stats were found on the ddo`
+        )
+        const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
+        if (serviceIdToFind === '') {
+          INDEXER_LOGGER.logMessage(
+            `[ExchangeDeactivated] - This datatoken does not contain this service. Invalid service id!`
+          )
+          return
+        }
+        ddo.indexedMetadata.stats.push({
+          datatokenAddress: datatokenAddress,
+          name: await datatokenContract.name(),
+          serviceId: serviceIdToFind,
+          orders: 0,
+          prices: getPricesByDt(datatokenContract, signer)
+        })
+      }
+
+      const savedDDO = this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_DEACTIVATED)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)

@@ -15,7 +15,9 @@ import {
   MetadataEventProcessor,
   MetadataStateEventProcessor,
   OrderReusedEventProcessor,
-  OrderStartedEventProcessor
+  OrderStartedEventProcessor,
+  ExchangeActivatedEventProcessor,
+  ExchangeDeactivatedEventProcessor
 } from './processor.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { fetchEventFromTransaction } from '../../utils/util.js'
@@ -34,6 +36,9 @@ let orderReusedEventProcessor: OrderReusedEventProcessor
 let orderStartedEventProcessor: OrderStartedEventProcessor
 let dispenserActivatedEventProcessor: DispenserActivatedEventProcessor
 let dispenserDeactivatedEventProcessor: DispenserDeactivatedEventProcessor
+let exchangeActivatedEventProcessor: ExchangeActivatedEventProcessor
+let exchangeDeactivatedEventProcessor: ExchangeDeactivatedEventProcessor
+
 
 function getMetadataEventProcessor(chainId: number): MetadataEventProcessor {
   if (!metadataEventProccessor) {
@@ -79,6 +84,24 @@ function getDispenserDeactivatedEventProcessor(
     dispenserDeactivatedEventProcessor = new DispenserDeactivatedEventProcessor(chainId)
   }
   return dispenserDeactivatedEventProcessor
+}
+
+function getExchangeActivatedEventProcessor(
+  chainId: number
+): ExchangeActivatedEventProcessor {
+  if(!exchangeActivatedEventProcessor) {
+    exchangeActivatedEventProcessor = new ExchangeActivatedEventProcessor(chainId)
+  }
+  return exchangeActivatedEventProcessor
+}
+
+function getExchangeDeactivatedEventProcessor(
+  chainId: number
+): ExchangeDeactivatedEventProcessor {
+  if(!exchangeDeactivatedEventProcessor) {
+    exchangeDeactivatedEventProcessor = new ExchangeDeactivatedEventProcessor(chainId)
+  }
+  return exchangeDeactivatedEventProcessor
 }
 
 export const getContractAddress = (chainId: number, contractName: string): string => {
@@ -261,6 +284,22 @@ export const processChunkLogs = async (
           )
         } else if (event.type === EVENTS.DISPENSER_DEACTIVATED) {
           const processor = getDispenserDeactivatedEventProcessor(chainId)
+          storeEvents[event.type] = await processor.processEvent(
+            log,
+            chainId,
+            signer,
+            provider
+          )
+        } else if (event.type === EVENTS.EXCHANGE_ACTIVATED) {
+          const processor = getExchangeActivatedEventProcessor(chainId)
+          storeEvents[event.type] = await processor.processEvent(
+            log,
+            chainId,
+            signer,
+            provider
+          )
+        } else if (event.type === EVENTS.EXCHANGE_DEACTIVATED) {
+          const processor = getExchangeDeactivatedEventProcessor(chainId)
           storeEvents[event.type] = await processor.processEvent(
             log,
             chainId,
