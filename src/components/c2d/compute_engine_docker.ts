@@ -525,7 +525,7 @@ export class C2DEngineDocker extends C2DEngine {
         hostConfig.CpuCount = Math.min(confCPUs, existingCPUs)
         // hostConfig.CpuShares = 1 / hostConfig.CpuCount
         hostConfig.CpuPeriod = 100000 // 100 miliseconds is usually the default
-        hostConfig.CpuQuota = (1 / hostConfig.CpuCount) * 100000
+        hostConfig.CpuQuota = (1 / hostConfig.CpuCount) * hostConfig.CpuPeriod
         // if more than 1 CPU, 	Limit the specific CPUs or cores a container can use.
         if (hostConfig.CpuCount > 1) {
           hostConfig.CpusetCpus = `0-${hostConfig.CpuCount - 1}`
