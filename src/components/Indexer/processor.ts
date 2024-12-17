@@ -1305,7 +1305,6 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
 
       const savedDDO = this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_RATE_CHANGED)
       return savedDDO
-
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
     }
