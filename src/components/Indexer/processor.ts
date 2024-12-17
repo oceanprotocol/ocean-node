@@ -1017,7 +1017,10 @@ export class DispenserDeactivatedEventProcessor extends BaseEventProcessor {
             const index = stat.prices.indexOf(price)
             stat.prices.splice(index, 1)
             break
-          } else if (!doesDispenserAlreadyExist(event.address, stat.prices)[0]) {
+          } else if (
+            stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
+            !doesDispenserAlreadyExist(event.address, stat.prices)[0]
+          ) {
             INDEXER_LOGGER.logMessage(
               `Detected DispenserDeactivated changed for ${event.address}, but dispenser does not exist in the DDO pricing.`
             )
@@ -1184,7 +1187,10 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
             const index = stat.prices.indexOf(price)
             stat.prices.splice(index, 1)
             break
-          } else if (!doesFreAlreadyExist(exchangeId, stat.prices)[0]) {
+          } else if (
+            stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
+            !doesFreAlreadyExist(exchangeId, stat.prices)[0]
+          ) {
             INDEXER_LOGGER.logMessage(
               `Detected ExchangeDeactivated changed for ${event.address}, but exchange ${exchangeId} does not exist in the DDO pricing.`
             )
@@ -1212,6 +1218,85 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
       }
 
       const savedDDO = this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_DEACTIVATED)
+      return savedDDO
+    } catch (err) {
+      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
+    }
+  }
+}
+export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
+  async processEvent(
+    event: ethers.Log,
+    chainId: number,
+    signer: Signer,
+    provider: JsonRpcApiProvider
+  ): Promise<any> {
+    const decodedEventData = await this.getEventData(
+      provider,
+      event.transactionHash,
+      FixedRateExchange.abi
+    )
+    const exchangeId = ethers.toUtf8Bytes(decodedEventData.args[0].toString())
+    const newRate = decodedEventData.args[2].toString()
+    const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
+    const exchange = await freContract.getExchange(exchangeId)
+    const datatokenAddress = exchange[1]
+    const datatokenContract = getDtContract(signer, datatokenAddress)
+    const nftAddress = await datatokenContract.getERC721Address()
+    const did =
+      'did:op:' +
+      createHash('sha256')
+        .update(getAddress(nftAddress) + chainId.toString(10))
+        .digest('hex')
+    try {
+      const { ddo: ddoDatabase } = await getDatabase()
+      const ddo = await ddoDatabase.retrieve(did)
+      if (!ddo) {
+        INDEXER_LOGGER.logMessage(
+          `Detected ExchangeRateChanged changed for ${did}, but it does not exists.`
+        )
+        return
+      }
+      if (!ddo.indexedMetadata) {
+        ddo.indexedMetadata = {}
+      }
+
+      if (!Array.isArray(ddo.indexedMetadata.stats)) {
+        ddo.indexedMetadata.stats = []
+      }
+      if (ddo.indexedMetadata.stats.length !== 0) {
+        for (const stat of ddo.indexedMetadata.stats) {
+          if (
+            stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
+            doesFreAlreadyExist(exchangeId, stat.prices)[0]
+          ) {
+            const price = doesFreAlreadyExist(exchangeId, stat.prices)[1]
+            price.price = newRate
+            break
+          } else {
+            INDEXER_LOGGER.logMessage(`[ExchangeRateChanged] - Could not find the exchange in DDO ${did} prices`)
+            return
+          }
+        }
+      } else {
+        INDEXER_LOGGER.logMessage(`[ExchangeRateChanged] - No stats were found on the ddo`)
+        const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
+        if (serviceIdToFind === '') {
+          INDEXER_LOGGER.logMessage(
+            `[ExchangeRateChanged] - This datatoken does not contain this service. Invalid service id!`
+          )
+          return
+        }
+        ddo.indexedMetadata.stats.push({
+          datatokenAddress: datatokenAddress,
+          name: await datatokenContract.name(),
+          serviceId: serviceIdToFind,
+          orders: 0,
+          prices: getPricesByDt(datatokenContract, signer)
+        })
+      }
+
+      const savedDDO = this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_RATE_CHANGED)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
