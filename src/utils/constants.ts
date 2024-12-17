@@ -80,7 +80,9 @@ export const EVENTS = {
   EXCHANGE_RATE_CHANGED: 'ExchangeRateChanged',
   DISPENSER_CREATED: 'DispenserCreated',
   DISPENSER_ACTIVATED: 'DispenserActivated',
-  DISPENSER_DEACTIVATED: 'DispenserDeactivated'
+  DISPENSER_DEACTIVATED: 'DispenserDeactivated',
+  EXCHANGE_ACTIVATED: 'ExchangeActivated',
+  EXCHANGE_DEACTIVATED: 'ExchangeDeactivated'
 }
 
 export const INDEXER_CRAWLING_EVENTS = {

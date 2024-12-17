@@ -395,6 +395,18 @@ export function doesDispenserAlreadyExist(
   return [false, null]
 }
 
+export function doesFreAlreadyExist(
+  exchangeId: ethers.BytesLike,
+  prices: Price[]
+): [boolean, Price?] {
+  for (const price of prices) {
+    if (exchangeId === price.exchangeId) {
+      return [true, price]
+    }
+  }
+  return [false, null]
+}
+
 export async function getPricesByDt(
   datatoken: ethers.Contract,
   signer: Signer
@@ -504,7 +516,8 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
               prices: prices.push({
                 type: 'dispenser',
                 price: '0',
-                contract: dispenser
+                contract: dispenser,
+                token: service.datatokenAddress
               })
             })
           }
