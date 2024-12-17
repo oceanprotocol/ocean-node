@@ -41,6 +41,7 @@ import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.j
 import * as drc from 'docker-registry-client'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { convertGigabytesToBytes } from '../../utils/util.js'
+import os from 'os'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
@@ -517,17 +518,24 @@ export class C2DEngineDocker extends C2DEngine {
         ]
       }
       if (environment != null) {
+        const existingCPUs = os.cpus().length
+        const confCPUs = environment.cpuNumber || existingCPUs
         // limit container CPU & Memory usage according to env specs
-        hostConfig.CpuCount = environment.cpuNumber || 1
-        // if more than 1 CPU
+        // windows only
+        hostConfig.CpuCount = Math.min(confCPUs, existingCPUs)
+        // hostConfig.CpuShares = 1 / hostConfig.CpuCount
+        hostConfig.CpuPeriod = 100000 // 100 miliseconds is usually the default
+        hostConfig.CpuQuota = (1 / hostConfig.CpuCount) * 100000
+        // if more than 1 CPU, 	Limit the specific CPUs or cores a container can use.
         if (hostConfig.CpuCount > 1) {
           hostConfig.CpusetCpus = `0-${hostConfig.CpuCount - 1}`
         }
+
         hostConfig.Memory = 0 || convertGigabytesToBytes(environment.ramGB)
         // set swap to same memory value means no swap (otherwise it use like 2X mem)
         hostConfig.MemorySwap = hostConfig.Memory
       }
-      // console.log('host config: ', hostConfig)
+      console.log('host config: ', hostConfig)
       const containerInfo: ContainerCreateOptions = {
         name: job.jobId + '-algoritm',
         Image: job.containerImage,
