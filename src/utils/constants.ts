@@ -337,6 +337,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'DB_TYPE',
     value: process.env.DB_TYPE,
     required: false
+  },
+  IS_BOOTSTRAP: {
+    name: 'IS_BOOTSTRAP',
+    value: process.env.IS_BOOTSTRAP,
+    required: false
   }
 }
 

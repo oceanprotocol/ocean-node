@@ -9,6 +9,7 @@ import { C2DClusterType } from '../@types/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
 import {
+  computeCodebaseHash,
   DEFAULT_RATE_LIMIT_PER_SECOND,
   ENVIRONMENT_VARIABLES,
   EnvVariable,
@@ -26,6 +27,8 @@ import {
 } from '../utils/address.js'
 import { CONFIG_LOGGER } from './logging/common.js'
 import { create256Hash } from './crypt.js'
+import { fileURLToPath } from 'url'
+import path from 'path'
 
 // usefull for lazy loading and avoid boilerplate on other places
 let previousConfiguration: OceanNodeConfig = null
@@ -475,6 +478,12 @@ export async function getConfiguration(
   if (!previousConfiguration || forceReload) {
     previousConfiguration = await getEnvConfig(isStartup)
   }
+  if (!previousConfiguration.codeHash) {
+    const __filename = fileURLToPath(import.meta.url)
+    const __dirname = path.dirname(__filename.replace('utils/', ''))
+    previousConfiguration.codeHash = await computeCodebaseHash(__dirname)
+  }
+
   return previousConfiguration
 }
 
@@ -549,7 +558,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       ),
       dhtMaxInboundStreams: getIntEnvValue(process.env.P2P_dhtMaxInboundStreams, 500),
       dhtMaxOutboundStreams: getIntEnvValue(process.env.P2P_dhtMaxOutboundStreams, 500),
-      enableDHTServer: getBoolEnvValue(process.env.P2P_ENABLE_DHT_SERVER, false),
+      enableDHTServer: getBoolEnvValue('P2P_ENABLE_DHT_SERVER', false),
       mDNSInterval: getIntEnvValue(process.env.P2P_mDNSInterval, 20e3), // 20 seconds
       connectionsMaxParallelDials: getIntEnvValue(
         process.env.P2P_connectionsMaxParallelDials,
@@ -616,7 +625,8 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       ENVIRONMENT_VARIABLES.UNSAFE_URLS,
       isStartup,
       knownUnsafeURLs
-    )
+    ),
+    isBootstrap: getBoolEnvValue('IS_BOOTSTRAP', false)
   }
 
   if (!previousConfiguration) {
