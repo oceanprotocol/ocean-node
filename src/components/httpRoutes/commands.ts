@@ -99,7 +99,12 @@ directCommandRoute.post(
         // send to another peer (Only here we need P2P networking)
         response = await req.oceanNode
           .getP2PNode()
-          .sendTo(req.body.node as string, JSON.stringify(req.body), sink)
+          .sendTo(
+            req.body.node as string,
+            JSON.stringify(req.body),
+            sink,
+            req.body.multiAddrs
+          )
       } else {
         response = {
           stream: null,

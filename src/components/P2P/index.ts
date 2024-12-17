@@ -43,7 +43,7 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
-import { type Multiaddr, multiaddr } from '@multiformats/multiaddr'
+import { Multiaddr, multiaddr } from '@multiformats/multiaddr'
 // import { getIPv4, getIPv6 } from '../../utils/ip.js'
 
 const DEFAULT_OPTIONS = {
@@ -608,7 +608,8 @@ export class OceanP2P extends EventEmitter {
   async sendTo(
     peerName: string,
     message: string,
-    sink: any
+    sink: any,
+    multiAddrs?: string[]
   ): Promise<P2PCommandResponse> {
     P2P_LOGGER.logMessage('SendTo() node ' + peerName + ' task: ' + message, true)
 
@@ -630,7 +631,17 @@ export class OceanP2P extends EventEmitter {
       response.status.error = 'Invalid peer'
       return response
     }
-    const multiaddrs: Multiaddr[] = await this.getPeerMultiaddrs(peerName)
+    let multiaddrs: Multiaddr[] = []
+
+    if (!multiAddrs || multiAddrs.length < 1) {
+      // if they are no forced multiaddrs, try to find node multiaddr from peerStore/dht
+      multiaddrs = await this.getPeerMultiaddrs(peerName)
+    } else {
+      // just used what we were instructed to use
+      for (const addr of multiAddrs) {
+        multiaddrs.push(new Multiaddr(addr))
+      }
+    }
     if (multiaddrs.length < 1) {
       response.status.httpStatus = 404
       response.status.error = `Cannot find any address to dial for peer: ${peerId}`
