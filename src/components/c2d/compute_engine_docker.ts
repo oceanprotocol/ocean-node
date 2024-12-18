@@ -517,15 +517,22 @@ export class C2DEngineDocker extends C2DEngine {
         ]
       }
       if (environment != null) {
+        // TODO the CPU and MEM part is addressed in the PR #799 https://github.com/oceanprotocol/ocean-node/pull/799/
+        // REMOVE AFTER MERGE
         // limit container CPU & Memory usage according to env specs
-        hostConfig.CpuCount = environment.cpuNumber || 1
-        // if more than 1 CPU
-        if (hostConfig.CpuCount > 1) {
-          hostConfig.CpusetCpus = `0-${hostConfig.CpuCount - 1}`
+        // hostConfig.CpuCount = environment.cpuNumber || 1
+        // // if more than 1 CPU
+        // if (hostConfig.CpuCount > 1) {
+        //   hostConfig.CpusetCpus = `0-${hostConfig.CpuCount - 1}`
+        // }
+        // hostConfig.Memory = 0 || convertGigabytesToBytes(environment.ramGB)
+        // // set swap to same memory value means no swap (otherwise it use like 2X mem)
+        // hostConfig.MemorySwap = hostConfig.Memory
+
+        // storage
+        hostConfig.StorageOpt = {
+          size: environment.diskGB > 0 ? `${environment.diskGB}G` : '1G'
         }
-        hostConfig.Memory = 0 || convertGigabytesToBytes(environment.ramGB)
-        // set swap to same memory value means no swap (otherwise it use like 2X mem)
-        hostConfig.MemorySwap = hostConfig.Memory
       }
       // console.log('host config: ', hostConfig)
       const containerInfo: ContainerCreateOptions = {
