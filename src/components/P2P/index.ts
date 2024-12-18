@@ -24,7 +24,7 @@ import { tcp } from '@libp2p/tcp'
 import { webSockets } from '@libp2p/websockets'
 import { circuitRelayTransport, circuitRelayServer } from '@libp2p/circuit-relay-v2'
 import { createLibp2p, Libp2p } from 'libp2p'
-import { identify } from '@libp2p/identify'
+import { identify, identifyPush } from '@libp2p/identify'
 import { autoNAT } from '@libp2p/autonat'
 import { uPnPNAT } from '@libp2p/upnp-nat'
 import { ping } from '@libp2p/ping'
@@ -285,6 +285,7 @@ export class OceanP2P extends EventEmitter {
       }
       let servicesConfig = {
         identify: identify(),
+        identifyPush: identifyPush(),
         /*
         pubsub: gossipsub({
           fallbackToFloodsub: false,
