@@ -519,12 +519,7 @@ export class C2DEngineDocker extends C2DEngine {
       }
       if (environment != null) {
         // limit container CPU & Memory usage according to env specs
-        // CPU
-        hostConfig = { ...hostConfig, ...buildCPUConstraints(environment) }
-        // MEM
-        hostConfig.Memory = 0 || convertGigabytesToBytes(environment.ramGB)
-        // set swap to same memory value means no swap (otherwise it use like 2X mem)
-        hostConfig.MemorySwap = hostConfig.Memory
+        hostConfig = { ...hostConfig, ...buildCPUAndMemoryConstraints(environment) }
       }
 
       const containerInfo: ContainerCreateOptions = {
@@ -1141,19 +1136,27 @@ export function checkManifestPlatform(
  * @param environment C2D environment
  * @returns partial HostConfig object
  */
-export function buildCPUConstraints(environment: ComputeEnvironment): HostConfig {
-  const cpuHostConfig: HostConfig = {}
-
+export function buildCPUAndMemoryConstraints(
+  environment: ComputeEnvironment
+): HostConfig {
+  const hostConfig: HostConfig = {}
+  // CPU
   const existingCPUs = os.cpus().length
   const confCPUs = environment.cpuNumber > 0 ? environment.cpuNumber : 1
   // windows only
-  cpuHostConfig.CpuCount = Math.min(confCPUs, existingCPUs)
+  hostConfig.CpuCount = Math.min(confCPUs, existingCPUs)
   // hostConfig.CpuShares = 1 / hostConfig.CpuCount
-  cpuHostConfig.CpuPeriod = 100000 // 100 miliseconds is usually the default
-  cpuHostConfig.CpuQuota = (1 / cpuHostConfig.CpuCount) * cpuHostConfig.CpuPeriod
+  hostConfig.CpuPeriod = 100000 // 100 miliseconds is usually the default
+  hostConfig.CpuQuota = (1 / hostConfig.CpuCount) * hostConfig.CpuPeriod
   // if more than 1 CPU, 	Limit the specific CPUs or cores a container can use.
-  if (cpuHostConfig.CpuCount > 1) {
-    cpuHostConfig.CpusetCpus = `0-${cpuHostConfig.CpuCount - 1}`
+  if (hostConfig.CpuCount > 1) {
+    hostConfig.CpusetCpus = `0-${hostConfig.CpuCount - 1}`
   }
-  return cpuHostConfig
+  // MEM
+  const existingMem = os.totalmem()
+  const configuredRam = 0 || convertGigabytesToBytes(environment.ramGB)
+  hostConfig.Memory = 0 || Math.min(existingMem, configuredRam)
+  // set swap to same memory value means no swap (otherwise it use like 2X mem)
+  hostConfig.MemorySwap = hostConfig.Memory
+  return hostConfig
 }

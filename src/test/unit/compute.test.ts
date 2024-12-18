@@ -30,7 +30,7 @@ import { completeDBComputeJob, dockerImageManifest } from '../data/assets.js'
 import { omitDBComputeFieldsFromComputeJob } from '../../components/c2d/index.js'
 import os from 'os'
 import {
-  buildCPUConstraints,
+  buildCPUAndMemoryConstraints,
   checkManifestPlatform
 } from '../../components/c2d/compute_engine_docker.js'
 import { HostConfig } from 'dockerode'
@@ -241,11 +241,13 @@ describe('Compute Jobs Database', () => {
     const freeEnv: ComputeEnvironment = dockerConfig.freeComputeOptions
     const cpus = os.cpus()
     freeEnv.cpuNumber = cpus.length + 1 // should be capped to cpus.length
-    let hostConfig: HostConfig = buildCPUConstraints(freeEnv)
+    let hostConfig: HostConfig = buildCPUAndMemoryConstraints(freeEnv)
     expect(hostConfig.CpuCount).to.be.equal(cpus.length)
     freeEnv.cpuNumber = -1
-    hostConfig = buildCPUConstraints(freeEnv)
+    hostConfig = buildCPUAndMemoryConstraints(freeEnv)
     expect(hostConfig.CpuCount).to.be.equal(1)
+    const ram = os.totalmem()
+    expect(hostConfig.Memory).to.be.lessThanOrEqual(ram)
   })
 
   after(async () => {
