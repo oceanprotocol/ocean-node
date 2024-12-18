@@ -41,6 +41,7 @@ import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.j
 import * as drc from 'docker-registry-client'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { convertGigabytesToBytes } from '../../utils/util.js'
+import os from 'os'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
@@ -506,7 +507,7 @@ export class C2DEngineDocker extends C2DEngine {
       const environment = await this.getJobEnvironment(job)
       // create the container
       const mountVols: any = { '/data': {} }
-      const hostConfig: HostConfig = {
+      let hostConfig: HostConfig = {
         Mounts: [
           {
             Type: 'volume',
@@ -518,16 +519,9 @@ export class C2DEngineDocker extends C2DEngine {
       }
       if (environment != null) {
         // limit container CPU & Memory usage according to env specs
-        hostConfig.CpuCount = environment.cpuNumber || 1
-        // if more than 1 CPU
-        if (hostConfig.CpuCount > 1) {
-          hostConfig.CpusetCpus = `0-${hostConfig.CpuCount - 1}`
-        }
-        hostConfig.Memory = 0 || convertGigabytesToBytes(environment.ramGB)
-        // set swap to same memory value means no swap (otherwise it use like 2X mem)
-        hostConfig.MemorySwap = hostConfig.Memory
+        hostConfig = { ...hostConfig, ...buildCPUAndMemoryConstraints(environment) }
       }
-      // console.log('host config: ', hostConfig)
+
       const containerInfo: ContainerCreateOptions = {
         name: job.jobId + '-algoritm',
         Image: job.containerImage,
@@ -552,6 +546,7 @@ export class C2DEngineDocker extends C2DEngine {
       try {
         const container = await this.docker.createContainer(containerInfo)
         console.log('container: ', container)
+        this.checkResources(job, container)
         job.status = C2DStatusNumber.Provisioning
         job.statusText = C2DStatusText.Provisioning
         await this.db.updateJob(job)
@@ -590,6 +585,7 @@ export class C2DEngineDocker extends C2DEngine {
         if (details.State.Running === false) {
           try {
             await container.start()
+            this.checkResources(job, container)
             job.isStarted = true
             await this.db.updateJob(job)
             return
@@ -607,6 +603,7 @@ export class C2DEngineDocker extends C2DEngine {
           }
         }
       } else {
+        this.checkResources(job, container)
         // is running, we need to stop it..
         console.log('running, need to stop it?')
         const timeNow = Date.now() / 1000
@@ -661,6 +658,24 @@ export class C2DEngineDocker extends C2DEngine {
       job.isRunning = false
       await this.db.updateJob(job)
       await this.cleanupJob(job)
+    }
+  }
+
+  // Seems like monitoring container stats is useles... everything related with cpu/mem is at zeros
+  private async checkResources(job: DBComputeJob, container: Dockerode.Container) {
+    // const environment = await this.getJobEnvironment(job)
+    try {
+      const statsRaw: any = await container.stats({ stream: false })
+      const stats = await JSON.parse(
+        JSON.stringify(statsRaw) // await streamToString(statsRaw as Readable))
+      )
+      console.log('raw stats:', stats)
+      const memory = stats.memory_stats
+      console.log('memory stats:', memory)
+      const cpu = stats.cpu_stats
+      console.log('cpu stats:', cpu)
+    } catch (e) {
+      console.error('error getting stats: ', e)
     }
   }
 
@@ -1115,4 +1130,33 @@ export function checkManifestPlatform(
   )
     return false
   return true
+}
+/**
+ * Helper function to build CPU constraints, also useful for testing purposes
+ * @param environment C2D environment
+ * @returns partial HostConfig object
+ */
+export function buildCPUAndMemoryConstraints(
+  environment: ComputeEnvironment
+): HostConfig {
+  const hostConfig: HostConfig = {}
+  // CPU
+  const existingCPUs = os.cpus().length
+  const confCPUs = environment.cpuNumber > 0 ? environment.cpuNumber : 1
+  // windows only
+  hostConfig.CpuCount = Math.min(confCPUs, existingCPUs)
+  // hostConfig.CpuShares = 1 / hostConfig.CpuCount
+  hostConfig.CpuPeriod = 100000 // 100 miliseconds is usually the default
+  hostConfig.CpuQuota = (1 / hostConfig.CpuCount) * hostConfig.CpuPeriod
+  // if more than 1 CPU, 	Limit the specific CPUs or cores a container can use.
+  if (hostConfig.CpuCount > 1) {
+    hostConfig.CpusetCpus = `0-${hostConfig.CpuCount - 1}`
+  }
+  // MEM
+  const existingMem = os.totalmem()
+  const configuredRam = 0 || convertGigabytesToBytes(environment.ramGB)
+  hostConfig.Memory = 0 || Math.min(existingMem, configuredRam)
+  // set swap to same memory value means no swap (otherwise it use like 2X mem)
+  hostConfig.MemorySwap = hostConfig.Memory
+  return hostConfig
 }
