@@ -2,6 +2,7 @@ import { Service } from './Service'
 import { Metadata } from './Metadata'
 import { Credentials } from './Credentials'
 import { Event } from './Event'
+import { IndexedMetadata } from './IndexedMetadata'
 import { Nft } from './Nft'
 
 /**
@@ -67,4 +68,6 @@ export interface DDO {
   event?: Event
 
   nft?: Nft
+
+  indexedMetadata?: IndexedMetadata
 }

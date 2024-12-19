@@ -58,6 +58,7 @@ import { getConfiguration } from '../../utils/config.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
+import { deleteIndexedMetadataIfExists } from '../../utils/asset.js'
 
 describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
@@ -288,6 +289,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     resolvedDDO.metadata.name = 'dataset-name-updated'
     resolvedDDO.metadata.description =
       'Updated description for the Ocean protocol test dataset'
+    resolvedDDO = deleteIndexedMetadataIfExists(resolvedDDO)
     const stringDDO = JSON.stringify(resolvedDDO)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
@@ -449,9 +451,15 @@ describe('Indexer stores a new metadata events and orders.', () => {
       true
     )
     if (ddo) {
-      const retrievedDDO: any = ddo
-      expect(retrievedDDO.stats.orders).to.equal(1)
-      initialOrderCount = retrievedDDO.stats.orders
+      const retrievedDDO: DDO = ddo
+      console.log('indexer retrieved ddo: ', JSON.stringify(retrievedDDO))
+      for (const stat of retrievedDDO.indexedMetadata.stats) {
+        if (stat.datatokenAddress === datatokenAddress) {
+          expect(stat.orders).to.equal(1)
+          initialOrderCount = stat.orders
+          break
+        }
+      }
       const resultOrder = await database.order.retrieve(orderTxId)
       if (resultOrder) {
         if (resultOrder.id) {
@@ -536,10 +544,15 @@ describe('Indexer stores a new metadata events and orders.', () => {
       true
     )
 
-    const retrievedDDO: any = ddo
+    const retrievedDDO: DDO = ddo
 
     if (retrievedDDO) {
-      expect(retrievedDDO.stats.orders).to.be.greaterThan(initialOrderCount)
+      for (const stat of retrievedDDO.indexedMetadata.stats) {
+        if (stat.datatokenAddress === datatokenAddress) {
+          expect(stat.orders).to.be.greaterThan(initialOrderCount)
+          break
+        }
+      }
       const resultOrder = await database.order.retrieve(reuseOrderTxId)
       if (resultOrder) {
         if (resultOrder.id) {
