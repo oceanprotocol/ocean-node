@@ -954,7 +954,7 @@ export class DispenserActivatedEventProcessor extends BaseEventProcessor {
           return
         }
         ddo.indexedMetadata.stats.push({
-          datatokenAddress: datatokenAddress,
+          datatokenAddress,
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
           orders: 0,
@@ -1039,7 +1039,7 @@ export class DispenserDeactivatedEventProcessor extends BaseEventProcessor {
           return
         }
         ddo.indexedMetadata.stats.push({
-          datatokenAddress: datatokenAddress,
+          datatokenAddress,
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
           orders: 0,
@@ -1105,7 +1105,7 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
               price: exchange[5],
               contract: event.address,
               token: exchange[3],
-              exchangeId: exchangeId
+              exchangeId
             })
             break
           } else if (doesDispenserAlreadyExist(event.address, stat.prices)[0]) {
@@ -1122,7 +1122,7 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
           return
         }
         ddo.indexedMetadata.stats.push({
-          datatokenAddress: datatokenAddress,
+          datatokenAddress,
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
           orders: 0,
@@ -1209,7 +1209,7 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
           return
         }
         ddo.indexedMetadata.stats.push({
-          datatokenAddress: datatokenAddress,
+          datatokenAddress,
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
           orders: 0,
@@ -1295,7 +1295,7 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
           return
         }
         ddo.indexedMetadata.stats.push({
-          datatokenAddress: datatokenAddress,
+          datatokenAddress,
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
           orders: 0,

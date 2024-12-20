@@ -128,7 +128,7 @@ describe('Publish pricing scehmas and assert ddo stats', () => {
       {
         fixedPriceAddress: artifactsAddresses.FixedPrice,
         addresses: [
-          artifactsAddresses.MockDAI,
+          artifactsAddresses.Ocean,
           await publisherAccount.getAddress(),
           await publisherAccount.getAddress()
         ],
