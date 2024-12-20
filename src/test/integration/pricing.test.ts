@@ -88,7 +88,7 @@ describe('Publish pricing scehmas and assert ddo stats', () => {
     if (!artifactsAddresses) {
       artifactsAddresses = getOceanArtifactsAdresses().development
     }
-    console.log(artifactsAddresses)
+    console.log(artifactsAddresses.FixedPrice)
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
@@ -128,15 +128,18 @@ describe('Publish pricing scehmas and assert ddo stats', () => {
       },
       {
         fixedRateAddress: artifactsAddresses.FixedPrice,
-        baseTokenAddress: artifactsAddresses.MockDAI,
-        owner: await publisherAccount.getAddress(),
-        marketFeeCollector: await publisherAccount.getAddress(),
-        baseTokenDecimals: 18,
-        datatokenDecimals: 18,
-        fixedRate: '1',
-        marketFee: '0',
-        allowedConsumer: await publisherAccount.getAddress(),
-        withMint: true
+        addresses: [
+          artifactsAddresses.MockDAI,
+          await publisherAccount.getAddress(),
+          await publisherAccount.getAddress()
+        ],
+        uints: [
+          ethers.parseUnits('18', 'ether'),
+          ethers.parseUnits('18', 'ether'),
+          ethers.parseUnits('1', 'ether'),
+          ethers.parseUnits('0', 'ether'),
+          ethers.parseUnits('1', 'ether')
+        ]
       }
     )
     const txReceipt = await tx.wait()
