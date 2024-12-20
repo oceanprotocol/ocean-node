@@ -137,7 +137,7 @@ describe('Publish pricing scehmas and assert ddo stats', () => {
           ethers.parseUnits('18', 'ether'),
           ethers.parseUnits('1', 'ether'),
           ethers.parseUnits('0', 'ether'),
-          ethers.parseUnits('1', 'ether')
+          ethers.parseUnits('0', 'ether')
         ]
       }
     )
@@ -256,16 +256,12 @@ describe('Publish pricing scehmas and assert ddo stats', () => {
   })
 
   it('should attach a dispenser', async () => {
-    const dispenserParams: any = {
-      maxTokens: '1',
-      maxBalance: '1',
-      withMint: true
-    }
     const tx = await datatokenContract.createDispenser(
-      datatokenAddress,
-      await publisherAccount.getAddress(),
       artifactsAddresses.Dispenser,
-      dispenserParams
+      ethers.parseUnits('1', 'ether'),
+      ethers.parseUnits('1', 'ether'),
+      true,
+      ZeroAddress
     )
     assert(tx, 'Cannot create dispenser')
     const txReceipt = await tx.wait()
