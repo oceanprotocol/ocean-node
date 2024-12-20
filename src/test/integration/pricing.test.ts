@@ -86,6 +86,7 @@ describe('Publish pricing scehmas and assert ddo stats', () => {
     if (!artifactsAddresses) {
       artifactsAddresses = getOceanArtifactsAdresses().development
     }
+    console.log(artifactsAddresses)
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
