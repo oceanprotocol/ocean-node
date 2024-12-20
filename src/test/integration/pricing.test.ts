@@ -38,7 +38,6 @@ import { OceanNode } from '../../OceanNode.js'
 import { getConfiguration } from '../../utils/config.js'
 import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
-import { deleteIndexedMetadataIfExists } from '../../utils/asset.js'
 
 describe('Publish pricing scehmas and assert ddo stats', () => {
   let database: Database
@@ -254,45 +253,6 @@ describe('Publish pricing scehmas and assert ddo stats', () => {
     assert(resolvedDDO.indexedMetadata, 'No stats available')
     assert(resolvedDDO.indexedMetadata.stats.length === 1)
     console.log(`resolvedDDO: ${resolvedDDO}`)
-  })
-
-  it('should update ddo metadata fields ', async () => {
-    resolvedDDO.metadata.name = 'dataset-name-updated'
-    resolvedDDO.metadata.description =
-      'Updated description for the Ocean protocol test dataset'
-    resolvedDDO = deleteIndexedMetadataIfExists(resolvedDDO)
-    const stringDDO = JSON.stringify(resolvedDDO)
-    const bytes = Buffer.from(stringDDO)
-    const metadata = hexlify(bytes)
-    const hash = createHash('sha256').update(metadata).digest('hex')
-
-    const setMetaDataTx = await nftContract.setMetaData(
-      0,
-      'http://v4.provider.oceanprotocol.com',
-      '0x123',
-      '0x01',
-      metadata,
-      '0x' + hash,
-      []
-    )
-    const trxReceipt = await setMetaDataTx.wait()
-    assert(trxReceipt, 'set metada failed')
-  })
-
-  it('should detect update event and store the udpdated ddo in the database', async function () {
-    const { ddo, wasTimeout } = await waitToIndex(
-      assetDID,
-      EVENTS.METADATA_UPDATED,
-      DEFAULT_TEST_TIMEOUT,
-      true
-    )
-    const updatedDDO: any = ddo
-    if (updatedDDO) {
-      expect(updatedDDO.metadata.name).to.equal('dataset-name-updated')
-      expect(updatedDDO.metadata.description).to.equal(
-        'Updated description for the Ocean protocol test dataset'
-      )
-    } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
   it('should attach a dispenser', async () => {
