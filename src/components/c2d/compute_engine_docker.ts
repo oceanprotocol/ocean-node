@@ -1125,7 +1125,6 @@ export async function buildCPUAndMemoryConstraints(
   const hostConfig: HostConfig = {}
   // CPU
   const systemInfo = docker ? await docker.info() : null
-  if (docker) console.log('DOCKER INFO: ', systemInfo)
   const existingCPUs = systemInfo ? systemInfo.NCPU : os.cpus().length
   const confCPUs = environment.cpuNumber > 0 ? environment.cpuNumber : 1
   // windows only
