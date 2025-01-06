@@ -29,11 +29,12 @@ import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { completeDBComputeJob, dockerImageManifest } from '../data/assets.js'
 import { omitDBComputeFieldsFromComputeJob } from '../../components/c2d/index.js'
 import os from 'os'
+import Dockerode from 'dockerode'
 import {
   buildCPUAndMemoryConstraints,
   checkManifestPlatform
 } from '../../components/c2d/compute_engine_docker.js'
-import { HostConfig } from 'dockerode'
+import type { HostConfig } from 'dockerode'
 
 describe('Compute Jobs Database', () => {
   let envOverrides: OverrideEnvConfig[]
@@ -241,7 +242,8 @@ describe('Compute Jobs Database', () => {
     const freeEnv: ComputeEnvironment = dockerConfig.freeComputeOptions
     const cpus = os.cpus()
     freeEnv.cpuNumber = cpus.length + 1 // should be capped to cpus.length
-    let hostConfig: HostConfig = await buildCPUAndMemoryConstraints(freeEnv)
+    const docker = new Dockerode({ socketPath: '/var/run/docker.sock' })
+    let hostConfig: HostConfig = await buildCPUAndMemoryConstraints(freeEnv, docker)
     expect(hostConfig.CpuCount).to.be.equal(cpus.length)
     freeEnv.cpuNumber = -1
     hostConfig = await buildCPUAndMemoryConstraints(freeEnv)
