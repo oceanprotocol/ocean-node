@@ -490,8 +490,17 @@ export class C2DEngineDocker extends C2DEngine {
     if (job.status === C2DStatusNumber.ConfiguringVolumes) {
       // create the volume & create container
       // TO DO C2D:  Choose driver & size
+      // get env info
+      const environment = await this.getJobEnvironment(job)
+
       const volume: VolumeCreateOptions = {
         Name: job.jobId + '-volume'
+      }
+      // volume
+      if (environment != null) {
+        volume.DriverOpts = {
+          size: environment.diskGB > 0 ? `${environment.diskGB}G` : '1G'
+        }
       }
       try {
         await this.docker.createVolume(volume)
@@ -502,8 +511,7 @@ export class C2DEngineDocker extends C2DEngine {
         await this.db.updateJob(job)
         await this.cleanupJob(job)
       }
-      // get env info
-      const environment = await this.getJobEnvironment(job)
+
       // create the container
       const mountVols: any = { '/data': {} }
       const hostConfig: HostConfig = {
@@ -529,7 +537,7 @@ export class C2DEngineDocker extends C2DEngine {
         // // set swap to same memory value means no swap (otherwise it use like 2X mem)
         // hostConfig.MemorySwap = hostConfig.Memory
 
-        // storage
+        // storage (container)
         hostConfig.StorageOpt = {
           size: environment.diskGB > 0 ? `${environment.diskGB}G` : '1G'
         }
