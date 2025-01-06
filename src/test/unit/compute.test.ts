@@ -235,16 +235,16 @@ describe('Compute Jobs Database', () => {
     expect(checkManifestPlatform(null, env)).to.be.equal(true)
   })
 
-  it('should check cpu constraints on c2d docker env', () => {
+  it('should check cpu constraints on c2d docker env', async function () {
     const size = config.c2dClusters.length
     const dockerConfig = config.c2dClusters[size - 1].connection
     const freeEnv: ComputeEnvironment = dockerConfig.freeComputeOptions
     const cpus = os.cpus()
     freeEnv.cpuNumber = cpus.length + 1 // should be capped to cpus.length
-    let hostConfig: HostConfig = buildCPUAndMemoryConstraints(freeEnv)
+    let hostConfig: HostConfig = await buildCPUAndMemoryConstraints(freeEnv)
     expect(hostConfig.CpuCount).to.be.equal(cpus.length)
     freeEnv.cpuNumber = -1
-    hostConfig = buildCPUAndMemoryConstraints(freeEnv)
+    hostConfig = await buildCPUAndMemoryConstraints(freeEnv)
     expect(hostConfig.CpuCount).to.be.equal(1)
     const ram = os.totalmem()
     expect(hostConfig.Memory).to.be.lessThanOrEqual(ram)

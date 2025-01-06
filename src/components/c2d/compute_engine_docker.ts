@@ -519,7 +519,10 @@ export class C2DEngineDocker extends C2DEngine {
       }
       if (environment != null) {
         // limit container CPU & Memory usage according to env specs
-        hostConfig = { ...hostConfig, ...buildCPUAndMemoryConstraints(environment) }
+        hostConfig = {
+          ...hostConfig,
+          ...(await buildCPUAndMemoryConstraints(environment, this.docker))
+        }
       }
 
       const containerInfo: ContainerCreateOptions = {
@@ -1115,12 +1118,15 @@ export function checkManifestPlatform(
  * @param environment C2D environment
  * @returns partial HostConfig object
  */
-export function buildCPUAndMemoryConstraints(
-  environment: ComputeEnvironment
-): HostConfig {
+export async function buildCPUAndMemoryConstraints(
+  environment: ComputeEnvironment,
+  docker?: Dockerode
+): Promise<HostConfig> {
   const hostConfig: HostConfig = {}
   // CPU
-  const existingCPUs = os.cpus().length
+  const systemInfo = docker ? await docker.info() : null
+  if (docker) console.log('DOCKER INFO: ', systemInfo)
+  const existingCPUs = systemInfo ? systemInfo.NCPU : os.cpus().length
   const confCPUs = environment.cpuNumber > 0 ? environment.cpuNumber : 1
   // windows only
   hostConfig.CpuCount = Math.min(confCPUs, existingCPUs)
@@ -1132,7 +1138,7 @@ export function buildCPUAndMemoryConstraints(
     hostConfig.CpusetCpus = `0-${hostConfig.CpuCount - 1}`
   }
   // MEM
-  const existingMem = os.totalmem()
+  const existingMem = systemInfo ? systemInfo.MemTotal : os.totalmem()
   const configuredRam = 0 || convertGigabytesToBytes(environment.ramGB)
   hostConfig.Memory = 0 || Math.min(existingMem, configuredRam)
   // set swap to same memory value means no swap (otherwise it use like 2X mem)
