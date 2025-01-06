@@ -546,7 +546,6 @@ export class C2DEngineDocker extends C2DEngine {
       try {
         const container = await this.docker.createContainer(containerInfo)
         console.log('container: ', container)
-        this.checkResources(job, container)
         job.status = C2DStatusNumber.Provisioning
         job.statusText = C2DStatusText.Provisioning
         await this.db.updateJob(job)
@@ -585,7 +584,6 @@ export class C2DEngineDocker extends C2DEngine {
         if (details.State.Running === false) {
           try {
             await container.start()
-            this.checkResources(job, container)
             job.isStarted = true
             await this.db.updateJob(job)
             return
@@ -603,7 +601,6 @@ export class C2DEngineDocker extends C2DEngine {
           }
         }
       } else {
-        this.checkResources(job, container)
         // is running, we need to stop it..
         console.log('running, need to stop it?')
         const timeNow = Date.now() / 1000
@@ -658,24 +655,6 @@ export class C2DEngineDocker extends C2DEngine {
       job.isRunning = false
       await this.db.updateJob(job)
       await this.cleanupJob(job)
-    }
-  }
-
-  // Seems like monitoring container stats is useles... everything related with cpu/mem is at zeros
-  private async checkResources(job: DBComputeJob, container: Dockerode.Container) {
-    // const environment = await this.getJobEnvironment(job)
-    try {
-      const statsRaw: any = await container.stats({ stream: false })
-      const stats = await JSON.parse(
-        JSON.stringify(statsRaw) // await streamToString(statsRaw as Readable))
-      )
-      console.log('raw stats:', stats)
-      const memory = stats.memory_stats
-      console.log('memory stats:', memory)
-      const cpu = stats.cpu_stats
-      console.log('cpu stats:', cpu)
-    } catch (e) {
-      console.error('error getting stats: ', e)
     }
   }
 
