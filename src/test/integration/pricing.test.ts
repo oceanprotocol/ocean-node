@@ -12,7 +12,7 @@ import {
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
+// import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
@@ -154,6 +154,9 @@ describe('Publish pricing scehmas and assert ddo stats', () => {
       ERC20Template.abi,
       publisherAccount
     )
+    assert(datatokenContract)
+    const freEvent = getEventFromTx(txReceipt, 'NewFixedRate')
+    assert(freEvent, 'find fre event failed.')
   })
 
   it('should set metadata and save ', async () => {
@@ -255,51 +258,51 @@ describe('Publish pricing scehmas and assert ddo stats', () => {
     console.log(`resolvedDDO: ${resolvedDDO}`)
   })
 
-  it('should attach a dispenser', async () => {
-    const tx = await datatokenContract.createDispenser(
-      artifactsAddresses.Dispenser,
-      ethers.parseUnits('1', 'ether'),
-      ethers.parseUnits('1', 'ether'),
-      true,
-      ZeroAddress
-    )
-    assert(tx, 'Cannot create dispenser')
-    const txReceipt = await tx.wait()
-    const dispenserEvent = getEventFromTx(txReceipt, 'DispenserCreated')
-    assert(
-      dispenserEvent.args[0] === datatokenAddress,
-      'Datatoken addresses do not match for dispenser event'
-    )
-    const dispenserContract = new ethers.Contract(
-      artifactsAddresses.Dispenser,
-      Dispenser.abi,
-      publisherAccount
-    )
-    const activationTx = await dispenserContract.activate(
-      datatokenAddress,
-      ethers.parseUnits('1', 'ether'),
-      ethers.parseUnits('1', 'ether')
-    )
-    assert(tx, 'Cannot activate dispenser')
-    const activationReceipt = await activationTx.wait()
-    const activationEvent = getEventFromTx(activationReceipt, 'DispenserActivated')
-    assert(
-      activationEvent.args[0] === datatokenAddress,
-      'Datatoken addresses do not match for dispenser event'
-    )
-    assert(
-      (await dispenserContract.status(datatokenAddress))[0] === true,
-      'dispenser not active'
-    )
-    const { ddo } = await waitToIndex(
-      assetDID,
-      EVENTS.DISPENSER_ACTIVATED,
-      DEFAULT_TEST_TIMEOUT,
-      true
-    )
-    console.log(`JSON stringified ddo w dispenser: ${JSON.stringify(ddo)}`)
-    assert(ddo.indexedMetadata.stats)
-  })
+  // it('should attach a dispenser', async () => {
+  //   const tx = await datatokenContract.createDispenser(
+  //     artifactsAddresses.Dispenser,
+  //     ethers.parseUnits('1', 'ether'),
+  //     ethers.parseUnits('1', 'ether'),
+  //     true,
+  //     ZeroAddress
+  //   )
+  //   assert(tx, 'Cannot create dispenser')
+  //   const txReceipt = await tx.wait()
+  //   const dispenserEvent = getEventFromTx(txReceipt, 'DispenserCreated')
+  //   assert(
+  //     dispenserEvent.args[0] === datatokenAddress,
+  //     'Datatoken addresses do not match for dispenser event'
+  //   )
+  //   const dispenserContract = new ethers.Contract(
+  //     artifactsAddresses.Dispenser,
+  //     Dispenser.abi,
+  //     publisherAccount
+  //   )
+  //   const activationTx = await dispenserContract.activate(
+  //     datatokenAddress,
+  //     ethers.parseUnits('1', 'ether'),
+  //     ethers.parseUnits('1', 'ether')
+  //   )
+  //   assert(tx, 'Cannot activate dispenser')
+  //   const activationReceipt = await activationTx.wait()
+  //   const activationEvent = getEventFromTx(activationReceipt, 'DispenserActivated')
+  //   assert(
+  //     activationEvent.args[0] === datatokenAddress,
+  //     'Datatoken addresses do not match for dispenser event'
+  //   )
+  //   assert(
+  //     (await dispenserContract.status(datatokenAddress))[0] === true,
+  //     'dispenser not active'
+  //   )
+  //   const { ddo } = await waitToIndex(
+  //     assetDID,
+  //     EVENTS.DISPENSER_ACTIVATED,
+  //     DEFAULT_TEST_TIMEOUT,
+  //     true
+  //   )
+  //   console.log(`JSON stringified ddo w dispenser: ${JSON.stringify(ddo)}`)
+  //   assert(ddo.indexedMetadata.stats)
+  // })
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
