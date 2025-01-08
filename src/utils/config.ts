@@ -9,6 +9,7 @@ import { C2DClusterType } from '../@types/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
 import {
+  computeCodebaseHash,
   DEFAULT_RATE_LIMIT_PER_MINUTE,
   ENVIRONMENT_VARIABLES,
   EnvVariable,
@@ -30,6 +31,8 @@ import {
 } from '../utils/address.js'
 import { CONFIG_LOGGER } from './logging/common.js'
 import { create256Hash } from './crypt.js'
+import { fileURLToPath } from 'url'
+import path from 'path'
 
 // usefull for lazy loading and avoid boilerplate on other places
 let previousConfiguration: OceanNodeConfig = null
@@ -501,6 +504,12 @@ export async function getConfiguration(
   if (!previousConfiguration || forceReload) {
     previousConfiguration = await getEnvConfig(isStartup)
   }
+  if (!previousConfiguration.codeHash) {
+    const __filename = fileURLToPath(import.meta.url)
+    const __dirname = path.dirname(__filename.replace('utils/', ''))
+    previousConfiguration.codeHash = await computeCodebaseHash(__dirname)
+  }
+
   return previousConfiguration
 }
 
