@@ -591,8 +591,8 @@ export class OceanP2P extends EventEmitter {
   }
 
   async findPeerInDht(peerName: string, timeout?: number) {
-    const peer = peerIdFromString(peerName)
     try {
+      const peer = peerIdFromString(peerName)
       const data = await this._libp2p.peerRouting.findPeer(peer, {
         signal:
           isNaN(timeout) || timeout === 0
