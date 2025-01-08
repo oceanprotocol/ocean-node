@@ -41,6 +41,7 @@ import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.j
 import * as drc from 'docker-registry-client'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { convertGigabytesToBytes } from '../../utils/util.js'
+import os from 'os'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
@@ -506,7 +507,7 @@ export class C2DEngineDocker extends C2DEngine {
       const environment = await this.getJobEnvironment(job)
       // create the container
       const mountVols: any = { '/data': {} }
-      const hostConfig: HostConfig = {
+      let hostConfig: HostConfig = {
         Mounts: [
           {
             Type: 'volume',
@@ -518,16 +519,12 @@ export class C2DEngineDocker extends C2DEngine {
       }
       if (environment != null) {
         // limit container CPU & Memory usage according to env specs
-        hostConfig.CpuCount = environment.cpuNumber || 1
-        // if more than 1 CPU
-        if (hostConfig.CpuCount > 1) {
-          hostConfig.CpusetCpus = `0-${hostConfig.CpuCount - 1}`
+        hostConfig = {
+          ...hostConfig,
+          ...(await buildCPUAndMemoryConstraints(environment, this.docker))
         }
-        hostConfig.Memory = 0 || convertGigabytesToBytes(environment.ramGB)
-        // set swap to same memory value means no swap (otherwise it use like 2X mem)
-        hostConfig.MemorySwap = hostConfig.Memory
       }
-      // console.log('host config: ', hostConfig)
+
       const containerInfo: ContainerCreateOptions = {
         name: job.jobId + '-algoritm',
         Image: job.containerImage,
@@ -1115,4 +1112,35 @@ export function checkManifestPlatform(
   )
     return false
   return true
+}
+/**
+ * Helper function to build CPU constraints, also useful for testing purposes
+ * @param environment C2D environment
+ * @returns partial HostConfig object
+ */
+export async function buildCPUAndMemoryConstraints(
+  environment: ComputeEnvironment,
+  docker?: Dockerode
+): Promise<HostConfig> {
+  const hostConfig: HostConfig = {}
+  // CPU
+  const systemInfo = docker ? await docker.info() : null
+  const existingCPUs = systemInfo ? systemInfo.NCPU : os.cpus().length
+  const confCPUs = environment.cpuNumber > 0 ? environment.cpuNumber : 1
+  // windows only
+  hostConfig.CpuCount = Math.min(confCPUs, existingCPUs)
+  // hostConfig.CpuShares = 1 / hostConfig.CpuCount
+  hostConfig.CpuPeriod = 100000 // 100 miliseconds is usually the default
+  hostConfig.CpuQuota = (1 / hostConfig.CpuCount) * hostConfig.CpuPeriod
+  // if more than 1 CPU, 	Limit the specific CPUs or cores a container can use.
+  if (hostConfig.CpuCount > 1) {
+    hostConfig.CpusetCpus = `0-${hostConfig.CpuCount - 1}`
+  }
+  // MEM
+  const existingMem = systemInfo ? systemInfo.MemTotal : os.totalmem()
+  const configuredRam = 0 || convertGigabytesToBytes(environment.ramGB)
+  hostConfig.Memory = 0 || Math.min(existingMem, configuredRam)
+  // set swap to same memory value means no swap (otherwise it use like 2X mem)
+  hostConfig.MemorySwap = hostConfig.Memory
+  return hostConfig
 }
