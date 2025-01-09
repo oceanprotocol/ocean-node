@@ -179,6 +179,7 @@ describe('Publish pricing scehmas and assert ddo stats', () => {
     const encryptedDataString = encryptedData.toString('hex')
     genericAsset.services[0].files = encryptedDataString
     const stringDDO = JSON.stringify(genericAsset)
+    console.log('stringDDO: ', stringDDO)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
     const hash = createHash('sha256').update(metadata).digest('hex')
