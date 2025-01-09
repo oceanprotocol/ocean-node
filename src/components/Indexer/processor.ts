@@ -1067,12 +1067,14 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
       event.transactionHash,
       FixedRateExchange.abi
     )
-    INDEXER_LOGGER.logMessage(`event: ${event}`)
+    INDEXER_LOGGER.logMessage(`event: ${JSON.stringify(event)}`)
     INDEXER_LOGGER.logMessage(
       `decodedEventData in exchange activated: ${JSON.stringify(decodedEventData)}`
     )
     INDEXER_LOGGER.logMessage(
-      `receipt: ${await provider.getTransactionReceipt(event.transactionHash)} `
+      `receipt: ${JSON.stringify(
+        await provider.getTransactionReceipt(event.transactionHash)
+      )} `
     )
     const exchangeId = ethers.toUtf8Bytes(decodedEventData.args[0].toString())
     const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
