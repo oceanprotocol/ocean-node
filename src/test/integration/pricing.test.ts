@@ -7,7 +7,8 @@ import {
   ethers,
   getAddress,
   hexlify,
-  ZeroAddress
+  ZeroAddress,
+  parseUnits
 } from 'ethers'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
@@ -134,7 +135,7 @@ describe('Publish pricing scehmas and assert ddo stats', () => {
           await publisherAccount.getAddress(),
           ZeroAddress
         ],
-        uints: [18, 18, 1, 0, 0]
+        uints: [18, 18, parseUnits('1', 18).toString(), parseUnits('0', 18).toString(), 1]
       }
     )
     const txReceipt = await tx.wait()
