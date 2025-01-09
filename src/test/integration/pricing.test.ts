@@ -153,7 +153,9 @@ describe('Publish pricing scehmas and assert ddo stats', () => {
     )
     assert(datatokenContract)
     const freEvent = getEventFromTx(txReceipt, 'NewFixedRate')
-    assert(freEvent, 'find fre event failed.')
+    const exchangeId = freEvent.args[0]
+    assert(exchangeId, 'exchangeId not found.')
+    console.log('exchange id: ', exchangeId)
   })
 
   it('should set metadata and save ', async () => {
@@ -220,6 +222,7 @@ describe('Publish pricing scehmas and assert ddo stats', () => {
   })
 
   it('should have nft field stored in ddo', async function () {
+    console.log(`resolvedDDO: ${JSON.stringify(resolvedDDO)}`)
     assert(resolvedDDO.nft, 'NFT field is not present')
     assert(
       resolvedDDO.nft.address?.toLowerCase() === nftAddress?.toLowerCase(),
