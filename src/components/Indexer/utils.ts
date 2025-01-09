@@ -18,7 +18,8 @@ import {
   OrderStartedEventProcessor,
   ExchangeActivatedEventProcessor,
   ExchangeDeactivatedEventProcessor,
-  ExchangeRateChangedEventProcessor
+  ExchangeRateChangedEventProcessor,
+  ExchangeCreatedEventProcessor
 } from './processor.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { fetchEventFromTransaction } from '../../utils/util.js'
@@ -37,9 +38,19 @@ let orderReusedEventProcessor: OrderReusedEventProcessor
 let orderStartedEventProcessor: OrderStartedEventProcessor
 let dispenserActivatedEventProcessor: DispenserActivatedEventProcessor
 let dispenserDeactivatedEventProcessor: DispenserDeactivatedEventProcessor
+let exchangeCreatedEventProcessor: ExchangeCreatedEventProcessor
 let exchangeActivatedEventProcessor: ExchangeActivatedEventProcessor
 let exchangeDeactivatedEventProcessor: ExchangeDeactivatedEventProcessor
 let exchangeNewRateEventProcessor: ExchangeRateChangedEventProcessor
+
+function getExchangeCreatedEventProcessor(
+  chainId: number
+): ExchangeCreatedEventProcessor {
+  if (!exchangeCreatedEventProcessor) {
+    exchangeCreatedEventProcessor = new ExchangeCreatedEventProcessor(chainId)
+  }
+  return exchangeCreatedEventProcessor
+}
 
 function getMetadataEventProcessor(chainId: number): MetadataEventProcessor {
   if (!metadataEventProccessor) {
@@ -261,7 +272,13 @@ export const processChunkLogs = async (
           const processor = getMetadataStateEventProcessor(chainId)
           storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
         } else if (event.type === EVENTS.EXCHANGE_CREATED) {
-          storeEvents[event.type] = procesExchangeCreated()
+          const processor = getExchangeCreatedEventProcessor(chainId)
+          storeEvents[event.type] = await processor.processEvent(
+            log,
+            chainId,
+            signer,
+            provider
+          )
         } else if (event.type === EVENTS.EXCHANGE_RATE_CHANGED) {
           const processor = getExchangeNewRateEventProcessor(chainId)
           storeEvents[event.type] = await processor.processEvent(
@@ -327,10 +344,6 @@ export const processChunkLogs = async (
   }
 
   return {}
-}
-
-const procesExchangeCreated = (): string => {
-  return 'EXCHANGE_CREATED'
 }
 
 const processTokenUriUpadate = (): string => {
