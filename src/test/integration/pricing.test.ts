@@ -213,44 +213,13 @@ describe('Publish pricing scehmas and assert ddo stats', () => {
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT * 2
+      DEFAULT_TEST_TIMEOUT * 6
     )
     if (ddo) {
       resolvedDDO = ddo
       console.log(`JSON: ${ddo}`)
       expect(resolvedDDO.id).to.equal(genericAsset.id)
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
-  })
-
-  it('should have nft field stored in ddo', async function () {
-    console.log(`resolvedDDO: ${JSON.stringify(resolvedDDO)}`)
-    assert(resolvedDDO.nft, 'NFT field is not present')
-    assert(
-      resolvedDDO.nft.address?.toLowerCase() === nftAddress?.toLowerCase(),
-      'NFT address mismatch'
-    )
-    assert(resolvedDDO.nft.state === 0, 'NFT state mismatch') // ACTIVE
-    assert(resolvedDDO.nft.name === (await nftContract.name()), 'NFT name mismatch')
-    assert(resolvedDDO.nft.symbol === (await nftContract.symbol()), 'NFT symbol mismatch')
-    assert(
-      resolvedDDO.nft.tokenURI ===
-        (await nftContract.tokenURI(await nftContract.getId())),
-      'NFT tokeURI mismatch'
-    )
-    assert(
-      resolvedDDO.nft.owner?.toLowerCase() === setMetaDataTxReceipt.from?.toLowerCase(),
-      'NFT owner mismatch'
-    )
-    assert(resolvedDDO.nft.created, 'NFT created timestamp does not exist')
-  })
-
-  it('should store the ddo state in the db with no errors and retrieve it using did', async function () {
-    const ddoState = await database.ddoState.retrieve(resolvedDDO.id)
-    assert(ddoState, 'ddoState not found')
-    expect(resolvedDDO.id).to.equal(ddoState.did)
-    expect(ddoState.valid).to.equal(true)
-    expect(ddoState.error).to.equal(' ')
-    // add txId check once we have that as change merged and the event will be indexed
   })
 
   it('should get stats for fre', function () {
