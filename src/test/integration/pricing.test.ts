@@ -104,6 +104,7 @@ describe('Publish pricing scehmas and assert ddo stats', () => {
   })
 
   it('should publish a dataset w fre', async () => {
+    console.log(`fixed price address: ${artifactsAddresses.FixedPrice}`)
     const tx = await factoryContract.createNftWithErc20WithFixedRate(
       {
         name: '72120Bundle',
@@ -120,7 +121,7 @@ describe('Publish pricing scehmas and assert ddo stats', () => {
           await publisherAccount.getAddress(),
           ZeroAddress,
           ZeroAddress,
-          '0x0000000000000000000000000000000000000000'
+          ZeroAddress
         ],
         uints: [1000, 0],
         bytess: []
@@ -130,15 +131,10 @@ describe('Publish pricing scehmas and assert ddo stats', () => {
         addresses: [
           artifactsAddresses.Ocean,
           await publisherAccount.getAddress(),
-          await publisherAccount.getAddress()
+          await publisherAccount.getAddress(),
+          ZeroAddress
         ],
-        uints: [
-          ethers.parseUnits('18', 'ether'),
-          ethers.parseUnits('18', 'ether'),
-          ethers.parseUnits('1', 'ether'),
-          ethers.parseUnits('0', 'ether'),
-          ethers.parseUnits('0', 'ether')
-        ]
+        uints: [18, 18, 1, 0, 0]
       }
     )
     const txReceipt = await tx.wait()
