@@ -1065,11 +1065,11 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
-      ERC20Template.abi
+      FixedRateExchange.abi
     )
     INDEXER_LOGGER.logMessage(`event: ${JSON.stringify(event)}`)
     INDEXER_LOGGER.logMessage(
-      `decodedEventData in exchange activated: ${JSON.stringify(decodedEventData)}`
+      `decodedEventData in exchange created: ${JSON.stringify(decodedEventData)}`
     )
     INDEXER_LOGGER.logMessage(
       `receipt: ${JSON.stringify(
