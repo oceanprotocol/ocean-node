@@ -76,7 +76,7 @@ export const EVENTS = {
   ORDER_STARTED: 'OrderStarted',
   ORDER_REUSED: 'OrderReused',
   TOKEN_URI_UPDATE: 'TokenURIUpdate',
-  EXCHANGE_CREATED: 'ExchangeCreated',
+  EXCHANGE_CREATED: 'NewFixedRate',
   EXCHANGE_RATE_CHANGED: 'ExchangeRateChanged',
   DISPENSER_CREATED: 'DispenserCreated',
   DISPENSER_ACTIVATED: 'DispenserActivated',
