@@ -161,18 +161,10 @@ export class OceanP2P extends EventEmitter {
     P2P_LOGGER.debug('Connection closed to:' + peerId.toString()) // Emitted when a peer has been found
   }
 
-  async handlePeerDiscovery(details: any) {
+  handlePeerDiscovery(details: any) {
     try {
       const peerInfo = details.detail
-      // P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
-      if (peerInfo.multiaddrs) {
-        await this._libp2p.peerStore.save(peerInfo.id, {
-          multiaddrs: peerInfo.multiaddrs
-        })
-        await this._libp2p.peerStore.patch(peerInfo.id, {
-          multiaddrs: peerInfo.multiaddrs
-        })
-      }
+      P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
     } catch (e) {
       // no panic if it failed
       // console.error(e)
