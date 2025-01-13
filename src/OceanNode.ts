@@ -11,6 +11,17 @@ import { pipe } from 'it-pipe'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import { Handler } from './components/core/handler/handler.js'
 import { C2DEngines } from './components/c2d/compute_engines.js'
+
+export interface RequestLimiter {
+  requester: string | string[] // IP address or peer ID
+  lastRequestTime: number // time of the last request done (in miliseconds)
+  numRequests: number // number of requests done in the specific time period
+}
+
+export interface RequestDataCheck {
+  valid: boolean
+  updatedRequestData: RequestLimiter
+}
 export class OceanNode {
   // eslint-disable-next-line no-use-before-define
   private static instance: OceanNode
@@ -20,6 +31,7 @@ export class OceanNode {
   private c2dEngines: C2DEngines
   // requester
   private remoteCaller: string | string[]
+  private requestMap: Map<string, RequestLimiter>
   // eslint-disable-next-line no-useless-constructor
   private constructor(
     private db?: Database,
@@ -28,6 +40,7 @@ export class OceanNode {
     private indexer?: OceanIndexer
   ) {
     this.coreHandlers = CoreHandlersRegistry.getInstance(this)
+    this.requestMap = new Map<string, RequestLimiter>()
     if (node) {
       node.setCoreHandlers(this.coreHandlers)
     }
@@ -99,6 +112,14 @@ export class OceanNode {
 
   public getRemoteCaller(): string | string[] {
     return this.remoteCaller
+  }
+
+  public getRequestMapSize(): number {
+    return this.requestMap.size
+  }
+
+  public getRequestMap(): Map<string, RequestLimiter> {
+    return this.requestMap
   }
 
   /**
