@@ -10,12 +10,17 @@ import { C2DClusterType } from '../@types/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
 import {
-  DEFAULT_RATE_LIMIT_PER_SECOND,
+  computeCodebaseHash,
+  DEFAULT_RATE_LIMIT_PER_MINUTE,
   ENVIRONMENT_VARIABLES,
   EnvVariable,
   hexStringToByteArray
 } from '../utils/index.js'
-import { defaultBootstrapAddresses, knownUnsafeURLs } from '../utils/constants.js'
+import {
+  DEFAULT_MAX_CONNECTIONS_PER_MINUTE,
+  defaultBootstrapAddresses,
+  knownUnsafeURLs
+} from '../utils/constants.js'
 
 import { LOG_LEVELS_STR, GENERIC_EMOJIS, getLoggerLevelEmoji } from './logging/Logger.js'
 import { RPCS } from '../@types/blockchain'
@@ -27,6 +32,8 @@ import {
 } from '../utils/address.js'
 import { CONFIG_LOGGER } from './logging/common.js'
 import { create256Hash } from './crypt.js'
+import { fileURLToPath } from 'url'
+import path from 'path'
 
 // usefull for lazy loading and avoid boilerplate on other places
 let previousConfiguration: OceanNodeConfig = null
@@ -427,21 +434,43 @@ function logMissingVariableWithDefault(envVariable: EnvVariable) {
     true
   )
 }
-// have a rate limit for handler calls
+// have a rate limit for handler calls (per IP address or peer id)
 function getRateLimit(isStartup: boolean = false) {
-  if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND)) {
+  if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.MAX_REQ_PER_MINUTE)) {
     if (isStartup) {
-      logMissingVariableWithDefault(ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND)
+      logMissingVariableWithDefault(ENVIRONMENT_VARIABLES.MAX_REQ_PER_MINUTE)
     }
-    return DEFAULT_RATE_LIMIT_PER_SECOND
+    return DEFAULT_RATE_LIMIT_PER_MINUTE
   } else {
     try {
-      return getIntEnvValue(process.env.MAX_REQ_PER_SECOND, DEFAULT_RATE_LIMIT_PER_SECOND)
+      return getIntEnvValue(process.env.MAX_REQ_PER_MINUTE, DEFAULT_RATE_LIMIT_PER_MINUTE)
     } catch (err) {
       CONFIG_LOGGER.error(
-        `Invalid "${ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND.name}" env variable...`
+        `Invalid "${ENVIRONMENT_VARIABLES.MAX_REQ_PER_MINUTE.name}" env variable...`
       )
-      return DEFAULT_RATE_LIMIT_PER_SECOND
+      return DEFAULT_RATE_LIMIT_PER_MINUTE
+    }
+  }
+}
+
+// Global requests limit
+function getConnectionsLimit(isStartup: boolean = false) {
+  if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.MAX_CONNECTIONS_PER_MINUTE)) {
+    if (isStartup) {
+      logMissingVariableWithDefault(ENVIRONMENT_VARIABLES.MAX_CONNECTIONS_PER_MINUTE)
+    }
+    return DEFAULT_RATE_LIMIT_PER_MINUTE
+  } else {
+    try {
+      return getIntEnvValue(
+        process.env.MAX_CONNECTIONS_PER_MINUTE,
+        DEFAULT_MAX_CONNECTIONS_PER_MINUTE
+      )
+    } catch (err) {
+      CONFIG_LOGGER.error(
+        `Invalid "${ENVIRONMENT_VARIABLES.MAX_CONNECTIONS_PER_MINUTE.name}" env variable...`
+      )
+      return DEFAULT_MAX_CONNECTIONS_PER_MINUTE
     }
   }
 }
@@ -476,6 +505,12 @@ export async function getConfiguration(
   if (!previousConfiguration || forceReload) {
     previousConfiguration = await getEnvConfig(isStartup)
   }
+  if (!previousConfiguration.codeHash) {
+    const __filename = fileURLToPath(import.meta.url)
+    const __dirname = path.dirname(__filename.replace('utils/', ''))
+    previousConfiguration.codeHash = await computeCodebaseHash(__dirname)
+  }
+
   return previousConfiguration
 }
 
@@ -624,6 +659,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),
     allowedAdmins: getAllowedAdmins(isStartup),
     rateLimit: getRateLimit(isStartup),
+    maxConnections: getConnectionsLimit(isStartup),
     denyList: getDenyList(isStartup),
     unsafeURLs: readListFromEnvVariable(
       ENVIRONMENT_VARIABLES.UNSAFE_URLS,

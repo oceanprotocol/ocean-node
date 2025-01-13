@@ -533,13 +533,14 @@ returns an empty object if it is valid otherwise an array with error
 
 #### Parameters
 
-| name       | type   | required | description                                       |
-| ---------- | ------ | -------- | ------------------------------------------------- |
-| command    | string | v        | command name                                      |
-| node       | string |          | if not present it means current node              |
-| id         | string | v        | document id or did                                |
-| chainId    | number | v        | chain id of network on which document is provided |
-| nftAddress | string | v        | address of nft token                              |
+| name       | type     | required | description                                       |
+| ---------- | -------- | -------- | ------------------------------------------------- |
+| command    | string   | v        | command name                                      |
+| node       | string   |          | if not present it means current node              |
+| multiAddrs | string[] |          | if passed, use this instead of peerStore & DHT     |
+| id         | string   | v        | document id or did                                |
+| chainId    | number   | v        | chain id of network on which document is provided |
+| nftAddress | string   | v        | address of nft token                              |
 
 #### Request
 

@@ -24,7 +24,7 @@ import { tcp } from '@libp2p/tcp'
 import { webSockets } from '@libp2p/websockets'
 import { circuitRelayTransport, circuitRelayServer } from '@libp2p/circuit-relay-v2'
 import { createLibp2p, Libp2p } from 'libp2p'
-import { identify } from '@libp2p/identify'
+import { identify, identifyPush } from '@libp2p/identify'
 import { autoNAT } from '@libp2p/autonat'
 import { uPnPNAT } from '@libp2p/upnp-nat'
 import { ping } from '@libp2p/ping'
@@ -52,7 +52,7 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
-import { type Multiaddr, multiaddr } from '@multiformats/multiaddr'
+import { Multiaddr, multiaddr } from '@multiformats/multiaddr'
 // import { getIPv4, getIPv6 } from '../../utils/ip.js'
 
 const DEFAULT_OPTIONS = {
@@ -170,18 +170,10 @@ export class OceanP2P extends EventEmitter {
     P2P_LOGGER.debug('Connection closed to:' + peerId.toString()) // Emitted when a peer has been found
   }
 
-  async handlePeerDiscovery(details: any) {
+  handlePeerDiscovery(details: any) {
     try {
       const peerInfo = details.detail
-      // P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
-      if (peerInfo.multiaddrs) {
-        await this._libp2p.peerStore.save(peerInfo.id, {
-          multiaddrs: peerInfo.multiaddrs
-        })
-        await this._libp2p.peerStore.patch(peerInfo.id, {
-          multiaddrs: peerInfo.multiaddrs
-        })
-      }
+      P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
     } catch (e) {
       // no panic if it failed
       // console.error(e)
@@ -308,6 +300,21 @@ export class OceanP2P extends EventEmitter {
       let servicesConfig = {
         identify: identify(),
         dht: kadDHT(dhtOptions),
+        identifyPush: identifyPush(),
+        /*
+        pubsub: gossipsub({
+          fallbackToFloodsub: false,
+          batchPublish: false,
+          allowPublishToZeroTopicPeers: true,
+          asyncValidation: false,
+          // messageProcessingConcurrency: 5,
+          seenTTL: 10 * 1000,
+          runOnTransientConnection: true,
+          doPX: doPx,
+          // canRelayMessage: true,
+          // enabled: true
+          allowedTopics: ['oceanprotocol._peer-discovery._p2p._pubsub', 'oceanprotocol']
+        }), */
         ping: ping(),
         dcutr: dcutr()
       }
@@ -609,7 +616,8 @@ export class OceanP2P extends EventEmitter {
   async sendTo(
     peerName: string,
     message: string,
-    sink: any
+    sink: any,
+    multiAddrs?: string[]
   ): Promise<P2PCommandResponse> {
     P2P_LOGGER.logMessage('SendTo() node ' + peerName + ' task: ' + message, true)
 
@@ -631,7 +639,17 @@ export class OceanP2P extends EventEmitter {
       response.status.error = 'Invalid peer'
       return response
     }
-    const multiaddrs: Multiaddr[] = await this.getPeerMultiaddrs(peerName)
+    let multiaddrs: Multiaddr[] = []
+
+    if (!multiAddrs || multiAddrs.length < 1) {
+      // if they are no forced multiaddrs, try to find node multiaddr from peerStore/dht
+      multiaddrs = await this.getPeerMultiaddrs(peerName)
+    } else {
+      // just used what we were instructed to use
+      for (const addr of multiAddrs) {
+        multiaddrs.push(new Multiaddr(addr))
+      }
+    }
     if (multiaddrs.length < 1) {
       response.status.httpStatus = 404
       response.status.error = `Cannot find any address to dial for peer: ${peerId}`
@@ -780,7 +798,7 @@ export class OceanP2P extends EventEmitter {
   // related: https://github.com/libp2p/go-libp2p-kad-dht/issues/323
   async republishStoredDDOS() {
     try {
-      if (!this.db) {
+      if (!this.db || !this.db.ddo) {
         P2P_LOGGER.logMessage(
           `republishStoredDDOS() attempt aborted because there is no database!`,
           true
