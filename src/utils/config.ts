@@ -4,6 +4,7 @@ import type {
   OceanNodeKeys,
   OceanNodeDockerConfig
 } from '../@types/OceanNode'
+import { dhtFilterMethod } from '../@types/OceanNode.js'
 import type { C2DClusterInfo } from '../@types/C2D.js'
 import { C2DClusterType } from '../@types/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
@@ -548,6 +549,18 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
   const interfaces = getNodeInterfaces(isStartup)
   let bootstrapTtl = getIntEnvValue(process.env.P2P_BOOTSTRAP_TTL, 120000)
   if (bootstrapTtl === 0) bootstrapTtl = Infinity
+  let dhtFilterOption
+  switch (getIntEnvValue(process.env.P2P_DHT_FILTER, 0)) {
+    case 1:
+      dhtFilterOption = dhtFilterMethod.filterPrivate
+      break
+    case 2:
+      dhtFilterOption = dhtFilterMethod.filterPublic
+      break
+    default:
+      dhtFilterOption = dhtFilterMethod.filterNone
+  }
+
   const config: OceanNodeConfig = {
     authorizedDecrypters: getAuthorizedDecrypters(isStartup),
     allowedValidators: getAllowedValidators(isStartup),
@@ -584,7 +597,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       ),
       dhtMaxInboundStreams: getIntEnvValue(process.env.P2P_dhtMaxInboundStreams, 500),
       dhtMaxOutboundStreams: getIntEnvValue(process.env.P2P_dhtMaxOutboundStreams, 500),
-      enableDHTServer: getBoolEnvValue('P2P_ENABLE_DHT_SERVER', false),
+      dhtFilter: dhtFilterOption,
       mDNSInterval: getIntEnvValue(process.env.P2P_mDNSInterval, 20e3), // 20 seconds
       connectionsMaxParallelDials: getIntEnvValue(
         process.env.P2P_connectionsMaxParallelDials,
