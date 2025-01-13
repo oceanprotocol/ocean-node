@@ -18,6 +18,26 @@ getOceanPeersRoute.get(
     }
   }
 )
+
+getOceanPeersRoute.get(
+  '/findPeer',
+  express.urlencoded({ extended: true }),
+  async (req: Request, res: Response): Promise<void> => {
+    if (!req.query.peerId) {
+      res.sendStatus(400)
+      return
+    }
+    if (hasP2PInterface) {
+      const peers = await req.oceanNode
+        .getP2PNode()
+        .findPeerInDht(String(req.query.peerId), parseInt(String(req.query.timeout)))
+      if (peers) res.json(peers)
+      else res.sendStatus(404).send('Cannot find peer')
+    } else {
+      sendMissingP2PResponse(res)
+    }
+  }
+)
 getOceanPeersRoute.get(
   '/getOceanPeers',
   async (req: Request, res: Response): Promise<void> => {
