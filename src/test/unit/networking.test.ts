@@ -1,11 +1,14 @@
 import {
-  DEFAULT_RATE_LIMIT_PER_SECOND,
+  DEFAULT_RATE_LIMIT_PER_MINUTE,
+  // DEFAULT_MAX_CONNECTIONS_PER_MINUTE,
   ENVIRONMENT_VARIABLES,
   PROTOCOL_COMMANDS,
-  getConfiguration
+  getConfiguration,
+  CONNECTION_HISTORY_DELETE_THRESHOLD
 } from '../../utils/index.js'
 import { expect } from 'chai'
 import {
+  DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   setupEnvironment,
@@ -105,7 +108,7 @@ describe('Test rate limitations and deny list defaults', () => {
   // const node: OceanNode = OceanNode.getInstance()
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
-      [ENVIRONMENT_VARIABLES.RATE_DENY_LIST, ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND],
+      [ENVIRONMENT_VARIABLES.RATE_DENY_LIST, ENVIRONMENT_VARIABLES.MAX_REQ_PER_MINUTE],
       [undefined, undefined]
     )
     await setupEnvironment(null, envOverrides)
@@ -115,7 +118,7 @@ describe('Test rate limitations and deny list defaults', () => {
     const config = await getConfiguration(true)
     expect(config.denyList.ips).to.be.length(0)
     expect(config.denyList.peers).to.be.length(0)
-    expect(config.rateLimit).to.be.equal(DEFAULT_RATE_LIMIT_PER_SECOND)
+    expect(config.rateLimit).to.be.equal(DEFAULT_RATE_LIMIT_PER_MINUTE)
   })
 
   // put it back
@@ -132,7 +135,7 @@ describe('Test rate limitations and deny list settings', () => {
       [
         ENVIRONMENT_VARIABLES.PRIVATE_KEY,
         ENVIRONMENT_VARIABLES.RATE_DENY_LIST,
-        ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND
+        ENVIRONMENT_VARIABLES.MAX_REQ_PER_MINUTE
       ],
       [
         '0xcb345bd2b11264d523ddaf383094e2675c420a17511c3102a53817f13474a7ff',
@@ -183,13 +186,12 @@ describe('Test rate limitations and deny list settings', () => {
     const ips = ['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5']
 
     const rateLimitResponses = []
+    const statusHandler: StatusHandler = CoreHandlersRegistry.getInstance(
+      node
+    ).getHandler(PROTOCOL_COMMANDS.STATUS)
 
     for (let i = 0; i < ips.length; i++) {
       node.setRemoteCaller(ips[i])
-      const statusHandler: StatusHandler = CoreHandlersRegistry.getInstance(
-        node
-      ).getHandler(PROTOCOL_COMMANDS.STATUS)
-
       const rateResp = await statusHandler.checkRateLimit()
       rateLimitResponses.push(rateResp)
     }
@@ -197,6 +199,37 @@ describe('Test rate limitations and deny list settings', () => {
     // should have 4 valid responses
     expect(filtered.length).to.be.equal(ips.length)
   })
+
+  it('Test global rate limit, clear map after MAX (handler level) ', async function () {
+    // after more than CONNECTION_HISTORY_DELETE_THRESHOLD connections the map will be cleared
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    let originalIPPiece = '127.0.'
+
+    const rateLimitResponses = []
+
+    const statusHandler: StatusHandler = CoreHandlersRegistry.getInstance(
+      node
+    ).getHandler(PROTOCOL_COMMANDS.STATUS)
+
+    const aboveLimit = 20
+    for (let i = 0, x = 0; i < CONNECTION_HISTORY_DELETE_THRESHOLD + aboveLimit; i++) {
+      const ip = originalIPPiece + x // start at 127.0.0.2
+      node.setRemoteCaller(ip)
+      const rateResp = await statusHandler.checkRateLimit()
+      rateLimitResponses.push(rateResp)
+      x++
+      // start back
+      if (x > 254) {
+        x = 0
+        originalIPPiece = '127.0.0.' // next piece
+      }
+    }
+    // it should clear the history after CONNECTION_HISTORY_DELETE_THRESHOLD
+    expect(statusHandler.getOceanNode().getRequestMapSize()).to.be.lessThanOrEqual(
+      aboveLimit
+    )
+  })
+
   after(async () => {
     await tearDownEnvironment(envOverrides)
   })
