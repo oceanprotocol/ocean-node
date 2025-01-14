@@ -20,17 +20,29 @@ export interface C2DClusterInfo {
   tempFolder?: string
 }
 
+export type ComputeResourceType = 'cpu' | 'memory' | 'storage'
+
+export interface ComputeResourcesPricingInfo {
+  type: ComputeResourceType
+  price: number
+}
+
 export interface ComputeEnvironmentBaseConfig {
-  cpuNumber: number
-  ramGB: number
-  diskGB: number
-  desc: string
-  maxJobs: number
-  storageExpiry: number
-  maxJobDuration: number
-  chainId?: number
-  feeToken: string
-  priceMin: number
+  // cpuNumber: number
+  // ramGB: number
+  // diskGB: number
+  desc: string // v1
+  // maxJobs: number
+  storageExpiry: number // v1
+  maxJobDuration: number // v1 max seconds for a job
+  // chainId?: number
+  // feeToken: string
+  // priceMin: number
+  totalCpu: number // total cpu available for jobs
+  maxCpu: number // max cpu for a single job.  Imagine a K8 cluster with two nodes, each node with 10 cpus.  Total=20, but at most you can allocate 10 cpu for a job
+  totalRam: number // total gb of RAM
+  maxRam: number // max allocatable GB RAM for a single job.
+  maxDisk: number // max GB of disck allocatable for a single job
 }
 
 export interface RunningPlatform {
@@ -38,14 +50,14 @@ export interface RunningPlatform {
   os: string
 }
 export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
-  id: string
-
-  cpuType?: string
-  gpuNumber?: number
-  gpuType?: string
+  id: string // v1
+  // arch: string => part of platform bellow
+  // cpuType?: string
+  // gpuNumber?: number
+  // gpuType?: string
   currentJobs: number
-  consumerAddress: string
-  lastSeen?: number
+  consumerAddress: string // v1
+  // lastSeen?: number
   free: boolean
   platform?: RunningPlatform[] // array due to k8 support
 }
@@ -64,13 +76,6 @@ export interface C2DDockerConfig {
 
 export interface ComputeEnvByChain {
   [chainId: number]: ComputeEnvironment[]
-}
-
-export type ComputeResourceType = 'cpu' | 'memory' | 'storage'
-
-export interface ComputeResourcesPricingInfo {
-  type: ComputeResourceType
-  price: number
 }
 
 export type ComputeResultType =

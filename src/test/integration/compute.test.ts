@@ -266,9 +266,9 @@ describe('Compute', () => {
         'consumerAddress missing in computeEnvironments'
       )
       // what is this? not present on free envs, so skip.. in any case the field is optional
-      if (!computeEnvironment.free) {
-        assert(computeEnvironment.lastSeen, 'lastSeen missing in computeEnvironments')
-      }
+      // if (!computeEnvironment.free) {
+      //   assert(computeEnvironment.lastSeen, 'lastSeen missing in computeEnvironments')
+      // }
       assert(computeEnvironment.id.startsWith('0x'), 'id should start with 0x')
       assert(computeEnvironment.cpuNumber > 0, 'cpuNumber missing in computeEnvironments')
       assert(computeEnvironment.ramGB > 0, 'ramGB missing in computeEnvironments')
