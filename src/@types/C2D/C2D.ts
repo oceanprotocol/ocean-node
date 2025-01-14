@@ -66,10 +66,17 @@ export interface ComputeEnvByChain {
   [chainId: number]: ComputeEnvironment[]
 }
 
+export type ComputeResourceType = 'cpu' | 'memory' | 'storage'
+
+export interface ComputeResourcesPricingInfo {
+  type: ComputeResourceType
+  price: number
+}
+
 export type ComputeResultType =
   | 'algorithmLog'
   | 'output'
-  | 'configrationLog'
+  | 'configurationLog'
   | 'publishLog'
 
 export interface ComputeResult {
