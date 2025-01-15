@@ -39,7 +39,7 @@ async function calculateProviderFeeAmount(
   // we have different ways of computing providerFee
   if (computeEnv) {
     // it's a compute provider fee
-    providerFeeAmount = (seconds * parseFloat(String(computeEnv.priceMin))) / 60
+    providerFeeAmount = (seconds * parseFloat(String(computeEnv.pricePerCpu))) / 60 // was: computeEnv.priceMin
   } else {
     // it's a download provider fee
     // we should get asset file size, and do a proper fee managment according to time
@@ -72,8 +72,13 @@ export async function createProviderFee(
   let providerFeeAmountFormatted: BigNumberish
 
   let providerFeeToken: string
-  if (computeEnv) {
-    providerFeeToken = computeEnv.feeToken
+  if (
+    computeEnv &&
+    computeEnv.fees &&
+    Object.hasOwn(computeEnv.fees, String(asset.chainId))
+  ) {
+    // was: if (computeEnv)
+    providerFeeToken = computeEnv.fees[asset.chainId].feeToken // was: computeEnv.feeToken
   } else {
     // it's download, take it from config
     providerFeeToken = await getProviderFeeToken(asset.chainId)
