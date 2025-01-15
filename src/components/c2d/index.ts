@@ -4,6 +4,7 @@ import { ComputeGetEnvironmentsHandler } from '../core/compute/index.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import {
   deleteKeysFromObject,
+  isDefined,
   sanitizeServiceFiles,
   streamToObject
 } from '../../utils/util.js'
@@ -78,4 +79,15 @@ export function omitDBComputeFieldsFromComputeJob(dbCompute: DBComputeJob): Comp
     'containerImage'
   ]) as ComputeJob
   return job
+}
+
+export function isLegacyComputeEnvironment(environment: any): boolean {
+  // just check a few know 'old' props to see if they are present
+  return (
+    isDefined(environment) &&
+    (isDefined(environment.cpuNumber) ||
+      isDefined(environment.cpuType) ||
+      isDefined(environment.diskGB) ||
+      isDefined(environment.ramGB))
+  )
 }

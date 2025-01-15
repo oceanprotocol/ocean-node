@@ -64,7 +64,10 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
-import { checkC2DEnvExists } from '../../components/c2d/index.js'
+import {
+  checkC2DEnvExists,
+  isLegacyComputeEnvironment
+} from '../../components/c2d/index.js'
 import {
   getAlgoChecksums,
   validateAlgoForDataset
@@ -270,9 +273,12 @@ describe('Compute', () => {
       //   assert(computeEnvironment.lastSeen, 'lastSeen missing in computeEnvironments')
       // }
       assert(computeEnvironment.id.startsWith('0x'), 'id should start with 0x')
-      assert(computeEnvironment.totalCpu > 0, 'totalCpu missing in computeEnvironments')
-      assert(computeEnvironment.totalRam > 0, 'totalRam missing in computeEnvironments')
-      assert(computeEnvironment.maxDisk > 0, 'maxDisk missing in computeEnvironments')
+      if (!isLegacyComputeEnvironment(computeEnvironment)) {
+        assert(computeEnvironment.totalCpu > 0, 'totalCpu missing in computeEnvironments')
+        assert(computeEnvironment.totalRam > 0, 'totalRam missing in computeEnvironments')
+        assert(computeEnvironment.maxDisk > 0, 'maxDisk missing in computeEnvironments')
+      }
+
       // assert(computeEnvironment.maxJobs > 0, 'maxJobs missing in computeEnvironments')
       assert(
         computeEnvironment.maxJobDuration > 0,
