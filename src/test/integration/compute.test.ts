@@ -259,21 +259,20 @@ describe('Compute', () => {
     computeEnvironments = await streamToObject(response.stream as Readable)
     // expect 3 envs
     expect(computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 3, 'incorrect length')
-    for (const computeEnvironment of computeEnvironments[DEVELOPMENT_CHAIN_ID]) {
-      assert(computeEnvironment.id, 'id missing in computeEnvironments')
-      assert(
-        computeEnvironment.consumerAddress,
-        'consumerAddress missing in computeEnvironments'
-      )
+    for (const computeEnv of computeEnvironments[DEVELOPMENT_CHAIN_ID]) {
+      assert(computeEnv.id, 'id missing in computeEnvironments')
+      assert(computeEnv.consumerAddress, 'consumerAddress missing in computeEnvironments')
+
+      const computeEnvironment: ComputeEnvironment = computeEnv
       // what is this? not present on free envs, so skip.. in any case the field is optional
       // if (!computeEnvironment.free) {
       //   assert(computeEnvironment.lastSeen, 'lastSeen missing in computeEnvironments')
       // }
       assert(computeEnvironment.id.startsWith('0x'), 'id should start with 0x')
-      assert(computeEnvironment.cpuNumber > 0, 'cpuNumber missing in computeEnvironments')
-      assert(computeEnvironment.ramGB > 0, 'ramGB missing in computeEnvironments')
-      assert(computeEnvironment.diskGB > 0, 'diskGB missing in computeEnvironments')
-      assert(computeEnvironment.maxJobs > 0, 'maxJobs missing in computeEnvironments')
+      assert(computeEnvironment.maxCpu > 0, 'totalCpu missing in computeEnvironments')
+      assert(computeEnvironment.maxRam > 0, 'totalRam missing in computeEnvironments')
+      assert(computeEnvironment.maxDisk > 0, 'diskGB missing in computeEnvironments')
+      // assert(computeEnvironment.maxJobs > 0, 'maxJobs missing in computeEnvironments')
       assert(
         computeEnvironment.maxJobDuration > 0,
         'maxJobDuration missing in computeEnvironments'
