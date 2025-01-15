@@ -264,6 +264,7 @@ describe('Compute', () => {
       assert(computeEnv.consumerAddress, 'consumerAddress missing in computeEnvironments')
 
       const computeEnvironment: ComputeEnvironment = computeEnv
+      console.log(computeEnvironment)
       // what is this? not present on free envs, so skip.. in any case the field is optional
       // if (!computeEnvironment.free) {
       //   assert(computeEnvironment.lastSeen, 'lastSeen missing in computeEnvironments')
