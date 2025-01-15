@@ -32,7 +32,7 @@ export interface ComputeEnvFees {
   prices: ComputeResourcesPricingInfo[]
 }
 export interface ComputeEnvFeesStructure {
-  [chainId: number]: ComputeEnvFees
+  [chainId: string]: ComputeEnvFees
 }
 
 export interface RunningPlatform {
@@ -55,7 +55,6 @@ export interface ComputeEnvironmentBaseConfig {
   totalRam: number // total gb of RAM
   maxRam: number // max allocatable GB RAM for a single job.
   maxDisk: number // max GB of disck allocatable for a single job
-  pricePerCpu: number
   fees: ComputeEnvFeesStructure
 }
 

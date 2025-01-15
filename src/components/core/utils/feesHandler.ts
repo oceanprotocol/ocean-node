@@ -1,4 +1,9 @@
-import type { ComputeEnvironment } from '../../../@types/C2D/C2D.js'
+import type {
+  ComputeEnvFees,
+  ComputeEnvironment,
+  ComputeResourcesPricingInfo,
+  ComputeResourceType
+} from '../../../@types/C2D/C2D.js'
 import {
   JsonRpcApiProvider,
   ethers,
@@ -28,21 +33,45 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 import { fetchEventFromTransaction } from '../../../utils/util.js'
 import { fetchTransactionReceipt } from './validateOrders.js'
 
+export function getEnvironmentPriceSchemaForType(
+  prices: ComputeResourcesPricingInfo[],
+  type: ComputeResourceType
+): number | null {
+  for (const pr of prices) {
+    if (pr.type === type) {
+      return pr.price
+    }
+  }
+  return null
+}
 async function calculateProviderFeeAmount(
   validUntil: number,
-  computeEnv: ComputeEnvironment
+  computeEnv: ComputeEnvironment,
+  chainId: string
   // asset?: DDO
 ): Promise<number> {
   const now = new Date().getTime() / 1000
   const seconds = validUntil - now
-  let providerFeeAmount: number
+  let providerFeeAmount: number = 0
   // we have different ways of computing providerFee
   if (computeEnv) {
-    // it's a compute provider fee
-    providerFeeAmount = (seconds * parseFloat(String(computeEnv.pricePerCpu))) / 60 // was: computeEnv.priceMin
+    if (computeEnv.fees) {
+      // get the fess for the asset chain
+      const feesForChain: ComputeEnvFees = computeEnv.fees[chainId]
+      if (feesForChain && feesForChain.prices.length > 0) {
+        const price =
+          // TODO: check this again
+          // try to get the price from one of the available types; 'cpu', 'memory' or 'storage'
+          getEnvironmentPriceSchemaForType(feesForChain.prices, 'cpu') ||
+          getEnvironmentPriceSchemaForType(feesForChain.prices, 'memory') ||
+          getEnvironmentPriceSchemaForType(feesForChain.prices, 'storage')
+        // it's a compute provider fee
+        providerFeeAmount = (seconds * parseFloat(String(price || 0))) / 60 // was: (seconds * parseFloat(String(computeEnv.priceMin))) / 60
+      }
+    }
   } else {
     // it's a download provider fee
-    // we should get asset file size, and do a proper fee managment according to time
+    // we should get asset file size, and do a proper fee management according to time
     // something like estimated 3 downloads per day
     providerFeeAmount = (await getConfiguration()).feeStrategy.feeAmount.amount
   }
@@ -86,7 +115,11 @@ export async function createProviderFee(
   if (providerFeeToken?.toLowerCase() === ZeroAddress) {
     providerFeeAmount = 0
   } else {
-    providerFeeAmount = await calculateProviderFeeAmount(validUntil, computeEnv)
+    providerFeeAmount = await calculateProviderFeeAmount(
+      validUntil,
+      computeEnv,
+      String(asset.chainId)
+    )
   }
 
   if (providerFeeToken && providerFeeToken?.toLowerCase() !== ZeroAddress) {

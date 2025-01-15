@@ -269,8 +269,8 @@ describe('Compute', () => {
       //   assert(computeEnvironment.lastSeen, 'lastSeen missing in computeEnvironments')
       // }
       assert(computeEnvironment.id.startsWith('0x'), 'id should start with 0x')
-      assert(computeEnvironment.maxCpu > 0, 'maxCpu missing in computeEnvironments')
-      assert(computeEnvironment.maxRam > 0, 'maxRam missing in computeEnvironments')
+      assert(computeEnvironment.totalCpu > 0, 'totalCpu missing in computeEnvironments')
+      assert(computeEnvironment.totalRam > 0, 'totalRam missing in computeEnvironments')
       assert(computeEnvironment.maxDisk > 0, 'maxDisk missing in computeEnvironments')
       // assert(computeEnvironment.maxJobs > 0, 'maxJobs missing in computeEnvironments')
       assert(

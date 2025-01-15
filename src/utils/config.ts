@@ -401,7 +401,6 @@ function getDockerFreeComputeOptions(
     totalCpu: os.cpus().length,
     maxRam: 1, // 1GB
     maxDisk: 1, // 1GB
-    pricePerCpu: 0,
     desc: 'Free',
     currentJobs: 0,
     // maxJobs: 1,
@@ -503,18 +502,24 @@ function getDockerComputeEnvironments(isStartup?: boolean): ComputeEnvironment[]
 
 function doComputeEnvChecks(configEnv: ComputeEnvironmentBaseConfig[]): boolean {
   for (const config of configEnv) {
-    if (config.fees && !isDefined(config.pricePerCpu)) {
+    if (!isDefined(config.fees)) {
       CONFIG_LOGGER.error(
-        "Please check your compute env settings: We have a fee token but we don't have a price!"
+        'Please check your compute env settings: There is no fees configuration!'
       )
       return false
     }
-    if (isDefined(config.pricePerCpu) && !isDefined(config.fees)) {
-      CONFIG_LOGGER.error(
-        "Please check your compute env settings: We have a price but we don't have a fee token!"
-      )
-      return false
-    }
+    // if (config.fees && !isDefined(config.fees)) {
+    //   CONFIG_LOGGER.error(
+    //     "Please check your compute env settings: We have a fee token but we don't have a price!"
+    //   )
+    //   return false
+    // }
+    // was: if (isDefined(config.pricePerCpu) && !isDefined(config.fees)) {
+    //   CONFIG_LOGGER.error(
+    //     "Please check your compute env settings: We have a price but we don't have a fee token!"
+    //   )
+    //   return false
+    // }
     if (config.storageExpiry < config.maxJobDuration) {
       CONFIG_LOGGER.error(
         'Please check your compute env settings: "storageExpiry" should be greater than "maxJobDuration"!'
