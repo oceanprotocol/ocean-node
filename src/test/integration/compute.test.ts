@@ -262,15 +262,13 @@ describe('Compute', () => {
     computeEnvironments = await streamToObject(response.stream as Readable)
     // expect 3 envs
     expect(computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 3, 'incorrect length')
-    for (const computeEnv of computeEnvironments[DEVELOPMENT_CHAIN_ID]) {
-      assert(computeEnv.id, 'id missing in computeEnvironments')
-      assert(computeEnv.consumerAddress, 'consumerAddress missing in computeEnvironments')
+    for (const computeEnvironment of computeEnvironments[DEVELOPMENT_CHAIN_ID]) {
+      assert(computeEnvironment.id, 'id missing in computeEnvironments')
+      assert(
+        computeEnvironment.consumerAddress,
+        'consumerAddress missing in computeEnvironments'
+      )
 
-      const computeEnvironment: ComputeEnvironment = computeEnv
-      // what is this? not present on free envs, so skip.. in any case the field is optional
-      // if (!computeEnvironment.free) {
-      //   assert(computeEnvironment.lastSeen, 'lastSeen missing in computeEnvironments')
-      // }
       assert(computeEnvironment.id.startsWith('0x'), 'id should start with 0x')
       // TODO check legacy format / convert?
       /* {
@@ -314,13 +312,26 @@ describe('Compute', () => {
         free: true,
         platform: [ { architecture: 'x86_64', os: 'linux' } ]
       }   */
+      // new structure
       if (!isLegacyComputeEnvironment(computeEnvironment)) {
         assert(computeEnvironment.totalCpu > 0, 'totalCpu missing in computeEnvironments')
         assert(computeEnvironment.totalRam > 0, 'totalRam missing in computeEnvironments')
         assert(computeEnvironment.maxDisk > 0, 'maxDisk missing in computeEnvironments')
-      }
+      } else {
+        // older versions (backwards compatibility)
 
-      // assert(computeEnvironment.maxJobs > 0, 'maxJobs missing in computeEnvironments')
+        // what is this? not present on free envs, so skip.. in any case the field is optional
+        if (!computeEnvironment.free) {
+          assert(computeEnvironment.lastSeen, 'lastSeen missing in computeEnvironments')
+        }
+        assert(
+          computeEnvironment.cpuNumber > 0,
+          'cpuNumber missing in computeEnvironments'
+        )
+        assert(computeEnvironment.ramGB > 0, 'ramGB missing in computeEnvironments')
+        assert(computeEnvironment.diskGB > 0, 'diskGB missing in computeEnvironments')
+        assert(computeEnvironment.maxJobs > 0, 'maxJobs missing in computeEnvironments')
+      }
       assert(
         computeEnvironment.maxJobDuration > 0,
         'maxJobDuration missing in computeEnvironments'
