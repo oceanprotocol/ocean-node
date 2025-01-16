@@ -440,7 +440,8 @@ function getDockerFreeComputeOptions(
         LOG_LEVELS_STR.LEVEL_ERROR
       )
     }
-  } else {
+  } else if (isStartup) {
+    // avoid logging to much times
     CONFIG_LOGGER.warn(
       `No options for ${ENVIRONMENT_VARIABLES.DOCKER_FREE_COMPUTE.name} were specified, using defaults.`
     )
@@ -492,7 +493,7 @@ function getDockerComputeEnvironments(isStartup?: boolean): ComputeEnvironment[]
         LOG_LEVELS_STR.LEVEL_ERROR
       )
     }
-  } else {
+  } else if (isStartup) {
     CONFIG_LOGGER.warn(
       `No options for ${ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS.name} were specified.`
     )
