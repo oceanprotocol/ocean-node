@@ -117,9 +117,14 @@ export class C2DEngineDocker extends C2DEngine {
         const consumerAddress = await blockchain.getWalletAddress()
         const filteredEnvs = []
         for (const computeEnv of this.envs) {
-          if (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId))) {
+          if (
+            (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId))) ||
+            computeEnv.chainId === chainId // not mandatory
+          ) {
             // was: (computeEnv.chainId === chainId) {
             computeEnv.consumerAddress = consumerAddress
+            // also set the chain id (helpful)
+            computeEnv.chainId = chainId
             filteredEnvs.push(computeEnv)
           }
         }
@@ -1022,7 +1027,10 @@ export class C2DEngineDockerFree extends C2DEngineDocker {
         const consumerAddress = await blockchain.getWalletAddress()
         const computeEnv: ComputeEnvironment =
           this.getC2DConfig().connection?.freeComputeOptions
-        if (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId))) {
+        if (
+          (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId))) ||
+          computeEnv.chainId === chainId
+        ) {
           // was: computeEnv.chainId === chainId
           computeEnv.consumerAddress = consumerAddress
           const envs: ComputeEnvironment[] = [computeEnv]

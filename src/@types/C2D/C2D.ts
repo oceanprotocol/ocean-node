@@ -43,7 +43,7 @@ export interface ComputeEnvironmentBaseConfig {
   // cpuNumber: number
   // ramGB: number
   // diskGB: number
-  desc: string // v1
+  description: string // v1
   // maxJobs: number
   storageExpiry: number // v1
   maxJobDuration: number // v1 max seconds for a job
@@ -64,6 +64,7 @@ export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
   // cpuType?: string
   // gpuNumber?: number
   // gpuType?: string
+  chainId?: number // it can be useful to keep the chain id (optional)
   currentJobs: number
   consumerAddress: string // v1
   // lastSeen?: number

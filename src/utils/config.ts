@@ -401,7 +401,7 @@ function getDockerFreeComputeOptions(
     totalCpu: os.cpus().length,
     maxRam: 1, // 1GB
     maxDisk: 1, // 1GB
-    desc: 'Free',
+    description: 'Free',
     currentJobs: 0,
     // maxJobs: 1,
     consumerAddress: '',

@@ -66,6 +66,7 @@ import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import {
   checkC2DEnvExists,
+  convertLegacyComputeEnvironment,
   isLegacyComputeEnvironment
 } from '../../components/c2d/index.js'
 import {
@@ -270,48 +271,7 @@ describe('Compute', () => {
       )
 
       assert(computeEnvironment.id.startsWith('0x'), 'id should start with 0x')
-      // TODO check legacy format / convert?
-      /* {
-        id: '0xcf9d92400c252de9977dc655469bb92993950035bcd28b43f025d9dd987f31c5-ocean-compute-env2',
-        cpuNumber: 1,
-        cpuType: '',
-        gpuNumber: 0,
-        gpuType: '',
-        ramGB: 1,
-        diskGB: 1,
-        priceMin: '1.2',
-        desc: '',
-        currentJobs: 0,
-        maxJobs: 10,
-        consumerAddress: '0x1E40c0231516C61D2C8F3794626B37c3eBdc7c8F',
-        storageExpiry: 0,
-        maxJobDuration: 60,
-        lastSeen: '1736956783.77262',
-        free: false,
-        feeToken: '0x2473f4F7bf40ed9310838edFCA6262C17A59DF64'
-      }
-        VS
-      {
-        id: '0x46f61c90309fcffa02e887e1a8a1ebdfeabe4f1ff279e306de2803df36bd46f7-free',
-        maxCpu: 1,
-        totalRam: 18003192286971690000,
-        totalCpu: 4,
-        maxRam: 1,
-        maxDisk: 1,
-        desc: 'Free',
-        currentJobs: 0,
-        consumerAddress: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260',
-        storageExpiry: 600,
-        maxJobDuration: 600,
-        fees: {
-          '8996': {
-            feeToken: '0x0000000000000000000000000000000000000000',
-            prices: [Array]
-          }
-        },
-        free: true,
-        platform: [ { architecture: 'x86_64', os: 'linux' } ]
-      }   */
+      // cehcks both older and newer versions of ComputeEnvironment structure
       // new structure
       if (!isLegacyComputeEnvironment(computeEnvironment)) {
         assert(computeEnvironment.totalCpu > 0, 'totalCpu missing in computeEnvironments')
@@ -331,6 +291,21 @@ describe('Compute', () => {
         assert(computeEnvironment.ramGB > 0, 'ramGB missing in computeEnvironments')
         assert(computeEnvironment.diskGB > 0, 'diskGB missing in computeEnvironments')
         assert(computeEnvironment.maxJobs > 0, 'maxJobs missing in computeEnvironments')
+        // do the conversion and test it again
+        const legacyEnvConverted: ComputeEnvironment =
+          await convertLegacyComputeEnvironment(computeEnvironment)
+        assert(
+          legacyEnvConverted.totalCpu > 0,
+          'totalCpu missing in computeEnvironments (converted environment)'
+        )
+        assert(
+          legacyEnvConverted.totalRam > 0,
+          'totalRam missing in computeEnvironments (converted environment)'
+        )
+        assert(
+          legacyEnvConverted.maxDisk > 0,
+          'maxDisk missing in computeEnvironments (converted environment)'
+        )
       }
       assert(
         computeEnvironment.maxJobDuration > 0,

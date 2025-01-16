@@ -3,6 +3,7 @@ import { getConfiguration } from '../../utils/config.js'
 import { ComputeGetEnvironmentsHandler } from '../core/compute/index.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import {
+  convertGigabytesToBytes,
   deleteKeysFromObject,
   isDefined,
   sanitizeServiceFiles,
@@ -12,8 +13,14 @@ import { Readable } from 'stream'
 import { decrypt } from '../../utils/crypt.js'
 import { BaseFileObject, EncryptMethod } from '../../@types/fileObject.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
-import { ComputeJob, DBComputeJob } from '../../@types/index.js'
-
+import {
+  ComputeEnvironment,
+  ComputeJob,
+  ComputeResourcesPricingInfo,
+  DBComputeJob
+} from '../../@types/index.js'
+import os from 'os'
+import { getProviderFeeToken } from '../core/utils/feesHandler.js'
 export { C2DEngine } from './compute_engine_base.js'
 
 export async function checkC2DEnvExists(
@@ -90,4 +97,55 @@ export function isLegacyComputeEnvironment(environment: any): boolean {
       isDefined(environment.diskGB) ||
       isDefined(environment.ramGB))
   )
+}
+
+/**
+ * Converts a lecagy structute of ComputeEnvironment to the new structure representation
+ * @param environment old environment structure
+ * @returns new structure representation
+ */
+export async function convertLegacyComputeEnvironment(
+  environment: any
+): Promise<ComputeEnvironment> {
+  // just check a few know 'old' props to see if they are present
+  if (!isLegacyComputeEnvironment(environment)) return environment
+
+  const prices: ComputeResourcesPricingInfo[] = [
+    { type: 'cpu', price: environment.priceMin || 0 },
+    { type: 'memory', price: environment.priceMin || 0 },
+    { type: 'storage', price: environment.priceMin || 0 }
+  ]
+
+  const newFormat: ComputeEnvironment = {
+    maxCpu: environment.cpuNumber || 1,
+    totalRam: convertGigabytesToBytes(os.totalmem()),
+    totalCpu: os.cpus().length,
+    maxDisk: environment.diskGB || 1,
+    maxRam: environment.ramGB || 1,
+    free: environment.free,
+    consumerAddress: environment.consumerAddress,
+    storageExpiry: environment.storageExpiry,
+    currentJobs: environment.currentJobs,
+    id: environment.id,
+    description: environment.desc,
+    maxJobDuration: environment.maxJobDuration,
+    fees: {}
+  }
+  if (environment.feeToken && environment.chainId) {
+    newFormat.fees[String(environment.chainId)] = {
+      feeToken: environment.feeToken,
+      // lets use the same for all as default values
+      prices
+    }
+  } else if (environment.chainId && !environment.feeToken) {
+    // the opposite case
+    newFormat.fees[String(environment.chainId)] = {
+      feeToken: await getProviderFeeToken(environment.chainId),
+      // lets use the same for all as default values
+      prices
+    }
+  }
+  // also copy the chain id if present
+  newFormat.chainId = environment.chainId
+  return newFormat
 }
