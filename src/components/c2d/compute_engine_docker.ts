@@ -419,6 +419,52 @@ export class C2DEngineDocker extends C2DEngine {
     this.setNewTimer()
   }
 
+  private async createDockerContainer(
+    containerInfo: ContainerCreateOptions,
+    retry: boolean = false
+  ): Promise<Dockerode.Container> | null {
+    try {
+      const container = await this.docker.createContainer(containerInfo)
+      console.log('container: ', container)
+      return container
+    } catch (e) {
+      CORE_LOGGER.error(`Unable to create docker container: ${e.message}`)
+      if (
+        e.message
+          .toLowerCase()
+          .includes('--storage-opt is supported only for overlay over xfs') &&
+        retry
+      ) {
+        delete containerInfo.HostConfig.StorageOpt
+        CORE_LOGGER.info('Retrying again without HostConfig.StorageOpt options...')
+        // Retry without that option because it does not work
+        return this.createDockerContainer(containerInfo)
+      }
+      return null
+    }
+  }
+
+  private async createDockerVolume(
+    volume: VolumeCreateOptions,
+    retry: boolean = false
+  ): Promise<boolean> {
+    try {
+      await this.docker.createVolume(volume)
+      return true
+    } catch (e) {
+      CORE_LOGGER.error(`Unable to create docker volume: ${e.message}`)
+      if (
+        e.message.toLowerCase().includes('quota size requested but no quota support') &&
+        retry
+      ) {
+        delete volume.DriverOpts
+        CORE_LOGGER.info('Retrying again without DriverOpts options...')
+        return this.createDockerVolume(volume)
+      }
+      return false
+    }
+  }
+
   // eslint-disable-next-line require-await
   private async processJob(job: DBComputeJob) {
     console.log(`Process job started: [STATUS: ${job.status}: ${job.statusText}]`)
@@ -490,7 +536,7 @@ export class C2DEngineDocker extends C2DEngine {
         // now we can move forward
       } catch (e) {
         // not ready yet
-        console.log('ERROR: Unable to inspect', e.message)
+        CORE_LOGGER.error(`Unable to inspect docker image: ${e.message}`)
       }
       return
     }
@@ -509,14 +555,15 @@ export class C2DEngineDocker extends C2DEngine {
           size: environment.maxDisk > 0 ? `${environment.maxDisk}G` : '1G'
         }
       }
-      try {
-        await this.docker.createVolume(volume)
-      } catch (e) {
+
+      const volumeCreated = await this.createDockerVolume(volume, true)
+      if (!volumeCreated) {
         job.status = C2DStatusNumber.VolumeCreationFailed
         job.statusText = C2DStatusText.VolumeCreationFailed
         job.isRunning = false
         await this.db.updateJob(job)
         await this.cleanupJob(job)
+        return
       }
 
       // create the container
@@ -563,18 +610,19 @@ export class C2DEngineDocker extends C2DEngine {
         containerInfo.Entrypoint = newEntrypoint.split(' ')
       }
 
-      try {
-        const container = await this.docker.createContainer(containerInfo)
+      const container = await this.createDockerContainer(containerInfo, true)
+      if (container) {
         console.log('container: ', container)
         job.status = C2DStatusNumber.Provisioning
         job.statusText = C2DStatusText.Provisioning
         await this.db.updateJob(job)
-      } catch (e) {
+      } else {
         job.status = C2DStatusNumber.ContainerCreationFailed
         job.statusText = C2DStatusText.ContainerCreationFailed
         job.isRunning = false
         await this.db.updateJob(job)
         await this.cleanupJob(job)
+        return
       }
       return
     }
