@@ -13,7 +13,7 @@ import {
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-// import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
+import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
@@ -40,7 +40,7 @@ import { getConfiguration } from '../../utils/config.js'
 import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 
-describe('Publish pricing scehmas and assert ddo stats', () => {
+describe('Publish pricing scehmas and assert ddo stats - FRE', () => {
   let database: Database
   let oceanNode: OceanNode
   let provider: JsonRpcProvider
@@ -228,51 +228,103 @@ describe('Publish pricing scehmas and assert ddo stats', () => {
     console.log(`resolvedDDO: ${resolvedDDO}`)
   })
 
-  // it('should attach a dispenser', async () => {
-  //   const tx = await datatokenContract.createDispenser(
-  //     artifactsAddresses.Dispenser,
-  //     ethers.parseUnits('1', 'ether'),
-  //     ethers.parseUnits('1', 'ether'),
-  //     true,
-  //     ZeroAddress
-  //   )
-  //   assert(tx, 'Cannot create dispenser')
-  //   const txReceipt = await tx.wait()
-  //   const dispenserEvent = getEventFromTx(txReceipt, 'DispenserCreated')
-  //   assert(
-  //     dispenserEvent.args[0] === datatokenAddress,
-  //     'Datatoken addresses do not match for dispenser event'
-  //   )
-  //   const dispenserContract = new ethers.Contract(
-  //     artifactsAddresses.Dispenser,
-  //     Dispenser.abi,
-  //     publisherAccount
-  //   )
-  //   const activationTx = await dispenserContract.activate(
-  //     datatokenAddress,
-  //     ethers.parseUnits('1', 'ether'),
-  //     ethers.parseUnits('1', 'ether')
-  //   )
-  //   assert(tx, 'Cannot activate dispenser')
-  //   const activationReceipt = await activationTx.wait()
-  //   const activationEvent = getEventFromTx(activationReceipt, 'DispenserActivated')
-  //   assert(
-  //     activationEvent.args[0] === datatokenAddress,
-  //     'Datatoken addresses do not match for dispenser event'
-  //   )
-  //   assert(
-  //     (await dispenserContract.status(datatokenAddress))[0] === true,
-  //     'dispenser not active'
-  //   )
-  //   const { ddo } = await waitToIndex(
-  //     assetDID,
-  //     EVENTS.DISPENSER_ACTIVATED,
-  //     DEFAULT_TEST_TIMEOUT,
-  //     true
-  //   )
-  //   console.log(`JSON stringified ddo w dispenser: ${JSON.stringify(ddo)}`)
-  //   assert(ddo.indexedMetadata.stats)
-  // })
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
+    indexer.stopAllThreads()
+  })
+})
+
+describe('Publish pricing scehmas and assert ddo stats - Dispenser', () => {
+  let database: Database
+  let oceanNode: OceanNode
+  let provider: JsonRpcProvider
+  let datatokenContract: Contract
+  let publisherAccount: Signer
+  let datatokenAddress: string
+  let assetDID: string
+  let indexer: OceanIndexer
+  let artifactsAddresses: any
+  const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+  let previousConfiguration: OverrideEnvConfig[]
+
+  before(async () => {
+    previousConfiguration = await setupEnvironment(
+      null,
+      buildEnvOverrideConfig(
+        [
+          ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
+          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE
+        ],
+        [
+          JSON.stringify(mockSupportedNetworks),
+          JSON.stringify([8996]),
+          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
+        ]
+      )
+    )
+
+    const config = await getConfiguration(true)
+    database = await new Database(config.dbConfig)
+    oceanNode = await OceanNode.getInstance()
+    indexer = new OceanIndexer(database, mockSupportedNetworks)
+    oceanNode.addIndexer(indexer)
+    artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+    if (!artifactsAddresses) {
+      artifactsAddresses = getOceanArtifactsAdresses().development
+    }
+
+    provider = new JsonRpcProvider('http://127.0.0.1:8545')
+    publisherAccount = (await provider.getSigner(0)) as Signer
+  })
+
+  it('should attach a dispenser', async () => {
+    const tx = await datatokenContract.createDispenser(
+      artifactsAddresses.Dispenser,
+      ethers.parseUnits('1', 'ether'),
+      ethers.parseUnits('1', 'ether'),
+      true,
+      ZeroAddress
+    )
+    assert(tx, 'Cannot create dispenser')
+    const txReceipt = await tx.wait()
+    const dispenserEvent = getEventFromTx(txReceipt, 'DispenserCreated')
+    assert(
+      dispenserEvent.args[0] === datatokenAddress,
+      'Datatoken addresses do not match for dispenser event'
+    )
+    const dispenserContract = new ethers.Contract(
+      artifactsAddresses.Dispenser,
+      Dispenser.abi,
+      publisherAccount
+    )
+    const activationTx = await dispenserContract.activate(
+      datatokenAddress,
+      ethers.parseUnits('1', 'ether'),
+      ethers.parseUnits('1', 'ether')
+    )
+    assert(tx, 'Cannot activate dispenser')
+    const activationReceipt = await activationTx.wait()
+    const activationEvent = getEventFromTx(activationReceipt, 'DispenserActivated')
+    assert(
+      activationEvent.args[0] === datatokenAddress,
+      'Datatoken addresses do not match for dispenser event'
+    )
+    assert(
+      (await dispenserContract.status(datatokenAddress))[0] === true,
+      'dispenser not active'
+    )
+    const { ddo } = await waitToIndex(
+      assetDID,
+      EVENTS.DISPENSER_ACTIVATED,
+      DEFAULT_TEST_TIMEOUT,
+      true
+    )
+    console.log(`JSON stringified ddo w dispenser: ${JSON.stringify(ddo)}`)
+    assert(ddo.indexedMetadata.stats)
+  })
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
