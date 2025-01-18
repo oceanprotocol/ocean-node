@@ -1113,6 +1113,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
       `decodedEventData exchangeId: ${decodedEventData.args[0].toString()}`
     )
     const exchangeId = decodedEventData.args[0].toString()
+    INDEXER_LOGGER.logMessage(`exchangeId: ${exchangeId}`)
     const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
     INDEXER_LOGGER.logMessage(`freContract: ${freContract}`)
     const exchange = await freContract.getExchange(exchangeId)
@@ -1202,12 +1203,7 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
     INDEXER_LOGGER.logMessage(
       `decodedEventData in exchange activated: ${JSON.stringify(decodedEventData)}`
     )
-    INDEXER_LOGGER.logMessage(
-      `receipt: ${JSON.stringify(
-        await provider.getTransactionReceipt(event.transactionHash)
-      )} `
-    )
-    const exchangeId = ethers.toUtf8Bytes(decodedEventData.args[0].toString())
+    const exchangeId = decodedEventData.args[0].toString()
     const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
     const exchange = await freContract.getExchange(exchangeId)
     const datatokenAddress = exchange[1]
@@ -1291,7 +1287,7 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
       FixedRateExchange.abi,
       EVENTS.EXCHANGE_DEACTIVATED
     )
-    const exchangeId = ethers.toUtf8Bytes(decodedEventData.args[0].toString())
+    const exchangeId = decodedEventData.args[0].toString()
     const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
     const exchange = await freContract.getExchange(exchangeId)
     const datatokenAddress = exchange[1]

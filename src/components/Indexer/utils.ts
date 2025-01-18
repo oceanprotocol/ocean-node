@@ -193,7 +193,6 @@ export const processBlocks = async (
 
 export function findEventByKey(keyToFind: string): NetworkEvent {
   for (const [key, value] of Object.entries(EVENT_HASHES)) {
-    INDEXER_LOGGER.logMessage(`key: ${key}, key to find: ${keyToFind}`)
     if (key === keyToFind) {
       return value
     }
