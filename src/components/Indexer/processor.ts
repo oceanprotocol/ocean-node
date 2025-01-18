@@ -20,7 +20,12 @@ import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispen
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
 
 import { getDatabase } from '../../utils/database.js'
-import { PROTOCOL_COMMANDS, EVENTS, MetadataStates } from '../../utils/constants.js'
+import {
+  PROTOCOL_COMMANDS,
+  EVENTS,
+  MetadataStates,
+  EVENT_HASHES
+} from '../../utils/constants.js'
 import {
   findServiceIdByDatatoken,
   getDtContract,
@@ -78,15 +83,42 @@ class BaseEventProcessor {
   protected async getEventData(
     provider: JsonRpcApiProvider,
     transactionHash: string,
-    abi: any
+    abi: any,
+    eventType: string
   ): Promise<ethers.LogDescription> {
     const iface = new Interface(abi)
     const receipt = await provider.getTransactionReceipt(transactionHash)
     INDEXER_LOGGER.logMessage(`receipt: ${JSON.stringify(receipt.logs)}`)
-    const eventObj = {
-      topics: receipt.logs[0].topics as string[],
-      data: receipt.logs[0].data
+
+    let eventHash: string
+    for (const [key, value] of Object.entries(EVENT_HASHES)) {
+      if (value.type === eventType) {
+        eventHash = key
+        break
+      }
     }
+    if (eventHash === '') {
+      INDEXER_LOGGER.error(`Event hash couldn't be found!`)
+      return null
+    }
+
+    let eventObj: any
+    for (const log of receipt.logs) {
+      if (log.topics[0] === eventHash) {
+        eventObj = {
+          topics: log.topics as string[],
+          data: log.data
+        }
+      }
+    }
+
+    if (!eventObj) {
+      INDEXER_LOGGER.error(
+        `Event object couldn't be retrieved! Event hash not present in logs topics`
+      )
+      return null
+    }
+
     return iface.parseLog(eventObj)
   }
 
@@ -355,7 +387,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       const decodedEventData = await this.getEventData(
         provider,
         event.transactionHash,
-        ERC721Template.abi
+        ERC721Template.abi,
+        EVENTS.METADATA_CREATED
       )
       const metadata = decodedEventData.args[4]
       const metadataHash = decodedEventData.args[5]
@@ -635,7 +668,8 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
-      ERC721Template.abi
+      ERC721Template.abi,
+      EVENTS.METADATA_STATE
     )
     const metadataState = parseInt(decodedEventData.args[1].toString())
     INDEXER_LOGGER.logMessage(`Processed new metadata state ${metadataState} `, true)
@@ -715,7 +749,8 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
-      ERC20Template.abi
+      ERC20Template.abi,
+      EVENTS.ORDER_STARTED
     )
     const serviceIndex = parseInt(decodedEventData.args[3].toString())
     const timestamp = parseInt(decodedEventData.args[4].toString())
@@ -800,7 +835,8 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
-      ERC20Template.abi
+      ERC20Template.abi,
+      EVENTS.ORDER_REUSED
     )
     const startOrderId = decodedEventData.args[0].toString()
     const timestamp = parseInt(decodedEventData.args[2].toString())
@@ -901,7 +937,8 @@ export class DispenserActivatedEventProcessor extends BaseEventProcessor {
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
-      Dispenser.abi
+      Dispenser.abi,
+      EVENTS.DISPENSER_ACTIVATED
     )
     const datatokenAddress = decodedEventData.args[0].toString()
     const datatokenContract = getDtContract(signer, datatokenAddress)
@@ -981,7 +1018,8 @@ export class DispenserDeactivatedEventProcessor extends BaseEventProcessor {
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
-      Dispenser.abi
+      Dispenser.abi,
+      EVENTS.DISPENSER_DEACTIVATED
     )
     const datatokenAddress = decodedEventData.args[0].toString()
     const datatokenContract = getDtContract(signer, datatokenAddress)
@@ -1066,7 +1104,8 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
-      FixedRateExchange.abi
+      FixedRateExchange.abi,
+      EVENTS.EXCHANGE_CREATED
     )
     INDEXER_LOGGER.logMessage(`event: ${JSON.stringify(event)}`)
     INDEXER_LOGGER.logMessage(
@@ -1153,7 +1192,8 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
-      FixedRateExchange.abi
+      FixedRateExchange.abi,
+      EVENTS.EXCHANGE_ACTIVATED
     )
     INDEXER_LOGGER.logMessage(`event: ${JSON.stringify(event)}`)
     INDEXER_LOGGER.logMessage(
@@ -1245,7 +1285,8 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
-      FixedRateExchange.abi
+      FixedRateExchange.abi,
+      EVENTS.EXCHANGE_DEACTIVATED
     )
     const exchangeId = ethers.toUtf8Bytes(decodedEventData.args[0].toString())
     const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
@@ -1331,7 +1372,8 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
-      FixedRateExchange.abi
+      FixedRateExchange.abi,
+      EVENTS.EXCHANGE_RATE_CHANGED
     )
     const exchangeId = ethers.toUtf8Bytes(decodedEventData.args[0].toString())
     const newRate = decodedEventData.args[2].toString()
