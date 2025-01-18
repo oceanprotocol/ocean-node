@@ -193,6 +193,7 @@ export const processBlocks = async (
 
 export function findEventByKey(keyToFind: string): NetworkEvent {
   for (const [key, value] of Object.entries(EVENT_HASHES)) {
+    INDEXER_LOGGER.logMessage(`key: ${key}, key to find: ${keyToFind}`)
     if (key === keyToFind) {
       return value
     }
@@ -211,6 +212,7 @@ export const processChunkLogs = async (
     const allowedValidators = getAllowedValidators()
     const checkMetadataValidated = allowedValidators.length > 0
     for (const log of logs) {
+      INDEXER_LOGGER.logMessage(`log: ${log.topics}`)
       const event = findEventByKey(log.topics[0])
 
       if (event && Object.values(EVENTS).includes(event.type)) {

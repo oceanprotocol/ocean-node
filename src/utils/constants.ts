@@ -125,7 +125,7 @@ export const EVENT_HASHES: Hashes = {
     type: EVENTS.TOKEN_URI_UPDATE,
     text: 'TokenURIUpdate(address,string,uint256,uint256,uint256)'
   },
-  '0x117c72e6c25f0a072e36e148df71468ce2f3dbe7defec5b2c257a6e3eb65278c': {
+  '0xeb7a353641f7d3cc54b497ef1553fdc292b64d9cc3be8587c23dfba01f310b19': {
     type: EVENTS.EXCHANGE_CREATED,
     text: 'ExchangeCreated(bytes32,address,address,address,uint256)'
   },
