@@ -7,8 +7,7 @@ import {
   getBytes,
   hexlify,
   toUtf8Bytes,
-  toUtf8String,
-  AbiCoder
+  toUtf8String
 } from 'ethers'
 import { createHash } from 'crypto'
 import { Readable } from 'node:stream'
@@ -83,16 +82,11 @@ class BaseEventProcessor {
   ): Promise<ethers.LogDescription> {
     const iface = new Interface(abi)
     const receipt = await provider.getTransactionReceipt(transactionHash)
+    INDEXER_LOGGER.logMessage(`receipt: ${JSON.stringify(receipt.logs)}`)
     const eventObj = {
       topics: receipt.logs[0].topics as string[],
       data: receipt.logs[0].data
     }
-    INDEXER_LOGGER.logMessage(
-      `data decoded: ${AbiCoder.defaultAbiCoder().decode(
-        ['address', 'uint256'],
-        eventObj.data
-      )}`
-    )
     return iface.parseLog(eventObj)
   }
 

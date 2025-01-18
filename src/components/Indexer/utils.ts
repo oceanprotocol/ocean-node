@@ -212,7 +212,6 @@ export const processChunkLogs = async (
     const allowedValidators = getAllowedValidators()
     const checkMetadataValidated = allowedValidators.length > 0
     for (const log of logs) {
-      INDEXER_LOGGER.logMessage(`log: ${log.topics}`)
       const event = findEventByKey(log.topics[0])
 
       if (event && Object.values(EVENTS).includes(event.type)) {
@@ -275,6 +274,7 @@ export const processChunkLogs = async (
           storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
         } else if (event.type === EVENTS.EXCHANGE_CREATED) {
           const processor = getExchangeCreatedEventProcessor(chainId)
+          INDEXER_LOGGER.logMessage(`log for exchange created: ${JSON.stringify(log)}`)
           storeEvents[event.type] = await processor.processEvent(
             log,
             chainId,
