@@ -1119,11 +1119,11 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
           }
         }
       } else {
-        INDEXER_LOGGER.logMessage(`[ExchangeActivated] - No stats were found on the ddo`)
+        INDEXER_LOGGER.logMessage(`[ExchangeCreated] - No stats were found on the ddo`)
         const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
         if (serviceIdToFind === '') {
           INDEXER_LOGGER.logMessage(
-            `[ExchangeActivated] - This datatoken does not contain this service. Invalid service id!`
+            `[ExchangeCreated] - This datatoken does not contain this service. Invalid service id!`
           )
           return
         }
