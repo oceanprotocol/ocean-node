@@ -24,18 +24,27 @@ import { tcp } from '@libp2p/tcp'
 import { webSockets } from '@libp2p/websockets'
 import { circuitRelayTransport, circuitRelayServer } from '@libp2p/circuit-relay-v2'
 import { createLibp2p, Libp2p } from 'libp2p'
-import { identify } from '@libp2p/identify'
+import { identify, identifyPush } from '@libp2p/identify'
 import { autoNAT } from '@libp2p/autonat'
 import { uPnPNAT } from '@libp2p/upnp-nat'
 import { ping } from '@libp2p/ping'
 import { dcutr } from '@libp2p/dcutr'
-import { kadDHT, passthroughMapper } from '@libp2p/kad-dht'
+import {
+  kadDHT,
+  passthroughMapper,
+  removePrivateAddressesMapper,
+  removePublicAddressesMapper
+} from '@libp2p/kad-dht'
 // import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 
 import { EVENTS, cidFromRawString } from '../../utils/index.js'
 import { Transform } from 'stream'
 import { Database } from '../database'
-import { OceanNodeConfig, FindDDOResponse } from '../../@types/OceanNode'
+import {
+  OceanNodeConfig,
+  FindDDOResponse,
+  dhtFilterMethod
+} from '../../@types/OceanNode.js'
 // eslint-disable-next-line camelcase
 import is_ip_private from 'private-ip'
 import ip from 'ip'
@@ -43,7 +52,7 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { INDEXER_DDO_EVENT_EMITTER } from '../Indexer/index.js'
 import { P2P_LOGGER } from '../../utils/logging/common.js'
 import { CoreHandlersRegistry } from '../core/handler/coreHandlersRegistry'
-import { type Multiaddr, multiaddr } from '@multiformats/multiaddr'
+import { Multiaddr, multiaddr } from '@multiformats/multiaddr'
 // import { getIPv4, getIPv6 } from '../../utils/ip.js'
 
 const DEFAULT_OPTIONS = {
@@ -161,18 +170,10 @@ export class OceanP2P extends EventEmitter {
     P2P_LOGGER.debug('Connection closed to:' + peerId.toString()) // Emitted when a peer has been found
   }
 
-  async handlePeerDiscovery(details: any) {
+  handlePeerDiscovery(details: any) {
     try {
       const peerInfo = details.detail
-      // P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
-      if (peerInfo.multiaddrs) {
-        await this._libp2p.peerStore.save(peerInfo.id, {
-          multiaddrs: peerInfo.multiaddrs
-        })
-        await this._libp2p.peerStore.patch(peerInfo.id, {
-          multiaddrs: peerInfo.multiaddrs
-        })
-      }
+      P2P_LOGGER.debug('Discovered new peer:' + peerInfo.id.toString())
     } catch (e) {
       // no panic if it failed
       // console.error(e)
@@ -283,8 +284,23 @@ export class OceanP2P extends EventEmitter {
             multiaddrs.filter((m) => this.shouldAnnounce(m))
         }
       }
+      const dhtOptions = {
+        allowQueryWithZeroPeers: false,
+        maxInboundStreams: config.p2pConfig.dhtMaxInboundStreams,
+        maxOutboundStreams: config.p2pConfig.dhtMaxOutboundStreams,
+        clientMode: false, // always be a server
+        kBucketSize: 20,
+        protocol: '/ocean/nodes/1.0.0/kad/1.0.0',
+        peerInfoMapper: passthroughMapper // see below
+      }
+      if (config.p2pConfig.dhtFilter === dhtFilterMethod.filterPrivate)
+        dhtOptions.peerInfoMapper = removePrivateAddressesMapper
+      if (config.p2pConfig.dhtFilter === dhtFilterMethod.filterPublic)
+        dhtOptions.peerInfoMapper = removePublicAddressesMapper
       let servicesConfig = {
         identify: identify(),
+        dht: kadDHT(dhtOptions),
+        identifyPush: identifyPush(),
         /*
         pubsub: gossipsub({
           fallbackToFloodsub: false,
@@ -299,27 +315,10 @@ export class OceanP2P extends EventEmitter {
           // enabled: true
           allowedTopics: ['oceanprotocol._peer-discovery._p2p._pubsub', 'oceanprotocol']
         }), */
-        dht: kadDHT({
-          // this is necessary because this node is not connected to the public network
-          // it can be removed if, for example bootstrappers are configured
-          allowQueryWithZeroPeers: true,
-          maxInboundStreams: config.p2pConfig.dhtMaxInboundStreams,
-          maxOutboundStreams: config.p2pConfig.dhtMaxOutboundStreams,
-
-          clientMode: false,
-          kBucketSize: 20,
-          protocol: '/ocean/nodes/1.0.0/kad/1.0.0',
-          peerInfoMapper: passthroughMapper
-          // protocolPrefix: '/ocean/nodes/1.0.0'
-          // randomWalk: {
-          //  enabled: true,            // Allows to disable discovery (enabled by default)
-          //  interval: 300e3,
-          //  timeout: 10e3
-          // }
-        }),
         ping: ping(),
         dcutr: dcutr()
       }
+
       // eslint-disable-next-line no-constant-condition, no-self-compare
       if (config.p2pConfig.enableCircuitRelayServer) {
         P2P_LOGGER.info('Enabling Circuit Relay Server')
@@ -427,13 +426,6 @@ export class OceanP2P extends EventEmitter {
         this._upnp_interval = setInterval(this.UPnpCron.bind(this), 3000)
       }
 
-      if (config.p2pConfig.enableDHTServer) {
-        try {
-          await node.services.dht.setMode('server')
-        } catch (e) {
-          P2P_LOGGER.warn(`Failed to set mode server for DHT`)
-        }
-      }
       return node
     } catch (e) {
       P2P_LOGGER.logMessageWithEmoji(
@@ -605,10 +597,27 @@ export class OceanP2P extends EventEmitter {
     return finalmultiaddrs
   }
 
+  async findPeerInDht(peerName: string, timeout?: number) {
+    try {
+      const peer = peerIdFromString(peerName)
+      const data = await this._libp2p.peerRouting.findPeer(peer, {
+        signal:
+          isNaN(timeout) || timeout === 0
+            ? AbortSignal.timeout(5000)
+            : AbortSignal.timeout(timeout),
+        useCache: true,
+        useNetwork: true
+      })
+      return data
+    } catch (e) {}
+    return null
+  }
+
   async sendTo(
     peerName: string,
     message: string,
-    sink: any
+    sink: any,
+    multiAddrs?: string[]
   ): Promise<P2PCommandResponse> {
     P2P_LOGGER.logMessage('SendTo() node ' + peerName + ' task: ' + message, true)
 
@@ -630,7 +639,17 @@ export class OceanP2P extends EventEmitter {
       response.status.error = 'Invalid peer'
       return response
     }
-    const multiaddrs: Multiaddr[] = await this.getPeerMultiaddrs(peerName)
+    let multiaddrs: Multiaddr[] = []
+
+    if (!multiAddrs || multiAddrs.length < 1) {
+      // if they are no forced multiaddrs, try to find node multiaddr from peerStore/dht
+      multiaddrs = await this.getPeerMultiaddrs(peerName)
+    } else {
+      // just used what we were instructed to use
+      for (const addr of multiAddrs) {
+        multiaddrs.push(new Multiaddr(addr))
+      }
+    }
     if (multiaddrs.length < 1) {
       response.status.httpStatus = 404
       response.status.error = `Cannot find any address to dial for peer: ${peerId}`
