@@ -7,7 +7,8 @@ import {
   getBytes,
   hexlify,
   toUtf8Bytes,
-  toUtf8String
+  toUtf8String,
+  AbiCoder
 } from 'ethers'
 import { createHash } from 'crypto'
 import { Readable } from 'node:stream'
@@ -86,8 +87,12 @@ class BaseEventProcessor {
       topics: receipt.logs[0].topics as string[],
       data: receipt.logs[0].data
     }
-    INDEXER_LOGGER.logMessage(`eventObj: ${JSON.stringify(eventObj)}`)
-    INDEXER_LOGGER.logMessage(`parse log: ${iface.parseLog(eventObj)}`)
+    INDEXER_LOGGER.logMessage(
+      `data decoded: ${AbiCoder.defaultAbiCoder().decode(
+        ['address', 'uint256'],
+        eventObj.data
+      )}`
+    )
     return iface.parseLog(eventObj)
   }
 
