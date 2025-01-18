@@ -86,6 +86,8 @@ class BaseEventProcessor {
       topics: receipt.logs[0].topics as string[],
       data: receipt.logs[0].data
     }
+    INDEXER_LOGGER.logMessage(`eventObj: ${JSON.stringify(eventObj)}`)
+    INDEXER_LOGGER.logMessage(`parse log: ${iface.parseLog(eventObj)}`)
     return iface.parseLog(eventObj)
   }
 
@@ -1071,11 +1073,6 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
     INDEXER_LOGGER.logMessage(
       `decodedEventData in exchange created: ${JSON.stringify(decodedEventData)}`
     )
-    INDEXER_LOGGER.logMessage(
-      `receipt: ${JSON.stringify(
-        await provider.getTransactionReceipt(event.transactionHash)
-      )} `
-    )
     const exchangeId = ethers.toUtf8Bytes(decodedEventData.args[0].toString())
     const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
     const exchange = await freContract.getExchange(exchangeId)
@@ -1092,7 +1089,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
       const ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
         INDEXER_LOGGER.logMessage(
-          `Detected ExchangeActivated changed for ${did}, but it does not exists.`
+          `Detected ExchangeCreated changed for ${did}, but it does not exists.`
         )
         return
       }
