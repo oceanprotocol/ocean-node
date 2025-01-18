@@ -106,9 +106,10 @@ class BaseEventProcessor {
     for (const log of receipt.logs) {
       if (log.topics[0] === eventHash) {
         eventObj = {
-          topics: log.topics as string[],
+          topics: log.topics,
           data: log.data
         }
+        break
       }
     }
 
@@ -1109,7 +1110,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
     )
     INDEXER_LOGGER.logMessage(`event: ${JSON.stringify(event)}`)
     INDEXER_LOGGER.logMessage(
-      `decodedEventData in exchange created: ${JSON.stringify(decodedEventData)}`
+      `decodedEventData exchangeId: ${decodedEventData.args[0].toString()}`
     )
     const exchangeId = ethers.toUtf8Bytes(decodedEventData.args[0].toString())
     const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
