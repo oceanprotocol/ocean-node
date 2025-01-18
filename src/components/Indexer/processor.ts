@@ -1065,7 +1065,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
-      ERC20Template.abi
+      FixedRateExchange.abi
     )
     INDEXER_LOGGER.logMessage(`event: ${JSON.stringify(event)}`)
     INDEXER_LOGGER.logMessage(
@@ -1117,7 +1117,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
               exchangeId
             })
             break
-          } else if (doesDispenserAlreadyExist(event.address, stat.prices)[0]) {
+          } else if (doesFreAlreadyExist(event.address, stat.prices)[0]) {
             break
           }
         }
@@ -1209,7 +1209,7 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
               exchangeId
             })
             break
-          } else if (doesDispenserAlreadyExist(event.address, stat.prices)[0]) {
+          } else if (doesFreAlreadyExist(event.address, stat.prices)[0]) {
             break
           }
         }

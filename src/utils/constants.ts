@@ -76,7 +76,7 @@ export const EVENTS = {
   ORDER_STARTED: 'OrderStarted',
   ORDER_REUSED: 'OrderReused',
   TOKEN_URI_UPDATE: 'TokenURIUpdate',
-  EXCHANGE_CREATED: 'NewFixedRate',
+  EXCHANGE_CREATED: 'ExchangeCreated',
   EXCHANGE_RATE_CHANGED: 'ExchangeRateChanged',
   DISPENSER_CREATED: 'DispenserCreated',
   DISPENSER_ACTIVATED: 'DispenserActivated',
@@ -125,9 +125,9 @@ export const EVENT_HASHES: Hashes = {
     type: EVENTS.TOKEN_URI_UPDATE,
     text: 'TokenURIUpdate(address,string,uint256,uint256,uint256)'
   },
-  '0xb3fac3ae95956dbac74e63ba8dac94081832395c8788e3049c900a7732f34805': {
+  '0xeb7a353641f7d3cc54b497ef1553fdc292b64d9cc3be8587c23dfba01f310b19': {
     type: EVENTS.EXCHANGE_CREATED,
-    text: 'NewFixedRate(bytes32,address,address,address)'
+    text: 'ExchangeCreated(bytes32,address,address,address,uint256)'
   },
   '0xe50f9919fdc524004a4ee0cb934f4734f144bec0713a52e5483b753f5de0f08c': {
     type: EVENTS.EXCHANGE_RATE_CHANGED,
