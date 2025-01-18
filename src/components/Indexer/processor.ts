@@ -1112,9 +1112,11 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
     INDEXER_LOGGER.logMessage(
       `decodedEventData exchangeId: ${decodedEventData.args[0].toString()}`
     )
-    const exchangeId = ethers.toUtf8Bytes(decodedEventData.args[0].toString())
+    const exchangeId = decodedEventData.args[0].toString()
     const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
+    INDEXER_LOGGER.logMessage(`freContract: ${freContract}`)
     const exchange = await freContract.getExchange(exchangeId)
+    INDEXER_LOGGER.logMessage(`exchange: ${exchange}`)
     const datatokenAddress = exchange[1]
     const datatokenContract = getDtContract(signer, datatokenAddress)
     const nftAddress = await datatokenContract.getERC721Address()
