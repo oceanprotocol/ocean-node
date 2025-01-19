@@ -2,6 +2,7 @@ import {
   Interface,
   JsonRpcApiProvider,
   Signer,
+  ZeroAddress,
   ethers,
   getAddress,
   getBytes,
@@ -66,11 +67,20 @@ class BaseEventProcessor {
         ERC20Template.abi,
         signer
       )
-
-      const name = await datatoken.name()
-      INDEXER_LOGGER.logMessage(`name.datatoken: ${name}`)
-      const symbol = await datatoken.symbol()
-      INDEXER_LOGGER.logMessage(`symbol.datatoken: ${symbol}`)
+      let name: string
+      let symbol: string
+      if (
+        service.datatokenAddress === '0x0' ||
+        service.datatokenAddress === ZeroAddress
+      ) {
+        name = `Datatoken${services.indexOf(service)}`
+        symbol = `DT${services.indexOf(service)}`
+      } else {
+        name = await datatoken.name()
+        INDEXER_LOGGER.logMessage(`name.datatoken: ${name}`)
+        symbol = await datatoken.symbol()
+        INDEXER_LOGGER.logMessage(`symbol.datatoken: ${symbol}`)
+      }
 
       datatokens.push({
         address: service.datatokenAddress,
