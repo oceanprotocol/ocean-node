@@ -529,7 +529,6 @@ export async function getPricesByDt(
 }
 
 export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<any> {
-  INDEXER_LOGGER.logMessage(`ddo entered in function: ${JSON.stringify(ddo)}`)
   if (!ddo.indexedMetadata) {
     ddo.indexedMetadata = {}
   }
@@ -543,7 +542,6 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
       ERC20Template.abi,
       signer
     )
-    INDEXER_LOGGER.logMessage(`datatoken: ${datatoken}`)
     let dispensers = []
     let fixedRates = []
     const prices = []

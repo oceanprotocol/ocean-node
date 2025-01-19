@@ -57,11 +57,22 @@ class BaseEventProcessor {
     this.networkId = chainId
   }
 
+  protected isValidDtAddressFromServices(services: any[]): boolean {
+    for (const service of services) {
+      if (
+        service.datatokenAddress === '0x0' ||
+        service.datatokenAddress === ZeroAddress
+      ) {
+        return false
+      }
+    }
+    return true
+  }
+
   protected async getTokenInfo(services: any[], signer: Signer): Promise<any[]> {
     const datatokens: any[] = []
 
     for (const service of services) {
-      INDEXER_LOGGER.logMessage(`sercive.datatoken: ${service.datatokenAddress}`)
       const datatoken = new ethers.Contract(
         service.datatokenAddress,
         ERC20Template.abi,
@@ -504,7 +515,10 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       const from = decodedEventData.args[0].toString()
 
       // we need to store the event data (either metadata created or update and is updatable)
-      if ([EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED].includes(eventName)) {
+      if (
+        [EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED].includes(eventName) &&
+        this.isValidDtAddressFromServices(ddo.services)
+      ) {
         const ddoWithPricing = await getPricingStatsForDddo(ddo, signer)
         if (
           eventName === EVENTS.METADATA_UPDATED &&

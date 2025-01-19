@@ -168,8 +168,8 @@ describe('Publish pricing scehmas and assert ddo stats - FRE', () => {
     genericAsset.nftAddress = nftAddress
     assetDID = genericAsset.id
     // create proper service.files string
-    genericAsset.services[0].files.datatokenAddress = datatokenAddress
-    genericAsset.services[0].files.nftAddress = nftAddress
+    genericAsset.services[0].datatokenAddress = datatokenAddress
+    genericAsset.nftAddress = nftAddress
     // let's call node to encrypt
 
     const data = Uint8Array.from(
@@ -179,7 +179,6 @@ describe('Publish pricing scehmas and assert ddo stats - FRE', () => {
     const encryptedDataString = encryptedData.toString('hex')
     genericAsset.services[0].files = encryptedDataString
     const stringDDO = JSON.stringify(genericAsset)
-    console.log('stringDDO: ', stringDDO)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
     const hash = createHash('sha256').update(metadata).digest('hex')
