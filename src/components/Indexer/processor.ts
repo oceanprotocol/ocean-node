@@ -60,6 +60,7 @@ class BaseEventProcessor {
     const datatokens: any[] = []
 
     for (const service of services) {
+      INDEXER_LOGGER.logMessage(`sercive.datatoken: ${service.datatokenAddress}`)
       const datatoken = new ethers.Contract(
         service.datatokenAddress,
         ERC20Template.abi,
@@ -67,7 +68,9 @@ class BaseEventProcessor {
       )
 
       const name = await datatoken.name()
+      INDEXER_LOGGER.logMessage(`name.datatoken: ${name}`)
       const symbol = await datatoken.symbol()
+      INDEXER_LOGGER.logMessage(`symbol.datatoken: ${symbol}`)
 
       datatokens.push({
         address: service.datatokenAddress,
@@ -88,7 +91,6 @@ class BaseEventProcessor {
   ): Promise<ethers.LogDescription> {
     const iface = new Interface(abi)
     const receipt = await provider.getTransactionReceipt(transactionHash)
-    INDEXER_LOGGER.logMessage(`receipt: ${JSON.stringify(receipt.logs)}`)
 
     let eventHash: string
     for (const [key, value] of Object.entries(EVENT_HASHES)) {
@@ -406,7 +408,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         metadata
       )
       const clonedDdo = structuredClone(ddo)
+      INDEXER_LOGGER.logMessage(`cloned ddo: ${JSON.stringify(clonedDdo)}`)
       const updatedDdo = deleteIndexedMetadataIfExists(clonedDdo)
+      INDEXER_LOGGER.logMessage(`updated ddo: ${JSON.stringify(updatedDdo)}`)
       if (updatedDdo.id !== makeDid(event.address, chainId.toString(10))) {
         INDEXER_LOGGER.error(
           `Decrypted DDO ID is not matching the generated hash for DID.`
@@ -487,7 +491,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           return
         }
       }
-      const from = decodedEventData.args[0]
+      const from = decodedEventData.args[0].toString()
 
       // we need to store the event data (either metadata created or update and is updatable)
       if ([EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED].includes(eventName)) {
