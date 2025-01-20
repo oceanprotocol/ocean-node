@@ -45,12 +45,6 @@ export function getEventFromTx(txReceipt: { logs: any[] }, eventName: any) {
   })[0]
 }
 
-export function getEventFromTxByHash(txReceipt: { logs: any[] }, eventHash: string) {
-  return txReceipt?.logs?.filter((log) => {
-    return log?.topics[0] === eventHash
-  })[0]
-}
-
 export function fetchEventFromTransaction(
   txReceipt: any,
   eventName: string,

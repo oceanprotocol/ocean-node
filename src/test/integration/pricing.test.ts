@@ -17,7 +17,7 @@ import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispen
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
-import { getEventFromTx, getEventFromTxByHash } from '../../utils/util.js'
+import { getEventFromTx } from '../../utils/util.js'
 import { waitToIndex, expectedTimeoutFailure } from './testUtils.js'
 import { genericDDO } from '../data/ddo.js'
 import {
@@ -273,10 +273,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     assert(tx, 'Cannot create dispenser')
     const txReceipt = await tx.wait()
     console.log('txReceipt for dipenser: ', JSON.stringify(txReceipt))
-    const dispenserEvent = getEventFromTxByHash(
-      txReceipt,
-      '0x7d0aa581e6eb87e15f58588ff20c39ff6622fc796ec9bb664df6ed3eb02442c9' // DispenserCreated
-    )
+    const dispenserEvent = getEventFromTx(txReceipt, 'NewDispenser')
     console.log('dispenserEvent: ', JSON.stringify(dispenserEvent))
     assert(
       dispenserEvent.args[0] === datatokenAddress,
@@ -295,10 +292,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     )
     assert(tx, 'Cannot activate dispenser')
     const activationReceipt = await activationTx.wait()
-    const activationEvent = getEventFromTxByHash(
-      activationReceipt,
-      '0xe9372084cb52c5392afee4b9d79d131e04b1e65676088d50a8f39fffb16a8745' // DispenserActivated
-    )
+    const activationEvent = getEventFromTx(activationReceipt, EVENTS.DISPENSER_ACTIVATED)
     assert(
       activationEvent.args[0] === datatokenAddress,
       'Datatoken addresses do not match for dispenser event'
