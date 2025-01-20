@@ -524,6 +524,11 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           eventName === EVENTS.METADATA_UPDATED &&
           ddoWithPricing.indexedMetadata.stats.length !== 0
         ) {
+          INDEXER_LOGGER.logMessage(
+            `ddoWithPricing.indexedMetadata: ${JSON.stringify(
+              ddoWithPricing.indexedMetadata
+            )}`
+          )
           for (const stat of ddoWithPricing.indexedMetadata.stats) {
             const datatoken = new ethers.Contract(
               stat.datatokenAddress,

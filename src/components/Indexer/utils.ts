@@ -568,6 +568,7 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
     } else {
       if (dispensers) {
         for (const dispenser of dispensers) {
+          INDEXER_LOGGER.logMessage(`dispenser: ${dispenser}`)
           const dispenserContract = new ethers.Contract(dispenser, Dispenser.abi, signer)
           if ((await dispenserContract.status())[0] === true) {
             ddo.indexedMetadata.stats.push({
@@ -588,6 +589,7 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
 
       if (fixedRates) {
         for (const fixedRate of fixedRates) {
+          INDEXER_LOGGER.logMessage(`fixedRate: ${fixedRate}`)
           const fixedRateContract = new ethers.Contract(
             fixedRate.address,
             FixedRateExchange.abi,
