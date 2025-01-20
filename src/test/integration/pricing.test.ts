@@ -270,35 +270,16 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     )
     assert(tx, 'Cannot create dispenser')
     const txReceipt = await tx.wait()
-    console.log('txReceipt for dipenser: ', JSON.stringify(txReceipt))
     const dispenserEvent = getEventFromTx(txReceipt, 'NewDispenser')
-    console.log('dispenserEvent: ', JSON.stringify(dispenserEvent))
     const dispenserAddress = dispenserEvent.topics[0]
     assert(dispenserAddress, 'Dispenser contract not retrieved')
-    // const dispenserContract = new ethers.Contract(
-    //   dispenserAddress.toLowerCase(),
-    //   Dispenser.abi,
-    //   publisherAccount
-    // )
-    // const activationTx = await dispenserContract.activate(
-    //   datatokenAddress.toLowerCase(),
-    //   ethers.parseUnits('1', 'ether'),
-    //   ethers.parseUnits('2', 'ether')
-    // )
-    // assert(tx, 'Cannot activate dispenser')
-    // const activationReceipt = await activationTx.wait()
-    // const activationEvent = getEventFromTx(activationReceipt, EVENTS.DISPENSER_ACTIVATED)
-    // assert(
-    //   activationEvent.topics[0] === datatokenAddress,
-    //   'Datatoken addresses do not match for dispenser event'
-    // )
+
     const { ddo } = await waitToIndex(
       assetDID,
       EVENTS.DISPENSER_CREATED,
       DEFAULT_TEST_TIMEOUT,
       true
     )
-    console.log('stats w dispenser: ', JSON.stringify(ddo.indexedMetadata))
     assert(ddo.indexedMetadata.stats)
   })
 
