@@ -261,7 +261,6 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   })
 
   it('should attach a dispenser', async () => {
-    // const dtTx = await nftContract.createERC20()
     const tx = await datatokenContract.createDispenser(
       artifactsAddresses.Dispenser,
       ethers.parseUnits('1', 'ether'),
@@ -281,11 +280,10 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       Dispenser.abi,
       publisherAccount
     )
-    console.log(`datatoken addr for dispenser: ${datatokenAddress}`)
     const activationTx = await dispenserContract.activate(
-      datatokenAddress,
+      datatokenAddress.toLowerCase(),
       ethers.parseUnits('1', 'ether'),
-      ethers.parseUnits('1', 'ether')
+      ethers.parseUnits('2', 'ether')
     )
     assert(tx, 'Cannot activate dispenser')
     const activationReceipt = await activationTx.wait()
