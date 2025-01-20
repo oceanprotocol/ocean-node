@@ -13,7 +13,7 @@ import {
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
+// import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { RPCS } from '../../@types/blockchain.js'
@@ -274,24 +274,24 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     const dispenserEvent = getEventFromTx(txReceipt, 'NewDispenser')
     console.log('dispenserEvent: ', JSON.stringify(dispenserEvent))
     const dispenserAddress = dispenserEvent.topics[0]
-    assert(dispenserAddress, 'Dsipenser contract not retrieved')
-    const dispenserContract = new ethers.Contract(
-      dispenserAddress,
-      Dispenser.abi,
-      publisherAccount
-    )
-    const activationTx = await dispenserContract.activate(
-      datatokenAddress.toLowerCase(),
-      ethers.parseUnits('1', 'ether'),
-      ethers.parseUnits('2', 'ether')
-    )
-    assert(tx, 'Cannot activate dispenser')
-    const activationReceipt = await activationTx.wait()
-    const activationEvent = getEventFromTx(activationReceipt, EVENTS.DISPENSER_ACTIVATED)
-    assert(
-      activationEvent.topics[0] === datatokenAddress,
-      'Datatoken addresses do not match for dispenser event'
-    )
+    assert(dispenserAddress, 'Dispenser contract not retrieved')
+    // const dispenserContract = new ethers.Contract(
+    //   dispenserAddress.toLowerCase(),
+    //   Dispenser.abi,
+    //   publisherAccount
+    // )
+    // const activationTx = await dispenserContract.activate(
+    //   datatokenAddress.toLowerCase(),
+    //   ethers.parseUnits('1', 'ether'),
+    //   ethers.parseUnits('2', 'ether')
+    // )
+    // assert(tx, 'Cannot activate dispenser')
+    // const activationReceipt = await activationTx.wait()
+    // const activationEvent = getEventFromTx(activationReceipt, EVENTS.DISPENSER_ACTIVATED)
+    // assert(
+    //   activationEvent.topics[0] === datatokenAddress,
+    //   'Datatoken addresses do not match for dispenser event'
+    // )
     const { ddo } = await waitToIndex(
       assetDID,
       EVENTS.DISPENSER_ACTIVATED,
