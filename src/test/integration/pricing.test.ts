@@ -223,15 +223,42 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   it('should get stats for fre', async function () {
     assert(resolvedDDO.indexedMetadata, 'No stats available')
     assert(resolvedDDO.indexedMetadata.stats.length === 1)
-    assert(resolvedDDO.indexedMetadata.stats[0].datatokenAddress === datatokenAddress)
-    assert(resolvedDDO.indexedMetadata.stats[0].name === (await datatokenContract.name()))
-    assert(resolvedDDO.indexedMetadata.stats[0].orders === 0)
-    assert(resolvedDDO.indexedMetadata.stats[0].serviceId === '0')
-    assert(resolvedDDO.indexedMetadata.stats[0].prices.length === 1)
-    assert(resolvedDDO.indexedMetadata.stats[0].prices[0].type === 'fixedrate')
-    assert(resolvedDDO.indexedMetadata.stats[0].prices[0].token === datatokenAddress)
-    assert(resolvedDDO.indexedMetadata.stats[0].prices[0].price === '1.0')
-    assert(resolvedDDO.indexedMetadata.stats[0].prices[0].exchangeId === exchangeId)
+    assert(
+      resolvedDDO.indexedMetadata.stats[0].datatokenAddress === datatokenAddress,
+      'DT is missing.'
+    )
+    assert(
+      resolvedDDO.indexedMetadata.stats[0].name === (await datatokenContract.name()),
+      'Name is missing.'
+    )
+    assert(
+      resolvedDDO.indexedMetadata.stats[0].orders === 0,
+      'Number of orders are missing.'
+    )
+    assert(
+      resolvedDDO.indexedMetadata.stats[0].serviceId === '0',
+      'Service ID is missing.'
+    )
+    assert(
+      resolvedDDO.indexedMetadata.stats[0].prices.length === 1,
+      'Incorrect length of prices'
+    )
+    assert(
+      resolvedDDO.indexedMetadata.stats[0].prices[0].type === 'fixedrate',
+      'Type from prices is not present.'
+    )
+    assert(
+      resolvedDDO.indexedMetadata.stats[0].prices[0].token === datatokenAddress,
+      'Datatoken from prices is not present.'
+    )
+    assert(
+      resolvedDDO.indexedMetadata.stats[0].prices[0].price === '1.0',
+      'Price is not present.'
+    )
+    assert(
+      resolvedDDO.indexedMetadata.stats[0].prices[0].exchangeId === exchangeId,
+      'Exchange ID is not present.'
+    )
   })
 
   it('should attach a dispenser', async () => {
