@@ -231,6 +231,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   })
 
   it('should attach a dispenser', async () => {
+    const dtTx = await nftContract.createERC20()
     const tx = await datatokenContract.createDispenser(
       artifactsAddresses.Dispenser,
       ethers.parseUnits('1', 'ether'),

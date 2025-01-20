@@ -597,18 +597,20 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
           )
           const exchange = await fixedRateContract.getExchange(fixedRate[1])
           if (exchange[6] === true) {
+            prices.push({
+              type: 'fixedrate',
+              price: exchange[5].toString(),
+              token: exchange[3],
+              contract: fixedRate[0],
+              exchangeId: fixedRate[1]
+            })
+            INDEXER_LOGGER.logMessage(`prices ${prices}`)
             ddo.indexedMetadata.stats.push({
               datatokenAddress: service.datatokenAddress,
               name: await datatoken.name(),
               serviceId: service.id,
               orders: 0, // just created
-              prices: prices.push({
-                type: 'fixedrate',
-                price: exchange[5].toString(),
-                token: exchange[3],
-                contract: fixedRate[0],
-                exchangeId: fixedRate[1]
-              })
+              prices
             })
             INDEXER_LOGGER.logMessage(
               `how ddo prices were build? ${JSON.stringify(
