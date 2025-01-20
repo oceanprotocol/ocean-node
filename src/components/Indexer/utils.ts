@@ -544,7 +544,7 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
     )
     let dispensers = []
     let fixedRates = []
-    const prices = []
+    const prices: Price[] = []
     try {
       dispensers = await datatoken.getDispensers()
     } catch (e) {
@@ -604,12 +604,17 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
               orders: 0, // just created
               prices: prices.push({
                 type: 'fixedrate',
-                price: exchange[5],
+                price: exchange[5].toString(),
                 token: exchange[3],
                 contract: fixedRate[0],
                 exchangeId: fixedRate[1]
               })
             })
+            INDEXER_LOGGER.logMessage(
+              `how ddo prices were build? ${JSON.stringify(
+                ddo.indexedMetadata.stats[0].prices
+              )}`
+            )
           }
         }
       }

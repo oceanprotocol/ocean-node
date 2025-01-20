@@ -220,10 +220,14 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
-  it('should get stats for fre', function () {
+  it('should get stats for fre', async function () {
     assert(resolvedDDO.indexedMetadata, 'No stats available')
     assert(resolvedDDO.indexedMetadata.stats.length === 1)
-    console.log(`resolvedDDO: ${JSON.stringify(resolvedDDO)}`)
+    assert(resolvedDDO.indexedMetadata.stats[0].datatokenAddress === datatokenAddress)
+    assert(resolvedDDO.indexedMetadata.stats[0].name === (await datatokenContract.name()))
+    assert(resolvedDDO.indexedMetadata.stats[0].orders === 0)
+    assert(resolvedDDO.indexedMetadata.stats[0].serviceId === '0')
+    // assert(resolvedDDO.indexedMetadata.stats[0].prices === '1')
   })
 
   it('should attach a dispenser', async () => {
@@ -235,7 +239,9 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       ZeroAddress
     )
     assert(tx, 'Cannot create dispenser')
+    console.log('tx for dipenser: ', JSON.stringify(tx))
     const txReceipt = await tx.wait()
+    console.log('txReceipt for dipenser: ', JSON.stringify(txReceipt))
     const dispenserEvent = getEventFromTx(txReceipt, 'DispenserCreated')
     assert(
       dispenserEvent.args[0] === datatokenAddress,
