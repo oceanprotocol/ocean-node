@@ -271,13 +271,13 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       ZeroAddress
     )
     assert(tx, 'Cannot create dispenser')
-    console.log('tx for dipenser: ', JSON.stringify(tx))
     const txReceipt = await tx.wait()
     console.log('txReceipt for dipenser: ', JSON.stringify(txReceipt))
     const dispenserEvent = getEventFromTxByHash(
       txReceipt,
       '0x7d0aa581e6eb87e15f58588ff20c39ff6622fc796ec9bb664df6ed3eb02442c9' // DispenserCreated
     )
+    console.log('dispenserEvent: ', JSON.stringify(dispenserEvent))
     assert(
       dispenserEvent.args[0] === datatokenAddress,
       'Datatoken addresses do not match for dispenser event'
@@ -287,6 +287,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       Dispenser.abi,
       publisherAccount
     )
+    console.log('dispenserContract: ', JSON.stringify(dispenserContract))
     const activationTx = await dispenserContract.activate(
       datatokenAddress,
       ethers.parseUnits('1', 'ether'),
