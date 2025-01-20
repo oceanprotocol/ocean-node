@@ -508,18 +508,18 @@ export async function getPricesByDt(
     if (fixedRates) {
       for (const fixedRate of fixedRates) {
         const fixedRateContract = new ethers.Contract(
-          fixedRate.address,
+          fixedRate[0],
           FixedRateExchange.abi,
           signer
         )
-        const exchange = await fixedRateContract.getExchange(fixedRate.id)
+        const exchange = await fixedRateContract.getExchange(fixedRate[1])
         if (exchange[6] === true) {
           prices.push({
             type: 'fixedrate',
             price: exchange[5],
             token: exchange[3],
-            contract: fixedRate,
-            exchangeId: fixedRate.id
+            contract: fixedRate[0],
+            exchangeId: fixedRate[1]
           })
         }
       }
@@ -591,11 +591,11 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
         for (const fixedRate of fixedRates) {
           INDEXER_LOGGER.logMessage(`fixedRate: ${fixedRate}`)
           const fixedRateContract = new ethers.Contract(
-            fixedRate.address,
+            fixedRate[0],
             FixedRateExchange.abi,
             signer
           )
-          const exchange = await fixedRateContract.getExchange(fixedRate.id)
+          const exchange = await fixedRateContract.getExchange(fixedRate[1])
           if (exchange[6] === true) {
             ddo.indexedMetadata.stats.push({
               datatokenAddress: service.datatokenAddress,
@@ -606,8 +606,8 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
                 type: 'fixedrate',
                 price: exchange[5],
                 token: exchange[3],
-                contract: fixedRate,
-                exchangeId: fixedRate.id
+                contract: fixedRate[0],
+                exchangeId: fixedRate[1]
               })
             })
           }
