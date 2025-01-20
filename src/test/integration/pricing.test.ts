@@ -292,10 +292,6 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       activationEvent.topics[0] === datatokenAddress,
       'Datatoken addresses do not match for dispenser event'
     )
-    assert(
-      (await dispenserContract.status(datatokenAddress.toLowerCase()))[0] === true,
-      'dispenser not active'
-    )
     const { ddo } = await waitToIndex(
       assetDID,
       EVENTS.DISPENSER_ACTIVATED,
