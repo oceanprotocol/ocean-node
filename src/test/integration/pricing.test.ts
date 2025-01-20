@@ -248,7 +248,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       'Type from prices is not present.'
     )
     assert(
-      resolvedDDO.indexedMetadata.stats[0].prices[0].token === datatokenAddress,
+      resolvedDDO.indexedMetadata.stats[0].prices[0].token === artifactsAddresses.Ocean,
       'Datatoken from prices is not present.'
     )
     assert(
