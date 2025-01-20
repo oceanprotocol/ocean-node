@@ -50,6 +50,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   let publisherAccount: Signer
   let nftAddress: string
   let datatokenAddress: string
+  let exchangeId: string
   const chainId = 8996
   let assetDID: string
   let resolvedDDO: Record<string, any> = {}
@@ -153,9 +154,8 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     )
     assert(datatokenContract)
     const freEvent = getEventFromTx(txReceipt, 'NewFixedRate')
-    const exchangeId = freEvent.args[0]
+    exchangeId = freEvent.args[0]
     assert(exchangeId, 'exchangeId not found.')
-    console.log('exchange id: ', exchangeId)
   })
 
   it('should set metadata and save ', async () => {
@@ -227,7 +227,11 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     assert(resolvedDDO.indexedMetadata.stats[0].name === (await datatokenContract.name()))
     assert(resolvedDDO.indexedMetadata.stats[0].orders === 0)
     assert(resolvedDDO.indexedMetadata.stats[0].serviceId === '0')
-    // assert(resolvedDDO.indexedMetadata.stats[0].prices === '1')
+    assert(resolvedDDO.indexedMetadata.stats[0].prices.length === 1)
+    assert(resolvedDDO.indexedMetadata.stats[0].prices[0].type === 'fixedrate')
+    assert(resolvedDDO.indexedMetadata.stats[0].prices[0].token === datatokenAddress)
+    assert(resolvedDDO.indexedMetadata.stats[0].prices[0].price === '1.0')
+    assert(resolvedDDO.indexedMetadata.stats[0].prices[0].exchangeId === exchangeId)
   })
 
   it('should attach a dispenser', async () => {
@@ -281,7 +285,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       DEFAULT_TEST_TIMEOUT,
       true
     )
-    console.log(`JSON stringified ddo w dispenser: ${JSON.stringify(ddo)}`)
+
     assert(ddo.indexedMetadata.stats)
   })
 

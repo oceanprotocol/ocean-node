@@ -412,7 +412,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         provider,
         event.transactionHash,
         ERC721Template.abi,
-        EVENTS.METADATA_CREATED
+        eventName
       )
       const metadata = decodedEventData.args[4]
       const metadataHash = decodedEventData.args[5]
@@ -1136,16 +1136,9 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
       FixedRateExchange.abi,
       EVENTS.EXCHANGE_CREATED
     )
-    INDEXER_LOGGER.logMessage(`event: ${JSON.stringify(event)}`)
-    INDEXER_LOGGER.logMessage(
-      `decodedEventData exchangeId: ${decodedEventData.args[0].toString()}`
-    )
     const exchangeId = decodedEventData.args[0].toString()
-    INDEXER_LOGGER.logMessage(`exchangeId: ${exchangeId}`)
     const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
-    INDEXER_LOGGER.logMessage(`freContract: ${freContract}`)
     const exchange = await freContract.getExchange(exchangeId)
-    INDEXER_LOGGER.logMessage(`exchange: ${exchange}`)
     const datatokenAddress = exchange[1]
     const datatokenContract = getDtContract(signer, datatokenAddress)
     const nftAddress = await datatokenContract.getERC721Address()
@@ -1178,7 +1171,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
           ) {
             stat.prices.push({
               type: 'fixedrate',
-              price: exchange[5],
+              price: ethers.formatEther(exchange[5]),
               contract: event.address,
               token: exchange[3],
               exchangeId
@@ -1266,7 +1259,7 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
           ) {
             stat.prices.push({
               type: 'fixedrate',
-              price: exchange[5],
+              price: ethers.formatEther(exchange[5]),
               contract: event.address,
               token: exchange[3],
               exchangeId

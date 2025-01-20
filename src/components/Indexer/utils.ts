@@ -516,7 +516,7 @@ export async function getPricesByDt(
         if (exchange[6] === true) {
           prices.push({
             type: 'fixedrate',
-            price: exchange[5],
+            price: ethers.formatEther(exchange[5]),
             token: exchange[3],
             contract: fixedRate[0],
             exchangeId: fixedRate[1]
@@ -599,12 +599,11 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
           if (exchange[6] === true) {
             prices.push({
               type: 'fixedrate',
-              price: exchange[5].toString(),
+              price: ethers.formatEther(exchange[5].toString()),
               token: exchange[3],
               contract: fixedRate[0],
               exchangeId: fixedRate[1]
             })
-            INDEXER_LOGGER.logMessage(`prices ${prices}`)
             ddo.indexedMetadata.stats.push({
               datatokenAddress: service.datatokenAddress,
               name: await datatoken.name(),
