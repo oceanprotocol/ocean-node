@@ -40,7 +40,7 @@ import { getConfiguration } from '../../utils/config.js'
 import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 
-describe('Publish pricing scehmas and assert ddo stats - FRE', () => {
+describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () => {
   let database: Database
   let oceanNode: OceanNode
   let provider: JsonRpcProvider
@@ -216,7 +216,6 @@ describe('Publish pricing scehmas and assert ddo stats - FRE', () => {
     )
     if (ddo) {
       resolvedDDO = ddo
-      console.log(`JSON: ${ddo}`)
       expect(resolvedDDO.id).to.equal(genericAsset.id)
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
@@ -224,59 +223,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE', () => {
   it('should get stats for fre', function () {
     assert(resolvedDDO.indexedMetadata, 'No stats available')
     assert(resolvedDDO.indexedMetadata.stats.length === 1)
-    console.log(`resolvedDDO: ${resolvedDDO}`)
-  })
-
-  after(async () => {
-    await tearDownEnvironment(previousConfiguration)
-    indexer.stopAllThreads()
-  })
-})
-
-describe('Publish pricing scehmas and assert ddo stats - Dispenser', () => {
-  let database: Database
-  let oceanNode: OceanNode
-  let provider: JsonRpcProvider
-  let datatokenContract: Contract
-  let publisherAccount: Signer
-  let datatokenAddress: string
-  let assetDID: string
-  let indexer: OceanIndexer
-  let artifactsAddresses: any
-  const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
-  let previousConfiguration: OverrideEnvConfig[]
-
-  before(async () => {
-    previousConfiguration = await setupEnvironment(
-      null,
-      buildEnvOverrideConfig(
-        [
-          ENVIRONMENT_VARIABLES.RPCS,
-          ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
-          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
-          ENVIRONMENT_VARIABLES.ADDRESS_FILE
-        ],
-        [
-          JSON.stringify(mockSupportedNetworks),
-          JSON.stringify([8996]),
-          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
-        ]
-      )
-    )
-
-    const config = await getConfiguration(true)
-    database = await new Database(config.dbConfig)
-    oceanNode = await OceanNode.getInstance()
-    indexer = new OceanIndexer(database, mockSupportedNetworks)
-    oceanNode.addIndexer(indexer)
-    artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
-    if (!artifactsAddresses) {
-      artifactsAddresses = getOceanArtifactsAdresses().development
-    }
-
-    provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    publisherAccount = (await provider.getSigner(0)) as Signer
+    console.log(`resolvedDDO: ${JSON.stringify(resolvedDDO)}`)
   })
 
   it('should attach a dispenser', async () => {
