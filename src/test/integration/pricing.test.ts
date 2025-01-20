@@ -106,7 +106,6 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   })
 
   it('should publish a dataset w fre', async () => {
-    console.log(`fixed price address: ${artifactsAddresses.FixedPrice}`)
     const tx = await factoryContract.createNftWithErc20WithFixedRate(
       {
         name: '72120Bundle',
@@ -282,7 +281,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       Dispenser.abi,
       publisherAccount
     )
-    console.log('dispenserContract: ', JSON.stringify(dispenserContract))
+    console.log(`datatoken addr for dispenser: ${datatokenAddress}`)
     const activationTx = await dispenserContract.activate(
       datatokenAddress,
       ethers.parseUnits('1', 'ether'),
