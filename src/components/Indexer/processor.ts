@@ -524,11 +524,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           eventName === EVENTS.METADATA_UPDATED &&
           ddoWithPricing.indexedMetadata.stats.length !== 0
         ) {
-          INDEXER_LOGGER.logMessage(
-            `ddoWithPricing.indexedMetadata: ${JSON.stringify(
-              ddoWithPricing.indexedMetadata
-            )}`
-          )
           for (const stat of ddoWithPricing.indexedMetadata.stats) {
             const datatoken = new ethers.Contract(
               stat.datatokenAddress,
@@ -559,11 +554,11 @@ export class MetadataEventProcessor extends BaseEventProcessor {
                 const fixedRates = await datatoken.getFixedRates()
                 for (const fixedRate of fixedRates) {
                   const fixedRateContract = new ethers.Contract(
-                    fixedRate.address,
+                    fixedRate[0],
                     FixedRateExchange.abi,
                     signer
                   )
-                  const exchange = await fixedRateContract.getExchange(fixedRate.id)
+                  const exchange = await fixedRateContract.getExchange(fixedRate[1])
                   if (exchange[6] === false) {
                     const index = ddoWithPricing.indexedMetadata.stats.indexOf(stat)
                     ddoWithPricing.indexedMetadata.stats.splice(index, 1)
