@@ -275,12 +275,10 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     console.log('txReceipt for dipenser: ', JSON.stringify(txReceipt))
     const dispenserEvent = getEventFromTx(txReceipt, 'NewDispenser')
     console.log('dispenserEvent: ', JSON.stringify(dispenserEvent))
-    assert(
-      dispenserEvent.args[0] === datatokenAddress,
-      'Datatoken addresses do not match for dispenser event'
-    )
+    const dispenserAddress = dispenserEvent.topics[0]
+    assert(dispenserAddress, 'Dsipenser contract not retrieved')
     const dispenserContract = new ethers.Contract(
-      artifactsAddresses.Dispenser,
+      dispenserAddress,
       Dispenser.abi,
       publisherAccount
     )
@@ -294,7 +292,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     const activationReceipt = await activationTx.wait()
     const activationEvent = getEventFromTx(activationReceipt, EVENTS.DISPENSER_ACTIVATED)
     assert(
-      activationEvent.args[0] === datatokenAddress,
+      activationEvent.topics[0] === datatokenAddress,
       'Datatoken addresses do not match for dispenser event'
     )
     assert(
@@ -307,7 +305,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       DEFAULT_TEST_TIMEOUT,
       true
     )
-
+    console.log('stats w dispenser: ', JSON.stringify(ddo.indexedMetadata))
     assert(ddo.indexedMetadata.stats)
   })
 
