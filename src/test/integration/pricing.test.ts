@@ -280,20 +280,20 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       Dispenser.abi,
       publisherAccount
     )
-    // const activationTx = await dispenserContract.activate(
-    //   datatokenAddress.toLowerCase(),
-    //   ethers.parseUnits('1', 'ether'),
-    //   ethers.parseUnits('2', 'ether')
-    // )
-    // assert(tx, 'Cannot activate dispenser')
-    // const activationReceipt = await activationTx.wait()
-    // const activationEvent = getEventFromTx(activationReceipt, EVENTS.DISPENSER_ACTIVATED)
-    // assert(
-    //   activationEvent.topics[0] === datatokenAddress,
-    //   'Datatoken addresses do not match for dispenser event'
-    // )
+    const activationTx = await dispenserContract.activate(
+      datatokenAddress.toLowerCase(),
+      ethers.parseUnits('1', 'ether'),
+      ethers.parseUnits('2', 'ether')
+    )
+    assert(tx, 'Cannot activate dispenser')
+    const activationReceipt = await activationTx.wait()
+    const activationEvent = getEventFromTx(activationReceipt, EVENTS.DISPENSER_ACTIVATED)
     assert(
-      (await dispenserContract.status(datatokenAddress))[0] === true,
+      activationEvent.topics[0] === datatokenAddress,
+      'Datatoken addresses do not match for dispenser event'
+    )
+    assert(
+      (await dispenserContract.status(datatokenAddress.toLowerCase()))[0] === true,
       'dispenser not active'
     )
     const { ddo } = await waitToIndex(
