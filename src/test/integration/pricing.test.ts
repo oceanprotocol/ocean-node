@@ -294,7 +294,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     // )
     const { ddo } = await waitToIndex(
       assetDID,
-      EVENTS.DISPENSER_ACTIVATED,
+      EVENTS.DISPENSER_CREATED,
       DEFAULT_TEST_TIMEOUT,
       true
     )
