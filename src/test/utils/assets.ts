@@ -76,8 +76,8 @@ export async function publishAsset(asset: any, publisherAccount: Signer) {
     const nftAddress = nftEvent.args[0]
     const datatokenAddress = erc20Event.args[0]
 
-    genericAsset.services[0].files.datatokenAddress = datatokenAddress
-    genericAsset.services[0].files.nftAddress = nftAddress
+    genericAsset.services[0].datatokenAddress = datatokenAddress
+    genericAsset.nftAddress = nftAddress
     // let's call node to encrypt
 
     const data = Uint8Array.from(
