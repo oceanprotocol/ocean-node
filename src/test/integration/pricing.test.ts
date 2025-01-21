@@ -263,10 +263,10 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   it('should attach a dispenser', async () => {
     const tx = await datatokenContract.createDispenser(
       artifactsAddresses.Dispenser,
-      ethers.parseUnits('1', 'ether'),
-      ethers.parseUnits('1', 'ether'),
+      parseUnits('1', 18),
+      parseUnits('1', 18),
       true,
-      ZeroAddress
+      await publisherAccount.getAddress()
     )
     assert(tx, 'Cannot create dispenser')
     const txReceipt = await tx.wait()
@@ -282,9 +282,9 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     const activationTx = await dispenserContract.activate(
       datatokenAddress.toLowerCase(),
       parseUnits('1', 18).toString(),
-      parseUnits('2', 18).toString()
+      parseUnits('1', 18).toString()
     )
-    assert(tx, 'Cannot activate dispenser')
+    assert(activationTx, 'Cannot activate dispenser')
     const activationReceipt = await activationTx.wait()
     const activationEvent = getEventFromTx(activationReceipt, EVENTS.DISPENSER_ACTIVATED)
     assert(
