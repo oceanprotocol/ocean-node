@@ -570,8 +570,6 @@ describe('Compute', () => {
       // output?: ComputeOutput
     }
     const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
-    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-    console.log(response)
     assert(response, 'Failed to get response')
     // should fail, because txId '0x123' is not a valid order
     assert(response.status.httpStatus === 500, 'Failed to get 500 response')
