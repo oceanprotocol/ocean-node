@@ -258,8 +258,8 @@ describe('Compute', () => {
 
     computeEnvironments = await streamToObject(response.stream as Readable)
     console.log('existing envs: ', computeEnvironments)
-    // expect 3 envs
-    expect(computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 3, 'incorrect length')
+    // expect 1 OR + envs (1 if only docker free env is available)
+    assert(computeEnvironments[DEVELOPMENT_CHAIN_ID].length >= 1, 'incorrect length')
     for (const computeEnvironment of computeEnvironments[DEVELOPMENT_CHAIN_ID]) {
       assert(computeEnvironment.id, 'id missing in computeEnvironments')
       assert(
@@ -579,6 +579,11 @@ describe('Compute', () => {
   })
 
   it('should start a compute job', async () => {
+    // first need to check the existing envs
+    // If only FREE envs than start a free compute job instead of a regular/payed one
+    const hasOnlyFreeEnv =
+      computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 1 && firstEnv.free
+
     const nonce = Date.now().toString()
     const message = String(nonce)
     // sign message/nonce
@@ -589,7 +594,9 @@ describe('Compute', () => {
     const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await wallet.signMessage(messageHashBytes)
     const startComputeTask: ComputeStartCommand = {
-      command: PROTOCOL_COMMANDS.COMPUTE_START,
+      command: hasOnlyFreeEnv
+        ? PROTOCOL_COMMANDS.FREE_COMPUTE_START
+        : PROTOCOL_COMMANDS.COMPUTE_START,
       consumerAddress: await wallet.getAddress(),
       signature,
       nonce,
@@ -611,7 +618,9 @@ describe('Compute', () => {
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
-    const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
+    const response = hasOnlyFreeEnv
+      ? await new FreeComputeStartHandler(oceanNode).handle(startComputeTask)
+      : await new ComputeStartHandler(oceanNode).handle(startComputeTask)
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
