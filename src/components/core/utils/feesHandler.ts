@@ -36,13 +36,13 @@ import { fetchTransactionReceipt } from './validateOrders.js'
 export function getEnvironmentPriceSchemaForType(
   prices: ComputeResourcesPricingInfo[],
   type: ComputeResourceType
-): number | null {
+): number {
   for (const pr of prices) {
     if (pr.type === type) {
       return pr.price
     }
   }
-  return null
+  return 0
 }
 async function calculateProviderFeeAmount(
   validUntil: number,
@@ -61,9 +61,9 @@ async function calculateProviderFeeAmount(
       if (feesForChain && feesForChain.prices.length > 0) {
         const price =
           // TODO: check this again
-          // try to get the price from one of the available types; 'cpu', 'memory' or 'storage'
-          getEnvironmentPriceSchemaForType(feesForChain.prices, 'cpu') ||
-          getEnvironmentPriceSchemaForType(feesForChain.prices, 'memory') ||
+          // try to get the price from the SUM of the available types; 'cpu', 'memory' or 'storage'
+          getEnvironmentPriceSchemaForType(feesForChain.prices, 'cpu') +
+          getEnvironmentPriceSchemaForType(feesForChain.prices, 'memory') +
           getEnvironmentPriceSchemaForType(feesForChain.prices, 'storage')
         // it's a compute provider fee
         providerFeeAmount = (seconds * parseFloat(String(price || 0))) / 60 // was: (seconds * parseFloat(String(computeEnv.priceMin))) / 60

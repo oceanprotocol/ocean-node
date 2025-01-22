@@ -64,11 +64,7 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
-import {
-  checkC2DEnvExists,
-  convertLegacyComputeEnvironment,
-  isLegacyComputeEnvironment
-} from '../../components/c2d/index.js'
+import { checkC2DEnvExists } from '../../components/c2d/index.js'
 import {
   getAlgoChecksums,
   validateAlgoForDataset
@@ -122,7 +118,7 @@ describe('Compute', () => {
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE,
-          ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL,
+          // ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL,
           ENVIRONMENT_VARIABLES.DOCKER_SOCKET_PATH
           // ENVIRONMENT_VARIABLES.DB_TYPE
         ],
@@ -132,7 +128,7 @@ describe('Compute', () => {
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          JSON.stringify(['http://localhost:31000']),
+          // JSON.stringify(['http://localhost:31000']),
           '/var/run/docker.sock'
           // DB_TYPES.ELASTIC_SEARCH
         ]
@@ -261,6 +257,7 @@ describe('Compute', () => {
     expect(response.stream).to.be.instanceOf(Readable)
 
     computeEnvironments = await streamToObject(response.stream as Readable)
+    console.log('existing envs: ', computeEnvironments)
     // expect 3 envs
     expect(computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 3, 'incorrect length')
     for (const computeEnvironment of computeEnvironments[DEVELOPMENT_CHAIN_ID]) {
@@ -271,42 +268,11 @@ describe('Compute', () => {
       )
 
       assert(computeEnvironment.id.startsWith('0x'), 'id should start with 0x')
-      // cehcks both older and newer versions of ComputeEnvironment structure
-      // new structure
-      if (!isLegacyComputeEnvironment(computeEnvironment)) {
-        assert(computeEnvironment.totalCpu > 0, 'totalCpu missing in computeEnvironments')
-        assert(computeEnvironment.totalRam > 0, 'totalRam missing in computeEnvironments')
-        assert(computeEnvironment.maxDisk > 0, 'maxDisk missing in computeEnvironments')
-      } else {
-        // older versions (backwards compatibility)
 
-        // what is this? not present on free envs, so skip.. in any case the field is optional
-        if (!computeEnvironment.free) {
-          assert(computeEnvironment.lastSeen, 'lastSeen missing in computeEnvironments')
-        }
-        assert(
-          computeEnvironment.cpuNumber > 0,
-          'cpuNumber missing in computeEnvironments'
-        )
-        assert(computeEnvironment.ramGB > 0, 'ramGB missing in computeEnvironments')
-        assert(computeEnvironment.diskGB > 0, 'diskGB missing in computeEnvironments')
-        assert(computeEnvironment.maxJobs > 0, 'maxJobs missing in computeEnvironments')
-        // do the conversion and test it again
-        const legacyEnvConverted: ComputeEnvironment =
-          await convertLegacyComputeEnvironment(computeEnvironment)
-        assert(
-          legacyEnvConverted.totalCpu > 0,
-          'totalCpu missing in computeEnvironments (converted environment)'
-        )
-        assert(
-          legacyEnvConverted.totalRam > 0,
-          'totalRam missing in computeEnvironments (converted environment)'
-        )
-        assert(
-          legacyEnvConverted.maxDisk > 0,
-          'maxDisk missing in computeEnvironments (converted environment)'
-        )
-      }
+      // new structure
+      assert(computeEnvironment.totalCpu > 0, 'totalCpu missing in computeEnvironments')
+      assert(computeEnvironment.totalRam > 0, 'totalRam missing in computeEnvironments')
+      assert(computeEnvironment.maxDisk > 0, 'maxDisk missing in computeEnvironments')
       assert(
         computeEnvironment.maxJobDuration > 0,
         'maxJobDuration missing in computeEnvironments'
