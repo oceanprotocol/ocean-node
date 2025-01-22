@@ -370,6 +370,7 @@ function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
     keyPath: getEnvValue(process.env.DOCKER_KEY_PATH, null),
     environments: getDockerComputeEnvironments(isStartup)
   }
+  console.log('docker environments: ', dockerConfig.environments)
 
   if (dockerConfig.socketPath || dockerConfig.host) {
     const hash = create256Hash(JSON.stringify(dockerConfig))
