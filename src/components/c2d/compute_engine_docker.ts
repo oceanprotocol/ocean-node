@@ -41,6 +41,7 @@ import * as drc from 'docker-registry-client'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { convertGigabytesToBytes } from '../../utils/util.js'
 import os from 'os'
+import { runInThisContext } from 'node:vm'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
@@ -97,6 +98,10 @@ export class C2DEngineDocker extends C2DEngine {
     console.log(sysinfo)
     console.log(this.envs)
     for (const i in this.envs) {
+      if (!('id' in this.envs[i]) || !this.envs[i].id) {
+        this.envs[i].id =
+          this.getC2DConfig().hash + '-' + create256Hash(JSON.stringify(this.envs[i]))
+      }
       if (!('platform' in this.envs[i]))
         this.envs[i].platform = [{ architecture: null, os: null }]
       this.envs[i].platform[0].architecture = sysinfo.Architecture
