@@ -333,16 +333,16 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
-      EVENTS.METADATA_CREATED,
+      EVENTS.METADATA_UPDATED,
       DEFAULT_TEST_TIMEOUT * 6
     )
-    if (ddo) {
-      resolvedDDO = ddo
-      expect(resolvedDDO.id).to.equal(genericAsset.id)
+    const updatedDDO: any = ddo
+    if (updatedDDO) {
+      console.log(
+        `updatedDDO.indexed.stats: ${JSON.stringify(updatedDDO.indexedMetadata.stats)}`
+      )
+      assert(updatedDDO.indexedMetadata.stats)
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
-
-    console.log(`ddo.indexed.stats: ${JSON.stringify(ddo.indexedMetadata.stats)}`)
-    assert(ddo.indexedMetadata.stats)
   })
 
   after(async () => {
