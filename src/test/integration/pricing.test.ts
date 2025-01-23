@@ -261,7 +261,28 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   })
 
   it('should attach a dispenser', async () => {
-    const tx = await datatokenContract.createDispenser(
+    const dtTx = await nftContract.createERC20(
+      1,
+      ['newERC20', 'newERC20s'],
+      [
+        await publisherAccount.getAddress(),
+        await publisherAccount.getAddress(),
+        await publisherAccount.getAddress(),
+        datatokenAddress
+      ],
+      [parseUnits('10000', 18), parseUnits('1', 18)],
+      []
+    )
+    assert(dtTx, 'Cannot create datatoken')
+    const dtTxReceipt = await dtTx.wait()
+    const dtEvent = getEventFromTx(dtTxReceipt, 'TokenCreated')
+    const newdatatokenAddress = dtEvent.args[0]
+    const newDtContract = new ethers.Contract(
+      newdatatokenAddress,
+      ERC20Template.abi,
+      publisherAccount
+    )
+    const tx = await newDtContract.createDispenser(
       artifactsAddresses.Dispenser,
       parseUnits('1', 18),
       parseUnits('1', 18),
@@ -280,26 +301,57 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       publisherAccount
     )
     assert(dispenserContract)
-    console.log(`datatoken addr: ${datatokenAddress}`)
+    console.log(`new datatoken addr: ${newdatatokenAddress}`)
     const activationTx = await dispenserContract.activate(
-      datatokenAddress,
+      newdatatokenAddress,
       parseUnits('1', 18).toString(),
       parseUnits('1', 18).toString()
     )
     assert(activationTx, 'Cannot activate dispenser')
-    // const activationReceipt = await activationTx.wait()
-    // const activationEvent = getEventFromTx(activationReceipt, EVENTS.DISPENSER_ACTIVATED)
-    // assert(
-    //   activationEvent.topics[0] === datatokenAddress,
-    //   'Datatoken addresses do not match for dispenser event'
-    // )
-
-    const { ddo } = await waitToIndex(
-      assetDID,
-      EVENTS.DISPENSER_ACTIVATED,
-      DEFAULT_TEST_TIMEOUT,
-      true
+    const activationReceipt = await activationTx.wait()
+    const activationEvent = getEventFromTx(activationReceipt, EVENTS.DISPENSER_ACTIVATED)
+    assert(
+      activationEvent.topics[0] === datatokenAddress,
+      'Datatoken addresses do not match for dispenser event'
     )
+
+    genericAsset.services[1].datatokenAddress = newdatatokenAddress
+    // let's call node to encrypt
+
+    const data = Uint8Array.from(
+      Buffer.from(JSON.stringify(genericAsset.services[1].files))
+    )
+    const encryptedData = await encrypt(data, EncryptMethod.ECIES)
+    const encryptedDataString = encryptedData.toString('hex')
+    genericAsset.services[1].files = encryptedDataString
+    const stringDDO = JSON.stringify(genericAsset)
+    const bytes = Buffer.from(stringDDO)
+    const metadata = hexlify(bytes)
+    const hash = createHash('sha256').update(metadata).digest('hex')
+
+    const setMetaDataTx = await nftContract.setMetaData(
+      0,
+      'http://v4.provider.oceanprotocol.com',
+      '0x123',
+      '0x01',
+      metadata,
+      '0x' + hash,
+      []
+    )
+    setMetaDataTxReceipt = await setMetaDataTx.wait()
+    assert(setMetaDataTxReceipt, 'set metada failed')
+  })
+  it('should store the ddo in the database and return it ', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    const { ddo, wasTimeout } = await waitToIndex(
+      assetDID,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT * 6
+    )
+    if (ddo) {
+      resolvedDDO = ddo
+      expect(resolvedDDO.id).to.equal(genericAsset.id)
+    } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
 
     console.log(`ddo.indexed.stats: ${JSON.stringify(ddo.indexedMetadata.stats)}`)
     assert(ddo.indexedMetadata.stats)
