@@ -20,13 +20,18 @@ export interface C2DClusterInfo {
   tempFolder?: string
 }
 
-export type ComputeResourceType = 'cpu' | 'memory' | 'storage'
+// export type ComputeResourceType = 'cpu' | 'memory' | 'storage'
 
 export interface ComputeResourcesPricingInfo {
-  type: ComputeResourceType
+  id: string
   price: number
 }
 
+export interface ComputeResources {
+  id: string
+  type?: string
+  kind?: string
+}
 export interface ComputeEnvFees {
   feeToken: string
   prices: ComputeResourcesPricingInfo[]
@@ -37,39 +42,44 @@ export interface ComputeEnvFeesStructure {
 
 export interface RunningPlatform {
   architecture: string
-  os: string
+  os?: string
+}
+
+export interface ComputeEnvironmentFreeOptions {
+  // only if a compute env exposes free jobs
+  maxCpu?: number // max cpu for a single job.
+  maxRam?: number // max allocatable RAM for a single job in bytes.
+  maxDisk?: number // max disk space in bytes allocatable for a single job
+  storageExpiry?: number
+  maxJobDuration?: number
+  maxJobs: number // maximum number of free jobs in the same time
 }
 export interface ComputeEnvironmentBaseConfig {
   // cpuNumber: number
   // ramGB: number
   // diskGB: number
-  description: string // v1
+  description?: string // v1
   // maxJobs: number
   storageExpiry: number // v1
   maxJobDuration: number // v1 max seconds for a job
   // chainId?: number
   // feeToken: string
   // priceMin: number
-  totalCpu: number // total cpu available for jobs
-  maxCpu: number // max cpu for a single job.  Imagine a K8 cluster with two nodes, each node with 10 cpus.  Total=20, but at most you can allocate 10 cpu for a job
-  totalRam: number // total gb of RAM
-  maxRam: number // max allocatable GB RAM for a single job.
-  maxDisk: number // max GB of disck allocatable for a single job
+  totalCpu?: number // total cpu available for jobs
+  totalRam?: number // total bytes of RAM
+  maxCpu?: number // max cpu for a single job.  Imagine a K8 cluster with two nodes, each node with 10 cpus.  Total=20, but at most you can allocate 10 cpu for a job
+  maxRam?: number // max allocatable RAM for a single job in bytes.
+  maxDisk?: number // max disk space in bytes allocatable for a single job
+  free?: ComputeEnvironmentFreeOptions
   fees: ComputeEnvFeesStructure
+  resources?: ComputeResources[]
+  platform?: RunningPlatform[]
 }
 
 export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
   id: string // v1
-  // arch: string => part of platform bellow
-  // cpuType?: string
-  // gpuNumber?: number
-  // gpuType?: string
-  chainId?: number // it can be useful to keep the chain id (optional)
   currentJobs: number
   consumerAddress: string // v1
-  // lastSeen?: number
-  free: boolean
-  platform?: RunningPlatform[] // array due to k8 support
 }
 
 export interface C2DDockerConfig {
@@ -81,7 +91,6 @@ export interface C2DDockerConfig {
   certPath: string
   keyPath: string
   environments: ComputeEnvironment[]
-  freeComputeOptions?: ComputeEnvironment
 }
 
 export interface ComputeEnvByChain {

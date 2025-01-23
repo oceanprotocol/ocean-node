@@ -223,16 +223,6 @@ export class ComputeStartHandler extends Handler {
           result.chainId = ddo.chainId
 
           const env = await engine.getComputeEnvironment(ddo.chainId, task.environment)
-          if (env.free) {
-            const error = `Free Jobs cannot be started here, use startFreeCompute`
-            return {
-              stream: null,
-              status: {
-                httpStatus: 500,
-                error
-              }
-            }
-          }
           if (!('transferTxId' in elem) || !elem.transferTxId) {
             const error = `Missing transferTxId for DDO ${elem.documentId}`
             return {
@@ -391,9 +381,9 @@ export class FreeComputeStartHandler extends Handler {
       // get all envs and see if we have a free one
       const allEnvs = await this.getOceanNode().getC2DEngines().fetchEnvironments()
       for (const env of allEnvs) {
-        if (env.free) {
-          environment = env
-        }
+        // if (env.free) {
+        environment = env
+        // }
       }
       if (!environment)
         return {

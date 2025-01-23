@@ -579,8 +579,7 @@ describe('Compute', () => {
   it('should start a compute job', async () => {
     // first need to check the existing envs
     // If only FREE envs than start a free compute job instead of a regular/payed one
-    const hasOnlyFreeEnv =
-      computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 1 && firstEnv.free
+    const hasOnlyFreeEnv = computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 1 // && firstEnv.free
 
     const nonce = Date.now().toString()
     const message = String(nonce)

@@ -31,12 +31,12 @@ export abstract class C2DEngine {
 
   // overwritten by classes for start actions
   public start(): Promise<void> {
-    throw new Error('Method not implemented.')
+    return null
   }
 
   // overwritten by classes for cleanup
   public stop(): Promise<void> {
-    throw new Error('Method not implemented.')
+    return null
   }
 
   public abstract startComputeJob(

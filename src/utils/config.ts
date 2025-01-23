@@ -24,7 +24,7 @@ import {
 
 import { LOG_LEVELS_STR, GENERIC_EMOJIS, getLoggerLevelEmoji } from './logging/Logger.js'
 import { RPCS } from '../@types/blockchain'
-import { getAddress, Wallet, ZeroAddress } from 'ethers'
+import { getAddress, Wallet } from 'ethers'
 import { FeeAmount, FeeStrategy, FeeTokens } from '../@types/Fees'
 import {
   getOceanArtifactsAdresses,
@@ -32,8 +32,7 @@ import {
 } from '../utils/address.js'
 import { CONFIG_LOGGER } from './logging/common.js'
 import { create256Hash } from './crypt.js'
-import { convertGigabytesToBytes, isDefined } from './util.js'
-import os from 'os'
+import { isDefined } from './util.js'
 import { fileURLToPath } from 'url'
 import path from 'path'
 
@@ -359,94 +358,21 @@ function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
       )
     }
   }
-  // docker clusters
-  const dockerConfig: C2DDockerConfig = {
-    socketPath: getEnvValue(process.env.DOCKER_SOCKET_PATH, null),
-    protocol: getEnvValue(process.env.DOCKER_PROTOCOL, null),
-    host: getEnvValue(process.env.DOCKER_HOST, null),
-    port: getIntEnvValue(process.env.DOCKER_PORT, 0),
-    caPath: getEnvValue(process.env.DOCKER_CA_PATH, null),
-    certPath: getEnvValue(process.env.DOCKER_CERT_PATH, null),
-    keyPath: getEnvValue(process.env.DOCKER_KEY_PATH, null),
-    environments: getDockerComputeEnvironments(isStartup)
-  }
-
-  if (dockerConfig.socketPath || dockerConfig.host) {
-    const hash = create256Hash(JSON.stringify(dockerConfig))
-    // get env values
-    dockerConfig.freeComputeOptions = getDockerFreeComputeOptions(hash, isStartup)
-    clusters.push({
-      connection: dockerConfig,
-      hash,
-      type: C2DClusterType.DOCKER,
-      tempFolder: './c2d_storage/' + hash
-    })
+  const dockerC2Ds = getDockerComputeEnvironments(isStartup)
+  for (const dockerC2d of dockerC2Ds) {
+    if (dockerC2d.socketPath || dockerC2d.host) {
+      const hash = create256Hash(JSON.stringify(dockerC2d))
+      // get env values
+      clusters.push({
+        connection: dockerC2d,
+        hash,
+        type: C2DClusterType.DOCKER,
+        tempFolder: './c2d_storage/' + hash
+      })
+    }
   }
 
   return clusters
-}
-
-// TODO C2D v2.0
-// eslint-disable-next-line no-unused-vars
-function getDockerFreeComputeOptions(
-  clusterHash: string,
-  isStartup?: boolean
-): ComputeEnvironment {
-  const defaultOptions: ComputeEnvironment = {
-    id: `${clusterHash}-free`,
-    maxCpu: 1,
-    // cpuType: '',
-    // gpuNumber: 0,
-    totalRam: convertGigabytesToBytes(os.totalmem()),
-    totalCpu: os.cpus().length,
-    maxRam: 1, // 1GB
-    maxDisk: 1, // 1GB
-    description: 'Free',
-    currentJobs: 0,
-    // maxJobs: 1,
-    consumerAddress: '',
-    storageExpiry: 600,
-    maxJobDuration: 600, // 10 minutes
-    // feeToken: ZeroAddress,
-    // chainId: 8996,
-    fees: {
-      8996: {
-        feeToken: ZeroAddress,
-        prices: [
-          { type: 'cpu', price: 0 },
-          { type: 'memory', price: 0 },
-          { type: 'storage', price: 0 }
-        ]
-      }
-    },
-    free: true,
-    platform: [{ architecture: os.machine(), os: os.platform() }]
-  }
-
-  if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.DOCKER_FREE_COMPUTE, isStartup)) {
-    try {
-      const options: ComputeEnvironmentBaseConfig = JSON.parse(
-        process.env.DOCKER_FREE_COMPUTE
-      ) as ComputeEnvironmentBaseConfig
-      doComputeEnvChecks([options])
-      const env = { ...options } as ComputeEnvironment
-      env.platform = [{ architecture: os.machine(), os: os.platform() }]
-      return env
-    } catch (error) {
-      CONFIG_LOGGER.logMessageWithEmoji(
-        `Invalid "${ENVIRONMENT_VARIABLES.DOCKER_FREE_COMPUTE.name}" env variable => ${process.env.DOCKER_FREE_COMPUTE}...`,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
-    }
-  } else if (isStartup) {
-    // avoid logging to much times
-    CONFIG_LOGGER.warn(
-      `No options for ${ENVIRONMENT_VARIABLES.DOCKER_FREE_COMPUTE.name} were specified, using defaults.`
-    )
-  }
-  return defaultOptions
 }
 
 /**
@@ -468,7 +394,8 @@ function getDockerFreeComputeOptions(
     "priceMin": 1
   },
  */
-function getDockerComputeEnvironments(isStartup?: boolean): ComputeEnvironment[] {
+function getDockerComputeEnvironments(isStartup?: boolean): C2DDockerConfig[] {
+  const dockerC2Ds: C2DDockerConfig[] = []
   if (
     existsEnvironmentVariable(
       ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS,
@@ -476,15 +403,21 @@ function getDockerComputeEnvironments(isStartup?: boolean): ComputeEnvironment[]
     )
   ) {
     try {
-      const options: ComputeEnvironmentBaseConfig[] = JSON.parse(
+      const configs: C2DDockerConfig[] = JSON.parse(
         process.env.DOCKER_COMPUTE_ENVIRONMENTS
-      ) as ComputeEnvironmentBaseConfig[]
-      doComputeEnvChecks(options)
-      const envs = { ...options } as ComputeEnvironment[]
-      envs.forEach((env) => {
-        env.platform = [{ architecture: os.machine(), os: os.platform() }]
-      })
-      return envs
+      ) as C2DDockerConfig[]
+
+      for (const config of configs) {
+        console.log(config)
+        if (config.environments.length > 1) {
+          CONFIG_LOGGER.warn(`Multiple environments is not supported for Docker C2D`)
+          continue
+        }
+        if (doComputeEnvChecks(config.environments[0])) {
+          dockerC2Ds.push(config)
+        }
+      }
+      return dockerC2Ds
     } catch (error) {
       CONFIG_LOGGER.logMessageWithEmoji(
         `Invalid "${ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS.name}" env variable => ${process.env.DOCKER_COMPUTE_ENVIRONMENTS}...`,
@@ -492,42 +425,49 @@ function getDockerComputeEnvironments(isStartup?: boolean): ComputeEnvironment[]
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
       )
+      console.log(error)
     }
   } else if (isStartup) {
     CONFIG_LOGGER.warn(
       `No options for ${ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS.name} were specified.`
     )
   }
-  return null
+  return []
 }
 
-function doComputeEnvChecks(configEnv: ComputeEnvironmentBaseConfig[]): boolean {
-  for (const config of configEnv) {
-    if (!isDefined(config.fees)) {
-      CONFIG_LOGGER.error(
-        'Please check your compute env settings: There is no fees configuration!'
-      )
-      return false
-    }
-    // if (config.fees && !isDefined(config.fees)) {
-    //   CONFIG_LOGGER.error(
-    //     "Please check your compute env settings: We have a fee token but we don't have a price!"
-    //   )
-    //   return false
-    // }
-    // was: if (isDefined(config.pricePerCpu) && !isDefined(config.fees)) {
-    //   CONFIG_LOGGER.error(
-    //     "Please check your compute env settings: We have a price but we don't have a fee token!"
-    //   )
-    //   return false
-    // }
-    if (config.storageExpiry < config.maxJobDuration) {
-      CONFIG_LOGGER.error(
-        'Please check your compute env settings: "storageExpiry" should be greater than "maxJobDuration"!'
-      )
-      return false
-    }
+function doComputeEnvChecks(config: ComputeEnvironmentBaseConfig): boolean {
+  if (!isDefined(config.fees)) {
+    CONFIG_LOGGER.error(
+      'Please check your compute env settings: There is no fees configuration!'
+    )
+    return false
   }
+  if (!isDefined(config.maxDisk)) {
+    CONFIG_LOGGER.error(
+      'Please check your compute env settings: There is no maxDisk configuration!'
+    )
+    return false
+  }
+  // if (config.fees && !isDefined(config.fees)) {
+  //   CONFIG_LOGGER.error(
+  //     "Please check your compute env settings: We have a fee token but we don't have a price!"
+  //   )
+  //   return false
+  // }
+  // was: if (isDefined(config.pricePerCpu) && !isDefined(config.fees)) {
+  //   CONFIG_LOGGER.error(
+  //     "Please check your compute env settings: We have a price but we don't have a fee token!"
+  //   )
+  //   return false
+  // }
+  if (config.storageExpiry < config.maxJobDuration) {
+    CONFIG_LOGGER.error(
+      'Please check your compute env settings: "storageExpiry" should be greater than "maxJobDuration"!'
+    )
+    return false
+  }
+
+  return true
 }
 
 // connect interfaces (p2p or/and http)

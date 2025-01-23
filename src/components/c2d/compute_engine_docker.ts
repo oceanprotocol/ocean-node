@@ -1,6 +1,6 @@
 /* eslint-disable security/detect-non-literal-fs-filename */
 import { Readable } from 'stream'
-import { C2DClusterType, C2DStatusNumber, C2DStatusText } from '../../@types/C2D/C2D.js'
+import { C2DStatusNumber, C2DStatusText } from '../../@types/C2D/C2D.js'
 import type {
   C2DClusterInfo,
   ComputeEnvironment,
@@ -32,7 +32,6 @@ import {
 import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { generateUniqueID } from '../database/sqliteCompute.js'
-import { Blockchain } from '../../utils/blockchain.js'
 import { AssetUtils } from '../../utils/asset.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -84,7 +83,6 @@ export class C2DEngineDocker extends C2DEngine {
         'Could not create Docker container temporary folders: ' + e.message
       )
     }
-
     if (clusterConfig.connection?.environments) {
       this.envs = clusterConfig.connection.environments
     }
@@ -93,46 +91,91 @@ export class C2DEngineDocker extends C2DEngine {
     // this.setNewTimer()
   }
 
+  public override async start() {
+    // check resources and override maximums if needed
+    const sysinfo = await this.docker.info()
+    console.log(sysinfo)
+    console.log(this.envs)
+    for (const i in this.envs) {
+      if (!('platform' in this.envs[i]))
+        this.envs[i].platform = [{ architecture: null, os: null }]
+      this.envs[i].platform[0].architecture = sysinfo.Architecture
+      this.envs[i].platform[0].os = sysinfo.OperatingSystem
+
+      // make sure totalCpu is not higher then actual available
+      if (
+        !('totalCpu' in this.envs[i]) ||
+        !this.envs[i].totalCpu ||
+        this.envs[i].totalCpu > sysinfo.NCPU
+      )
+        this.envs[i].totalCpu = sysinfo.NCPU
+      // make sure maxCpu is not higher then actual docker amount
+      if (
+        !('maxCpu' in this.envs[i]) ||
+        !this.envs[i].maxCpu ||
+        this.envs[i].maxCpu > sysinfo.NCPU
+      )
+        this.envs[i].maxCpu = sysinfo.NCPU
+
+      // make sure totalRam is not higher then actual available
+      if (
+        !('totalRam' in this.envs[i]) ||
+        !this.envs[i].totalRam ||
+        this.envs[i].totalRam > sysinfo.MemTotal
+      )
+        this.envs[i].totalRam = sysinfo.MemTotal
+      // make sure maxRam is not higher then actual docker amount
+      if (
+        !('maxRam' in this.envs[i]) ||
+        !this.envs[i].maxRam ||
+        this.envs[i].maxRam > sysinfo.MemTotal
+      )
+        this.envs[i].maxRam = sysinfo.MemTotal
+
+      // limits for free env
+      if ('free' in this.envs[i]) {
+        if ('maxCpu' in this.envs[i].free) {
+          this.envs[i].free.maxCpu = Math.min(
+            this.envs[i].free.maxCpu,
+            this.envs[i].maxCpu
+          )
+        }
+        if ('maxRam' in this.envs[i].free) {
+          this.envs[i].free.maxRam = Math.min(
+            this.envs[i].free.maxRam,
+            this.envs[i].maxRam
+          )
+        }
+        if ('maxDisk' in this.envs[i].free) {
+          this.envs[i].free.maxDisk = Math.min(
+            this.envs[i].free.maxDisk,
+            this.envs[i].maxDisk
+          )
+        }
+      }
+    }
+  }
+
   // eslint-disable-next-line require-await
   public override async getComputeEnvironments(
     chainId?: number
   ): Promise<ComputeEnvironment[]> {
     /**
-     * Returns all cluster's compute environments for a specific chainId. Env's id already contains the cluster hash
+     * Returns all cluster's compute environments, filtered by a specific chainId if needed. Env's id already contains the cluster hash
      */
     if (!this.docker) return []
-
-    if (chainId) {
-      const config = await getConfiguration()
-      const supportedNetwork = config.supportedNetworks[chainId]
-      if (supportedNetwork) {
-        const blockchain = new Blockchain(
-          supportedNetwork.rpc,
-          supportedNetwork.network,
-          chainId,
-          supportedNetwork.fallbackRPCs
-        )
-
-        // write the consumer address (compute env address)
-        const consumerAddress = await blockchain.getWalletAddress()
-        const filteredEnvs = []
-        for (const computeEnv of this.envs) {
-          if (
-            (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId))) ||
-            computeEnv.chainId === chainId // not mandatory
-          ) {
-            // was: (computeEnv.chainId === chainId) {
-            computeEnv.consumerAddress = consumerAddress
-            // also set the chain id (helpful)
-            computeEnv.chainId = chainId
-            filteredEnvs.push(computeEnv)
-          }
+    const config = await getConfiguration()
+    // compute consumerAddress for this engine
+    // for now, consumerAddress = nodeAddress
+    const filteredEnvs = []
+    for (const computeEnv of this.envs) {
+      computeEnv.consumerAddress = config.keys.ethAddress
+      if (!chainId) filteredEnvs.push(computeEnv)
+      else {
+        if (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId))) {
+          filteredEnvs.push(computeEnv)
         }
-        return filteredEnvs
       }
-      // no compute envs or network is not supported
-      CORE_LOGGER.error(`There are no free compute environments for network ${chainId}`)
-      return []
     }
     return this.envs
   }
@@ -1026,135 +1069,6 @@ export class C2DEngineDocker extends C2DEngine {
 }
 
 // this uses the docker engine, but exposes only one env, the free one
-export class C2DEngineDockerFree extends C2DEngineDocker {
-  public constructor(clusterConfig: C2DClusterInfo, db: C2DDatabase) {
-    // we remove envs, cause we have our own
-    const hash = create256Hash('free' + clusterConfig.hash)
-    const owerwrite = {
-      type: C2DClusterType.DOCKER,
-      hash,
-      connection: {
-        socketPath: clusterConfig.connection.socketPath,
-        protocol: clusterConfig.connection.protocol,
-        host: clusterConfig.connection.host,
-        port: clusterConfig.connection.port,
-        caPath: clusterConfig.connection.caPath,
-        certPath: clusterConfig.connection.certPath,
-        keyPath: clusterConfig.connection.keyPath,
-        freeComputeOptions: clusterConfig.connection.freeComputeOptions
-      },
-      tempFolder: './c2d_storage/' + hash
-    }
-    super(owerwrite, db)
-  }
-
-  // eslint-disable-next-line require-await
-  public override async getComputeEnvironments(
-    chainId?: number
-  ): Promise<ComputeEnvironment[]> {
-    /**
-     * Returns all cluster's compute environments for a specific chainId. Env's id already contains the cluster hash
-     */
-    // TO DO C2D - fill consts below
-    if (!this.docker) return []
-    // const cpuType = ''
-    // const currentJobs = 0
-    // const consumerAddress = ''
-    if (chainId) {
-      const config = await getConfiguration()
-      const supportedNetwork = config.supportedNetworks[chainId]
-      if (supportedNetwork) {
-        const blockchain = new Blockchain(
-          supportedNetwork.rpc,
-          supportedNetwork.network,
-          chainId,
-          supportedNetwork.fallbackRPCs
-        )
-
-        // write the consumer address (compute env address)
-        const consumerAddress = await blockchain.getWalletAddress()
-        const computeEnv: ComputeEnvironment =
-          this.getC2DConfig().connection?.freeComputeOptions
-        if (
-          (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId))) ||
-          computeEnv.chainId === chainId
-        ) {
-          // was: computeEnv.chainId === chainId
-          computeEnv.consumerAddress = consumerAddress
-          const envs: ComputeEnvironment[] = [computeEnv]
-          return envs
-        }
-      }
-      // no compute envs or network is not supported
-      CORE_LOGGER.error(`There are no free compute environments for network ${chainId}`)
-      return []
-    }
-    // get them all
-    const envs: ComputeEnvironment[] = [
-      this.getC2DConfig().connection?.freeComputeOptions
-    ]
-    return envs
-  }
-
-  public override async startComputeJob(
-    assets: ComputeAsset[],
-    algorithm: ComputeAlgorithm,
-    output: ComputeOutput,
-    environment: string,
-    owner?: string,
-    validUntil?: number,
-    chainId?: number,
-    agreementId?: string
-  ): Promise<ComputeJob[]> {
-    // since it's a free job, we need to mangle some params
-    agreementId = create256Hash(
-      JSON.stringify({
-        owner,
-        assets,
-        algorithm,
-        time: process.hrtime.bigint().toString()
-      })
-    )
-    chainId = 0
-    const envs = await this.getComputeEnvironments()
-    if (envs.length < 1) {
-      // no free env ??
-      throw new Error('No free env found')
-    }
-    validUntil = envs[0].maxJobDuration
-    return await super.startComputeJob(
-      assets,
-      algorithm,
-      output,
-      environment,
-      owner,
-      validUntil,
-      chainId,
-      agreementId
-    )
-  }
-
-  // eslint-disable-next-line require-await
-  public override async getComputeJobResult(
-    consumerAddress: string,
-    jobId: string,
-    index: number
-  ): Promise<Readable> {
-    const result = await super.getComputeJobResult(consumerAddress, jobId, index)
-    if (result !== null) {
-      setTimeout(async () => {
-        const jobs: DBComputeJob[] = await this.db.getJob(jobId)
-        CORE_LOGGER.info(
-          'Cleaning storage for free container, after retrieving results...'
-        )
-        if (jobs.length === 1) {
-          this.cleanupExpiredStorage(jobs[0], true) // clean the storage, do not wait for it to expire
-        }
-      }, 5000)
-    }
-    return result
-  }
-}
 
 export function getAlgorithmImage(algorithm: ComputeAlgorithm): string {
   if (!algorithm.meta || !algorithm.meta.container) {
