@@ -117,8 +117,14 @@ export class C2DEngineDocker extends C2DEngine {
         const consumerAddress = await blockchain.getWalletAddress()
         const filteredEnvs = []
         for (const computeEnv of this.envs) {
-          if (computeEnv.chainId === chainId) {
+          if (
+            (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId))) ||
+            computeEnv.chainId === chainId // not mandatory
+          ) {
+            // was: (computeEnv.chainId === chainId) {
             computeEnv.consumerAddress = consumerAddress
+            // also set the chain id (helpful)
+            computeEnv.chainId = chainId
             filteredEnvs.push(computeEnv)
           }
         }
@@ -546,7 +552,7 @@ export class C2DEngineDocker extends C2DEngine {
       // volume
       if (environment != null) {
         volume.DriverOpts = {
-          size: environment.diskGB > 0 ? `${environment.diskGB}G` : '1G'
+          size: environment.maxDisk > 0 ? `${environment.maxDisk}G` : '1G'
         }
       }
 
@@ -575,7 +581,7 @@ export class C2DEngineDocker extends C2DEngine {
       if (environment != null) {
         // storage (container)
         hostConfig.StorageOpt = {
-          size: environment.diskGB > 0 ? `${environment.diskGB}G` : '1G'
+          size: environment.maxDisk > 0 ? `${environment.maxDisk}G` : '1G'
         }
         hostConfig = {
           ...hostConfig,
@@ -1069,7 +1075,11 @@ export class C2DEngineDockerFree extends C2DEngineDocker {
         const consumerAddress = await blockchain.getWalletAddress()
         const computeEnv: ComputeEnvironment =
           this.getC2DConfig().connection?.freeComputeOptions
-        if (computeEnv.chainId === chainId) {
+        if (
+          (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId))) ||
+          computeEnv.chainId === chainId
+        ) {
+          // was: computeEnv.chainId === chainId
           computeEnv.consumerAddress = consumerAddress
           const envs: ComputeEnvironment[] = [computeEnv]
           return envs
@@ -1185,7 +1195,7 @@ export async function buildCPUAndMemoryConstraints(
   // CPU
   const systemInfo = docker ? await docker.info() : null
   const existingCPUs = systemInfo ? systemInfo.NCPU : os.cpus().length
-  const confCPUs = environment.cpuNumber > 0 ? environment.cpuNumber : 1
+  const confCPUs = environment.maxCpu > 0 ? environment.maxCpu : 1
   // windows only
   hostConfig.CpuCount = Math.min(confCPUs, existingCPUs)
   // hostConfig.CpuShares = 1 / hostConfig.CpuCount
@@ -1197,7 +1207,7 @@ export async function buildCPUAndMemoryConstraints(
   }
   // MEM
   const existingMem = systemInfo ? systemInfo.MemTotal : os.totalmem()
-  const configuredRam = 0 || convertGigabytesToBytes(environment.ramGB)
+  const configuredRam = 0 || convertGigabytesToBytes(environment.maxRam)
   hostConfig.Memory = 0 || Math.min(existingMem, configuredRam)
   // set swap to same memory value means no swap (otherwise it use like 2X mem)
   hostConfig.MemorySwap = hostConfig.Memory

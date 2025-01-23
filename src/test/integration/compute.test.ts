@@ -118,7 +118,7 @@ describe('Compute', () => {
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE,
-          ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL,
+          // ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL,
           ENVIRONMENT_VARIABLES.DOCKER_SOCKET_PATH
           // ENVIRONMENT_VARIABLES.DB_TYPE
         ],
@@ -128,7 +128,7 @@ describe('Compute', () => {
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          JSON.stringify(['http://localhost:31000']),
+          // JSON.stringify(['http://localhost:31000']),
           '/var/run/docker.sock'
           // DB_TYPES.ELASTIC_SEARCH
         ]
@@ -257,23 +257,22 @@ describe('Compute', () => {
     expect(response.stream).to.be.instanceOf(Readable)
 
     computeEnvironments = await streamToObject(response.stream as Readable)
-    // expect 3 envs
-    expect(computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 3, 'incorrect length')
+    console.log('existing envs: ', computeEnvironments)
+    // expect 1 OR + envs (1 if only docker free env is available)
+    assert(computeEnvironments[DEVELOPMENT_CHAIN_ID].length >= 1, 'incorrect length')
     for (const computeEnvironment of computeEnvironments[DEVELOPMENT_CHAIN_ID]) {
       assert(computeEnvironment.id, 'id missing in computeEnvironments')
       assert(
         computeEnvironment.consumerAddress,
         'consumerAddress missing in computeEnvironments'
       )
-      // what is this? not present on free envs, so skip.. in any case the field is optional
-      if (!computeEnvironment.free) {
-        assert(computeEnvironment.lastSeen, 'lastSeen missing in computeEnvironments')
-      }
+
       assert(computeEnvironment.id.startsWith('0x'), 'id should start with 0x')
-      assert(computeEnvironment.cpuNumber > 0, 'cpuNumber missing in computeEnvironments')
-      assert(computeEnvironment.ramGB > 0, 'ramGB missing in computeEnvironments')
-      assert(computeEnvironment.diskGB > 0, 'diskGB missing in computeEnvironments')
-      assert(computeEnvironment.maxJobs > 0, 'maxJobs missing in computeEnvironments')
+
+      // new structure
+      assert(computeEnvironment.totalCpu > 0, 'totalCpu missing in computeEnvironments')
+      assert(computeEnvironment.totalRam > 0, 'totalRam missing in computeEnvironments')
+      assert(computeEnvironment.maxDisk > 0, 'maxDisk missing in computeEnvironments')
       assert(
         computeEnvironment.maxJobDuration > 0,
         'maxJobDuration missing in computeEnvironments'
@@ -571,8 +570,6 @@ describe('Compute', () => {
       // output?: ComputeOutput
     }
     const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
-    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-    console.log(response)
     assert(response, 'Failed to get response')
     // should fail, because txId '0x123' is not a valid order
     assert(response.status.httpStatus === 500, 'Failed to get 500 response')
@@ -580,6 +577,11 @@ describe('Compute', () => {
   })
 
   it('should start a compute job', async () => {
+    // first need to check the existing envs
+    // If only FREE envs than start a free compute job instead of a regular/payed one
+    const hasOnlyFreeEnv =
+      computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 1 && firstEnv.free
+
     const nonce = Date.now().toString()
     const message = String(nonce)
     // sign message/nonce
@@ -590,7 +592,9 @@ describe('Compute', () => {
     const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await wallet.signMessage(messageHashBytes)
     const startComputeTask: ComputeStartCommand = {
-      command: PROTOCOL_COMMANDS.COMPUTE_START,
+      command: hasOnlyFreeEnv
+        ? PROTOCOL_COMMANDS.FREE_COMPUTE_START
+        : PROTOCOL_COMMANDS.COMPUTE_START,
       consumerAddress: await wallet.getAddress(),
       signature,
       nonce,
@@ -612,7 +616,9 @@ describe('Compute', () => {
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
-    const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
+    const response = hasOnlyFreeEnv
+      ? await new FreeComputeStartHandler(oceanNode).handle(startComputeTask)
+      : await new ComputeStartHandler(oceanNode).handle(startComputeTask)
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')

@@ -53,6 +53,8 @@ export class C2DEngineOPFK8 extends C2DEngine {
         data[index].free = false
         if (!data[index].feeToken || data[index].feeToken?.toLowerCase() === ZeroAddress)
           data[index].feeToken = await getProviderFeeToken(chainId)
+        // also add chain id here, since it can be helpful
+        if (chainId) data.chainId = chainId
       }
       return data
     } catch {}

@@ -32,7 +32,7 @@ import {
 } from '../utils/address.js'
 import { CONFIG_LOGGER } from './logging/common.js'
 import { create256Hash } from './crypt.js'
-import { isDefined } from './util.js'
+import { convertGigabytesToBytes, isDefined } from './util.js'
 import os from 'os'
 import { fileURLToPath } from 'url'
 import path from 'path'
@@ -394,20 +394,31 @@ function getDockerFreeComputeOptions(
 ): ComputeEnvironment {
   const defaultOptions: ComputeEnvironment = {
     id: `${clusterHash}-free`,
-    cpuNumber: 1,
-    cpuType: '',
-    gpuNumber: 0,
-    ramGB: 1,
-    diskGB: 1,
-    priceMin: 0,
-    desc: 'Free',
+    maxCpu: 1,
+    // cpuType: '',
+    // gpuNumber: 0,
+    totalRam: convertGigabytesToBytes(os.totalmem()),
+    totalCpu: os.cpus().length,
+    maxRam: 1, // 1GB
+    maxDisk: 1, // 1GB
+    description: 'Free',
     currentJobs: 0,
-    maxJobs: 1,
+    // maxJobs: 1,
     consumerAddress: '',
     storageExpiry: 600,
     maxJobDuration: 600, // 10 minutes
-    feeToken: ZeroAddress,
-    chainId: 8996,
+    // feeToken: ZeroAddress,
+    // chainId: 8996,
+    fees: {
+      8996: {
+        feeToken: ZeroAddress,
+        prices: [
+          { type: 'cpu', price: 0 },
+          { type: 'memory', price: 0 },
+          { type: 'storage', price: 0 }
+        ]
+      }
+    },
     free: true,
     platform: [{ architecture: os.machine(), os: os.platform() }]
   }
@@ -429,7 +440,8 @@ function getDockerFreeComputeOptions(
         LOG_LEVELS_STR.LEVEL_ERROR
       )
     }
-  } else {
+  } else if (isStartup) {
+    // avoid logging to much times
     CONFIG_LOGGER.warn(
       `No options for ${ENVIRONMENT_VARIABLES.DOCKER_FREE_COMPUTE.name} were specified, using defaults.`
     )
@@ -481,7 +493,7 @@ function getDockerComputeEnvironments(isStartup?: boolean): ComputeEnvironment[]
         LOG_LEVELS_STR.LEVEL_ERROR
       )
     }
-  } else {
+  } else if (isStartup) {
     CONFIG_LOGGER.warn(
       `No options for ${ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS.name} were specified.`
     )
@@ -491,18 +503,24 @@ function getDockerComputeEnvironments(isStartup?: boolean): ComputeEnvironment[]
 
 function doComputeEnvChecks(configEnv: ComputeEnvironmentBaseConfig[]): boolean {
   for (const config of configEnv) {
-    if (config.feeToken && !isDefined(config.priceMin)) {
+    if (!isDefined(config.fees)) {
       CONFIG_LOGGER.error(
-        "Please check your compute env settings: We have a fee token but we don't have a price!"
+        'Please check your compute env settings: There is no fees configuration!'
       )
       return false
     }
-    if (isDefined(config.priceMin) && !isDefined(config.feeToken)) {
-      CONFIG_LOGGER.error(
-        "Please check your compute env settings: We have a price but we don't have a fee token!"
-      )
-      return false
-    }
+    // if (config.fees && !isDefined(config.fees)) {
+    //   CONFIG_LOGGER.error(
+    //     "Please check your compute env settings: We have a fee token but we don't have a price!"
+    //   )
+    //   return false
+    // }
+    // was: if (isDefined(config.pricePerCpu) && !isDefined(config.fees)) {
+    //   CONFIG_LOGGER.error(
+    //     "Please check your compute env settings: We have a price but we don't have a fee token!"
+    //   )
+    //   return false
+    // }
     if (config.storageExpiry < config.maxJobDuration) {
       CONFIG_LOGGER.error(
         'Please check your compute env settings: "storageExpiry" should be greater than "maxJobDuration"!'

@@ -70,7 +70,7 @@ describe('Compute Jobs Database', () => {
     }
     const dockerConfig = config.c2dClusters[size - 1].connection
     const freeEnv: ComputeEnvironment = dockerConfig.freeComputeOptions
-    expect(freeEnv.desc).to.be.equal('Free')
+    expect(freeEnv.description).to.be.equal('Free')
     expect(freeEnv.free).to.be.equal(true)
     expect(freeEnv.id).to.be.equal(config.c2dClusters[size - 1].hash + '-free')
   })
@@ -241,11 +241,11 @@ describe('Compute Jobs Database', () => {
     const dockerConfig = config.c2dClusters[size - 1].connection
     const freeEnv: ComputeEnvironment = dockerConfig.freeComputeOptions
     const cpus = os.cpus()
-    freeEnv.cpuNumber = cpus.length + 1 // should be capped to cpus.length
+    freeEnv.maxCpu = cpus.length + 1 // should be capped to cpus.length
     const docker = new Dockerode({ socketPath: '/var/run/docker.sock' })
     let hostConfig: HostConfig = await buildCPUAndMemoryConstraints(freeEnv, docker)
     expect(hostConfig.CpuCount).to.be.equal(cpus.length)
-    freeEnv.cpuNumber = -1
+    freeEnv.maxCpu = -1
     hostConfig = await buildCPUAndMemoryConstraints(freeEnv)
     expect(hostConfig.CpuCount).to.be.equal(1)
     const ram = os.totalmem()

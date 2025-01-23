@@ -20,32 +20,54 @@ export interface C2DClusterInfo {
   tempFolder?: string
 }
 
-export interface ComputeEnvironmentBaseConfig {
-  cpuNumber: number
-  ramGB: number
-  diskGB: number
-  desc: string
-  maxJobs: number
-  storageExpiry: number
-  maxJobDuration: number
-  chainId?: number
+export type ComputeResourceType = 'cpu' | 'memory' | 'storage'
+
+export interface ComputeResourcesPricingInfo {
+  type: ComputeResourceType
+  price: number
+}
+
+export interface ComputeEnvFees {
   feeToken: string
-  priceMin: number
+  prices: ComputeResourcesPricingInfo[]
+}
+export interface ComputeEnvFeesStructure {
+  [chainId: string]: ComputeEnvFees
 }
 
 export interface RunningPlatform {
   architecture: string
   os: string
 }
-export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
-  id: string
+export interface ComputeEnvironmentBaseConfig {
+  // cpuNumber: number
+  // ramGB: number
+  // diskGB: number
+  description: string // v1
+  // maxJobs: number
+  storageExpiry: number // v1
+  maxJobDuration: number // v1 max seconds for a job
+  // chainId?: number
+  // feeToken: string
+  // priceMin: number
+  totalCpu: number // total cpu available for jobs
+  maxCpu: number // max cpu for a single job.  Imagine a K8 cluster with two nodes, each node with 10 cpus.  Total=20, but at most you can allocate 10 cpu for a job
+  totalRam: number // total gb of RAM
+  maxRam: number // max allocatable GB RAM for a single job.
+  maxDisk: number // max GB of disck allocatable for a single job
+  fees: ComputeEnvFeesStructure
+}
 
-  cpuType?: string
-  gpuNumber?: number
-  gpuType?: string
+export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
+  id: string // v1
+  // arch: string => part of platform bellow
+  // cpuType?: string
+  // gpuNumber?: number
+  // gpuType?: string
+  chainId?: number // it can be useful to keep the chain id (optional)
   currentJobs: number
-  consumerAddress: string
-  lastSeen?: number
+  consumerAddress: string // v1
+  // lastSeen?: number
   free: boolean
   platform?: RunningPlatform[] // array due to k8 support
 }
@@ -69,7 +91,7 @@ export interface ComputeEnvByChain {
 export type ComputeResultType =
   | 'algorithmLog'
   | 'output'
-  | 'configrationLog'
+  | 'configurationLog'
   | 'publishLog'
 
 export interface ComputeResult {
