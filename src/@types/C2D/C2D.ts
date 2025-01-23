@@ -97,6 +97,10 @@ export interface ComputeEnvByChain {
   [chainId: number]: ComputeEnvironment[]
 }
 
+export interface ComputeResourceRequest {
+  type: string
+  amount: number
+}
 export type ComputeResultType =
   | 'algorithmLog'
   | 'output'

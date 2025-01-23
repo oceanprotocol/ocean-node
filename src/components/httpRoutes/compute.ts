@@ -12,7 +12,8 @@ import {
 import type {
   ComputeAlgorithm,
   ComputeAsset,
-  ComputeOutput
+  ComputeOutput,
+  ComputeResourceRequest
 } from '../../@types/C2D/C2D.js'
 import type {
   ComputeStartCommand,
@@ -99,7 +100,8 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       nonce: (req.body.nonce as string) || null,
       environment: (req.body.environment as string) || null,
       algorithm: (req.body.algorithm as ComputeAlgorithm) || null,
-      datasets: (req.body.datasets as unknown as ComputeAsset[]) || null
+      datasets: (req.body.datasets as unknown as ComputeAsset[]) || null,
+      resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output as ComputeOutput
@@ -135,8 +137,10 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => 
       consumerAddress: (req.body.consumerAddress as string) || null,
       signature: (req.body.signature as string) || null,
       nonce: (req.body.nonce as string) || null,
+      environment: (req.body.environment as string) || null,
       algorithm: (req.body.algorithm as ComputeAlgorithm) || null,
-      datasets: (req.body.datasets as unknown as ComputeAsset[]) || null
+      datasets: (req.body.datasets as unknown as ComputeAsset[]) || null,
+      resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output as ComputeOutput
