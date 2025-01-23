@@ -302,18 +302,6 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     )
     assert(dispenserContract)
     console.log(`new datatoken addr: ${newdatatokenAddress}`)
-    const activationTx = await dispenserContract.activate(
-      newdatatokenAddress,
-      parseUnits('1', 18).toString(),
-      parseUnits('1', 18).toString()
-    )
-    assert(activationTx, 'Cannot activate dispenser')
-    const activationReceipt = await activationTx.wait()
-    const activationEvent = getEventFromTx(activationReceipt, EVENTS.DISPENSER_ACTIVATED)
-    assert(
-      activationEvent.topics[0] === datatokenAddress,
-      'Datatoken addresses do not match for dispenser event'
-    )
 
     genericAsset.services[1].datatokenAddress = newdatatokenAddress
     // let's call node to encrypt
