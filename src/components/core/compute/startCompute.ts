@@ -1,9 +1,8 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
-import { ComputeAsset } from '../../../@types/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
-import { ComputeStartCommand } from '../../../@types/commands.js'
+import { ComputeStartCommand, FreeComputeStartCommand } from '../../../@types/commands.js'
 import { getAlgoChecksums, validateAlgoForDataset } from './utils.js'
 import {
   ValidateParams,
@@ -28,6 +27,7 @@ import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
+import { getNonceAsNumber } from '../utils/nonceHandler.js'
 export class ComputeStartHandler extends Handler {
   validate(command: ComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
@@ -36,7 +36,7 @@ export class ComputeStartHandler extends Handler {
       'nonce',
       'environment',
       'algorithm',
-      'dataset'
+      'datasets'
     ])
     if (commandValidation.valid) {
       if (!isAddress(command.consumerAddress)) {
@@ -72,8 +72,6 @@ export class ComputeStartHandler extends Handler {
         }
       }
       const node = this.getOceanNode()
-      const assets: ComputeAsset[] = [task.dataset]
-      if (task.additionalDatasets) assets.push(...task.additionalDatasets)
       const { algorithm } = task
       let foundValidCompute = null
 
@@ -93,7 +91,8 @@ export class ComputeStartHandler extends Handler {
         }
       }
       // check algo
-      for (const elem of [...[task.algorithm], ...assets]) {
+      for (const elem of [...[task.algorithm], ...task.datasets]) {
+        console.log(elem)
         const result: any = { validOrder: false }
         if ('documentId' in elem && elem.documentId) {
           result.did = elem.documentId
@@ -166,6 +165,11 @@ export class ComputeStartHandler extends Handler {
                 signer
               )
               if (isTemplate4 && (await isERC20Template4Active(ddo.chainId, signer))) {
+                // we need to get the proper data for the signature
+                const consumeData =
+                  task.consumerAddress +
+                  task.datasets[0].documentId +
+                  getNonceAsNumber(task.consumerAddress)
                 // call smart contract to decrypt
                 const serviceIndex = AssetUtils.getServiceIndexById(ddo, service.id)
                 const filesObject = await getFilesObjectFromConfidentialEVM(
@@ -173,8 +177,8 @@ export class ComputeStartHandler extends Handler {
                   service.datatokenAddress,
                   signer,
                   task.consumerAddress,
-                  task.signature, // TODO, we will need to have a signature verification
-                  ddo.id
+                  task.signature, // we will need to have a signature verification
+                  consumeData
                 )
                 if (filesObject != null) {
                   canDecrypt = true
@@ -219,6 +223,16 @@ export class ComputeStartHandler extends Handler {
           result.chainId = ddo.chainId
 
           const env = await engine.getComputeEnvironment(ddo.chainId, task.environment)
+          if (env.free) {
+            const error = `Free Jobs cannot be started here, use startFreeCompute`
+            return {
+              stream: null,
+              status: {
+                httpStatus: 500,
+                error
+              }
+            }
+          }
           if (!('transferTxId' in elem) || !elem.transferTxId) {
             const error = `Missing transferTxId for DDO ${elem.documentId}`
             return {
@@ -312,11 +326,11 @@ export class ComputeStartHandler extends Handler {
       const { validUntil } = foundValidCompute
 
       const response = await engine.startComputeJob(
-        assets,
+        task.datasets,
         algorithm,
         task.output,
-        task.consumerAddress,
         envId,
+        task.consumerAddress,
         validUntil,
         chainId,
         agreementId
@@ -324,6 +338,84 @@ export class ComputeStartHandler extends Handler {
 
       CORE_LOGGER.logMessage(
         'ComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
+        true
+      )
+
+      return {
+        stream: Readable.from(JSON.stringify(response)),
+        status: {
+          httpStatus: 200
+        }
+      }
+    } catch (error) {
+      CORE_LOGGER.error(error.message)
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error: error.message
+        }
+      }
+    }
+  }
+}
+
+// free compute
+// - has no validation
+export class FreeComputeStartHandler extends Handler {
+  validate(command: ComputeStartCommand): ValidateParams {
+    const commandValidation = validateCommandParameters(command, [
+      'algorithm',
+      'datasets',
+      'consumerAddress',
+      'signature',
+      'nonce'
+    ])
+    if (commandValidation.valid) {
+      if (!isAddress(command.consumerAddress)) {
+        return buildInvalidRequestMessage(
+          'Parameter : "consumerAddress" is not a valid web3 address'
+        )
+      }
+    }
+    return commandValidation
+  }
+
+  async handle(task: FreeComputeStartCommand): Promise<P2PCommandResponse> {
+    const validationResponse = await this.verifyParamsAndRateLimits(task)
+    if (this.shouldDenyTaskHandling(validationResponse)) {
+      return validationResponse
+    }
+    let environment = null
+    try {
+      // get all envs and see if we have a free one
+      const allEnvs = await this.getOceanNode().getC2DEngines().fetchEnvironments()
+      for (const env of allEnvs) {
+        if (env.free) {
+          environment = env
+        }
+      }
+      if (!environment)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: 'This node does not have a free compute env'
+          }
+        }
+      const engine = await this.getOceanNode()
+        .getC2DEngines()
+        .getC2DByEnvId(environment.id)
+      const response = await engine.startComputeJob(
+        task.datasets,
+        task.algorithm,
+        task.output,
+        environment.id,
+        task.consumerAddress
+      )
+
+      CORE_LOGGER.logMessage(
+        'FreeComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
         true
       )
 

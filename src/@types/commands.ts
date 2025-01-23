@@ -1,7 +1,7 @@
 import { ValidateParams } from '../components/httpRoutes/validateCommands.js'
 import { DDO } from './DDO/DDO'
 import { P2PCommandResponse } from './OceanNode'
-import type { ComputeAsset, ComputeAlgorithm, ComputeOutput } from './C2D'
+import type { ComputeAsset, ComputeAlgorithm, ComputeOutput } from './C2D/C2D.js'
 import {
   ArweaveFileObject,
   FileObjectType,
@@ -65,7 +65,9 @@ export interface ValidateDDOCommand extends Command {
   ddo: DDO
 }
 
-export interface StatusCommand extends Command {}
+export interface StatusCommand extends Command {
+  detailed?: boolean
+}
 export interface DetailedStatusCommand extends StatusCommand {}
 export interface EchoCommand extends Command {}
 
@@ -153,6 +155,7 @@ export interface ComputeInitializeCommand extends Command {
   algorithm: ComputeAlgorithm
   compute: ComputeDetails
   consumerAddress: string
+  signature?: string
 }
 
 export interface ComputeStartCommand extends Command {
@@ -161,8 +164,15 @@ export interface ComputeStartCommand extends Command {
   nonce: string
   environment: string
   algorithm: ComputeAlgorithm
-  dataset: ComputeAsset
-  additionalDatasets?: ComputeAsset[]
+  datasets?: ComputeAsset[]
+  output?: ComputeOutput
+}
+export interface FreeComputeStartCommand extends Command {
+  consumerAddress: string
+  signature: string
+  nonce: string
+  algorithm: ComputeAlgorithm
+  datasets?: ComputeAsset[]
   output?: ComputeOutput
 }
 
@@ -180,6 +190,12 @@ export interface ComputeGetResultCommand extends Command {
   nonce: string
   jobId: string
   index: number
+}
+export interface ComputeGetStreamableLogsCommand extends Command {
+  consumerAddress: string
+  signature: string
+  nonce: string
+  jobId: string
 }
 
 export interface ComputeGetStatusCommand extends Command {
