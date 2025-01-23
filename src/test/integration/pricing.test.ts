@@ -302,9 +302,21 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     )
     assert(dispenserContract)
     console.log(`new datatoken addr: ${newdatatokenAddress}`)
-
-    genericAsset.services[1].datatokenAddress = newdatatokenAddress
-    // let's call node to encrypt
+    genericAsset.services.push({
+      id: '1',
+      type: 'access',
+      description: 'Download service',
+      datatokenAddress: newdatatokenAddress,
+      files: [
+        {
+          url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
+          contentType: 'text/js',
+          encoding: 'UTF-8'
+        }
+      ],
+      serviceEndpoint: 'http://172.15.0.4:8030',
+      timeout: 0
+    })
 
     const data = Uint8Array.from(
       Buffer.from(JSON.stringify(genericAsset.services[1].files))
