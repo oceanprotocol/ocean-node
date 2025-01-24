@@ -101,6 +101,10 @@ export class C2DEngineDocker extends C2DEngine {
       },
       fees: envConfig.fees ? envConfig.fees : null
     })
+    if (`storageExpiry` in envConfig) this.envs[0].storageExpiry = envConfig.storageExpiry
+    if (`maxJobDuration` in envConfig)
+      this.envs[0].maxJobDuration = envConfig.maxJobDuration
+    if (`maxJobs` in envConfig) this.envs[0].maxJobs = envConfig.maxJobs
     // let's add resources
     this.envs[0].resources = []
     this.envs[0].resources.push({
