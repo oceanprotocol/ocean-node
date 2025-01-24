@@ -1,6 +1,6 @@
 import { ethers, Signer } from 'ethers'
 import { Credential, Credentials } from '../@types/DDO/Credentials'
-import { getNFTContract } from '../components/Indexer/utils'
+import { getNFTContract } from '../components/Indexer/utils.js'
 
 export function findCredential(
   credentials: Credential[],
