@@ -25,7 +25,7 @@ export function findCredential(
  * @param consumerAddress consumer address
  */
 export function checkCredentials(credentials: Credentials, consumerAddress: string) {
-  const consumerCredentials = {
+  const consumerCredentials: Credential = {
     type: 'address',
     values: [String(consumerAddress)?.toLowerCase()]
   }

@@ -1,5 +1,6 @@
+export type CredentialsType = 'address' | 'accessList'
 export interface Credential {
-  type?: string
+  type?: CredentialsType
   values?: string[]
 }
 
