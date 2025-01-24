@@ -146,7 +146,7 @@ export class ComputeInitializeHandler extends Handler {
                 .getExactComputeEnv(task.compute.env, ddo.chainId)
               const validation: ValidateParams = await C2DEngineDocker.checkDockerImage(
                 algoImage,
-                env.platform && env.platform.length > 0 ? env.platform[0] : null
+                env.platform
               )
               if (!validation.valid) {
                 return {

@@ -735,6 +735,7 @@ describe('Compute', () => {
   })
 
   it('should deny the Free job due to bad container image (directCommand payload)', async function () {
+    freeComputeStartPayload.environment = firstEnv.id
     const command: FreeComputeStartCommand = freeComputeStartPayload
     const handler = new FreeComputeStartHandler(oceanNode)
     const response = await handler.handle(command)

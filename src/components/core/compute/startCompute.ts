@@ -28,6 +28,7 @@ import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
+import { env } from 'process'
 export class ComputeStartHandler extends Handler {
   validate(command: ComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
@@ -68,6 +69,24 @@ export class ComputeStartHandler extends Handler {
           status: {
             httpStatus: 500,
             error: 'Invalid C2D Environment'
+          }
+        }
+      }
+
+      try {
+        const env = await engine.getComputeEnvironment(null, task.environment)
+        task.resources = await engine.checkAndFillMissingResources(
+          task.resources,
+          env,
+          false
+        )
+        await engine.hasResourcesAvailable(task.resources, env, true)
+      } catch (e) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: e
           }
         }
       }
@@ -323,7 +342,8 @@ export class ComputeStartHandler extends Handler {
         task.consumerAddress,
         validUntil,
         chainId,
-        agreementId
+        agreementId,
+        task.resources
       )
 
       CORE_LOGGER.logMessage(
@@ -359,7 +379,8 @@ export class FreeComputeStartHandler extends Handler {
       'datasets',
       'consumerAddress',
       'signature',
-      'nonce'
+      'nonce',
+      'environment'
     ])
     if (commandValidation.valid) {
       if (!isAddress(command.consumerAddress)) {
@@ -376,32 +397,70 @@ export class FreeComputeStartHandler extends Handler {
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
-    let environment = null
+    let engine = null
     try {
-      // get all envs and see if we have a free one
-      const allEnvs = await this.getOceanNode().getC2DEngines().fetchEnvironments()
-      for (const env of allEnvs) {
-        // if (env.free) {
-        environment = env
-        // }
-      }
-      if (!environment)
+      // split compute env (which is already in hash-envId format) and get the hash
+      // then get env which might contain dashes as well
+      const eIndex = task.environment.indexOf('-')
+      const hash = task.environment.slice(0, eIndex)
+      // const envId = task.environment.slice(eIndex + 1)
+      try {
+        engine = await this.getOceanNode().getC2DEngines().getC2DByHash(hash)
+      } catch (e) {
         return {
           stream: null,
           status: {
             httpStatus: 500,
-            error: 'This node does not have a free compute env'
+            error: 'Invalid C2D Environment'
           }
         }
-      const engine = await this.getOceanNode()
-        .getC2DEngines()
-        .getC2DByEnvId(environment.id)
+      }
+      if (engine === null) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: 'Invalid C2D Environment'
+          }
+        }
+      }
+      try {
+        const env = await engine.getComputeEnvironment(null, task.environment)
+        task.resources = await engine.checkAndFillMissingResources(
+          task.resources,
+          env,
+          true
+        )
+        await engine.hasResourcesAvailable(task.resources, env, true)
+      } catch (e) {
+        console.error(e)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: String(e)
+          }
+        }
+      }
+      // console.log(task.resources)
+      /*
+      return {
+        stream: null,
+        status: {
+          httpStatus: 200,
+          error: null
+        }
+      } */
       const response = await engine.startComputeJob(
         task.datasets,
         task.algorithm,
         task.output,
-        environment.id,
-        task.consumerAddress
+        task.environment,
+        task.consumerAddress,
+        null,
+        null,
+        null,
+        task.resources
       )
 
       CORE_LOGGER.logMessage(

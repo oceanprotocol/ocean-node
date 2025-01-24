@@ -6,9 +6,14 @@ import type {
   ComputeAsset,
   ComputeJob,
   ComputeOutput,
+  ComputeResourceRequest,
+  ComputeResourceType,
+  ComputeResource,
   DBComputeJob
 } from '../../@types/C2D/C2D.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
+import { isDefined } from '../../utils/util.js'
+import { cp } from 'fs'
 
 export abstract class C2DEngine {
   private clusterConfig: C2DClusterInfo
@@ -47,7 +52,8 @@ export abstract class C2DEngine {
     owner?: string,
     validUntil?: number,
     chainId?: number,
-    agreementId?: string
+    agreementId?: string,
+    resources?: ComputeResourceRequest[]
   ): Promise<ComputeJob[]>
 
   public abstract stopComputeJob(
@@ -123,57 +129,114 @@ export abstract class C2DEngine {
     }
     return null
   }
-}
 
-export class C2DEngineLocal extends C2DEngine {
-  public getComputeEnvironments(chainId?: number): Promise<ComputeEnvironment[]> {
-    throw new Error('Method not implemented.')
+  /* Returns ComputeResources for a specific resource
+   */
+  public getMaxMinResource(
+    id: ComputeResourceType,
+    env: ComputeEnvironment,
+    isFree: boolean
+  ): ComputeResource {
+    const paid = this.getResource(env.resources, id)
+    let free = null
+    if (isFree && 'free' in env && 'resources' in env.free) {
+      free = this.getResource(env.free.resources, id)
+      if (!free) {
+        // this resource is not listed under free, so it's not available
+        return {
+          id,
+          total: 0,
+          max: 0,
+          min: 0
+        }
+      }
+    }
+    const total = 'total' in paid ? paid.total : 0
+    const max = 'max' in paid ? paid.max : 0
+    const min = 'min' in paid ? paid.min : 0
+    const ret: ComputeResource = {
+      id,
+      total: free && 'total' in free ? free.total : total,
+      max: free && 'max' in free ? free.max : max,
+      min: free && 'min' in free ? free.min : min
+    }
+
+    return ret
   }
 
-  public startComputeJob(
-    assets: ComputeAsset[],
-    algorithm: ComputeAlgorithm,
-    output: ComputeOutput,
-    environment: string,
-    owner?: string,
-    validUntil?: number,
-    chainId?: number,
-    agreementId?: string
-  ): Promise<ComputeJob[]> {
-    throw new Error('Method not implemented.')
+  // make sure that all requests have cpu, ram, storage
+  // eslint-disable-next-line require-await
+  public async checkAndFillMissingResources(
+    resources: ComputeResourceRequest[],
+    env: ComputeEnvironment,
+    isFree: boolean
+  ): Promise<ComputeResourceRequest[]> {
+    if (isFree && !('free' in env)) throw new Error('This env does not support free jobs')
+    const properResources: ComputeResourceRequest[] = []
+    const elements: string[] = []
+
+    for (const res of env.free.resources) elements.push(res.id)
+    for (const res of env.resources) if (!elements.includes(res.id)) elements.push(res.id)
+
+    /* if (isFree && 'free' in env && 'resources' in env.free) {
+      for (const res of env.free.resources) elements.push(res.id)
+    } else for (const res of env.resources) elements.push(res.id)
+      */
+    for (const device of elements) {
+      let desired = this.getResourceRequest(resources, device)
+      const minMax = this.getMaxMinResource(device, env, isFree)
+      if (!desired && minMax.min > 0) {
+        // it's required
+        desired = minMax.min
+      } else {
+        if (desired < minMax.min) desired = minMax.min
+        if (desired > minMax.max) {
+          throw new Error(
+            'Not enough ' +
+              device +
+              ' resources. Requested ' +
+              desired +
+              ', but max is ' +
+              minMax.max
+          )
+        }
+      }
+      properResources.push({ id: device, amount: minMax.min })
+    }
+
+    return properResources
   }
 
-  public stopComputeJob(
-    jobId: string,
-    owner: string,
-    agreementId?: string
-  ): Promise<ComputeJob[]> {
-    throw new Error('Method not implemented.')
+  // overridden by each engine
+  // eslint-disable-next-line require-await
+  public async hasResourcesAvailable(
+    resources: ComputeResourceRequest[],
+    env: ComputeEnvironment,
+    isFree: boolean
+  ): Promise<boolean> {
+    return true
   }
 
-  public getComputeJobStatus(
-    consumerAddress?: string,
-    agreementId?: string,
-    jobId?: string
-  ): Promise<ComputeJob[]> {
-    throw new Error('Method not implemented.')
+  public getResource(resources: ComputeResource[], id: ComputeResourceType) {
+    if (!resources) return null
+    for (const resource of resources) {
+      if (resource.id === id) {
+        return resource
+      }
+    }
+    return null
   }
 
-  public getComputeJobResult(
-    consumerAddress: string,
-    jobId: string,
-    index: number
-  ): Promise<Readable> {
-    throw new Error('Method not implemented.')
+  public getResourceRequest(
+    resources: ComputeResourceRequest[],
+    id: ComputeResourceType
+  ) {
+    if (!resources) return null
+    for (const resource of resources) {
+      if (resource.id === id) {
+        return resource.amount
+      }
+    }
+    return null
   }
-
-  public cleanupExpiredStorage(job: DBComputeJob): Promise<boolean> {
-    throw new Error('Method not implemented.')
-  }
-
-  // eslint-disable-next-line no-useless-constructor
-  public constructor(clusterConfig: C2DClusterInfo) {
-    super(clusterConfig)
-  }
-  // not implemented yet
 }

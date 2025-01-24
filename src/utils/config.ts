@@ -2,7 +2,6 @@ import type { DenyList, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNo
 import { dhtFilterMethod } from '../@types/OceanNode.js'
 import type {
   C2DClusterInfo,
-  ComputeEnvironment,
   C2DDockerConfig,
   ComputeEnvironmentBaseConfig
 } from '../@types/C2D/C2D.js'
@@ -408,12 +407,24 @@ function getDockerComputeEnvironments(isStartup?: boolean): C2DDockerConfig[] {
       ) as C2DDockerConfig[]
 
       for (const config of configs) {
-        console.log(config)
-        if (config.environments.length > 1) {
-          CONFIG_LOGGER.warn(`Multiple environments is not supported for Docker C2D`)
-          continue
+        let errors = ''
+        if (!isDefined(config.fees)) {
+          errors += ' There is no fees configuration!'
         }
-        if (doComputeEnvChecks(config.environments[0])) {
+        if (!isDefined(config.maxDisk)) {
+          errors += ' There is no maxDisk configuration!'
+        }
+        if (config.storageExpiry < config.maxJobDuration) {
+          errors += ' "storageExpiry" should be greater than "maxJobDuration"!'
+        }
+        if (errors.length > 1) {
+          CONFIG_LOGGER.error(
+            'Please check your compute env settings: ' +
+              errors +
+              'for env: ' +
+              JSON.stringify(config)
+          )
+        } else {
           dockerC2Ds.push(config)
         }
       }
@@ -433,41 +444,6 @@ function getDockerComputeEnvironments(isStartup?: boolean): C2DDockerConfig[] {
     )
   }
   return []
-}
-
-function doComputeEnvChecks(config: ComputeEnvironmentBaseConfig): boolean {
-  if (!isDefined(config.fees)) {
-    CONFIG_LOGGER.error(
-      'Please check your compute env settings: There is no fees configuration!'
-    )
-    return false
-  }
-  if (!isDefined(config.maxDisk)) {
-    CONFIG_LOGGER.error(
-      'Please check your compute env settings: There is no maxDisk configuration!'
-    )
-    return false
-  }
-  // if (config.fees && !isDefined(config.fees)) {
-  //   CONFIG_LOGGER.error(
-  //     "Please check your compute env settings: We have a fee token but we don't have a price!"
-  //   )
-  //   return false
-  // }
-  // was: if (isDefined(config.pricePerCpu) && !isDefined(config.fees)) {
-  //   CONFIG_LOGGER.error(
-  //     "Please check your compute env settings: We have a price but we don't have a fee token!"
-  //   )
-  //   return false
-  // }
-  if (config.storageExpiry < config.maxJobDuration) {
-    CONFIG_LOGGER.error(
-      'Please check your compute env settings: "storageExpiry" should be greater than "maxJobDuration"!'
-    )
-    return false
-  }
-
-  return true
 }
 
 // connect interfaces (p2p or/and http)

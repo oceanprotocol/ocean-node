@@ -10,7 +10,8 @@ import type {
   ComputeOutput,
   DBComputeJob,
   ComputeResult,
-  RunningPlatform
+  RunningPlatform,
+  ComputeResourceRequest
 } from '../../@types/C2D/C2D.js'
 import { getConfiguration } from '../../utils/config.js'
 import { C2DEngine } from './compute_engine_base.js'
@@ -39,9 +40,6 @@ import { Service } from '../../@types/DDO/Service.js'
 import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.js'
 import * as drc from 'docker-registry-client'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
-import { convertGigabytesToBytes } from '../../utils/util.js'
-import os from 'os'
-import { runInThisContext } from 'node:vm'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
@@ -84,81 +82,59 @@ export class C2DEngineDocker extends C2DEngine {
         'Could not create Docker container temporary folders: ' + e.message
       )
     }
-    if (clusterConfig.connection?.environments) {
-      this.envs = clusterConfig.connection.environments
-    }
-    // only when we got the first request to start a compute job,
-    // no need to start doing this right away
-    // this.setNewTimer()
+    // envs are build on start function
   }
 
   public override async start() {
-    // check resources and override maximums if needed
+    // let's build the env.   Swarm and k8 will build multiple envs, based on arhitecture
+    const config = await getConfiguration()
+    const envConfig = await this.getC2DConfig().connection
     const sysinfo = await this.docker.info()
     console.log(sysinfo)
-    console.log(this.envs)
-    for (const i in this.envs) {
-      if (!('id' in this.envs[i]) || !this.envs[i].id) {
-        this.envs[i].id =
-          this.getC2DConfig().hash + '-' + create256Hash(JSON.stringify(this.envs[i]))
-      }
-      if (!('platform' in this.envs[i]))
-        this.envs[i].platform = [{ architecture: null, os: null }]
-      this.envs[i].platform[0].architecture = sysinfo.Architecture
-      this.envs[i].platform[0].os = sysinfo.OperatingSystem
-
-      // make sure totalCpu is not higher then actual available
-      if (
-        !('totalCpu' in this.envs[i]) ||
-        !this.envs[i].totalCpu ||
-        this.envs[i].totalCpu > sysinfo.NCPU
-      )
-        this.envs[i].totalCpu = sysinfo.NCPU
-      // make sure maxCpu is not higher then actual docker amount
-      if (
-        !('maxCpu' in this.envs[i]) ||
-        !this.envs[i].maxCpu ||
-        this.envs[i].maxCpu > sysinfo.NCPU
-      )
-        this.envs[i].maxCpu = sysinfo.NCPU
-
-      // make sure totalRam is not higher then actual available
-      if (
-        !('totalRam' in this.envs[i]) ||
-        !this.envs[i].totalRam ||
-        this.envs[i].totalRam > sysinfo.MemTotal
-      )
-        this.envs[i].totalRam = sysinfo.MemTotal
-      // make sure maxRam is not higher then actual docker amount
-      if (
-        !('maxRam' in this.envs[i]) ||
-        !this.envs[i].maxRam ||
-        this.envs[i].maxRam > sysinfo.MemTotal
-      )
-        this.envs[i].maxRam = sysinfo.MemTotal
-
-      // limits for free env
-      if ('free' in this.envs[i]) {
-        if ('maxCpu' in this.envs[i].free) {
-          this.envs[i].free.maxCpu = Math.min(
-            this.envs[i].free.maxCpu,
-            this.envs[i].maxCpu
-          )
-        }
-        if ('maxRam' in this.envs[i].free) {
-          this.envs[i].free.maxRam = Math.min(
-            this.envs[i].free.maxRam,
-            this.envs[i].maxRam
-          )
-        }
-        if ('maxDisk' in this.envs[i].free) {
-          this.envs[i].free.maxDisk = Math.min(
-            this.envs[i].free.maxDisk,
-            this.envs[i].maxDisk
-          )
-        }
-      }
+    this.envs.push({
+      id: '', // this.getC2DConfig().hash + '-' + create256Hash(JSON.stringify(this.envs[i])),
+      currentJobs: 0,
+      consumerAddress: config.keys.ethAddress,
+      platform: {
+        architecture: sysinfo.Architecture,
+        os: sysinfo.OperatingSystem
+      },
+      fees: envConfig.fees ? envConfig.fees : null
+    })
+    // let's add resources
+    this.envs[0].resources = []
+    this.envs[0].resources.push({
+      id: 'cpu',
+      total: sysinfo.NCPU,
+      max: sysinfo.NCPU,
+      min: 1
+    })
+    this.envs[0].resources.push({
+      id: 'ram',
+      total: sysinfo.MemTotal,
+      max: sysinfo.MemTotal,
+      min: 1e9
+    })
+    // TODO:  get total disk space
+    this.envs[0].resources.push({
+      id: 'disk',
+      total: 0,
+      max: envConfig.maxDisk,
+      min: 1e8
+    })
+    // limits for free env
+    if ('free' in envConfig) {
+      this.envs[0].free = {}
+      if (`storageExpiry` in envConfig.free)
+        this.envs[0].free.storageExpiry = envConfig.free.storageExpiry
+      if (`maxJobDuration` in envConfig.free)
+        this.envs[0].free.maxJobDuration = envConfig.free.maxJobDuration
+      if (`maxJobs` in envConfig.free) this.envs[0].free.maxJobs = envConfig.free.maxJobs
+      if ('resources' in envConfig.free)
+        this.envs[0].free.resources = envConfig.free.resources
     }
+    this.envs[0].id =
+      this.getC2DConfig().hash + '-' + create256Hash(JSON.stringify(this.envs[0]))
   }
 
   // eslint-disable-next-line require-await
@@ -169,12 +145,8 @@ export class C2DEngineDocker extends C2DEngine {
      * Returns all cluster's compute environments, filtered by a specific chainId if needed. Env's id already contains the cluster hash
      */
     if (!this.docker) return []
-    const config = await getConfiguration()
-    // compute consumerAddress for this engine
-    // for now, consumerAddress = nodeAddress
     const filteredEnvs = []
     for (const computeEnv of this.envs) {
-      computeEnv.consumerAddress = config.keys.ethAddress
       if (!chainId) filteredEnvs.push(computeEnv)
       else {
         if (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId))) {
@@ -242,6 +214,22 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
+  /**
+   * Checks if requested resources are:
+   *        - lower than max
+   *        - required resources are present (ie: every job needs cpu, ram,storage)
+   * @param image name or tag
+   * @returns boolean
+   */
+  // eslint-disable-next-line require-await
+  public override async hasResourcesAvailable(
+    resources: ComputeResourceRequest[],
+    env: ComputeEnvironment,
+    isFree: boolean
+  ): Promise<boolean> {
+    return true
+  }
+
   // eslint-disable-next-line require-await
   public override async startComputeJob(
     assets: ComputeAsset[],
@@ -251,10 +239,11 @@ export class C2DEngineDocker extends C2DEngine {
     owner?: string,
     validUntil?: number,
     chainId?: number,
-    agreementId?: string
+    agreementId?: string,
+    resources?: ComputeResourceRequest[]
   ): Promise<ComputeJob[]> {
     if (!this.docker) return []
-
+    const isFree: boolean = !!agreementId
     const jobId = generateUniqueID()
 
     // C2D - Check image, check arhitecture, etc
@@ -275,10 +264,7 @@ export class C2DEngineDocker extends C2DEngine {
       environment
     )
 
-    const validation = await C2DEngineDocker.checkDockerImage(
-      image,
-      env.platform && env.platform.length > 0 ? env.platform[0] : null
-    )
+    const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
     if (!validation.valid)
       throw new Error(`Unable to validate docker image ${image}: ${validation.reason}`)
 
@@ -303,7 +289,9 @@ export class C2DEngineDocker extends C2DEngine {
       outputsURL: null,
       stopRequested: false,
       isRunning: true,
-      isStarted: false
+      isStarted: false,
+      resources,
+      isFree: !!agreementId
     }
     await this.makeJobFolders(job)
     // make sure we actually were able to insert on DB
@@ -598,9 +586,10 @@ export class C2DEngineDocker extends C2DEngine {
         Name: job.jobId + '-volume'
       }
       // volume
-      if (environment != null) {
+      const diskSize = this.getResourceRequest(job.resources, 'disk')
+      if (diskSize && diskSize > 0) {
         volume.DriverOpts = {
-          size: environment.maxDisk > 0 ? `${environment.maxDisk}G` : '1G'
+          o: 'size=' + String(diskSize)
         }
       }
 
@@ -616,7 +605,7 @@ export class C2DEngineDocker extends C2DEngine {
 
       // create the container
       const mountVols: any = { '/data': {} }
-      let hostConfig: HostConfig = {
+      const hostConfig: HostConfig = {
         Mounts: [
           {
             Type: 'volume',
@@ -626,17 +615,25 @@ export class C2DEngineDocker extends C2DEngine {
           }
         ]
       }
-      if (environment != null) {
-        // storage (container)
+      // disk
+      if (diskSize && diskSize > 0) {
         hostConfig.StorageOpt = {
-          size: environment.maxDisk > 0 ? `${environment.maxDisk}G` : '1G'
-        }
-        hostConfig = {
-          ...hostConfig,
-          ...(await buildCPUAndMemoryConstraints(environment, this.docker))
+          size: String(diskSize)
         }
       }
-
+      // ram
+      const ramSize = this.getResourceRequest(job.resources, 'ram')
+      if (ramSize && ramSize > 0) {
+        hostConfig.Memory = ramSize
+        // set swap to same memory value means no swap (otherwise it use like 2X mem)
+        hostConfig.MemorySwap = hostConfig.Memory
+      }
+      const cpus = this.getResourceRequest(job.resources, 'cpu')
+      if (cpus && cpus > 0) {
+        const systemInfo = this.docker ? await this.docker.info() : null
+        hostConfig.CpuPeriod = 100000 // 100 miliseconds is usually the default
+        hostConfig.CpuQuota = (cpus / systemInfo.NCPU) * hostConfig.CpuPeriod
+      }
       const containerInfo: ContainerCreateOptions = {
         name: job.jobId + '-algoritm',
         Image: job.containerImage,
@@ -657,7 +654,8 @@ export class C2DEngineDocker extends C2DEngine {
         )
         containerInfo.Entrypoint = newEntrypoint.split(' ')
       }
-
+      console.log('CREATING CONTAINER')
+      console.log(containerInfo)
       const container = await this.createDockerContainer(containerInfo, true)
       if (container) {
         console.log('container: ', container)
@@ -1085,7 +1083,7 @@ export function getAlgorithmImage(algorithm: ComputeAlgorithm): string {
   else if (algorithm.meta.container.tag)
     image = image + ':' + algorithm.meta.container.tag
   else image = image + ':latest'
-  console.log('Using image: ' + image)
+  // console.log('Using image: ' + image)
   return image
 }
 
@@ -1107,28 +1105,10 @@ export function checkManifestPlatform(
  * @returns partial HostConfig object
  */
 export async function buildCPUAndMemoryConstraints(
-  environment: ComputeEnvironment,
+  resources: ComputeResourceRequest[],
   docker?: Dockerode
 ): Promise<HostConfig> {
   const hostConfig: HostConfig = {}
-  // CPU
-  const systemInfo = docker ? await docker.info() : null
-  const existingCPUs = systemInfo ? systemInfo.NCPU : os.cpus().length
-  const confCPUs = environment.maxCpu > 0 ? environment.maxCpu : 1
-  // windows only
-  hostConfig.CpuCount = Math.min(confCPUs, existingCPUs)
-  // hostConfig.CpuShares = 1 / hostConfig.CpuCount
-  hostConfig.CpuPeriod = 100000 // 100 miliseconds is usually the default
-  hostConfig.CpuQuota = (1 / hostConfig.CpuCount) * hostConfig.CpuPeriod
-  // if more than 1 CPU, 	Limit the specific CPUs or cores a container can use.
-  if (hostConfig.CpuCount > 1) {
-    hostConfig.CpusetCpus = `0-${hostConfig.CpuCount - 1}`
-  }
-  // MEM
-  const existingMem = systemInfo ? systemInfo.MemTotal : os.totalmem()
-  const configuredRam = 0 || convertGigabytesToBytes(environment.maxRam)
-  hostConfig.Memory = 0 || Math.min(existingMem, configuredRam)
-  // set swap to same memory value means no swap (otherwise it use like 2X mem)
-  hostConfig.MemorySwap = hostConfig.Memory
+
   return hostConfig
 }
