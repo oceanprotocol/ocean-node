@@ -1,4 +1,6 @@
+import { ethers, Signer } from 'ethers'
 import { Credential, Credentials } from '../@types/DDO/Credentials'
+import { getNFTContract } from '../components/Indexer/utils'
 
 export function findCredential(
   credentials: Credential[],
@@ -44,4 +46,30 @@ export function checkCredentials(credentials: Credentials, consumerAddress: stri
     }
   }
   return true
+}
+// from https://github.com/oceanprotocol/ocean-node/issues/808
+// The idea is to use an nft contract and check if one address is on the list by calling 'balanceOf'
+// (means user has at least one token)
+export async function findAccessListCredentials(
+  signer: Signer,
+  contractAddress: string,
+  address: string
+): Promise<boolean> {
+  const nftContract: ethers.Contract = getNFTContract(signer, contractAddress)
+  if (!nftContract) {
+    return false
+  }
+  return await findAccountFromAccessList(nftContract, address)
+}
+
+export async function findAccountFromAccessList(
+  nftContract: ethers.Contract,
+  walletAddress: string
+) {
+  try {
+    const balance = await nftContract.balanceOf(walletAddress)
+    return balance > 0
+  } catch (err) {
+    return false
+  }
 }

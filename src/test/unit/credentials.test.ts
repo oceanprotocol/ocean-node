@@ -34,8 +34,8 @@ describe('credentials', () => {
     const accessGranted = checkCredentials(credentials, consumerAddress)
     expect(accessGranted).to.equal(true)
   })
-  // TODO
-  it('should allow access with accessList credentials type', () => {
+
+  it('should allow access with "accessList" credentials type', () => {
     const consumerAddress = '0x123'
     const credentials: Credentials = {
       deny: [
@@ -49,6 +49,7 @@ describe('credentials', () => {
     const accessGranted = checkCredentials(credentials, consumerAddress)
     expect(accessGranted).to.equal(true)
   })
+
   it('should deny access with empty values in allow lists', () => {
     const credentials: Credentials = {
       allow: [
