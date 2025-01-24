@@ -65,7 +65,7 @@ export async function findAccessListCredentials(
 export async function findAccountFromAccessList(
   nftContract: ethers.Contract,
   walletAddress: string
-) {
+): Promise<boolean> {
   try {
     const balance = await nftContract.balanceOf(walletAddress)
     return balance > 0
