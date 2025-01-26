@@ -350,6 +350,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     )
     const updatedDDO: any = ddo
     if (updatedDDO) {
+      console.log(JSON.stringify(updatedDDO.indexedMetadata.stats))
       assert(
         updatedDDO.indexedMetadata.stats.length === 2,
         'the 2 pricing schemas were not captured in the stats'
