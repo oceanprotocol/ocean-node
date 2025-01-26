@@ -355,7 +355,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
         'the 2 pricing schemas were not captured in the stats'
       )
       assert(
-        updatedDDO.indexedMetadata.stats[1].type === 'dispenser',
+        updatedDDO.indexedMetadata.stats[1].prices[0].type === 'dispenser',
         'type is not dispenser'
       )
       assert(
@@ -363,9 +363,12 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
           genericAsset.services[1].datatokenAddress,
         'mismatch datatoken address'
       )
-      assert(updatedDDO.indexedMetadata.stats[1].price === '0', 'price is not 0')
       assert(
-        updatedDDO.indexedMetadata.stats[1].token ===
+        updatedDDO.indexedMetadata.stats[1].prices[0].price === '0',
+        'price is not 0'
+      )
+      assert(
+        updatedDDO.indexedMetadata.stats[1].prices[0].token ===
           genericAsset.services[1].datatokenAddress,
         'mismatch datatoken address'
       )
