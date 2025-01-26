@@ -429,9 +429,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         metadata
       )
       const clonedDdo = structuredClone(ddo)
-      INDEXER_LOGGER.logMessage(`cloned ddo: ${JSON.stringify(clonedDdo)}`)
       const updatedDdo = deleteIndexedMetadataIfExists(clonedDdo)
-      INDEXER_LOGGER.logMessage(`updated ddo: ${JSON.stringify(updatedDdo)}`)
       if (updatedDdo.id !== makeDid(event.address, chainId.toString(10))) {
         INDEXER_LOGGER.error(
           `Decrypted DDO ID is not matching the generated hash for DID.`
@@ -538,11 +536,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
                     dispenser,
                     Dispenser.abi,
                     signer
-                  )
-                  INDEXER_LOGGER.logMessage(
-                    `dispenser sts: ${await dispenserContract.status(
-                      await datatoken.getAddress()
-                    )}`
                   )
                   if (
                     (await dispenserContract.status(await datatoken.getAddress()))[0] ===
