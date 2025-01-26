@@ -573,17 +573,18 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
           if (
             (await dispenserContract.status(await datatoken.getAddress()))[0] === true
           ) {
+            prices.push({
+              type: 'dispenser',
+              price: '0',
+              contract: dispenser,
+              token: service.datatokenAddress
+            })
             ddo.indexedMetadata.stats.push({
               datatokenAddress: service.datatokenAddress,
               name: await datatoken.name(),
               serviceId: service.id,
               orders: 0,
-              prices: prices.push({
-                type: 'dispenser',
-                price: '0',
-                contract: dispenser,
-                token: service.datatokenAddress
-              })
+              prices
             })
           }
         }
@@ -613,11 +614,6 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
               orders: 0, // just created
               prices
             })
-            INDEXER_LOGGER.logMessage(
-              `how ddo prices were build? ${JSON.stringify(
-                ddo.indexedMetadata.stats[0].prices
-              )}`
-            )
           }
         }
       }
