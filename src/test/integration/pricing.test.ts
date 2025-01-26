@@ -378,7 +378,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
 
   it('should remove the dispenser from stats', async () => {
     const tx = await dispenserContract.deactivate(
-      genericAsset.services[1].datatokenAddress
+      getAddress(genericAsset.services[1].datatokenAddress)
     )
     assert(tx, 'Cannot create dispenser')
     const txReceipt = await tx.wait()
