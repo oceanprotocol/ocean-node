@@ -495,7 +495,7 @@ export async function getPricesByDt(
     if (dispensers) {
       for (const dispenser of dispensers) {
         const dispenserContract = new ethers.Contract(dispenser, Dispenser.abi, signer)
-        if ((await dispenserContract.status())[0] === true) {
+        if ((await dispenserContract.status(await datatoken.getAddress()))[0] === true) {
           prices.push({
             type: 'dispenser',
             price: '0',
@@ -570,7 +570,9 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
         for (const dispenser of dispensers) {
           INDEXER_LOGGER.logMessage(`dispenser: ${dispenser}`)
           const dispenserContract = new ethers.Contract(dispenser, Dispenser.abi, signer)
-          if ((await dispenserContract.status())[0] === true) {
+          if (
+            (await dispenserContract.status(await datatoken.getAddress()))[0] === true
+          ) {
             ddo.indexedMetadata.stats.push({
               datatokenAddress: service.datatokenAddress,
               name: await datatoken.name(),

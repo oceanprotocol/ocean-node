@@ -539,7 +539,15 @@ export class MetadataEventProcessor extends BaseEventProcessor {
                     Dispenser.abi,
                     signer
                   )
-                  if ((await dispenserContract.status())[0] === false) {
+                  INDEXER_LOGGER.logMessage(
+                    `dispenser sts: ${await dispenserContract.status(
+                      await datatoken.getAddress()
+                    )}`
+                  )
+                  if (
+                    (await dispenserContract.status(await datatoken.getAddress()))[0] ===
+                    false
+                  ) {
                     const index = ddoWithPricing.indexedMetadata.stats.indexOf(stat)
                     ddoWithPricing.indexedMetadata.stats.splice(index, 1)
                   }
