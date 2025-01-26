@@ -51,6 +51,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   let nftAddress: string
   let datatokenAddress: string
   let exchangeId: string
+  let dispenserContract: ethers.Contract
   const chainId = 8996
   let assetDID: string
   let resolvedDDO: Record<string, any> = {}
@@ -295,13 +296,12 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     const dispenserAddress = dispenserEvent.topics[0]
     assert(dispenserAddress, 'Dispenser contract not retrieved')
 
-    const dispenserContract = new ethers.Contract(
+    dispenserContract = new ethers.Contract(
       dispenserAddress,
       Dispenser.abi,
       publisherAccount
     )
     assert(dispenserContract)
-    console.log(`new datatoken addr: ${newdatatokenAddress}`)
     genericAsset.services.push({
       id: '1',
       type: 'access',
@@ -350,10 +350,72 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     )
     const updatedDDO: any = ddo
     if (updatedDDO) {
-      console.log(
-        `updatedDDO.indexed.stats: ${JSON.stringify(updatedDDO.indexedMetadata.stats)}`
+      assert(
+        updatedDDO.indexedMetadata.stats.length === 2,
+        'the 2 pricing schemas were not captured in the stats'
       )
-      assert(updatedDDO.indexedMetadata.stats)
+      assert(
+        updatedDDO.indexedMetadata.stats[1].type === 'dispenser',
+        'type is not dispenser'
+      )
+      assert(
+        updatedDDO.indexedMetadata.stats[1].datatokenAddress ===
+          genericAsset.services[1].datatokenAddress,
+        'mismatch datatoken address'
+      )
+      assert(updatedDDO.indexedMetadata.stats[1].price === '0', 'price is not 0')
+      assert(
+        updatedDDO.indexedMetadata.stats[1].token ===
+          genericAsset.services[1].datatokenAddress,
+        'mismatch datatoken address'
+      )
+    } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
+  })
+
+  it('should remove the dispenser from stats', async () => {
+    const tx = await dispenserContract.deactivate(
+      genericAsset.services[1].datatokenAddress
+    )
+    assert(tx, 'Cannot create dispenser')
+    const txReceipt = await tx.wait()
+    const dispenserEvent = getEventFromTx(txReceipt, 'DispenserDeactivated')
+    assert(dispenserEvent)
+    // const data = Uint8Array.from(
+    //   Buffer.from(JSON.stringify(genericAsset.services[1].files))
+    // )
+    // const encryptedData = await encrypt(data, EncryptMethod.ECIES)
+    // const encryptedDataString = encryptedData.toString('hex')
+    // genericAsset.services[1].files = encryptedDataString
+    // const stringDDO = JSON.stringify(genericAsset)
+    // const bytes = Buffer.from(stringDDO)
+    // const metadata = hexlify(bytes)
+    // const hash = createHash('sha256').update(metadata).digest('hex')
+
+    // const setMetaDataTx = await nftContract.setMetaData(
+    //   0,
+    //   'http://v4.provider.oceanprotocol.com',
+    //   '0x123',
+    //   '0x01',
+    //   metadata,
+    //   '0x' + hash,
+    //   []
+    // )
+    // setMetaDataTxReceipt = await setMetaDataTx.wait()
+    // assert(setMetaDataTxReceipt, 'set metada failed')
+  })
+  it('should store the ddo in the database and return it ', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    const { ddo, wasTimeout } = await waitToIndex(
+      assetDID,
+      EVENTS.DISPENSER_DEACTIVATED,
+      DEFAULT_TEST_TIMEOUT * 6
+    )
+    const updatedDDO: any = ddo
+    if (updatedDDO) {
+      assert(
+        updatedDDO.indexedMetadata.stats.length === 1,
+        'the pricing schema removal was not captured in the stats'
+      )
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
