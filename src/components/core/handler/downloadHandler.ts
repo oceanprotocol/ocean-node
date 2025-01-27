@@ -275,19 +275,21 @@ export class DownloadHandler extends Handler {
 
     // check credentials
     if (ddo.credentials) {
-      let accessGranted
+      let accessGranted: boolean
       // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
       // It will just use the existing code and let PolicyServer decide.
       if (isPolicyServerConfigured()) {
-        accessGranted = new PolicyServer().checkDownload(
-          ddo.id,
-          ddo,
-          task.serviceId,
-          task.fileIndex,
-          task.transferTxId,
-          task.consumerAddress,
-          task.policyServer
-        )
+        accessGranted = await (
+          await new PolicyServer().checkDownload(
+            ddo.id,
+            ddo,
+            task.serviceId,
+            task.fileIndex,
+            task.transferTxId,
+            task.consumerAddress,
+            task.policyServer
+          )
+        ).success
       } else {
         accessGranted = checkCredentials(ddo.credentials, task.consumerAddress)
       }
@@ -373,7 +375,16 @@ export class DownloadHandler extends Handler {
 
     // check credentials on service level
     if (service.credentials) {
-      const accessGranted = checkCredentials(service.credentials, task.consumerAddress)
+      const accessGranted: boolean = isPolicyServerConfigured()
+        ? await (
+            await new PolicyServer().checkService(
+              ddo,
+              service,
+              task.serviceId,
+              task.consumerAddress
+            )
+          ).success
+        : checkCredentials(service.credentials, task.consumerAddress)
       if (!accessGranted) {
         CORE_LOGGER.logMessage(
           `Error: Access to service with id ${service.id} was denied`,
