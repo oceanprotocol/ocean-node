@@ -446,12 +446,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       ddo.chainId = chainId
       ddo.nftAddress = event.address
       ddo.datatokens = await this.getTokenInfo(ddo.services, signer)
-      ddo.nft = await this.getNFTInfo(
-        ddo.nftAddress,
-        signer,
-        owner,
-        parseInt(decodedEventData.args[6])
-      )
 
       INDEXER_LOGGER.logMessage(
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
@@ -573,6 +567,12 @@ export class MetadataEventProcessor extends BaseEventProcessor {
             }
           }
         }
+        ddo.indexedMetadata.nft = await this.getNFTInfo(
+          ddo.nftAddress,
+          signer,
+          owner,
+          parseInt(decodedEventData.args[6])
+        )
         if (!ddo.event) {
           ddo.event = {}
         }
