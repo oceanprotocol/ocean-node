@@ -177,12 +177,12 @@ export class C2DEngineDocker extends C2DEngine {
     for (const computeEnv of this.envs) {
       if (!chainId) filteredEnvs.push(computeEnv)
       else {
-        if (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId))) {
+        if (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId)))
           filteredEnvs.push(computeEnv)
-        }
       }
     }
-    return this.envs
+
+    return filteredEnvs
   }
 
   /**
