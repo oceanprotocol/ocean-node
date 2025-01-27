@@ -28,7 +28,6 @@ import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
-import { env } from 'process'
 export class ComputeStartHandler extends Handler {
   validate(command: ComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [

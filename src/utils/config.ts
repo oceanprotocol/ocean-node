@@ -1,10 +1,6 @@
 import type { DenyList, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
 import { dhtFilterMethod } from '../@types/OceanNode.js'
-import type {
-  C2DClusterInfo,
-  C2DDockerConfig,
-  ComputeEnvironmentBaseConfig
-} from '../@types/C2D/C2D.js'
+import type { C2DClusterInfo, C2DDockerConfig } from '../@types/C2D/C2D.js'
 import { C2DClusterType } from '../@types/C2D/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'

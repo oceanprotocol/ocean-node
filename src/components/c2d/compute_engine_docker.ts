@@ -11,6 +11,7 @@ import type {
   DBComputeJob,
   ComputeResult,
   RunningPlatform,
+  ComputeEnvFeesStructure,
   ComputeResourceRequest
 } from '../../@types/C2D/C2D.js'
 import { getConfiguration } from '../../utils/config.js'
@@ -90,7 +91,30 @@ export class C2DEngineDocker extends C2DEngine {
     const config = await getConfiguration()
     const envConfig = await this.getC2DConfig().connection
     const sysinfo = await this.docker.info()
-    console.log(sysinfo)
+    // console.log(sysinfo)
+    let fees: ComputeEnvFeesStructure = null
+
+    const supportedChains: number[] = []
+    for (const chain of Object.keys(config.supportedNetworks)) {
+      supportedChains.push(parseInt(chain))
+    }
+    for (const feeChain of Object.keys(envConfig.fees)) {
+      // for (const feeConfig of envConfig.fees) {
+      // console.log(feeChain)
+      if (supportedChains.includes(parseInt(feeChain))) {
+        if (fees === null) fees = {}
+        console.log(fees)
+        if (!(feeChain in fees)) fees[feeChain] = []
+        fees[feeChain].push(envConfig.fees[feeChain])
+      }
+
+      /* for (const chain of Object.keys(config.supportedNetworks)) {
+        const chainId = parseInt(chain)
+        if (task.chainId && task.chainId !== chainId) continue
+        result[chainId] = await computeEngines.fetchEnvironments(chainId)
+      } */
+    }
+    console.log(fees)
     this.envs.push({
       id: '', // this.getC2DConfig().hash + '-' + create256Hash(JSON.stringify(this.envs[i])),
       currentJobs: 0,
@@ -99,7 +123,7 @@ export class C2DEngineDocker extends C2DEngine {
         architecture: sysinfo.Architecture,
         os: sysinfo.OperatingSystem
       },
-      fees: envConfig.fees ? envConfig.fees : null
+      fees
     })
     if (`storageExpiry` in envConfig) this.envs[0].storageExpiry = envConfig.storageExpiry
     if (`maxJobDuration` in envConfig)
@@ -295,7 +319,7 @@ export class C2DEngineDocker extends C2DEngine {
       isRunning: true,
       isStarted: false,
       resources,
-      isFree: !!agreementId
+      isFree
     }
     await this.makeJobFolders(job)
     // make sure we actually were able to insert on DB
@@ -584,7 +608,7 @@ export class C2DEngineDocker extends C2DEngine {
       // create the volume & create container
       // TO DO C2D:  Choose driver & size
       // get env info
-      const environment = await this.getJobEnvironment(job)
+      // const environment = await this.getJobEnvironment(job)
 
       const volume: VolumeCreateOptions = {
         Name: job.jobId + '-volume'
@@ -1102,17 +1126,4 @@ export function checkManifestPlatform(
   )
     return false
   return true
-}
-/**
- * Helper function to build CPU constraints, also useful for testing purposes
- * @param environment C2D environment
- * @returns partial HostConfig object
- */
-export async function buildCPUAndMemoryConstraints(
-  resources: ComputeResourceRequest[],
-  docker?: Dockerode
-): Promise<HostConfig> {
-  const hostConfig: HostConfig = {}
-
-  return hostConfig
 }

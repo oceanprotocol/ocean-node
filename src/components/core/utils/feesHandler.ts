@@ -56,7 +56,7 @@ async function calculateProviderFeeAmount(
   if (computeEnv) {
     if (computeEnv.fees) {
       // get the fess for the asset chain
-      const feesForChain: ComputeEnvFees = computeEnv.fees[chainId]
+      const feesForChain: ComputeEnvFees = computeEnv.fees[chainId][0]
       if (feesForChain && feesForChain.prices.length > 0) {
         const price =
           // TODO: check this again
@@ -98,7 +98,7 @@ export async function createProviderFee(
   const providerFeeAddress: string = providerWallet.address
   let providerFeeAmount: number
   let providerFeeAmountFormatted: BigNumberish
-
+  // TO DO - this will be overwritten with new escrow anyay
   let providerFeeToken: string
   if (
     computeEnv &&
@@ -106,7 +106,7 @@ export async function createProviderFee(
     Object.hasOwn(computeEnv.fees, String(asset.chainId))
   ) {
     // was: if (computeEnv)
-    providerFeeToken = computeEnv.fees[asset.chainId].feeToken // was: computeEnv.feeToken
+    providerFeeToken = computeEnv.fees[asset.chainId][0].feeToken // was: computeEnv.feeToken
   } else {
     // it's download, take it from config
     providerFeeToken = await getProviderFeeToken(asset.chainId)

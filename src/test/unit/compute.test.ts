@@ -29,12 +29,7 @@ import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { completeDBComputeJob, dockerImageManifest } from '../data/assets.js'
 import { omitDBComputeFieldsFromComputeJob } from '../../components/c2d/index.js'
 import os from 'os'
-import Dockerode from 'dockerode'
-import {
-  buildCPUAndMemoryConstraints,
-  checkManifestPlatform
-} from '../../components/c2d/compute_engine_docker.js'
-import type { HostConfig } from 'dockerode'
+import { checkManifestPlatform } from '../../components/c2d/compute_engine_docker.js'
 
 describe('Compute Jobs Database', () => {
   let envOverrides: OverrideEnvConfig[]
@@ -241,12 +236,13 @@ describe('Compute Jobs Database', () => {
   })
 
   it('should check cpu constraints on c2d docker env', async function () {
+    /*
+    TODO
     const size = config.c2dClusters.length
     const dockerConfig = config.c2dClusters[size - 1].connection
     const freeEnv: ComputeEnvironment = dockerConfig.freeComputeOptions
     const cpus = os.cpus()
-    /*
-    TODO
+    
     freeEnv.maxCpu = cpus.length + 1 // should be capped to cpus.length
     const docker = new Dockerode({ socketPath: '/var/run/docker.sock' })
     let hostConfig: HostConfig = await buildCPUAndMemoryConstraints(freeEnv, docker)

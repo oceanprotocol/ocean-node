@@ -45,7 +45,7 @@ export interface ComputeEnvFees {
   prices: ComputeResourcesPricingInfo[]
 }
 export interface ComputeEnvFeesStructure {
-  [chainId: string]: ComputeEnvFees
+  [chainId: string]: ComputeEnvFees[]
 }
 
 export interface RunningPlatform {
@@ -91,10 +91,6 @@ export interface C2DDockerConfig {
   fees: ComputeEnvFeesStructure
   maxDisk: number
   free?: ComputeEnvironmentFreeOptions
-}
-
-export interface ComputeEnvByChain {
-  [chainId: number]: ComputeEnvironment[]
 }
 
 export type ComputeResultType =

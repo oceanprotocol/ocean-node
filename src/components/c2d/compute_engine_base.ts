@@ -12,8 +12,6 @@ import type {
   DBComputeJob
 } from '../../@types/C2D/C2D.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
-import { isDefined } from '../../utils/util.js'
-import { cp } from 'fs'
 
 export abstract class C2DEngine {
   private clusterConfig: C2DClusterInfo
