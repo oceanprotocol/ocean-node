@@ -178,7 +178,8 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assetDID = genericAsset.id
     // create proper service.files string
     genericAsset.services[0].datatokenAddress = datatokenAddress
-    genericAsset.nftAddress = nftAddress
+    genericAsset.services[0].files.datatokenAddress = datatokenAddress
+    genericAsset.services[0].files.nftAddress = nftAddress
     // let's call node to encrypt
 
     const data = Uint8Array.from(
