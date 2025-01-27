@@ -3,7 +3,7 @@ import {
   Credential,
   Credentials,
   KNOWN_CREDENTIALS_TYPES
-} from '../@types/DDO/Credentials'
+} from '../@types/DDO/Credentials.js'
 import { getNFTContract } from '../components/Indexer/utils.js'
 import { isDefined } from './util.js'
 
