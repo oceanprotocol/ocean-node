@@ -25,7 +25,8 @@ import { ArweaveStorage, IpfsStorage, Storage } from '../../storage/index.js'
 import {
   Blockchain,
   existsEnvironmentVariable,
-  getConfiguration
+  getConfiguration,
+  isPolicyServerConfigured
 } from '../../../utils/index.js'
 import { checkCredentials } from '../../../utils/credentials.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
@@ -274,7 +275,22 @@ export class DownloadHandler extends Handler {
 
     // check credentials
     if (ddo.credentials) {
-      const accessGranted = checkCredentials(ddo.credentials, task.consumerAddress)
+      let accessGranted
+      // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
+      // It will just use the existing code and let PolicyServer decide.
+      if (isPolicyServerConfigured()) {
+        accessGranted = new PolicyServer().checkDownload(
+          ddo.id,
+          ddo,
+          task.serviceId,
+          task.fileIndex,
+          task.transferTxId,
+          task.consumerAddress,
+          task.policyServer
+        )
+      } else {
+        accessGranted = checkCredentials(ddo.credentials, task.consumerAddress)
+      }
       if (!accessGranted) {
         CORE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
         return {
