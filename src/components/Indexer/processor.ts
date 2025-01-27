@@ -656,11 +656,11 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       const state: boolean =
         (await purgatory.isBannedAsset(ddo.id)) ||
         (await purgatory.isBannedAccount(owner))
-      ddo.purgatory = {
+      ddo.indexedMetadata.purgatory = {
         state
       }
     } else {
-      ddo.purgatory = {
+      ddo.indexedMetadata.purgatory = {
         state: false
       }
     }
