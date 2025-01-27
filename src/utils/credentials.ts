@@ -1,6 +1,11 @@
 import { ethers, Signer } from 'ethers'
-import { Credential, Credentials } from '../@types/DDO/Credentials'
+import {
+  Credential,
+  Credentials,
+  KNOWN_CREDENTIALS_TYPES
+} from '../@types/DDO/Credentials'
 import { getNFTContract } from '../components/Indexer/utils.js'
+import { isDefined } from './util.js'
 
 export function findCredential(
   credentials: Credential[],
@@ -72,4 +77,11 @@ export async function findAccountFromAccessList(
   } catch (err) {
     return false
   }
+}
+
+export function isKnownCredentialType(credentialType: string): boolean {
+  return (
+    isDefined(credentialType) &&
+    KNOWN_CREDENTIALS_TYPES.includes(credentialType.toLowerCase())
+  )
 }
