@@ -1,6 +1,7 @@
 // import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { PolicyServerResult } from '../../@types/policyServer.js'
 import { DDO } from '../../@types/DDO/DDO.js'
+import { isDefined } from '../../utils/util.js'
 
 export class PolicyServer {
   serverUrl: string
@@ -103,5 +104,9 @@ export class PolicyServer {
 
   async passThrough(request: any): Promise<PolicyServerResult> {
     return await this.askServer(request)
+  }
+
+  public isConfigured(): boolean {
+    return isDefined(this.serverUrl)
   }
 }
