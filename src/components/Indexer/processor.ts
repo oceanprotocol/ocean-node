@@ -624,7 +624,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       const purgatory = await Purgatory.getInstance()
       // if purgatory is disabled just return false
       const updatedDDO = await this.updatePurgatoryStateDdo(ddo, from, purgatory)
-      if (updatedDDO.purgatory.state === false) {
+      if (updatedDDO.indexedMetadata.purgatory.state === false) {
         // TODO: insert in a different collection for purgatory DDOs
         const saveDDO = this.createOrUpdateDDO(ddo, eventName)
         return saveDDO
