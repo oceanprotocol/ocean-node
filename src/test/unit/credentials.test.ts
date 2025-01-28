@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import { checkCredentials } from '../../utils/credentials.js'
+import { areKnownCredentialTypes, checkCredentials } from '../../utils/credentials.js'
 import { Credentials } from '../../@types/DDO/Credentials.js'
 
 describe('credentials', () => {
@@ -110,5 +110,56 @@ describe('credentials', () => {
     const consumerAddress = '0x123'
     const accessGranted = checkCredentials(credentials, consumerAddress)
     expect(accessGranted).to.equal(false)
+  })
+
+  it('should check correctly known credentials types', () => {
+    const credentials: Credentials = {
+      deny: [
+        {
+          type: 'unknow_type',
+          values: ['0x456']
+        }
+      ]
+    }
+    const isKnownType1 = areKnownCredentialTypes(credentials)
+    expect(isKnownType1).to.equal(false)
+
+    const credentialsOk: Credentials = {
+      deny: [
+        {
+          type: 'address',
+          values: ['0x456']
+        }
+      ],
+      allow: [
+        {
+          type: 'accessList',
+          values: ['0x456']
+        },
+        {
+          type: 'address',
+          values: ['0x678']
+        }
+      ]
+    }
+    const isKnownType2 = areKnownCredentialTypes(credentialsOk)
+    expect(isKnownType2).to.equal(true)
+
+    const credentialsNOk: Credentials = {
+      deny: [
+        {
+          type: 'address',
+          values: ['0x456']
+        }
+      ],
+      allow: [
+        {
+          type: 'not_valid_type',
+          values: ['0x456']
+        }
+      ]
+    }
+    const isKnownType3 = areKnownCredentialTypes(credentialsNOk)
+    expect(isKnownType3).to.equal(false)
   })
 })
