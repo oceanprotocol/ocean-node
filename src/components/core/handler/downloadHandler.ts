@@ -28,7 +28,7 @@ import {
   getConfiguration,
   isPolicyServerConfigured
 } from '../../../utils/index.js'
-import { checkCredentials } from '../../../utils/credentials.js'
+import { areKnownCredentialTypes, checkCredentials } from '../../../utils/credentials.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { DownloadCommand, DownloadURLCommand } from '../../../@types/commands.js'
@@ -291,7 +291,9 @@ export class DownloadHandler extends Handler {
           )
         ).success
       } else {
-        accessGranted = checkCredentials(ddo.credentials, task.consumerAddress)
+        accessGranted = areKnownCredentialTypes(ddo.credentials)
+          ? checkCredentials(ddo.credentials, task.consumerAddress)
+          : true
       }
       if (!accessGranted) {
         CORE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
@@ -375,16 +377,22 @@ export class DownloadHandler extends Handler {
 
     // check credentials on service level
     if (service.credentials) {
-      const accessGranted: boolean = isPolicyServerConfigured()
-        ? await (
-            await new PolicyServer().checkService(
-              ddo,
-              service,
-              task.serviceId,
-              task.consumerAddress
-            )
-          ).success
-        : checkCredentials(service.credentials, task.consumerAddress)
+      let accessGranted: boolean
+      if (isPolicyServerConfigured()) {
+        accessGranted = await (
+          await new PolicyServer().checkService(
+            ddo,
+            service,
+            task.serviceId,
+            task.consumerAddress
+          )
+        ).success
+      } else {
+        accessGranted = areKnownCredentialTypes(service.credentials)
+          ? checkCredentials(service.credentials, task.consumerAddress)
+          : true
+      }
+
       if (!accessGranted) {
         CORE_LOGGER.logMessage(
           `Error: Access to service with id ${service.id} was denied`,

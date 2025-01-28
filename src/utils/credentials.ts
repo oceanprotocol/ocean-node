@@ -1,4 +1,9 @@
-import { Credential, Credentials } from '../@types/DDO/Credentials'
+import {
+  Credential,
+  Credentials,
+  KNOWN_CREDENTIALS_TYPES
+} from '../@types/DDO/Credentials.js'
+import { isDefined } from './util.js'
 
 export function findCredential(
   credentials: Credential[],
@@ -44,4 +49,28 @@ export function checkCredentials(credentials: Credentials, consumerAddress: stri
     }
   }
   return true
+}
+
+export function areKnownCredentialTypes(credentials: Credentials): boolean {
+  let known = true
+  if (isDefined(credentials)) {
+    if (isDefined(credentials.allow) && credentials.allow.length > 0) {
+      for (const credential of credentials.allow) {
+        if (!KNOWN_CREDENTIALS_TYPES.includes(credential.type)) {
+          known = false
+          break
+        }
+      }
+    }
+
+    if (isDefined(credentials.deny) && credentials.deny.length > 0) {
+      for (const credential of credentials.deny) {
+        if (!KNOWN_CREDENTIALS_TYPES.includes(credential.type)) {
+          known = false
+          break
+        }
+      }
+    }
+  }
+  return known
 }
