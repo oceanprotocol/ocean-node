@@ -1,3 +1,5 @@
+import { Event } from './Event'
+
 export interface Price {
   type: string
   price: string
@@ -16,4 +18,9 @@ export interface Stats {
 
 export interface IndexedMetadata {
   stats: Stats[]
+  /**
+   * Describes the event of last metadata event
+   * @type {Event}
+   */
+  event: Event
 }
