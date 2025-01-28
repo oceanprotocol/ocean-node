@@ -17,10 +17,10 @@ export interface Stats {
 }
 
 export interface IndexedMetadata {
-  stats: Stats[]
+  stats?: Stats[]
   /**
    * Describes the event of last metadata event
    * @type {Event}
    */
-  event: Event
+  event?: Event
 }

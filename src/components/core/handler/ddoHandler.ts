@@ -540,7 +540,7 @@ export class FindDdoHandler extends Handler {
             if (isResponseLegit) {
               const ddoInfo: FindDDOResponse = {
                 id: ddo.id,
-                lastUpdateTx: ddo.event.tx,
+                lastUpdateTx: ddo.indexedMetadata.event.tx,
                 lastUpdateTime: ddo.metadata.updated,
                 provider: peer
               }
@@ -754,7 +754,10 @@ export class FindDdoHandler extends Handler {
           metadata: ddoData.metadata,
           services: formattedServices,
           credentials: ddoData.credentials,
-          event: ddoData.event
+          indexedMetadata: {
+            stats: ddoData.indexedMetadata.stats,
+            event: ddoData.indexedMetadata.event
+          }
         }
 
         return ddo
