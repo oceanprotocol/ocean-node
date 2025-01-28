@@ -273,13 +273,13 @@ export class DownloadHandler extends Handler {
       }
     }
 
-    // check credentials
+    // check credentials (DDO level)
+    let accessGrantedDDOLevel: boolean
     if (ddo.credentials) {
-      let accessGranted: boolean
       // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
       // It will just use the existing code and let PolicyServer decide.
       if (isPolicyServerConfigured()) {
-        accessGranted = await (
+        accessGrantedDDOLevel = await (
           await new PolicyServer().checkDownload(
             ddo.id,
             ddo,
@@ -291,11 +291,11 @@ export class DownloadHandler extends Handler {
           )
         ).success
       } else {
-        accessGranted = areKnownCredentialTypes(ddo.credentials)
+        accessGrantedDDOLevel = areKnownCredentialTypes(ddo.credentials)
           ? checkCredentials(ddo.credentials, task.consumerAddress)
           : true
       }
-      if (!accessGranted) {
+      if (!accessGrantedDDOLevel) {
         CORE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
         return {
           stream: null,
@@ -376,24 +376,32 @@ export class DownloadHandler extends Handler {
     if (!service) throw new Error('Cannot find service')
 
     // check credentials on service level
+    // if using a policy server and we are here it means that access was granted (they are merged/assessed together)
     if (service.credentials) {
-      let accessGranted: boolean
+      let accessGrantedServiceLevel: boolean
       if (isPolicyServerConfigured()) {
-        accessGranted = await (
-          await new PolicyServer().checkService(
-            ddo,
-            service,
-            task.serviceId,
-            task.consumerAddress
-          )
-        ).success
+        // we use the previous check or we do it again
+        // (in case there is no DDO level credentials and we only have Service level ones)
+        accessGrantedServiceLevel =
+          accessGrantedDDOLevel ||
+          (await (
+            await new PolicyServer().checkDownload(
+              ddo.id,
+              ddo,
+              task.serviceId,
+              task.fileIndex,
+              task.transferTxId,
+              task.consumerAddress,
+              task.policyServer
+            )
+          ).success)
       } else {
-        accessGranted = areKnownCredentialTypes(service.credentials)
+        accessGrantedServiceLevel = areKnownCredentialTypes(service.credentials)
           ? checkCredentials(service.credentials, task.consumerAddress)
           : true
       }
 
-      if (!accessGranted) {
+      if (!accessGrantedServiceLevel) {
         CORE_LOGGER.logMessage(
           `Error: Access to service with id ${service.id} was denied`,
           true

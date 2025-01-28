@@ -1,8 +1,6 @@
-// import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { PolicyServerResult } from '../../@types/policyServer.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { isDefined } from '../../utils/util.js'
-import { Service } from '../../@types/DDO/Service.js'
 
 export class PolicyServer {
   serverUrl: string
@@ -99,22 +97,6 @@ export class PolicyServer {
       transferTxId,
       consumerAddress,
       policyServer
-    }
-    return await this.askServer(command)
-  }
-
-  async checkService(
-    rawDDO: DDO,
-    service: Service,
-    serviceId: string,
-    consumerAddress: string
-  ): Promise<PolicyServerResult> {
-    const command = {
-      action: 'checkService',
-      rawDDO,
-      service,
-      serviceId,
-      consumerAddress
     }
     return await this.askServer(command)
   }
