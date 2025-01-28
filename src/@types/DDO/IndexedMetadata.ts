@@ -1,3 +1,5 @@
+import { Nft } from './Nft'
+
 export interface Price {
   type: string
   price: string
@@ -16,4 +18,5 @@ export interface Stats {
 
 export interface IndexedMetadata {
   stats: Stats[]
+  nft: Nft
 }

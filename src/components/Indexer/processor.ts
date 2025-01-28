@@ -723,11 +723,14 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
       }
       INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
 
-      if ('nft' in ddo && ddo.nft.state !== metadataState) {
+      if (
+        'nft' in ddo.indexedMetadata &&
+        ddo.indexedMetadata.nft.state !== metadataState
+      ) {
         let shortVersion = null
 
         if (
-          ddo.nft.state === MetadataStates.ACTIVE &&
+          ddo.indexedMetadata.nft.state === MetadataStates.ACTIVE &&
           [MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(metadataState)
         ) {
           INDEXER_LOGGER.logMessage(
@@ -737,8 +740,10 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
             id: ddo.id,
             chainId,
             nftAddress: ddo.nftAddress,
-            nft: {
-              state: metadataState
+            indexedMetadata: {
+              nft: {
+                state: metadataState
+              }
             }
           }
         }
@@ -746,7 +751,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
         // We should keep it here, because in further development we'll store
         // the previous structure of the non-visible DDOs (full version)
         // in case their state changes back to active.
-        ddo.nft.state = metadataState
+        ddo.indexedMetadata.nft.state = metadataState
         if (shortVersion) {
           ddo = shortVersion
         }
