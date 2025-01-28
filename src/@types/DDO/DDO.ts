@@ -3,7 +3,6 @@ import { Metadata } from './Metadata'
 import { Credentials } from './Credentials'
 import { Event } from './Event'
 import { IndexedMetadata } from './IndexedMetadata'
-import { Nft } from './Nft'
 
 /**
  * DID Descriptor Object.
@@ -66,8 +65,6 @@ export interface DDO {
    * @type {Event}
    */
   event?: Event
-
-  nft?: Nft
 
   indexedMetadata?: IndexedMetadata
 }
