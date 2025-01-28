@@ -487,7 +487,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
   }
 
   async validateDDO(ddo: Record<string, any>): Promise<boolean> {
-    if (ddo.indexedMetadata.nft?.state !== 0) {
+    if (ddo.indexedMetadata?.nft?.state !== 0) {
       return true
     } else {
       const validation = await validateObject(ddo, ddo.chainId, ddo.nftAddress)
