@@ -205,11 +205,11 @@ describe('Indexer stores a new metadata events and orders.', () => {
     setMetaDataTxReceipt = await setMetaDataTx.wait()
     assert(setMetaDataTxReceipt, 'set metada failed')
     // for testing purpose
-    genericAsset.indexedMetadata.event.tx = setMetaDataTxReceipt.transactionHash
-    genericAsset.indexedMetadata.event.block = setMetaDataTxReceipt.blockNumber
-    genericAsset.indexedMetadata.event.from = setMetaDataTxReceipt.from
-    genericAsset.indexedMetadata.event.contract = setMetaDataTxReceipt.contractAddress
-    genericAsset.indexedMetadata.event.datetime = '2023-02-15T16:42:22'
+    genericAsset.event.tx = setMetaDataTxReceipt.transactionHash
+    genericAsset.event.block = setMetaDataTxReceipt.blockNumber
+    genericAsset.event.from = setMetaDataTxReceipt.from
+    genericAsset.event.contract = setMetaDataTxReceipt.contractAddress
+    genericAsset.event.datetime = '2023-02-15T16:42:22'
 
     genericAsset.nft.address = nftAddress
     genericAsset.nft.owner = setMetaDataTxReceipt.from
