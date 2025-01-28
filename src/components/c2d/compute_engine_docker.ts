@@ -44,13 +44,13 @@ import { ValidateParams } from '../httpRoutes/validateCommands.js'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
-  protected db: C2DDatabase
+
   public docker: Dockerode
   private cronTimer: any
   private cronTime: number = 2000
   public constructor(clusterConfig: C2DClusterInfo, db: C2DDatabase) {
-    super(clusterConfig)
-    this.db = db
+    super(clusterConfig, db)
+
     this.docker = null
     if (clusterConfig.connection.socketPath) {
       try {
@@ -103,7 +103,6 @@ export class C2DEngineDocker extends C2DEngine {
       // console.log(feeChain)
       if (supportedChains.includes(parseInt(feeChain))) {
         if (fees === null) fees = {}
-        console.log(fees)
         if (!(feeChain in fees)) fees[feeChain] = []
         fees[feeChain].push(envConfig.fees[feeChain])
       }
@@ -114,10 +113,9 @@ export class C2DEngineDocker extends C2DEngine {
         result[chainId] = await computeEngines.fetchEnvironments(chainId)
       } */
     }
-    console.log(fees)
     this.envs.push({
       id: '', // this.getC2DConfig().hash + '-' + create256Hash(JSON.stringify(this.envs[i])),
-      currentJobs: 0,
+      runningJobs: 0,
       consumerAddress: config.keys.ethAddress,
       platform: {
         architecture: sysinfo.Architecture,
@@ -143,13 +141,16 @@ export class C2DEngineDocker extends C2DEngine {
       max: sysinfo.MemTotal,
       min: 1e9
     })
-    // TODO:  get total disk space
-    this.envs[0].resources.push({
-      id: 'disk',
-      total: 0,
-      max: envConfig.maxDisk,
-      min: 1e8
-    })
+    if (envConfig.resources) {
+      for (const res of envConfig.resources) {
+        // allow user to add other resources
+        if (res.id !== 'cpu' && res.id !== 'ram') {
+          if (!res.max) res.max = res.total
+          if (!res.min) res.min = 0
+          this.envs[0].resources.push(res)
+        }
+      }
+    }
     // limits for free env
     if ('free' in envConfig) {
       this.envs[0].free = {}
@@ -158,8 +159,10 @@ export class C2DEngineDocker extends C2DEngine {
       if (`maxJobDuration` in envConfig.free)
         this.envs[0].free.maxJobDuration = envConfig.free.maxJobDuration
       if (`maxJobs` in envConfig.free) this.envs[0].free.maxJobs = envConfig.free.maxJobs
-      if ('resources' in envConfig.free)
+      if ('resources' in envConfig.free) {
+        // TO DO - check if resource is also listed in this.envs[0].resources, if not, ignore it
         this.envs[0].free.resources = envConfig.free.resources
+      }
     }
     this.envs[0].id =
       this.getC2DConfig().hash + '-' + create256Hash(JSON.stringify(this.envs[0]))
@@ -175,10 +178,28 @@ export class C2DEngineDocker extends C2DEngine {
     if (!this.docker) return []
     const filteredEnvs = []
     for (const computeEnv of this.envs) {
-      if (!chainId) filteredEnvs.push(computeEnv)
-      else {
-        if (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId)))
-          filteredEnvs.push(computeEnv)
+      if (
+        !chainId ||
+        (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId)))
+      ) {
+        const { totalJobs, totalFreeJobs, usedResources, usedFreeResources } =
+          await this.getUsedResources(computeEnv)
+        computeEnv.runningJobs = totalJobs
+        computeEnv.runningfreeJobs = totalFreeJobs
+        for (let i = 0; i < computeEnv.resources.length; i++) {
+          if (computeEnv.resources[i].id in usedResources)
+            computeEnv.resources[i].inUse = usedResources[computeEnv.resources[i].id]
+          else computeEnv.resources[i].inUse = 0
+        }
+        if (computeEnv.free && computeEnv.free.resources) {
+          for (let i = 0; i < computeEnv.free.resources.length; i++) {
+            if (computeEnv.free.resources[i].id in usedFreeResources)
+              computeEnv.free.resources[i].inUse =
+                usedFreeResources[computeEnv.free.resources[i].id]
+            else computeEnv.free.resources[i].inUse = 0
+          }
+        }
+        filteredEnvs.push(computeEnv)
       }
     }
 
@@ -242,22 +263,6 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
-  /**
-   * Checks if requested resources are:
-   *        - lower than max
-   *        - required resources are present (ie: every job needs cpu, ram,storage)
-   * @param image name or tag
-   * @returns boolean
-   */
-  // eslint-disable-next-line require-await
-  public override async hasResourcesAvailable(
-    resources: ComputeResourceRequest[],
-    env: ComputeEnvironment,
-    isFree: boolean
-  ): Promise<boolean> {
-    return true
-  }
-
   // eslint-disable-next-line require-await
   public override async startComputeJob(
     assets: ComputeAsset[],
@@ -271,7 +276,7 @@ export class C2DEngineDocker extends C2DEngine {
     resources?: ComputeResourceRequest[]
   ): Promise<ComputeJob[]> {
     if (!this.docker) return []
-    const isFree: boolean = !!agreementId
+    const isFree: boolean = !agreementId
     const jobId = generateUniqueID()
 
     // C2D - Check image, check arhitecture, etc
@@ -731,11 +736,22 @@ export class C2DEngineDocker extends C2DEngine {
             return
           } catch (e) {
             // container failed to start
+            try {
+              const algoLogFile =
+                this.getC2DConfig().tempFolder +
+                '/' +
+                job.jobId +
+                '/data/logs/algorithm.log'
+              writeFileSync(algoLogFile, String(e.message))
+            } catch (e) {
+              console.log('Failed to write')
+              console.log(e)
+            }
             console.error('could not start container: ' + e.message)
             console.log(e)
             job.status = C2DStatusNumber.AlgorithmFailed
             job.statusText = C2DStatusText.AlgorithmFailed
-            job.algologURL = String(e)
+
             job.isRunning = false
             await this.db.updateJob(job)
             await this.cleanupJob(job)
@@ -807,32 +823,41 @@ export class C2DEngineDocker extends C2DEngine {
     //  - delete volume
     //  - delete container
 
-    const container = await this.docker.getContainer(job.jobId + '-algoritm')
     try {
-      writeFileSync(
-        this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/algorithm.log',
-        await container.logs({
-          stdout: true,
-          stderr: true,
-          follow: false
-        })
-      )
+      const container = await this.docker.getContainer(job.jobId + '-algoritm')
+      if (container) {
+        if (job.status !== C2DStatusNumber.AlgorithmFailed) {
+          writeFileSync(
+            this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/algorithm.log',
+            await container.logs({
+              stdout: true,
+              stderr: true,
+              follow: false
+            })
+          )
+        }
+        await container.remove()
+      }
+      const volume = await this.docker.getVolume(job.jobId + '-volume')
+      if (volume) {
+        try {
+          await volume.remove()
+        } catch (e) {
+          console.log(e)
+        }
+      }
+      // remove folders
+      rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/inputs', {
+        recursive: true,
+        force: true
+      })
+      rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/transformations', {
+        recursive: true,
+        force: true
+      })
     } catch (e) {
       console.log(e)
     }
-
-    await container.remove()
-    const volume = await this.docker.getVolume(job.jobId + '-volume')
-    await volume.remove()
-    // remove folders
-    rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/inputs', {
-      recursive: true,
-      force: true
-    })
-    rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/transformations', {
-      recursive: true,
-      force: true
-    })
   }
 
   private deleteOutputFolder(job: DBComputeJob) {
@@ -1006,36 +1031,47 @@ export class C2DEngineDocker extends C2DEngine {
     const folderToTar = this.getC2DConfig().tempFolder + '/' + job.jobId + '/data'
     const destination =
       this.getC2DConfig().tempFolder + '/' + job.jobId + '/tarData/upload.tar.gz'
-    tar.create(
-      {
-        gzip: true,
-        file: destination,
-        sync: true,
-        C: folderToTar
-      },
-      ['./']
-    )
-    // now, upload it to the container
-    const container = await this.docker.getContainer(job.jobId + '-algoritm')
-
-    console.log('Start uploading')
     try {
-      // await container2.putArchive(destination, {
-      const stream = await container.putArchive(destination, {
-        path: '/data'
-      })
-      console.log('PutArchive')
-      console.log(stream)
+      tar.create(
+        {
+          gzip: true,
+          file: destination,
+          sync: true,
+          C: folderToTar
+        },
+        ['./']
+      )
+      // check if tar.gz actually exists
+      console.log('Start uploading')
 
-      console.log('Done uploading')
-    } catch (e) {
-      console.log('Data upload failed')
-      console.log(e)
-      return {
-        status: C2DStatusNumber.DataUploadFailed,
-        statusText: C2DStatusText.DataUploadFailed
+      if (existsSync(destination)) {
+        // now, upload it to the container
+        const container = await this.docker.getContainer(job.jobId + '-algoritm')
+
+        try {
+          // await container2.putArchive(destination, {
+          const stream = await container.putArchive(destination, {
+            path: '/data'
+          })
+          console.log('PutArchive')
+          console.log(stream)
+
+          console.log('Done uploading')
+        } catch (e) {
+          console.log('Data upload failed')
+          console.log(e)
+          return {
+            status: C2DStatusNumber.DataUploadFailed,
+            statusText: C2DStatusText.DataUploadFailed
+          }
+        }
+      } else {
+        CORE_LOGGER.debug('No data to upload, empty tar.gz')
       }
+    } catch (e) {
+      CORE_LOGGER.debug(e.message)
     }
+
     rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/inputs', {
       recursive: true,
       force: true

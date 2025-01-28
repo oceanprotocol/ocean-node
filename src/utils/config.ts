@@ -407,11 +407,19 @@ function getDockerComputeEnvironments(isStartup?: boolean): C2DDockerConfig[] {
         if (!isDefined(config.fees)) {
           errors += ' There is no fees configuration!'
         }
-        if (!isDefined(config.maxDisk)) {
-          errors += ' There is no maxDisk configuration!'
-        }
+
         if (config.storageExpiry < config.maxJobDuration) {
-          errors += ' "storageExpiry" should be greater than "maxJobDuration"!'
+          errors += ' "storageExpiry" should be greater than "maxJobDuration"! '
+        }
+        // for docker there is no way of getting storage space
+        let foundDisk = false
+        if ('resources' in config) {
+          for (const resource of config.resources) {
+            if (resource.id === 'disk' && resource.total) foundDisk = true
+          }
+        }
+        if (!foundDisk) {
+          errors += ' There is no "disk" resource configured.This is mandatory '
         }
         if (errors.length > 1) {
           CONFIG_LOGGER.error(

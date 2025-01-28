@@ -74,12 +74,21 @@ export class ComputeStartHandler extends Handler {
 
       try {
         const env = await engine.getComputeEnvironment(null, task.environment)
+        if (!env) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 500,
+              error: 'Invalid C2D Environment'
+            }
+          }
+        }
         task.resources = await engine.checkAndFillMissingResources(
           task.resources,
           env,
           false
         )
-        await engine.hasResourcesAvailable(task.resources, env, true)
+        await engine.checkIfResourcesAreAvailable(task.resources, env, true)
       } catch (e) {
         return {
           stream: null,
@@ -425,12 +434,22 @@ export class FreeComputeStartHandler extends Handler {
       }
       try {
         const env = await engine.getComputeEnvironment(null, task.environment)
+        if (!env) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 500,
+              error: 'Invalid C2D Environment'
+            }
+          }
+        }
+
         task.resources = await engine.checkAndFillMissingResources(
           task.resources,
           env,
           true
         )
-        await engine.hasResourcesAvailable(task.resources, env, true)
+        await engine.checkIfResourcesAreAvailable(task.resources, env, true)
       } catch (e) {
         console.error(e)
         return {

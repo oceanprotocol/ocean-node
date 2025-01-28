@@ -12,11 +12,14 @@ import type {
   DBComputeJob
 } from '../../@types/C2D/C2D.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
+import { C2DDatabase } from '../database/C2DDatabase.js'
 
 export abstract class C2DEngine {
   private clusterConfig: C2DClusterInfo
-  public constructor(cluster: C2DClusterInfo) {
+  public db: C2DDatabase
+  public constructor(cluster: C2DClusterInfo, db: C2DDatabase) {
     this.clusterConfig = cluster
+    this.db = db
   }
 
   getC2DConfig(): C2DClusterInfo {
@@ -205,14 +208,62 @@ export abstract class C2DEngine {
     return properResources
   }
 
-  // overridden by each engine
+  public async getUsedResources(env: ComputeEnvironment): Promise<any> {
+    const usedResources: { [x: string]: any } = {}
+    const usedFreeResources: { [x: string]: any } = {}
+    const jobs = await this.db.getRunningJobs(this.getC2DConfig().hash)
+    let totalJobs = 0
+    let totalFreeJobs = 0
+    for (const job of jobs) {
+      if (job.environment === env.id) {
+        totalJobs++
+        if (job.isFree) totalFreeJobs++
+
+        for (const resource of job.resources) {
+          if (!(resource.id in usedResources)) usedResources[resource.id] = 0
+          usedResources[resource.id] += resource.amount
+          if (job.isFree) {
+            if (!(resource.id in usedFreeResources)) usedFreeResources[resource.id] = 0
+            usedFreeResources[resource.id] += resource.amount
+          }
+        }
+      }
+    }
+    return { totalJobs, totalFreeJobs, usedResources, usedFreeResources }
+  }
+
+  // overridden by each engine if required
   // eslint-disable-next-line require-await
-  public async hasResourcesAvailable(
-    resources: ComputeResourceRequest[],
+  public async checkIfResourcesAreAvailable(
+    resourcesRequest: ComputeResourceRequest[],
     env: ComputeEnvironment,
     isFree: boolean
-  ): Promise<boolean> {
-    return true
+  ) {
+    for (const request of resourcesRequest) {
+      let envResource = this.getResource(env.resources, request.id)
+      if (!envResource) throw new Error(`No such resource ${request.id}`)
+      if (envResource.total - envResource.inUse < request.amount)
+        throw new Error(`Not enough available ${request.id}`)
+      if (isFree) {
+        if (!env.free) throw new Error(`No free resources`)
+        envResource = this.getResource(env.free.resources, request.id)
+        if (!envResource) throw new Error(`No such free resource ${request.id}`)
+        if (envResource.total - envResource.inUse < request.amount)
+          throw new Error(`Not enough available ${request.id} for free`)
+      }
+    }
+    if ('maxJobs' in env && env.maxJobs && env.runningJobs + 1 > env.maxJobs) {
+      throw new Error(`Too many running jobs `)
+    }
+    if (
+      isFree &&
+      'free' in env &&
+      `maxJobs` in env.free &&
+      env.free.maxJobs &&
+      env.runningfreeJobs + 1 > env.free.maxJobs
+    ) {
+      throw new Error(`Too many running free jobs `)
+    }
   }
 
   public getResource(resources: ComputeResource[], id: ComputeResourceType) {

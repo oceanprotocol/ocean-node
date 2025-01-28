@@ -34,6 +34,7 @@ export interface ComputeResource {
   total: number // total number of specific resource
   min: number // min number of resource needed for a job
   max: number // max number of resource for a job
+  inUse?: number // for display purposes
 }
 export interface ComputeResourceRequest {
   id: string
@@ -63,7 +64,8 @@ export interface ComputeEnvironmentFreeOptions {
 export interface ComputeEnvironmentBaseConfig {
   description?: string // v1
   storageExpiry?: number // amount of seconds for storage
-  maxJobDuration?: number // v1 max seconds for a paid job
+  minJobDuration?: number // min billable seconds for a paid job
+  maxJobDuration?: number // max duration in seconds for a paid job
   maxJobs?: number // maximum number of simultaneous paid jobs
   fees: ComputeEnvFeesStructure
   resources?: ComputeResource[]
@@ -73,7 +75,8 @@ export interface ComputeEnvironmentBaseConfig {
 
 export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
   id: string // v1
-  currentJobs: number
+  runningJobs: number
+  runningfreeJobs?: number
   consumerAddress: string // v1
 }
 
@@ -89,7 +92,7 @@ export interface C2DDockerConfig {
   maxJobDuration?: number
   maxJobs?: number
   fees: ComputeEnvFeesStructure
-  maxDisk: number
+  resources?: ComputeResource[] // optional, owner can overwrite
   free?: ComputeEnvironmentFreeOptions
 }
 
