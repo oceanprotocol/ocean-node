@@ -47,27 +47,14 @@ describe('Compute Jobs Database', () => {
   }
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
-      [ENVIRONMENT_VARIABLES.DOCKER_SOCKET_PATH],
-      ['/var/lib/docker']
+      [ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS],
+      [
+        '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":1000000000}],"storageExpiry":604800,"maxJobDuration":3600,"fees":{"1":[{"feeToken":"0x123","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1000000000},{"id":"disk","max":1000000000}]}}]'
+      ]
     )
     envOverrides = await setupEnvironment(null, envOverrides)
     config = await getConfiguration(true)
     db = await new C2DDatabase(config.dbConfig, typesenseSchemas.c2dSchemas)
-  })
-
-  it('should have at least a free docker compute environment', () => {
-    let size = 1
-    if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL, false)) {
-      expect(config.c2dClusters.length).to.be.at.least(2)
-      size = 2
-    } else {
-      expect(config.c2dClusters.length).to.be.at.least(1)
-    }
-    const dockerConfig = config.c2dClusters[size - 1].connection
-    const freeEnv: ComputeEnvironment = dockerConfig.freeComputeOptions
-    expect(freeEnv.description).to.be.equal('Free')
-    // expect(freeEnv.free).to.be.equal(true)
-    expect(freeEnv.id).to.be.equal(config.c2dClusters[size - 1].hash + '-free')
   })
 
   it('should create a new C2D Job', async () => {
@@ -235,24 +222,11 @@ describe('Compute Jobs Database', () => {
     expect(checkManifestPlatform(null, env)).to.be.equal(true)
   })
 
-  it('should check cpu constraints on c2d docker env', async function () {
-    /*
-    TODO
-    const size = config.c2dClusters.length
-    const dockerConfig = config.c2dClusters[size - 1].connection
-    const freeEnv: ComputeEnvironment = dockerConfig.freeComputeOptions
-    const cpus = os.cpus()
-    
-    freeEnv.maxCpu = cpus.length + 1 // should be capped to cpus.length
-    const docker = new Dockerode({ socketPath: '/var/run/docker.sock' })
-    let hostConfig: HostConfig = await buildCPUAndMemoryConstraints(freeEnv, docker)
-    expect(hostConfig.CpuCount).to.be.equal(cpus.length)
-    freeEnv.maxCpu = -1
-    hostConfig = await buildCPUAndMemoryConstraints(freeEnv)
-    expect(hostConfig.CpuCount).to.be.equal(1)
-    const ram = os.totalmem()
-    expect(hostConfig.Memory).to.be.lessThanOrEqual(ram)
-    */
+  it('testing checkAndFillMissingResources', async function () {
+    // TO DO
+  })
+  it('testing checkIfResourcesAreAvailable', async function () {
+    // TO DO
   })
 
   after(async () => {

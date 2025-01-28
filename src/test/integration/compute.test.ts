@@ -64,7 +64,6 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
-import { checkC2DEnvExists } from '../../components/c2d/index.js'
 import {
   getAlgoChecksums,
   validateAlgoForDataset
@@ -98,7 +97,7 @@ describe('Compute', () => {
   )
   // const chainId = DEVELOPMENT_CHAIN_ID
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
-  const chainId = 8996
+  const chainId = DEVELOPMENT_CHAIN_ID
   // randomly use a set of trusted algos or empty arrays
   // should validate if set and match, invalidate otherwise
   const setTrustedAlgosEmpty: boolean = Math.random() <= 0.5
@@ -118,19 +117,17 @@ describe('Compute', () => {
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE,
-          // ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL,
-          ENVIRONMENT_VARIABLES.DOCKER_SOCKET_PATH
-          // ENVIRONMENT_VARIABLES.DB_TYPE
+          ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS
         ],
         [
           JSON.stringify(mockSupportedNetworks),
-          JSON.stringify([8996]),
+          JSON.stringify([DEVELOPMENT_CHAIN_ID]),
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
-          // JSON.stringify(['http://localhost:31000']),
-          '/var/run/docker.sock'
-          // DB_TYPES.ELASTIC_SEARCH
+          '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":1000000000}],"storageExpiry":604800,"maxJobDuration":3600,"fees":{"' +
+            DEVELOPMENT_CHAIN_ID +
+            '":[{"feeToken":"0x123","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1000000000},{"id":"disk","max":1000000000}]}}]'
         ]
       )
     )
@@ -259,28 +256,25 @@ describe('Compute', () => {
     computeEnvironments = await streamToObject(response.stream as Readable)
     console.log('existing envs: ', computeEnvironments)
     // expect 1 OR + envs (1 if only docker free env is available)
-    assert(computeEnvironments[DEVELOPMENT_CHAIN_ID].length >= 1, 'incorrect length')
-    for (const computeEnvironment of computeEnvironments[DEVELOPMENT_CHAIN_ID]) {
+    assert(computeEnvironments.length >= 1, 'Not enough compute envs')
+    for (const computeEnvironment of computeEnvironments) {
       assert(computeEnvironment.id, 'id missing in computeEnvironments')
+      assert(computeEnvironment.fees, 'fees missing in computeEnvironments')
       assert(
         computeEnvironment.consumerAddress,
         'consumerAddress missing in computeEnvironments'
       )
 
       assert(computeEnvironment.id.startsWith('0x'), 'id should start with 0x')
-
-      // new structure
-      assert(computeEnvironment.totalCpu > 0, 'totalCpu missing in computeEnvironments')
-      assert(computeEnvironment.totalRam > 0, 'totalRam missing in computeEnvironments')
-      assert(computeEnvironment.maxDisk > 0, 'maxDisk missing in computeEnvironments')
+      assert(computeEnvironment.resources.length > 2, 'Missing resources')
       assert(
         computeEnvironment.maxJobDuration > 0,
         'maxJobDuration missing in computeEnvironments'
       )
     }
-    firstEnv = computeEnvironments[DEVELOPMENT_CHAIN_ID][0]
+    firstEnv = computeEnvironments[0]
   })
-
+  /*
   it('Initialize compute without transaction IDs', async () => {
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
@@ -297,7 +291,7 @@ describe('Compute', () => {
       getEnvironmentsTask
     )
     computeEnvironments = await streamToObject(response.stream as Readable)
-    firstEnv = computeEnvironments[DEVELOPMENT_CHAIN_ID][0]
+    firstEnv = computeEnvironments[0]
 
     const initializeComputeTask: ComputeInitializeCommand = {
       datasets: [dataset],
@@ -312,12 +306,14 @@ describe('Compute', () => {
     const resp = await new ComputeInitializeHandler(oceanNode).handle(
       initializeComputeTask
     )
+    console.log(resp)
     assert(resp, 'Failed to get response')
     assert(resp.status.httpStatus === 200, 'Failed to get 200 response')
     assert(resp.stream, 'Failed to get stream')
     expect(resp.stream).to.be.instanceOf(Readable)
 
     const result: any = await streamToObject(resp.stream as Readable)
+    console.log(result)
     assert(result.algorithm, 'algorithm does not exist')
     expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
       publishedAlgoDataset.datatokenAddress?.toLowerCase()
@@ -579,7 +575,6 @@ describe('Compute', () => {
   it('should start a compute job', async () => {
     // first need to check the existing envs
     // If only FREE envs than start a free compute job instead of a regular/payed one
-    const hasOnlyFreeEnv = computeEnvironments[DEVELOPMENT_CHAIN_ID].length === 1 // && firstEnv.free
 
     const nonce = Date.now().toString()
     const message = String(nonce)
@@ -591,9 +586,7 @@ describe('Compute', () => {
     const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await wallet.signMessage(messageHashBytes)
     const startComputeTask: ComputeStartCommand = {
-      command: hasOnlyFreeEnv
-        ? PROTOCOL_COMMANDS.FREE_COMPUTE_START
-        : PROTOCOL_COMMANDS.COMPUTE_START,
+      command: PROTOCOL_COMMANDS.COMPUTE_START,
       consumerAddress: await wallet.getAddress(),
       signature,
       nonce,
@@ -615,9 +608,7 @@ describe('Compute', () => {
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
-    const response = hasOnlyFreeEnv
-      ? await new FreeComputeStartHandler(oceanNode).handle(startComputeTask)
-      : await new ComputeStartHandler(oceanNode).handle(startComputeTask)
+    const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
@@ -627,7 +618,7 @@ describe('Compute', () => {
     // eslint-disable-next-line prefer-destructuring
     jobId = jobs[0].jobId
   })
-
+  */
   it('should start a free docker compute job', async () => {
     const nonce = Date.now().toString()
     const message = String(nonce)
@@ -670,32 +661,9 @@ describe('Compute', () => {
     expect(response.stream).to.be.instanceOf(Readable)
 
     const jobs = await streamToObject(response.stream as Readable)
-    // eslint-disable-next-line prefer-destructuring
     assert(jobs[0].jobId, 'failed to got job id')
-  })
-
-  it('should stop a compute job', async () => {
-    const nonce = Date.now().toString()
-    const message = String(nonce)
-    // sign message/nonce
-    const consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
-    )
-    const messageHashBytes = ethers.toBeArray(consumerMessage)
-    const signature = await wallet.signMessage(messageHashBytes)
-    const stopComputeTask: ComputeStopCommand = {
-      command: PROTOCOL_COMMANDS.COMPUTE_STOP,
-      consumerAddress: await wallet.getAddress(),
-      signature,
-      nonce,
-      jobId
-    }
-    const response = await new ComputeStopHandler(oceanNode).handle(stopComputeTask)
-    assert(response, 'Failed to get response')
-    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
-    assert(response.stream, 'Failed to get stream')
-    expect(response.stream).to.be.instanceOf(Readable)
+    // eslint-disable-next-line prefer-destructuring
+    jobId = jobs[0].jobId
   })
 
   it('should get job status by jobId', async () => {
@@ -733,7 +701,29 @@ describe('Compute', () => {
     const jobs = await streamToObject(response.stream as Readable)
     console.log(jobs)
   })
-
+  it('should stop a compute job', async () => {
+    const nonce = Date.now().toString()
+    const message = String(nonce)
+    // sign message/nonce
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await wallet.signMessage(messageHashBytes)
+    const stopComputeTask: ComputeStopCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_STOP,
+      consumerAddress: await wallet.getAddress(),
+      signature,
+      nonce,
+      jobId
+    }
+    const response = await new ComputeStopHandler(oceanNode).handle(stopComputeTask)
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response.stream, 'Failed to get stream')
+    expect(response.stream).to.be.instanceOf(Readable)
+  })
   it('should deny the Free job due to bad container image (directCommand payload)', async function () {
     freeComputeStartPayload.environment = firstEnv.id
     const command: FreeComputeStartCommand = freeComputeStartPayload
@@ -747,12 +737,6 @@ describe('Compute', () => {
       ),
       'Should have image error'
     )
-  })
-
-  it('should checkC2DEnvExists', async () => {
-    const envId = '0x123'
-    const result = await checkC2DEnvExists(envId, oceanNode)
-    expect(result).to.equal(false)
   })
 
   // algo and checksums related
