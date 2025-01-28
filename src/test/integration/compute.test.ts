@@ -1,22 +1,22 @@
 import { expect, assert } from 'chai'
 import {
   ComputeGetEnvironmentsHandler,
-  ComputeStartHandler,
+  // ComputeStartHandler,
   ComputeStopHandler,
   ComputeGetStatusHandler,
-  ComputeInitializeHandler,
+  // ComputeInitializeHandler,
   FreeComputeStartHandler
 } from '../../components/core/compute/index.js'
 import type {
   ComputeStartCommand,
   ComputeStopCommand,
   ComputeGetStatusCommand,
-  ComputeInitializeCommand,
+  // ComputeInitializeCommand,
   FreeComputeStartCommand
 } from '../../@types/commands.js'
 import type {
-  ComputeAsset,
-  ComputeAlgorithm,
+  // ComputeAsset,
+  // ComputeAlgorithm,
   ComputeEnvironment
 } from '../../@types/C2D/C2D.js'
 import {
@@ -42,7 +42,8 @@ import {
   Signer,
   ZeroAddress
 } from 'ethers'
-import { publishAsset, orderAsset } from '../utils/assets.js'
+// import { publishAsset, orderAsset } from '../utils/assets.js'
+import { publishAsset } from '../utils/assets.js'
 import { computeAsset, algoAsset } from '../data/assets.js'
 import { RPCS } from '../../@types/blockchain.js'
 import {
@@ -55,7 +56,7 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 
-import { ProviderFees } from '../../@types/Fees.js'
+// import { ProviderFees } from '../../@types/Fees.js'
 import { homedir } from 'os'
 import { publishAlgoDDO, publishDatasetDDO } from '../data/ddo.js'
 import { DEVELOPMENT_CHAIN_ID, getOceanArtifactsAdresses } from '../../utils/address.js'
@@ -78,18 +79,18 @@ describe('Compute', () => {
   let oceanNode: OceanNode
   let provider: any
   let publisherAccount: any
-  let consumerAccount: any
+  // let consumerAccount: any
   let computeEnvironments: any
   let publishedComputeDataset: any
   let publishedAlgoDataset: any
   let jobId: string
   let datasetOrderTxId: any
   let algoOrderTxId: any
-  let providerFeesComputeDataset: ProviderFees
-  let providerFeesComputeAlgo: ProviderFees
+  // let providerFeesComputeDataset: ProviderFees
+  // let providerFeesComputeAlgo: ProviderFees
   let indexer: OceanIndexer
-  const now = new Date().getTime() / 1000
-  const computeJobValidUntil = now + 60 * 15 // 15 minutes from now should be enough
+  // const now = new Date().getTime() / 1000
+  // const computeJobValidUntil = now + 60 * 15 // 15 minutes from now should be enough
   let firstEnv: ComputeEnvironment
 
   const wallet = new ethers.Wallet(
@@ -140,7 +141,7 @@ describe('Compute', () => {
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
-    consumerAccount = (await provider.getSigner(1)) as Signer
+    // consumerAccount = (await provider.getSigner(1)) as Signer
 
     const artifactsAddresses = getOceanArtifactsAdresses()
     publisherAddress = await publisherAccount.getAddress()

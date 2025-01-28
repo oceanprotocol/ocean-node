@@ -1,12 +1,13 @@
 import { C2DDatabase } from '../../components/database/C2DDatabase.js'
-import { existsEnvironmentVariable, getConfiguration } from '../../utils/config.js'
+// import { existsEnvironmentVariable, getConfiguration } from '../../utils/config.js'
+import { getConfiguration } from '../../utils/config.js'
 import { typesenseSchemas } from '../../components/database/TypesenseSchemas.js'
 import {
   C2DStatusNumber,
   C2DStatusText,
   ComputeAlgorithm,
   ComputeAsset,
-  ComputeEnvironment,
+  // ComputeEnvironment,
   ComputeJob,
   DBComputeJob,
   RunningPlatform
