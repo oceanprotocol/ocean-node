@@ -75,9 +75,15 @@ export interface OceanNodeDockerConfig {
   certPath?: string
   keyPath?: string
 }
+
+export interface AccessListPublishers {
+  [chainId: string]: string[]
+}
 export interface OceanNodeConfig {
   authorizedDecrypters: string[]
   allowedValidators: string[]
+  authorizedPublishers: string[]
+  authorizedPublishersList: AccessListPublishers
   keys: OceanNodeKeys
   hasP2P: boolean
   p2pConfig: OceanNodeP2PConfig | null
