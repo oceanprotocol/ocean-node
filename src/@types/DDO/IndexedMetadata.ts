@@ -1,5 +1,7 @@
+export type PriceType = 'fixedrate' | 'dispenser'
+
 export interface Price {
-  type: string
+  type: PriceType
   price: string
   contract: string
   token?: string
@@ -9,6 +11,7 @@ export interface Price {
 export interface Stats {
   datatokenAddress: string
   name: string
+  symbol: string
   serviceId: string
   orders?: number
   prices?: Price[]
