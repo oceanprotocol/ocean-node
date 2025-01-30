@@ -10,10 +10,16 @@ import {
 } from '../../utils/index.js'
 import { BlocksEvents, NetworkEvent, ProcessingEvents } from '../../@types/blockchain.js'
 import {
+  DispenserActivatedEventProcessor,
+  DispenserDeactivatedEventProcessor,
   MetadataEventProcessor,
   MetadataStateEventProcessor,
   OrderReusedEventProcessor,
-  OrderStartedEventProcessor
+  OrderStartedEventProcessor,
+  ExchangeActivatedEventProcessor,
+  ExchangeDeactivatedEventProcessor,
+  ExchangeRateChangedEventProcessor,
+  ExchangeCreatedEventProcessor
 } from './processor.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { fetchEventFromTransaction } from '../../utils/util.js'
@@ -22,11 +28,29 @@ import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { getOceanArtifactsAdressesByChainId } from '../../utils/address.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
+import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
+import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
+import { Price } from '../../@types/DDO/IndexedMetadata.js'
 
 let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor
 let orderReusedEventProcessor: OrderReusedEventProcessor
 let orderStartedEventProcessor: OrderStartedEventProcessor
+let dispenserActivatedEventProcessor: DispenserActivatedEventProcessor
+let dispenserDeactivatedEventProcessor: DispenserDeactivatedEventProcessor
+let exchangeCreatedEventProcessor: ExchangeCreatedEventProcessor
+let exchangeActivatedEventProcessor: ExchangeActivatedEventProcessor
+let exchangeDeactivatedEventProcessor: ExchangeDeactivatedEventProcessor
+let exchangeNewRateEventProcessor: ExchangeRateChangedEventProcessor
+
+function getExchangeCreatedEventProcessor(
+  chainId: number
+): ExchangeCreatedEventProcessor {
+  if (!exchangeCreatedEventProcessor) {
+    exchangeCreatedEventProcessor = new ExchangeCreatedEventProcessor(chainId)
+  }
+  return exchangeCreatedEventProcessor
+}
 
 function getMetadataEventProcessor(chainId: number): MetadataEventProcessor {
   if (!metadataEventProccessor) {
@@ -54,6 +78,49 @@ function getOrderStartedEventProcessor(chainId: number): OrderStartedEventProces
     orderStartedEventProcessor = new OrderStartedEventProcessor(chainId)
   }
   return orderStartedEventProcessor
+}
+
+function getDispenserActivatedEventProcessor(
+  chainId: number
+): DispenserActivatedEventProcessor {
+  if (!dispenserActivatedEventProcessor) {
+    dispenserActivatedEventProcessor = new DispenserActivatedEventProcessor(chainId)
+  }
+  return dispenserActivatedEventProcessor
+}
+
+function getDispenserDeactivatedEventProcessor(
+  chainId: number
+): DispenserDeactivatedEventProcessor {
+  if (!dispenserDeactivatedEventProcessor) {
+    dispenserDeactivatedEventProcessor = new DispenserDeactivatedEventProcessor(chainId)
+  }
+  return dispenserDeactivatedEventProcessor
+}
+
+function getExchangeActivatedEventProcessor(
+  chainId: number
+): ExchangeActivatedEventProcessor {
+  if (!exchangeActivatedEventProcessor) {
+    exchangeActivatedEventProcessor = new ExchangeActivatedEventProcessor(chainId)
+  }
+  return exchangeActivatedEventProcessor
+}
+
+function getExchangeDeactivatedEventProcessor(
+  chainId: number
+): ExchangeDeactivatedEventProcessor {
+  if (!exchangeDeactivatedEventProcessor) {
+    exchangeDeactivatedEventProcessor = new ExchangeDeactivatedEventProcessor(chainId)
+  }
+  return exchangeDeactivatedEventProcessor
+}
+
+function getExchangeNewRateEventProcessor(chainId: number) {
+  if (!exchangeNewRateEventProcessor) {
+    exchangeNewRateEventProcessor = new ExchangeRateChangedEventProcessor(chainId)
+  }
+  return exchangeNewRateEventProcessor
 }
 
 export const getContractAddress = (chainId: number, contractName: string): string => {
@@ -205,9 +272,22 @@ export const processChunkLogs = async (
           const processor = getMetadataStateEventProcessor(chainId)
           storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
         } else if (event.type === EVENTS.EXCHANGE_CREATED) {
-          storeEvents[event.type] = procesExchangeCreated()
+          const processor = getExchangeCreatedEventProcessor(chainId)
+          INDEXER_LOGGER.logMessage(`log for exchange created: ${JSON.stringify(log)}`)
+          storeEvents[event.type] = await processor.processEvent(
+            log,
+            chainId,
+            signer,
+            provider
+          )
         } else if (event.type === EVENTS.EXCHANGE_RATE_CHANGED) {
-          storeEvents[event.type] = processExchangeRateChanged()
+          const processor = getExchangeNewRateEventProcessor(chainId)
+          storeEvents[event.type] = await processor.processEvent(
+            log,
+            chainId,
+            signer,
+            provider
+          )
         } else if (event.type === EVENTS.ORDER_STARTED) {
           const processor = getOrderStartedEventProcessor(chainId)
           storeEvents[event.type] = await processor.processEvent(
@@ -226,6 +306,38 @@ export const processChunkLogs = async (
           )
         } else if (event.type === EVENTS.TOKEN_URI_UPDATE) {
           storeEvents[event.type] = processTokenUriUpadate()
+        } else if (event.type === EVENTS.DISPENSER_ACTIVATED) {
+          const processor = getDispenserActivatedEventProcessor(chainId)
+          storeEvents[event.type] = await processor.processEvent(
+            log,
+            chainId,
+            signer,
+            provider
+          )
+        } else if (event.type === EVENTS.DISPENSER_DEACTIVATED) {
+          const processor = getDispenserDeactivatedEventProcessor(chainId)
+          storeEvents[event.type] = await processor.processEvent(
+            log,
+            chainId,
+            signer,
+            provider
+          )
+        } else if (event.type === EVENTS.EXCHANGE_ACTIVATED) {
+          const processor = getExchangeActivatedEventProcessor(chainId)
+          storeEvents[event.type] = await processor.processEvent(
+            log,
+            chainId,
+            signer,
+            provider
+          )
+        } else if (event.type === EVENTS.EXCHANGE_DEACTIVATED) {
+          const processor = getExchangeDeactivatedEventProcessor(chainId)
+          storeEvents[event.type] = await processor.processEvent(
+            log,
+            chainId,
+            signer,
+            provider
+          )
         }
       }
     }
@@ -233,14 +345,6 @@ export const processChunkLogs = async (
   }
 
   return {}
-}
-
-const procesExchangeCreated = (): string => {
-  return 'EXCHANGE_CREATED'
-}
-
-const processExchangeRateChanged = (): string => {
-  return 'EXCHANGE_RATE_CHANGED'
 }
 
 const processTokenUriUpadate = (): string => {
@@ -329,4 +433,190 @@ export function buildJobIdentifier(command: string, extra: string[]): JobStatus 
     status: CommandStatus.DELIVERED,
     hash: create256Hash(extra.join(''))
   }
+}
+
+export function findServiceIdByDatatoken(ddo: any, datatokenAddress: string): string {
+  let serviceIdToFind = ''
+  for (const s of ddo.services) {
+    if (s.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase()) {
+      serviceIdToFind = s.id
+      break
+    }
+  }
+  return serviceIdToFind
+}
+
+export function doesDispenserAlreadyExist(
+  dispenserAddress: string,
+  prices: Price[]
+): [boolean, Price?] {
+  for (const price of prices) {
+    if (dispenserAddress.toLowerCase() === price.contract.toLowerCase()) {
+      return [true, price]
+    }
+  }
+  return [false, null]
+}
+
+export function doesFreAlreadyExist(
+  exchangeId: ethers.BytesLike,
+  prices: Price[]
+): [boolean, Price?] {
+  for (const price of prices) {
+    if (exchangeId === price.exchangeId) {
+      return [true, price]
+    }
+  }
+  return [false, null]
+}
+
+export async function getPricesByDt(
+  datatoken: ethers.Contract,
+  signer: Signer
+): Promise<Price[]> {
+  let dispensers = []
+  let fixedRates = []
+  let prices: Price[] = []
+  try {
+    dispensers = await datatoken.getDispensers()
+  } catch (e) {
+    INDEXER_LOGGER.error(`[GET PRICES] failure when retrieving dispensers: ${e}`)
+  }
+  try {
+    fixedRates = await datatoken.getFixedRates()
+  } catch (e) {
+    INDEXER_LOGGER.error(
+      `[GET PRICES] failure when retrieving fixed rate exchanges: ${e}`
+    )
+  }
+  if (dispensers.length === 0 && fixedRates.length === 0) {
+    prices = []
+  } else {
+    if (dispensers) {
+      for (const dispenser of dispensers) {
+        const dispenserContract = new ethers.Contract(dispenser, Dispenser.abi, signer)
+        if ((await dispenserContract.status(await datatoken.getAddress()))[0] === true) {
+          prices.push({
+            type: 'dispenser',
+            price: '0',
+            contract: dispenser
+          })
+        }
+      }
+    }
+
+    if (fixedRates) {
+      for (const fixedRate of fixedRates) {
+        const fixedRateContract = new ethers.Contract(
+          fixedRate[0],
+          FixedRateExchange.abi,
+          signer
+        )
+        const exchange = await fixedRateContract.getExchange(fixedRate[1])
+        if (exchange[6] === true) {
+          prices.push({
+            type: 'fixedrate',
+            price: ethers.formatEther(exchange[5]),
+            token: exchange[3],
+            contract: fixedRate[0],
+            exchangeId: fixedRate[1]
+          })
+        }
+      }
+    }
+  }
+  return prices
+}
+
+export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<any> {
+  if (!ddo.indexedMetadata) {
+    ddo.indexedMetadata = {}
+  }
+
+  if (!Array.isArray(ddo.indexedMetadata.stats)) {
+    ddo.indexedMetadata.stats = []
+  }
+  for (const service of ddo.services) {
+    const datatoken = new ethers.Contract(
+      service.datatokenAddress,
+      ERC20Template.abi,
+      signer
+    )
+    let dispensers = []
+    let fixedRates = []
+    const prices: Price[] = []
+    try {
+      dispensers = await datatoken.getDispensers()
+    } catch (e) {
+      INDEXER_LOGGER.error(`Contract call fails when retrieving dispensers: ${e}`)
+    }
+    try {
+      fixedRates = await datatoken.getFixedRates()
+    } catch (e) {
+      INDEXER_LOGGER.error(
+        `Contract call fails when retrieving fixed rate exchanges: ${e}`
+      )
+    }
+    if (dispensers.length === 0 && fixedRates.length === 0) {
+      ddo.indexedMetadata.stats.push({
+        datatokenAddress: service.datatokenAddress,
+        name: await datatoken.name(),
+        serviceId: service.id,
+        orders: 0,
+        prices: []
+      })
+    } else {
+      INDEXER_LOGGER.logMessage(`all dispensers: ${dispensers}`)
+      if (dispensers) {
+        for (const dispenser of dispensers) {
+          const dispenserContract = new ethers.Contract(dispenser, Dispenser.abi, signer)
+          if (
+            (await dispenserContract.status(await datatoken.getAddress()))[0] === true
+          ) {
+            prices.push({
+              type: 'dispenser',
+              price: '0',
+              contract: dispenser,
+              token: service.datatokenAddress
+            })
+            ddo.indexedMetadata.stats.push({
+              datatokenAddress: service.datatokenAddress,
+              name: await datatoken.name(),
+              serviceId: service.id,
+              orders: 0,
+              prices
+            })
+          }
+        }
+      }
+
+      if (fixedRates) {
+        for (const fixedRate of fixedRates) {
+          const fixedRateContract = new ethers.Contract(
+            fixedRate[0],
+            FixedRateExchange.abi,
+            signer
+          )
+          const exchange = await fixedRateContract.getExchange(fixedRate[1])
+          if (exchange[6] === true) {
+            prices.push({
+              type: 'fixedrate',
+              price: ethers.formatEther(exchange[5].toString()),
+              token: exchange[3],
+              contract: fixedRate[0],
+              exchangeId: fixedRate[1]
+            })
+            ddo.indexedMetadata.stats.push({
+              datatokenAddress: service.datatokenAddress,
+              name: await datatoken.name(),
+              serviceId: service.id,
+              orders: 0, // just created
+              prices
+            })
+          }
+        }
+      }
+    }
+  }
+  return ddo
 }
