@@ -18,7 +18,24 @@ export const ddo = {
     additionalInformation: {
       termsAndConditions: true
     }
-  }
+  },
+  services: [
+    {
+      id: '0',
+      type: 'access',
+      description: 'Download service',
+      files: [
+        {
+          url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
+          contentType: 'text/js',
+          encoding: 'UTF-8'
+        }
+      ],
+      datatokenAddress: '0x0',
+      serviceEndpoint: 'http://172.15.0.4:8030',
+      timeout: 0
+    }
+  ]
 }
 export const genericAlgorithm = {
   '@context': ['https://w3id.org/did/v1'],
