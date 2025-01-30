@@ -16,6 +16,7 @@ import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import AccessListContract from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
 import { getDatabase } from '../../utils/database.js'
 import {
   PROTOCOL_COMMANDS,
@@ -367,13 +368,37 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         )
         if (!authorized.length) {
           INDEXER_LOGGER.error(
-            `DDO owner ${owner}  is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS.name} group.`
+            `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS.name} group.`
           )
           return
         }
       }
       if (authorizedPublishersList) {
-        console.log('TODO authorizedPublishersList')
+        // check accessList
+        const chainsListed = Object.keys(authorizedPublishersList)
+        const chain = String(chainId)
+        // check the access lists for this chain
+        if (chainsListed.length > 0 && chainsListed.includes(chain)) {
+          let isAuthorized = false
+          for (const accessListAddress of authorizedPublishersList[chain]) {
+            const accessListContract = new ethers.Contract(
+              accessListAddress,
+              AccessListContract.abi,
+              signer
+            )
+            // if has at least 1 token than is is authorized
+            if ((await accessListContract.balanceOf(owner)) > 0) {
+              isAuthorized = true
+              break
+            }
+          }
+          if (!isAuthorized) {
+            INDEXER_LOGGER.error(
+              `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.name} access group.`
+            )
+            return
+          }
+        }
       }
 
       did = ddo.id
