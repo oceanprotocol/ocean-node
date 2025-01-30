@@ -100,7 +100,6 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         results BLOB,
         inputDID TEXT DEFAULT NULL,
         algoDID TEXT DEFAULT NULL,
-        agreementId TEXT DEFAULT NULL,
         expireTimestamp INTEGER,
         environment TEXT DEFAULT NULL,
         body BLOB
@@ -127,12 +126,11 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       statusText, 
       inputDID, 
       algoDID, 
-      agreementId, 
       expireTimestamp, 
       environment, 
       body
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+      VALUES (?, ?, ?, ?,  ?, ?, ?, ?, ?, ?, ?);
     `
     const jobId = job.jobId || generateUniqueID()
     job.jobId = jobId
@@ -148,8 +146,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
           job.statusText || C2DStatusText.JobStarted,
           job.inputDID ? convertArrayToString(job.inputDID) : job.inputDID,
           job.algoDID,
-          job.agreementId,
-          job.expireTimestamp,
+          job.maxJobDuration,
           job.environment,
           generateBlobFromJSON(job)
         ],
@@ -230,7 +227,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       job.owner,
       job.status,
       job.statusText,
-      job.expireTimestamp,
+      job.maxJobDuration,
       generateBlobFromJSON(job),
       job.jobId
     ]

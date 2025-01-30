@@ -176,15 +176,12 @@ export async function verifyProviderFees(
   txId: string,
   userAddress: string,
   provider: JsonRpcApiProvider,
-  service: Service,
-  computeEnv?: string,
-  validUntil?: number // only for computeEnv
+  service: Service
 ): Promise<ProviderFeeValidation> {
   if (!txId) {
     CORE_LOGGER.error('Invalid txId')
     return {
       isValid: false,
-      isComputeValid: false,
       message: 'Invalid txId',
       validUntil: 0
     }
@@ -197,7 +194,7 @@ export async function verifyProviderFees(
   if (!txReceiptMined) {
     const message = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
     CORE_LOGGER.error(message)
-    return { isValid: false, isComputeValid: false, message, validUntil: 0 }
+    return { isValid: false, message, validUntil: 0 }
   }
 
   const now = Math.round(new Date().getTime() / 1000)
@@ -237,34 +234,11 @@ export async function verifyProviderFees(
   if (!allEventsValid) {
     const message = 'Not all ProviderFee events are valid'
     CORE_LOGGER.error(message)
-    return { isValid: false, isComputeValid: false, message, validUntil: 0 }
-  }
-
-  // Compute environment validation
-  let isComputeValid = true
-  if (computeEnv) {
-    if (providerData.environment !== computeEnv) {
-      isComputeValid = false
-    }
-    if (validUntil > 0 && providerData.timestamp < validUntil) {
-      isComputeValid = false
-    }
-  }
-
-  if (!isComputeValid) {
-    const message = 'Compute environment validation failed'
-    CORE_LOGGER.error(message)
-    return {
-      isValid: true,
-      isComputeValid,
-      message,
-      validUntil: providerData ? providerData.timestamp : 0
-    }
+    return { isValid: false, message, validUntil: 0 }
   }
 
   return {
     isValid: true,
-    isComputeValid,
     message: 'Validation successful',
     validUntil: providerData.timestamp
   }

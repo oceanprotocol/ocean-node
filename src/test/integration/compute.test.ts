@@ -1,22 +1,22 @@
 import { expect, assert } from 'chai'
 import {
   ComputeGetEnvironmentsHandler,
-  // ComputeStartHandler,
+  ComputeStartHandler,
   ComputeStopHandler,
   ComputeGetStatusHandler,
-  // ComputeInitializeHandler,
+  ComputeInitializeHandler,
   FreeComputeStartHandler
 } from '../../components/core/compute/index.js'
 import type {
-  ComputeStartCommand,
+  PaidComputeStartCommand,
+  FreeComputeStartCommand,
   ComputeStopCommand,
   ComputeGetStatusCommand,
-  // ComputeInitializeCommand,
-  FreeComputeStartCommand
+  ComputeInitializeCommand
 } from '../../@types/commands.js'
 import type {
-  // ComputeAsset,
-  // ComputeAlgorithm,
+  ComputeAsset,
+  ComputeAlgorithm,
   ComputeEnvironment
 } from '../../@types/C2D/C2D.js'
 import {
@@ -86,11 +86,12 @@ describe('Compute', () => {
   let jobId: string
   let datasetOrderTxId: any
   let algoOrderTxId: any
+  let paymentToken: any
   // let providerFeesComputeDataset: ProviderFees
   // let providerFeesComputeAlgo: ProviderFees
   let indexer: OceanIndexer
   // const now = new Date().getTime() / 1000
-  // const computeJobValidUntil = now + 60 * 15 // 15 minutes from now should be enough
+  const computeJobDuration = 60 * 15 // 15 minutes from now should be enough
   let firstEnv: ComputeEnvironment
 
   const wallet = new ethers.Wallet(
@@ -109,6 +110,10 @@ describe('Compute', () => {
   let datasetDDO: any
 
   before(async () => {
+    const artifactsAddresses = getOceanArtifactsAdresses()
+    console.log(artifactsAddresses)
+    console.log(artifactsAddresses.development)
+    paymentToken = artifactsAddresses.development.Ocean
     previousConfiguration = await setupEnvironment(
       TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
@@ -128,22 +133,23 @@ describe('Compute', () => {
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
           '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":1000000000}],"storageExpiry":604800,"maxJobDuration":3600,"fees":{"' +
             DEVELOPMENT_CHAIN_ID +
-            '":[{"feeToken":"0x123","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1000000000},{"id":"disk","max":1000000000}]}}]'
+            '":[{"feeToken":"' +
+            paymentToken +
+            '","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1000000000},{"id":"disk","max":1000000000}]}}]'
         ]
       )
     )
     config = await getConfiguration(true)
     dbconn = await new Database(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(dbconn)
+    oceanNode = await OceanNode.getInstance(config, dbconn, null, null, null)
     indexer = new OceanIndexer(dbconn, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
-    oceanNode.addC2DEngines(config)
+    oceanNode.addC2DEngines()
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
     // consumerAccount = (await provider.getSigner(1)) as Signer
 
-    const artifactsAddresses = getOceanArtifactsAdresses()
     publisherAddress = await publisherAccount.getAddress()
     algoDDO = { ...publishAlgoDDO }
     datasetDDO = { ...publishDatasetDDO }
@@ -275,7 +281,7 @@ describe('Compute', () => {
     }
     firstEnv = computeEnvironments[0]
   })
-  /*
+
   it('Initialize compute without transaction IDs', async () => {
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
@@ -297,13 +303,16 @@ describe('Compute', () => {
     const initializeComputeTask: ComputeInitializeCommand = {
       datasets: [dataset],
       algorithm,
-      compute: {
-        env: firstEnv.id,
-        validUntil: computeJobValidUntil
+      payment: {
+        chainId: DEVELOPMENT_CHAIN_ID,
+        maxJobDuration: computeJobDuration,
+        token: paymentToken,
+        env: firstEnv.id
       },
       consumerAddress: firstEnv.consumerAddress,
       command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
     }
+    console.log(initializeComputeTask)
     const resp = await new ComputeInitializeHandler(oceanNode).handle(
       initializeComputeTask
     )
@@ -319,7 +328,7 @@ describe('Compute', () => {
     expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
       publishedAlgoDataset.datatokenAddress?.toLowerCase()
     )
-
+    /*
     providerFeesComputeAlgo = result.algorithm.providerFee
 
     assert(
@@ -368,8 +377,9 @@ describe('Compute', () => {
 
     assert(resultParsed.providerFee.validUntil, 'algorithm validUntil does not exist')
     assert(result.datasets[0].validOrder === false, 'incorrect validOrder') // expect false because tx id was not provided and no start order was called before
+    */
   })
-
+  /*
   it('should start an order', async function () {
     const orderTxReceipt = await orderAsset(
       publishedComputeDataset.ddo,
@@ -630,7 +640,7 @@ describe('Compute', () => {
     )
     const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await wallet.signMessage(messageHashBytes)
-    const startComputeTask: ComputeStartCommand = {
+    const startComputeTask: FreeComputeStartCommand = {
       command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
       consumerAddress: await wallet.getAddress(),
       signature,
@@ -925,7 +935,7 @@ describe('Compute', () => {
     })
 
     it('should validateAlgoForDataset', async function () {
-      this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+      this.timeout(DEFAULT_TEST_TIMEOUT * 10)
       const { ddo, wasTimeout } = await waitToIndex(
         algoDDO.id,
         EVENTS.METADATA_CREATED,

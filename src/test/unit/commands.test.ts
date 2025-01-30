@@ -8,7 +8,7 @@ import {
   ComputeGetResultCommand,
   ComputeGetStatusCommand,
   ComputeInitializeCommand,
-  ComputeStartCommand,
+  PaidComputeStartCommand,
   ComputeStopCommand,
   DecryptDDOCommand,
   DownloadCommand,
@@ -282,14 +282,15 @@ describe('Commands and handlers', () => {
     const startEnvHandler: ComputeStartHandler = CoreHandlersRegistry.getInstance(
       node
     ).getHandler(PROTOCOL_COMMANDS.COMPUTE_START)
-    const startEnvCommand: ComputeStartCommand = {
+    const startEnvCommand: PaidComputeStartCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_START,
       consumerAddress: '',
       signature: '',
       nonce: '',
       environment: '',
       algorithm: undefined,
-      datasets: undefined
+      datasets: undefined,
+      payment: undefined
     }
     expect(startEnvHandler.validate(startEnvCommand).valid).to.be.equal(false)
     // -----------------------------------------
@@ -341,7 +342,7 @@ describe('Commands and handlers', () => {
       consumerAddress: 'abcdef',
       datasets: null,
       algorithm: undefined,
-      compute: undefined
+      payment: undefined
     }
     expect(initComputeHandler.validate(computeInitCommand).valid).to.be.equal(false)
   })

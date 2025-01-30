@@ -8,6 +8,7 @@ import { TypesenseSchema } from './TypesenseSchemas.js'
 import { AbstractDatabase } from './BaseDatabase.js'
 import { OceanNode } from '../../OceanNode.js'
 import { getDatabase } from '../../utils/database.js'
+import { getConfiguration } from '../../utils/index.js'
 
 export class C2DDatabase extends AbstractDatabase {
   private provider: SQLiteCompute
@@ -81,8 +82,11 @@ export class C2DDatabase extends AbstractDatabase {
    * @returns array of eexpired jobs
    */
   async cleanStorageExpiredJobs(): Promise<number> {
-    const allEngines = await OceanNode.getInstance(await getDatabase()).getC2DEngines()
-      .engines
+    const config = await getConfiguration(true)
+    const allEngines = await OceanNode.getInstance(
+      config,
+      await getDatabase()
+    ).getC2DEngines().engines
 
     let cleaned = 0
     for (const engine of allEngines) {

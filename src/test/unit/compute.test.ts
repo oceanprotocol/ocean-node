@@ -68,7 +68,7 @@ describe('Compute Jobs Database', () => {
       statusText: C2DStatusText.JobStarted,
       results: null,
       inputDID: ['did:op:1', 'did:op:2', 'did:op:3'],
-      expireTimestamp: 0,
+      maxJobDuration: 60,
 
       // internal structure
       clusterHash: 'clusterHash',
@@ -83,7 +83,9 @@ describe('Compute Jobs Database', () => {
       isStarted: false,
       containerImage: 'some container image',
       resources: [],
-      isFree: false
+      isFree: false,
+      algoStartTimestamp: '0',
+      algoStopTimestamp: '0'
     }
 
     jobId = await db.newJob(job)
@@ -126,7 +128,7 @@ describe('Compute Jobs Database', () => {
       statusText: C2DStatusText.JobStarted,
       results: null,
       inputDID: ['did:op:1', 'did:op:2'],
-      expireTimestamp: 1,
+      maxJobDuration: 60,
 
       // internal structure
       clusterHash: 'clusterHash',
@@ -141,7 +143,9 @@ describe('Compute Jobs Database', () => {
       isStarted: false,
       containerImage: 'another container image',
       resources: [],
-      isFree: false
+      isFree: false,
+      algoStartTimestamp: '0',
+      algoStopTimestamp: '0'
     }
 
     const jobId = await db.newJob(job)

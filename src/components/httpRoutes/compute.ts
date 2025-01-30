@@ -16,7 +16,8 @@ import type {
   ComputeResourceRequest
 } from '../../@types/C2D/C2D.js'
 import type {
-  ComputeStartCommand,
+  PaidComputeStartCommand,
+  ComputePayment,
   FreeComputeStartCommand,
   ComputeStopCommand,
   ComputeGetResultCommand,
@@ -92,7 +93,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       true
     )
 
-    const startComputeTask: ComputeStartCommand = {
+    const startComputeTask: PaidComputeStartCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_START,
       node: (req.body.node as string) || null,
       consumerAddress: (req.body.consumerAddress as string) || null,
@@ -101,7 +102,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       environment: (req.body.environment as string) || null,
       algorithm: (req.body.algorithm as ComputeAlgorithm) || null,
       datasets: (req.body.datasets as unknown as ComputeAsset[]) || null,
-      resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null
+      payment: (req.body.payment as unknown as ComputePayment) || null
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output as ComputeOutput

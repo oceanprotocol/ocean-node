@@ -403,9 +403,7 @@ export class DownloadHandler extends Handler {
       task.transferTxId,
       task.consumerAddress,
       provider,
-      service,
-      null,
-      null
+      service
     )
     if (!validFee.isValid) {
       return {

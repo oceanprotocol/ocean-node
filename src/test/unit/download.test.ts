@@ -35,7 +35,7 @@ describe('Should validate files structure for download', () => {
     envOverrides = await setupEnvironment(null, envOverrides)
     config = await getConfiguration(true)
     db = await new Database(config.dbConfig)
-    oceanNode = OceanNode.getInstance(db)
+    oceanNode = OceanNode.getInstance(config, db)
   })
 
   const ddoObj: DDO = {

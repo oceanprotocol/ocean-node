@@ -14,6 +14,7 @@ import {
 } from '../../../utils/asset.js'
 import { verifyProviderFees, createProviderFee } from '../utils/feesHandler.js'
 import { Blockchain } from '../../../utils/blockchain.js'
+
 import { validateOrderTransaction } from '../utils/validateOrders.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
 import { decrypt } from '../../../utils/crypt.js'
@@ -34,7 +35,7 @@ export class ComputeInitializeHandler extends Handler {
     const validation = validateCommandParameters(command, [
       'datasets',
       'algorithm',
-      'compute',
+      'payment',
       'consumerAddress'
       // we might also need a "signature" (did + nonce) for confidential evm template 4
     ])
@@ -44,17 +45,16 @@ export class ComputeInitializeHandler extends Handler {
           'Parameter : "consumerAddress" is not a valid web3 address'
         )
       }
-      const { validUntil } = command.compute
-      if (validUntil <= new Date().getTime() / 1000) {
-        const errorMsg = `Error validating validUntil ${validUntil}. It is not in the future.`
-        CORE_LOGGER.error(errorMsg)
-        return buildInvalidRequestMessage(errorMsg)
-      } else if (!command.compute || !command.compute.env) {
-        CORE_LOGGER.error(`Invalid compute environment: ${command.compute.env}`)
-        return buildInvalidRequestMessage(
-          `Invalid compute environment: ${command.compute.env}`
-        )
+      if (
+        !command.payment.env ||
+        !command.payment.chainId ||
+        !command.payment.token ||
+        !command.payment.maxJobDuration
+      ) {
+        return buildInvalidRequestMessage('Invalid payment options')
       }
+
+      return validation
     }
 
     return validation
@@ -65,14 +65,113 @@ export class ComputeInitializeHandler extends Handler {
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
-
+    let engine
+    let env
+    let resourcesNeeded
     try {
-      let foundValidCompute = null
       const node = this.getOceanNode()
+      try {
+        // split compute env (which is already in hash-envId format) and get the hash
+        // then get env which might contain dashes as well
+        const eIndex = task.payment.env.indexOf('-')
+        const hash = task.payment.env.slice(0, eIndex)
+        engine = await this.getOceanNode().getC2DEngines().getC2DByHash(hash)
+      } catch (e) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: 'Invalid C2D Environment'
+          }
+        }
+      }
+      if (engine === null) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: 'Invalid C2D Environment'
+          }
+        }
+      }
+      try {
+        env = await engine.getComputeEnvironment(task.payment.chainId, task.payment.env)
+        if (!env) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 500,
+              error: 'Invalid C2D Environment'
+            }
+          }
+        }
+
+        resourcesNeeded = await engine.checkAndFillMissingResources(
+          task.payment.resources,
+          env,
+          false
+        )
+      } catch (e) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: String(e)
+          }
+        }
+      }
+      // check if we have the required token as payment method
+      const prices = engine.getEnvPricesForToken(
+        env,
+        task.payment.chainId,
+        task.payment.token
+      )
+      if (!prices) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: `This compute env does not accept payments on chain: ${task.payment.chainId} using token ${task.payment.token}`
+          }
+        }
+      }
+
+      const escrowAddress = await engine.escrow.getEscrowContractAddressForChain(
+        task.payment.chainId
+      )
+      if (!escrowAddress) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: `Cannot handle payments on chainId: ${task.payment.chainId}`
+          }
+        }
+      }
+      // let's calculate payment needed based on resources request and maxJobDuration
+      const cost = engine.calculateResourcesCost(
+        resourcesNeeded,
+        env,
+        task.payment.chainId,
+        task.payment.token,
+        task.payment.maxJobDuration
+      )
       const allFees: ProviderComputeInitializeResults = {
         algorithm: null,
-        datasets: []
+        datasets: [],
+        payment: {
+          escrowAddress,
+          chainId: task.payment.chainId,
+          minLockSeconds: engine.escrow.getMinLockTime(task.payment.maxJobDuration),
+          token: task.payment.token,
+          amount: await engine.escrow.getPaymentAmountInWei(
+            cost,
+            task.payment.chainId,
+            task.payment.token
+          )
+        }
       }
+
       // check algo
       let index = 0
       for (const elem of [...[task.algorithm], ...task.datasets]) {
@@ -141,9 +240,6 @@ export class ComputeInitializeHandler extends Handler {
           if (hasDockerImages) {
             const algoImage = getAlgorithmImage(task.algorithm)
             if (algoImage) {
-              const env = await this.getOceanNode()
-                .getC2DEngines()
-                .getExactComputeEnv(task.compute.env, ddo.chainId)
               const validation: ValidateParams = await C2DEngineDocker.checkDockerImage(
                 algoImage,
                 env.platform
@@ -231,21 +327,7 @@ export class ComputeInitializeHandler extends Handler {
           // start with assumption than we need new providerfees
           let validFee = {
             isValid: false,
-            isComputeValid: false,
             message: false
-          }
-          const env = await this.getOceanNode()
-            .getC2DEngines()
-            .getExactComputeEnv(task.compute.env, ddo.chainId)
-          if (!env) {
-            const error = `Compute environment: ${task.compute.env} not available on chainId: ${ddo.chainId}`
-            return {
-              stream: null,
-              status: {
-                httpStatus: 500,
-                error
-              }
-            }
           }
           result.consumerAddress = env.consumerAddress
           if ('transferTxId' in elem && elem.transferTxId) {
@@ -267,53 +349,25 @@ export class ComputeInitializeHandler extends Handler {
                 elem.transferTxId,
                 task.consumerAddress,
                 provider,
-                service,
-                task.compute.env,
-                task.compute.validUntil
+                service
               )
             } else {
               // no point in checking provider fees if order is expired
               result.validOrder = false
             }
           }
-          if (validFee.isComputeValid === true) {
-            foundValidCompute = { txId: elem.transferTxId, chainId: ddo.chainId }
-          }
           if (validFee.isValid === false) {
-            // providerFee is no longer valid, so we need to create one
-            const now = new Date().getTime() / 1000
-            let bestValidUntil: number = 0
-            if (service.timeout === 0) {
-              bestValidUntil = task.compute.validUntil // no need to pay more if asset is available for days, but we need houts
-            } else {
-              bestValidUntil = Math.min(now + service.timeout, task.compute.validUntil)
-            }
-            if (foundValidCompute || !canDecrypt) {
-              // we already have a valid compute fee with another asset, or it's an asset not served by us
-              // in any case, we need an access providerFee
-              if (canDecrypt) {
-                result.providerFee = await createProviderFee(
-                  ddo,
-                  service,
-                  bestValidUntil,
-                  null,
-                  null
-                )
-              } else {
-                // TO DO:  Edge case when this asset is served by a remote provider.
-                // We should connect to that provider and get the fee
-              }
-            } else {
-              // we need to create a compute fee
-              // we can only create computeFee if the asset is ours..
+            if (canDecrypt) {
               result.providerFee = await createProviderFee(
                 ddo,
                 service,
-                bestValidUntil,
-                env,
-                task.compute.validUntil
+                service.timeout,
+                null,
+                null
               )
-              foundValidCompute = { txId: null, chainId: ddo.chainId }
+            } else {
+              // TO DO:  Edge case when this asset is served by a remote provider.
+              // We should connect to that provider and get the fee
             }
           }
         }
@@ -321,12 +375,7 @@ export class ComputeInitializeHandler extends Handler {
         else allFees.datasets.push(result)
         index = index + 1
       }
-      if (!foundValidCompute) {
-        // edge case, where all assets have valid orders and valid provider fees (for download)
-        // unfortunatelly, none have valid compute provider fees.  let's create for the first asset that is published on a chainId that matches our env
-        // just take any asset and create provider fees with compute
-        console.log('TO DO!!!!')
-      }
+
       return {
         stream: Readable.from(JSON.stringify(allFees)),
         status: {

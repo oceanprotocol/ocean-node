@@ -9,6 +9,7 @@ import type {
   ComputeJob,
   ComputeOutput,
   DBComputeJob,
+  DBComputeJobPayment,
   ComputeResult,
   RunningPlatform,
   ComputeEnvFeesStructure,
@@ -17,6 +18,7 @@ import type {
 import { getConfiguration } from '../../utils/config.js'
 import { C2DEngine } from './compute_engine_base.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
+import { Escrow } from '../core/utils/escrow.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { Storage } from '../storage/index.js'
 import Dockerode from 'dockerode'
@@ -48,8 +50,8 @@ export class C2DEngineDocker extends C2DEngine {
   public docker: Dockerode
   private cronTimer: any
   private cronTime: number = 2000
-  public constructor(clusterConfig: C2DClusterInfo, db: C2DDatabase) {
-    super(clusterConfig, db)
+  public constructor(clusterConfig: C2DClusterInfo, db: C2DDatabase, escrow: Escrow) {
+    super(clusterConfig, db, escrow)
 
     this.docker = null
     if (clusterConfig.connection.socketPath) {
@@ -104,7 +106,7 @@ export class C2DEngineDocker extends C2DEngine {
       if (supportedChains.includes(parseInt(feeChain))) {
         if (fees === null) fees = {}
         if (!(feeChain in fees)) fees[feeChain] = []
-        fees[feeChain].push(envConfig.fees[feeChain])
+        fees[feeChain] = envConfig.fees[feeChain]
       }
 
       /* for (const chain of Object.keys(config.supportedNetworks)) {
@@ -269,14 +271,13 @@ export class C2DEngineDocker extends C2DEngine {
     algorithm: ComputeAlgorithm,
     output: ComputeOutput,
     environment: string,
-    owner?: string,
-    validUntil?: number,
-    chainId?: number,
-    agreementId?: string,
-    resources?: ComputeResourceRequest[]
+    owner: string,
+    maxJobDuration: number,
+    resources: ComputeResourceRequest[],
+    payment: DBComputeJobPayment
   ): Promise<ComputeJob[]> {
     if (!this.docker) return []
-    const isFree: boolean = !agreementId
+    const isFree: boolean = !(payment && payment.lockTx)
     const jobId = generateUniqueID()
 
     // C2D - Check image, check arhitecture, etc
@@ -292,7 +293,7 @@ export class C2DEngineDocker extends C2DEngine {
     }
     const envIdWithHash = environment && environment.indexOf('-') > -1
     const env = await this.getComputeEnvironment(
-      chainId,
+      payment.chainId,
       envIdWithHash ? environment : null,
       environment
     )
@@ -313,8 +314,7 @@ export class C2DEngineDocker extends C2DEngine {
       results: [],
       algorithm,
       assets,
-      agreementId,
-      expireTimestamp: Date.now() / 1000 + validUntil,
+      maxJobDuration,
       environment,
       configlogURL: null,
       publishlogURL: null,
@@ -324,7 +324,10 @@ export class C2DEngineDocker extends C2DEngine {
       isRunning: true,
       isStarted: false,
       resources,
-      isFree
+      isFree,
+      algoStartTimestamp: '0',
+      algoStopTimestamp: '0',
+      payment
     }
     await this.makeJobFolders(job)
     // make sure we actually were able to insert on DB
@@ -484,6 +487,7 @@ export class C2DEngineDocker extends C2DEngine {
     }
     // wait for all promises, there is no return
     await Promise.all(promises)
+
     // set the cron again
     this.setNewTimer()
   }
@@ -732,6 +736,7 @@ export class C2DEngineDocker extends C2DEngine {
           try {
             await container.start()
             job.isStarted = true
+            job.algoStartTimestamp = String(Date.now() / 1000)
             await this.db.updateJob(job)
             return
           } catch (e) {
@@ -762,8 +767,9 @@ export class C2DEngineDocker extends C2DEngine {
         // is running, we need to stop it..
         console.log('running, need to stop it?')
         const timeNow = Date.now() / 1000
-        console.log('timeNow: ' + timeNow + ' , Expiry: ' + job.expireTimestamp)
-        if (timeNow > job.expireTimestamp || job.stopRequested) {
+        const expiry = parseFloat(job.algoStartTimestamp) + job.maxJobDuration
+        console.log('timeNow: ' + timeNow + ' , Expiry: ' + expiry)
+        if (timeNow > expiry || job.stopRequested) {
           // we need to stop the container
           // make sure is running
           console.log('We need to stop')
@@ -780,6 +786,7 @@ export class C2DEngineDocker extends C2DEngine {
           job.isStarted = false
           job.status = C2DStatusNumber.PublishingResults
           job.statusText = C2DStatusText.PublishingResults
+          job.algoStopTimestamp = String(Date.now() / 1000)
           await this.db.updateJob(job)
           return
         } else {
@@ -787,6 +794,7 @@ export class C2DEngineDocker extends C2DEngine {
             job.isStarted = false
             job.status = C2DStatusNumber.PublishingResults
             job.statusText = C2DStatusText.PublishingResults
+            job.algoStopTimestamp = String(Date.now() / 1000)
             await this.db.updateJob(job)
             return
           }
@@ -819,10 +827,57 @@ export class C2DEngineDocker extends C2DEngine {
   // eslint-disable-next-line require-await
   private async cleanupJob(job: DBComputeJob) {
     // cleaning up
+    // - claim payment or release lock
     //  - get algo logs
     //  - delete volume
     //  - delete container
 
+    // payments
+    if (!job.isFree && job.payment) {
+      let txId = null
+      const env = await this.getComputeEnvironment(job.payment.chainId, job.environment)
+      let minDuration = 0
+      if (env && `minJobDuration` in env && env.minJobDuration) {
+        minDuration = env.minJobDuration
+      }
+      const algoRunnedTime =
+        parseFloat(job.algoStopTimestamp) - parseFloat(job.algoStartTimestamp)
+      if (algoRunnedTime < 0) minDuration += algoRunnedTime * -1
+      else minDuration += algoRunnedTime
+      if (minDuration > 0) {
+        // we need to claim
+        const cost = this.getTotalCostOfJob(job.resources, minDuration)
+        const proof = JSON.stringify(omitDBComputeFieldsFromComputeJob(job))
+        try {
+          txId = await this.escrow.claimLock(
+            job.payment.chainId,
+            job.jobId,
+            job.payment.token,
+            job.owner,
+            cost,
+            proof
+          )
+        } catch (e) {
+          console.log(e)
+        }
+      } else {
+        // release the lock, we are not getting paid
+        try {
+          txId = await this.escrow.cancelExpiredLocks(
+            job.payment.chainId,
+            job.jobId,
+            job.payment.token,
+            job.owner
+          )
+        } catch (e) {
+          console.log(e)
+        }
+      }
+      if (txId) {
+        job.payment.claimTx = txId
+        await this.db.updateJob(job)
+      }
+    }
     try {
       const container = await this.docker.getContainer(job.jobId + '-algoritm')
       if (container) {
@@ -919,7 +974,7 @@ export class C2DEngineDocker extends C2DEngine {
         // we can get it from this info
         if (serviceId && documentId) {
           const algoDdo = await new FindDdoHandler(
-            OceanNode.getInstance()
+            OceanNode.getInstance(config)
           ).findAndFormatDdo(documentId)
           console.log('algo ddo:', algoDdo)
           // 1. Get the service

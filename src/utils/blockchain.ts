@@ -160,7 +160,7 @@ export class Blockchain {
 
 export async function getDatatokenDecimals(
   datatokenAddress: string,
-  provider: JsonRpcProvider
+  provider: ethers.Provider
 ): Promise<number> {
   const datatokenContract = new Contract(datatokenAddress, ERC20Template.abi, provider)
   try {

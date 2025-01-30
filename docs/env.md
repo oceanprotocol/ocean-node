@@ -28,6 +28,10 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `MAX_CHECKSUM_LENGTH`: Define the maximum length for a file if checksum is required (Mb). Example: `10`
 - `IS_BOOTSTRAP`: Is this node to be used as bootstrap node or not. Default is `false`.
 
+## Payments
+
+- `ESCROW_CLAIM_TIMEOUT`: Amount of time reserved to claim a escrow payment, in seconds. Defaults to `600`. Example: `600`
+
 ## Logs
 
 - `LOG_LEVEL`: Define the default log level. Example: `debug`

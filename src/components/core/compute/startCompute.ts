@@ -2,7 +2,10 @@ import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Handler } from '../handler/handler.js'
-import { ComputeStartCommand, FreeComputeStartCommand } from '../../../@types/commands.js'
+import {
+  FreeComputeStartCommand,
+  PaidComputeStartCommand
+} from '../../../@types/commands.js'
 import { getAlgoChecksums, validateAlgoForDataset } from './utils.js'
 import {
   ValidateParams,
@@ -18,18 +21,21 @@ import {
   isERC20Template4Active
 } from '../../../utils/asset.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
+import { ComputeResourceRequestWithPrice } from '../../../@types/C2D/C2D.js'
 import { decrypt } from '../../../utils/crypt.js'
-import { verifyProviderFees } from '../utils/feesHandler.js'
+// import { verifyProviderFees } from '../utils/feesHandler.js'
 import { Blockchain } from '../../../utils/blockchain.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
 import { getConfiguration } from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
-import { ProviderFeeValidation } from '../../../@types/Fees.js'
+// import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
+import { createHash } from 'crypto'
+
 export class ComputeStartHandler extends Handler {
-  validate(command: ComputeStartCommand): ValidateParams {
+  validate(command: PaidComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
       'consumerAddress',
       'signature',
@@ -48,7 +54,7 @@ export class ComputeStartHandler extends Handler {
     return commandValidation
   }
 
-  async handle(task: ComputeStartCommand): Promise<P2PCommandResponse> {
+  async handle(task: PaidComputeStartCommand): Promise<P2PCommandResponse> {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
@@ -60,6 +66,7 @@ export class ComputeStartHandler extends Handler {
       const hash = task.environment.slice(0, eIndex)
       const envId = task.environment.slice(eIndex + 1)
       let engine
+      let env
       try {
         engine = await this.getOceanNode().getC2DEngines().getC2DByHash(hash)
       } catch (e) {
@@ -73,7 +80,7 @@ export class ComputeStartHandler extends Handler {
       }
 
       try {
-        const env = await engine.getComputeEnvironment(null, task.environment)
+        env = await engine.getComputeEnvironment(null, task.environment)
         if (!env) {
           return {
             stream: null,
@@ -83,12 +90,12 @@ export class ComputeStartHandler extends Handler {
             }
           }
         }
-        task.resources = await engine.checkAndFillMissingResources(
-          task.resources,
+        task.payment.resources = await engine.checkAndFillMissingResources(
+          task.payment.resources,
           env,
           false
         )
-        await engine.checkIfResourcesAreAvailable(task.resources, env, true)
+        await engine.checkIfResourcesAreAvailable(task.payment.resources, env, true)
       } catch (e) {
         return {
           stream: null,
@@ -100,7 +107,6 @@ export class ComputeStartHandler extends Handler {
       }
       const node = this.getOceanNode()
       const { algorithm } = task
-      let foundValidCompute = null
 
       const algoChecksums = await getAlgoChecksums(
         task.algorithm.documentId,
@@ -283,35 +289,7 @@ export class ComputeStartHandler extends Handler {
             }
           }
           result.validOrder = elem.transferTxId
-          // start with assumption than we need new providerfees
-          const validFee: ProviderFeeValidation =
-            foundValidCompute === null
-              ? await verifyProviderFees(
-                  elem.transferTxId,
-                  task.consumerAddress,
-                  provider,
-                  service,
-                  task.environment,
-                  0
-                )
-              : {
-                  isValid: false,
-                  isComputeValid: false,
-                  message: false,
-                  validUntil: 0
-                }
 
-          if (validFee.isComputeValid === true) {
-            CORE_LOGGER.logMessage(
-              `Found a valid compute providerFee ${elem.transferTxId}`,
-              true
-            )
-            foundValidCompute = {
-              txId: elem.transferTxId,
-              chainId: ddo.chainId,
-              validUntil: validFee.validUntil
-            }
-          }
           if (!('meta' in algorithm) && ddo.metadata.type === 'algorithm') {
             const { entrypoint, image, tag, checksum } = ddo.metadata.algorithm.container
             const container = { entrypoint, image, tag, checksum }
@@ -326,32 +304,84 @@ export class ComputeStartHandler extends Handler {
           }
         }
       }
-      if (!foundValidCompute) {
-        CORE_LOGGER.logMessage(`Cannot find a valid compute providerFee`, true)
+      // let's lock the amount
+      const prices = engine.getEnvPricesForToken(
+        env,
+        task.payment.chainId,
+        task.payment.token
+      )
+      if (!prices) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: `This compute env does not accept payments on chain: ${task.payment.chainId} using token ${task.payment.token}`
+          }
+        }
+      }
+      const resources: ComputeResourceRequestWithPrice[] = []
+
+      for (const res of task.payment.resources) {
+        const price = engine.getResourcePrice(prices, res.id)
+        resources.push({
+          id: res.id,
+          amount: res.amount,
+          price
+        })
+      }
+      const s = {
+        assets: task.datasets,
+        algorithm,
+        output: task.output,
+        environment: envId,
+        owner: task.consumerAddress,
+        validUntil: task.payment.maxJobDuration,
+        chainId: task.payment.chainId,
+        agreementId: '',
+        resources
+      }
+      const jobId = createHash('sha256').update(JSON.stringify(s)).digest('hex')
+      // let's calculate payment needed based on resources request and maxJobDuration
+      const cost = engine.calculateResourcesCost(
+        task.payment.resources,
+        env,
+        task.payment.chainId,
+        task.payment.token,
+        task.payment.maxJobDuration
+      )
+      let agreementId
+      try {
+        agreementId = await engine.escrow.createLock(
+          task.payment.chainId,
+          jobId,
+          task.payment.token,
+          task.consumerAddress,
+          cost,
+          task.payment.maxJobDuration
+        )
+      } catch (e) {
         return {
           stream: null,
           status: {
             httpStatus: 400,
-            error: `Invalid compute environment: ${task.environment}`
+            error: e
           }
         }
       }
-      // TODO - hardcoded values.
-      //  - validate providerFees -> will generate chainId & agreementId & validUntil
-      const { chainId } = foundValidCompute
-      const agreementId = foundValidCompute.txId
-      const { validUntil } = foundValidCompute
-
       const response = await engine.startComputeJob(
         task.datasets,
         algorithm,
         task.output,
         envId,
         task.consumerAddress,
-        validUntil,
-        chainId,
-        agreementId,
-        task.resources
+        task.payment.maxJobDuration,
+        task.payment.resources,
+        {
+          chainId: task.payment.chainId,
+          token: task.payment.token,
+          lockTx: agreementId,
+          claimTx: null
+        }
       )
 
       CORE_LOGGER.logMessage(
@@ -381,7 +411,7 @@ export class ComputeStartHandler extends Handler {
 // free compute
 // - has no validation
 export class FreeComputeStartHandler extends Handler {
-  validate(command: ComputeStartCommand): ValidateParams {
+  validate(command: FreeComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
       'algorithm',
       'datasets',
@@ -432,8 +462,9 @@ export class FreeComputeStartHandler extends Handler {
           }
         }
       }
+      let env
       try {
-        const env = await engine.getComputeEnvironment(null, task.environment)
+        env = await engine.getComputeEnvironment(null, task.environment)
         if (!env) {
           return {
             stream: null,
@@ -460,25 +491,25 @@ export class FreeComputeStartHandler extends Handler {
           }
         }
       }
-      // console.log(task.resources)
-      /*
-      return {
-        stream: null,
-        status: {
-          httpStatus: 200,
-          error: null
-        }
-      } */
+
+      let maxDuration = null
+      if (env.free.maxJobDuration) {
+        maxDuration = env.free.maxJobDuration
+      }
       const response = await engine.startComputeJob(
         task.datasets,
         task.algorithm,
         task.output,
         task.environment,
         task.consumerAddress,
-        null,
-        null,
-        null,
-        task.resources
+        maxDuration,
+        task.resources,
+        {
+          chainId: null,
+          token: null,
+          lockTx: null,
+          claimTx: null
+        }
       )
 
       CORE_LOGGER.logMessage(
