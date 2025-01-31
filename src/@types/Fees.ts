@@ -58,6 +58,7 @@ export interface ProviderComputeInitialize {
 
 export interface ProviderComputeInitializePayment {
   escrowAddress: string
+  payee: string
   chainId: number
   minLockSeconds: number
   token: string

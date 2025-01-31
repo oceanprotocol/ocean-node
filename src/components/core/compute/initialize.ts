@@ -161,6 +161,7 @@ export class ComputeInitializeHandler extends Handler {
         datasets: [],
         payment: {
           escrowAddress,
+          payee: env.consumerAddress,
           chainId: task.payment.chainId,
           minLockSeconds: engine.escrow.getMinLockTime(task.payment.maxJobDuration),
           token: task.payment.token,
