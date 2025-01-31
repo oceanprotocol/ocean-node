@@ -20,11 +20,25 @@ export interface C2DClusterInfo {
   tempFolder?: string
 }
 
-export type ComputeResourceType = 'cpu' | 'memory' | 'storage'
+export type ComputeResourceType = 'cpu' | 'ram' | 'disk' | any
 
 export interface ComputeResourcesPricingInfo {
-  type: ComputeResourceType
-  price: number
+  id: ComputeResourceType
+  price: number // price per unit
+}
+
+export interface ComputeResource {
+  id: ComputeResourceType
+  type?: string
+  kind?: string
+  total: number // total number of specific resource
+  min: number // min number of resource needed for a job
+  max: number // max number of resource for a job
+  inUse?: number // for display purposes
+}
+export interface ComputeResourceRequest {
+  id: string
+  amount: number
 }
 
 export interface ComputeEnvFees {
@@ -32,44 +46,38 @@ export interface ComputeEnvFees {
   prices: ComputeResourcesPricingInfo[]
 }
 export interface ComputeEnvFeesStructure {
-  [chainId: string]: ComputeEnvFees
+  [chainId: string]: ComputeEnvFees[]
 }
 
 export interface RunningPlatform {
   architecture: string
-  os: string
+  os?: string
+}
+
+export interface ComputeEnvironmentFreeOptions {
+  // only if a compute env exposes free jobs
+  storageExpiry?: number
+  maxJobDuration?: number
+  maxJobs?: number // maximum number of simultaneous free jobs
+  resources?: ComputeResource[]
 }
 export interface ComputeEnvironmentBaseConfig {
-  // cpuNumber: number
-  // ramGB: number
-  // diskGB: number
-  description: string // v1
-  // maxJobs: number
-  storageExpiry: number // v1
-  maxJobDuration: number // v1 max seconds for a job
-  // chainId?: number
-  // feeToken: string
-  // priceMin: number
-  totalCpu: number // total cpu available for jobs
-  maxCpu: number // max cpu for a single job.  Imagine a K8 cluster with two nodes, each node with 10 cpus.  Total=20, but at most you can allocate 10 cpu for a job
-  totalRam: number // total gb of RAM
-  maxRam: number // max allocatable GB RAM for a single job.
-  maxDisk: number // max GB of disck allocatable for a single job
+  description?: string // v1
+  storageExpiry?: number // amount of seconds for storage
+  minJobDuration?: number // min billable seconds for a paid job
+  maxJobDuration?: number // max duration in seconds for a paid job
+  maxJobs?: number // maximum number of simultaneous paid jobs
   fees: ComputeEnvFeesStructure
+  resources?: ComputeResource[]
+  free?: ComputeEnvironmentFreeOptions
+  platform: RunningPlatform
 }
 
 export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
   id: string // v1
-  // arch: string => part of platform bellow
-  // cpuType?: string
-  // gpuNumber?: number
-  // gpuType?: string
-  chainId?: number // it can be useful to keep the chain id (optional)
-  currentJobs: number
+  runningJobs: number
+  runningfreeJobs?: number
   consumerAddress: string // v1
-  // lastSeen?: number
-  free: boolean
-  platform?: RunningPlatform[] // array due to k8 support
 }
 
 export interface C2DDockerConfig {
@@ -80,12 +88,12 @@ export interface C2DDockerConfig {
   caPath: string
   certPath: string
   keyPath: string
-  environments: ComputeEnvironment[]
-  freeComputeOptions?: ComputeEnvironment
-}
-
-export interface ComputeEnvByChain {
-  [chainId: number]: ComputeEnvironment[]
+  storageExpiry?: number
+  maxJobDuration?: number
+  maxJobs?: number
+  fees: ComputeEnvFeesStructure
+  resources?: ComputeResource[] // optional, owner can overwrite
+  free?: ComputeEnvironmentFreeOptions
 }
 
 export type ComputeResultType =
@@ -165,6 +173,8 @@ export interface DBComputeJob extends ComputeJob {
   isRunning: boolean
   isStarted: boolean
   containerImage: string
+  resources: ComputeResourceRequest[]
+  isFree: boolean
 }
 
 // make sure we keep them both in sync

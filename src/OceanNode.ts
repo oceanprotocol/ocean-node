@@ -79,6 +79,7 @@ export class OceanNode {
         return
       }
       this.c2dEngines = new C2DEngines(_config, this.db.c2d)
+      await this.c2dEngines.startAllEngines()
     }
   }
 

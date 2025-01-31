@@ -33,7 +33,9 @@ function getInternalStructure(job: DBComputeJob): any {
     assets: job.assets,
     isRunning: job.isRunning,
     isStarted: job.isStarted,
-    containerImage: job.containerImage
+    containerImage: job.containerImage,
+    resources: job.resources,
+    isFree: job.isFree
   }
   return internalBlob
 }

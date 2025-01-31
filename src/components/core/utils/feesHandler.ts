@@ -1,8 +1,7 @@
 import type {
   ComputeEnvFees,
   ComputeEnvironment,
-  ComputeResourcesPricingInfo,
-  ComputeResourceType
+  ComputeResourcesPricingInfo
 } from '../../../@types/C2D/C2D.js'
 import {
   JsonRpcApiProvider,
@@ -33,12 +32,12 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 import { fetchEventFromTransaction } from '../../../utils/util.js'
 import { fetchTransactionReceipt } from './validateOrders.js'
 
-export function getEnvironmentPriceSchemaForType(
+export function getEnvironmentPriceSchemaForResource(
   prices: ComputeResourcesPricingInfo[],
-  type: ComputeResourceType
+  id: string
 ): number {
   for (const pr of prices) {
-    if (pr.type === type) {
+    if (pr.id === id) {
       return pr.price
     }
   }
@@ -57,14 +56,14 @@ async function calculateProviderFeeAmount(
   if (computeEnv) {
     if (computeEnv.fees) {
       // get the fess for the asset chain
-      const feesForChain: ComputeEnvFees = computeEnv.fees[chainId]
+      const feesForChain: ComputeEnvFees = computeEnv.fees[chainId][0]
       if (feesForChain && feesForChain.prices.length > 0) {
         const price =
           // TODO: check this again
           // try to get the price from the SUM of the available types; 'cpu', 'memory' or 'storage'
-          getEnvironmentPriceSchemaForType(feesForChain.prices, 'cpu') +
-          getEnvironmentPriceSchemaForType(feesForChain.prices, 'memory') +
-          getEnvironmentPriceSchemaForType(feesForChain.prices, 'storage')
+          getEnvironmentPriceSchemaForResource(feesForChain.prices, 'cpu') +
+          getEnvironmentPriceSchemaForResource(feesForChain.prices, 'memory') +
+          getEnvironmentPriceSchemaForResource(feesForChain.prices, 'storage')
         // it's a compute provider fee
         providerFeeAmount = (seconds * parseFloat(String(price || 0))) / 60 // was: (seconds * parseFloat(String(computeEnv.priceMin))) / 60
       }
@@ -99,7 +98,7 @@ export async function createProviderFee(
   const providerFeeAddress: string = providerWallet.address
   let providerFeeAmount: number
   let providerFeeAmountFormatted: BigNumberish
-
+  // TO DO - this will be overwritten with new escrow anyay
   let providerFeeToken: string
   if (
     computeEnv &&
@@ -107,7 +106,7 @@ export async function createProviderFee(
     Object.hasOwn(computeEnv.fees, String(asset.chainId))
   ) {
     // was: if (computeEnv)
-    providerFeeToken = computeEnv.fees[asset.chainId].feeToken // was: computeEnv.feeToken
+    providerFeeToken = computeEnv.fees[asset.chainId][0].feeToken // was: computeEnv.feeToken
   } else {
     // it's download, take it from config
     providerFeeToken = await getProviderFeeToken(asset.chainId)

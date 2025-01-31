@@ -1,44 +1,10 @@
-import { OceanNode } from '../../OceanNode.js'
-import { getConfiguration } from '../../utils/config.js'
-import { ComputeGetEnvironmentsHandler } from '../core/compute/index.js'
-import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import {
-  deleteKeysFromObject,
-  sanitizeServiceFiles,
-  streamToObject
-} from '../../utils/util.js'
-import { Readable } from 'stream'
+import { deleteKeysFromObject, sanitizeServiceFiles } from '../../utils/util.js'
+
 import { decrypt } from '../../utils/crypt.js'
 import { BaseFileObject, EncryptMethod } from '../../@types/fileObject.js'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { ComputeJob, DBComputeJob } from '../../@types/index.js'
 export { C2DEngine } from './compute_engine_base.js'
-
-export async function checkC2DEnvExists(
-  envId: string,
-  oceanNode: OceanNode
-): Promise<boolean> {
-  const config = await getConfiguration()
-  const { supportedNetworks } = config
-  for (const supportedNetwork of Object.keys(supportedNetworks)) {
-    const getEnvironmentsTask = {
-      command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS,
-      chainId: parseInt(supportedNetwork)
-    }
-    const response = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
-      getEnvironmentsTask
-    )
-    if (response.status.httpStatus === 200) {
-      const computeEnvironments = await streamToObject(response.stream as Readable)
-      for (const computeEnvironment of computeEnvironments[parseInt(supportedNetwork)]) {
-        if (computeEnvironment.id === envId) {
-          return true
-        }
-      }
-    }
-  }
-  return false
-}
 
 export async function decryptFilesObject(
   serviceFiles: any
