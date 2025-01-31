@@ -68,13 +68,8 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, r
     ) // get compute environments
     const computeEnvironments = await streamToObject(response.stream as Readable)
 
-    // check if computeEnvironments is a valid json object and not empty
-    if (computeEnvironments && computeEnvironments.length > 0) {
-      res.json(computeEnvironments)
-    } else {
-      HTTP_LOGGER.logMessage(`Compute environments not found`, true)
-      res.status(404).send('Compute environments not found')
-    }
+    // always return the array, even if it's empty
+    res.json(computeEnvironments)
   } catch (error) {
     HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')
