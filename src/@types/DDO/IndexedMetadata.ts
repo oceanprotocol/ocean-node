@@ -1,3 +1,5 @@
+import { Event } from './Event'
+
 export type PriceType = 'fixedrate' | 'dispenser'
 
 export interface Price {
@@ -18,5 +20,10 @@ export interface Stats {
 }
 
 export interface IndexedMetadata {
-  stats: Stats[]
+  stats?: Stats[]
+  /**
+   * Describes the event of last metadata event
+   * @type {Event}
+   */
+  event?: Event
 }
