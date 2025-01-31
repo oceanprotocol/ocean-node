@@ -30,28 +30,8 @@ import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants
 import { Readable } from 'stream'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { getConfiguration } from '../../utils/index.js'
 
 export const computeRoutes = express.Router()
-
-async function areEmpty(computeEnvs: any, requestChainId?: any): Promise<boolean> {
-  if (requestChainId) {
-    return computeEnvs[parseInt(requestChainId)].length === 0
-  } else {
-    const config = await getConfiguration()
-    let isEmpty: number = 0
-    const supportedNetworks = Object.keys(config.supportedNetworks)
-    for (const supportedNetwork of supportedNetworks) {
-      if (computeEnvs[supportedNetwork].length === 0) {
-        isEmpty++
-      }
-    }
-    if (isEmpty === supportedNetworks.length) {
-      return true
-    }
-    return false
-  }
-}
 
 computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, res) => {
   try {
@@ -69,16 +49,8 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeEnvironments`, async (req, r
     ) // get compute environments
     const computeEnvironments = await streamToObject(response.stream as Readable)
 
-    // check if computeEnvironments is a valid json object and not empty
-    if (
-      computeEnvironments &&
-      !(await areEmpty(computeEnvironments, req.query.chainId))
-    ) {
-      res.json(computeEnvironments)
-    } else {
-      HTTP_LOGGER.logMessage(`Compute environments not found`, true)
-      res.status(404).send('Compute environments not found')
-    }
+    // always return the array, even if it's empty
+    res.json(computeEnvironments)
   } catch (error) {
     HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
     res.status(500).send('Internal Server Error')

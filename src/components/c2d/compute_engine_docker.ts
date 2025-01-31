@@ -950,54 +950,62 @@ export class C2DEngineDocker extends C2DEngine {
       this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/transformations/algorithm'
     try {
       let storage = null
-      // do we have a files object?
-      if (job.algorithm.fileObject) {
-        // is it unencrypted?
-        if (job.algorithm.fileObject.type) {
-          // we can get the storage directly
-          storage = Storage.getStorageClass(job.algorithm.fileObject, config)
+
+      if (job.algorithm.meta.rawcode && job.algorithm.meta.rawcode.length > 0) {
+        // we have the code, just write it
+        writeFileSync(fullAlgoPath, job.algorithm.meta.rawcode)
+      } else {
+        // do we have a files object?
+        if (job.algorithm.fileObject) {
+          // is it unencrypted?
+          if (job.algorithm.fileObject.type) {
+            // we can get the storage directly
+            storage = Storage.getStorageClass(job.algorithm.fileObject, config)
+          } else {
+            // ok, maybe we have this encrypted instead
+            CORE_LOGGER.info(
+              'algorithm file object seems to be encrypted, checking it...'
+            )
+            // 1. Decrypt the files object
+            const decryptedFileObject = await decryptFilesObject(job.algorithm.fileObject)
+            console.log('decryptedFileObject: ', decryptedFileObject)
+            // 2. Get default storage settings
+            storage = Storage.getStorageClass(decryptedFileObject, config)
+          }
         } else {
-          // ok, maybe we have this encrypted instead
-          CORE_LOGGER.info('algorithm file object seems to be encrypted, checking it...')
-          // 1. Decrypt the files object
-          const decryptedFileObject = await decryptFilesObject(job.algorithm.fileObject)
-          console.log('decryptedFileObject: ', decryptedFileObject)
-          // 2. Get default storage settings
-          storage = Storage.getStorageClass(decryptedFileObject, config)
-        }
-      } else {
-        // no files object, try to get information from documentId and serviceId
-        CORE_LOGGER.info(
-          'algorithm file object seems to be missing, checking "serviceId" and "documentId"...'
-        )
-        const { serviceId, documentId } = job.algorithm
-        // we can get it from this info
-        if (serviceId && documentId) {
-          const algoDdo = await new FindDdoHandler(
-            OceanNode.getInstance(config)
-          ).findAndFormatDdo(documentId)
-          console.log('algo ddo:', algoDdo)
-          // 1. Get the service
-          const service: Service = AssetUtils.getServiceById(algoDdo, serviceId)
+          // no files object, try to get information from documentId and serviceId
+          CORE_LOGGER.info(
+            'algorithm file object seems to be missing, checking "serviceId" and "documentId"...'
+          )
+          const { serviceId, documentId } = job.algorithm
+          // we can get it from this info
+          if (serviceId && documentId) {
+            const algoDdo = await new FindDdoHandler(
+              OceanNode.getInstance()
+            ).findAndFormatDdo(documentId)
+            console.log('algo ddo:', algoDdo)
+            // 1. Get the service
+            const service: Service = AssetUtils.getServiceById(algoDdo, serviceId)
 
-          // 2. Decrypt the files object
-          const decryptedFileObject = await decryptFilesObject(service.files)
-          console.log('decryptedFileObject: ', decryptedFileObject)
-          // 4. Get default storage settings
-          storage = Storage.getStorageClass(decryptedFileObject, config)
+            // 2. Decrypt the files object
+            const decryptedFileObject = await decryptFilesObject(service.files)
+            console.log('decryptedFileObject: ', decryptedFileObject)
+            // 4. Get default storage settings
+            storage = Storage.getStorageClass(decryptedFileObject, config)
+          }
         }
-      }
 
-      if (storage) {
-        console.log('fullAlgoPath', fullAlgoPath)
-        await pipeline(
-          (await storage.getReadableStream()).stream,
-          createWriteStream(fullAlgoPath)
-        )
-      } else {
-        CORE_LOGGER.info(
-          'Could not extract any files object from the compute algorithm, skipping...'
-        )
+        if (storage) {
+          console.log('fullAlgoPath', fullAlgoPath)
+          await pipeline(
+            (await storage.getReadableStream()).stream,
+            createWriteStream(fullAlgoPath)
+          )
+        } else {
+          CORE_LOGGER.info(
+            'Could not extract any files object from the compute algorithm, skipping...'
+          )
+        }
       }
     } catch (e) {
       CORE_LOGGER.error(
