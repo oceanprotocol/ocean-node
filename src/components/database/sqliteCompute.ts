@@ -8,6 +8,7 @@ import {
 import sqlite3, { RunResult } from 'sqlite3'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 
+import { randomUUID } from 'crypto'
 interface ComputeDatabaseProvider {
   newJob(job: DBComputeJob): Promise<string>
   getJob(jobId?: string, agreementId?: string, owner?: string): Promise<DBComputeJob[]>
@@ -18,7 +19,7 @@ interface ComputeDatabaseProvider {
 }
 
 export function generateUniqueID(): string {
-  return crypto.randomUUID().toString()
+  return randomUUID().toString()
 }
 
 function getInternalStructure(job: DBComputeJob): any {

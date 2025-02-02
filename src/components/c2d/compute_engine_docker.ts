@@ -279,7 +279,6 @@ export class C2DEngineDocker extends C2DEngine {
     if (!this.docker) return []
     const isFree: boolean = !(payment && payment.lockTx)
     const jobId = generateUniqueID()
-
     // C2D - Check image, check arhitecture, etc
     const image = getAlgorithmImage(algorithm)
     // ex: node@sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36
@@ -297,11 +296,12 @@ export class C2DEngineDocker extends C2DEngine {
       envIdWithHash ? environment : null,
       environment
     )
-
+    if (!env) {
+      throw new Error(`Invalid environment ${environment}`)
+    }
     const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
     if (!validation.valid)
       throw new Error(`Unable to validate docker image ${image}: ${validation.reason}`)
-
     const job: DBComputeJob = {
       clusterHash: this.getC2DConfig().hash,
       containerImage: image,

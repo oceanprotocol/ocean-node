@@ -36,7 +36,8 @@ export class ComputeInitializeHandler extends Handler {
       'datasets',
       'algorithm',
       'payment',
-      'consumerAddress'
+      'consumerAddress',
+      'environment'
       // we might also need a "signature" (did + nonce) for confidential evm template 4
     ])
     if (validation.valid) {
@@ -46,7 +47,6 @@ export class ComputeInitializeHandler extends Handler {
         )
       }
       if (
-        !command.payment.env ||
         !command.payment.chainId ||
         !command.payment.token ||
         !command.payment.maxJobDuration
@@ -73,8 +73,8 @@ export class ComputeInitializeHandler extends Handler {
       try {
         // split compute env (which is already in hash-envId format) and get the hash
         // then get env which might contain dashes as well
-        const eIndex = task.payment.env.indexOf('-')
-        const hash = task.payment.env.slice(0, eIndex)
+        const eIndex = task.environment.indexOf('-')
+        const hash = task.environment.slice(0, eIndex)
         engine = await this.getOceanNode().getC2DEngines().getC2DByHash(hash)
       } catch (e) {
         return {
@@ -95,7 +95,7 @@ export class ComputeInitializeHandler extends Handler {
         }
       }
       try {
-        env = await engine.getComputeEnvironment(task.payment.chainId, task.payment.env)
+        env = await engine.getComputeEnvironment(task.payment.chainId, task.environment)
         if (!env) {
           return {
             stream: null,
@@ -175,6 +175,7 @@ export class ComputeInitializeHandler extends Handler {
 
       // check algo
       let index = 0
+      const config = await getConfiguration()
       for (const elem of [...[task.algorithm], ...task.datasets]) {
         const result: any = { validOrder: false }
         if ('documentId' in elem && elem.documentId) {
@@ -214,7 +215,6 @@ export class ComputeInitializeHandler extends Handler {
             }
           }
 
-          const config = await getConfiguration()
           const { rpc, network, chainId, fallbackRPCs } =
             config.supportedNetworks[ddo.chainId]
           const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
@@ -359,13 +359,7 @@ export class ComputeInitializeHandler extends Handler {
           }
           if (validFee.isValid === false) {
             if (canDecrypt) {
-              result.providerFee = await createProviderFee(
-                ddo,
-                service,
-                service.timeout,
-                null,
-                null
-              )
+              result.providerFee = await createProviderFee(ddo, service, service.timeout)
             } else {
               // TO DO:  Edge case when this asset is served by a remote provider.
               // We should connect to that provider and get the fee

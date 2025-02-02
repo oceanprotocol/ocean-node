@@ -152,7 +152,6 @@ export interface ComputeGetEnvironmentsCommand extends Command {
 }
 
 export interface ComputePayment {
-  env: string // with hash
   chainId: number
   token: string
   maxJobDuration: number // in seconds
@@ -161,6 +160,7 @@ export interface ComputePayment {
 export interface ComputeInitializeCommand extends Command {
   datasets: [ComputeAsset]
   algorithm: ComputeAlgorithm
+  environment: string
   payment: ComputePayment
   consumerAddress: string
   signature?: string
