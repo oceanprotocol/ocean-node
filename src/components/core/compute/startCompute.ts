@@ -60,6 +60,7 @@ export class ComputeStartHandler extends Handler {
       return validationResponse
     }
     try {
+      const node = this.getOceanNode()
       // split compute env (which is already in hash-envId format) and get the hash
       // then get env which might contain dashes as well
       const eIndex = task.environment.indexOf('-')
@@ -68,7 +69,7 @@ export class ComputeStartHandler extends Handler {
       let engine
       let env
       try {
-        engine = await this.getOceanNode().getC2DEngines().getC2DByHash(hash)
+        engine = await node.getC2DEngines().getC2DByHash(hash)
       } catch (e) {
         return {
           stream: null,
@@ -105,13 +106,13 @@ export class ComputeStartHandler extends Handler {
           }
         }
       }
-      const node = this.getOceanNode()
+
       const { algorithm } = task
 
       const algoChecksums = await getAlgoChecksums(
         task.algorithm.documentId,
         task.algorithm.serviceId,
-        this.getOceanNode()
+        node
       )
       if (!algoChecksums.container || !algoChecksums.files) {
         CORE_LOGGER.error(`Error retrieveing algorithm checksums!`)
@@ -255,7 +256,6 @@ export class ComputeStartHandler extends Handler {
           result.datatoken = service.datatokenAddress
           result.chainId = ddo.chainId
 
-          const env = await engine.getComputeEnvironment(ddo.chainId, task.environment)
           if (!('transferTxId' in elem) || !elem.transferTxId) {
             const error = `Missing transferTxId for DDO ${elem.documentId}`
             return {
@@ -333,7 +333,7 @@ export class ComputeStartHandler extends Handler {
         assets: task.datasets,
         algorithm,
         output: task.output,
-        environment: envId,
+        environment: env.id,
         owner: task.consumerAddress,
         validUntil: task.payment.maxJobDuration,
         chainId: task.payment.chainId,
@@ -368,31 +368,50 @@ export class ComputeStartHandler extends Handler {
           }
         }
       }
-      const response = await engine.startComputeJob(
-        task.datasets,
-        algorithm,
-        task.output,
-        envId,
-        task.consumerAddress,
-        task.payment.maxJobDuration,
-        task.payment.resources,
-        {
-          chainId: task.payment.chainId,
-          token: task.payment.token,
-          lockTx: agreementId,
-          claimTx: null
+      try {
+        const response = await engine.startComputeJob(
+          task.datasets,
+          algorithm,
+          task.output,
+          env.id,
+          task.consumerAddress,
+          task.payment.maxJobDuration,
+          task.payment.resources,
+          {
+            chainId: task.payment.chainId,
+            token: task.payment.token,
+            lockTx: agreementId,
+            claimTx: null
+          }
+        )
+        CORE_LOGGER.logMessage(
+          'ComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
+          true
+        )
+
+        return {
+          stream: Readable.from(JSON.stringify(response)),
+          status: {
+            httpStatus: 200
+          }
         }
-      )
-
-      CORE_LOGGER.logMessage(
-        'ComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
-        true
-      )
-
-      return {
-        stream: Readable.from(JSON.stringify(response)),
-        status: {
-          httpStatus: 200
+      } catch (e) {
+        try {
+          await engine.escrow.cancelExpiredLocks(
+            task.payment.chainId,
+            jobId,
+            task.payment.token,
+            task.consumerAddress
+          )
+        } catch (e) {
+          // is fine if it fails
+        }
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: e
+          }
         }
       }
     } catch (error) {
@@ -474,7 +493,6 @@ export class FreeComputeStartHandler extends Handler {
             }
           }
         }
-
         task.resources = await engine.checkAndFillMissingResources(
           task.resources,
           env,

@@ -4,7 +4,7 @@ import EscrowJson from '@oceanprotocol/contracts/artifacts/contracts/escrow/Escr
 import { EscrowAuthorization, EscrowLock } from '../../../@types/Escrow.js'
 import { getOceanArtifactsAdressesByChainId } from '../../../utils/address.js'
 import { RPCS } from '../../../@types/blockchain.js'
-
+import { create256Hash } from '../../../utils/crypt.js'
 export class Escrow {
   private networks: RPCS
   private claimDurationTimeout: number
@@ -54,7 +54,7 @@ export class Escrow {
     chain: number,
     payer: string,
     token: string
-  ): Promise<BigNumberish> {
+  ): Promise<BigInt> {
     const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
     const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
     const signer = blockchain.getSigner()
@@ -103,12 +103,13 @@ export class Escrow {
 
   async createLock(
     chain: number,
-    jobId: BigNumberish,
+    job: string,
     token: string,
     payer: string,
     amount: number,
     expiry: BigNumberish
   ): Promise<string | null> {
+    const jobId = create256Hash(job)
     const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
     const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
     const signer = blockchain.getSigner()
@@ -116,7 +117,7 @@ export class Escrow {
     if (!contract) throw new Error(`Failed to initialize escrow contract`)
     const wei = await this.getPaymentAmountInWei(amount, chain, token)
     const userBalance = await this.getUserAvailableFunds(chain, payer, token)
-    if (BigInt(userBalance) < BigInt(wei)) {
+    if (BigInt(userBalance.toString()) < BigInt(wei)) {
       // not enough funds
       throw new Error(`User ${payer} does not have enough funds`)
     }
@@ -131,28 +132,33 @@ export class Escrow {
       throw new Error(`No escrow auths found`)
     }
     if (
-      BigInt(auths[0].currentLockedAmount) + BigInt(amount) >
-      BigInt(auths[0].maxLockedAmount)
+      BigInt(auths[0].currentLockedAmount.toString()) + BigInt(wei) >
+      BigInt(auths[0].maxLockedAmount.toString())
     ) {
       throw new Error(`No valid escrow auths found(will go over limit)`)
     }
-    if (BigInt(auths[0].maxLockSeconds) < BigInt(expiry)) {
+    if (BigInt(auths[0].maxLockSeconds.toString()) < BigInt(expiry)) {
       throw new Error(`No valid escrow auths found(maxLockSeconds too low)`)
     }
-    if (BigInt(auths[0].currentLocks) + BigInt(1) > BigInt(auths[0].maxLockCounts)) {
+    if (
+      BigInt(auths[0].currentLocks.toString()) + BigInt(1) >
+      BigInt(auths[0].maxLockCounts.toString())
+    ) {
       throw new Error(`No valid escrow auths found(too many active locks)`)
     }
     try {
+      const gas = await contract.createLock.estimateGas(jobId, token, payer, wei, expiry)
       const tx = await contract.createLock(jobId, token, payer, wei, expiry)
       return tx.hash
     } catch (e) {
-      return null
+      console.log(e)
+      throw new Error(String(e.message))
     }
   }
 
   async claimLock(
     chain: number,
-    jobId: BigNumberish,
+    job: string,
     token: string,
     payer: string,
     amount: number,
@@ -163,11 +169,19 @@ export class Escrow {
     const signer = blockchain.getSigner()
     const contract = await this.getContract(chainId, signer)
     const wei = await this.getPaymentAmountInWei(amount, chain, token)
+    const jobId = create256Hash(job)
     if (!contract) return null
     try {
       const locks = await this.getLocks(chain, token, payer, await signer.getAddress())
       for (const lock of locks) {
-        if (BigInt(lock.jobId) === BigInt(jobId)) {
+        if (BigInt(lock.jobId.toString()) === BigInt(jobId)) {
+          const gas = await contract.claimLock.estimateGas(
+            jobId,
+            token,
+            payer,
+            wei,
+            ethers.toUtf8Bytes(proof)
+          )
           const tx = await contract.claimLock(
             jobId,
             token,
@@ -180,25 +194,33 @@ export class Escrow {
       }
       return null
     } catch (e) {
-      return null
+      throw new Error(String(e.message))
     }
   }
 
   async cancelExpiredLocks(
     chain: number,
-    jobId: BigNumberish,
+    job: string,
     token: string,
     payer: string
   ): Promise<string | null> {
     const { rpc, network, chainId, fallbackRPCs } = this.networks[chain]
     const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
     const signer = blockchain.getSigner()
+    const jobId = create256Hash(job)
     const contract = await this.getContract(chainId, signer)
+
     if (!contract) return null
     try {
       const locks = await this.getLocks(chain, token, payer, await signer.getAddress())
       for (const lock of locks) {
-        if (BigInt(lock.jobId) === BigInt(jobId)) {
+        if (BigInt(lock.jobId.toString()) === BigInt(jobId)) {
+          const gas = await contract.cancelExpiredLocks.estimateGas(
+            jobId,
+            token,
+            payer,
+            await signer.getAddress()
+          )
           const tx = await contract.cancelExpiredLocks(
             jobId,
             token,
@@ -211,7 +233,7 @@ export class Escrow {
       }
       return null
     } catch (e) {
-      return null
+      throw new Error(String(e.message))
     }
   }
 }

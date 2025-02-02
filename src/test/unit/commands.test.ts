@@ -342,7 +342,8 @@ describe('Commands and handlers', () => {
       consumerAddress: 'abcdef',
       datasets: null,
       algorithm: undefined,
-      payment: undefined
+      payment: undefined,
+      environment: undefined
     }
     expect(initComputeHandler.validate(computeInitCommand).valid).to.be.equal(false)
   })

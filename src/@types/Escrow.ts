@@ -1,19 +1,17 @@
-import { BigNumberish } from 'ethers'
-
 export interface EscrowAuthorization {
   address: string
-  maxLockedAmount: BigNumberish
-  currentLockedAmount: BigNumberish
-  maxLockSeconds: BigNumberish
-  maxLockCounts: BigNumberish
-  currentLocks: BigNumberish
+  maxLockedAmount: BigInt
+  currentLockedAmount: BigInt
+  maxLockSeconds: BigInt
+  maxLockCounts: BigInt
+  currentLocks: BigInt
 }
 
 export interface EscrowLock {
-  jobId: BigNumberish
+  jobId: BigInt
   payer: string
   payee: string
-  amount: BigNumberish
-  expiry: BigNumberish
+  amount: BigInt
+  expiry: BigInt
   token: string
 }
