@@ -175,6 +175,7 @@ export const processChunkLogs = async (
                 true
               )
               continue
+              // do not process this one
             }
             const validators: string[] = metadataProofs.map((metadataProof) =>
               getAddress(metadataProof.args[0].toString())
@@ -190,6 +191,7 @@ export const processChunkLogs = async (
                 true
               )
               continue
+              // do not process this one
             }
             // ALLOWED_VALIDATORS_LIST
             if (allowedValidatorsList && validators.length > 0) {
@@ -258,7 +260,7 @@ export const processChunkLogs = async (
           storeEvents[event.type] = processTokenUriUpadate()
         }
       }
-    }
+    } // end for loop
     return storeEvents
   }
 
