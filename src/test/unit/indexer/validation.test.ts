@@ -3,7 +3,7 @@ import {
   getValidationSignature,
   validateObject
 } from '../../../components/core/utils/validateDdoHandler.js'
-import { ENVIRONMENT_VARIABLES } from '../../../utils/index.js'
+import { Blockchain, ENVIRONMENT_VARIABLES } from '../../../utils/index.js'
 
 import { expect } from 'chai'
 import {
@@ -15,6 +15,7 @@ import {
 
 describe('Schema validation tests', async () => {
   let envOverrides: OverrideEnvConfig[]
+  const blockchain = new Blockchain('http://172.0.0.1:8545', 'development', 8996)
   envOverrides = buildEnvOverrideConfig(
     [
       ENVIRONMENT_VARIABLES.PRIVATE_KEY,
@@ -23,10 +24,10 @@ describe('Schema validation tests', async () => {
       ENVIRONMENT_VARIABLES.RPCS
     ],
     [
-      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
+      blockchain.getSigner(),
       'https://ipfs.io/',
       'https://arweave.net/',
-      '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com" }'
+      '{ "8996": "http://172.0.0.1:8545" }'
     ]
   )
   envOverrides = await setupEnvironment(null, envOverrides)
