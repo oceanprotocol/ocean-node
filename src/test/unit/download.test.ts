@@ -3,17 +3,12 @@ import { OceanNode } from '../../OceanNode.js'
 import { Database } from '../../components/database/index.js'
 import { getConfiguration } from '../../utils/config.js'
 import { EncryptHandler } from '../../components/core/handler/encryptHandler.js'
-import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
 import { streamToString } from '../../utils/util.js'
-import {
-  OverrideEnvConfig,
-  buildEnvOverrideConfig,
-  setupEnvironment,
-  tearDownEnvironment
-} from '../utils/utils.js'
+import { OverrideEnvConfig, tearDownEnvironment } from '../utils/utils.js'
 import { decrypt } from '../../utils/crypt.js'
 import { validateFilesStructure } from '../../components/core/handler/downloadHandler.js'
 import { AssetUtils, isConfidentialChainDDO } from '../../utils/asset.js'
@@ -28,11 +23,6 @@ let oceanNode: OceanNode
 
 describe('Should validate files structure for download', () => {
   before(async () => {
-    envOverrides = buildEnvOverrideConfig(
-      [ENVIRONMENT_VARIABLES.PRIVATE_KEY],
-      ['0x3634cc4a3d2694a1186a7ce545f149e022eea103cc254d18d08675104bb4b5ac']
-    )
-    envOverrides = await setupEnvironment(null, envOverrides)
     config = await getConfiguration(true)
     db = await new Database(config.dbConfig)
     oceanNode = OceanNode.getInstance(db)

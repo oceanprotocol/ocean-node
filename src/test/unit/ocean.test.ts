@@ -19,14 +19,12 @@ describe('Status command tests', async () => {
   // need to do it first
   envOverrides = buildEnvOverrideConfig(
     [
-      ENVIRONMENT_VARIABLES.PRIVATE_KEY,
       ENVIRONMENT_VARIABLES.IPFS_GATEWAY,
       ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY,
       ENVIRONMENT_VARIABLES.RPCS,
       ENVIRONMENT_VARIABLES.INDEXER_NETWORKS
     ],
     [
-      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
       'https://ipfs.io/',
       'https://arweave.net/',
       '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com" }',
