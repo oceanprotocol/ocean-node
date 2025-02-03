@@ -3,7 +3,7 @@ import type {
   OceanNodeConfig,
   OceanNodeKeys,
   OceanNodeDockerConfig,
-  AccessListPublishers
+  AccessListContract
 } from '../@types/OceanNode'
 import { dhtFilterMethod } from '../@types/OceanNode.js'
 import type { C2DClusterInfo } from '../@types/C2D.js'
@@ -178,14 +178,14 @@ function getAuthorizedPublishers(isStartup?: boolean): string[] {
   return []
 }
 
-function getAuthorizedPublishersList(isStartup?: boolean): AccessListPublishers | null {
+function getAuthorizedPublishersList(isStartup?: boolean): AccessListContract | null {
   if (
     existsEnvironmentVariable(ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST, isStartup)
   ) {
     try {
       const publisherAccessList = JSON.parse(
         ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.value
-      ) as AccessListPublishers
+      ) as AccessListContract
       return publisherAccessList
     } catch (err) {
       CONFIG_LOGGER.error(err.message)
