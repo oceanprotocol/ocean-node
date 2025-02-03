@@ -82,7 +82,7 @@ export interface AccessListContract {
 export interface OceanNodeConfig {
   authorizedDecrypters: string[]
   allowedValidators: string[]
-  allowedValidatorsList: AccessListContract
+  allowedValidatorsList: AccessListContract | null
   keys: OceanNodeKeys
   hasP2P: boolean
   p2pConfig: OceanNodeP2PConfig | null
