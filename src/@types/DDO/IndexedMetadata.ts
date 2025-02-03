@@ -1,3 +1,5 @@
+import { Nft } from './Nft'
+
 export type PriceType = 'fixedrate' | 'dispenser'
 
 export interface Price {
@@ -19,4 +21,5 @@ export interface Stats {
 
 export interface IndexedMetadata {
   stats: Stats[]
+  nft: Nft
 }
