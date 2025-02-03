@@ -142,8 +142,6 @@ jobs:
             sleep 5
             [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" ] && break
             done
-      - name: Copy escrow contract(REMOVE IN PRODUCTION)
-        run: cp -r "$HOME/.ocean/ocean-contracts/artifacts/contracts/escrow" ./node_modules/@oceanprotocol/contracts/artifacts/contracts/
       - name: docker logs
         run: docker logs ocean-ocean-contracts-1 && docker logs ocean-typesense-1
         if: ${{ failure() }}
@@ -214,8 +212,9 @@ jobs:
       - name: Run Barge
         working-directory: ${{ github.workspace }}/barge
         run: |
-          bash -x start_ocean.sh --no-aquarius --no-provider --no-dashboard --with-c2d --with-typesense 2>&1 > start_ocean.log &
-
+          bash -x start_ocean.sh --no-aquarius --no-provider --no-dashboard --with-typesense 2>&1 > start_ocean.log &
+        env:
+          CONTRACTS_VERSION: escrow
       - run: npm ci
       - run: npm run build
       - run: docker image ls
@@ -228,7 +227,7 @@ jobs:
         run: |
           for i in $(seq 1 250); do
             sleep 10
-            [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" -a -f "$HOME/.ocean/ocean-c2d/ready" ] && break
+            [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" ] && break
           done
 
       - name: docker logs
