@@ -184,7 +184,7 @@ export function getAllowedValidators(isStartup?: boolean): string[] {
 
 function getAllowedValidatorsList(isStartup?: boolean): AccessListContract | null {
   if (
-    existsEnvironmentVariable(ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST, isStartup)
+    existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS_LIST, isStartup)
   ) {
     try {
       const publisherAccessList = JSON.parse(
