@@ -2,13 +2,7 @@ import { assert } from 'chai'
 import { getConfiguration } from '../../utils/config.js'
 import { OceanP2P } from '../../components/P2P/index.js'
 import { delay } from '../integration/testUtils.js'
-import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
-import {
-  TEST_ENV_CONFIG_FILE,
-  buildEnvOverrideConfig,
-  setupEnvironment,
-  tearDownEnvironment
-} from '../utils/utils.js'
+import { TEST_ENV_CONFIG_FILE, setupEnvironment } from '../utils/utils.js'
 
 describe('OceanP2P Test', () => {
   let node1: OceanP2P
@@ -16,21 +10,8 @@ describe('OceanP2P Test', () => {
   let config1: any
   let config2: any
   const mDNSInterval: number = 1
-
-  const envOverrides = buildEnvOverrideConfig(
-    [
-      ENVIRONMENT_VARIABLES.PRIVATE_KEY,
-      ENVIRONMENT_VARIABLES.NODE1_PRIVATE_KEY,
-      ENVIRONMENT_VARIABLES.NODE2_PRIVATE_KEY
-    ],
-    [
-      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-      '0xcb345bd2b11264d523ddaf383094e2675c420a17511c3102a53817f13474a7ff',
-      '0x3634cc4a3d2694a1186a7ce545f149e022eea103cc254d18d08675104bb4b5ac'
-    ]
-  )
   before(() => {
-    setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
+    setupEnvironment(TEST_ENV_CONFIG_FILE)
   })
 
   it('Start instance of OceanP2P node1', async () => {
@@ -97,10 +78,6 @@ describe('OceanP2P Test', () => {
       peers.includes(config1.keys.peerId.toString()),
       'Node1 not found in node2 peer list'
     )
-  })
-
-  after(() => {
-    tearDownEnvironment(envOverrides)
   })
 })
 

@@ -8,7 +8,6 @@ import { EncryptMethod } from '../../@types/fileObject.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { Readable } from 'stream'
 import { streamToString } from '../../utils/util.js'
-import { OverrideEnvConfig, tearDownEnvironment } from '../utils/utils.js'
 import { decrypt } from '../../utils/crypt.js'
 import { validateFilesStructure } from '../../components/core/handler/downloadHandler.js'
 import { AssetUtils, isConfidentialChainDDO } from '../../utils/asset.js'
@@ -16,7 +15,6 @@ import { DDO } from '../../@types/DDO/DDO.js'
 import { Service } from '../../@types/DDO/Service.js'
 import { DEVELOPMENT_CHAIN_ID, KNOWN_CONFIDENTIAL_EVMS } from '../../utils/address.js'
 
-let envOverrides: OverrideEnvConfig[]
 let config: OceanNodeConfig
 let db: Database
 let oceanNode: OceanNode
@@ -160,9 +158,5 @@ describe('Should validate files structure for download', () => {
     expect(
       isConfidentialChainDDO(DEVELOPMENT_CHAIN_ID, otherDDOConfidential.services[0])
     ).to.be.equal(false)
-  })
-
-  after(async () => {
-    await tearDownEnvironment(envOverrides)
   })
 })

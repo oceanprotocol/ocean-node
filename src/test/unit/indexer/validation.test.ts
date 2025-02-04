@@ -3,33 +3,13 @@ import {
   getValidationSignature,
   validateObject
 } from '../../../components/core/utils/validateDdoHandler.js'
-import { ENVIRONMENT_VARIABLES } from '../../../utils/index.js'
-
+import { TEST_ENV_CONFIG_FILE, setupEnvironment } from '../../utils/utils.js'
 import { expect } from 'chai'
-import {
-  setupEnvironment,
-  tearDownEnvironment,
-  buildEnvOverrideConfig,
-  OverrideEnvConfig
-} from '../../utils/utils.js'
 
-describe('Schema validation tests', async () => {
-  let envOverrides: OverrideEnvConfig[]
-  envOverrides = buildEnvOverrideConfig(
-    [
-      ENVIRONMENT_VARIABLES.IPFS_GATEWAY,
-      ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY,
-      ENVIRONMENT_VARIABLES.RPCS
-    ],
-    ['https://ipfs.io/', 'https://arweave.net/', '{ "8996": "http://172.0.0.1:8545" }']
-  )
-  envOverrides = await setupEnvironment(null, envOverrides)
-
-  after(() => {
-    // Restore original local setup / env variables after test
-    tearDownEnvironment(envOverrides)
+describe('Schema validation tests', () => {
+  before(() => {
+    setupEnvironment(TEST_ENV_CONFIG_FILE)
   })
-
   it('should pass the validation on version 4.1.0', async () => {
     const validationResult = await validateObject(DDOExample, 137, DDOExample.nftAddress)
     expect(validationResult[0]).to.eql(true)

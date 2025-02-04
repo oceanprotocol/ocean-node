@@ -8,6 +8,7 @@ import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
 import { expect } from 'chai'
 import {
   OverrideEnvConfig,
+  TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   setupEnvironment,
   tearDownEnvironment
@@ -18,20 +19,13 @@ let envOverrides: OverrideEnvConfig[]
 describe('Status command tests', async () => {
   // need to do it first
   envOverrides = buildEnvOverrideConfig(
+    [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.INDEXER_NETWORKS],
     [
-      ENVIRONMENT_VARIABLES.IPFS_GATEWAY,
-      ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY,
-      ENVIRONMENT_VARIABLES.RPCS,
-      ENVIRONMENT_VARIABLES.INDEXER_NETWORKS
-    ],
-    [
-      'https://ipfs.io/',
-      'https://arweave.net/',
       '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com" }',
       JSON.stringify([1, 137])
     ]
   )
-  envOverrides = await setupEnvironment(null, envOverrides)
+  envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
   // because of this
   const config = await getConfiguration(true)
   const db = await new Database(config.dbConfig)
