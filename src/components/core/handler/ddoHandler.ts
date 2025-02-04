@@ -43,6 +43,7 @@ import {
   wasNFTDeployedByOurFactory
 } from '../../Indexer/utils.js'
 import { validateDDOHash } from '../../../utils/asset.js'
+import { checkNonce } from '../utils/nonceHandler.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -803,10 +804,37 @@ export class ValidateDDOHandler extends Handler {
           status: { httpStatus: 400, error: `Validation error: ${validation[1]}` }
         }
       }
-      const signature = await getValidationSignature(JSON.stringify(task.ddo))
+
+      // command contains optional parameter publisherAddress
+      // command contains optional parameter nonce and nonce is valid for publisherAddress
+      // command contains optional parameter signature which is the signed message based on nonce by publisherAddress
+      // ddo.nftAddress exists and it's valid
+      // publisherAddress has updateMetadata role on ddo.nftAddress contract
+      // publisherAddress has publishing rights on this node (see #815)
+
+      if (task.publisherAddress && task.nonce && task.signature) {
+        const nonceDB = this.getOceanNode().getDatabase().nonce
+        const nonceValid = await checkNonce(
+          nonceDB,
+          task.publisherAddress,
+          Number(task.nonce),
+          task.signature,
+          task.ddo.id + task.nonce
+        )
+        if (nonceValid.valid) {
+          const signature = await getValidationSignature(JSON.stringify(task.ddo))
+          return {
+            stream: Readable.from(JSON.stringify(signature)),
+            status: { httpStatus: 200 }
+          }
+        }
+      }
       return {
-        stream: Readable.from(JSON.stringify(signature)),
-        status: { httpStatus: 200 }
+        stream: null,
+        status: {
+          httpStatus: 400,
+          error: `Validation error: Publisher is missing or invalid signature/nonce`
+        }
       }
     } catch (error) {
       CORE_LOGGER.logMessageWithEmoji(
