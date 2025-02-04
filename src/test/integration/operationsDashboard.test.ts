@@ -3,7 +3,6 @@ import { Readable } from 'stream'
 import { Signer, JsonRpcProvider, ethers, Contract, parseUnits } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanNode } from '../../OceanNode.js'
-import { RPCS } from '../../@types/blockchain.js'
 import { downloadAsset } from '../data/assets.js'
 import { publishAsset } from '../utils/assets.js'
 import { homedir } from 'os'
@@ -12,7 +11,6 @@ import {
   OverrideEnvConfig,
   TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
-  getMockSupportedNetworks,
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
@@ -22,7 +20,8 @@ import {
   PROTOCOL_COMMANDS,
   getConfiguration,
   EVENTS,
-  INDEXER_CRAWLING_EVENTS
+  INDEXER_CRAWLING_EVENTS,
+  Blockchain
 } from '../../utils/index.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template.sol/ERC20Template.json' assert { type: 'json' }
@@ -60,6 +59,7 @@ describe('Should test admin operations', () => {
   let publishedDataset: any
   let dbconn: Database
   let indexer: OceanIndexer
+  let blockchain: Blockchain
   const currentDate = new Date()
   const expiryTimestamp = new Date(
     currentDate.getFullYear() + 1,
@@ -67,16 +67,8 @@ describe('Should test admin operations', () => {
     currentDate.getDate()
   ).getTime()
   const provider = new JsonRpcProvider('http://127.0.0.1:8545')
-  const wallet = new ethers.Wallet(
-    '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-    provider
-  )
-  const destinationWallet = new ethers.Wallet(
-    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209',
-    provider
-  )
-
-  const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+  let wallet: Signer
+  let destinationWallet: Signer
 
   let previousConfiguration: OverrideEnvConfig[]
 
@@ -86,19 +78,13 @@ describe('Should test admin operations', () => {
       TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
         [
-          ENVIRONMENT_VARIABLES.RPCS,
-          ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
-          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
-          JSON.stringify(mockSupportedNetworks),
-          JSON.stringify([8996]),
-          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
-          JSON.stringify([await wallet.getAddress()]),
+          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
@@ -109,6 +95,17 @@ describe('Should test admin operations', () => {
     oceanNode = await OceanNode.getInstance(dbconn)
     indexer = new OceanIndexer(dbconn, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
+    const rpc: string = 'http://127.0.0.1:8545'
+    blockchain = new Blockchain(rpc, 'development', 8996, [
+      'http://172.0.0.3:8545',
+      'http://127.0.0.1:8545'
+    ])
+
+    wallet = blockchain.getSigner()
+    destinationWallet = new ethers.Wallet(
+      process.env.ANOTHER_WALLET_PRIVATE_KEY,
+      provider
+    ) as Signer
   })
 
   async function getSignature(message: string) {

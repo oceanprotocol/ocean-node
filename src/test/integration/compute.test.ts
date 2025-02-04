@@ -18,6 +18,7 @@ import type {
   ComputeEnvironment
 } from '../../@types/C2D.js'
 import {
+  Blockchain,
   // DB_TYPES,
   ENVIRONMENT_VARIABLES,
   EVENTS,
@@ -42,13 +43,11 @@ import {
 } from 'ethers'
 import { publishAsset, orderAsset } from '../utils/assets.js'
 import { computeAsset, algoAsset } from '../data/assets.js'
-import { RPCS } from '../../@types/blockchain.js'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
-  getMockSupportedNetworks,
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
@@ -73,7 +72,6 @@ describe('Compute', () => {
   let config: OceanNodeConfig
   let dbconn: Database
   let oceanNode: OceanNode
-  let provider: any
   let publisherAccount: any
   let consumerAccount: any
   let computeEnvironments: any
@@ -85,15 +83,12 @@ describe('Compute', () => {
   let providerFeesComputeDataset: ProviderFees
   let providerFeesComputeAlgo: ProviderFees
   let indexer: OceanIndexer
+  let blockchain: Blockchain
   const now = new Date().getTime() / 1000
   const computeJobValidUntil = now + 60 * 15 // 15 minutes from now should be enough
   let firstEnv: ComputeEnvironment
 
-  const wallet = new ethers.Wallet(
-    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
-  )
-  // const chainId = DEVELOPMENT_CHAIN_ID
-  const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+  let wallet: ethers.Wallet
   const chainId = 8996
   // randomly use a set of trusted algos or empty arrays
   // should validate if set and match, invalidate otherwise
@@ -109,9 +104,6 @@ describe('Compute', () => {
       TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
         [
-          ENVIRONMENT_VARIABLES.RPCS,
-          ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
-          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE,
           ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL
@@ -119,9 +111,6 @@ describe('Compute', () => {
           // ENVIRONMENT_VARIABLES.DB_TYPE
         ],
         [
-          JSON.stringify(mockSupportedNetworks),
-          JSON.stringify([8996]),
-          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
           JSON.stringify(['http://localhost:31000'])
@@ -130,6 +119,9 @@ describe('Compute', () => {
         ]
       )
     )
+    const rpc: string = 'http://127.0.0.1:8545'
+    const provider = new JsonRpcProvider(rpc)
+    wallet = new ethers.Wallet(process.env.ANOTHER_WALLET_PRIVATE_KEY, provider)
     config = await getConfiguration(true)
     dbconn = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(dbconn)
@@ -137,9 +129,12 @@ describe('Compute', () => {
     oceanNode.addIndexer(indexer)
     oceanNode.addC2DEngines(config)
 
-    provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    publisherAccount = (await provider.getSigner(0)) as Signer
-    consumerAccount = (await provider.getSigner(1)) as Signer
+    blockchain = new Blockchain(rpc, 'development', 8996, [
+      'http://172.0.0.3:8545',
+      'http://127.0.0.1:8545'
+    ])
+    publisherAccount = blockchain.getSigner() as Signer
+    consumerAccount = wallet as Signer
 
     const artifactsAddresses = getOceanArtifactsAdresses()
     publisherAddress = await publisherAccount.getAddress()
