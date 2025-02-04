@@ -3,14 +3,15 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
 import { Blockchain } from '../../utils/blockchain.js'
 import { getConfiguration } from '../../utils/config.js'
-import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   buildEnvOverrideConfig,
   setupEnvironment,
-  tearDownEnvironment
+  tearDownEnvironment,
+  TEST_ENV_CONFIG_FILE
 } from '../utils/utils.js'
+import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { expectedTimeoutFailure } from '../integration/testUtils.js'
 import { DEVELOPMENT_CHAIN_ID, KNOWN_CONFIDENTIAL_EVMS } from '../../utils/address.js'
 import { isConfidentialEVM } from '../../utils/asset.js'
@@ -28,7 +29,7 @@ describe('Should validate blockchain network connections', () => {
         '{ "8996":{ "rpc":"http://172.0.0.1:8545", "fallbackRPCs": ["http://172.0.0.3:8545","http://127.0.0.1:8545"], "chainId": 8996, "network": "development", "chunkSize": 100 }}'
       ]
     )
-    envOverrides = await setupEnvironment(null, envOverrides)
+    envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
 
     rpcs = config.supportedNetworks
@@ -78,7 +79,6 @@ describe('Should validate blockchain network connections', () => {
     }
     expect(isConfidentialEVM(DEVELOPMENT_CHAIN_ID)).to.be.equal(false)
   })
-
   after(async () => {
     await tearDownEnvironment(envOverrides)
   })

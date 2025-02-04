@@ -14,15 +14,15 @@
  * 5. Try to Download the asset by all consumers.
  */
 import { expect, assert } from 'chai'
-import { JsonRpcProvider, Signer, ethers } from 'ethers'
+import { Signer, ethers, JsonRpcProvider } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
-import { RPCS } from '../../@types/blockchain.js'
 import { streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 
 import {
+  Blockchain,
   ENVIRONMENT_VARIABLES,
   EVENTS,
   PROTOCOL_COMMANDS,
@@ -39,7 +39,6 @@ import {
   OverrideEnvConfig,
   TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
-  getMockSupportedNetworks,
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
@@ -56,7 +55,6 @@ import { homedir } from 'os'
 describe('Should run a complete node flow.', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
-  let provider: JsonRpcProvider
 
   let publisherAccount: Signer
   let consumerAccounts: Signer[]
@@ -65,8 +63,8 @@ describe('Should run a complete node flow.', () => {
   let ddo: any
   let did: string
   const orderTxIds: string[] = []
-
-  const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+  let wallet: ethers.Wallet
+  let blockchain: Blockchain
 
   let previousConfiguration: OverrideEnvConfig[]
 
@@ -76,17 +74,11 @@ describe('Should run a complete node flow.', () => {
       TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
         [
-          ENVIRONMENT_VARIABLES.RPCS,
-          ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
-          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
-          JSON.stringify(mockSupportedNetworks),
-          JSON.stringify([8996]),
-          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
@@ -94,24 +86,29 @@ describe('Should run a complete node flow.', () => {
       )
     )
 
+    const rpc: string = 'http://127.0.0.1:8545'
     config = await getConfiguration(true) // Force reload the configuration
     const database = await new Database(config.dbConfig)
     oceanNode = await OceanNode.getInstance(database)
     const indexer = new OceanIndexer(database, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
+    const provider = new JsonRpcProvider(rpc)
+    wallet = new ethers.Wallet(process.env.ANOTHER_WALLET_PRIVATE_KEY, provider)
 
     let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!network) {
       network = getOceanArtifactsAdresses().development
     }
 
-    provider = new JsonRpcProvider('http://127.0.0.1:8545')
-
-    publisherAccount = (await provider.getSigner(0)) as Signer
+    blockchain = new Blockchain(rpc, 'development', 8996, [
+      'http://172.0.0.3:8545',
+      'http://127.0.0.1:8545'
+    ])
+    publisherAccount = blockchain.getSigner() as Signer
     consumerAccounts = [
-      (await provider.getSigner(1)) as Signer,
-      (await provider.getSigner(2)) as Signer,
-      (await provider.getSigner(3)) as Signer
+      wallet as Signer,
+      new ethers.Wallet(process.env.NODE1_PRIVATE_KEY) as Signer,
+      new ethers.Wallet(process.env.NODE2_PRIVATE_KEY) as Signer
     ]
     consumerAddresses = await Promise.all(consumerAccounts.map((a) => a.getAddress()))
   })
