@@ -14,6 +14,7 @@ import { AssetUtils, isConfidentialChainDDO } from '../../utils/asset.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { Service } from '../../@types/DDO/Service.js'
 import { DEVELOPMENT_CHAIN_ID, KNOWN_CONFIDENTIAL_EVMS } from '../../utils/address.js'
+import { TEST_ENV_CONFIG_FILE, setupEnvironment } from '../utils/utils.js'
 
 let config: OceanNodeConfig
 let db: Database
@@ -21,6 +22,7 @@ let oceanNode: OceanNode
 
 describe('Should validate files structure for download', () => {
   before(async () => {
+    await setupEnvironment(TEST_ENV_CONFIG_FILE)
     config = await getConfiguration(true)
     db = await new Database(config.dbConfig)
     oceanNode = OceanNode.getInstance(db)
