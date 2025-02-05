@@ -328,6 +328,16 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'IS_BOOTSTRAP',
     value: process.env.IS_BOOTSTRAP,
     required: false
+  },
+  AUTHORIZED_PUBLISHERS: {
+    name: 'AUTHORIZED_PUBLISHERS',
+    value: process.env.AUTHORIZED_PUBLISHERS,
+    required: false
+  },
+  AUTHORIZED_PUBLISHERS_LIST: {
+    name: 'AUTHORIZED_PUBLISHERS_LIST',
+    value: process.env.AUTHORIZED_PUBLISHERS_LIST,
+    required: false
   }
 }
 export const CONNECTION_HISTORY_DELETE_THRESHOLD = 300
