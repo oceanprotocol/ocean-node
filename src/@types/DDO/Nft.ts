@@ -7,3 +7,10 @@ export interface Nft {
   owner?: string
   created?: string
 }
+
+export interface NftRoles {
+  manager: boolean
+  deployERC20: boolean
+  updateMetadata: boolean
+  store: boolean
+}

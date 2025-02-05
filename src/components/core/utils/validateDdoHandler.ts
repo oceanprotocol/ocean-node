@@ -11,6 +11,7 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
 import { Readable } from 'stream'
+import { NftRoles } from '../../../@types/DDO/Nft.js'
 
 const CURRENT_VERSION = '4.7.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0', '4.7.0']
@@ -156,4 +157,13 @@ export async function getValidationSignature(ddo: string): Promise<any> {
     CORE_LOGGER.logMessage(`Validation signature error: ${error}`, true)
     return { hash: '', publicKey: '', r: '', s: '', v: '' }
   }
+}
+
+export async function getNftPermissions(
+  nftAddress: string,
+  address: string
+): Promise<NftRoles> {
+  const nftContract = this.getContract(nftAddress)
+  const roles = await nftContract.getPermissions(address)
+  return roles
 }

@@ -20,6 +20,7 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 // import lzma from 'lzma-native'
 import lzmajs from 'lzma-purejs-requirejs'
 import {
+  getNftPermissions,
   getValidationSignature,
   makeDid,
   validateObject
@@ -808,9 +809,9 @@ export class ValidateDDOHandler extends Handler {
       // command contains optional parameter publisherAddress
       // command contains optional parameter nonce and nonce is valid for publisherAddress
       // command contains optional parameter signature which is the signed message based on nonce by publisherAddress
-      // ddo.nftAddress exists and it's valid
+      // ddo.nftAddress exists and it's valid (done above on validateObject())
       // publisherAddress has updateMetadata role on ddo.nftAddress contract
-      // publisherAddress has publishing rights on this node (see #815)
+      // publisherAddress has publishing rights on this node (see #815) (TODO needs other PR merged first)
 
       if (task.publisherAddress && task.nonce && task.signature) {
         const nonceDB = this.getOceanNode().getDatabase().nonce
@@ -821,6 +822,23 @@ export class ValidateDDOHandler extends Handler {
           task.signature,
           task.ddo.id + task.nonce
         )
+
+        // check also NFT permissions
+        const hasUpdateMetadataPermissions = await (
+          await getNftPermissions(task.ddo.nftAddress, task.publisherAddress)
+        ).updateMetadata
+
+        if (!hasUpdateMetadataPermissions) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: `Validation error: Publisher: ${task.publisherAddress} does not have "updateMetadata" permissions`
+            }
+          }
+        }
+
+        // ALL GOOD
         if (nonceValid.valid) {
           const signature = await getValidationSignature(JSON.stringify(task.ddo))
           return {
@@ -833,7 +851,7 @@ export class ValidateDDOHandler extends Handler {
         stream: null,
         status: {
           httpStatus: 400,
-          error: `Validation error: Publisher is missing or invalid signature/nonce`
+          error: `Validation error: Either publisher address is missing or there is an invalid signature/nonce`
         }
       }
     } catch (error) {
