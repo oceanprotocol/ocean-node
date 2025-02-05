@@ -214,7 +214,8 @@ export const processChunkLogs = async (
                   for (const metaproofValidator of validators) {
                     // if has at least 1 token than it is authorized
                     // its enough one validator on the list
-                    if ((await accessListContract.balanceOf(metaproofValidator)) <= 0) {
+                    const balance = await accessListContract.balanceOf(metaproofValidator)
+                    if (Number(balance) <= 0) {
                       INDEXER_LOGGER.error(
                         `Metadata validator: ${metaproofValidator} is NOT part of the access list group: ${accessListAddress}.`
                       )
