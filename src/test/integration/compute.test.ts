@@ -39,7 +39,6 @@ import {
   getAddress,
   hexlify,
   JsonRpcProvider,
-  JsonRpcSigner,
   Signer,
   ZeroAddress
 } from 'ethers'

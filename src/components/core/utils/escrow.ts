@@ -148,7 +148,8 @@ export class Escrow {
     }
     try {
       const gas = await contract.createLock.estimateGas(jobId, token, payer, wei, expiry)
-      const tx = await contract.createLock(jobId, token, payer, wei, expiry)
+      const gasOptions = await blockchain.getGasOptions(gas, 1.2)
+      const tx = await contract.createLock(jobId, token, payer, wei, expiry, gasOptions)
       return tx.hash
     } catch (e) {
       console.log(e)
@@ -182,12 +183,14 @@ export class Escrow {
             wei,
             ethers.toUtf8Bytes(proof)
           )
+          const gasOptions = await blockchain.getGasOptions(gas, 1.2)
           const tx = await contract.claimLock(
             jobId,
             token,
             payer,
             wei,
-            ethers.toUtf8Bytes(proof)
+            ethers.toUtf8Bytes(proof),
+            gasOptions
           )
           return tx.hash
         }
@@ -221,11 +224,13 @@ export class Escrow {
             payer,
             await signer.getAddress()
           )
+          const gasOptions = await blockchain.getGasOptions(gas, 1.2)
           const tx = await contract.cancelExpiredLocks(
             jobId,
             token,
             payer,
-            await signer.getAddress()
+            await signer.getAddress(),
+            gasOptions
           )
 
           return tx.hash

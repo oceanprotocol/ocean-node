@@ -65,7 +65,6 @@ export class ComputeStartHandler extends Handler {
       // then get env which might contain dashes as well
       const eIndex = task.environment.indexOf('-')
       const hash = task.environment.slice(0, eIndex)
-      const envId = task.environment.slice(eIndex + 1)
       let engine
       let env
       try {
@@ -183,7 +182,7 @@ export class ComputeStartHandler extends Handler {
           const signer = blockchain.getSigner()
           // let's see if we can access this asset
           // check if oasis evm or similar
-          const confidentialEVM = isConfidentialChainDDO(ddo.chainId, service)
+          const confidentialEVM = isConfidentialChainDDO(BigInt(ddo.chainId), service)
           let canDecrypt = false
           try {
             if (!confidentialEVM) {

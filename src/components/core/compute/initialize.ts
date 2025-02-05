@@ -260,7 +260,7 @@ export class ComputeInitializeHandler extends Handler {
           const signer = blockchain.getSigner()
 
           // check if oasis evm or similar
-          const confidentialEVM = isConfidentialChainDDO(ddo.chainId, service)
+          const confidentialEVM = isConfidentialChainDDO(BigInt(ddo.chainId), service)
           // let's see if we can access this asset
           let canDecrypt = false
           try {

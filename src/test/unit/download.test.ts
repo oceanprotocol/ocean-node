@@ -168,7 +168,10 @@ describe('Should validate files structure for download', () => {
 
     // not confidential evm anymore
     expect(
-      isConfidentialChainDDO(DEVELOPMENT_CHAIN_ID, otherDDOConfidential.services[0])
+      isConfidentialChainDDO(
+        BigInt(DEVELOPMENT_CHAIN_ID),
+        otherDDOConfidential.services[0]
+      )
     ).to.be.equal(false)
   })
 
