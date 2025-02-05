@@ -48,6 +48,7 @@ import {
   OverrideEnvConfig,
   TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
+  getMockSupportedNetworks,
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
@@ -66,6 +67,7 @@ import {
   getAlgoChecksums,
   validateAlgoForDataset
 } from '../../components/core/compute/utils.js'
+import { RPCS } from '../../@types/blockchain.js'
 
 describe('Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
@@ -100,10 +102,12 @@ describe('Compute', () => {
   let datasetDDO: any
 
   before(async () => {
+    const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
     previousConfiguration = await setupEnvironment(
       TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
         [
+          ENVIRONMENT_VARIABLES.RPCS,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE,
           ENVIRONMENT_VARIABLES.OPERATOR_SERVICE_URL
@@ -111,6 +115,7 @@ describe('Compute', () => {
           // ENVIRONMENT_VARIABLES.DB_TYPE
         ],
         [
+          mockSupportedNetworks,
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
           JSON.stringify(['http://localhost:31000'])
