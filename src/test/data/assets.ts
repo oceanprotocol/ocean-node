@@ -38,26 +38,27 @@ export const downloadAsset = {
     }
   ],
   event: {},
-  nft: {
-    address: '',
-    name: 'Ocean Data NFT',
-    symbol: 'OCEAN-NFT',
-    state: 5,
-    tokenURI: '',
-    owner: '',
-    created: ''
+  indexedMetadata: {
+    nft: {
+      address: '',
+      name: 'Ocean Data NFT',
+      symbol: 'OCEAN-NFT',
+      state: 5,
+      tokenURI: '',
+      owner: '',
+      created: ''
+    },
+    stats: {
+      orders: 0,
+      price: {
+        value: '0'
+      }
+    }
   },
   purgatory: {
     state: false
   },
-  datatokens: [] as any,
-  stats: {
-    allocated: 0,
-    orders: 0,
-    price: {
-      value: '0'
-    }
-  }
+  datatokens: [] as any
 }
 
 const nftLevelCredentials: Credentials = {
