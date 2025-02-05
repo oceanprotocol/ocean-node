@@ -21,6 +21,7 @@ import {
   getOceanArtifactsAdresses,
   getOceanArtifactsAdressesByChainId
 } from '../../utils/address.js'
+import { homedir } from 'os'
 
 let envOverrides: OverrideEnvConfig[]
 let config: OceanNodeConfig
@@ -102,9 +103,10 @@ export async function deployAccessListContract(
 describe('credentials', () => {
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
-      [ENVIRONMENT_VARIABLES.RPCS],
+      [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.ADDRESS_FILE],
       [
-        '{ "8996":{ "rpc":"http://172.0.0.1:8545", "chainId": 8996, "network": "development", "chunkSize": 100 }}'
+        '{ "8996":{ "rpc":"http://172.0.0.1:8545", "chainId": 8996, "network": "development", "chunkSize": 100 }}',
+        `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
       ]
     )
     envOverrides = await setupEnvironment(null, envOverrides)
@@ -125,7 +127,6 @@ describe('credentials', () => {
     if (!network) {
       network = getOceanArtifactsAdresses().development
     }
-    console.log('network: ', network)
 
     signer = blockchain.getSigner()
     const txAddress = await deployAccessListContract(
