@@ -194,7 +194,7 @@ export const processChunkLogs = async (
               // do not process this one
             }
             // ALLOWED_VALIDATORS_LIST
-            // by default OK
+            // by default it is OK
             let isAllowed = true
             if (allowedValidatorsList && validators.length > 0) {
               // need to check then
@@ -212,7 +212,8 @@ export const processChunkLogs = async (
                     signer
                   )
                   for (const metaproofValidator of validators) {
-                    // if has at least 1 token than is is authorized
+                    // if has at least 1 token than it is authorized
+                    // its enough one validator on the list
                     if ((await accessListContract.balanceOf(metaproofValidator)) <= 0) {
                       INDEXER_LOGGER.error(
                         `Metadata validator: ${metaproofValidator} is NOT part of the access list group: ${accessListAddress}.`
@@ -224,7 +225,7 @@ export const processChunkLogs = async (
                   }
                 }
               } else {
-                isAllowed = true // no rules for this specific chain
+                isAllowed = true // no rules for this specific chain, so ignore this
               }
               // move on to the next (do not process this event)
               if (isAllowed === false) continue
