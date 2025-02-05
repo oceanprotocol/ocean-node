@@ -2,7 +2,8 @@ import type {
   DenyList,
   OceanNodeConfig,
   OceanNodeKeys,
-  OceanNodeDockerConfig
+  OceanNodeDockerConfig,
+  AccessListContract
 } from '../@types/OceanNode'
 import { dhtFilterMethod } from '../@types/OceanNode.js'
 import type { C2DClusterInfo } from '../@types/C2D.js'
@@ -172,6 +173,22 @@ function getAuthorizedDecrypters(isStartup?: boolean): string[] {
     ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
     isStartup
   )
+}
+
+function getAuthorizedDecryptersList(isStartup?: boolean): AccessListContract | null {
+  if (
+    existsEnvironmentVariable(ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS_LIST, isStartup)
+  ) {
+    try {
+      const decryptersAccessList = JSON.parse(
+        ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS_LIST.value
+      ) as AccessListContract
+      return decryptersAccessList
+    } catch (err) {
+      CONFIG_LOGGER.error(err.message)
+    }
+  }
+  return null
 }
 // allowed validators
 export function getAllowedValidators(isStartup?: boolean): string[] {
@@ -563,6 +580,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
 
   const config: OceanNodeConfig = {
     authorizedDecrypters: getAuthorizedDecrypters(isStartup),
+    authorizedDecryptersList: getAuthorizedDecryptersList(isStartup),
     allowedValidators: getAllowedValidators(isStartup),
     keys,
     // Only enable indexer if we have a DB_URL and supportedNetworks
