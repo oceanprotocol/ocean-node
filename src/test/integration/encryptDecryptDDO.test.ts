@@ -103,9 +103,9 @@ describe('Should encrypt and decrypt DDO', () => {
       ERC721Factory.abi,
       publisherAccount
     )
-
-    database = await new Database(await (await getConfiguration()).dbConfig)
-    oceanNode = OceanNode.getInstance(database)
+    const config = await getConfiguration()
+    database = await new Database(config.dbConfig)
+    oceanNode = OceanNode.getInstance(config, database)
     // will be used later
     indexer = new OceanIndexer(database, mockSupportedNetworks)
     oceanNode.addIndexer(indexer)

@@ -98,7 +98,7 @@ export class FeesHandler extends Handler {
     const nonce = await streamToString(nonceHandlerResponse.stream as Readable)
 
     try {
-      const providerFee = await createProviderFee(ddo, service, validUntil, null, null)
+      const providerFee = await createProviderFee(ddo, service, validUntil)
       if (providerFee) {
         const response: ProviderInitialize = {
           providerFee,

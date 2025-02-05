@@ -28,7 +28,6 @@ export interface ProviderFeeData {
 
 export interface ProviderFeeValidation {
   isValid: boolean // true if valid provider fee for download
-  isComputeValid: boolean // true is valid for compute
   message: any
   validUntil: number
 }
@@ -57,7 +56,16 @@ export interface ProviderComputeInitialize {
   providerFee?: ProviderFees
 }
 
+export interface ProviderComputeInitializePayment {
+  escrowAddress: string
+  payee: string
+  chainId: number
+  minLockSeconds: number
+  token: string
+  amount: string
+}
 export interface ProviderComputeInitializeResults {
   algorithm?: ProviderComputeInitialize
   datasets?: ProviderComputeInitialize[]
+  payment: ProviderComputeInitializePayment
 }

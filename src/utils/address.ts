@@ -60,6 +60,6 @@ export const OCEAN_ARTIFACTS_ADDRESSES_PER_CHAIN = addresses
 export const DEVELOPMENT_CHAIN_ID = 8996
 
 export const KNOWN_CONFIDENTIAL_EVMS = [
-  23294, // mainnet oasis_sapphire,
-  23295 // oasis_sapphire_testnet
+  BigInt(23294), // mainnet oasis_sapphire,
+  BigInt(23295) // oasis_sapphire_testnet
 ]
