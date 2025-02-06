@@ -38,21 +38,19 @@ export const downloadAsset = {
     }
   ],
   event: {},
-  indexedMetadata: {
-    nft: {
-      address: '',
-      name: 'Ocean Data NFT',
-      symbol: 'OCEAN-NFT',
-      state: 5,
-      tokenURI: '',
-      owner: '',
-      created: ''
-    },
-    stats: {
-      orders: 0,
-      price: {
-        value: '0'
-      }
+  nft: {
+    address: '',
+    name: 'Ocean Data NFT',
+    symbol: 'OCEAN-NFT',
+    state: 5,
+    tokenURI: '',
+    owner: '',
+    created: ''
+  },
+  stats: {
+    orders: 0,
+    price: {
+      value: '0'
     }
   },
   purgatory: {
