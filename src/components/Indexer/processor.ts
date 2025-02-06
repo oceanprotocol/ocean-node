@@ -429,6 +429,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         metadata
       )
       const clonedDdo = structuredClone(ddo)
+      INDEXER_LOGGER.logMessage(`clonedDdo: ${clonedDdo}`)
       const updatedDdo = deleteIndexedMetadataIfExists(clonedDdo)
       if (updatedDdo.id !== makeDid(event.address, chainId.toString(10))) {
         INDEXER_LOGGER.error(
