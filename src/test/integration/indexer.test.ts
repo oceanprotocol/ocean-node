@@ -210,11 +210,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
     genericAsset.event.from = setMetaDataTxReceipt.from
     genericAsset.event.contract = setMetaDataTxReceipt.contractAddress
     genericAsset.event.datetime = '2023-02-15T16:42:22'
-
-    genericAsset.indexedMetadata.nft.address = nftAddress
-    genericAsset.indexedMetadata.nft.owner = setMetaDataTxReceipt.from
-    genericAsset.indexedMetadata.nft.state = 0
-    genericAsset.indexedMetadata.nft.created = '2022-12-30T08:40:43'
   })
 
   it('should store the ddo in the database and return it ', async function () {
