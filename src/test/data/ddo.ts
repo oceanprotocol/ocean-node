@@ -119,7 +119,7 @@ export const genericDDO = {
       timeout: 0
     }
   ],
-  indexedMetadata: { nft: { state: 0 } },
+  nft: { state: 0 },
   event: {},
   credentials: {
     allow: [
