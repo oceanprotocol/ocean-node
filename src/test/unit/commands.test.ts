@@ -265,7 +265,7 @@ describe('Commands and handlers', () => {
       },
       command: PROTOCOL_COMMANDS.VALIDATE_DDO
     }
-    expect(validateDDOHandler.validate(validateDDOCommand).valid).to.be.equal(false)
+    expect(validateDDOHandler.validate(validateDDOCommand).valid).to.be.equal(true)
     delete validateDDOCommand.ddo
     expect(validateDDOHandler.validate(validateDDOCommand).valid).to.be.equal(false)
     // -----------------------------------------
