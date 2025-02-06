@@ -14,15 +14,16 @@
  * 5. Try to Download the asset by all consumers.
  */
 import { expect, assert } from 'chai'
-import { JsonRpcProvider, Signer, ethers } from 'ethers'
+import { JsonRpcProvider, Signer, ethers, Contract } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
-import { RPCS } from '../../@types/blockchain.js'
+import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
 import { streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 
 import {
+  Blockchain,
   ENVIRONMENT_VARIABLES,
   EVENTS,
   PROTOCOL_COMMANDS,
@@ -52,7 +53,78 @@ import { publishAsset, orderAsset } from '../utils/assets.js'
 import { downloadAssetWithCredentials } from '../data/assets.js'
 import { ganachePrivateKeys } from '../utils/addresses.js'
 import { homedir } from 'os'
+import AccessListFactory from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessListFactory.sol/AccessListFactory.json' assert { type: 'json' }
+import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
 
+/**
+ * Returns a contract instance for the given address
+ * @param {string} address - The address of the contract
+ * @param {AbiItem[]} [abi] - The ABI of the contract
+ * @returns {Contract} - The contract instance
+ */
+export function getContract(address: string, abi: any, signer: Signer): Contract {
+  const contract = new ethers.Contract(address, abi, signer)
+  return contract
+}
+
+export function getEventFromTx(txReceipt: { logs: any[] }, eventName: string) {
+  return txReceipt?.logs?.filter((log) => {
+    return log.fragment?.name === eventName
+  })[0]
+}
+/**
+ * Create new Access List Contract
+ * @param {Signer} signer The signer of the transaction.
+ * @param {string} contractFactoryAddress The AccessListFactory address.
+ * @param {any} contractFactoryAbi The AccessListFactory ABI.
+ * @param {string} nameAccessList The name for access list.
+ * @param {string} symbolAccessList The symbol for access list.
+ * @param {boolean} transferable Default false, to be soulbound.
+ * @param {string} owner Owner of the access list.
+ * @param {string[]} user Users of the access lists as addresses.
+ * @param {string[]} tokenURI Token URIs list.
+ * @return {Promise<string| null>} The transaction hash or null if no transaction
+ */
+export async function deployAccessListContract(
+  signer: Signer,
+  contractFactoryAddress: string,
+  contractFactoryAbi: any,
+  nameAccessList: string,
+  symbolAccessList: string,
+  transferable: boolean = false,
+  owner: string,
+  user: string[],
+  tokenURI: string[]
+): Promise<string | null> {
+  if (!nameAccessList || !symbolAccessList) {
+    throw new Error(`Access list symbol and name are required`)
+  }
+
+  const contract = getContract(contractFactoryAddress, contractFactoryAbi, signer)
+
+  try {
+    const tx = await contract.deployAccessListContract(
+      nameAccessList,
+      symbolAccessList,
+      transferable,
+      owner,
+      user,
+      tokenURI
+    )
+
+    if (!tx) {
+      const e = 'Tx for deploying new access list was not processed on chain.'
+      console.error(e)
+      throw e
+    }
+    const trxReceipt = await tx.wait(1)
+    const events = getEventFromTx(trxReceipt, 'NewAccessList')
+    return events.args[0]
+  } catch (e) {
+    console.error(`Creation of AccessList failed: ${e}`)
+    return null
+  }
+}
 describe('Should run a complete node flow.', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
@@ -69,6 +141,10 @@ describe('Should run a complete node flow.', () => {
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
   let previousConfiguration: OverrideEnvConfig[]
+
+  let blockchain: Blockchain
+  let contractAcessList: Contract
+  let signer: Signer
 
   before(async () => {
     // override and save configuration (always before calling getConfig())
@@ -100,10 +176,14 @@ describe('Should run a complete node flow.', () => {
     const indexer = new OceanIndexer(database, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
 
-    let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
-    if (!network) {
-      network = getOceanArtifactsAdresses().development
-    }
+    const rpcs: RPCS = config.supportedNetworks
+    const chain: SupportedNetwork = rpcs[String(DEVELOPMENT_CHAIN_ID)]
+    blockchain = new Blockchain(
+      chain.rpc,
+      chain.network,
+      chain.chainId,
+      chain.fallbackRPCs
+    )
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
 
@@ -114,6 +194,36 @@ describe('Should run a complete node flow.', () => {
       (await provider.getSigner(3)) as Signer
     ]
     consumerAddresses = await Promise.all(consumerAccounts.map((a) => a.getAddress()))
+  })
+
+  it('should deploy accessList contract', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    let networkArtifacts = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+    if (!networkArtifacts) {
+      networkArtifacts = getOceanArtifactsAdresses().development
+    }
+
+    signer = blockchain.getSigner()
+    const txAddress = await deployAccessListContract(
+      signer,
+      networkArtifacts.AccessListFactory,
+      AccessListFactory.abi,
+      'AllowList',
+      'ALLOW',
+      false,
+      await signer.getAddress(),
+      [await signer.getAddress()],
+      ['https://oceanprotocol.com/nft/']
+    )
+
+    contractAcessList = getContract(txAddress, AccessList.abi, signer)
+    const balance = await contractAcessList.balanceOf(await signer.getAddress())
+    expect(Number(balance)).to.equal(1)
+  })
+
+  it('should have balance from accessList contract', async function () {
+    const balance = await contractAcessList.balanceOf(await signer.getAddress())
+    expect(Number(balance)).to.equal(1)
   })
 
   it('should publish download datasets', async function () {
