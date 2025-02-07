@@ -73,7 +73,7 @@ export async function findAccountFromAccessList(
 ): Promise<boolean> {
   try {
     const balance = await nftContract.balanceOf(walletAddress)
-    return balance > 0
+    return Number(balance) > 0
   } catch (err) {
     return false
   }
