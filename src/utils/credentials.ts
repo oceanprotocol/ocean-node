@@ -2,7 +2,7 @@ import { Credential, Credentials } from '../@types/DDO/Credentials'
 import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
 import { AccessListContract } from '../@types/OceanNode.js'
 import { ethers, Signer } from 'ethers'
-import { CORE_LOGGER } from './logging/common'
+import { CORE_LOGGER } from './logging/common.js'
 
 export function findCredential(
   credentials: Credential[],
