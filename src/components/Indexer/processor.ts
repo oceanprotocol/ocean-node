@@ -387,7 +387,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
               signer
             )
             // if has at least 1 token than is is authorized
-            if ((await accessListContract.balanceOf(owner)) > 0) {
+            const balance = await accessListContract.balanceOf(owner)
+            if (Number(balance) > 0) {
               isAuthorized = true
               break
             }
