@@ -2,7 +2,7 @@ import { Event } from './Event'
 
 export type PriceType = 'fixedrate' | 'dispenser'
 
-export interface Price {
+export interface ServicePrice {
   type: PriceType
   price: string
   contract: string
@@ -10,17 +10,17 @@ export interface Price {
   exchangeId?: string
 }
 
-export interface Stats {
+export interface ServiceStats {
   datatokenAddress: string
   name: string
   symbol: string
   serviceId: string
   orders?: number
-  prices?: Price[]
+  prices?: ServicePrice[]
 }
 
 export interface IndexedMetadata {
-  stats?: Stats[]
+  stats?: ServiceStats[]
   /**
    * Describes the event of last metadata event
    * @type {Event}
