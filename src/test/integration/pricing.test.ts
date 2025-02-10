@@ -100,6 +100,8 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       ERC721Factory.abi,
       publisherAccount
     )
+    delete genericAsset.event
+    delete genericAsset.nft
   })
 
   it('instance Database', () => {
@@ -194,17 +196,6 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     )
     setMetaDataTxReceipt = await setMetaDataTx.wait()
     assert(setMetaDataTxReceipt, 'set metada failed')
-    // for testing purpose
-    genericAsset.event.tx = setMetaDataTxReceipt.transactionHash
-    genericAsset.event.block = setMetaDataTxReceipt.blockNumber
-    genericAsset.event.from = setMetaDataTxReceipt.from
-    genericAsset.event.contract = setMetaDataTxReceipt.contractAddress
-    genericAsset.event.datetime = '2023-02-15T16:42:22'
-
-    genericAsset.nft.address = nftAddress
-    genericAsset.nft.owner = setMetaDataTxReceipt.from
-    genericAsset.nft.state = 0
-    genericAsset.nft.created = '2022-12-30T08:40:43'
   })
 
   it('should store the ddo in the database and return it ', async function () {
@@ -374,6 +365,6 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
-    indexer.stopAllThreads()
+    // indexer.stopAllThreads()
   })
 })
