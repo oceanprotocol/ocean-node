@@ -1,7 +1,6 @@
 import { Service } from './Service'
 import { Metadata } from './Metadata'
 import { Credentials } from './Credentials'
-import { Event } from './Event'
 import { IndexedMetadata } from './IndexedMetadata'
 
 /**
@@ -59,12 +58,6 @@ export interface DDO {
    * @type {Credentials}
    */
   credentials?: Credentials
-
-  /**
-   * Describes the event of last metadata event
-   * @type {Event}
-   */
-  event?: Event
 
   indexedMetadata?: IndexedMetadata
 }

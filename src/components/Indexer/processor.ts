@@ -574,22 +574,25 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           owner,
           parseInt(decodedEventData.args[6])
         )
-        if (!ddo.event) {
-          ddo.event = {}
+        if (!ddo.indexedMetadata.event) {
+          ddo.indexedMetadata.event = {}
         }
-        ddo.event.tx = event.transactionHash
-        ddo.event.from = from
-        ddo.event.contract = event.address
+
+        ddo.indexedMetadata.event.tx = event.transactionHash
+        ddo.indexedMetadata.event.from = from
+        ddo.indexedMetadata.event.contract = event.address
         if (event.blockNumber) {
-          ddo.event.block = event.blockNumber
+          ddo.indexedMetadata.event.block = event.blockNumber
           // try get block & timestamp from block (only wait 2.5 secs maximum)
           const promiseFn = provider.getBlock(event.blockNumber)
           const result = await asyncCallWithTimeout(promiseFn, 2500)
           if (result.data !== null && !result.timeout) {
-            ddo.event.datetime = new Date(result.data.timestamp * 1000).toJSON()
+            ddo.indexedMetadata.event.datetime = new Date(
+              result.data.timestamp * 1000
+            ).toJSON()
           }
         } else {
-          ddo.event.block = -1
+          ddo.indexedMetadata.event.block = -1
         }
 
         // policyServer check
@@ -625,7 +628,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       const purgatory = await Purgatory.getInstance()
       // if purgatory is disabled just return false
       const updatedDDO = await this.updatePurgatoryStateDdo(ddo, from, purgatory)
-      if (updatedDDO.purgatory.state === false) {
+      if (updatedDDO.indexedMetadata.purgatory.state === false) {
         // TODO: insert in a different collection for purgatory DDOs
         const saveDDO = this.createOrUpdateDDO(ddo, eventName)
         return saveDDO
@@ -657,11 +660,11 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       const state: boolean =
         (await purgatory.isBannedAsset(ddo.id)) ||
         (await purgatory.isBannedAccount(owner))
-      ddo.purgatory = {
+      ddo.indexedMetadata.purgatory = {
         state
       }
     } else {
-      ddo.purgatory = {
+      ddo.indexedMetadata.purgatory = {
         state: false
       }
     }
@@ -913,7 +916,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
       } else {
         INDEXER_LOGGER.logMessage(`[OrderReused] - No stats were found on the ddo`)
         const serviceIdToFind = findServiceIdByDatatoken(ddo, event.address)
-        if (serviceIdToFind === '') {
+        if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[OrderReused] - This datatoken does not contain this service. Invalid service id!`
           )
@@ -1021,7 +1024,7 @@ export class DispenserActivatedEventProcessor extends BaseEventProcessor {
       } else {
         INDEXER_LOGGER.logMessage(`[DispenserActivated] - No stats were found on the ddo`)
         const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
-        if (serviceIdToFind === '') {
+        if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[DispenserActivated] - This datatoken does not contain this service. Invalid service id!`
           )
@@ -1107,7 +1110,7 @@ export class DispenserDeactivatedEventProcessor extends BaseEventProcessor {
           `[DispenserDeactivated] - No stats were found on the ddo`
         )
         const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
-        if (serviceIdToFind === '') {
+        if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[DispenserDeactivated] - This datatoken does not contain this service. Invalid service id!`
           )
@@ -1191,7 +1194,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
       } else {
         INDEXER_LOGGER.logMessage(`[ExchangeCreated] - No stats were found on the ddo`)
         const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
-        if (serviceIdToFind === '') {
+        if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[ExchangeCreated] - This datatoken does not contain this service. Invalid service id!`
           )
@@ -1279,7 +1282,7 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
       } else {
         INDEXER_LOGGER.logMessage(`[ExchangeActivated] - No stats were found on the ddo`)
         const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
-        if (serviceIdToFind === '') {
+        if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[ExchangeActivated] - This datatoken does not contain this service. Invalid service id!`
           )
@@ -1367,7 +1370,7 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
           `[ExchangeDeactivated] - No stats were found on the ddo`
         )
         const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
-        if (serviceIdToFind === '') {
+        if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[ExchangeDeactivated] - This datatoken does not contain this service. Invalid service id!`
           )
@@ -1454,7 +1457,7 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
           `[ExchangeRateChanged] - No stats were found on the ddo`
         )
         const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
-        if (serviceIdToFind === '') {
+        if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[ExchangeRateChanged] - This datatoken does not contain this service. Invalid service id!`
           )

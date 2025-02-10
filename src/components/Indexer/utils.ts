@@ -30,7 +30,7 @@ import { CommandStatus, JobStatus } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
-import { Price } from '../../@types/DDO/IndexedMetadata.js'
+import { ServicePrice } from '../../@types/DDO/IndexedMetadata.js'
 
 let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor
@@ -436,20 +436,18 @@ export function buildJobIdentifier(command: string, extra: string[]): JobStatus 
 }
 
 export function findServiceIdByDatatoken(ddo: any, datatokenAddress: string): string {
-  let serviceIdToFind = ''
   for (const s of ddo.services) {
     if (s.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase()) {
-      serviceIdToFind = s.id
-      break
+      return s.id
     }
   }
-  return serviceIdToFind
+  return null
 }
 
 export function doesDispenserAlreadyExist(
   dispenserAddress: string,
-  prices: Price[]
-): [boolean, Price?] {
+  prices: ServicePrice[]
+): [boolean, ServicePrice?] {
   for (const price of prices) {
     if (dispenserAddress.toLowerCase() === price.contract.toLowerCase()) {
       return [true, price]
@@ -460,8 +458,8 @@ export function doesDispenserAlreadyExist(
 
 export function doesFreAlreadyExist(
   exchangeId: ethers.BytesLike,
-  prices: Price[]
-): [boolean, Price?] {
+  prices: ServicePrice[]
+): [boolean, ServicePrice?] {
   for (const price of prices) {
     if (exchangeId === price.exchangeId) {
       return [true, price]
@@ -473,10 +471,10 @@ export function doesFreAlreadyExist(
 export async function getPricesByDt(
   datatoken: ethers.Contract,
   signer: Signer
-): Promise<Price[]> {
+): Promise<ServicePrice[]> {
   let dispensers = []
   let fixedRates = []
-  let prices: Price[] = []
+  let prices: ServicePrice[] = []
   try {
     dispensers = await datatoken.getDispensers()
   } catch (e) {
@@ -544,7 +542,7 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
     )
     let dispensers = []
     let fixedRates = []
-    const prices: Price[] = []
+    const prices: ServicePrice[] = []
     try {
       dispensers = await datatoken.getDispensers()
     } catch (e) {

@@ -540,7 +540,7 @@ export class FindDdoHandler extends Handler {
             if (isResponseLegit) {
               const ddoInfo: FindDDOResponse = {
                 id: ddo.id,
-                lastUpdateTx: ddo.event.tx,
+                lastUpdateTx: ddo.indexedMetadata.event.tx,
                 lastUpdateTime: ddo.metadata.updated,
                 provider: peer
               }
@@ -754,7 +754,11 @@ export class FindDdoHandler extends Handler {
           metadata: ddoData.metadata,
           services: formattedServices,
           credentials: ddoData.credentials,
-          event: ddoData.event
+          indexedMetadata: {
+            stats: ddoData.indexedMetadata.stats,
+            event: ddoData.indexedMetadata.event,
+            nft: ddoData.indexedMetadata.nft
+          }
         }
 
         return ddo
@@ -845,8 +849,10 @@ export function validateDDOIdentifier(identifier: string): ValidateParams {
  * @returns validation result
  */
 async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
+  const clonedDdo = structuredClone(ddo)
+  const { indexedMetadata } = clonedDdo
   const updatedDdo = deleteIndexedMetadataIfExists(ddo)
-  const { nftAddress, chainId, event } = updatedDdo
+  const { nftAddress, chainId } = updatedDdo
   let isValid = validateDDOHash(updatedDdo.id, nftAddress, chainId)
   // 1) check hash sha256(nftAddress + chainId)
   if (!isValid) {
@@ -890,13 +896,19 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
 
   // 5) check block & events
   const networkBlock = await getNetworkHeight(blockchain.getProvider())
-  if (!event.block || event.block < 0 || networkBlock < event.block) {
-    CORE_LOGGER.error(`Event block: ${event.block} is either missing or invalid`)
+  if (
+    !indexedMetadata.event.block ||
+    indexedMetadata.event.block < 0 ||
+    networkBlock < indexedMetadata.event.block
+  ) {
+    CORE_LOGGER.error(
+      `Event block: ${indexedMetadata.event.block} is either missing or invalid`
+    )
     return false
   }
 
   // check events on logs
-  const txId: string = event.tx // NOTE: DDO is txid, Asset is tx
+  const txId: string = indexedMetadata.event.tx // NOTE: DDO is txid, Asset is tx
   if (!txId) {
     CORE_LOGGER.error(`DDO event missing tx data, cannot confirm transaction`)
     return false

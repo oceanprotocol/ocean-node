@@ -216,6 +216,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     )
     if (ddo) {
       resolvedDDO = ddo
+      console.log(`resolved ddo: ${JSON.stringify(resolvedDDO)}`)
       expect(resolvedDDO.id).to.equal(genericAsset.id)
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
