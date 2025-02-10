@@ -52,13 +52,11 @@ export function checkCredentials(credentials: Credentials, consumerAddress: stri
 }
 
 export function areKnownCredentialTypes(credentials: Credentials): boolean {
-  let known = true
   if (isDefined(credentials)) {
     if (isDefined(credentials.allow) && credentials.allow.length > 0) {
       for (const credential of credentials.allow) {
         if (!KNOWN_CREDENTIALS_TYPES.includes(credential.type)) {
-          known = false
-          break
+          return false
         }
       }
     }
@@ -66,11 +64,10 @@ export function areKnownCredentialTypes(credentials: Credentials): boolean {
     if (isDefined(credentials.deny) && credentials.deny.length > 0) {
       for (const credential of credentials.deny) {
         if (!KNOWN_CREDENTIALS_TYPES.includes(credential.type)) {
-          known = false
-          break
+          return false
         }
       }
     }
   }
-  return known
+  return true
 }
