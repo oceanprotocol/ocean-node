@@ -64,7 +64,7 @@ export function checkCredentials(credentials: Credentials, consumerAddress: stri
   // check allow access
   if (Array.isArray(credentials?.allow) && credentials.allow.length > 0) {
     const accessAllow = findCredential(credentials.allow, consumerCredentials)
-    if (accessAllow || hasMatchAllRule(credentials.allow)) {
+    if (accessAllow || hasAddressMatchAllRule(credentials.allow)) {
       return true
     }
     return false
