@@ -349,27 +349,24 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       EVENTS.METADATA_UPDATED,
       DEFAULT_TEST_TIMEOUT * 10
     )
-    const updatedDDO: any = ddo
-    if (updatedDDO) {
+    console.log(`updated ddo: ${JSON.stringify(ddo)}`)
+    if (ddo) {
       assert(
-        updatedDDO.indexedMetadata.stats.length === 2,
+        ddo.indexedMetadata.stats.length === 2,
         'the 2 pricing schemas were not captured in the stats'
       )
       assert(
-        updatedDDO.indexedMetadata.stats[1].prices[0].type === 'dispenser',
+        ddo.indexedMetadata.stats[1].prices[0].type === 'dispenser',
         'type is not dispenser'
       )
       assert(
-        updatedDDO.indexedMetadata.stats[1].datatokenAddress ===
+        ddo.indexedMetadata.stats[1].datatokenAddress ===
           genericAsset.services[1].datatokenAddress,
         'mismatch datatoken address'
       )
+      assert(ddo.indexedMetadata.stats[1].prices[0].price === '0', 'price is not 0')
       assert(
-        updatedDDO.indexedMetadata.stats[1].prices[0].price === '0',
-        'price is not 0'
-      )
-      assert(
-        updatedDDO.indexedMetadata.stats[1].prices[0].token ===
+        ddo.indexedMetadata.stats[1].prices[0].token ===
           genericAsset.services[1].datatokenAddress,
         'mismatch datatoken address'
       )
