@@ -24,6 +24,22 @@ export function findCredential(
   })
 }
 
+export function hasAddressMatchAllRule(credentials: Credential[]): Credential {
+  return credentials.find((credential) => {
+    if (Array.isArray(credential?.values)) {
+      if (credential.values.length > 0) {
+        const credentialType = String(credential?.type)?.toLowerCase()
+        const credentialValues = credential.values.map((v) => String(v)?.toLowerCase())
+        return (
+          credentialType === KNOWN_CREDENTIALS_TYPES[0] && // address
+          credentialValues.includes('*')
+        )
+      }
+    }
+    return false
+  })
+}
+
 /**
  * This method checks credentials
  * @param credentials credentials
@@ -34,21 +50,26 @@ export function checkCredentials(credentials: Credentials, consumerAddress: stri
     type: 'address',
     values: [String(consumerAddress)?.toLowerCase()]
   }
+
+  const accessGranted = true
   // check deny access
   if (Array.isArray(credentials?.deny) && credentials.deny.length > 0) {
     const accessDeny = findCredential(credentials.deny, consumerCredentials)
+    // credential is on deny list, so it should be blocked access
     if (accessDeny) {
       return false
     }
+    // credential not found, so it really depends if we have a match
   }
   // check allow access
   if (Array.isArray(credentials?.allow) && credentials.allow.length > 0) {
     const accessAllow = findCredential(credentials.allow, consumerCredentials)
-    if (!accessAllow) {
-      return false
+    if (accessAllow || hasMatchAllRule(credentials.allow)) {
+      return true
     }
+    return false
   }
-  return true
+  return accessGranted
 }
 
 export function areKnownCredentialTypes(credentials: Credentials): boolean {
