@@ -573,22 +573,24 @@ export class MetadataEventProcessor extends BaseEventProcessor {
             }
           }
         }
-        if (!ddo.event) {
-          ddo.event = {}
+        if (!ddo.indexedMetadata.event) {
+          ddo.indexedMetadata.event = {}
         }
-        ddo.event.tx = event.transactionHash
-        ddo.event.from = from
-        ddo.event.contract = event.address
+        ddo.indexedMetadata.event.tx = event.transactionHash
+        ddo.indexedMetadata.event.from = from
+        ddo.indexedMetadata.event.contract = event.address
         if (event.blockNumber) {
-          ddo.event.block = event.blockNumber
+          ddo.indexedMetadata.event.block = event.blockNumber
           // try get block & timestamp from block (only wait 2.5 secs maximum)
           const promiseFn = provider.getBlock(event.blockNumber)
           const result = await asyncCallWithTimeout(promiseFn, 2500)
           if (result.data !== null && !result.timeout) {
-            ddo.event.datetime = new Date(result.data.timestamp * 1000).toJSON()
+            ddo.indexedMetadata.event.datetime = new Date(
+              result.data.timestamp * 1000
+            ).toJSON()
           }
         } else {
-          ddo.event.block = -1
+          ddo.indexedMetadata.event.block = -1
         }
 
         // policyServer check
