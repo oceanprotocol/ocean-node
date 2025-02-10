@@ -24,20 +24,22 @@ export function findCredential(
   })
 }
 
-export function hasAddressMatchAllRule(credentials: Credential[]): Credential {
-  return credentials.find((credential) => {
+export function hasAddressMatchAllRule(credentials: Credential[]): boolean {
+  const creds = credentials.find((credential: Credential) => {
     if (Array.isArray(credential?.values)) {
-      if (credential.values.length > 0) {
-        const credentialType = String(credential?.type)?.toLowerCase()
-        const credentialValues = credential.values.map((v) => String(v)?.toLowerCase())
+      if (credential.values.length > 0 && credential.type) {
+        const filteredValues: string[] = credential.values.filter((value: string) => {
+          return value?.toLowerCase() === '*' // address
+        })
         return (
-          credentialType === KNOWN_CREDENTIALS_TYPES[0] && // address
-          credentialValues.includes('*')
+          filteredValues.length > 0 &&
+          credential.type.toLowerCase() === KNOWN_CREDENTIALS_TYPES[0]
         )
       }
     }
     return false
   })
+  return isDefined(creds)
 }
 
 /**
