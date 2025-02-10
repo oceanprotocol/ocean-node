@@ -909,7 +909,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
       } else {
         INDEXER_LOGGER.logMessage(`[OrderReused] - No stats were found on the ddo`)
         const serviceIdToFind = findServiceIdByDatatoken(ddo, event.address)
-        if (serviceIdToFind === '') {
+        if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[OrderReused] - This datatoken does not contain this service. Invalid service id!`
           )
@@ -1017,7 +1017,7 @@ export class DispenserActivatedEventProcessor extends BaseEventProcessor {
       } else {
         INDEXER_LOGGER.logMessage(`[DispenserActivated] - No stats were found on the ddo`)
         const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
-        if (serviceIdToFind === '') {
+        if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[DispenserActivated] - This datatoken does not contain this service. Invalid service id!`
           )
@@ -1103,7 +1103,7 @@ export class DispenserDeactivatedEventProcessor extends BaseEventProcessor {
           `[DispenserDeactivated] - No stats were found on the ddo`
         )
         const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
-        if (serviceIdToFind === '') {
+        if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[DispenserDeactivated] - This datatoken does not contain this service. Invalid service id!`
           )
@@ -1187,7 +1187,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
       } else {
         INDEXER_LOGGER.logMessage(`[ExchangeCreated] - No stats were found on the ddo`)
         const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
-        if (serviceIdToFind === '') {
+        if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[ExchangeCreated] - This datatoken does not contain this service. Invalid service id!`
           )
@@ -1275,7 +1275,7 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
       } else {
         INDEXER_LOGGER.logMessage(`[ExchangeActivated] - No stats were found on the ddo`)
         const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
-        if (serviceIdToFind === '') {
+        if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[ExchangeActivated] - This datatoken does not contain this service. Invalid service id!`
           )
@@ -1363,7 +1363,7 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
           `[ExchangeDeactivated] - No stats were found on the ddo`
         )
         const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
-        if (serviceIdToFind === '') {
+        if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[ExchangeDeactivated] - This datatoken does not contain this service. Invalid service id!`
           )
@@ -1450,7 +1450,7 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
           `[ExchangeRateChanged] - No stats were found on the ddo`
         )
         const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
-        if (serviceIdToFind === '') {
+        if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[ExchangeRateChanged] - This datatoken does not contain this service. Invalid service id!`
           )

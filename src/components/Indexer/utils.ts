@@ -436,14 +436,12 @@ export function buildJobIdentifier(command: string, extra: string[]): JobStatus 
 }
 
 export function findServiceIdByDatatoken(ddo: any, datatokenAddress: string): string {
-  let serviceIdToFind = ''
   for (const s of ddo.services) {
     if (s.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase()) {
-      serviceIdToFind = s.id
-      break
+      return s.id
     }
   }
-  return serviceIdToFind
+  return null
 }
 
 export function doesDispenserAlreadyExist(
