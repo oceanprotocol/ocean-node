@@ -770,7 +770,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
       INDEXER_LOGGER.logMessage(
         `Found did ${did} for state updating on network ${chainId}`
       )
-      const savedDDO = this.createOrUpdateDDO(ddo, EVENTS.METADATA_STATE)
+      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.METADATA_STATE)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -856,7 +856,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
       INDEXER_LOGGER.logMessage(
         `Found did ${did} for order starting on network ${chainId}`
       )
-      const savedDDO = this.createOrUpdateDDO(ddo, EVENTS.ORDER_STARTED)
+      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.ORDER_STARTED)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -958,7 +958,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         )
       }
 
-      const savedDDO = this.createOrUpdateDDO(ddo, EVENTS.ORDER_REUSED)
+      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.ORDER_REUSED)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1039,7 +1039,7 @@ export class DispenserActivatedEventProcessor extends BaseEventProcessor {
         })
       }
 
-      const savedDDO = this.createOrUpdateDDO(ddo, EVENTS.DISPENSER_ACTIVATED)
+      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.DISPENSER_ACTIVATED)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1125,7 +1125,7 @@ export class DispenserDeactivatedEventProcessor extends BaseEventProcessor {
         })
       }
 
-      const savedDDO = this.createOrUpdateDDO(ddo, EVENTS.DISPENSER_DEACTIVATED)
+      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.DISPENSER_DEACTIVATED)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1209,7 +1209,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
         })
       }
 
-      const savedDDO = this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_ACTIVATED)
+      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_ACTIVATED)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1297,7 +1297,7 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
         })
       }
 
-      const savedDDO = this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_ACTIVATED)
+      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_ACTIVATED)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1385,7 +1385,7 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
         })
       }
 
-      const savedDDO = this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_DEACTIVATED)
+      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_DEACTIVATED)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1472,7 +1472,7 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
         })
       }
 
-      const savedDDO = this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_RATE_CHANGED)
+      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_RATE_CHANGED)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
