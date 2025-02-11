@@ -175,7 +175,7 @@ class BaseEventProcessor {
         this.networkId,
         saveDDO.id,
         saveDDO.nftAddress,
-        saveDDO.event?.tx,
+        saveDDO.indexedMetadata?.event?.tx,
         true
       )
       INDEXER_LOGGER.logMessage(
@@ -188,7 +188,7 @@ class BaseEventProcessor {
         this.networkId,
         ddo.id,
         ddo.nftAddress,
-        ddo.event?.tx,
+        ddo.indexedMetadata?.event?.tx,
         true,
         err.message
       )
