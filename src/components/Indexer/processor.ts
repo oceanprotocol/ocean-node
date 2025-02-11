@@ -636,7 +636,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       )
       if (updatedDDO.indexedMetadata.purgatory.state === false) {
         // TODO: insert in a different collection for purgatory DDOs
-        const saveDDO = await this.createOrUpdateDDO(ddo, eventName)
+        const saveDDO = await this.createOrUpdateDDO(ddoUpdatedWithPricing, eventName)
+        INDEXER_LOGGER.logMessage(`saved DDO: ${JSON.stringify(saveDDO)}`)
         return saveDDO
       }
     } catch (error) {
