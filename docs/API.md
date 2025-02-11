@@ -1111,38 +1111,6 @@ byte array
 
 ---
 
-## Echo
-
-### `HTTP` POST /directCommand
-
-### `P2P` command: echo
-
-#### Description
-
-returns OK
-
-#### Parameters
-
-| name    | type   | required | description                          |
-| ------- | ------ | -------- | ------------------------------------ |
-| command | string | v        | command name                         |
-| node    | string |          | if not present it means current node |
-
-#### Request
-
-```json
-{
-  "command": "echo",
-  "node": "PeerId"
-}
-```
-
-#### Response
-
-```
-OK
-```
-
 ## Get indexing queue
 
 ### `HTTP` GET /api/services/indexQueue
