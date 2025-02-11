@@ -630,7 +630,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       const updatedDDO = await this.updatePurgatoryStateDdo(ddo, from, purgatory)
       if (updatedDDO.indexedMetadata.purgatory.state === false) {
         // TODO: insert in a different collection for purgatory DDOs
-        const saveDDO = this.createOrUpdateDDO(ddo, eventName)
+        const saveDDO = await this.createOrUpdateDDO(ddo, eventName)
         return saveDDO
       }
     } catch (error) {
@@ -673,14 +673,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
 
   isUpdateable(previousDdo: any, txHash: string, block: number): [boolean, string] {
     let errorMsg: string
-    const ddoTxId = previousDdo.event.tx
+    const ddoTxId = previousDdo.indexedMetadata.event.tx
     // do not update if we have the same txid
     if (txHash === ddoTxId) {
       errorMsg = `Previous DDO has the same tx id, no need to update: event-txid=${txHash} <> asset-event-txid=${ddoTxId}`
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_DEBUG, errorMsg, true)
       return [false, errorMsg]
     }
-    const ddoBlock = previousDdo.event.block
+    const ddoBlock = previousDdo.indexedMetadata.event.block
     // do not update if we have the same block
     if (block === ddoBlock) {
       errorMsg = `Asset was updated later (block: ${ddoBlock}) vs transaction block: ${block}`
@@ -763,7 +763,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
         // Still update until we validate and polish schemas for DDO.
         // But it should update ONLY if the first condition is met.
         // Check https://github.com/oceanprotocol/aquarius/blob/84a560ea972485e46dd3c2cfc3cdb298b65d18fa/aquarius/events/processors.py#L663
-        ddo.nft = {
+        ddo.indexedMetadata.nft = {
           state: metadataState
         }
       }
