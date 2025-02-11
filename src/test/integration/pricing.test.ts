@@ -61,6 +61,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   let artifactsAddresses: any
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   let previousConfiguration: OverrideEnvConfig[]
+  let genericAssetCloned: any
 
   before(async () => {
     previousConfiguration = await setupEnvironment(
@@ -100,8 +101,9 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       ERC721Factory.abi,
       publisherAccount
     )
-    delete genericAsset.event
-    delete genericAsset.nft
+    genericAssetCloned = structuredClone(genericAsset)
+    delete genericAssetCloned.event
+    delete genericAssetCloned.nft
   })
 
   it('instance Database', () => {
@@ -167,11 +169,11 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       createHash('sha256')
         .update(getAddress(nftAddress) + chainId.toString(10))
         .digest('hex')
-    genericAsset.nftAddress = nftAddress
-    assetDID = genericAsset.id
+    genericAssetCloned.nftAddress = nftAddress
+    assetDID = genericAssetCloned.id
     // create proper service.files string
-    genericAsset.services[0].datatokenAddress = datatokenAddress
-    genericAsset.nftAddress = nftAddress
+    genericAssetCloned.services[0].datatokenAddress = datatokenAddress
+    genericAssetCloned.nftAddress = nftAddress
     // let's call node to encrypt
 
     const data = Uint8Array.from(
@@ -179,8 +181,8 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     )
     const encryptedData = await encrypt(data, EncryptMethod.ECIES)
     const encryptedDataString = encryptedData.toString('hex')
-    genericAsset.services[0].files = encryptedDataString
-    const stringDDO = JSON.stringify(genericAsset)
+    genericAssetCloned.services[0].files = encryptedDataString
+    const stringDDO = JSON.stringify(genericAssetCloned)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
     const hash = createHash('sha256').update(metadata).digest('hex')
@@ -208,7 +210,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     if (ddo) {
       resolvedDDO = ddo
       console.log(`resolved ddo: ${JSON.stringify(resolvedDDO)}`)
-      expect(resolvedDDO.id).to.equal(genericAsset.id)
+      expect(resolvedDDO.id).to.equal(genericAssetCloned.id)
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
@@ -294,7 +296,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       publisherAccount
     )
     assert(dispenserContract)
-    genericAsset.services.push({
+    genericAssetCloned.services.push({
       id: '1',
       type: 'access',
       description: 'Download service',
@@ -309,14 +311,14 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       serviceEndpoint: 'http://172.15.0.4:8030',
       timeout: 0
     })
-
+    assert(genericAssetCloned.services.length === 2, 'the 2 services are not present')
     const data = Uint8Array.from(
-      Buffer.from(JSON.stringify(genericAsset.services[1].files))
+      Buffer.from(JSON.stringify(genericAssetCloned.services[1].files))
     )
     const encryptedData = await encrypt(data, EncryptMethod.ECIES)
     const encryptedDataString = encryptedData.toString('hex')
-    genericAsset.services[1].files = encryptedDataString
-    const stringDDO = JSON.stringify(genericAsset)
+    genericAssetCloned.services[1].files = encryptedDataString
+    const stringDDO = JSON.stringify(genericAssetCloned)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
     const hash = createHash('sha256').update(metadata).digest('hex')
@@ -365,6 +367,6 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
-    // indexer.stopAllThreads()
+    indexer.stopAllThreads()
   })
 })
