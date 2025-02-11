@@ -354,13 +354,13 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       )
       assert(
         ddo.indexedMetadata.stats[1].datatokenAddress ===
-          genericAsset.services[1].datatokenAddress,
+          genericAssetCloned.services[1].datatokenAddress,
         'mismatch datatoken address'
       )
       assert(ddo.indexedMetadata.stats[1].prices[0].price === '0', 'price is not 0')
       assert(
         ddo.indexedMetadata.stats[1].prices[0].token ===
-          genericAsset.services[1].datatokenAddress,
+          genericAssetCloned.services[1].datatokenAddress,
         'mismatch datatoken address'
       )
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
