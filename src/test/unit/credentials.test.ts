@@ -1,5 +1,9 @@
 import { expect } from 'chai'
-import { areKnownCredentialTypes, checkCredentials } from '../../utils/credentials.js'
+import {
+  areKnownCredentialTypes,
+  checkCredentials,
+  hasAddressMatchAllRule
+} from '../../utils/credentials.js'
 import { Credentials } from '../../@types/DDO/Credentials.js'
 
 describe('credentials', () => {
@@ -161,5 +165,28 @@ describe('credentials', () => {
     }
     const isKnownType3 = areKnownCredentialTypes(credentialsNOk)
     expect(isKnownType3).to.equal(false)
+  })
+
+  it('should check match all (*) rules', () => {
+    const creds = {
+      credentials: {
+        allow: [
+          {
+            type: 'address',
+            values: ['*']
+          }
+        ],
+        deny: [
+          {
+            type: 'address',
+            values: ['0x2222', '0x333']
+          }
+        ]
+      }
+    }
+    expect(hasAddressMatchAllRule(creds.credentials.allow)).to.be.equal(true)
+    const creds2 = structuredClone(creds)
+    creds2.credentials.allow[0].values = ['0x2222', '0x333']
+    expect(hasAddressMatchAllRule(creds2.credentials.allow)).to.be.equal(false)
   })
 })
