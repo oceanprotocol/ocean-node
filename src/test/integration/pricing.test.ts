@@ -164,7 +164,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
 
   it('should set metadata and save ', async () => {
     nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, publisherAccount)
-    genericAsset.id =
+    genericAssetCloned.id =
       'did:op:' +
       createHash('sha256')
         .update(getAddress(nftAddress) + chainId.toString(10))
@@ -177,7 +177,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     // let's call node to encrypt
 
     const data = Uint8Array.from(
-      Buffer.from(JSON.stringify(genericAsset.services[0].files))
+      Buffer.from(JSON.stringify(genericAssetCloned.services[0].files))
     )
     const encryptedData = await encrypt(data, EncryptMethod.ECIES)
     const encryptedDataString = encryptedData.toString('hex')
