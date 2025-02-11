@@ -506,6 +506,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         }
       }
       const from = decodedEventData.args[0].toString()
+      let ddoUpdatedWithPricing = {}
 
       // we need to store the event data (either metadata created or update and is updatable)
       if (
@@ -568,31 +569,31 @@ export class MetadataEventProcessor extends BaseEventProcessor {
             }
           }
         }
-        ddo.indexedMetadata.nft = await this.getNFTInfo(
-          ddo.nftAddress,
+        ddoWithPricing.indexedMetadata.nft = await this.getNFTInfo(
+          ddoWithPricing.nftAddress,
           signer,
           owner,
           parseInt(decodedEventData.args[6])
         )
-        if (!ddo.indexedMetadata.event) {
-          ddo.indexedMetadata.event = {}
+        if (!ddoWithPricing.indexedMetadata.event) {
+          ddoWithPricing.indexedMetadata.event = {}
         }
 
-        ddo.indexedMetadata.event.tx = event.transactionHash
-        ddo.indexedMetadata.event.from = from
-        ddo.indexedMetadata.event.contract = event.address
+        ddoWithPricing.indexedMetadata.event.tx = event.transactionHash
+        ddoWithPricing.indexedMetadata.event.from = from
+        ddoWithPricing.indexedMetadata.event.contract = event.address
         if (event.blockNumber) {
-          ddo.indexedMetadata.event.block = event.blockNumber
+          ddoWithPricing.indexedMetadata.event.block = event.blockNumber
           // try get block & timestamp from block (only wait 2.5 secs maximum)
           const promiseFn = provider.getBlock(event.blockNumber)
           const result = await asyncCallWithTimeout(promiseFn, 2500)
           if (result.data !== null && !result.timeout) {
-            ddo.indexedMetadata.event.datetime = new Date(
+            ddoWithPricing.indexedMetadata.event.datetime = new Date(
               result.data.timestamp * 1000
             ).toJSON()
           }
         } else {
-          ddo.indexedMetadata.event.block = -1
+          ddoWithPricing.indexedMetadata.event.block = -1
         }
 
         // policyServer check
@@ -600,14 +601,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         let policyStatus
         if (eventName === EVENTS.METADATA_UPDATED)
           policyStatus = await policyServer.checkUpdateDDO(
-            ddo,
+            ddoWithPricing,
             this.networkId,
             event.transactionHash,
             event
           )
         else
           policyStatus = await policyServer.checknewDDO(
-            ddo,
+            ddoWithPricing,
             this.networkId,
             event.transactionHash,
             event
@@ -623,11 +624,16 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           )
           return
         }
+        ddoUpdatedWithPricing = structuredClone(ddoWithPricing)
       }
       // always call, but only create instance once
       const purgatory = await Purgatory.getInstance()
       // if purgatory is disabled just return false
-      const updatedDDO = await this.updatePurgatoryStateDdo(ddo, from, purgatory)
+      const updatedDDO = await this.updatePurgatoryStateDdo(
+        ddoUpdatedWithPricing,
+        from,
+        purgatory
+      )
       if (updatedDDO.indexedMetadata.purgatory.state === false) {
         // TODO: insert in a different collection for purgatory DDOs
         const saveDDO = await this.createOrUpdateDDO(ddo, eventName)
@@ -738,7 +744,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
           [MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(metadataState)
         ) {
           INDEXER_LOGGER.logMessage(
-            `DDO became non-visible from ${ddo.nft.state} to ${metadataState}`
+            `DDO became non-visible from ${ddo.indexedMetadata.nft.state} to ${metadataState}`
           )
           shortVersion = {
             id: ddo.id,
