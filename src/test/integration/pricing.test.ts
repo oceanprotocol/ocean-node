@@ -342,7 +342,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       EVENTS.METADATA_UPDATED,
       DEFAULT_TEST_TIMEOUT * 2
     )
-    console.log(`updated ddo: ${JSON.stringify(ddo)}`)
+    console.log(`updated ddo: ${JSON.stringify(ddo.indexedMetadata.stats)}`)
     if (ddo) {
       assert(
         ddo.indexedMetadata.stats.length === 2,
