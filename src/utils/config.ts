@@ -202,6 +202,20 @@ export function getAllowedAdmins(isStartup?: boolean): string[] {
   return readAddressListFromEnvVariable(ENVIRONMENT_VARIABLES.ALLOWED_ADMINS, isStartup)
 }
 
+function getAllowedAdminsList(isStartup?: boolean): AccessListContract | null {
+  if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ALLOWED_ADMINS_LIST, isStartup)) {
+    try {
+      const adminAccessList = JSON.parse(
+        ENVIRONMENT_VARIABLES.ALLOWED_ADMINS_LIST.value
+      ) as AccessListContract
+      return adminAccessList
+    } catch (err) {
+      CONFIG_LOGGER.error(err.message)
+    }
+  }
+  return null
+}
+
 // whenever we want to read an array of strings from an env variable, use this common function
 function readListFromEnvVariable(
   envVariable: any,
@@ -676,6 +690,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
     assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),
     allowedAdmins: getAllowedAdmins(isStartup),
+    allowedAdminsList: getAllowedAdminsList(isStartup),
     rateLimit: getRateLimit(isStartup),
     maxConnections: getConnectionsLimit(isStartup),
     denyList: getDenyList(isStartup),
