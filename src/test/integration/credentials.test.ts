@@ -14,7 +14,7 @@
  * 5. Try to Download the asset by all consumers.
  */
 import { expect, assert } from 'chai'
-import { JsonRpcProvider, Signer, ethers, Contract } from 'ethers'
+import { JsonRpcProvider, Signer, ethers, Contract, EventLog } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -217,6 +217,22 @@ describe('Should run a complete node flow.', () => {
     )
 
     contractAcessList = getContract(txAddress, AccessList.abi, signer)
+    // check if we emited the event and the address is part of the list now
+    const account = await signer.getAddress()
+    const eventLogs: Array<EventLog> = (await contractAcessList.queryFilter(
+      'AddressAdded',
+      networkArtifacts.startBlock,
+      'latest'
+    )) as Array<EventLog>
+    // at least 1 event
+    expect(eventLogs.length).to.be.at.least(1)
+    for (const log of eventLogs) {
+      // check the account address
+      if (log.args.length === 2 && Number(log.args[1] >= 1)) {
+        const address: string = log.args[0]
+        expect(address.toLowerCase()).to.be.equal(account.toLowerCase())
+      }
+    }
   })
 
   it('should have balance from accessList contract', async function () {
