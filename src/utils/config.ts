@@ -207,6 +207,22 @@ export function getAllowedValidators(isStartup?: boolean): string[] {
     isStartup
   )
 }
+
+function getAllowedValidatorsList(isStartup?: boolean): AccessListContract | null {
+  if (
+    existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS_LIST, isStartup)
+  ) {
+    try {
+      const publisherAccessList = JSON.parse(
+        ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS_LIST.value
+      ) as AccessListContract
+      return publisherAccessList
+    } catch (err) {
+      CONFIG_LOGGER.error(err.message)
+    }
+  }
+  return null
+}
 // valid node admins
 export function getAllowedAdmins(isStartup?: boolean): string[] {
   return readAddressListFromEnvVariable(ENVIRONMENT_VARIABLES.ALLOWED_ADMINS, isStartup)
@@ -591,6 +607,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
   const config: OceanNodeConfig = {
     authorizedDecrypters: getAuthorizedDecrypters(isStartup),
     allowedValidators: getAllowedValidators(isStartup),
+    allowedValidatorsList: getAllowedValidatorsList(isStartup),
     authorizedPublishers: getAuthorizedPublishers(isStartup),
     authorizedPublishersList: getAuthorizedPublishersList(isStartup),
     keys,
