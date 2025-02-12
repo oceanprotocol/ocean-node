@@ -1,8 +1,14 @@
-import { Credential, Credentials } from '../@types/DDO/Credentials'
 import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
 import { AccessListContract } from '../@types/OceanNode.js'
 import { ethers, Signer } from 'ethers'
 import { CORE_LOGGER } from './logging/common.js'
+import {
+  Credential,
+  Credentials,
+  KNOWN_CREDENTIALS_TYPES
+} from '../@types/DDO/Credentials.js'
+import { getNFTContract } from '../components/Indexer/utils.js'
+import { isDefined } from './util.js'
 
 export function findCredential(
   credentials: Credential[],
@@ -28,11 +34,8 @@ export function findCredential(
  * @param credentials credentials
  * @param consumerAddress consumer address
  */
-export function checkCredentials(
-  credentials: Credentials,
-  consumerAddress: string
-): boolean {
-  const consumerCredentials = {
+export function checkCredentials(credentials: Credentials, consumerAddress: string) {
+  const consumerCredentials: Credential = {
     type: 'address',
     values: [String(consumerAddress)?.toLowerCase()]
   }
@@ -95,4 +98,37 @@ export async function checkCredentialOnAccessList(
     return isAuthorized
   }
   return true
+}
+// from https://github.com/oceanprotocol/ocean-node/issues/808
+// The idea is to use an nft contract and check if one address is on the list by calling 'balanceOf'
+// (means user has at least one token)
+export async function findAccessListCredentials(
+  signer: Signer,
+  contractAddress: string,
+  address: string
+): Promise<boolean> {
+  const nftContract: ethers.Contract = getNFTContract(signer, contractAddress)
+  if (!nftContract) {
+    return false
+  }
+  return await findAccountFromAccessList(nftContract, address)
+}
+
+export async function findAccountFromAccessList(
+  nftContract: ethers.Contract,
+  walletAddress: string
+): Promise<boolean> {
+  try {
+    const balance = await nftContract.balanceOf(walletAddress)
+    return Number(balance) > 0
+  } catch (err) {
+    return false
+  }
+}
+
+export function isKnownCredentialType(credentialType: string): boolean {
+  return (
+    isDefined(credentialType) &&
+    KNOWN_CREDENTIALS_TYPES.includes(credentialType.toLowerCase())
+  )
 }
