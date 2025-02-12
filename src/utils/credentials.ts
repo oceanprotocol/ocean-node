@@ -1,4 +1,4 @@
-import { ethers, Signer } from 'ethers'
+import { Contract, ethers, EventLog, Signer } from 'ethers'
 import {
   Credential,
   Credentials,
@@ -6,6 +6,8 @@ import {
 } from '../@types/DDO/Credentials.js'
 import { getNFTContract } from '../components/Indexer/utils.js'
 import { isDefined } from './util.js'
+import { getOceanArtifactsAdressesByChainId } from './address.js'
+import { CORE_LOGGER } from './logging/common.js'
 
 export function findCredential(
   credentials: Credential[],
@@ -84,4 +86,48 @@ export function isKnownCredentialType(credentialType: string): boolean {
     isDefined(credentialType) &&
     KNOWN_CREDENTIALS_TYPES.includes(credentialType.toLowerCase())
   )
+}
+
+/**
+ * Gets the addresses present on the contract access list (the ones with balanceOf > 1)
+ * @param contractAcessList
+ * @param chainId
+ * @returns
+ */
+export async function getAccountsFromAccessList(
+  contractAcessList: Contract,
+  chainId: number,
+  startBlock?: number,
+  endBlock?: number
+): Promise<string[]> {
+  const resultAccounts: string[] = []
+  const networkArtifacts = getOceanArtifactsAdressesByChainId(chainId)
+  // some basic extra checks
+  if (!networkArtifacts || (startBlock && endBlock && endBlock > startBlock)) {
+    return resultAccounts
+  }
+
+  try {
+    const eventLogs: Array<EventLog> = (await contractAcessList.queryFilter(
+      'AddressAdded',
+      startBlock || networkArtifacts.startBlock,
+      endBlock || 'latest'
+    )) as Array<EventLog>
+    for (const log of eventLogs) {
+      // check the account address
+      if (log.args.length === 2 && Number(log.args[1] >= 1)) {
+        const address: string = log.args[0]
+        // still has it?
+        const balance = await contractAcessList.balanceOf(address)
+        if (Number(balance) >= 1) {
+          resultAccounts.push(address)
+        }
+      }
+    }
+  } catch (e) {
+    CORE_LOGGER.error(
+      `Cannot get accounts from accessList ${contractAcessList}: \n${e.message}`
+    )
+  }
+  return resultAccounts
 }

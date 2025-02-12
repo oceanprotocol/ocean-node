@@ -20,10 +20,10 @@ import { typesenseSchemas } from '../../database/TypesenseSchemas.js'
 import { RPCS, SupportedNetwork } from '../../../@types/blockchain.js'
 import { isDefined } from '../../../utils/util.js'
 import AccessListContract from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
-import { getOceanArtifactsAdressesByChainId } from '../../../utils/address.js'
+import { getAccountsFromAccessList } from '../../../utils/credentials.js'
 
-async function getAdminAddresses(config: OceanNodeConfig) {
-  const validAddresses = []
+async function getAdminAddresses(config: OceanNodeConfig): Promise<string[]> {
+  const validAddresses: string[] = []
   if (config.allowedAdmins && config.allowedAdmins.length > 0) {
     for (const admin of config.allowedAdmins) {
       if (isAddress(admin) === true) {
@@ -52,35 +52,23 @@ async function getAdminAddresses(config: OceanNodeConfig) {
       // check the access lists for this chain
       if (accessListsChainsListed.length > 0 && accessListsChainsListed.includes(chain)) {
         for (const accessListAddress of config.allowedAdminsList[chainId]) {
-          // instantiate contract and check balanceOf
+          // instantiate contract and check addresses present + balanceOf()
           const accessListContract = new ethers.Contract(
             accessListAddress,
             AccessListContract.abi,
             blockchain.getSigner()
           )
 
-          const artifacts = getOceanArtifactsAdressesByChainId(chainId)
-          const events = await accessListContract.queryFilter(
-            'AddressAdded',
-            artifacts.startBlock,
-            'latest'
+          const adminsFromAccessList: string[] = await getAccountsFromAccessList(
+            accessListContract,
+            chainId
           )
-          console.log('TODO', events)
+          if (adminsFromAccessList.length > 0) {
+            return validAddresses.concat(adminsFromAccessList)
+          }
         }
       }
     }
-
-    // for (const admin of config.allowedAdmins) {
-    //   if (isAddress(admin) === true) {
-    //     validAddresses.push(admin)
-    //   }
-    // }
-    // if (validAddresses.length === 0) {
-    //   CORE_LOGGER.log(
-    //     LOG_LEVELS_STR.LEVEL_ERROR,
-    //     `Invalid format for ETH address from ALLOWED ADMINS.`
-    //   )
-    // }
   }
   return validAddresses
 }
