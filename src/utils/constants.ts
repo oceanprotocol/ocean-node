@@ -234,6 +234,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.ALLOWED_VALIDATORS,
     required: false
   },
+  ALLOWED_VALIDATORS_LIST: {
+    name: 'ALLOWED_VALIDATORS_LIST',
+    value: process.env.ALLOWED_VALIDATORS_LIST,
+    required: false
+  },
   INDEXER_INTERVAL: {
     name: 'INDEXER_INTERVAL',
     value: process.env.INDEXER_INTERVAL,
