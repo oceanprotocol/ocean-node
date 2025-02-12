@@ -217,8 +217,6 @@ describe('Should run a complete node flow.', () => {
     )
 
     contractAcessList = getContract(txAddress, AccessList.abi, signer)
-    const balance = await contractAcessList.balanceOf(await signer.getAddress())
-    expect(Number(balance)).to.equal(1)
   })
 
   it('should have balance from accessList contract', async function () {
