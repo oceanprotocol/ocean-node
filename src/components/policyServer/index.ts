@@ -24,7 +24,11 @@ export class PolicyServer {
       return { success: true, message: '', httpStatus: 0 }
     }
     if (response.status === 200) {
-      return { success: true, message: '', httpStatus: response.status }
+      return {
+        success: true,
+        message: await response.text(),
+        httpStatus: response.status
+      }
     }
     return { success: false, message: await response.text(), httpStatus: response.status }
   }
