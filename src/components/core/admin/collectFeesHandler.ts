@@ -43,6 +43,13 @@ export class CollectFeesHandler extends AdminHandler {
     return super.validate(command)
   }
 
+  validateAdminCommand(command: AdminCollectFeesCommand): Promise<ValidateParams> {
+    return new Promise((resolve) => {
+      const validation = this.validate(command)
+      return resolve(validation)
+    })
+  }
+
   async handle(task: AdminCollectFeesCommand): Promise<P2PCommandResponse> {
     const validation = this.validate(task)
     if (!validation.valid) {

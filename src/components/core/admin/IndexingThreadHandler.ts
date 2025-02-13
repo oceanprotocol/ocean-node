@@ -27,6 +27,13 @@ export class IndexingThreadHandler extends AdminHandler {
     return super.validate(command)
   }
 
+  validateAdminCommand(command: StartStopIndexingCommand): Promise<ValidateParams> {
+    return new Promise((resolve) => {
+      const validation = this.validate(command)
+      return resolve(validation)
+    })
+  }
+
   // eslint-disable-next-line require-await
   async handle(task: StartStopIndexingCommand): Promise<P2PCommandResponse> {
     const validation = this.validate(task)
