@@ -12,6 +12,7 @@ export function validateAdminSignature(
   expiryTimestamp: number,
   signature: string
 ): CommonValidation {
+  console.log('before validateAdminSignature 1')
   try {
     const message = expiryTimestamp.toString()
     const signerAddress = ethers.verifyMessage(message, signature)?.toLowerCase()

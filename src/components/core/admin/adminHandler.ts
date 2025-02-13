@@ -21,6 +21,7 @@ export abstract class AdminHandler extends Handler {
       command.expiryTimestamp,
       command.signature
     )
+    console.log('Admin handler validation: ', signatureValidation)
     if (!signatureValidation.valid) {
       return buildInvalidRequestMessage(
         `Signature check failed: ${signatureValidation.error}`
