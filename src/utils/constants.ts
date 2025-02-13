@@ -4,7 +4,6 @@ import { Hashes } from '../@types/blockchain'
 export const PROTOCOL_COMMANDS = {
   DOWNLOAD: 'download',
   DOWNLOAD_URL: 'downloadURL', // we still use this
-  ECHO: 'echo',
   ENCRYPT: 'encrypt',
   ENCRYPT_FILE: 'encryptFile',
   DECRYPT_DDO: 'decryptDDO',
@@ -33,7 +32,6 @@ export const PROTOCOL_COMMANDS = {
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.DOWNLOAD,
-  PROTOCOL_COMMANDS.ECHO,
   PROTOCOL_COMMANDS.ENCRYPT,
   PROTOCOL_COMMANDS.ENCRYPT_FILE,
   PROTOCOL_COMMANDS.NONCE,
@@ -234,6 +232,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   ALLOWED_VALIDATORS: {
     name: 'ALLOWED_VALIDATORS',
     value: process.env.ALLOWED_VALIDATORS,
+    required: false
+  },
+  ALLOWED_VALIDATORS_LIST: {
+    name: 'ALLOWED_VALIDATORS_LIST',
+    value: process.env.ALLOWED_VALIDATORS_LIST,
     required: false
   },
   INDEXER_INTERVAL: {

@@ -151,6 +151,7 @@ services:
 #      POLICY_SERVER_URL: ''
       INTERFACES: '["HTTP","P2P"]'
 #      ALLOWED_VALIDATORS: ''
+#      ALLOWED_VALIDATORS_LIST: ''
 #      INDEXER_NETWORKS: '[]'
       ALLOWED_ADMINS: '["$ALLOWED_ADMINS"]'
 #      INDEXER_INTERVAL: ''

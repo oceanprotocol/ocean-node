@@ -1,8 +1,10 @@
+import { ethers, Signer } from 'ethers'
 import {
   Credential,
   Credentials,
   KNOWN_CREDENTIALS_TYPES
 } from '../@types/DDO/Credentials.js'
+import { getNFTContract } from '../components/Indexer/utils.js'
 import { isDefined } from './util.js'
 
 export function findCredential(
@@ -48,7 +50,7 @@ export function hasAddressMatchAllRule(credentials: Credential[]): boolean {
  * @param consumerAddress consumer address
  */
 export function checkCredentials(credentials: Credentials, consumerAddress: string) {
-  const consumerCredentials = {
+  const consumerCredentials: Credential = {
     type: 'address',
     values: [String(consumerAddress)?.toLowerCase()]
   }
@@ -78,7 +80,7 @@ export function areKnownCredentialTypes(credentials: Credentials): boolean {
   if (isDefined(credentials)) {
     if (isDefined(credentials.allow) && credentials.allow.length > 0) {
       for (const credential of credentials.allow) {
-        if (!KNOWN_CREDENTIALS_TYPES.includes(credential.type)) {
+        if (!isKnownCredentialType(credential.type)) {
           return false
         }
       }
@@ -86,11 +88,44 @@ export function areKnownCredentialTypes(credentials: Credentials): boolean {
 
     if (isDefined(credentials.deny) && credentials.deny.length > 0) {
       for (const credential of credentials.deny) {
-        if (!KNOWN_CREDENTIALS_TYPES.includes(credential.type)) {
+        if (!isKnownCredentialType(credential.type)) {
           return false
         }
       }
     }
   }
   return true
+}
+// from https://github.com/oceanprotocol/ocean-node/issues/808
+// The idea is to use an nft contract and check if one address is on the list by calling 'balanceOf'
+// (means user has at least one token)
+export async function findAccessListCredentials(
+  signer: Signer,
+  contractAddress: string,
+  address: string
+): Promise<boolean> {
+  const nftContract: ethers.Contract = getNFTContract(signer, contractAddress)
+  if (!nftContract) {
+    return false
+  }
+  return await findAccountFromAccessList(nftContract, address)
+}
+
+export async function findAccountFromAccessList(
+  nftContract: ethers.Contract,
+  walletAddress: string
+): Promise<boolean> {
+  try {
+    const balance = await nftContract.balanceOf(walletAddress)
+    return Number(balance) > 0
+  } catch (err) {
+    return false
+  }
+}
+
+export function isKnownCredentialType(credentialType: string): boolean {
+  return (
+    isDefined(credentialType) &&
+    KNOWN_CREDENTIALS_TYPES.includes(credentialType.toLowerCase())
+  )
 }

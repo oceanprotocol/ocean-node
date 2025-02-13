@@ -2,7 +2,8 @@ import type {
   DenyList,
   OceanNodeConfig,
   OceanNodeKeys,
-  OceanNodeDockerConfig
+  OceanNodeDockerConfig,
+  AccessListContract
 } from '../@types/OceanNode'
 import { dhtFilterMethod } from '../@types/OceanNode.js'
 import type { C2DClusterInfo } from '../@types/C2D.js'
@@ -180,6 +181,22 @@ export function getAllowedValidators(isStartup?: boolean): string[] {
     ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS,
     isStartup
   )
+}
+
+function getAllowedValidatorsList(isStartup?: boolean): AccessListContract | null {
+  if (
+    existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS_LIST, isStartup)
+  ) {
+    try {
+      const publisherAccessList = JSON.parse(
+        ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS_LIST.value
+      ) as AccessListContract
+      return publisherAccessList
+    } catch (err) {
+      CONFIG_LOGGER.error(err.message)
+    }
+  }
+  return null
 }
 // valid node admins
 export function getAllowedAdmins(isStartup?: boolean): string[] {
@@ -565,6 +582,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
   const config: OceanNodeConfig = {
     authorizedDecrypters: getAuthorizedDecrypters(isStartup),
     allowedValidators: getAllowedValidators(isStartup),
+    allowedValidatorsList: getAllowedValidatorsList(isStartup),
     keys,
     // Only enable indexer if we have a DB_URL and supportedNetworks
     hasIndexer: !!(!!getEnvValue(process.env.DB_URL, '') && !!indexingNetworks),
