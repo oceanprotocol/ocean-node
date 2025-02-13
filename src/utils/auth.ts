@@ -16,7 +16,8 @@ export function validateAdminSignature(
     const message = expiryTimestamp.toString()
     const signerAddress = ethers.verifyMessage(message, signature)?.toLowerCase()
     CORE_LOGGER.logMessage(`Resolved signer address: ${signerAddress}`)
-    getAdminAddresses().then((allowedAdmins) => {
+
+    getAdminAddresses(null, (allowedAdmins: string[]) => {
       if (allowedAdmins.length === 0) {
         const errorMsg = "Allowed admins list is empty. Please add admins' addresses."
         CORE_LOGGER.logMessage(errorMsg)
@@ -46,7 +47,11 @@ export function validateAdminSignature(
     return { valid: false, error: errorMsg }
   }
 }
-export async function getAdminAddresses(config?: OceanNodeConfig): Promise<string[]> {
+
+export async function getAdminAddresses(
+  config?: OceanNodeConfig,
+  callback?: Function
+): Promise<string[]> {
   if (!config) {
     config = await getConfiguration()
   }
@@ -91,6 +96,9 @@ export async function getAdminAddresses(config?: OceanNodeConfig): Promise<strin
             chainId
           )
           if (adminsFromAccessList.length > 0) {
+            if (isDefined(callback)) {
+              callback(validAddresses.concat(adminsFromAccessList))
+            }
             return validAddresses.concat(adminsFromAccessList)
           }
         }
