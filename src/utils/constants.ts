@@ -336,6 +336,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'IS_BOOTSTRAP',
     value: process.env.IS_BOOTSTRAP,
     required: false
+  },
+  POLICY_SERVER_URL: {
+    name: 'POLICY_SERVER_URL',
+    value: process.env.POLICY_SERVER_URL,
+    required: false
   }
 }
 export const CONNECTION_HISTORY_DELETE_THRESHOLD = 300
