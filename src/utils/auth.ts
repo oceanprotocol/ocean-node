@@ -8,7 +8,7 @@ import { getAccountsFromAccessList } from '../utils/credentials.js'
 import { OceanNodeConfig } from '../@types/OceanNode.js'
 import { LOG_LEVELS_STR } from './logging/Logger.js'
 import { CommonValidation } from '../components/httpRoutes/requestValidator.js'
-export function validateAdminSignature(expiryTimestamp: number, signature: string) {
+export function validateAdminSignature(expiryTimestamp: number, signature: string): any {
   getAdminAddresses(null, (allowedAdmins: string[]) => {
     try {
       const message = expiryTimestamp.toString()

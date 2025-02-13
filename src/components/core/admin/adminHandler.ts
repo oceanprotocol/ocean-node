@@ -6,6 +6,7 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { validateAdminSignature } from '../../../utils/auth.js'
 import { Handler } from '../handler/handler.js'
+import { CommonValidation } from '../../httpRoutes/requestValidator.js'
 
 export abstract class AdminHandler extends Handler {
   validate(command: AdminCommand): ValidateParams {
@@ -16,7 +17,7 @@ export abstract class AdminHandler extends Handler {
     if (!commandValidation.valid) {
       return buildInvalidRequestMessage(commandValidation.reason)
     }
-    const signatureValidation: any = validateAdminSignature(
+    const signatureValidation: CommonValidation = validateAdminSignature(
       command.expiryTimestamp,
       command.signature
     )
