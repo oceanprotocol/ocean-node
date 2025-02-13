@@ -140,6 +140,10 @@ export interface ICommandHandler {
   validate(command: Command): ValidateParams
 }
 
+export interface IAdminCommandHandler extends ICommandHandler {
+  validateAdminCommand(command: Command): Promise<ValidateParams>
+}
+
 export interface ComputeGetEnvironmentsCommand extends Command {
   chainId?: number
 }

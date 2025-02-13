@@ -8,48 +8,42 @@ import { getAccountsFromAccessList } from '../utils/credentials.js'
 import { OceanNodeConfig } from '../@types/OceanNode.js'
 import { LOG_LEVELS_STR } from './logging/Logger.js'
 import { CommonValidation } from '../components/httpRoutes/requestValidator.js'
-export function validateAdminSignature(
+export async function validateAdminSignature(
   expiryTimestamp: number,
   signature: string
-): CommonValidation {
-  console.log('before validateAdminSignature 1')
+): Promise<CommonValidation> {
+  const message = expiryTimestamp.toString()
+  const signerAddress = ethers.verifyMessage(message, signature)?.toLowerCase()
+  CORE_LOGGER.logMessage(`Resolved signer address: ${signerAddress}`)
   try {
-    const message = expiryTimestamp.toString()
-    const signerAddress = ethers.verifyMessage(message, signature)?.toLowerCase()
-    CORE_LOGGER.logMessage(`Resolved signer address: ${signerAddress}`)
+    const allowedAdmins: string[] = await getAdminAddresses()
 
-    console.log('before validateAdminSignature')
-    getAdminAddresses().then((admins) => {
-      console.log('after getAdminAddresses promises resolved')
-      const allowedAdmins: string[] = admins
-      if (allowedAdmins.length === 0) {
-        const errorMsg = "Allowed admins list is empty. Please add admins' addresses."
-        CORE_LOGGER.logMessage(errorMsg)
-        return { valid: false, error: errorMsg } as CommonValidation
-      }
-      const currentTimestamp = new Date().getTime()
-      if (currentTimestamp > expiryTimestamp) {
-        const errorMsg = `The expiryTimestamp ${expiryTimestamp} sent for validation is in the past. Therefore signature ${signature} is rejected`
-        CORE_LOGGER.logMessage(errorMsg)
-        return { valid: false, error: errorMsg }
-      }
-      for (const address of allowedAdmins) {
-        if (
-          ethers.getAddress(address)?.toLowerCase() ===
-          ethers.getAddress(signerAddress)?.toLowerCase()
-        ) {
-          return { valid: true, error: '' } as CommonValidation
-        }
-      }
-      const errorMsg = `The address which signed the message is not on the allowed admins list. Therefore signature ${signature} is rejected`
+    if (allowedAdmins.length === 0) {
+      const errorMsg = "Allowed admins list is empty. Please add admins' addresses."
       CORE_LOGGER.logMessage(errorMsg)
       return { valid: false, error: errorMsg }
-    })
-    console.log('after validateAdminSignature')
+    }
+    const currentTimestamp = new Date().getTime()
+    if (currentTimestamp > expiryTimestamp) {
+      const errorMsg = `The expiryTimestamp ${expiryTimestamp} sent for validation is in the past. Therefore signature ${signature} is rejected`
+      CORE_LOGGER.logMessage(errorMsg)
+      return { valid: false, error: errorMsg }
+    }
+    for (const address of allowedAdmins) {
+      if (
+        ethers.getAddress(address)?.toLowerCase() ===
+        ethers.getAddress(signerAddress)?.toLowerCase()
+      ) {
+        return { valid: true, error: '' }
+      }
+    }
+    const errorMsg = `The address which signed the message is not on the allowed admins list. Therefore signature ${signature} is rejected`
+    CORE_LOGGER.logMessage(errorMsg)
+    return { valid: false, error: errorMsg }
   } catch (e) {
     const errorMsg = `Error during signature validation: ${e}`
     CORE_LOGGER.error(errorMsg)
-    return { valid: false, error: errorMsg } as CommonValidation
+    return { valid: false, error: errorMsg }
   }
 }
 

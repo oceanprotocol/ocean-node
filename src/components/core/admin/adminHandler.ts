@@ -10,6 +10,15 @@ import { CommonValidation } from '../../httpRoutes/requestValidator.js'
 
 export abstract class AdminHandler extends Handler {
   validate(command: AdminCommand): ValidateParams {
+    let validation = { valid: false }
+    async function fn() {
+      validation = await this.validateAdminCommand(command)
+    }
+    ;(async () => await fn())()
+    return validation
+  }
+
+  async validateAdminCommand(command: AdminCommand): Promise<ValidateParams> {
     const commandValidation = validateCommandParameters(command, [
       'expiryTimestamp',
       'signature'
@@ -17,7 +26,7 @@ export abstract class AdminHandler extends Handler {
     if (!commandValidation.valid) {
       return buildInvalidRequestMessage(commandValidation.reason)
     }
-    const signatureValidation: CommonValidation = validateAdminSignature(
+    const signatureValidation: CommonValidation = await validateAdminSignature(
       command.expiryTimestamp,
       command.signature
     )
@@ -27,8 +36,6 @@ export abstract class AdminHandler extends Handler {
         `Signature check failed: ${signatureValidation.error}`
       )
     }
-    return {
-      valid: true
-    }
+    return { valid: true }
   }
 }
