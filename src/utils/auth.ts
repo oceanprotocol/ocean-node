@@ -1,27 +1,24 @@
 import { ethers, isAddress } from 'ethers'
 import { CORE_LOGGER } from './logging/common.js'
 import { Blockchain, getConfiguration } from './index.js'
-import { CommonValidation } from '../components/httpRoutes/requestValidator.js'
 import { RPCS } from '../@types/blockchain.js'
 import { isDefined } from '../utils/util.js'
 import AccessListContract from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
 import { getAccountsFromAccessList } from '../utils/credentials.js'
 import { OceanNodeConfig } from '../@types/OceanNode.js'
 import { LOG_LEVELS_STR } from './logging/Logger.js'
-export function validateAdminSignature(
-  expiryTimestamp: number,
-  signature: string
-): CommonValidation {
-  try {
-    const message = expiryTimestamp.toString()
-    const signerAddress = ethers.verifyMessage(message, signature)?.toLowerCase()
-    CORE_LOGGER.logMessage(`Resolved signer address: ${signerAddress}`)
+import { CommonValidation } from '../components/httpRoutes/requestValidator.js'
+export function validateAdminSignature(expiryTimestamp: number, signature: string) {
+  getAdminAddresses(null, (allowedAdmins: string[]) => {
+    try {
+      const message = expiryTimestamp.toString()
+      const signerAddress = ethers.verifyMessage(message, signature)?.toLowerCase()
+      CORE_LOGGER.logMessage(`Resolved signer address: ${signerAddress}`)
 
-    getAdminAddresses(null, (allowedAdmins: string[]) => {
       if (allowedAdmins.length === 0) {
         const errorMsg = "Allowed admins list is empty. Please add admins' addresses."
         CORE_LOGGER.logMessage(errorMsg)
-        return { valid: false, error: errorMsg }
+        return { valid: false, error: errorMsg } as CommonValidation
       }
       const currentTimestamp = new Date().getTime()
       if (currentTimestamp > expiryTimestamp) {
@@ -34,18 +31,18 @@ export function validateAdminSignature(
           ethers.getAddress(address)?.toLowerCase() ===
           ethers.getAddress(signerAddress)?.toLowerCase()
         ) {
-          return { valid: true, error: '' }
+          return { valid: true, error: '' } as CommonValidation
         }
       }
       const errorMsg = `The address which signed the message is not on the allowed admins list. Therefore signature ${signature} is rejected`
       CORE_LOGGER.logMessage(errorMsg)
       return { valid: false, error: errorMsg }
-    })
-  } catch (e) {
-    const errorMsg = `Error during signature validation: ${e}`
-    CORE_LOGGER.error(errorMsg)
-    return { valid: false, error: errorMsg }
-  }
+    } catch (e) {
+      const errorMsg = `Error during signature validation: ${e}`
+      CORE_LOGGER.error(errorMsg)
+      return { valid: false, error: errorMsg } as CommonValidation
+    }
+  })
 }
 
 export async function getAdminAddresses(

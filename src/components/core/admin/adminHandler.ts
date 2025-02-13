@@ -16,7 +16,7 @@ export abstract class AdminHandler extends Handler {
     if (!commandValidation.valid) {
       return buildInvalidRequestMessage(commandValidation.reason)
     }
-    const signatureValidation = validateAdminSignature(
+    const signatureValidation: any = validateAdminSignature(
       command.expiryTimestamp,
       command.signature
     )
