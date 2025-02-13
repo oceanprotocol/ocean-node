@@ -126,6 +126,8 @@ export async function findAccountFromAccessList(
 export function isKnownCredentialType(credentialType: string): boolean {
   return (
     isDefined(credentialType) &&
-    KNOWN_CREDENTIALS_TYPES.includes(credentialType.toLowerCase())
+    KNOWN_CREDENTIALS_TYPES.findIndex((type) => {
+      return type.toLowerCase() === credentialType.toLowerCase()
+    }) > -1
   )
 }
