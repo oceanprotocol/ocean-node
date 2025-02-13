@@ -198,7 +198,7 @@ function getAllowedValidatorsList(isStartup?: boolean): AccessListContract | nul
   return null
 }
 // valid node admins
-export function getAllowedAdmins(isStartup?: boolean): string[] {
+function getAllowedAdmins(isStartup?: boolean): string[] {
   return readAddressListFromEnvVariable(ENVIRONMENT_VARIABLES.ALLOWED_ADMINS, isStartup)
 }
 

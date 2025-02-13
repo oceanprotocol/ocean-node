@@ -7,71 +7,14 @@ import {
   StorageTypes,
   OceanNodeConfig
 } from '../../../@types/OceanNode.js'
-import {
-  Blockchain,
-  existsEnvironmentVariable,
-  getConfiguration
-} from '../../../utils/index.js'
+import { existsEnvironmentVariable, getConfiguration } from '../../../utils/index.js'
 import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
-import { ethers, isAddress } from 'ethers'
 import { typesenseSchemas } from '../../database/TypesenseSchemas.js'
-import { RPCS, SupportedNetwork } from '../../../@types/blockchain.js'
-import { isDefined } from '../../../utils/util.js'
-import AccessListContract from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
-import { getAccountsFromAccessList } from '../../../utils/credentials.js'
+import { SupportedNetwork } from '../../../@types/blockchain.js'
+import { getAdminAddresses } from '../../../utils/auth.js'
 
-async function getAdminAddresses(config: OceanNodeConfig): Promise<string[]> {
-  const validAddresses: string[] = []
-  if (config.allowedAdmins && config.allowedAdmins.length > 0) {
-    for (const admin of config.allowedAdmins) {
-      if (isAddress(admin) === true) {
-        validAddresses.push(admin)
-      }
-    }
-    if (validAddresses.length === 0) {
-      CORE_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `Invalid format for ETH address from ALLOWED ADMINS.`
-      )
-    }
-  }
-  if (
-    config.allowedAdminsList &&
-    isDefined(config.supportedNetworks) &&
-    Object.keys(config.allowedAdminsList).length > 0
-  ) {
-    const RPCS: RPCS = config.supportedNetworks
-    const supportedChains: string[] = Object.keys(config.supportedNetworks)
-    const accessListsChainsListed = Object.keys(config.allowedAdminsList)
-    for (const chain of supportedChains) {
-      const { chainId, network, rpc, fallbackRPCs } = RPCS[chain]
-      const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
-
-      // check the access lists for this chain
-      if (accessListsChainsListed.length > 0 && accessListsChainsListed.includes(chain)) {
-        for (const accessListAddress of config.allowedAdminsList[chainId]) {
-          // instantiate contract and check addresses present + balanceOf()
-          const accessListContract = new ethers.Contract(
-            accessListAddress,
-            AccessListContract.abi,
-            blockchain.getSigner()
-          )
-
-          const adminsFromAccessList: string[] = await getAccountsFromAccessList(
-            accessListContract,
-            chainId
-          )
-          if (adminsFromAccessList.length > 0) {
-            return validAddresses.concat(adminsFromAccessList)
-          }
-        }
-      }
-    }
-  }
-  return validAddresses
-}
 const supportedStorageTypes: StorageTypes = {
   url: true,
   arwave: existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY),
