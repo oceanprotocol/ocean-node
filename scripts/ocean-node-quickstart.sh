@@ -148,6 +148,7 @@ services:
 #      NODE_ENV: ''
 #      AUTHORIZED_DECRYPTERS: ''
 #      OPERATOR_SERVICE_URL: ''
+#      POLICY_SERVER_URL: ''
       INTERFACES: '["HTTP","P2P"]'
 #      ALLOWED_VALIDATORS: ''
 #      ALLOWED_VALIDATORS_LIST: ''
