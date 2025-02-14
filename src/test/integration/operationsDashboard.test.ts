@@ -233,7 +233,8 @@ describe('Should test admin operations', () => {
       signature
     }
     const reindexTxHandler = new ReindexTxHandler(oceanNode)
-    const validationResponse = reindexTxHandler.validate(reindexTxCommand)
+    const validationResponse =
+      await reindexTxHandler.validateAdminCommand(reindexTxCommand)
     assert(validationResponse, 'invalid reindex tx validation response')
     assert(validationResponse.valid === true, 'validation for reindex tx command failed')
 
@@ -302,7 +303,8 @@ describe('Should test admin operations', () => {
         signature
       }
       const reindexChainHandler = new ReindexChainHandler(oceanNode)
-      const validationResponse = reindexChainHandler.validate(reindexChainCommand)
+      const validationResponse =
+        await reindexChainHandler.validateAdminCommand(reindexChainCommand)
       assert(validationResponse, 'invalid reindex chain validation response')
       assert(
         validationResponse.valid === true,
