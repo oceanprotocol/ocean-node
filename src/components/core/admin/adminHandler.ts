@@ -34,7 +34,6 @@ export abstract class AdminCommandHandler
   }
 
   async validate(command: AdminCommand): Promise<ValidateParams> {
-    console.log('validate admin command')
     const commandValidation = validateCommandParameters(command, [
       'expiryTimestamp',
       'signature'
@@ -42,12 +41,10 @@ export abstract class AdminCommandHandler
     if (!commandValidation.valid) {
       return buildInvalidRequestMessage(commandValidation.reason)
     }
-    console.log('before signatureValidation')
     const signatureValidation: CommonValidation = await validateAdminSignature(
       command.expiryTimestamp,
       command.signature
     )
-    console.log('Admin handler validation: ', signatureValidation)
     if (!signatureValidation.valid) {
       return buildInvalidRequestMessage(
         `Signature check failed: ${signatureValidation.error}`
