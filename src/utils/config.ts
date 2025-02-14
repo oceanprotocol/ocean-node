@@ -168,6 +168,32 @@ function getIndexingNetworks(supportedNetworks: RPCS): RPCS | null {
     return supportedNetworks
   }
 }
+// valid publishers (what we will index)
+function getAuthorizedPublishers(isStartup?: boolean): string[] {
+  if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS, isStartup)) {
+    return readAddressListFromEnvVariable(
+      ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS,
+      isStartup
+    )
+  }
+  return []
+}
+
+function getAuthorizedPublishersList(isStartup?: boolean): AccessListContract | null {
+  if (
+    existsEnvironmentVariable(ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST, isStartup)
+  ) {
+    try {
+      const publisherAccessList = JSON.parse(
+        ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.value
+      ) as AccessListContract
+      return publisherAccessList
+    } catch (err) {
+      CONFIG_LOGGER.error(err.message)
+    }
+  }
+  return null
+}
 // valid decrypthers
 function getAuthorizedDecrypters(isStartup?: boolean): string[] {
   return readAddressListFromEnvVariable(
@@ -583,6 +609,8 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     authorizedDecrypters: getAuthorizedDecrypters(isStartup),
     allowedValidators: getAllowedValidators(isStartup),
     allowedValidatorsList: getAllowedValidatorsList(isStartup),
+    authorizedPublishers: getAuthorizedPublishers(isStartup),
+    authorizedPublishersList: getAuthorizedPublishersList(isStartup),
     keys,
     // Only enable indexer if we have a DB_URL and supportedNetworks
     hasIndexer: !!(!!getEnvValue(process.env.DB_URL, '') && !!indexingNetworks),

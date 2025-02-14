@@ -5,8 +5,29 @@ import {
   hasAddressMatchAllRule
 } from '../../utils/credentials.js'
 import { Credentials } from '../../@types/DDO/Credentials.js'
+import {
+  buildEnvOverrideConfig,
+  OverrideEnvConfig,
+  setupEnvironment,
+  tearDownEnvironment
+} from '../utils/utils.js'
+import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { homedir } from 'os'
+
+let envOverrides: OverrideEnvConfig[]
 
 describe('credentials', () => {
+  before(async () => {
+    envOverrides = buildEnvOverrideConfig(
+      [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.ADDRESS_FILE],
+      [
+        '{ "8996":{ "rpc":"http://172.0.0.1:8545", "chainId": 8996, "network": "development", "chunkSize": 100 }}',
+        `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
+      ]
+    )
+    envOverrides = await setupEnvironment(null, envOverrides)
+  })
+
   it('should allow access with undefined or empty credentials', () => {
     const credentialsUndefined: Credentials = undefined
     const consumerAddress = '0x123'
@@ -204,5 +225,9 @@ describe('credentials', () => {
     const creds2 = structuredClone(creds)
     creds2.credentials.allow[0].values = ['0x2222', '0x333']
     expect(hasAddressMatchAllRule(creds2.credentials.allow)).to.be.equal(false)
+  })
+
+  after(async () => {
+    await tearDownEnvironment(envOverrides)
   })
 })

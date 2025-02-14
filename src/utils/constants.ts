@@ -332,6 +332,16 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.IS_BOOTSTRAP,
     required: false
   },
+  AUTHORIZED_PUBLISHERS: {
+    name: 'AUTHORIZED_PUBLISHERS',
+    value: process.env.AUTHORIZED_PUBLISHERS,
+    required: false
+  },
+  AUTHORIZED_PUBLISHERS_LIST: {
+    name: 'AUTHORIZED_PUBLISHERS_LIST',
+    value: process.env.AUTHORIZED_PUBLISHERS_LIST,
+    required: false
+  },
   POLICY_SERVER_URL: {
     name: 'POLICY_SERVER_URL',
     value: process.env.POLICY_SERVER_URL,
