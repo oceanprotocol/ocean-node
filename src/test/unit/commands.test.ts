@@ -203,25 +203,25 @@ describe('Commands and handlers', () => {
     // Stop Node Handler for Admin
     const stopNodeHandler: StopNodeHandler = CoreHandlersRegistry.getInstance(
       node
-    ).getHandler(PROTOCOL_COMMANDS.STOP_NODE)
+    ).getHandler(PROTOCOL_COMMANDS.STOP_NODE) as StopNodeHandler
     expect(stopNodeHandler).to.be.not.equal(null)
     // -----------------------------------------
     // Reindex Tx Handler
     const reindexTxHandler: ReindexTxHandler = CoreHandlersRegistry.getInstance(
       node
-    ).getHandler(PROTOCOL_COMMANDS.REINDEX_TX)
+    ).getHandler(PROTOCOL_COMMANDS.REINDEX_TX) as ReindexTxHandler
     expect(reindexTxHandler).to.be.not.equal(null)
     // -----------------------------------------
     // Reindex Chain Handler
     const reindexChainHandler: ReindexChainHandler = CoreHandlersRegistry.getInstance(
       node
-    ).getHandler(PROTOCOL_COMMANDS.REINDEX_CHAIN)
+    ).getHandler(PROTOCOL_COMMANDS.REINDEX_CHAIN) as ReindexChainHandler
     expect(reindexChainHandler).to.be.not.equal(null)
     // -----------------------------------------
     // CollectFeesHandler
     const collectFeesHandler: CollectFeesHandler = CoreHandlersRegistry.getInstance(
       node
-    ).getHandler(PROTOCOL_COMMANDS.COLLECT_FEES)
+    ).getHandler(PROTOCOL_COMMANDS.COLLECT_FEES) as CollectFeesHandler
     expect(collectFeesHandler).to.be.not.equal(null)
     // -----------------------------------------
     // FileInfoHandler

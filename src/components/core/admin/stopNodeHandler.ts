@@ -13,6 +13,13 @@ export class StopNodeHandler extends AdminHandler {
     return super.validate(command)
   }
 
+  validateAdminCommand(command: AdminStopNodeCommand): Promise<ValidateParams> {
+    return new Promise((resolve) => {
+      const validation = this.validate(command)
+      return resolve(validation)
+    })
+  }
+
   handle(task: AdminStopNodeCommand): Promise<P2PCommandResponse> {
     const validation = this.validate(task)
     if (!validation.valid) {

@@ -135,7 +135,7 @@ describe('Should test admin operations', () => {
     // CollectFeesHandler
     const collectFeesHandler: CollectFeesHandler = CoreHandlersRegistry.getInstance(
       oceanNode
-    ).getHandler(PROTOCOL_COMMANDS.COLLECT_FEES)
+    ).getHandler(PROTOCOL_COMMANDS.COLLECT_FEES) as CollectFeesHandler
 
     const signature = await getSignature(expiryTimestamp.toString())
     const collectFeesCommand: AdminCollectFeesCommand = {
@@ -349,7 +349,7 @@ describe('Should test admin operations', () => {
     // IndexingThreadHandler
     const indexingHandler: IndexingThreadHandler = CoreHandlersRegistry.getInstance(
       oceanNode
-    ).getHandler(PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD)
+    ).getHandler(PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD) as IndexingThreadHandler
 
     const signature = await getSignature(expiryTimestamp.toString())
     const indexingStartCommand: StartStopIndexingCommand = {

@@ -25,6 +25,13 @@ export class ReindexTxHandler extends AdminHandler {
     return super.validate(command)
   }
 
+  validateAdminCommand(command: AdminReindexTxCommand): Promise<ValidateParams> {
+    return new Promise((resolve) => {
+      const validation = this.validate(command)
+      return resolve(validation)
+    })
+  }
+
   async handle(task: AdminReindexTxCommand): Promise<P2PCommandResponse> {
     const validation = this.validate(task)
     if (!validation.valid) {
