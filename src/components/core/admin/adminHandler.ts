@@ -1,4 +1,4 @@
-import { AdminCommand } from '../../../@types/commands.js'
+import { AdminCommand, IAdminCommandHandler } from '../../../@types/commands.js'
 import {
   ValidateParams,
   validateCommandParameters,
@@ -8,17 +8,9 @@ import { validateAdminSignature } from '../../../utils/auth.js'
 import { Handler } from '../handler/handler.js'
 import { CommonValidation } from '../../httpRoutes/requestValidator.js'
 
-export abstract class AdminHandler extends Handler {
-  validate(command: AdminCommand): ValidateParams {
-    let validation = { valid: false }
-    async function fn() {
-      validation = await this.validateAdminCommand(command)
-    }
-    ;(async () => await fn())()
-    return validation
-  }
-
+export abstract class AdminHandler extends Handler implements IAdminCommandHandler {
   async validateAdminCommand(command: AdminCommand): Promise<ValidateParams> {
+    console.log('validate admin command')
     const commandValidation = validateCommandParameters(command, [
       'expiryTimestamp',
       'signature'
@@ -26,6 +18,7 @@ export abstract class AdminHandler extends Handler {
     if (!commandValidation.valid) {
       return buildInvalidRequestMessage(commandValidation.reason)
     }
+    console.log('before signatureValidation')
     const signatureValidation: CommonValidation = await validateAdminSignature(
       command.expiryTimestamp,
       command.signature

@@ -1,5 +1,5 @@
 import { AdminHandler } from './adminHandler.js'
-import { AdminStopNodeCommand } from '../../../@types/commands.js'
+import { AdminStopNodeCommand, Command } from '../../../@types/commands.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import {
   ValidateParams,
@@ -9,19 +9,16 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 
 export class StopNodeHandler extends AdminHandler {
-  validate(command: AdminStopNodeCommand): ValidateParams {
-    return super.validate(command)
+  validate(command: Command): ValidateParams {
+    throw new Error('Method not implemented.')
   }
 
-  validateAdminCommand(command: AdminStopNodeCommand): Promise<ValidateParams> {
-    return new Promise((resolve) => {
-      const validation = this.validate(command)
-      return resolve(validation)
-    })
+  async validateAdminCommand(command: AdminStopNodeCommand): Promise<ValidateParams> {
+    return await super.validateAdminCommand(command)
   }
 
-  handle(task: AdminStopNodeCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
+  async handle(task: AdminStopNodeCommand): Promise<P2PCommandResponse> {
+    const validation = await this.validateAdminCommand(task)
     if (!validation.valid) {
       return new Promise<P2PCommandResponse>((resolve, reject) => {
         resolve(buildInvalidParametersResponse(validation))

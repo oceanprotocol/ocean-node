@@ -124,7 +124,9 @@ describe('Should test admin operations', () => {
       expiryTimestamp,
       signature
     }
-    const validationResponse = new StopNodeHandler(oceanNode).validate(stopNodeCommand)
+    const validationResponse = await new StopNodeHandler(oceanNode).validateAdminCommand(
+      stopNodeCommand
+    )
     assert(validationResponse, 'invalid stop node validation response')
     assert(validationResponse.valid === true, 'validation for stop node command failed')
   })
@@ -147,7 +149,8 @@ describe('Should test admin operations', () => {
       expiryTimestamp,
       signature
     }
-    const validationResponse = collectFeesHandler.validate(collectFeesCommand)
+    const validationResponse =
+      await collectFeesHandler.validateAdminCommand(collectFeesCommand)
     assert(validationResponse, 'invalid collect fees validation response')
     assert(
       validationResponse.valid === true,
@@ -160,7 +163,9 @@ describe('Should test admin operations', () => {
       providerWallet
     )
     const balanceBefore = await token.balanceOf(await destinationWallet.getAddress())
-    expect(collectFeesHandler.validate(collectFeesCommand).valid).to.be.equal(true) // OK
+    expect(
+      (await collectFeesHandler.validateAdminCommand(collectFeesCommand)).valid
+    ).to.be.equal(true) // OK
     const result = await collectFeesHandler.handle(collectFeesCommand)
     expect(result.status.httpStatus).to.be.equal(200) // OK
 
@@ -358,7 +363,9 @@ describe('Should test admin operations', () => {
       expiryTimestamp,
       signature
     }
-    expect(indexingHandler.validate(indexingStartCommand).valid).to.be.equal(true) // OK
+    expect(
+      (await indexingHandler.validateAdminCommand(indexingStartCommand)).valid
+    ).to.be.equal(true) // OK
 
     const indexingStopCommand: StartStopIndexingCommand = {
       command: PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
@@ -366,12 +373,16 @@ describe('Should test admin operations', () => {
       expiryTimestamp: 10,
       signature
     }
-    expect(indexingHandler.validate(indexingStopCommand).valid).to.be.equal(false) // NOK
+    expect(
+      (await indexingHandler.validateAdminCommand(indexingStopCommand)).valid
+    ).to.be.equal(false) // NOK
 
     // OK now
     indexingStopCommand.expiryTimestamp = expiryTimestamp
     indexingStopCommand.chainId = 8996
-    expect(indexingHandler.validate(indexingStopCommand).valid).to.be.equal(true) // OK
+    expect(
+      (await indexingHandler.validateAdminCommand(indexingStopCommand)).valid
+    ).to.be.equal(true) // OK
 
     // should exist a running thread for this network atm
     const response = await indexingHandler.handle(indexingStopCommand)

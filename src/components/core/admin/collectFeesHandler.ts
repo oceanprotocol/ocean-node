@@ -1,7 +1,8 @@
 import { AdminHandler } from './adminHandler.js'
 import {
   AdminCollectFeesCommand,
-  AdminCollectFeesHandlerResponse
+  AdminCollectFeesHandlerResponse,
+  Command
 } from '../../../@types/commands.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import {
@@ -22,7 +23,11 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Readable } from 'stream'
 
 export class CollectFeesHandler extends AdminHandler {
-  validate(command: AdminCollectFeesCommand): ValidateParams {
+  validate(command: Command): ValidateParams {
+    throw new Error('Method not implemented.')
+  }
+
+  async validateAdminCommand(command: AdminCollectFeesCommand): Promise<ValidateParams> {
     if (
       !validateCommandParameters(command, [
         'chainId',
@@ -40,18 +45,11 @@ export class CollectFeesHandler extends AdminHandler {
       CORE_LOGGER.error(msg)
       return buildInvalidRequestMessage(msg)
     }
-    return super.validate(command)
-  }
-
-  validateAdminCommand(command: AdminCollectFeesCommand): Promise<ValidateParams> {
-    return new Promise((resolve) => {
-      const validation = this.validate(command)
-      return resolve(validation)
-    })
+    return await super.validateAdminCommand(command)
   }
 
   async handle(task: AdminCollectFeesCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
+    const validation = await this.validateAdminCommand(task)
     if (!validation.valid) {
       return buildInvalidParametersResponse(validation)
     }

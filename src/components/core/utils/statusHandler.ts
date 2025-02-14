@@ -119,7 +119,7 @@ export async function status(
       // uptime: process.uptime(),
       platform: platformInfo,
       codeHash: config.codeHash,
-      allowedAdmins: await getAdminAddresses(config)
+      allowedAdmins: await getAdminAddresses()
     }
   }
   // need to update at least block info if available

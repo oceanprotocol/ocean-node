@@ -17,6 +17,7 @@ export async function validateAdminSignature(
   CORE_LOGGER.logMessage(`Resolved signer address: ${signerAddress}`)
   try {
     const allowedAdmins: string[] = await getAdminAddresses()
+    console.log(`Allowed admins: ${allowedAdmins}`)
 
     if (allowedAdmins.length === 0) {
       const errorMsg = "Allowed admins list is empty. Please add admins' addresses."
@@ -47,13 +48,8 @@ export async function validateAdminSignature(
   }
 }
 
-export async function getAdminAddresses(
-  config?: OceanNodeConfig,
-  callback?: Function
-): Promise<string[]> {
-  if (!config) {
-    config = await getConfiguration()
-  }
+export async function getAdminAddresses(): Promise<string[]> {
+  const config: OceanNodeConfig = await getConfiguration()
   const validAddresses: string[] = []
   if (config.allowedAdmins && config.allowedAdmins.length > 0) {
     for (const admin of config.allowedAdmins) {
@@ -95,9 +91,6 @@ export async function getAdminAddresses(
             chainId
           )
           if (adminsFromAccessList.length > 0) {
-            if (isDefined(callback)) {
-              callback(validAddresses.concat(adminsFromAccessList))
-            }
             return validAddresses.concat(adminsFromAccessList)
           }
         }
