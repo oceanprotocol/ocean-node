@@ -2,7 +2,7 @@ import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { ComputeAsset } from '../../../@types/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Handler } from '../handler/handler.js'
+import { CommandHandler } from '../handler/handler.js'
 import { ComputeStartCommand } from '../../../@types/commands.js'
 import { getAlgoChecksums, validateAlgoForDataset } from './utils.js'
 import {
@@ -28,7 +28,7 @@ import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
-export class ComputeStartHandler extends Handler {
+export class ComputeStartHandler extends CommandHandler {
   validate(command: ComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
       'consumerAddress',

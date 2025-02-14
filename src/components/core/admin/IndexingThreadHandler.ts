@@ -1,9 +1,5 @@
 import { P2PCommandResponse } from '../../../@types/index.js'
-import {
-  Command,
-  IndexingCommand,
-  StartStopIndexingCommand
-} from '../../../@types/commands.js'
+import { IndexingCommand, StartStopIndexingCommand } from '../../../@types/commands.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import {
   buildErrorResponse,
@@ -12,14 +8,10 @@ import {
   validateCommandParameters,
   ValidateParams
 } from '../../httpRoutes/validateCommands.js'
-import { AdminHandler } from './adminHandler.js'
+import { AdminCommandHandler } from './adminHandler.js'
 import { checkSupportedChainId } from '../../../utils/blockchain.js'
 
-export class IndexingThreadHandler extends AdminHandler {
-  validate(command: Command): ValidateParams {
-    throw new Error('Method not implemented.')
-  }
-
+export class IndexingThreadHandler extends AdminCommandHandler {
   async validateAdminCommand(command: StartStopIndexingCommand): Promise<ValidateParams> {
     if (
       !validateCommandParameters(command, ['action']) ||
@@ -32,7 +24,7 @@ export class IndexingThreadHandler extends AdminHandler {
         `Missing or invalid "action" and/or "chainId" fields for command: "${command}".`
       )
     }
-    return await super.validateAdminCommand(command)
+    return await super.validate(command)
   }
 
   // eslint-disable-next-line require-await

@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/index.js'
 import { CoreHandlersRegistry } from '../../components/core/handler/coreHandlersRegistry.js'
-import { Handler } from '../../components/core/handler/handler.js'
+import { BaseHandler } from '../../components/core/handler/handler.js'
 import { OceanNode } from '../../OceanNode.js'
 import {
   ComputeGetEnvironmentsCommand,
@@ -55,7 +55,7 @@ describe('Commands and handlers', () => {
     const node: OceanNode = OceanNode.getInstance()
     for (const command of SUPPORTED_PROTOCOL_COMMANDS) {
       expect(CoreHandlersRegistry.getInstance(node).getHandler(command)).to.be.instanceof(
-        Handler
+        BaseHandler
       )
     }
   })

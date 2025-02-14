@@ -1,23 +1,29 @@
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { OceanNode, RequestDataCheck, RequestLimiter } from '../../../OceanNode.js'
-import { Command, ICommandHandler } from '../../../@types/commands.js'
 import {
-  ValidateParams,
+  Command,
+  ICommandHandler,
+  IValidateCommandHandler
+} from '../../../@types/commands.js'
+import {
+  // ValidateParams,
   buildInvalidParametersResponse,
-  buildRateLimitReachedResponse
+  buildRateLimitReachedResponse,
+  ValidateParams
 } from '../../httpRoutes/validateCommands.js'
 import { getConfiguration } from '../../../utils/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { ReadableString } from '../../P2P/handlers.js'
 import { CONNECTION_HISTORY_DELETE_THRESHOLD } from '../../../utils/constants.js'
 
-export abstract class Handler implements ICommandHandler {
+export abstract class BaseHandler implements ICommandHandler {
   private nodeInstance: OceanNode
   public constructor(oceanNode: OceanNode) {
     this.nodeInstance = oceanNode
   }
 
-  abstract validate(command: Command): ValidateParams
+  // abstract validate(command: Command): ValidateParams
+  abstract verifyParamsAndRateLimits(task: Command): Promise<P2PCommandResponse>
 
   abstract handle(task: Command): Promise<P2PCommandResponse>
 
@@ -131,13 +137,26 @@ export abstract class Handler implements ICommandHandler {
     }
   }
 
+  shouldDenyTaskHandling(validationResponse: P2PCommandResponse): boolean {
+    return (
+      validationResponse.status.httpStatus !== 200 ||
+      validationResponse.status.error !== null
+    )
+  }
+}
+
+export abstract class CommandHandler
+  extends BaseHandler
+  implements IValidateCommandHandler
+{
+  abstract validate(command: Command): ValidateParams
   async verifyParamsAndRateLimits(task: Command): Promise<P2PCommandResponse> {
     // first check rate limits, if any
     if (!(await this.checkRateLimit())) {
       return buildRateLimitReachedResponse()
     }
     // then validate the command arguments
-    const validation = this.validate(task)
+    const validation = await this.validate(task)
     if (!validation.valid) {
       return buildInvalidParametersResponse(validation)
     }
@@ -147,12 +166,5 @@ export abstract class Handler implements ICommandHandler {
       stream: new ReadableString('OK'),
       status: { httpStatus: 200, error: null }
     }
-  }
-
-  shouldDenyTaskHandling(validationResponse: P2PCommandResponse): boolean {
-    return (
-      validationResponse.status.httpStatus !== 200 ||
-      validationResponse.status.error !== null
-    )
   }
 }

@@ -1,8 +1,7 @@
-import { AdminHandler } from './adminHandler.js'
+import { AdminCommandHandler } from './adminHandler.js'
 import {
   AdminCollectFeesCommand,
-  AdminCollectFeesHandlerResponse,
-  Command
+  AdminCollectFeesHandlerResponse
 } from '../../../@types/commands.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import {
@@ -22,12 +21,8 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Readable } from 'stream'
 
-export class CollectFeesHandler extends AdminHandler {
-  validate(command: Command): ValidateParams {
-    throw new Error('Method not implemented.')
-  }
-
-  async validateAdminCommand(command: AdminCollectFeesCommand): Promise<ValidateParams> {
+export class CollectFeesHandler extends AdminCommandHandler {
+  async validate(command: AdminCollectFeesCommand): Promise<ValidateParams> {
     if (
       !validateCommandParameters(command, [
         'chainId',
@@ -45,11 +40,11 @@ export class CollectFeesHandler extends AdminHandler {
       CORE_LOGGER.error(msg)
       return buildInvalidRequestMessage(msg)
     }
-    return await super.validateAdminCommand(command)
+    return await super.validate(command)
   }
 
   async handle(task: AdminCollectFeesCommand): Promise<P2PCommandResponse> {
-    const validation = await this.validateAdminCommand(task)
+    const validation = await this.validate(task)
     if (!validation.valid) {
       return buildInvalidParametersResponse(validation)
     }

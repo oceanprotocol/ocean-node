@@ -1,7 +1,7 @@
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { PolicyServerPassthroughCommand } from '../../../@types/commands.js'
 import { Readable } from 'stream'
-import { Handler } from './handler.js'
+import { CommandHandler } from './handler.js'
 import {
   ValidateParams,
   buildInvalidRequestMessage,
@@ -10,7 +10,7 @@ import {
 
 import { PolicyServer } from '../../policyServer/index.js'
 
-export class PolicyServerPassthroughHandler extends Handler {
+export class PolicyServerPassthroughHandler extends CommandHandler {
   validate(command: PolicyServerPassthroughCommand): ValidateParams {
     if (!command.policyServerPassthrough)
       return buildInvalidRequestMessage(

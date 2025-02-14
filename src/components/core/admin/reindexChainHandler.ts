@@ -1,5 +1,5 @@
-import { AdminHandler } from './adminHandler.js'
-import { AdminReindexChainCommand, Command } from '../../../@types/commands.js'
+import { AdminCommandHandler } from './adminHandler.js'
+import { AdminReindexChainCommand } from '../../../@types/commands.js'
 import {
   validateCommandParameters,
   ValidateParams,
@@ -12,18 +12,14 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { checkSupportedChainId } from '../../../utils/blockchain.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 
-export class ReindexChainHandler extends AdminHandler {
-  validate(command: Command): ValidateParams {
-    throw new Error('Method not implemented.')
-  }
-
+export class ReindexChainHandler extends AdminCommandHandler {
   async validateAdminCommand(command: AdminReindexChainCommand): Promise<ValidateParams> {
     if (!validateCommandParameters(command, ['chainId'])) {
       return buildInvalidRequestMessage(
         `Missing chainId field for command: "${command}".`
       )
     }
-    return await super.validateAdminCommand(command)
+    return await super.validate(command)
   }
 
   async handle(task: AdminReindexChainCommand): Promise<P2PCommandResponse> {
