@@ -527,11 +527,17 @@ export class MetadataEventProcessor extends BaseEventProcessor {
             if (stat.type === 'dispenser') {
               try {
                 const dispensers = await datatoken.getDispensers()
+                INDEXER_LOGGER.logMessage(`log dispensers: ${dispensers}`)
                 for (const dispenser of dispensers) {
                   const dispenserContract = new ethers.Contract(
                     dispenser,
                     Dispenser.abi,
                     signer
+                  )
+                  INDEXER_LOGGER.logMessage(
+                    `dispenserContract status: ${
+                      (await dispenserContract.status(await datatoken.getAddress()))[0]
+                    }`
                   )
                   if (
                     (await dispenserContract.status(await datatoken.getAddress()))[0] ===
