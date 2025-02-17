@@ -1025,6 +1025,88 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
   }
 }
 
+export class DispenserCreatedEventProcessor extends BaseEventProcessor {
+  async processEvent(
+    event: ethers.Log,
+    chainId: number,
+    signer: Signer,
+    provider: JsonRpcApiProvider
+  ): Promise<any> {
+    const decodedEventData = await this.getEventData(
+      provider,
+      event.transactionHash,
+      Dispenser.abi,
+      EVENTS.DISPENSER_CREATED
+    )
+    const datatokenAddress = decodedEventData.args[0].toString()
+    const datatokenContract = getDtContract(signer, datatokenAddress)
+
+    const nftAddress = await datatokenContract.getERC721Address()
+    const did =
+      'did:op:' +
+      createHash('sha256')
+        .update(getAddress(nftAddress) + chainId.toString(10))
+        .digest('hex')
+    try {
+      const { ddo: ddoDatabase } = await getDatabase()
+      const ddo = await ddoDatabase.retrieve(did)
+      if (!ddo) {
+        INDEXER_LOGGER.logMessage(
+          `Detected DispenserCreated changed for ${did}, but it does not exists.`
+        )
+        return
+      }
+      if (!ddo.indexedMetadata) {
+        ddo.indexedMetadata = {}
+      }
+
+      if (!Array.isArray(ddo.indexedMetadata.stats)) {
+        ddo.indexedMetadata.stats = []
+      }
+      if (ddo.indexedMetadata.stats.length !== 0) {
+        for (const stat of ddo.indexedMetadata.stats) {
+          if (
+            stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
+            !doesDispenserAlreadyExist(event.address, stat.prices)[0]
+          ) {
+            const price = {
+              type: 'dispenser',
+              price: '0',
+              contract: event.address,
+              token: datatokenAddress
+            }
+            stat.prices.push(price)
+            break
+          } else if (doesDispenserAlreadyExist(event.address, stat.prices)[0]) {
+            break
+          }
+        }
+      } else {
+        INDEXER_LOGGER.logMessage(`[DispenserCreated] - No stats were found on the ddo`)
+        const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
+        if (!serviceIdToFind) {
+          INDEXER_LOGGER.logMessage(
+            `[DispenserCreated] - This datatoken does not contain this service. Invalid service id!`
+          )
+          return
+        }
+        ddo.indexedMetadata.stats.push({
+          datatokenAddress,
+          name: await datatokenContract.name(),
+          serviceId: serviceIdToFind,
+          orders: 0,
+          prices: getPricesByDt(datatokenContract, signer)
+        })
+      }
+
+      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.DISPENSER_CREATED)
+      return savedDDO
+    } catch (err) {
+      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
+    }
+  }
+}
+
 export class DispenserActivatedEventProcessor extends BaseEventProcessor {
   async processEvent(
     event: ethers.Log,

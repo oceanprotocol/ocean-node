@@ -20,7 +20,8 @@ import {
   ExchangeActivatedEventProcessor,
   ExchangeDeactivatedEventProcessor,
   ExchangeRateChangedEventProcessor,
-  ExchangeCreatedEventProcessor
+  ExchangeCreatedEventProcessor,
+  DispenserCreatedEventProcessor
 } from './processor.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { fetchEventFromTransaction } from '../../utils/util.js'
@@ -43,6 +44,7 @@ let exchangeCreatedEventProcessor: ExchangeCreatedEventProcessor
 let exchangeActivatedEventProcessor: ExchangeActivatedEventProcessor
 let exchangeDeactivatedEventProcessor: ExchangeDeactivatedEventProcessor
 let exchangeNewRateEventProcessor: ExchangeRateChangedEventProcessor
+let dispenserCreatedEventProcessor: DispenserCreatedEventProcessor
 
 function getExchangeCreatedEventProcessor(
   chainId: number
@@ -79,6 +81,15 @@ function getOrderStartedEventProcessor(chainId: number): OrderStartedEventProces
     orderStartedEventProcessor = new OrderStartedEventProcessor(chainId)
   }
   return orderStartedEventProcessor
+}
+
+function getDispenserCreatedEventProcessor(
+  chainId: number
+): DispenserCreatedEventProcessor {
+  if (!dispenserCreatedEventProcessor) {
+    dispenserCreatedEventProcessor = new DispenserCreatedEventProcessor(chainId)
+  }
+  return dispenserCreatedEventProcessor
 }
 
 function getDispenserActivatedEventProcessor(
@@ -351,11 +362,16 @@ export const processChunkLogs = async (
           )
         } else if (event.type === EVENTS.TOKEN_URI_UPDATE) {
           storeEvents[event.type] = processTokenUriUpadate()
-        } else if (
-          event.type === EVENTS.DISPENSER_ACTIVATED ||
-          event.type === EVENTS.DISPENSER_CREATED
-        ) {
+        } else if (event.type === EVENTS.DISPENSER_ACTIVATED) {
           const processor = getDispenserActivatedEventProcessor(chainId)
+          storeEvents[event.type] = await processor.processEvent(
+            log,
+            chainId,
+            signer,
+            provider
+          )
+        } else if (event.type === EVENTS.DISPENSER_CREATED) {
+          const processor = getDispenserCreatedEventProcessor(chainId)
           storeEvents[event.type] = await processor.processEvent(
             log,
             chainId,
