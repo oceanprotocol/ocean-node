@@ -10,12 +10,20 @@ describe('Dashboard Build Tests', () => {
     this.timeout(300000) // 5 minutes timeout for build
 
     try {
-      // Capture the build output
       buildOutput.stdout = execSync('npm run build', {
-        encoding: 'utf8'
-      })
+        encoding: 'utf8',
+        stdio: 'pipe'
+      }).toString()
+
+      // Debug output
+      console.log('=== Build Output Start ===')
+      console.log(buildOutput.stdout)
+      console.log('=== Build Output End ===')
     } catch (error: any) {
       buildOutput.stderr = error.stderr
+      console.error('=== Build Error Start ===')
+      console.error(error.stderr)
+      console.error('=== Build Error End ===')
       throw error
     }
   })
