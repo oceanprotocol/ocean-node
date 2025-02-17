@@ -7,19 +7,25 @@ import type {
   ComputeJob,
   ComputeOutput,
   ComputeResourceRequest,
+  ComputeResourceRequestWithPrice,
   ComputeResourceType,
   ComputeResource,
+  ComputeResourcesPricingInfo,
+  DBComputeJobPayment,
   DBComputeJob
 } from '../../@types/C2D/C2D.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
+import { Escrow } from '../core/utils/escrow.js'
 
 export abstract class C2DEngine {
   private clusterConfig: C2DClusterInfo
   public db: C2DDatabase
-  public constructor(cluster: C2DClusterInfo, db: C2DDatabase) {
+  public escrow: Escrow
+  public constructor(cluster: C2DClusterInfo, db: C2DDatabase, escrow: Escrow) {
     this.clusterConfig = cluster
     this.db = db
+    this.escrow = escrow
   }
 
   getC2DConfig(): C2DClusterInfo {
@@ -50,11 +56,10 @@ export abstract class C2DEngine {
     algorithm: ComputeAlgorithm,
     output: ComputeOutput,
     environment: string,
-    owner?: string,
-    validUntil?: number,
-    chainId?: number,
-    agreementId?: string,
-    resources?: ComputeResourceRequest[]
+    owner: string,
+    maxJobDuration: number,
+    resources: ComputeResourceRequest[],
+    payment: DBComputeJobPayment
   ): Promise<ComputeJob[]>
 
   public abstract stopComputeJob(
@@ -287,5 +292,71 @@ export abstract class C2DEngine {
       }
     }
     return null
+  }
+
+  public getEnvPricesForToken(
+    env: ComputeEnvironment,
+    chainId: number,
+    token: string
+  ): ComputeResourcesPricingInfo[] {
+    console.log('getEnvPricesForToken')
+    console.log(env)
+    if (!env.fees || !(chainId in env.fees) || !env.fees[chainId]) {
+      return null
+    }
+    console.log(env.fees)
+    for (const fee of env.fees[chainId]) {
+      console.log(fee)
+      console.log(fee.feeToken)
+      console.log(token)
+      // eslint-disable-next-line security/detect-possible-timing-attacks
+      if (fee.feeToken === token) {
+        console.log('Found')
+        return fee.prices
+      } else console.log('NOT Found')
+    }
+
+    return null
+  }
+
+  public getResourcePrice(
+    prices: ComputeResourcesPricingInfo[],
+    id: ComputeResourceType
+  ) {
+    for (const pr of prices) {
+      if (pr.id === id) {
+        return pr.price
+      }
+    }
+    return 0
+  }
+
+  public getTotalCostOfJob(
+    resources: ComputeResourceRequestWithPrice[],
+    duration: number
+  ) {
+    let cost: number = 0
+    for (const request of resources) {
+      if (request.price) cost += request.price * request.amount * Math.ceil(duration / 60)
+    }
+    return cost
+  }
+
+  public calculateResourcesCost(
+    resourcesRequest: ComputeResourceRequest[],
+    env: ComputeEnvironment,
+    chainId: number,
+    token: string,
+    maxJobDuration: number
+  ): number | null {
+    if (maxJobDuration < env.minJobDuration) maxJobDuration = env.minJobDuration
+    const prices = this.getEnvPricesForToken(env, chainId, token)
+    if (!prices) return null
+    let cost: number = 0
+    for (const request of resourcesRequest) {
+      const resourcePrice = this.getResourcePrice(prices, request.id)
+      cost += resourcePrice * request.amount * Math.ceil(maxJobDuration / 60)
+    }
+    return cost
   }
 }

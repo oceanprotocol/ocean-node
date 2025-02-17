@@ -126,8 +126,8 @@ if (dbconn) {
 }
 
 // Singleton instance across application
-const oceanNode = OceanNode.getInstance(dbconn, node, provider, indexer)
-oceanNode.addC2DEngines(config)
+const oceanNode = OceanNode.getInstance(config, dbconn, node, provider, indexer)
+oceanNode.addC2DEngines()
 
 function removeExtraSlashes(req: any, res: any, next: any) {
   req.url = req.url.replace(/\/{2,}/g, '/')
