@@ -19,13 +19,14 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
-
+import AccessListContract from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
 import { getDatabase } from '../../utils/database.js'
 import {
   PROTOCOL_COMMANDS,
   EVENTS,
   MetadataStates,
-  EVENT_HASHES
+  EVENT_HASHES,
+  ENVIRONMENT_VARIABLES
 } from '../../utils/constants.js'
 import {
   findServiceIdByDatatoken,
@@ -36,6 +37,7 @@ import {
   doesDispenserAlreadyExist,
   doesFreAlreadyExist
 } from './utils.js'
+
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { Purgatory } from './purgatory.js'
 import {
@@ -440,6 +442,50 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       // for unencrypted DDOs
       if (parseInt(flag) !== 2 && !this.checkDdoHash(updatedDdo, metadataHash)) {
         return
+      }
+
+      // check authorized publishers
+      const { authorizedPublishers, authorizedPublishersList } = await getConfiguration()
+      if (authorizedPublishers.length > 0) {
+        // if is not there, do not index
+        const authorized: string[] = authorizedPublishers.filter((address) =>
+          // do a case insensitive search
+          address.toLowerCase().includes(owner.toLowerCase())
+        )
+        if (!authorized.length) {
+          INDEXER_LOGGER.error(
+            `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS.name} group.`
+          )
+          return
+        }
+      }
+      if (authorizedPublishersList) {
+        // check accessList
+        const chainsListed = Object.keys(authorizedPublishersList)
+        const chain = String(chainId)
+        // check the access lists for this chain
+        if (chainsListed.length > 0 && chainsListed.includes(chain)) {
+          let isAuthorized = false
+          for (const accessListAddress of authorizedPublishersList[chain]) {
+            const accessListContract = new ethers.Contract(
+              accessListAddress,
+              AccessListContract.abi,
+              signer
+            )
+            // if has at least 1 token than is is authorized
+            const balance = await accessListContract.balanceOf(owner)
+            if (Number(balance) > 0) {
+              isAuthorized = true
+              break
+            }
+          }
+          if (!isAuthorized) {
+            INDEXER_LOGGER.error(
+              `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.name} access group.`
+            )
+            return
+          }
+        }
       }
 
       did = ddo.id
