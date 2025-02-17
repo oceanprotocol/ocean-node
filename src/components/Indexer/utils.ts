@@ -306,7 +306,10 @@ export const processChunkLogs = async (
           )
         } else if (event.type === EVENTS.TOKEN_URI_UPDATE) {
           storeEvents[event.type] = processTokenUriUpadate()
-        } else if (event.type === EVENTS.DISPENSER_ACTIVATED) {
+        } else if (
+          event.type === EVENTS.DISPENSER_ACTIVATED ||
+          event.type === EVENTS.DISPENSER_CREATED
+        ) {
           const processor = getDispenserActivatedEventProcessor(chainId)
           storeEvents[event.type] = await processor.processEvent(
             log,
