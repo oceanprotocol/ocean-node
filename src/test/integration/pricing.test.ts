@@ -339,7 +339,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     this.timeout(DEFAULT_TEST_TIMEOUT * 4)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
-      EVENTS.DISPENSER_CREATED,
+      EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT * 3
     )
     console.log(`updated ddo: ${JSON.stringify(ddo.indexedMetadata.stats)}`)
