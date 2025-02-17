@@ -10,9 +10,14 @@ describe('Dashboard Build Tests', () => {
     this.timeout(300000) // 5 minutes timeout for build
 
     try {
-      buildOutput.stdout = execSync('npm run build', {
+      buildOutput.stdout = execSync('npm run check-changes', {
         encoding: 'utf8',
-        stdio: 'pipe'
+        stdio: 'pipe',
+        env: {
+          ...process.env,
+          NODE_ENV: 'test',
+          PATH: process.env.PATH
+        }
       }).toString()
 
       // Debug output

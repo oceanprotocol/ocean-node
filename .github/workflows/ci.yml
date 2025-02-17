@@ -304,6 +304,5 @@ jobs:
           key: ${{ runner.os }}-dashboard-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
           restore-keys: ${{ runner.os }}-dashboard-${{ env.cache-name }}-
       - run: npm ci
-      - run: npm run build-tests
       - name: Run dashboard build test
-        run: npx mocha --no-timeout "./dist/test/dashboard/dashboardBuild.test.js"
+        run: npm run test:dashboard
