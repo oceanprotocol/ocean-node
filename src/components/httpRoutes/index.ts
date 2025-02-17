@@ -12,6 +12,7 @@ import { queueRoutes } from './queue.js'
 // import { getConfiguration } from '../../utils/config.js'
 import { jobsRoutes } from './jobs.js'
 import { addMapping, allRoutesMapping, findPathName } from './routeUtils.js'
+import { PolicyServerPassthroughRoute } from './policyServer.js'
 
 export * from './getOceanPeers.js'
 
@@ -57,7 +58,8 @@ httpRoutes.use(computeRoutes)
 httpRoutes.use(queueRoutes)
 // running jobs
 httpRoutes.use(jobsRoutes)
-
+// policy server passthrough
+httpRoutes.use(PolicyServerPassthroughRoute)
 export function getAllServiceEndpoints() {
   httpRoutes.stack.forEach(addMapping.bind(null, []))
   const data: any = {}

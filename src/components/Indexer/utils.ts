@@ -1,12 +1,13 @@
 import { JsonRpcApiProvider, Signer, ethers, getAddress, Interface } from 'ethers'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
+import AccessListContract from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
 import {
   ENVIRONMENT_VARIABLES,
   EVENTS,
   EVENT_HASHES,
   existsEnvironmentVariable,
-  getAllowedValidators
+  getConfiguration
 } from '../../utils/index.js'
 import { BlocksEvents, NetworkEvent, ProcessingEvents } from '../../@types/blockchain.js'
 import {
@@ -208,8 +209,10 @@ export const processChunkLogs = async (
 ): Promise<BlocksEvents> => {
   const storeEvents: BlocksEvents = {}
   if (logs.length > 0) {
-    const allowedValidators = getAllowedValidators()
-    const checkMetadataValidated = allowedValidators.length > 0
+    const { allowedValidators, allowedValidatorsList } = await getConfiguration() //  getAllowedValidators()
+    const checkMetadataValidated =
+      allowedValidators.length > 0 ||
+      (allowedValidatorsList && Object.keys(allowedValidatorsList).length > 0)
     for (const log of logs) {
       const event = findEventByKey(log.topics[0])
 
@@ -224,6 +227,7 @@ export const processChunkLogs = async (
           event.type === EVENTS.METADATA_UPDATED ||
           event.type === EVENTS.METADATA_STATE
         ) {
+          // ref: https://github.com/oceanprotocol/ocean-node/issues/257
           if (checkMetadataValidated) {
             const txReceipt = await provider.getTransactionReceipt(log.transactionHash)
             const metadataProofs = fetchEventFromTransaction(
@@ -238,10 +242,12 @@ export const processChunkLogs = async (
                 true
               )
               continue
+              // do not process this one
             }
-            const validators = metadataProofs.map((metadataProof) =>
+            const validators: string[] = metadataProofs.map((metadataProof) =>
               getAddress(metadataProof.args[0].toString())
             )
+            // ALLOWED_VALIDATORS CHECK
             const allowed = allowedValidators.filter(
               (allowedValidator) => validators.indexOf(allowedValidator) !== -1
             )
@@ -252,8 +258,47 @@ export const processChunkLogs = async (
                 true
               )
               continue
+              // do not process this one
             }
-          }
+            // ALLOWED_VALIDATORS_LIST
+            // by default it is OK
+            let isAllowed = true
+            if (allowedValidatorsList && validators.length > 0) {
+              // need to check then
+              isAllowed = false
+              // check accessList
+              const chainsListed = Object.keys(allowedValidatorsList)
+              const chain = String(chainId)
+              // check the access lists for this chain
+              if (chainsListed.length > 0 && chainsListed.includes(chain)) {
+                for (const accessListAddress of allowedValidatorsList[chain]) {
+                  // instantiate contract and check balanceOf
+                  const accessListContract = new ethers.Contract(
+                    accessListAddress,
+                    AccessListContract.abi,
+                    signer
+                  )
+                  for (const metaproofValidator of validators) {
+                    // if has at least 1 token than it is authorized
+                    // its enough one validator on the list
+                    const balance = await accessListContract.balanceOf(metaproofValidator)
+                    if (Number(balance) <= 0) {
+                      INDEXER_LOGGER.error(
+                        `Metadata validator: ${metaproofValidator} is NOT part of the access list group: ${accessListAddress}.`
+                      )
+                    } else {
+                      isAllowed = true
+                      break
+                    }
+                  }
+                }
+              } else {
+                isAllowed = true // no rules for this specific chain, so ignore this
+              }
+              // move on to the next (do not process this event)
+              if (isAllowed === false) continue
+            } // end if (allowedValidatorsList) {
+          } // end if if (checkMetadataValidated) {
         }
         if (
           event.type === EVENTS.METADATA_CREATED ||
@@ -340,7 +385,7 @@ export const processChunkLogs = async (
           )
         }
       }
-    }
+    } // end for loop
     return storeEvents
   }
 
