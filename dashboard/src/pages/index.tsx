@@ -9,7 +9,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Ocean nodes - TEST 123 321 abc xyz</title>
+        <title>Ocean nodes</title>
         <meta name="description" content="Ocean nodes dashboard" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
