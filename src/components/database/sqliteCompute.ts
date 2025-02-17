@@ -131,7 +131,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       environment, 
       body
       )
-      VALUES (?, ?, ?, ?,  ?, ?, ?, ?, ?, ?, ?);
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     `
     const jobId = job.jobId || generateUniqueID()
     job.jobId = jobId
