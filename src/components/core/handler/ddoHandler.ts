@@ -917,11 +917,14 @@ export class ValidateDDOHandler extends Handler {
       }
       // Missing signature, nonce or publisher address
       // DDO is a valid object, but we cannot verify the signatures
+      // TODO CHECK LOGIC
+      const msg =
+        'Partial validation: DDO is valid, but none of "publisher address", "signature" or "nonce" are present. Cannot add validation signature'
       return {
-        stream: null,
+        stream: Readable.from(JSON.stringify(msg)),
         status: {
           httpStatus: 200,
-          error: `Partial validation error: DDO is valid, but none of "publisher address", "signature" or "nonce" are present. Cannot add validation signature`
+          error: msg
         }
       }
       // return {
