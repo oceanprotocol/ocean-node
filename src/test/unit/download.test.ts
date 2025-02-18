@@ -65,11 +65,7 @@ describe('Should validate files structure for download', () => {
         serviceEndpoint: 'http://127.0.0.1:8001',
         timeout: 86400
       }
-    ],
-    indexedMetadata: {
-      stats: [],
-      event: {}
-    }
+    ]
   }
 
   const assetURL = {

@@ -61,6 +61,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   let artifactsAddresses: any
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   let previousConfiguration: OverrideEnvConfig[]
+  let genericAssetCloned: any
 
   before(async () => {
     previousConfiguration = await setupEnvironment(
@@ -100,6 +101,9 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       ERC721Factory.abi,
       publisherAccount
     )
+    genericAssetCloned = structuredClone(genericAsset)
+    delete genericAssetCloned.event
+    delete genericAssetCloned.nft
   })
 
   it('instance Database', () => {
@@ -160,25 +164,25 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
 
   it('should set metadata and save ', async () => {
     nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, publisherAccount)
-    genericAsset.id =
+    genericAssetCloned.id =
       'did:op:' +
       createHash('sha256')
         .update(getAddress(nftAddress) + chainId.toString(10))
         .digest('hex')
-    genericAsset.nftAddress = nftAddress
-    assetDID = genericAsset.id
+    genericAssetCloned.nftAddress = nftAddress
+    assetDID = genericAssetCloned.id
     // create proper service.files string
-    genericAsset.services[0].datatokenAddress = datatokenAddress
-    genericAsset.nftAddress = nftAddress
+    genericAssetCloned.services[0].datatokenAddress = datatokenAddress
+    genericAssetCloned.nftAddress = nftAddress
     // let's call node to encrypt
 
     const data = Uint8Array.from(
-      Buffer.from(JSON.stringify(genericAsset.services[0].files))
+      Buffer.from(JSON.stringify(genericAssetCloned.services[0].files))
     )
     const encryptedData = await encrypt(data, EncryptMethod.ECIES)
     const encryptedDataString = encryptedData.toString('hex')
-    genericAsset.services[0].files = encryptedDataString
-    const stringDDO = JSON.stringify(genericAsset)
+    genericAssetCloned.services[0].files = encryptedDataString
+    const stringDDO = JSON.stringify(genericAssetCloned)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
     const hash = createHash('sha256').update(metadata).digest('hex')
@@ -194,29 +198,19 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     )
     setMetaDataTxReceipt = await setMetaDataTx.wait()
     assert(setMetaDataTxReceipt, 'set metada failed')
-    // for testing purpose
-    genericAsset.event.tx = setMetaDataTxReceipt.transactionHash
-    genericAsset.event.block = setMetaDataTxReceipt.blockNumber
-    genericAsset.event.from = setMetaDataTxReceipt.from
-    genericAsset.event.contract = setMetaDataTxReceipt.contractAddress
-    genericAsset.event.datetime = '2023-02-15T16:42:22'
-
-    genericAsset.nft.address = nftAddress
-    genericAsset.nft.owner = setMetaDataTxReceipt.from
-    genericAsset.nft.state = 0
-    genericAsset.nft.created = '2022-12-30T08:40:43'
   })
 
   it('should store the ddo in the database and return it ', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
       EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT * 6
+      DEFAULT_TEST_TIMEOUT * 2
     )
     if (ddo) {
       resolvedDDO = ddo
-      expect(resolvedDDO.id).to.equal(genericAsset.id)
+      console.log(`resolved ddo: ${JSON.stringify(resolvedDDO)}`)
+      expect(resolvedDDO.id).to.equal(genericAssetCloned.id)
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
   })
 
@@ -302,7 +296,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       publisherAccount
     )
     assert(dispenserContract)
-    genericAsset.services.push({
+    genericAssetCloned.services.push({
       id: '1',
       type: 'access',
       description: 'Download service',
@@ -317,14 +311,14 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
       serviceEndpoint: 'http://172.15.0.4:8030',
       timeout: 0
     })
-
+    assert(genericAssetCloned.services.length === 2, 'the 2 services are not present')
     const data = Uint8Array.from(
-      Buffer.from(JSON.stringify(genericAsset.services[1].files))
+      Buffer.from(JSON.stringify(genericAssetCloned.services[1].files))
     )
     const encryptedData = await encrypt(data, EncryptMethod.ECIES)
     const encryptedDataString = encryptedData.toString('hex')
-    genericAsset.services[1].files = encryptedDataString
-    const stringDDO = JSON.stringify(genericAsset)
+    genericAssetCloned.services[1].files = encryptedDataString
+    const stringDDO = JSON.stringify(genericAssetCloned)
     const bytes = Buffer.from(stringDDO)
     const metadata = hexlify(bytes)
     const hash = createHash('sha256').update(metadata).digest('hex')
@@ -342,34 +336,32 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     assert(setMetaDataTxReceipt, 'set metada failed')
   })
   it('should store the updated ddo in the database and return it ', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 11)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     const { ddo, wasTimeout } = await waitToIndex(
-      assetDID,
+      genericAssetCloned.id,
       EVENTS.METADATA_UPDATED,
-      DEFAULT_TEST_TIMEOUT * 10
+      DEFAULT_TEST_TIMEOUT * 2,
+      true
     )
-    const updatedDDO: any = ddo
-    if (updatedDDO) {
+    console.log(`updated ddo: ${JSON.stringify(ddo.indexedMetadata.stats)}`)
+    if (ddo) {
       assert(
-        updatedDDO.indexedMetadata.stats.length === 2,
+        ddo.indexedMetadata.stats.length === 2,
         'the 2 pricing schemas were not captured in the stats'
       )
       assert(
-        updatedDDO.indexedMetadata.stats[1].prices[0].type === 'dispenser',
+        ddo.indexedMetadata.stats[1].prices[0].type === 'dispenser',
         'type is not dispenser'
       )
       assert(
-        updatedDDO.indexedMetadata.stats[1].datatokenAddress ===
-          genericAsset.services[1].datatokenAddress,
+        ddo.indexedMetadata.stats[1].datatokenAddress ===
+          genericAssetCloned.services[1].datatokenAddress,
         'mismatch datatoken address'
       )
+      assert(ddo.indexedMetadata.stats[1].prices[0].price === '0', 'price is not 0')
       assert(
-        updatedDDO.indexedMetadata.stats[1].prices[0].price === '0',
-        'price is not 0'
-      )
-      assert(
-        updatedDDO.indexedMetadata.stats[1].prices[0].token ===
-          genericAsset.services[1].datatokenAddress,
+        ddo.indexedMetadata.stats[1].prices[0].token ===
+          genericAssetCloned.services[1].datatokenAddress,
         'mismatch datatoken address'
       )
     } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)

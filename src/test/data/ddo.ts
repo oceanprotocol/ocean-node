@@ -1,24 +1,35 @@
 export const ddo = {
   hashType: 'sha256',
   '@context': ['https://w3id.org/did/v1'],
-  id: 'did:op:fa0e8fa9550e8eb13392d6eeb9ba9f8111801b332c8d2345b350b3bc66b379d7',
-  nftAddress: '0xBB1081DbF3227bbB233Db68f7117114baBb43656',
+  id: 'did:op:b5ef03b7f0d148cde2942c8a330625d4fc71dd32b67a0093da24fcb9a4439887',
+  nftAddress: '0xca63894B1c911515F1C034BE3509AfC008B42d83',
   version: '4.1.0',
   chainId: 137,
   metadata: {
     created: '2022-12-30T08:40:06Z',
     updated: '2022-12-30T08:40:06Z',
     type: 'dataset',
-    name: 'DEX volume in details',
+    name: 'ETH/USDT orderbook',
     description:
-      'Volume traded and locked of Decentralized Exchanges (Uniswap, Sushiswap, Curve, Balancer, ...), daily in details',
-    tags: ['index', 'defi', 'tvl'],
-    author: 'DEX',
+      'Real time ETH/USDT orderbook\n\nTo take the bid orders, access data.bids array\nTo take the ask orders, access data.asks array\n\nResponse schema:\n\n```json\n{\n    "code":"200000",\n    "data":\n        {\n            "time":1665865828392,\n            "sequence":"357821345",\n            "bids":\n                [\n                    ["1280","0.00078381"],\n                    ["1279.9","0.02901545"],\n                    ....\n                ],\n            "asks":\n                [\n                    ["1280.2","0.0288382"],\n                    ["1280.3","0.00167897"],\n                    ...\n                ]\n        }\n}\n```\n\nAccess is permited for 1 day after buying.',
+    tags: ['defi', 'orderbook'],
+    author: '0x4Ab0C24005c410111e21aE16Df5e19180fAD0f6a',
     license: 'https://market.oceanprotocol.com/terms',
     additionalInformation: {
       termsAndConditions: true
     }
-  }
+  },
+  services: [
+    {
+      id: '24654b91482a3351050510ff72694d88edae803cf31a5da993da963ba0087648',
+      type: 'access',
+      files:
+        '0x04beba2f90639ff7559618160df5a81729904022578e6bd5f60c3bebfe5cb2aca59d7e062228a98ed88c4582c290045f47cdf3824d1c8bb25b46b8e10eb9dc0763ce82af826fd347517011855ce1396ac94af8cc6f29b78012b679cb78a594d9064b6f6f4a8229889f0bb53262b6ab62b56fa5c608ea126ba228dd0f87290c0628fe07023416280c067beb01a42d0a4df95fdb5a857f1f59b3e6a13b0ae4619080369ba5bede6c7beff6afc7fc31c71ed8100e7817d965d1f8f1abfaace3c01f0bd5d0127df308175941088a1f120a4d9a0290be590d65a7b4de01ae1efe24286d7a06fadeeafba83b5eab25b90961abf1f24796991f06de6c8e1c2357fbfb31f484a94e87e7dba80a489e12fffa1adde89f113b4c8c4c8877914911a008dbed0a86bdd9d14598c35894395fb4a8ea764ed2f9459f6acadac66e695b3715536338f6cdee616b721b0130f726c78ca60ec02fc86c',
+      datatokenAddress: '0xfF4AE9869Cafb5Ff725f962F3Bbc22Fb303A8aD8',
+      serviceEndpoint: 'https://v4.provider.polygon.oceanprotocol.com',
+      timeout: 0
+    }
+  ]
 }
 export const genericAlgorithm = {
   '@context': ['https://w3id.org/did/v1'],

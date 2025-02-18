@@ -756,7 +756,8 @@ export class FindDdoHandler extends Handler {
           credentials: ddoData.credentials,
           indexedMetadata: {
             stats: ddoData.indexedMetadata.stats,
-            event: ddoData.indexedMetadata.event
+            event: ddoData.indexedMetadata.event,
+            nft: ddoData.indexedMetadata.nft
           }
         }
 

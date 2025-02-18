@@ -163,6 +163,7 @@ export async function orderAsset(
     }
     const response = await new FeesHandler(oceanNode).handle(statusCommand)
     const fees = await streamToObject(response.stream as Readable)
+    console.log('json fees: ', JSON.stringify(fees))
     providerFees = fees.providerFee
   }
   // call the mint function on the dataTokenContract

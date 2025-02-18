@@ -24,6 +24,7 @@ export function sanitizeServiceFiles(serviceFiles: string): string {
 
 export async function streamToObject(stream: Readable): Promise<any> {
   const jsonString = await streamToString(stream)
+  PROVIDER_LOGGER.logMessage(`jsonString from stream: ${jsonString}`)
   try {
     return JSON.parse(jsonString)
   } catch (error) {

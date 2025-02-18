@@ -1,3 +1,4 @@
+import { Nft } from './Nft'
 import { Event } from './Event'
 
 export type PriceType = 'fixedrate' | 'dispenser'
@@ -20,6 +21,7 @@ export interface ServiceStats {
 }
 
 export interface IndexedMetadata {
+  nft: Nft
   stats?: ServiceStats[]
   /**
    * Describes the event of last metadata event
