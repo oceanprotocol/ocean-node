@@ -916,13 +916,21 @@ export class ValidateDDOHandler extends Handler {
         }
       }
       // Missing signature, nonce or publisher address
+      // DDO is a valid object, but we cannot verify the signatures
       return {
         stream: null,
         status: {
-          httpStatus: 400,
-          error: `Validation error: Either publisher address is missing or there is an invalid signature/nonce`
+          httpStatus: 200,
+          error: `Partial validation error: DDO is valid, but none of "publisher address", "signature" or "nonce" are present. Cannot add validation signature`
         }
       }
+      // return {
+      //   stream: null,
+      //   status: {
+      //     httpStatus: 400,
+      //     error: `Validation error: Either publisher address is missing or there is an invalid signature/nonce`
+      //   }
+      // }
     } catch (error) {
       CORE_LOGGER.logMessageWithEmoji(
         `Error occurred on validateDDO command: ${error}`,
