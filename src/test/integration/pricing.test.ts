@@ -336,11 +336,12 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     assert(setMetaDataTxReceipt, 'set metada failed')
   })
   it('should store the updated ddo in the database and return it ', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 6)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     const { ddo, wasTimeout } = await waitToIndex(
-      assetDID,
+      genericAssetCloned.id,
       EVENTS.METADATA_UPDATED,
-      DEFAULT_TEST_TIMEOUT * 6
+      DEFAULT_TEST_TIMEOUT * 2,
+      true
     )
     console.log(`updated ddo: ${JSON.stringify(ddo.indexedMetadata.stats)}`)
     if (ddo) {
