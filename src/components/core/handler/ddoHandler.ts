@@ -11,10 +11,10 @@ import {
 } from '../utils/findDdoHandler.js'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
-import { sleep, readStream } from '../../../utils/util.js'
+import { sleep, readStream, isDefined } from '../../../utils/util.js'
 import { DDO } from '../../../@types/DDO/DDO.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Blockchain } from '../../../utils/blockchain.js'
+import { Blockchain, getBlockHandler } from '../../../utils/blockchain.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 // import lzma from 'lzma-native'
@@ -45,6 +45,10 @@ import {
 } from '../../Indexer/utils.js'
 import { validateDDOHash } from '../../../utils/asset.js'
 import { checkNonce } from '../utils/nonceHandler.js'
+import {
+  checkCredentialOnAccessList,
+  existsAccessListConfigurationForChain
+} from '../../../utils/credentials.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -823,12 +827,21 @@ export class ValidateDDOHandler extends Handler {
           task.ddo.id + task.nonce
         )
 
+        if (!nonceValid.valid) {
+          // BAD NONCE OR SIGNATURE
+          return {
+            stream: null,
+            status: { httpStatus: 403, error: 'Invalid nonce' }
+          }
+        }
+
         // check also NFT permissions
         const hasUpdateMetadataPermissions = await (
           await getNftPermissions(task.ddo.nftAddress, task.publisherAddress)
         ).updateMetadata
 
         if (!hasUpdateMetadataPermissions) {
+          // Has no update metadata permissions
           return {
             stream: null,
             status: {
@@ -838,15 +851,71 @@ export class ValidateDDOHandler extends Handler {
           }
         }
 
-        // ALL GOOD
-        if (nonceValid.valid) {
-          const signature = await getValidationSignature(JSON.stringify(task.ddo))
+        const chain = String(task.ddo.chainId)
+        // has publishing rights on this node?
+        const { authorizedPublishers, authorizedPublishersList, supportedNetworks } =
+          await getConfiguration()
+        const validChain = isDefined(supportedNetworks[chain])
+        // first check if chain is valid
+        if (validChain) {
+          let hasPublisherRights = false
+
+          // 1 ) check if publisher address is part of ALLOWED_PUBLISHERS
+          const isAuthorizedPublisher =
+            authorizedPublishers.length > 0 &&
+            authorizedPublishers.filter(
+              (publisher) =>
+                publisher.toLowerCase() === task.publisherAddress.toLowerCase()
+            ).length > 0
+
+          if (isAuthorizedPublisher) {
+            hasPublisherRights = true
+          } else {
+            // 2 ) check if there is an access list for this chain: ALLOWED_PUBLISHERS_LIST
+            const existsAccessList = existsAccessListConfigurationForChain(
+              authorizedPublishersList,
+              chain
+            )
+            if (existsAccessList) {
+              const blockChain = getBlockHandler(supportedNetworks[chain])
+              // check access list contracts
+              hasPublisherRights = await checkCredentialOnAccessList(
+                authorizedPublishersList,
+                chain,
+                task.publisherAddress,
+                await blockChain.getSigner()
+              )
+            }
+          }
+
+          if (!hasPublisherRights) {
+            return {
+              stream: null,
+              status: {
+                httpStatus: 400,
+                error: `Validation error: publisher address is invalid for this node`
+              }
+            }
+          }
+        } else {
+          // the chain is not supported, so we can't validate on this node
           return {
-            stream: Readable.from(JSON.stringify(signature)),
-            status: { httpStatus: 200 }
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: `Validation error: DDO chain is invalid for this node`
+            }
           }
         }
+
+        // ALL GOOD - ADD SIGNATURE
+        const signature = await getValidationSignature(JSON.stringify(task.ddo))
+        return {
+          stream: Readable.from(JSON.stringify(signature)),
+          status: { httpStatus: 200 }
+        }
       }
+      // Missing signature, nonce or publisher address
       return {
         stream: null,
         status: {
