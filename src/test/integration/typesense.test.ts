@@ -164,9 +164,9 @@ describe('Typesense documents', () => {
 
   it('search document in ddo collection', async () => {
     const result = await typesense.collections(ddoSchema.name).documents().search({
-      q: 'ETH/USDT',
+      q: 'orderbook',
       query_by: 'metadata.name',
-      filter_by: 'chainId:<138',
+      filter_by: 'chainId:=137',
       sort_by: 'version:desc'
     })
 
