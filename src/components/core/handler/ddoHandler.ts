@@ -860,7 +860,7 @@ export class ValidateDDOHandler extends Handler {
         if (validChain) {
           let hasPublisherRights = false
 
-          // 1 ) check if publisher address is part of ALLOWED_PUBLISHERS
+          // 1 ) check if publisher address is part of AUTHORIZED_PUBLISHERS
           const isAuthorizedPublisher =
             authorizedPublishers.length > 0 &&
             authorizedPublishers.filter(
@@ -871,7 +871,7 @@ export class ValidateDDOHandler extends Handler {
           if (isAuthorizedPublisher) {
             hasPublisherRights = true
           } else {
-            // 2 ) check if there is an access list for this chain: ALLOWED_PUBLISHERS_LIST
+            // 2 ) check if there is an access list for this chain: AUTHORIZED_PUBLISHERS_LIST
             const existsAccessList = existsAccessListConfigurationForChain(
               authorizedPublishersList,
               chain
