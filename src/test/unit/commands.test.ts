@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/index.js'
 import { CoreHandlersRegistry } from '../../components/core/handler/coreHandlersRegistry.js'
-import { Handler } from '../../components/core/handler/handler.js'
+import { BaseHandler } from '../../components/core/handler/handler.js'
 import { OceanNode } from '../../OceanNode.js'
 import {
   ComputeGetEnvironmentsCommand,
@@ -55,7 +55,7 @@ describe('Commands and handlers', () => {
     const node: OceanNode = OceanNode.getInstance()
     for (const command of SUPPORTED_PROTOCOL_COMMANDS) {
       expect(CoreHandlersRegistry.getInstance(node).getHandler(command)).to.be.instanceof(
-        Handler
+        BaseHandler
       )
     }
   })
@@ -203,25 +203,25 @@ describe('Commands and handlers', () => {
     // Stop Node Handler for Admin
     const stopNodeHandler: StopNodeHandler = CoreHandlersRegistry.getInstance(
       node
-    ).getHandler(PROTOCOL_COMMANDS.STOP_NODE)
+    ).getHandler(PROTOCOL_COMMANDS.STOP_NODE) as StopNodeHandler
     expect(stopNodeHandler).to.be.not.equal(null)
     // -----------------------------------------
     // Reindex Tx Handler
     const reindexTxHandler: ReindexTxHandler = CoreHandlersRegistry.getInstance(
       node
-    ).getHandler(PROTOCOL_COMMANDS.REINDEX_TX)
+    ).getHandler(PROTOCOL_COMMANDS.REINDEX_TX) as ReindexTxHandler
     expect(reindexTxHandler).to.be.not.equal(null)
     // -----------------------------------------
     // Reindex Chain Handler
     const reindexChainHandler: ReindexChainHandler = CoreHandlersRegistry.getInstance(
       node
-    ).getHandler(PROTOCOL_COMMANDS.REINDEX_CHAIN)
+    ).getHandler(PROTOCOL_COMMANDS.REINDEX_CHAIN) as ReindexChainHandler
     expect(reindexChainHandler).to.be.not.equal(null)
     // -----------------------------------------
     // CollectFeesHandler
     const collectFeesHandler: CollectFeesHandler = CoreHandlersRegistry.getInstance(
       node
-    ).getHandler(PROTOCOL_COMMANDS.COLLECT_FEES)
+    ).getHandler(PROTOCOL_COMMANDS.COLLECT_FEES) as CollectFeesHandler
     expect(collectFeesHandler).to.be.not.equal(null)
     // -----------------------------------------
     // FileInfoHandler

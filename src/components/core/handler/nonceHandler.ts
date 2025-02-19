@@ -1,4 +1,4 @@
-import { Handler } from './handler.js'
+import { CommandHandler } from './handler.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { NonceCommand } from '../../../@types/commands.js'
 import { getNonce } from '../utils/nonceHandler.js'
@@ -9,7 +9,7 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { isAddress } from 'ethers'
 
-export class NonceHandler extends Handler {
+export class NonceHandler extends CommandHandler {
   validate(command: NonceCommand): ValidateParams {
     const validation = validateCommandParameters(command, ['address'])
     if (validation.valid) {

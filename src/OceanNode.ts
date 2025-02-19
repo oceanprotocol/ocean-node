@@ -9,7 +9,7 @@ import { ReadableString } from './components/P2P/handleProtocolCommands.js'
 import StreamConcat from 'stream-concat'
 import { pipe } from 'it-pipe'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
-import { Handler } from './components/core/handler/handler.js'
+import { BaseHandler } from './components/core/handler/handler.js'
 import { C2DEngines } from './components/c2d/compute_engines.js'
 
 export interface RequestLimiter {
@@ -135,7 +135,7 @@ export class OceanNode {
 
     try {
       const task = JSON.parse(message)
-      const handler: Handler = this.coreHandlers.getHandler(task.command)
+      const handler: BaseHandler = this.coreHandlers.getHandler(task.command)
       if (handler === null) {
         status = {
           httpStatus: 501,
