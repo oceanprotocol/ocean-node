@@ -91,6 +91,17 @@ export function validateDDOHash(
   return ddoID === hashAddressAndChain
 }
 
+export function deleteIndexedMetadataIfExists(
+  ddo: Record<string, any>
+): Record<string, any> {
+  const ddoCopy: Record<string, any> = structuredClone(ddo)
+  if ('indexedMetadata' in ddoCopy) {
+    delete ddoCopy.indexedMetadata
+    return ddoCopy
+  }
+  return ddo
+}
+
 /**
  * Generates DDO Id given the chain and nft address provided
  * @param nftAddress the nft address

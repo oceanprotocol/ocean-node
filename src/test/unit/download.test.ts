@@ -66,7 +66,10 @@ describe('Should validate files structure for download', () => {
         timeout: 86400
       }
     ],
-    event: {}
+    indexedMetadata: {
+      stats: [],
+      event: {}
+    }
   }
 
   const assetURL = {
