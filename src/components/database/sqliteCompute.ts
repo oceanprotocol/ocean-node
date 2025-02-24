@@ -7,6 +7,7 @@ import {
 } from '../../@types/C2D/C2D.js'
 import sqlite3, { RunResult } from 'sqlite3'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
+import { v4 as uuidv4 } from 'uuid'
 
 interface ComputeDatabaseProvider {
   newJob(job: DBComputeJob): Promise<string>
@@ -18,7 +19,7 @@ interface ComputeDatabaseProvider {
 }
 
 export function generateUniqueID(): string {
-  return crypto.randomUUID().toString()
+  return uuidv4()
 }
 
 function getInternalStructure(job: DBComputeJob): any {
