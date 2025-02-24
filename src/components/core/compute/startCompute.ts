@@ -27,7 +27,8 @@ import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
-import { getNonceAsNumber } from '../utils/nonceHandler.js'
+import { checkNonce, NonceResponse, getNonceAsNumber } from '../utils/nonceHandler.js'
+
 export class ComputeStartHandler extends Handler {
   validate(command: ComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
@@ -405,6 +406,29 @@ export class FreeComputeStartHandler extends Handler {
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
+    const thisNode = this.getOceanNode()
+    // Validate nonce and signature
+    const nonceCheckResult: NonceResponse = await checkNonce(
+      thisNode.getDatabase().nonce,
+      task.consumerAddress,
+      parseInt(task.nonce),
+      task.signature,
+      String(task.nonce)
+    )
+
+    if (!nonceCheckResult.valid) {
+      CORE_LOGGER.logMessage(
+        'Invalid nonce or signature, unable to proceed: ' + nonceCheckResult.error,
+        true
+      )
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error: nonceCheckResult.error
+        }
+      }
+    }
     let engine = null
     try {
       // split compute env (which is already in hash-envId format) and get the hash
@@ -413,7 +437,7 @@ export class FreeComputeStartHandler extends Handler {
       const hash = task.environment.slice(0, eIndex)
       // const envId = task.environment.slice(eIndex + 1)
       try {
-        engine = await this.getOceanNode().getC2DEngines().getC2DByHash(hash)
+        engine = await thisNode.getC2DEngines().getC2DByHash(hash)
       } catch (e) {
         return {
           stream: null,
