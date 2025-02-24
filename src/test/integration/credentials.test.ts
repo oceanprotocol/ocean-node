@@ -52,7 +52,6 @@ import { publishAsset, orderAsset } from '../utils/assets.js'
 import { downloadAssetWithCredentials } from '../data/assets.js'
 import { ganachePrivateKeys } from '../utils/addresses.js'
 import { homedir } from 'os'
-import { sleep } from './util.js'
 
 describe('Should run a complete node flow.', () => {
   let config: OceanNodeConfig
