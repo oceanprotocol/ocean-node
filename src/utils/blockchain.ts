@@ -220,7 +220,7 @@ export async function getJsonRpcProvider(
 }
 
 // useful for getting a Blockchain instance, as we repeat this piece of code often
-export function getBlockHandler(network: SupportedNetwork): Blockchain {
+export function getBlockchainHandler(network: SupportedNetwork): Blockchain {
   const blockChain = new Blockchain(
     network.rpc,
     network.network,
@@ -228,4 +228,15 @@ export function getBlockHandler(network: SupportedNetwork): Blockchain {
     network.fallbackRPCs
   )
   return blockChain
+}
+
+/**
+ * Returns a contract instance for the given address
+ * @param {string} address - The address of the contract
+ * @param {AbiItem[]} [abi] - The ABI of the contract
+ * @returns {Contract} - The contract instance
+ */
+export function getContract(address: string, abi: any, signer: Signer): Contract {
+  const contract = new ethers.Contract(address, abi, signer)
+  return contract
 }

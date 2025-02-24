@@ -14,7 +14,7 @@ import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js
 import { sleep, readStream, isDefined } from '../../../utils/util.js'
 import { DDO } from '../../../@types/DDO/DDO.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Blockchain, getBlockHandler } from '../../../utils/blockchain.js'
+import { Blockchain, getBlockchainHandler } from '../../../utils/blockchain.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 // import lzma from 'lzma-native'
@@ -835,22 +835,6 @@ export class ValidateDDOHandler extends Handler {
           }
         }
 
-        // check also NFT permissions
-        const hasUpdateMetadataPermissions = await (
-          await getNftPermissions(task.ddo.nftAddress, task.publisherAddress)
-        ).updateMetadata
-
-        if (!hasUpdateMetadataPermissions) {
-          // Has no update metadata permissions
-          return {
-            stream: null,
-            status: {
-              httpStatus: 400,
-              error: `Validation error: Publisher: ${task.publisherAddress} does not have "updateMetadata" permissions`
-            }
-          }
-        }
-
         const chain = String(task.ddo.chainId)
         // has publishing rights on this node?
         const { authorizedPublishers, authorizedPublishersList, supportedNetworks } =
@@ -858,6 +842,30 @@ export class ValidateDDOHandler extends Handler {
         const validChain = isDefined(supportedNetworks[chain])
         // first check if chain is valid
         if (validChain) {
+          const blockChain = getBlockchainHandler(supportedNetworks[chain])
+
+          // check also NFT permissions
+          const hasUpdateMetadataPermissions = await (
+            await getNftPermissions(
+              blockChain.getSigner(),
+              task.ddo.nftAddress,
+              ERC721Template.abi,
+              task.publisherAddress
+            )
+          ).updateMetadata
+          console.log('hasUpdateMetadataPermissions:', hasUpdateMetadataPermissions)
+
+          if (!hasUpdateMetadataPermissions) {
+            // Has no update metadata permissions
+            return {
+              stream: null,
+              status: {
+                httpStatus: 400,
+                error: `Validation error: Publisher: ${task.publisherAddress} does not have "updateMetadata" permissions`
+              }
+            }
+          }
+
           let hasPublisherRights = false
 
           // 1 ) check if publisher address is part of AUTHORIZED_PUBLISHERS
@@ -877,7 +885,6 @@ export class ValidateDDOHandler extends Handler {
               chain
             )
             if (existsAccessList) {
-              const blockChain = getBlockHandler(supportedNetworks[chain])
               // check access list contracts
               hasPublisherRights = await checkCredentialOnAccessList(
                 authorizedPublishersList,
@@ -917,7 +924,6 @@ export class ValidateDDOHandler extends Handler {
       }
       // Missing signature, nonce or publisher address
       // DDO is a valid object, but we cannot verify the signatures
-      // TODO CHECK LOGIC
       // const msg =
       //   'Partial validation: DDO is valid, but none of "publisher address", "signature" or "nonce" are present. Cannot add validation signature'
       // return {

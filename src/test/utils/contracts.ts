@@ -1,15 +1,5 @@
-import { Contract, ethers, Signer } from 'ethers'
-
-/**
- * Returns a contract instance for the given address
- * @param {string} address - The address of the contract
- * @param {AbiItem[]} [abi] - The ABI of the contract
- * @returns {Contract} - The contract instance
- */
-export function getContract(address: string, abi: any, signer: Signer): Contract {
-  const contract = new ethers.Contract(address, abi, signer)
-  return contract
-}
+import { Signer } from 'ethers'
+import { getContract } from '../../utils/blockchain.js'
 
 export function getEventFromTx(txReceipt: { logs: any[] }, eventName: string) {
   return txReceipt?.logs?.filter((log) => {

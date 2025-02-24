@@ -107,6 +107,8 @@ export async function checkNonce(
     // get nonce from db
     let previousNonce = 0 // if none exists
     const existingNonce = await db.retrieve(consumer)
+    console.log('existing:', existingNonce)
+    console.log('task:', nonce)
     if (existingNonce && existingNonce.nonce !== null) {
       previousNonce = existingNonce.nonce
     }
@@ -118,6 +120,7 @@ export async function checkNonce(
       signature,
       message // String(ddoId + nonce)
     )
+    console.log('validate: ', validate)
     if (validate.valid) {
       const updateStatus = await updateNonce(db, consumer, nonce)
       return updateStatus
