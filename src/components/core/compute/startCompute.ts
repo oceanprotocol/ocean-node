@@ -425,7 +425,8 @@ export class FreeComputeStartHandler extends Handler {
         stream: null,
         status: {
           httpStatus: 500,
-          error: nonceCheckResult.error
+          error:
+            'Invalid nonce or signature, unable to proceed: ' + nonceCheckResult.error
         }
       }
     }

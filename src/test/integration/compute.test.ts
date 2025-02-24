@@ -725,8 +725,32 @@ describe('Compute', () => {
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
   })
-  it('should deny the Free job due to bad container image (directCommand payload)', async function () {
+  it('should deny the Free job due to signature (directCommand payload)', async function () {
     freeComputeStartPayload.environment = firstEnv.id
+    const command: FreeComputeStartCommand = freeComputeStartPayload
+    const handler = new FreeComputeStartHandler(oceanNode)
+    const response = await handler.handle(command)
+    assert(response.status.httpStatus === 500, 'Failed to get 500 response')
+    assert(response.stream === null, 'Should not get stream')
+    assert(
+      response.status.error.includes('Invalid nonce or signature'),
+      'Should have image error'
+    )
+  })
+  it('should deny the Free job due to bad container image (directCommand payload)', async function () {
+    const nonce = Date.now().toString()
+    const message = String(nonce)
+    // sign message/nonce
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await wallet.signMessage(messageHashBytes)
+    freeComputeStartPayload.signature = signature
+    freeComputeStartPayload.nonce = nonce
+    freeComputeStartPayload.environment = firstEnv.id
+    freeComputeStartPayload.consumerAddress = await wallet.getAddress()
     const command: FreeComputeStartCommand = freeComputeStartPayload
     const handler = new FreeComputeStartHandler(oceanNode)
     const response = await handler.handle(command)
