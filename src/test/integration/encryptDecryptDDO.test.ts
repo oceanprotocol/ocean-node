@@ -1,12 +1,4 @@
-import {
-  Contract,
-  ethers,
-  getAddress,
-  hexlify,
-  JsonRpcProvider,
-  Signer,
-  ZeroAddress
-} from 'ethers'
+import { Contract, ethers, getAddress, hexlify, Signer, ZeroAddress } from 'ethers'
 import { assert, expect } from 'chai'
 import { getEventFromTx, streamToString } from '../../utils/util.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
@@ -23,6 +15,7 @@ import { encrypt } from '../../utils/crypt.js'
 import { Database } from '../../components/database/index.js'
 import { DecryptDdoHandler } from '../../components/core/handler/ddoHandler.js'
 import {
+  Blockchain,
   ENVIRONMENT_VARIABLES,
   getConfiguration,
   PROTOCOL_COMMANDS
@@ -44,7 +37,6 @@ import { OceanIndexer } from '../../components/Indexer/index.js'
 describe('Should encrypt and decrypt DDO', () => {
   let database: Database
   let oceanNode: OceanNode
-  let provider: JsonRpcProvider
   let publisherAccount: Signer
   let publisherAddress: string
   let factoryContract: Contract
@@ -57,6 +49,7 @@ describe('Should encrypt and decrypt DDO', () => {
   let documentHash: any
   let indexer: OceanIndexer
   const nonce = Math.floor(Date.now() / 1000).toString()
+  let blockchain: Blockchain
 
   const chainId = 8996
   const mockSupportedNetworks: RPCS = {
@@ -71,29 +64,26 @@ describe('Should encrypt and decrypt DDO', () => {
   let previousConfiguration: OverrideEnvConfig[]
 
   before(async () => {
-    provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    publisherAccount = (await provider.getSigner(0)) as Signer
-    publisherAddress = await publisherAccount.getAddress()
-    genericAsset = genericDDO
     previousConfiguration = await setupEnvironment(
       TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
+        [ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS, ENVIRONMENT_VARIABLES.ADDRESS_FILE],
         [
-          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
-          ENVIRONMENT_VARIABLES.RPCS,
-          ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
-          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
-          ENVIRONMENT_VARIABLES.ADDRESS_FILE
-        ],
-        [
-          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          JSON.stringify(mockSupportedNetworks),
-          JSON.stringify([8996]),
-          JSON.stringify([publisherAddress]),
+          JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
     )
+
+    const rpc: string = 'http://127.0.0.1:8545'
+    blockchain = new Blockchain(rpc, 'development', 8996, [
+      'http://172.0.0.3:8545',
+      'http://127.0.0.1:8545'
+    ])
+
+    publisherAccount = blockchain.getSigner() as Signer
+    publisherAddress = await publisherAccount.getAddress()
+    genericAsset = genericDDO
     let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
     if (!artifactsAddresses) {
       artifactsAddresses = getOceanArtifactsAdresses().development

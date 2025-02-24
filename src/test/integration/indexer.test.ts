@@ -1,8 +1,8 @@
 import { expect, assert } from 'chai'
 import { createHash } from 'crypto'
 import {
-  JsonRpcProvider,
   Signer,
+  JsonRpcProvider,
   Contract,
   ethers,
   getAddress,
@@ -62,7 +62,6 @@ import { EncryptMethod } from '../../@types/fileObject.js'
 describe('Indexer stores a new metadata events and orders.', () => {
   let database: Database
   let oceanNode: OceanNode
-  let provider: JsonRpcProvider
   let factoryContract: Contract
   let nftContract: Contract
   let publisherAccount: Signer
@@ -81,6 +80,8 @@ describe('Indexer stores a new metadata events and orders.', () => {
   let reusedOrderEvent: any
   let initialOrderCount: number
   let indexer: OceanIndexer
+  let wallet: ethers.Wallet
+  let blockchain: Blockchain
   const feeToken = '0x312213d6f6b5FCF9F56B7B8946A6C727Bf4Bc21f'
   const serviceIndex = 0 // dummy index
   const consumeMarketFeeAddress = ZeroAddress // marketplace fee Collector
@@ -93,18 +94,8 @@ describe('Indexer stores a new metadata events and orders.', () => {
     previousConfiguration = await setupEnvironment(
       null,
       buildEnvOverrideConfig(
-        [
-          ENVIRONMENT_VARIABLES.RPCS,
-          ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
-          ENVIRONMENT_VARIABLES.PRIVATE_KEY,
-          ENVIRONMENT_VARIABLES.ADDRESS_FILE
-        ],
-        [
-          JSON.stringify(mockSupportedNetworks),
-          JSON.stringify([8996]),
-          '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
-        ]
+        [ENVIRONMENT_VARIABLES.ADDRESS_FILE],
+        [`${homedir}/.ocean/ocean-contracts/artifacts/address.json`]
       )
     )
 
@@ -117,10 +108,16 @@ describe('Indexer stores a new metadata events and orders.', () => {
     if (!artifactsAddresses) {
       artifactsAddresses = getOceanArtifactsAdresses().development
     }
+    const rpc: string = 'http://127.0.0.1:8545'
+    const provider = new JsonRpcProvider(rpc)
+    wallet = new ethers.Wallet(process.env.ANOTHER_WALLET_PRIVATE_KEY, provider)
+    blockchain = new Blockchain(rpc, 'development', 8996, [
+      'http://172.0.0.3:8545',
+      'http://127.0.0.1:8545'
+    ])
 
-    provider = new JsonRpcProvider('http://127.0.0.1:8545')
-    publisherAccount = (await provider.getSigner(0)) as Signer
-    consumerAccount = (await provider.getSigner(1)) as Signer
+    publisherAccount = blockchain.getSigner() as Signer
+    consumerAccount = wallet as Signer
     genericAsset = JSON.parse(JSON.stringify(genericDDO))
     factoryContract = new ethers.Contract(
       artifactsAddresses.ERC721Factory,

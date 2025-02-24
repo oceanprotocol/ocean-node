@@ -3,39 +3,13 @@ import {
   getValidationSignature,
   validateObject
 } from '../../../components/core/utils/validateDdoHandler.js'
-import { ENVIRONMENT_VARIABLES } from '../../../utils/index.js'
-
+import { TEST_ENV_CONFIG_FILE, setupEnvironment } from '../../utils/utils.js'
 import { expect } from 'chai'
-import {
-  setupEnvironment,
-  tearDownEnvironment,
-  buildEnvOverrideConfig,
-  OverrideEnvConfig
-} from '../../utils/utils.js'
 
-describe('Schema validation tests', async () => {
-  let envOverrides: OverrideEnvConfig[]
-  envOverrides = buildEnvOverrideConfig(
-    [
-      ENVIRONMENT_VARIABLES.PRIVATE_KEY,
-      ENVIRONMENT_VARIABLES.IPFS_GATEWAY,
-      ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY,
-      ENVIRONMENT_VARIABLES.RPCS
-    ],
-    [
-      '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
-      'https://ipfs.io/',
-      'https://arweave.net/',
-      '{ "1": "https://rpc.eth.gateway.fm", "137": "https://polygon.meowrpc.com" }'
-    ]
-  )
-  envOverrides = await setupEnvironment(null, envOverrides)
-
-  after(() => {
-    // Restore original local setup / env variables after test
-    tearDownEnvironment(envOverrides)
+describe('Schema validation tests', () => {
+  before(() => {
+    setupEnvironment(TEST_ENV_CONFIG_FILE)
   })
-
   it('should pass the validation on version 4.1.0', async () => {
     const validationResult = await validateObject(DDOExample, 137, DDOExample.nftAddress)
     expect(validationResult[0]).to.eql(true)
