@@ -6,11 +6,13 @@ import SHACLValidator from 'rdf-validate-shacl'
 import formats from '@rdfjs/formats-common'
 import { fromRdf } from 'rdf-literal'
 import { createHash } from 'crypto'
-import { ethers, getAddress } from 'ethers'
+import { ethers, getAddress, Signer } from 'ethers'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
 import { Readable } from 'stream'
+import { NftRoles } from '../../../@types/DDO/Nft.js'
+import { getContract } from '../../../utils/blockchain.js'
 
 const CURRENT_VERSION = '4.7.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0', '4.7.0']
@@ -156,4 +158,15 @@ export async function getValidationSignature(ddo: string): Promise<any> {
     CORE_LOGGER.logMessage(`Validation signature error: ${error}`, true)
     return { hash: '', publicKey: '', r: '', s: '', v: '' }
   }
+}
+
+export async function getNftPermissions(
+  signer: Signer,
+  nftAddress: string, // smart contract address
+  nftAbi: any, // smart contract ABI
+  addressToCheck: string // user account address
+): Promise<NftRoles> {
+  const nftContract = getContract(nftAddress, nftAbi, signer)
+  const roles = await nftContract.getPermissions(addressToCheck)
+  return roles
 }
