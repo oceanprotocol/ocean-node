@@ -184,6 +184,11 @@ routesNames.set('indexQueue', {
   method: 'get'
 })
 
+routesNames.set('PolicyServerPassthrough', {
+  path: `${SERVICES_API_BASE_PATH}/PolicyServerPassthrough`,
+  method: 'post'
+})
+
 export function addMapping(path: any, layer: any) {
   if (layer.route) {
     layer.route.stack.forEach(addMapping.bind(null, path.concat(split(layer.route.path))))

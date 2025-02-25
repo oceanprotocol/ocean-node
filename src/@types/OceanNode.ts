@@ -66,9 +66,26 @@ export interface OceanNodeP2PConfig {
   autoDialInterval: number
 }
 
+export interface OceanNodeDockerConfig {
+  socketPath?: string
+  protocol?: string
+  host?: string
+  port?: number
+  caPath?: string
+  certPath?: string
+  keyPath?: string
+}
+
+export interface AccessListContract {
+  [chainId: string]: string[]
+}
+
 export interface OceanNodeConfig {
   authorizedDecrypters: string[]
   allowedValidators: string[]
+  allowedValidatorsList: AccessListContract | null
+  authorizedPublishers: string[]
+  authorizedPublishersList: AccessListContract | null
   keys: OceanNodeKeys
   hasP2P: boolean
   p2pConfig: OceanNodeP2PConfig | null

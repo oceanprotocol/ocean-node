@@ -12,7 +12,6 @@ import {
   ComputeStopCommand,
   DecryptDDOCommand,
   DownloadCommand,
-  EchoCommand,
   EncryptCommand,
   EncryptFileCommand,
   FileInfoCommand,
@@ -38,7 +37,6 @@ import {
 import { QueryHandler } from '../../components/core/handler/queryHandler.js'
 import { StatusHandler } from '../../components/core/handler/statusHandler.js'
 import { FeesHandler } from '../../components/core/handler/feesHandler.js'
-import { EchoHandler } from '../../components/core/handler/echoHandler.js'
 import { FileInfoHandler } from '../../components/core/handler/fileInfoHandler.js'
 import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/environments.js'
 import { ComputeStartHandler } from '../../components/core/compute/startCompute.js'
@@ -202,19 +200,10 @@ describe('Commands and handlers', () => {
     feesCommand.consumerAddress = 'INVALID_1234567'
     expect(feesHandler.validate(feesCommand).valid).to.be.equal(false)
     // -----------------------------------------
-    // EchoHandler
-    const echoHandler: EchoHandler = CoreHandlersRegistry.getInstance(node).getHandler(
-      PROTOCOL_COMMANDS.ECHO
-    )
-    const echoCommand: EchoCommand = {
-      command: PROTOCOL_COMMANDS.ECHO
-    }
-    expect(echoHandler.validate(echoCommand).valid).to.be.equal(true)
-    // -----------------------------------------
     // Stop Node Handler for Admin
     const stopNodeHandler: StopNodeHandler = CoreHandlersRegistry.getInstance(
       node
-    ).getHandler(PROTOCOL_COMMANDS.ECHO)
+    ).getHandler(PROTOCOL_COMMANDS.STOP_NODE)
     expect(stopNodeHandler).to.be.not.equal(null)
     // -----------------------------------------
     // Reindex Tx Handler
