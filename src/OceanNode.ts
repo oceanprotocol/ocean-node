@@ -73,7 +73,14 @@ export class OceanNode {
     if (this.c2dEngines) {
       await this.c2dEngines.stopAllEngines()
     }
-    if (_config && _config.c2dClusters) this.c2dEngines = new C2DEngines(_config)
+    if (_config && _config.c2dClusters) {
+      if (!this.db || !this.db.c2d) {
+        OCEAN_NODE_LOGGER.error('C2DDatabase is mandatory for compute engines!')
+        return
+      }
+      this.c2dEngines = new C2DEngines(_config, this.db.c2d)
+      await this.c2dEngines.startAllEngines()
+    }
   }
 
   public getP2PNode(): OceanP2P | undefined {

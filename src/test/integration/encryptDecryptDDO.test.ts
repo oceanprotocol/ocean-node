@@ -56,7 +56,7 @@ describe('Should encrypt and decrypt DDO', () => {
   let encryptedMetaData: any
   let documentHash: any
   let indexer: OceanIndexer
-  const nonce = Math.floor(Date.now() / 1000).toString()
+  const nonce = Date.now().toString()
 
   const chainId = 8996
   const mockSupportedNetworks: RPCS = {
