@@ -2,7 +2,6 @@ import type {
   DenyList,
   OceanNodeConfig,
   OceanNodeKeys,
-  OceanNodeDockerConfig,
   AccessListContract
 } from '../@types/OceanNode'
 import { dhtFilterMethod } from '../@types/OceanNode.js'
@@ -36,7 +35,6 @@ import { create256Hash } from './crypt.js'
 import { isDefined } from './util.js'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { isDefined } from './util.js'
 
 // usefull for lazy loading and avoid boilerplate on other places
 let previousConfiguration: OceanNodeConfig = null
