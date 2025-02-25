@@ -1,6 +1,6 @@
 /* eslint-disable security/detect-non-literal-fs-filename */
 import { Readable } from 'stream'
-import { C2DClusterType, C2DStatusNumber, C2DStatusText } from '../../@types/C2D/C2D.js'
+import { C2DStatusNumber, C2DStatusText } from '../../@types/C2D/C2D.js'
 import type {
   C2DClusterInfo,
   ComputeEnvironment,
@@ -10,7 +10,9 @@ import type {
   ComputeOutput,
   DBComputeJob,
   ComputeResult,
-  RunningPlatform
+  RunningPlatform,
+  ComputeEnvFeesStructure,
+  ComputeResourceRequest
 } from '../../@types/C2D/C2D.js'
 import { getConfiguration } from '../../utils/config.js'
 import { C2DEngine } from './compute_engine_base.js'
@@ -32,7 +34,6 @@ import {
 import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { generateUniqueID } from '../database/sqliteCompute.js'
-import { Blockchain } from '../../utils/blockchain.js'
 import { AssetUtils } from '../../utils/asset.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -40,18 +41,16 @@ import { Service } from '../../@types/DDO/Service.js'
 import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.js'
 import * as drc from 'docker-registry-client'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
-import { convertGigabytesToBytes } from '../../utils/util.js'
-import os from 'os'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
-  protected db: C2DDatabase
+
   public docker: Dockerode
   private cronTimer: any
   private cronTime: number = 2000
   public constructor(clusterConfig: C2DClusterInfo, db: C2DDatabase) {
-    super(clusterConfig)
-    this.db = db
+    super(clusterConfig, db)
+
     this.docker = null
     if (clusterConfig.connection.socketPath) {
       try {
@@ -84,13 +83,89 @@ export class C2DEngineDocker extends C2DEngine {
         'Could not create Docker container temporary folders: ' + e.message
       )
     }
+    // envs are build on start function
+  }
 
-    if (clusterConfig.connection?.environments) {
-      this.envs = clusterConfig.connection.environments
+  public override async start() {
+    // let's build the env.   Swarm and k8 will build multiple envs, based on arhitecture
+    const config = await getConfiguration()
+    const envConfig = await this.getC2DConfig().connection
+    const sysinfo = await this.docker.info()
+    // console.log(sysinfo)
+    let fees: ComputeEnvFeesStructure = null
+
+    const supportedChains: number[] = []
+    for (const chain of Object.keys(config.supportedNetworks)) {
+      supportedChains.push(parseInt(chain))
     }
-    // only when we got the first request to start a compute job,
-    // no need to start doing this right away
-    // this.setNewTimer()
+    for (const feeChain of Object.keys(envConfig.fees)) {
+      // for (const feeConfig of envConfig.fees) {
+      // console.log(feeChain)
+      if (supportedChains.includes(parseInt(feeChain))) {
+        if (fees === null) fees = {}
+        if (!(feeChain in fees)) fees[feeChain] = []
+        fees[feeChain].push(envConfig.fees[feeChain])
+      }
+
+      /* for (const chain of Object.keys(config.supportedNetworks)) {
+        const chainId = parseInt(chain)
+        if (task.chainId && task.chainId !== chainId) continue
+        result[chainId] = await computeEngines.fetchEnvironments(chainId)
+      } */
+    }
+    this.envs.push({
+      id: '', // this.getC2DConfig().hash + '-' + create256Hash(JSON.stringify(this.envs[i])),
+      runningJobs: 0,
+      consumerAddress: config.keys.ethAddress,
+      platform: {
+        architecture: sysinfo.Architecture,
+        os: sysinfo.OperatingSystem
+      },
+      fees
+    })
+    if (`storageExpiry` in envConfig) this.envs[0].storageExpiry = envConfig.storageExpiry
+    if (`maxJobDuration` in envConfig)
+      this.envs[0].maxJobDuration = envConfig.maxJobDuration
+    if (`maxJobs` in envConfig) this.envs[0].maxJobs = envConfig.maxJobs
+    // let's add resources
+    this.envs[0].resources = []
+    this.envs[0].resources.push({
+      id: 'cpu',
+      total: sysinfo.NCPU,
+      max: sysinfo.NCPU,
+      min: 1
+    })
+    this.envs[0].resources.push({
+      id: 'ram',
+      total: sysinfo.MemTotal,
+      max: sysinfo.MemTotal,
+      min: 1e9
+    })
+    if (envConfig.resources) {
+      for (const res of envConfig.resources) {
+        // allow user to add other resources
+        if (res.id !== 'cpu' && res.id !== 'ram') {
+          if (!res.max) res.max = res.total
+          if (!res.min) res.min = 0
+          this.envs[0].resources.push(res)
+        }
+      }
+    }
+    // limits for free env
+    if ('free' in envConfig) {
+      this.envs[0].free = {}
+      if (`storageExpiry` in envConfig.free)
+        this.envs[0].free.storageExpiry = envConfig.free.storageExpiry
+      if (`maxJobDuration` in envConfig.free)
+        this.envs[0].free.maxJobDuration = envConfig.free.maxJobDuration
+      if (`maxJobs` in envConfig.free) this.envs[0].free.maxJobs = envConfig.free.maxJobs
+      if ('resources' in envConfig.free) {
+        // TO DO - check if resource is also listed in this.envs[0].resources, if not, ignore it
+        this.envs[0].free.resources = envConfig.free.resources
+      }
+    }
+    this.envs[0].id =
+      this.getC2DConfig().hash + '-' + create256Hash(JSON.stringify(this.envs[0]))
   }
 
   // eslint-disable-next-line require-await
@@ -98,43 +173,37 @@ export class C2DEngineDocker extends C2DEngine {
     chainId?: number
   ): Promise<ComputeEnvironment[]> {
     /**
-     * Returns all cluster's compute environments for a specific chainId. Env's id already contains the cluster hash
+     * Returns all cluster's compute environments, filtered by a specific chainId if needed. Env's id already contains the cluster hash
      */
     if (!this.docker) return []
-
-    if (chainId) {
-      const config = await getConfiguration()
-      const supportedNetwork = config.supportedNetworks[chainId]
-      if (supportedNetwork) {
-        const blockchain = new Blockchain(
-          supportedNetwork.rpc,
-          supportedNetwork.network,
-          chainId,
-          supportedNetwork.fallbackRPCs
-        )
-
-        // write the consumer address (compute env address)
-        const consumerAddress = await blockchain.getWalletAddress()
-        const filteredEnvs = []
-        for (const computeEnv of this.envs) {
-          if (
-            (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId))) ||
-            computeEnv.chainId === chainId // not mandatory
-          ) {
-            // was: (computeEnv.chainId === chainId) {
-            computeEnv.consumerAddress = consumerAddress
-            // also set the chain id (helpful)
-            computeEnv.chainId = chainId
-            filteredEnvs.push(computeEnv)
+    const filteredEnvs = []
+    for (const computeEnv of this.envs) {
+      if (
+        !chainId ||
+        (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId)))
+      ) {
+        const { totalJobs, totalFreeJobs, usedResources, usedFreeResources } =
+          await this.getUsedResources(computeEnv)
+        computeEnv.runningJobs = totalJobs
+        computeEnv.runningfreeJobs = totalFreeJobs
+        for (let i = 0; i < computeEnv.resources.length; i++) {
+          if (computeEnv.resources[i].id in usedResources)
+            computeEnv.resources[i].inUse = usedResources[computeEnv.resources[i].id]
+          else computeEnv.resources[i].inUse = 0
+        }
+        if (computeEnv.free && computeEnv.free.resources) {
+          for (let i = 0; i < computeEnv.free.resources.length; i++) {
+            if (computeEnv.free.resources[i].id in usedFreeResources)
+              computeEnv.free.resources[i].inUse =
+                usedFreeResources[computeEnv.free.resources[i].id]
+            else computeEnv.free.resources[i].inUse = 0
           }
         }
-        return filteredEnvs
+        filteredEnvs.push(computeEnv)
       }
-      // no compute envs or network is not supported
-      CORE_LOGGER.error(`There are no free compute environments for network ${chainId}`)
-      return []
     }
-    return this.envs
+
+    return filteredEnvs
   }
 
   /**
@@ -203,10 +272,11 @@ export class C2DEngineDocker extends C2DEngine {
     owner?: string,
     validUntil?: number,
     chainId?: number,
-    agreementId?: string
+    agreementId?: string,
+    resources?: ComputeResourceRequest[]
   ): Promise<ComputeJob[]> {
     if (!this.docker) return []
-
+    const isFree: boolean = !agreementId
     const jobId = generateUniqueID()
 
     // C2D - Check image, check arhitecture, etc
@@ -227,10 +297,7 @@ export class C2DEngineDocker extends C2DEngine {
       environment
     )
 
-    const validation = await C2DEngineDocker.checkDockerImage(
-      image,
-      env.platform && env.platform.length > 0 ? env.platform[0] : null
-    )
+    const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
     if (!validation.valid)
       throw new Error(`Unable to validate docker image ${image}: ${validation.reason}`)
 
@@ -255,7 +322,9 @@ export class C2DEngineDocker extends C2DEngine {
       outputsURL: null,
       stopRequested: false,
       isRunning: true,
-      isStarted: false
+      isStarted: false,
+      resources,
+      isFree
     }
     await this.makeJobFolders(job)
     // make sure we actually were able to insert on DB
@@ -544,15 +613,16 @@ export class C2DEngineDocker extends C2DEngine {
       // create the volume & create container
       // TO DO C2D:  Choose driver & size
       // get env info
-      const environment = await this.getJobEnvironment(job)
+      // const environment = await this.getJobEnvironment(job)
 
       const volume: VolumeCreateOptions = {
         Name: job.jobId + '-volume'
       }
       // volume
-      if (environment != null) {
+      const diskSize = this.getResourceRequest(job.resources, 'disk')
+      if (diskSize && diskSize > 0) {
         volume.DriverOpts = {
-          size: environment.maxDisk > 0 ? `${environment.maxDisk}G` : '1G'
+          o: 'size=' + String(diskSize)
         }
       }
 
@@ -568,7 +638,7 @@ export class C2DEngineDocker extends C2DEngine {
 
       // create the container
       const mountVols: any = { '/data': {} }
-      let hostConfig: HostConfig = {
+      const hostConfig: HostConfig = {
         Mounts: [
           {
             Type: 'volume',
@@ -578,17 +648,25 @@ export class C2DEngineDocker extends C2DEngine {
           }
         ]
       }
-      if (environment != null) {
-        // storage (container)
+      // disk
+      if (diskSize && diskSize > 0) {
         hostConfig.StorageOpt = {
-          size: environment.maxDisk > 0 ? `${environment.maxDisk}G` : '1G'
-        }
-        hostConfig = {
-          ...hostConfig,
-          ...(await buildCPUAndMemoryConstraints(environment, this.docker))
+          size: String(diskSize)
         }
       }
-
+      // ram
+      const ramSize = this.getResourceRequest(job.resources, 'ram')
+      if (ramSize && ramSize > 0) {
+        hostConfig.Memory = ramSize
+        // set swap to same memory value means no swap (otherwise it use like 2X mem)
+        hostConfig.MemorySwap = hostConfig.Memory
+      }
+      const cpus = this.getResourceRequest(job.resources, 'cpu')
+      if (cpus && cpus > 0) {
+        const systemInfo = this.docker ? await this.docker.info() : null
+        hostConfig.CpuPeriod = 100000 // 100 miliseconds is usually the default
+        hostConfig.CpuQuota = (cpus / systemInfo.NCPU) * hostConfig.CpuPeriod
+      }
       const containerInfo: ContainerCreateOptions = {
         name: job.jobId + '-algoritm',
         Image: job.containerImage,
@@ -609,7 +687,8 @@ export class C2DEngineDocker extends C2DEngine {
         )
         containerInfo.Entrypoint = newEntrypoint.split(' ')
       }
-
+      console.log('CREATING CONTAINER')
+      console.log(containerInfo)
       const container = await this.createDockerContainer(containerInfo, true)
       if (container) {
         console.log('container: ', container)
@@ -657,11 +736,22 @@ export class C2DEngineDocker extends C2DEngine {
             return
           } catch (e) {
             // container failed to start
+            try {
+              const algoLogFile =
+                this.getC2DConfig().tempFolder +
+                '/' +
+                job.jobId +
+                '/data/logs/algorithm.log'
+              writeFileSync(algoLogFile, String(e.message))
+            } catch (e) {
+              console.log('Failed to write')
+              console.log(e)
+            }
             console.error('could not start container: ' + e.message)
             console.log(e)
             job.status = C2DStatusNumber.AlgorithmFailed
             job.statusText = C2DStatusText.AlgorithmFailed
-            job.algologURL = String(e)
+
             job.isRunning = false
             await this.db.updateJob(job)
             await this.cleanupJob(job)
@@ -733,32 +823,41 @@ export class C2DEngineDocker extends C2DEngine {
     //  - delete volume
     //  - delete container
 
-    const container = await this.docker.getContainer(job.jobId + '-algoritm')
     try {
-      writeFileSync(
-        this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/algorithm.log',
-        await container.logs({
-          stdout: true,
-          stderr: true,
-          follow: false
-        })
-      )
+      const container = await this.docker.getContainer(job.jobId + '-algoritm')
+      if (container) {
+        if (job.status !== C2DStatusNumber.AlgorithmFailed) {
+          writeFileSync(
+            this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/algorithm.log',
+            await container.logs({
+              stdout: true,
+              stderr: true,
+              follow: false
+            })
+          )
+        }
+        await container.remove()
+      }
+      const volume = await this.docker.getVolume(job.jobId + '-volume')
+      if (volume) {
+        try {
+          await volume.remove()
+        } catch (e) {
+          console.log(e)
+        }
+      }
+      // remove folders
+      rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/inputs', {
+        recursive: true,
+        force: true
+      })
+      rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/transformations', {
+        recursive: true,
+        force: true
+      })
     } catch (e) {
       console.log(e)
     }
-
-    await container.remove()
-    const volume = await this.docker.getVolume(job.jobId + '-volume')
-    await volume.remove()
-    // remove folders
-    rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/inputs', {
-      recursive: true,
-      force: true
-    })
-    rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/transformations', {
-      recursive: true,
-      force: true
-    })
   }
 
   private deleteOutputFolder(job: DBComputeJob) {
@@ -796,54 +895,62 @@ export class C2DEngineDocker extends C2DEngine {
       this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/transformations/algorithm'
     try {
       let storage = null
-      // do we have a files object?
-      if (job.algorithm.fileObject) {
-        // is it unencrypted?
-        if (job.algorithm.fileObject.type) {
-          // we can get the storage directly
-          storage = Storage.getStorageClass(job.algorithm.fileObject, config)
+
+      if (job.algorithm.meta.rawcode && job.algorithm.meta.rawcode.length > 0) {
+        // we have the code, just write it
+        writeFileSync(fullAlgoPath, job.algorithm.meta.rawcode)
+      } else {
+        // do we have a files object?
+        if (job.algorithm.fileObject) {
+          // is it unencrypted?
+          if (job.algorithm.fileObject.type) {
+            // we can get the storage directly
+            storage = Storage.getStorageClass(job.algorithm.fileObject, config)
+          } else {
+            // ok, maybe we have this encrypted instead
+            CORE_LOGGER.info(
+              'algorithm file object seems to be encrypted, checking it...'
+            )
+            // 1. Decrypt the files object
+            const decryptedFileObject = await decryptFilesObject(job.algorithm.fileObject)
+            console.log('decryptedFileObject: ', decryptedFileObject)
+            // 2. Get default storage settings
+            storage = Storage.getStorageClass(decryptedFileObject, config)
+          }
         } else {
-          // ok, maybe we have this encrypted instead
-          CORE_LOGGER.info('algorithm file object seems to be encrypted, checking it...')
-          // 1. Decrypt the files object
-          const decryptedFileObject = await decryptFilesObject(job.algorithm.fileObject)
-          console.log('decryptedFileObject: ', decryptedFileObject)
-          // 2. Get default storage settings
-          storage = Storage.getStorageClass(decryptedFileObject, config)
-        }
-      } else {
-        // no files object, try to get information from documentId and serviceId
-        CORE_LOGGER.info(
-          'algorithm file object seems to be missing, checking "serviceId" and "documentId"...'
-        )
-        const { serviceId, documentId } = job.algorithm
-        // we can get it from this info
-        if (serviceId && documentId) {
-          const algoDdo = await new FindDdoHandler(
-            OceanNode.getInstance()
-          ).findAndFormatDdo(documentId)
-          console.log('algo ddo:', algoDdo)
-          // 1. Get the service
-          const service: Service = AssetUtils.getServiceById(algoDdo, serviceId)
+          // no files object, try to get information from documentId and serviceId
+          CORE_LOGGER.info(
+            'algorithm file object seems to be missing, checking "serviceId" and "documentId"...'
+          )
+          const { serviceId, documentId } = job.algorithm
+          // we can get it from this info
+          if (serviceId && documentId) {
+            const algoDdo = await new FindDdoHandler(
+              OceanNode.getInstance()
+            ).findAndFormatDdo(documentId)
+            console.log('algo ddo:', algoDdo)
+            // 1. Get the service
+            const service: Service = AssetUtils.getServiceById(algoDdo, serviceId)
 
-          // 2. Decrypt the files object
-          const decryptedFileObject = await decryptFilesObject(service.files)
-          console.log('decryptedFileObject: ', decryptedFileObject)
-          // 4. Get default storage settings
-          storage = Storage.getStorageClass(decryptedFileObject, config)
+            // 2. Decrypt the files object
+            const decryptedFileObject = await decryptFilesObject(service.files)
+            console.log('decryptedFileObject: ', decryptedFileObject)
+            // 4. Get default storage settings
+            storage = Storage.getStorageClass(decryptedFileObject, config)
+          }
         }
-      }
 
-      if (storage) {
-        console.log('fullAlgoPath', fullAlgoPath)
-        await pipeline(
-          (await storage.getReadableStream()).stream,
-          createWriteStream(fullAlgoPath)
-        )
-      } else {
-        CORE_LOGGER.info(
-          'Could not extract any files object from the compute algorithm, skipping...'
-        )
+        if (storage) {
+          console.log('fullAlgoPath', fullAlgoPath)
+          await pipeline(
+            (await storage.getReadableStream()).stream,
+            createWriteStream(fullAlgoPath)
+          )
+        } else {
+          CORE_LOGGER.info(
+            'Could not extract any files object from the compute algorithm, skipping...'
+          )
+        }
       }
     } catch (e) {
       CORE_LOGGER.error(
@@ -932,36 +1039,47 @@ export class C2DEngineDocker extends C2DEngine {
     const folderToTar = this.getC2DConfig().tempFolder + '/' + job.jobId + '/data'
     const destination =
       this.getC2DConfig().tempFolder + '/' + job.jobId + '/tarData/upload.tar.gz'
-    tar.create(
-      {
-        gzip: true,
-        file: destination,
-        sync: true,
-        C: folderToTar
-      },
-      ['./']
-    )
-    // now, upload it to the container
-    const container = await this.docker.getContainer(job.jobId + '-algoritm')
-
-    console.log('Start uploading')
     try {
-      // await container2.putArchive(destination, {
-      const stream = await container.putArchive(destination, {
-        path: '/data'
-      })
-      console.log('PutArchive')
-      console.log(stream)
+      tar.create(
+        {
+          gzip: true,
+          file: destination,
+          sync: true,
+          C: folderToTar
+        },
+        ['./']
+      )
+      // check if tar.gz actually exists
+      console.log('Start uploading')
 
-      console.log('Done uploading')
-    } catch (e) {
-      console.log('Data upload failed')
-      console.log(e)
-      return {
-        status: C2DStatusNumber.DataUploadFailed,
-        statusText: C2DStatusText.DataUploadFailed
+      if (existsSync(destination)) {
+        // now, upload it to the container
+        const container = await this.docker.getContainer(job.jobId + '-algoritm')
+
+        try {
+          // await container2.putArchive(destination, {
+          const stream = await container.putArchive(destination, {
+            path: '/data'
+          })
+          console.log('PutArchive')
+          console.log(stream)
+
+          console.log('Done uploading')
+        } catch (e) {
+          console.log('Data upload failed')
+          console.log(e)
+          return {
+            status: C2DStatusNumber.DataUploadFailed,
+            statusText: C2DStatusText.DataUploadFailed
+          }
+        }
+      } else {
+        CORE_LOGGER.debug('No data to upload, empty tar.gz')
       }
+    } catch (e) {
+      CORE_LOGGER.debug(e.message)
     }
+
     rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/inputs', {
       recursive: true,
       force: true
@@ -1026,135 +1144,6 @@ export class C2DEngineDocker extends C2DEngine {
 }
 
 // this uses the docker engine, but exposes only one env, the free one
-export class C2DEngineDockerFree extends C2DEngineDocker {
-  public constructor(clusterConfig: C2DClusterInfo, db: C2DDatabase) {
-    // we remove envs, cause we have our own
-    const hash = create256Hash('free' + clusterConfig.hash)
-    const owerwrite = {
-      type: C2DClusterType.DOCKER,
-      hash,
-      connection: {
-        socketPath: clusterConfig.connection.socketPath,
-        protocol: clusterConfig.connection.protocol,
-        host: clusterConfig.connection.host,
-        port: clusterConfig.connection.port,
-        caPath: clusterConfig.connection.caPath,
-        certPath: clusterConfig.connection.certPath,
-        keyPath: clusterConfig.connection.keyPath,
-        freeComputeOptions: clusterConfig.connection.freeComputeOptions
-      },
-      tempFolder: './c2d_storage/' + hash
-    }
-    super(owerwrite, db)
-  }
-
-  // eslint-disable-next-line require-await
-  public override async getComputeEnvironments(
-    chainId?: number
-  ): Promise<ComputeEnvironment[]> {
-    /**
-     * Returns all cluster's compute environments for a specific chainId. Env's id already contains the cluster hash
-     */
-    // TO DO C2D - fill consts below
-    if (!this.docker) return []
-    // const cpuType = ''
-    // const currentJobs = 0
-    // const consumerAddress = ''
-    if (chainId) {
-      const config = await getConfiguration()
-      const supportedNetwork = config.supportedNetworks[chainId]
-      if (supportedNetwork) {
-        const blockchain = new Blockchain(
-          supportedNetwork.rpc,
-          supportedNetwork.network,
-          chainId,
-          supportedNetwork.fallbackRPCs
-        )
-
-        // write the consumer address (compute env address)
-        const consumerAddress = await blockchain.getWalletAddress()
-        const computeEnv: ComputeEnvironment =
-          this.getC2DConfig().connection?.freeComputeOptions
-        if (
-          (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId))) ||
-          computeEnv.chainId === chainId
-        ) {
-          // was: computeEnv.chainId === chainId
-          computeEnv.consumerAddress = consumerAddress
-          const envs: ComputeEnvironment[] = [computeEnv]
-          return envs
-        }
-      }
-      // no compute envs or network is not supported
-      CORE_LOGGER.error(`There are no free compute environments for network ${chainId}`)
-      return []
-    }
-    // get them all
-    const envs: ComputeEnvironment[] = [
-      this.getC2DConfig().connection?.freeComputeOptions
-    ]
-    return envs
-  }
-
-  public override async startComputeJob(
-    assets: ComputeAsset[],
-    algorithm: ComputeAlgorithm,
-    output: ComputeOutput,
-    environment: string,
-    owner?: string,
-    validUntil?: number,
-    chainId?: number,
-    agreementId?: string
-  ): Promise<ComputeJob[]> {
-    // since it's a free job, we need to mangle some params
-    agreementId = create256Hash(
-      JSON.stringify({
-        owner,
-        assets,
-        algorithm,
-        time: process.hrtime.bigint().toString()
-      })
-    )
-    chainId = 0
-    const envs = await this.getComputeEnvironments()
-    if (envs.length < 1) {
-      // no free env ??
-      throw new Error('No free env found')
-    }
-    validUntil = envs[0].maxJobDuration
-    return await super.startComputeJob(
-      assets,
-      algorithm,
-      output,
-      environment,
-      owner,
-      validUntil,
-      chainId,
-      agreementId
-    )
-  }
-
-  // eslint-disable-next-line require-await
-  public override async getComputeJobResult(
-    consumerAddress: string,
-    jobId: string,
-    index: number
-  ): Promise<Readable> {
-    const result = await super.getComputeJobResult(consumerAddress, jobId, index)
-    if (result !== null) {
-      setTimeout(async () => {
-        const jobs: DBComputeJob[] = await this.db.getJob(jobId)
-        CORE_LOGGER.info(
-          'Cleaning storage for free container, after retrieving results...'
-        )
-        if (jobs.length === 1) {
-          this.cleanupExpiredStorage(jobs[0], true) // clean the storage, do not wait for it to expire
-        }
-      }, 5000)
-    }
-    return result
-  }
-}
 
 export function getAlgorithmImage(algorithm: ComputeAlgorithm): string {
   if (!algorithm.meta || !algorithm.meta.container) {
@@ -1166,7 +1155,7 @@ export function getAlgorithmImage(algorithm: ComputeAlgorithm): string {
   else if (algorithm.meta.container.tag)
     image = image + ':' + algorithm.meta.container.tag
   else image = image + ':latest'
-  console.log('Using image: ' + image)
+  // console.log('Using image: ' + image)
   return image
 }
 
@@ -1181,35 +1170,4 @@ export function checkManifestPlatform(
   )
     return false
   return true
-}
-/**
- * Helper function to build CPU constraints, also useful for testing purposes
- * @param environment C2D environment
- * @returns partial HostConfig object
- */
-export async function buildCPUAndMemoryConstraints(
-  environment: ComputeEnvironment,
-  docker?: Dockerode
-): Promise<HostConfig> {
-  const hostConfig: HostConfig = {}
-  // CPU
-  const systemInfo = docker ? await docker.info() : null
-  const existingCPUs = systemInfo ? systemInfo.NCPU : os.cpus().length
-  const confCPUs = environment.maxCpu > 0 ? environment.maxCpu : 1
-  // windows only
-  hostConfig.CpuCount = Math.min(confCPUs, existingCPUs)
-  // hostConfig.CpuShares = 1 / hostConfig.CpuCount
-  hostConfig.CpuPeriod = 100000 // 100 miliseconds is usually the default
-  hostConfig.CpuQuota = (1 / hostConfig.CpuCount) * hostConfig.CpuPeriod
-  // if more than 1 CPU, 	Limit the specific CPUs or cores a container can use.
-  if (hostConfig.CpuCount > 1) {
-    hostConfig.CpusetCpus = `0-${hostConfig.CpuCount - 1}`
-  }
-  // MEM
-  const existingMem = systemInfo ? systemInfo.MemTotal : os.totalmem()
-  const configuredRam = 0 || convertGigabytesToBytes(environment.maxRam)
-  hostConfig.Memory = 0 || Math.min(existingMem, configuredRam)
-  // set swap to same memory value means no swap (otherwise it use like 2X mem)
-  hostConfig.MemorySwap = hostConfig.Memory
-  return hostConfig
 }

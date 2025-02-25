@@ -29,7 +29,7 @@ import { Storage } from '../storage/index.js'
 export class C2DEngineOPFK8 extends C2DEngine {
   // eslint-disable-next-line no-useless-constructor
   public constructor(clusterConfig: C2DClusterInfo) {
-    super(clusterConfig)
+    super(clusterConfig, null)
   }
 
   public override async getComputeEnvironments(

@@ -1,7 +1,12 @@
 import { ValidateParams } from '../components/httpRoutes/validateCommands.js'
 import { DDO } from './DDO/DDO'
 import { P2PCommandResponse } from './OceanNode'
-import type { ComputeAsset, ComputeAlgorithm, ComputeOutput } from './C2D/C2D.js'
+import type {
+  ComputeAsset,
+  ComputeAlgorithm,
+  ComputeOutput,
+  ComputeResourceRequest
+} from './C2D/C2D.js'
 import {
   ArweaveFileObject,
   FileObjectType,
@@ -166,14 +171,18 @@ export interface ComputeStartCommand extends Command {
   algorithm: ComputeAlgorithm
   datasets?: ComputeAsset[]
   output?: ComputeOutput
+  resources?: ComputeResourceRequest[]
+  chainId?: number // network used by payment
 }
 export interface FreeComputeStartCommand extends Command {
   consumerAddress: string
   signature: string
   nonce: string
+  environment: string
   algorithm: ComputeAlgorithm
   datasets?: ComputeAsset[]
   output?: ComputeOutput
+  resources?: ComputeResourceRequest[]
 }
 
 export interface ComputeStopCommand extends Command {
