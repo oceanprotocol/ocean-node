@@ -4,6 +4,7 @@ import { ethers, Signer } from 'ethers'
 import { CORE_LOGGER } from './logging/common.js'
 import {
   Credential,
+  CREDENTIAL_TYPES,
   Credentials,
   KNOWN_CREDENTIALS_TYPES
 } from '../@types/DDO/Credentials.js'
@@ -29,18 +30,38 @@ export function findCredential(
   })
 }
 
+export function isAddressCredentialMatch(
+  credential: Credential,
+  consumerCredentials: Credential
+): boolean {
+  if (credential?.type?.toLowerCase() !== CREDENTIAL_TYPES.ADDRESS) {
+    return false
+  }
+  if (credential.values.length > 0) {
+    const credentialValues = credential.values.map((v) => String(v)?.toLowerCase())
+    return credentialValues.includes(consumerCredentials.values[0])
+  }
+
+  return false
+}
+
+function isAddressMatchAll(credential: Credential): boolean {
+  if (credential?.type?.toLowerCase() !== CREDENTIAL_TYPES.ADDRESS) {
+    return false
+  }
+  if (credential.values.length > 0) {
+    const filteredValues: string[] = credential.values.filter((value: string) => {
+      return value?.toLowerCase() === '*' // address
+    })
+    return filteredValues.length > 0
+  }
+  return false
+}
+
 export function hasAddressMatchAllRule(credentials: Credential[]): boolean {
   const creds = credentials.find((credential: Credential) => {
     if (Array.isArray(credential?.values)) {
-      if (credential.values.length > 0 && credential.type) {
-        const filteredValues: string[] = credential.values.filter((value: string) => {
-          return value?.toLowerCase() === '*' // address
-        })
-        return (
-          filteredValues.length > 0 &&
-          credential.type.toLowerCase() === KNOWN_CREDENTIALS_TYPES[0]
-        )
-      }
+      return isAddressMatchAll(credential)
     }
     return false
   })
@@ -52,27 +73,48 @@ export function hasAddressMatchAllRule(credentials: Credential[]): boolean {
  * @param credentials credentials
  * @param consumerAddress consumer address
  */
-export function checkCredentials(credentials: Credentials, consumerAddress: string) {
+export function checkCredentials(
+  credentials: Credentials,
+  consumerAddress: string,
+  chainId?: number
+) {
   const consumerCredentials: Credential = {
-    type: 'address',
+    type: CREDENTIAL_TYPES.ADDRESS, // 'address',
     values: [String(consumerAddress)?.toLowerCase()]
   }
 
   const accessGranted = true
   // check deny access
   if (Array.isArray(credentials?.deny) && credentials.deny.length > 0) {
-    const accessDeny = findCredential(credentials.deny, consumerCredentials)
-    // credential is on deny list, so it should be blocked access
-    if (accessDeny) {
-      return false
+    for (const cred of credentials.deny) {
+      const { type } = cred
+      if (type === CREDENTIAL_TYPES.ADDRESS) {
+        const accessDeny = isAddressCredentialMatch(cred, consumerCredentials)
+        // credential is on deny list, so it should be blocked access
+        if (accessDeny) {
+          return false
+        }
+        // credential not found, so it really depends if we have a match
+      }
+      // else TODO later
+      // support also for access list type here
+      // https://github.com/oceanprotocol/ocean-node/issues/840
+      // else if (type === CREDENTIAL_TYPES.ACCESS_LIST && chainId) {
+      // }
     }
-    // credential not found, so it really depends if we have a match
   }
   // check allow access
   if (Array.isArray(credentials?.allow) && credentials.allow.length > 0) {
-    const accessAllow = findCredential(credentials.allow, consumerCredentials)
-    if (accessAllow || hasAddressMatchAllRule(credentials.allow)) {
-      return true
+    for (const cred of credentials.allow) {
+      const { type } = cred
+      if (type === CREDENTIAL_TYPES.ADDRESS) {
+        const accessAllow = isAddressCredentialMatch(cred, consumerCredentials)
+        if (accessAllow || isAddressMatchAll(cred)) {
+          return true
+        }
+      }
+      // else if (type === CREDENTIAL_TYPES.ACCESS_LIST && chainId) {
+      // }
     }
     return false
   }
