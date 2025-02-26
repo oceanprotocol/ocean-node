@@ -13,7 +13,7 @@ import { isDefined } from './util.js'
 export function findCredential(
   credentials: Credential[],
   consumerCredentials: Credential
-) {
+): Credential | undefined {
   return credentials.find((credential) => {
     if (Array.isArray(credential?.values)) {
       if (credential.values.length > 0) {
