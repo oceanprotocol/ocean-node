@@ -379,8 +379,6 @@ export class ComputeStartHandler extends Handler {
   }
 }
 
-// free compute
-// - has no validation
 export class FreeComputeStartHandler extends Handler {
   validate(command: ComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
