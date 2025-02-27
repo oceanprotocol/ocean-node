@@ -83,8 +83,10 @@ export function checkCredentials(
     values: [String(consumerAddress)?.toLowerCase()]
   }
 
-  const accessGranted = true
+  const accessGranted = false
   // check deny access
+  // https://github.com/oceanprotocol/ocean-node/issues/810
+  // for deny rules: if value does not exist or it's empty -> there is no deny list. if value list has at least one element, check it
   if (Array.isArray(credentials?.deny) && credentials.deny.length > 0) {
     for (const cred of credentials.deny) {
       const { type } = cred
@@ -94,7 +96,7 @@ export function checkCredentials(
         if (accessDeny) {
           return false
         }
-        // credential not found, so it really depends if we have a match
+        // credential not found, so it really depends if we have a match on the allow list instead
       }
       // else TODO later
       // support also for access list type here
@@ -104,6 +106,7 @@ export function checkCredentials(
     }
   }
   // check allow access
+  // for allow rules: if value does not exist or it's empty -> no one has access. if value list has at least one element, check it
   if (Array.isArray(credentials?.allow) && credentials.allow.length > 0) {
     for (const cred of credentials.allow) {
       const { type } = cred
@@ -116,7 +119,6 @@ export function checkCredentials(
       // else if (type === CREDENTIAL_TYPES.ACCESS_LIST && chainId) {
       // }
     }
-    return false
   }
   return accessGranted
 }
