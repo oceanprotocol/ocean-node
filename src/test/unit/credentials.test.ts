@@ -13,6 +13,7 @@ import {
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { homedir } from 'os'
+import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
 
 let envOverrides: OverrideEnvConfig[]
 
@@ -225,6 +226,30 @@ describe('credentials', () => {
     const creds2 = structuredClone(creds)
     creds2.credentials.allow[0].values = ['0x2222', '0x333']
     expect(hasAddressMatchAllRule(creds2.credentials.allow)).to.be.equal(false)
+  })
+
+  it('should deny access by default if no specific allow rule is a match', () => {
+    const credentials: Credentials = {
+      allow: [
+        {
+          type: 'address',
+          values: []
+        }
+      ],
+      deny: [
+        {
+          type: 'address',
+          values: []
+        }
+      ]
+    }
+    const consumerAddress = '0x123'
+    const accessGranted = checkCredentials(
+      credentials,
+      consumerAddress,
+      DEVELOPMENT_CHAIN_ID
+    )
+    expect(accessGranted).to.equal(false)
   })
 
   after(async () => {
