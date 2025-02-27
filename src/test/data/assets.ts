@@ -68,7 +68,10 @@ const nftLevelCredentials: Credentials = {
     },
     {
       type: 'address',
-      values: ['0xA78deb2Fa79463945C247991075E2a0e98Ba7A09']
+      values: [
+        '0xA78deb2Fa79463945C247991075E2a0e98Ba7A09',
+        '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'
+      ]
     }
   ],
   deny: [
@@ -84,6 +87,12 @@ const serviceLevelCredentials: Credentials = {
     {
       type: 'address',
       values: ['0xA78deb2Fa79463945C247991075E2a0e98Ba7A09']
+    }
+  ],
+  allow: [
+    {
+      type: 'address',
+      values: ['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']
     }
   ]
 }
