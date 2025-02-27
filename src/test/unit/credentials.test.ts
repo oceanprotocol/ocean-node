@@ -103,7 +103,7 @@ describe('credentials', () => {
     const accessGranted = checkCredentials(credentials, consumerAddress)
     expect(accessGranted).to.equal(true)
   })
-  it('should allow access with address not in deny list', () => {
+  it('should deny access with address not explicitly in deny list but also without any allow list', () => {
     const credentials: Credentials = {
       deny: [
         {
@@ -114,7 +114,7 @@ describe('credentials', () => {
     }
     const consumerAddress = '0x123'
     const accessGranted = checkCredentials(credentials, consumerAddress)
-    expect(accessGranted).to.equal(true)
+    expect(accessGranted).to.equal(false) // its not denied explicitly but not allowed either
   })
   it('should deny access with address in deny list', () => {
     const credentials: Credentials = {
