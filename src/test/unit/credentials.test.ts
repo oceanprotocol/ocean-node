@@ -38,14 +38,15 @@ describe('credentials', () => {
     const accessGranted2 = checkCredentials(credentialsEmapty, consumerAddress)
     expect(accessGranted2).to.equal(false)
   })
-  it('should allow access with empty allow and deny lists', () => {
+  it('should deny access with empty allow and deny lists', () => {
+    // if list does not exist or is empty access is denied
     const credentials: Credentials = {
       allow: [],
       deny: []
     }
     const consumerAddress = '0x123'
     const accessGranted = checkCredentials(credentials, consumerAddress)
-    expect(accessGranted).to.equal(true)
+    expect(accessGranted).to.equal(false)
   })
   it('should deny access with empty values in deny lists', () => {
     const credentials: Credentials = {
