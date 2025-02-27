@@ -1,17 +1,26 @@
-import { C2DClusterType, ComputeEnvironment } from '../../@types/C2D.js'
+import { C2DClusterType, ComputeEnvironment } from '../../@types/C2D/C2D.js'
 import { C2DEngine } from './compute_engine_base.js'
 import { C2DEngineOPFK8 } from './compute_engine_opf_k8.js'
+import { C2DEngineDocker } from './compute_engine_docker.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { C2DDatabase } from '../database/C2DDatabase.js'
 export class C2DEngines {
   public engines: C2DEngine[]
 
-  public constructor(config: OceanNodeConfig) {
+  public constructor(config: OceanNodeConfig, db: C2DDatabase) {
     // let's see what engines do we have and initialize them one by one
+    // for docker, we need to add the "free"
+
+    // TO DO - check if we have multiple config.c2dClusters with the same host
+    // if yes, do not create multiple engines
     if (config && config.c2dClusters) {
       this.engines = []
       for (const cluster of config.c2dClusters) {
         if (cluster.type === C2DClusterType.OPF_K8) {
           this.engines.push(new C2DEngineOPFK8(cluster))
+        }
+        if (cluster.type === C2DClusterType.DOCKER) {
+          this.engines.push(new C2DEngineDocker(cluster, db))
         }
       }
     }
@@ -64,8 +73,25 @@ export class C2DEngines {
     throw new Error(`C2D Engine not found by hash: ${clusterHash}`)
   }
 
+  async getC2DByEnvId(envId: string): Promise<C2DEngine> {
+    /**
+     * Searches all envs and returns engine class
+     *
+     * @param envId - Environment Id
+     *
+     */
+    const { engines } = this
+    for (const i of engines) {
+      const environments = await i.getComputeEnvironments()
+      for (const env of environments) {
+        if (env.id === envId) return i
+      }
+    }
+    throw new Error(`C2D Engine not found by id: ${envId}`)
+  }
+
   async fetchEnvironments(
-    chainId: number,
+    chainId?: number,
     engine?: C2DEngine
   ): Promise<ComputeEnvironment[]> {
     /**

@@ -278,7 +278,7 @@ describe('Commands and handlers', () => {
       nonce: '',
       environment: '',
       algorithm: undefined,
-      dataset: undefined
+      datasets: undefined
     }
     expect(startEnvHandler.validate(startEnvCommand).valid).to.be.equal(false)
     // -----------------------------------------
