@@ -68,13 +68,13 @@ describe('credentials', () => {
       deny: [
         {
           type: 'accessList',
-          values: [consumerAddress]
+          values: [consumerAddress] // not a valid SC address anyway
         }
       ]
     }
 
     const accessGranted = checkCredentials(credentials, consumerAddress)
-    expect(accessGranted).to.equal(true)
+    expect(accessGranted).to.equal(false)
   })
 
   it('should deny access with empty values in allow lists', () => {
