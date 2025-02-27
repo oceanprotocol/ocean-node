@@ -29,14 +29,14 @@ describe('credentials', () => {
     envOverrides = await setupEnvironment(null, envOverrides)
   })
 
-  it('should allow access with undefined or empty credentials', () => {
+  it('should deny access with undefined or empty credentials', () => {
     const credentialsUndefined: Credentials = undefined
     const consumerAddress = '0x123'
     const accessGranted1 = checkCredentials(credentialsUndefined, consumerAddress)
-    expect(accessGranted1).to.equal(true)
+    expect(accessGranted1).to.equal(false)
     const credentialsEmapty = {} as Credentials
     const accessGranted2 = checkCredentials(credentialsEmapty, consumerAddress)
-    expect(accessGranted2).to.equal(true)
+    expect(accessGranted2).to.equal(false)
   })
   it('should allow access with empty allow and deny lists', () => {
     const credentials: Credentials = {
@@ -47,7 +47,7 @@ describe('credentials', () => {
     const accessGranted = checkCredentials(credentials, consumerAddress)
     expect(accessGranted).to.equal(true)
   })
-  it('should allow access with empty values in deny lists', () => {
+  it('should deny access with empty values in deny lists', () => {
     const credentials: Credentials = {
       deny: [
         {
@@ -58,10 +58,10 @@ describe('credentials', () => {
     }
     const consumerAddress = '0x123'
     const accessGranted = checkCredentials(credentials, consumerAddress)
-    expect(accessGranted).to.equal(true)
+    expect(accessGranted).to.equal(false)
   })
 
-  it('should allow access with "accessList" credentials type', () => {
+  it('should deny access with "accessList" credentials (default behaviour if cannot check)', () => {
     const consumerAddress = '0x123'
     const credentials: Credentials = {
       deny: [
