@@ -90,7 +90,14 @@ export class C2DEngineDocker extends C2DEngine {
     // let's build the env.   Swarm and k8 will build multiple envs, based on arhitecture
     const config = await getConfiguration()
     const envConfig = await this.getC2DConfig().connection
-    const sysinfo = await this.docker.info()
+    let sysinfo = null
+    try {
+      sysinfo = await this.docker.info()
+    } catch (e) {
+      CORE_LOGGER.error('Could not get docker info: ' + e.message)
+      // since we cannot connect to docker, we cannot start the engine -> no envs
+      return
+    }
     // console.log(sysinfo)
     let fees: ComputeEnvFeesStructure = null
 
