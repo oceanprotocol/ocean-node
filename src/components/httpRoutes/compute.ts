@@ -230,7 +230,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeStreamableLogs`, async (req,
       true
     )
     const resultComputeTask: ComputeGetStreamableLogsCommand = {
-      command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_STREAMABLE_LOGS,
       node: (req.query.node as string) || null,
       consumerAddress: (req.query.consumerAddress as string) || null,
       jobId: (req.query.jobId as string) || null,
