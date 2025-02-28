@@ -32,7 +32,7 @@ getOceanPeersRoute.get(
         .getP2PNode()
         .findPeerInDht(String(req.query.peerId), parseInt(String(req.query.timeout)))
       if (peers) res.json(peers)
-      else res.sendStatus(404).send('Cannot find peer')
+      else res.status(404).send('Cannot find peer')
     } else {
       sendMissingP2PResponse(res)
     }

@@ -58,6 +58,10 @@ export class Blockchain {
     return this.chainId
   }
 
+  public async getWalletAddress(): Promise<string> {
+    return await this.signer.getAddress()
+  }
+
   public async isNetworkReady(): Promise<ConnectionStatus> {
     if (this.networkAvailable && this.provider.ready) {
       return { ready: true }

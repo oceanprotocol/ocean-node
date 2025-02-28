@@ -1,5 +1,5 @@
 import { OceanNode } from '../../../OceanNode.js'
-import { AlgoChecksums } from '../../../@types/C2D.js'
+import { AlgoChecksums } from '../../../@types/C2D/C2D.js'
 import {
   ArweaveFileObject,
   IpfsFileObject,
