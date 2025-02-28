@@ -276,6 +276,7 @@ export class DownloadHandler extends Handler {
     // check credentials (DDO level)
     let accessGrantedDDOLevel: boolean
     if (ddo.credentials) {
+      console.log('Checking ddo level credentials:', ddo.credentials)
       // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
       // It will just use the existing code and let PolicyServer decide.
       if (isPolicyServerConfigured()) {
@@ -294,6 +295,11 @@ export class DownloadHandler extends Handler {
         accessGrantedDDOLevel = areKnownCredentialTypes(ddo.credentials)
           ? checkCredentials(ddo.credentials, task.consumerAddress, ddo.chainId)
           : true
+        console.log(
+          'accessGrantedDDOLevel, task.consumerAddress',
+          accessGrantedDDOLevel,
+          task.consumerAddress
+        )
       }
       if (!accessGrantedDDOLevel) {
         CORE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
@@ -379,6 +385,7 @@ export class DownloadHandler extends Handler {
     // if using a policy server and we are here it means that access was granted (they are merged/assessed together)
     if (service.credentials) {
       let accessGrantedServiceLevel: boolean
+      console.log('service level credentials: ', service.credentials)
       if (isPolicyServerConfigured()) {
         // we use the previous check or we do it again
         // (in case there is no DDO level credentials and we only have Service level ones)
@@ -399,6 +406,11 @@ export class DownloadHandler extends Handler {
         accessGrantedServiceLevel = areKnownCredentialTypes(service.credentials)
           ? checkCredentials(service.credentials, task.consumerAddress, chainId)
           : true
+        console.log(
+          'accessGrantedServiceLevel, task.consumerAddress: ',
+          accessGrantedServiceLevel,
+          task.consumerAddress
+        )
       }
 
       if (!accessGrantedServiceLevel) {
