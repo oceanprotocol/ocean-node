@@ -92,7 +92,10 @@ const serviceLevelCredentials: Credentials = {
   allow: [
     {
       type: 'address',
-      values: ['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']
+      values: [
+        '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260',
+        '0xBE5449a6A97aD46c8558A3356267Ee5D2731ab5e'
+      ]
     }
   ]
 }
