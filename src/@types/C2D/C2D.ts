@@ -184,6 +184,8 @@ export enum C2DStatusNumber {
   // eslint-disable-next-line no-unused-vars
   PullImage = 10,
   // eslint-disable-next-line no-unused-vars
+  PullImageFailed = 11,
+  // eslint-disable-next-line no-unused-vars
   ConfiguringVolumes = 20,
   // eslint-disable-next-line no-unused-vars
   VolumeCreationFailed = 21,
@@ -217,6 +219,8 @@ export enum C2DStatusText {
   JobStarted = 'Job started',
   // eslint-disable-next-line no-unused-vars
   PullImage = 'Pulling algorithm image',
+  // eslint-disable-next-line no-unused-vars
+  PullImageFailed = 'Pulling algorithm image failed',
   // eslint-disable-next-line no-unused-vars
   ConfiguringVolumes = 'Configuring volumes',
   // eslint-disable-next-line no-unused-vars

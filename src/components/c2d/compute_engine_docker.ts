@@ -591,7 +591,12 @@ export class C2DEngineDocker extends C2DEngine {
         CORE_LOGGER.error(
           `Unable to pull docker image: ${job.containerImage}: ${err.message}`
         )
-        await this.db.deleteJob(job.jobId)
+        job.status = C2DStatusNumber.PullImageFailed
+        job.statusText = C2DStatusText.PullImageFailed
+        job.isRunning = false
+        job.dateFinished = String(Date.now() / 1000)
+        await this.db.updateJob(job)
+        await this.cleanupJob(job)
         return
       }
 
@@ -638,6 +643,7 @@ export class C2DEngineDocker extends C2DEngine {
         job.status = C2DStatusNumber.VolumeCreationFailed
         job.statusText = C2DStatusText.VolumeCreationFailed
         job.isRunning = false
+        job.dateFinished = String(Date.now() / 1000)
         await this.db.updateJob(job)
         await this.cleanupJob(job)
         return
@@ -706,6 +712,7 @@ export class C2DEngineDocker extends C2DEngine {
         job.status = C2DStatusNumber.ContainerCreationFailed
         job.statusText = C2DStatusText.ContainerCreationFailed
         job.isRunning = false
+        job.dateFinished = String(Date.now() / 1000)
         await this.db.updateJob(job)
         await this.cleanupJob(job)
         return
@@ -722,6 +729,7 @@ export class C2DEngineDocker extends C2DEngine {
       if (job.status !== C2DStatusNumber.RunningAlgorithm) {
         // failed, let's close it
         job.isRunning = false
+        job.dateFinished = String(Date.now() / 1000)
         await this.db.updateJob(job)
         await this.cleanupJob(job)
       } else {
@@ -760,6 +768,7 @@ export class C2DEngineDocker extends C2DEngine {
             job.statusText = C2DStatusText.AlgorithmFailed
 
             job.isRunning = false
+            job.dateFinished = String(Date.now() / 1000)
             await this.db.updateJob(job)
             await this.cleanupJob(job)
             return
@@ -785,6 +794,7 @@ export class C2DEngineDocker extends C2DEngine {
           }
           console.log('Stopped')
           job.isStarted = false
+          job.isRunning = false
           job.status = C2DStatusNumber.PublishingResults
           job.statusText = C2DStatusText.PublishingResults
           await this.db.updateJob(job)
@@ -792,6 +802,7 @@ export class C2DEngineDocker extends C2DEngine {
         } else {
           if (details.State.Running === false) {
             job.isStarted = false
+            job.isRunning = false
             job.status = C2DStatusNumber.PublishingResults
             job.statusText = C2DStatusText.PublishingResults
             await this.db.updateJob(job)
@@ -812,12 +823,14 @@ export class C2DEngineDocker extends C2DEngine {
           await container.getArchive({ path: '/data/outputs' }),
           createWriteStream(outputsArchivePath)
         )
+        job.status = C2DStatusNumber.JobFinished
+        job.statusText = C2DStatusText.JobFinished
       } catch (e) {
         console.log(e)
         job.status = C2DStatusNumber.ResultsFetchFailed
         job.statusText = C2DStatusText.ResultsFetchFailed
       }
-      job.isRunning = false
+      job.dateFinished = String(Date.now() / 1000)
       await this.db.updateJob(job)
       await this.cleanupJob(job)
     }
