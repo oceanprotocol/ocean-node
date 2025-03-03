@@ -557,12 +557,21 @@ export async function getPricesByDt(
     if (dispensers) {
       for (const dispenser of dispensers) {
         const dispenserContract = new ethers.Contract(dispenser, Dispenser.abi, signer)
-        if ((await dispenserContract.status(await datatoken.getAddress()))[0] === true) {
-          prices.push({
-            type: 'dispenser',
-            price: '0',
-            contract: dispenser
-          })
+        try {
+          const [isActive, ,] = await dispenserContract.status(
+            await datatoken.getAddress()
+          )
+          if (isActive === true) {
+            prices.push({
+              type: 'dispenser',
+              price: '0',
+              contract: dispenser
+            })
+          }
+        } catch (e) {
+          INDEXER_LOGGER.error(
+            `[GET PRICES] failure when retrieving dispenser status from contracts: ${e}`
+          )
         }
       }
     }
@@ -574,15 +583,22 @@ export async function getPricesByDt(
           FixedRateExchange.abi,
           signer
         )
-        const exchange = await fixedRateContract.getExchange(fixedRate[1])
-        if (exchange[6] === true) {
-          prices.push({
-            type: 'fixedrate',
-            price: ethers.formatEther(exchange[5]),
-            token: exchange[3],
-            contract: fixedRate[0],
-            exchangeId: fixedRate[1]
-          })
+        try {
+          const [, , , baseTokenAddress, , pricing, isActive, , , , , ,] =
+            await fixedRateContract.getExchange(fixedRate[1])
+          if (isActive === true) {
+            prices.push({
+              type: 'fixedrate',
+              price: ethers.formatEther(pricing),
+              token: baseTokenAddress,
+              contract: fixedRate[0],
+              exchangeId: fixedRate[1]
+            })
+          }
+        } catch (e) {
+          INDEXER_LOGGER.error(
+            `[GET PRICES] failure when retrieving exchange status from contracts: ${e}`
+          )
         }
       }
     }
