@@ -36,7 +36,8 @@ import { CollectFeesHandler } from '../admin/collectFeesHandler.js'
 import {
   GetP2PPeerHandler,
   GetP2PPeersHandler,
-  GetP2PNetworkStatsHandler
+  GetP2PNetworkStatsHandler,
+  FindPeerHandler
 } from './p2p.js'
 export type HandlerRegistry = {
   handlerName: string // name of the handler
@@ -136,6 +137,7 @@ export class CoreHandlersRegistry {
       PROTOCOL_COMMANDS.GET_P2P_NETWORK_STATS,
       new GetP2PNetworkStatsHandler(node)
     )
+    this.registerCoreHandler(PROTOCOL_COMMANDS.FIND_PEER, new FindPeerHandler(node))
   }
 
   public static getInstance(node: OceanNode): CoreHandlersRegistry {
