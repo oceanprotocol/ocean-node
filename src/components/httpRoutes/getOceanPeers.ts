@@ -1,45 +1,43 @@
 import express, { Request, Response } from 'express'
-import { getDefaultLevel } from '../../utils/logging/Logger.js'
-import { P2P_LOGGER } from '../../utils/logging/common.js'
-import { sendMissingP2PResponse } from './index.js'
-import { getBoolEnvValue, hasP2PInterface } from '../../utils/config.js'
-export const getOceanPeersRoute = express.Router()
+import {
+  GetP2PPeerHandler,
+  GetP2PPeersHandler,
+  GetP2PNetworkStatsHandler
+} from '../core/handler/p2p.js'
+import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { streamToString } from '../../utils/util.js'
+import { Readable } from 'stream'
 
-getOceanPeersRoute.get(
+export const getP2pNetworkStatsRoute = express.Router()
+
+getP2pNetworkStatsRoute.get(
   '/getP2pNetworkStats',
   async (req: Request, res: Response): Promise<void> => {
-    // only return values if env P2P_ENABLE_NETWORK_STATS is explicitly allowed
-    if (hasP2PInterface && getBoolEnvValue('P2P_ENABLE_NETWORK_STATS', false)) {
-      const stats = await req.oceanNode.getP2PNode().getNetworkingStats()
-      P2P_LOGGER.log(getDefaultLevel(), `getP2pNetworkStats: ${stats}`, true)
-      res.json(stats)
+    const node = req.oceanNode
+    const result = await new GetP2PNetworkStatsHandler(node).handle({
+      command: PROTOCOL_COMMANDS.GET_P2P_NETWORK_STATS
+    })
+    if (result.stream) {
+      const validationResult = JSON.parse(await streamToString(result.stream as Readable))
+      res.json(validationResult)
     } else {
-      res.status(400).send('Not enabled or unavailable')
+      res.status(result.status.httpStatus).send(result.status.error)
     }
   }
 )
-getOceanPeersRoute.get(
-  '/getOceanPeers',
-  async (req: Request, res: Response): Promise<void> => {
-    if (hasP2PInterface) {
-      const peers = await req.oceanNode.getP2PNode().getAllOceanPeers()
-      P2P_LOGGER.log(getDefaultLevel(), `getOceanPeers: ${peers}`, true)
-      res.json(peers)
-    } else {
-      sendMissingP2PResponse(res)
-    }
-  }
-)
-
 export const getP2PPeersRoute = express.Router()
 getP2PPeersRoute.get(
   '/getP2PPeers',
   async (req: Request, res: Response): Promise<void> => {
-    if (hasP2PInterface) {
-      const peers = await req.oceanNode.getP2PNode().getAllPeerStore()
-      res.json(peers)
+    const node = req.oceanNode
+    const result = await new GetP2PPeersHandler(node).handle({
+      command: PROTOCOL_COMMANDS.GET_P2P_PEERS
+    })
+    if (result.stream) {
+      const validationResult = JSON.parse(await streamToString(result.stream as Readable))
+      res.json(validationResult)
     } else {
-      sendMissingP2PResponse(res)
+      res.status(result.status.httpStatus).send(result.status.error)
     }
   }
 )
@@ -53,13 +51,16 @@ getP2PPeersRoute.get(
       res.sendStatus(400)
       return
     }
-    if (hasP2PInterface) {
-      const peers = await req.oceanNode
-        .getP2PNode()
-        .getPeerDetails(String(req.query.peerId))
-      res.json(peers)
+    const node = req.oceanNode
+    const result = await new GetP2PPeerHandler(node).handle({
+      command: PROTOCOL_COMMANDS.GET_P2P_PEER,
+      peerId: req.query.peerId as string
+    })
+    if (result.stream) {
+      const validationResult = JSON.parse(await streamToString(result.stream as Readable))
+      res.json(validationResult)
     } else {
-      sendMissingP2PResponse(res)
+      res.status(result.status.httpStatus).send(result.status.error)
     }
   }
 )

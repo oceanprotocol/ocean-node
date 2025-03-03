@@ -1,5 +1,9 @@
 import express, { Response } from 'express'
-import { getOceanPeersRoute, getP2PPeersRoute, getP2PPeerRoute } from './getOceanPeers.js'
+import {
+  getP2pNetworkStatsRoute,
+  getP2PPeersRoute,
+  getP2PPeerRoute
+} from './getOceanPeers.js'
 import { advertiseDidRoute, getProvidersForDidRoute } from './dids.js'
 import { directCommandRoute } from './commands.js'
 import { logRoutes } from './logs.js'
@@ -22,7 +26,7 @@ export function sendMissingP2PResponse(res: Response) {
 }
 
 // /getOceanPeers
-httpRoutes.use(getOceanPeersRoute)
+httpRoutes.use(getP2pNetworkStatsRoute)
 // /getP2PPeers
 httpRoutes.use(getP2PPeersRoute)
 // /getP2PPeer
