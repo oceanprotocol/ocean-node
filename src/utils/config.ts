@@ -201,6 +201,22 @@ function getAuthorizedDecrypters(isStartup?: boolean): string[] {
     isStartup
   )
 }
+
+function getAuthorizedDecryptersList(isStartup?: boolean): AccessListContract | null {
+  if (
+    existsEnvironmentVariable(ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS_LIST, isStartup)
+  ) {
+    try {
+      const decryptersAccessList = JSON.parse(
+        ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS_LIST.value
+      ) as AccessListContract
+      return decryptersAccessList
+    } catch (err) {
+      CONFIG_LOGGER.error(err.message)
+    }
+  }
+  return null
+}
 // allowed validators
 export function getAllowedValidators(isStartup?: boolean): string[] {
   return readAddressListFromEnvVariable(
@@ -607,6 +623,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
 
   const config: OceanNodeConfig = {
     authorizedDecrypters: getAuthorizedDecrypters(isStartup),
+    authorizedDecryptersList: getAuthorizedDecryptersList(isStartup),
     allowedValidators: getAllowedValidators(isStartup),
     allowedValidatorsList: getAllowedValidatorsList(isStartup),
     authorizedPublishers: getAuthorizedPublishers(isStartup),
