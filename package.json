@@ -45,7 +45,8 @@
     "test:stress": "npm run test:k6-common k6 run -e TEST_TYPE=stress \"./dist/test/performance/perf_test.js\"",
     "test:request:rate": "npm run test:k6-common && k6 run -e RATE=true \"./dist/test/performance/perf_test.js\"",
     "release": "release-it --non-interactive",
-    "changelog": "auto-changelog -p"
+    "changelog": "auto-changelog -p",
+    "test:dashboard": "npm run build-tests && mocha --no-timeout --no-config './dist/test/dashboard/dashboardBuild.test.js'"
   },
   "dependencies": {
     "@chainsafe/libp2p-gossipsub": "^13.1.0",
