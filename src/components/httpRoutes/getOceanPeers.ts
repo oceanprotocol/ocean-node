@@ -7,10 +7,11 @@ import {
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
+import { sendMissingP2PResponse } from './index.js'
+import { hasP2PInterface } from '../../utils/config.js'
+export const p2pRoutes = express.Router()
 
-export const getP2pNetworkStatsRoute = express.Router()
-
-getP2pNetworkStatsRoute.get(
+p2pRoutes.get(
   '/getP2pNetworkStats',
   async (req: Request, res: Response): Promise<void> => {
     const node = req.oceanNode
@@ -26,7 +27,7 @@ getP2pNetworkStatsRoute.get(
   }
 )
 
-getP2pNetworkStatsRoute.get(
+p2pRoutes.get(
   '/findPeer',
   express.urlencoded({ extended: true }),
   async (req: Request, res: Response): Promise<void> => {
@@ -47,24 +48,21 @@ getP2pNetworkStatsRoute.get(
 )
 
 export const getP2PPeersRoute = express.Router()
-getP2PPeersRoute.get(
-  '/getP2PPeers',
-  async (req: Request, res: Response): Promise<void> => {
-    const node = req.oceanNode
-    const result = await new GetP2PPeersHandler(node).handle({
-      command: PROTOCOL_COMMANDS.GET_P2P_PEERS
-    })
-    if (result.stream) {
-      const validationResult = JSON.parse(await streamToString(result.stream as Readable))
-      res.json(validationResult)
-    } else {
-      res.status(result.status.httpStatus).send(result.status.error)
-    }
+p2pRoutes.get('/getP2PPeers', async (req: Request, res: Response): Promise<void> => {
+  const node = req.oceanNode
+  const result = await new GetP2PPeersHandler(node).handle({
+    command: PROTOCOL_COMMANDS.GET_P2P_PEERS
+  })
+  if (result.stream) {
+    const validationResult = JSON.parse(await streamToString(result.stream as Readable))
+    res.json(validationResult)
+  } else {
+    res.status(result.status.httpStatus).send(result.status.error)
   }
-)
+})
 
 export const getP2PPeerRoute = express.Router()
-getP2PPeersRoute.get(
+p2pRoutes.get(
   '/getP2PPeer',
   express.urlencoded({ extended: true }),
   async (req: Request, res: Response): Promise<void> => {
