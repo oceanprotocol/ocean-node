@@ -19,6 +19,11 @@ export interface Command {
 export interface GetP2PPeerCommand extends Command {
   peerId: string
 }
+export interface FindPeerCommand extends Command {
+  peerId: string
+  timeout?: string
+}
+
 export interface GetP2PPeersCommand extends Command {}
 export interface GetP2PNetworkStatsCommand extends Command {}
 

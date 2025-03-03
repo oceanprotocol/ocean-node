@@ -2,6 +2,7 @@ import { Handler } from './handler.js'
 import { getConfiguration } from '../../../utils/config.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import {
+  FindPeerCommand,
   GetP2PPeerCommand,
   GetP2PPeersCommand,
   GetP2PNetworkStatsCommand
@@ -12,6 +13,42 @@ import {
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+
+export class FindPeerHandler extends Handler {
+  validate(command: FindPeerCommand): ValidateParams {
+    const validation = validateCommandParameters(command, ['peerId'])
+    return validation
+  }
+
+  async handle(task: FindPeerCommand): Promise<P2PCommandResponse> {
+    const checks = await this.verifyParamsAndRateLimits(task)
+    if (checks.status.httpStatus !== 200 || checks.status.error !== null) {
+      return checks
+    }
+    try {
+      const peer = await this.getOceanNode()
+        .getP2PNode()
+        .findPeerInDht(String(task.peerId), parseInt(String(task.timeout)))
+      // .getPeerDetails(String(task.peerId))
+      if (!peer) {
+        return {
+          stream: null,
+          status: { httpStatus: 404, error: 'Peer Not Found' }
+        }
+      }
+      return {
+        stream: Readable.from(JSON.stringify(peer, null, 4)),
+        status: { httpStatus: 200 }
+      }
+    } catch (error) {
+      CORE_LOGGER.error(`Error in Handler: ${error.message}`)
+      return {
+        stream: null,
+        status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
+      }
+    }
+  }
+}
 
 export class GetP2PPeerHandler extends Handler {
   validate(command: GetP2PPeerCommand): ValidateParams {

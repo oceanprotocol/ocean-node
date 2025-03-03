@@ -2,13 +2,12 @@ import express, { Request, Response } from 'express'
 import {
   GetP2PPeerHandler,
   GetP2PPeersHandler,
-  GetP2PNetworkStatsHandler
+  GetP2PNetworkStatsHandler,
+  FindPeerHandler
 } from '../core/handler/p2p.js'
 import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
-import { sendMissingP2PResponse } from './index.js'
-import { hasP2PInterface } from '../../utils/config.js'
 export const p2pRoutes = express.Router()
 
 p2pRoutes.get(
@@ -35,14 +34,17 @@ p2pRoutes.get(
       res.sendStatus(400)
       return
     }
-    if (hasP2PInterface) {
-      const peers = await req.oceanNode
-        .getP2PNode()
-        .findPeerInDht(String(req.query.peerId), parseInt(String(req.query.timeout)))
-      if (peers) res.json(peers)
-      else res.sendStatus(404).send('Cannot find peer')
+    const node = req.oceanNode
+    const result = await new FindPeerHandler(node).handle({
+      command: PROTOCOL_COMMANDS.FIND_PEER,
+      peerId: req.query.peerId as string,
+      timeout: req.query.timeout as string
+    })
+    if (result.stream) {
+      const validationResult = JSON.parse(await streamToString(result.stream as Readable))
+      res.json(validationResult)
     } else {
-      sendMissingP2PResponse(res)
+      res.status(result.status.httpStatus).send(result.status.error)
     }
   }
 )

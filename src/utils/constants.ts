@@ -30,7 +30,8 @@ export const PROTOCOL_COMMANDS = {
   POLICY_SERVER_PASSTHROUGH: 'PolicyServerPassthrough',
   GET_P2P_PEER: 'getP2PPeer',
   GET_P2P_PEERS: 'getP2PPeers',
-  GET_P2P_NETWORK_STATS: 'getP2PNetworkStats'
+  GET_P2P_NETWORK_STATS: 'getP2PNetworkStats',
+  FIND_PEER: 'findPeer'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -61,7 +62,8 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH,
   PROTOCOL_COMMANDS.GET_P2P_PEER,
   PROTOCOL_COMMANDS.GET_P2P_PEERS,
-  PROTOCOL_COMMANDS.GET_P2P_NETWORK_STATS
+  PROTOCOL_COMMANDS.GET_P2P_NETWORK_STATS,
+  PROTOCOL_COMMANDS.FIND_PEER
 ]
 
 export const MetadataStates = {
