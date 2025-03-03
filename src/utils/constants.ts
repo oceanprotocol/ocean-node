@@ -4,7 +4,6 @@ import { Hashes } from '../@types/blockchain'
 export const PROTOCOL_COMMANDS = {
   DOWNLOAD: 'download',
   DOWNLOAD_URL: 'downloadURL', // we still use this
-  ECHO: 'echo',
   ENCRYPT: 'encrypt',
   ENCRYPT_FILE: 'encryptFile',
   DECRYPT_DDO: 'decryptDDO',
@@ -33,7 +32,6 @@ export const PROTOCOL_COMMANDS = {
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.DOWNLOAD,
-  PROTOCOL_COMMANDS.ECHO,
   PROTOCOL_COMMANDS.ENCRYPT,
   PROTOCOL_COMMANDS.ENCRYPT_FILE,
   PROTOCOL_COMMANDS.NONCE,
@@ -241,6 +239,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.ALLOWED_VALIDATORS,
     required: false
   },
+  ALLOWED_VALIDATORS_LIST: {
+    name: 'ALLOWED_VALIDATORS_LIST',
+    value: process.env.ALLOWED_VALIDATORS_LIST,
+    required: false
+  },
   INDEXER_INTERVAL: {
     name: 'INDEXER_INTERVAL',
     value: process.env.INDEXER_INTERVAL,
@@ -332,6 +335,21 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   IS_BOOTSTRAP: {
     name: 'IS_BOOTSTRAP',
     value: process.env.IS_BOOTSTRAP,
+    required: false
+  },
+  AUTHORIZED_PUBLISHERS: {
+    name: 'AUTHORIZED_PUBLISHERS',
+    value: process.env.AUTHORIZED_PUBLISHERS,
+    required: false
+  },
+  AUTHORIZED_PUBLISHERS_LIST: {
+    name: 'AUTHORIZED_PUBLISHERS_LIST',
+    value: process.env.AUTHORIZED_PUBLISHERS_LIST,
+    required: false
+  },
+  POLICY_SERVER_URL: {
+    name: 'POLICY_SERVER_URL',
+    value: process.env.POLICY_SERVER_URL,
     required: false
   }
 }

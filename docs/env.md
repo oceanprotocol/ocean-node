@@ -19,6 +19,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `OPERATOR_SERVICE_URL`: Configures C2D cluster URLs for the node. Example: `"[\"http://example.c2d.cluster1.com\",\"http://example.cd2.cluster2.com\"]"`
 - `INTERFACES`: Network interfaces the node supports, e.g., HTTP and P2P. By default, if not specified, both are supported. Example: `"[\"HTTP\",\"P2P\"]"`
 - `ALLOWED_VALIDATORS`: Array of addresses for allowed validators to verify asset signatures before indexing. Example: `"[\"0x123\",\"0x456\"]"`
+- `ALLOWED_VALIDATORS_LIST`: Array of access list addresses (per chain) for allowed validators to verify asset signatures before indexing. Example: `"{ \"8996\": [\"0x123\",\"0x456\"]"`
 - `INDEXER_INTERVAL`: Sets the interval in milliseconds for the indexer to crawl. The default is 30 seconds if not set. Example: `10000`
 - `INDEXER_NETWORKS`: Specifies the networks the Indexer will crawl. If not set, the Indexer will index all networks defined in the RPCS environment variable. If set to an empty string, indexing will be disabled. Example: `[1, 137]`
 - `ALLOWED_ADMINS`: Sets the public address of accounts which have access to admin endpoints e.g. shutting down the node. Example: `"[\"0x967da4048cD07aB37855c090aAF366e4ce1b9F48\",\"0x388C818CA8B9251b393131C08a736A67ccB19297\"]"`
@@ -28,6 +29,8 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `MAX_CONNECTIONS_PER_MINUTE`: Max number of requests allowed per minute (all clients). Example: `120`
 - `MAX_CHECKSUM_LENGTH`: Define the maximum length for a file if checksum is required (Mb). Example: `10`
 - `IS_BOOTSTRAP`: Is this node to be used as bootstrap node or not. Default is `false`.
+- `AUTHORIZED_PUBLISHERS`: Authorized list of publishers. If present, Node will only index assets published by the accounts in the list. Example: `"[\"0x967da4048cD07aB37855c090aAF366e4ce1b9F48\",\"0x388C818CA8B9251b393131C08a736A67ccB19297\"]"`
+- `AUTHORIZED_PUBLISHERS_LIST`: AccessList contract addresses (per chain). If present, Node will only index assets published by the accounts present on the given access lists. Example: `"{ \"8996\": [\"0x967da4048cD07aB37855c090aAF366e4ce1b9F48\",\"0x388C818CA8B9251b393131C08a736A67ccB19297\"] }"`
 
 ## Logs
 
