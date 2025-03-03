@@ -98,20 +98,21 @@ export async function processNetworkData(
 ): Promise<void> {
   stoppedCrawling = startedCrawling = false
   let contractDeploymentBlock = getDeployedContractBlock(rpcDetails.chainId)
-  if (!isDefined(contractDeploymentBlock) && !isDefined(await getLastIndexedBlock())) {
-    if (rpcDetails.chainId === DEVELOPMENT_CHAIN_ID) {
-      rpcDetails.startBlock = contractDeploymentBlock = 0
-      INDEXER_LOGGER.warn(
-        'Cannot get block info for local network, starting from block 0'
-      )
-    } else {
-      INDEXER_LOGGER.logMessage(
-        `chain: ${rpcDetails.chainId} Both deployed block and last indexed block are null/undefined. Cannot proceed further on this chain`,
-        true
-      )
+  const isLocalChain = rpcDetails.chainId === DEVELOPMENT_CHAIN_ID
+  if (isLocalChain && !isDefined(contractDeploymentBlock)) {
+    rpcDetails.startBlock = contractDeploymentBlock = 0
+    INDEXER_LOGGER.warn('Cannot get block info for local network, starting from block 0')
+  } else if (
+    !isLocalChain &&
+    !isDefined(contractDeploymentBlock) &&
+    !isDefined(await getLastIndexedBlock())
+  ) {
+    INDEXER_LOGGER.logMessage(
+      `chain: ${rpcDetails.chainId} Both deployed block and last indexed block are null/undefined. Cannot proceed further on this chain`,
+      true
+    )
 
-      return null
-    }
+    return null
   }
   // if we defined a valid startBlock use it, oterwise start from deployed one
 

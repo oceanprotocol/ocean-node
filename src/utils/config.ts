@@ -2,19 +2,26 @@ import type {
   DenyList,
   OceanNodeConfig,
   OceanNodeKeys,
-  OceanNodeDockerConfig
+  OceanNodeDockerConfig,
+  AccessListContract
 } from '../@types/OceanNode'
+import { dhtFilterMethod } from '../@types/OceanNode.js'
 import type { C2DClusterInfo } from '../@types/C2D.js'
 import { C2DClusterType } from '../@types/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
 import {
-  DEFAULT_RATE_LIMIT_PER_SECOND,
+  computeCodebaseHash,
+  DEFAULT_RATE_LIMIT_PER_MINUTE,
   ENVIRONMENT_VARIABLES,
   EnvVariable,
   hexStringToByteArray
 } from '../utils/index.js'
-import { defaultBootstrapAddresses, knownUnsafeURLs } from '../utils/constants.js'
+import {
+  DEFAULT_MAX_CONNECTIONS_PER_MINUTE,
+  defaultBootstrapAddresses,
+  knownUnsafeURLs
+} from '../utils/constants.js'
 
 import { LOG_LEVELS_STR, GENERIC_EMOJIS, getLoggerLevelEmoji } from './logging/Logger.js'
 import { RPCS } from '../@types/blockchain'
@@ -26,6 +33,9 @@ import {
 } from '../utils/address.js'
 import { CONFIG_LOGGER } from './logging/common.js'
 import { create256Hash } from './crypt.js'
+import { fileURLToPath } from 'url'
+import path from 'path'
+import { isDefined } from './util.js'
 
 // usefull for lazy loading and avoid boilerplate on other places
 let previousConfiguration: OceanNodeConfig = null
@@ -158,6 +168,32 @@ function getIndexingNetworks(supportedNetworks: RPCS): RPCS | null {
     return supportedNetworks
   }
 }
+// valid publishers (what we will index)
+function getAuthorizedPublishers(isStartup?: boolean): string[] {
+  if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS, isStartup)) {
+    return readAddressListFromEnvVariable(
+      ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS,
+      isStartup
+    )
+  }
+  return []
+}
+
+function getAuthorizedPublishersList(isStartup?: boolean): AccessListContract | null {
+  if (
+    existsEnvironmentVariable(ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST, isStartup)
+  ) {
+    try {
+      const publisherAccessList = JSON.parse(
+        ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.value
+      ) as AccessListContract
+      return publisherAccessList
+    } catch (err) {
+      CONFIG_LOGGER.error(err.message)
+    }
+  }
+  return null
+}
 // valid decrypthers
 function getAuthorizedDecrypters(isStartup?: boolean): string[] {
   return readAddressListFromEnvVariable(
@@ -171,6 +207,22 @@ export function getAllowedValidators(isStartup?: boolean): string[] {
     ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS,
     isStartup
   )
+}
+
+function getAllowedValidatorsList(isStartup?: boolean): AccessListContract | null {
+  if (
+    existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS_LIST, isStartup)
+  ) {
+    try {
+      const publisherAccessList = JSON.parse(
+        ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS_LIST.value
+      ) as AccessListContract
+      return publisherAccessList
+    } catch (err) {
+      CONFIG_LOGGER.error(err.message)
+    }
+  }
+  return null
 }
 // valid node admins
 export function getAllowedAdmins(isStartup?: boolean): string[] {
@@ -426,21 +478,43 @@ function logMissingVariableWithDefault(envVariable: EnvVariable) {
     true
   )
 }
-// have a rate limit for handler calls
+// have a rate limit for handler calls (per IP address or peer id)
 function getRateLimit(isStartup: boolean = false) {
-  if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND)) {
+  if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.MAX_REQ_PER_MINUTE)) {
     if (isStartup) {
-      logMissingVariableWithDefault(ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND)
+      logMissingVariableWithDefault(ENVIRONMENT_VARIABLES.MAX_REQ_PER_MINUTE)
     }
-    return DEFAULT_RATE_LIMIT_PER_SECOND
+    return DEFAULT_RATE_LIMIT_PER_MINUTE
   } else {
     try {
-      return getIntEnvValue(process.env.MAX_REQ_PER_SECOND, DEFAULT_RATE_LIMIT_PER_SECOND)
+      return getIntEnvValue(process.env.MAX_REQ_PER_MINUTE, DEFAULT_RATE_LIMIT_PER_MINUTE)
     } catch (err) {
       CONFIG_LOGGER.error(
-        `Invalid "${ENVIRONMENT_VARIABLES.MAX_REQ_PER_SECOND.name}" env variable...`
+        `Invalid "${ENVIRONMENT_VARIABLES.MAX_REQ_PER_MINUTE.name}" env variable...`
       )
-      return DEFAULT_RATE_LIMIT_PER_SECOND
+      return DEFAULT_RATE_LIMIT_PER_MINUTE
+    }
+  }
+}
+
+// Global requests limit
+function getConnectionsLimit(isStartup: boolean = false) {
+  if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.MAX_CONNECTIONS_PER_MINUTE)) {
+    if (isStartup) {
+      logMissingVariableWithDefault(ENVIRONMENT_VARIABLES.MAX_CONNECTIONS_PER_MINUTE)
+    }
+    return DEFAULT_RATE_LIMIT_PER_MINUTE
+  } else {
+    try {
+      return getIntEnvValue(
+        process.env.MAX_CONNECTIONS_PER_MINUTE,
+        DEFAULT_MAX_CONNECTIONS_PER_MINUTE
+      )
+    } catch (err) {
+      CONFIG_LOGGER.error(
+        `Invalid "${ENVIRONMENT_VARIABLES.MAX_CONNECTIONS_PER_MINUTE.name}" env variable...`
+      )
+      return DEFAULT_MAX_CONNECTIONS_PER_MINUTE
     }
   }
 }
@@ -475,6 +549,12 @@ export async function getConfiguration(
   if (!previousConfiguration || forceReload) {
     previousConfiguration = await getEnvConfig(isStartup)
   }
+  if (!previousConfiguration.codeHash) {
+    const __filename = fileURLToPath(import.meta.url)
+    const __dirname = path.dirname(__filename.replace('utils/', ''))
+    previousConfiguration.codeHash = await computeCodebaseHash(__dirname)
+  }
+
   return previousConfiguration
 }
 
@@ -513,9 +593,24 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
   const interfaces = getNodeInterfaces(isStartup)
   let bootstrapTtl = getIntEnvValue(process.env.P2P_BOOTSTRAP_TTL, 120000)
   if (bootstrapTtl === 0) bootstrapTtl = Infinity
+  let dhtFilterOption
+  switch (getIntEnvValue(process.env.P2P_DHT_FILTER, 0)) {
+    case 1:
+      dhtFilterOption = dhtFilterMethod.filterPrivate
+      break
+    case 2:
+      dhtFilterOption = dhtFilterMethod.filterPublic
+      break
+    default:
+      dhtFilterOption = dhtFilterMethod.filterNone
+  }
+
   const config: OceanNodeConfig = {
     authorizedDecrypters: getAuthorizedDecrypters(isStartup),
     allowedValidators: getAllowedValidators(isStartup),
+    allowedValidatorsList: getAllowedValidatorsList(isStartup),
+    authorizedPublishers: getAuthorizedPublishers(isStartup),
+    authorizedPublishersList: getAuthorizedPublishersList(isStartup),
     keys,
     // Only enable indexer if we have a DB_URL and supportedNetworks
     hasIndexer: !!(!!getEnvValue(process.env.DB_URL, '') && !!indexingNetworks),
@@ -549,7 +644,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       ),
       dhtMaxInboundStreams: getIntEnvValue(process.env.P2P_dhtMaxInboundStreams, 500),
       dhtMaxOutboundStreams: getIntEnvValue(process.env.P2P_dhtMaxOutboundStreams, 500),
-      enableDHTServer: getBoolEnvValue('P2P_ENABLE_DHT_SERVER', false),
+      dhtFilter: dhtFilterOption,
       mDNSInterval: getIntEnvValue(process.env.P2P_mDNSInterval, 20e3), // 20 seconds
       connectionsMaxParallelDials: getIntEnvValue(
         process.env.P2P_connectionsMaxParallelDials,
@@ -612,6 +707,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),
     allowedAdmins: getAllowedAdmins(isStartup),
     rateLimit: getRateLimit(isStartup),
+    maxConnections: getConnectionsLimit(isStartup),
     denyList: getDenyList(isStartup),
     unsafeURLs: readListFromEnvVariable(
       ENVIRONMENT_VARIABLES.UNSAFE_URLS,
@@ -643,3 +739,8 @@ export async function printCurrentConfig() {
 
 // P2P routes related
 export const hasP2PInterface = (await (await getConfiguration())?.hasP2P) || false
+
+// is there a policy server defined?
+export function isPolicyServerConfigured(): boolean {
+  return isDefined(process.env.POLICY_SERVER_URL)
+}

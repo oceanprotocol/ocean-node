@@ -23,7 +23,12 @@ export interface OceanNodeKeys {
   privateKey: any
   ethAddress: string
 }
-
+/* eslint-disable no-unused-vars */
+export enum dhtFilterMethod {
+  filterPrivate = 'filterPrivate', // default, remove all private addresses from DHT
+  filterPublic = 'filterPublic', // remove all public addresses from DHT
+  filterNone = 'filterNone' // do not remove all any addresses from DHT
+}
 export interface OceanNodeP2PConfig {
   bootstrapNodes: string[]
   bootstrapTimeout: number
@@ -41,7 +46,7 @@ export interface OceanNodeP2PConfig {
   pubsubPeerDiscoveryInterval: number
   dhtMaxInboundStreams: number
   dhtMaxOutboundStreams: number
-  enableDHTServer: boolean
+  dhtFilter: dhtFilterMethod
   mDNSInterval: number
   connectionsMaxParallelDials: number
   connectionsDialTimeout: number
@@ -71,9 +76,16 @@ export interface OceanNodeDockerConfig {
   certPath?: string
   keyPath?: string
 }
+
+export interface AccessListContract {
+  [chainId: string]: string[]
+}
 export interface OceanNodeConfig {
   authorizedDecrypters: string[]
   allowedValidators: string[]
+  allowedValidatorsList: AccessListContract | null
+  authorizedPublishers: string[]
+  authorizedPublishersList: AccessListContract | null
   keys: OceanNodeKeys
   hasP2P: boolean
   p2pConfig: OceanNodeP2PConfig | null
@@ -92,7 +104,8 @@ export interface OceanNodeConfig {
   assetPurgatoryUrl: string
   allowedAdmins?: string[]
   codeHash?: string
-  rateLimit?: number
+  rateLimit?: number // per request ip or peer
+  maxConnections?: number // global, regardless of client address(es)
   denyList?: DenyList
   unsafeURLs?: string[]
   isBootstrap?: boolean

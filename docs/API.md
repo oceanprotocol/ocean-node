@@ -449,6 +449,38 @@ returns P2P peer
 
 ---
 
+## find peer multiaddress
+
+### `HTTP` GET /findPeer/?
+
+#### Description
+
+returns P2P peer multiaddresses if found in DHT
+
+#### Query Parameters
+
+| name    | type   | required | description |
+| ------- | ------ | -------- | ----------- |
+| peerId  | string | v        | peer id     |
+| timeout | int    | optional | timeout     |
+
+#### Response
+
+```
+{
+    "id": "16Uiu2HAmLhRDqfufZiQnxvQs2XHhd6hwkLSPfjAQg1gH8wgRixiP",
+    "multiaddrs": [
+        "/ip4/127.0.0.1/tcp/9000",
+        "/ip4/127.0.0.1/tcp/9001/ws",
+        "/ip4/172.18.0.2/tcp/9000",
+        "/ip4/172.18.0.2/tcp/9001/ws",
+        "/ip6/::1/tcp/9002"
+    ]
+}
+```
+
+---
+
 ## Get P2P Peers
 
 ### `HTTP` GET /getP2PPeers
@@ -501,13 +533,14 @@ returns an empty object if it is valid otherwise an array with error
 
 #### Parameters
 
-| name       | type   | required | description                                       |
-| ---------- | ------ | -------- | ------------------------------------------------- |
-| command    | string | v        | command name                                      |
-| node       | string |          | if not present it means current node              |
-| id         | string | v        | document id or did                                |
-| chainId    | number | v        | chain id of network on which document is provided |
-| nftAddress | string | v        | address of nft token                              |
+| name       | type     | required | description                                       |
+| ---------- | -------- | -------- | ------------------------------------------------- |
+| command    | string   | v        | command name                                      |
+| node       | string   |          | if not present it means current node              |
+| multiAddrs | string[] |          | if passed, use this instead of peerStore & DHT    |
+| id         | string   | v        | document id or did                                |
+| chainId    | number   | v        | chain id of network on which document is provided |
+| nftAddress | string   | v        | address of nft token                              |
 
 #### Request
 
@@ -1078,38 +1111,6 @@ byte array
 
 ---
 
-## Echo
-
-### `HTTP` POST /directCommand
-
-### `P2P` command: echo
-
-#### Description
-
-returns OK
-
-#### Parameters
-
-| name    | type   | required | description                          |
-| ------- | ------ | -------- | ------------------------------------ |
-| command | string | v        | command name                         |
-| node    | string |          | if not present it means current node |
-
-#### Request
-
-```json
-{
-  "command": "echo",
-  "node": "PeerId"
-}
-```
-
-#### Response
-
-```
-OK
-```
-
 ## Get indexing queue
 
 ### `HTTP` GET /api/services/indexQueue
@@ -1128,7 +1129,7 @@ returns the current indexing queue, as an array of objects
 
 ## PolicyServer Passthrough
 
-### `HTTP` POST /PolicyServerPassthrough
+### `HTTP` POST /api/services/PolicyServerPassthrough
 
 ### `P2P` command: PolicyServerPassthrough
 

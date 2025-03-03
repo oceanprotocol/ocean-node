@@ -132,15 +132,6 @@ jobs:
       - run: docker image ls
       - name: Delete default runner images
         run: |
-          docker image rm node:20
-          docker image rm node:20-alpine
-          docker image rm node:18
-          docker image rm node:18-alpine
-          docker image rm debian:10
-          docker image rm debian:11
-          docker image rm ubuntu:22.04
-          docker image rm ubuntu:20.04
-          docker image rm moby/buildkit:latest
           rm -rf /usr/share/swift/
       - name: Wait for contracts deployment and C2D cluster to be ready
         working-directory: ${{ github.workspace }}/barge
@@ -226,15 +217,6 @@ jobs:
       - run: docker image ls
       - name: Delete default runner images
         run: |
-          docker image rm node:20
-          docker image rm node:20-alpine
-          docker image rm node:18
-          docker image rm node:18-alpine
-          docker image rm debian:10
-          docker image rm debian:11
-          docker image rm ubuntu:22.04
-          docker image rm ubuntu:20.04
-          docker image rm moby/buildkit:latest
           rm -rf /usr/share/swift/
 
       - name: Wait for contracts deployment and C2D cluster to be ready
@@ -278,6 +260,8 @@ jobs:
           P2P_ENABLE_AUTONAT: 'false'
           ALLOWED_ADMINS: '["0xe2DD09d719Da89e5a3D0F2549c7E24566e947260"]'
           DB_TYPE: 'elasticsearch'
+          MAX_REQ_PER_MINUTE: 320
+          MAX_CONNECTIONS_PER_MINUTE: 320
       - name: Check Ocean Node is running
         run: |
           for i in $(seq 1 90); do
@@ -303,3 +287,22 @@ jobs:
       - name: Run system tests
         working-directory: ${{ github.workspace }}/ocean-cli
         run: npm run test:system
+
+  dashboard_build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'v20.16.0'
+      - name: Cache node_modules
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-node-modules
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-dashboard-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-dashboard-${{ env.cache-name }}-
+      - run: npm ci
+      - name: Run dashboard build test
+        run: npm run test:dashboard
