@@ -471,7 +471,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
 
   getDDOSchema(ddo: Record<string, any>) {
     let schemaName: string | undefined
-    if (ddo.nft?.state !== 0) {
+    if (ddo.indexedMetadata?.nft?.state !== 0) {
       schemaName = 'op_ddo_short'
     } else if (ddo.version) {
       schemaName = `op_ddo_v${ddo.version}`
@@ -487,7 +487,12 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
   }
 
   async validateDDO(ddo: Record<string, any>): Promise<boolean> {
-    if (ddo.nft?.state !== 0) {
+    if ('indexedMetadata' in ddo && ddo.indexedMetadata.nft?.state !== 0) {
+      // Skipping validation for short DDOs as it currently doesn't work
+      // TODO: DDO validation needs to be updated to consider the fields required by the schema
+      // See github issue: https://github.com/oceanprotocol/ocean-node/issues/256
+      return true
+    } else if ('nft' in ddo && ddo.nft?.state !== 0) {
       return true
     } else {
       const validation = await validateObject(ddo, ddo.chainId, ddo.nftAddress)

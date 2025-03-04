@@ -2,7 +2,6 @@ import { Service } from './Service'
 import { Metadata } from './Metadata'
 import { Credentials } from './Credentials'
 import { IndexedMetadata } from './IndexedMetadata'
-import { Nft } from './Nft'
 
 /**
  * DID Descriptor Object.
@@ -59,8 +58,6 @@ export interface DDO {
    * @type {Credentials}
    */
   credentials?: Credentials
-
-  nft?: Nft
 
   indexedMetadata?: IndexedMetadata
 }
