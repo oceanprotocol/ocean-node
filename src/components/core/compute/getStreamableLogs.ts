@@ -44,7 +44,7 @@ export class ComputeGetStreamableLogsHandler extends Handler {
       task.consumerAddress,
       parseInt(task.nonce),
       task.signature,
-      message // task.jobId + task.index.toString()
+      message
     )
 
     if (!nonceCheckResult.valid) {
