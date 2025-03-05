@@ -666,7 +666,6 @@ export class OceanP2P extends EventEmitter {
         runOnTransientConnection: true
       }
       const connection = await this._libp2p.dial(multiaddrs, options)
-      console.log(connection)
       if (connection.remotePeer.toString() !== peerId.toString()) {
         response.status.httpStatus = 404
         response.status.error = `Invalid peer on the other side: ${peerId}`
