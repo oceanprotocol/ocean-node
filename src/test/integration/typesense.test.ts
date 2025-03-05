@@ -160,6 +160,7 @@ describe('Typesense documents', () => {
     const result = await typesense.collections(ddoSchema.name).documents().create(ddo)
     expect(result.id).to.equal(ddo.id)
     expect(result.metadata).to.not.be.an('undefined')
+    console.log('create result: ', result.metadata)
     expect(result.metadata.name).to.be.equal(ddo.metadata.name)
   })
   // TODO: fix search query
@@ -170,11 +171,13 @@ describe('Typesense documents', () => {
       filter_by: 'chainId:=137',
       sort_by: 'version:desc'
     }
+    console.log('all results: ', await typesense.collections(ddoSchema.name).documents())
     const result = await typesense
       .collections(ddoSchema.name)
       .documents()
       .search(queryParams)
 
+    console.log('result', result)
     expect(result.found).to.equal(1)
     expect(result.hits[0]).to.not.be.an('undefined')
     expect(result.hits[0].document).to.not.be.an('undefined')
