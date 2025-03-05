@@ -164,7 +164,7 @@ describe('Typesense documents', () => {
   })
   it('search document in ddo collection', async () => {
     const queryParams: TypesenseSearchParams = {
-      q: 'ETH/USDT orderbook',
+      q: 'new metadata name',
       query_by: 'metadata.name',
       filter_by: 'chainId:=137',
       sort_by: 'version:desc'
