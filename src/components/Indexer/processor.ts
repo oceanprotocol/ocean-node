@@ -553,7 +553,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       }
       const from = decodedEventData.args[0].toString()
       let ddoUpdatedWithPricing = {}
-      const FOUND = 0
 
       // we need to store the event data (either metadata created or update and is updatable)
       if (
