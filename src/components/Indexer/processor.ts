@@ -560,66 +560,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         this.isValidDtAddressFromServices(ddo.services)
       ) {
         const ddoWithPricing = await getPricingStatsForDddo(ddo, signer)
-        if (
-          eventName === EVENTS.METADATA_UPDATED &&
-          ddoWithPricing.indexedMetadata.stats.length !== 0
-        ) {
-          for (const stat of ddoWithPricing.indexedMetadata.stats) {
-            const datatoken = new ethers.Contract(
-              stat.datatokenAddress,
-              ERC20Template.abi,
-              signer
-            )
-            if (stat.type === 'dispenser') {
-              try {
-                const dispensers = await datatoken.getDispensers()
-                for (const dispenser of dispensers) {
-                  const dispenserContract = new ethers.Contract(
-                    dispenser,
-                    Dispenser.abi,
-                    signer
-                  )
-                  INDEXER_LOGGER.logMessage(
-                    `dispenserContract status: ${
-                      (await dispenserContract.status(await datatoken.getAddress()))[0]
-                    }`
-                  )
-                  if (
-                    (await dispenserContract.status(await datatoken.getAddress()))[0] ===
-                    false
-                  ) {
-                    const index = ddoWithPricing.indexedMetadata.stats.indexOf(stat)
-                    ddoWithPricing.indexedMetadata.stats.splice(index, 1)
-                  }
-                }
-              } catch (e) {
-                INDEXER_LOGGER.error(
-                  `Contract call fails when retrieving dispensers for METADATA_UPDATED: ${e}`
-                )
-              }
-            } else if (stat.type === 'fixedrate') {
-              try {
-                const fixedRates = await datatoken.getFixedRates()
-                for (const fixedRate of fixedRates) {
-                  const fixedRateContract = new ethers.Contract(
-                    fixedRate[0],
-                    FixedRateExchange.abi,
-                    signer
-                  )
-                  const exchange = await fixedRateContract.getExchange(fixedRate[1])
-                  if (exchange[6] === false) {
-                    const index = ddoWithPricing.indexedMetadata.stats.indexOf(stat)
-                    ddoWithPricing.indexedMetadata.stats.splice(index, 1)
-                  }
-                }
-              } catch (e) {
-                INDEXER_LOGGER.error(
-                  `Contract call fails when retrieving fixed rate exchanges for METADATA_UPDATED: ${e}`
-                )
-              }
-            }
-          }
-        }
         ddoWithPricing.indexedMetadata.nft = await this.getNFTInfo(
           ddoWithPricing.nftAddress,
           signer,
@@ -898,7 +838,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
           name: await datatokenContract.name(),
           serviceId: ddo.services[serviceIndex].id,
           orders: 1,
-          prices: getPricesByDt(datatokenContract, signer)
+          prices: await getPricesByDt(datatokenContract, signer)
         })
       }
       await orderDatabase.create(
@@ -985,7 +925,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
           orders: 1,
-          prices: getPricesByDt(datatokenContract, signer)
+          prices: await getPricesByDt(datatokenContract, signer)
         })
       }
 
@@ -1094,7 +1034,7 @@ export class DispenserCreatedEventProcessor extends BaseEventProcessor {
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
           orders: 0,
-          prices: getPricesByDt(datatokenContract, signer)
+          prices: await getPricesByDt(datatokenContract, signer)
         })
       }
 
@@ -1175,7 +1115,7 @@ export class DispenserActivatedEventProcessor extends BaseEventProcessor {
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
           orders: 0,
-          prices: getPricesByDt(datatokenContract, signer)
+          prices: await getPricesByDt(datatokenContract, signer)
         })
       }
 
@@ -1261,7 +1201,7 @@ export class DispenserDeactivatedEventProcessor extends BaseEventProcessor {
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
           orders: 0,
-          prices: getPricesByDt(datatokenContract, signer)
+          prices: await getPricesByDt(datatokenContract, signer)
         })
       }
 
@@ -1345,7 +1285,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
           orders: 0,
-          prices: getPricesByDt(datatokenContract, signer)
+          prices: await getPricesByDt(datatokenContract, signer)
         })
       }
 
@@ -1433,7 +1373,7 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
           orders: 0,
-          prices: getPricesByDt(datatokenContract, signer)
+          prices: await getPricesByDt(datatokenContract, signer)
         })
       }
 
@@ -1521,7 +1461,7 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
           orders: 0,
-          prices: getPricesByDt(datatokenContract, signer)
+          prices: await getPricesByDt(datatokenContract, signer)
         })
       }
 

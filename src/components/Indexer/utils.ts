@@ -565,7 +565,8 @@ export async function getPricesByDt(
             prices.push({
               type: 'dispenser',
               price: '0',
-              contract: dispenser
+              contract: dispenser,
+              token: await datatoken.getAddress()
             })
           }
         } catch (e) {
@@ -644,43 +645,52 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
         prices: []
       })
     } else {
-      INDEXER_LOGGER.logMessage(`all dispensers: ${dispensers}`)
       if (dispensers) {
         for (const dispenser of dispensers) {
           const dispenserContract = new ethers.Contract(dispenser, Dispenser.abi, signer)
-          if (
-            (await dispenserContract.status(await datatoken.getAddress()))[0] === true
-          ) {
-            prices.push({
-              type: 'dispenser',
-              price: '0',
-              contract: dispenser,
-              token: service.datatokenAddress
-            })
-            ddo.indexedMetadata.stats.push({
-              datatokenAddress: service.datatokenAddress,
-              name: await datatoken.name(),
-              serviceId: service.id,
-              orders: 0,
-              prices
-            })
+          try {
+            const [isActive, ,] = await dispenserContract.status(
+              await datatoken.getAddress()
+            )
+            if (isActive === true) {
+              prices.push({
+                type: 'dispenser',
+                price: '0',
+                contract: dispenser,
+                token: service.datatokenAddress
+              })
+              ddo.indexedMetadata.stats.push({
+                datatokenAddress: service.datatokenAddress,
+                name: await datatoken.name(),
+                serviceId: service.id,
+                orders: 0,
+                prices
+              })
+            }
+          } catch (e) {
+            INDEXER_LOGGER.error(
+              `[GET PRICES] failure when retrieving dispenser status from contracts: ${e}`
+            )
           }
         }
       }
+    }
 
-      if (fixedRates) {
-        for (const fixedRate of fixedRates) {
-          const fixedRateContract = new ethers.Contract(
-            fixedRate[0],
-            FixedRateExchange.abi,
-            signer
-          )
-          const exchange = await fixedRateContract.getExchange(fixedRate[1])
-          if (exchange[6] === true) {
+    if (fixedRates) {
+      for (const fixedRate of fixedRates) {
+        const fixedRateContract = new ethers.Contract(
+          fixedRate[0],
+          FixedRateExchange.abi,
+          signer
+        )
+        try {
+          const [, , , baseTokenAddress, , pricing, isActive, , , , , ,] =
+            await fixedRateContract.getExchange(fixedRate[1])
+          if (isActive === true) {
             prices.push({
               type: 'fixedrate',
-              price: ethers.formatEther(exchange[5].toString()),
-              token: exchange[3],
+              price: ethers.formatEther(pricing),
+              token: baseTokenAddress,
               contract: fixedRate[0],
               exchangeId: fixedRate[1]
             })
@@ -692,6 +702,10 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
               prices
             })
           }
+        } catch (e) {
+          INDEXER_LOGGER.error(
+            `[GET PRICES] failure when retrieving exchange status from contracts: ${e}`
+          )
         }
       }
     }
