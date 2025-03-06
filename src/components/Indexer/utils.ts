@@ -696,5 +696,6 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
       }
     }
   }
+  console.log('DDO stats:', ddo.indexedMetadata.stats)
   return ddo
 }

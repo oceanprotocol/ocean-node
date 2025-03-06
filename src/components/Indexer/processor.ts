@@ -553,6 +553,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       }
       const from = decodedEventData.args[0].toString()
       let ddoUpdatedWithPricing = {}
+      let FOUND = 0
 
       // we need to store the event data (either metadata created or update and is updatable)
       if (
@@ -588,6 +589,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
                     (await dispenserContract.status(await datatoken.getAddress()))[0] ===
                     false
                   ) {
+                    FOUND++
                     const index = ddoWithPricing.indexedMetadata.stats.indexOf(stat)
                     ddoWithPricing.indexedMetadata.stats.splice(index, 1)
                   }
@@ -608,6 +610,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
                   )
                   const exchange = await fixedRateContract.getExchange(fixedRate[1])
                   if (exchange[6] === false) {
+                    FOUND++
                     const index = ddoWithPricing.indexedMetadata.stats.indexOf(stat)
                     ddoWithPricing.indexedMetadata.stats.splice(index, 1)
                   }
@@ -618,6 +621,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
                 )
               }
             }
+            console.log('FOUND: ', FOUND)
           }
         }
         ddoWithPricing.indexedMetadata.nft = await this.getNFTInfo(
