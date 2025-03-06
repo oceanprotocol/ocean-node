@@ -553,7 +553,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       }
       const from = decodedEventData.args[0].toString()
       let ddoUpdatedWithPricing = {}
-      let FOUND = 0
+      const FOUND = 0
 
       // we need to store the event data (either metadata created or update and is updatable)
       if (
@@ -561,69 +561,69 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         this.isValidDtAddressFromServices(ddo.services)
       ) {
         const ddoWithPricing = await getPricingStatsForDddo(ddo, signer)
-        if (
-          eventName === EVENTS.METADATA_UPDATED &&
-          ddoWithPricing.indexedMetadata.stats.length !== 0
-        ) {
-          for (const stat of ddoWithPricing.indexedMetadata.stats) {
-            const datatoken = new ethers.Contract(
-              stat.datatokenAddress,
-              ERC20Template.abi,
-              signer
-            )
-            if (stat.type === 'dispenser') {
-              try {
-                const dispensers = await datatoken.getDispensers()
-                for (const dispenser of dispensers) {
-                  const dispenserContract = new ethers.Contract(
-                    dispenser,
-                    Dispenser.abi,
-                    signer
-                  )
-                  INDEXER_LOGGER.logMessage(
-                    `dispenserContract status: ${
-                      (await dispenserContract.status(await datatoken.getAddress()))[0]
-                    }`
-                  )
-                  if (
-                    (await dispenserContract.status(await datatoken.getAddress()))[0] ===
-                    false
-                  ) {
-                    FOUND++
-                    const index = ddoWithPricing.indexedMetadata.stats.indexOf(stat)
-                    ddoWithPricing.indexedMetadata.stats.splice(index, 1)
-                  }
-                }
-              } catch (e) {
-                INDEXER_LOGGER.error(
-                  `Contract call fails when retrieving dispensers for METADATA_UPDATED: ${e}`
-                )
-              }
-            } else if (stat.type === 'fixedrate') {
-              try {
-                const fixedRates = await datatoken.getFixedRates()
-                for (const fixedRate of fixedRates) {
-                  const fixedRateContract = new ethers.Contract(
-                    fixedRate[0],
-                    FixedRateExchange.abi,
-                    signer
-                  )
-                  const exchange = await fixedRateContract.getExchange(fixedRate[1])
-                  if (exchange[6] === false) {
-                    FOUND++
-                    const index = ddoWithPricing.indexedMetadata.stats.indexOf(stat)
-                    ddoWithPricing.indexedMetadata.stats.splice(index, 1)
-                  }
-                }
-              } catch (e) {
-                INDEXER_LOGGER.error(
-                  `Contract call fails when retrieving fixed rate exchanges for METADATA_UPDATED: ${e}`
-                )
-              }
-            }
-            console.log('FOUND: ', FOUND)
-          }
-        }
+        // if (
+        //   eventName === EVENTS.METADATA_UPDATED &&
+        //   ddoWithPricing.indexedMetadata.stats.length !== 0
+        // ) {
+        //   for (const stat of ddoWithPricing.indexedMetadata.stats) {
+        //     const datatoken = new ethers.Contract(
+        //       stat.datatokenAddress,
+        //       ERC20Template.abi,
+        //       signer
+        //     )
+        //     if (stat.type === 'dispenser') {
+        //       try {
+        //         const dispensers = await datatoken.getDispensers()
+        //         for (const dispenser of dispensers) {
+        //           const dispenserContract = new ethers.Contract(
+        //             dispenser,
+        //             Dispenser.abi,
+        //             signer
+        //           )
+        //           INDEXER_LOGGER.logMessage(
+        //             `dispenserContract status: ${
+        //               (await dispenserContract.status(await datatoken.getAddress()))[0]
+        //             }`
+        //           )
+        //           if (
+        //             (await dispenserContract.status(await datatoken.getAddress()))[0] ===
+        //             false
+        //           ) {
+        //             FOUND++
+        //             const index = ddoWithPricing.indexedMetadata.stats.indexOf(stat)
+        //             ddoWithPricing.indexedMetadata.stats.splice(index, 1)
+        //           }
+        //         }
+        //       } catch (e) {
+        //         INDEXER_LOGGER.error(
+        //           `Contract call fails when retrieving dispensers for METADATA_UPDATED: ${e}`
+        //         )
+        //       }
+        //     } else if (stat.type === 'fixedrate') {
+        //       try {
+        //         const fixedRates = await datatoken.getFixedRates()
+        //         for (const fixedRate of fixedRates) {
+        //           const fixedRateContract = new ethers.Contract(
+        //             fixedRate[0],
+        //             FixedRateExchange.abi,
+        //             signer
+        //           )
+        //           const exchange = await fixedRateContract.getExchange(fixedRate[1])
+        //           if (exchange[6] === false) {
+        //             FOUND++
+        //             const index = ddoWithPricing.indexedMetadata.stats.indexOf(stat)
+        //             ddoWithPricing.indexedMetadata.stats.splice(index, 1)
+        //           }
+        //         }
+        //       } catch (e) {
+        //         INDEXER_LOGGER.error(
+        //           `Contract call fails when retrieving fixed rate exchanges for METADATA_UPDATED: ${e}`
+        //         )
+        //       }
+        //     }
+        //     console.log('FOUND: ', FOUND)
+        //   }
+        // }
         ddoWithPricing.indexedMetadata.nft = await this.getNFTInfo(
           ddoWithPricing.nftAddress,
           signer,
