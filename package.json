@@ -1,6 +1,6 @@
 {
   "name": "ocean-node",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Ocean Node is used to run all core services in the Ocean stack",
   "author": "Ocean Protocol Foundation",
   "license": "Apache-2.0",
