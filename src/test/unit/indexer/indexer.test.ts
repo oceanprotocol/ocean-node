@@ -10,6 +10,7 @@ import {
   isReachableConnection
 } from '../../../utils/database.js'
 import sinon from 'sinon'
+import * as dbUtils from '../../../utils/database.js'
 
 describe('OceanIndexer', () => {
   let oceanIndexer: OceanIndexer
@@ -46,8 +47,12 @@ describe('OceanIndexer', () => {
     let indexer: OceanIndexer
     let mockDb: Database
     let resetCrawlingSpy: sinon.SinonSpy
+    let isReachableStub: sinon.SinonStub
 
     beforeEach(() => {
+      // Mock isReachableConnection to return true
+      isReachableStub = sinon.stub(dbUtils, 'isReachableConnection').resolves(true)
+
       // Mock database with initial null version
       mockDb = {
         indexer: {
@@ -113,6 +118,19 @@ describe('OceanIndexer', () => {
       assert(
         (mockDb.indexer.setNodeVersion as sinon.SinonStub).notCalled,
         'setNodeVersion should not be called'
+      )
+    })
+
+    it('should check if database is reachable', async () => {
+      const currentVersion = '0.2.2'
+      sinon.stub(indexer as any, 'getCurrentVersion').returns(currentVersion)
+
+      await indexer.checkAndTriggerReindexing()
+
+      assert(isReachableStub.calledOnce, 'isReachableConnection should be called once')
+      assert(
+        isReachableStub.calledWith('http://localhost:9200'),
+        'should check correct URL'
       )
     })
   })
