@@ -1,8 +1,7 @@
 import { Service } from './Service'
 import { Metadata } from './Metadata'
 import { Credentials } from './Credentials'
-import { Event } from './Event'
-import { Nft } from './Nft'
+import { IndexedMetadata } from './IndexedMetadata'
 
 /**
  * DID Descriptor Object.
@@ -60,11 +59,5 @@ export interface DDO {
    */
   credentials?: Credentials
 
-  /**
-   * Describes the event of last metadata event
-   * @type {Event}
-   */
-  event?: Event
-
-  nft?: Nft
+  indexedMetadata?: IndexedMetadata
 }
