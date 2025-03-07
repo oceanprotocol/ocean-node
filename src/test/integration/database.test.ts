@@ -200,31 +200,36 @@ describe('IndexerDatabase CRUD', () => {
     expect(result?.lastIndexedBlock).to.equal(1)
   })
 
-  it('sets node version', async () => {
-    const testVersion = '0.2.2'
-    await database.indexer.setNodeVersion(testVersion)
-    const result = await database.indexer.getNodeVersion()
-    expect(result).to.equal(testVersion)
-  })
+  describe('Node Version Management', () => {
+    it('should have null version initially', async () => {
+      const result = await database.indexer.getNodeVersion()
+      assert(result === null)
+    })
 
-  it('retrieves node version', async () => {
-    const testVersion = '0.2.3'
-    await database.indexer.setNodeVersion(testVersion)
-    const result = await database.indexer.getNodeVersion()
-    expect(result).to.equal(testVersion)
-  })
+    it('sets and retrieves node version', async () => {
+      const testVersion = '0.2.2'
+      // Verify initial null state
+      let result = await database.indexer.getNodeVersion()
+      assert(result === null)
 
-  it('updates node version', async () => {
-    const initialVersion = '0.2.3'
-    const updatedVersion = '0.2.4'
+      // Set version
+      await database.indexer.setNodeVersion(testVersion)
+      result = await database.indexer.getNodeVersion()
+      assert(result === testVersion)
+    })
 
-    await database.indexer.setNodeVersion(initialVersion)
-    let result = await database.indexer.getNodeVersion()
-    expect(result).to.equal(initialVersion)
+    it('updates node version', async () => {
+      const initialVersion = '0.2.3'
+      const updatedVersion = '0.2.4'
 
-    await database.indexer.setNodeVersion(updatedVersion)
-    result = await database.indexer.getNodeVersion()
-    expect(result).to.equal(updatedVersion)
+      await database.indexer.setNodeVersion(initialVersion)
+      let result = await database.indexer.getNodeVersion()
+      assert(result === initialVersion)
+
+      await database.indexer.setNodeVersion(updatedVersion)
+      result = await database.indexer.getNodeVersion()
+      assert(result === updatedVersion)
+    })
   })
 })
 

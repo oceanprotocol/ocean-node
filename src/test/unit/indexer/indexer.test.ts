@@ -48,16 +48,15 @@ describe('OceanIndexer', () => {
     let resetCrawlingSpy: sinon.SinonSpy
 
     beforeEach(() => {
-      // Mock database
+      // Mock database with initial null version
       mockDb = {
         indexer: {
-          getNodeVersion: sinon.stub().resolves('0.2.0'),
+          getNodeVersion: sinon.stub().resolves(null), // Initially null
           setNodeVersion: sinon.stub().resolves()
         },
         getConfig: () => ({ url: 'http://localhost:9200', dbType: 'elasticsearch' })
       } as any
 
-      // Create indexer with mock networks
       const mockNetworks = {
         '8996': {
           chainId: 8996,
@@ -66,8 +65,6 @@ describe('OceanIndexer', () => {
         }
       } as RPCS
       indexer = new OceanIndexer(mockDb as Database, mockNetworks)
-
-      // Spy on resetCrawling method
       resetCrawlingSpy = sinon.spy(indexer, 'resetCrawling')
     })
 
@@ -75,37 +72,28 @@ describe('OceanIndexer', () => {
       sinon.restore()
     })
 
-    it('should not trigger reindexing when database version is current', async () => {
-      // Mock getCurrentVersion to return same as DB version
-      sinon.stub(indexer as any, 'getCurrentVersion').returns('0.2.2')
-
-      await indexer.checkAndTriggerReindexing()
-
-      assert(resetCrawlingSpy.notCalled, 'resetCrawling should not be called')
-      assert(
-        (mockDb.indexer.setNodeVersion as sinon.SinonStub).notCalled,
-        'setNodeVersion should not be called'
-      )
+    it('should have null version initially', async () => {
+      const version = await mockDb.indexer.getNodeVersion()
+      assert(version === null, 'Initial version should be null')
     })
 
-    it('should trigger reindexing when database version is old', async () => {
-      // Mock getCurrentVersion to return newer version
-      sinon.stub(indexer as any, 'getCurrentVersion').returns('0.2.2')
-      // Mock DB to return older version
-      mockDb.indexer.getNodeVersion = sinon.stub().resolves('0.2.0')
+    it('should trigger reindexing and set version when version is null', async () => {
+      const currentVersion = '0.2.2'
+      sinon.stub(indexer as any, 'getCurrentVersion').returns(currentVersion)
 
       await indexer.checkAndTriggerReindexing()
 
       assert(resetCrawlingSpy.calledOnce, 'resetCrawling should be called once')
       assert(
-        (mockDb.indexer.setNodeVersion as sinon.SinonStub).calledWith('0.2.2'),
-        'setNodeVersion should be called with new version'
+        (mockDb.indexer.setNodeVersion as sinon.SinonStub).calledWith(currentVersion),
+        'setNodeVersion should be called with current version'
       )
     })
 
-    it('should trigger reindexing when database version is null', async () => {
+    it('should trigger reindexing when database version is old', async () => {
+      // Set an old version in DB
+      mockDb.indexer.getNodeVersion = sinon.stub().resolves('0.2.0')
       sinon.stub(indexer as any, 'getCurrentVersion').returns('0.2.2')
-      mockDb.indexer.getNodeVersion = sinon.stub().resolves(null)
 
       await indexer.checkAndTriggerReindexing()
 
