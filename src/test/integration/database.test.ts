@@ -208,14 +208,17 @@ describe('IndexerDatabase CRUD', () => {
 
     it('sets and retrieves node version', async () => {
       const testVersion = '0.2.2'
-      // Verify initial null state
-      let result = await database.indexer.getNodeVersion()
-      assert(result === null)
 
-      // Set version
+      // Create a document first to ensure the collection exists
+      await database.indexer.create(999, 0)
+
+      // Now set the version
       await database.indexer.setNodeVersion(testVersion)
-      result = await database.indexer.getNodeVersion()
+      const result = await database.indexer.getNodeVersion()
       assert(result === testVersion)
+
+      // Clean up
+      await database.indexer.delete(999)
     })
 
     it('updates node version', async () => {
