@@ -768,6 +768,8 @@ export class TypesenseIndexerDatabase extends AbstractIndexerDatabase {
       const versionDoc = {
         id: TypesenseIndexerDatabase.VERSION_DOC_ID,
         version,
+        // Include lastIndexedBlock field which is required by the schema
+        lastIndexedBlock: -1, // Use -1 as a special value for version documents
         updatedAt: new Date().toISOString()
       }
 
