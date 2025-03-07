@@ -38,7 +38,7 @@ export class OceanIndexer {
   private networks: RPCS
   private supportedChains: string[]
   private workers: Record<string, Worker> = {}
-  private MIN_REQUIRED_VERSION = '1.5.0'
+  private MIN_REQUIRED_VERSION = '0.2.2'
 
   constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
