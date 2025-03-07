@@ -15,7 +15,7 @@ export type MATCH_RULES = 'any' | 'all'
 
 export interface Credentials {
   match_allow?: MATCH_RULES // any =>  it's enough to have one rule matched, all => all allow rules should match, default: 'all'
-  match_deny: MATCH_RULES // same pattern as above, default is 'any'
+  match_deny?: MATCH_RULES // same pattern as above, default is 'any'
   allow?: Credential[]
   deny?: Credential[]
 }
