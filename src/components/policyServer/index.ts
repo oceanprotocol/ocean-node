@@ -10,7 +10,7 @@ export class PolicyServer {
   }
 
   private async askServer(command: any): Promise<PolicyServerResult> {
-    if (!this.serverUrl) return { success: true, message: '', httpStatus: 400 }
+    if (!this.serverUrl) return { success: true, message: '', httpStatus: 404 }
     let response
     try {
       response = await fetch(this.serverUrl, {
