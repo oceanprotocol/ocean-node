@@ -17,6 +17,9 @@ import { buildJobIdentifier } from './utils.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { isReachableConnection } from '../../utils/database.js'
 import { sleep } from '../../utils/util.js'
+import { readFileSync } from 'fs'
+import { join } from 'path'
+import { isReindexingNeeded } from './version.js'
 
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
@@ -35,6 +38,7 @@ export class OceanIndexer {
   private networks: RPCS
   private supportedChains: string[]
   private workers: Record<string, Worker> = {}
+  private MIN_REQUIRED_VERSION = '1.5.0'
 
   constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
@@ -42,6 +46,11 @@ export class OceanIndexer {
     this.supportedChains = Object.keys(supportedNetworks)
     INDEXING_QUEUE = []
     this.startThreads()
+
+    // Check if reindexing is needed
+    this.checkAndTriggerReindexing().catch((error) => {
+      INDEXER_LOGGER.error(`Error during version check and reindexing: ${error.message}`)
+    })
   }
 
   public getSupportedNetworks(): RPCS {
@@ -403,6 +412,57 @@ export class OceanIndexer {
           job.status = newStatus
         }
       }
+    }
+  }
+
+  /**
+   * Gets the current node version from package.json
+   */
+  private getCurrentVersion(): string {
+    try {
+      // Assuming this is run from the project root
+      const packageJson = JSON.parse(
+        readFileSync(join(process.cwd(), 'package.json'), 'utf8')
+      )
+      return packageJson.version
+    } catch (error) {
+      INDEXER_LOGGER.error(`Failed to read package.json: ${error.message}`)
+      return '0.0.0' // Default to trigger reindexing
+    }
+  }
+
+  /**
+   * Checks if reindexing is needed and triggers it for all chains
+   */
+  public async checkAndTriggerReindexing(): Promise<void> {
+    const currentVersion = this.getCurrentVersion()
+    const dbVersion = await this.db.getNodeVersion()
+
+    INDEXER_LOGGER.info(
+      `Node version check: Current=${currentVersion}, DB=${
+        dbVersion || 'not set'
+      }, Min Required=${this.MIN_REQUIRED_VERSION}`
+    )
+
+    if (isReindexingNeeded(currentVersion, dbVersion, this.MIN_REQUIRED_VERSION)) {
+      INDEXER_LOGGER.info(
+        `Reindexing needed: DB version ${
+          dbVersion || 'not set'
+        } is older than minimum required ${this.MIN_REQUIRED_VERSION}`
+      )
+
+      // Reindex all chains
+      for (const chainID of this.supportedChains) {
+        const chainIdNum = Number(chainID)
+        INDEXER_LOGGER.info(`Triggering reindexing for chain ${chainIdNum}`)
+        await this.resetCrawling(chainIdNum)
+      }
+
+      // Update the version in the database
+      await this.db.setNodeVersion(currentVersion)
+      INDEXER_LOGGER.info(`Updated node version in database to ${currentVersion}`)
+    } else {
+      INDEXER_LOGGER.info('No reindexing needed based on version check')
     }
   }
 }
