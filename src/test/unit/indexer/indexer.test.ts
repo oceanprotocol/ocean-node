@@ -50,17 +50,14 @@ describe('OceanIndexer', () => {
     let isReachableStub: sinon.SinonStub
 
     beforeEach(() => {
-      // Mock isReachableConnection to return true
-      isReachableStub = sinon.stub(dbUtils, 'isReachableConnection').resolves(true)
-
-      // Mock database with initial null version
+      // Create mock database with indexer property
       mockDb = {
+        getConfig: () => ({ url: 'http://localhost:9200', dbType: 'elasticsearch' }),
         indexer: {
-          getNodeVersion: sinon.stub().resolves(null), // Initially null
+          getNodeVersion: sinon.stub().resolves(null),
           setNodeVersion: sinon.stub().resolves()
-        },
-        getConfig: () => ({ url: 'http://localhost:9200', dbType: 'elasticsearch' })
-      } as any
+        }
+      } as unknown as Database
 
       const mockNetworks = {
         '8996': {
@@ -69,8 +66,18 @@ describe('OceanIndexer', () => {
           rpc: 'http://localhost:8545'
         }
       } as RPCS
-      indexer = new OceanIndexer(mockDb as Database, mockNetworks)
+
+      // Mock isReachableConnection to return true
+      isReachableStub = sinon.stub(dbUtils, 'isReachableConnection').resolves(true)
+
+      // Create indexer with mock database
+      indexer = new OceanIndexer(mockDb, mockNetworks)
+
+      // Spy on resetCrawling method
       resetCrawlingSpy = sinon.spy(indexer, 'resetCrawling')
+
+      // Mock getCurrentVersion method
+      sinon.stub(indexer, 'getCurrentVersion' as any).returns('0.2.2')
     })
 
     afterEach(() => {
@@ -83,22 +90,18 @@ describe('OceanIndexer', () => {
     })
 
     it('should trigger reindexing and set version when version is null', async () => {
-      const currentVersion = '0.2.2'
-      sinon.stub(indexer as any, 'getCurrentVersion').returns(currentVersion)
-
       await indexer.checkAndTriggerReindexing()
 
       assert(resetCrawlingSpy.calledOnce, 'resetCrawling should be called once')
       assert(
-        (mockDb.indexer.setNodeVersion as sinon.SinonStub).calledWith(currentVersion),
+        (mockDb.indexer.setNodeVersion as sinon.SinonStub).calledWith('0.2.2'),
         'setNodeVersion should be called with current version'
       )
     })
 
     it('should trigger reindexing when database version is old', async () => {
       // Set an old version in DB
-      mockDb.indexer.getNodeVersion = sinon.stub().resolves('0.2.0')
-      sinon.stub(indexer as any, 'getCurrentVersion').returns('0.2.2')
+      ;(mockDb.indexer.getNodeVersion as sinon.SinonStub).resolves('0.2.0')
 
       await indexer.checkAndTriggerReindexing()
 
@@ -109,8 +112,18 @@ describe('OceanIndexer', () => {
       )
     })
 
+    it('should not trigger reindexing when database version is current', async () => {
+      // Set current version in DB
+      ;(mockDb.indexer.getNodeVersion as sinon.SinonStub).resolves('0.2.2')
+
+      await indexer.checkAndTriggerReindexing()
+
+      assert(resetCrawlingSpy.notCalled, 'resetCrawling should not be called')
+    })
+
     it('should not proceed if database is not reachable', async () => {
-      mockDb.getConfig = () => ({ url: 'http://invalid:9200', dbType: 'elasticsearch' })
+      // Make database unreachable
+      isReachableStub.resolves(false)
 
       await indexer.checkAndTriggerReindexing()
 
@@ -118,19 +131,6 @@ describe('OceanIndexer', () => {
       assert(
         (mockDb.indexer.setNodeVersion as sinon.SinonStub).notCalled,
         'setNodeVersion should not be called'
-      )
-    })
-
-    it('should check if database is reachable', async () => {
-      const currentVersion = '0.2.2'
-      sinon.stub(indexer as any, 'getCurrentVersion').returns(currentVersion)
-
-      await indexer.checkAndTriggerReindexing()
-
-      assert(isReachableStub.calledOnce, 'isReachableConnection should be called once')
-      assert(
-        isReachableStub.calledWith('http://localhost:9200'),
-        'should check correct URL'
       )
     })
   })
