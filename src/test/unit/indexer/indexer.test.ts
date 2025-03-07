@@ -8,7 +8,6 @@ import {
   hasValidDBConfiguration,
   isReachableConnection
 } from '../../../utils/database.js'
-import { isReindexingNeeded } from '../../../components/Indexer/version.js'
 
 describe('OceanIndexer', () => {
   let oceanIndexer: OceanIndexer
