@@ -17,8 +17,6 @@ import { buildJobIdentifier } from './utils.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { isReachableConnection } from '../../utils/database.js'
 import { sleep } from '../../utils/util.js'
-import { readFileSync } from 'fs'
-import { join } from 'path'
 import { isReindexingNeeded } from './version.js'
 
 // emmit events for node
@@ -416,26 +414,10 @@ export class OceanIndexer {
   }
 
   /**
-   * Gets the current node version from package.json
-   */
-  private getCurrentVersion(): string {
-    try {
-      // Assuming this is run from the project root
-      const packageJson = JSON.parse(
-        readFileSync(join(process.cwd(), 'package.json'), 'utf8')
-      )
-      return packageJson.version
-    } catch (error) {
-      INDEXER_LOGGER.error(`Failed to read package.json: ${error.message}`)
-      return '0.0.0' // Default to trigger reindexing
-    }
-  }
-
-  /**
    * Checks if reindexing is needed and triggers it for all chains
    */
   public async checkAndTriggerReindexing(): Promise<void> {
-    const currentVersion = this.getCurrentVersion()
+    const currentVersion = process.env.npm_package_version
     const dbActive = this.getDatabase()
     if (!dbActive || !(await isReachableConnection(dbActive.getConfig().url))) {
       INDEXER_LOGGER.error(`Giving up reindexing. DB is not online!`)
@@ -460,7 +442,13 @@ export class OceanIndexer {
       for (const chainID of this.supportedChains) {
         const chainIdNum = Number(chainID)
         INDEXER_LOGGER.info(`Triggering reindexing for chain ${chainIdNum}`)
-        await this.resetCrawling(chainIdNum)
+        const job = await this.resetCrawling(chainIdNum)
+        if (!job || job.status === CommandStatus.FAILURE) {
+          INDEXER_LOGGER.error(
+            `Reindex chain job for ${chainIdNum} failed. Please retry reindexChanin command manually for this chain.`
+          )
+          continue
+        }
       }
 
       // Update the version in the database
