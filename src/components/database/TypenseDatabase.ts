@@ -634,7 +634,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
 export class TypesenseIndexerDatabase extends AbstractIndexerDatabase {
   private provider: Typesense
 
-  // Add a constant for the version document ID
+  // constant for the node version document ID
   private static readonly VERSION_DOC_ID = 'node_version'
 
   constructor(config: OceanNodeDBConfig, schema: TypesenseSchema) {
