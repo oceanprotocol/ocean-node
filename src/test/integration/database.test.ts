@@ -203,6 +203,7 @@ describe('IndexerDatabase CRUD', () => {
   describe('Node Version Management', () => {
     it('should have null version initially', async () => {
       const result = await database.indexer.getNodeVersion()
+      console.log(`result: ${result}`)
       assert(result === null)
     })
 
