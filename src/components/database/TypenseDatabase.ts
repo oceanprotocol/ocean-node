@@ -634,6 +634,9 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
 export class TypesenseIndexerDatabase extends AbstractIndexerDatabase {
   private provider: Typesense
 
+  // Add a constant for the version document ID
+  private static readonly VERSION_DOC_ID = 'node_version'
+
   constructor(config: OceanNodeDBConfig, schema: TypesenseSchema) {
     super(config, schema)
     return (async (): Promise<TypesenseIndexerDatabase> => {
@@ -735,6 +738,62 @@ export class TypesenseIndexerDatabase extends AbstractIndexerDatabase {
         LOG_LEVELS_STR.LEVEL_ERROR
       )
       return null
+    }
+  }
+
+  async getNodeVersion(): Promise<string | null> {
+    try {
+      const result = await this.provider
+        .collections(this.schema.name)
+        .documents()
+        .retrieve(TypesenseIndexerDatabase.VERSION_DOC_ID)
+      return (result as { version: string }).version
+    } catch (error) {
+      if (error instanceof TypesenseError && error.httpStatus === 404) {
+        // Document not found, which is expected if version hasn't been set yet
+        return null
+      }
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Error retrieving node version: ${error.message}`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
+  async setNodeVersion(version: string): Promise<void> {
+    try {
+      const versionDoc = {
+        id: TypesenseIndexerDatabase.VERSION_DOC_ID,
+        version,
+        updatedAt: new Date().toISOString()
+      }
+
+      try {
+        // Try to update if exists
+        await this.provider
+          .collections(this.schema.name)
+          .documents()
+          .update(TypesenseIndexerDatabase.VERSION_DOC_ID, versionDoc)
+      } catch (error) {
+        // If not exists, create
+        if (error instanceof TypesenseError && error.httpStatus === 404) {
+          await this.provider.collections(this.schema.name).documents().create(versionDoc)
+        } else {
+          throw error
+        }
+      }
+
+      DATABASE_LOGGER.info(`Node version updated to ${version}`)
+    } catch (error) {
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Error setting node version: ${error.message}`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
     }
   }
 }

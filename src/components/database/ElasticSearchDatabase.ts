@@ -17,6 +17,9 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
   private client: Client
   private index: string
 
+  // Add a constant for the version document ID
+  private static readonly VERSION_DOC_ID = 'node_version'
+
   constructor(config: OceanNodeDBConfig) {
     super(config)
     this.client = new Client({ node: config.url })
@@ -136,6 +139,45 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
         LOG_LEVELS_STR.LEVEL_ERROR
       )
       return null
+    }
+  }
+
+  async getNodeVersion(): Promise<string | null> {
+    try {
+      const result = await this.client.get({
+        index: this.index,
+        id: ElasticsearchIndexerDatabase.VERSION_DOC_ID
+      })
+      return (result._source as { version: string }).version
+    } catch (error) {
+      if (error.statusCode !== 404) {
+        DATABASE_LOGGER.logMessageWithEmoji(
+          `Error retrieving node version: ${error.message}`,
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEL_ERROR
+        )
+      }
+      return null
+    }
+  }
+
+  async setNodeVersion(version: string): Promise<void> {
+    try {
+      await this.client.index({
+        index: this.index,
+        id: ElasticsearchIndexerDatabase.VERSION_DOC_ID,
+        body: { version, updatedAt: new Date().toISOString() },
+        refresh: 'wait_for'
+      })
+      DATABASE_LOGGER.info(`Node version updated to ${version}`)
+    } catch (error) {
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Error setting node version: ${error.message}`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
     }
   }
 }

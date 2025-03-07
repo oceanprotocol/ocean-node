@@ -114,7 +114,9 @@ export const elasticSchemas: ElasticsearchSchemas = {
     body: {
       mappings: {
         properties: {
-          lastIndexedBlock: { type: 'long' }
+          lastIndexedBlock: { type: 'long' },
+          version: { type: 'keyword' },
+          updatedAt: { type: 'date' }
         }
       }
     }

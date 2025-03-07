@@ -64,7 +64,11 @@ export const typesenseSchemas: TypesenseSchemas = {
   indexerSchemas: {
     name: 'indexer',
     enable_nested_fields: true,
-    fields: [{ name: 'lastIndexedBlock', type: 'int64' }]
+    fields: [
+      { name: 'lastIndexedBlock', type: 'int64' },
+      { name: 'version', type: 'string', optional: true },
+      { name: 'updatedAt', type: 'string', optional: true }
+    ]
   },
   logSchemas: {
     name: 'logs',
