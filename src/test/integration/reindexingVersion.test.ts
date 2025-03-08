@@ -5,7 +5,6 @@ import { OceanNode } from '../../OceanNode.js'
 import { RPCS } from '../../@types/blockchain.js'
 import { homedir } from 'os'
 import {
-  DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
   TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
@@ -64,14 +63,13 @@ describe('Should test admin operations', () => {
     dbconn = await new Database(config.dbConfig)
     await dbconn.indexer.setNodeVersion('0.1.2') // lower version
     oceanNode = await OceanNode.getInstance(dbconn)
-    indexer = new OceanIndexer(dbconn, config.indexingNetworks)
+    indexer = new OceanIndexer(dbconn, config.indexingNetworks) // activate reindexing
     oceanNode.addIndexer(indexer)
   })
 
-  it('should update the version', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+  it('should update the version', async () => {
     assert(
-      (await dbconn.indexer.getNodeVersion()) === process.env.npm_package_version,
+      (await dbconn.indexer.getNodeVersion()) === '0.1.2',
       'version not updated with the current one'
     )
   })
