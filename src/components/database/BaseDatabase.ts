@@ -43,6 +43,9 @@ export abstract class AbstractIndexerDatabase {
   abstract retrieve(network: number): Promise<any>
   abstract update(network: number, lastIndexedBlock: number): Promise<any>
   abstract delete(network: number): Promise<any>
+
+  abstract getNodeVersion(): Promise<string | null>
+  abstract setNodeVersion(version: string): Promise<void>
 }
 
 export abstract class AbstractLogDatabase {

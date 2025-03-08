@@ -199,6 +199,36 @@ describe('IndexerDatabase CRUD', () => {
     expect(result?.id).to.equal('1')
     expect(result?.lastIndexedBlock).to.equal(1)
   })
+
+  describe('Node Version Management', () => {
+    it('sets and retrieves node version', async () => {
+      const testVersion = '0.2.2'
+
+      // Create a document first to ensure the collection exists
+      await database.indexer.create(999, 0)
+
+      // Now set the version
+      await database.indexer.setNodeVersion(testVersion)
+      const result = await database.indexer.getNodeVersion()
+      assert(result === testVersion)
+
+      // Clean up
+      await database.indexer.delete(999)
+    })
+
+    it('updates node version', async () => {
+      const initialVersion = '0.2.3'
+      const updatedVersion = '0.2.4'
+
+      await database.indexer.setNodeVersion(initialVersion)
+      let result = await database.indexer.getNodeVersion()
+      assert(result === initialVersion)
+
+      await database.indexer.setNodeVersion(updatedVersion)
+      result = await database.indexer.getNodeVersion()
+      assert(result === updatedVersion)
+    })
+  })
 })
 
 describe('OrderDatabase CRUD', () => {
