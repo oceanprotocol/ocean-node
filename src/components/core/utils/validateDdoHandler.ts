@@ -11,6 +11,7 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
 import { Readable } from 'stream'
+import { deleteIndexedMetadataIfExists } from '../../../utils/asset.js'
 
 const CURRENT_VERSION = '4.7.0'
 const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0', '4.7.0']
@@ -54,7 +55,8 @@ export async function validateObject(
   chainId: number,
   nftAddress: string
 ): Promise<[boolean, Record<string, string[]>]> {
-  const ddoCopy = JSON.parse(JSON.stringify(obj))
+  const updatedDdo = deleteIndexedMetadataIfExists(obj)
+  const ddoCopy = JSON.parse(JSON.stringify(updatedDdo))
   ddoCopy['@type'] = 'DDO'
 
   const extraErrors: Record<string, string[]> = {}

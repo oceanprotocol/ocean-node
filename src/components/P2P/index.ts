@@ -660,14 +660,22 @@ export class OceanP2P extends EventEmitter {
     let stream
     // dial/connect to the target node
     try {
-      stream = await this._libp2p.dialProtocol(multiaddrs, this._protocol, {
+      const options = {
         signal: AbortSignal.timeout(3000),
         priority: 100,
         runOnTransientConnection: true
-      })
+      }
+      const connection = await this._libp2p.dial(multiaddrs, options)
+      if (connection.remotePeer.toString() !== peerId.toString()) {
+        response.status.httpStatus = 404
+        response.status.error = `Invalid peer on the other side: ${peerId}`
+        P2P_LOGGER.error(response.status.error)
+        return response
+      }
+      stream = await connection.newStream(this._protocol, options)
     } catch (e) {
       response.status.httpStatus = 404
-      response.status.error = `Cannot connect to peer: ${peerId}`
+      response.status.error = `Cannot connect to peer ${peerId}: ${e.message}`
       P2P_LOGGER.error(response.status.error)
       return response
     }

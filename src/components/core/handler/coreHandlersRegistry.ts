@@ -34,7 +34,12 @@ import { ReindexChainHandler } from '../admin/reindexChainHandler.js'
 import { IndexingThreadHandler } from '../admin/IndexingThreadHandler.js'
 import { CollectFeesHandler } from '../admin/collectFeesHandler.js'
 import { AdminCommandHandler } from '../admin/adminHandler.js'
-
+import {
+  GetP2PPeerHandler,
+  GetP2PPeersHandler,
+  GetP2PNetworkStatsHandler,
+  FindPeerHandler
+} from './p2p.js'
 export type HandlerRegistry = {
   handlerName: string // name of the handler
   handlerImpl: BaseHandler // class that implements it
@@ -124,6 +129,16 @@ export class CoreHandlersRegistry {
       new IndexingThreadHandler(node)
     )
     this.registerCoreHandler(PROTOCOL_COMMANDS.COLLECT_FEES, new CollectFeesHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.GET_P2P_PEER, new GetP2PPeerHandler(node))
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.GET_P2P_PEERS,
+      new GetP2PPeersHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.GET_P2P_NETWORK_STATS,
+      new GetP2PNetworkStatsHandler(node)
+    )
+    this.registerCoreHandler(PROTOCOL_COMMANDS.FIND_PEER, new FindPeerHandler(node))
   }
 
   public static getInstance(node: OceanNode): CoreHandlersRegistry {
