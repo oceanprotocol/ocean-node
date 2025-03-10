@@ -64,6 +64,7 @@ export interface OceanNodeP2PConfig {
   autoDialConcurrency: number
   maxPeerAddrsToDial: number
   autoDialInterval: number
+  enableNetworkStats: boolean
 }
 
 export interface OceanNodeDockerConfig {
