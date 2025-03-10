@@ -1,5 +1,5 @@
 import express, { Response } from 'express'
-import { getOceanPeersRoute, getP2PPeersRoute, getP2PPeerRoute } from './getOceanPeers.js'
+import { p2pRoutes } from './getOceanPeers.js'
 import { advertiseDidRoute, getProvidersForDidRoute } from './dids.js'
 import { directCommandRoute } from './commands.js'
 import { logRoutes } from './logs.js'
@@ -22,12 +22,8 @@ export function sendMissingP2PResponse(res: Response) {
   res.status(400).send('Invalid or Non Existing P2P configuration')
 }
 
-// /getOceanPeers
-httpRoutes.use(getOceanPeersRoute)
-// /getP2PPeers
-httpRoutes.use(getP2PPeersRoute)
-// /getP2PPeer
-httpRoutes.use(getP2PPeerRoute)
+// /p2pRoutes
+httpRoutes.use(p2pRoutes)
 // /advertiseDid
 httpRoutes.use(advertiseDidRoute)
 // /getProvidersForDid

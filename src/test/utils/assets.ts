@@ -78,6 +78,8 @@ export async function publishAsset(asset: any, publisherAccount: Signer) {
 
     genericAsset.services[0].files.datatokenAddress = datatokenAddress
     genericAsset.services[0].files.nftAddress = nftAddress
+    genericAsset.services[0].datatokenAddress = datatokenAddress
+    genericAsset.nftAddress = nftAddress
     // let's call node to encrypt
 
     const data = Uint8Array.from(
