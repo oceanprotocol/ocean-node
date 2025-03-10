@@ -30,6 +30,32 @@ export abstract class AbstractNonceDatabase {
   }
 }
 
+export abstract class AbstractVersionDatabase {
+  protected config: OceanNodeDBConfig
+  protected schema: TypesenseSchema
+
+  constructor(config: OceanNodeDBConfig, schema?: TypesenseSchema) {
+    this.config = config
+    this.schema = schema
+  }
+
+  abstract create(version: string): Promise<any>
+  abstract retrieveById(id: number): Promise<any>
+  abstract retrieveLatestVersion(): Promise<any>
+  abstract update(newVersion: string, version: string): Promise<any>
+  abstract delete(version: string): Promise<any>
+
+  protected logError(message: string, error: any) {
+    const errorMsg = `${message}: ${error.message}`
+    DATABASE_LOGGER.logMessageWithEmoji(
+      errorMsg,
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
+  }
+}
+
 export abstract class AbstractIndexerDatabase {
   protected config: OceanNodeDBConfig
   protected schema: TypesenseSchema
@@ -182,17 +208,4 @@ export abstract class AbstractDdoDatabase {
   abstract delete(id: string): Promise<any>
 
   abstract deleteAllAssetsFromChain(chainId: number, batchSize?: number): Promise<number>
-}
-
-export abstract class AbstractVersionDatabase {
-  protected config: OceanNodeDBConfig
-  protected schema: Schema
-
-  constructor(config: OceanNodeDBConfig, schema: Schema) {
-    this.config = config
-    this.schema = schema
-  }
-
-  abstract getNodeVersion(): Promise<string | null>
-  abstract setNodeVersion(version: string): Promise<void>
 }

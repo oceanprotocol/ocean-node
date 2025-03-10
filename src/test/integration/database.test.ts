@@ -7,6 +7,8 @@ import { DB_TYPES } from '../../utils/constants.js'
 import { OceanNodeDBConfig } from '../../@types/OceanNode.js'
 import { isDefined } from '../../utils/util.js'
 import { SQLLiteNonceDatabase } from '../../components/database/SQLLiteNonceDatabase.js'
+import { OceanIndexer } from '../../components/Indexer/index.js'
+import { getMockSupportedNetworks } from '../utils/utils.js'
 
 const typesenseConfig: OceanNodeDBConfig = {
   url: 'http://localhost:8108/?apiKey=xyz',
@@ -521,24 +523,27 @@ describe('MetadataQuery', () => {
 
 describe('Version Database', () => {
   let database: Database
+  let oceanIndexer: OceanIndexer
+  let initialVersionNull: any
 
   before(async () => {
     database = await new Database(versionConfig)
+    oceanIndexer = new OceanIndexer(database, getMockSupportedNetworks())
   })
 
   it('should have null version initially', async () => {
-    const version = await database.version.getNodeVersion()
-    assert(version === null, 'Initial version should be null')
+    initialVersionNull = await oceanIndexer.getConfigDatabase().retrieveLatestVersion()
+    assert(initialVersionNull.version === null, 'Initial version should be null')
   })
 
   it('should set and retrieve version', async () => {
     // Set a specific test version
     const testVersion = '0.9.9'
-    await database.version.setNodeVersion(testVersion)
+    await oceanIndexer.getConfigDatabase().create(testVersion)
 
     // Verify we can retrieve it
-    const version = await database.version.getNodeVersion()
-    assert(version === testVersion, `Version should be ${testVersion}`)
+    const version = await oceanIndexer.getConfigDatabase().retrieveLatestVersion()
+    assert(version.version === testVersion, `Version should be ${testVersion}`)
   })
 
   it('should update version and retrieve latest', async () => {
@@ -546,13 +551,13 @@ describe('Version Database', () => {
     const updatedVersion = '0.2.3'
 
     // Set initial version
-    await database.version.setNodeVersion(initialVersion)
-    let version = await database.version.getNodeVersion()
-    assert(version === initialVersion, `Version should be ${initialVersion}`)
+    await oceanIndexer.getConfigDatabase().update(initialVersion, initialVersionNull)
+    let version = await oceanIndexer.getConfigDatabase().retrieveLatestVersion()
+    assert(version.version === initialVersion, `Version should be ${initialVersion}`)
 
     // Update to new version
-    await database.version.setNodeVersion(updatedVersion)
-    version = await database.version.getNodeVersion()
-    assert(version === updatedVersion, `Version should be ${updatedVersion}`)
+    await oceanIndexer.getConfigDatabase().update(updatedVersion, initialVersion)
+    version = await oceanIndexer.getConfigDatabase().retrieveLatestVersion()
+    assert(version.version === updatedVersion, `Version should be ${updatedVersion}`)
   })
 })

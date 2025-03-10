@@ -49,7 +49,6 @@ export class Database {
           this.logs = await DatabaseFactory.createLogDatabase(this.config)
           this.order = await DatabaseFactory.createOrderDatabase(this.config)
           this.ddoState = await DatabaseFactory.createDdoStateDatabase(this.config)
-          this.version = await DatabaseFactory.createVersionDatabase(this.config)
         } else {
           DATABASE_LOGGER.info(
             'Invalid URL. Only Nonce Database is initialized. Other databases are not available.'

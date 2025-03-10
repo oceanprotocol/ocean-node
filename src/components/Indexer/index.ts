@@ -18,6 +18,7 @@ import { create256Hash } from '../../utils/crypt.js'
 import { isReachableConnection } from '../../utils/database.js'
 import { sleep } from '../../utils/util.js'
 import { isReindexingNeeded } from './version.js'
+import { SQLLiteConfigDatabase } from '../database/SQLLiteConfigDatabase.js'
 
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
@@ -33,6 +34,7 @@ let numCrawlAttempts = 0
 const runningThreads: Map<number, boolean> = new Map<number, boolean>()
 export class OceanIndexer {
   private db: Database
+  private configDb: SQLLiteConfigDatabase
   private networks: RPCS
   private supportedChains: string[]
   private workers: Record<string, Worker> = {}
@@ -56,6 +58,10 @@ export class OceanIndexer {
 
   public getDatabase(): Database {
     return this.db
+  }
+
+  public getConfigDatabase(): SQLLiteConfigDatabase {
+    return this.configDb
   }
 
   public getSupportedNetwork(chainId: number): SupportedNetwork {
@@ -468,12 +474,12 @@ export class OceanIndexer {
    */
   public async checkAndTriggerReindexing(): Promise<void> {
     const currentVersion = process.env.npm_package_version
-    const dbActive = this.getDatabase()
-    if (!dbActive || !(await isReachableConnection(dbActive.getConfig().url))) {
-      INDEXER_LOGGER.error(`Giving up reindexing. DB is not online!`)
+    const dbConfig = this.getConfigDatabase()
+    if (!dbConfig) {
+      INDEXER_LOGGER.error(`Giving up reindexing...`)
       return
     }
-    const dbVersion = await dbActive.version.getNodeVersion()
+    const dbVersion = await dbConfig.retrieveLatestVersion()
 
     INDEXER_LOGGER.info(
       `Node version check: Current=${currentVersion}, DB=${
@@ -481,10 +487,12 @@ export class OceanIndexer {
       }, Min Required=${this.MIN_REQUIRED_VERSION}`
     )
 
-    if (isReindexingNeeded(currentVersion, dbVersion, this.MIN_REQUIRED_VERSION)) {
+    if (
+      isReindexingNeeded(currentVersion, dbVersion.version, this.MIN_REQUIRED_VERSION)
+    ) {
       INDEXER_LOGGER.info(
         `Reindexing needed: DB version ${
-          dbVersion || 'not set'
+          dbVersion.version || 'not set'
         } is older than minimum required ${this.MIN_REQUIRED_VERSION}`
       )
 
@@ -502,7 +510,7 @@ export class OceanIndexer {
       }
 
       // Update the version in the database
-      await dbActive.version.setNodeVersion(currentVersion)
+      await dbConfig.update(currentVersion, dbVersion.version)
       INDEXER_LOGGER.info(`Updated node version in database to ${currentVersion}`)
     } else {
       INDEXER_LOGGER.info('No reindexing needed based on version check')
