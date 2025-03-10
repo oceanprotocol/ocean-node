@@ -37,18 +37,17 @@ export class OceanIndexer {
   private supportedChains: string[]
   private workers: Record<string, Worker> = {}
   private MIN_REQUIRED_VERSION = '0.2.2'
+  private threadsInitialized: boolean = false
+  private initializationPromise: Promise<boolean>
 
   constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
     this.networks = supportedNetworks
     this.supportedChains = Object.keys(supportedNetworks)
     INDEXING_QUEUE = []
-    this.startThreads()
 
-    // Check if reindexing is needed
-    this.checkAndTriggerReindexing().catch((error) => {
-      INDEXER_LOGGER.error(`Error during version check and reindexing: ${error.message}`)
-    })
+    // Thread initialization is await-able
+    this.initializationPromise = this.initializeThreads()
   }
 
   public getSupportedNetworks(): RPCS {
@@ -313,10 +312,60 @@ export class OceanIndexer {
     return null
   }
 
-  public async resetCrawling(
-    chainId: number,
-    blockNumber?: number
-  ): Promise<JobStatus | null> {
+  /**
+   * Initialize threads and check for reindexing
+   */
+  private async initializeThreads(): Promise<boolean> {
+    const threadsStarted = await this.startThreads()
+
+    if (threadsStarted) {
+      // Only check for reindexing if threads started successfully
+      try {
+        await this.checkAndTriggerReindexing()
+      } catch (error) {
+        INDEXER_LOGGER.error(
+          `Error during version check and reindexing: ${error.message}`
+        )
+      }
+      this.threadsInitialized = true
+      return true
+    }
+
+    // If threads didn't start, retry with exponential backoff
+    const retryTimeMs = 5000
+    INDEXER_LOGGER.warn(`Failed to start threads, retrying in ${retryTimeMs / 1000}s...`)
+
+    // Set up a retry after delay
+    setTimeout(async () => {
+      await this.initializeThreads()
+    }, retryTimeMs)
+
+    return false
+  }
+
+  /**
+   * Checks if threads are initialized and ready to receive commands
+   */
+  public isReady(): boolean {
+    return this.threadsInitialized
+  }
+
+  /**
+   * Get initialization promise to await until ready
+   */
+  public getInitializationPromise(): Promise<boolean> {
+    return this.initializationPromise
+  }
+
+  /**
+   * Reset crawling with initialization check
+   */
+  public async resetCrawling(chainId: number, blockNumber?: number): Promise<JobStatus> {
+    // Ensure threads are initialized before running commands
+    if (!this.threadsInitialized) {
+      await this.initializationPromise
+    }
+
     const isRunning = runningThreads.get(chainId)
     // not running, but still on the array
     if (!isRunning && this.workers[chainId]) {
@@ -332,6 +381,7 @@ export class OceanIndexer {
       this.workers[chainId] = worker
       this.setupEventListeners(worker, chainId)
     }
+
     const worker = this.workers[chainId]
     if (worker) {
       const job = buildJobIdentifier(PROTOCOL_COMMANDS.REINDEX_CHAIN, [

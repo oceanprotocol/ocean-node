@@ -23,6 +23,11 @@ const emptyDBConfig: OceanNodeDBConfig = {
   dbType: null
 }
 
+const versionConfig: OceanNodeDBConfig = {
+  url: 'http://localhost:8108/test-version?apiKey=xyz',
+  dbType: DB_TYPES.TYPESENSE
+}
+
 describe('Database', () => {
   let database: Database
 
@@ -518,7 +523,7 @@ describe('Version Database', () => {
   let database: Database
 
   before(async () => {
-    database = await new Database(typesenseConfig)
+    database = await new Database(versionConfig)
   })
 
   it('should have null version initially', async () => {
@@ -527,8 +532,11 @@ describe('Version Database', () => {
   })
 
   it('should set and retrieve version', async () => {
-    const testVersion = '0.2.2'
+    // Set a specific test version
+    const testVersion = '0.9.9'
     await database.version.setNodeVersion(testVersion)
+
+    // Verify we can retrieve it
     const version = await database.version.getNodeVersion()
     assert(version === testVersion, `Version should be ${testVersion}`)
   })
