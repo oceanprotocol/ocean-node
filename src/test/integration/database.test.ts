@@ -201,6 +201,11 @@ describe('IndexerDatabase CRUD', () => {
   })
 
   describe('Node Version Management', () => {
+    it('should have null version initially', async () => {
+      const result = await database.indexer.getNodeVersion()
+      console.log(`result: ${result}`)
+      assert(result === null)
+    })
     it('sets and retrieves node version', async () => {
       const testVersion = '0.2.2'
 
