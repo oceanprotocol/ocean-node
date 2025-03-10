@@ -19,6 +19,7 @@ import { isReachableConnection } from '../../utils/database.js'
 import { sleep } from '../../utils/util.js'
 import { isReindexingNeeded } from './version.js'
 import { SQLLiteConfigDatabase } from '../database/SQLLiteConfigDatabase.js'
+import { typesenseSchemas } from '../database/TypesenseSchemas.js'
 
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
@@ -44,6 +45,10 @@ export class OceanIndexer {
 
   constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
+    this.configDb = new SQLLiteConfigDatabase(
+      this.db.getConfig(),
+      typesenseSchemas.configSchemas
+    )
     this.networks = supportedNetworks
     this.supportedChains = Object.keys(supportedNetworks)
     INDEXING_QUEUE = []

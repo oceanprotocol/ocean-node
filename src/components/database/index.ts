@@ -11,8 +11,7 @@ import {
   AbstractIndexerDatabase,
   AbstractLogDatabase,
   AbstractNonceDatabase,
-  AbstractOrderDatabase,
-  AbstractVersionDatabase
+  AbstractOrderDatabase
 } from './BaseDatabase.js'
 import { DatabaseFactory } from './DatabaseFactory.js'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
@@ -27,7 +26,6 @@ export class Database {
   logs: AbstractLogDatabase
   order: AbstractOrderDatabase
   ddoState: AbstractDdoStateDatabase
-  version: AbstractVersionDatabase
 
   constructor(private config: OceanNodeDBConfig) {
     return (async (): Promise<Database> => {
