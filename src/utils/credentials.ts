@@ -100,6 +100,21 @@ export function areKnownCredentialTypes(credentials: Credentials): boolean {
   return true
 }
 
+/**
+ * @param accessList the access list contract address
+ * @param chainId the chain id to check
+ * @returns true if the config exists, false otherwise
+ */
+export function existsAccessListConfigurationForChain(
+  accessList: AccessListContract,
+  chainId: string
+) {
+  if (!accessList) return false
+  const chainsListed = Object.keys(accessList)
+  // check the access lists for this chain
+  return chainsListed.length > 0 && chainsListed.includes(chainId)
+}
+
 // utility function that can be used on multiple access lists
 /**
  * @param accessList the access list contract address
@@ -114,12 +129,12 @@ export async function checkCredentialOnAccessList(
   addressToCheck: string,
   signer: Signer
 ): Promise<boolean> {
-  if (!accessList) {
+  const existsAccessList = existsAccessListConfigurationForChain(accessList, chainId)
+  if (!existsAccessList) {
     return true
   }
-  const chainsListed = Object.keys(accessList)
   // check the access lists for this chain
-  if (chainsListed.length > 0 && chainsListed.includes(chainId)) {
+  if (existsAccessList) {
     let isAuthorized = false
     for (const accessListAddress of accessList[chainId]) {
       const accessListContract = new ethers.Contract(
