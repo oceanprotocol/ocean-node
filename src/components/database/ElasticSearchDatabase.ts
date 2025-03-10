@@ -4,7 +4,8 @@ import {
   AbstractDdoStateDatabase,
   AbstractIndexerDatabase,
   AbstractLogDatabase,
-  AbstractOrderDatabase
+  AbstractOrderDatabase,
+  AbstractVersionDatabase
 } from './BaseDatabase.js'
 import { createElasticsearchClient } from './ElasticsearchConfigHelper.js'
 import { OceanNodeDBConfig } from '../../@types'
@@ -16,9 +17,6 @@ import { validateObject } from '../core/utils/validateDdoHandler.js'
 export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
   private client: Client
   private index: string
-
-  // constant for the node version document ID
-  private static readonly VERSION_DOC_ID = 'node_version'
 
   constructor(config: OceanNodeDBConfig) {
     super(config)
@@ -141,46 +139,8 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
       return null
     }
   }
-
-  async getNodeVersion(): Promise<string | null> {
-    try {
-      const result = await this.client.get({
-        index: this.index,
-        id: ElasticsearchIndexerDatabase.VERSION_DOC_ID
-      })
-      return (result._source as { version: string }).version
-    } catch (error) {
-      if (error.statusCode !== 404) {
-        DATABASE_LOGGER.logMessageWithEmoji(
-          `Error retrieving node version: ${error.message}`,
-          true,
-          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-          LOG_LEVELS_STR.LEVEL_ERROR
-        )
-      }
-      return null
-    }
-  }
-
-  async setNodeVersion(version: string): Promise<void> {
-    try {
-      await this.client.index({
-        index: this.index,
-        id: ElasticsearchIndexerDatabase.VERSION_DOC_ID,
-        body: { version, updatedAt: new Date().toISOString() },
-        refresh: 'wait_for'
-      })
-      DATABASE_LOGGER.info(`Node version updated to ${version}`)
-    } catch (error) {
-      DATABASE_LOGGER.logMessageWithEmoji(
-        `Error setting node version: ${error.message}`,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
-    }
-  }
 }
+
 export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
   private client: Client
   private index: string
@@ -353,6 +313,7 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
     }
   }
 }
+
 export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
   private provider: Client
 
@@ -1029,4 +990,53 @@ export function normalizeDocumentId(dbResult: any, _id?: any): any {
     dbResult.id = _id
   }
   return dbResult
+}
+
+export class ElasticsearchVersionDatabase extends AbstractVersionDatabase {
+  private client: Client
+  private index: string
+
+  constructor(config: OceanNodeDBConfig, schema: ElasticsearchSchema) {
+    super(config, schema)
+    this.client = createElasticsearchClient(config)
+    this.index = schema.index
+  }
+
+  async getNodeVersion(): Promise<string | null> {
+    try {
+      const result = await this.client.search({
+        index: this.index,
+        body: {
+          query: { match_all: {} },
+          sort: [{ created_at: { order: 'desc' } }],
+          size: 1
+        }
+      })
+
+      if (result.hits.hits.length === 0) {
+        return null
+      }
+
+      return (result.hits.hits[0] as any)._source.version
+    } catch (error) {
+      DATABASE_LOGGER.error(`Error retrieving node version: ${error.message}`)
+      return null
+    }
+  }
+
+  async setNodeVersion(version: string): Promise<void> {
+    try {
+      await this.client.index({
+        index: this.index,
+        body: {
+          version,
+          created_at: new Date().getTime()
+        },
+        refresh: 'wait_for'
+      })
+      DATABASE_LOGGER.info(`Node version updated to ${version}`)
+    } catch (error) {
+      DATABASE_LOGGER.error(`Error setting node version: ${error.message}`)
+    }
+  }
 }

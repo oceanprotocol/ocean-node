@@ -4,14 +4,16 @@ import {
   AbstractDdoStateDatabase,
   AbstractIndexerDatabase,
   AbstractLogDatabase,
-  AbstractOrderDatabase
+  AbstractOrderDatabase,
+  AbstractVersionDatabase
 } from './BaseDatabase.js'
 import {
   ElasticsearchDdoDatabase,
   ElasticsearchDdoStateDatabase,
   ElasticsearchIndexerDatabase,
   ElasticsearchLogDatabase,
-  ElasticsearchOrderDatabase
+  ElasticsearchOrderDatabase,
+  ElasticsearchVersionDatabase
 } from './ElasticSearchDatabase.js'
 import { typesenseSchemas } from './TypesenseSchemas.js'
 import {
@@ -19,7 +21,8 @@ import {
   TypesenseDdoStateDatabase,
   TypesenseIndexerDatabase,
   TypesenseLogDatabase,
-  TypesenseOrderDatabase
+  TypesenseOrderDatabase,
+  TypesenseVersionDatabase
 } from './TypenseDatabase.js'
 import { elasticSchemas } from './ElasticSchemas.js'
 import { IDdoStateQuery } from '../../@types/DDO/IDdoStateQuery.js'
@@ -42,7 +45,9 @@ export class DatabaseFactory {
         new ElasticsearchOrderDatabase(config, elasticSchemas.orderSchema),
       ddoState: (config: OceanNodeDBConfig) => new ElasticsearchDdoStateDatabase(config),
       ddoStateQuery: () => new ElasticSearchDdoStateQuery(),
-      metadataQuery: () => new ElasticSearchMetadataQuery()
+      metadataQuery: () => new ElasticSearchMetadataQuery(),
+      version: (config: OceanNodeDBConfig) =>
+        new ElasticsearchVersionDatabase(config, elasticSchemas.versionSchema)
     },
     typesense: {
       ddo: (config: OceanNodeDBConfig) =>
@@ -56,7 +61,9 @@ export class DatabaseFactory {
       ddoState: (config: OceanNodeDBConfig) =>
         new TypesenseDdoStateDatabase(config, typesenseSchemas.ddoStateSchema),
       ddoStateQuery: () => new TypesenseDdoStateQuery(),
-      metadataQuery: () => new TypesenseMetadataQuery()
+      metadataQuery: () => new TypesenseMetadataQuery(),
+      version: (config: OceanNodeDBConfig) =>
+        new TypesenseVersionDatabase(config, typesenseSchemas.versionSchema)
     }
   }
 
@@ -111,5 +118,11 @@ export class DatabaseFactory {
 
   static createMetadataQuery(config: OceanNodeDBConfig): Promise<IMetadataQuery> {
     return this.createDatabase('metadataQuery', config)
+  }
+
+  static createVersionDatabase(
+    config: OceanNodeDBConfig
+  ): Promise<AbstractVersionDatabase> {
+    return this.createDatabase('version', config)
   }
 }

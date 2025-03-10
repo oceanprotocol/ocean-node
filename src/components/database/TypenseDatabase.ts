@@ -12,7 +12,8 @@ import {
   AbstractDdoStateDatabase,
   AbstractIndexerDatabase,
   AbstractLogDatabase,
-  AbstractOrderDatabase
+  AbstractOrderDatabase,
+  AbstractVersionDatabase
 } from './BaseDatabase.js'
 
 export class TypesenseOrderDatabase extends AbstractOrderDatabase {
@@ -740,64 +741,6 @@ export class TypesenseIndexerDatabase extends AbstractIndexerDatabase {
       return null
     }
   }
-
-  async getNodeVersion(): Promise<string | null> {
-    try {
-      const result = await this.provider
-        .collections(this.schema.name)
-        .documents()
-        .retrieve(TypesenseIndexerDatabase.VERSION_DOC_ID)
-      return (result as { version: string }).version
-    } catch (error) {
-      if (error instanceof TypesenseError && error.httpStatus === 404) {
-        // Document not found, which is expected if version hasn't been set yet
-        return null
-      }
-      DATABASE_LOGGER.logMessageWithEmoji(
-        `Error retrieving node version: ${error.message}`,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
-      return null
-    }
-  }
-
-  async setNodeVersion(version: string): Promise<void> {
-    try {
-      const versionDoc = {
-        id: TypesenseIndexerDatabase.VERSION_DOC_ID,
-        version,
-        // Include lastIndexedBlock field which is required by the schema
-        lastIndexedBlock: -1, // Use -1 as a special value for version documents
-        updatedAt: new Date().toISOString()
-      }
-
-      try {
-        // Try to update if exists
-        await this.provider
-          .collections(this.schema.name)
-          .documents()
-          .update(TypesenseIndexerDatabase.VERSION_DOC_ID, versionDoc)
-      } catch (error) {
-        // If not exists, create
-        if (error instanceof TypesenseError && error.httpStatus === 404) {
-          await this.provider.collections(this.schema.name).documents().create(versionDoc)
-        } else {
-          throw error
-        }
-      }
-
-      DATABASE_LOGGER.info(`Node version updated to ${version}`)
-    } catch (error) {
-      DATABASE_LOGGER.logMessageWithEmoji(
-        `Error setting node version: ${error.message}`,
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
-    }
-  }
 }
 
 export class TypesenseLogDatabase extends AbstractLogDatabase {
@@ -983,6 +926,62 @@ export class TypesenseLogDatabase extends AbstractLogDatabase {
     } catch (e) {
       DATABASE_LOGGER.error('Unable to retrieve logs count: ' + e.message)
       return 0
+    }
+  }
+}
+
+export class TypesenseVersionDatabase extends AbstractVersionDatabase {
+  private provider: Typesense
+
+  constructor(config: OceanNodeDBConfig, schema: TypesenseSchema) {
+    super(config, schema)
+    return (async (): Promise<TypesenseVersionDatabase> => {
+      this.provider = new Typesense({
+        ...convertTypesenseConfig(this.config.url),
+        logger: DATABASE_LOGGER
+      })
+      try {
+        await this.provider.collections((this.schema as TypesenseSchema).name).retrieve()
+      } catch (error) {
+        if (error instanceof TypesenseError && error.httpStatus === 404) {
+          await this.provider.collections().create(this.schema as TypesenseSchema)
+        }
+      }
+      return this
+    })() as unknown as TypesenseVersionDatabase
+  }
+
+  async getNodeVersion(): Promise<string | null> {
+    try {
+      const result = await this.provider
+        .collections((this.schema as TypesenseSchema).name)
+        .documents()
+        .search({
+          q: '*',
+          query_by: 'version',
+          sort_by: 'created_at:desc',
+          per_page: 1
+        })
+
+      return result.hits[0]?.document?.version || null
+    } catch (error) {
+      DATABASE_LOGGER.error(`Error retrieving node version: ${error.message}`)
+      return null
+    }
+  }
+
+  async setNodeVersion(version: string): Promise<void> {
+    try {
+      await this.provider
+        .collections((this.schema as TypesenseSchema).name)
+        .documents()
+        .create({
+          version,
+          created_at: Date.now()
+        })
+      DATABASE_LOGGER.info(`Node version updated to ${version}`)
+    } catch (error) {
+      DATABASE_LOGGER.error(`Error setting node version: ${error.message}`)
     }
   }
 }

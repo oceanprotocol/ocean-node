@@ -43,9 +43,6 @@ export abstract class AbstractIndexerDatabase {
   abstract retrieve(network: number): Promise<any>
   abstract update(network: number, lastIndexedBlock: number): Promise<any>
   abstract delete(network: number): Promise<any>
-
-  abstract getNodeVersion(): Promise<string | null>
-  abstract setNodeVersion(version: string): Promise<void>
 }
 
 export abstract class AbstractLogDatabase {
@@ -185,4 +182,17 @@ export abstract class AbstractDdoDatabase {
   abstract delete(id: string): Promise<any>
 
   abstract deleteAllAssetsFromChain(chainId: number, batchSize?: number): Promise<number>
+}
+
+export abstract class AbstractVersionDatabase {
+  protected config: OceanNodeDBConfig
+  protected schema: Schema
+
+  constructor(config: OceanNodeDBConfig, schema: Schema) {
+    this.config = config
+    this.schema = schema
+  }
+
+  abstract getNodeVersion(): Promise<string | null>
+  abstract setNodeVersion(version: string): Promise<void>
 }

@@ -11,7 +11,8 @@ import {
   AbstractIndexerDatabase,
   AbstractLogDatabase,
   AbstractNonceDatabase,
-  AbstractOrderDatabase
+  AbstractOrderDatabase,
+  AbstractVersionDatabase
 } from './BaseDatabase.js'
 import { DatabaseFactory } from './DatabaseFactory.js'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
@@ -26,6 +27,7 @@ export class Database {
   logs: AbstractLogDatabase
   order: AbstractOrderDatabase
   ddoState: AbstractDdoStateDatabase
+  version: AbstractVersionDatabase
 
   constructor(private config: OceanNodeDBConfig) {
     return (async (): Promise<Database> => {
@@ -47,6 +49,7 @@ export class Database {
           this.logs = await DatabaseFactory.createLogDatabase(this.config)
           this.order = await DatabaseFactory.createOrderDatabase(this.config)
           this.ddoState = await DatabaseFactory.createDdoStateDatabase(this.config)
+          this.version = await DatabaseFactory.createVersionDatabase(this.config)
         } else {
           DATABASE_LOGGER.info(
             'Invalid URL. Only Nonce Database is initialized. Other databases are not available.'

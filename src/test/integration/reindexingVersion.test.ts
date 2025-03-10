@@ -61,7 +61,7 @@ describe('Should test admin operations', () => {
 
     config = await getConfiguration(true) // Force reload the configuration
     dbconn = await new Database(config.dbConfig)
-    await dbconn.indexer.setNodeVersion('0.1.2') // lower version
+    await dbconn.version.setNodeVersion('0.1.2') // lower version
     oceanNode = await OceanNode.getInstance(dbconn)
     indexer = new OceanIndexer(dbconn, config.indexingNetworks) // activate reindexing
     oceanNode.addIndexer(indexer)
@@ -69,7 +69,7 @@ describe('Should test admin operations', () => {
 
   it('should update the version', async () => {
     assert(
-      (await dbconn.indexer.getNodeVersion()) === '0.1.2',
+      (await dbconn.version.getNodeVersion()) === '0.1.2',
       'version not updated with the current one'
     )
   })

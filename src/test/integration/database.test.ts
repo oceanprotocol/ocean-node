@@ -199,41 +199,6 @@ describe('IndexerDatabase CRUD', () => {
     expect(result?.id).to.equal('1')
     expect(result?.lastIndexedBlock).to.equal(1)
   })
-
-  describe('Node Version Management', () => {
-    it('should have null version initially', async () => {
-      const result = await database.indexer.getNodeVersion()
-      console.log(`result: ${result}`)
-      assert(result === null)
-    })
-    it('sets and retrieves node version', async () => {
-      const testVersion = '0.2.2'
-
-      // Create a document first to ensure the collection exists
-      await database.indexer.create(999, 0)
-
-      // Now set the version
-      await database.indexer.setNodeVersion(testVersion)
-      const result = await database.indexer.getNodeVersion()
-      assert(result === testVersion)
-
-      // Clean up
-      await database.indexer.delete(999)
-    })
-
-    it('updates node version', async () => {
-      const initialVersion = '0.2.3'
-      const updatedVersion = '0.2.4'
-
-      await database.indexer.setNodeVersion(initialVersion)
-      let result = await database.indexer.getNodeVersion()
-      assert(result === initialVersion)
-
-      await database.indexer.setNodeVersion(updatedVersion)
-      result = await database.indexer.getNodeVersion()
-      assert(result === updatedVersion)
-    })
-  })
 })
 
 describe('OrderDatabase CRUD', () => {
@@ -546,5 +511,40 @@ describe('MetadataQuery', () => {
     ])
     expect(query.query.bool.must_not[0].term.purgatory_state).to.equal(true)
     expect(query.sort.name).to.equal('asc')
+  })
+})
+
+describe('Version Database', () => {
+  let database: Database
+
+  before(async () => {
+    database = await new Database(typesenseConfig)
+  })
+
+  it('should have null version initially', async () => {
+    const version = await database.version.getNodeVersion()
+    assert(version === null, 'Initial version should be null')
+  })
+
+  it('should set and retrieve version', async () => {
+    const testVersion = '0.2.2'
+    await database.version.setNodeVersion(testVersion)
+    const version = await database.version.getNodeVersion()
+    assert(version === testVersion, `Version should be ${testVersion}`)
+  })
+
+  it('should update version and retrieve latest', async () => {
+    const initialVersion = '0.2.2'
+    const updatedVersion = '0.2.3'
+
+    // Set initial version
+    await database.version.setNodeVersion(initialVersion)
+    let version = await database.version.getNodeVersion()
+    assert(version === initialVersion, `Version should be ${initialVersion}`)
+
+    // Update to new version
+    await database.version.setNodeVersion(updatedVersion)
+    version = await database.version.getNodeVersion()
+    assert(version === updatedVersion, `Version should be ${updatedVersion}`)
   })
 })
