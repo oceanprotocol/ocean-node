@@ -83,41 +83,58 @@ export function checkCredentials(
     values: [String(consumerAddress)?.toLowerCase()]
   }
 
+  // if no address-based credentials are defined (both allow and deny lists are empty), access to the asset is restricted to everybody;
+  // to allow access to everybody, the symbol * will be used in the allow list;
+  // if a web3 address is present on both deny and allow lists, the deny list takes precedence
+  // and access to the asset is denied for the respective address.
   const accessGranted = false
   // check deny access
   // https://github.com/oceanprotocol/ocean-node/issues/810
   // for deny rules: if value does not exist or it's empty -> there is no deny list. if value list has at least one element, check it
+
   if (Array.isArray(credentials?.deny) && credentials.deny.length > 0) {
+    let denyCount = 0
     for (const cred of credentials.deny) {
       const { type } = cred
       if (type === CREDENTIAL_TYPES.ADDRESS) {
         const accessDeny = isAddressCredentialMatch(cred, consumerCredentials)
         // credential is on deny list, so it should be blocked access
         if (accessDeny) {
-          return false
+          if (!isDefined(credentials.match_deny) || credentials.match_deny === 'any') {
+            return false
+          }
         }
+        denyCount++
         // credential not found, so it really depends if we have a match on the allow list instead
       }
-      // else TODO later
-      // support also for access list type here
-      // https://github.com/oceanprotocol/ocean-node/issues/840
-      // else if (type === CREDENTIAL_TYPES.ACCESS_LIST && chainId) {
-      // }
+    }
+    if (credentials.match_deny === 'all' && denyCount === credentials.deny.length) {
+      return false
     }
   }
   // check allow access
   // for allow rules: if value does not exist or it's empty -> no one has access. if value list has at least one element, check it
   if (Array.isArray(credentials?.allow) && credentials.allow.length > 0) {
+    let matchCount = 0
     for (const cred of credentials.allow) {
       const { type } = cred
       if (type === CREDENTIAL_TYPES.ADDRESS) {
         const accessAllow = isAddressCredentialMatch(cred, consumerCredentials)
         if (accessAllow || isAddressMatchAll(cred)) {
-          return true
+          // if no match_allow or 'any', its fine
+          if (!isDefined(credentials.match_allow) || credentials.match_allow === 'any') {
+            return true
+          }
+          // otherwise, match 'all', in this case the amount of matches should be the same of the amount of rules
+          matchCount++
         }
       }
+      // extend function to ACCESS_LIST (https://github.com/oceanprotocol/ocean-node/issues/804)
       // else if (type === CREDENTIAL_TYPES.ACCESS_LIST && chainId) {
       // }
+    }
+    if (credentials.match_allow === 'all' && matchCount === credentials.allow.length) {
+      return true
     }
   }
   return accessGranted
