@@ -11,27 +11,10 @@ import { existsEnvironmentVariable, getConfiguration } from '../../../utils/inde
 import { ENVIRONMENT_VARIABLES } from '../../../utils/constants.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
-import { isAddress } from 'ethers'
 import { typesenseSchemas } from '../../database/TypesenseSchemas.js'
 import { SupportedNetwork } from '../../../@types/blockchain.js'
+import { getAdminAddresses } from '../../../utils/auth.js'
 
-function getAdminAddresses(config: OceanNodeConfig) {
-  const validAddresses = []
-  if (config.allowedAdmins && config.allowedAdmins.length > 0) {
-    for (const admin of config.allowedAdmins) {
-      if (isAddress(admin) === true) {
-        validAddresses.push(admin)
-      }
-    }
-    if (validAddresses.length === 0) {
-      CORE_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `Invalid format for ETH address from ALLOWED ADMINS.`
-      )
-    }
-  }
-  return validAddresses
-}
 const supportedStorageTypes: StorageTypes = {
   url: true,
   arwave: existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY),
@@ -136,7 +119,7 @@ export async function status(
       // uptime: process.uptime(),
       platform: platformInfo,
       codeHash: config.codeHash,
-      allowedAdmins: getAdminAddresses(config)
+      allowedAdmins: await getAdminAddresses()
     }
   }
   // need to update at least block info if available

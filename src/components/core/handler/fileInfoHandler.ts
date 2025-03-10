@@ -9,7 +9,7 @@ import {
 import { FileInfoCommand } from '../../../@types/commands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Storage } from '../../storage/index.js'
-import { Handler } from './handler.js'
+import { CommandHandler } from './handler.js'
 import { validateDDOIdentifier } from './ddoHandler.js'
 import { fetchFileMetadata } from '../../../utils/asset.js'
 import {
@@ -45,7 +45,7 @@ async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFile
     type: file.type
   }
 }
-export class FileInfoHandler extends Handler {
+export class FileInfoHandler extends CommandHandler {
   validate(command: FileInfoCommand): ValidateParams {
     let validation = validateCommandParameters(command, []) // all optional? weird
     if (validation.valid) {

@@ -14,7 +14,7 @@ import { FileInfoHandler } from './fileInfoHandler.js'
 import { PolicyServerPassthroughHandler } from './policyServer.js'
 import { EncryptHandler, EncryptFileHandler } from './encryptHandler.js'
 import { FeesHandler } from './feesHandler.js'
-import { Handler } from './handler.js'
+import { BaseHandler, CommandHandler } from './handler.js'
 import { NonceHandler } from './nonceHandler.js'
 import { QueryHandler } from './queryHandler.js'
 import { DetailedStatusHandler, StatusHandler } from './statusHandler.js'
@@ -33,6 +33,7 @@ import { ReindexTxHandler } from '../admin/reindexTxHandler.js'
 import { ReindexChainHandler } from '../admin/reindexChainHandler.js'
 import { IndexingThreadHandler } from '../admin/IndexingThreadHandler.js'
 import { CollectFeesHandler } from '../admin/collectFeesHandler.js'
+import { AdminCommandHandler } from '../admin/adminHandler.js'
 import {
   GetP2PPeerHandler,
   GetP2PPeersHandler,
@@ -41,13 +42,13 @@ import {
 } from './p2p.js'
 export type HandlerRegistry = {
   handlerName: string // name of the handler
-  handlerImpl: Handler // class that implements it
+  handlerImpl: BaseHandler // class that implements it
 }
 
 // we can use this factory class to create adittional handlers
 // and then register them on the Ocean Node instance
 export class HandlerFactory {
-  static buildHandlerForTask(task: Command, impl: Handler): HandlerRegistry {
+  static buildHandlerForTask(task: Command, impl: BaseHandler): HandlerRegistry {
     if (!task || !impl) {
       const msg = 'Invalid task/handler parameters!'
       OCEAN_NODE_LOGGER.error(msg)
@@ -70,7 +71,7 @@ export class CoreHandlersRegistry {
   // eslint-disable-next-line no-use-before-define
   private static instance: CoreHandlersRegistry
   // map of handlers registered
-  private coreHandlers: Map<string, Handler> = new Map<string, Handler>()
+  private coreHandlers: Map<string, BaseHandler> = new Map<string, BaseHandler>()
 
   // private readonly node: OceanP2P
   private constructor(node: OceanNode) {
@@ -148,7 +149,7 @@ export class CoreHandlersRegistry {
   }
 
   // private method for registering the core handlers
-  private registerCoreHandler(handlerName: string, handlerObj: Handler) {
+  private registerCoreHandler(handlerName: string, handlerObj: BaseHandler) {
     if (!this.coreHandlers.has(handlerName)) {
       this.coreHandlers.set(handlerName, handlerObj)
     }
@@ -158,14 +159,14 @@ export class CoreHandlersRegistry {
   public registerHandler(handler: HandlerRegistry) {
     if (
       !this.coreHandlers.has(handler.handlerName) &&
-      handler.handlerImpl instanceof Handler
+      handler.handlerImpl instanceof BaseHandler
     ) {
       this.coreHandlers.set(handler.handlerName, handler.handlerImpl)
     }
   }
 
   // pass the handler name from the SUPPORTED_PROTOCOL_COMMANDS keys
-  public getHandler(handlerName: string): Handler | null {
+  public getHandler(handlerName: string): any {
     if (!SUPPORTED_PROTOCOL_COMMANDS.includes(handlerName)) {
       OCEAN_NODE_LOGGER.error(
         `Invalid handler "${handlerName}". No known associated protocol command!`
@@ -181,7 +182,7 @@ export class CoreHandlersRegistry {
     return this.coreHandlers.get(handlerName)
   }
 
-  public getHandlerForTask(task: Command): Handler | null {
+  public getHandlerForTask(task: Command): CommandHandler | AdminCommandHandler | null {
     return this.getHandler(task.command)
   }
 
