@@ -52,6 +52,7 @@ export type TypesenseSchemas = {
   logSchemas: TypesenseSchema
   orderSchema: TypesenseSchema
   ddoStateSchema: TypesenseSchema
+  versionSchema: TypesenseSchema
 }
 const ddoSchemas = readJsonSchemas()
 export const typesenseSchemas: TypesenseSchemas = {
@@ -106,6 +107,13 @@ export const typesenseSchemas: TypesenseSchemas = {
       { name: 'txId', type: 'string' },
       { name: 'valid', type: 'bool' },
       { name: 'error', type: 'string' }
+    ]
+  },
+  versionSchema: {
+    name: 'version',
+    fields: [
+      { name: 'version', type: 'string' },
+      { name: 'created_at', type: 'int64', sort: true }
     ]
   }
 }
