@@ -538,28 +538,26 @@ describe('Version Database', () => {
 
   it('should have null version initially', async () => {
     initialVersionNull = await oceanIndexer.getDatabase().version.retrieveLatestVersion()
-    console.log(`version: ${JSON.stringify(initialVersionNull)}`)
     assert(initialVersionNull.version === null, 'Initial version should be null')
   })
 
   it('should set and retrieve version', async () => {
     // Set a specific test version
     const testVersion = '0.9.9'
-    const resp = await oceanIndexer.getDatabase().version.create(testVersion)
-    console.log(`JSON: ${JSON.stringify(resp)}`)
+    await oceanIndexer.getDatabase().version.create(testVersion)
 
     // Verify we can retrieve it
     const version = await oceanIndexer.getDatabase().version.retrieveLatestVersion()
-    console.log(`version: ${JSON.stringify(version)}`)
     assert(version.version === testVersion, `Version should be ${testVersion}`)
   })
 
   it('should update version and retrieve latest', async () => {
     const initialVersion = '0.2.2'
     const updatedVersion = '0.2.3'
+    const latestVersion = await oceanIndexer.getDatabase().version.retrieveLatestVersion()
 
     // Set initial version
-    await oceanIndexer.getDatabase().version.update(initialVersion, initialVersionNull)
+    await oceanIndexer.getDatabase().version.update(initialVersion, latestVersion.version)
     let version = await oceanIndexer.getDatabase().version.retrieveLatestVersion()
     assert(version.version === initialVersion, `Version should be ${initialVersion}`)
 
