@@ -74,6 +74,9 @@ export interface FindDDOCommand extends DDOCommand {
 // https://github.com/oceanprotocol/ocean-node/issues/47
 export interface ValidateDDOCommand extends Command {
   ddo: DDO
+  publisherAddress?: string
+  signature?: string
+  nonce?: string
 }
 
 export interface StatusCommand extends Command {}

@@ -11,15 +11,16 @@ import {
 } from '../utils/findDdoHandler.js'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
-import { sleep, readStream } from '../../../utils/util.js'
+import { sleep, readStream, isDefined } from '../../../utils/util.js'
 import { DDO } from '../../../@types/DDO/DDO.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Blockchain } from '../../../utils/blockchain.js'
+import { Blockchain, getBlockchainHandler } from '../../../utils/blockchain.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 // import lzma from 'lzma-native'
 import lzmajs from 'lzma-purejs-requirejs'
 import {
+  getNftPermissions,
   getValidationSignature,
   makeDid,
   validateObject
@@ -42,6 +43,11 @@ import {
   getNetworkHeight,
   wasNFTDeployedByOurFactory
 } from '../../Indexer/utils.js'
+import { checkNonce } from '../utils/nonceHandler.js'
+import {
+  checkCredentialOnAccessList,
+  existsAccessListConfigurationForChain
+} from '../../../utils/credentials.js'
 import { deleteIndexedMetadataIfExists, validateDDOHash } from '../../../utils/asset.js'
 
 const MAX_NUM_PROVIDERS = 5
@@ -809,10 +815,136 @@ export class ValidateDDOHandler extends Handler {
           status: { httpStatus: 400, error: `Validation error: ${validation[1]}` }
         }
       }
-      const signature = await getValidationSignature(JSON.stringify(task.ddo))
+
+      // command contains optional parameter publisherAddress
+      // command contains optional parameter nonce and nonce is valid for publisherAddress
+      // command contains optional parameter signature which is the signed message based on nonce by publisherAddress
+      // ddo.nftAddress exists and it's valid (done above on validateObject())
+      // publisherAddress has updateMetadata role on ddo.nftAddress contract
+      // publisherAddress has publishing rights on this node (see #815) (TODO needs other PR merged first)
+
+      if (task.publisherAddress && task.nonce && task.signature) {
+        const nonceDB = this.getOceanNode().getDatabase().nonce
+        const nonceValid = await checkNonce(
+          nonceDB,
+          task.publisherAddress,
+          Number(task.nonce),
+          task.signature,
+          task.ddo.id + task.nonce
+        )
+
+        if (!nonceValid.valid) {
+          // BAD NONCE OR SIGNATURE
+          return {
+            stream: null,
+            status: { httpStatus: 403, error: 'Invalid nonce' }
+          }
+        }
+
+        const chain = String(task.ddo.chainId)
+        // has publishing rights on this node?
+        const { authorizedPublishers, authorizedPublishersList, supportedNetworks } =
+          await getConfiguration()
+        const validChain = isDefined(supportedNetworks[chain])
+        // first check if chain is valid
+        if (validChain) {
+          const blockChain = getBlockchainHandler(supportedNetworks[chain])
+
+          // check also NFT permissions
+          const hasUpdateMetadataPermissions = await (
+            await getNftPermissions(
+              blockChain.getSigner(),
+              task.ddo.nftAddress,
+              ERC721Template.abi,
+              task.publisherAddress
+            )
+          ).updateMetadata
+          console.log('hasUpdateMetadataPermissions:', hasUpdateMetadataPermissions)
+
+          if (!hasUpdateMetadataPermissions) {
+            // Has no update metadata permissions
+            return {
+              stream: null,
+              status: {
+                httpStatus: 400,
+                error: `Validation error: Publisher: ${task.publisherAddress} does not have "updateMetadata" permissions`
+              }
+            }
+          }
+
+          let hasPublisherRights = false
+
+          // 1 ) check if publisher address is part of AUTHORIZED_PUBLISHERS
+          const isAuthorizedPublisher =
+            authorizedPublishers.length > 0 &&
+            authorizedPublishers.filter(
+              (publisher) =>
+                publisher.toLowerCase() === task.publisherAddress.toLowerCase()
+            ).length > 0
+
+          if (isAuthorizedPublisher) {
+            hasPublisherRights = true
+          } else {
+            // 2 ) check if there is an access list for this chain: AUTHORIZED_PUBLISHERS_LIST
+            const existsAccessList = existsAccessListConfigurationForChain(
+              authorizedPublishersList,
+              chain
+            )
+            if (existsAccessList) {
+              // check access list contracts
+              hasPublisherRights = await checkCredentialOnAccessList(
+                authorizedPublishersList,
+                chain,
+                task.publisherAddress,
+                await blockChain.getSigner()
+              )
+            }
+          }
+
+          if (!hasPublisherRights) {
+            return {
+              stream: null,
+              status: {
+                httpStatus: 400,
+                error: `Validation error: publisher address is invalid for this node`
+              }
+            }
+          }
+        } else {
+          // the chain is not supported, so we can't validate on this node
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error: `Validation error: DDO chain is invalid for this node`
+            }
+          }
+        }
+
+        // ALL GOOD - ADD SIGNATURE
+        const signature = await getValidationSignature(JSON.stringify(task.ddo))
+        return {
+          stream: Readable.from(JSON.stringify(signature)),
+          status: { httpStatus: 200 }
+        }
+      }
+      // Missing signature, nonce or publisher address
+      // DDO is a valid object, but we cannot verify the signatures
+      // const msg =
+      //   'Partial validation: DDO is valid, but none of "publisher address", "signature" or "nonce" are present. Cannot add validation signature'
+      // return {
+      //   stream: Readable.from(JSON.stringify(msg)),
+      //   status: {
+      //     httpStatus: 200,
+      //     error: msg
+      //   }
+      // }
       return {
-        stream: Readable.from(JSON.stringify(signature)),
-        status: { httpStatus: 200 }
+        stream: null,
+        status: {
+          httpStatus: 400,
+          error: `Validation error: Either publisher address is missing or there is an invalid signature/nonce`
+        }
       }
     } catch (error) {
       CORE_LOGGER.logMessageWithEmoji(
