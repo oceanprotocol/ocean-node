@@ -46,7 +46,10 @@ export class OceanIndexer {
   constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
     this.configDb = new SQLLiteConfigDatabase(
-      this.db.getConfig(),
+      {
+        url: '',
+        dbType: null
+      },
       typesenseSchemas.configSchemas
     )
     this.networks = supportedNetworks
