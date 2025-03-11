@@ -41,7 +41,7 @@ export class PolicyServerPassthroughHandler extends CommandHandler {
       return {
         stream: Readable.from(policyStatus.message),
         status: {
-          httpStatus: 200
+          httpStatus: policyStatus.httpStatus
         }
       }
     }
