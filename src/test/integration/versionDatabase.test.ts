@@ -48,15 +48,14 @@ describe('Version Database', () => {
   it('should update version and retrieve latest', async () => {
     const initialVersion = '0.2.2'
     const updatedVersion = '0.2.3'
-    const latestVersion = await oceanIndexer.getDatabase().version.retrieveLatestVersion()
 
     // Set initial version
-    await oceanIndexer.getDatabase().version.update(initialVersion, latestVersion.version)
+    await oceanIndexer.getDatabase().version.create(initialVersion)
     let version = await oceanIndexer.getDatabase().version.retrieveLatestVersion()
     assert(version.version === initialVersion, `Version should be ${initialVersion}`)
 
     // Update to new version
-    await oceanIndexer.getDatabase().version.update(updatedVersion, initialVersion)
+    await oceanIndexer.getDatabase().version.create(updatedVersion)
     version = await oceanIndexer.getDatabase().version.retrieveLatestVersion()
     assert(version.version === updatedVersion, `Version should be ${updatedVersion}`)
   })
@@ -75,27 +74,11 @@ describe('VersionDatabase CRUD (without Elastic or Typesense config)', () => {
 
   it('create version', async () => {
     const result = await database.version.create('0.1.0')
-    expect(result?.id).to.equal(1)
     expect(result?.version).to.equal('0.1.0')
   })
 
   it('retrieve latest version', async () => {
     const result = await database.version.retrieveLatestVersion()
     expect(result?.version).to.equal('0.1.0')
-
-    const res = await database.version.retrieveById(1)
-    expect(res?.id).to.equal(1)
-    expect(res?.version).to.equal('0.1.0')
-  })
-
-  it('update version', async () => {
-    const result = await database.version.update('0.1.1', '0.1.0')
-    expect(result?.version).to.equal('0.1.1')
-  })
-
-  it('delete nonce', async () => {
-    const result = await database.version.delete('0.1.1')
-    expect(result?.id).to.equal(1)
-    expect(result?.version).to.equal('0.1.1')
   })
 })

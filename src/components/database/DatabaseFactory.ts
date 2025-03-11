@@ -114,9 +114,7 @@ export class DatabaseFactory {
     return this.createDatabase('metadataQuery', config)
   }
 
-  static async createConfigDatabase(
-    config: OceanNodeDBConfig
-  ): Promise<SQLLiteConfigDatabase> {
-    return await new SQLLiteConfigDatabase(config, typesenseSchemas.configSchemas)
+  static async createConfigDatabase(): Promise<SQLLiteConfigDatabase> {
+    return await new SQLLiteConfigDatabase()
   }
 }

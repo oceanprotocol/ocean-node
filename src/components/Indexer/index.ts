@@ -497,14 +497,8 @@ export class OceanIndexer {
           continue
         }
       }
-      if (!(await this.db.version.retrieveAllVersions())) {
-        await this.db.version.create(currentVersion)
-        INDEXER_LOGGER.info(`Created node version in database to ${currentVersion}`)
-      } else {
-        // Update the version in the database
-        await this.db.version.update(currentVersion, dbVersion.version)
-        INDEXER_LOGGER.info(`Updated node version in database to ${currentVersion}`)
-      }
+      await this.db?.version?.create(currentVersion)
+      INDEXER_LOGGER.info(`Updated node version in database to ${currentVersion}`)
     } else {
       INDEXER_LOGGER.info('No reindexing needed based on version check')
     }

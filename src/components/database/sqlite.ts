@@ -11,12 +11,12 @@ interface DatabaseProvider {
 export class SQLiteProvider implements DatabaseProvider {
   private db: sqlite3.Database
   private schemaNonce: TypesenseSchema
-  private schemaConfig: TypesenseSchema
+  private configSchema: string
 
   constructor(private dbFilePath: string) {
     this.db = new sqlite3.Database(dbFilePath)
     this.schemaNonce = typesenseSchemas.nonceSchemas
-    this.schemaConfig = typesenseSchemas.configSchemas
+    this.configSchema = 'config'
   }
 
   // eslint-disable-next-line require-await
@@ -38,9 +38,9 @@ export class SQLiteProvider implements DatabaseProvider {
   // eslint-disable-next-line require-await
   async createTableForConfig() {
     const createTableSQL = `
-        CREATE TABLE IF NOT EXISTS ${this.schemaConfig.name} (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          version TEXT
+        CREATE TABLE IF NOT EXISTS ${this.configSchema} (
+          key TEXT PRIMARY KEY DEFAULT 'version',
+          value TEXT
         );
       `
     return new Promise<void>((resolve, reject) => {
@@ -69,9 +69,10 @@ export class SQLiteProvider implements DatabaseProvider {
   // eslint-disable-next-line require-await
   async createConfig(version: string) {
     const insertSQL = `
-      INSERT INTO ${this.schemaConfig.name} (version)
-      VALUES (?);
-    `
+    INSERT INTO ${this.configSchema} (key, value)
+    VALUES ('version', ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+  `
     return new Promise<{ version: string }>((resolve, reject) => {
       this.db.run(insertSQL, [version], (err) => {
         if (err) reject(err)
@@ -95,40 +96,14 @@ export class SQLiteProvider implements DatabaseProvider {
   }
 
   // eslint-disable-next-line require-await
-  async retrieveLatestVersion() {
+  async retrieveVersion() {
     const selectSQL = `
-      SELECT version FROM ${this.schemaConfig.name} ORDER BY id DESC LIMIT 1;
+      SELECT value FROM ${this.configSchema};
     `
     return new Promise<{ version: string | null }>((resolve, reject) => {
-      this.db.get(selectSQL, [], (err, row: { version: string } | undefined) => {
+      this.db.get(selectSQL, [], (err, row: { value: string } | undefined) => {
         if (err) reject(err)
-        else resolve(row ? { version: row.version } : { version: null }) // Returns null if no version exists
-      })
-    })
-  }
-
-  // eslint-disable-next-line require-await
-  async retrieveAllVersions() {
-    const selectSQL = `
-        SELECT * FROM ${this.schemaConfig.name};
-      `
-    return new Promise<{ version: string | null }>((resolve, reject) => {
-      this.db.get(selectSQL, [], (err, row: { version: string } | undefined) => {
-        if (err) reject(err)
-        else resolve(row ? { version: row.version } : { version: null }) // Returns null if no version exists
-      })
-    })
-  }
-
-  // eslint-disable-next-line require-await
-  async retrieveVersionById(id: number) {
-    const selectSQL = `
-      SELECT version FROM ${this.schemaConfig.name} WHERE id = ?;
-    `
-    return new Promise<{ id: number; version: string }>((resolve, reject) => {
-      this.db.get(selectSQL, [id], (err, row: { version: string } | undefined) => {
-        if (err) reject(err)
-        else resolve(row ? { id, version: row.version } : { id, version: null })
+        else resolve(row ? { version: row.value } : { version: null }) // Returns null if no version exists
       })
     })
   }
@@ -136,21 +111,6 @@ export class SQLiteProvider implements DatabaseProvider {
   // eslint-disable-next-line require-await
   async update(address: string, nonce: number) {
     return this.create(address, nonce)
-  }
-
-  // eslint-disable-next-line require-await
-  async updateVersion(newVersion: string, version: string) {
-    const updateSQL = `
-      UPDATE ${this.schemaConfig.name} SET version = ? WHERE version = ?;
-    `
-    return new Promise<{ updatedVersion: string }>((resolve, reject) => {
-      this.db.run(updateSQL, [newVersion, version], function (err) {
-        if (err) reject(err)
-        else if (this.changes === 0)
-          reject(new Error('No record found with the given version'))
-        else resolve({ updatedVersion: newVersion })
-      })
-    })
   }
 
   // eslint-disable-next-line require-await
@@ -173,33 +133,6 @@ export class SQLiteProvider implements DatabaseProvider {
           else resolve({ id: address, nonce: row.nonce })
         })
       })
-    })
-  }
-
-  // eslint-disable-next-line require-await
-  async deleteVersion(version: string) {
-    const selectSQL = `
-      SELECT id, version FROM ${this.schemaConfig.name} WHERE version = ?
-    `
-
-    const deleteSQL = `
-      DELETE FROM ${this.schemaConfig.name} WHERE version = ?
-    `
-
-    return new Promise<{ id: string; version: string | null }>((resolve, reject) => {
-      this.db.get(
-        selectSQL,
-        [version],
-        (err, row: { id: string; version: string } | undefined) => {
-          if (err) return reject(err)
-          if (!row) return resolve({ id: null, version: null })
-
-          this.db.run(deleteSQL, [version], (err) => {
-            if (err) reject(err)
-            else resolve({ id: row.id, version })
-          })
-        }
-      )
     })
   }
 }
