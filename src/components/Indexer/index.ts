@@ -469,7 +469,7 @@ export class OceanIndexer {
   public async checkAndTriggerReindexing(): Promise<void> {
     const currentVersion = process.env.npm_package_version
     if (!this.db.version) {
-      INDEXER_LOGGER.error(`Giving up reindexing...`)
+      INDEXER_LOGGER.error(`Giving up reindexing...Version SQLLite DB does not exist`)
       return
     }
     const dbVersion = await this.db.version.retrieveLatestVersion()
