@@ -30,7 +30,7 @@ import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery.js'
 import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery.js'
 import { DB_TYPES } from '../../utils/index.js'
 import { SQLLiteNonceDatabase } from './SQLLiteNonceDatabase.js'
-import { SQLLiteConfigDatabase } from './SQLLiteConfigDatabase'
+import { SQLLiteConfigDatabase } from './SQLLiteConfigDatabase.js'
 
 export class DatabaseFactory {
   private static databaseMap = {
