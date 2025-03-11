@@ -9,6 +9,7 @@ import { isDefined } from '../../utils/util.js'
 import { SQLLiteNonceDatabase } from '../../components/database/SQLLiteNonceDatabase.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { getMockSupportedNetworks } from '../utils/utils.js'
+import { SQLLiteConfigDatabase } from '../../components/database/SQLLiteConfigDatabase.js'
 
 const typesenseConfig: OceanNodeDBConfig = {
   url: 'http://localhost:8108/?apiKey=xyz',
@@ -525,24 +526,26 @@ describe('Version Database', () => {
   let database: Database
   let oceanIndexer: OceanIndexer
   let initialVersionNull: any
+  let configDb: SQLLiteConfigDatabase
 
   before(async () => {
     database = await new Database(versionConfig)
     oceanIndexer = new OceanIndexer(database, getMockSupportedNetworks())
+    configDb = oceanIndexer.getConfigDatabase()
   })
 
   it('should have null version initially', async () => {
-    initialVersionNull = await oceanIndexer.getConfigDatabase().retrieveLatestVersion()
+    initialVersionNull = await configDb.retrieveLatestVersion()
     assert(initialVersionNull.version === null, 'Initial version should be null')
   })
 
   it('should set and retrieve version', async () => {
     // Set a specific test version
     const testVersion = '0.9.9'
-    await oceanIndexer.getConfigDatabase().create(testVersion)
+    await configDb.create(testVersion)
 
     // Verify we can retrieve it
-    const version = await oceanIndexer.getConfigDatabase().retrieveLatestVersion()
+    const version = await configDb.retrieveLatestVersion()
     assert(version.version === testVersion, `Version should be ${testVersion}`)
   })
 
@@ -551,13 +554,13 @@ describe('Version Database', () => {
     const updatedVersion = '0.2.3'
 
     // Set initial version
-    await oceanIndexer.getConfigDatabase().update(initialVersion, initialVersionNull)
-    let version = await oceanIndexer.getConfigDatabase().retrieveLatestVersion()
+    await configDb.update(initialVersion, initialVersionNull)
+    let version = await configDb.retrieveLatestVersion()
     assert(version.version === initialVersion, `Version should be ${initialVersion}`)
 
     // Update to new version
-    await oceanIndexer.getConfigDatabase().update(updatedVersion, initialVersion)
-    version = await oceanIndexer.getConfigDatabase().retrieveLatestVersion()
+    await configDb.update(updatedVersion, initialVersion)
+    version = await configDb.retrieveLatestVersion()
     assert(version.version === updatedVersion, `Version should be ${updatedVersion}`)
   })
 })
