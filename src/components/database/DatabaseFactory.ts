@@ -30,6 +30,7 @@ import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery.js'
 import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery.js'
 import { DB_TYPES } from '../../utils/index.js'
 import { SQLLiteNonceDatabase } from './SQLLiteNonceDatabase.js'
+import { SQLLiteConfigDatabase } from './SQLLiteConfigDatabase'
 
 export class DatabaseFactory {
   private static databaseMap = {
@@ -111,5 +112,11 @@ export class DatabaseFactory {
 
   static createMetadataQuery(config: OceanNodeDBConfig): Promise<IMetadataQuery> {
     return this.createDatabase('metadataQuery', config)
+  }
+
+  static async createConfigDatabase(
+    config: OceanNodeDBConfig
+  ): Promise<SQLLiteConfigDatabase> {
+    return await new SQLLiteConfigDatabase(config, typesenseSchemas.configSchemas)
   }
 }

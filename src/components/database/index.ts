@@ -11,7 +11,8 @@ import {
   AbstractIndexerDatabase,
   AbstractLogDatabase,
   AbstractNonceDatabase,
-  AbstractOrderDatabase
+  AbstractOrderDatabase,
+  AbstractVersionDatabase
 } from './BaseDatabase.js'
 import { DatabaseFactory } from './DatabaseFactory.js'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
@@ -26,11 +27,13 @@ export class Database {
   logs: AbstractLogDatabase
   order: AbstractOrderDatabase
   ddoState: AbstractDdoStateDatabase
+  version: AbstractVersionDatabase
 
   constructor(private config: OceanNodeDBConfig) {
     return (async (): Promise<Database> => {
       try {
         this.nonce = await DatabaseFactory.createNonceDatabase(this.config)
+        this.version = await DatabaseFactory.createConfigDatabase(this.config)
         if (hasValidDBConfiguration(this.config)) {
           // add this DB transport too
           // once we create a DB instance, the logger will be using this transport as well

@@ -526,26 +526,28 @@ describe('Version Database', () => {
   let database: Database
   let oceanIndexer: OceanIndexer
   let initialVersionNull: any
-  let configDb: SQLLiteConfigDatabase
 
   before(async () => {
     database = await new Database(versionConfig)
     oceanIndexer = new OceanIndexer(database, getMockSupportedNetworks())
-    configDb = oceanIndexer.getConfigDatabase()
+  })
+
+  it('check version DB instance of SQL Lite', () => {
+    expect(database.version).to.be.instanceOf(SQLLiteConfigDatabase)
   })
 
   it('should have null version initially', async () => {
-    initialVersionNull = await configDb.retrieveLatestVersion()
+    initialVersionNull = await oceanIndexer.getDatabase().version.retrieveLatestVersion()
     assert(initialVersionNull.version === null, 'Initial version should be null')
   })
 
   it('should set and retrieve version', async () => {
     // Set a specific test version
     const testVersion = '0.9.9'
-    await configDb.create(testVersion)
+    await oceanIndexer.getDatabase().version.create(testVersion)
 
     // Verify we can retrieve it
-    const version = await configDb.retrieveLatestVersion()
+    const version = await oceanIndexer.getDatabase().version.retrieveLatestVersion()
     assert(version.version === testVersion, `Version should be ${testVersion}`)
   })
 
@@ -554,13 +556,13 @@ describe('Version Database', () => {
     const updatedVersion = '0.2.3'
 
     // Set initial version
-    await configDb.update(initialVersion, initialVersionNull)
-    let version = await configDb.retrieveLatestVersion()
+    await oceanIndexer.getDatabase().version.update(initialVersion, initialVersionNull)
+    let version = await oceanIndexer.getDatabase().version.retrieveLatestVersion()
     assert(version.version === initialVersion, `Version should be ${initialVersion}`)
 
     // Update to new version
-    await configDb.update(updatedVersion, initialVersion)
-    version = await configDb.retrieveLatestVersion()
+    await oceanIndexer.getDatabase().version.update(updatedVersion, initialVersion)
+    version = await oceanIndexer.getDatabase().version.retrieveLatestVersion()
     assert(version.version === updatedVersion, `Version should be ${updatedVersion}`)
   })
 })
