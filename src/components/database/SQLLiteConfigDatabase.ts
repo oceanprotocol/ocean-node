@@ -74,6 +74,21 @@ export class SQLLiteConfigDatabase extends AbstractVersionDatabase {
     }
   }
 
+  async retrieveAllVersions() {
+    try {
+      return await this.provider.retrieveAllVersions()
+    } catch (error) {
+      const errorMsg = `Error when retrieving all version entries: ` + error.message
+      DATABASE_LOGGER.logMessageWithEmoji(
+        errorMsg,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return null
+    }
+  }
+
   async update(newVersion: string, version: string) {
     try {
       return await this.provider.updateVersion(newVersion, version)

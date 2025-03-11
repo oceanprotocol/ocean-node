@@ -468,11 +468,7 @@ export class OceanIndexer {
    */
   public async checkAndTriggerReindexing(): Promise<void> {
     const currentVersion = process.env.npm_package_version
-    if (!this.db.version) {
-      INDEXER_LOGGER.error(`Giving up reindexing...Version SQLLite DB does not exist`)
-      return
-    }
-    const dbVersion = await this.db.version.retrieveLatestVersion()
+    const dbVersion = await this.db?.version?.retrieveLatestVersion()
 
     INDEXER_LOGGER.info(
       `Node version check: Current=${currentVersion}, DB=${
@@ -501,10 +497,14 @@ export class OceanIndexer {
           continue
         }
       }
-
-      // Update the version in the database
-      await this.db.version.update(currentVersion, dbVersion.version)
-      INDEXER_LOGGER.info(`Updated node version in database to ${currentVersion}`)
+      if (!(await this.db.version.retrieveAllVersions())) {
+        await this.db.version.create(currentVersion)
+        INDEXER_LOGGER.info(`Created node version in database to ${currentVersion}`)
+      } else {
+        // Update the version in the database
+        await this.db.version.update(currentVersion, dbVersion.version)
+        INDEXER_LOGGER.info(`Updated node version in database to ${currentVersion}`)
+      }
     } else {
       INDEXER_LOGGER.info('No reindexing needed based on version check')
     }

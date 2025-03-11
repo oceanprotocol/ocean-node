@@ -108,6 +108,19 @@ export class SQLiteProvider implements DatabaseProvider {
   }
 
   // eslint-disable-next-line require-await
+  async retrieveAllVersions() {
+    const selectSQL = `
+        SELECT * FROM ${this.schemaConfig.name};
+      `
+    return new Promise<{ version: string | null }>((resolve, reject) => {
+      this.db.get(selectSQL, [], (err, row: { version: string } | undefined) => {
+        if (err) reject(err)
+        else resolve(row ? { version: row.version } : { version: null }) // Returns null if no version exists
+      })
+    })
+  }
+
+  // eslint-disable-next-line require-await
   async retrieveVersionById(id: number) {
     const selectSQL = `
       SELECT version FROM ${this.schemaConfig.name} WHERE id = ?;

@@ -42,6 +42,7 @@ export abstract class AbstractVersionDatabase {
   abstract create(version: string): Promise<any>
   abstract retrieveById(id: number): Promise<any>
   abstract retrieveLatestVersion(): Promise<any>
+  abstract retrieveAllVersions(): Promise<any>
   abstract update(newVersion: string, version: string): Promise<any>
   abstract delete(version: string): Promise<any>
 

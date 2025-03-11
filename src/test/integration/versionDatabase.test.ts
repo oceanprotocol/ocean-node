@@ -11,6 +11,11 @@ const versionConfig: OceanNodeDBConfig = {
   dbType: DB_TYPES.TYPESENSE
 }
 
+const emptyDBConfig: OceanNodeDBConfig = {
+  url: '',
+  dbType: null
+}
+
 describe('Version Database', () => {
   let database: Database
   let oceanIndexer: OceanIndexer
@@ -54,5 +59,43 @@ describe('Version Database', () => {
     await oceanIndexer.getDatabase().version.update(updatedVersion, initialVersion)
     version = await oceanIndexer.getDatabase().version.retrieveLatestVersion()
     assert(version.version === updatedVersion, `Version should be ${updatedVersion}`)
+  })
+})
+
+describe('VersionDatabase CRUD (without Elastic or Typesense config)', () => {
+  let database: Database
+
+  before(async () => {
+    database = await new Database(emptyDBConfig)
+  })
+
+  it('check version DB instance of SQL Lite', () => {
+    expect(database.version).to.be.instanceOf(SQLLiteConfigDatabase)
+  })
+
+  it('create version', async () => {
+    const result = await database.version.create('0.1.0')
+    expect(result?.id).to.equal(1)
+    expect(result?.version).to.equal('0.1.0')
+  })
+
+  it('retrieve latest version', async () => {
+    const result = await database.version.retrieveLatestVersion()
+    expect(result?.version).to.equal('0.1.0')
+
+    const res = await database.version.retrieveById(1)
+    expect(res?.id).to.equal(1)
+    expect(res?.version).to.equal('0.1.0')
+  })
+
+  it('update version', async () => {
+    const result = await database.version.update('0.1.1', '0.1.0')
+    expect(result?.version).to.equal('0.1.1')
+  })
+
+  it('delete nonce', async () => {
+    const result = await database.version.delete('0.1.1')
+    expect(result?.id).to.equal(1)
+    expect(result?.version).to.equal('0.1.1')
   })
 })
