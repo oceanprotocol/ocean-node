@@ -545,10 +545,12 @@ describe('Version Database', () => {
   it('should set and retrieve version', async () => {
     // Set a specific test version
     const testVersion = '0.9.9'
-    await oceanIndexer.getDatabase().version.create(testVersion)
+    const resp = await oceanIndexer.getDatabase().version.create(testVersion)
+    console.log(`JSON: ${JSON.stringify(resp)}`)
 
     // Verify we can retrieve it
     const version = await oceanIndexer.getDatabase().version.retrieveLatestVersion()
+    console.log(`version: ${version}`)
     assert(version.version === testVersion, `Version should be ${testVersion}`)
   })
 

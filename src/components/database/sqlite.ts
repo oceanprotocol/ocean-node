@@ -97,12 +97,12 @@ export class SQLiteProvider implements DatabaseProvider {
   // eslint-disable-next-line require-await
   async retrieveLatestVersion() {
     const selectSQL = `
-      SELECT version FROM ${this.schemaConfig.name} ORBER BY id DESC LIMIT 1;
+      SELECT version FROM ${this.schemaConfig.name} ORDER BY id DESC LIMIT 1;
     `
-    return new Promise<{ version: string }>((resolve, reject) => {
+    return new Promise<{ version: string | null }>((resolve, reject) => {
       this.db.get(selectSQL, [], (err, row: { version: string } | undefined) => {
         if (err) reject(err)
-        else resolve(row ? { version: row.version } : { version: null })
+        else resolve(row ? { version: row.version } : { version: null }) // Returns null if no version exists
       })
     })
   }
