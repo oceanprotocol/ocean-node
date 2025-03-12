@@ -78,6 +78,18 @@ describe('Should deploy some accessLists before all other tests.', () => {
 
   before(async () => {
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
+
+    config = await getConfiguration() // Force reload the configuration
+
+    const rpcs: RPCS = config.supportedNetworks
+    const chain: SupportedNetwork = rpcs[String(DEVELOPMENT_CHAIN_ID)]
+    blockchain = new Blockchain(
+      chain.rpc,
+      chain.network,
+      chain.chainId,
+      chain.fallbackRPCs
+    )
+
     owner = blockchain.getSigner()
 
     const list = await deployAccessList(ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS.name)
@@ -109,17 +121,6 @@ describe('Should deploy some accessLists before all other tests.', () => {
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
-    )
-
-    config = await getConfiguration(true) // Force reload the configuration
-
-    const rpcs: RPCS = config.supportedNetworks
-    const chain: SupportedNetwork = rpcs[String(DEVELOPMENT_CHAIN_ID)]
-    blockchain = new Blockchain(
-      chain.rpc,
-      chain.network,
-      chain.chainId,
-      chain.fallbackRPCs
     )
 
     // consumerAccounts = [
