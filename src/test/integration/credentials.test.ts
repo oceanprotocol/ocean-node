@@ -19,7 +19,7 @@ import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
-import { sleep, streamToObject } from '../../utils/util.js'
+import { streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 
 import {
