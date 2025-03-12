@@ -28,7 +28,8 @@ import {
   EVENTS,
   PROTOCOL_COMMANDS,
   UNAUTHORIZED_ACTION_EVENT,
-  getConfiguration
+  getConfiguration,
+  printCurrentConfig
 } from '../../utils/index.js'
 import { DownloadHandler } from '../../components/core/handler/downloadHandler.js'
 import { GetDdoHandler } from '../../components/core/handler/ddoHandler.js'
@@ -358,6 +359,7 @@ describe('Should run a complete node flow.', () => {
     )
     await setupEnvironment(null, envOverrides)
     const updatedConfig = await getConfiguration(true)
+    printCurrentConfig()
     expect(
       updatedConfig.authorizedPublishers.length === 1 &&
         updatedConfig.authorizedPublishers[0] === authorizedAccount,
@@ -367,12 +369,14 @@ describe('Should run a complete node flow.', () => {
     oceanNode = await OceanNode.getInstance()
     const runningIndexer = oceanNode.getIndexer()
     runningIndexer.stopAllThreads()
+    console.log('stopped threads')
     // replace the running indexer, since we have new configuration in place
     sleep(2000)
     const indexerUpdated = new OceanIndexer(
       runningIndexer.getDatabase(), // same DB
       config.indexingNetworks
     )
+    console.log('re-started threads')
     sleep(2000)
     oceanNode.addIndexer(indexerUpdated)
     // asset will be published with new Indexer already (actually it will NOT be published)
@@ -382,6 +386,7 @@ describe('Should run a complete node flow.', () => {
     )
 
     did = publishedDataset.ddo.id
+    console.log('published asset with did: ', did)
     const { ddo } = await waitToIndex(
       did,
       UNAUTHORIZED_ACTION_EVENT,
