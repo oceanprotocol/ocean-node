@@ -19,7 +19,7 @@ import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
-import { streamToObject } from '../../utils/util.js'
+import { sleep, streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 
 import {
@@ -364,6 +364,18 @@ describe('Should run a complete node flow.', () => {
       'Unable to set AUTHORIZED_PUBLISHERS'
     )
 
+    oceanNode = await OceanNode.getInstance()
+    const runningIndexer = oceanNode.getIndexer()
+    runningIndexer.stopAllThreads()
+    // replace the running indexer, since we have new configuration in place
+    sleep(2000)
+    const indexerUpdated = new OceanIndexer(
+      runningIndexer.getDatabase(), // same DB
+      config.indexingNetworks
+    )
+    sleep(2000)
+    oceanNode.addIndexer(indexerUpdated)
+    // asset will be published with new Indexer already (actually it will NOT be published)
     const publishedDataset = await publishAsset(
       downloadAssetWithCredentials,
       nonAuthorizedAccount
