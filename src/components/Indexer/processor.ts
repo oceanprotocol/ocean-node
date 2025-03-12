@@ -26,7 +26,8 @@ import {
   EVENTS,
   MetadataStates,
   EVENT_HASHES,
-  ENVIRONMENT_VARIABLES
+  ENVIRONMENT_VARIABLES,
+  UNAUTHORIZED_ACTION_EVENT
 } from '../../utils/constants.js'
 import {
   findServiceIdByDatatoken,
@@ -52,6 +53,7 @@ import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
 import { makeDid } from '../core/utils/validateDdoHandler.js'
 import { PolicyServer } from '../policyServer/index.js'
+import { INDEXER_DDO_EVENT_EMITTER } from './index.js'
 class BaseEventProcessor {
   protected networkId: number
 
@@ -453,6 +455,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           INDEXER_LOGGER.error(
             `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS.name} group.`
           )
+          INDEXER_DDO_EVENT_EMITTER.emit(UNAUTHORIZED_ACTION_EVENT, ddo.id)
           return
         }
       }
@@ -480,6 +483,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
             INDEXER_LOGGER.error(
               `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.name} access group.`
             )
+            INDEXER_DDO_EVENT_EMITTER.emit(UNAUTHORIZED_ACTION_EVENT, ddo.id)
             return
           }
         }

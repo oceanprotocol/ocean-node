@@ -27,6 +27,7 @@ import {
   ENVIRONMENT_VARIABLES,
   EVENTS,
   PROTOCOL_COMMANDS,
+  UNAUTHORIZED_ACTION_EVENT,
   getConfiguration
 } from '../../utils/index.js'
 import { DownloadHandler } from '../../components/core/handler/downloadHandler.js'
@@ -342,6 +343,38 @@ describe('Should run a complete node flow.', () => {
     }, DEFAULT_TEST_TIMEOUT * 3)
 
     await doCheck()
+  })
+
+  it('should NOT allow to index the asset because address is not on AUTHORIZED_PUBLISHERS', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    // this is not authorized
+    const nonAuthorizedAccount = (await provider.getSigner(4)) as Signer
+    const authorizedAccount = await publisherAccount.getAddress()
+    const envOverrides = buildEnvOverrideConfig(
+      [ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS],
+      [authorizedAccount] // this is the only one authorized
+    )
+    await setupEnvironment(null, envOverrides)
+    const updatedConfig = await getConfiguration(true)
+    expect(
+      updatedConfig.authorizedPublishers.length === 1 &&
+        updatedConfig.authorizedPublishers[0] === authorizedAccount,
+      'Unable to set AUTHORIZED_PUBLISHERS'
+    )
+
+    const publishedDataset = await publishAsset(
+      downloadAssetWithCredentials,
+      nonAuthorizedAccount
+    )
+
+    did = publishedDataset.ddo.id
+    const { ddo } = await waitToIndex(
+      did,
+      UNAUTHORIZED_ACTION_EVENT,
+      DEFAULT_TEST_TIMEOUT * 3,
+      true
+    )
+    assert(ddo === null, 'DDO should not have been indexed')
   })
 
   after(async () => {
