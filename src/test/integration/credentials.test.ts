@@ -355,8 +355,6 @@ describe('Should run a complete node flow.', () => {
     // this is not authorized
     const nonAuthorizedAccount = (await provider.getSigner(4)) as Signer
     const authorizedAccount = await publisherAccount.getAddress()
-    console.log('authorized account: ', authorizedAccount)
-    console.log('Unauthorized account: ', await nonAuthorizedAccount.getAddress())
 
     printCurrentConfig()
     expect(
