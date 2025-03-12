@@ -81,6 +81,14 @@ describe('Should run a complete node flow.', () => {
   let signer: Signer
 
   before(async () => {
+    publisherAccount = (await provider.getSigner(0)) as Signer
+    consumerAccounts = [
+      (await provider.getSigner(1)) as Signer,
+      (await provider.getSigner(2)) as Signer,
+      (await provider.getSigner(3)) as Signer
+    ]
+    consumerAddresses = await Promise.all(consumerAccounts.map((a) => a.getAddress()))
+
     // override and save configuration (always before calling getConfig())
     previousConfiguration = await setupEnvironment(
       TEST_ENV_CONFIG_FILE,
@@ -91,6 +99,7 @@ describe('Should run a complete node flow.', () => {
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
+          ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
@@ -99,6 +108,9 @@ describe('Should run a complete node flow.', () => {
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
+          JSON.stringify([
+            await publisherAccount.getAddress() // signer 0
+          ]),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
@@ -120,14 +132,6 @@ describe('Should run a complete node flow.', () => {
     )
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
-
-    publisherAccount = (await provider.getSigner(0)) as Signer
-    consumerAccounts = [
-      (await provider.getSigner(1)) as Signer,
-      (await provider.getSigner(2)) as Signer,
-      (await provider.getSigner(3)) as Signer
-    ]
-    consumerAddresses = await Promise.all(consumerAccounts.map((a) => a.getAddress()))
   })
 
   it('should deploy accessList contract', async function () {
@@ -353,32 +357,14 @@ describe('Should run a complete node flow.', () => {
     const authorizedAccount = await publisherAccount.getAddress()
     console.log('authorized account: ', authorizedAccount)
     console.log('Unauthorized account: ', await nonAuthorizedAccount.getAddress())
-    const envOverrides = buildEnvOverrideConfig(
-      [ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS],
-      [authorizedAccount] // this is the only one authorized
-    )
-    await setupEnvironment(null, envOverrides)
-    const updatedConfig = await getConfiguration(true)
+
     printCurrentConfig()
     expect(
-      updatedConfig.authorizedPublishers.length === 1 &&
-        updatedConfig.authorizedPublishers[0] === authorizedAccount,
+      config.authorizedPublishers.length === 1 &&
+        config.authorizedPublishers[0] === authorizedAccount,
       'Unable to set AUTHORIZED_PUBLISHERS'
     )
 
-    oceanNode = await OceanNode.getInstance()
-    const runningIndexer = oceanNode.getIndexer()
-    runningIndexer.stopAllThreads()
-    console.log('stopped threads')
-    // replace the running indexer, since we have new configuration in place
-    sleep(2000)
-    const indexerUpdated = new OceanIndexer(
-      runningIndexer.getDatabase(), // same DB
-      config.indexingNetworks
-    )
-    console.log('re-started threads')
-    sleep(2000)
-    oceanNode.addIndexer(indexerUpdated)
     // asset will be published with new Indexer already (actually it will NOT be published)
     const publishedDataset = await publishAsset(
       downloadAssetWithCredentials,
@@ -393,7 +379,7 @@ describe('Should run a complete node flow.', () => {
       DEFAULT_TEST_TIMEOUT * 3,
       true
     )
-    assert(ddo === null, 'DDO should not have been indexed')
+    assert(ddo === null, 'DDO should NOT have been indexed')
   })
 
   after(async () => {
