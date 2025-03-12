@@ -21,8 +21,10 @@ import AccessListFactory from '@oceanprotocol/contracts/artifacts/contracts/acce
 import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
 import { homedir } from 'os'
 import { getConfiguration } from '../../utils/config.js'
+import { EXISTING_ACCESSLISTS } from '../utils/hooks.js'
+import { expect } from 'chai'
 
-describe('Should run a complete node flow.', () => {
+describe('Should deploy some accessLists before all other tests.', () => {
   let config: OceanNodeConfig
   // let oceanNode: OceanNode
   let provider: JsonRpcProvider
@@ -80,6 +82,7 @@ describe('Should run a complete node flow.', () => {
 
     const list = await deployAccessList(ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS.name)
     console.log('list is:', list)
+    EXISTING_ACCESSLISTS.push(list)
 
     // override and save configuration (always before calling getConfig())
     previousConfiguration = await setupEnvironment(
@@ -125,6 +128,10 @@ describe('Should run a complete node flow.', () => {
     //   (await provider.getSigner(3)) as Signer
     // ]
     // consumerAddresses = await Promise.all(consumerAccounts.map((a) => a.getAddress()))
+  })
+
+  it('should have some access lists', () => {
+    expect(EXISTING_ACCESSLISTS.length > 0, 'Should have at least 1 accessList')
   })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)

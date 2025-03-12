@@ -2,6 +2,7 @@
 // beforeAll() and afterAll() are called before starting the tests
 // and after finishing them respectively.
 
+import { AccessListContract } from '../../@types/OceanNode.js'
 import { DB_TYPES, ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { CONFIG_LOGGER } from '../../utils/logging/common.js'
 import {
@@ -15,6 +16,7 @@ import {
   SELECTED_RUN_DATABASE
 } from './utils.js'
 
+export const EXISTING_ACCESSLISTS: AccessListContract[] = []
 // current process.env environment
 // save any existing configuration before starting the tests
 const initialConfiguration: Map<string, OverrideEnvConfig> = getExistingEnvironment()
