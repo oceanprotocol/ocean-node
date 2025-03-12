@@ -445,12 +445,16 @@ export class MetadataEventProcessor extends BaseEventProcessor {
 
       // check authorized publishers
       const { authorizedPublishers, authorizedPublishersList } = await getConfiguration()
+      console.log('authorizedPublishers: ', authorizedPublishers)
+      console.log('authorizedPublishersList: ', authorizedPublishersList)
+      console.log('owner: ', owner)
       if (authorizedPublishers.length > 0) {
         // if is not there, do not index
         const authorized: string[] = authorizedPublishers.filter((address) =>
           // do a case insensitive search
           address.toLowerCase().includes(owner.toLowerCase())
         )
+        console.log('authorized: ', authorized)
         if (!authorized.length) {
           INDEXER_LOGGER.error(
             `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS.name} group.`
