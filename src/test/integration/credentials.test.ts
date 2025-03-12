@@ -20,7 +20,11 @@ import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
 import { streamToObject } from '../../utils/util.js'
-import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
+import {
+  addIndexerEventListener,
+  expectedTimeoutFailure,
+  waitToIndex
+} from './testUtils.js'
 
 import {
   Blockchain,
@@ -372,14 +376,18 @@ describe('Should run a complete node flow.', () => {
     )
 
     did = publishedDataset.ddo.id
+    addIndexerEventListener(UNAUTHORIZED_ACTION_EVENT, did, function (id: string) {
+      assert(did === id, 'Should expect an unauthorized event')
+    })
+
     console.log('published asset with did: ', did)
-    const { ddo } = await waitToIndex(
+    const { ddo, wasTimeout } = await waitToIndex(
       did,
       UNAUTHORIZED_ACTION_EVENT,
       DEFAULT_TEST_TIMEOUT * 3,
       true
     )
-    assert(ddo === null, 'DDO should NOT have been indexed')
+    assert(ddo === null && wasTimeout === true, 'DDO should NOT have been indexed')
   })
 
   after(async () => {
