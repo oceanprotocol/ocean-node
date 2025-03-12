@@ -101,8 +101,10 @@ async function deployAccessLists(
     ],
     ['https://oceanprotocol.com/nft/']
   )
+  console.log('txAddress: ', txAddress)
 
   const contractAcessList = getContract(txAddress, AccessList.abi, owner)
+  console.log('contractAcessList:', contractAcessList)
   return contractAcessList ? { DEVELOPMENT_CHAIN_ID: [txAddress] } : null
 }
 
@@ -110,6 +112,7 @@ export const mochaHooks = {
   beforeAll() {
     deployAccessLists(ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS_LIST.name).then(
       (accessListAddress) => {
+        console.log('accessListAddress: ', accessListAddress)
         if (accessListAddress) {
           const envVars: EnvVariable[] = [ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS_LIST]
           const envValues: any[] = [JSON.stringify(accessListAddress)]
