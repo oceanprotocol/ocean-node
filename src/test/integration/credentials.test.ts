@@ -20,11 +20,7 @@ import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
 import { streamToObject } from '../../utils/util.js'
-import {
-  addIndexerEventListener,
-  expectedTimeoutFailure,
-  waitToIndex
-} from './testUtils.js'
+import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 
 import {
   Blockchain,
@@ -355,7 +351,7 @@ describe('Should run a complete node flow.', () => {
   })
 
   it('should NOT allow to index the asset because address is not on AUTHORIZED_PUBLISHERS', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     // this is not authorized
     const nonAuthorizedAccount = (await provider.getSigner(4)) as Signer
     const authorizedAccount = await publisherAccount.getAddress()
@@ -369,22 +365,18 @@ describe('Should run a complete node flow.', () => {
       'Unable to set AUTHORIZED_PUBLISHERS'
     )
 
-    // asset will be published with new Indexer already (actually it will NOT be published)
     const publishedDataset = await publishAsset(
       downloadAssetWithCredentials,
       nonAuthorizedAccount
     )
 
     did = publishedDataset.ddo.id
-    addIndexerEventListener(UNAUTHORIZED_ACTION_EVENT, did, function (id: string) {
-      assert(did === id, 'Should expect an unauthorized event')
-    })
 
     console.log('published asset with did: ', did)
     const { ddo, wasTimeout } = await waitToIndex(
       did,
       UNAUTHORIZED_ACTION_EVENT,
-      DEFAULT_TEST_TIMEOUT * 3,
+      DEFAULT_TEST_TIMEOUT * 2,
       true
     )
     assert(ddo === null && wasTimeout === true, 'DDO should NOT have been indexed')

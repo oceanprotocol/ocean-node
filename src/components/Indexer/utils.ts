@@ -6,6 +6,7 @@ import {
   ENVIRONMENT_VARIABLES,
   EVENTS,
   EVENT_HASHES,
+  UNAUTHORIZED_ACTION_EVENT,
   existsEnvironmentVariable,
   getConfiguration
 } from '../../utils/index.js'
@@ -33,6 +34,7 @@ import { create256Hash } from '../../utils/crypt.js'
 import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
 import { ServicePrice } from '../../@types/DDO/IndexedMetadata.js'
+import { INDEXER_DDO_EVENT_EMITTER } from './index.js'
 
 let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor
@@ -711,4 +713,10 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
     }
   }
   return ddo
+}
+
+export function emitUnAuthorizedEvent(did: string, delay: number = 2000) {
+  setTimeout(() => {
+    INDEXER_DDO_EVENT_EMITTER.emit(UNAUTHORIZED_ACTION_EVENT, did)
+  }, delay)
 }
