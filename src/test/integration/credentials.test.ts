@@ -81,13 +81,8 @@ describe('Should run a complete node flow.', () => {
   let signer: Signer
 
   before(async () => {
+    provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
-    consumerAccounts = [
-      (await provider.getSigner(1)) as Signer,
-      (await provider.getSigner(2)) as Signer,
-      (await provider.getSigner(3)) as Signer
-    ]
-    consumerAddresses = await Promise.all(consumerAccounts.map((a) => a.getAddress()))
 
     // override and save configuration (always before calling getConfig())
     previousConfiguration = await setupEnvironment(
@@ -131,7 +126,12 @@ describe('Should run a complete node flow.', () => {
       chain.fallbackRPCs
     )
 
-    provider = new JsonRpcProvider('http://127.0.0.1:8545')
+    consumerAccounts = [
+      (await provider.getSigner(1)) as Signer,
+      (await provider.getSigner(2)) as Signer,
+      (await provider.getSigner(3)) as Signer
+    ]
+    consumerAddresses = await Promise.all(consumerAccounts.map((a) => a.getAddress()))
   })
 
   it('should deploy accessList contract', async function () {
