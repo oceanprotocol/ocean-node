@@ -61,7 +61,9 @@ export const mochaHooks = {
       envOverrides = overrides
     })
     initialSetupDone = true
-    CONFIG_LOGGER.debug(`(Hook) Initial test setup: ${JSON.stringify(envOverrides)} `)
+    CONFIG_LOGGER.debug(
+      `(Hook) Initial test setup: ${JSON.stringify(envOverrides, null, 4)} `
+    )
 
     // just in case the configuration value fails
     this.timeout(DEFAULT_TEST_TIMEOUT)
