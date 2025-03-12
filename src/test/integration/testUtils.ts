@@ -87,6 +87,7 @@ export const waitToIndex = async (
       // 2nd approach, whatever happens first (timeout or event emition)
       listening = true
       addIndexerEventListener(eventName, did, async (id: string) => {
+        INDEXER_LOGGER.info('Listened Indexer event: ' + eventName)
         clearTimeout(timeout)
         const res = await getIndexedDDOFromDB(id)
         result.ddo = res
