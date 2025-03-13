@@ -2,10 +2,10 @@ import { TypesenseSchema, typesenseSchemas } from './TypesenseSchemas.js'
 import sqlite3 from 'sqlite3'
 
 interface DatabaseProvider {
-  create(address: string, nonce: number): Promise<{ id: string; nonce: number }>
-  retrieve(address: string): Promise<{ id: string; nonce: number | null }>
-  update(address: string, nonce: number): Promise<{ id: string; nonce: number }>
-  delete(address: string): Promise<{ id: string; nonce: number | null }>
+  createNonce(address: string, nonce: number): Promise<{ id: string; nonce: number }>
+  retrieveNonce(address: string): Promise<{ id: string; nonce: number | null }>
+  updateNonce(address: string, nonce: number): Promise<{ id: string; nonce: number }>
+  deleteNonceEntry(address: string): Promise<{ id: string; nonce: number | null }>
 }
 
 export class SQLiteProvider implements DatabaseProvider {
@@ -20,7 +20,7 @@ export class SQLiteProvider implements DatabaseProvider {
   }
 
   // eslint-disable-next-line require-await
-  async createTable() {
+  async createTableForNonce() {
     const createTableSQL = `
       CREATE TABLE IF NOT EXISTS ${this.schemaNonce.name} (
         id TEXT PRIMARY KEY,
@@ -52,7 +52,7 @@ export class SQLiteProvider implements DatabaseProvider {
   }
 
   // eslint-disable-next-line require-await
-  async create(address: string, nonce: number) {
+  async createNonce(address: string, nonce: number) {
     const insertSQL = `
       INSERT INTO ${this.schemaNonce.name} (id, nonce)
       VALUES (?, ?)
@@ -67,22 +67,22 @@ export class SQLiteProvider implements DatabaseProvider {
   }
 
   // eslint-disable-next-line require-await
-  async createConfig(version: string) {
+  async createOrUpdateConfig(key: string, value: string) {
     const insertSQL = `
     INSERT INTO ${this.configSchema} (key, value)
-    VALUES ('version', ?)
+    VALUES (?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value;
   `
-    return new Promise<{ version: string }>((resolve, reject) => {
-      this.db.run(insertSQL, [version], (err) => {
+    return new Promise<{ key: string; value: string }>((resolve, reject) => {
+      this.db.run(insertSQL, [key, value], (err) => {
         if (err) reject(err)
-        else resolve({ version })
+        else resolve({ key, value })
       })
     })
   }
 
   // eslint-disable-next-line require-await
-  async retrieve(address: string) {
+  async retrieveNonce(address: string) {
     const selectSQL = `
       SELECT * FROM ${this.schemaNonce.name} WHERE id = ?
     `
@@ -96,25 +96,25 @@ export class SQLiteProvider implements DatabaseProvider {
   }
 
   // eslint-disable-next-line require-await
-  async retrieveVersion() {
+  async retrieveValue(key: string) {
     const selectSQL = `
-      SELECT value FROM ${this.configSchema};
+      SELECT value FROM ${this.configSchema} WHERE key = ?;
     `
-    return new Promise<{ version: string | null }>((resolve, reject) => {
-      this.db.get(selectSQL, [], (err, row: { value: string } | undefined) => {
+    return new Promise<{ value: string | null }>((resolve, reject) => {
+      this.db.get(selectSQL, [key], (err, row: { value: string } | undefined) => {
         if (err) reject(err)
-        else resolve(row ? { version: row.value } : { version: null }) // Returns null if no version exists
+        else resolve(row ? { value: row.value } : { value: null }) // Returns null if no version exists
       })
     })
   }
 
   // eslint-disable-next-line require-await
-  async update(address: string, nonce: number) {
-    return this.create(address, nonce)
+  async updateNonce(address: string, nonce: number) {
+    return this.createNonce(address, nonce)
   }
 
   // eslint-disable-next-line require-await
-  async delete(address: string) {
+  async deleteNonceEntry(address: string) {
     const selectSQL = `
       SELECT nonce FROM ${this.schemaNonce.name} WHERE id = ?
     `

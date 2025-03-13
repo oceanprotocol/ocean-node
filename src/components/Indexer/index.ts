@@ -468,7 +468,7 @@ export class OceanIndexer {
    */
   public async checkAndTriggerReindexing(): Promise<void> {
     const currentVersion = process.env.npm_package_version
-    const dbVersion = await this.db?.version?.retrieveLatestVersion()
+    const dbVersion = await this.db?.version?.retrieveValue()
 
     INDEXER_LOGGER.info(
       `Node version check: Current=${currentVersion}, DB=${
@@ -476,12 +476,10 @@ export class OceanIndexer {
       }, Min Required=${this.MIN_REQUIRED_VERSION}`
     )
 
-    if (
-      isReindexingNeeded(currentVersion, dbVersion.version, this.MIN_REQUIRED_VERSION)
-    ) {
+    if (isReindexingNeeded(currentVersion, dbVersion.value, this.MIN_REQUIRED_VERSION)) {
       INDEXER_LOGGER.info(
         `Reindexing needed: DB version ${
-          dbVersion.version || 'not set'
+          dbVersion.value || 'not set'
         } is older than minimum required ${this.MIN_REQUIRED_VERSION}`
       )
 
@@ -497,7 +495,7 @@ export class OceanIndexer {
           continue
         }
       }
-      await this.db?.version?.create(currentVersion)
+      await this.db?.version?.createOrUpdateConfig('version', currentVersion)
       INDEXER_LOGGER.info(`Updated node version in database to ${currentVersion}`)
     } else {
       INDEXER_LOGGER.info('No reindexing needed based on version check')

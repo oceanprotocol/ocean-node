@@ -9,7 +9,7 @@ export class SQLLiteConfigDatabase {
 
   constructor() {
     return (async (): Promise<SQLLiteConfigDatabase> => {
-      DATABASE_LOGGER.info('Version Database initiated with SQLite provider')
+      DATABASE_LOGGER.info('Config Database initiated with SQLite provider')
 
       // Ensure the directory exists before instantiating SQLiteProvider
       const dbDir = path.dirname('databases/config.sqlite')
@@ -23,12 +23,11 @@ export class SQLLiteConfigDatabase {
     })() as unknown as SQLLiteConfigDatabase
   }
 
-  async create(version: string) {
+  async createOrUpdateConfig(key: string = 'version', value: string) {
     try {
-      return await this.provider.createConfig(version)
+      return await this.provider.createOrUpdateConfig(key, value)
     } catch (error) {
-      const errorMsg =
-        `Error when creating new version entry ${version}: ` + error.message
+      const errorMsg = `Error when creating new version entry ${value}: ` + error.message
       DATABASE_LOGGER.logMessageWithEmoji(
         errorMsg,
         true,
@@ -39,9 +38,9 @@ export class SQLLiteConfigDatabase {
     }
   }
 
-  async retrieveLatestVersion() {
+  async retrieveValue(key: string = 'version') {
     try {
-      return await this.provider.retrieveVersion()
+      return await this.provider.retrieveValue(key)
     } catch (error) {
       const errorMsg = `Error when retrieving latest version entry: ` + error.message
       DATABASE_LOGGER.logMessageWithEmoji(

@@ -31,18 +31,18 @@ describe('Version Database', () => {
   })
 
   it('should have null version initially', async () => {
-    initialVersionNull = await oceanIndexer.getDatabase().version.retrieveLatestVersion()
-    assert(initialVersionNull.version === null, 'Initial version should be null')
+    initialVersionNull = await oceanIndexer.getDatabase().version.retrieveValue()
+    assert(initialVersionNull.value === null, 'Initial version should be null')
   })
 
   it('should set and retrieve version', async () => {
     // Set a specific test version
     const testVersion = '0.9.9'
-    await oceanIndexer.getDatabase().version.create(testVersion)
+    await oceanIndexer.getDatabase().version.createOrUpdateConfig('version', testVersion)
 
     // Verify we can retrieve it
-    const version = await oceanIndexer.getDatabase().version.retrieveLatestVersion()
-    assert(version.version === testVersion, `Version should be ${testVersion}`)
+    const version = await oceanIndexer.getDatabase().version.retrieveValue()
+    assert(version.value === testVersion, `Version should be ${testVersion}`)
   })
 
   it('should update version and retrieve latest', async () => {
@@ -50,14 +50,18 @@ describe('Version Database', () => {
     const updatedVersion = '0.2.3'
 
     // Set initial version
-    await oceanIndexer.getDatabase().version.create(initialVersion)
-    let version = await oceanIndexer.getDatabase().version.retrieveLatestVersion()
-    assert(version.version === initialVersion, `Version should be ${initialVersion}`)
+    await oceanIndexer
+      .getDatabase()
+      .version.createOrUpdateConfig('version', initialVersion)
+    let version = await oceanIndexer.getDatabase().version.retrieveValue()
+    assert(version.value === initialVersion, `Version should be ${initialVersion}`)
 
     // Update to new version
-    await oceanIndexer.getDatabase().version.create(updatedVersion)
-    version = await oceanIndexer.getDatabase().version.retrieveLatestVersion()
-    assert(version.version === updatedVersion, `Version should be ${updatedVersion}`)
+    await oceanIndexer
+      .getDatabase()
+      .version.createOrUpdateConfig('version', updatedVersion)
+    version = await oceanIndexer.getDatabase().version.retrieveValue()
+    assert(version.value === updatedVersion, `Version should be ${updatedVersion}`)
   })
 })
 
@@ -73,12 +77,12 @@ describe('VersionDatabase CRUD (without Elastic or Typesense config)', () => {
   })
 
   it('create version', async () => {
-    const result = await database.version.create('0.1.0')
-    expect(result?.version).to.equal('0.1.0')
+    const result = await database.version.createOrUpdateConfig('version', '0.1.0')
+    expect(result?.value).to.equal('0.1.0')
   })
 
   it('retrieve latest version', async () => {
-    const result = await database.version.retrieveLatestVersion()
-    expect(result?.version).to.equal('0.1.0')
+    const result = await database.version.retrieveValue('version')
+    expect(result?.value).to.equal('0.1.0')
   })
 })
