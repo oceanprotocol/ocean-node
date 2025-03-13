@@ -194,7 +194,7 @@ describe('Should deploy some accessLists before all other tests.', () => {
         const accessListAddress = allAccessListsDefinitions[z][DEVELOPMENT_CHAIN_ID][0] // we have only 1 accesslist per config
         expect(
           (await findAccessListCredentials(owner, account, accessListAddress)) === false,
-          `Address ${account} has no balance on Access List ${accessListAddress}, so its not Authorized`
+          `Address ${account} should not be part Access List ${accessListAddress}, therefore its not Authorized`
         )
       }
     }
