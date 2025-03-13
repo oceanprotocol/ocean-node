@@ -434,6 +434,11 @@ export class OceanIndexer {
   public async checkAndTriggerReindexing(): Promise<void> {
     const currentVersion = process.env.npm_package_version
     const dbVersion = await this.db?.version?.retrieveValue()
+    const dbActive = this.getDatabase()
+    if (!dbActive || !(await isReachableConnection(dbActive.getConfig().url))) {
+      INDEXER_LOGGER.error(`Giving up reindexing. DB is not online!`)
+      return
+    }
 
     INDEXER_LOGGER.info(
       `Node version check: Current=${currentVersion}, DB=${
