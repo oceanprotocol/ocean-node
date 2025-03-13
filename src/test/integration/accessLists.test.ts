@@ -6,28 +6,22 @@ import {
   tearDownEnvironment,
   TEST_ENV_CONFIG_FILE
 } from '../utils/utils.js'
-import { JsonRpcProvider, Signer } from 'ethers'
+import { Signer } from 'ethers'
 import { Blockchain } from '../../utils/blockchain.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
-import {
-  DEVELOPMENT_CHAIN_ID,
-  getOceanArtifactsAdresses,
-  getOceanArtifactsAdressesByChainId
-} from '../../utils/address.js'
+import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
-import { deployAccessListContract, getContract } from '../utils/contracts.js'
-import { AccessListContract, OceanNodeConfig } from '../../@types/OceanNode.js'
-import AccessListFactory from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessListFactory.sol/AccessListFactory.json' assert { type: 'json' }
-import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
+import { deployAndGetAccessListConfig } from '../utils/contracts.js'
+import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { homedir } from 'os'
-import { getConfiguration } from '../../utils/config.js'
+import { getConfiguration, printCurrentConfig } from '../../utils/config.js'
 import { EXISTING_ACCESSLISTS } from '../utils/hooks.js'
 import { expect } from 'chai'
 
 describe('Should deploy some accessLists before all other tests.', () => {
   let config: OceanNodeConfig
   // let oceanNode: OceanNode
-  let provider: JsonRpcProvider
+  // let provider: JsonRpcProvider
 
   // let consumerAccounts: Signer[]
 
@@ -39,46 +33,7 @@ describe('Should deploy some accessLists before all other tests.', () => {
   //   let contractAcessList: Contract
   let owner: Signer
 
-  async function deployAccessList(
-    envVariable: string
-  ): Promise<AccessListContract | null> {
-    let networkArtifacts = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
-    if (!networkArtifacts) {
-      networkArtifacts = getOceanArtifactsAdresses().development
-    }
-
-    const wallets = [
-      (await provider.getSigner(0)) as Signer,
-      (await provider.getSigner(1)) as Signer,
-      (await provider.getSigner(2)) as Signer,
-      (await provider.getSigner(3)) as Signer
-    ]
-    const txAddress = await deployAccessListContract(
-      owner, // owner is first account
-      networkArtifacts.AccessListFactory,
-      AccessListFactory.abi,
-      'AllowList',
-      'ALLOW',
-      false,
-      await owner.getAddress(),
-      [
-        await wallets[0].getAddress(),
-        await wallets[1].getAddress(),
-        await wallets[2].getAddress(),
-        await wallets[3].getAddress()
-      ],
-      ['https://oceanprotocol.com/nft/']
-    )
-    console.log('txAddress: ', txAddress)
-
-    const contractAcessList = getContract(txAddress, AccessList.abi, owner)
-    console.log('contractAcessList:', contractAcessList)
-    return contractAcessList ? { DEVELOPMENT_CHAIN_ID: [txAddress] } : null
-  }
-
   before(async () => {
-    provider = new JsonRpcProvider('http://127.0.0.1:8545')
-
     config = await getConfiguration() // Force reload the configuration
 
     const rpcs: RPCS = config.supportedNetworks
@@ -92,10 +47,20 @@ describe('Should deploy some accessLists before all other tests.', () => {
 
     owner = blockchain.getSigner()
 
-    const list = await deployAccessList(ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS.name)
-    console.log('list is:', list)
-    EXISTING_ACCESSLISTS.push(list)
+    // ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST
+    const accessList = await deployAndGetAccessListConfig(owner)
+    EXISTING_ACCESSLISTS.set(ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.name, [
+      accessList
+    ])
+    // ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS_LIST
+    EXISTING_ACCESSLISTS.set(ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS_LIST.name, [
+      accessList
+    ])
 
+    // ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS_LIST
+    EXISTING_ACCESSLISTS.set(ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS_LIST.name, [
+      accessList
+    ])
     // override and save configuration (always before calling getConfig())
     previousConfiguration = await setupEnvironment(
       TEST_ENV_CONFIG_FILE,
@@ -107,7 +72,11 @@ describe('Should deploy some accessLists before all other tests.', () => {
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
           ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS,
-          ENVIRONMENT_VARIABLES.ADDRESS_FILE
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE,
+          // ACCESS_LISTS
+          ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST,
+          ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS_LIST,
+          ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS_LIST
         ],
         [
           JSON.stringify(mockSupportedNetworks),
@@ -118,21 +87,28 @@ describe('Should deploy some accessLists before all other tests.', () => {
           JSON.stringify([
             await owner.getAddress() // the node
           ]),
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
+          JSON.stringify(
+            EXISTING_ACCESSLISTS.get(
+              ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.name
+            )
+          ),
+          JSON.stringify(
+            EXISTING_ACCESSLISTS.get(ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS_LIST.name)
+          ),
+          JSON.stringify(
+            EXISTING_ACCESSLISTS.get(
+              ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS_LIST.name
+            )
+          )
         ]
       )
     )
-
-    // consumerAccounts = [
-    //   (await provider.getSigner(1)) as Signer,
-    //   (await provider.getSigner(2)) as Signer,
-    //   (await provider.getSigner(3)) as Signer
-    // ]
-    // consumerAddresses = await Promise.all(consumerAccounts.map((a) => a.getAddress()))
+    printCurrentConfig()
   })
 
   it('should have some access lists', () => {
-    expect(EXISTING_ACCESSLISTS.length > 0, 'Should have at least 1 accessList')
+    expect(EXISTING_ACCESSLISTS.size > 0, 'Should have at least 1 accessList')
   })
   after(async () => {
     await tearDownEnvironment(previousConfiguration)

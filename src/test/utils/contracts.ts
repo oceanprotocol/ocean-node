@@ -1,4 +1,12 @@
-import { Contract, ethers, Signer } from 'ethers'
+import { Contract, ethers, JsonRpcProvider, Signer } from 'ethers'
+import { AccessListContract } from '../../@types'
+import {
+  getOceanArtifactsAdressesByChainId,
+  DEVELOPMENT_CHAIN_ID,
+  getOceanArtifactsAdresses
+} from '../../utils/address'
+import AccessListFactory from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessListFactory.sol/AccessListFactory.json' assert { type: 'json' }
+import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
 
 /**
  * Returns a contract instance for the given address
@@ -68,4 +76,52 @@ export async function deployAccessListContract(
     console.error(`Creation of AccessList failed: ${e}`)
     return null
   }
+}
+
+export async function deployAndGetAccessListConfig(
+  owner: Signer
+): Promise<AccessListContract | null> {
+  const provider = new JsonRpcProvider('http://127.0.0.1:8545')
+  let networkArtifacts = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+  if (!networkArtifacts) {
+    networkArtifacts = getOceanArtifactsAdresses().development
+  }
+
+  const wallets = [
+    (await provider.getSigner(0)) as Signer,
+    (await provider.getSigner(1)) as Signer,
+    (await provider.getSigner(2)) as Signer,
+    (await provider.getSigner(3)) as Signer
+  ]
+  const txAddress = await deployAccessListContract(
+    owner, // owner is first account
+    networkArtifacts.AccessListFactory,
+    AccessListFactory.abi,
+    'AllowList',
+    'ALLOW',
+    false,
+    await owner.getAddress(),
+    [
+      await wallets[0].getAddress(),
+      await wallets[1].getAddress(),
+      await wallets[2].getAddress(),
+      await wallets[3].getAddress()
+    ],
+    ['https://oceanprotocol.com/nft/']
+  )
+  console.log('txAddress: ', txAddress)
+
+  const contractAcessList = getContract(txAddress, AccessList.abi, owner)
+  console.log('contractAcessList:', contractAcessList)
+  if (contractAcessList) {
+    const result = {}
+    const key: string = `${DEVELOPMENT_CHAIN_ID}`
+    Object.defineProperty(result, key, {
+      value: [txAddress],
+      writable: true
+    })
+
+    return result as AccessListContract
+  }
+  return null
 }
