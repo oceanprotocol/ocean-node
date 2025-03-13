@@ -13,11 +13,11 @@ import {
   PROTOCOL_COMMANDS
 } from '../../utils/index.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
-import { buildJobIdentifier } from './utils.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { isReachableConnection } from '../../utils/database.js'
 import { sleep } from '../../utils/util.js'
 import { isReindexingNeeded } from './version.js'
+import { buildJobIdentifier } from './utils.js'
 
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
@@ -38,7 +38,6 @@ export class OceanIndexer {
   private workers: Record<string, Worker> = {}
   private MIN_REQUIRED_VERSION = '0.2.2'
   private threadsInitialized: boolean = false
-  private initializationPromise: Promise<boolean>
 
   constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
@@ -46,8 +45,8 @@ export class OceanIndexer {
     this.supportedChains = Object.keys(supportedNetworks)
     INDEXING_QUEUE = []
 
-    // Thread initialization is await-able
-    this.initializationPromise = this.initializeThreads()
+    // Initialize threads directly
+    this.initializeThreads()
   }
 
   public getSupportedNetworks(): RPCS {
@@ -315,57 +314,24 @@ export class OceanIndexer {
   /**
    * Initialize threads and check for reindexing
    */
-  private async initializeThreads(): Promise<boolean> {
-    const threadsStarted = await this.startThreads()
+  private async initializeThreads(): Promise<void> {
+    // Start threads - some may fail, that's okay
+    await this.startThreads()
 
-    if (threadsStarted) {
-      // Only check for reindexing if threads started successfully
-      try {
-        await this.checkAndTriggerReindexing()
-      } catch (error) {
-        INDEXER_LOGGER.error(
-          `Error during version check and reindexing: ${error.message}`
-        )
-      }
-      this.threadsInitialized = true
-      return true
+    // Check for reindexing with whatever threads started successfully
+    try {
+      await this.checkAndTriggerReindexing()
+    } catch (error) {
+      INDEXER_LOGGER.error(`Error during version check and reindexing: ${error.message}`)
     }
 
-    // If threads didn't start, retry with exponential backoff
-    const retryTimeMs = 5000
-    INDEXER_LOGGER.warn(`Failed to start threads, retrying in ${retryTimeMs / 1000}s...`)
-
-    // Set up a retry after delay
-    setTimeout(async () => {
-      await this.initializeThreads()
-    }, retryTimeMs)
-
-    return false
+    this.threadsInitialized = true
   }
 
-  /**
-   * Checks if threads are initialized and ready to receive commands
-   */
-  public isReady(): boolean {
-    return this.threadsInitialized
-  }
-
-  /**
-   * Get initialization promise to await until ready
-   */
-  public getInitializationPromise(): Promise<boolean> {
-    return this.initializationPromise
-  }
-
-  /**
-   * Reset crawling with initialization check
-   */
-  public async resetCrawling(chainId: number, blockNumber?: number): Promise<JobStatus> {
-    // Ensure threads are initialized before running commands
-    if (!this.threadsInitialized) {
-      await this.initializationPromise
-    }
-
+  public async resetCrawling(
+    chainId: number,
+    blockNumber?: number
+  ): Promise<JobStatus | null> {
     const isRunning = runningThreads.get(chainId)
     // not running, but still on the array
     if (!isRunning && this.workers[chainId]) {
@@ -381,7 +347,6 @@ export class OceanIndexer {
       this.workers[chainId] = worker
       this.setupEventListeners(worker, chainId)
     }
-
     const worker = this.workers[chainId]
     if (worker) {
       const job = buildJobIdentifier(PROTOCOL_COMMANDS.REINDEX_CHAIN, [
@@ -483,16 +448,35 @@ export class OceanIndexer {
         } is older than minimum required ${this.MIN_REQUIRED_VERSION}`
       )
 
-      // Reindex all chains
+      // Reindex all chains by directly setting last indexed block to deployment block
       for (const chainID of this.supportedChains) {
         const chainIdNum = Number(chainID)
-        INDEXER_LOGGER.info(`Triggering reindexing for chain ${chainIdNum}`)
-        const job = await this.resetCrawling(chainIdNum)
-        if (!job || job.status === CommandStatus.FAILURE) {
+
+        INDEXER_LOGGER.info(
+          `Triggering reindexing for chain ${chainIdNum} by resetting to block null`
+        )
+
+        try {
+          // First delete all assets from this chain
+          const numDeleted = await dbActive.ddo.deleteAllAssetsFromChain(chainIdNum)
+          INDEXER_LOGGER.info(`Deleted ${numDeleted} assets from chain ${chainIdNum}`)
+
+          // Update database directly by setting last indexed block to null
+          const result = await dbActive.indexer.update(chainIdNum, null)
+
+          if (!result) {
+            INDEXER_LOGGER.error(
+              `Reindex chain job for ${chainIdNum} failed. Please retry reindexChain command manually for this chain.`
+            )
+          } else {
+            INDEXER_LOGGER.info(
+              `Successfully reset indexing for chain ${chainIdNum} to block null`
+            )
+          }
+        } catch (error) {
           INDEXER_LOGGER.error(
-            `Reindex chain job for ${chainIdNum} failed. Please retry reindexChanin command manually for this chain.`
+            `Error resetting index for chain ${chainIdNum}: ${error.message}. Please retry reindexChain command manually.`
           )
-          continue
         }
       }
       await this.db?.version?.createOrUpdateConfig('version', currentVersion)
