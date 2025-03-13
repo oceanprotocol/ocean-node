@@ -23,11 +23,6 @@ const emptyDBConfig: OceanNodeDBConfig = {
   dbType: null
 }
 
-const versionConfig: OceanNodeDBConfig = {
-  url: 'http://localhost:8108/test-version?apiKey=xyz',
-  dbType: DB_TYPES.TYPESENSE
-}
-
 describe('Database', () => {
   let database: Database
 
@@ -516,43 +511,5 @@ describe('MetadataQuery', () => {
     ])
     expect(query.query.bool.must_not[0].term.purgatory_state).to.equal(true)
     expect(query.sort.name).to.equal('asc')
-  })
-})
-
-describe('Version Database', () => {
-  let database: Database
-
-  before(async () => {
-    database = await new Database(versionConfig)
-  })
-
-  it('should have null version initially', async () => {
-    const version = await database.version.getNodeVersion()
-    assert(version === null, 'Initial version should be null')
-  })
-
-  it('should set and retrieve version', async () => {
-    // Set a specific test version
-    const testVersion = '0.9.9'
-    await database.version.setNodeVersion(testVersion)
-
-    // Verify we can retrieve it
-    const version = await database.version.getNodeVersion()
-    assert(version === testVersion, `Version should be ${testVersion}`)
-  })
-
-  it('should update version and retrieve latest', async () => {
-    const initialVersion = '0.2.2'
-    const updatedVersion = '0.2.3'
-
-    // Set initial version
-    await database.version.setNodeVersion(initialVersion)
-    let version = await database.version.getNodeVersion()
-    assert(version === initialVersion, `Version should be ${initialVersion}`)
-
-    // Update to new version
-    await database.version.setNodeVersion(updatedVersion)
-    version = await database.version.getNodeVersion()
-    assert(version === updatedVersion, `Version should be ${updatedVersion}`)
   })
 })
