@@ -1,12 +1,26 @@
 import { LOG_LEVELS_STR } from './logging/Logger.js'
-import { Readable, Stream } from 'stream'
+import { EventEmitter, Readable, Stream } from 'stream'
 import { Interface } from 'ethers'
 import { PROVIDER_LOGGER } from './logging/common.js'
+import { UNAUTHORIZED_ACTION_EVENT } from './constants.js'
 
+// for auth stuff
+export const AUTH_CREDENTIALS_EVENT_EMITTER = new EventEmitter()
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+/**
+ * Emit an UnAuthorized event, whenever a ROLE (publisher, validator, etc) does not have the needed
+ * credentials for the corresponding action
+ * @param data any data that can be usefl for debugging
+ * @param delay wait a few seconds before emitting (useful for catching these events while testing)
+ */
+export function emitUnAuthorizedEvent(data: any, delay: number = 2000) {
+  setTimeout(() => {
+    AUTH_CREDENTIALS_EVENT_EMITTER.emit(UNAUTHORIZED_ACTION_EVENT, data)
+  }, delay)
+}
 /**
  * The function checks if the input string starts with 0x, which indicates that it is a hexadecimal string.
  * If it is, the function removes the 0x prefix and returns the remaining string.

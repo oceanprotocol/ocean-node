@@ -6,7 +6,6 @@ import {
   ENVIRONMENT_VARIABLES,
   EVENTS,
   EVENT_HASHES,
-  UNAUTHORIZED_ACTION_EVENT,
   existsEnvironmentVariable,
   getConfiguration
 } from '../../utils/index.js'
@@ -25,7 +24,7 @@ import {
   DispenserCreatedEventProcessor
 } from './processor.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
-import { fetchEventFromTransaction } from '../../utils/util.js'
+import { emitUnAuthorizedEvent, fetchEventFromTransaction } from '../../utils/util.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { getOceanArtifactsAdressesByChainId } from '../../utils/address.js'
@@ -34,7 +33,6 @@ import { create256Hash } from '../../utils/crypt.js'
 import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
 import { ServicePrice } from '../../@types/DDO/IndexedMetadata.js'
-import { INDEXER_DDO_EVENT_EMITTER } from './index.js'
 
 let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor
@@ -270,6 +268,7 @@ export const processChunkLogs = async (
                 `Metadata Proof validators list is empty`,
                 true
               )
+              emitUnAuthorizedEvent(validators)
               continue
               // do not process this one
             }
@@ -309,7 +308,10 @@ export const processChunkLogs = async (
                 isAllowed = true // no rules for this specific chain, so ignore this
               }
               // move on to the next (do not process this event)
-              if (isAllowed === false) continue
+              if (isAllowed === false) {
+                emitUnAuthorizedEvent(validators)
+                continue
+              }
             } // end if (allowedValidatorsList) {
           } // end if if (checkMetadataValidated) {
         }
@@ -713,10 +715,4 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
     }
   }
   return ddo
-}
-
-export function emitUnAuthorizedEvent(did: string, delay: number = 2000) {
-  setTimeout(() => {
-    INDEXER_DDO_EVENT_EMITTER.emit(UNAUTHORIZED_ACTION_EVENT, did)
-  }, delay)
 }

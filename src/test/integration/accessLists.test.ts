@@ -11,11 +11,10 @@ import { Blockchain } from '../../utils/blockchain.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
 import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
-import { deployAndGetAccessListConfig } from '../utils/contracts.js'
+import { deployAndGetAccessListConfig, EXISTING_ACCESSLISTS } from '../utils/contracts.js'
 import { AccessListContract, OceanNodeConfig } from '../../@types/OceanNode.js'
 import { homedir } from 'os'
 import { getConfiguration } from '../../utils/config.js'
-import { EXISTING_ACCESSLISTS } from '../utils/hooks.js'
 import { assert, expect } from 'chai'
 import { findAccessListCredentials } from '../../utils/credentials.js'
 
@@ -174,11 +173,11 @@ describe('Should deploy some accessLists before all other tests.', () => {
     console.log(config.authorizedPublishersList)
   })
 
-  it('should check if wallets are on accessList', async function () {
+  it('should check if wallets are on accessList (with Access)', async function () {
     for (let z = 0; z < allAccessListsDefinitions.length; z++) {
+      const accessListAddress = allAccessListsDefinitions[z][DEVELOPMENT_CHAIN_ID][0] // we have only 1 accesslist per config
       for (let i = 0; i < wallets.length; i++) {
         const account = await wallets[i].getAddress()
-        const accessListAddress = allAccessListsDefinitions[z][DEVELOPMENT_CHAIN_ID][0] // we have only 1 accesslist per config
         expect(
           (await findAccessListCredentials(owner, account, accessListAddress)) === true,
           `Address ${account} has no balance on Access List ${accessListAddress}, so its not Authorized`
@@ -187,11 +186,11 @@ describe('Should deploy some accessLists before all other tests.', () => {
     }
   })
 
-  it('should check that wallets are NOT on accessList', async function () {
+  it('should check that wallets are NOT on accessList (without Access)', async function () {
     for (let z = 0; z < allAccessListsDefinitions.length; z++) {
+      const accessListAddress = allAccessListsDefinitions[z][DEVELOPMENT_CHAIN_ID][0] // we have only 1 accesslist per config
       for (let i = wallets.length; i < 4; i++) {
         const account = await (await provider.getSigner(i)).getAddress()
-        const accessListAddress = allAccessListsDefinitions[z][DEVELOPMENT_CHAIN_ID][0] // we have only 1 accesslist per config
         expect(
           (await findAccessListCredentials(owner, account, accessListAddress)) === false,
           `Address ${account} should not be part Access List ${accessListAddress}, therefore its not Authorized`

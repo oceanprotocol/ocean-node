@@ -8,6 +8,10 @@ import {
 import AccessListFactory from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessListFactory.sol/AccessListFactory.json' assert { type: 'json' }
 import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
 
+export const EXISTING_ACCESSLISTS: Map<string, AccessListContract> = new Map<
+  string,
+  AccessListContract
+>()
 /**
  * Returns a contract instance for the given address
  * @param {string} address - The address of the contract
