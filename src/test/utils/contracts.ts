@@ -114,16 +114,10 @@ export async function deployAndGetAccessListConfig(
   const contractAcessList = getContract(txAddress, AccessList.abi, owner)
   // console.log('contractAcessList:', contractAcessList)
   if (contractAcessList) {
-    const result = {}
-    const key: string = `${DEVELOPMENT_CHAIN_ID}`
-    Object.defineProperty(result, key, {
-      value: [txAddress],
-      writable: true
-    })
-
-    console.log('RESULT IS: ', result)
-
-    return result as AccessListContract
+    const result: AccessListContract = {
+      [String(DEVELOPMENT_CHAIN_ID)]: [txAddress]
+    }
+    return result
   }
   return null
 }
