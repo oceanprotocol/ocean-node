@@ -13,11 +13,11 @@ import {
   PROTOCOL_COMMANDS
 } from '../../utils/index.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
+import { buildJobIdentifier } from './utils.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { isReachableConnection } from '../../utils/database.js'
 import { sleep } from '../../utils/util.js'
 import { isReindexingNeeded } from './version.js'
-import { buildJobIdentifier } from './utils.js'
 
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
@@ -37,16 +37,13 @@ export class OceanIndexer {
   private supportedChains: string[]
   private workers: Record<string, Worker> = {}
   private MIN_REQUIRED_VERSION = '0.2.2'
-  private threadsInitialized: boolean = false
 
   constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
     this.networks = supportedNetworks
     this.supportedChains = Object.keys(supportedNetworks)
     INDEXING_QUEUE = []
-
-    // Initialize threads directly
-    this.initializeThreads()
+    this.startThreads()
   }
 
   public getSupportedNetworks(): RPCS {
@@ -309,23 +306,6 @@ export class OceanIndexer {
       return job
     }
     return null
-  }
-
-  /**
-   * Initialize threads and check for reindexing
-   */
-  private async initializeThreads(): Promise<void> {
-    // Start threads - some may fail, that's okay
-    await this.startThreads()
-
-    // Check for reindexing with whatever threads started successfully
-    try {
-      await this.checkAndTriggerReindexing()
-    } catch (error) {
-      INDEXER_LOGGER.error(`Error during version check and reindexing: ${error.message}`)
-    }
-
-    this.threadsInitialized = true
   }
 
   public async resetCrawling(
