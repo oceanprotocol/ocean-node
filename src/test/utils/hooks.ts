@@ -16,9 +16,9 @@ import {
   SELECTED_RUN_DATABASE
 } from './utils.js'
 
-export const EXISTING_ACCESSLISTS: Map<string, AccessListContract[]> = new Map<
+export const EXISTING_ACCESSLISTS: Map<string, AccessListContract> = new Map<
   string,
-  AccessListContract[]
+  AccessListContract
 >()
 // current process.env environment
 // save any existing configuration before starting the tests

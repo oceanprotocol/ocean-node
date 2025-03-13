@@ -79,15 +79,17 @@ export async function deployAccessListContract(
 }
 
 export async function deployAndGetAccessListConfig(
-  owner: Signer
+  owner: Signer,
+  provider?: ethers.JsonRpcProvider,
+  wallets?: ethers.Signer[]
 ): Promise<AccessListContract | null> {
-  const provider = new JsonRpcProvider('http://127.0.0.1:8545')
+  provider = provider || new JsonRpcProvider('http://127.0.0.1:8545')
   let networkArtifacts = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
   if (!networkArtifacts) {
     networkArtifacts = getOceanArtifactsAdresses().development
   }
 
-  const wallets = [
+  wallets = wallets || [
     (await provider.getSigner(0)) as Signer,
     (await provider.getSigner(1)) as Signer,
     (await provider.getSigner(2)) as Signer,
