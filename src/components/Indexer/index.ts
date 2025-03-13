@@ -17,6 +17,7 @@ import { create256Hash } from '../../utils/crypt.js'
 import { isReachableConnection } from '../../utils/database.js'
 import { sleep } from '../../utils/util.js'
 import { isReindexingNeeded } from './version.js'
+import { buildJobIdentifier } from './utils.js'
 
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
@@ -292,6 +293,24 @@ export class OceanIndexer {
     })
   }
 
+  public addReindexTask(reindexTask: ReindexTask): JobStatus | null {
+    const worker = this.workers[reindexTask.chainId]
+    if (worker) {
+      const job = buildJobIdentifier(PROTOCOL_COMMANDS.REINDEX_TX, [
+        reindexTask.chainId.toString(),
+        reindexTask.txId
+      ])
+      worker.postMessage({
+        method: INDEXER_MESSAGES.REINDEX_TX,
+        data: { reindexTask, msgId: job.jobId }
+      })
+      INDEXING_QUEUE.push(reindexTask)
+      this.addJob(job)
+      return job
+    }
+    return null
+  }
+
   /**
    * Initialize threads and check for reindexing
    */
@@ -307,6 +326,44 @@ export class OceanIndexer {
     }
 
     this.threadsInitialized = true
+  }
+
+  public async resetCrawling(
+    chainId: number,
+    blockNumber?: number
+  ): Promise<JobStatus | null> {
+    const isRunning = runningThreads.get(chainId)
+    // not running, but still on the array
+    if (!isRunning && this.workers[chainId]) {
+      INDEXER_LOGGER.warn(
+        'Thread for chain: ' + chainId + ' is not running, restarting first...'
+      )
+      delete this.workers[chainId]
+      const worker = await this.startThread(chainId)
+      if (!worker) {
+        INDEXER_LOGGER.error('Could not restart worker thread, aborting...')
+        return null
+      }
+      this.workers[chainId] = worker
+      this.setupEventListeners(worker, chainId)
+    }
+    const worker = this.workers[chainId]
+    if (worker) {
+      const job = buildJobIdentifier(PROTOCOL_COMMANDS.REINDEX_CHAIN, [
+        chainId.toString()
+      ])
+      worker.postMessage({
+        method: INDEXER_MESSAGES.REINDEX_CHAIN,
+        data: { msgId: job.jobId, block: blockNumber }
+      })
+      this.addJob(job)
+      return job
+    } else {
+      INDEXER_LOGGER.error(
+        `Could not find a worker thread for chain ${chainId}, aborting...`
+      )
+    }
+    return null
   }
 
   public getIndexingQueue(): ReindexTask[] {
