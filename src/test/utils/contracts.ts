@@ -4,7 +4,7 @@ import {
   getOceanArtifactsAdressesByChainId,
   DEVELOPMENT_CHAIN_ID,
   getOceanArtifactsAdresses
-} from '../../utils/address'
+} from '../../utils/address.js'
 import AccessListFactory from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessListFactory.sol/AccessListFactory.json' assert { type: 'json' }
 import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
 
