@@ -1,9 +1,9 @@
 import { LOG_LEVELS_STR } from './logging/Logger.js'
-import { EventEmitter, Readable, Stream } from 'stream'
+import { Readable, Stream } from 'stream'
 import { Interface } from 'ethers'
 import { PROVIDER_LOGGER } from './logging/common.js'
 import { UNAUTHORIZED_ACTION_EVENT } from './constants.js'
-
+import EventEmitter from 'node:events'
 // for auth stuff
 export const AUTH_CREDENTIALS_EVENT_EMITTER = new EventEmitter()
 export function sleep(ms: number) {
