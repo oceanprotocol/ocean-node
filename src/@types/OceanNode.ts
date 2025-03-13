@@ -82,7 +82,6 @@ export interface AccessListContract {
 }
 export interface OceanNodeConfig {
   authorizedDecrypters: string[]
-  authorizedDecryptersList: AccessListContract | null
   allowedValidators: string[]
   allowedValidatorsList: AccessListContract | null
   authorizedPublishers: string[]

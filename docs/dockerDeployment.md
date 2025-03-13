@@ -91,7 +91,6 @@ services:
       #      ADDRESS_FILE: ''
       #      NODE_ENV: ''
       #      AUTHORIZED_DECRYPTERS: ''
-      #      AUTHORIZED_DECRYPTERS_LIST: ''
       #      OPERATOR_SERVICE_URL: ''
       INTERFACES: '["HTTP","P2P"]'
       #      ALLOWED_VALIDATORS: ''
