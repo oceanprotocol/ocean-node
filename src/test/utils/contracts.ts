@@ -115,7 +115,7 @@ export async function deployAndGetAccessListConfig(
   // console.log('contractAcessList:', contractAcessList)
   if (contractAcessList) {
     const result: AccessListContract = {
-      [String(DEVELOPMENT_CHAIN_ID)]: [txAddress]
+      '8996': [txAddress]
     }
     return result
   }
