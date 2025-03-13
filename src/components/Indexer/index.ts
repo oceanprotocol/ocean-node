@@ -13,7 +13,6 @@ import {
   PROTOCOL_COMMANDS
 } from '../../utils/index.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
-import { buildJobIdentifier } from './utils.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { isReachableConnection } from '../../utils/database.js'
 import { sleep } from '../../utils/util.js'
@@ -293,24 +292,6 @@ export class OceanIndexer {
     })
   }
 
-  public addReindexTask(reindexTask: ReindexTask): JobStatus | null {
-    const worker = this.workers[reindexTask.chainId]
-    if (worker) {
-      const job = buildJobIdentifier(PROTOCOL_COMMANDS.REINDEX_TX, [
-        reindexTask.chainId.toString(),
-        reindexTask.txId
-      ])
-      worker.postMessage({
-        method: INDEXER_MESSAGES.REINDEX_TX,
-        data: { reindexTask, msgId: job.jobId }
-      })
-      INDEXING_QUEUE.push(reindexTask)
-      this.addJob(job)
-      return job
-    }
-    return null
-  }
-
   /**
    * Initialize threads and check for reindexing
    */
@@ -326,57 +307,6 @@ export class OceanIndexer {
     }
 
     this.threadsInitialized = true
-  }
-
-  /**
-   * Reset crawling with initialization check if needed
-   */
-  public async resetCrawling(chainId: number, blockNumber?: number): Promise<JobStatus> {
-    // Wait for basic initialization to complete if not done yet
-    if (!this.threadsInitialized) {
-      await new Promise((resolve) => {
-        const checkInterval = setInterval(() => {
-          if (this.threadsInitialized) {
-            clearInterval(checkInterval)
-            resolve(true)
-          }
-        }, 100)
-      })
-    }
-
-    const isRunning = runningThreads.get(chainId)
-    // not running, but still on the array
-    if (!isRunning && this.workers[chainId]) {
-      INDEXER_LOGGER.warn(
-        'Thread for chain: ' + chainId + ' is not running, restarting first...'
-      )
-      delete this.workers[chainId]
-      const worker = await this.startThread(chainId)
-      if (!worker) {
-        INDEXER_LOGGER.error('Could not restart worker thread, aborting...')
-        return null
-      }
-      this.workers[chainId] = worker
-      this.setupEventListeners(worker, chainId)
-    }
-
-    const worker = this.workers[chainId]
-    if (worker) {
-      const job = buildJobIdentifier(PROTOCOL_COMMANDS.REINDEX_CHAIN, [
-        chainId.toString()
-      ])
-      worker.postMessage({
-        method: INDEXER_MESSAGES.REINDEX_CHAIN,
-        data: { msgId: job.jobId, block: blockNumber }
-      })
-      this.addJob(job)
-      return job
-    } else {
-      INDEXER_LOGGER.error(
-        `Could not find a worker thread for chain ${chainId}, aborting...`
-      )
-    }
-    return null
   }
 
   public getIndexingQueue(): ReindexTask[] {
@@ -466,16 +396,31 @@ export class OceanIndexer {
         } is older than minimum required ${this.MIN_REQUIRED_VERSION}`
       )
 
-      // Reindex all chains
+      // Reindex all chains by directly setting last indexed block to deployment block
       for (const chainID of this.supportedChains) {
         const chainIdNum = Number(chainID)
-        INDEXER_LOGGER.info(`Triggering reindexing for chain ${chainIdNum}`)
-        const job = await this.resetCrawling(chainIdNum)
-        if (!job || job.status === CommandStatus.FAILURE) {
+
+        INDEXER_LOGGER.info(
+          `Triggering reindexing for chain ${chainIdNum} by resetting to block null`
+        )
+
+        try {
+          // Update database directly by setting last indexed block to null
+          const result = await dbActive.indexer.update(chainIdNum, null)
+
+          if (!result) {
+            INDEXER_LOGGER.error(
+              `Reindex chain job for ${chainIdNum} failed. Please retry reindexChain command manually for this chain.`
+            )
+          } else {
+            INDEXER_LOGGER.info(
+              `Successfully reset indexing for chain ${chainIdNum} to block null`
+            )
+          }
+        } catch (error) {
           INDEXER_LOGGER.error(
-            `Reindex chain job for ${chainIdNum} failed. Please retry reindexChanin command manually for this chain.`
+            `Error resetting index for chain ${chainIdNum}: ${error.message}. Please retry reindexChain command manually.`
           )
-          continue
         }
       }
 
