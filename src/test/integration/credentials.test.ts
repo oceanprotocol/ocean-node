@@ -19,11 +19,7 @@ import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
-import {
-  AUTH_CREDENTIALS_EVENT_EMITTER,
-  emitUnAuthorizedEvent,
-  streamToObject
-} from '../../utils/util.js'
+import { AUTH_CREDENTIALS_EVENT_EMITTER, streamToObject } from '../../utils/util.js'
 import {
   addGenericEventListener,
   expectedTimeoutFailure,
