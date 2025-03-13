@@ -112,7 +112,7 @@ export async function deployAndGetAccessListConfig(
   console.log('txAddress: ', txAddress)
 
   const contractAcessList = getContract(txAddress, AccessList.abi, owner)
-  console.log('contractAcessList:', contractAcessList)
+  // console.log('contractAcessList:', contractAcessList)
   if (contractAcessList) {
     const result = {}
     const key: string = `${DEVELOPMENT_CHAIN_ID}`
@@ -120,6 +120,8 @@ export async function deployAndGetAccessListConfig(
       value: [txAddress],
       writable: true
     })
+
+    console.log('RESULT IS: ', result)
 
     return result as AccessListContract
   }
