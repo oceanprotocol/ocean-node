@@ -462,6 +462,10 @@ export class OceanIndexer {
         )
 
         try {
+          // First delete all assets from this chain
+          const numDeleted = await dbActive.ddo.deleteAllAssetsFromChain(chainIdNum)
+          INDEXER_LOGGER.info(`Deleted ${numDeleted} assets from chain ${chainIdNum}`)
+
           // Update database directly by setting last indexed block to null
           const result = await dbActive.indexer.update(chainIdNum, null)
 
