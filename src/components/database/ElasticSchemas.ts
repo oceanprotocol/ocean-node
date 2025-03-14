@@ -94,6 +94,7 @@ export type ElasticsearchSchemas = {
   logSchemas: ElasticsearchSchema
   orderSchema: ElasticsearchSchema
   ddoStateSchema: ElasticsearchSchema
+  versionSchema: ElasticsearchSchema
 }
 
 const ddoSchemas = readElasticsearchJsonSchemas()
@@ -161,6 +162,17 @@ export const elasticSchemas: ElasticsearchSchemas = {
           txId: { type: 'keyword' },
           valid: { type: 'boolean' },
           error: { type: 'text' }
+        }
+      }
+    }
+  },
+  versionSchema: {
+    index: 'version',
+    body: {
+      mappings: {
+        properties: {
+          version: { type: 'keyword' },
+          created_at: { type: 'date' }
         }
       }
     }
