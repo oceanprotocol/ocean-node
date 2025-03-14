@@ -11,7 +11,7 @@ import {
 } from '../utils/findDdoHandler.js'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
-import { sleep, readStream } from '../../../utils/util.js'
+import { sleep, readStream, emitUnAuthorizedEvent } from '../../../utils/util.js'
 import { DDO } from '../../../@types/DDO/DDO.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Blockchain } from '../../../utils/blockchain.js'
@@ -191,6 +191,7 @@ export class DecryptDdoHandler extends Handler {
           'Decrypt DDO: Asset not deployed by the data NFT factory',
           true
         )
+        emitUnAuthorizedEvent(dataNftAddress)
         return {
           stream: null,
           status: {
@@ -200,7 +201,7 @@ export class DecryptDdoHandler extends Handler {
         }
       }
 
-      // access lit checks, needs blockchain connection
+      // access list checks, needs blockchain connection
       const { authorizedDecryptersList } = config
       if (authorizedDecryptersList && Object.keys(authorizedDecryptersList).length > 0) {
         // check accessList
@@ -231,6 +232,7 @@ export class DecryptDdoHandler extends Handler {
               'Decrypt DDO: Decrypter not authorized per access list',
               true
             )
+            emitUnAuthorizedEvent(dataNftAddress)
             return {
               stream: null,
               status: {
