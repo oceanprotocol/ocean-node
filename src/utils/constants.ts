@@ -247,11 +247,6 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.AUTHORIZED_DECRYPTERS,
     required: false
   },
-  AUTHORIZED_DECRYPTERS_LIST: {
-    name: 'AUTHORIZED_DECRYPTERS_LIST',
-    value: process.env.AUTHORIZED_DECRYPTERS_LIST,
-    required: false
-  },
   OPERATOR_SERVICE_URL: {
     name: 'OPERATOR_SERVICE_URL',
     value: process.env.OPERATOR_SERVICE_URL,

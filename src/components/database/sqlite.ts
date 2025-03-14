@@ -39,7 +39,7 @@ export class SQLiteProvider implements DatabaseProvider {
   async createTableForConfig() {
     const createTableSQL = `
         CREATE TABLE IF NOT EXISTS ${this.configSchema} (
-          key TEXT PRIMARY KEY DEFAULT 'version',
+          key TEXT NOT NULL PRIMARY KEY,
           value TEXT
         );
       `
