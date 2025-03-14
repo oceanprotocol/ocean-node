@@ -10,6 +10,8 @@ import {
 } from '../@types/DDO/Credentials.js'
 import { getNFTContract } from '../components/Indexer/utils.js'
 import { isDefined } from './util.js'
+import { getConfiguration } from './config.js'
+import { getBlockchainHandler } from './blockchain.js'
 
 export function findCredential(
   credentials: Credential[],
@@ -73,11 +75,11 @@ export function hasAddressMatchAllRule(credentials: Credential[]): boolean {
  * @param credentials credentials
  * @param consumerAddress consumer address
  */
-export function checkCredentials(
+export async function checkCredentials(
   credentials: Credentials,
   consumerAddress: string,
   chainId?: number
-) {
+): Promise<boolean> {
   const consumerCredentials: Credential = {
     type: CREDENTIAL_TYPES.ADDRESS, // 'address',
     values: [String(consumerAddress)?.toLowerCase()]
@@ -128,10 +130,22 @@ export function checkCredentials(
           // otherwise, match 'all', in this case the amount of matches should be the same of the amount of rules
           matchCount++
         }
+      } else if (type === CREDENTIAL_TYPES.ACCESS_LIST && chainId) {
+        const config = await getConfiguration()
+        const supportedNetwork = config.supportedNetworks[String(chainId)]
+        if (supportedNetwork) {
+          const blockChain = getBlockchainHandler(supportedNetwork)
+          for (const accessListContractAddress of cred.values) {
+            const balanceOk = await findAccessListCredentials(
+              blockChain.getSigner(),
+              accessListContractAddress,
+              consumerAddress
+            )
+            if (balanceOk) return true
+          }
+        }
       }
       // extend function to ACCESS_LIST (https://github.com/oceanprotocol/ocean-node/issues/804)
-      // else if (type === CREDENTIAL_TYPES.ACCESS_LIST && chainId) {
-      // }
     }
     if (credentials.match_allow === 'all' && matchCount === credentials.allow.length) {
       return true
@@ -212,11 +226,18 @@ export async function findAccessListCredentials(
   contractAddress: string,
   address: string
 ): Promise<boolean> {
-  const nftContract: ethers.Contract = getNFTContract(signer, contractAddress)
-  if (!nftContract) {
+  try {
+    const nftContract: ethers.Contract = getNFTContract(signer, contractAddress)
+    if (!nftContract) {
+      return false
+    }
+    return await findAccountFromAccessList(nftContract, address)
+  } catch (e) {
+    CORE_LOGGER.error(
+      `Unable to read accessList contract from address ${contractAddress}: ${e.message}`
+    )
     return false
   }
-  return await findAccountFromAccessList(nftContract, address)
 }
 
 export async function findAccountFromAccessList(
