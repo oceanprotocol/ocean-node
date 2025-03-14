@@ -35,10 +35,10 @@ export function addGenericEventListener(
   eventEmitter.addListener(eventName, (data: any) => {
     CORE_LOGGER.info(`Test suite - Listened event: "${eventName}" with data: ${data}`)
     if (typeof callback === 'function') {
+      // always remove it (one shot only)
+      eventEmitter.removeListener(eventName, () => {})
       callback(data)
     }
-    // always remove it (one shot only)
-    eventEmitter.removeListener(eventName, () => {})
   })
 }
 
