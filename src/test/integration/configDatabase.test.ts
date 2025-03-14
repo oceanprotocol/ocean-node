@@ -27,21 +27,23 @@ describe('Version Database', () => {
   })
 
   it('check version DB instance of SQL Lite', () => {
-    expect(database.version).to.be.instanceOf(SQLLiteConfigDatabase)
+    expect(database.sqliteConfig).to.be.instanceOf(SQLLiteConfigDatabase)
   })
 
   it('should have null version initially', async () => {
-    initialVersionNull = await oceanIndexer.getDatabase().version.retrieveValue()
+    initialVersionNull = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue()
     assert(initialVersionNull.value === null, 'Initial version should be null')
   })
 
   it('should set and retrieve version', async () => {
     // Set a specific test version
     const testVersion = '0.9.9'
-    await oceanIndexer.getDatabase().version.createOrUpdateConfig('version', testVersion)
+    await oceanIndexer
+      .getDatabase()
+      .sqliteConfig.createOrUpdateConfig('version', testVersion)
 
     // Verify we can retrieve it
-    const version = await oceanIndexer.getDatabase().version.retrieveValue()
+    const version = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue()
     assert(version.value === testVersion, `Version should be ${testVersion}`)
   })
 
@@ -52,15 +54,15 @@ describe('Version Database', () => {
     // Set initial version
     await oceanIndexer
       .getDatabase()
-      .version.createOrUpdateConfig('version', initialVersion)
-    let version = await oceanIndexer.getDatabase().version.retrieveValue()
+      .sqliteConfig.createOrUpdateConfig('version', initialVersion)
+    let version = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue()
     assert(version.value === initialVersion, `Version should be ${initialVersion}`)
 
     // Update to new version
     await oceanIndexer
       .getDatabase()
-      .version.createOrUpdateConfig('version', updatedVersion)
-    version = await oceanIndexer.getDatabase().version.retrieveValue()
+      .sqliteConfig.createOrUpdateConfig('version', updatedVersion)
+    version = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue()
     assert(version.value === updatedVersion, `Version should be ${updatedVersion}`)
   })
 })
@@ -73,16 +75,16 @@ describe('VersionDatabase CRUD (without Elastic or Typesense config)', () => {
   })
 
   it('check version DB instance of SQL Lite', () => {
-    expect(database.version).to.be.instanceOf(SQLLiteConfigDatabase)
+    expect(database.sqliteConfig).to.be.instanceOf(SQLLiteConfigDatabase)
   })
 
   it('create version', async () => {
-    const result = await database.version.createOrUpdateConfig('version', '0.1.0')
+    const result = await database.sqliteConfig.createOrUpdateConfig('version', '0.1.0')
     expect(result?.value).to.equal('0.1.0')
   })
 
   it('retrieve latest version', async () => {
-    const result = await database.version.retrieveValue('version')
+    const result = await database.sqliteConfig.retrieveValue('version')
     expect(result?.value).to.equal('0.1.0')
   })
 })
