@@ -43,7 +43,6 @@ export class OceanIndexer {
     this.networks = supportedNetworks
     this.supportedChains = Object.keys(supportedNetworks)
     INDEXING_QUEUE = []
-
     this.startThreads()
   }
 
