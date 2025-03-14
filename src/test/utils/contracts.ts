@@ -115,7 +115,7 @@ export async function deployAndGetAccessListConfig(
     ],
     ['https://oceanprotocol.com/nft/']
   )
-  console.log('txAddress: ', txAddress)
+  console.log('Successfully deployed AccessList at address: ', txAddress)
 
   const contractAcessList = getContract(txAddress, AccessList.abi, owner)
   // console.log('contractAcessList:', contractAcessList)

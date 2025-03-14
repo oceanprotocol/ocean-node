@@ -20,11 +20,7 @@ import { findAccessListCredentials } from '../../utils/credentials.js'
 
 describe('Should deploy some accessLists before all other tests.', () => {
   let config: OceanNodeConfig
-  // let oceanNode: OceanNode
   let provider: JsonRpcProvider
-
-  // let consumerAccounts: Signer[]
-
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
   let previousConfiguration: OverrideEnvConfig[]
@@ -201,6 +197,5 @@ describe('Should deploy some accessLists before all other tests.', () => {
 
   after(async () => {
     await tearDownEnvironment(previousConfiguration)
-    // oceanNode.getIndexer().stopAllThreads()
   })
 })
