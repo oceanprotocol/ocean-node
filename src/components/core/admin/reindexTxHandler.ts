@@ -1,4 +1,4 @@
-import { AdminHandler } from './adminHandler.js'
+import { AdminCommandHandler } from './adminHandler.js'
 import {
   validateCommandParameters,
   buildInvalidRequestMessage,
@@ -12,8 +12,8 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { checkSupportedChainId } from '../../../utils/blockchain.js'
 
-export class ReindexTxHandler extends AdminHandler {
-  validate(command: AdminReindexTxCommand): ValidateParams {
+export class ReindexTxHandler extends AdminCommandHandler {
+  async validate(command: AdminReindexTxCommand): Promise<ValidateParams> {
     if (!validateCommandParameters(command, ['chainId', 'txId'])) {
       return buildInvalidRequestMessage(
         `Missing chainId or txId fields for command: "${command}".`
@@ -22,11 +22,11 @@ export class ReindexTxHandler extends AdminHandler {
     if (!/^0x([A-Fa-f0-9]{64})$/.test(command.txId)) {
       return buildInvalidRequestMessage(`Invalid format for transaction ID.`)
     }
-    return super.validate(command)
+    return await super.validate(command)
   }
 
   async handle(task: AdminReindexTxCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
+    const validation = await this.validate(task)
     if (!validation.valid) {
       return buildInvalidParametersResponse(validation)
     }

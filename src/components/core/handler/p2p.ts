@@ -1,4 +1,4 @@
-import { Handler } from './handler.js'
+import { CommandHandler } from './handler.js'
 import { getConfiguration } from '../../../utils/config.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import {
@@ -14,7 +14,7 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
-export class FindPeerHandler extends Handler {
+export class FindPeerHandler extends CommandHandler {
   validate(command: FindPeerCommand): ValidateParams {
     const validation = validateCommandParameters(command, ['peerId'])
     return validation
@@ -50,7 +50,7 @@ export class FindPeerHandler extends Handler {
   }
 }
 
-export class GetP2PPeerHandler extends Handler {
+export class GetP2PPeerHandler extends CommandHandler {
   validate(command: GetP2PPeerCommand): ValidateParams {
     const validation = validateCommandParameters(command, ['peerId'])
     return validation
@@ -85,7 +85,7 @@ export class GetP2PPeerHandler extends Handler {
   }
 }
 
-export class GetP2PPeersHandler extends Handler {
+export class GetP2PPeersHandler extends CommandHandler {
   validate(command: GetP2PPeersCommand): ValidateParams {
     const validation = validateCommandParameters(command, [])
     return validation
@@ -118,7 +118,7 @@ export class GetP2PPeersHandler extends Handler {
   }
 }
 
-export class GetP2PNetworkStatsHandler extends Handler {
+export class GetP2PNetworkStatsHandler extends CommandHandler {
   validate(command: GetP2PNetworkStatsCommand): ValidateParams {
     const validation = validateCommandParameters(command, [])
     return validation

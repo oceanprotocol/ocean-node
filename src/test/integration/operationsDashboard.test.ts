@@ -124,7 +124,9 @@ describe('Should test admin operations', () => {
       expiryTimestamp,
       signature
     }
-    const validationResponse = new StopNodeHandler(oceanNode).validate(stopNodeCommand)
+    const validationResponse = await new StopNodeHandler(oceanNode).validate(
+      stopNodeCommand
+    )
     assert(validationResponse, 'invalid stop node validation response')
     assert(validationResponse.valid === true, 'validation for stop node command failed')
   })
@@ -135,7 +137,7 @@ describe('Should test admin operations', () => {
     // CollectFeesHandler
     const collectFeesHandler: CollectFeesHandler = CoreHandlersRegistry.getInstance(
       oceanNode
-    ).getHandler(PROTOCOL_COMMANDS.COLLECT_FEES)
+    ).getHandler(PROTOCOL_COMMANDS.COLLECT_FEES) as CollectFeesHandler
 
     const signature = await getSignature(expiryTimestamp.toString())
     const collectFeesCommand: AdminCollectFeesCommand = {
@@ -147,7 +149,7 @@ describe('Should test admin operations', () => {
       expiryTimestamp,
       signature
     }
-    const validationResponse = collectFeesHandler.validate(collectFeesCommand)
+    const validationResponse = await collectFeesHandler.validate(collectFeesCommand)
     assert(validationResponse, 'invalid collect fees validation response')
     assert(
       validationResponse.valid === true,
@@ -160,7 +162,9 @@ describe('Should test admin operations', () => {
       providerWallet
     )
     const balanceBefore = await token.balanceOf(await destinationWallet.getAddress())
-    expect(collectFeesHandler.validate(collectFeesCommand).valid).to.be.equal(true) // OK
+    expect((await collectFeesHandler.validate(collectFeesCommand)).valid).to.be.equal(
+      true
+    ) // OK
     const result = await collectFeesHandler.handle(collectFeesCommand)
     expect(result.status.httpStatus).to.be.equal(200) // OK
 
@@ -228,7 +232,7 @@ describe('Should test admin operations', () => {
       signature
     }
     const reindexTxHandler = new ReindexTxHandler(oceanNode)
-    const validationResponse = reindexTxHandler.validate(reindexTxCommand)
+    const validationResponse = await reindexTxHandler.validate(reindexTxCommand)
     assert(validationResponse, 'invalid reindex tx validation response')
     assert(validationResponse.valid === true, 'validation for reindex tx command failed')
 
@@ -297,7 +301,7 @@ describe('Should test admin operations', () => {
         signature
       }
       const reindexChainHandler = new ReindexChainHandler(oceanNode)
-      const validationResponse = reindexChainHandler.validate(reindexChainCommand)
+      const validationResponse = await reindexChainHandler.validate(reindexChainCommand)
       assert(validationResponse, 'invalid reindex chain validation response')
       assert(
         validationResponse.valid === true,
@@ -349,7 +353,7 @@ describe('Should test admin operations', () => {
     // IndexingThreadHandler
     const indexingHandler: IndexingThreadHandler = CoreHandlersRegistry.getInstance(
       oceanNode
-    ).getHandler(PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD)
+    ).getHandler(PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD) as IndexingThreadHandler
 
     const signature = await getSignature(expiryTimestamp.toString())
     const indexingStartCommand: StartStopIndexingCommand = {
@@ -358,7 +362,7 @@ describe('Should test admin operations', () => {
       expiryTimestamp,
       signature
     }
-    expect(indexingHandler.validate(indexingStartCommand).valid).to.be.equal(true) // OK
+    expect((await indexingHandler.validate(indexingStartCommand)).valid).to.be.equal(true) // OK
 
     const indexingStopCommand: StartStopIndexingCommand = {
       command: PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
@@ -366,12 +370,12 @@ describe('Should test admin operations', () => {
       expiryTimestamp: 10,
       signature
     }
-    expect(indexingHandler.validate(indexingStopCommand).valid).to.be.equal(false) // NOK
+    expect((await indexingHandler.validate(indexingStopCommand)).valid).to.be.equal(false) // NOK
 
     // OK now
     indexingStopCommand.expiryTimestamp = expiryTimestamp
     indexingStopCommand.chainId = 8996
-    expect(indexingHandler.validate(indexingStopCommand).valid).to.be.equal(true) // OK
+    expect((await indexingHandler.validate(indexingStopCommand)).valid).to.be.equal(true) // OK
 
     // should exist a running thread for this network atm
     const response = await indexingHandler.handle(indexingStopCommand)
