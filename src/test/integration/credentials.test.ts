@@ -379,6 +379,7 @@ describe('Should run a complete node flow.', () => {
       UNAUTHORIZED_ACTION_EVENT,
       // in this case the data is the DID
       (data: string) => {
+        console.log('got data:', data)
         assert(data === did, 'Should have received an UNAUTHORIZED_ACTION_EVENT event')
       }
     )
