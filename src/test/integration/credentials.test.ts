@@ -388,8 +388,7 @@ describe('Should run a complete node flow.', () => {
     const { ddo, wasTimeout } = await waitToIndex(
       did,
       EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT * 2,
-      true
+      DEFAULT_TEST_TIMEOUT * 2
     )
     assert(ddo === null && wasTimeout === true, 'DDO should NOT have been indexed')
   })
