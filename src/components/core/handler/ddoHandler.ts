@@ -381,7 +381,7 @@ export class DecryptDdoHandler extends Handler {
       const ddo = JSON.parse(decryptedDocument.toString())
       const clonedDdo = structuredClone(ddo)
       const updatedDdo = deleteIndexedMetadataIfExists(clonedDdo)
-      if (updatedDdo.id !== makeDid(dataNftAddress, chainId)) {
+      if (updatedDdo.id !== makeDid(updatedDdo, dataNftAddress, chainId)) {
         CORE_LOGGER.error(`Decrypted DDO ID is not matching the generated hash for DID.`)
         return {
           stream: null,

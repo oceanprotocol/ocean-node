@@ -1,13 +1,13 @@
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
 // @ts-ignore
+import { V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
 import rdf from '@zazuko/env-node'
 import SHACLValidator from 'rdf-validate-shacl'
 import formats from '@rdfjs/formats-common'
 import { fromRdf } from 'rdf-literal'
-import { createHash } from 'crypto'
 import { ethers, getAddress } from 'ethers'
-import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import { CORE_LOGGER, INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
 import { Readable } from 'stream'
@@ -41,13 +41,18 @@ export function getSchema(version: string = CURRENT_VERSION): string {
 }
 */
 
-export function makeDid(nftAddress: string, chainId: string): string {
-  return (
-    'did:op:' +
-    createHash('sha256')
-      .update(getAddress(nftAddress) + chainId)
-      .digest('hex')
-  )
+export function makeDid(
+  ddo: Record<string, any>,
+  dataNftAddress: string, // get the data from blockchain event
+  chainId: string
+): string {
+  if (ddo.version.includes('v4')) {
+    return V4DDO.getDDOClass(ddo).makeDid(dataNftAddress, chainId)
+  } else if (ddo.version.includes('v5')) {
+    return V5DDO.getDDOClass(ddo).makeDid(dataNftAddress, chainId)
+  } else {
+    INDEXER_LOGGER.error(`Version of DDO unknown: ${ddo.version}`)
+  }
 }
 
 export async function validateObject(
@@ -105,7 +110,7 @@ export async function validateObject(
     CORE_LOGGER.logMessage(`Error when retrieving address ${nftAddress}: ${err}`, true)
   }
 
-  if (!(makeDid(nftAddress, chainId.toString(10)) === obj.id)) {
+  if (!(makeDid(ddoCopy, nftAddress, chainId.toString(10)) === obj.id)) {
     if (!('id' in extraErrors)) extraErrors.id = []
     extraErrors.id.push('did is not valid for chain Id and nft address')
   }
