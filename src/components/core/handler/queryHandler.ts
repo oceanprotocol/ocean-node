@@ -1,4 +1,4 @@
-import { Handler } from './handler.js'
+import { CommandHandler } from './handler.js'
 import { QueryCommand } from '../../../@types/commands.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { Readable } from 'stream'
@@ -9,7 +9,7 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
-export class QueryHandler extends Handler {
+export class QueryHandler extends CommandHandler {
   validate(command: QueryCommand): ValidateParams {
     return validateCommandParameters(command, ['query'])
   }

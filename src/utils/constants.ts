@@ -287,6 +287,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.ALLOWED_ADMINS,
     required: false
   },
+  ALLOWED_ADMINS_LIST: {
+    name: 'ALLOWED_ADMINS_LIST',
+    value: process.env.ALLOWED_ADMINS_LIST,
+    required: false
+  },
   ASSET_PURGATORY_URL: {
     name: 'ASSET_PURGATORY_URL',
     value: process.env.ASSET_PURGATORY_URL,

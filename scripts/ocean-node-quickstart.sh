@@ -157,6 +157,7 @@ services:
 #      AUTHORIZED_PUBLISHERS_LIST: ''
 #      INDEXER_NETWORKS: '[]'
       ALLOWED_ADMINS: '["$ALLOWED_ADMINS"]'
+#      ALLOWED_ADMINS_LIST: ''
 #      INDEXER_INTERVAL: ''
       DASHBOARD: 'true'
 #      RATE_DENY_LIST: ''
