@@ -183,16 +183,3 @@ export abstract class AbstractDdoDatabase {
 
   abstract deleteAllAssetsFromChain(chainId: number, batchSize?: number): Promise<number>
 }
-
-export abstract class AbstractVersionDatabase {
-  protected config: OceanNodeDBConfig
-  protected schema: Schema
-
-  constructor(config: OceanNodeDBConfig, schema: Schema) {
-    this.config = config
-    this.schema = schema
-  }
-
-  abstract getNodeVersion(): Promise<string | null>
-  abstract setNodeVersion(version: string): Promise<void>
-}

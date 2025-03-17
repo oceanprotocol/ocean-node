@@ -4,16 +4,14 @@ import {
   AbstractDdoStateDatabase,
   AbstractIndexerDatabase,
   AbstractLogDatabase,
-  AbstractOrderDatabase,
-  AbstractVersionDatabase
+  AbstractOrderDatabase
 } from './BaseDatabase.js'
 import {
   ElasticsearchDdoDatabase,
   ElasticsearchDdoStateDatabase,
   ElasticsearchIndexerDatabase,
   ElasticsearchLogDatabase,
-  ElasticsearchOrderDatabase,
-  ElasticsearchVersionDatabase
+  ElasticsearchOrderDatabase
 } from './ElasticSearchDatabase.js'
 import { typesenseSchemas } from './TypesenseSchemas.js'
 import {
@@ -21,8 +19,7 @@ import {
   TypesenseDdoStateDatabase,
   TypesenseIndexerDatabase,
   TypesenseLogDatabase,
-  TypesenseOrderDatabase,
-  TypesenseVersionDatabase
+  TypesenseOrderDatabase
 } from './TypenseDatabase.js'
 import { elasticSchemas } from './ElasticSchemas.js'
 import { IDdoStateQuery } from '../../@types/DDO/IDdoStateQuery.js'
@@ -33,6 +30,7 @@ import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery.js'
 import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery.js'
 import { DB_TYPES } from '../../utils/index.js'
 import { SQLLiteNonceDatabase } from './SQLLiteNonceDatabase.js'
+import { SQLLiteConfigDatabase } from './SQLLiteConfigDatabase.js'
 
 export class DatabaseFactory {
   private static databaseMap = {
@@ -45,9 +43,7 @@ export class DatabaseFactory {
         new ElasticsearchOrderDatabase(config, elasticSchemas.orderSchema),
       ddoState: (config: OceanNodeDBConfig) => new ElasticsearchDdoStateDatabase(config),
       ddoStateQuery: () => new ElasticSearchDdoStateQuery(),
-      metadataQuery: () => new ElasticSearchMetadataQuery(),
-      version: (config: OceanNodeDBConfig) =>
-        new ElasticsearchVersionDatabase(config, elasticSchemas.versionSchema)
+      metadataQuery: () => new ElasticSearchMetadataQuery()
     },
     typesense: {
       ddo: (config: OceanNodeDBConfig) =>
@@ -61,9 +57,7 @@ export class DatabaseFactory {
       ddoState: (config: OceanNodeDBConfig) =>
         new TypesenseDdoStateDatabase(config, typesenseSchemas.ddoStateSchema),
       ddoStateQuery: () => new TypesenseDdoStateQuery(),
-      metadataQuery: () => new TypesenseMetadataQuery(),
-      version: (config: OceanNodeDBConfig) =>
-        new TypesenseVersionDatabase(config, typesenseSchemas.versionSchema)
+      metadataQuery: () => new TypesenseMetadataQuery()
     }
   }
 
@@ -120,9 +114,7 @@ export class DatabaseFactory {
     return this.createDatabase('metadataQuery', config)
   }
 
-  static createVersionDatabase(
-    config: OceanNodeDBConfig
-  ): Promise<AbstractVersionDatabase> {
-    return this.createDatabase('version', config)
+  static async createConfigDatabase(): Promise<SQLLiteConfigDatabase> {
+    return await new SQLLiteConfigDatabase()
   }
 }

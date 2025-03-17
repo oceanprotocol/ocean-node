@@ -201,6 +201,7 @@ function getAuthorizedDecrypters(isStartup?: boolean): string[] {
     isStartup
   )
 }
+
 // allowed validators
 export function getAllowedValidators(isStartup?: boolean): string[] {
   return readAddressListFromEnvVariable(

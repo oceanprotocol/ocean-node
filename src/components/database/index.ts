@@ -11,11 +11,11 @@ import {
   AbstractIndexerDatabase,
   AbstractLogDatabase,
   AbstractNonceDatabase,
-  AbstractOrderDatabase,
-  AbstractVersionDatabase
+  AbstractOrderDatabase
 } from './BaseDatabase.js'
 import { DatabaseFactory } from './DatabaseFactory.js'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
+import { SQLLiteConfigDatabase } from './SQLLiteConfigDatabase.js'
 import { TypesenseSchema } from './TypesenseSchemas.js'
 
 export type Schema = ElasticsearchSchema | TypesenseSchema
@@ -27,12 +27,13 @@ export class Database {
   logs: AbstractLogDatabase
   order: AbstractOrderDatabase
   ddoState: AbstractDdoStateDatabase
-  version: AbstractVersionDatabase
+  sqliteConfig: SQLLiteConfigDatabase
 
   constructor(private config: OceanNodeDBConfig) {
     return (async (): Promise<Database> => {
       try {
         this.nonce = await DatabaseFactory.createNonceDatabase(this.config)
+        this.sqliteConfig = await DatabaseFactory.createConfigDatabase()
         if (hasValidDBConfiguration(this.config)) {
           // add this DB transport too
           // once we create a DB instance, the logger will be using this transport as well
@@ -49,7 +50,6 @@ export class Database {
           this.logs = await DatabaseFactory.createLogDatabase(this.config)
           this.order = await DatabaseFactory.createOrderDatabase(this.config)
           this.ddoState = await DatabaseFactory.createDdoStateDatabase(this.config)
-          this.version = await DatabaseFactory.createVersionDatabase(this.config)
         } else {
           DATABASE_LOGGER.info(
             'Invalid URL. Only Nonce Database is initialized. Other databases are not available.'
