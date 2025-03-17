@@ -6,17 +6,28 @@ import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
 import { deleteIndexedMetadataIfExists } from '../../../utils/asset.js'
 
+export function getDDOInstance(ddo: Record<string, any>): V4DDO | V5DDO | null {
+  if (ddo.version.startsWith('4.')) {
+    return V4DDO.getDDOClass(ddo)
+  } else if (ddo.version.startsWith('5.')) {
+    return V5DDO.getDDOClass(ddo)
+  } else {
+    INDEXER_LOGGER.error(`Version of DDO unknown: ${ddo.version}`)
+    return null
+  }
+}
+
 export function makeDid(
   ddo: Record<string, any>,
   dataNftAddress: string, // get the data from blockchain event
   chainId: string
-): string {
-  if (ddo.version.startsWith('4.')) {
-    return V4DDO.getDDOClass(ddo).makeDid(dataNftAddress, chainId)
-  } else if (ddo.version.startsWith('5.')) {
-    return V5DDO.getDDOClass(ddo).makeDid(dataNftAddress, chainId)
+): string | null {
+  const ddoInstance = getDDOInstance(ddo)
+  if (!ddoInstance) {
+    return ddoInstance.makeDid(dataNftAddress, chainId)
   } else {
     INDEXER_LOGGER.error(`Version of DDO unknown: ${ddo.version}`)
+    return null
   }
 }
 
