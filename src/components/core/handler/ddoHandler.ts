@@ -225,47 +225,6 @@ export class DecryptDdoHandler extends Handler {
         }
       }
 
-      // if (authorizedDecryptersList && Object.keys(authorizedDecryptersList).length > 0) {
-      //   // check accessList
-      //   const chainsListed = Object.keys(authorizedDecryptersList)
-      //   // check the access lists for this chain
-      //   if (chainsListed.length > 0 && chainsListed.includes(chainId)) {
-      //     let isAllowed = false
-      //     for (const accessListAddress of authorizedDecryptersList[chainId]) {
-      //       // instantiate contract and check balanceOf
-      //       const accessListContract = new ethers.Contract(
-      //         accessListAddress,
-      //         AccessListContract.abi,
-      //         blockchain.getSigner()
-      //       )
-
-      //       // check access list contract
-      //       const balance = await accessListContract.balanceOf(
-      //         await blockchain.getSigner().getAddress()
-      //       )
-      //       if (Number(balance) > 0) {
-      //         isAllowed = true
-      //         break
-      //       }
-      //     }
-
-      //     if (!isAllowed) {
-      //       CORE_LOGGER.logMessage(
-      //         'Decrypt DDO: Decrypter not authorized per access list',
-      //         true
-      //       )
-      //       emitUnAuthorizedEvent(dataNftAddress)
-      //       return {
-      //         stream: null,
-      //         status: {
-      //           httpStatus: 403,
-      //           error: 'Decrypt DDO: Decrypter not authorized per access list'
-      //         }
-      //       }
-      //     }
-      //   }
-      // }
-
       const transactionId = task.transactionId ? String(task.transactionId) : ''
       let encryptedDocument: Uint8Array
       let flags: number
@@ -306,6 +265,7 @@ export class DecryptDdoHandler extends Handler {
         try {
           encryptedDocument = ethers.getBytes(task.encryptedDocument)
           flags = Number(task.flags)
+          // eslint-disable-next-line prefer-destructuring
           documentHash = task.documentHash
         } catch (error) {
           CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)

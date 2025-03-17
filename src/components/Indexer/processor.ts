@@ -462,6 +462,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         }
       }
       if (authorizedPublishersList) {
+        // check accessList
         const isAuthorized = await checkCredentialOnAccessList(
           authorizedPublishersList,
           String(chainId),
@@ -475,33 +476,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           emitUnAuthorizedEvent(ddo.id)
           return
         }
-        // check accessList
-        // const chainsListed = Object.keys(authorizedPublishersList)
-        // const chain = String(chainId)
-        // // check the access lists for this chain
-        // if (chainsListed.length > 0 && chainsListed.includes(chain)) {
-        //   let isAuthorized = false
-        //   for (const accessListAddress of authorizedPublishersList[chain]) {
-        //     const accessListContract = new ethers.Contract(
-        //       accessListAddress,
-        //       AccessListContract.abi,
-        //       signer
-        //     )
-        //     // if has at least 1 token than is is authorized
-        //     const balance = await accessListContract.balanceOf(owner)
-        //     if (Number(balance) > 0) {
-        //       isAuthorized = true
-        //       break
-        //     }
-        //   }
-        //   if (!isAuthorized) {
-        //     INDEXER_LOGGER.error(
-        //       `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.name} access group.`
-        //     )
-        //     emitUnAuthorizedEvent(ddo.id)
-        //     return
-        //   }
-        // }
       }
 
       did = ddo.id
