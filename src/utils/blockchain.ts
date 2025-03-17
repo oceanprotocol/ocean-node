@@ -14,7 +14,7 @@ import {
 import { getConfiguration } from './config.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { sleep } from './util.js'
-import { ConnectionStatus } from '../@types/blockchain.js'
+import { ConnectionStatus, SupportedNetwork } from '../@types/blockchain.js'
 import { ValidateChainId } from '../@types/commands.js'
 
 export class Blockchain {
@@ -217,4 +217,15 @@ export async function getJsonRpcProvider(
     return null
   }
   return new JsonRpcProvider(checkResult.networkRpc)
+}
+
+// useful for getting a Blockchain instance, as we repeat this piece of code often
+export function getBlockchainHandler(network: SupportedNetwork): Blockchain {
+  const blockChain = new Blockchain(
+    network.rpc,
+    network.network,
+    network.chainId,
+    network.fallbackRPCs
+  )
+  return blockChain
 }
