@@ -46,9 +46,9 @@ export function makeDid(
   dataNftAddress: string, // get the data from blockchain event
   chainId: string
 ): string {
-  if (ddo.version.includes('v4')) {
+  if (ddo.version.startsWith('4.')) {
     return V4DDO.getDDOClass(ddo).makeDid(dataNftAddress, chainId)
-  } else if (ddo.version.includes('v5')) {
+  } else if (ddo.version.startsWith('5.')) {
     return V5DDO.getDDOClass(ddo).makeDid(dataNftAddress, chainId)
   } else {
     INDEXER_LOGGER.error(`Version of DDO unknown: ${ddo.version}`)
