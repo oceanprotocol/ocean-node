@@ -487,9 +487,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
 
       did = ddo.id
       // stuff that we overwrite
-      ddo.chainId = chainId
-      ddo.nftAddress = event.address
-      ddo.datatokens = await this.getTokenInfo(ddo.services, signer)
+      updatedDdo.chainId = chainId
+      updatedDdo.nftAddress = event.address
+      updatedDdo.datatokens = await this.getTokenInfo(ddo.services, signer)
 
       INDEXER_LOGGER.logMessage(
         `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
@@ -554,9 +554,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       // we need to store the event data (either metadata created or update and is updatable)
       if (
         [EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED].includes(eventName) &&
-        this.isValidDtAddressFromServices(ddo.services)
+        this.isValidDtAddressFromServices(updatedDdo.services)
       ) {
-        const ddoWithPricing = await getPricingStatsForDddo(ddo, signer)
+        const ddoWithPricing = await getPricingStatsForDddo(updatedDdo, signer)
         ddoWithPricing.indexedMetadata.nft = await this.getNFTInfo(
           ddoWithPricing.nftAddress,
           signer,
@@ -625,7 +625,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       if (updatedDDO.indexedMetadata.purgatory.state === false) {
         // TODO: insert in a different collection for purgatory DDOs
         const saveDDO = await this.createOrUpdateDDO(ddoUpdatedWithPricing, eventName)
-        INDEXER_LOGGER.logMessage(`saved DDO: ${JSON.stringify(saveDDO)}`)
         return saveDDO
       }
     } catch (error) {
