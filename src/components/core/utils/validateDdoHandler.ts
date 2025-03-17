@@ -1,5 +1,3 @@
-import { fileURLToPath } from 'url'
-import { dirname, resolve } from 'path'
 // @ts-ignore
 import { V4DDO, V5DDO, validateDDO } from '@oceanprotocol/ddo-js'
 import { ethers } from 'ethers'
@@ -7,34 +5,6 @@ import { CORE_LOGGER, INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { create256Hash } from '../../../utils/crypt.js'
 import { getProviderWallet } from './feesHandler.js'
 import { deleteIndexedMetadataIfExists } from '../../../utils/asset.js'
-
-const CURRENT_VERSION = '4.7.0'
-const ALLOWED_VERSIONS = ['4.1.0', '4.3.0', '4.5.0', '4.7.0']
-
-export function getSchema(version: string = CURRENT_VERSION): string {
-  if (!ALLOWED_VERSIONS.includes(version)) {
-    CORE_LOGGER.logMessage(`Can't find schema ${version}`, true)
-    return
-  }
-  const path = `../../../../schemas/${version}.ttl`
-  // Use fileURLToPath to convert the URL to a file path
-  const currentModulePath = fileURLToPath(import.meta.url)
-
-  // Use dirname to get the directory name
-  const currentDirectory = dirname(currentModulePath)
-  const schemaFilePath = resolve(currentDirectory, path)
-  if (!schemaFilePath) {
-    CORE_LOGGER.logMessage(`Can't find schema ${version}`, true)
-    return
-  }
-  return schemaFilePath
-}
-
-/* function isIsoFormat(dateString: string): boolean {
-  const isoDateRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z)?$/
-  return isoDateRegex.test(dateString)
-}
-*/
 
 export function makeDid(
   ddo: Record<string, any>,
