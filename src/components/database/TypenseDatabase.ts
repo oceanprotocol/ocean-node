@@ -5,7 +5,7 @@ import { TypesenseSearchParams } from '../../@types/index.js'
 import { LOG_LEVELS_STR, GENERIC_EMOJIS } from '../../utils/logging/Logger.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 
-import { validateObject } from '../core/utils/validateDdoHandler.js'
+import { validateDdo } from '../core/utils/validateDdoHandler.js'
 import { ENVIRONMENT_VARIABLES, TYPESENSE_HITS_CAP } from '../../utils/constants.js'
 import {
   AbstractDdoDatabase,
@@ -395,7 +395,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
     } else if ('nft' in ddo && ddo.nft?.state !== 0) {
       return true
     } else {
-      const validation = await validateObject(ddo, ddo.chainId, ddo.nftAddress)
+      const validation = await validateDdo(ddo)
       if (validation[0] === true) {
         DATABASE_LOGGER.logMessageWithEmoji(
           `Validation of DDO with did: ${ddo.id} has passed`,

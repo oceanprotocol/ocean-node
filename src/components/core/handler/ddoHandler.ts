@@ -23,7 +23,7 @@ import lzmajs from 'lzma-purejs-requirejs'
 import {
   getValidationSignature,
   makeDid,
-  validateObject
+  validateDdo
 } from '../utils/validateDdoHandler.js'
 import { getConfiguration, hasP2PInterface } from '../../../utils/config.js'
 import {
@@ -835,11 +835,7 @@ export class ValidateDDOHandler extends Handler {
       return validationResponse
     }
     try {
-      const validation = await validateObject(
-        task.ddo,
-        task.ddo.chainId,
-        task.ddo.nftAddress
-      )
+      const validation = await validateDdo(task.ddo)
       if (validation[0] === false) {
         CORE_LOGGER.logMessageWithEmoji(
           `Validation failed with error: ${validation[1]}`,
