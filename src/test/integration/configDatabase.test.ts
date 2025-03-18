@@ -66,6 +66,9 @@ describe('Config Database', () => {
     version = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue()
     assert(version.value === updatedVersion, `Version should be ${updatedVersion}`)
   })
+  after(() => {
+    oceanIndexer.stopAllThreads()
+  })
 })
 
 describe('VersionDatabase CRUD (without Elastic or Typesense config)', () => {
