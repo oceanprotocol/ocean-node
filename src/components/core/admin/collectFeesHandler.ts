@@ -1,4 +1,4 @@
-import { AdminHandler } from './adminHandler.js'
+import { AdminCommandHandler } from './adminHandler.js'
 import {
   AdminCollectFeesCommand,
   AdminCollectFeesHandlerResponse
@@ -21,8 +21,8 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Readable } from 'stream'
 
-export class CollectFeesHandler extends AdminHandler {
-  validate(command: AdminCollectFeesCommand): ValidateParams {
+export class CollectFeesHandler extends AdminCommandHandler {
+  async validate(command: AdminCollectFeesCommand): Promise<ValidateParams> {
     if (
       !validateCommandParameters(command, [
         'chainId',
@@ -40,11 +40,11 @@ export class CollectFeesHandler extends AdminHandler {
       CORE_LOGGER.error(msg)
       return buildInvalidRequestMessage(msg)
     }
-    return super.validate(command)
+    return await super.validate(command)
   }
 
   async handle(task: AdminCollectFeesCommand): Promise<P2PCommandResponse> {
-    const validation = this.validate(task)
+    const validation = await this.validate(task)
     if (!validation.valid) {
       return buildInvalidParametersResponse(validation)
     }

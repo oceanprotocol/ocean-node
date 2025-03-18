@@ -238,9 +238,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeStreamableLogs`, async (req,
       nonce: (req.query.nonce as string) || null
     }
 
-    const response = await new ComputeGetStreamableLogsHandler(req.oceanNode).handle(
-      resultComputeTask
-    )
+    const response = await new ComputeGetStreamableLogsHandler().handle(resultComputeTask)
     if (response.stream) {
       res.status(response.status.httpStatus)
       res.set(response.status.headers)

@@ -1,11 +1,12 @@
 import express from 'express'
 import { validateAdminSignature } from '../../utils/auth.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
+import { CommonValidation } from './requestValidator.js'
 
 export const logRoutes = express.Router()
 
 // Middleware to validate signature and expiry timestamp
-const validateRequest = (
+const validateRequest = async (
   req: express.Request,
   res: express.Response,
   next: express.NextFunction
@@ -26,7 +27,10 @@ const validateRequest = (
     return res.status(400).send('Invalid expiryTimestamp')
   }
 
-  const isValid = validateAdminSignature(expiryTimestamp, signature)
+  const isValid: CommonValidation = await validateAdminSignature(
+    expiryTimestamp,
+    signature
+  )
   if (!isValid.valid) {
     return res.status(403).send(`Invalid signature: ${isValid.error}`)
   }

@@ -1,4 +1,4 @@
-import { Handler } from './handler.js'
+import { CommandHandler } from './handler.js'
 import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
 import {
   ENVIRONMENT_VARIABLES,
@@ -51,8 +51,8 @@ export function isOrderingAllowedForAsset(asset: DDO): OrdableAssetResponse {
       reason: `Asset provided is either null, either undefined ${asset}`
     }
   } else if (
-    asset.nft &&
-    !(asset.nft.state in [MetadataStates.ACTIVE, MetadataStates.UNLISTED])
+    asset.indexedMetadata.nft &&
+    !(asset.indexedMetadata.nft.state in [MetadataStates.ACTIVE, MetadataStates.UNLISTED])
   ) {
     return {
       isOrdable: false,
@@ -207,7 +207,7 @@ export function validateFilesStructure(
   return true
 }
 
-export class DownloadHandler extends Handler {
+export class DownloadHandler extends CommandHandler {
   validate(command: DownloadCommand): ValidateParams {
     return validateCommandParameters(command, [
       'fileIndex',

@@ -29,7 +29,11 @@ export const PROTOCOL_COMMANDS = {
   REINDEX_CHAIN: 'reindexChain',
   HANDLE_INDEXING_THREAD: 'handleIndexingThread',
   COLLECT_FEES: 'collectFees',
-  POLICY_SERVER_PASSTHROUGH: 'PolicyServerPassthrough'
+  POLICY_SERVER_PASSTHROUGH: 'PolicyServerPassthrough',
+  GET_P2P_PEER: 'getP2PPeer',
+  GET_P2P_PEERS: 'getP2PPeers',
+  GET_P2P_NETWORK_STATS: 'getP2PNetworkStats',
+  FIND_PEER: 'findPeer'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -59,7 +63,11 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.REINDEX_CHAIN,
   PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD,
   PROTOCOL_COMMANDS.COLLECT_FEES,
-  PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH
+  PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH,
+  PROTOCOL_COMMANDS.GET_P2P_PEER,
+  PROTOCOL_COMMANDS.GET_P2P_PEERS,
+  PROTOCOL_COMMANDS.GET_P2P_NETWORK_STATS,
+  PROTOCOL_COMMANDS.FIND_PEER
 ]
 
 export const MetadataStates = {
@@ -80,7 +88,11 @@ export const EVENTS = {
   TOKEN_URI_UPDATE: 'TokenURIUpdate',
   EXCHANGE_CREATED: 'ExchangeCreated',
   EXCHANGE_RATE_CHANGED: 'ExchangeRateChanged',
-  DISPENSER_CREATED: 'DispenserCreated'
+  DISPENSER_CREATED: 'DispenserCreated',
+  DISPENSER_ACTIVATED: 'DispenserActivated',
+  DISPENSER_DEACTIVATED: 'DispenserDeactivated',
+  EXCHANGE_ACTIVATED: 'ExchangeActivated',
+  EXCHANGE_DEACTIVATED: 'ExchangeDeactivated'
 }
 
 export const INDEXER_CRAWLING_EVENTS = {
@@ -134,6 +146,22 @@ export const EVENT_HASHES: Hashes = {
   '0x7d0aa581e6eb87e15f58588ff20c39ff6622fc796ec9bb664df6ed3eb02442c9': {
     type: EVENTS.DISPENSER_CREATED,
     text: 'DispenserCreated(address,address,uint256,uint256,address)'
+  },
+  '0xe9372084cb52c5392afee4b9d79d131e04b1e65676088d50a8f39fffb16a8745': {
+    type: EVENTS.DISPENSER_ACTIVATED,
+    text: 'DispenserActivated(address)'
+  },
+  '0x393f01061139648745ea000bb047bbe1785bd3a19d3a9c90f6747e1d2357d2b8': {
+    type: EVENTS.DISPENSER_DEACTIVATED,
+    text: 'DispenserDeactivated(address)'
+  },
+  '0xc7344c45124818d1d3a4c24ccb9b86d8b88d3bd05209b2a42b494cb32a503529': {
+    type: EVENTS.EXCHANGE_ACTIVATED,
+    text: 'ExchangeActivated(bytes32,address)'
+  },
+  '0x03da9148e1de78fba22de63c573465562ebf6ef878a1d3ea83790a560229984c': {
+    type: EVENTS.EXCHANGE_DEACTIVATED,
+    text: 'ExchangeDeactivated(bytes32,address)'
   }
 }
 
@@ -223,6 +251,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.AUTHORIZED_DECRYPTERS,
     required: false
   },
+  AUTHORIZED_DECRYPTERS_LIST: {
+    name: 'AUTHORIZED_DECRYPTERS_LIST',
+    value: process.env.AUTHORIZED_DECRYPTERS_LIST,
+    required: false
+  },
   OPERATOR_SERVICE_URL: {
     name: 'OPERATOR_SERVICE_URL',
     value: process.env.OPERATOR_SERVICE_URL,
@@ -256,6 +289,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   ALLOWED_ADMINS: {
     name: 'ALLOWED_ADMINS',
     value: process.env.ALLOWED_ADMINS,
+    required: false
+  },
+  ALLOWED_ADMINS_LIST: {
+    name: 'ALLOWED_ADMINS_LIST',
+    value: process.env.ALLOWED_ADMINS_LIST,
     required: false
   },
   ASSET_PURGATORY_URL: {
