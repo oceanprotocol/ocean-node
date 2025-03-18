@@ -82,6 +82,7 @@ export interface AccessListContract {
 }
 export interface OceanNodeConfig {
   authorizedDecrypters: string[]
+  authorizedDecryptersList: AccessListContract | null
   allowedValidators: string[]
   allowedValidatorsList: AccessListContract | null
   authorizedPublishers: string[]
@@ -103,6 +104,7 @@ export interface OceanNodeConfig {
   accountPurgatoryUrl: string
   assetPurgatoryUrl: string
   allowedAdmins?: string[]
+  allowedAdminsList?: AccessListContract | null
   codeHash?: string
   rateLimit?: number // per request ip or peer
   maxConnections?: number // global, regardless of client address(es)

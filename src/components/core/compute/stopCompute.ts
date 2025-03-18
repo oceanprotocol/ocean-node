@@ -1,7 +1,7 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Handler } from '../handler/handler.js'
+import { CommandHandler } from '../handler/handler.js'
 import { ComputeStopCommand } from '../../../@types/commands.js'
 import {
   ValidateParams,
@@ -10,7 +10,7 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { isAddress } from 'ethers'
 
-export class ComputeStopHandler extends Handler {
+export class ComputeStopHandler extends CommandHandler {
   validate(command: ComputeStopCommand): ValidateParams {
     const validation = validateCommandParameters(command, [
       'consumerAddress',

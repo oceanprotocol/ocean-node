@@ -1,4 +1,4 @@
-import { Handler } from './handler.js'
+import { CommandHandler } from './handler.js'
 import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
 import {
   ENVIRONMENT_VARIABLES,
@@ -207,7 +207,7 @@ export function validateFilesStructure(
   return true
 }
 
-export class DownloadHandler extends Handler {
+export class DownloadHandler extends CommandHandler {
   validate(command: DownloadCommand): ValidateParams {
     return validateCommandParameters(command, [
       'fileIndex',
