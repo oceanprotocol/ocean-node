@@ -93,3 +93,82 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 
 - `CRON_DELETE_DB_LOGS`: Delete old logs from database Cron expression. Example: `0 0 * * *` (runs every day at midnight)
 - `CRON_CLEANUP_C2D_STORAGE`: Clear c2d expired resources/storage and delete old jobs. Example: `*/5 * * * *` (runs every 5 minutes)
+
+## Compute
+
+The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable is used to configure Docker-based compute environments in Ocean Node. This guide will walk you through the options available for defining `DOCKER_COMPUTE_ENVIRONMENTS` and how to set it up correctly.
+
+Example Configuration
+The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of objects, where each object represents a Docker compute environment configuration. Below is an example configuration:
+
+```json
+[
+  {
+    "socketPath": "/var/run/docker.sock",
+    "resources": [
+      {
+        "id": "disk",
+        "total": 1000000000
+      }
+    ],
+    "storageExpiry": 604800,
+    "maxJobDuration": 3600,
+    "fees": {
+      "1": [
+        {
+          "feeToken": "0x123",
+          "prices": [
+            {
+              "id": "cpu",
+              "price": 1
+            }
+          ]
+        }
+      ]
+    },
+    "free": {
+      "maxJobDuration": 60,
+      "maxJobs": 3,
+      "resources": [
+        {
+          "id": "cpu",
+          "max": 1
+        },
+        {
+          "id": "ram",
+          "max": 1000000000
+        },
+        {
+          "id": "disk",
+          "max": 1000000000
+        }
+      ]
+    }
+  }
+]
+```
+
+#### Configuration Options
+
+- **socketPath**: Path to the Docker socket (e.g., docker.sock).
+- **storageExpiry**: Amount of seconds for storage expiry.(Mandatory)
+- **maxJobDuration**: Maximum duration in seconds for a job.(Mandatory)
+- **fees**: Fee structure for the compute environment.
+  - **feeToken**: Token address for the fee.
+  - **prices**: Array of resource pricing information.
+    - **id**: Resource type (e.g., `cpu`, `ram`, `disk`).
+    - **price**: Price per unit of the resource.
+- **resources**: Array of resources available in the compute environment.
+  - **id**: Resource type (e.g., `cpu`, `ram`, `disk`).
+  - **total**: Total number of the resource available.
+  - **min**: Minimum number of the resource needed for a job.
+  - **max**: Maximum number of the resource for a job.
+- **free**: Optional configuration for free jobs.
+  - **storageExpiry**: Amount of seconds for storage expiry for free jobs.
+  - **maxJobDuration**: Maximum duration in seconds for a free job.
+  - **maxJobs**: Maximum number of simultaneous free jobs.
+  - **resources**: Array of resources available for free jobs.
+    - **id**: Resource type (e.g., `cpu`, `ram`, `disk`).
+    - **total**: Total number of the resource available.
+    - **min**: Minimum number of the resource needed for a job.
+    - **max**: Maximum number of the resource for a job.

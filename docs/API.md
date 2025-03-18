@@ -1174,3 +1174,101 @@ Forwards request to PolicyServer (if any)
   }
 }
 ```
+
+# Compute
+
+## Compute object definitions
+
+### Dataset (`ComputeAsset` Interface)
+
+The `ComputeAsset` interface defines the structure of a compute asset in the Ocean Node. It can include information about the file object, document ID, service ID, transfer transaction ID, and user data.
+
+#### Properties
+
+- **fileObject**: Optional. An object of type `BaseFileObject` representing the file associated with the compute asset.
+- **documentId**: Optional. A string representing the document ID of the compute asset.
+- **serviceId**: Optional. A string representing the service ID associated with the compute asset.
+- **transferTxId**: Optional. A string representing the transaction ID for the transfer of the compute asset.
+- **userdata**: Optional. An object containing additional user-defined data related to the compute asset.
+
+```typescript
+export interface ComputeAsset {
+  fileObject?: BaseFileObject
+  documentId?: string
+  serviceId?: string
+  transferTxId?: string
+  userdata?: { [key: string]: any }
+}
+```
+
+This interface is used to encapsulate the details of a compute asset, which can be utilized in various compute-related operations within the Ocean Node.
+
+### `ComputeAlgorithm` Interface
+
+The `ComputeAlgorithm` interface defines the structure of a compute algorithm in the Ocean Node.
+It can include information about the file object, document ID, service ID, transfer transaction ID, algorithm custom data, metadata and user data.
+
+#### Properties
+
+- **documentId**: Optional. A string representing the document ID of the compute algorithm.
+- **serviceId**: Optional. A string representing the service ID associated with the compute algorithm.
+- **fileObject**: Optional. An object of type `BaseFileObject` representing the file associated with the compute algorithm.
+- **meta**: Optional. An object of type `MetadataAlgorithm` containing metadata related to the compute algorithm.
+- **transferTxId**: Optional. A string representing the transaction ID for the transfer of the compute algorithm.
+- **algocustomdata**: Optional. An object containing additional custom data related to the compute algorithm.
+- **userdata**: Optional. An object containing additional user-defined data related to the compute algorithm.
+
+```typescript
+export interface ComputeAlgorithm {
+  documentId?: string
+  serviceId?: string
+  fileObject?: BaseFileObject
+  meta?: MetadataAlgorithm
+  transferTxId?: string
+  algocustomdata?: { [key: string]: any }
+  userdata?: { [key: string]: any }
+}
+```
+
+This interface is used to encapsulate the details of a compute algorithm, which can be utilized in various compute-related operations within the Ocean Node.
+
+## Compute commands
+
+### `HTTP` POST /api/services/freeCompute
+
+### `P2P` command: freeStartCompute
+
+#### Description
+
+starts a free compute job and returns jobId if succesfull
+
+#### Parameters
+
+| name            | type   | required | description                               |
+| --------------- | ------ | -------- | ----------------------------------------- |
+| command         | string | v        | command name                              |
+| node            | string |          | if not present it means current node      |
+| consumerAddress | string | v        | consumer address                          |
+| signature       | string | v        | signature (msg=String(nonce) )            |
+| nonce           | string | v        | nonce for the request                     |
+| datasets        | object |          | list of ComputeAsset to be used as inputs |
+| algorithm       | object |          | ComputeAlgorithm definition               |
+| environment     | string | v        | compute environment to use                |
+| resources       | object |          | optional list of required resources       |
+
+#### Request
+
+```json
+{
+  "command": "freeStartCompute",
+  "datasets": [],
+  "algorithm": {
+    "meta": { "container": { "image": "ubuntu", "entrypoint": "/bin/bash'" } }
+  },
+  "consumerAddress": "0xC7EC1970B09224B317c52d92f37F5e1E4fF6B687",
+  "signature": "123",
+  "nonce": 1,
+  "environment": "0x7d187e4c751367be694497ead35e2937ece3c7f3b325dcb4f7571e5972d092bd-0xbeaf12703d708f39ef98c3d8939ce458553254176dbb69fe83d535883c4cee38",
+  "resources": [{ "id": "cpu", "amount": 1 }]
+}
+```
