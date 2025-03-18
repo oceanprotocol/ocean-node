@@ -1234,6 +1234,51 @@ This interface is used to encapsulate the details of a compute algorithm, which 
 
 ## Compute commands
 
+### `HTTP` GET /api/services/computeEnvironments
+
+### `P2P` command: getComputeEnvironments
+
+#### Description
+
+fetch all compute environments
+
+#### Response
+
+```json
+[
+  {
+    "id": "0x7d187e4c751367be694497ead35e2937ece3c7f3b325dcb4f7571e5972d092bd-0xf173fdc0a9c7cc1c34f8aaf6b3aafe866795851b567436e1d4fbab17b0e26ca1",
+    "runningJobs": 0,
+    "consumerAddress": "0xf9C5B7eE7708efAc6dC6Bc7d4b0455eBbf22b519",
+    "platform": { "architecture": "x86_64", "os": "Ubuntu 22.04.3 LTS" },
+    "fees": { "1": [[{ "feeToken": "0x123", "prices": [{ "id": "cpu", "price": 1 }] }]] },
+    "storageExpiry": 604800,
+    "maxJobDuration": 3600,
+    "resources": [
+      { "id": "cpu", "total": 16, "max": 16, "min": 1, "inUse": 0 },
+      {
+        "id": "ram",
+        "total": 33617674240,
+        "max": 33617674240,
+        "min": 1000000000,
+        "inUse": 0
+      },
+      { "id": "disk", "total": 1000000000, "max": 1000000000, "min": 0, "inUse": 0 }
+    ],
+    "free": {
+      "maxJobDuration": 60,
+      "maxJobs": 3,
+      "resources": [
+        { "id": "cpu", "max": 1, "inUse": 0 },
+        { "id": "ram", "max": 1000000000, "inUse": 0 },
+        { "id": "disk", "max": 1000000000, "inUse": 0 }
+      ]
+    },
+    "runningfreeJobs": 0
+  }
+]
+```
+
 ### `HTTP` POST /api/services/freeCompute
 
 ### `P2P` command: freeStartCompute
@@ -1272,3 +1317,103 @@ starts a free compute job and returns jobId if succesfull
   "resources": [{ "id": "cpu", "amount": 1 }]
 }
 ```
+
+#### Response
+
+```json
+[
+  {
+    "owner": "0xC7EC1970B09224B317c52d92f37F5e1E4fF6B687",
+    "jobId": "0x7d187e4c751367be694497ead35e2937ece3c7f3b325dcb4f7571e5972d092bd-a4ad237d-dfd8-404c-a5d6-b8fc3a1f66d3",
+    "dateCreated": "1742291065.119",
+    "dateFinished": null,
+    "status": 0,
+    "statusText": "Job started",
+    "results": [],
+    "agreementId": null,
+    "expireTimestamp": 1742291065.119,
+    "environment": "0x7d187e4c751367be694497ead35e2937ece3c7f3b325dcb4f7571e5972d092bd-0xf173fdc0a9c7cc1c34f8aaf6b3aafe866795851b567436e1d4fbab17b0e26ca1",
+    "resources": [
+      { "id": "cpu", "amount": 1 },
+      { "id": "ram", "amount": 1000000000 },
+      { "id": "disk", "amount": 0 }
+    ],
+    "isFree": true
+  }
+]
+```
+
+### `HTTP` GET /api/services/compute
+
+### `P2P` command: getComputeStatus
+
+#### Description
+
+returns job status
+
+#### Parameters
+
+| name            | type   | required | description                          |
+| --------------- | ------ | -------- | ------------------------------------ |
+| consumerAddress | string |          | consumer address to use as filter    |
+| jobId           | string |          | jobId address to use as filter       |
+| agreementId     | string |          | agreementId address to use as filter |
+
+#### Response
+
+```json
+[
+  {
+    "owner": "0xC7EC1970B09224B317c52d92f37F5e1E4fF6B687",
+    "did": null,
+    "jobId": "a4ad237d-dfd8-404c-a5d6-b8fc3a1f66d3",
+    "dateCreated": "1742291065.119",
+    "dateFinished": null,
+    "status": 0,
+    "statusText": "Job started",
+    "results": [],
+    "inputDID": null,
+    "algoDID": null,
+    "agreementId": null,
+    "expireTimestamp": 1742291065.119,
+    "environment": "0x7d187e4c751367be694497ead35e2937ece3c7f3b325dcb4f7571e5972d092bd-0xf173fdc0a9c7cc1c34f8aaf6b3aafe866795851b567436e1d4fbab17b0e26ca1",
+    "resources": [
+      {
+        "id": "cpu",
+        "amount": 1
+      },
+      {
+        "id": "ram",
+        "amount": 1000000000
+      },
+      {
+        "id": "disk",
+        "amount": 1000000000
+      }
+    ],
+    "isFree": true
+  }
+]
+```
+
+### `HTTP` GET /api/services/computeResult
+
+### `P2P` command: getComputeResult
+
+#### Description
+
+returns job result
+
+#### Parameters
+
+| name            | type   | required | description                                                    |
+| --------------- | ------ | -------- | -------------------------------------------------------------- |
+| consumerAddress | string | v        | consumer address to use as filter                              |
+| jobId           | string | v        | jobId address to use as filter                                 |
+| signature       | string | v        | signature (consumerAddress + jobId + index.toString() + nonce) |
+| nonce           | string | v        | nonce for the request                                          |
+| index           | number | v        | index of result                                                |
+
+#### Response
+
+File content
