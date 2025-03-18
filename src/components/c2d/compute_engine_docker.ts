@@ -570,13 +570,13 @@ export class C2DEngineDocker extends C2DEngine {
           let wroteStatusBanner = false
           this.docker.modem.followProgress(
             pullStream,
-            (err, res) => {
+            (err: any, res: any) => {
               // onFinished
               if (err) return reject(err)
               CORE_LOGGER.info('############# Pull docker image complete ##############')
               resolve(res)
             },
-            (progress) => {
+            (progress: any) => {
               // onProgress
               if (!wroteStatusBanner) {
                 wroteStatusBanner = true
