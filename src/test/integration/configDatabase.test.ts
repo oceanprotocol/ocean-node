@@ -16,23 +16,24 @@ const emptyDBConfig: OceanNodeDBConfig = {
   dbType: null
 }
 
-describe('Version Database', () => {
+describe('Config Database', () => {
   let database: Database
   let oceanIndexer: OceanIndexer
   let initialVersionNull: any
 
   before(async () => {
     database = await new Database(versionConfig)
+
+    it('should have null version initially', async () => {
+      initialVersionNull = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue()
+      assert(initialVersionNull.value === null, 'Initial version should be null')
+    })
+
     oceanIndexer = new OceanIndexer(database, getMockSupportedNetworks())
   })
 
   it('check version DB instance of SQL Lite', () => {
     expect(database.sqliteConfig).to.be.instanceOf(SQLLiteConfigDatabase)
-  })
-
-  it('should have null version initially', async () => {
-    initialVersionNull = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue()
-    assert(initialVersionNull.value === null, 'Initial version should be null')
   })
 
   it('should set and retrieve version', async () => {
