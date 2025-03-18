@@ -198,6 +198,7 @@ export class OceanIndexer {
 
   // eslint-disable-next-line require-await
   public async startThreads(): Promise<boolean> {
+    await this.checkAndTriggerReindexing()
     let count = 0
     for (const network of this.supportedChains) {
       const chainId = parseInt(network)
