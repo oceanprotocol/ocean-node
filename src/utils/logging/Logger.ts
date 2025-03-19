@@ -198,7 +198,7 @@ const alignedWithColorsAndTime: winston.Logform.Format = winston.format.combine(
   winston.format.timestamp(),
   winston.format.align(),
   winston.format.printf(
-    (info) => `${info.timestamp} ${info.level}: ${info.message.trim()}`
+    (info: any) => `${info.timestamp} ${info.level}: ${info.message.trim()}`
   )
 )
 const consoleColorFormatting: winston.Logform.Format | Record<string, any> = {
@@ -270,9 +270,7 @@ export function buildCustomFileTransport(
     }
   }
 
-  return new winston.transports.File({
-    ...options
-  })
+  return new winston.transports.File({ ...options })
 }
 
 export function getDefaultLoggerTransports(
@@ -314,9 +312,7 @@ export function buildCustomStreamTransport(
     }
   }
 
-  return new winston.transports.Stream({
-    ...options
-  })
+  return new winston.transports.Stream({ ...options })
 }
 
 /**
