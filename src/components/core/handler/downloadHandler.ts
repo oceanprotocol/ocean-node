@@ -61,10 +61,7 @@ export function isOrderingAllowedForAsset(asset: DDO): OrdableAssetResponse {
     }
   }
 
-  return {
-    isOrdable: true,
-    reason: ''
-  }
+  return { isOrdable: true, reason: '' }
 }
 
 export async function handleDownloadUrlCommand(
@@ -126,9 +123,8 @@ export async function handleDownloadUrlCommand(
     headers['Content-Length'.toLowerCase()] = fileMetadata.contentLength
 
     if (!('Content-Disposition'?.toLowerCase() in objTemp))
-      headers[
-        'Content-Disposition'.toLowerCase()
-      ] = `attachment;filename=${fileMetadata.name}`
+      headers['Content-Disposition'.toLowerCase()] =
+        `attachment;filename=${fileMetadata.name}`
     if (encryptFile) {
       // we parse the string into the object again
       const encryptedObject = ethCrypto.cipher.parse(task.aes_encrypted_key)
@@ -163,19 +159,13 @@ export async function handleDownloadUrlCommand(
 
       return {
         stream: inputStream.stream.pipe(cipher),
-        status: {
-          httpStatus: inputStream.httpStatus,
-          headers
-        }
+        status: { httpStatus: inputStream.httpStatus, headers }
       }
     } else {
       // Download request is not using encryption!
       return {
         stream: inputStream.stream,
-        status: {
-          httpStatus: inputStream.httpStatus,
-          headers
-        }
+        status: { httpStatus: inputStream.httpStatus, headers }
       }
     }
   } catch (err) {
@@ -242,23 +232,14 @@ export class DownloadHandler extends CommandHandler {
       )
       return {
         stream: null,
-        status: {
-          httpStatus: 500,
-          error: 'No DDO found for asset'
-        }
+        status: { httpStatus: 500, error: 'No DDO found for asset' }
       }
     }
 
     const isOrdable = isOrderingAllowedForAsset(ddo)
     if (!isOrdable.isOrdable) {
       CORE_LOGGER.error(isOrdable.reason)
-      return {
-        stream: null,
-        status: {
-          httpStatus: 500,
-          error: isOrdable.reason
-        }
-      }
+      return { stream: null, status: { httpStatus: 500, error: isOrdable.reason } }
     }
 
     // 2. Validate ddo and credentials
@@ -266,10 +247,7 @@ export class DownloadHandler extends CommandHandler {
       CORE_LOGGER.logMessage('Error: DDO malformed or disabled', true)
       return {
         stream: null,
-        status: {
-          httpStatus: 500,
-          error: 'Error: DDO malformed or disabled'
-        }
+        status: { httpStatus: 500, error: 'Error: DDO malformed or disabled' }
       }
     }
 
@@ -322,13 +300,7 @@ export class DownloadHandler extends CommandHandler {
           nonceCheckResult.error,
         true
       )
-      return {
-        stream: null,
-        status: {
-          httpStatus: 500,
-          error: nonceCheckResult.error
-        }
-      }
+      return { stream: null, status: { httpStatus: 500, error: nonceCheckResult.error } }
     }
     // from now on, we need blockchain checks
     const config = await getConfiguration()
@@ -341,22 +313,13 @@ export class DownloadHandler extends CommandHandler {
       if (!ready) {
         return {
           stream: null,
-          status: {
-            httpStatus: 400,
-            error: `Download handler: ${error}`
-          }
+          status: { httpStatus: 400, error: `Download handler: ${error}` }
         }
       }
       provider = blockchain.getProvider()
     } catch (e) {
       CORE_LOGGER.error('Download JsonRpcProvider ERROR: ' + e.message)
-      return {
-        stream: null,
-        status: {
-          httpStatus: 500,
-          error: 'JsonRpcProvider ERROR'
-        }
-      }
+      return { stream: null, status: { httpStatus: 500, error: 'JsonRpcProvider ERROR' } }
     }
     if (!rpc) {
       CORE_LOGGER.logMessage(
@@ -432,13 +395,7 @@ export class DownloadHandler extends CommandHandler {
       if (!computeAddrs.includes(task.consumerAddress?.toLowerCase())) {
         const msg = 'Not allowed to download this asset of type compute'
         CORE_LOGGER.logMessage(msg)
-        return {
-          stream: null,
-          status: {
-            httpStatus: 500,
-            error: msg
-          }
-        }
+        return { stream: null, status: { httpStatus: 500, error: msg } }
       }
     }
     // 5. check that the provider fee transaction is valid
@@ -451,13 +408,7 @@ export class DownloadHandler extends CommandHandler {
       null
     )
     if (!validFee.isValid) {
-      return {
-        stream: null,
-        status: {
-          httpStatus: 500,
-          error: 'ERROR checking fees'
-        }
-      }
+      return { stream: null, status: { httpStatus: 500, error: 'ERROR checking fees' } }
     }
 
     // 6. Call the validateOrderTransaction function to check order transaction
@@ -484,10 +435,7 @@ export class DownloadHandler extends CommandHandler {
       )
       return {
         stream: null,
-        status: {
-          httpStatus: 500,
-          error: paymentValidation.message
-        }
+        status: { httpStatus: 500, error: paymentValidation.message }
       }
     }
     // policyServer check
@@ -502,13 +450,7 @@ export class DownloadHandler extends CommandHandler {
       task.policyServer
     )
     if (!policyStatus.success) {
-      return {
-        stream: null,
-        status: {
-          httpStatus: 405,
-          error: policyStatus.message
-        }
-      }
+      return { stream: null, status: { httpStatus: 405, error: policyStatus.message } }
     }
 
     try {
@@ -528,13 +470,7 @@ export class DownloadHandler extends CommandHandler {
           const errorMsg =
             'Cannot decrypt DDO files, Template 4 is not active for confidential EVM!'
           CORE_LOGGER.error(errorMsg)
-          return {
-            stream: null,
-            status: {
-              httpStatus: 403,
-              error: errorMsg
-            }
-          }
+          return { stream: null, status: { httpStatus: 403, error: errorMsg } }
         } else {
           // TODO decrypt using Oasis SDK
           CORE_LOGGER.info(
@@ -589,13 +525,7 @@ export class DownloadHandler extends CommandHandler {
       })
     } catch (e) {
       CORE_LOGGER.logMessage('Decryption error: ' + e, true)
-      return {
-        stream: null,
-        status: {
-          httpStatus: 500,
-          error: 'Failed to decrypt'
-        }
-      }
+      return { stream: null, status: { httpStatus: 500, error: 'Failed to decrypt' } }
     }
   }
 }
