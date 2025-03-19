@@ -104,20 +104,17 @@ export class TypesenseOrderDatabase extends AbstractOrderDatabase {
     startOrderId?: string
   ) {
     try {
-      return await this.provider
-        .collections(this.getSchema().name)
-        .documents()
-        .create({
-          id: orderId,
-          type,
-          timestamp,
-          consumer,
-          payer,
-          datatokenAddress,
-          nftAddress,
-          did,
-          startOrderId
-        })
+      return await this.provider.collections(this.getSchema().name).documents().create({
+        id: orderId,
+        type,
+        timestamp,
+        consumer,
+        payer,
+        datatokenAddress,
+        nftAddress,
+        did,
+        startOrderId
+      })
     } catch (error) {
       const errorMsg =
         `Error when creating order entry ${orderId} at timestamp ${timestamp} by payer ${payer} for consumer ${consumer}: ` +
@@ -306,18 +303,15 @@ export class TypesenseDdoStateDatabase extends AbstractDdoStateDatabase {
         .update(did, { chainId, did, nft: nftAddress, txId, valid, error: errorMsg })
     } catch (error) {
       if (error instanceof TypesenseError && error.httpStatus === 404) {
-        return await this.provider
-          .collections(this.schema.name)
-          .documents()
-          .create({
-            id: did,
-            chainId,
-            did,
-            nft: nftAddress,
-            txId,
-            valid,
-            error: errorMsg
-          })
+        return await this.provider.collections(this.schema.name).documents().create({
+          id: did,
+          chainId,
+          did,
+          nft: nftAddress,
+          txId,
+          valid,
+          error: errorMsg
+        })
       }
       const errorMessage =
         `Error when saving ddo state for: ${did} Error: ` + error.message
