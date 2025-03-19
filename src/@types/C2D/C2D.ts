@@ -198,7 +198,7 @@ export enum C2DStatusNumber {
   // eslint-disable-next-line no-unused-vars
   AlgorithmProvisioningFailed = 32,
   // eslint-disable-next-line no-unused-vars
-  DataUploadFailed = 32,
+  DataUploadFailed = 33,
   // eslint-disable-next-line no-unused-vars
   RunningAlgorithm = 40,
   // eslint-disable-next-line no-unused-vars

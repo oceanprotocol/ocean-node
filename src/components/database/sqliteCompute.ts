@@ -223,9 +223,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   }
 
   updateJob(job: DBComputeJob): Promise<number> {
-    if (job.dateFinished && job.isRunning) {
-      job.isRunning = false
-    }
+    // if (job.dateFinished && job.isRunning) {
+    //  job.isRunning = false
+    // }
     // TO DO C2D
     const data: any[] = [
       job.owner,
@@ -233,6 +233,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       job.statusText,
       job.expireTimestamp,
       generateBlobFromJSON(job),
+      job.dateFinished,
       job.jobId
     ]
     const updateSQL = `
@@ -242,9 +243,11 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       status = ?,
       statusText = ?,
       expireTimestamp = ?, 
-      body = ?
+      body = ?,
+      dateFinished = ?
       WHERE jobId = ?;
     `
+
     return new Promise((resolve, reject) => {
       this.db.run(updateSQL, data, function (this: RunResult, err: Error | null) {
         if (err) {
@@ -286,7 +289,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
               if (environment && environment !== job.environment) {
                 include = false
               }
-              if (!job.isRunning) {
+              if (job.dateFinished) {
                 include = false
               }
               return include

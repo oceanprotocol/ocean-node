@@ -479,10 +479,10 @@ export class C2DEngineDocker extends C2DEngine {
     const jobs = await this.db.getRunningJobs(this.getC2DConfig().hash)
 
     if (jobs.length === 0) {
-      CORE_LOGGER.info('No C2D jobs found for engine ' + this.getC2DConfig().hash)
+      CORE_LOGGER.debug('No C2D jobs found for engine ' + this.getC2DConfig().hash)
       return
     } else {
-      CORE_LOGGER.info(`Got ${jobs.length} jobs for engine ${this.getC2DConfig().hash}`)
+      CORE_LOGGER.debug(`Got ${jobs.length} jobs for engine ${this.getC2DConfig().hash}`)
       CORE_LOGGER.debug(JSON.stringify(jobs))
     }
     const promises: any = []
@@ -823,12 +823,10 @@ export class C2DEngineDocker extends C2DEngine {
           await container.getArchive({ path: '/data/outputs' }),
           createWriteStream(outputsArchivePath)
         )
-        job.status = C2DStatusNumber.JobFinished
-        job.statusText = C2DStatusText.JobFinished
       } catch (e) {
         console.log(e)
-        job.status = C2DStatusNumber.ResultsFetchFailed
-        job.statusText = C2DStatusText.ResultsFetchFailed
+        job.status = C2DStatusNumber.ResultsUploadFailed
+        job.statusText = C2DStatusText.ResultsUploadFailed
       }
       job.dateFinished = String(Date.now() / 1000)
       await this.db.updateJob(job)
