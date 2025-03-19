@@ -13,7 +13,7 @@ import {
   PROTOCOL_COMMANDS
 } from '../../utils/index.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
-import { buildJobIdentifier } from './utils.js'
+import { buildJobIdentifier, getDeployedContractBlock } from './utils.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { isReachableConnection } from '../../utils/database.js'
 import { sleep } from '../../utils/util.js'
@@ -446,8 +446,12 @@ export class OceanIndexer {
           const numDeleted = await dbActive.ddo.deleteAllAssetsFromChain(chainIdNum)
           INDEXER_LOGGER.info(`Deleted ${numDeleted} assets from chain ${chainIdNum}`)
 
-          // Update database directly by setting last indexed block to null
-          const result = await dbActive.indexer.update(chainIdNum, null)
+          // Update database directly by resetting last indexed block
+          const contractDeploymentBlock = getDeployedContractBlock(chainIdNum)
+          const result = await dbActive.indexer.update(
+            chainIdNum,
+            contractDeploymentBlock
+          )
 
           if (!result) {
             INDEXER_LOGGER.error(
