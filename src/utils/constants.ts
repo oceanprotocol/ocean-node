@@ -247,6 +247,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.AUTHORIZED_DECRYPTERS,
     required: false
   },
+  AUTHORIZED_DECRYPTERS_LIST: {
+    name: 'AUTHORIZED_DECRYPTERS_LIST',
+    value: process.env.AUTHORIZED_DECRYPTERS_LIST,
+    required: false
+  },
   OPERATOR_SERVICE_URL: {
     name: 'OPERATOR_SERVICE_URL',
     value: process.env.OPERATOR_SERVICE_URL,
@@ -280,6 +285,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   ALLOWED_ADMINS: {
     name: 'ALLOWED_ADMINS',
     value: process.env.ALLOWED_ADMINS,
+    required: false
+  },
+  ALLOWED_ADMINS_LIST: {
+    name: 'ALLOWED_ADMINS_LIST',
+    value: process.env.ALLOWED_ADMINS_LIST,
     required: false
   },
   ASSET_PURGATORY_URL: {

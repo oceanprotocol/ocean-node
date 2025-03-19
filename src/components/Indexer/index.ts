@@ -198,6 +198,7 @@ export class OceanIndexer {
 
   // eslint-disable-next-line require-await
   public async startThreads(): Promise<boolean> {
+    await this.checkAndTriggerReindexing()
     let count = 0
     for (const network of this.supportedChains) {
       const chainId = parseInt(network)
@@ -418,18 +419,17 @@ export class OceanIndexer {
       INDEXER_LOGGER.error(`Giving up reindexing. DB is not online!`)
       return
     }
-    const dbVersion = await dbActive.version.getNodeVersion()
-
+    const dbVersion = await dbActive.sqliteConfig?.retrieveValue()
     INDEXER_LOGGER.info(
       `Node version check: Current=${currentVersion}, DB=${
         dbVersion || 'not set'
       }, Min Required=${this.MIN_REQUIRED_VERSION}`
     )
 
-    if (isReindexingNeeded(currentVersion, dbVersion, this.MIN_REQUIRED_VERSION)) {
+    if (isReindexingNeeded(currentVersion, dbVersion.value, this.MIN_REQUIRED_VERSION)) {
       INDEXER_LOGGER.info(
         `Reindexing needed: DB version ${
-          dbVersion || 'not set'
+          dbVersion.value || 'not set'
         } is older than minimum required ${this.MIN_REQUIRED_VERSION}`
       )
 
@@ -468,9 +468,7 @@ export class OceanIndexer {
           )
         }
       }
-
-      // Update the version in the database
-      await dbActive.version.setNodeVersion(currentVersion)
+      await dbActive.sqliteConfig?.createOrUpdateConfig('version', currentVersion)
       INDEXER_LOGGER.info(`Updated node version in database to ${currentVersion}`)
     } else {
       INDEXER_LOGGER.info('No reindexing needed based on version check')

@@ -148,7 +148,15 @@ export interface AdminReindexChainCommand extends AdminCommand {
 
 export interface ICommandHandler {
   handle(command: Command): Promise<P2PCommandResponse>
+  verifyParamsAndRateLimits(task: Command): Promise<P2PCommandResponse>
+}
+
+export interface IValidateCommandHandler extends ICommandHandler {
   validate(command: Command): ValidateParams
+}
+
+export interface IValidateAdminCommandHandler extends ICommandHandler {
+  validate(command: AdminCommand): Promise<ValidateParams>
 }
 
 export interface ComputeGetEnvironmentsCommand extends Command {
