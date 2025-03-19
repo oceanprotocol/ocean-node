@@ -2,7 +2,7 @@ import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { C2DClusterType } from '../../../@types/C2D/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Handler } from '../handler/handler.js'
+import { CommandHandler } from '../handler/handler.js'
 import { ComputeInitializeCommand } from '../../../@types/commands.js'
 import { ProviderComputeInitializeResults } from '../../../@types/Fees.js'
 import {
@@ -29,7 +29,8 @@ import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { C2DEngineDocker, getAlgorithmImage } from '../../c2d/compute_engine_docker.js'
-export class ComputeInitializeHandler extends Handler {
+
+export class ComputeInitializeHandler extends CommandHandler {
   validate(command: ComputeInitializeCommand): ValidateParams {
     const validation = validateCommandParameters(command, [
       'datasets',

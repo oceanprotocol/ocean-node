@@ -1,14 +1,14 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Handler } from '../handler/handler.js'
+import { CommandHandler } from '../handler/handler.js'
 import { ComputeGetEnvironmentsCommand } from '../../../@types/commands.js'
 import {
   ValidateParams,
   buildInvalidRequestMessage,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
-export class ComputeGetEnvironmentsHandler extends Handler {
+export class ComputeGetEnvironmentsHandler extends CommandHandler {
   validate(command: ComputeGetEnvironmentsCommand): ValidateParams {
     const validateCommand = validateCommandParameters(command, [])
     if (!validateCommand.valid) {

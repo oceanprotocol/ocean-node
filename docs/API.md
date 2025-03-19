@@ -505,22 +505,6 @@ returns list of all P2P peers
 
 ---
 
-## Get Ocean Peers
-
-### `HTTP` GET /getOceanPeers
-
-#### Description
-
-returns list of ocean node peers
-
-#### Response
-
-```
-["PeerId", "PeerId", "PeerId"]
-```
-
----
-
 ## Validate DDO
 
 ### `HTTP` POST /directCommand

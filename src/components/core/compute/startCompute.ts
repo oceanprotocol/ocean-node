@@ -1,7 +1,7 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Handler } from '../handler/handler.js'
+import { CommandHandler } from '../handler/handler.js'
 import { ComputeStartCommand, FreeComputeStartCommand } from '../../../@types/commands.js'
 import { getAlgoChecksums, validateAlgoForDataset } from './utils.js'
 import {
@@ -29,7 +29,7 @@ import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { checkNonce, NonceResponse, getNonceAsNumber } from '../utils/nonceHandler.js'
 
-export class ComputeStartHandler extends Handler {
+export class ComputeStartHandler extends CommandHandler {
   validate(command: ComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
       'consumerAddress',
@@ -379,7 +379,7 @@ export class ComputeStartHandler extends Handler {
   }
 }
 
-export class FreeComputeStartHandler extends Handler {
+export class FreeComputeStartHandler extends CommandHandler {
   validate(command: ComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
       'algorithm',
