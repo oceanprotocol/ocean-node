@@ -1,4 +1,4 @@
-import { Handler } from './handler.js'
+import { CommandHandler } from './handler.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { EncryptCommand, EncryptFileCommand } from '../../../@types/commands.js'
 import * as base58 from 'base58-js'
@@ -21,7 +21,7 @@ export const SUPPORTED_ENCRYPTION_METHODS = [
   EncryptMethod.ECIES.toString()
 ]
 
-export class EncryptHandler extends Handler {
+export class EncryptHandler extends CommandHandler {
   validate(command: EncryptCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, ['blob'])
     if (!commandValidation.valid) {
@@ -80,7 +80,7 @@ export class EncryptHandler extends Handler {
   }
 }
 
-export class EncryptFileHandler extends Handler {
+export class EncryptFileHandler extends CommandHandler {
   validate(command: EncryptFileCommand): ValidateParams {
     const validateCommand = validateCommandParameters(command, [])
     if (validateCommand.valid) {

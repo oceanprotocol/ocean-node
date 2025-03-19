@@ -201,6 +201,22 @@ function getAuthorizedDecrypters(isStartup?: boolean): string[] {
     isStartup
   )
 }
+
+function getAuthorizedDecryptersList(isStartup?: boolean): AccessListContract | null {
+  if (
+    existsEnvironmentVariable(ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS_LIST, isStartup)
+  ) {
+    try {
+      const decryptersAccessList = JSON.parse(
+        ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS_LIST.value
+      ) as AccessListContract
+      return decryptersAccessList
+    } catch (err) {
+      CONFIG_LOGGER.error(err.message)
+    }
+  }
+  return null
+}
 // allowed validators
 export function getAllowedValidators(isStartup?: boolean): string[] {
   return readAddressListFromEnvVariable(
@@ -225,8 +241,22 @@ function getAllowedValidatorsList(isStartup?: boolean): AccessListContract | nul
   return null
 }
 // valid node admins
-export function getAllowedAdmins(isStartup?: boolean): string[] {
+function getAllowedAdmins(isStartup?: boolean): string[] {
   return readAddressListFromEnvVariable(ENVIRONMENT_VARIABLES.ALLOWED_ADMINS, isStartup)
+}
+
+function getAllowedAdminsList(isStartup?: boolean): AccessListContract | null {
+  if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ALLOWED_ADMINS_LIST, isStartup)) {
+    try {
+      const adminAccessList = JSON.parse(
+        ENVIRONMENT_VARIABLES.ALLOWED_ADMINS_LIST.value
+      ) as AccessListContract
+      return adminAccessList
+    } catch (err) {
+      CONFIG_LOGGER.error(err.message)
+    }
+  }
+  return null
 }
 
 // whenever we want to read an array of strings from an env variable, use this common function
@@ -607,6 +637,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
 
   const config: OceanNodeConfig = {
     authorizedDecrypters: getAuthorizedDecrypters(isStartup),
+    authorizedDecryptersList: getAuthorizedDecryptersList(isStartup),
     allowedValidators: getAllowedValidators(isStartup),
     allowedValidatorsList: getAllowedValidatorsList(isStartup),
     authorizedPublishers: getAuthorizedPublishers(isStartup),
@@ -706,6 +737,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
     assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),
     allowedAdmins: getAllowedAdmins(isStartup),
+    allowedAdminsList: getAllowedAdminsList(isStartup),
     rateLimit: getRateLimit(isStartup),
     maxConnections: getConnectionsLimit(isStartup),
     denyList: getDenyList(isStartup),

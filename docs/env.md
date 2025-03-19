@@ -15,6 +15,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `ADDRESS_FILE`: File location where Ocean contract addresses are saved. Example: `"ADDRESS_FILE=${HOME}/.ocean/ocean-contracts/artifacts/address.json"`
 - `NODE_ENV`: Typically used to specify the environment (e.g., development, production) the node is running in. Example: `'development'`
 - `AUTHORIZED_DECRYPTERS`: A JSON array of addresses that are authorized to decrypt data. Example: `"['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']"`
+- `AUTHORIZED_DECRYPTERS_LIST`: AccessList contract addresses (per chain). If present, only accounts present on the given access lists can decrypt data. Example: `"{ \"8996\": [\"0x967da4048cD07aB37855c090aAF366e4ce1b9F48\",\"0x388C818CA8B9251b393131C08a736A67ccB19297\"] }"`
 - `OPERATOR_SERVICE_URL`: Configures C2D cluster URLs for the node. Example: `"[\"http://example.c2d.cluster1.com\",\"http://example.cd2.cluster2.com\"]"`
 - `INTERFACES`: Network interfaces the node supports, e.g., HTTP and P2P. By default, if not specified, both are supported. Example: `"[\"HTTP\",\"P2P\"]"`
 - `ALLOWED_VALIDATORS`: Array of addresses for allowed validators to verify asset signatures before indexing. Example: `"[\"0x123\",\"0x456\"]"`
@@ -22,6 +23,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `INDEXER_INTERVAL`: Sets the interval in milliseconds for the indexer to crawl. The default is 30 seconds if not set. Example: `10000`
 - `INDEXER_NETWORKS`: Specifies the networks the Indexer will crawl. If not set, the Indexer will index all networks defined in the RPCS environment variable. If set to an empty string, indexing will be disabled. Example: `[1, 137]`
 - `ALLOWED_ADMINS`: Sets the public address of accounts which have access to admin endpoints e.g. shutting down the node. Example: `"[\"0x967da4048cD07aB37855c090aAF366e4ce1b9F48\",\"0x388C818CA8B9251b393131C08a736A67ccB19297\"]"`
+- `ALLOWED_ADMINS_LIST`: Array of access list addresses (per chain) for accounts that have access to admin endpoints. Example: `"{ \"8996\": [\"0x123\",\"0x456\"]"`
 - `DASHBOARD`: If `false` the dashboard will not run. If not set or `true` the dashboard will start with the node. Example: `false`
 - `RATE_DENY_LIST`: Blocked list of IPs and peer IDs. Example: `"{ \"peers\": [\"16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo\"], \"ips\": [\"127.0.0.1\"] }"`
 - `MAX_REQ_PER_MINUTE`: Number of requests per minute allowed by the same client (IP or Peer id). Example: `30`
