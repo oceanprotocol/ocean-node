@@ -1177,6 +1177,8 @@ Forwards request to PolicyServer (if any)
 
 # Compute
 
+For starters, you can find a list of algorithms in the [Ocean Algorithms repository](https://github.com/oceanprotocol/algo_dockers) and the docker images in the [Algo Dockerhub](https://hub.docker.com/r/oceanprotocol/algo_dockers/tags).
+
 ## Compute object definitions
 
 ### Dataset (`ComputeAsset` Interface)
@@ -1352,6 +1354,7 @@ starts a free compute job and returns jobId if succesfull
 returns job status
 
 #### Parameters
+Required at least one of the following parameters:
 
 | name            | type   | required | description                          |
 | --------------- | ------ | -------- | ------------------------------------ |
@@ -1412,7 +1415,7 @@ returns job result
 | jobId           | string | v        | jobId address to use as filter                                 |
 | signature       | string | v        | signature (consumerAddress + jobId + index.toString() + nonce) |
 | nonce           | string | v        | nonce for the request                                          |
-| index           | number | v        | index of result                                                |
+| index           | number | v        | index of result  (0 for main result, 1 for logs)               |
 
 #### Response
 
