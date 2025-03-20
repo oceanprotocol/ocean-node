@@ -588,7 +588,6 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     }
     try {
       // avoid issue with nft fields, due to schema
-      // ddo.nft = ddo?.indexedMetadata?.nft
       if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await this.validateDDO(ddo)
       if (validation === true) {
@@ -659,7 +658,6 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     }
     try {
       // avoid issue with nft fields, due to schema
-      // ddo.nft = ddo?.indexedMetadata?.nft
       if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await this.validateDDO(ddo)
       if (validation === true) {
