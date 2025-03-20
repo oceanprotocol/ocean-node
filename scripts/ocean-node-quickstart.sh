@@ -124,39 +124,25 @@ fi
 read -p "Do you want to run docker C2D jobs on your Ocean Node [ y/n ]: " run_c2d_jobs
 
 if [ "$run_c2d_jobs" == "y" ]; then
-  read -p "Enter the docker socket path: " DOCKER_SOCKET_PATH
-  DOCKER_SOCKET_PATH=${DOCKER_SOCKET_PATH:-''}
-  read -p "Enter the docker protocol: " DOCKER_PROTOCOL
-  DOCKER_PROTOCOL=${DOCKER_PROTOCOL:-''}
-  read -p "Enter the docker host: " DOCKER_HOST
-  DOCKER_HOST=${DOCKER_HOST:-''}
-  read -p "Enter the docker port: " DOCKER_PORT
-  DOCKER_PORT=${DOCKER_PORT:-0}
-  read -p "Enter the docker certificate authority path: " DOCKER_CA_PATH
-  DOCKER_CA_PATH=${DOCKER_CA_PATH:-''}
-  read -p "Enter the docker certificate path: " DOCKER_CERT_PATH
-  DOCKER_CERT_PATH=${DOCKER_CERT_PATH:-''}
-  read -p "Enter the docker key path: " DOCKER_KEY_PATH
-  DOCKER_KEY_PATH=${DOCKER_KEY_PATH:-''}
-  echo ""
   echo "########################################################"
   echo "### Docker Engine Compute Environments Configuration ###"
   echo "########################################################"
   echo "Check 'ComputeEnvironment' definition for more details on the format"
   echo "_____________________________________________________"
   echo ""
-  read -p "Do you want to add a specific docker environment (payed) configuration?
-  (Hint: You can enter multiple in JSON format) [ y/n ]: " c2d_payed_env
-  if [ "$c2d_payed_env" == "y" ]; then
-    read -p "Enter the array of payed docker environment(s): " DOCKER_COMPUTE_ENVIRONMENTS 
-  fi
-  read -p "Do you want to add a specific docker environment (free) configuration?
-  (Hint: You can enter only one in JSON format)  [ y/n ]: " c2d_free_env
-  if [ "$c2d_free_env" == "y" ]; then
-    read -p "Enter the settings of the free docker environment: " DOCKER_FREE_COMPUTE
+  read -p "Do you want to add a specific docker environment configuration?
+  (Hint: You can enter multiple in JSON format) [ y/n ]: " c2d_env
+  if [ "$c2d_env" == "y" ]; then
+    read -p "Enter the array of docker environment(s): " DOCKER_COMPUTE_ENVIRONMENTS 
   fi
 else
   echo "Running node without docker C2D capabilities!"
+fi
+
+# Set default compute environments if not already defined
+if [ -z "$DOCKER_COMPUTE_ENVIRONMENTS" ]; then
+  echo "Setting default DOCKER_COMPUTE_ENVIRONMENTS configuration"
+  export DOCKER_COMPUTE_ENVIRONMENTS="[{\"socketPath\":\"/var/run/docker.sock\",\"resources\":[{\"id\":\"disk\",\"total\":1000000000}],\"storageExpiry\":604800,\"maxJobDuration\":36000,\"fees\":{\"1\":[{\"feeToken\":\"0x123\",\"prices\":[{\"id\":\"cpu\",\"price\":1}]}]},\"free\":{\"maxJobDuration\":360000,\"maxJobs\":3,\"resources\":[{\"id\":\"cpu\",\"max\":1},{\"id\":\"ram\",\"max\":1000000000},{\"id\":\"disk\",\"max\":1000000000}]}}]"
 fi
 
 cat <<EOF > docker-compose.yml
@@ -223,15 +209,8 @@ services:
 #      P2P_ENABLE_CIRCUIT_RELAY_CLIENT: ''
 #      P2P_BOOTSTRAP_NODES: ''
 #      P2P_FILTER_ANNOUNCED_ADDRESSES: ''
-      DOCKER_SOCKET_PATH: '$DOCKER_SOCKET_PATH'
-      DOCKER_PROTOCOL: '$DOCKER_PROTOCOL'
-      DOCKER_HOST: '$DOCKER_HOST'
-      DOCKER_PORT: '$DOCKER_PORT'
-      DOCKER_CA_PATH: '$DOCKER_CA_PATH'
-      DOCKER_CERT_PATH: '$DOCKER_CERT_PATH'
-      DOCKER_KEY_PATH: '$DOCKER_KEY_PATH'
       DOCKER_COMPUTE_ENVIRONMENTS: '$DOCKER_COMPUTE_ENVIRONMENTS'
-      DOCKER_FREE_COMPUTE: '$DOCKER_FREE_COMPUTE'
+
     networks:
       - ocean_network
     depends_on:
