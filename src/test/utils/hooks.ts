@@ -39,7 +39,7 @@ function getEnvOverrides(): OverrideEnvConfig[] {
     [
       'http://172.15.0.16:8080/',
       'https://arweave.net/',
-      '{ "1": {"rpc": "https://rpc.eth.gateway.fm", "chainId": 1, "network": "mainet", "chunkSize": 100}, "137": {"rpc": "https://polygon.meowrpc.com", "chainId": 137, "network": "polygon", "chunkSize": 100 }}',
+      '{ "8996": {"rpc": "http://127.0.0.1:8545", "chainId": 8996, "network": "development", "chunkSize": 100}, "137": {"rpc": "https://polygon.meowrpc.com", "chainId": 137, "network": "polygon", "chunkSize": 100 }}',
       '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
       SELECTED_RUN_DATABASE,
       SELECTED_RUN_DATABASE === DB_TYPES.ELASTIC_SEARCH
@@ -53,6 +53,7 @@ export const mochaHooks = {
   beforeAll() {
     // get stuff we want to override
     envOverrides = getEnvOverrides()
+
     // if it exists will use it, otherwise nothing happens
     // in any case it WILL NOT override the existing configuration
     // it returns the original object with the original value preserved to be restored later
@@ -60,7 +61,9 @@ export const mochaHooks = {
       envOverrides = overrides
     })
     initialSetupDone = true
-    CONFIG_LOGGER.debug(`(Hook) Initial test setup: ${JSON.stringify(envOverrides)} `)
+    CONFIG_LOGGER.debug(
+      `(Hook) Initial test setup: ${JSON.stringify(envOverrides, null, 4)} `
+    )
 
     // just in case the configuration value fails
     this.timeout(DEFAULT_TEST_TIMEOUT)
