@@ -24,10 +24,10 @@ async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFile
     file.type === 'url'
       ? (file as UrlFileObject).url
       : file.type === 'arweave'
-      ? urlJoin(process.env.ARWEAVE_GATEWAY, (file as ArweaveFileObject).transactionId)
-      : file.type === 'ipfs'
-      ? urlJoin(process.env.IPFS_GATEWAY, (file as IpfsFileObject).hash)
-      : null
+        ? urlJoin(process.env.ARWEAVE_GATEWAY, (file as ArweaveFileObject).transactionId)
+        : file.type === 'ipfs'
+          ? urlJoin(process.env.IPFS_GATEWAY, (file as IpfsFileObject).hash)
+          : null
 
   const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
     url,
@@ -100,13 +100,7 @@ export class FileInfoHandler extends CommandHandler {
         const errorMessage =
           'Invalid arguments. Please provide either file && Type OR did && serviceId'
         CORE_LOGGER.error(errorMessage)
-        return {
-          stream: null,
-          status: {
-            httpStatus: 400,
-            error: errorMessage
-          }
-        }
+        return { stream: null, status: { httpStatus: 400, error: errorMessage } }
       }
       CORE_LOGGER.logMessage(
         'File Info Response: ' + JSON.stringify(fileInfo, null, 2),
@@ -115,19 +109,11 @@ export class FileInfoHandler extends CommandHandler {
 
       return {
         stream: Readable.from(JSON.stringify(fileInfo)),
-        status: {
-          httpStatus: 200
-        }
+        status: { httpStatus: 200 }
       }
     } catch (error) {
       CORE_LOGGER.error(error.message)
-      return {
-        stream: null,
-        status: {
-          httpStatus: 500,
-          error: error.message
-        }
-      }
+      return { stream: null, status: { httpStatus: 500, error: error.message } }
     }
   }
 }

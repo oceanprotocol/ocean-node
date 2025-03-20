@@ -34,6 +34,7 @@ import { GetDdoHandler } from '../../components/core/handler/ddoHandler.js'
 
 import { Readable } from 'stream'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
+import { getContract } from '../../utils/blockchain.js'
 
 import {
   DEFAULT_TEST_TIMEOUT,
@@ -55,7 +56,7 @@ import { ganachePrivateKeys } from '../utils/addresses.js'
 import { homedir } from 'os'
 import AccessListFactory from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessListFactory.sol/AccessListFactory.json' assert { type: 'json' }
 import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
-import { deployAccessListContract, getContract } from '../utils/contracts.js'
+import { deployAccessListContract } from '../utils/contracts.js'
 
 describe('Should run a complete node flow.', () => {
   let config: OceanNodeConfig
