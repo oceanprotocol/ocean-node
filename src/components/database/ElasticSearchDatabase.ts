@@ -657,6 +657,8 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       throw new Error(`Schema for version ${ddo.version} not found`)
     }
     try {
+      // avoid issue with nft fields, due to schema
+      ddo.nft = ddo?.indexedMetadata?.nft
       const validation = await this.validateDDO(ddo)
       if (validation === true) {
         const response: any = await this.client.update({
