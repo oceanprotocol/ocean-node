@@ -547,7 +547,8 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       throw new Error(`Schema for version ${ddo.version} not found`)
     }
     try {
-      ddo.nft = ddo?.indexedMetadata?.nft
+      // avoid issue with nft fields, due to schema
+      if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await this.validateDDO(ddo)
       if (validation === true) {
         const response = await this.client.index({
@@ -613,6 +614,8 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       throw new Error(`Schema for version ${ddo.version} not found`)
     }
     try {
+      // avoid issue with nft fields, due to schema
+      if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await this.validateDDO(ddo)
       if (validation === true) {
         const response: any = await this.client.update({
