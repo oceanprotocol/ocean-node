@@ -348,7 +348,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const retrievedDDO: any = ddo
     if (retrievedDDO) {
       expect(retrievedDDO.indexedMetadata.nft).to.not.equal(undefined)
-      expect(retrievedDDO).to.have.nested.property('nft.state')
+      expect(retrievedDDO).to.have.nested.property('indexedMetadata.nft.state')
       // Expect the result from contract
       expect(retrievedDDO.indexedMetadata.nft.state).to.equal(
         parseInt(result[2].toString())
