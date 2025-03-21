@@ -146,7 +146,7 @@ jobs:
       - name: integration tests
         run: npm run test:integration:cover
         env:
-          OPERATOR_SERVICE_URL: '["http://172.15.0.13:31000"]'
+          # OPERATOR_SERVICE_URL: '["http://172.15.0.13:31000"]'
           PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
           NODE1_PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
           NODE2_PRIVATE_KEY: ${{ secrets.NODE2_PRIVATE_KEY }}

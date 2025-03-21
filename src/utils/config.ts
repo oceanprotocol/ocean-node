@@ -2,12 +2,11 @@ import type {
   DenyList,
   OceanNodeConfig,
   OceanNodeKeys,
-  OceanNodeDockerConfig,
   AccessListContract
 } from '../@types/OceanNode'
 import { dhtFilterMethod } from '../@types/OceanNode.js'
-import type { C2DClusterInfo } from '../@types/C2D.js'
-import { C2DClusterType } from '../@types/C2D.js'
+import type { C2DClusterInfo, C2DDockerConfig } from '../@types/C2D/C2D.js'
+import { C2DClusterType } from '../@types/C2D/C2D.js'
 import { createFromPrivKey } from '@libp2p/peer-id-factory'
 import { keys } from '@libp2p/crypto'
 import {
@@ -33,9 +32,9 @@ import {
 } from '../utils/address.js'
 import { CONFIG_LOGGER } from './logging/common.js'
 import { create256Hash } from './crypt.js'
+import { isDefined } from './util.js'
 import { fileURLToPath } from 'url'
 import path from 'path'
-import { isDefined } from './util.js'
 
 // usefull for lazy loading and avoid boilerplate on other places
 let previousConfiguration: OceanNodeConfig = null
@@ -63,7 +62,10 @@ export async function getPeerIdFromPrivateKey(
 
 function getEnvValue(env: any, defaultValue: any) {
   /* Gets value for an ENV var, returning defaultValue if not defined */
-  return env != null ? (env as string) : defaultValue
+  if (env === null || env === undefined || (env as string).length === 0) {
+    return defaultValue
+  }
+  return env as string
 }
 
 function getIntEnvValue(env: any, defaultValue: number) {
@@ -402,18 +404,6 @@ function getOceanNodeFees(supportedNetworks: RPCS, isStartup?: boolean): FeeStra
   }
 }
 
-function getC2DDockerConfig(isStartup?: boolean): OceanNodeDockerConfig {
-  const config = {
-    socketPath: getEnvValue(process.env.DOCKER_SOCKET_PATH, null),
-    protocol: getEnvValue(process.env.DOCKER_PROTOCOL, null),
-    host: getEnvValue(process.env.DOCKER_HOST, null),
-    port: getIntEnvValue(process.env.DOCKER_PORT, 0),
-    caPath: getEnvValue(process.env.DOCKER_CA_PATH, null),
-    certPath: getEnvValue(process.env.DOCKER_CERT_PATH, null),
-    keyPath: getEnvValue(process.env.DOCKER_KEY_PATH, null)
-  }
-  return config
-}
 // get C2D environments
 function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
   const clusters: C2DClusterInfo[] = []
@@ -440,8 +430,101 @@ function getC2DClusterEnvironment(isStartup?: boolean): C2DClusterInfo[] {
       )
     }
   }
+  const dockerC2Ds = getDockerComputeEnvironments(isStartup)
+  for (const dockerC2d of dockerC2Ds) {
+    if (dockerC2d.socketPath || dockerC2d.host) {
+      const hash = create256Hash(JSON.stringify(dockerC2d))
+      // get env values
+      clusters.push({
+        connection: dockerC2d,
+        hash,
+        type: C2DClusterType.DOCKER,
+        tempFolder: './c2d_storage/' + hash
+      })
+    }
+  }
 
   return clusters
+}
+
+/**
+ * Reads a partial ComputeEnvironment setting (array of)
+ * @param isStartup for logging purposes
+ * @returns 
+ * 
+ * example:
+ * {
+    "cpuNumber": 2,
+    "ramGB": 4,
+    "diskGB": 10,
+    "desc": "2Cpu,2gbRam - price 1 OCEAN/minute, max 1 hour",
+    "maxJobs": 10,
+    "storageExpiry": 36000,
+    "maxJobDuration": 3600,
+    "chainId": 1,
+    "feeToken": "0x967da4048cD07aB37855c090aAF366e4ce1b9F48",
+    "priceMin": 1
+  },
+ */
+function getDockerComputeEnvironments(isStartup?: boolean): C2DDockerConfig[] {
+  const dockerC2Ds: C2DDockerConfig[] = []
+  if (
+    existsEnvironmentVariable(
+      ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS,
+      isStartup
+    )
+  ) {
+    try {
+      const configs: C2DDockerConfig[] = JSON.parse(
+        process.env.DOCKER_COMPUTE_ENVIRONMENTS
+      ) as C2DDockerConfig[]
+
+      for (const config of configs) {
+        let errors = ''
+        if (!isDefined(config.fees)) {
+          errors += ' There is no fees configuration!'
+        }
+
+        if (config.storageExpiry < config.maxJobDuration) {
+          errors += ' "storageExpiry" should be greater than "maxJobDuration"! '
+        }
+        // for docker there is no way of getting storage space
+        let foundDisk = false
+        if ('resources' in config) {
+          for (const resource of config.resources) {
+            if (resource.id === 'disk' && resource.total) foundDisk = true
+          }
+        }
+        if (!foundDisk) {
+          errors += ' There is no "disk" resource configured.This is mandatory '
+        }
+        if (errors.length > 1) {
+          CONFIG_LOGGER.error(
+            'Please check your compute env settings: ' +
+              errors +
+              'for env: ' +
+              JSON.stringify(config)
+          )
+        } else {
+          dockerC2Ds.push(config)
+        }
+      }
+      return dockerC2Ds
+    } catch (error) {
+      CONFIG_LOGGER.logMessageWithEmoji(
+        `Invalid "${ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS.name}" env variable => ${process.env.DOCKER_COMPUTE_ENVIRONMENTS}...`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      console.log(error)
+    }
+  } else if (isStartup) {
+    CONFIG_LOGGER.warn(
+      `No options for ${ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS.name} were specified.`
+    )
+  }
+  return []
 }
 
 // connect interfaces (p2p or/and http)
@@ -732,7 +815,6 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     indexingNetworks,
     feeStrategy: getOceanNodeFees(supportedNetworks, isStartup),
     c2dClusters: getC2DClusterEnvironment(isStartup),
-    dockerConfig: getC2DDockerConfig(isStartup),
     c2dNodeUri: getEnvValue(process.env.C2D_NODE_URI, ''),
     accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
     assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),
@@ -766,6 +848,7 @@ function configChanged(previous: OceanNodeConfig, current: OceanNodeConfig): boo
 // useful for debugging purposes
 export async function printCurrentConfig() {
   const conf = await getConfiguration(true)
+  conf.keys.privateKey = '[*** HIDDEN CONTENT ***]' // hide private key
   console.log(JSON.stringify(conf, null, 4))
 }
 

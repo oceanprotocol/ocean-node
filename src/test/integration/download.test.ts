@@ -245,7 +245,7 @@ describe('Should run a complete node flow.', () => {
       const wallet = new ethers.Wallet(
         '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
       )
-      const nonce = Math.floor(Date.now() / 1000).toString()
+      const nonce = Date.now().toString()
       const message = String(publishedDataset.ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],

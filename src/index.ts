@@ -17,7 +17,7 @@ import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import cors from 'cors'
-import { scheduleCronJobs } from './utils/logging/logDeleteCron.js'
+import { scheduleCronJobs } from './utils/cronjobs/scheduleCronJobs.js'
 import { requestValidator } from './components/httpRoutes/requestValidator.js'
 import { hasValidDBConfiguration } from './utils/database.js'
 
