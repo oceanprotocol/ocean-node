@@ -471,6 +471,8 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
       throw new Error(`Schema for version ${ddo.version} not found`)
     }
     try {
+      // avoid failure because of schema
+      if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await this.validateDDO(ddo)
       if (validation === true) {
         return await this.provider
@@ -532,6 +534,8 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
       throw new Error(`Schema for version ${ddo.version} not found`)
     }
     try {
+      // avoid issue with nft fields, due to schema
+      if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await this.validateDDO(ddo)
       if (validation === true) {
         return await this.provider

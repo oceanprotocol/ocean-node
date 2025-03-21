@@ -104,6 +104,7 @@ export interface OceanNodeConfig {
   accountPurgatoryUrl: string
   assetPurgatoryUrl: string
   allowedAdmins?: string[]
+  allowedAdminsList?: AccessListContract | null
   codeHash?: string
   rateLimit?: number // per request ip or peer
   maxConnections?: number // global, regardless of client address(es)

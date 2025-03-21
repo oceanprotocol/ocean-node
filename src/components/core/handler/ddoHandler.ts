@@ -1,4 +1,4 @@
-import { Handler } from './handler.js'
+import { CommandHandler } from './handler.js'
 import { EVENTS, MetadataStates, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { P2PCommandResponse, FindDDOResponse } from '../../../@types/index.js'
 import { Readable } from 'stream'
@@ -51,7 +51,7 @@ const MAX_RESPONSE_WAIT_TIME_SECONDS = 60
 // wait time for reading the next getDDO command
 const MAX_WAIT_TIME_SECONDS_GET_DDO = 5
 
-export class DecryptDdoHandler extends Handler {
+export class DecryptDdoHandler extends CommandHandler {
   validate(command: DecryptDDOCommand): ValidateParams {
     const validation = validateCommandParameters(command, [
       'decrypterAddress',
@@ -455,7 +455,7 @@ export class DecryptDdoHandler extends Handler {
   }
 }
 
-export class GetDdoHandler extends Handler {
+export class GetDdoHandler extends CommandHandler {
   validate(command: GetDdoCommand): ValidateParams {
     let validation = validateCommandParameters(command, ['id'])
     if (validation.valid) {
@@ -492,7 +492,7 @@ export class GetDdoHandler extends Handler {
   }
 }
 
-export class FindDdoHandler extends Handler {
+export class FindDdoHandler extends CommandHandler {
   validate(command: FindDDOCommand): ValidateParams {
     let validation = validateCommandParameters(command, ['id'])
     if (validation.valid) {
@@ -819,7 +819,7 @@ export class FindDdoHandler extends Handler {
   }
 }
 
-export class ValidateDDOHandler extends Handler {
+export class ValidateDDOHandler extends CommandHandler {
   validate(command: ValidateDDOCommand): ValidateParams {
     let validation = validateCommandParameters(command, ['ddo'])
     if (validation.valid) {
