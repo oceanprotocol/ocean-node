@@ -23,7 +23,7 @@ import lzmajs from 'lzma-purejs-requirejs'
 import {
   getValidationSignature,
   makeDid,
-  validateObject
+  validateDdo
 } from '../utils/validateDdoHandler.js'
 import { getConfiguration, hasP2PInterface } from '../../../utils/config.js'
 import {
@@ -381,7 +381,7 @@ export class DecryptDdoHandler extends CommandHandler {
       const ddo = JSON.parse(decryptedDocument.toString())
       const clonedDdo = structuredClone(ddo)
       const updatedDdo = deleteIndexedMetadataIfExists(clonedDdo)
-      if (updatedDdo.id !== makeDid(dataNftAddress, chainId)) {
+      if (updatedDdo.id !== makeDid(updatedDdo, dataNftAddress, chainId)) {
         CORE_LOGGER.error(`Decrypted DDO ID is not matching the generated hash for DID.`)
         return {
           stream: null,
@@ -835,11 +835,7 @@ export class ValidateDDOHandler extends CommandHandler {
       return validationResponse
     }
     try {
-      const validation = await validateObject(
-        task.ddo,
-        task.ddo.chainId,
-        task.ddo.nftAddress
-      )
+      const validation = await validateDdo(task.ddo)
       if (validation[0] === false) {
         CORE_LOGGER.logMessageWithEmoji(
           `Validation failed with error: ${validation[1]}`,
