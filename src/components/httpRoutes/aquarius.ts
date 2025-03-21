@@ -134,7 +134,7 @@ aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
 })
 
 aquariusRoutes.post(`${AQUARIUS_API_BASE_PATH}/assets/ddo/validate`, async (req, res) => {
-  let ddo: DDO;
+  let ddo: DDO
   try {
     if (!req.body || req.body === undefined) {
       res.status(400).send('Missing DDO object')
