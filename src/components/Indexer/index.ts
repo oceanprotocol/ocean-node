@@ -13,10 +13,11 @@ import {
   PROTOCOL_COMMANDS
 } from '../../utils/index.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
-import { buildJobIdentifier } from './utils.js'
+import { buildJobIdentifier, getDeployedContractBlock } from './utils.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { isReachableConnection } from '../../utils/database.js'
 import { sleep } from '../../utils/util.js'
+import { isReindexingNeeded } from './version.js'
 
 // emmit events for node
 export const INDEXER_DDO_EVENT_EMITTER = new EventEmitter()
@@ -35,6 +36,7 @@ export class OceanIndexer {
   private networks: RPCS
   private supportedChains: string[]
   private workers: Record<string, Worker> = {}
+  private MIN_REQUIRED_VERSION = '0.2.2'
 
   constructor(db: Database, supportedNetworks: RPCS) {
     this.db = db
@@ -196,6 +198,7 @@ export class OceanIndexer {
 
   // eslint-disable-next-line require-await
   public async startThreads(): Promise<boolean> {
+    await this.checkAndTriggerReindexing()
     let count = 0
     for (const network of this.supportedChains) {
       const chainId = parseInt(network)
@@ -403,6 +406,72 @@ export class OceanIndexer {
           job.status = newStatus
         }
       }
+    }
+  }
+
+  /**
+   * Checks if reindexing is needed and triggers it for all chains
+   */
+  public async checkAndTriggerReindexing(): Promise<void> {
+    const currentVersion = process.env.npm_package_version
+    const dbActive = this.getDatabase()
+    if (!dbActive || !(await isReachableConnection(dbActive.getConfig().url))) {
+      INDEXER_LOGGER.error(`Giving up reindexing. DB is not online!`)
+      return
+    }
+    const dbVersion = await dbActive.sqliteConfig?.retrieveValue()
+    INDEXER_LOGGER.info(
+      `Node version check: Current=${currentVersion}, DB=${
+        dbVersion || 'not set'
+      }, Min Required=${this.MIN_REQUIRED_VERSION}`
+    )
+
+    if (isReindexingNeeded(currentVersion, dbVersion.value, this.MIN_REQUIRED_VERSION)) {
+      INDEXER_LOGGER.info(
+        `Reindexing needed: DB version ${
+          dbVersion.value || 'not set'
+        } is older than minimum required ${this.MIN_REQUIRED_VERSION}`
+      )
+
+      // Reindex all chains by directly setting last indexed block to deployment block
+      for (const chainID of this.supportedChains) {
+        const chainIdNum = Number(chainID)
+
+        INDEXER_LOGGER.info(
+          `Triggering reindexing for chain ${chainIdNum} by resetting to block null`
+        )
+
+        try {
+          // First delete all assets from this chain
+          const numDeleted = await dbActive.ddo.deleteAllAssetsFromChain(chainIdNum)
+          INDEXER_LOGGER.info(`Deleted ${numDeleted} assets from chain ${chainIdNum}`)
+
+          // Update database directly by resetting last indexed block
+          const contractDeploymentBlock = getDeployedContractBlock(chainIdNum)
+          const result = await dbActive.indexer.update(
+            chainIdNum,
+            contractDeploymentBlock
+          )
+
+          if (!result) {
+            INDEXER_LOGGER.error(
+              `Reindex chain job for ${chainIdNum} failed. Please retry reindexChain command manually for this chain.`
+            )
+          } else {
+            INDEXER_LOGGER.info(
+              `Successfully reset indexing for chain ${chainIdNum} to block null`
+            )
+          }
+        } catch (error) {
+          INDEXER_LOGGER.error(
+            `Error resetting index for chain ${chainIdNum}: ${error.message}. Please retry reindexChain command manually.`
+          )
+        }
+      }
+      await dbActive.sqliteConfig?.createOrUpdateConfig('version', currentVersion)
+      INDEXER_LOGGER.info(`Updated node version in database to ${currentVersion}`)
+    } else {
+      INDEXER_LOGGER.info('No reindexing needed based on version check')
     }
   }
 }

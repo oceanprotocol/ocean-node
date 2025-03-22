@@ -15,6 +15,7 @@ import {
 import { C2DDatabase } from './C2DDatabase.js'
 import { DatabaseFactory } from './DatabaseFactory.js'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
+import { SQLLiteConfigDatabase } from './SQLLiteConfigDatabase.js'
 import { SQLLiteNonceDatabase } from './SQLLiteNonceDatabase.js'
 import { TypesenseSchema } from './TypesenseSchemas.js'
 
@@ -27,6 +28,7 @@ export class Database {
   logs: AbstractLogDatabase
   order: AbstractOrderDatabase
   ddoState: AbstractDdoStateDatabase
+  sqliteConfig: SQLLiteConfigDatabase
   c2d: C2DDatabase
 
   constructor(private config: OceanNodeDBConfig) {
@@ -34,6 +36,7 @@ export class Database {
       try {
         // these 2 are using SQL Lite provider
         this.nonce = await DatabaseFactory.createNonceDatabase(this.config)
+        this.sqliteConfig = await DatabaseFactory.createConfigDatabase()
         this.c2d = await DatabaseFactory.createC2DDatabase(this.config)
         // only for Typesense or Elasticsearch
         if (hasValidDBConfiguration(this.config)) {
