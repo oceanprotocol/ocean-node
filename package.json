@@ -147,7 +147,7 @@
     "prettier": "^3.0.3",
     "release-it": "^17.6.0",
     "sinon": "^19.0.2",
-    "tsx": "^3.12.8"
+    "tsx": "^4.19.3"
   },
   "release-it": {
     "hooks": {
