@@ -93,7 +93,6 @@
     "dockerode": "^4.0.2",
     "dotenv": "^16.3.1",
     "eciesjs": "^0.4.5",
-    "esbuild": "^0.25.1",
     "eth-crypto": "^2.6.0",
     "ethers": "^6.8.1",
     "express": "^4.21.1",
@@ -147,7 +146,7 @@
     "nyc": "^17.1.0",
     "prettier": "^3.0.3",
     "release-it": "^17.6.0",
-    "tsx": "^3.12.8"
+    "tsx": "^4.19.3"
   },
   "release-it": {
     "hooks": {
