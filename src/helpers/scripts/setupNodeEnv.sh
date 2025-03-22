@@ -239,6 +239,34 @@ if [ "$run_indexer" == 'y' ]; then
     configure_rpc
 fi
 
+# Check if user wants to enable compute functionality
+read -p "Do you want to enable compute functionality on your node? [ y/n ]: " enable_compute
+enable_compute=${enable_compute:-y}
+if [ "$enable_compute" == 'y' ]; then
+    echo ""
+    echo "✅ Setting default Docker compute environment configuration"
+    echo "   This enables compute-to-data functionality with standard resource limits:"
+    echo "   • Docker socket path: /var/run/docker.sock"
+    echo "   • Storage expiry: 7 days (604800 seconds)"
+    echo "   • Max job duration: 10 hours (36000 seconds)"
+    echo "   • Free compute resources: 1 CPU, 1GB RAM, 1GB disk"
+    echo "   • Maximum free jobs: 3 concurrent jobs"
+    echo ""
+    echo "   You can customize this in your .env file for production use."
+    echo ""
+    
+    DOCKER_COMPUTE_ENV="[{\"socketPath\":\"/var/run/docker.sock\",\"resources\":[{\"id\":\"disk\",\"total\":1000000000}],\"storageExpiry\":604800,\"maxJobDuration\":36000,\"fees\":{\"1\":[{\"feeToken\":\"0x123\",\"prices\":[{\"id\":\"cpu\",\"price\":1}]}]},\"free\":{\"maxJobDuration\":360000,\"maxJobs\":3,\"resources\":[{\"id\":\"cpu\",\"max\":1},{\"id\":\"ram\",\"max\":1000000000},{\"id\":\"disk\",\"max\":1000000000}]}}]"
+    
+    REPLACE_STR="DOCKER_COMPUTE_ENVIRONMENTS='$DOCKER_COMPUTE_ENV'"
+    if [ "$(uname)" == "Darwin" ]; then
+        sed -i '' -e "s;DOCKER_COMPUTE_ENVIRONMENTS=;$REPLACE_STR;" "$env_file_path"
+    else
+        sed -i -e "s;DOCKER_COMPUTE_ENVIRONMENTS=;$REPLACE_STR;" "$env_file_path"
+    fi
+    echo "Compute environment successfully configured!"
+fi
+echo "------------------------------------------------------------------------------"
+
 if [ $created_pk_file -eq 1 ]; then
     read -p "Do you want me to delete the generated $pk_file file? (your key is already saved): [ y/n ]" delete_pk_file
     delete_pk_file=${delete_pk_file:-n}

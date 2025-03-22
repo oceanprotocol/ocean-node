@@ -13,7 +13,7 @@ export class SQLiteProvider implements DatabaseProvider {
   private schemaNonce: TypesenseSchema
   private configSchema: string
 
-  constructor(private dbFilePath: string) {
+  constructor(dbFilePath: string) {
     this.db = new sqlite3.Database(dbFilePath)
     this.schemaNonce = typesenseSchemas.nonceSchemas
     this.configSchema = 'config'

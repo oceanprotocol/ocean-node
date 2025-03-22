@@ -134,7 +134,16 @@ export async function status(
 
   // depends on request
   if (detailed) {
-    nodeStatus.c2dClusters = config.c2dClusters
+    nodeStatus.c2dClusters = []
+    const engines = await oceanNode.getC2DEngines().getAllEngines()
+    for (const engine of engines) {
+      const type = await engine.getC2DType()
+      nodeStatus.c2dClusters.push({
+        type,
+        hash: await engine.getC2DConfig().hash,
+        environments: await engine.getComputeEnvironments()
+      })
+    }
     nodeStatus.supportedSchemas = typesenseSchemas.ddoSchemas
   }
   return nodeStatus

@@ -203,7 +203,10 @@ export async function getFilesObjectFromConfidentialEVM(
   signer: Signer,
   consumerAddress: string,
   consumerSignature: string,
-  consumerData: string // ddo id + nonce
+  consumerData: string
+  // NOTE about signatures consume data:
+  // ddo id + nonce (for downloading)
+  // consumerAddress + datasets[0].documentId + nonce (for start/init compute)
 ): Promise<string> {
   try {
     const currentProviderAddress = await signer.getAddress()

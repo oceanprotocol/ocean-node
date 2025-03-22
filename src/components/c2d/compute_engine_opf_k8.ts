@@ -6,6 +6,9 @@ import type {
   ComputeAsset,
   ComputeJob,
   ComputeOutput,
+  DBComputeJob
+} from '../../@types/C2D/C2D.js'
+import type {
   OPFK8ComputeStage,
   OPFK8ComputeStageAlgorithm,
   OPFK8ComputeStageInput,
@@ -14,7 +17,7 @@ import type {
   OPFK8ComputeStop,
   OPFK8ComputeGetStatus,
   OPFK8ComputeGetResult
-} from '../../@types/C2D.js'
+} from '../../@types/C2D/C2D_OPFK8.js'
 import { sign } from '../core/utils/nonceHandler.js'
 import axios from 'axios'
 import { getConfiguration } from '../../utils/config.js'
@@ -22,15 +25,15 @@ import { ZeroAddress } from 'ethers'
 import { getProviderFeeToken } from '../../components/core/utils/feesHandler.js'
 import { URLUtils } from '../../utils/url.js'
 import { C2DEngine } from './compute_engine_base.js'
-
+import { Storage } from '../storage/index.js'
 export class C2DEngineOPFK8 extends C2DEngine {
   // eslint-disable-next-line no-useless-constructor
   public constructor(clusterConfig: C2DClusterInfo) {
-    super(clusterConfig)
+    super(clusterConfig, null)
   }
 
   public override async getComputeEnvironments(
-    chainId: number
+    chainId?: number
   ): Promise<ComputeEnvironment[]> {
     /**
      * Returns all cluster's compute environments for a specific chainId. Env's id already contains the cluster hash
@@ -38,15 +41,20 @@ export class C2DEngineOPFK8 extends C2DEngine {
     const envs: ComputeEnvironment[] = []
     const clusterHash = this.getC2DConfig().hash
     const baseUrl = URLUtils.sanitizeURLPath(this.getC2DConfig().connection)
-    const url = `${baseUrl}api/v1/operator/environments?chain_id=${chainId}`
+    let url = `${baseUrl}api/v1/operator/environments`
+    if (chainId) url += `?chain_id=${chainId}`
     try {
       const { data } = await axios.get(url)
       if (!data) return envs
       // we need to add hash to each env id
       for (const [index, val] of data.entries()) {
         data[index].id = `${clusterHash}-${val.id}`
+        // k8 envs are not free envs
+        data[index].free = false
         if (!data[index].feeToken || data[index].feeToken?.toLowerCase() === ZeroAddress)
           data[index].feeToken = await getProviderFeeToken(chainId)
+        // also add chain id here, since it can be helpful
+        if (chainId) data.chainId = chainId
       }
       return data
     } catch {}
@@ -57,24 +65,39 @@ export class C2DEngineOPFK8 extends C2DEngine {
     assets: ComputeAsset[],
     algorithm: ComputeAlgorithm,
     output: ComputeOutput,
-    owner: string,
     environment: string,
-    validUntil: number,
-    chainId: number,
-    agreementId: string
+    owner?: string,
+    validUntil?: number,
+    chainId?: number,
+    agreementId?: string
   ): Promise<ComputeJob[]> {
+    // owner, validUntil,chainId, agreementId are not optional for OPF K8
+    if (!owner) throw new Error(`Cannot start a c2d job without owner`)
+    if (!validUntil) throw new Error(`Cannot start a c2d job without validUntil`)
+    if (!chainId) throw new Error(`Cannot start a c2d job without chainId`)
+    if (!agreementId) throw new Error(`Cannot start a c2d job without agreementId`)
     // let's build the stage first
     // start with stage.input
     const config = await getConfiguration()
     const stagesInput: OPFK8ComputeStageInput[] = []
     let index = 0
     for (const asset of assets) {
-      if (asset.url)
-        stagesInput.push({
-          index,
-          url: [asset.url]
-        })
-      else
+      // TODO: we do not have a way (from CLI/SDK) to set this fileObject unencrypted
+      // Previously we had "url" property but that was never used anywhere for the same reason (we used "remote")
+      // we don't have the "url" anymore once we publish
+      if (asset.fileObject) {
+        try {
+          // since opf k8 supports only urls, we need to extract them
+          const storage = Storage.getStorageClass(asset.fileObject, config)
+          stagesInput.push({
+            index,
+            url: [storage.getDownloadUrl()]
+          })
+        } catch (e) {
+          const message = `Exception on startCompute. Cannot get URL of asset`
+          throw new Error(message)
+        }
+      } else
         stagesInput.push({
           index,
           id: asset.documentId,
@@ -96,8 +119,17 @@ export class C2DEngineOPFK8 extends C2DEngine {
     }
     // continue with algorithm
     const stageAlgorithm: OPFK8ComputeStageAlgorithm = {}
-    if (algorithm.url) {
-      stageAlgorithm.url = algorithm.url
+
+    // TODO: we do not have a way (from CLI/SDK) to set this fileObject unencrypted
+    if (algorithm.fileObject) {
+      try {
+        // since opf k8 supports only urls, we need to extract them
+        const storage = Storage.getStorageClass(algorithm.fileObject, config)
+        stageAlgorithm.url = storage.getDownloadUrl()
+      } catch (e) {
+        const message = `Exception on startCompute. Cannot get URL of asset`
+        throw new Error(message)
+      }
     } else {
       stageAlgorithm.remote = {
         txId: algorithm.transferTxId,
@@ -280,5 +312,10 @@ export class C2DEngineOPFK8 extends C2DEngine {
       console.error(e)
     }
     throw new Error(`getComputeJobStatus Failure`)
+  }
+
+  // eslint-disable-next-line require-await
+  public override async cleanupExpiredStorage(job: DBComputeJob): Promise<boolean> {
+    throw new Error(`Not implemented`)
   }
 }
