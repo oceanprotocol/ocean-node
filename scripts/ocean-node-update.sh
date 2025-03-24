@@ -51,7 +51,11 @@ update_docker_compose() {
         /^[^ ]/i\      DOCKER_COMPUTE_ENVIRONMENTS: '"'$docker_environments'"'
     }' docker-compose.yml
 
-    echo "Added C2D configuration to docker-compose.yml"    
+    if ! grep -q "/var/run/docker.sock:/var/run/docker.sock" docker-compose.yml; then
+        sed -i '/restart: on-failure/a\    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock' docker-compose.yml
+    fi
+    
+    echo "Added C2D configuration and Docker socket mount to docker-compose.yml"    
 }
 
 show_completion_message() {
