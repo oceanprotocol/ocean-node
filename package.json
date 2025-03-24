@@ -1,6 +1,6 @@
 {
   "name": "ocean-node",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Ocean Node is used to run all core services in the Ocean stack",
   "author": "Ocean Protocol Foundation",
   "license": "Apache-2.0",
@@ -109,7 +109,6 @@
     "rdf-validate-shacl": "^0.5.5",
     "rdflib": "^2.2.33",
     "shacl-engine": "^0.1.2",
-    "sinon": "^17.0.1",
     "sqlite3": "^5.1.7",
     "stream-concat": "^1.0.0",
     "tar": "^7.4.3",
@@ -132,6 +131,7 @@
     "@types/mocha": "^10.0.4",
     "@types/node": "^20.14.2",
     "@types/node-cron": "^3.0.11",
+    "@types/sinon": "^17.0.4",
     "@typescript-eslint/eslint-plugin": "^6.8.0",
     "@typescript-eslint/parser": "^6.8.0",
     "auto-changelog": "^2.4.0",
@@ -146,6 +146,7 @@
     "nyc": "^17.1.0",
     "prettier": "^3.0.3",
     "release-it": "^17.6.0",
+    "sinon": "^19.0.2",
     "tsx": "^4.19.3"
   },
   "release-it": {
