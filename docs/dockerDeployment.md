@@ -77,8 +77,7 @@ $ chmod +x scripts/ocean-node-update.sh
 $ ./scripts/ocean-node-update.sh
 ```
 
-
-
+---
 
 Additional notes:
 
