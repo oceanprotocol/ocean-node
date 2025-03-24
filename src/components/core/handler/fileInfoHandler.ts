@@ -24,10 +24,10 @@ async function formatMetadata(file: ArweaveFileObject | IpfsFileObject | UrlFile
     file.type === 'url'
       ? (file as UrlFileObject).url
       : file.type === 'arweave'
-        ? urlJoin(process.env.ARWEAVE_GATEWAY, (file as ArweaveFileObject).transactionId)
-        : file.type === 'ipfs'
-          ? urlJoin(process.env.IPFS_GATEWAY, (file as IpfsFileObject).hash)
-          : null
+      ? urlJoin(process.env.ARWEAVE_GATEWAY, (file as ArweaveFileObject).transactionId)
+      : file.type === 'ipfs'
+      ? urlJoin(process.env.IPFS_GATEWAY, (file as IpfsFileObject).hash)
+      : null
 
   const { contentLength, contentType, contentChecksum } = await fetchFileMetadata(
     url,
