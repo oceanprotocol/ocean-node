@@ -10,7 +10,9 @@ check_prerequisites() {
 }
 
 configure_c2d() {
-    if ! grep -q "DOCKER_COMPUTE_ENVIRONMENTS:" docker-compose.yml; then
+    if grep -q "DOCKER_COMPUTE_ENVIRONMENTS:" docker-compose.yml; then
+        echo "DOCKER_COMPUTE_ENVIRONMENTS: configuration already exists"
+    else
         echo "Adding Docker Compute Environment configuration..."
         read -p "Do you want to run docker C2D jobs on your Ocean Node [ y/n ]: " run_c2d_jobs
         
