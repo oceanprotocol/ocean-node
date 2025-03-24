@@ -230,7 +230,7 @@ describe('Should run a complete node flow.', () => {
       const transferTxId = orderTxIds[0]
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
-      const nonce = Math.floor(Date.now() / 1000).toString()
+      const nonce = Date.now().toString()
       const message = String(ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
@@ -272,7 +272,7 @@ describe('Should run a complete node flow.', () => {
       const transferTxId = orderTxIds[1]
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
-      const nonce = Math.floor(Date.now() / 1000).toString()
+      const nonce = Date.now().toString()
       const message = String(ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
@@ -313,7 +313,7 @@ describe('Should run a complete node flow.', () => {
       const transferTxId = orderTxIds[1]
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
-      const nonce = Math.floor(Date.now() / 1000).toString()
+      const nonce = Date.now().toString()
       const message = String(ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],

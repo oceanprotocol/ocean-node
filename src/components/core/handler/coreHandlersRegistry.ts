@@ -23,10 +23,12 @@ import { Command } from '../../../@types/commands.js'
 import {
   ComputeGetEnvironmentsHandler,
   ComputeStartHandler,
+  FreeComputeStartHandler,
   ComputeStopHandler,
   ComputeGetStatusHandler,
   ComputeGetResultHandler,
-  ComputeInitializeHandler
+  ComputeInitializeHandler,
+  ComputeGetStreamableLogsHandler
 } from '../compute/index.js'
 import { StopNodeHandler } from '../admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../admin/reindexTxHandler.js'
@@ -105,6 +107,10 @@ export class CoreHandlersRegistry {
       PROTOCOL_COMMANDS.COMPUTE_START,
       new ComputeStartHandler(node)
     )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+      new FreeComputeStartHandler(node)
+    )
     this.registerCoreHandler(PROTOCOL_COMMANDS.COMPUTE_STOP, new ComputeStopHandler(node))
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
@@ -113,6 +119,10 @@ export class CoreHandlersRegistry {
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
       new ComputeGetResultHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.COMPUTE_GET_STREAMABLE_LOGS,
+      new ComputeGetStreamableLogsHandler(node)
     )
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,

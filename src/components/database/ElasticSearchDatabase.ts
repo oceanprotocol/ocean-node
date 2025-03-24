@@ -131,6 +131,7 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
     }
   }
 }
+
 export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
   private client: Client
   private index: string
@@ -287,6 +288,7 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
     }
   }
 }
+
 export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
   private provider: Client
 
