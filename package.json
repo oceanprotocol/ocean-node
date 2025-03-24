@@ -146,7 +146,7 @@
     "nyc": "^17.1.0",
     "prettier": "^3.0.3",
     "release-it": "^17.6.0",
-    "tsx": "^3.12.8"
+    "tsx": "^4.19.3"
   },
   "release-it": {
     "hooks": {
