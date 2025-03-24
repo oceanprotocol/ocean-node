@@ -215,6 +215,9 @@ services:
 
     networks:
       - ocean_network
+    volumes:
+      - node-sqlite:/databases
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - typesense
 
@@ -231,6 +234,8 @@ services:
 
 volumes:
   typesense-data:
+    driver: local
+  node-sqlite:
     driver: local
 
 networks:
