@@ -21,7 +21,7 @@ export class SQLLiteNonceDatabase extends AbstractNonceDatabase {
         fs.mkdirSync(dbDir, { recursive: true })
       }
       this.provider = new SQLiteProvider('databases/nonceDatabase.sqlite')
-      await this.provider.createTable()
+      await this.provider.createTableForNonce()
 
       return this
     })() as unknown as SQLLiteNonceDatabase
@@ -29,7 +29,7 @@ export class SQLLiteNonceDatabase extends AbstractNonceDatabase {
 
   async create(address: string, nonce: number) {
     try {
-      return await this.provider.create(address, nonce)
+      return await this.provider.createNonce(address, nonce)
     } catch (error) {
       const errorMsg =
         `Error when creating new nonce entry ${nonce} for address ${address}: ` +
@@ -46,7 +46,7 @@ export class SQLLiteNonceDatabase extends AbstractNonceDatabase {
 
   async retrieve(address: string) {
     try {
-      return await this.provider.retrieve(address)
+      return await this.provider.retrieveNonce(address)
     } catch (error) {
       const errorMsg =
         `Error when retrieving nonce entry for address ${address}: ` + error.message
@@ -62,7 +62,7 @@ export class SQLLiteNonceDatabase extends AbstractNonceDatabase {
 
   async update(address: string, nonce: number) {
     try {
-      return await this.provider.update(address, nonce)
+      return await this.provider.updateNonce(address, nonce)
     } catch (error) {
       const errorMsg =
         `Error when updating nonce entry ${nonce} for address ${address}: ` +
@@ -79,7 +79,7 @@ export class SQLLiteNonceDatabase extends AbstractNonceDatabase {
 
   async delete(address: string) {
     try {
-      return await this.provider.delete(address)
+      return await this.provider.deleteNonceEntry(address)
     } catch (error) {
       const errorMsg =
         `Error when deleting nonce entry for address ${address}: ` + error.message
