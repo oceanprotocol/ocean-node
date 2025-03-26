@@ -33,10 +33,7 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
           index: this.index,
           body: {
             mappings: {
-              properties: {
-                id: { type: 'keyword' },
-                lastIndexedBlock: { type: 'long' }
-              }
+              properties: { id: { type: 'keyword' }, lastIndexedBlock: { type: 'long' } }
             }
           }
         })
@@ -69,10 +66,7 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
 
   async retrieve(network: number) {
     try {
-      const result = await this.client.get({
-        index: this.index,
-        id: network.toString()
-      })
+      const result = await this.client.get({ index: this.index, id: network.toString() })
       return result._source
     } catch (error) {
       const errorMsg = `Error when retrieving indexer entry on network ${network}: ${error.message}`
@@ -97,9 +91,7 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
         await this.client.update({
           index: this.index,
           id: network.toString(),
-          body: {
-            doc: { lastIndexedBlock }
-          },
+          body: { doc: { lastIndexedBlock } },
           refresh: 'wait_for'
         })
       } else {
@@ -208,10 +200,7 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
 
   async retrieve(did: string) {
     try {
-      const result = await this.client.get({
-        index: this.index,
-        id: did
-      })
+      const result = await this.client.get({ index: this.index, id: did })
       return result._source
     } catch (error) {
       const errorMessage = `Error when retrieving the state of the ddo with id: ${did}: ${error.message}`
@@ -229,11 +218,7 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
     try {
       const result = await this.client.search({
         index: this.index,
-        query: {
-          match: {
-            [query.query_by]: query.q
-          }
-        }
+        query: { match: { [query.query_by]: query.q } }
       })
       return result.hits.hits.map((hit: any) => {
         return normalizeDocumentId(hit._source, hit._id)
@@ -261,18 +246,13 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
     errorMsg: string = ' '
   ) {
     try {
-      const exists = await this.client.exists({
-        index: this.index,
-        id: did
-      })
+      const exists = await this.client.exists({ index: this.index, id: did })
 
       if (exists) {
         await this.client.update({
           index: this.index,
           id: did,
-          body: {
-            doc: { chainId, did, nft: nftAddress, txId, valid, error: errorMsg }
-          },
+          body: { doc: { chainId, did, nft: nftAddress, txId, valid, error: errorMsg } },
           refresh: 'wait_for'
         })
       } else {
@@ -294,11 +274,7 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
 
   async delete(did: string) {
     try {
-      await this.client.delete({
-        index: this.index,
-        id: did,
-        refresh: 'wait_for'
-      })
+      await this.client.delete({ index: this.index, id: did, refresh: 'wait_for' })
       return { id: did }
     } catch (error) {
       const errorMessage = `Error when deleting ddo state ${did}: ${error.message}`
@@ -336,9 +312,7 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
       const searchParams = {
         index: this.getSchema().index,
         body: {
-          query: {
-            match: q ? { _all: q } : queryObj
-          },
+          query: { match: q ? { _all: q } : queryObj },
           from: (pageNumber - 1) * maxResultsPerPage || 0,
           size: maxResultsPerPage || 10
         }
@@ -429,10 +403,7 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
       await this.provider.update({
         index: this.getSchema().index,
         id: orderId,
-        body: {
-          doc: document,
-          doc_as_upsert: true
-        }
+        body: { doc: document, doc_as_upsert: true }
       })
       return document
     } catch (error) {
@@ -446,10 +417,7 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
 
   async delete(orderId: string) {
     try {
-      await this.provider.delete({
-        index: this.getSchema().index,
-        id: orderId
-      })
+      await this.provider.delete({ index: this.getSchema().index, id: orderId })
       return { id: orderId }
     } catch (error) {
       const errorMsg = `Error when deleting order ${orderId}: ` + error.message
@@ -529,11 +497,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       try {
         const response = await this.client.search({
           index,
-          body: {
-            ...queryWithoutIndex,
-            from,
-            size: maxPerPage
-          }
+          body: { ...queryWithoutIndex, from, size: maxPerPage }
         })
         if (response.hits?.hits.length > 0) {
           const nomalizedResponse = response.hits.hits.map((hit: any) => {
@@ -555,11 +519,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         try {
           const response = await this.client.search({
             index: schema.index,
-            body: {
-              ...query,
-              from,
-              size: maxPerPage
-            }
+            body: { ...query, from, size: maxPerPage }
           })
           if (response.hits?.hits.length > 0) {
             const nomalizedResponse = response.hits.hits.map((hit: any) => {
@@ -618,10 +578,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     let ddo = null
     for (const schema of this.getSchemas()) {
       try {
-        const response = await this.client.get({
-          index: schema.index,
-          id
-        })
+        const response = await this.client.get({ index: schema.index, id })
         if (response.found) {
           ddo = response._source
           break
@@ -666,9 +623,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         const response: any = await this.client.update({
           index: schema.index,
           id: ddo.id,
-          body: {
-            doc: ddo
-          }
+          body: { doc: ddo }
         })
         // make sure we do not have different responses 4 between DBs
         // do the same thing on other methods
@@ -705,10 +660,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     let isDeleted = false
     for (const schema of this.getSchemas()) {
       try {
-        const response = await this.client.delete({
-          index: schema.index,
-          id
-        })
+        const response = await this.client.delete({ index: schema.index, id })
         isDeleted = response.result === 'deleted'
         if (isDeleted) {
           DATABASE_LOGGER.debug(
@@ -745,11 +697,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
         // add batch size logic
         const response = await this.client.deleteByQuery({
           index: schema.index,
-          body: {
-            query: {
-              match: { chainId }
-            }
-          }
+          body: { query: { match: { chainId } } }
         })
 
         DATABASE_LOGGER.debug(
@@ -836,10 +784,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
 
   async retrieveLog(id: string): Promise<Record<string, any> | null> {
     try {
-      const result = await this.client.get({
-        index: this.index,
-        id
-      })
+      const result = await this.client.get({ index: this.index, id })
       return normalizeDocumentId(result._source, result._id)
     } catch (error) {
       const errorMsg = `Error when retrieving log entry: ${error.message}`
@@ -863,9 +808,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
   ): Promise<Record<string, any>[]> {
     try {
       const filterConditions: any = {
-        bool: {
-          must: [{ range: { timestamp: { gte: startTime, lte: endTime } } }]
-        }
+        bool: { must: [{ range: { timestamp: { gte: startTime, lte: endTime } } }] }
       }
 
       if (moduleName) {
@@ -891,10 +834,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
       }
       const result = await this.client.search({
         index: this.index,
-        body: {
-          query: filterConditions,
-          sort: [{ timestamp: { order: 'desc' } }]
-        },
+        body: { query: filterConditions, sort: [{ timestamp: { order: 'desc' } }] },
         size,
         from
       })
@@ -919,11 +859,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
       throw new Error('Log ID is required for deletion.')
     }
     try {
-      await this.client.delete({
-        index: this.index,
-        id: logId,
-        refresh: 'wait_for'
-      })
+      await this.client.delete({ index: this.index, id: logId, refresh: 'wait_for' })
       DATABASE_LOGGER.logMessageWithEmoji(
         `Deleted log with ID: ${logId}`,
         true,
@@ -970,9 +906,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
 
   async getLogsCount(): Promise<number> {
     try {
-      const res = await this.client.count({
-        index: this.index
-      })
+      const res = await this.client.count({ index: this.index })
       return res && res.count ? res.count : 0
     } catch (e) {
       DATABASE_LOGGER.error('Unable to retrieve logs count: ' + e.message)
