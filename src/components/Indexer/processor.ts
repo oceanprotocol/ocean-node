@@ -500,14 +500,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         true
       )
 
+      let previousDdoInstance: V4DDO | V5DDO | null = null
       const previousDdo = await ddoDatabase.retrieve(ddoInstance.getDid())
-      const previousDdoInstance = DDOManager.getDDOClass(previousDdo)
+      if(previousDdo) {
+        previousDdoInstance = DDOManager.getDDOClass(previousDdo)
+      }
+
       if (eventName === EVENTS.METADATA_CREATED) {
-        if (
-          previousDdoInstance &&
-          previousDdoInstance.getAssetFields().indexedMetadata.nft.state ===
-            MetadataStates.ACTIVE
-        ) {
+        if (previousDdoInstance && previousDdoInstance.getAssetFields().indexedMetadata.nft.state === MetadataStates.ACTIVE) {
           INDEXER_LOGGER.logMessage(
             `DDO ${ddoInstance.getDid()} is already registered as active`,
             true
@@ -678,13 +678,9 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     return ddo
   }
 
-  isUpdateable(
-    previousDdo: V4DDO | V5DDO,
-    txHash: string,
-    block: number
-  ): [boolean, string] {
+  isUpdateable(previousDdo: V4DDO | V5DDO, txHash: string, block: number): [boolean, string] {
     let errorMsg: string
-    const ddoTxId = previousDdo.getAssetFields().indexedMetadata.event.txid
+    const ddoTxId = previousDdo.getAssetFields().indexedMetadata.event.txid;
     // do not update if we have the same txid
     if (txHash === ddoTxId) {
       errorMsg = `Previous DDO has the same tx id, no need to update: event-txid=${txHash} <> asset-event-txid=${ddoTxId}`
