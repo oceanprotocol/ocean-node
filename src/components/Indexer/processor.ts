@@ -51,7 +51,7 @@ import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
 import { PolicyServer } from '../policyServer/index.js'
-import { DDOManager } from '@oceanprotocol/ddo-js'
+import { DDOManager, V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
 class BaseEventProcessor {
   protected networkId: number
 
@@ -490,7 +490,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       ddoInstance.updateFields({
         chainId,
         nftAddress: event.address,
-        datatokens: await this.getTokenInfo(ddo.services, signer)
+        datatokens: await this.getTokenInfo(ddoInstance.getDDOFields().services, signer)
       })
 
       INDEXER_LOGGER.logMessage(
@@ -501,8 +501,13 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       )
 
       const previousDdo = await ddoDatabase.retrieve(ddoInstance.getDid())
+      const previousDdoInstance = DDOManager.getDDOClass(previousDdo)
       if (eventName === EVENTS.METADATA_CREATED) {
-        if (previousDdo && previousDdo.nft.state === MetadataStates.ACTIVE) {
+        if (
+          previousDdoInstance &&
+          previousDdoInstance.getAssetFields().indexedMetadata.nft.state ===
+            MetadataStates.ACTIVE
+        ) {
           INDEXER_LOGGER.logMessage(
             `DDO ${ddoInstance.getDid()} is already registered as active`,
             true
@@ -520,7 +525,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       }
 
       if (eventName === EVENTS.METADATA_UPDATED) {
-        if (!previousDdo) {
+        if (!previousDdoInstance) {
           INDEXER_LOGGER.logMessage(
             `Previous DDO with did ${ddoInstance.getDid()} was not found the database. Maybe it was deleted/hidden to some violation issues`,
             true
@@ -536,7 +541,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           return
         }
         const [isUpdateable, error] = this.isUpdateable(
-          previousDdo,
+          previousDdoInstance,
           event.transactionHash,
           event.blockNumber
         )
@@ -561,7 +566,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       // we need to store the event data (either metadata created or update and is updatable)
       if (
         [EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED].includes(eventName) &&
-        this.isValidDtAddressFromServices(ddo.services)
+        this.isValidDtAddressFromServices(ddoInstance.getDDOFields().services)
       ) {
         const ddoWithPricing = await getPricingStatsForDddo(ddo, signer)
         ddoWithPricing.indexedMetadata.nft = await this.getNFTInfo(
@@ -673,16 +678,20 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     return ddo
   }
 
-  isUpdateable(previousDdo: any, txHash: string, block: number): [boolean, string] {
+  isUpdateable(
+    previousDdo: V4DDO | V5DDO,
+    txHash: string,
+    block: number
+  ): [boolean, string] {
     let errorMsg: string
-    const ddoTxId = previousDdo.indexedMetadata.event.tx
+    const ddoTxId = previousDdo.getAssetFields().indexedMetadata.event.txid
     // do not update if we have the same txid
     if (txHash === ddoTxId) {
       errorMsg = `Previous DDO has the same tx id, no need to update: event-txid=${txHash} <> asset-event-txid=${ddoTxId}`
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_DEBUG, errorMsg, true)
       return [false, errorMsg]
     }
-    const ddoBlock = previousDdo.indexedMetadata.event.block
+    const ddoBlock = previousDdo.getAssetFields().indexedMetadata.event.block
     // do not update if we have the same block
     if (block === ddoBlock) {
       errorMsg = `Asset was updated later (block: ${ddoBlock}) vs transaction block: ${block}`
