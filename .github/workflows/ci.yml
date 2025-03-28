@@ -284,6 +284,8 @@ jobs:
         run: |
           npm ci
           npm run build
+        env:
+          AVOID_LOOP_RUN: true
       - name: Run system tests
         working-directory: ${{ github.workspace }}/ocean-cli
         run: npm run test:system
