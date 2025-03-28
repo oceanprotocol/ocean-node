@@ -1,10 +1,9 @@
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
-// @ts-ignore
-import { V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
 import rdf from '@zazuko/env-node'
 import SHACLValidator from 'rdf-validate-shacl'
 import formats from '@rdfjs/formats-common'
+import { V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
 import { fromRdf } from 'rdf-literal'
 import { ethers, getAddress } from 'ethers'
 import { CORE_LOGGER, INDEXER_LOGGER } from '../../../utils/logging/common.js'
