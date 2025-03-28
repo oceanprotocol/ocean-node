@@ -11,7 +11,7 @@ import { OceanNodeDBConfig } from '../../@types'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { validateObject } from '../core/utils/validateDdoHandler.js'
+import { DDOManager } from '@oceanprotocol/ddo-js'
 
 export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
   private client: Client
@@ -497,7 +497,8 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     } else if ('nft' in ddo && ddo.nft?.state !== 0) {
       return true
     } else {
-      const validation = await validateObject(ddo, ddo.chainId, ddo.nftAddress)
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      const validation = await ddoInstance.validate()
       if (validation[0] === true) {
         DATABASE_LOGGER.logMessageWithEmoji(
           `Validation of DDO with did: ${ddo.id} has passed`,
@@ -591,8 +592,11 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     try {
       // avoid issue with nft fields, due to schema
       if (ddo?.indexedMetadata?.nft) delete ddo.nft
-      const validation = await this.validateDDO(ddo)
-      if (validation === true) {
+
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      const validation = await ddoInstance.validate()
+
+      if (validation[0] === true) {
         const response = await this.client.index({
           index: schema.index,
           id: ddo.id,
