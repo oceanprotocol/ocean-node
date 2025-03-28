@@ -74,7 +74,7 @@
     "@libp2p/websockets": "^8.1.1",
     "@multiformats/multiaddr": "^10.2.0",
     "@oceanprotocol/contracts": "^2.2.0",
-    "@oceanprotocol/ddo-js": "^0.0.2",
+    "@oceanprotocol/ddo-js": "^0.0.3",
     "@rdfjs/dataset": "^2.0.1",
     "@rdfjs/types": "^1.1.0",
     "@types/lodash.clonedeep": "^4.5.7",
