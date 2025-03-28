@@ -50,8 +50,8 @@ import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
-import { makeDid } from '../core/utils/validateDdoHandler.js'
 import { PolicyServer } from '../policyServer/index.js'
+import { DDOManager } from '@oceanprotocol/ddo-js'
 class BaseEventProcessor {
   protected networkId: number
 
@@ -390,7 +390,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     provider: JsonRpcApiProvider,
     eventName: string
   ): Promise<any> {
-    let did = 'did:op'
+    const did = 'did:op'
     try {
       const { ddo: ddoDatabase, ddoState } = await getDatabase()
       const wasDeployedByUs = await wasNFTDeployedByOurFactory(
@@ -430,7 +430,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       const clonedDdo = structuredClone(ddo)
       INDEXER_LOGGER.logMessage(`clonedDdo: ${JSON.stringify(clonedDdo)}`)
       const updatedDdo = deleteIndexedMetadataIfExists(clonedDdo)
-      if (updatedDdo.id !== makeDid(event.address, chainId.toString(10))) {
+      const ddoInstance = DDOManager.getDDOClass(updatedDdo)
+      if (updatedDdo.id !== ddoInstance.makeDid(event.address, chainId.toString(10))) {
         INDEXER_LOGGER.error(
           `Decrypted DDO ID is not matching the generated hash for DID.`
         )
@@ -485,37 +486,25 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         }
       }
 
-      did = ddo.id
       // stuff that we overwrite
-      ddo.chainId = chainId
-      ddo.nftAddress = event.address
-      ddo.datatokens = await this.getTokenInfo(ddo.services, signer)
+      ddoInstance.updateFields({
+        chainId,
+        nftAddress: event.address,
+        datatokens: await this.getTokenInfo(ddo.services, signer)
+      })
 
       INDEXER_LOGGER.logMessage(
-        `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
+        `Processed new DDO data ${ddoInstance.getDid()} with txHash ${
+          event.transactionHash
+        } from block ${event.blockNumber}`,
         true
       )
 
-      const previousDdo = await ddoDatabase.retrieve(ddo.id)
+      const previousDdo = await ddoDatabase.retrieve(ddoInstance.getDid())
       if (eventName === EVENTS.METADATA_CREATED) {
         if (previousDdo && previousDdo.nft.state === MetadataStates.ACTIVE) {
-          INDEXER_LOGGER.logMessage(`DDO ${ddo.id} is already registered as active`, true)
-          await ddoState.update(
-            this.networkId,
-            did,
-            event.address,
-            event.transactionHash,
-            false,
-            `DDO ${ddo.id} is already registered as active`
-          )
-          return
-        }
-      }
-
-      if (eventName === EVENTS.METADATA_UPDATED) {
-        if (!previousDdo) {
           INDEXER_LOGGER.logMessage(
-            `Previous DDO with did ${ddo.id} was not found the database. Maybe it was deleted/hidden to some violation issues`,
+            `DDO ${ddoInstance.getDid()} is already registered as active`,
             true
           )
           await ddoState.update(
@@ -524,7 +513,25 @@ export class MetadataEventProcessor extends BaseEventProcessor {
             event.address,
             event.transactionHash,
             false,
-            `Previous DDO with did ${ddo.id} was not found the database. Maybe it was deleted/hidden to some violation issues`
+            `DDO ${ddoInstance.getDid()} is already registered as active`
+          )
+          return
+        }
+      }
+
+      if (eventName === EVENTS.METADATA_UPDATED) {
+        if (!previousDdo) {
+          INDEXER_LOGGER.logMessage(
+            `Previous DDO with did ${ddoInstance.getDid()} was not found the database. Maybe it was deleted/hidden to some violation issues`,
+            true
+          )
+          await ddoState.update(
+            this.networkId,
+            did,
+            event.address,
+            event.transactionHash,
+            false,
+            `Previous DDO with did ${ddoInstance.getDid()} was not found the database. Maybe it was deleted/hidden to some violation issues`
           )
           return
         }

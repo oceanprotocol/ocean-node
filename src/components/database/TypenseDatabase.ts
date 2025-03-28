@@ -5,7 +5,6 @@ import { TypesenseSearchParams } from '../../@types/index.js'
 import { LOG_LEVELS_STR, GENERIC_EMOJIS } from '../../utils/logging/Logger.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 
-import { validateObject } from '../core/utils/validateDdoHandler.js'
 import { ENVIRONMENT_VARIABLES, TYPESENSE_HITS_CAP } from '../../utils/constants.js'
 import {
   AbstractDdoDatabase,
@@ -14,6 +13,7 @@ import {
   AbstractLogDatabase,
   AbstractOrderDatabase
 } from './BaseDatabase.js'
+import { DDOManager } from '@oceanprotocol/ddo-js'
 
 export class TypesenseOrderDatabase extends AbstractOrderDatabase {
   private provider: Typesense
@@ -395,7 +395,8 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
     } else if ('nft' in ddo && ddo.nft?.state !== 0) {
       return true
     } else {
-      const validation = await validateObject(ddo, ddo.chainId, ddo.nftAddress)
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      const validation = await ddoInstance.validate()
       if (validation[0] === true) {
         DATABASE_LOGGER.logMessageWithEmoji(
           `Validation of DDO with did: ${ddo.id} has passed`,
@@ -473,8 +474,9 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
     try {
       // avoid failure because of schema
       if (ddo?.indexedMetadata?.nft) delete ddo.nft
-      const validation = await this.validateDDO(ddo)
-      if (validation === true) {
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      const validation = await ddoInstance.validate()
+      if (validation[0] === true) {
         return await this.provider
           .collections(schema.name)
           .documents()
@@ -536,8 +538,9 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
     try {
       // avoid issue with nft fields, due to schema
       if (ddo?.indexedMetadata?.nft) delete ddo.nft
-      const validation = await this.validateDDO(ddo)
-      if (validation === true) {
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      const validation = await ddoInstance.validate()
+      if (validation[0] === true) {
         return await this.provider
           .collections(schema.name)
           .documents()
