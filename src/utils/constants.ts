@@ -496,3 +496,5 @@ export const knownUnsafeURLs: string[] = [
   // k8s ETCD
   '^.*(127.0.0.1).*'
 ]
+
+export const validUntil5Mins: number = 300

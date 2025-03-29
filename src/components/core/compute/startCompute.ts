@@ -22,7 +22,7 @@ import { decrypt } from '../../../utils/crypt.js'
 import { verifyProviderFees } from '../utils/feesHandler.js'
 import { Blockchain } from '../../../utils/blockchain.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
-import { getConfiguration } from '../../../utils/index.js'
+import { getConfiguration, validUntil5Mins } from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { ProviderFeeValidation } from '../../../@types/Fees.js'
@@ -429,6 +429,7 @@ export class FreeComputeStartHandler extends CommandHandler {
       }
     }
     let engine = null
+    let validUntil = validUntil5Mins
     try {
       // split compute env (which is already in hash-envId format) and get the hash
       // then get env which might contain dashes as well
@@ -473,6 +474,31 @@ export class FreeComputeStartHandler extends CommandHandler {
           true
         )
         await engine.checkIfResourcesAreAvailable(task.resources, env, true)
+        if (task.validUntil) {
+          validUntil = task.validUntil
+          if (env.maxJobDuration && validUntil > env.maxJobDuration) {
+            CORE_LOGGER.logMessage(
+              'FreeComputeStartCommand validUntil bigger than supported max duration job: ' +
+                validUntil +
+                ' fallback to supported max duration job: ' +
+                env.maxJobDuration,
+              true
+            )
+
+            validUntil = env.maxJobDuration
+          }
+        } else {
+          // If task.validUntil is not provided, use 'env.maxJobDuration' if available
+          if (env.maxJobDuration) {
+            CORE_LOGGER.logMessage(
+              'FreeComputeStartCommand validUntil is null,' +
+                ' fallback to supported max duration job: ' +
+                env.maxJobDuration,
+              true
+            )
+            validUntil = env.maxJobDuration
+          }
+        }
       } catch (e) {
         console.error(e)
         return {
@@ -498,7 +524,7 @@ export class FreeComputeStartHandler extends CommandHandler {
         task.output,
         task.environment,
         task.consumerAddress,
-        null,
+        validUntil,
         null,
         null,
         task.resources
