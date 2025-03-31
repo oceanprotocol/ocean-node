@@ -478,6 +478,8 @@ export class FreeComputeStartHandler extends CommandHandler {
           validUntil = env.free.maxJobDuration
             ? Math.min(task.validUntil, env.free.maxJobDuration)
             : task.validUntil
+        } else {
+          if (env.free.maxJobDuration) validUntil = env.free.maxJobDuration
         }
       } catch (e) {
         console.error(e)
