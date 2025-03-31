@@ -199,6 +199,7 @@ export interface FreeComputeStartCommand extends Command {
   nonce: string
   environment: string
   algorithm: ComputeAlgorithm
+  validUntil?: number
   datasets?: ComputeAsset[]
   output?: ComputeOutput
   resources?: ComputeResourceRequest[]

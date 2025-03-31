@@ -429,6 +429,7 @@ export class FreeComputeStartHandler extends CommandHandler {
       }
     }
     let engine = null
+    let validUntil = null
     try {
       // split compute env (which is already in hash-envId format) and get the hash
       // then get env which might contain dashes as well
@@ -473,6 +474,13 @@ export class FreeComputeStartHandler extends CommandHandler {
           true
         )
         await engine.checkIfResourcesAreAvailable(task.resources, env, true)
+        if (task.validUntil) {
+          validUntil = env.free.maxJobDuration
+            ? Math.min(task.validUntil, env.free.maxJobDuration)
+            : task.validUntil
+        } else {
+          if (env.free.maxJobDuration) validUntil = env.free.maxJobDuration
+        }
       } catch (e) {
         console.error(e)
         return {
@@ -498,7 +506,7 @@ export class FreeComputeStartHandler extends CommandHandler {
         task.output,
         task.environment,
         task.consumerAddress,
-        null,
+        validUntil,
         null,
         null,
         task.resources
