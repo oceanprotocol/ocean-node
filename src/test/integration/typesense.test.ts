@@ -6,6 +6,7 @@ import {
 import { ddoSchema } from '../data/ddoSchema.js'
 import { ddo } from '../data/ddo.js'
 import { expect } from 'chai'
+import { TypesenseSearchParams } from '../../@types/index.js'
 
 describe('Typesense', () => {
   let typesense: Typesense
@@ -161,14 +162,17 @@ describe('Typesense documents', () => {
     expect(result.metadata).to.not.be.an('undefined')
     expect(result.metadata.name).to.be.equal(ddo.metadata.name)
   })
-
   it('search document in ddo collection', async () => {
-    const result = await typesense.collections(ddoSchema.name).documents().search({
-      q: 'DEX',
-      query_by: 'metadata.author',
-      filter_by: 'chainId:<138',
+    const queryParams: TypesenseSearchParams = {
+      q: 'new metadata name',
+      query_by: 'metadata.name',
+      filter_by: 'chainId:=137',
       sort_by: 'version:desc'
-    })
+    }
+    const result = await typesense
+      .collections(ddoSchema.name)
+      .documents()
+      .search(queryParams)
 
     expect(result.found).to.equal(1)
     expect(result.hits[0]).to.not.be.an('undefined')

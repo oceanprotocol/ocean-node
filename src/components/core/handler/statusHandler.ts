@@ -1,4 +1,4 @@
-import { Handler } from './handler.js'
+import { CommandHandler } from './handler.js'
 import { status } from '../utils/statusHandler.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { DetailedStatusCommand, StatusCommand } from '../../../@types/commands.js'
@@ -9,7 +9,7 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
-export class StatusHandler extends Handler {
+export class StatusHandler extends CommandHandler {
   validate(command: StatusCommand): ValidateParams {
     return validateCommandParameters(command, [])
   }

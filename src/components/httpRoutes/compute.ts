@@ -1,7 +1,7 @@
 import express from 'express'
 import {
   ComputeGetEnvironmentsHandler,
-  ComputeStartHandler,
+  PaidComputeStartHandler,
   FreeComputeStartHandler,
   ComputeStopHandler,
   ComputeGetStatusHandler,
@@ -74,13 +74,16 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       environment: (req.body.environment as string) || null,
       algorithm: (req.body.algorithm as ComputeAlgorithm) || null,
       datasets: (req.body.datasets as unknown as ComputeAsset[]) || null,
-      payment: (req.body.payment as unknown as ComputePayment) || null
+      payment: (req.body.payment as unknown as ComputePayment) || null,
+      resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output as ComputeOutput
     }
 
-    const response = await new ComputeStartHandler(req.oceanNode).handle(startComputeTask)
+    const response = await new PaidComputeStartHandler(req.oceanNode).handle(
+      startComputeTask
+    )
     if (response?.status?.httpStatus === 200) {
       const jobs = await streamToObject(response.stream as Readable)
       res.status(200).json(jobs)
@@ -113,7 +116,8 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => 
       environment: (req.body.environment as string) || null,
       algorithm: (req.body.algorithm as ComputeAlgorithm) || null,
       datasets: (req.body.datasets as unknown as ComputeAsset[]) || null,
-      resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null
+      resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null,
+      maxJobDuration: req.body.maxJobDuration || null
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output as ComputeOutput
@@ -231,7 +235,7 @@ computeRoutes.get(`${SERVICES_API_BASE_PATH}/computeStreamableLogs`, async (req,
       true
     )
     const resultComputeTask: ComputeGetStreamableLogsCommand = {
-      command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_STREAMABLE_LOGS,
       node: (req.query.node as string) || null,
       consumerAddress: (req.query.consumerAddress as string) || null,
       jobId: (req.query.jobId as string) || null,

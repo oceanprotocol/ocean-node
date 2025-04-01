@@ -21,6 +21,17 @@ export interface Command {
   node?: string // if not present it means current node
 }
 
+export interface GetP2PPeerCommand extends Command {
+  peerId: string
+}
+export interface FindPeerCommand extends Command {
+  peerId: string
+  timeout?: string
+}
+
+export interface GetP2PPeersCommand extends Command {}
+export interface GetP2PNetworkStatsCommand extends Command {}
+
 export interface AdminCommand extends Command {
   expiryTimestamp: number
   signature: string
@@ -144,7 +155,15 @@ export interface AdminReindexChainCommand extends AdminCommand {
 
 export interface ICommandHandler {
   handle(command: Command): Promise<P2PCommandResponse>
+  verifyParamsAndRateLimits(task: Command): Promise<P2PCommandResponse>
+}
+
+export interface IValidateCommandHandler extends ICommandHandler {
   validate(command: Command): ValidateParams
+}
+
+export interface IValidateAdminCommandHandler extends ICommandHandler {
+  validate(command: AdminCommand): Promise<ValidateParams>
 }
 
 export interface ComputeGetEnvironmentsCommand extends Command {
@@ -154,7 +173,6 @@ export interface ComputeGetEnvironmentsCommand extends Command {
 export interface ComputePayment {
   chainId: number
   token: string
-  maxJobDuration: number // in seconds
   resources?: ComputeResourceRequest[]
 }
 export interface ComputeInitializeCommand extends Command {
@@ -164,6 +182,7 @@ export interface ComputeInitializeCommand extends Command {
   payment: ComputePayment
   consumerAddress: string
   signature?: string
+  maxJobDuration: number
 }
 
 export interface FreeComputeStartCommand extends Command {
@@ -175,6 +194,7 @@ export interface FreeComputeStartCommand extends Command {
   datasets?: ComputeAsset[]
   output?: ComputeOutput
   resources?: ComputeResourceRequest[]
+  maxJobDuration?: number
 }
 export interface PaidComputeStartCommand extends FreeComputeStartCommand {
   payment: ComputePayment

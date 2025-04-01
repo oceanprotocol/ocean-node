@@ -1,4 +1,4 @@
-import { Handler } from './handler.js'
+import { CommandHandler } from './handler.js'
 import { GetFeesCommand } from '../../../@types/commands.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { createProviderFee } from '../utils/feesHandler.js'
@@ -17,7 +17,7 @@ import { getNonce } from '../utils/nonceHandler.js'
 import { streamToString } from '../../../utils/util.js'
 import { isOrderingAllowedForAsset } from './downloadHandler.js'
 
-export class FeesHandler extends Handler {
+export class FeesHandler extends CommandHandler {
   validate(command: GetFeesCommand): ValidateParams {
     let validation = validateCommandParameters(command, ['ddoId', 'serviceId'])
     if (validation.valid) {

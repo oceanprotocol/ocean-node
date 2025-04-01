@@ -37,7 +37,7 @@ describe('Compute Jobs Database', () => {
   let config: OceanNodeConfig
   let db: C2DDatabase = null
   let jobId: string = null
-
+  const jobDuration = 60
   const algorithm: ComputeAlgorithm = {
     documentId: 'did:op:12345',
     serviceId: '0x1828228'
@@ -68,7 +68,7 @@ describe('Compute Jobs Database', () => {
       statusText: C2DStatusText.JobStarted,
       results: null,
       inputDID: ['did:op:1', 'did:op:2', 'did:op:3'],
-      maxJobDuration: 60,
+      maxJobDuration: jobDuration,
 
       // internal structure
       clusterHash: 'clusterHash',
@@ -97,8 +97,8 @@ describe('Compute Jobs Database', () => {
     assert(jobs.length === 1, 'Could not get any job')
     assert(jobs[0], 'Job should not be null')
     assert(jobs[0].jobId === jobId, 'JobId mismatches')
+    assert(jobs[0].maxJobDuration === jobDuration, 'Job duration mismatches')
   })
-
   it('should update job', async () => {
     const jobs = await db.getJob(jobId)
     const job = jobs[0]
@@ -128,7 +128,7 @@ describe('Compute Jobs Database', () => {
       statusText: C2DStatusText.JobStarted,
       results: null,
       inputDID: ['did:op:1', 'did:op:2'],
-      maxJobDuration: 60,
+      maxJobDuration: 1,
 
       // internal structure
       clusterHash: 'clusterHash',

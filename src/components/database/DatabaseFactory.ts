@@ -31,6 +31,7 @@ import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery.js'
 import { DB_TYPES } from '../../utils/index.js'
 import { C2DDatabase } from './C2DDatabase.js'
 import { SQLLiteNonceDatabase } from './SQLLiteNonceDatabase.js'
+import { SQLLiteConfigDatabase } from './SQLLiteConfigDatabase.js'
 
 export class DatabaseFactory {
   private static databaseMap = {
@@ -116,5 +117,9 @@ export class DatabaseFactory {
 
   static createMetadataQuery(config: OceanNodeDBConfig): Promise<IMetadataQuery> {
     return this.createDatabase('metadataQuery', config)
+  }
+
+  static async createConfigDatabase(): Promise<SQLLiteConfigDatabase> {
+    return await new SQLLiteConfigDatabase()
   }
 }

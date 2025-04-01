@@ -47,17 +47,16 @@ export const downloadAsset = {
     owner: '',
     created: ''
   },
-  purgatory: {
-    state: false
-  },
-  datatokens: [] as any,
   stats: {
-    allocated: 0,
     orders: 0,
     price: {
       value: '0'
     }
-  }
+  },
+  purgatory: {
+    state: false
+  },
+  datatokens: [] as any
 }
 
 const nftLevelCredentials: Credentials = {

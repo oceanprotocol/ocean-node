@@ -7,8 +7,8 @@ import {
 } from '../../@types/C2D/C2D.js'
 import sqlite3, { RunResult } from 'sqlite3'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
+import { v4 as uuidv4 } from 'uuid'
 
-import { randomUUID } from 'crypto'
 interface ComputeDatabaseProvider {
   newJob(job: DBComputeJob): Promise<string>
   getJob(jobId?: string, agreementId?: string, owner?: string): Promise<DBComputeJob[]>
@@ -19,7 +19,7 @@ interface ComputeDatabaseProvider {
 }
 
 export function generateUniqueID(): string {
-  return randomUUID().toString()
+  return uuidv4()
 }
 
 function getInternalStructure(job: DBComputeJob): any {
@@ -89,6 +89,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   }
 
   createTable() {
+    /* although we have field called expiteTimestamp, we are actually storing maxJobDuration in it */
     const createTableSQL = `
       CREATE TABLE IF NOT EXISTS ${this.schema.name} (
         owner TEXT,
@@ -101,6 +102,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         results BLOB,
         inputDID TEXT DEFAULT NULL,
         algoDID TEXT DEFAULT NULL,
+        agreementId TEXT DEFAULT NULL,
         expireTimestamp INTEGER,
         environment TEXT DEFAULT NULL,
         body BLOB
@@ -127,11 +129,12 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       statusText, 
       inputDID, 
       algoDID, 
+      agreementId, 
       expireTimestamp, 
       environment, 
       body
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     `
     const jobId = job.jobId || generateUniqueID()
     job.jobId = jobId
@@ -147,6 +150,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
           job.statusText || C2DStatusText.JobStarted,
           job.inputDID ? convertArrayToString(job.inputDID) : job.inputDID,
           job.algoDID,
+          job.agreementId,
           job.maxJobDuration,
           job.environment,
           generateBlobFromJSON(job)
@@ -204,7 +208,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
             const all: DBComputeJob[] = rows.map((row) => {
               const body = generateJSONFromBlob(row.body)
               delete row.body
-              const job: DBComputeJob = { ...row, ...body }
+              const maxJobDuration = row.expireTimestamp
+              delete row.expireTimestamp
+              const job: DBComputeJob = { ...row, ...body, maxJobDuration }
               return job
             })
             resolve(all)
@@ -220,9 +226,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   }
 
   updateJob(job: DBComputeJob): Promise<number> {
-    if (job.dateFinished && job.isRunning) {
-      job.isRunning = false
-    }
+    // if (job.dateFinished && job.isRunning) {
+    //  job.isRunning = false
+    // }
     // TO DO C2D
     const data: any[] = [
       job.owner,
@@ -230,6 +236,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       job.statusText,
       job.maxJobDuration,
       generateBlobFromJSON(job),
+      job.dateFinished,
       job.jobId
     ]
     const updateSQL = `
@@ -239,9 +246,11 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       status = ?,
       statusText = ?,
       expireTimestamp = ?, 
-      body = ?
+      body = ?,
+      dateFinished = ?
       WHERE jobId = ?;
     `
+
     return new Promise((resolve, reject) => {
       this.db.run(updateSQL, data, function (this: RunResult, err: Error | null) {
         if (err) {
@@ -271,7 +280,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
             const all: DBComputeJob[] = rows.map((row) => {
               const body = generateJSONFromBlob(row.body)
               delete row.body
-              const job: DBComputeJob = { ...row, ...body }
+              const maxJobDuration = row.expireTimestamp
+              delete row.expireTimestamp
+              const job: DBComputeJob = { ...row, ...body, maxJobDuration }
               return job
             })
             // filter them out
@@ -283,7 +294,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
               if (environment && environment !== job.environment) {
                 include = false
               }
-              if (!job.isRunning) {
+              if (job.dateFinished) {
                 include = false
               }
               return include
@@ -315,7 +326,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
             const all: DBComputeJob[] = rows.map((row) => {
               const body = generateJSONFromBlob(row.body)
               delete row.body
-              const job: DBComputeJob = { ...row, ...body }
+              const maxJobDuration = row.expireTimestamp
+              delete row.expireTimestamp
+              const job: DBComputeJob = { ...row, ...body, maxJobDuration }
               return job
             })
             if (!environment) {

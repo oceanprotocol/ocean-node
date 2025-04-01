@@ -1,4 +1,9 @@
-import type { DenyList, OceanNodeConfig, OceanNodeKeys } from '../@types/OceanNode'
+import type {
+  DenyList,
+  OceanNodeConfig,
+  OceanNodeKeys,
+  AccessListContract
+} from '../@types/OceanNode'
 import { dhtFilterMethod } from '../@types/OceanNode.js'
 import type { C2DClusterInfo, C2DDockerConfig } from '../@types/C2D/C2D.js'
 import { C2DClusterType } from '../@types/C2D/C2D.js'
@@ -165,12 +170,54 @@ function getIndexingNetworks(supportedNetworks: RPCS): RPCS | null {
     return supportedNetworks
   }
 }
+// valid publishers (what we will index)
+function getAuthorizedPublishers(isStartup?: boolean): string[] {
+  if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS, isStartup)) {
+    return readAddressListFromEnvVariable(
+      ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS,
+      isStartup
+    )
+  }
+  return []
+}
+
+function getAuthorizedPublishersList(isStartup?: boolean): AccessListContract | null {
+  if (
+    existsEnvironmentVariable(ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST, isStartup)
+  ) {
+    try {
+      const publisherAccessList = JSON.parse(
+        ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.value
+      ) as AccessListContract
+      return publisherAccessList
+    } catch (err) {
+      CONFIG_LOGGER.error(err.message)
+    }
+  }
+  return null
+}
 // valid decrypthers
 function getAuthorizedDecrypters(isStartup?: boolean): string[] {
   return readAddressListFromEnvVariable(
     ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
     isStartup
   )
+}
+
+function getAuthorizedDecryptersList(isStartup?: boolean): AccessListContract | null {
+  if (
+    existsEnvironmentVariable(ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS_LIST, isStartup)
+  ) {
+    try {
+      const decryptersAccessList = JSON.parse(
+        ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS_LIST.value
+      ) as AccessListContract
+      return decryptersAccessList
+    } catch (err) {
+      CONFIG_LOGGER.error(err.message)
+    }
+  }
+  return null
 }
 // allowed validators
 export function getAllowedValidators(isStartup?: boolean): string[] {
@@ -179,9 +226,39 @@ export function getAllowedValidators(isStartup?: boolean): string[] {
     isStartup
   )
 }
+
+function getAllowedValidatorsList(isStartup?: boolean): AccessListContract | null {
+  if (
+    existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS_LIST, isStartup)
+  ) {
+    try {
+      const publisherAccessList = JSON.parse(
+        ENVIRONMENT_VARIABLES.ALLOWED_VALIDATORS_LIST.value
+      ) as AccessListContract
+      return publisherAccessList
+    } catch (err) {
+      CONFIG_LOGGER.error(err.message)
+    }
+  }
+  return null
+}
 // valid node admins
-export function getAllowedAdmins(isStartup?: boolean): string[] {
+function getAllowedAdmins(isStartup?: boolean): string[] {
   return readAddressListFromEnvVariable(ENVIRONMENT_VARIABLES.ALLOWED_ADMINS, isStartup)
+}
+
+function getAllowedAdminsList(isStartup?: boolean): AccessListContract | null {
+  if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ALLOWED_ADMINS_LIST, isStartup)) {
+    try {
+      const adminAccessList = JSON.parse(
+        ENVIRONMENT_VARIABLES.ALLOWED_ADMINS_LIST.value
+      ) as AccessListContract
+      return adminAccessList
+    } catch (err) {
+      CONFIG_LOGGER.error(err.message)
+    }
+  }
+  return null
 }
 
 // whenever we want to read an array of strings from an env variable, use this common function
@@ -643,7 +720,11 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
 
   const config: OceanNodeConfig = {
     authorizedDecrypters: getAuthorizedDecrypters(isStartup),
+    authorizedDecryptersList: getAuthorizedDecryptersList(isStartup),
     allowedValidators: getAllowedValidators(isStartup),
+    allowedValidatorsList: getAllowedValidatorsList(isStartup),
+    authorizedPublishers: getAuthorizedPublishers(isStartup),
+    authorizedPublishersList: getAuthorizedPublishersList(isStartup),
     keys,
     // Only enable indexer if we have a DB_URL and supportedNetworks
     hasIndexer: !!(!!getEnvValue(process.env.DB_URL, '') && !!indexingNetworks),
@@ -719,7 +800,8 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       ),
       autoDialConcurrency: getIntEnvValue(process.env.P2P_AUTODIALCONCURRENCY, 5),
       maxPeerAddrsToDial: getIntEnvValue(process.env.P2P_MAXPEERADDRSTODIAL, 5),
-      autoDialInterval: getIntEnvValue(process.env.P2P_AUTODIALINTERVAL, 5000)
+      autoDialInterval: getIntEnvValue(process.env.P2P_AUTODIALINTERVAL, 5000),
+      enableNetworkStats: getBoolEnvValue('P2P_ENABLE_NETWORK_STATS', false)
     },
     hasDashboard: process.env.DASHBOARD !== 'false',
     httpPort: getIntEnvValue(process.env.HTTP_API_PORT, 8000),
@@ -737,6 +819,7 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
     accountPurgatoryUrl: getEnvValue(process.env.ACCOUNT_PURGATORY_URL, ''),
     assetPurgatoryUrl: getEnvValue(process.env.ASSET_PURGATORY_URL, ''),
     allowedAdmins: getAllowedAdmins(isStartup),
+    allowedAdminsList: getAllowedAdminsList(isStartup),
     rateLimit: getRateLimit(isStartup),
     maxConnections: getConnectionsLimit(isStartup),
     denyList: getDenyList(isStartup),
@@ -772,3 +855,8 @@ export async function printCurrentConfig() {
 
 // P2P routes related
 export const hasP2PInterface = (await (await getConfiguration())?.hasP2P) || false
+
+// is there a policy server defined?
+export function isPolicyServerConfigured(): boolean {
+  return isDefined(process.env.POLICY_SERVER_URL)
+}

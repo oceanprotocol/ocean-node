@@ -505,22 +505,6 @@ returns list of all P2P peers
 
 ---
 
-## Get Ocean Peers
-
-### `HTTP` GET /getOceanPeers
-
-#### Description
-
-returns list of ocean node peers
-
-#### Response
-
-```
-["PeerId", "PeerId", "PeerId"]
-```
-
----
-
 ## Validate DDO
 
 ### `HTTP` POST /directCommand
@@ -537,7 +521,7 @@ returns an empty object if it is valid otherwise an array with error
 | ---------- | -------- | -------- | ------------------------------------------------- |
 | command    | string   | v        | command name                                      |
 | node       | string   |          | if not present it means current node              |
-| multiAddrs | string[] |          | if passed, use this instead of peerStore & DHT     |
+| multiAddrs | string[] |          | if passed, use this instead of peerStore & DHT    |
 | id         | string   | v        | document id or did                                |
 | chainId    | number   | v        | chain id of network on which document is provided |
 | nftAddress | string   | v        | address of nft token                              |
@@ -1111,38 +1095,6 @@ byte array
 
 ---
 
-## Echo
-
-### `HTTP` POST /directCommand
-
-### `P2P` command: echo
-
-#### Description
-
-returns OK
-
-#### Parameters
-
-| name    | type   | required | description                          |
-| ------- | ------ | -------- | ------------------------------------ |
-| command | string | v        | command name                         |
-| node    | string |          | if not present it means current node |
-
-#### Request
-
-```json
-{
-  "command": "echo",
-  "node": "PeerId"
-}
-```
-
-#### Response
-
-```
-OK
-```
-
 ## Get indexing queue
 
 ### `HTTP` GET /api/services/indexQueue
@@ -1161,7 +1113,7 @@ returns the current indexing queue, as an array of objects
 
 ## PolicyServer Passthrough
 
-### `HTTP` POST /PolicyServerPassthrough
+### `HTTP` POST /api/services/PolicyServerPassthrough
 
 ### `P2P` command: PolicyServerPassthrough
 
@@ -1206,3 +1158,249 @@ Forwards request to PolicyServer (if any)
   }
 }
 ```
+
+# Compute
+
+For starters, you can find a list of algorithms in the [Ocean Algorithms repository](https://github.com/oceanprotocol/algo_dockers) and the docker images in the [Algo Dockerhub](https://hub.docker.com/r/oceanprotocol/algo_dockers/tags).
+
+## Compute object definitions
+
+### Dataset (`ComputeAsset` Interface)
+
+The `ComputeAsset` interface defines the structure of a compute asset in the Ocean Node. It can include information about the file object, document ID, service ID, transfer transaction ID, and user data.
+
+#### Properties
+
+- **fileObject**: Optional. An object of type `BaseFileObject` representing the file associated with the compute asset.
+- **documentId**: Optional. A string representing the document ID of the compute asset.
+- **serviceId**: Optional. A string representing the service ID associated with the compute asset.
+- **transferTxId**: Optional. A string representing the transaction ID for the transfer of the compute asset.
+- **userdata**: Optional. An object containing additional user-defined data related to the compute asset.
+
+```typescript
+export interface ComputeAsset {
+  fileObject?: BaseFileObject
+  documentId?: string
+  serviceId?: string
+  transferTxId?: string
+  userdata?: { [key: string]: any }
+}
+```
+
+This interface is used to encapsulate the details of a compute asset, which can be utilized in various compute-related operations within the Ocean Node.
+
+### `ComputeAlgorithm` Interface
+
+The `ComputeAlgorithm` interface defines the structure of a compute algorithm in the Ocean Node.
+It can include information about the file object, document ID, service ID, transfer transaction ID, algorithm custom data, metadata and user data.
+
+#### Properties
+
+- **documentId**: Optional. A string representing the document ID of the compute algorithm.
+- **serviceId**: Optional. A string representing the service ID associated with the compute algorithm.
+- **fileObject**: Optional. An object of type `BaseFileObject` representing the file associated with the compute algorithm.
+- **meta**: Optional. An object of type `MetadataAlgorithm` containing metadata related to the compute algorithm.
+- **transferTxId**: Optional. A string representing the transaction ID for the transfer of the compute algorithm.
+- **algocustomdata**: Optional. An object containing additional custom data related to the compute algorithm.
+- **userdata**: Optional. An object containing additional user-defined data related to the compute algorithm.
+
+```typescript
+export interface ComputeAlgorithm {
+  documentId?: string
+  serviceId?: string
+  fileObject?: BaseFileObject
+  meta?: MetadataAlgorithm
+  transferTxId?: string
+  algocustomdata?: { [key: string]: any }
+  userdata?: { [key: string]: any }
+}
+```
+
+This interface is used to encapsulate the details of a compute algorithm, which can be utilized in various compute-related operations within the Ocean Node.
+
+## Compute commands
+
+### `HTTP` GET /api/services/computeEnvironments
+
+### `P2P` command: getComputeEnvironments
+
+#### Description
+
+fetch all compute environments
+
+#### Response
+
+```json
+[
+  {
+    "id": "0x7d187e4c751367be694497ead35e2937ece3c7f3b325dcb4f7571e5972d092bd-0xf173fdc0a9c7cc1c34f8aaf6b3aafe866795851b567436e1d4fbab17b0e26ca1",
+    "runningJobs": 0,
+    "consumerAddress": "0xf9C5B7eE7708efAc6dC6Bc7d4b0455eBbf22b519",
+    "platform": { "architecture": "x86_64", "os": "Ubuntu 22.04.3 LTS" },
+    "fees": { "1": [[{ "feeToken": "0x123", "prices": [{ "id": "cpu", "price": 1 }] }]] },
+    "storageExpiry": 604800,
+    "maxJobDuration": 3600,
+    "resources": [
+      { "id": "cpu", "total": 16, "max": 16, "min": 1, "inUse": 0 },
+      {
+        "id": "ram",
+        "total": 33617674240,
+        "max": 33617674240,
+        "min": 1000000000,
+        "inUse": 0
+      },
+      { "id": "disk", "total": 1000000000, "max": 1000000000, "min": 0, "inUse": 0 }
+    ],
+    "free": {
+      "maxJobDuration": 60,
+      "maxJobs": 3,
+      "resources": [
+        { "id": "cpu", "max": 1, "inUse": 0 },
+        { "id": "ram", "max": 1000000000, "inUse": 0 },
+        { "id": "disk", "max": 1000000000, "inUse": 0 }
+      ]
+    },
+    "runningfreeJobs": 0
+  }
+]
+```
+
+### `HTTP` POST /api/services/freeCompute
+
+### `P2P` command: freeStartCompute
+
+#### Description
+
+starts a free compute job and returns jobId if succesfull
+
+#### Parameters
+
+| name            | type   | required | description                               |
+| --------------- | ------ | -------- | ----------------------------------------- |
+| command         | string | v        | command name                              |
+| node            | string |          | if not present it means current node      |
+| consumerAddress | string | v        | consumer address                          |
+| signature       | string | v        | signature (msg=String(nonce) )            |
+| nonce           | string | v        | nonce for the request                     |
+| datasets        | object |          | list of ComputeAsset to be used as inputs |
+| algorithm       | object |          | ComputeAlgorithm definition               |
+| environment     | string | v        | compute environment to use                |
+| resources       | object |          | optional list of required resources       |
+
+#### Request
+
+```json
+{
+  "command": "freeStartCompute",
+  "datasets": [],
+  "algorithm": {
+    "meta": { "container": { "image": "ubuntu", "entrypoint": "/bin/bash'" } }
+  },
+  "consumerAddress": "0xC7EC1970B09224B317c52d92f37F5e1E4fF6B687",
+  "signature": "123",
+  "nonce": 1,
+  "environment": "0x7d187e4c751367be694497ead35e2937ece3c7f3b325dcb4f7571e5972d092bd-0xbeaf12703d708f39ef98c3d8939ce458553254176dbb69fe83d535883c4cee38",
+  "resources": [{ "id": "cpu", "amount": 1 }]
+}
+```
+
+#### Response
+
+```json
+[
+  {
+    "owner": "0xC7EC1970B09224B317c52d92f37F5e1E4fF6B687",
+    "jobId": "0x7d187e4c751367be694497ead35e2937ece3c7f3b325dcb4f7571e5972d092bd-a4ad237d-dfd8-404c-a5d6-b8fc3a1f66d3",
+    "dateCreated": "1742291065.119",
+    "dateFinished": null,
+    "status": 0,
+    "statusText": "Job started",
+    "results": [],
+    "agreementId": null,
+    "expireTimestamp": 1742291065.119,
+    "environment": "0x7d187e4c751367be694497ead35e2937ece3c7f3b325dcb4f7571e5972d092bd-0xf173fdc0a9c7cc1c34f8aaf6b3aafe866795851b567436e1d4fbab17b0e26ca1",
+    "resources": [
+      { "id": "cpu", "amount": 1 },
+      { "id": "ram", "amount": 1000000000 },
+      { "id": "disk", "amount": 0 }
+    ],
+    "isFree": true
+  }
+]
+```
+
+### `HTTP` GET /api/services/compute
+
+### `P2P` command: getComputeStatus
+
+#### Description
+
+returns job status
+
+#### Parameters
+Required at least one of the following parameters:
+
+| name            | type   | required | description                          |
+| --------------- | ------ | -------- | ------------------------------------ |
+| consumerAddress | string |          | consumer address to use as filter    |
+| jobId           | string |          | jobId address to use as filter       |
+| agreementId     | string |          | agreementId address to use as filter |
+
+#### Response
+
+```json
+[
+  {
+    "owner": "0xC7EC1970B09224B317c52d92f37F5e1E4fF6B687",
+    "did": null,
+    "jobId": "a4ad237d-dfd8-404c-a5d6-b8fc3a1f66d3",
+    "dateCreated": "1742291065.119",
+    "dateFinished": null,
+    "status": 0,
+    "statusText": "Job started",
+    "results": [],
+    "inputDID": null,
+    "algoDID": null,
+    "agreementId": null,
+    "expireTimestamp": 1742291065.119,
+    "environment": "0x7d187e4c751367be694497ead35e2937ece3c7f3b325dcb4f7571e5972d092bd-0xf173fdc0a9c7cc1c34f8aaf6b3aafe866795851b567436e1d4fbab17b0e26ca1",
+    "resources": [
+      {
+        "id": "cpu",
+        "amount": 1
+      },
+      {
+        "id": "ram",
+        "amount": 1000000000
+      },
+      {
+        "id": "disk",
+        "amount": 1000000000
+      }
+    ],
+    "isFree": true
+  }
+]
+```
+
+### `HTTP` GET /api/services/computeResult
+
+### `P2P` command: getComputeResult
+
+#### Description
+
+returns job result
+
+#### Parameters
+
+| name            | type   | required | description                                                    |
+| --------------- | ------ | -------- | -------------------------------------------------------------- |
+| consumerAddress | string | v        | consumer address to use as filter                              |
+| jobId           | string | v        | jobId address to use as filter                                 |
+| signature       | string | v        | signature (consumerAddress + jobId + index.toString() + nonce) |
+| nonce           | string | v        | nonce for the request                                          |
+| index           | number | v        | index of result  (0 for main result, 1 for logs)               |
+
+#### Response
+
+File content

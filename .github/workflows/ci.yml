@@ -290,3 +290,24 @@ jobs:
       - name: Run system tests
         working-directory: ${{ github.workspace }}/ocean-cli
         run: npm run test:system
+        env:
+          AVOID_LOOP_RUN: true
+
+  dashboard_build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'v20.16.0'
+      - name: Cache node_modules
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-node-modules
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-dashboard-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-dashboard-${{ env.cache-name }}-
+      - run: npm ci
+      - name: Run dashboard build test
+        run: npm run test:dashboard

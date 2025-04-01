@@ -64,11 +64,30 @@ export interface OceanNodeP2PConfig {
   autoDialConcurrency: number
   maxPeerAddrsToDial: number
   autoDialInterval: number
+  enableNetworkStats: boolean
+}
+
+export interface OceanNodeDockerConfig {
+  socketPath?: string
+  protocol?: string
+  host?: string
+  port?: number
+  caPath?: string
+  certPath?: string
+  keyPath?: string
+}
+
+export interface AccessListContract {
+  [chainId: string]: string[]
 }
 
 export interface OceanNodeConfig {
   authorizedDecrypters: string[]
+  authorizedDecryptersList: AccessListContract | null
   allowedValidators: string[]
+  allowedValidatorsList: AccessListContract | null
+  authorizedPublishers: string[]
+  authorizedPublishersList: AccessListContract | null
   keys: OceanNodeKeys
   hasP2P: boolean
   p2pConfig: OceanNodeP2PConfig | null
@@ -86,6 +105,7 @@ export interface OceanNodeConfig {
   accountPurgatoryUrl: string
   assetPurgatoryUrl: string
   allowedAdmins?: string[]
+  allowedAdminsList?: AccessListContract | null
   codeHash?: string
   rateLimit?: number // per request ip or peer
   maxConnections?: number // global, regardless of client address(es)

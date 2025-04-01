@@ -1,8 +1,8 @@
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Handler } from '../handler/handler.js'
+import { CommandHandler } from '../handler/handler.js'
 import { ComputeGetStreamableLogsCommand } from '../../../@types/commands.js'
-// import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
+import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
 import { Stream } from 'stream'
 import {
   buildInvalidRequestMessage,
@@ -11,7 +11,7 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { isAddress } from 'ethers'
 
-export class ComputeGetStreamableLogsHandler extends Handler {
+export class ComputeGetStreamableLogsHandler extends CommandHandler {
   validate(command: ComputeGetStreamableLogsCommand): ValidateParams {
     const validation = validateCommandParameters(command, [
       'consumerAddress',
@@ -34,8 +34,34 @@ export class ComputeGetStreamableLogsHandler extends Handler {
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
+    const oceanNode = this.getOceanNode()
+    let error = null
 
-    // TO DO:  signature message to check
+    // signature message to check against
+    const message = task.consumerAddress + task.jobId + task.nonce
+    const nonceCheckResult: NonceResponse = await checkNonce(
+      oceanNode.getDatabase().nonce,
+      task.consumerAddress,
+      parseInt(task.nonce),
+      task.signature,
+      message
+    )
+
+    if (!nonceCheckResult.valid) {
+      // eslint-disable-next-line prefer-destructuring
+      error = nonceCheckResult.error
+    }
+
+    if (error) {
+      CORE_LOGGER.logMessage(error, true)
+      return {
+        stream: null,
+        status: {
+          httpStatus: 400,
+          error
+        }
+      }
+    }
 
     // split jobId (which is already in hash-jobId format) and get the hash
     // then get jobId which might contain dashes as well
@@ -46,7 +72,7 @@ export class ComputeGetStreamableLogsHandler extends Handler {
     // env might contain
     let engine
     try {
-      engine = await this.getOceanNode().getC2DEngines().getC2DByHash(hash)
+      engine = await oceanNode.getC2DEngines().getC2DByHash(hash)
     } catch (e) {
       return {
         stream: null,

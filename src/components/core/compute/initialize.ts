@@ -2,7 +2,7 @@ import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { C2DClusterType } from '../../../@types/C2D/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Handler } from '../handler/handler.js'
+import { CommandHandler } from '../handler/handler.js'
 import { ComputeInitializeCommand } from '../../../@types/commands.js'
 import { ProviderComputeInitializeResults } from '../../../@types/Fees.js'
 import {
@@ -30,7 +30,8 @@ import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { C2DEngineDocker, getAlgorithmImage } from '../../c2d/compute_engine_docker.js'
-export class ComputeInitializeHandler extends Handler {
+
+export class ComputeInitializeHandler extends CommandHandler {
   validate(command: ComputeInitializeCommand): ValidateParams {
     const validation = validateCommandParameters(command, [
       'datasets',
@@ -46,12 +47,11 @@ export class ComputeInitializeHandler extends Handler {
           'Parameter : "consumerAddress" is not a valid web3 address'
         )
       }
-      if (
-        !command.payment.chainId ||
-        !command.payment.token ||
-        !command.payment.maxJobDuration
-      ) {
+      if (!command.payment.chainId || !command.payment.token) {
         return buildInvalidRequestMessage('Invalid payment options')
+      }
+      if (command.maxJobDuration && parseInt(String(command.maxJobDuration)) <= 0) {
+        return buildInvalidRequestMessage('Invalid maxJobDuration')
       }
 
       return validation
@@ -105,7 +105,9 @@ export class ComputeInitializeHandler extends Handler {
             }
           }
         }
-
+        if (!task.maxJobDuration || task.maxJobDuration > env.maxJobDuration) {
+          task.maxJobDuration = env.maxJobDuration
+        }
         resourcesNeeded = await engine.checkAndFillMissingResources(
           task.payment.resources,
           env,
@@ -154,7 +156,7 @@ export class ComputeInitializeHandler extends Handler {
         env,
         task.payment.chainId,
         task.payment.token,
-        task.payment.maxJobDuration
+        task.maxJobDuration
       )
       const allFees: ProviderComputeInitializeResults = {
         algorithm: null,
@@ -163,7 +165,7 @@ export class ComputeInitializeHandler extends Handler {
           escrowAddress,
           payee: env.consumerAddress,
           chainId: task.payment.chainId,
-          minLockSeconds: engine.escrow.getMinLockTime(task.payment.maxJobDuration),
+          minLockSeconds: engine.escrow.getMinLockTime(task.maxJobDuration),
           token: task.payment.token,
           amount: await engine.escrow.getPaymentAmountInWei(
             cost,

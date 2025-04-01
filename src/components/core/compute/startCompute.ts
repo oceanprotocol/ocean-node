@@ -1,11 +1,11 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Handler } from '../handler/handler.js'
 import {
   FreeComputeStartCommand,
   PaidComputeStartCommand
 } from '../../../@types/commands.js'
+import { CommandHandler } from '../handler/handler.js'
 import { getAlgoChecksums, validateAlgoForDataset } from './utils.js'
 import {
   ValidateParams,
@@ -31,10 +31,10 @@ import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 // import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
-import { getNonceAsNumber } from '../utils/nonceHandler.js'
+import { getNonceAsNumber, checkNonce, NonceResponse } from '../utils/nonceHandler.js'
 import { createHash } from 'crypto'
 
-export class ComputeStartHandler extends Handler {
+export class PaidComputeStartHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
       'consumerAddress',
@@ -42,13 +42,17 @@ export class ComputeStartHandler extends Handler {
       'nonce',
       'environment',
       'algorithm',
-      'datasets'
+      'datasets',
+      'maxJobDuration'
     ])
     if (commandValidation.valid) {
       if (!isAddress(command.consumerAddress)) {
         return buildInvalidRequestMessage(
           'Parameter : "consumerAddress" is not a valid web3 address'
         )
+      }
+      if (parseInt(String(command.maxJobDuration)) <= 0) {
+        return buildInvalidRequestMessage('Invalid maxJobDuration')
       }
     }
     return commandValidation
@@ -90,6 +94,9 @@ export class ComputeStartHandler extends Handler {
             }
           }
         }
+        if (!task.maxJobDuration || task.maxJobDuration > env.maxJobDuration) {
+          task.maxJobDuration = env.maxJobDuration
+        }
         task.payment.resources = await engine.checkAndFillMissingResources(
           task.payment.resources,
           env,
@@ -105,7 +112,6 @@ export class ComputeStartHandler extends Handler {
           }
         }
       }
-
       const { algorithm } = task
 
       const algoChecksums = await getAlgoChecksums(
@@ -334,7 +340,7 @@ export class ComputeStartHandler extends Handler {
         output: task.output,
         environment: env.id,
         owner: task.consumerAddress,
-        validUntil: task.payment.maxJobDuration,
+        maxJobDuration: task.maxJobDuration,
         chainId: task.payment.chainId,
         agreementId: '',
         resources
@@ -346,7 +352,7 @@ export class ComputeStartHandler extends Handler {
         env,
         task.payment.chainId,
         task.payment.token,
-        task.payment.maxJobDuration
+        task.maxJobDuration
       )
       let agreementId
       try {
@@ -356,7 +362,7 @@ export class ComputeStartHandler extends Handler {
           task.payment.token,
           task.consumerAddress,
           cost,
-          task.payment.maxJobDuration
+          task.maxJobDuration
         )
       } catch (e) {
         return {
@@ -374,7 +380,7 @@ export class ComputeStartHandler extends Handler {
           task.output,
           env.id,
           task.consumerAddress,
-          task.payment.maxJobDuration,
+          task.maxJobDuration,
           task.payment.resources,
           {
             chainId: task.payment.chainId,
@@ -426,9 +432,7 @@ export class ComputeStartHandler extends Handler {
   }
 }
 
-// free compute
-// - has no validation
-export class FreeComputeStartHandler extends Handler {
+export class FreeComputeStartHandler extends CommandHandler {
   validate(command: FreeComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
       'algorithm',
@@ -453,6 +457,30 @@ export class FreeComputeStartHandler extends Handler {
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
+    const thisNode = this.getOceanNode()
+    // Validate nonce and signature
+    const nonceCheckResult: NonceResponse = await checkNonce(
+      thisNode.getDatabase().nonce,
+      task.consumerAddress,
+      parseInt(task.nonce),
+      task.signature,
+      String(task.nonce)
+    )
+
+    if (!nonceCheckResult.valid) {
+      CORE_LOGGER.logMessage(
+        'Invalid nonce or signature, unable to proceed: ' + nonceCheckResult.error,
+        true
+      )
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error:
+            'Invalid nonce or signature, unable to proceed: ' + nonceCheckResult.error
+        }
+      }
+    }
     let engine = null
     try {
       // split compute env (which is already in hash-envId format) and get the hash
@@ -461,7 +489,7 @@ export class FreeComputeStartHandler extends Handler {
       const hash = task.environment.slice(0, eIndex)
       // const envId = task.environment.slice(eIndex + 1)
       try {
-        engine = await this.getOceanNode().getC2DEngines().getC2DByHash(hash)
+        engine = await thisNode.getC2DEngines().getC2DByHash(hash)
       } catch (e) {
         return {
           stream: null,
@@ -480,9 +508,8 @@ export class FreeComputeStartHandler extends Handler {
           }
         }
       }
-      let env
       try {
-        env = await engine.getComputeEnvironment(null, task.environment)
+        const env = await engine.getComputeEnvironment(null, task.environment)
         if (!env) {
           return {
             stream: null,
@@ -492,12 +519,16 @@ export class FreeComputeStartHandler extends Handler {
             }
           }
         }
+
         task.resources = await engine.checkAndFillMissingResources(
           task.resources,
           env,
           true
         )
         await engine.checkIfResourcesAreAvailable(task.resources, env, true)
+        if (!task.maxJobDuration || task.maxJobDuration > env.free.maxJobDuration) {
+          task.maxJobDuration = env.free.maxJobDuration
+        }
       } catch (e) {
         console.error(e)
         return {
@@ -508,25 +539,24 @@ export class FreeComputeStartHandler extends Handler {
           }
         }
       }
-
-      let maxDuration = null
-      if (env.free.maxJobDuration) {
-        maxDuration = env.free.maxJobDuration
-      }
+      // console.log(task.resources)
+      /*
+      return {
+        stream: null,
+        status: {
+          httpStatus: 200,
+          error: null
+        }
+      } */
       const response = await engine.startComputeJob(
         task.datasets,
         task.algorithm,
         task.output,
         task.environment,
         task.consumerAddress,
-        maxDuration,
+        task.maxJobDuration,
         task.resources,
-        {
-          chainId: null,
-          token: null,
-          lockTx: null,
-          claimTx: null
-        }
+        null
       )
 
       CORE_LOGGER.logMessage(

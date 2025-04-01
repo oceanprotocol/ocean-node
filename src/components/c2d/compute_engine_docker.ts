@@ -92,7 +92,14 @@ export class C2DEngineDocker extends C2DEngine {
     // let's build the env.   Swarm and k8 will build multiple envs, based on arhitecture
     const config = await getConfiguration()
     const envConfig = await this.getC2DConfig().connection
-    const sysinfo = await this.docker.info()
+    let sysinfo = null
+    try {
+      sysinfo = await this.docker.info()
+    } catch (e) {
+      CORE_LOGGER.error('Could not get docker info: ' + e.message)
+      // since we cannot connect to docker, we cannot start the engine -> no envs
+      return
+    }
     // console.log(sysinfo)
     let fees: ComputeEnvFeesStructure = null
 
@@ -487,7 +494,6 @@ export class C2DEngineDocker extends C2DEngine {
     }
     // wait for all promises, there is no return
     await Promise.all(promises)
-
     // set the cron again
     this.setNewTimer()
   }
@@ -567,13 +573,13 @@ export class C2DEngineDocker extends C2DEngine {
           let wroteStatusBanner = false
           this.docker.modem.followProgress(
             pullStream,
-            (err, res) => {
+            (err: any, res: any) => {
               // onFinished
               if (err) return reject(err)
               CORE_LOGGER.info('############# Pull docker image complete ##############')
               resolve(res)
             },
-            (progress) => {
+            (progress: any) => {
               // onProgress
               if (!wroteStatusBanner) {
                 wroteStatusBanner = true
@@ -588,7 +594,12 @@ export class C2DEngineDocker extends C2DEngine {
         CORE_LOGGER.error(
           `Unable to pull docker image: ${job.containerImage}: ${err.message}`
         )
-        await this.db.deleteJob(job.jobId)
+        job.status = C2DStatusNumber.PullImageFailed
+        job.statusText = C2DStatusText.PullImageFailed
+        job.isRunning = false
+        job.dateFinished = String(Date.now() / 1000)
+        await this.db.updateJob(job)
+        await this.cleanupJob(job)
         return
       }
 
@@ -635,6 +646,7 @@ export class C2DEngineDocker extends C2DEngine {
         job.status = C2DStatusNumber.VolumeCreationFailed
         job.statusText = C2DStatusText.VolumeCreationFailed
         job.isRunning = false
+        job.dateFinished = String(Date.now() / 1000)
         await this.db.updateJob(job)
         await this.cleanupJob(job)
         return
@@ -703,6 +715,7 @@ export class C2DEngineDocker extends C2DEngine {
         job.status = C2DStatusNumber.ContainerCreationFailed
         job.statusText = C2DStatusText.ContainerCreationFailed
         job.isRunning = false
+        job.dateFinished = String(Date.now() / 1000)
         await this.db.updateJob(job)
         await this.cleanupJob(job)
         return
@@ -719,6 +732,7 @@ export class C2DEngineDocker extends C2DEngine {
       if (job.status !== C2DStatusNumber.RunningAlgorithm) {
         // failed, let's close it
         job.isRunning = false
+        job.dateFinished = String(Date.now() / 1000)
         await this.db.updateJob(job)
         await this.cleanupJob(job)
       } else {
@@ -736,7 +750,6 @@ export class C2DEngineDocker extends C2DEngine {
           try {
             await container.start()
             job.isStarted = true
-            job.algoStartTimestamp = String(Date.now() / 1000)
             await this.db.updateJob(job)
             return
           } catch (e) {
@@ -758,6 +771,7 @@ export class C2DEngineDocker extends C2DEngine {
             job.statusText = C2DStatusText.AlgorithmFailed
 
             job.isRunning = false
+            job.dateFinished = String(Date.now() / 1000)
             await this.db.updateJob(job)
             await this.cleanupJob(job)
             return
@@ -787,6 +801,7 @@ export class C2DEngineDocker extends C2DEngine {
           job.status = C2DStatusNumber.PublishingResults
           job.statusText = C2DStatusText.PublishingResults
           job.algoStopTimestamp = String(Date.now() / 1000)
+          job.isRunning = false
           await this.db.updateJob(job)
           return
         } else {
@@ -795,6 +810,7 @@ export class C2DEngineDocker extends C2DEngine {
             job.status = C2DStatusNumber.PublishingResults
             job.statusText = C2DStatusText.PublishingResults
             job.algoStopTimestamp = String(Date.now() / 1000)
+            job.isRunning = false
             await this.db.updateJob(job)
             return
           }
@@ -815,10 +831,11 @@ export class C2DEngineDocker extends C2DEngine {
         )
       } catch (e) {
         console.log(e)
-        job.status = C2DStatusNumber.ResultsFetchFailed
-        job.statusText = C2DStatusText.ResultsFetchFailed
+        job.status = C2DStatusNumber.ResultsUploadFailed
+        job.statusText = C2DStatusText.ResultsUploadFailed
       }
       job.isRunning = false
+      job.dateFinished = String(Date.now() / 1000)
       await this.db.updateJob(job)
       await this.cleanupJob(job)
     }

@@ -1,6 +1,6 @@
-// import { CORE_LOGGER } from '../../utils/logging/common.js'
 import { PolicyServerResult } from '../../@types/policyServer.js'
 import { DDO } from '../../@types/DDO/DDO.js'
+import { isDefined } from '../../utils/util.js'
 
 export class PolicyServer {
   serverUrl: string
@@ -10,7 +10,7 @@ export class PolicyServer {
   }
 
   private async askServer(command: any): Promise<PolicyServerResult> {
-    if (!this.serverUrl) return { success: true, message: '', httpStatus: 0 }
+    if (!this.serverUrl) return { success: true, message: '', httpStatus: 404 }
     let response
     try {
       response = await fetch(this.serverUrl, {
@@ -21,10 +21,18 @@ export class PolicyServer {
         body: JSON.stringify(command)
       })
     } catch (e) {
-      return { success: true, message: '', httpStatus: 0 }
+      return {
+        success: true,
+        message: '',
+        httpStatus: 400
+      }
     }
     if (response.status === 200) {
-      return { success: true, message: '', httpStatus: response.status }
+      return {
+        success: true,
+        message: await response.text(),
+        httpStatus: response.status
+      }
     }
     return { success: false, message: await response.text(), httpStatus: response.status }
   }
@@ -103,5 +111,9 @@ export class PolicyServer {
 
   async passThrough(request: any): Promise<PolicyServerResult> {
     return await this.askServer(request)
+  }
+
+  public isConfigured(): boolean {
+    return isDefined(this.serverUrl)
   }
 }
