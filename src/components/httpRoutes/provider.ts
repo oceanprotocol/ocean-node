@@ -227,7 +227,13 @@ providerRoutes.get(
 
       if (response.stream) {
         res.status(response.status.httpStatus)
-        res.set(response.status.headers)
+
+        const safeHeaders = { ...response.status.headers }
+        if (safeHeaders['content-length'] && safeHeaders['Transfer-Encoding']) {
+          delete safeHeaders['content-length']
+        }
+
+        res.set(safeHeaders)
         response.stream.pipe(res)
       } else {
         res.status(response.status.httpStatus).send(response.status.error)
