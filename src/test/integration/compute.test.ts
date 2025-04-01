@@ -632,7 +632,7 @@ describe('Compute', () => {
     if (BigInt(funds.toString()) > BigInt(0)) {
       await escrowContract
         .connect(consumerAccount)
-        .withdraw(initializeResponse.payment.token, funds)
+        .withdraw([initializeResponse.payment.token], [funds])
     }
     let auth = await oceanNode.escrow.getAuthorizations(
       DEVELOPMENT_CHAIN_ID,
@@ -787,7 +787,7 @@ describe('Compute', () => {
     )
   })
 
-  it('should start a free docker compute job', async () => {
+  /* it('should start a free docker compute job', async () => {
     const nonce = Date.now().toString()
     const message = String(nonce)
     // sign message/nonce
@@ -832,7 +832,7 @@ describe('Compute', () => {
     assert(jobs[0].jobId, 'failed to got job id')
     // eslint-disable-next-line prefer-destructuring
     jobId = jobs[0].jobId
-  })
+  }) */
 
   it('should start a free docker compute job', async () => {
     const nonce = Date.now().toString()
@@ -870,6 +870,7 @@ describe('Compute', () => {
       // output?: ComputeOutput
     }
     const response = await new FreeComputeStartHandler(oceanNode).handle(startComputeTask)
+    console.log(response)
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')

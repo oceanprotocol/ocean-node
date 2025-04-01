@@ -299,7 +299,7 @@ export class C2DEngineDocker extends C2DEngine {
     }
     const envIdWithHash = environment && environment.indexOf('-') > -1
     const env = await this.getComputeEnvironment(
-      payment.chainId,
+      payment && payment.chainId ? payment.chainId : null,
       envIdWithHash ? environment : null,
       environment
     )
