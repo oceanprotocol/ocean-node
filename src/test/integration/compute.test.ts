@@ -4,19 +4,20 @@ import {
   // ComputeStartHandler,
   ComputeStopHandler,
   ComputeGetStatusHandler,
-  // ComputeInitializeHandler,
-  FreeComputeStartHandler
+  ComputeInitializeHandler,
+  FreeComputeStartHandler,
+  PaidComputeStartHandler
 } from '../../components/core/compute/index.js'
 import type {
-  ComputeStartCommand,
+  PaidComputeStartCommand,
+  FreeComputeStartCommand,
   ComputeStopCommand,
   ComputeGetStatusCommand,
-  // ComputeInitializeCommand,
-  FreeComputeStartCommand
+  ComputeInitializeCommand
 } from '../../@types/commands.js'
 import type {
-  // ComputeAsset,
-  // ComputeAlgorithm,
+  ComputeAsset,
+  ComputeAlgorithm,
   ComputeEnvironment
 } from '../../@types/C2D/C2D.js'
 import {
@@ -42,8 +43,7 @@ import {
   Signer,
   ZeroAddress
 } from 'ethers'
-// import { publishAsset, orderAsset } from '../utils/assets.js'
-import { publishAsset } from '../utils/assets.js'
+import { publishAsset, orderAsset } from '../utils/assets.js'
 import { computeAsset, algoAsset } from '../data/assets.js'
 import { RPCS } from '../../@types/blockchain.js'
 import {
@@ -56,12 +56,14 @@ import {
   tearDownEnvironment
 } from '../utils/utils.js'
 
-// import { ProviderFees } from '../../@types/Fees.js'
+import { ProviderFees, ProviderComputeInitializeResults } from '../../@types/Fees.js'
 import { homedir } from 'os'
 import { publishAlgoDDO, publishDatasetDDO } from '../data/ddo.js'
 import { DEVELOPMENT_CHAIN_ID, getOceanArtifactsAdresses } from '../../utils/address.js'
 import ERC721Factory from '@oceanprotocol/contracts/artifacts/contracts/ERC721Factory.sol/ERC721Factory.json' assert { type: 'json' }
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
+import OceanToken from '@oceanprotocol/contracts/artifacts/contracts/utils/OceanToken.sol/OceanToken.json' assert { type: 'json' }
+import EscrowJson from '@oceanprotocol/contracts/artifacts/contracts/escrow/Escrow.sol/Escrow.json' assert { type: 'json' }
 import { createHash } from 'crypto'
 import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
@@ -79,18 +81,21 @@ describe('Compute', () => {
   let oceanNode: OceanNode
   let provider: any
   let publisherAccount: any
-  // let consumerAccount: any
+  let consumerAccount: any
   let computeEnvironments: any
   let publishedComputeDataset: any
   let publishedAlgoDataset: any
   let jobId: string
   let datasetOrderTxId: any
   let algoOrderTxId: any
-  // let providerFeesComputeDataset: ProviderFees
-  // let providerFeesComputeAlgo: ProviderFees
+  let paymentToken: any
+  let paymentTokenContract: any
+  let escrowContract: any
+  let providerFeesComputeDataset: ProviderFees
+  let providerFeesComputeAlgo: ProviderFees
   let indexer: OceanIndexer
   // const now = new Date().getTime() / 1000
-  // const computeJobValidUntil = now + 60 * 15 // 15 minutes from now should be enough
+  const computeJobDuration = 60 * 15 // 15 minutes from now should be enough
   let firstEnv: ComputeEnvironment
 
   const wallet = new ethers.Wallet(
@@ -107,8 +112,12 @@ describe('Compute', () => {
   let factoryContract: Contract
   let algoDDO: any
   let datasetDDO: any
+  let artifactsAddresses: any
+  let initializeResponse: ProviderComputeInitializeResults
 
   before(async () => {
+    artifactsAddresses = getOceanArtifactsAdresses()
+    paymentToken = artifactsAddresses.development.Ocean
     previousConfiguration = await setupEnvironment(
       TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
@@ -128,28 +137,39 @@ describe('Compute', () => {
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
           '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":1000000000}],"storageExpiry":604800,"maxJobDuration":3600,"fees":{"' +
             DEVELOPMENT_CHAIN_ID +
-            '":[{"feeToken":"0x123","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1000000000},{"id":"disk","max":1000000000}]}}]'
+            '":[{"feeToken":"' +
+            paymentToken +
+            '","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1000000000},{"id":"disk","max":1000000000}]}}]'
         ]
       )
     )
     config = await getConfiguration(true)
     dbconn = await new Database(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(dbconn)
+    oceanNode = await OceanNode.getInstance(config, dbconn, null, null, null)
     indexer = new OceanIndexer(dbconn, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
-    oceanNode.addC2DEngines(config)
+    oceanNode.addC2DEngines()
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
-    // consumerAccount = (await provider.getSigner(1)) as Signer
+    consumerAccount = (await provider.getSigner(1)) as Signer
 
-    const artifactsAddresses = getOceanArtifactsAdresses()
     publisherAddress = await publisherAccount.getAddress()
     algoDDO = { ...publishAlgoDDO }
     datasetDDO = { ...publishDatasetDDO }
     factoryContract = new ethers.Contract(
       artifactsAddresses.development.ERC721Factory,
       ERC721Factory.abi,
+      publisherAccount
+    )
+    paymentTokenContract = new ethers.Contract(
+      paymentToken,
+      OceanToken.abi,
+      publisherAccount
+    )
+    escrowContract = new ethers.Contract(
+      artifactsAddresses.development.Escrow,
+      EscrowJson.abi,
       publisherAccount
     )
   })
@@ -275,8 +295,8 @@ describe('Compute', () => {
     }
     firstEnv = computeEnvironments[0]
   })
-  /*
-  it('Initialize compute without transaction IDs', async () => {
+
+  it('Initialize compute without orders transaction IDs', async () => {
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
       serviceId: publishedComputeDataset.ddo.services[0].id
@@ -297,10 +317,12 @@ describe('Compute', () => {
     const initializeComputeTask: ComputeInitializeCommand = {
       datasets: [dataset],
       algorithm,
-      compute: {
-        env: firstEnv.id,
-        validUntil: computeJobValidUntil
+      environment: firstEnv.id,
+      payment: {
+        chainId: DEVELOPMENT_CHAIN_ID,
+        token: paymentToken
       },
+      maxJobDuration: computeJobDuration,
       consumerAddress: firstEnv.consumerAddress,
       command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
     }
@@ -368,9 +390,17 @@ describe('Compute', () => {
 
     assert(resultParsed.providerFee.validUntil, 'algorithm validUntil does not exist')
     assert(result.datasets[0].validOrder === false, 'incorrect validOrder') // expect false because tx id was not provided and no start order was called before
+    assert(result.payment, ' Payment structure does not exists')
+    assert(
+      result.payment.escrowAddress === artifactsAddresses.development.Escrow,
+      'Incorrect escrow address'
+    )
+    assert(result.payment.payee === firstEnv.consumerAddress, 'Incorrect payee address')
+    assert(result.payment.token === paymentToken, 'Incorrect payment token address')
+    // TO DO: check result.payment.amount
   })
 
-  it('should start an order', async function () {
+  it('should start an order on dataset', async function () {
     const orderTxReceipt = await orderAsset(
       publishedComputeDataset.ddo,
       0,
@@ -386,11 +416,11 @@ describe('Compute', () => {
   })
 
   it('Initialize compute with dataset tx and without algoritm tx', async () => {
-    // now, we have a valid order for dataset, with valid compute provider fees
+    // now, we have a valid order for dataset, with valid provider fees
     // expected results:
     //  - dataset should have valid order
-    //  - dataset should have valid providerFee
-    //  - algo should not have any valid order or providerFee
+    //  - dataset should not have providerFee, cause it's already paid & valid
+    //  - algo should not have any valid order and it should have providerFee
 
     const dataset: ComputeAsset = {
       documentId: publishedComputeDataset.ddo.id,
@@ -404,10 +434,12 @@ describe('Compute', () => {
     const initializeComputeTask: ComputeInitializeCommand = {
       datasets: [dataset],
       algorithm,
-      compute: {
-        env: firstEnv.id,
-        validUntil: computeJobValidUntil
+      environment: firstEnv.id,
+      payment: {
+        chainId: DEVELOPMENT_CHAIN_ID,
+        token: paymentToken
       },
+      maxJobDuration: computeJobDuration,
       consumerAddress: firstEnv.consumerAddress,
       command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
     }
@@ -420,6 +452,10 @@ describe('Compute', () => {
     expect(resp.stream).to.be.instanceOf(Readable)
 
     const result: any = await streamToObject(resp.stream as Readable)
+    console.log('446')
+    console.log(result)
+    console.log('Algo')
+    console.log(result.algorithm)
     assert(result.algorithm, 'algorithm does not exist')
     expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
       publishedAlgoDataset.datatokenAddress?.toLowerCase()
@@ -448,7 +484,7 @@ describe('Compute', () => {
 
     assert(result.datasets.length > 0, 'datasets key does not exist')
     const resultParsed = JSON.parse(JSON.stringify(result.datasets[0]))
-
+    if ('providerFee' in resultParsed) console.log(resultParsed.providerFee)
     expect(resultParsed.datatoken?.toLowerCase()).to.be.equal(
       publishedComputeDataset.ddo.datatokens[0].address?.toLowerCase()
     )
@@ -494,10 +530,12 @@ describe('Compute', () => {
     const initializeComputeTask: ComputeInitializeCommand = {
       datasets: [dataset],
       algorithm,
-      compute: {
-        env: firstEnv.id,
-        validUntil: computeJobValidUntil
+      environment: firstEnv.id,
+      payment: {
+        chainId: DEVELOPMENT_CHAIN_ID,
+        token: paymentToken
       },
+      maxJobDuration: computeJobDuration,
       consumerAddress: firstEnv.consumerAddress,
       command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
     }
@@ -511,6 +549,7 @@ describe('Compute', () => {
     expect(resp.stream).to.be.instanceOf(Readable)
 
     const result: any = await streamToObject(resp.stream as Readable)
+    initializeResponse = JSON.parse(JSON.stringify(result))
     assert(result.algorithm, 'algorithm does not exist')
     expect(result.algorithm.datatoken?.toLowerCase()).to.be.equal(
       publishedAlgoDataset.datatokenAddress?.toLowerCase()
@@ -543,13 +582,15 @@ describe('Compute', () => {
       [ethers.hexlify(ethers.toUtf8Bytes(message))]
     )
     const messageHashBytes = ethers.toBeArray(consumerMessage)
+
+    // since ganache does not supports personal_sign, we use wallet account
     const signature = await wallet.signMessage(messageHashBytes)
-    const startComputeTask: ComputeStartCommand = {
+    const startComputeTask: PaidComputeStartCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_START,
-      consumerAddress: await wallet.getAddress(),
+      consumerAddress: await consumerAccount.getAddress(),
+      environment: firstEnv.id,
       signature,
       nonce,
-      environment: firstEnv.id,
       datasets: [
         {
           documentId: publishedComputeDataset.ddo.id,
@@ -562,11 +603,16 @@ describe('Compute', () => {
         serviceId: publishedAlgoDataset.ddo.services[0].id,
         transferTxId: '0x123',
         meta: publishedAlgoDataset.ddo.metadata.algorithm
-      }
+      },
+      payment: {
+        chainId: DEVELOPMENT_CHAIN_ID,
+        token: paymentToken
+      },
+      maxJobDuration: computeJobDuration
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
-    const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
+    const response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
     assert(response, 'Failed to get response')
     // should fail, because txId '0x123' is not a valid order
     assert(response.status.httpStatus === 500, 'Failed to get 500 response')
@@ -574,9 +620,56 @@ describe('Compute', () => {
   })
 
   it('should start a compute job', async () => {
-    // first need to check the existing envs
-    // If only FREE envs than start a free compute job instead of a regular/payed one
+    // first check escrow auth
 
+    let balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
+    let funds = await oceanNode.escrow.getUserAvailableFunds(
+      DEVELOPMENT_CHAIN_ID,
+      await consumerAccount.getAddress(),
+      paymentToken
+    )
+    // make sure we have 0 funds
+    if (BigInt(funds.toString()) > BigInt(0)) {
+      await escrowContract
+        .connect(consumerAccount)
+        .withdraw([initializeResponse.payment.token], [funds])
+    }
+    let auth = await oceanNode.escrow.getAuthorizations(
+      DEVELOPMENT_CHAIN_ID,
+      paymentToken,
+      await consumerAccount.getAddress(),
+      firstEnv.consumerAddress
+    )
+    if (auth.length > 0) {
+      // remove any auths
+      await escrowContract
+        .connect(consumerAccount)
+        .authorize(initializeResponse.payment.token, firstEnv.consumerAddress, 0, 0, 0)
+    }
+    let locks = await oceanNode.escrow.getLocks(
+      DEVELOPMENT_CHAIN_ID,
+      paymentToken,
+      await consumerAccount.getAddress(),
+      firstEnv.consumerAddress
+    )
+
+    if (locks.length > 0) {
+      // cancel all locks
+      for (const lock of locks) {
+        try {
+          await escrowContract
+            .connect(consumerAccount)
+            .cancelExpiredLocks(lock.jobId, lock.token, lock.payer, lock.payee)
+        } catch (e) {}
+      }
+      locks = await oceanNode.escrow.getLocks(
+        DEVELOPMENT_CHAIN_ID,
+        paymentToken,
+        await consumerAccount.getAddress(),
+        firstEnv.consumerAddress
+      )
+    }
+    const locksBefore = locks.length
     const nonce = Date.now().toString()
     const message = String(nonce)
     // sign message/nonce
@@ -586,9 +679,9 @@ describe('Compute', () => {
     )
     const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await wallet.signMessage(messageHashBytes)
-    const startComputeTask: ComputeStartCommand = {
+    const startComputeTask: PaidComputeStartCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_START,
-      consumerAddress: await wallet.getAddress(),
+      consumerAddress: await consumerAccount.getAddress(),
       signature,
       nonce,
       environment: firstEnv.id,
@@ -605,11 +698,60 @@ describe('Compute', () => {
         transferTxId: algoOrderTxId,
         meta: publishedAlgoDataset.ddo.metadata.algorithm
       },
-      output: {}
+      output: {},
+      payment: {
+        chainId: DEVELOPMENT_CHAIN_ID,
+        token: paymentToken
+      },
+      maxJobDuration: computeJobDuration
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
-    const response = await new ComputeStartHandler(oceanNode).handle(startComputeTask)
+    // it should fail, because we don't have funds & auths in escrow
+    let response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
+    assert(response.status.httpStatus === 400, 'Failed to get 400 response')
+    assert(!response.stream, 'We should not have a stream')
+    // let's put funds in escrow & create an auth
+    balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
+    await paymentTokenContract
+      .connect(consumerAccount)
+      .approve(initializeResponse.payment.escrowAddress, balance)
+    await escrowContract
+      .connect(consumerAccount)
+      .deposit(initializeResponse.payment.token, balance)
+    await escrowContract
+      .connect(consumerAccount)
+      .authorize(
+        initializeResponse.payment.token,
+        firstEnv.consumerAddress,
+        balance,
+        computeJobDuration,
+        10
+      )
+    auth = await oceanNode.escrow.getAuthorizations(
+      DEVELOPMENT_CHAIN_ID,
+      paymentToken,
+      await consumerAccount.getAddress(),
+      firstEnv.consumerAddress
+    )
+    const authBefore = auth[0]
+    funds = await oceanNode.escrow.getUserAvailableFunds(
+      DEVELOPMENT_CHAIN_ID,
+      await consumerAccount.getAddress(),
+      paymentToken
+    )
+    const fundsBefore = funds
+    assert(BigInt(funds.toString()) > BigInt(0), 'Should have funds in escrow')
+    assert(auth.length > 0, 'Should have authorization')
+    assert(
+      BigInt(auth[0].maxLockedAmount.toString()) > BigInt(0),
+      ' Should have maxLockedAmount in auth'
+    )
+    assert(
+      BigInt(auth[0].maxLockCounts.toString()) > BigInt(0),
+      ' Should have maxLockCounts in auth'
+    )
+    response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
@@ -618,9 +760,34 @@ describe('Compute', () => {
     const jobs = await streamToObject(response.stream as Readable)
     // eslint-disable-next-line prefer-destructuring
     jobId = jobs[0].jobId
+    // check escrow
+    funds = await oceanNode.escrow.getUserAvailableFunds(
+      DEVELOPMENT_CHAIN_ID,
+      await consumerAccount.getAddress(),
+      paymentToken
+    )
+    assert(fundsBefore > funds, 'We should have less funds')
+    locks = await oceanNode.escrow.getLocks(
+      DEVELOPMENT_CHAIN_ID,
+      paymentToken,
+      await consumerAccount.getAddress(),
+      firstEnv.consumerAddress
+    )
+    assert(locks.length > locksBefore, 'We should have locks')
+    auth = await oceanNode.escrow.getAuthorizations(
+      DEVELOPMENT_CHAIN_ID,
+      paymentToken,
+      await consumerAccount.getAddress(),
+      firstEnv.consumerAddress
+    )
+    assert(auth[0].currentLocks > authBefore.currentLocks, 'We should have running jobs')
+    assert(
+      auth[0].currentLockedAmount > authBefore.currentLockedAmount,
+      'We should have higher currentLockedAmount'
+    )
   })
-  */
-  it('should start a free docker compute job', async () => {
+
+  /* it('should start a free docker compute job', async () => {
     const nonce = Date.now().toString()
     const message = String(nonce)
     // sign message/nonce
@@ -630,9 +797,9 @@ describe('Compute', () => {
     )
     const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await wallet.signMessage(messageHashBytes)
-    const startComputeTask: ComputeStartCommand = {
+    const startComputeTask: FreeComputeStartCommand = {
       command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
-      consumerAddress: await wallet.getAddress(),
+      consumerAddress: await consumerAccount.getAddress(),
       signature,
       nonce,
       environment: firstEnv.id,
@@ -665,6 +832,54 @@ describe('Compute', () => {
     assert(jobs[0].jobId, 'failed to got job id')
     // eslint-disable-next-line prefer-destructuring
     jobId = jobs[0].jobId
+  }) */
+
+  it('should start a free docker compute job', async () => {
+    const nonce = Date.now().toString()
+    const message = String(nonce)
+    // sign message/nonce
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await wallet.signMessage(messageHashBytes)
+    const startComputeTask: FreeComputeStartCommand = {
+      command: PROTOCOL_COMMANDS.FREE_COMPUTE_START,
+      consumerAddress: await wallet.getAddress(),
+      signature,
+      nonce,
+      environment: firstEnv.id,
+      datasets: [
+        {
+          fileObject: computeAsset.services[0].files.files[0],
+          documentId: publishedComputeDataset.ddo.id,
+          serviceId: publishedComputeDataset.ddo.services[0].id,
+          transferTxId: datasetOrderTxId
+        }
+      ],
+      algorithm: {
+        fileObject: algoAsset.services[0].files.files[0],
+        documentId: publishedAlgoDataset.ddo.id,
+        serviceId: publishedAlgoDataset.ddo.services[0].id,
+        transferTxId: algoOrderTxId,
+        meta: publishedAlgoDataset.ddo.metadata.algorithm
+      },
+      output: {}
+      // additionalDatasets?: ComputeAsset[]
+      // output?: ComputeOutput
+    }
+    const response = await new FreeComputeStartHandler(oceanNode).handle(startComputeTask)
+    console.log(response)
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(response.stream, 'Failed to get stream')
+    expect(response.stream).to.be.instanceOf(Readable)
+
+    const jobs = await streamToObject(response.stream as Readable)
+    assert(jobs[0].jobId, 'failed to got job id')
+    // eslint-disable-next-line prefer-destructuring
+    jobId = jobs[0].jobId
   })
 
   it('should get job status by jobId', async () => {
@@ -688,7 +903,7 @@ describe('Compute', () => {
   it('should get job status by consumer', async () => {
     const statusComputeTask: ComputeGetStatusCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
-      consumerAddress: wallet.address,
+      consumerAddress: consumerAccount.address,
       agreementId: null,
       jobId: null
     }
@@ -714,7 +929,7 @@ describe('Compute', () => {
     const signature = await wallet.signMessage(messageHashBytes)
     const stopComputeTask: ComputeStopCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_STOP,
-      consumerAddress: await wallet.getAddress(),
+      consumerAddress: await consumerAccount.getAddress(),
       signature,
       nonce,
       jobId
@@ -949,7 +1164,7 @@ describe('Compute', () => {
     })
 
     it('should validateAlgoForDataset', async function () {
-      this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+      this.timeout(DEFAULT_TEST_TIMEOUT * 10)
       const { ddo, wasTimeout } = await waitToIndex(
         algoDDO.id,
         EVENTS.METADATA_CREATED,

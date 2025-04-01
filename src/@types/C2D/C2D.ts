@@ -24,7 +24,7 @@ export type ComputeResourceType = 'cpu' | 'ram' | 'disk' | any
 
 export interface ComputeResourcesPricingInfo {
   id: ComputeResourceType
-  price: number // price per unit
+  price: number // price per unit per minute
 }
 
 export interface ComputeResource {
@@ -39,6 +39,10 @@ export interface ComputeResource {
 export interface ComputeResourceRequest {
   id: string
   amount: number
+}
+
+export interface ComputeResourceRequestWithPrice extends ComputeResourceRequest {
+  price?: number // price per unit per minute
 }
 
 export interface ComputeEnvFees {
@@ -120,8 +124,8 @@ export interface ComputeJob {
   results: ComputeResult[]
   inputDID?: string[]
   algoDID?: string
+  maxJobDuration?: number
   agreementId?: string
-  expireTimestamp: number
   environment?: string
 }
 
@@ -160,6 +164,12 @@ export interface AlgoChecksums {
   container: string
 }
 
+export interface DBComputeJobPayment {
+  chainId: number
+  token: string
+  lockTx: string
+  claimTx: string
+}
 // this is the internal structure
 export interface DBComputeJob extends ComputeJob {
   clusterHash: string
@@ -173,8 +183,11 @@ export interface DBComputeJob extends ComputeJob {
   isRunning: boolean
   isStarted: boolean
   containerImage: string
-  resources: ComputeResourceRequest[]
   isFree: boolean
+  algoStartTimestamp: string
+  algoStopTimestamp: string
+  resources: ComputeResourceRequestWithPrice[]
+  payment?: DBComputeJobPayment
 }
 
 // make sure we keep them both in sync

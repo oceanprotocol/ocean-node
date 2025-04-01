@@ -828,7 +828,8 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       isStartup,
       knownUnsafeURLs
     ),
-    isBootstrap: getBoolEnvValue('IS_BOOTSTRAP', false)
+    isBootstrap: getBoolEnvValue('IS_BOOTSTRAP', false),
+    claimDurationTimeout: getIntEnvValue(process.env.ESCROW_CLAIM_TIMEOUT, 600)
   }
 
   if (!previousConfiguration) {

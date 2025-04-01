@@ -22,7 +22,7 @@ import { OceanNode } from '../../../OceanNode.js'
 import { Command } from '../../../@types/commands.js'
 import {
   ComputeGetEnvironmentsHandler,
-  ComputeStartHandler,
+  PaidComputeStartHandler,
   FreeComputeStartHandler,
   ComputeStopHandler,
   ComputeGetStatusHandler,
@@ -105,7 +105,7 @@ export class CoreHandlersRegistry {
     )
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.COMPUTE_START,
-      new ComputeStartHandler(node)
+      new PaidComputeStartHandler(node)
     )
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.FREE_COMPUTE_START,

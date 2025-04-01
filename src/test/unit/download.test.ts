@@ -35,7 +35,7 @@ describe('Should validate files structure for download', () => {
     envOverrides = await setupEnvironment(null, envOverrides)
     config = await getConfiguration(true)
     db = await new Database(config.dbConfig)
-    oceanNode = OceanNode.getInstance(db)
+    oceanNode = OceanNode.getInstance(config, db)
   })
 
   const ddoObj: DDO = {
@@ -167,7 +167,10 @@ describe('Should validate files structure for download', () => {
 
     // not confidential evm anymore
     expect(
-      isConfidentialChainDDO(DEVELOPMENT_CHAIN_ID, otherDDOConfidential.services[0])
+      isConfidentialChainDDO(
+        BigInt(DEVELOPMENT_CHAIN_ID),
+        otherDDOConfidential.services[0]
+      )
     ).to.be.equal(false)
   })
 

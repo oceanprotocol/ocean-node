@@ -1,7 +1,7 @@
 import express from 'express'
 import {
   ComputeGetEnvironmentsHandler,
-  ComputeStartHandler,
+  PaidComputeStartHandler,
   FreeComputeStartHandler,
   ComputeStopHandler,
   ComputeGetStatusHandler,
@@ -16,7 +16,8 @@ import type {
   ComputeResourceRequest
 } from '../../@types/C2D/C2D.js'
 import type {
-  ComputeStartCommand,
+  PaidComputeStartCommand,
+  ComputePayment,
   FreeComputeStartCommand,
   ComputeStopCommand,
   ComputeGetResultCommand,
@@ -64,7 +65,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       true
     )
 
-    const startComputeTask: ComputeStartCommand = {
+    const startComputeTask: PaidComputeStartCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_START,
       node: (req.body.node as string) || null,
       consumerAddress: (req.body.consumerAddress as string) || null,
@@ -73,13 +74,16 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       environment: (req.body.environment as string) || null,
       algorithm: (req.body.algorithm as ComputeAlgorithm) || null,
       datasets: (req.body.datasets as unknown as ComputeAsset[]) || null,
+      payment: (req.body.payment as unknown as ComputePayment) || null,
       resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output as ComputeOutput
     }
 
-    const response = await new ComputeStartHandler(req.oceanNode).handle(startComputeTask)
+    const response = await new PaidComputeStartHandler(req.oceanNode).handle(
+      startComputeTask
+    )
     if (response?.status?.httpStatus === 200) {
       const jobs = await streamToObject(response.stream as Readable)
       res.status(200).json(jobs)
@@ -112,7 +116,8 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => 
       environment: (req.body.environment as string) || null,
       algorithm: (req.body.algorithm as ComputeAlgorithm) || null,
       datasets: (req.body.datasets as unknown as ComputeAsset[]) || null,
-      resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null
+      resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null,
+      maxJobDuration: req.body.maxJobDuration || null
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output as ComputeOutput

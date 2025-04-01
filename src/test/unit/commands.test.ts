@@ -8,7 +8,7 @@ import {
   ComputeGetResultCommand,
   ComputeGetStatusCommand,
   ComputeInitializeCommand,
-  ComputeStartCommand,
+  PaidComputeStartCommand,
   ComputeStopCommand,
   DecryptDDOCommand,
   DownloadCommand,
@@ -39,7 +39,7 @@ import { StatusHandler } from '../../components/core/handler/statusHandler.js'
 import { FeesHandler } from '../../components/core/handler/feesHandler.js'
 import { FileInfoHandler } from '../../components/core/handler/fileInfoHandler.js'
 import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/environments.js'
-import { ComputeStartHandler } from '../../components/core/compute/startCompute.js'
+import { PaidComputeStartHandler } from '../../components/core/compute/startCompute.js'
 import { ComputeStopHandler } from '../../components/core/compute/stopCompute.js'
 import { ComputeGetStatusHandler } from '../../components/core/compute/getStatus.js'
 import { ComputeGetResultHandler } from '../../components/core/compute/getResults.js'
@@ -268,17 +268,18 @@ describe('Commands and handlers', () => {
     expect(getEnvHandler.validate(getEnvCommand).valid).to.be.equal(true)
     // -----------------------------------------
     // ComputeStartHandler
-    const startEnvHandler: ComputeStartHandler = CoreHandlersRegistry.getInstance(
+    const startEnvHandler: PaidComputeStartHandler = CoreHandlersRegistry.getInstance(
       node
     ).getHandler(PROTOCOL_COMMANDS.COMPUTE_START)
-    const startEnvCommand: ComputeStartCommand = {
+    const startEnvCommand: PaidComputeStartCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_START,
       consumerAddress: '',
       signature: '',
       nonce: '',
       environment: '',
       algorithm: undefined,
-      datasets: undefined
+      datasets: undefined,
+      payment: undefined
     }
     expect(startEnvHandler.validate(startEnvCommand).valid).to.be.equal(false)
     // -----------------------------------------
@@ -330,7 +331,9 @@ describe('Commands and handlers', () => {
       consumerAddress: 'abcdef',
       datasets: null,
       algorithm: undefined,
-      compute: undefined
+      payment: undefined,
+      environment: undefined,
+      maxJobDuration: 60
     }
     expect(initComputeHandler.validate(computeInitCommand).valid).to.be.equal(false)
   })
