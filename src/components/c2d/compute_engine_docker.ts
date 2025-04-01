@@ -424,7 +424,7 @@ export class C2DEngineDocker extends C2DEngine {
     consumerAddress: string,
     jobId: string,
     index: number
-  ): Promise<Readable> {
+  ): Promise<{ stream: Readable; headers: any }> {
     const jobs = await this.db.getJob(jobId, null, consumerAddress)
     if (jobs.length === 0) {
       return null
@@ -433,14 +433,24 @@ export class C2DEngineDocker extends C2DEngine {
     for (const i of results) {
       if (i.index === index) {
         if (i.type === 'algorithmLog') {
-          return createReadStream(
-            this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/algorithm.log'
-          )
+          return {
+            stream: createReadStream(
+              this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/algorithm.log'
+            ),
+            headers: {
+              'Content-Type': 'text/plain'
+            }
+          }
         }
         if (i.type === 'output') {
-          return createReadStream(
-            this.getC2DConfig().tempFolder + '/' + jobId + '/data/outputs/outputs.tar'
-          )
+          return {
+            stream: createReadStream(
+              this.getC2DConfig().tempFolder + '/' + jobId + '/data/outputs/outputs.tar'
+            ),
+            headers: {
+              'Content-Type': 'application/octet-stream'
+            }
+          }
         }
       }
     }

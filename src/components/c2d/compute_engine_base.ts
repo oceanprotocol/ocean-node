@@ -78,7 +78,7 @@ export abstract class C2DEngine {
     consumerAddress: string,
     jobId: string,
     index: number
-  ): Promise<Readable>
+  ): Promise<{ stream: Readable; headers: any }>
 
   public abstract cleanupExpiredStorage(job: DBComputeJob): Promise<boolean>
 
