@@ -500,8 +500,11 @@ export function buildJobIdentifier(command: string, extra: string[]): JobStatus 
   }
 }
 
-export function findServiceIdByDatatoken(ddo: any, datatokenAddress: string): string {
-  for (const s of ddo.services) {
+export function findServiceIdByDatatoken(
+  ddo: V4DDO | V5DDO,
+  datatokenAddress: string
+): string {
+  for (const s of ddo.getDDOData().services) {
     if (s.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase()) {
       return s.id
     }

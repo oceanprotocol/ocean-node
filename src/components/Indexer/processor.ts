@@ -747,20 +747,20 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
         )
         return
       }
+
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      const { indexedMetadata } = ddoInstance.getDDOData()
       INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
 
-      if (
-        'nft' in ddo.indexedMetadata &&
-        ddo.indexedMetadata.nft.state !== metadataState
-      ) {
+      if ('nft' in indexedMetadata && indexedMetadata.nft.state !== metadataState) {
         let shortVersion = null
 
         if (
-          ddo.indexedMetadata.nft.state === MetadataStates.ACTIVE &&
+          indexedMetadata.nft.state === MetadataStates.ACTIVE &&
           [MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(metadataState)
         ) {
           INDEXER_LOGGER.logMessage(
-            `DDO became non-visible from ${ddo.indexedMetadata.nft.state} to ${metadataState}`
+            `DDO became non-visible from ${indexedMetadata.nft.state} to ${metadataState}`
           )
           shortVersion = {
             id: ddo.id,
@@ -777,22 +777,25 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
         // We should keep it here, because in further development we'll store
         // the previous structure of the non-visible DDOs (full version)
         // in case their state changes back to active.
-        ddo.indexedMetadata.nft.state = metadataState
+        ddoInstance.getDDOData().indexedMetadata.nft.state = metadataState
         if (shortVersion) {
-          ddo = shortVersion
+          ddoInstance.getDDOData().id = shortVersion.id
+          ddoInstance.getDDOData().chainId = shortVersion.chainId
+          ddoInstance.getDDOData().nftAddress = shortVersion.nftAddress
+          ddoInstance.getDDOData().indexedMetadata = shortVersion.indexedMetadata
         }
       } else {
         // Still update until we validate and polish schemas for DDO.
         // But it should update ONLY if the first condition is met.
         // Check https://github.com/oceanprotocol/aquarius/blob/84a560ea972485e46dd3c2cfc3cdb298b65d18fa/aquarius/events/processors.py#L663
-        ddo.indexedMetadata.nft = {
+        ddoInstance.getDDOData().indexedMetadata.nft = {
           state: metadataState
         }
       }
       INDEXER_LOGGER.logMessage(
         `Found did ${did} for state updating on network ${chainId}`
       )
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.METADATA_STATE)
+      const savedDDO = await this.createOrUpdateDDO(ddoInstance, EVENTS.METADATA_STATE)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -838,29 +841,32 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if (!ddo.indexedMetadata) {
-        ddo.indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      if (!ddoInstance.getDDOData().indexedMetadata) {
+        ddoInstance.getDDOData().indexedMetadata = {}
       }
 
-      if (!Array.isArray(ddo.indexedMetadata.stats)) {
-        ddo.indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getDDOData().indexedMetadata.stats)) {
+        ddoInstance.getDDOData().indexedMetadata.stats = []
       }
       if (
-        ddo.indexedMetadata.stats.length !== 0 &&
-        ddo.services[serviceIndex].datatokenAddress?.toLowerCase() ===
+        ddoInstance.getDDOData().indexedMetadata.stats.length !== 0 &&
+        ddoInstance
+          .getDDOData()
+          .services[serviceIndex].datatokenAddress?.toLowerCase() ===
           event.address?.toLowerCase()
       ) {
-        for (const stat of ddo.indexedMetadata.stats) {
+        for (const stat of ddoInstance.getDDOData().indexedMetadata.stats) {
           if (stat.datatokenAddress.toLowerCase() === event.address?.toLowerCase()) {
             stat.orders += 1
             break
           }
         }
-      } else if (ddo.indexedMetadata.stats.length === 0) {
-        ddo.indexedMetadata.stats.push({
+      } else if (ddoInstance.getDDOData().indexedMetadata.stats.length === 0) {
+        ddoInstance.getDDOData().indexedMetadata.stats.push({
           datatokenAddress: event.address,
           name: await datatokenContract.name(),
-          serviceId: ddo.services[serviceIndex].id,
+          serviceId: ddoInstance.getDDOData().services[serviceIndex].id,
           orders: 1,
           prices: await getPricesByDt(datatokenContract, signer)
         })
@@ -871,14 +877,14 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         timestamp,
         consumer,
         payer,
-        ddo.services[serviceIndex].datatokenAddress,
+        ddoInstance.getDDOData().services[serviceIndex].datatokenAddress,
         nftAddress,
         did
       )
       INDEXER_LOGGER.logMessage(
         `Found did ${did} for order starting on network ${chainId}`
       )
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.ORDER_STARTED)
+      const savedDDO = await this.createOrUpdateDDO(ddoInstance, EVENTS.ORDER_STARTED)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -921,15 +927,16 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if (!ddo.indexedMetadata) {
-        ddo.indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      if (!ddoInstance.getDDOData().indexedMetadata) {
+        ddoInstance.getDDOData().indexedMetadata = {}
       }
 
-      if (!Array.isArray(ddo.indexedMetadata.stats)) {
-        ddo.indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getDDOData().indexedMetadata.stats)) {
+        ddoInstance.getDDOData().indexedMetadata.stats = []
       }
-      if (ddo.indexedMetadata.stats.length !== 0) {
-        for (const stat of ddo.indexedMetadata.stats) {
+      if (ddoInstance.getDDOData().indexedMetadata.stats.length !== 0) {
+        for (const stat of ddoInstance.getDDOData().indexedMetadata.stats) {
           if (stat.datatokenAddress.toLowerCase() === event.address?.toLowerCase()) {
             stat.orders += 1
             break
@@ -937,14 +944,14 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         }
       } else {
         INDEXER_LOGGER.logMessage(`[OrderReused] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddo, event.address)
+        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, event.address)
         if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[OrderReused] - This datatoken does not contain this service. Invalid service id!`
           )
           return
         }
-        ddo.indexedMetadata.stats.push({
+        ddoInstance.getDDOData().indexedMetadata.stats.push({
           datatokenAddress: event.address,
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
@@ -980,7 +987,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         )
       }
 
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.ORDER_REUSED)
+      const savedDDO = await this.createOrUpdateDDO(ddoInstance, EVENTS.ORDER_REUSED)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1019,15 +1026,16 @@ export class DispenserCreatedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if (!ddo.indexedMetadata) {
-        ddo.indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      if (!ddoInstance.getDDOData().indexedMetadata) {
+        ddoInstance.getDDOData().indexedMetadata = {}
       }
 
-      if (!Array.isArray(ddo.indexedMetadata.stats)) {
-        ddo.indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getDDOData().indexedMetadata.stats)) {
+        ddoInstance.getDDOData().indexedMetadata.stats = []
       }
-      if (ddo.indexedMetadata.stats.length !== 0) {
-        for (const stat of ddo.indexedMetadata.stats) {
+      if (ddoInstance.getDDOData().indexedMetadata.stats.length !== 0) {
+        for (const stat of ddoInstance.getDDOData().indexedMetadata.stats) {
           if (
             stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
             !doesDispenserAlreadyExist(event.address, stat.prices)[0]
@@ -1046,14 +1054,14 @@ export class DispenserCreatedEventProcessor extends BaseEventProcessor {
         }
       } else {
         INDEXER_LOGGER.logMessage(`[DispenserCreated] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
+        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
         if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[DispenserCreated] - This datatoken does not contain this service. Invalid service id!`
           )
           return
         }
-        ddo.indexedMetadata.stats.push({
+        ddoInstance.getDDOData().indexedMetadata.stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
@@ -1062,7 +1070,7 @@ export class DispenserCreatedEventProcessor extends BaseEventProcessor {
         })
       }
 
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.DISPENSER_CREATED)
+      const savedDDO = await this.createOrUpdateDDO(ddoInstance, EVENTS.DISPENSER_CREATED)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1101,15 +1109,16 @@ export class DispenserActivatedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if (!ddo.indexedMetadata) {
-        ddo.indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      if (!ddoInstance.getDDOData().indexedMetadata) {
+        ddoInstance.getDDOData().indexedMetadata = {}
       }
 
-      if (!Array.isArray(ddo.indexedMetadata.stats)) {
-        ddo.indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getDDOData().indexedMetadata.stats)) {
+        ddoInstance.getDDOData().indexedMetadata.stats = []
       }
-      if (ddo.indexedMetadata.stats.length !== 0) {
-        for (const stat of ddo.indexedMetadata.stats) {
+      if (ddoInstance.getDDOData().indexedMetadata.stats.length !== 0) {
+        for (const stat of ddoInstance.getDDOData().indexedMetadata.stats) {
           if (
             stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
             !doesDispenserAlreadyExist(event.address, stat.prices)[0]
@@ -1127,7 +1136,7 @@ export class DispenserActivatedEventProcessor extends BaseEventProcessor {
         }
       } else {
         INDEXER_LOGGER.logMessage(`[DispenserActivated] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
+        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
         if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[DispenserActivated] - This datatoken does not contain this service. Invalid service id!`
@@ -1143,7 +1152,10 @@ export class DispenserActivatedEventProcessor extends BaseEventProcessor {
         })
       }
 
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.DISPENSER_ACTIVATED)
+      const savedDDO = await this.createOrUpdateDDO(
+        ddoInstance,
+        EVENTS.DISPENSER_ACTIVATED
+      )
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1182,15 +1194,16 @@ export class DispenserDeactivatedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if (!ddo.indexedMetadata) {
-        ddo.indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      if (!ddoInstance.getDDOData().indexedMetadata) {
+        ddoInstance.getDDOData().indexedMetadata = {}
       }
 
-      if (!Array.isArray(ddo.indexedMetadata.stats)) {
-        ddo.indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getDDOData().indexedMetadata.stats)) {
+        ddoInstance.getDDOData().indexedMetadata.stats = []
       }
-      if (ddo.indexedMetadata.stats.length !== 0) {
-        for (const stat of ddo.indexedMetadata.stats) {
+      if (ddoInstance.getDDOData().indexedMetadata.stats.length !== 0) {
+        for (const stat of ddoInstance.getDDOData().indexedMetadata.stats) {
           if (
             stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
             doesDispenserAlreadyExist(event.address, stat.prices)[0]
@@ -1213,14 +1226,14 @@ export class DispenserDeactivatedEventProcessor extends BaseEventProcessor {
         INDEXER_LOGGER.logMessage(
           `[DispenserDeactivated] - No stats were found on the ddo`
         )
-        const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
+        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
         if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[DispenserDeactivated] - This datatoken does not contain this service. Invalid service id!`
           )
           return
         }
-        ddo.indexedMetadata.stats.push({
+        ddoInstance.getDDOData().indexedMetadata.stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
@@ -1229,7 +1242,10 @@ export class DispenserDeactivatedEventProcessor extends BaseEventProcessor {
         })
       }
 
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.DISPENSER_DEACTIVATED)
+      const savedDDO = await this.createOrUpdateDDO(
+        ddoInstance,
+        EVENTS.DISPENSER_DEACTIVATED
+      )
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1270,15 +1286,17 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if (!ddo.indexedMetadata) {
-        ddo.indexedMetadata = {}
+
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      if (!ddoInstance.getDDOData().indexedMetadata) {
+        ddoInstance.getDDOData().indexedMetadata = {}
       }
 
-      if (!Array.isArray(ddo.indexedMetadata.stats)) {
-        ddo.indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getDDOData().indexedMetadata.stats)) {
+        ddoInstance.getDDOData().indexedMetadata.stats = []
       }
-      if (ddo.indexedMetadata.stats.length !== 0) {
-        for (const stat of ddo.indexedMetadata.stats) {
+      if (ddoInstance.getDDOData().indexedMetadata.stats.length !== 0) {
+        for (const stat of ddoInstance.getDDOData().indexedMetadata.stats) {
           if (
             stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
             !doesFreAlreadyExist(exchangeId, stat.prices)[0]
@@ -1297,14 +1315,14 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
         }
       } else {
         INDEXER_LOGGER.logMessage(`[ExchangeCreated] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
+        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
         if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[ExchangeCreated] - This datatoken does not contain this service. Invalid service id!`
           )
           return
         }
-        ddo.indexedMetadata.stats.push({
+        ddoInstance.getDDOData().indexedMetadata.stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
@@ -1313,7 +1331,10 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
         })
       }
 
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_ACTIVATED)
+      const savedDDO = await this.createOrUpdateDDO(
+        ddoInstance,
+        EVENTS.EXCHANGE_ACTIVATED
+      )
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1358,15 +1379,17 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if (!ddo.indexedMetadata) {
-        ddo.indexedMetadata = {}
+
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      if (!ddoInstance.getDDOData().indexedMetadata) {
+        ddoInstance.getDDOData().indexedMetadata = {}
       }
 
-      if (!Array.isArray(ddo.indexedMetadata.stats)) {
-        ddo.indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getDDOData().indexedMetadata.stats)) {
+        ddoInstance.getDDOData().indexedMetadata.stats = []
       }
-      if (ddo.indexedMetadata.stats.length !== 0) {
-        for (const stat of ddo.indexedMetadata.stats) {
+      if (ddoInstance.getDDOData().indexedMetadata.stats.length !== 0) {
+        for (const stat of ddoInstance.getDDOData().indexedMetadata.stats) {
           if (
             stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
             !doesFreAlreadyExist(exchangeId, stat.prices)[0]
@@ -1385,14 +1408,14 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
         }
       } else {
         INDEXER_LOGGER.logMessage(`[ExchangeActivated] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
+        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
         if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[ExchangeActivated] - This datatoken does not contain this service. Invalid service id!`
           )
           return
         }
-        ddo.indexedMetadata.stats.push({
+        ddoInstance.getDDOData().indexedMetadata.stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
@@ -1401,7 +1424,10 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
         })
       }
 
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_ACTIVATED)
+      const savedDDO = await this.createOrUpdateDDO(
+        ddoInstance,
+        EVENTS.EXCHANGE_ACTIVATED
+      )
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1442,15 +1468,17 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if (!ddo.indexedMetadata) {
-        ddo.indexedMetadata = {}
+
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      if (!ddoInstance.getDDOData().indexedMetadata) {
+        ddoInstance.getDDOData().indexedMetadata = {}
       }
 
-      if (!Array.isArray(ddo.indexedMetadata.stats)) {
-        ddo.indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getDDOData().indexedMetadata.stats)) {
+        ddoInstance.getDDOData().indexedMetadata.stats = []
       }
-      if (ddo.indexedMetadata.stats.length !== 0) {
-        for (const stat of ddo.indexedMetadata.stats) {
+      if (ddoInstance.getDDOData().indexedMetadata.stats.length !== 0) {
+        for (const stat of ddoInstance.getDDOData().indexedMetadata.stats) {
           if (
             stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
             doesFreAlreadyExist(exchangeId, stat.prices)[0]
@@ -1473,14 +1501,14 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
         INDEXER_LOGGER.logMessage(
           `[ExchangeDeactivated] - No stats were found on the ddo`
         )
-        const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
+        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
         if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[ExchangeDeactivated] - This datatoken does not contain this service. Invalid service id!`
           )
           return
         }
-        ddo.indexedMetadata.stats.push({
+        ddoInstance.getDDOData().indexedMetadata.stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
@@ -1489,7 +1517,10 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
         })
       }
 
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_DEACTIVATED)
+      const savedDDO = await this.createOrUpdateDDO(
+        ddoInstance,
+        EVENTS.EXCHANGE_DEACTIVATED
+      )
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1530,15 +1561,17 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if (!ddo.indexedMetadata) {
-        ddo.indexedMetadata = {}
+
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      if (!ddoInstance.getDDOData().indexedMetadata) {
+        ddoInstance.getDDOData().indexedMetadata = {}
       }
 
-      if (!Array.isArray(ddo.indexedMetadata.stats)) {
-        ddo.indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getDDOData().indexedMetadata.stats)) {
+        ddoInstance.getDDOData().indexedMetadata.stats = []
       }
-      if (ddo.indexedMetadata.stats.length !== 0) {
-        for (const stat of ddo.indexedMetadata.stats) {
+      if (ddoInstance.getDDOData().indexedMetadata.stats.length !== 0) {
+        for (const stat of ddoInstance.getDDOData().indexedMetadata.stats) {
           if (
             stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
             doesFreAlreadyExist(exchangeId, stat.prices)[0]
@@ -1560,23 +1593,26 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
         INDEXER_LOGGER.logMessage(
           `[ExchangeRateChanged] - No stats were found on the ddo`
         )
-        const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
+        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
         if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[ExchangeRateChanged] - This datatoken does not contain this service. Invalid service id!`
           )
           return
         }
-        ddo.indexedMetadata.stats.push({
+        ddoInstance.getDDOData().indexedMetadata.stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
           orders: 0,
-          prices: getPricesByDt(datatokenContract, signer)
+          prices: await getPricesByDt(datatokenContract, signer)
         })
       }
 
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_RATE_CHANGED)
+      const savedDDO = await this.createOrUpdateDDO(
+        ddoInstance,
+        EVENTS.EXCHANGE_RATE_CHANGED
+      )
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
