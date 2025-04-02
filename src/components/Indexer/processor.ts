@@ -493,11 +493,12 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       }
 
       // stuff that we overwrite
-      ddoInstance.updateFields({
-        chainId,
-        nftAddress: event.address,
-        datatokens: await this.getTokenInfo(ddoInstance.getDDOFields().services, signer)
-      })
+      ddoInstance.getDDOData().chainId = chainId
+      ddoInstance.getDDOData().nftAddress = event.address
+      ddoInstance.getDDOData().datatokens = await this.getTokenInfo(
+        ddoInstance.getDDOFields().services,
+        signer
+      )
 
       INDEXER_LOGGER.logMessage(
         `Processed new DDO data ${ddoInstance.getDid()} with txHash ${
@@ -749,18 +750,23 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
       }
 
       const ddoInstance = DDOManager.getDDOClass(ddo)
-      const { indexedMetadata } = ddoInstance.getDDOData()
+
       INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
 
-      if ('nft' in indexedMetadata && indexedMetadata.nft.state !== metadataState) {
+      if (
+        'nft' in ddoInstance.getDDOData().indexedMetadata &&
+        ddoInstance.getDDOData().indexedMetadata.nft.state !== metadataState
+      ) {
         let shortVersion = null
 
         if (
-          indexedMetadata.nft.state === MetadataStates.ACTIVE &&
+          ddoInstance.getDDOData().indexedMetadata.nft.state === MetadataStates.ACTIVE &&
           [MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(metadataState)
         ) {
           INDEXER_LOGGER.logMessage(
-            `DDO became non-visible from ${indexedMetadata.nft.state} to ${metadataState}`
+            `DDO became non-visible from ${
+              ddoInstance.getDDOData().indexedMetadata.nft.state
+            } to ${metadataState}`
           )
           shortVersion = {
             id: ddo.id,
