@@ -757,7 +757,12 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
         'nft' in ddoInstance.getDDOData().indexedMetadata &&
         ddoInstance.getDDOData().indexedMetadata.nft.state !== metadataState
       ) {
-        let shortVersion = null
+        let shortVersion: {
+          id: any
+          chainId: any
+          nftAddress: any
+          indexedMetadata: any
+        } = null
 
         if (
           ddoInstance.getDDOData().indexedMetadata.nft.state === MetadataStates.ACTIVE &&
@@ -785,7 +790,16 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
         // in case their state changes back to active.
         ddoInstance.getDDOData().indexedMetadata.nft.state = metadataState
         if (shortVersion) {
-          Object.assign(ddoInstance.getDDOData(), shortVersion)
+          Object.keys(ddoInstance.getDDOData()).forEach((key) => {
+            if (!(key in shortVersion)) {
+              delete ddoInstance.getDDOData()[key]
+            }
+          })
+
+          ddoInstance.getDDOData().id = shortVersion.id
+          ddoInstance.getDDOData().chainId = shortVersion.chainId
+          ddoInstance.getDDOData().nftAddress = shortVersion.nftAddress
+          ddoInstance.getDDOData().indexedMetadata = shortVersion.indexedMetadata
         }
       } else {
         // Still update until we validate and polish schemas for DDO.
