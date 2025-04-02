@@ -174,13 +174,12 @@ class BaseEventProcessor {
       const { ddo: ddoDatabase, ddoState } = await getDatabase()
       const saveDDO = await ddoDatabase.update({ ...ddo.getDDOData() })
       const ddoInstance = DDOManager.getDDOClass(ddo.getDDOData())
-      const { id, nftAddress } = ddoInstance.getDDOData()
-      const { indexedMetadata } = ddoInstance.getAssetFields()
+      const { id, nftAddress, indexedMetadata } = ddoInstance.getDDOData()
       await ddoState.update(
         this.networkId,
         id,
         nftAddress,
-        indexedMetadata?.event?.txid,
+        indexedMetadata?.event?.tx,
         true
       )
       INDEXER_LOGGER.logMessage(
@@ -190,13 +189,12 @@ class BaseEventProcessor {
     } catch (err) {
       const { ddoState } = await getDatabase()
       const ddoInstance = DDOManager.getDDOClass(ddo.getDDOData())
-      const { id, nftAddress } = ddoInstance.getDDOData()
-      const { indexedMetadata } = ddoInstance.getAssetFields()
+      const { id, nftAddress, indexedMetadata } = ddoInstance.getDDOData()
       await ddoState.update(
         this.networkId,
         id,
         nftAddress,
-        indexedMetadata?.event?.txid,
+        indexedMetadata?.event?.tx,
         true,
         err.message
       )
@@ -750,20 +748,12 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
       }
 
       const ddoInstance = DDOManager.getDDOClass(ddo)
-
       INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
 
       if (
         'nft' in ddoInstance.getDDOData().indexedMetadata &&
         ddoInstance.getDDOData().indexedMetadata.nft.state !== metadataState
       ) {
-        let shortVersion: {
-          id: any
-          chainId: any
-          nftAddress: any
-          indexedMetadata: any
-        } = null
-
         if (
           ddoInstance.getDDOData().indexedMetadata.nft.state === MetadataStates.ACTIVE &&
           [MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(metadataState)
@@ -773,7 +763,11 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
               ddoInstance.getDDOData().indexedMetadata.nft.state
             } to ${metadataState}`
           )
-          shortVersion = {
+
+          // We should keep it here, because in further development we'll store
+          // the previous structure of the non-visible DDOs (full version)
+          // in case their state changes back to active.
+          const shortDdoInstance = DDOManager.getDDOClass({
             id: ddo.id,
             chainId,
             nftAddress: ddo.nftAddress,
@@ -782,32 +776,21 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
                 state: metadataState
               }
             }
-          }
-        }
-
-        // We should keep it here, because in further development we'll store
-        // the previous structure of the non-visible DDOs (full version)
-        // in case their state changes back to active.
-        ddoInstance.getDDOData().indexedMetadata.nft.state = metadataState
-        if (shortVersion) {
-          Object.keys(ddoInstance.getDDOData()).forEach((key) => {
-            if (!(key in shortVersion)) {
-              delete ddoInstance.getDDOData()[key]
-            }
           })
 
-          ddoInstance.getDDOData().id = shortVersion.id
-          ddoInstance.getDDOData().chainId = shortVersion.chainId
-          ddoInstance.getDDOData().nftAddress = shortVersion.nftAddress
-          ddoInstance.getDDOData().indexedMetadata = shortVersion.indexedMetadata
+          const savedDDO = await this.createOrUpdateDDO(
+            shortDdoInstance,
+            EVENTS.METADATA_STATE
+          )
+          return savedDDO
         }
-      } else {
-        // Still update until we validate and polish schemas for DDO.
-        // But it should update ONLY if the first condition is met.
-        // Check https://github.com/oceanprotocol/aquarius/blob/84a560ea972485e46dd3c2cfc3cdb298b65d18fa/aquarius/events/processors.py#L663
-        ddoInstance.getDDOData().indexedMetadata.nft = {
-          state: metadataState
-        }
+      }
+
+      // Still update until we validate and polish schemas for DDO.
+      // But it should update ONLY if the first condition is met.
+      // Check https://github.com/oceanprotocol/aquarius/blob/84a560ea972485e46dd3c2cfc3cdb298b65d18fa/aquarius/events/processors.py#L663
+      ddoInstance.getDDOData().indexedMetadata.nft = {
+        state: metadataState
       }
       INDEXER_LOGGER.logMessage(
         `Found did ${did} for state updating on network ${chainId}`
