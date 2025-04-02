@@ -169,28 +169,34 @@ class BaseEventProcessor {
     }
   }
 
-  protected async createOrUpdateDDO(ddo: any, method: string): Promise<any> {
+  protected async createOrUpdateDDO(ddo: V4DDO | V5DDO, method: string): Promise<any> {
     try {
       const { ddo: ddoDatabase, ddoState } = await getDatabase()
-      const saveDDO = await ddoDatabase.update({ ...ddo })
+      const saveDDO = await ddoDatabase.update({ ...ddo.getDDOData() })
+      const ddoInstance = DDOManager.getDDOClass(ddo.getDDOData())
+      const { id, nftAddress } = ddoInstance.getDDOData()
+      const { indexedMetadata } = ddoInstance.getAssetFields()
       await ddoState.update(
         this.networkId,
-        saveDDO.id,
-        saveDDO.nftAddress,
-        saveDDO.indexedMetadata?.event?.tx,
+        id,
+        nftAddress,
+        indexedMetadata?.event?.txid,
         true
       )
       INDEXER_LOGGER.logMessage(
-        `Saved or updated DDO  : ${saveDDO.id} from network: ${this.networkId} triggered by: ${method}`
+        `Saved or updated DDO  : ${id} from network: ${this.networkId} triggered by: ${method}`
       )
       return saveDDO
     } catch (err) {
       const { ddoState } = await getDatabase()
+      const ddoInstance = DDOManager.getDDOClass(ddo.getDDOData())
+      const { id, nftAddress } = ddoInstance.getDDOData()
+      const { indexedMetadata } = ddoInstance.getAssetFields()
       await ddoState.update(
         this.networkId,
-        ddo.id,
-        ddo.nftAddress,
-        ddo.indexedMetadata?.event?.tx,
+        id,
+        nftAddress,
+        indexedMetadata?.event?.txid,
         true,
         err.message
       )
@@ -509,7 +515,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       if (eventName === EVENTS.METADATA_CREATED) {
         if (
           previousDdoInstance &&
-          previousDdoInstance.getAssetFields().indexedMetadata.nft.state ===
+          previousDdoInstance.getDDOData().indexedMetadata.nft.state ===
             MetadataStates.ACTIVE
         ) {
           INDEXER_LOGGER.logMessage(
@@ -565,39 +571,39 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         }
       }
       const from = decodedEventData.args[0].toString()
-      let ddoUpdatedWithPricing = {}
+      let ddoUpdatedWithPricing
 
       // we need to store the event data (either metadata created or update and is updatable)
       if (
         [EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED].includes(eventName) &&
         this.isValidDtAddressFromServices(ddoInstance.getDDOFields().services)
       ) {
-        const ddoWithPricing = await getPricingStatsForDddo(ddo, signer)
-        ddoWithPricing.indexedMetadata.nft = await this.getNFTInfo(
-          ddoWithPricing.nftAddress,
+        const ddoWithPricing = await getPricingStatsForDddo(ddoInstance, signer)
+        ddoWithPricing.getDDOData().indexedMetadata.nft = await this.getNFTInfo(
+          ddoWithPricing.getDDOData().nftAddress,
           signer,
           owner,
           parseInt(decodedEventData.args[6])
         )
-        if (!ddoWithPricing.indexedMetadata.event) {
-          ddoWithPricing.indexedMetadata.event = {}
+        if (!ddoWithPricing.getDDOData().indexedMetadata.event) {
+          ddoWithPricing.getDDOData().indexedMetadata.event = {}
         }
 
-        ddoWithPricing.indexedMetadata.event.tx = event.transactionHash
-        ddoWithPricing.indexedMetadata.event.from = from
-        ddoWithPricing.indexedMetadata.event.contract = event.address
+        ddoWithPricing.getDDOData().indexedMetadata.event.tx = event.transactionHash
+        ddoWithPricing.getDDOData().indexedMetadata.event.from = from
+        ddoWithPricing.getDDOData().indexedMetadata.event.contract = event.address
         if (event.blockNumber) {
-          ddoWithPricing.indexedMetadata.event.block = event.blockNumber
+          ddoWithPricing.getDDOData().indexedMetadata.event.block = event.blockNumber
           // try get block & timestamp from block (only wait 2.5 secs maximum)
           const promiseFn = provider.getBlock(event.blockNumber)
           const result = await asyncCallWithTimeout(promiseFn, 2500)
           if (result.data !== null && !result.timeout) {
-            ddoWithPricing.indexedMetadata.event.datetime = new Date(
+            ddoWithPricing.getDDOData().indexedMetadata.event.datetime = new Date(
               result.data.timestamp * 1000
             ).toJSON()
           }
         } else {
-          ddoWithPricing.indexedMetadata.event.block = -1
+          ddoWithPricing.getDDOData().indexedMetadata.event.block = -1
         }
 
         // policyServer check
@@ -605,14 +611,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         let policyStatus
         if (eventName === EVENTS.METADATA_UPDATED)
           policyStatus = await policyServer.checkUpdateDDO(
-            ddoWithPricing,
+            ddoWithPricing.getDDOData(),
             this.networkId,
             event.transactionHash,
             event
           )
         else
           policyStatus = await policyServer.checknewDDO(
-            ddoWithPricing,
+            ddoWithPricing.getDDOData(),
             this.networkId,
             event.transactionHash,
             event
@@ -628,7 +634,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           )
           return
         }
-        ddoUpdatedWithPricing = structuredClone(ddoWithPricing)
+        ddoUpdatedWithPricing = ddoWithPricing
       }
       // always call, but only create instance once
       const purgatory = await Purgatory.getInstance()
@@ -638,7 +644,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         from,
         purgatory
       )
-      if (updatedDDO.indexedMetadata.purgatory.state === false) {
+      if (updatedDDO.getDDOData().indexedMetadata.purgatory.state === false) {
         // TODO: insert in a different collection for purgatory DDOs
         const saveDDO = await this.createOrUpdateDDO(ddoUpdatedWithPricing, eventName)
         INDEXER_LOGGER.logMessage(`saved DDO: ${JSON.stringify(saveDDO)}`)
@@ -663,22 +669,23 @@ export class MetadataEventProcessor extends BaseEventProcessor {
   }
 
   async updatePurgatoryStateDdo(
-    ddo: any,
+    ddo: V4DDO | V5DDO,
     owner: string,
     purgatory: Purgatory
-  ): Promise<any> {
-    if (purgatory.isEnabled()) {
-      const state: boolean =
-        (await purgatory.isBannedAsset(ddo.id)) ||
-        (await purgatory.isBannedAccount(owner))
-      ddo.indexedMetadata.purgatory = {
-        state
-      }
-    } else {
-      ddo.indexedMetadata.purgatory = {
+  ): Promise<V4DDO | V5DDO> {
+    if (!purgatory.isEnabled()) {
+      ddo.getDDOData().indexedMetadata.purgatory = {
         state: false
       }
+
+      return ddo
     }
+
+    const state: boolean =
+      (await purgatory.isBannedAsset(ddo.getDid())) ||
+      (await purgatory.isBannedAccount(owner))
+    ddo.getDDOData().indexedMetadata.purgatory = { state }
+
     return ddo
   }
 

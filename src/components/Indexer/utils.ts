@@ -33,6 +33,7 @@ import { create256Hash } from '../../utils/crypt.js'
 import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
 import { ServicePrice } from '../../@types/DDO/IndexedMetadata.js'
+import { V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
 
 let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor
@@ -607,15 +608,13 @@ export async function getPricesByDt(
   return prices
 }
 
-export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<any> {
-  if (!ddo.indexedMetadata) {
-    ddo.indexedMetadata = {}
-  }
+export async function getPricingStatsForDddo(
+  ddo: V4DDO | V5DDO,
+  signer: Signer
+): Promise<V4DDO | V5DDO> {
+  const stats = ddo.getAssetFields().indexedMetadata?.stats || []
 
-  if (!Array.isArray(ddo.indexedMetadata.stats)) {
-    ddo.indexedMetadata.stats = []
-  }
-  for (const service of ddo.services) {
+  for (const service of ddo.getDDOFields().services) {
     const datatoken = new ethers.Contract(
       service.datatokenAddress,
       ERC20Template.abi,
@@ -637,9 +636,10 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
       )
     }
     if (dispensers.length === 0 && fixedRates.length === 0) {
-      ddo.indexedMetadata.stats.push({
+      stats.push({
         datatokenAddress: service.datatokenAddress,
         name: await datatoken.name(),
+        symbol: await datatoken.symbol(),
         serviceId: service.id,
         orders: 0,
         prices: []
@@ -659,9 +659,10 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
                 contract: dispenser,
                 token: service.datatokenAddress
               })
-              ddo.indexedMetadata.stats.push({
+              stats.push({
                 datatokenAddress: service.datatokenAddress,
                 name: await datatoken.name(),
+                symbol: await datatoken.symbol(),
                 serviceId: service.id,
                 orders: 0,
                 prices
@@ -694,9 +695,10 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
               contract: fixedRate[0],
               exchangeId: fixedRate[1]
             })
-            ddo.indexedMetadata.stats.push({
+            stats.push({
               datatokenAddress: service.datatokenAddress,
               name: await datatoken.name(),
+              symbol: await datatoken.symbol(),
               serviceId: service.id,
               orders: 0, // just created
               prices
@@ -710,5 +712,11 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
       }
     }
   }
+
+  if (!ddo.getDDOData().indexedMetadata) {
+    ddo.getDDOData().indexedMetadata = {}
+  }
+
+  ddo.getDDOData().indexedMetadata.stats = stats
   return ddo
 }
