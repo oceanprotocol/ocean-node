@@ -740,7 +740,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
         .digest('hex')
     try {
       const { ddo: ddoDatabase } = await getDatabase()
-      let ddo = await ddoDatabase.retrieve(did)
+      const ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
         INDEXER_LOGGER.logMessage(
           `Detected MetadataState changed for ${did}, but it does not exists.`
