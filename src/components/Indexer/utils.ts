@@ -33,7 +33,7 @@ import { create256Hash } from '../../utils/crypt.js'
 import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
 import { ServicePrice } from '../../@types/DDO/IndexedMetadata.js'
-import { V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
+import { DeprecatedDDO, V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
 
 let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor
@@ -501,7 +501,7 @@ export function buildJobIdentifier(command: string, extra: string[]): JobStatus 
 }
 
 export function findServiceIdByDatatoken(
-  ddo: V4DDO | V5DDO,
+  ddo: V4DDO | V5DDO | DeprecatedDDO,
   datatokenAddress: string
 ): string {
   for (const s of ddo.getDDOData().services) {
@@ -612,12 +612,12 @@ export async function getPricesByDt(
 }
 
 export async function getPricingStatsForDddo(
-  ddo: V4DDO | V5DDO,
+  ddo: V4DDO | V5DDO | DeprecatedDDO,
   signer: Signer
-): Promise<V4DDO | V5DDO> {
-  const stats = ddo.getAssetFields().indexedMetadata?.stats || []
+): Promise<V4DDO | V5DDO | DeprecatedDDO> {
+  const stats = ddo.getDDOData().indexedMetadata?.stats || []
 
-  for (const service of ddo.getDDOFields().services) {
+  for (const service of ddo.getDDOData().services) {
     const datatoken = new ethers.Contract(
       service.datatokenAddress,
       ERC20Template.abi,

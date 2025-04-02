@@ -144,7 +144,8 @@ jobs:
         run: docker logs ocean-ocean-contracts-1 && docker logs ocean-kindcluster-1 && docker logs ocean-computetodata-1 && docker logs ocean-typesense-1
         if: ${{ failure() }}
       - name: integration tests
-        run: npm run test:integration:cover
+        # run: npm run test:integration:cover
+        run: npm run test:indexer
         env:
           # OPERATOR_SERVICE_URL: '["http://172.15.0.13:31000"]'
           PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}

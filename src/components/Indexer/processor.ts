@@ -51,7 +51,7 @@ import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
 import { PolicyServer } from '../policyServer/index.js'
-import { DDOManager, V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
+import { DDOManager, DeprecatedDDO, V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
 class BaseEventProcessor {
   protected networkId: number
 
@@ -169,7 +169,10 @@ class BaseEventProcessor {
     }
   }
 
-  protected async createOrUpdateDDO(ddo: V4DDO | V5DDO, method: string): Promise<any> {
+  protected async createOrUpdateDDO(
+    ddo: V4DDO | V5DDO | DeprecatedDDO,
+    method: string
+  ): Promise<any> {
     try {
       const { ddo: ddoDatabase, ddoState } = await getDatabase()
       const saveDDO = await ddoDatabase.update({ ...ddo.getDDOData() })
@@ -494,7 +497,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       ddoInstance.getDDOData().chainId = chainId
       ddoInstance.getDDOData().nftAddress = event.address
       ddoInstance.getDDOData().datatokens = await this.getTokenInfo(
-        ddoInstance.getDDOFields().services,
+        ddoInstance.getDDOData().services,
         signer
       )
 
@@ -505,7 +508,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         true
       )
 
-      let previousDdoInstance: V4DDO | V5DDO | null = null
+      let previousDdoInstance: V4DDO | V5DDO | DeprecatedDDO | null = null
       const previousDdo = await ddoDatabase.retrieve(ddoInstance.getDid())
       if (previousDdo) {
         previousDdoInstance = DDOManager.getDDOClass(previousDdo)
@@ -575,7 +578,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       // we need to store the event data (either metadata created or update and is updatable)
       if (
         [EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED].includes(eventName) &&
-        this.isValidDtAddressFromServices(ddoInstance.getDDOFields().services)
+        this.isValidDtAddressFromServices(ddoInstance.getDDOData().services)
       ) {
         const ddoWithPricing = await getPricingStatsForDddo(ddoInstance, signer)
         ddoWithPricing.getDDOData().indexedMetadata.nft = await this.getNFTInfo(
@@ -668,10 +671,10 @@ export class MetadataEventProcessor extends BaseEventProcessor {
   }
 
   async updatePurgatoryStateDdo(
-    ddo: V4DDO | V5DDO,
+    ddo: V4DDO | V5DDO | DeprecatedDDO,
     owner: string,
     purgatory: Purgatory
-  ): Promise<V4DDO | V5DDO> {
+  ): Promise<V4DDO | V5DDO | DeprecatedDDO> {
     if (!purgatory.isEnabled()) {
       ddo.getDDOData().indexedMetadata.purgatory = {
         state: false
@@ -689,19 +692,19 @@ export class MetadataEventProcessor extends BaseEventProcessor {
   }
 
   isUpdateable(
-    previousDdo: V4DDO | V5DDO,
+    previousDdo: V4DDO | V5DDO | DeprecatedDDO,
     txHash: string,
     block: number
   ): [boolean, string] {
     let errorMsg: string
-    const ddoTxId = previousDdo.getAssetFields().indexedMetadata.event.txid
+    const ddoTxId = previousDdo.getDDOData().indexedMetadata.event.tx
     // do not update if we have the same txid
     if (txHash === ddoTxId) {
       errorMsg = `Previous DDO has the same tx id, no need to update: event-txid=${txHash} <> asset-event-txid=${ddoTxId}`
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_DEBUG, errorMsg, true)
       return [false, errorMsg]
     }
-    const ddoBlock = previousDdo.getAssetFields().indexedMetadata.event.block
+    const ddoBlock = previousDdo.getDDOData().indexedMetadata.event.block
     // do not update if we have the same block
     if (block === ddoBlock) {
       errorMsg = `Asset was updated later (block: ${ddoBlock}) vs transaction block: ${block}`
