@@ -785,10 +785,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
         // in case their state changes back to active.
         ddoInstance.getDDOData().indexedMetadata.nft.state = metadataState
         if (shortVersion) {
-          ddoInstance.getDDOData().id = shortVersion.id
-          ddoInstance.getDDOData().chainId = shortVersion.chainId
-          ddoInstance.getDDOData().nftAddress = shortVersion.nftAddress
-          ddoInstance.getDDOData().indexedMetadata = shortVersion.indexedMetadata
+          Object.assign(ddoInstance.getDDOData(), shortVersion)
         }
       } else {
         // Still update until we validate and polish schemas for DDO.
