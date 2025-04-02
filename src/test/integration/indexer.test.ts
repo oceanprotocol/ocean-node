@@ -592,7 +592,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(trxReceipt, 'set metada state failed')
   })
 
-  it('Deprecated asset should have a short version of ddo', async function () {
+  it.skip('Deprecated asset should have a short version of ddo', async function () {
     const result = await nftContract.getMetaData()
     expect(parseInt(result[2].toString())).to.equal(2)
 

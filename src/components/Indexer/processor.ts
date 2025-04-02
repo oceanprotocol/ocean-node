@@ -769,6 +769,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
           // in case their state changes back to active.
           const shortDdoInstance = DDOManager.getDDOClass({
             id: ddo.id,
+            version: ddo.version,
             chainId,
             nftAddress: ddo.nftAddress,
             indexedMetadata: {
