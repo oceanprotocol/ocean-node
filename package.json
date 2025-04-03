@@ -22,7 +22,7 @@
     "clean": "if [ -d ./dist ]; then find ./dist -mindepth 1 -not -path './dist/dashboard*' -delete; fi",
     "clean:all": "rm -rf ./dist/ ./doc/ ./.nyc_output",
     "build-tests": "rm -rf ./dist/test && npm run build-tests:tsc",
-    "start": "node --inspect --max-old-space-size=28784 --trace-warnings --experimental-specifier-resolution=node dist/index.js",
+    "start": "node --max-old-space-size=28784 --trace-warnings --experimental-specifier-resolution=node dist/index.js",
     "lint": "eslint --ignore-path .gitignore --ext .ts,.tsx . && npm run type-check",
     "lint:fix": "eslint --ignore-path .gitignore --ext .ts,.tsx . --fix",
     "format": "prettier --parser typescript --ignore-path .gitignore --write '**/*.{js,jsx,ts,tsx}'",

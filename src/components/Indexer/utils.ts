@@ -612,12 +612,12 @@ export async function getPricesByDt(
 }
 
 export async function getPricingStatsForDddo(
-  ddo: V4DDO | V5DDO | DeprecatedDDO,
+  ddo: V4DDO | V5DDO,
   signer: Signer
-): Promise<V4DDO | V5DDO | DeprecatedDDO> {
-  const stats = ddo.getDDOData().indexedMetadata?.stats || []
+): Promise<V4DDO | V5DDO> {
+  const stats = ddo.getAssetFields().indexedMetadata?.stats || []
 
-  for (const service of ddo.getDDOData().services) {
+  for (const service of ddo.getDDOFields().services) {
     const datatoken = new ethers.Contract(
       service.datatokenAddress,
       ERC20Template.abi,
