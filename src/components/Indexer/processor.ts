@@ -756,6 +756,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
       createHash('sha256')
         .update(getAddress(event.address) + chainId.toString(10))
         .digest('hex')
+
     try {
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -770,17 +771,16 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
       INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
 
       if (
-        'nft' in ddoInstance.getAssetFields().indexedMetadata &&
-        ddoInstance.getAssetFields().indexedMetadata.nft.state !== metadataState
+        'nft' in ddoInstance.getDDOData().indexedMetadata &&
+        ddoInstance.getDDOData().indexedMetadata.nft.state !== metadataState
       ) {
         if (
-          ddoInstance.getAssetFields().indexedMetadata.nft.state ===
-            MetadataStates.ACTIVE &&
+          ddoInstance.getDDOData().indexedMetadata.nft.state === MetadataStates.ACTIVE &&
           [MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(metadataState)
         ) {
           INDEXER_LOGGER.logMessage(
             `DDO became non-visible from ${
-              ddoInstance.getAssetFields().indexedMetadata.nft.state
+              ddoInstance.getDDOData().indexedMetadata.nft.state
             } to ${metadataState}`
           )
 
