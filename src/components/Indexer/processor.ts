@@ -859,17 +859,11 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
       }
       const ddoInstance = DDOManager.getDDOClass(ddo) as V4DDO | V5DDO
       if (!ddoInstance.getAssetFields().indexedMetadata) {
-        ddoInstance.updateFields({
-          indexedMetadata: {}
-        })
+        ddoInstance.updateFields({ indexedMetadata: {} })
       }
 
       if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
-        ddoInstance.updateFields({
-          indexedMetadata: {
-            stats: []
-          }
-        })
+        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
       }
 
       if (
@@ -886,7 +880,8 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
           }
         }
       } else if (ddoInstance.getAssetFields().indexedMetadata.stats.length === 0) {
-        ddoInstance.getAssetFields().indexedMetadata.stats.push({
+        const existingStats = ddoInstance.getAssetFields().indexedMetadata.stats
+        existingStats.push({
           datatokenAddress: event.address,
           name: await datatokenContract.name(),
           symbol: await datatokenContract.symbol(),
@@ -894,6 +889,8 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
           orders: 1,
           prices: await getPricesByDt(datatokenContract, signer)
         })
+
+        ddoInstance.updateFields({ indexedMetadata: { stats: existingStats } })
       }
       await orderDatabase.create(
         event.transactionHash,
@@ -947,16 +944,17 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      if (!ddoInstance.getDDOData().indexedMetadata) {
-        ddoInstance.getDDOData().indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo) as V4DDO | V5DDO
+      if (!ddoInstance.getAssetFields().indexedMetadata) {
+        ddoInstance.updateFields({ indexedMetadata: {} })
       }
 
-      if (!Array.isArray(ddoInstance.getDDOData().indexedMetadata.stats)) {
-        ddoInstance.getDDOData().indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
+        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
       }
-      if (ddoInstance.getDDOData().indexedMetadata.stats.length !== 0) {
-        for (const stat of ddoInstance.getDDOData().indexedMetadata.stats) {
+
+      if (ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0) {
+        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
           if (stat.datatokenAddress.toLowerCase() === event.address?.toLowerCase()) {
             stat.orders += 1
             break
@@ -971,12 +969,20 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
           )
           return
         }
-        ddoInstance.getDDOData().indexedMetadata.stats.push({
+        const existingStats = ddoInstance.getAssetFields().indexedMetadata.stats
+        existingStats.push({
           datatokenAddress: event.address,
           name: await datatokenContract.name(),
+          symbol: await datatokenContract.symbol(),
           serviceId: serviceIdToFind,
           orders: 1,
           prices: await getPricesByDt(datatokenContract, signer)
+        })
+
+        ddoInstance.updateFields({
+          indexedMetadata: {
+            stats: existingStats
+          }
         })
       }
 
@@ -1042,14 +1048,15 @@ export class DispenserCreatedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      if (!ddoInstance.getDDOData().indexedMetadata) {
-        ddoInstance.getDDOData().indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo) as V4DDO | V5DDO
+      if (!ddoInstance.getAssetFields().indexedMetadata) {
+        ddoInstance.updateFields({ indexedMetadata: {} })
       }
 
-      if (!Array.isArray(ddoInstance.getDDOData().indexedMetadata.stats)) {
-        ddoInstance.getDDOData().indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
+        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
       }
+
       if (ddoInstance.getDDOData().indexedMetadata.stats.length !== 0) {
         for (const stat of ddoInstance.getDDOData().indexedMetadata.stats) {
           if (
@@ -1121,14 +1128,15 @@ export class DispenserActivatedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      if (!ddoInstance.getDDOData().indexedMetadata) {
-        ddoInstance.getDDOData().indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo) as V4DDO | V5DDO
+      if (!ddoInstance.getAssetFields().indexedMetadata) {
+        ddoInstance.updateFields({ indexedMetadata: {} })
       }
 
-      if (!Array.isArray(ddoInstance.getDDOData().indexedMetadata.stats)) {
-        ddoInstance.getDDOData().indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
+        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
       }
+
       if (ddoInstance.getDDOData().indexedMetadata.stats.length !== 0) {
         for (const stat of ddoInstance.getDDOData().indexedMetadata.stats) {
           if (
@@ -1202,14 +1210,15 @@ export class DispenserDeactivatedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      if (!ddoInstance.getDDOData().indexedMetadata) {
-        ddoInstance.getDDOData().indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo) as V4DDO | V5DDO
+      if (!ddoInstance.getAssetFields().indexedMetadata) {
+        ddoInstance.updateFields({ indexedMetadata: {} })
       }
 
-      if (!Array.isArray(ddoInstance.getDDOData().indexedMetadata.stats)) {
-        ddoInstance.getDDOData().indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
+        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
       }
+
       if (ddoInstance.getDDOData().indexedMetadata.stats.length !== 0) {
         for (const stat of ddoInstance.getDDOData().indexedMetadata.stats) {
           if (
@@ -1291,14 +1300,15 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
         return
       }
 
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      if (!ddoInstance.getDDOData().indexedMetadata) {
-        ddoInstance.getDDOData().indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo) as V4DDO | V5DDO
+      if (!ddoInstance.getAssetFields().indexedMetadata) {
+        ddoInstance.updateFields({ indexedMetadata: {} })
       }
 
-      if (!Array.isArray(ddoInstance.getDDOData().indexedMetadata.stats)) {
-        ddoInstance.getDDOData().indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
+        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
       }
+
       if (ddoInstance.getDDOData().indexedMetadata.stats.length !== 0) {
         for (const stat of ddoInstance.getDDOData().indexedMetadata.stats) {
           if (
@@ -1326,13 +1336,17 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
           )
           return
         }
-        ddoInstance.getDDOData().indexedMetadata.stats.push({
+
+        const stats = ddoInstance.getDDOData().indexedMetadata.stats
+        stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
           orders: 0,
           prices: await getPricesByDt(datatokenContract, signer)
         })
+
+        ddoInstance.updateFields({ indexedMetadata: { stats } })
       }
 
       const savedDDO = await this.createOrUpdateDDO(
@@ -1380,13 +1394,13 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
         return
       }
 
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      if (!ddoInstance.getDDOData().indexedMetadata) {
-        ddoInstance.getDDOData().indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo) as V4DDO | V5DDO
+      if (!ddoInstance.getAssetFields().indexedMetadata) {
+        ddoInstance.updateFields({ indexedMetadata: {} })
       }
 
-      if (!Array.isArray(ddoInstance.getDDOData().indexedMetadata.stats)) {
-        ddoInstance.getDDOData().indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
+        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
       }
       if (ddoInstance.getDDOData().indexedMetadata.stats.length !== 0) {
         for (const stat of ddoInstance.getDDOData().indexedMetadata.stats) {
@@ -1415,13 +1429,16 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
           )
           return
         }
-        ddoInstance.getDDOData().indexedMetadata.stats.push({
+        const stats = ddoInstance.getDDOData().indexedMetadata.stats
+        stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
           orders: 0,
           prices: await getPricesByDt(datatokenContract, signer)
         })
+
+        ddoInstance.updateFields({ indexedMetadata: { stats } })
       }
 
       const savedDDO = await this.createOrUpdateDDO(
@@ -1465,13 +1482,13 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
         return
       }
 
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      if (!ddoInstance.getDDOData().indexedMetadata) {
-        ddoInstance.getDDOData().indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo) as V4DDO | V5DDO
+      if (!ddoInstance.getAssetFields().indexedMetadata) {
+        ddoInstance.updateFields({ indexedMetadata: {} })
       }
 
-      if (!Array.isArray(ddoInstance.getDDOData().indexedMetadata.stats)) {
-        ddoInstance.getDDOData().indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
+        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
       }
       if (ddoInstance.getDDOData().indexedMetadata.stats.length !== 0) {
         for (const stat of ddoInstance.getDDOData().indexedMetadata.stats) {
@@ -1504,13 +1521,16 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
           )
           return
         }
-        ddoInstance.getDDOData().indexedMetadata.stats.push({
+        const stats = ddoInstance.getDDOData().indexedMetadata.stats
+        stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
           orders: 0,
           prices: await getPricesByDt(datatokenContract, signer)
         })
+
+        ddoInstance.updateFields({ indexedMetadata: { stats } })
       }
 
       const savedDDO = await this.createOrUpdateDDO(
@@ -1554,13 +1574,13 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
         return
       }
 
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      if (!ddoInstance.getDDOData().indexedMetadata) {
-        ddoInstance.getDDOData().indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo) as V4DDO | V5DDO
+      if (!ddoInstance.getAssetFields().indexedMetadata) {
+        ddoInstance.updateFields({ indexedMetadata: {} })
       }
 
-      if (!Array.isArray(ddoInstance.getDDOData().indexedMetadata.stats)) {
-        ddoInstance.getDDOData().indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
+        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
       }
       if (ddoInstance.getDDOData().indexedMetadata.stats.length !== 0) {
         for (const stat of ddoInstance.getDDOData().indexedMetadata.stats) {
@@ -1592,13 +1612,16 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
           )
           return
         }
-        ddoInstance.getDDOData().indexedMetadata.stats.push({
+        const stats = ddoInstance.getDDOData().indexedMetadata.stats
+        stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
           serviceId: serviceIdToFind,
           orders: 0,
           prices: await getPricesByDt(datatokenContract, signer)
         })
+
+        ddoInstance.updateFields({ indexedMetadata: { stats } })
       }
 
       const savedDDO = await this.createOrUpdateDDO(
