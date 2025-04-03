@@ -10,7 +10,6 @@ import {
   toUtf8Bytes,
   toUtf8String
 } from 'ethers'
-import { createHash } from 'crypto'
 import { Readable } from 'node:stream'
 import axios from 'axios'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
@@ -751,11 +750,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
       `NFT address in processing MetadataState: ${event.address} `,
       true
     )
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(event.address) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(event.address, chainId)
     try {
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -770,16 +765,17 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
       INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
 
       if (
-        'nft' in ddoInstance.getDDOData().indexedMetadata &&
-        ddoInstance.getDDOData().indexedMetadata.nft.state !== metadataState
+        'nft' in ddoInstance.getAssetFields().indexedMetadata &&
+        ddoInstance.getAssetFields().indexedMetadata.nft.state !== metadataState
       ) {
         if (
-          ddoInstance.getDDOData().indexedMetadata.nft.state === MetadataStates.ACTIVE &&
+          ddoInstance.getAssetFields().indexedMetadata.nft.state ===
+            MetadataStates.ACTIVE &&
           [MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(metadataState)
         ) {
           INDEXER_LOGGER.logMessage(
             `DDO became non-visible from ${
-              ddoInstance.getDDOData().indexedMetadata.nft.state
+              ddoInstance.getAssetFields().indexedMetadata.nft.state
             } to ${metadataState}`
           )
 
@@ -1337,7 +1333,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
           return
         }
 
-        const stats = ddoInstance.getDDOData().indexedMetadata.stats
+        const { stats } = ddoInstance.getDDOData().indexedMetadata
         stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
@@ -1429,7 +1425,7 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
           )
           return
         }
-        const stats = ddoInstance.getDDOData().indexedMetadata.stats
+        const { stats } = ddoInstance.getDDOData().indexedMetadata
         stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
@@ -1521,7 +1517,7 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
           )
           return
         }
-        const stats = ddoInstance.getDDOData().indexedMetadata.stats
+        const { stats } = ddoInstance.getDDOData().indexedMetadata
         stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
@@ -1612,7 +1608,7 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
           )
           return
         }
-        const stats = ddoInstance.getDDOData().indexedMetadata.stats
+        const { stats } = ddoInstance.getDDOData().indexedMetadata
         stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
