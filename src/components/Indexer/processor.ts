@@ -10,6 +10,7 @@ import {
   toUtf8Bytes,
   toUtf8String
 } from 'ethers'
+import { createHash } from 'crypto'
 import { Readable } from 'node:stream'
 import axios from 'axios'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
@@ -750,7 +751,11 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
       `NFT address in processing MetadataState: ${event.address} `,
       true
     )
-    const did = getDid(event.address, chainId)
+    const did =
+      'did:op:' +
+      createHash('sha256')
+        .update(getAddress(event.address) + chainId.toString(10))
+        .digest('hex')
     try {
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
