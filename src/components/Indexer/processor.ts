@@ -712,14 +712,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     block: number
   ): [boolean, string] {
     let errorMsg: string
-    const ddoTxId = previousDdo.getAssetFields().indexedMetadata.event.txid
+    const ddoTxId = previousDdo.getDDOData().indexedMetadata?.event?.tx
     // do not update if we have the same txid
     if (txHash === ddoTxId) {
       errorMsg = `Previous DDO has the same tx id, no need to update: event-txid=${txHash} <> asset-event-txid=${ddoTxId}`
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_DEBUG, errorMsg, true)
       return [false, errorMsg]
     }
-    const ddoBlock = previousDdo.getAssetFields().indexedMetadata.event.block
+    const ddoBlock = previousDdo.getDDOData().indexedMetadata?.event?.block
     // do not update if we have the same block
     if (block === ddoBlock) {
       errorMsg = `Asset was updated later (block: ${ddoBlock}) vs transaction block: ${block}`
