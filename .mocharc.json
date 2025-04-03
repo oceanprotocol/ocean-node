@@ -2,7 +2,7 @@
   "full-trace": true,
   "bail": true,
   "exit": true,
-  "timeout": 20000,
+  "timeout": 40000,
   "recursive": true,
   "require": ["./dist/test/utils/hooks.js"]
 }

@@ -6,7 +6,6 @@ import { JsonRpcSigner, JsonRpcProvider, getBytes } from 'ethers'
 import { DEFAULT_TEST_TIMEOUT } from '../utils/utils.js'
 import { getDatabase } from '../../utils/database.js'
 import { DDO } from '../../@types/DDO/DDO.js'
-import { sleep } from '../../utils/util.js'
 
 // listen for indexer events
 export function addIndexerEventListener(eventName: string, ddoId: string, callback: any) {
@@ -50,75 +49,38 @@ export type WaitIndexResult = {
   ddo: DDO | null
   wasTimeout: boolean
 }
-// WIP
+
 export const waitToIndex = async (
   did: string,
   eventName: string,
   testTimeout: number = DEFAULT_TEST_TIMEOUT,
   forceWaitForEvent?: boolean
 ): Promise<WaitIndexResult> => {
-  const result: WaitIndexResult = { ddo: null, wasTimeout: false }
-  let listening = false
-  let wait = true
-
-  const timeout = setTimeout(async () => {
-    const res = await getIndexedDDOFromDB(did)
-    result.ddo = res
-    result.wasTimeout = true
-    wait = false
-    return result
-  }, testTimeout - 5000) // little less (5 secs) than the initial timeout
-
-  while (wait) {
-    // we might want to wait for the event, on certain ocasions (ex: when we update something that already exists)
-    // otherwise we might get the still "unmodified" version
-    // ideally, the tests would call the waitToIndex() method before the action that triggers it
-    if (!forceWaitForEvent) {
-      // first try
-      const res = await getIndexedDDOFromDB(did)
-      if (res !== null) {
-        clearTimeout(timeout)
-        result.ddo = res
-        result.wasTimeout = false
-        wait = false
-        return result
-      }
-    } else if (!listening) {
-      // 2nd approach, whatever happens first (timeout or event emition)
-      listening = true
-      addIndexerEventListener(eventName, did, async (id: string) => {
-        clearTimeout(timeout)
-        const res = await getIndexedDDOFromDB(id)
-        result.ddo = res
-        result.wasTimeout = false
-        wait = false
-        return result
-      })
-    }
-    // hold your breath for a while
-    await sleep(1000)
+  // Helper function to get DDO and format result
+  const getDDOResult = async (isTimeout = false): Promise<WaitIndexResult> => {
+    const ddo = await getIndexedDDOFromDB(did)
+    return { ddo, wasTimeout: isTimeout }
   }
-  return result
-}
-/** 
-export const waitToIndex = async (did: string, database: Database): Promise<any> => {
-  const timeout = setTimeout(() => {}, 1500)
-  let tries = 0
-  do {
-    try {
-      const ddo = await database.ddo.retrieve(did)
-      if (ddo) {
-        return ddo
-      }
-    } catch (e) {
-      INDEXER_LOGGER.logMessage(`Error could not retrieve the DDO ${did}: ${e}`)
-    }
-    await sleep(1500)
 
-    tries++
-  } while (tries < 100)
-  return null
-} */
+  // If not forcing event wait, try immediate lookup
+  if (!forceWaitForEvent) {
+    const result = await getDDOResult()
+    if (result.ddo) return result
+  }
+
+  // Otherwise wait for either event or timeout
+  // Use -5000 to account for delays
+  return new Promise((resolve) => {
+    const timeoutId = setTimeout(async () => {
+      resolve(await getDDOResult(true))
+    }, testTimeout - 5000)
+
+    addIndexerEventListener(eventName, did, async () => {
+      clearTimeout(timeoutId)
+      resolve(await getDDOResult())
+    })
+  })
+}
 
 export async function signMessage(
   message: string,
