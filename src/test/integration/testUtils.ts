@@ -59,7 +59,7 @@ export const waitToIndex = async (
   // Helper function to get DDO and format result
   const getDDOResult = async (isTimeout = false): Promise<WaitIndexResult> => {
     const ddo = await getIndexedDDOFromDB(did)
-    return { ddo, wasTimeout: isTimeout }
+    return { ddo, wasTimeout: isTimeout && !ddo }
   }
 
   // If not forcing event wait, try immediate lookup
