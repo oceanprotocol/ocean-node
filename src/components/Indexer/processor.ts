@@ -35,7 +35,8 @@ import {
   wasNFTDeployedByOurFactory,
   getPricesByDt,
   doesDispenserAlreadyExist,
-  doesFreAlreadyExist
+  doesFreAlreadyExist,
+  getDid
 } from './utils.js'
 
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
@@ -846,11 +847,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
     const datatokenContract = getDtContract(signer, event.address)
 
     const nftAddress = await datatokenContract.getERC721Address()
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase, order: orderDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -860,31 +857,39 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      if (!ddoInstance.getDDOData().indexedMetadata) {
-        ddoInstance.getDDOData().indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo) as V4DDO | V5DDO
+      if (!ddoInstance.getAssetFields().indexedMetadata) {
+        ddoInstance.updateFields({
+          indexedMetadata: {}
+        })
       }
 
-      if (!Array.isArray(ddoInstance.getDDOData().indexedMetadata.stats)) {
-        ddoInstance.getDDOData().indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
+        ddoInstance.updateFields({
+          indexedMetadata: {
+            stats: []
+          }
+        })
       }
+
       if (
-        ddoInstance.getDDOData().indexedMetadata.stats.length !== 0 &&
+        ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0 &&
         ddoInstance
           .getDDOData()
           .services[serviceIndex].datatokenAddress?.toLowerCase() ===
           event.address?.toLowerCase()
       ) {
-        for (const stat of ddoInstance.getDDOData().indexedMetadata.stats) {
+        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
           if (stat.datatokenAddress.toLowerCase() === event.address?.toLowerCase()) {
             stat.orders += 1
             break
           }
         }
-      } else if (ddoInstance.getDDOData().indexedMetadata.stats.length === 0) {
-        ddoInstance.getDDOData().indexedMetadata.stats.push({
+      } else if (ddoInstance.getAssetFields().indexedMetadata.stats.length === 0) {
+        ddoInstance.getAssetFields().indexedMetadata.stats.push({
           datatokenAddress: event.address,
           name: await datatokenContract.name(),
+          symbol: await datatokenContract.symbol(),
           serviceId: ddoInstance.getDDOData().services[serviceIndex].id,
           orders: 1,
           prices: await getPricesByDt(datatokenContract, signer)
@@ -896,7 +901,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         timestamp,
         consumer,
         payer,
-        ddoInstance.getDDOData().services[serviceIndex].datatokenAddress,
+        ddoInstance.getDDOFields().services[serviceIndex].datatokenAddress,
         nftAddress,
         did
       )
@@ -932,11 +937,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
     const datatokenContract = getDtContract(signer, event.address)
 
     const nftAddress = await datatokenContract.getERC721Address()
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase, order: orderDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -1031,11 +1032,7 @@ export class DispenserCreatedEventProcessor extends BaseEventProcessor {
     const datatokenContract = getDtContract(signer, datatokenAddress)
 
     const nftAddress = await datatokenContract.getERC721Address()
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -1114,11 +1111,7 @@ export class DispenserActivatedEventProcessor extends BaseEventProcessor {
     const datatokenContract = getDtContract(signer, datatokenAddress)
 
     const nftAddress = await datatokenContract.getERC721Address()
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -1199,11 +1192,7 @@ export class DispenserDeactivatedEventProcessor extends BaseEventProcessor {
     const datatokenContract = getDtContract(signer, datatokenAddress)
 
     const nftAddress = await datatokenContract.getERC721Address()
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -1291,11 +1280,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
     const datatokenAddress = exchange[1]
     const datatokenContract = getDtContract(signer, datatokenAddress)
     const nftAddress = await datatokenContract.getERC721Address()
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -1384,11 +1369,7 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
     const datatokenAddress = exchange[1]
     const datatokenContract = getDtContract(signer, datatokenAddress)
     const nftAddress = await datatokenContract.getERC721Address()
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -1473,11 +1454,7 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
     const datatokenAddress = exchange[1]
     const datatokenContract = getDtContract(signer, datatokenAddress)
     const nftAddress = await datatokenContract.getERC721Address()
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -1566,11 +1543,7 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
     const datatokenAddress = exchange[1]
     const datatokenContract = getDtContract(signer, datatokenAddress)
     const nftAddress = await datatokenContract.getERC721Address()
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)

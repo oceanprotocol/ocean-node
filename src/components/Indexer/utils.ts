@@ -34,6 +34,7 @@ import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispen
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
 import { ServicePrice } from '../../@types/DDO/IndexedMetadata.js'
 import { DeprecatedDDO, V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
+import { createHash } from 'crypto'
 
 let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor
@@ -722,4 +723,13 @@ export async function getPricingStatsForDddo(
 
   ddo.getDDOData().indexedMetadata.stats = stats
   return ddo
+}
+
+export function getDid(nftAddress: string, chainId: number): string {
+  return (
+    'did:op:' +
+    createHash('sha256')
+      .update(getAddress(nftAddress) + chainId.toString(10))
+      .digest('hex')
+  )
 }
