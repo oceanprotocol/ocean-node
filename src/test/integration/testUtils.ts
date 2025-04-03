@@ -8,16 +8,16 @@ import { getDatabase } from '../../utils/database.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 
 // listen for indexer events
+// listen for indexer events
 export function addIndexerEventListener(eventName: string, ddoId: string, callback: any) {
-  // add listener
-  INDEXER_DDO_EVENT_EMITTER.addListener(eventName, (did: string) => {
-    INDEXER_LOGGER.info(`Test suite - Listened event: "${eventName}" for DDO: ${did}`)
-    if (ddoId === did && typeof callback === 'function') {
-      // remove it
-      INDEXER_DDO_EVENT_EMITTER.removeListener(eventName, () => {})
+  const listener = (did: string) => {
+    if (ddoId === did) {
       callback(did)
     }
-  })
+  }
+
+  INDEXER_DDO_EVENT_EMITTER.addListener(eventName, listener)
+  return listener
 }
 
 export const delay = (interval: number) => {
@@ -56,29 +56,31 @@ export const waitToIndex = async (
   testTimeout: number = DEFAULT_TEST_TIMEOUT,
   forceWaitForEvent?: boolean
 ): Promise<WaitIndexResult> => {
-  // Helper function to get DDO and format result
-  const getDDOResult = async (isTimeout = false): Promise<WaitIndexResult> => {
-    const ddo = await getIndexedDDOFromDB(did)
-    return { ddo, wasTimeout: isTimeout && !ddo }
-  }
-
-  // If not forcing event wait, try immediate lookup
   if (!forceWaitForEvent) {
-    const result = await getDDOResult()
-    if (result.ddo) return result
+    const ddo = await getIndexedDDOFromDB(did)
+    if (ddo) return { ddo, wasTimeout: false }
   }
 
-  // Otherwise wait for either event or timeout
-  // Use -5000 to account for delays
   return new Promise((resolve) => {
-    const timeoutId = setTimeout(async () => {
-      resolve(await getDDOResult(true))
-    }, testTimeout - 5000)
-
-    addIndexerEventListener(eventName, did, async () => {
+    // Store listener for cleanup
+    const listener = addIndexerEventListener(eventName, did, async () => {
       clearTimeout(timeoutId)
-      resolve(await getDDOResult())
+      const ddo = await getIndexedDDOFromDB(did)
+      INDEXER_DDO_EVENT_EMITTER.removeListener(eventName, listener)
+      resolve({ ddo, wasTimeout: false })
     })
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const ddo = await getIndexedDDOFromDB(did)
+        INDEXER_DDO_EVENT_EMITTER.removeListener(eventName, listener)
+        resolve({ ddo, wasTimeout: true })
+      } catch (error) {
+        console.error('Error fetching DDO:', error)
+        INDEXER_DDO_EVENT_EMITTER.removeListener(eventName, listener)
+        resolve({ ddo: null, wasTimeout: true })
+      }
+    }, testTimeout - 5000)
   })
 }
 
