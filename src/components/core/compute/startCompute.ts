@@ -28,6 +28,7 @@ import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { checkNonce, NonceResponse, getNonceAsNumber } from '../utils/nonceHandler.js'
+import { DDOManager, V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
 
 export class ComputeStartHandler extends CommandHandler {
   validate(command: ComputeStartCommand): ValidateParams {
@@ -160,8 +161,15 @@ export class ComputeStartHandler extends CommandHandler {
           }
 
           const config = await getConfiguration()
+          const ddoInstance = DDOManager.getDDOClass(ddo) as V4DDO | V5DDO
+          const {
+            chainId: ddoChainId,
+            services,
+            metadata,
+            nftAddress
+          } = ddoInstance.getDDOFields()
           const { rpc, network, chainId, fallbackRPCs } =
-            config.supportedNetworks[ddo.chainId]
+            config.supportedNetworks[ddoChainId]
           const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
           const { ready, error } = await blockchain.isNetworkReady()
           if (!ready) {
@@ -177,7 +185,7 @@ export class ComputeStartHandler extends CommandHandler {
           const signer = blockchain.getSigner()
           // let's see if we can access this asset
           // check if oasis evm or similar
-          const confidentialEVM = isConfidentialChainDDO(ddo.chainId, service)
+          const confidentialEVM = isConfidentialChainDDO(ddoChainId, service)
           let canDecrypt = false
           try {
             if (!confidentialEVM) {
@@ -192,7 +200,7 @@ export class ComputeStartHandler extends CommandHandler {
                 service.datatokenAddress,
                 signer
               )
-              if (isTemplate4 && (await isERC20Template4Active(ddo.chainId, signer))) {
+              if (isTemplate4 && (await isERC20Template4Active(ddoChainId, signer))) {
                 // we need to get the proper data for the signature
                 const consumeData =
                   task.consumerAddress +
@@ -227,12 +235,12 @@ export class ComputeStartHandler extends CommandHandler {
               }
             }
           }
-          if (ddo.metadata.type !== 'algorithm') {
+          if (metadata.type !== 'algorithm') {
             const validAlgoForDataset = await validateAlgoForDataset(
               task.algorithm.documentId,
               algoChecksums,
-              ddo,
-              ddo.services[0].id,
+              ddoInstance,
+              services[0].id,
               node
             )
             if (!validAlgoForDataset) {
@@ -240,7 +248,9 @@ export class ComputeStartHandler extends CommandHandler {
                 stream: null,
                 status: {
                   httpStatus: 400,
-                  error: `Algorithm ${task.algorithm.documentId} not allowed to run on the dataset: ${ddo.id}`
+                  error: `Algorithm ${
+                    task.algorithm.documentId
+                  } not allowed to run on the dataset: ${ddoInstance.getDid()}`
                 }
               }
             }
@@ -248,9 +258,9 @@ export class ComputeStartHandler extends CommandHandler {
 
           const provider = blockchain.getProvider()
           result.datatoken = service.datatokenAddress
-          result.chainId = ddo.chainId
+          result.chainId = ddoChainId
 
-          const env = await engine.getComputeEnvironment(ddo.chainId, task.environment)
+          const env = await engine.getComputeEnvironment(ddoChainId, task.environment)
           if (!('transferTxId' in elem) || !elem.transferTxId) {
             const error = `Missing transferTxId for DDO ${elem.documentId}`
             return {
@@ -267,7 +277,7 @@ export class ComputeStartHandler extends CommandHandler {
             elem.transferTxId,
             env.consumerAddress,
             provider,
-            ddo.nftAddress,
+            nftAddress,
             service.datatokenAddress,
             AssetUtils.getServiceIndexById(ddo, service.id),
             service.timeout,
@@ -309,20 +319,20 @@ export class ComputeStartHandler extends CommandHandler {
             )
             foundValidCompute = {
               txId: elem.transferTxId,
-              chainId: ddo.chainId,
+              chainId: ddoChainId,
               validUntil: validFee.validUntil
             }
           }
-          if (!('meta' in algorithm) && ddo.metadata.type === 'algorithm') {
-            const { entrypoint, image, tag, checksum } = ddo.metadata.algorithm.container
+          if (!('meta' in algorithm) && metadata.type === 'algorithm') {
+            const { entrypoint, image, tag, checksum } = metadata.algorithm.container
             const container = { entrypoint, image, tag, checksum }
             algorithm.meta = {
-              language: ddo.metadata.algorithm.language,
-              version: ddo.metadata.algorithm.version,
+              language: metadata.algorithm.language,
+              version: metadata.algorithm.version,
               container
             }
-            if ('format' in ddo.metadata.algorithm) {
-              algorithm.meta.format = ddo.metadata.algorithm.format
+            if ('format' in metadata.algorithm) {
+              algorithm.meta.format = metadata.algorithm.format as string
             }
           }
         }
