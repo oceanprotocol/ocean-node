@@ -71,6 +71,7 @@ import {
 } from '../../components/core/compute/utils.js'
 
 import { freeComputeStartPayload } from '../data/commands.js'
+import { DDOManager, V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
 
 describe('Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
@@ -972,11 +973,12 @@ describe('Compute', () => {
         )
 
         const datasetDDOTest = ddo
+        const datasetInstance = DDOManager.getDDOClass(datasetDDO) as V4DDO | V5DDO
         if (datasetDDOTest) {
           const result = await validateAlgoForDataset(
             algoDDOTest.id,
             algoChecksums,
-            datasetDDOTest,
+            datasetInstance,
             datasetDDOTest.services[0].id,
             oceanNode
           )

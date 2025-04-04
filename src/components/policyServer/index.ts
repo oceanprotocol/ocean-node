@@ -38,7 +38,7 @@ export class PolicyServer {
   }
 
   async checknewDDO(
-    rawDDO: DDO,
+    rawDDO: Record<string, any>,
     chainId: number,
     txId: string,
     eventRaw: any
@@ -54,7 +54,7 @@ export class PolicyServer {
   }
 
   async checkUpdateDDO(
-    rawDDO: DDO,
+    rawDDO: Record<string, any>,
     chainId: number,
     txId: string,
     eventRaw: any

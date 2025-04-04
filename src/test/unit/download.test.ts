@@ -18,7 +18,6 @@ import { decrypt } from '../../utils/crypt.js'
 import { validateFilesStructure } from '../../components/core/handler/downloadHandler.js'
 import { AssetUtils, isConfidentialChainDDO } from '../../utils/asset.js'
 import { DDO } from '../../@types/DDO/DDO.js'
-import { Service } from '../../@types/DDO/Service.js'
 import { DEVELOPMENT_CHAIN_ID, KNOWN_CONFIDENTIAL_EVMS } from '../../utils/address.js'
 
 let envOverrides: OverrideEnvConfig[]
@@ -109,7 +108,7 @@ describe('Should validate files structure for download', () => {
     const decriptedFileObject: any = decryptedFileArray.files
     expect(decriptedFileObject[0]).to.be.deep.equal(assetURL.files[0])
     // validate the structure of the files object
-    const service: Service = AssetUtils.getServiceByIndex(ddoObj, 0)
+    const service = AssetUtils.getServiceByIndex(ddoObj, 0)
     expect(validateFilesStructure(ddoObj, service, decryptedFileArray)).to.be.equal(true)
   })
 
@@ -122,7 +121,7 @@ describe('Should validate files structure for download', () => {
     otherDDOSameFiles.nftAddress = otherNFTAddress
     otherDDOSameFiles.services[0].datatokenAddress = otherDatatokenAddress
 
-    const service: Service = AssetUtils.getServiceByIndex(otherDDOSameFiles, 0)
+    const service = AssetUtils.getServiceByIndex(otherDDOSameFiles, 0)
     // its the same service files structure (same encrypted data),
     // but its not the same ddo so there is no matching
     expect(
