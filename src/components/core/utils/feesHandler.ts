@@ -278,7 +278,7 @@ export async function verifyProviderFees(
 // equiv to get_provider_fees
 // *** NOTE: provider.py => get_provider_fees ***
 export async function createFee(
-  asset: DDO,
+  asset: DDO | Record<string, any>,
   validUntil: number,
   computeEnv: string,
   service: Service
