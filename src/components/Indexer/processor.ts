@@ -176,6 +176,16 @@ class BaseEventProcessor {
   ): Promise<any> {
     try {
       const { ddo: ddoDatabase, ddoState } = await getDatabase()
+      if (ddo.getDDOData().version === 'deprecated') {
+        const did = ddo.getDid()
+        const nftAddress = ddo.getDDOData().nftAddress
+        await Promise.all([ddoDatabase.delete(did), ddoState.delete(did)])
+        const saveDDO = await ddoDatabase.create(ddo.getDDOData())
+        await ddoState.create(this.networkId, saveDDO.id, nftAddress, undefined, true)
+
+        return saveDDO
+      }
+
       const saveDDO = await ddoDatabase.update({ ...ddo.getDDOData() })
       await ddoState.update(
         this.networkId,
@@ -787,7 +797,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
           // in case their state changes back to active.
           const shortDdoInstance = DDOManager.getDDOClass({
             id: ddo.id,
-            version: ddo.version,
+            version: 'deprecated',
             chainId,
             nftAddress: ddo.nftAddress,
             indexedMetadata: {
