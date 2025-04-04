@@ -177,23 +177,20 @@ class BaseEventProcessor {
     try {
       const { ddo: ddoDatabase, ddoState } = await getDatabase()
       const saveDDO = await ddoDatabase.update({ ...ddo.getDDOData() })
-      const ddoInstance = DDOManager.getDDOClass(ddo.getDDOData())
-      const { id, nftAddress, indexedMetadata } = ddoInstance.getDDOData()
       await ddoState.update(
         this.networkId,
-        id,
-        nftAddress,
-        indexedMetadata?.event?.tx,
+        saveDDO.id,
+        saveDDO.nftAddress,
+        saveDDO.indexedMetadata?.event?.tx,
         true
       )
       INDEXER_LOGGER.logMessage(
-        `Saved or updated DDO  : ${id} from network: ${this.networkId} triggered by: ${method}`
+        `Saved or updated DDO  : ${saveDDO.id} from network: ${this.networkId} triggered by: ${method}`
       )
       return saveDDO
     } catch (err) {
       const { ddoState } = await getDatabase()
-      const ddoInstance = DDOManager.getDDOClass(ddo.getDDOData())
-      const { id, nftAddress, indexedMetadata } = ddoInstance.getDDOData()
+      const { id, nftAddress, indexedMetadata } = ddo.getDDOData()
       await ddoState.update(
         this.networkId,
         id,
@@ -398,7 +395,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
     provider: JsonRpcApiProvider,
     eventName: string
   ): Promise<any> {
-    const did = 'did:op'
+    let did = 'did:op'
     try {
       const { ddo: ddoDatabase, ddoState } = await getDatabase()
       const wasDeployedByUs = await wasNFTDeployedByOurFactory(
@@ -495,6 +492,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       }
 
       // stuff that we overwrite
+      did = ddo.id
       ddoInstance.updateFields({
         chainId,
         nftAddress: event.address,
