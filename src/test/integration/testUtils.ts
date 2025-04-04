@@ -8,7 +8,6 @@ import { getDatabase } from '../../utils/database.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 
 // listen for indexer events
-// listen for indexer events
 export function addIndexerEventListener(eventName: string, ddoId: string, callback: any) {
   const listener = (did: string) => {
     if (ddoId === did) {
@@ -62,7 +61,6 @@ export const waitToIndex = async (
   }
 
   return new Promise((resolve) => {
-    // Store listener for cleanup
     const listener = addIndexerEventListener(eventName, did, async () => {
       clearTimeout(timeoutId)
       const ddo = await getIndexedDDOFromDB(did)

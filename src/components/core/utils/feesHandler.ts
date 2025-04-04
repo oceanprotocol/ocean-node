@@ -31,6 +31,7 @@ import { getOceanArtifactsAdresses } from '../../../utils/address.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { fetchEventFromTransaction } from '../../../utils/util.js'
 import { fetchTransactionReceipt } from './validateOrders.js'
+import { DDOManager } from '@oceanprotocol/ddo-js'
 
 export function getEnvironmentPriceSchemaForResource(
   prices: ComputeResourcesPricingInfo[],
@@ -78,7 +79,7 @@ async function calculateProviderFeeAmount(
 }
 
 export async function createProviderFee(
-  asset: DDO,
+  asset: DDO | Record<string, any>,
   service: Service,
   validUntil: number,
   computeEnv: ComputeEnvironment,
@@ -93,8 +94,9 @@ export async function createProviderFee(
     dt: service.datatokenAddress,
     id: service.id
   }
-  const providerWallet = await getProviderWallet(String(asset.chainId))
-
+  const ddoInstance = DDOManager.getDDOClass(asset)
+  const { chainId: assetChainId } = ddoInstance.getDDOFields()
+  const providerWallet = await getProviderWallet(String(assetChainId))
   const providerFeeAddress: string = providerWallet.address
   let providerFeeAmount: number
   let providerFeeAmountFormatted: BigNumberish
@@ -103,13 +105,13 @@ export async function createProviderFee(
   if (
     computeEnv &&
     computeEnv.fees &&
-    Object.hasOwn(computeEnv.fees, String(asset.chainId))
+    Object.hasOwn(computeEnv.fees, String(assetChainId))
   ) {
     // was: if (computeEnv)
-    providerFeeToken = computeEnv.fees[asset.chainId][0].feeToken // was: computeEnv.feeToken
+    providerFeeToken = computeEnv.fees[assetChainId][0].feeToken // was: computeEnv.feeToken
   } else {
     // it's download, take it from config
-    providerFeeToken = await getProviderFeeToken(asset.chainId)
+    providerFeeToken = await getProviderFeeToken(assetChainId)
   }
   if (providerFeeToken?.toLowerCase() === ZeroAddress) {
     providerFeeAmount = 0
@@ -117,12 +119,12 @@ export async function createProviderFee(
     providerFeeAmount = await calculateProviderFeeAmount(
       validUntil,
       computeEnv,
-      String(asset.chainId)
+      String(assetChainId)
     )
   }
 
   if (providerFeeToken && providerFeeToken?.toLowerCase() !== ZeroAddress) {
-    const provider = await getJsonRpcProvider(asset.chainId)
+    const provider = await getJsonRpcProvider(assetChainId)
     const decimals = await getDatatokenDecimals(providerFeeToken, provider)
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
   } else {
