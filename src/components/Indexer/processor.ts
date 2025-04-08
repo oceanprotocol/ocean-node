@@ -499,7 +499,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       }
 
       // stuff that we overwrite
-      did = ddo.id
+      did = ddoInstance.getDid()
       const { services } = ddoInstance.getDDOFields()
       ddoInstance.updateFields({
         chainId,

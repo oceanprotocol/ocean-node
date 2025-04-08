@@ -616,6 +616,14 @@ export async function getPricingStatsForDddo(
   ddo: V4DDO | V5DDO,
   signer: Signer
 ): Promise<V4DDO | V5DDO> {
+  if (!ddo.getAssetFields().indexedMetadata) {
+    ddo.getDDOData().indexedMetadata = {}
+  }
+
+  if (!Array.isArray(ddo.getAssetFields().indexedMetadata.stats)) {
+    ddo.getDDOData().indexedMetadata.stats = []
+  }
+
   const stats = ddo.getAssetFields().indexedMetadata?.stats || []
 
   for (const service of ddo.getDDOFields().services) {
@@ -715,10 +723,6 @@ export async function getPricingStatsForDddo(
         }
       }
     }
-  }
-
-  if (!ddo.getAssetFields().indexedMetadata) {
-    ddo.updateFields({ indexedMetadata: {} })
   }
 
   ddo.updateFields({ indexedMetadata: { stats } })
