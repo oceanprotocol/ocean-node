@@ -1,5 +1,5 @@
+import { DDO } from '@oceanprotocol/ddo-js'
 import { PolicyServerResult } from '../../@types/policyServer.js'
-import { DDO } from '../../@types/DDO/DDO.js'
 import { isDefined } from '../../utils/util.js'
 
 export class PolicyServer {

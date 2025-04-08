@@ -12,7 +12,7 @@ import { fetchFileMetadata } from '../../../utils/asset.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { createHash } from 'crypto'
 import { FindDdoHandler } from '../../core/handler/ddoHandler.js'
-import { DDOManager, V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
+import { DDO, DDOManager, V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
 
 export async function getAlgoChecksums(
   algoDID: string,
@@ -29,7 +29,7 @@ export async function getAlgoChecksums(
       CORE_LOGGER.error(`Algorithm with id: ${algoDID} not found!`)
       return checksums
     }
-    const fileArray = await getFile(algoDDO, algoServiceId, oceanNode)
+    const fileArray = await getFile(algoDDO.getDDOData() as DDO, algoServiceId, oceanNode)
     for (const file of fileArray) {
       const url =
         file.type === 'url'

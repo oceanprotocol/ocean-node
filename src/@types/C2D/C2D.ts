@@ -1,4 +1,4 @@
-import type { MetadataAlgorithm } from '../DDO/Metadata.js'
+import { MetadataAlgorithm } from '@oceanprotocol/ddo-js'
 import type { BaseFileObject } from '../fileObject.js'
 export enum C2DClusterType {
   // eslint-disable-next-line no-unused-vars

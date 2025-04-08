@@ -227,7 +227,7 @@ describe('Compute', () => {
     assert(txReceipt, 'set metadata failed')
     publishedComputeDataset = await waitToIndex(
       publishedComputeDataset.ddo.id,
-      EVENTS.METADATA_CREATED,
+      EVENTS.METADATA_UPDATED,
       DEFAULT_TEST_TIMEOUT * 2,
       true
     )
@@ -936,8 +936,8 @@ describe('Compute', () => {
       const algoDDOTest = ddo
       if (algoDDOTest) {
         const algoChecksums = await getAlgoChecksums(
-          algoDDOTest.id,
-          algoDDOTest.services[0].id,
+          algoDDOTest.getDDOData().id,
+          algoDDOTest.getDDOData().services[0].id,
           oceanNode
         )
         expect(algoChecksums.files).to.equal(
@@ -961,8 +961,8 @@ describe('Compute', () => {
       const algoDDOTest = ddo
       if (algoDDOTest) {
         const algoChecksums = await getAlgoChecksums(
-          algoDDOTest.id,
-          algoDDOTest.services[0].id,
+          algoDDOTest.getDDOData().id,
+          algoDDOTest.getDDOData().services[0].id,
           oceanNode
         )
         const { ddo, wasTimeout } = await waitToIndex(
@@ -976,10 +976,10 @@ describe('Compute', () => {
         const datasetInstance = DDOManager.getDDOClass(datasetDDO) as V4DDO | V5DDO
         if (datasetDDOTest) {
           const result = await validateAlgoForDataset(
-            algoDDOTest.id,
+            algoDDOTest.getDDOData().id,
             algoChecksums,
             datasetInstance,
-            datasetDDOTest.services[0].id,
+            datasetDDOTest.getDDOData().services[0].id,
             oceanNode
           )
           expect(result).to.equal(!setTrustedAlgosEmpty)

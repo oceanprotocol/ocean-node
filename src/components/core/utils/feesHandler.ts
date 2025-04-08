@@ -17,8 +17,7 @@ import {
   ProviderFeeValidation,
   ProviderFees
 } from '../../../@types/Fees'
-import { DDO } from '../../../@types/DDO/DDO'
-import { Service } from '../../../@types/DDO/Service'
+import { Service, DDOManager } from '@oceanprotocol/ddo-js'
 import {
   getDatatokenDecimals,
   verifyMessage,
@@ -31,7 +30,6 @@ import { getOceanArtifactsAdresses } from '../../../utils/address.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { fetchEventFromTransaction } from '../../../utils/util.js'
 import { fetchTransactionReceipt } from './validateOrders.js'
-import { DDOManager } from '@oceanprotocol/ddo-js'
 
 export function getEnvironmentPriceSchemaForResource(
   prices: ComputeResourcesPricingInfo[],
@@ -79,7 +77,7 @@ async function calculateProviderFeeAmount(
 }
 
 export async function createProviderFee(
-  asset: DDO | Record<string, any>,
+  asset: Record<string, any>,
   service: Service,
   validUntil: number,
   computeEnv: ComputeEnvironment,
@@ -278,7 +276,7 @@ export async function verifyProviderFees(
 // equiv to get_provider_fees
 // *** NOTE: provider.py => get_provider_fees ***
 export async function createFee(
-  asset: DDO | Record<string, any>,
+  asset: Record<string, any>,
   validUntil: number,
   computeEnv: string,
   service: Service

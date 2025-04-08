@@ -12,7 +12,6 @@ import {
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { sleep, readStream } from '../../../utils/util.js'
-import { DDO } from '../../../@types/DDO/DDO.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Blockchain } from '../../../utils/blockchain.js'
 import { ethers, isAddress } from 'ethers'
@@ -41,6 +40,7 @@ import {
 } from '../../Indexer/utils.js'
 import { deleteIndexedMetadataIfExists, validateDDOHash } from '../../../utils/asset.js'
 import { DDOManager } from '@oceanprotocol/ddo-js'
+import { GenericDDO } from '../../../@types/DDO/DDO.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -750,13 +750,16 @@ export class FindDdoHandler extends CommandHandler {
   }
 
   // Function to use findDDO and get DDO in desired format
-  async findAndFormatDdo(ddoId: string, force: boolean = false): Promise<DDO | null> {
+  async findAndFormatDdo(
+    ddoId: string,
+    force: boolean = false
+  ): Promise<GenericDDO | null> {
     const node = this.getOceanNode()
     // First try to find the DDO Locally if findDDO is not enforced
     if (!force) {
       try {
         const ddo = await node.getDatabase().ddo.retrieve(ddoId)
-        return ddo as DDO
+        return DDOManager.getDDOClass(ddo)
       } catch (error) {
         CORE_LOGGER.logMessage(
           `Unable to find DDO locally. Proceeding to call findDDO`,
@@ -786,7 +789,7 @@ export class FindDdoHandler extends CommandHandler {
         const formattedServices = ddoData.services.map(formatService)
 
         // Map the DDO data to the DDO interface
-        const ddo: DDO = {
+        const ddo = {
           '@context': ddoData['@context'],
           id: ddoData.id,
           version: ddoData.version,
@@ -802,7 +805,7 @@ export class FindDdoHandler extends CommandHandler {
           }
         }
 
-        return ddo
+        return DDOManager.getDDOClass(ddo)
       }
 
       return null
@@ -821,7 +824,7 @@ export class ValidateDDOHandler extends CommandHandler {
   validate(command: ValidateDDOCommand): ValidateParams {
     let validation = validateCommandParameters(command, ['ddo'])
     if (validation.valid) {
-      validation = validateDDOIdentifier(command.ddo.id)
+      validation = validateDDOIdentifier(command.ddo.getDDOData().id)
     }
 
     return validation

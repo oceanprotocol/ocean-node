@@ -1,6 +1,5 @@
 import axios from 'axios'
-import { DDO } from '../@types/DDO/DDO'
-import { Service } from '../@types/DDO/Service'
+import { Service, DDOManager, V4DDO, V5DDO, DDO } from '@oceanprotocol/ddo-js'
 import { DDO_IDENTIFIER_PREFIX } from './constants.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { createHash } from 'crypto'
@@ -9,20 +8,19 @@ import { KNOWN_CONFIDENTIAL_EVMS } from './address.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/interfaces/IERC20Template.sol/IERC20Template.json' assert { type: 'json' }
 import ERC20Template4 from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20Template4.sol/ERC20Template4.json' assert { type: 'json' }
 import { getContractAddress, getNFTFactory } from '../components/Indexer/utils.js'
-import { DDOManager, V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
 
 // Notes:
 // Asset as per asset.py on provider, is a class there, while on ocean.Js we only have a type
 // this is an utility to extract information from the Asset services
 export const AssetUtils = {
-  getServiceIndexById(asset: DDO | Record<string, any>, id: string): number | null {
+  getServiceIndexById(asset: DDO, id: string): number | null {
     const ddoInstance = DDOManager.getDDOClass(asset) as V4DDO | V5DDO
     const { services } = ddoInstance.getDDOFields()
 
     for (let c = 0; c < services.length; c++) if (services[c].id === id) return c
     return null
   },
-  getServiceByIndex(asset: DDO | Record<string, any>, index: number) {
+  getServiceByIndex(asset: DDO, index: number) {
     const ddoInstance = DDOManager.getDDOClass(asset) as V4DDO | V5DDO
     const { services } = ddoInstance.getDDOFields()
 
@@ -32,7 +30,7 @@ export const AssetUtils = {
     return null
   },
 
-  getServiceById(asset: DDO | Record<string, any>, id: string) {
+  getServiceById(asset: DDO, id: string) {
     const ddoInstance = DDOManager.getDDOClass(asset) as V4DDO | V5DDO
     const { services } = ddoInstance.getDDOFields() as any
 

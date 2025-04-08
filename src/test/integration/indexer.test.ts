@@ -29,7 +29,7 @@ import {
   getOceanArtifactsAdressesByChainId
 } from '../../utils/address.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
-import { DDO } from '../../@types/DDO/DDO.js'
+import { DDO } from '@oceanprotocol/ddo-js'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
@@ -460,7 +460,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       true
     )
     if (ddo) {
-      const retrievedDDO: DDO = ddo
+      const retrievedDDO = ddo
       console.log('indexer retrieved ddo: ', JSON.stringify(retrievedDDO))
       for (const stat of retrievedDDO.indexedMetadata.stats) {
         if (stat.datatokenAddress === datatokenAddress) {
@@ -553,7 +553,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       true
     )
 
-    const retrievedDDO: DDO = ddo
+    const retrievedDDO = ddo
 
     if (retrievedDDO) {
       for (const stat of retrievedDDO.indexedMetadata.stats) {

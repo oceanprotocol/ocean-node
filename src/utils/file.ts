@@ -1,5 +1,3 @@
-import { DDO } from '../@types/DDO/DDO.js'
-import { Service } from '../@types/DDO/Service.js'
 import {
   ArweaveFileObject,
   EncryptMethod,
@@ -13,6 +11,7 @@ import { decrypt } from './crypt.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { sanitizeServiceFiles } from './util.js'
 import { isOrderingAllowedForAsset } from '../components/core/handler/downloadHandler.js'
+import { DDO, Service } from '@oceanprotocol/ddo-js'
 
 export async function getFile(
   didOrDdo: string | DDO,
@@ -23,7 +22,9 @@ export async function getFile(
     // 1. Get the DDO
     const ddo =
       typeof didOrDdo === 'string'
-        ? await new FindDdoHandler(node).findAndFormatDdo(didOrDdo)
+        ? ((
+            await new FindDdoHandler(node).findAndFormatDdo(didOrDdo)
+          ).getDDOData() as DDO)
         : didOrDdo
 
     const isOrdable = isOrderingAllowedForAsset(ddo)

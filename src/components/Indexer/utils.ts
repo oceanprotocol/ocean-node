@@ -32,9 +32,9 @@ import { CommandStatus, JobStatus } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
-import { ServicePrice } from '../../@types/DDO/IndexedMetadata.js'
 import { V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
 import { createHash } from 'crypto'
+import { ServicePrice } from '../../@types/IndexedMetadata.js'
 
 let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor

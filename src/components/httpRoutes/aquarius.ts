@@ -6,7 +6,6 @@ import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { FindDdoHandler, ValidateDDOHandler } from '../core/handler/ddoHandler.js'
 import { QueryDdoStateHandler, QueryHandler } from '../core/handler/queryHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
-import { DDO } from '../../@types/DDO/DDO.js'
 import { QueryCommand } from '../../@types/commands.js'
 import { DatabaseFactory } from '../database/DatabaseFactory.js'
 import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
@@ -139,7 +138,7 @@ aquariusRoutes.post(`${AQUARIUS_API_BASE_PATH}/assets/ddo/validate`, async (req,
       res.status(400).send('Missing DDO object')
       return
     }
-    const ddo = JSON.parse(req.body) as DDO
+    const ddo = JSON.parse(req.body) as Record<string, any>
 
     if (!ddo.version) {
       res.status(400).send('Missing DDO version')
