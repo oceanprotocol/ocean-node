@@ -12,7 +12,8 @@ import { fetchFileMetadata } from '../../../utils/asset.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { createHash } from 'crypto'
 import { FindDdoHandler } from '../../core/handler/ddoHandler.js'
-import { DDOManager, V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
+import { DDOManager } from '@oceanprotocol/ddo-js'
+import { VersionedDDO } from '../../../@types/DDO/DDO.js'
 
 export async function getAlgoChecksums(
   algoDID: string,
@@ -47,7 +48,7 @@ export async function getAlgoChecksums(
       checksums.files = checksums.files.concat(contentChecksum)
     }
 
-    const ddoInstance = DDOManager.getDDOClass(algoDDO) as V4DDO | V5DDO
+    const ddoInstance = DDOManager.getDDOClass(algoDDO) as VersionedDDO
     const { metadata } = ddoInstance.getDDOFields()
     checksums.container = createHash('sha256')
       .update(
@@ -67,7 +68,7 @@ export async function validateAlgoForDataset(
     files: string
     container: string
   },
-  ddoInstance: V4DDO | V5DDO,
+  ddoInstance: VersionedDDO,
   datasetServiceId: string,
   oceanNode: OceanNode
 ) {
@@ -107,7 +108,7 @@ export async function validateAlgoForDataset(
       }
       if (compute.publisherTrustedAlgorithmPublishers) {
         const algoDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(algoDID)
-        const algoInstance = DDOManager.getDDOClass(algoDDO) as V4DDO | V5DDO
+        const algoInstance = DDOManager.getDDOClass(algoDDO)
         const { nftAddress } = algoInstance.getDDOFields()
         if (algoDDO) {
           return compute.publisherTrustedAlgorithmPublishers

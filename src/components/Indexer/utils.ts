@@ -32,9 +32,9 @@ import { CommandStatus, JobStatus } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
-import { V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
 import { createHash } from 'crypto'
 import { ServicePrice } from '../../@types/IndexedMetadata.js'
+import { VersionedDDO } from '../../@types/DDO/DDO.js'
 
 let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor
@@ -502,7 +502,7 @@ export function buildJobIdentifier(command: string, extra: string[]): JobStatus 
 }
 
 export function findServiceIdByDatatoken(
-  ddo: V4DDO | V5DDO,
+  ddo: VersionedDDO,
   datatokenAddress: string
 ): string {
   for (const s of ddo.getDDOFields().services) {
@@ -613,9 +613,9 @@ export async function getPricesByDt(
 }
 
 export async function getPricingStatsForDddo(
-  ddo: V4DDO | V5DDO,
+  ddo: VersionedDDO,
   signer: Signer
-): Promise<V4DDO | V5DDO> {
+): Promise<VersionedDDO> {
   if (!ddo.getAssetFields().indexedMetadata) {
     ddo.getDDOData().indexedMetadata = {}
   }

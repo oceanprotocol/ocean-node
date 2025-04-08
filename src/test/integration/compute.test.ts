@@ -973,7 +973,7 @@ describe('Compute', () => {
         )
 
         const datasetDDOTest = ddo
-        const datasetInstance = DDOManager.getDDOClass(datasetDDO) as V4DDO | V5DDO
+        const datasetInstance = DDOManager.getDDOClass(datasetDDO) as VersionedDDO
         if (datasetDDOTest) {
           const result = await validateAlgoForDataset(
             algoDDOTest.getDDOData().id,

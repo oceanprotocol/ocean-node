@@ -29,7 +29,7 @@ import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { C2DEngineDocker, getAlgorithmImage } from '../../c2d/compute_engine_docker.js'
-import { DDOManager, V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
+import { DDOManager } from '@oceanprotocol/ddo-js'
 
 export class ComputeInitializeHandler extends CommandHandler {
   validate(command: ComputeInitializeCommand): ValidateParams {
@@ -116,7 +116,7 @@ export class ComputeInitializeHandler extends CommandHandler {
             }
           }
 
-          const ddoInstance = DDOManager.getDDOClass(ddo) as V4DDO | V5DDO
+          const ddoInstance = DDOManager.getDDOClass(ddo)
           const { chainId: ddoChainId, nftAddress } = ddoInstance.getDDOFields()
           const config = await getConfiguration()
           const { rpc, network, chainId, fallbackRPCs } =
