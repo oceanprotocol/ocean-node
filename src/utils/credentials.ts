@@ -6,11 +6,8 @@ import { CORE_LOGGER } from './logging/common.js'
 import { getNFTContract } from '../components/Indexer/utils.js'
 import { isDefined } from './util.js'
 import { getOceanArtifactsAdressesByChainId } from './address.js'
-import {
-  Credential,
-  Credentials,
-  KNOWN_CREDENTIALS_TYPES
-} from '../@types/DDO/Credentials.js'
+import { Credential, Credentials } from '@oceanprotocol/ddo-js'
+import { KNOWN_CREDENTIALS_TYPES } from '../@types/DDO/Credentials.js'
 
 export function findCredential(
   credentials: Credential[],

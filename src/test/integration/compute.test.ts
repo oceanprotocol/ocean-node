@@ -71,7 +71,8 @@ import {
 } from '../../components/core/compute/utils.js'
 
 import { freeComputeStartPayload } from '../data/commands.js'
-import { DDOManager, V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
+import { DDOManager } from '@oceanprotocol/ddo-js'
+import { VersionedDDO } from '../../@types/DDO/DDO.js'
 
 describe('Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
