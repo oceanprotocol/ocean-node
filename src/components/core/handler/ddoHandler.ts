@@ -824,7 +824,7 @@ export class ValidateDDOHandler extends CommandHandler {
   validate(command: ValidateDDOCommand): ValidateParams {
     let validation = validateCommandParameters(command, ['ddo'])
     if (validation.valid) {
-      validation = validateDDOIdentifier(command.ddo.getDDOData().id)
+      validation = validateDDOIdentifier(command.ddo.id)
     }
 
     return validation
