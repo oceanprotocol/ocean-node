@@ -39,8 +39,7 @@ import {
   wasNFTDeployedByOurFactory
 } from '../../Indexer/utils.js'
 import { deleteIndexedMetadataIfExists, validateDDOHash } from '../../../utils/asset.js'
-import { DDOManager } from '@oceanprotocol/ddo-js'
-import { GenericDDO } from '../../../@types/DDO/DDO.js'
+import { DDO, DDOManager } from '@oceanprotocol/ddo-js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -750,16 +749,13 @@ export class FindDdoHandler extends CommandHandler {
   }
 
   // Function to use findDDO and get DDO in desired format
-  async findAndFormatDdo(
-    ddoId: string,
-    force: boolean = false
-  ): Promise<GenericDDO | null> {
+  async findAndFormatDdo(ddoId: string, force: boolean = false): Promise<DDO | null> {
     const node = this.getOceanNode()
     // First try to find the DDO Locally if findDDO is not enforced
     if (!force) {
       try {
         const ddo = await node.getDatabase().ddo.retrieve(ddoId)
-        return DDOManager.getDDOClass(ddo)
+        return ddo as DDO
       } catch (error) {
         CORE_LOGGER.logMessage(
           `Unable to find DDO locally. Proceeding to call findDDO`,
@@ -789,7 +785,7 @@ export class FindDdoHandler extends CommandHandler {
         const formattedServices = ddoData.services.map(formatService)
 
         // Map the DDO data to the DDO interface
-        const ddo = {
+        const ddo: Record<string, any> = {
           '@context': ddoData['@context'],
           id: ddoData.id,
           version: ddoData.version,
@@ -805,7 +801,7 @@ export class FindDdoHandler extends CommandHandler {
           }
         }
 
-        return DDOManager.getDDOClass(ddo)
+        return ddo as DDO
       }
 
       return null

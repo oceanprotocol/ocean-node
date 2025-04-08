@@ -40,7 +40,7 @@ import { OceanNode } from '../../OceanNode.js'
 import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.js'
 import * as drc from 'docker-registry-client'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
-import { Service, DDO } from '@oceanprotocol/ddo-js'
+import { Service } from '@oceanprotocol/ddo-js'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
@@ -948,10 +948,7 @@ export class C2DEngineDocker extends C2DEngine {
             ).findAndFormatDdo(documentId)
             console.log('algo ddo:', algoDdo)
             // 1. Get the service
-            const service: Service = AssetUtils.getServiceById(
-              algoDdo.getDDOData() as DDO,
-              serviceId
-            )
+            const service: Service = AssetUtils.getServiceById(algoDdo, serviceId)
 
             // 2. Decrypt the files object
             const decryptedFileObject = await decryptFilesObject(service.files)
@@ -1014,10 +1011,7 @@ export class C2DEngineDocker extends C2DEngine {
           )
 
           // 2. Get the service
-          const service: Service = AssetUtils.getServiceById(
-            ddo.getDDOData() as DDO,
-            serviceId
-          )
+          const service: Service = AssetUtils.getServiceById(ddo, serviceId)
           // 3. Decrypt the url
           const decryptedFileObject = await decryptFilesObject(service.files)
           console.log('decryptedFileObject: ', decryptedFileObject)

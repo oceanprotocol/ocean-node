@@ -29,7 +29,7 @@ import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { C2DEngineDocker, getAlgorithmImage } from '../../c2d/compute_engine_docker.js'
-import { DDOManager, V4DDO, V5DDO, DDO } from '@oceanprotocol/ddo-js'
+import { DDOManager, V4DDO, V5DDO } from '@oceanprotocol/ddo-js'
 
 export class ComputeInitializeHandler extends CommandHandler {
   validate(command: ComputeInitializeCommand): ValidateParams {
@@ -104,10 +104,7 @@ export class ComputeInitializeHandler extends CommandHandler {
               }
             }
           }
-          const service = AssetUtils.getServiceById(
-            ddo.getDDOData() as DDO,
-            elem.serviceId
-          )
+          const service = AssetUtils.getServiceById(ddo, elem.serviceId)
           if (!service) {
             const error = `Cannot find service ${elem.serviceId} in DDO ${elem.documentId}`
             return {
@@ -198,10 +195,7 @@ export class ComputeInitializeHandler extends CommandHandler {
                     task.datasets[0].documentId +
                     getNonceAsNumber(task.consumerAddress)
                   // call smart contract to decrypt
-                  const serviceIndex = AssetUtils.getServiceIndexById(
-                    ddo.getDDOData() as DDO,
-                    service.id
-                  )
+                  const serviceIndex = AssetUtils.getServiceIndexById(ddo, service.id)
                   const filesObject = await getFilesObjectFromConfidentialEVM(
                     serviceIndex,
                     service.datatokenAddress,
@@ -266,7 +260,7 @@ export class ComputeInitializeHandler extends CommandHandler {
               provider,
               nftAddress,
               service.datatokenAddress,
-              AssetUtils.getServiceIndexById(ddo.getDDOData() as DDO, service.id),
+              AssetUtils.getServiceIndexById(ddo, service.id),
               service.timeout,
               blockchain.getSigner()
             )

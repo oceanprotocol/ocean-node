@@ -22,9 +22,7 @@ export async function getFile(
     // 1. Get the DDO
     const ddo =
       typeof didOrDdo === 'string'
-        ? ((
-            await new FindDdoHandler(node).findAndFormatDdo(didOrDdo)
-          ).getDDOData() as DDO)
+        ? ((await new FindDdoHandler(node).findAndFormatDdo(didOrDdo)) as DDO)
         : didOrDdo
 
     const isOrdable = isOrderingAllowedForAsset(ddo)
