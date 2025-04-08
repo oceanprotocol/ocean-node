@@ -4,7 +4,6 @@ import {
   checkCredentials,
   hasAddressMatchAllRule
 } from '../../utils/credentials.js'
-import { Credentials } from '@oceanprotocol/ddo-js'
 import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,
@@ -13,6 +12,7 @@ import {
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { homedir } from 'os'
+import { Credentials } from '@oceanprotocol/ddo-js'
 
 let envOverrides: OverrideEnvConfig[]
 
@@ -79,8 +79,8 @@ describe('credentials', () => {
 
   it('should deny access with empty values in allow lists', () => {
     const credentials: Credentials = {
-      allow: [],
-      deny: [
+      deny: [],
+      allow: [
         {
           type: 'address',
           values: []
@@ -93,8 +93,8 @@ describe('credentials', () => {
   })
   it('should allow access with address in allow list', () => {
     const credentials: Credentials = {
-      allow: [],
-      deny: [
+      deny: [],
+      allow: [
         {
           type: 'address',
           values: ['0x123']
