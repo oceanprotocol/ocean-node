@@ -1,6 +1,6 @@
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Handler } from '../handler/handler.js'
+import { CommandHandler } from '../handler/handler.js'
 import { ComputeGetResultCommand } from '../../../@types/commands.js'
 import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
 import {
@@ -10,7 +10,7 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { isAddress } from 'ethers'
 
-export class ComputeGetResultHandler extends Handler {
+export class ComputeGetResultHandler extends CommandHandler {
   validate(command: ComputeGetResultCommand): ValidateParams {
     const validation = validateCommandParameters(command, [
       'consumerAddress',
@@ -90,16 +90,15 @@ export class ComputeGetResultHandler extends Handler {
         jobId,
         task.index
       )
-      const anyResp: any = respStream as any
       const response: P2PCommandResponse = {
-        stream: respStream,
+        stream: respStream.stream,
         status: {
           httpStatus: 200
         }
       }
       // need to pass the headers properly
-      if (anyResp.headers) {
-        response.status.headers = anyResp.headers
+      if (respStream.headers) {
+        response.status.headers = respStream.headers
       }
       return response
     } catch (error) {

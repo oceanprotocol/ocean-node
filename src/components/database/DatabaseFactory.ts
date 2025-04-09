@@ -29,7 +29,9 @@ import { TypesenseMetadataQuery } from './TypesenseMetadataQuery.js'
 import { IMetadataQuery } from '../../@types/DDO/IMetadataQuery.js'
 import { ElasticSearchMetadataQuery } from './ElasticSearchMetadataQuery.js'
 import { DB_TYPES } from '../../utils/index.js'
+import { C2DDatabase } from './C2DDatabase.js'
 import { SQLLiteNonceDatabase } from './SQLLiteNonceDatabase.js'
+import { SQLLiteConfigDatabase } from './SQLLiteConfigDatabase.js'
 
 export class DatabaseFactory {
   private static databaseMap = {
@@ -85,6 +87,10 @@ export class DatabaseFactory {
     return this.createDatabase('ddo', config)
   }
 
+  static async createC2DDatabase(config: OceanNodeDBConfig): Promise<C2DDatabase> {
+    return await new C2DDatabase(config, typesenseSchemas.c2dSchemas)
+  }
+
   static createIndexerDatabase(
     config: OceanNodeDBConfig
   ): Promise<AbstractIndexerDatabase> {
@@ -111,5 +117,9 @@ export class DatabaseFactory {
 
   static createMetadataQuery(config: OceanNodeDBConfig): Promise<IMetadataQuery> {
     return this.createDatabase('metadataQuery', config)
+  }
+
+  static async createConfigDatabase(): Promise<SQLLiteConfigDatabase> {
+    return await new SQLLiteConfigDatabase()
   }
 }

@@ -471,6 +471,8 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
       throw new Error(`Schema for version ${ddo.version} not found`)
     }
     try {
+      // avoid failure because of schema
+      if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await this.validateDDO(ddo)
       if (validation === true) {
         return await this.provider
@@ -532,6 +534,8 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
       throw new Error(`Schema for version ${ddo.version} not found`)
     }
     try {
+      // avoid issue with nft fields, due to schema
+      if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await this.validateDDO(ddo)
       if (validation === true) {
         return await this.provider
@@ -633,6 +637,9 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
 
 export class TypesenseIndexerDatabase extends AbstractIndexerDatabase {
   private provider: Typesense
+
+  // constant for the node version document ID
+  private static readonly VERSION_DOC_ID = 'node_version'
 
   constructor(config: OceanNodeDBConfig, schema: TypesenseSchema) {
     super(config, schema)

@@ -1,4 +1,4 @@
-import { Handler } from './handler.js'
+import { CommandHandler } from './handler.js'
 import { status } from '../utils/statusHandler.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { DetailedStatusCommand, StatusCommand } from '../../../@types/commands.js'
@@ -9,21 +9,18 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
-export class StatusHandler extends Handler {
+export class StatusHandler extends CommandHandler {
   validate(command: StatusCommand): ValidateParams {
     return validateCommandParameters(command, [])
   }
 
-  async handle(
-    task: StatusCommand,
-    detailed: boolean = false
-  ): Promise<P2PCommandResponse> {
+  async handle(task: StatusCommand): Promise<P2PCommandResponse> {
     const checks = await this.verifyParamsAndRateLimits(task)
     if (checks.status.httpStatus !== 200 || checks.status.error !== null) {
       return checks
     }
     try {
-      const statusResult = await status(this.getOceanNode(), task.node, detailed)
+      const statusResult = await status(this.getOceanNode(), task.node, !!task.detailed)
       if (!statusResult) {
         return {
           stream: null,
@@ -50,6 +47,7 @@ export class DetailedStatusHandler extends StatusHandler {
   }
 
   async handle(task: StatusCommand): Promise<P2PCommandResponse> {
-    return await super.handle(task, true)
+    task.detailed = true
+    return await super.handle(task)
   }
 }

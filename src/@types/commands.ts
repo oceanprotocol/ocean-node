@@ -1,7 +1,12 @@
 import { ValidateParams } from '../components/httpRoutes/validateCommands.js'
 import { DDO } from './DDO/DDO'
 import { P2PCommandResponse } from './OceanNode'
-import type { ComputeAsset, ComputeAlgorithm, ComputeOutput } from './C2D'
+import type {
+  ComputeAsset,
+  ComputeAlgorithm,
+  ComputeOutput,
+  ComputeResourceRequest
+} from './C2D/C2D.js'
 import {
   ArweaveFileObject,
   FileObjectType,
@@ -76,7 +81,9 @@ export interface ValidateDDOCommand extends Command {
   ddo: DDO
 }
 
-export interface StatusCommand extends Command {}
+export interface StatusCommand extends Command {
+  detailed?: boolean
+}
 export interface DetailedStatusCommand extends StatusCommand {}
 export interface EchoCommand extends Command {}
 
@@ -148,7 +155,15 @@ export interface AdminReindexChainCommand extends AdminCommand {
 
 export interface ICommandHandler {
   handle(command: Command): Promise<P2PCommandResponse>
+  verifyParamsAndRateLimits(task: Command): Promise<P2PCommandResponse>
+}
+
+export interface IValidateCommandHandler extends ICommandHandler {
   validate(command: Command): ValidateParams
+}
+
+export interface IValidateAdminCommandHandler extends ICommandHandler {
+  validate(command: AdminCommand): Promise<ValidateParams>
 }
 
 export interface ComputeGetEnvironmentsCommand extends Command {
@@ -164,6 +179,7 @@ export interface ComputeInitializeCommand extends Command {
   algorithm: ComputeAlgorithm
   compute: ComputeDetails
   consumerAddress: string
+  signature?: string
 }
 
 export interface ComputeStartCommand extends Command {
@@ -172,9 +188,21 @@ export interface ComputeStartCommand extends Command {
   nonce: string
   environment: string
   algorithm: ComputeAlgorithm
-  dataset: ComputeAsset
-  additionalDatasets?: ComputeAsset[]
+  datasets?: ComputeAsset[]
   output?: ComputeOutput
+  resources?: ComputeResourceRequest[]
+  chainId?: number // network used by payment
+}
+export interface FreeComputeStartCommand extends Command {
+  consumerAddress: string
+  signature: string
+  nonce: string
+  environment: string
+  algorithm: ComputeAlgorithm
+  validUntil?: number
+  datasets?: ComputeAsset[]
+  output?: ComputeOutput
+  resources?: ComputeResourceRequest[]
 }
 
 export interface ComputeStopCommand extends Command {
@@ -191,6 +219,12 @@ export interface ComputeGetResultCommand extends Command {
   nonce: string
   jobId: string
   index: number
+}
+export interface ComputeGetStreamableLogsCommand extends Command {
+  consumerAddress: string
+  signature: string
+  nonce: string
+  jobId: string
 }
 
 export interface ComputeGetStatusCommand extends Command {

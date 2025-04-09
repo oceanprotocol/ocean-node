@@ -1,7 +1,8 @@
 import { Readable } from 'stream'
-import { P2PCommandResponse } from '../../../@types/index.js'
+import { P2PCommandResponse } from '../../../@types/OceanNode.js'
+import { C2DClusterType } from '../../../@types/C2D/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Handler } from '../handler/handler.js'
+import { CommandHandler } from '../handler/handler.js'
 import { ComputeInitializeCommand } from '../../../@types/commands.js'
 import { ProviderComputeInitializeResults } from '../../../@types/Fees.js'
 import {
@@ -26,13 +27,17 @@ import { getConfiguration } from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
-export class ComputeInitializeHandler extends Handler {
+import { getNonceAsNumber } from '../utils/nonceHandler.js'
+import { C2DEngineDocker, getAlgorithmImage } from '../../c2d/compute_engine_docker.js'
+
+export class ComputeInitializeHandler extends CommandHandler {
   validate(command: ComputeInitializeCommand): ValidateParams {
     const validation = validateCommandParameters(command, [
       'datasets',
       'algorithm',
       'compute',
       'consumerAddress'
+      // we might also need a "signature" (did + nonce) for confidential evm template 4
     ])
     if (validation.valid) {
       if (command.consumerAddress && !isAddress(command.consumerAddress)) {
@@ -125,6 +130,37 @@ export class ComputeInitializeHandler extends Handler {
             }
           }
 
+          // docker images?
+          const clusters = config.c2dClusters
+          let hasDockerImages = false
+          for (const cluster of clusters) {
+            if (cluster.type === C2DClusterType.DOCKER) {
+              hasDockerImages = true
+              break
+            }
+          }
+          if (hasDockerImages) {
+            const algoImage = getAlgorithmImage(task.algorithm)
+            if (algoImage) {
+              const env = await this.getOceanNode()
+                .getC2DEngines()
+                .getExactComputeEnv(task.compute.env, ddo.chainId)
+              const validation: ValidateParams = await C2DEngineDocker.checkDockerImage(
+                algoImage,
+                env.platform
+              )
+              if (!validation.valid) {
+                return {
+                  stream: null,
+                  status: {
+                    httpStatus: validation.status,
+                    error: `Initialize Compute failed for image ${algoImage} :${validation.reason}`
+                  }
+                }
+              }
+            }
+          }
+
           const signer = blockchain.getSigner()
 
           // check if oasis evm or similar
@@ -144,19 +180,34 @@ export class ComputeInitializeHandler extends Handler {
                 service.datatokenAddress,
                 signer
               )
-              if (isTemplate4 && (await isERC20Template4Active(ddo.chainId, signer))) {
-                // call smart contract to decrypt
-                const serviceIndex = AssetUtils.getServiceIndexById(ddo, service.id)
-                const filesObject = await getFilesObjectFromConfidentialEVM(
-                  serviceIndex,
-                  service.datatokenAddress,
-                  signer,
-                  task.consumerAddress,
-                  null, // TODO, we will need to have a signature verification
-                  ddo.id
-                )
-                if (filesObject !== null) {
-                  canDecrypt = true
+              if (isTemplate4) {
+                if (!task.signature) {
+                  CORE_LOGGER.error(
+                    'Could not decrypt ddo files on template 4, missing consumer signature!'
+                  )
+                } else if (await isERC20Template4Active(ddo.chainId, signer)) {
+                  // we need to get the proper data for the signature
+                  const consumeData =
+                    task.consumerAddress +
+                    task.datasets[0].documentId +
+                    getNonceAsNumber(task.consumerAddress)
+                  // call smart contract to decrypt
+                  const serviceIndex = AssetUtils.getServiceIndexById(ddo, service.id)
+                  const filesObject = await getFilesObjectFromConfidentialEVM(
+                    serviceIndex,
+                    service.datatokenAddress,
+                    signer,
+                    task.consumerAddress,
+                    task.signature, // we will need to have a signature verification
+                    consumeData
+                  )
+                  if (filesObject !== null) {
+                    canDecrypt = true
+                  }
+                } else {
+                  CORE_LOGGER.error(
+                    'Could not decrypt ddo files on template 4, template is not active!'
+                  )
                 }
               }
             }

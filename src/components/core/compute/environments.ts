@@ -1,16 +1,14 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
-import { ComputeEnvByChain } from '../../../@types/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Handler } from '../handler/handler.js'
+import { CommandHandler } from '../handler/handler.js'
 import { ComputeGetEnvironmentsCommand } from '../../../@types/commands.js'
-import { getConfiguration } from '../../../utils/config.js'
 import {
   ValidateParams,
   buildInvalidRequestMessage,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
-export class ComputeGetEnvironmentsHandler extends Handler {
+export class ComputeGetEnvironmentsHandler extends CommandHandler {
   validate(command: ComputeGetEnvironmentsCommand): ValidateParams {
     const validateCommand = validateCommandParameters(command, [])
     if (!validateCommand.valid) {
@@ -27,14 +25,8 @@ export class ComputeGetEnvironmentsHandler extends Handler {
       return validationResponse
     }
     try {
-      const result: ComputeEnvByChain = {}
       const computeEngines = this.getOceanNode().getC2DEngines()
-      const config = await getConfiguration()
-      for (const chain of Object.keys(config.supportedNetworks)) {
-        const chainId = parseInt(chain)
-        if (task.chainId && task.chainId !== chainId) continue
-        result[chainId] = await computeEngines.fetchEnvironments(chainId)
-      }
+      const result = await computeEngines.fetchEnvironments(task.chainId)
 
       CORE_LOGGER.logMessage(
         'ComputeGetEnvironmentsCommand Response: ' + JSON.stringify(result, null, 2),

@@ -1,8 +1,8 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
-import { ComputeJob } from '../../../@types/C2D.js'
+import { ComputeJob } from '../../../@types/C2D/C2D.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
-import { Handler } from '../handler/handler.js'
+import { CommandHandler } from '../handler/handler.js'
 import { ComputeGetStatusCommand } from '../../../@types/commands.js'
 import {
   ValidateParams,
@@ -11,7 +11,7 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { isAddress } from 'ethers'
 
-export class ComputeGetStatusHandler extends Handler {
+export class ComputeGetStatusHandler extends CommandHandler {
   validate(command: ComputeGetStatusCommand): ValidateParams {
     const validation = validateCommandParameters(command, [])
     if (validation.valid) {
@@ -44,9 +44,13 @@ export class ComputeGetStatusHandler extends Handler {
         // split jobId (which is already in hash-jobId format) and get the hash
         // then get jobId which might contain dashes as well
         const index = task.jobId.indexOf('-')
-        const hash = task.jobId.slice(0, index)
-        engines = [await this.getOceanNode().getC2DEngines().getC2DByHash(hash)]
-        jobId = task.jobId.slice(index + 1)
+        if (index > 0) {
+          const hash = task.jobId.slice(0, index)
+          engines = [await this.getOceanNode().getC2DEngines().getC2DByHash(hash)]
+          jobId = task.jobId.slice(index + 1)
+        } else {
+          engines = await this.getOceanNode().getC2DEngines().getAllEngines()
+        }
       } else {
         engines = await this.getOceanNode().getC2DEngines().getAllEngines()
       }
@@ -57,7 +61,8 @@ export class ComputeGetStatusHandler extends Handler {
           task.agreementId,
           jobId
         )
-        response.push(...jobs)
+
+        if (jobs && jobs.length > 0) response.push(...jobs)
       }
       CORE_LOGGER.logMessage(
         'ComputeGetStatusCommand Response: ' + JSON.stringify(response, null, 2),
