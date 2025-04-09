@@ -937,8 +937,8 @@ describe('Compute', () => {
       const algoDDOTest = ddo
       if (algoDDOTest) {
         const algoChecksums = await getAlgoChecksums(
-          algoDDOTest.getDDOData().id,
-          algoDDOTest.getDDOData().services[0].id,
+          algoDDOTest.id,
+          algoDDOTest.services[0].id,
           oceanNode
         )
         expect(algoChecksums.files).to.equal(
@@ -962,8 +962,8 @@ describe('Compute', () => {
       const algoDDOTest = ddo
       if (algoDDOTest) {
         const algoChecksums = await getAlgoChecksums(
-          algoDDOTest.getDDOData().id,
-          algoDDOTest.getDDOData().services[0].id,
+          algoDDOTest.id,
+          algoDDOTest.services[0].id,
           oceanNode
         )
         const { ddo, wasTimeout } = await waitToIndex(
@@ -977,10 +977,10 @@ describe('Compute', () => {
         const datasetInstance = DDOManager.getDDOClass(datasetDDO) as VersionedDDO
         if (datasetDDOTest) {
           const result = await validateAlgoForDataset(
-            algoDDOTest.getDDOData().id,
+            algoDDOTest.id,
             algoChecksums,
             datasetInstance,
-            datasetDDOTest.getDDOData().services[0].id,
+            datasetDDOTest.services[0].id,
             oceanNode
           )
           expect(result).to.equal(!setTrustedAlgosEmpty)
