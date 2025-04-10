@@ -12,8 +12,7 @@ import { fetchFileMetadata } from '../../../utils/asset.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { createHash } from 'crypto'
 import { FindDdoHandler } from '../../core/handler/ddoHandler.js'
-import { DDOManager } from '@oceanprotocol/ddo-js'
-import { VersionedDDO } from '../../../@types/DDO/DDO.js'
+import { DDOManager, VersionedDDO } from '@oceanprotocol/ddo-js'
 
 export async function getAlgoChecksums(
   algoDID: string,
@@ -48,7 +47,7 @@ export async function getAlgoChecksums(
       checksums.files = checksums.files.concat(contentChecksum)
     }
 
-    const ddoInstance = DDOManager.getDDOClass(algoDDO) as VersionedDDO
+    const ddoInstance = DDOManager.getDDOClass(algoDDO)
     const { metadata } = ddoInstance.getDDOFields()
     checksums.container = createHash('sha256')
       .update(

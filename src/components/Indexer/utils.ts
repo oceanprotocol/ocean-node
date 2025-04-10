@@ -34,7 +34,7 @@ import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispen
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
 import { createHash } from 'crypto'
 import { ServicePrice } from '../../@types/IndexedMetadata.js'
-import { VersionedDDO } from '../../@types/DDO/DDO.js'
+import { VersionedDDO } from '@oceanprotocol/ddo-js'
 
 let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor

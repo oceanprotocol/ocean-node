@@ -29,7 +29,6 @@ import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { checkNonce, NonceResponse, getNonceAsNumber } from '../utils/nonceHandler.js'
 import { DDOManager } from '@oceanprotocol/ddo-js'
-import { VersionedDDO } from '../../../@types/DDO/DDO.js'
 
 export class ComputeStartHandler extends CommandHandler {
   validate(command: ComputeStartCommand): ValidateParams {
@@ -162,7 +161,7 @@ export class ComputeStartHandler extends CommandHandler {
           }
 
           const config = await getConfiguration()
-          const ddoInstance = DDOManager.getDDOClass(ddo) as VersionedDDO
+          const ddoInstance = DDOManager.getDDOClass(ddo)
           const {
             chainId: ddoChainId,
             services,

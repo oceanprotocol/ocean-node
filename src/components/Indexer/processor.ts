@@ -52,8 +52,7 @@ import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
 import { PolicyServer } from '../policyServer/index.js'
-import { DDOManager, DeprecatedDDO, PriceType } from '@oceanprotocol/ddo-js'
-import { GenericDDO, VersionedDDO } from '../../@types/DDO/DDO.js'
+import { DDOManager, DeprecatedDDO, PriceType, VersionedDDO } from '@oceanprotocol/ddo-js'
 class BaseEventProcessor {
   protected networkId: number
 
@@ -171,7 +170,7 @@ class BaseEventProcessor {
     }
   }
 
-  protected async createOrUpdateDDO(ddo: GenericDDO, method: string): Promise<any> {
+  protected async createOrUpdateDDO(ddo: VersionedDDO, method: string): Promise<any> {
     try {
       const { ddo: ddoDatabase, ddoState } = await getDatabase()
       if (ddo instanceof DeprecatedDDO) {
@@ -440,7 +439,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       const clonedDdo = structuredClone(ddo)
       INDEXER_LOGGER.logMessage(`clonedDdo: ${JSON.stringify(clonedDdo)}`)
       const updatedDdo = deleteIndexedMetadataIfExists(clonedDdo)
-      const ddoInstance = DDOManager.getDDOClass(updatedDdo) as VersionedDDO
+      const ddoInstance = DDOManager.getDDOClass(updatedDdo)
       if (updatedDdo.id !== ddoInstance.makeDid(event.address, chainId.toString(10))) {
         INDEXER_LOGGER.error(
           `Decrypted DDO ID is not matching the generated hash for DID.`
@@ -515,7 +514,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       let previousDdoInstance
       const previousDdo = await ddoDatabase.retrieve(ddoInstance.getDid())
       if (previousDdo) {
-        previousDdoInstance = DDOManager.getDDOClass(previousDdo) as VersionedDDO
+        previousDdoInstance = DDOManager.getDDOClass(previousDdo)
       }
 
       if (eventName === EVENTS.METADATA_CREATED) {
@@ -863,7 +862,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      const ddoInstance = DDOManager.getDDOClass(ddo) as VersionedDDO
+      const ddoInstance = DDOManager.getDDOClass(ddo)
       if (!ddoInstance.getAssetFields().indexedMetadata) {
         ddoInstance.updateFields({ indexedMetadata: {} })
       }
@@ -950,7 +949,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      const ddoInstance = DDOManager.getDDOClass(ddo) as VersionedDDO
+      const ddoInstance = DDOManager.getDDOClass(ddo)
       if (!ddoInstance.getAssetFields().indexedMetadata) {
         ddoInstance.updateFields({ indexedMetadata: {} })
       }
@@ -1054,7 +1053,7 @@ export class DispenserCreatedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      const ddoInstance = DDOManager.getDDOClass(ddo) as VersionedDDO
+      const ddoInstance = DDOManager.getDDOClass(ddo)
       if (!ddoInstance.getAssetFields().indexedMetadata) {
         ddoInstance.updateFields({ indexedMetadata: {} })
       }
@@ -1138,7 +1137,7 @@ export class DispenserActivatedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      const ddoInstance = DDOManager.getDDOClass(ddo) as VersionedDDO
+      const ddoInstance = DDOManager.getDDOClass(ddo)
       if (!ddoInstance.getAssetFields().indexedMetadata) {
         ddoInstance.updateFields({ indexedMetadata: {} })
       }
@@ -1220,7 +1219,7 @@ export class DispenserDeactivatedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      const ddoInstance = DDOManager.getDDOClass(ddo) as VersionedDDO
+      const ddoInstance = DDOManager.getDDOClass(ddo)
       if (!ddoInstance.getAssetFields().indexedMetadata) {
         ddoInstance.updateFields({ indexedMetadata: {} })
       }
@@ -1314,7 +1313,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
         return
       }
 
-      const ddoInstance = DDOManager.getDDOClass(ddo) as VersionedDDO
+      const ddoInstance = DDOManager.getDDOClass(ddo)
       if (!ddoInstance.getAssetFields().indexedMetadata) {
         ddoInstance.updateFields({ indexedMetadata: {} })
       }
@@ -1409,7 +1408,7 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
         return
       }
 
-      const ddoInstance = DDOManager.getDDOClass(ddo) as VersionedDDO
+      const ddoInstance = DDOManager.getDDOClass(ddo)
       if (!ddoInstance.getAssetFields().indexedMetadata) {
         ddoInstance.updateFields({ indexedMetadata: {} })
       }
@@ -1498,7 +1497,7 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
         return
       }
 
-      const ddoInstance = DDOManager.getDDOClass(ddo) as VersionedDDO
+      const ddoInstance = DDOManager.getDDOClass(ddo)
       if (!ddoInstance.getAssetFields().indexedMetadata) {
         ddoInstance.updateFields({ indexedMetadata: {} })
       }
@@ -1591,7 +1590,7 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
         return
       }
 
-      const ddoInstance = DDOManager.getDDOClass(ddo) as VersionedDDO
+      const ddoInstance = DDOManager.getDDOClass(ddo)
       if (!ddoInstance.getAssetFields().indexedMetadata) {
         ddoInstance.updateFields({ indexedMetadata: {} })
       }
