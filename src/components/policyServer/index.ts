@@ -1,5 +1,5 @@
+import { DDO } from '@oceanprotocol/ddo-js'
 import { PolicyServerResult } from '../../@types/policyServer.js'
-import { DDO } from '../../@types/DDO/DDO.js'
 import { isDefined } from '../../utils/util.js'
 
 export class PolicyServer {
@@ -38,7 +38,7 @@ export class PolicyServer {
   }
 
   async checknewDDO(
-    rawDDO: DDO,
+    rawDDO: Record<string, any>,
     chainId: number,
     txId: string,
     eventRaw: any
@@ -54,7 +54,7 @@ export class PolicyServer {
   }
 
   async checkUpdateDDO(
-    rawDDO: DDO,
+    rawDDO: Record<string, any>,
     chainId: number,
     txId: string,
     eventRaw: any

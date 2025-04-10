@@ -2,14 +2,12 @@ import { Contract, ethers, EventLog, Signer } from 'ethers'
 import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
 import { AccessListContract } from '../@types/OceanNode.js'
 import { CORE_LOGGER } from './logging/common.js'
-import {
-  Credential,
-  Credentials,
-  KNOWN_CREDENTIALS_TYPES
-} from '../@types/DDO/Credentials.js'
+
 import { getNFTContract } from '../components/Indexer/utils.js'
 import { isDefined } from './util.js'
 import { getOceanArtifactsAdressesByChainId } from './address.js'
+import { Credential, Credentials } from '@oceanprotocol/ddo-js'
+import { KNOWN_CREDENTIALS_TYPES } from '../@types/DDO/Credentials.js'
 
 export function findCredential(
   credentials: Credential[],

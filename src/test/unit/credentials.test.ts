@@ -4,7 +4,6 @@ import {
   checkCredentials,
   hasAddressMatchAllRule
 } from '../../utils/credentials.js'
-import { Credentials } from '../../@types/DDO/Credentials.js'
 import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,
@@ -13,6 +12,7 @@ import {
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { homedir } from 'os'
+import { Credentials } from '@oceanprotocol/ddo-js'
 
 let envOverrides: OverrideEnvConfig[]
 
@@ -48,6 +48,7 @@ describe('credentials', () => {
   })
   it('should allow access with empty values in deny lists', () => {
     const credentials: Credentials = {
+      allow: [],
       deny: [
         {
           type: 'address',
@@ -63,6 +64,7 @@ describe('credentials', () => {
   it('should allow access with "accessList" credentials type', () => {
     const consumerAddress = '0x123'
     const credentials: Credentials = {
+      allow: [],
       deny: [
         {
           type: 'accessList',
@@ -77,6 +79,7 @@ describe('credentials', () => {
 
   it('should deny access with empty values in allow lists', () => {
     const credentials: Credentials = {
+      deny: [],
       allow: [
         {
           type: 'address',
@@ -90,6 +93,7 @@ describe('credentials', () => {
   })
   it('should allow access with address in allow list', () => {
     const credentials: Credentials = {
+      deny: [],
       allow: [
         {
           type: 'address',
@@ -103,6 +107,7 @@ describe('credentials', () => {
   })
   it('should allow access with address not in deny list', () => {
     const credentials: Credentials = {
+      allow: [],
       deny: [
         {
           type: 'address',
@@ -155,6 +160,7 @@ describe('credentials', () => {
 
   it('should check correctly known credentials types', () => {
     const credentials: Credentials = {
+      allow: [],
       deny: [
         {
           type: 'unknow_type',

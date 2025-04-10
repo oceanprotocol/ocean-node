@@ -71,6 +71,7 @@ import {
 } from '../../components/core/compute/utils.js'
 
 import { freeComputeStartPayload } from '../data/commands.js'
+import { DDOManager } from '@oceanprotocol/ddo-js'
 
 describe('Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
@@ -226,7 +227,7 @@ describe('Compute', () => {
     assert(txReceipt, 'set metadata failed')
     publishedComputeDataset = await waitToIndex(
       publishedComputeDataset.ddo.id,
-      EVENTS.METADATA_CREATED,
+      EVENTS.METADATA_UPDATED,
       DEFAULT_TEST_TIMEOUT * 2,
       true
     )
@@ -972,11 +973,12 @@ describe('Compute', () => {
         )
 
         const datasetDDOTest = ddo
+        const datasetInstance = DDOManager.getDDOClass(datasetDDO)
         if (datasetDDOTest) {
           const result = await validateAlgoForDataset(
             algoDDOTest.id,
             algoChecksums,
-            datasetDDOTest,
+            datasetInstance,
             datasetDDOTest.services[0].id,
             oceanNode
           )

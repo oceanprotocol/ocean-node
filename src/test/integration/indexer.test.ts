@@ -29,7 +29,7 @@ import {
   getOceanArtifactsAdressesByChainId
 } from '../../utils/address.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
-import { DDO } from '../../@types/DDO/DDO.js'
+import { DDO } from '@oceanprotocol/ddo-js'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
@@ -460,7 +460,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       true
     )
     if (ddo) {
-      const retrievedDDO: DDO = ddo
+      const retrievedDDO = ddo
       console.log('indexer retrieved ddo: ', JSON.stringify(retrievedDDO))
       for (const stat of retrievedDDO.indexedMetadata.stats) {
         if (stat.datatokenAddress === datatokenAddress) {
@@ -553,7 +553,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       true
     )
 
-    const retrievedDDO: DDO = ddo
+    const retrievedDDO = ddo
 
     if (retrievedDDO) {
       for (const stat of retrievedDDO.indexedMetadata.stats) {
@@ -593,13 +593,14 @@ describe('Indexer stores a new metadata events and orders.', () => {
   })
 
   it('Deprecated asset should have a short version of ddo', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
     const result = await nftContract.getMetaData()
     expect(parseInt(result[2].toString())).to.equal(2)
 
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
-      EVENTS.METADATA_UPDATED,
-      DEFAULT_TEST_TIMEOUT,
+      EVENTS.METADATA_STATE,
+      DEFAULT_TEST_TIMEOUT * 2,
       true
     )
     const resolvedDDO: any = ddo
