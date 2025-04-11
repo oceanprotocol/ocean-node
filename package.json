@@ -90,7 +90,7 @@
     "cors": "^2.8.5",
     "delay": "^5.0.0",
     "docker-registry-client": "^3.4.0",
-    "dockerode": "^4.0.2",
+    "dockerode": "^4.0.5",
     "dotenv": "^16.3.1",
     "eciesjs": "^0.4.5",
     "eth-crypto": "^2.6.0",
