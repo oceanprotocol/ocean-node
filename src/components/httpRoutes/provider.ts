@@ -238,7 +238,7 @@ providerRoutes.get(
         }
 
         res.set(safeHeaders)
-        HTTP_LOGGER.logMessage(`Headers: ${JSON.stringify(safeHeaders)}`, true)
+        HTTP_LOGGER.logMessage(`Sanitized Headers: ${JSON.stringify(safeHeaders)}`, true)
         response.stream.pipe(res)
       } else {
         res.status(response.status.httpStatus).send(response.status.error)
