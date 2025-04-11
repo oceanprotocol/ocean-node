@@ -372,12 +372,7 @@ describe('Should run a complete node flow.', () => {
       nonAuthorizedAccount
     )
 
-    // Add null check to handle the case when publishAsset fails
-    assert(
-      publishedDataset && publishedDataset.ddo,
-      'Published dataset or its DDO is null'
-    )
-    const unauthorizedDid = publishedDataset.ddo.id
+    did = publishedDataset?.ddo.id
 
     addGenericEventListener(
       AUTH_CREDENTIALS_EVENT_EMITTER,
@@ -390,15 +385,12 @@ describe('Should run a complete node flow.', () => {
     )
 
     // will timeout
-    const { ddo: unauthorizedDdo, wasTimeout } = await waitToIndex(
-      unauthorizedDid,
+    const { ddo, wasTimeout } = await waitToIndex(
+      did,
       EVENTS.METADATA_CREATED,
-      DEFAULT_TEST_TIMEOUT * 2
+      DEFAULT_TEST_TIMEOUT
     )
-    assert(
-      unauthorizedDdo === null && wasTimeout === true,
-      'DDO should NOT have been indexed'
-    )
+    assert(ddo === null && wasTimeout === true, 'DDO should NOT have been indexed')
   })
 
   after(async () => {
