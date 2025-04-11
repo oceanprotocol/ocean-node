@@ -63,6 +63,8 @@ export abstract class Storage {
     config: OceanNodeConfig
   ): UrlStorage | IpfsStorage | ArweaveStorage {
     const { type } = file
+    console.log('Storage type:', type)
+    console.log('Storage file:', file)
     switch (
       type?.toLowerCase() // case insensitive
     ) {

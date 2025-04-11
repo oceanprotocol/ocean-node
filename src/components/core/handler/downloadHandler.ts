@@ -234,7 +234,7 @@ export class DownloadHandler extends CommandHandler {
     const ddo = await handler.findAndFormatDdo(task.documentId)
 
     if (ddo) {
-      CORE_LOGGER.logMessage('DDO for asset found: ' + ddo, true)
+      CORE_LOGGER.logMessage('DDO for asset found: ' + JSON.stringify(ddo), true)
     } else {
       CORE_LOGGER.logMessage(
         'No DDO for asset found. Cannot proceed with download.',
