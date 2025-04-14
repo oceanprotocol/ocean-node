@@ -276,7 +276,7 @@ export class C2DEngineOPFK8 extends C2DEngine {
     consumerAddress: string,
     jobId: string,
     index: number
-  ): Promise<Readable> {
+  ): Promise<{ stream: Readable; headers: any }> {
     const nonce: number = new Date().getTime()
     const config = await getConfiguration()
     // signature check on operator service is only owner + jobId
@@ -307,7 +307,10 @@ export class C2DEngineOPFK8 extends C2DEngine {
         const message = `Exception on getComputeJobResult. Status: ${response.status}, ${response.statusText}`
         throw new Error(message)
       }
-      return response.data
+      return {
+        stream: response.data,
+        headers: response.headers
+      }
     } catch (e) {
       console.error(e)
     }
