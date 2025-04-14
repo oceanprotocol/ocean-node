@@ -36,7 +36,9 @@ function getInternalStructure(job: DBComputeJob): any {
     isStarted: job.isStarted,
     containerImage: job.containerImage,
     resources: job.resources,
-    isFree: job.isFree
+    isFree: job.isFree,
+    algoStartTimestamp: job.algoStartTimestamp,
+    algoStopTimestamp: job.algoStopTimestamp
   }
   return internalBlob
 }

@@ -760,10 +760,13 @@ export class C2DEngineDocker extends C2DEngine {
           try {
             await container.start()
             job.isStarted = true
+            job.algoStartTimestamp = String(Date.now() / 1000)
             await this.db.updateJob(job)
             return
           } catch (e) {
             // container failed to start
+            job.algoStartTimestamp = String(Date.now() / 1000)
+            job.algoStopTimestamp = String(Date.now() / 1000)
             try {
               const algoLogFile =
                 this.getC2DConfig().tempFolder +
