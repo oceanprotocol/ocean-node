@@ -9,7 +9,7 @@ import { ReadableString } from './components/P2P/handleProtocolCommands.js'
 import StreamConcat from 'stream-concat'
 import { pipe } from 'it-pipe'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
-import { Handler } from './components/core/handler/handler.js'
+import { BaseHandler } from './components/core/handler/handler.js'
 import { C2DEngines } from './components/c2d/compute_engines.js'
 
 export interface RequestLimiter {
@@ -73,7 +73,14 @@ export class OceanNode {
     if (this.c2dEngines) {
       await this.c2dEngines.stopAllEngines()
     }
-    if (_config && _config.c2dClusters) this.c2dEngines = new C2DEngines(_config)
+    if (_config && _config.c2dClusters) {
+      if (!this.db || !this.db.c2d) {
+        OCEAN_NODE_LOGGER.error('C2DDatabase is mandatory for compute engines!')
+        return
+      }
+      this.c2dEngines = new C2DEngines(_config, this.db.c2d)
+      await this.c2dEngines.startAllEngines()
+    }
   }
 
   public getP2PNode(): OceanP2P | undefined {
@@ -135,7 +142,7 @@ export class OceanNode {
 
     try {
       const task = JSON.parse(message)
-      const handler: Handler = this.coreHandlers.getHandler(task.command)
+      const handler: BaseHandler = this.coreHandlers.getHandler(task.command)
       if (handler === null) {
         status = {
           httpStatus: 501,

@@ -56,6 +56,7 @@ describe('Should run a complete node flow.', () => {
   let publishedDataset: any
   let actualDDO: any
   let indexer: OceanIndexer
+  let anotherConsumer: ethers.Wallet
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const serviceId = '0'
@@ -98,6 +99,10 @@ describe('Should run a complete node flow.', () => {
     }
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
+    anotherConsumer = new ethers.Wallet(
+      ENVIRONMENT_VARIABLES.NODE2_PRIVATE_KEY.value,
+      provider
+    )
 
     publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccount = (await provider.getSigner(1)) as Signer
@@ -240,7 +245,7 @@ describe('Should run a complete node flow.', () => {
       const wallet = new ethers.Wallet(
         '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
       )
-      const nonce = Math.floor(Date.now() / 1000).toString()
+      const nonce = Date.now().toString()
       const message = String(publishedDataset.ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
@@ -294,7 +299,7 @@ describe('Should run a complete node flow.', () => {
         serviceId,
         transferTxId: orderTxId,
         nonce: Date.now().toString(),
-        consumerAddress: '0xBE5449a6A97aD46c8558A3356267Ee5D2731ab57',
+        consumerAddress: await anotherConsumer.getAddress(),
         signature: '0xBE5449a6',
         command: PROTOCOL_COMMANDS.DOWNLOAD
       }

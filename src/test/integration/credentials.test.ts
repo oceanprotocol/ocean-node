@@ -14,15 +14,16 @@
  * 5. Try to Download the asset by all consumers.
  */
 import { expect, assert } from 'chai'
-import { JsonRpcProvider, Signer, ethers } from 'ethers'
+import { JsonRpcProvider, Signer, ethers, Contract, EventLog } from 'ethers'
 import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
-import { RPCS } from '../../@types/blockchain.js'
+import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
 import { streamToObject } from '../../utils/util.js'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 
 import {
+  Blockchain,
   ENVIRONMENT_VARIABLES,
   EVENTS,
   PROTOCOL_COMMANDS,
@@ -52,6 +53,9 @@ import { publishAsset, orderAsset } from '../utils/assets.js'
 import { downloadAssetWithCredentials } from '../data/assets.js'
 import { ganachePrivateKeys } from '../utils/addresses.js'
 import { homedir } from 'os'
+import AccessListFactory from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessListFactory.sol/AccessListFactory.json' assert { type: 'json' }
+import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
+import { deployAccessListContract, getContract } from '../utils/contracts.js'
 
 describe('Should run a complete node flow.', () => {
   let config: OceanNodeConfig
@@ -69,6 +73,10 @@ describe('Should run a complete node flow.', () => {
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
   let previousConfiguration: OverrideEnvConfig[]
+
+  let blockchain: Blockchain
+  let contractAcessList: Contract
+  let signer: Signer
 
   before(async () => {
     // override and save configuration (always before calling getConfig())
@@ -100,10 +108,14 @@ describe('Should run a complete node flow.', () => {
     const indexer = new OceanIndexer(database, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
 
-    let network = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
-    if (!network) {
-      network = getOceanArtifactsAdresses().development
-    }
+    const rpcs: RPCS = config.supportedNetworks
+    const chain: SupportedNetwork = rpcs[String(DEVELOPMENT_CHAIN_ID)]
+    blockchain = new Blockchain(
+      chain.rpc,
+      chain.network,
+      chain.chainId,
+      chain.fallbackRPCs
+    )
 
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
 
@@ -114,6 +126,50 @@ describe('Should run a complete node flow.', () => {
       (await provider.getSigner(3)) as Signer
     ]
     consumerAddresses = await Promise.all(consumerAccounts.map((a) => a.getAddress()))
+  })
+
+  it('should deploy accessList contract', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    let networkArtifacts = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
+    if (!networkArtifacts) {
+      networkArtifacts = getOceanArtifactsAdresses().development
+    }
+
+    signer = blockchain.getSigner()
+    const txAddress = await deployAccessListContract(
+      signer,
+      networkArtifacts.AccessListFactory,
+      AccessListFactory.abi,
+      'AllowList',
+      'ALLOW',
+      false,
+      await signer.getAddress(),
+      [await signer.getAddress()],
+      ['https://oceanprotocol.com/nft/']
+    )
+
+    contractAcessList = getContract(txAddress, AccessList.abi, signer)
+    // check if we emited the event and the address is part of the list now
+    const account = await signer.getAddress()
+    const eventLogs: Array<EventLog> = (await contractAcessList.queryFilter(
+      'AddressAdded',
+      networkArtifacts.startBlock,
+      'latest'
+    )) as Array<EventLog>
+    // at least 1 event
+    expect(eventLogs.length).to.be.at.least(1)
+    for (const log of eventLogs) {
+      // check the account address
+      if (log.args.length === 2 && Number(log.args[1] >= 1)) {
+        const address: string = log.args[0]
+        expect(address.toLowerCase()).to.be.equal(account.toLowerCase())
+      }
+    }
+  })
+
+  it('should have balance from accessList contract', async function () {
+    const balance = await contractAcessList.balanceOf(await signer.getAddress())
+    expect(Number(balance)).to.equal(1)
   })
 
   it('should publish download datasets', async function () {
@@ -173,7 +229,7 @@ describe('Should run a complete node flow.', () => {
       const transferTxId = orderTxIds[0]
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
-      const nonce = Math.floor(Date.now() / 1000).toString()
+      const nonce = Date.now().toString()
       const message = String(ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
@@ -215,7 +271,7 @@ describe('Should run a complete node flow.', () => {
       const transferTxId = orderTxIds[1]
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
-      const nonce = Math.floor(Date.now() / 1000).toString()
+      const nonce = Date.now().toString()
       const message = String(ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
@@ -256,7 +312,7 @@ describe('Should run a complete node flow.', () => {
       const transferTxId = orderTxIds[1]
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
-      const nonce = Math.floor(Date.now() / 1000).toString()
+      const nonce = Date.now().toString()
       const message = String(ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],

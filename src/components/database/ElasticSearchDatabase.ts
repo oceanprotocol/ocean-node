@@ -139,6 +139,7 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
     }
   }
 }
+
 export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
   private client: Client
   private index: string
@@ -311,6 +312,7 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
     }
   }
 }
+
 export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
   private provider: Client
 
@@ -471,7 +473,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
 
   getDDOSchema(ddo: Record<string, any>) {
     let schemaName: string | undefined
-    if (ddo.nft?.state !== 0) {
+    if (ddo.indexedMetadata?.nft?.state !== 0) {
       schemaName = 'op_ddo_short'
     } else if (ddo.version) {
       schemaName = `op_ddo_v${ddo.version}`
@@ -487,7 +489,12 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
   }
 
   async validateDDO(ddo: Record<string, any>): Promise<boolean> {
-    if (ddo.nft?.state !== 0) {
+    if ('indexedMetadata' in ddo && ddo.indexedMetadata.nft?.state !== 0) {
+      // Skipping validation for short DDOs as it currently doesn't work
+      // TODO: DDO validation needs to be updated to consider the fields required by the schema
+      // See github issue: https://github.com/oceanprotocol/ocean-node/issues/256
+      return true
+    } else if ('nft' in ddo && ddo.nft?.state !== 0) {
       return true
     } else {
       const validation = await validateObject(ddo, ddo.chainId, ddo.nftAddress)
@@ -582,6 +589,8 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       throw new Error(`Schema for version ${ddo.version} not found`)
     }
     try {
+      // avoid issue with nft fields, due to schema
+      if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await this.validateDDO(ddo)
       if (validation === true) {
         const response = await this.client.index({
@@ -650,6 +659,8 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       throw new Error(`Schema for version ${ddo.version} not found`)
     }
     try {
+      // avoid issue with nft fields, due to schema
+      if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await this.validateDDO(ddo)
       if (validation === true) {
         const response: any = await this.client.update({

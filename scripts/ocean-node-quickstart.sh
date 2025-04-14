@@ -121,6 +121,29 @@ else
   echo "No input provided, the Ocean Node might not be accessible from other nodes."
 fi
 
+read -p "Do you want to run docker C2D jobs on your Ocean Node [ y/n ]: " run_c2d_jobs
+
+if [ "$run_c2d_jobs" == "y" ]; then
+  echo "########################################################"
+  echo "### Docker Engine Compute Environments Configuration ###"
+  echo "########################################################"
+  echo "Check 'ComputeEnvironment' definition for more details on the format"
+  echo "_____________________________________________________"
+  echo ""
+  read -p "Do you want to add a specific docker environment configuration?
+  (Hint: You can enter multiple in JSON format) [ y/n ]: " c2d_env
+  if [ "$c2d_env" == "y" ]; then
+    read -p "Enter the array of docker environment(s): " DOCKER_COMPUTE_ENVIRONMENTS 
+  fi
+else
+  echo "Running node without docker C2D capabilities!"
+fi
+
+# Set default compute environments if not already defined
+if [ -z "$DOCKER_COMPUTE_ENVIRONMENTS" ]; then
+  echo "Setting default DOCKER_COMPUTE_ENVIRONMENTS configuration"
+  export DOCKER_COMPUTE_ENVIRONMENTS="[{\"socketPath\":\"/var/run/docker.sock\",\"resources\":[{\"id\":\"disk\",\"total\":1000000000}],\"storageExpiry\":604800,\"maxJobDuration\":36000,\"fees\":{\"1\":[{\"feeToken\":\"0x123\",\"prices\":[{\"id\":\"cpu\",\"price\":1}]}]},\"free\":{\"maxJobDuration\":360000,\"maxJobs\":3,\"resources\":[{\"id\":\"cpu\",\"max\":1},{\"id\":\"ram\",\"max\":1000000000},{\"id\":\"disk\",\"max\":1000000000}]}}]"
+fi
 
 cat <<EOF > docker-compose.yml
 services:
@@ -147,11 +170,17 @@ services:
 #      ADDRESS_FILE: ''
 #      NODE_ENV: ''
 #      AUTHORIZED_DECRYPTERS: ''
+#      AUTHORIZED_DECRYPTERS_LIST: ''
 #      OPERATOR_SERVICE_URL: ''
+#      POLICY_SERVER_URL: ''
       INTERFACES: '["HTTP","P2P"]'
 #      ALLOWED_VALIDATORS: ''
+#      ALLOWED_VALIDATORS_LIST: ''
+#      AUTHORIZED_PUBLISHERS: ''
+#      AUTHORIZED_PUBLISHERS_LIST: ''
 #      INDEXER_NETWORKS: '[]'
       ALLOWED_ADMINS: '["$ALLOWED_ADMINS"]'
+#      ALLOWED_ADMINS_LIST: ''
 #      INDEXER_INTERVAL: ''
       DASHBOARD: 'true'
 #      RATE_DENY_LIST: ''
@@ -182,8 +211,13 @@ services:
 #      P2P_ENABLE_CIRCUIT_RELAY_CLIENT: ''
 #      P2P_BOOTSTRAP_NODES: ''
 #      P2P_FILTER_ANNOUNCED_ADDRESSES: ''
+      DOCKER_COMPUTE_ENVIRONMENTS: '$DOCKER_COMPUTE_ENVIRONMENTS'
+
     networks:
       - ocean_network
+    volumes:
+      - node-sqlite:/usr/src/app/databases
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - typesense
 
@@ -200,6 +234,8 @@ services:
 
 volumes:
   typesense-data:
+    driver: local
+  node-sqlite:
     driver: local
 
 networks:

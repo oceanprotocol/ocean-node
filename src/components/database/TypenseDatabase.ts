@@ -371,7 +371,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
   getDDOSchema(ddo: Record<string, any>): TypesenseSchema {
     // Find the schema based on the DDO version OR use the short DDO schema when state !== 0
     let schemaName: string
-    if (ddo.nft?.state !== 0) {
+    if (ddo.indexedMetadata?.nft?.state !== 0) {
       schemaName = 'op_ddo_short'
     } else if (ddo.version) {
       schemaName = `op_ddo_v${ddo.version}`
@@ -387,10 +387,12 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
   }
 
   async validateDDO(ddo: Record<string, any>): Promise<boolean> {
-    if (ddo.nft?.state !== 0) {
+    if ('indexedMetadata' in ddo && ddo.indexedMetadata.nft?.state !== 0) {
       // Skipping validation for short DDOs as it currently doesn't work
       // TODO: DDO validation needs to be updated to consider the fields required by the schema
       // See github issue: https://github.com/oceanprotocol/ocean-node/issues/256
+      return true
+    } else if ('nft' in ddo && ddo.nft?.state !== 0) {
       return true
     } else {
       const validation = await validateObject(ddo, ddo.chainId, ddo.nftAddress)
@@ -469,6 +471,8 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
       throw new Error(`Schema for version ${ddo.version} not found`)
     }
     try {
+      // avoid failure because of schema
+      if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await this.validateDDO(ddo)
       if (validation === true) {
         return await this.provider
@@ -530,6 +534,8 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
       throw new Error(`Schema for version ${ddo.version} not found`)
     }
     try {
+      // avoid issue with nft fields, due to schema
+      if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await this.validateDDO(ddo)
       if (validation === true) {
         return await this.provider
@@ -631,6 +637,9 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
 
 export class TypesenseIndexerDatabase extends AbstractIndexerDatabase {
   private provider: Typesense
+
+  // constant for the node version document ID
+  private static readonly VERSION_DOC_ID = 'node_version'
 
   constructor(config: OceanNodeDBConfig, schema: TypesenseSchema) {
     super(config, schema)

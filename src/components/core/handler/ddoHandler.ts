@@ -1,4 +1,4 @@
-import { Handler } from './handler.js'
+import { CommandHandler } from './handler.js'
 import { EVENTS, MetadataStates, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { P2PCommandResponse, FindDDOResponse } from '../../../@types/index.js'
 import { Readable } from 'stream'
@@ -17,6 +17,7 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Blockchain } from '../../../utils/blockchain.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
+import AccessListContract from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
 // import lzma from 'lzma-native'
 import lzmajs from 'lzma-purejs-requirejs'
 import {
@@ -42,7 +43,7 @@ import {
   getNetworkHeight,
   wasNFTDeployedByOurFactory
 } from '../../Indexer/utils.js'
-import { validateDDOHash } from '../../../utils/asset.js'
+import { deleteIndexedMetadataIfExists, validateDDOHash } from '../../../utils/asset.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -50,7 +51,7 @@ const MAX_RESPONSE_WAIT_TIME_SECONDS = 60
 // wait time for reading the next getDDO command
 const MAX_WAIT_TIME_SECONDS_GET_DDO = 5
 
-export class DecryptDdoHandler extends Handler {
+export class DecryptDdoHandler extends CommandHandler {
   validate(command: DecryptDDOCommand): ValidateParams {
     const validation = validateCommandParameters(command, [
       'decrypterAddress',
@@ -199,6 +200,48 @@ export class DecryptDdoHandler extends Handler {
         }
       }
 
+      // access lit checks, needs blockchain connection
+      const { authorizedDecryptersList } = config
+      if (authorizedDecryptersList && Object.keys(authorizedDecryptersList).length > 0) {
+        // check accessList
+        const chainsListed = Object.keys(authorizedDecryptersList)
+        // check the access lists for this chain
+        if (chainsListed.length > 0 && chainsListed.includes(chainId)) {
+          let isAllowed = false
+          for (const accessListAddress of authorizedDecryptersList[chainId]) {
+            // instantiate contract and check balanceOf
+            const accessListContract = new ethers.Contract(
+              accessListAddress,
+              AccessListContract.abi,
+              blockchain.getSigner()
+            )
+
+            // check access list contract
+            const balance = await accessListContract.balanceOf(
+              await blockchain.getSigner().getAddress()
+            )
+            if (Number(balance) > 0) {
+              isAllowed = true
+              break
+            }
+          }
+
+          if (!isAllowed) {
+            CORE_LOGGER.logMessage(
+              'Decrypt DDO: Decrypter not authorized per access list',
+              true
+            )
+            return {
+              stream: null,
+              status: {
+                httpStatus: 403,
+                error: 'Decrypt DDO: Decrypter not authorized per access list'
+              }
+            }
+          }
+        }
+      }
+
       const transactionId = task.transactionId ? String(task.transactionId) : ''
       let encryptedDocument: Uint8Array
       let flags: number
@@ -336,7 +379,9 @@ export class DecryptDdoHandler extends Handler {
 
       // did matches
       const ddo = JSON.parse(decryptedDocument.toString())
-      if (ddo.id !== makeDid(dataNftAddress, chainId)) {
+      const clonedDdo = structuredClone(ddo)
+      const updatedDdo = deleteIndexedMetadataIfExists(clonedDdo)
+      if (updatedDdo.id !== makeDid(dataNftAddress, chainId)) {
         CORE_LOGGER.error(`Decrypted DDO ID is not matching the generated hash for DID.`)
         return {
           stream: null,
@@ -410,7 +455,7 @@ export class DecryptDdoHandler extends Handler {
   }
 }
 
-export class GetDdoHandler extends Handler {
+export class GetDdoHandler extends CommandHandler {
   validate(command: GetDdoCommand): ValidateParams {
     let validation = validateCommandParameters(command, ['id'])
     if (validation.valid) {
@@ -447,7 +492,7 @@ export class GetDdoHandler extends Handler {
   }
 }
 
-export class FindDdoHandler extends Handler {
+export class FindDdoHandler extends CommandHandler {
   validate(command: FindDDOCommand): ValidateParams {
     let validation = validateCommandParameters(command, ['id'])
     if (validation.valid) {
@@ -538,7 +583,7 @@ export class FindDdoHandler extends Handler {
             if (isResponseLegit) {
               const ddoInfo: FindDDOResponse = {
                 id: ddo.id,
-                lastUpdateTx: ddo.event.tx,
+                lastUpdateTx: ddo.indexedMetadata.event.tx,
                 lastUpdateTime: ddo.metadata.updated,
                 provider: peer
               }
@@ -752,7 +797,11 @@ export class FindDdoHandler extends Handler {
           metadata: ddoData.metadata,
           services: formattedServices,
           credentials: ddoData.credentials,
-          event: ddoData.event
+          indexedMetadata: {
+            stats: ddoData.indexedMetadata.stats,
+            event: ddoData.indexedMetadata.event,
+            nft: ddoData.indexedMetadata.nft
+          }
         }
 
         return ddo
@@ -770,7 +819,7 @@ export class FindDdoHandler extends Handler {
   }
 }
 
-export class ValidateDDOHandler extends Handler {
+export class ValidateDDOHandler extends CommandHandler {
   validate(command: ValidateDDOCommand): ValidateParams {
     let validation = validateCommandParameters(command, ['ddo'])
     if (validation.valid) {
@@ -843,11 +892,14 @@ export function validateDDOIdentifier(identifier: string): ValidateParams {
  * @returns validation result
  */
 async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
-  const { nftAddress, chainId, event } = ddo
-  let isValid = validateDDOHash(ddo.id, nftAddress, chainId)
+  const clonedDdo = structuredClone(ddo)
+  const { indexedMetadata } = clonedDdo
+  const updatedDdo = deleteIndexedMetadataIfExists(ddo)
+  const { nftAddress, chainId } = updatedDdo
+  let isValid = validateDDOHash(updatedDdo.id, nftAddress, chainId)
   // 1) check hash sha256(nftAddress + chainId)
   if (!isValid) {
-    CORE_LOGGER.error(`Asset ${ddo.id} does not have a valid hash`)
+    CORE_LOGGER.error(`Asset ${updatedDdo.id} does not have a valid hash`)
     return false
   }
 
@@ -881,19 +933,25 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
   )
 
   if (!wasDeployedByUs) {
-    CORE_LOGGER.error(`Asset ${ddo.id} not deployed by the data NFT factory`)
+    CORE_LOGGER.error(`Asset ${updatedDdo.id} not deployed by the data NFT factory`)
     return false
   }
 
   // 5) check block & events
   const networkBlock = await getNetworkHeight(blockchain.getProvider())
-  if (!event.block || event.block < 0 || networkBlock < event.block) {
-    CORE_LOGGER.error(`Event block: ${event.block} is either missing or invalid`)
+  if (
+    !indexedMetadata.event.block ||
+    indexedMetadata.event.block < 0 ||
+    networkBlock < indexedMetadata.event.block
+  ) {
+    CORE_LOGGER.error(
+      `Event block: ${indexedMetadata.event.block} is either missing or invalid`
+    )
     return false
   }
 
   // check events on logs
-  const txId: string = event.tx // NOTE: DDO is txid, Asset is tx
+  const txId: string = indexedMetadata.event.tx // NOTE: DDO is txid, Asset is tx
   if (!txId) {
     CORE_LOGGER.error(`DDO event missing tx data, cannot confirm transaction`)
     return false

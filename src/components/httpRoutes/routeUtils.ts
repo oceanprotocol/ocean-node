@@ -46,6 +46,16 @@ routesNames.set('computeStart', {
   method: 'post'
 })
 
+routesNames.set('freeCompute', {
+  path: `${SERVICES_API_BASE_PATH}/freeCompute`,
+  method: 'post'
+})
+
+routesNames.set('computeStreamableLogs', {
+  path: `${SERVICES_API_BASE_PATH}/computeStreamableLogs`,
+  method: 'GET'
+})
+
 routesNames.set('computeStatus', {
   path: `${SERVICES_API_BASE_PATH}/compute`,
   method: 'get'
@@ -172,6 +182,11 @@ routesNames.set('nonce', {
 routesNames.set('indexQueue', {
   path: `${SERVICES_API_BASE_PATH}/indexQueue`,
   method: 'get'
+})
+
+routesNames.set('PolicyServerPassthrough', {
+  path: `${SERVICES_API_BASE_PATH}/PolicyServerPassthrough`,
+  method: 'post'
 })
 
 export function addMapping(path: any, layer: any) {

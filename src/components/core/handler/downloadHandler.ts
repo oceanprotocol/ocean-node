@@ -1,4 +1,4 @@
-import { Handler } from './handler.js'
+import { CommandHandler } from './handler.js'
 import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
 import {
   ENVIRONMENT_VARIABLES,
@@ -25,9 +25,10 @@ import { ArweaveStorage, IpfsStorage, Storage } from '../../storage/index.js'
 import {
   Blockchain,
   existsEnvironmentVariable,
-  getConfiguration
+  getConfiguration,
+  isPolicyServerConfigured
 } from '../../../utils/index.js'
-import { checkCredentials } from '../../../utils/credentials.js'
+import { areKnownCredentialTypes, checkCredentials } from '../../../utils/credentials.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { DownloadCommand, DownloadURLCommand } from '../../../@types/commands.js'
@@ -50,8 +51,8 @@ export function isOrderingAllowedForAsset(asset: DDO): OrdableAssetResponse {
       reason: `Asset provided is either null, either undefined ${asset}`
     }
   } else if (
-    asset.nft &&
-    !(asset.nft.state in [MetadataStates.ACTIVE, MetadataStates.UNLISTED])
+    asset.indexedMetadata.nft &&
+    !(asset.indexedMetadata.nft.state in [MetadataStates.ACTIVE, MetadataStates.UNLISTED])
   ) {
     return {
       isOrdable: false,
@@ -206,7 +207,7 @@ export function validateFilesStructure(
   return true
 }
 
-export class DownloadHandler extends Handler {
+export class DownloadHandler extends CommandHandler {
   validate(command: DownloadCommand): ValidateParams {
     return validateCommandParameters(command, [
       'fileIndex',
@@ -272,10 +273,29 @@ export class DownloadHandler extends Handler {
       }
     }
 
-    // check credentials
+    // check credentials (DDO level)
+    let accessGrantedDDOLevel: boolean
     if (ddo.credentials) {
-      const accessGranted = checkCredentials(ddo.credentials, task.consumerAddress)
-      if (!accessGranted) {
+      // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
+      // It will just use the existing code and let PolicyServer decide.
+      if (isPolicyServerConfigured()) {
+        accessGrantedDDOLevel = await (
+          await new PolicyServer().checkDownload(
+            ddo.id,
+            ddo,
+            task.serviceId,
+            task.fileIndex,
+            task.transferTxId,
+            task.consumerAddress,
+            task.policyServer
+          )
+        ).success
+      } else {
+        accessGrantedDDOLevel = areKnownCredentialTypes(ddo.credentials)
+          ? checkCredentials(ddo.credentials, task.consumerAddress)
+          : true
+      }
+      if (!accessGrantedDDOLevel) {
         CORE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
         return {
           stream: null,
@@ -356,9 +376,32 @@ export class DownloadHandler extends Handler {
     if (!service) throw new Error('Cannot find service')
 
     // check credentials on service level
+    // if using a policy server and we are here it means that access was granted (they are merged/assessed together)
     if (service.credentials) {
-      const accessGranted = checkCredentials(service.credentials, task.consumerAddress)
-      if (!accessGranted) {
+      let accessGrantedServiceLevel: boolean
+      if (isPolicyServerConfigured()) {
+        // we use the previous check or we do it again
+        // (in case there is no DDO level credentials and we only have Service level ones)
+        accessGrantedServiceLevel =
+          accessGrantedDDOLevel ||
+          (await (
+            await new PolicyServer().checkDownload(
+              ddo.id,
+              ddo,
+              task.serviceId,
+              task.fileIndex,
+              task.transferTxId,
+              task.consumerAddress,
+              task.policyServer
+            )
+          ).success)
+      } else {
+        accessGrantedServiceLevel = areKnownCredentialTypes(service.credentials)
+          ? checkCredentials(service.credentials, task.consumerAddress)
+          : true
+      }
+
+      if (!accessGrantedServiceLevel) {
         CORE_LOGGER.logMessage(
           `Error: Access to service with id ${service.id} was denied`,
           true

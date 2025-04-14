@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/index.js'
 import { CoreHandlersRegistry } from '../../components/core/handler/coreHandlersRegistry.js'
-import { Handler } from '../../components/core/handler/handler.js'
+import { BaseHandler } from '../../components/core/handler/handler.js'
 import { OceanNode } from '../../OceanNode.js'
 import {
   ComputeGetEnvironmentsCommand,
@@ -12,7 +12,6 @@ import {
   ComputeStopCommand,
   DecryptDDOCommand,
   DownloadCommand,
-  EchoCommand,
   EncryptCommand,
   EncryptFileCommand,
   FileInfoCommand,
@@ -38,7 +37,6 @@ import {
 import { QueryHandler } from '../../components/core/handler/queryHandler.js'
 import { StatusHandler } from '../../components/core/handler/statusHandler.js'
 import { FeesHandler } from '../../components/core/handler/feesHandler.js'
-import { EchoHandler } from '../../components/core/handler/echoHandler.js'
 import { FileInfoHandler } from '../../components/core/handler/fileInfoHandler.js'
 import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/environments.js'
 import { ComputeStartHandler } from '../../components/core/compute/startCompute.js'
@@ -57,7 +55,7 @@ describe('Commands and handlers', () => {
     const node: OceanNode = OceanNode.getInstance()
     for (const command of SUPPORTED_PROTOCOL_COMMANDS) {
       expect(CoreHandlersRegistry.getInstance(node).getHandler(command)).to.be.instanceof(
-        Handler
+        BaseHandler
       )
     }
   })
@@ -202,37 +200,28 @@ describe('Commands and handlers', () => {
     feesCommand.consumerAddress = 'INVALID_1234567'
     expect(feesHandler.validate(feesCommand).valid).to.be.equal(false)
     // -----------------------------------------
-    // EchoHandler
-    const echoHandler: EchoHandler = CoreHandlersRegistry.getInstance(node).getHandler(
-      PROTOCOL_COMMANDS.ECHO
-    )
-    const echoCommand: EchoCommand = {
-      command: PROTOCOL_COMMANDS.ECHO
-    }
-    expect(echoHandler.validate(echoCommand).valid).to.be.equal(true)
-    // -----------------------------------------
     // Stop Node Handler for Admin
     const stopNodeHandler: StopNodeHandler = CoreHandlersRegistry.getInstance(
       node
-    ).getHandler(PROTOCOL_COMMANDS.ECHO)
+    ).getHandler(PROTOCOL_COMMANDS.STOP_NODE) as StopNodeHandler
     expect(stopNodeHandler).to.be.not.equal(null)
     // -----------------------------------------
     // Reindex Tx Handler
     const reindexTxHandler: ReindexTxHandler = CoreHandlersRegistry.getInstance(
       node
-    ).getHandler(PROTOCOL_COMMANDS.REINDEX_TX)
+    ).getHandler(PROTOCOL_COMMANDS.REINDEX_TX) as ReindexTxHandler
     expect(reindexTxHandler).to.be.not.equal(null)
     // -----------------------------------------
     // Reindex Chain Handler
     const reindexChainHandler: ReindexChainHandler = CoreHandlersRegistry.getInstance(
       node
-    ).getHandler(PROTOCOL_COMMANDS.REINDEX_CHAIN)
+    ).getHandler(PROTOCOL_COMMANDS.REINDEX_CHAIN) as ReindexChainHandler
     expect(reindexChainHandler).to.be.not.equal(null)
     // -----------------------------------------
     // CollectFeesHandler
     const collectFeesHandler: CollectFeesHandler = CoreHandlersRegistry.getInstance(
       node
-    ).getHandler(PROTOCOL_COMMANDS.COLLECT_FEES)
+    ).getHandler(PROTOCOL_COMMANDS.COLLECT_FEES) as CollectFeesHandler
     expect(collectFeesHandler).to.be.not.equal(null)
     // -----------------------------------------
     // FileInfoHandler
@@ -289,7 +278,7 @@ describe('Commands and handlers', () => {
       nonce: '',
       environment: '',
       algorithm: undefined,
-      dataset: undefined
+      datasets: undefined
     }
     expect(startEnvHandler.validate(startEnvCommand).valid).to.be.equal(false)
     // -----------------------------------------
