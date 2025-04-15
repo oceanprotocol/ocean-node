@@ -7,7 +7,7 @@ import { FindDdoHandler, ValidateDDOHandler } from '../core/handler/ddoHandler.j
 import { QueryDdoStateHandler, QueryHandler } from '../core/handler/queryHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { DDO } from '../../@types/DDO/DDO.js'
-import { QueryCommand } from '../../@types/commands.js'
+import { QueryCommand, ValidateDDOCommand } from '../../@types/commands.js'
 import { DatabaseFactory } from '../database/DatabaseFactory.js'
 import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
 import { getConfiguration } from '../../utils/index.js'
@@ -139,18 +139,21 @@ aquariusRoutes.post(`${AQUARIUS_API_BASE_PATH}/assets/ddo/validate`, async (req,
       res.status(400).send('Missing DDO object')
       return
     }
-    const ddo = JSON.parse(req.body) as DDO
-
-    if (!ddo.version) {
-      res.status(400).send('Missing DDO version')
+    const data: any = JSON.parse(req.body)
+    if (!data.ddo || !data.ddo.version) {
+      res.status(400).send('Invalid DDO data or missing DDO version')
       return
+    }
+    const task: ValidateDDOCommand = {
+      ddo: data.ddo as DDO,
+      nonce: data.nonce,
+      publisherAddress: data.publisherAddress,
+      signature: data.signature,
+      command: PROTOCOL_COMMANDS.VALIDATE_DDO
     }
 
     const node = req.oceanNode
-    const result = await new ValidateDDOHandler(node).handle({
-      ddo,
-      command: PROTOCOL_COMMANDS.VALIDATE_DDO
-    })
+    const result = await new ValidateDDOHandler(node).handle(task)
     if (result.stream) {
       const validationResult = JSON.parse(await streamToString(result.stream as Readable))
       res.json(validationResult)
