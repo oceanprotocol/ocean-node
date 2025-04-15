@@ -606,7 +606,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const resolvedDDO: any = ddo
     if (resolvedDDO) {
       // Expect a short version of the DDO
-      expect(Object.keys(resolvedDDO).length).to.equal(4)
+      expect(Object.keys(resolvedDDO).length).to.equal(5)
       expect(
         'id' in resolvedDDO &&
           'nftAddress' in resolvedDDO &&
