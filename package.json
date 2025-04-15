@@ -17,7 +17,7 @@
     "setupEnv": "bash -c './src/helpers/scripts/setupNodeEnv.sh && source .env'",
     "build-tests:tsc": "tsc --sourceMap --sourceRoot ./src/test && cp ./src/test/.env.test ./dist/test",
     "client": "mkdir -p ./dist/helpers/scripts/output && node dist/helpers/scripts/clientExample.js",
-    "clean": "find ./dist -mindepth 1 -not -path './dist/dashboard*' -delete",
+    "clean": "if [ -d ./dist ]; then find ./dist -mindepth 1 -not -path './dist/dashboard*' -delete; fi",
     "clean:all": "rm -rf ./dist/ ./doc/ ./.nyc_output",
     "build-tests": "rm -rf ./dist/test && npm run build-tests:tsc",
     "start": "node --max-old-space-size=28784 --trace-warnings --experimental-specifier-resolution=node dist/index.js",
