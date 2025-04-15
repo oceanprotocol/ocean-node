@@ -29,7 +29,7 @@ import {
   getOceanArtifactsAdressesByChainId
 } from '../../utils/address.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
-import { DDO } from '@oceanprotocol/ddo-js'
+import { Asset, DDO } from '@oceanprotocol/ddo-js'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
@@ -72,7 +72,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   let datatokenAddress: string
   const chainId = 8996
   let assetDID: string
-  let resolvedDDO: Record<string, any> = {}
+  let resolvedDDO: Asset
   let genericAsset: any
   let setMetaDataTxReceipt: any
   let orderTxId: string

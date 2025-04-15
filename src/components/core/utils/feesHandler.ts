@@ -13,7 +13,7 @@ import {
   ProviderFeeValidation,
   ProviderFees
 } from '../../../@types/Fees'
-import { Service, DDOManager } from '@oceanprotocol/ddo-js'
+import { Service, DDOManager, Asset } from '@oceanprotocol/ddo-js'
 import {
   getDatatokenDecimals,
   verifyMessage,
@@ -51,7 +51,7 @@ async function calculateProviderFeeAmount(
 }
 
 export async function createProviderFee(
-  asset: Record<string, any>,
+  asset: Asset,
   service: Service,
   validUntil: number
 ): Promise<ProviderFees> | undefined {
@@ -218,7 +218,7 @@ export async function verifyProviderFees(
 // equiv to get_provider_fees
 // *** NOTE: provider.py => get_provider_fees ***
 export async function createFee(
-  asset: Record<string, any>,
+  asset: Asset,
   validUntil: number,
   computeEnv: string,
   service: Service

@@ -99,10 +99,8 @@ export function validateDDOHash(
   return ddoID === hashAddressAndChain
 }
 
-export function deleteIndexedMetadataIfExists(
-  ddo: Record<string, any>
-): Record<string, any> {
-  const ddoCopy: Record<string, any> = structuredClone(ddo)
+export function deleteIndexedMetadataIfExists(ddo: DDO): DDO {
+  const ddoCopy: DDO = structuredClone(ddo)
   if ('indexedMetadata' in ddoCopy) {
     delete ddoCopy.indexedMetadata
     return ddoCopy

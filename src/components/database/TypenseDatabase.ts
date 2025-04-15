@@ -13,7 +13,7 @@ import {
   AbstractLogDatabase,
   AbstractOrderDatabase
 } from './BaseDatabase.js'
-import { DDOManager } from '@oceanprotocol/ddo-js'
+import { Asset, DDOManager } from '@oceanprotocol/ddo-js'
 
 export class TypesenseOrderDatabase extends AbstractOrderDatabase {
   private provider: Typesense
@@ -368,7 +368,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
     return this.schemas as TypesenseSchema[]
   }
 
-  getDDOSchema(ddo: Record<string, any>): TypesenseSchema {
+  getDDOSchema(ddo: Asset): TypesenseSchema {
     // Find the schema based on the DDO version OR use the short DDO schema when state !== 0
     let schemaName: string
     if (ddo.indexedMetadata?.nft?.state !== 0) {
@@ -386,7 +386,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
     return schema
   }
 
-  async validateDDO(ddo: Record<string, any>): Promise<boolean> {
+  async validateDDO(ddo: Asset): Promise<boolean> {
     const ddoInstance = DDOManager.getDDOClass(ddo)
     const { nft } = ddoInstance.getDDOFields() as any
     if ('indexedMetadata' in ddoInstance.getDDOData() && nft?.state !== 0) {
@@ -467,17 +467,14 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
     }
   }
 
-  async create(ddo: Record<string, any>) {
+  async create(ddo: Asset) {
     const schema = this.getDDOSchema(ddo)
     if (!schema) {
       throw new Error(`Schema for version ${ddo.version} not found`)
     }
     try {
-      // avoid failure because of schema
-      if (ddo?.indexedMetadata?.nft) delete ddo.nft
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      const validation = await ddoInstance.validate()
-      if (validation[0] === true) {
+      const validation = await this.validateDDO(ddo)
+      if (validation === true) {
         return await this.provider
           .collections(schema.name)
           .documents()
@@ -531,17 +528,14 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
     return ddo
   }
 
-  async update(ddo: Record<string, any>) {
+  async update(ddo: Asset) {
     const schema = this.getDDOSchema(ddo)
     if (!schema) {
       throw new Error(`Schema for version ${ddo.version} not found`)
     }
     try {
-      // avoid issue with nft fields, due to schema
-      if (ddo?.indexedMetadata?.nft) delete ddo.nft
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      const validation = await ddoInstance.validate()
-      if (validation[0] === true) {
+      const validation = await this.validateDDO(ddo)
+      if (validation === true) {
         return await this.provider
           .collections(schema.name)
           .documents()

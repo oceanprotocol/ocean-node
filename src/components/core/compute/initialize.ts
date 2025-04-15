@@ -178,7 +178,6 @@ export class ComputeInitializeHandler extends CommandHandler {
 
       // check algo
       let index = 0
-      const config = await getConfiguration()
       for (const elem of [...[task.algorithm], ...task.datasets]) {
         const result: any = { validOrder: false }
         if ('documentId' in elem && elem.documentId) {

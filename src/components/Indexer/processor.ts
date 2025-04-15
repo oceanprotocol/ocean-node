@@ -52,7 +52,13 @@ import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
 import { PolicyServer } from '../policyServer/index.js'
-import { DDOManager, DeprecatedDDO, PriceType, VersionedDDO } from '@oceanprotocol/ddo-js'
+import {
+  DDO,
+  DDOManager,
+  DeprecatedDDO,
+  PriceType,
+  VersionedDDO
+} from '@oceanprotocol/ddo-js'
 class BaseEventProcessor {
   protected networkId: number
 
@@ -623,14 +629,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         let policyStatus
         if (eventName === EVENTS.METADATA_UPDATED)
           policyStatus = await policyServer.checkUpdateDDO(
-            ddoWithPricing.getDDOData(),
+            ddoWithPricing.getDDOData() as DDO,
             this.networkId,
             event.transactionHash,
             event
           )
         else
           policyStatus = await policyServer.checknewDDO(
-            ddoWithPricing.getDDOData(),
+            ddoWithPricing.getDDOData() as DDO,
             this.networkId,
             event.transactionHash,
             event

@@ -39,7 +39,7 @@ import {
   wasNFTDeployedByOurFactory
 } from '../../Indexer/utils.js'
 import { deleteIndexedMetadataIfExists, validateDDOHash } from '../../../utils/asset.js'
-import { DDO, DDOManager } from '@oceanprotocol/ddo-js'
+import { Asset, DDO, DDOManager } from '@oceanprotocol/ddo-js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -785,7 +785,7 @@ export class FindDdoHandler extends CommandHandler {
         const formattedServices = ddoData.services.map(formatService)
 
         // Map the DDO data to the DDO interface
-        const ddo: Record<string, any> = {
+        const ddo: Asset = {
           '@context': ddoData['@context'],
           id: ddoData.id,
           version: ddoData.version,
@@ -801,7 +801,7 @@ export class FindDdoHandler extends CommandHandler {
           }
         }
 
-        return ddo as DDO
+        return ddo
       }
 
       return null

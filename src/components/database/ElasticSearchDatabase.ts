@@ -11,7 +11,7 @@ import { OceanNodeDBConfig } from '../../@types'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { DDOManager } from '@oceanprotocol/ddo-js'
+import { Asset, DDO, DDOManager } from '@oceanprotocol/ddo-js'
 
 export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
   private client: Client
@@ -471,7 +471,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     return this.schemas as ElasticsearchSchema[]
   }
 
-  getDDOSchema(ddo: Record<string, any>) {
+  getDDOSchema(ddo: Asset): ElasticsearchSchema {
     const ddoInstance = DDOManager.getDDOClass(ddo)
     const { nft } = ddoInstance.getDDOFields() as any
     let schemaName: string | undefined
@@ -490,7 +490,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     return schema
   }
 
-  async validateDDO(ddo: Record<string, any>): Promise<boolean> {
+  async validateDDO(ddo: DDO): Promise<boolean> {
     const ddoInstance = DDOManager.getDDOClass(ddo)
     const { nft } = ddoInstance.getDDOFields() as any
     if ('indexedMetadata' in ddoInstance.getDDOData() && nft?.state !== 0) {
@@ -587,19 +587,14 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     return results
   }
 
-  async create(ddo: Record<string, any>): Promise<any> {
+  async create(ddo: Asset): Promise<any> {
     const schema = this.getDDOSchema(ddo)
     if (!schema) {
       throw new Error(`Schema for version ${ddo.version} not found`)
     }
     try {
-      // avoid issue with nft fields, due to schema
-      if (ddo?.indexedMetadata?.nft) delete ddo.nft
-
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      const validation = await ddoInstance.validate()
-
-      if (validation[0] === true) {
+      const validation = await this.validateDDO(ddo)
+      if (validation === true) {
         const response = await this.client.index({
           index: schema.index,
           id: ddo.id,
@@ -660,14 +655,12 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
   // This is called from indexer "createOrUpdateDDO"
   // we add the "id" field to match the response API with typesense
   // since here we have an "_id"
-  async update(ddo: Record<string, any>): Promise<any> {
+  async update(ddo: Asset): Promise<any> {
     const schema = this.getDDOSchema(ddo)
     if (!schema) {
       throw new Error(`Schema for version ${ddo.version} not found`)
     }
     try {
-      // avoid issue with nft fields, due to schema
-      if (ddo?.indexedMetadata?.nft) delete ddo.nft
       const validation = await this.validateDDO(ddo)
       if (validation === true) {
         const response: any = await this.client.update({

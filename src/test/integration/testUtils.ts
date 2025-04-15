@@ -5,6 +5,7 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { JsonRpcSigner, JsonRpcProvider, getBytes } from 'ethers'
 import { DEFAULT_TEST_TIMEOUT } from '../utils/utils.js'
 import { getDatabase } from '../../utils/database.js'
+import { Asset } from '@oceanprotocol/ddo-js'
 
 // listen for indexer events
 export function addIndexerEventListener(eventName: string, ddoId: string, callback: any) {
@@ -44,7 +45,7 @@ async function getIndexedDDOFromDB(did: string): Promise<any> {
 }
 
 export type WaitIndexResult = {
-  ddo: Record<string, any> | null
+  ddo: Asset | null
   wasTimeout: boolean
 }
 

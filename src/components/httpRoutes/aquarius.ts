@@ -10,6 +10,7 @@ import { QueryCommand } from '../../@types/commands.js'
 import { DatabaseFactory } from '../database/DatabaseFactory.js'
 import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
 import { getConfiguration } from '../../utils/index.js'
+import { DDO } from '@oceanprotocol/ddo-js'
 
 export const aquariusRoutes = express.Router()
 
@@ -138,7 +139,7 @@ aquariusRoutes.post(`${AQUARIUS_API_BASE_PATH}/assets/ddo/validate`, async (req,
       res.status(400).send('Missing DDO object')
       return
     }
-    const ddo = JSON.parse(req.body) as Record<string, any>
+    const ddo = JSON.parse(req.body) as DDO
 
     if (!ddo.version) {
       res.status(400).send('Missing DDO version')
