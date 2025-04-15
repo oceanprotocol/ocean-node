@@ -125,23 +125,25 @@ jobs:
               DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
       - name: Run Barge
         working-directory: ${{ github.workspace }}/barge
+        env:
+          CONTRACTS_VERSION: escrow
         run: |
-          bash -x start_ocean.sh --no-aquarius --no-provider --no-dashboard --with-c2d --with-typesense 2>&1 > start_ocean.log &
+          bash -x start_ocean.sh --no-aquarius --no-provider --no-dashboard --with-typesense 2>&1 > start_ocean.log &
       - run: npm ci
       - run: npm run build
       - run: docker image ls
       - name: Delete default runner images
         run: |
           rm -rf /usr/share/swift/
-      - name: Wait for contracts deployment and C2D cluster to be ready
+      - name: Wait for contracts deployment
         working-directory: ${{ github.workspace }}/barge
         run: |
           for i in $(seq 1 250); do
-            sleep 10
-            [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" -a -f "$HOME/.ocean/ocean-c2d/ready" ] && break
+            sleep 5
+            [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" ] && break
             done
       - name: docker logs
-        run: docker logs ocean-ocean-contracts-1 && docker logs ocean-kindcluster-1 && docker logs ocean-computetodata-1 && docker logs ocean-typesense-1
+        run: docker logs ocean-ocean-contracts-1 && docker logs ocean-typesense-1
         if: ${{ failure() }}
       - name: integration tests
         run: npm run test:integration:cover
@@ -210,8 +212,9 @@ jobs:
       - name: Run Barge
         working-directory: ${{ github.workspace }}/barge
         run: |
-          bash -x start_ocean.sh --no-aquarius --no-provider --no-dashboard --with-c2d --with-typesense 2>&1 > start_ocean.log &
-
+          bash -x start_ocean.sh --no-aquarius --no-provider --no-dashboard --with-typesense 2>&1 > start_ocean.log &
+        env:
+          CONTRACTS_VERSION: escrow
       - run: npm ci
       - run: npm run build
       - run: docker image ls
@@ -224,7 +227,7 @@ jobs:
         run: |
           for i in $(seq 1 250); do
             sleep 10
-            [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" -a -f "$HOME/.ocean/ocean-c2d/ready" ] && break
+            [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" ] && break
           done
 
       - name: docker logs

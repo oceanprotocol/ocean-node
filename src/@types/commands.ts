@@ -170,39 +170,34 @@ export interface ComputeGetEnvironmentsCommand extends Command {
   chainId?: number
 }
 
-export interface ComputeDetails {
-  env: string // with hash
-  validUntil: number
+export interface ComputePayment {
+  chainId: number
+  token: string
+  resources?: ComputeResourceRequest[]
 }
 export interface ComputeInitializeCommand extends Command {
   datasets: [ComputeAsset]
   algorithm: ComputeAlgorithm
-  compute: ComputeDetails
+  environment: string
+  payment: ComputePayment
   consumerAddress: string
   signature?: string
+  maxJobDuration: number
 }
 
-export interface ComputeStartCommand extends Command {
-  consumerAddress: string
-  signature: string
-  nonce: string
-  environment: string
-  algorithm: ComputeAlgorithm
-  datasets?: ComputeAsset[]
-  output?: ComputeOutput
-  resources?: ComputeResourceRequest[]
-  chainId?: number // network used by payment
-}
 export interface FreeComputeStartCommand extends Command {
   consumerAddress: string
   signature: string
   nonce: string
   environment: string
   algorithm: ComputeAlgorithm
-  validUntil?: number
   datasets?: ComputeAsset[]
   output?: ComputeOutput
   resources?: ComputeResourceRequest[]
+  maxJobDuration?: number
+}
+export interface PaidComputeStartCommand extends FreeComputeStartCommand {
+  payment: ComputePayment
 }
 
 export interface ComputeStopCommand extends Command {

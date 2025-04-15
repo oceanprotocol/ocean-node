@@ -76,7 +76,7 @@ describe('Should validate blockchain network connections', () => {
     for (const chain of KNOWN_CONFIDENTIAL_EVMS) {
       expect(isConfidentialEVM(chain)).to.be.equal(true)
     }
-    expect(isConfidentialEVM(DEVELOPMENT_CHAIN_ID)).to.be.equal(false)
+    expect(isConfidentialEVM(BigInt(DEVELOPMENT_CHAIN_ID))).to.be.equal(false)
   })
 
   after(async () => {

@@ -446,9 +446,7 @@ export class DownloadHandler extends CommandHandler {
       task.transferTxId,
       task.consumerAddress,
       provider,
-      service,
-      null,
-      null
+      service
     )
     if (!validFee.isValid) {
       return {
@@ -518,7 +516,7 @@ export class DownloadHandler extends CommandHandler {
       let decriptedFileObject: any = null
       let decryptedFileData: any = null
       // check if confidential EVM
-      const confidentialEVM = isConfidentialChainDDO(ddo.chainId, service)
+      const confidentialEVM = isConfidentialChainDDO(BigInt(ddo.chainId), service)
       // check that files is missing and template 4 is active on the chain
       if (confidentialEVM) {
         const signer = blockchain.getSigner()
