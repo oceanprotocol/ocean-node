@@ -36,6 +36,7 @@ jobs:
       - run: docker build -t 'ocean-node:mybuild' .
 
   build:
+    needs: dashboard_build
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -57,6 +58,11 @@ jobs:
           path: ~/.npm
           key: ${{ runner.os }}-${{ matrix.node }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
           restore-keys: ${{ runner.os }}-${{ matrix.node }}-build-${{ env.cache-name }}-
+      - name: Download dashboard build
+        uses: actions/download-artifact@v4
+        with:
+          name: dashboard-build
+          path: dist/dashboard
       - run: npm ci
       - run: npm run build
 
@@ -309,5 +315,11 @@ jobs:
           key: ${{ runner.os }}-dashboard-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
           restore-keys: ${{ runner.os }}-dashboard-${{ env.cache-name }}-
       - run: npm ci
-      - name: Run dashboard build test
-        run: npm run test:dashboard
+      - name: Build dashboard
+        run: npm run build:dashboard
+      - name: Upload dashboard build
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-build
+          path: dist/dashboard
+          retention-days: 1

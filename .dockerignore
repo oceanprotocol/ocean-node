@@ -1,6 +1,5 @@
 node_modules
-/dist/*
-!/dist/dashboard
+/dist
 logs
 c2d_storage
 .env.local
