@@ -498,28 +498,26 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
       // TODO: DDO validation needs to be updated to consider the fields required by the schema
       // See github issue: https://github.com/oceanprotocol/ocean-node/issues/256
       return true
-    } else if ('nft' in ddoInstance.getDDOData() && nft?.state !== 0) {
+    }
+
+    const validation = await ddoInstance.validate()
+    if (validation[0] === true) {
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Validation of DDO with did: ${ddo.id} has passed`,
+        true,
+        GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
+        LOG_LEVELS_STR.LEVEL_INFO
+      )
       return true
     } else {
-      const validation = await ddoInstance.validate()
-      if (validation[0] === true) {
-        DATABASE_LOGGER.logMessageWithEmoji(
-          `Validation of DDO with did: ${ddo.id} has passed`,
-          true,
-          GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
-          LOG_LEVELS_STR.LEVEL_INFO
-        )
-        return true
-      } else {
-        DATABASE_LOGGER.logMessageWithEmoji(
-          `Validation of DDO with schema version ${ddo.version} failed with errors: ` +
-            JSON.stringify(validation[1]),
-          true,
-          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-          LOG_LEVELS_STR.LEVEL_ERROR
-        )
-        return false
-      }
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Validation of DDO with schema version ${ddo.version} failed with errors: ` +
+          JSON.stringify(validation[1]),
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      return false
     }
   }
 
