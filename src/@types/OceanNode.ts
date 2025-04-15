@@ -98,6 +98,7 @@ export interface OceanNodeConfig {
   httpPort: number
   feeStrategy: FeeStrategy
   supportedNetworks?: RPCS
+  claimDurationTimeout: number
   indexingNetworks?: RPCS
   c2dClusters: C2DClusterInfo[]
   c2dNodeUri: string

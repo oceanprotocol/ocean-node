@@ -237,7 +237,8 @@ class BaseEventProcessor {
         `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
       )
       const nonce = Math.floor(Date.now() / 1000).toString()
-      const { keys } = await getConfiguration()
+      const config = await getConfiguration()
+      const { keys } = config
       const nodeId = keys.peerId.toString()
 
       const wallet: ethers.Wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string)
@@ -291,7 +292,7 @@ class BaseEventProcessor {
           throw new Error(message)
         }
       } else {
-        const node = OceanNode.getInstance(await getDatabase())
+        const node = OceanNode.getInstance(config, await getDatabase())
         if (nodeId === decryptorURL) {
           const decryptDDOTask: DecryptDDOCommand = {
             command: PROTOCOL_COMMANDS.DECRYPT_DDO,

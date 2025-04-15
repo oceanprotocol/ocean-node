@@ -1,8 +1,11 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
+import {
+  FreeComputeStartCommand,
+  PaidComputeStartCommand
+} from '../../../@types/commands.js'
 import { CommandHandler } from '../handler/handler.js'
-import { ComputeStartCommand, FreeComputeStartCommand } from '../../../@types/commands.js'
 import { getAlgoChecksums, validateAlgoForDataset } from './utils.js'
 import {
   ValidateParams,
@@ -18,27 +21,30 @@ import {
   isERC20Template4Active
 } from '../../../utils/asset.js'
 import { EncryptMethod } from '../../../@types/fileObject.js'
+import { ComputeResourceRequestWithPrice } from '../../../@types/C2D/C2D.js'
 import { decrypt } from '../../../utils/crypt.js'
-import { verifyProviderFees } from '../utils/feesHandler.js'
+// import { verifyProviderFees } from '../utils/feesHandler.js'
 import { Blockchain } from '../../../utils/blockchain.js'
 import { validateOrderTransaction } from '../utils/validateOrders.js'
 import { getConfiguration } from '../../../utils/index.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
-import { ProviderFeeValidation } from '../../../@types/Fees.js'
+// import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
-import { checkNonce, NonceResponse, getNonceAsNumber } from '../utils/nonceHandler.js'
 import { DDOManager } from '@oceanprotocol/ddo-js'
+import { getNonceAsNumber, checkNonce, NonceResponse } from '../utils/nonceHandler.js'
+import { createHash } from 'crypto'
 
-export class ComputeStartHandler extends CommandHandler {
-  validate(command: ComputeStartCommand): ValidateParams {
+export class PaidComputeStartHandler extends CommandHandler {
+  validate(command: PaidComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
       'consumerAddress',
       'signature',
       'nonce',
       'environment',
       'algorithm',
-      'datasets'
+      'datasets',
+      'maxJobDuration'
     ])
     if (commandValidation.valid) {
       if (!isAddress(command.consumerAddress)) {
@@ -46,24 +52,28 @@ export class ComputeStartHandler extends CommandHandler {
           'Parameter : "consumerAddress" is not a valid web3 address'
         )
       }
+      if (parseInt(String(command.maxJobDuration)) <= 0) {
+        return buildInvalidRequestMessage('Invalid maxJobDuration')
+      }
     }
     return commandValidation
   }
 
-  async handle(task: ComputeStartCommand): Promise<P2PCommandResponse> {
+  async handle(task: PaidComputeStartCommand): Promise<P2PCommandResponse> {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
     try {
+      const node = this.getOceanNode()
       // split compute env (which is already in hash-envId format) and get the hash
       // then get env which might contain dashes as well
       const eIndex = task.environment.indexOf('-')
       const hash = task.environment.slice(0, eIndex)
-      const envId = task.environment.slice(eIndex + 1)
       let engine
+      let env
       try {
-        engine = await this.getOceanNode().getC2DEngines().getC2DByHash(hash)
+        engine = await node.getC2DEngines().getC2DByHash(hash)
       } catch (e) {
         return {
           stream: null,
@@ -75,7 +85,7 @@ export class ComputeStartHandler extends CommandHandler {
       }
 
       try {
-        const env = await engine.getComputeEnvironment(null, task.environment)
+        env = await engine.getComputeEnvironment(null, task.environment)
         if (!env) {
           return {
             stream: null,
@@ -85,12 +95,15 @@ export class ComputeStartHandler extends CommandHandler {
             }
           }
         }
-        task.resources = await engine.checkAndFillMissingResources(
-          task.resources,
+        if (!task.maxJobDuration || task.maxJobDuration > env.maxJobDuration) {
+          task.maxJobDuration = env.maxJobDuration
+        }
+        task.payment.resources = await engine.checkAndFillMissingResources(
+          task.payment.resources,
           env,
           false
         )
-        await engine.checkIfResourcesAreAvailable(task.resources, env, true)
+        await engine.checkIfResourcesAreAvailable(task.payment.resources, env, true)
       } catch (e) {
         return {
           stream: null,
@@ -100,14 +113,12 @@ export class ComputeStartHandler extends CommandHandler {
           }
         }
       }
-      const node = this.getOceanNode()
       const { algorithm } = task
-      let foundValidCompute = null
 
       const algoChecksums = await getAlgoChecksums(
         task.algorithm.documentId,
         task.algorithm.serviceId,
-        this.getOceanNode()
+        node
       )
       if (!algoChecksums.container || !algoChecksums.files) {
         CORE_LOGGER.error(`Error retrieveing algorithm checksums!`)
@@ -185,7 +196,7 @@ export class ComputeStartHandler extends CommandHandler {
           const signer = blockchain.getSigner()
           // let's see if we can access this asset
           // check if oasis evm or similar
-          const confidentialEVM = isConfidentialChainDDO(ddoChainId, service)
+          const confidentialEVM = isConfidentialChainDDO(BigInt(ddo.chainId), service)
           let canDecrypt = false
           try {
             if (!confidentialEVM) {
@@ -260,7 +271,6 @@ export class ComputeStartHandler extends CommandHandler {
           result.datatoken = service.datatokenAddress
           result.chainId = ddoChainId
 
-          const env = await engine.getComputeEnvironment(ddoChainId, task.environment)
           if (!('transferTxId' in elem) || !elem.transferTxId) {
             const error = `Missing transferTxId for DDO ${elem.documentId}`
             return {
@@ -294,37 +304,9 @@ export class ComputeStartHandler extends CommandHandler {
             }
           }
           result.validOrder = elem.transferTxId
-          // start with assumption than we need new providerfees
-          const validFee: ProviderFeeValidation =
-            foundValidCompute === null
-              ? await verifyProviderFees(
-                  elem.transferTxId,
-                  task.consumerAddress,
-                  provider,
-                  service,
-                  task.environment,
-                  0
-                )
-              : {
-                  isValid: false,
-                  isComputeValid: false,
-                  message: false,
-                  validUntil: 0
-                }
 
-          if (validFee.isComputeValid === true) {
-            CORE_LOGGER.logMessage(
-              `Found a valid compute providerFee ${elem.transferTxId}`,
-              true
-            )
-            foundValidCompute = {
-              txId: elem.transferTxId,
-              chainId: ddoChainId,
-              validUntil: validFee.validUntil
-            }
-          }
-          if (!('meta' in algorithm) && metadata.type === 'algorithm') {
-            const { entrypoint, image, tag, checksum } = metadata.algorithm.container
+          if (!('meta' in algorithm) && ddo.metadata.type === 'algorithm') {
+            const { entrypoint, image, tag, checksum } = ddo.metadata.algorithm.container
             const container = { entrypoint, image, tag, checksum }
             algorithm.meta = {
               language: metadata.algorithm.language,
@@ -334,43 +316,114 @@ export class ComputeStartHandler extends CommandHandler {
           }
         }
       }
-      if (!foundValidCompute) {
-        CORE_LOGGER.logMessage(`Cannot find a valid compute providerFee`, true)
+      // let's lock the amount
+      const prices = engine.getEnvPricesForToken(
+        env,
+        task.payment.chainId,
+        task.payment.token
+      )
+      if (!prices) {
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: `This compute env does not accept payments on chain: ${task.payment.chainId} using token ${task.payment.token}`
+          }
+        }
+      }
+      const resources: ComputeResourceRequestWithPrice[] = []
+
+      for (const res of task.payment.resources) {
+        const price = engine.getResourcePrice(prices, res.id)
+        resources.push({
+          id: res.id,
+          amount: res.amount,
+          price
+        })
+      }
+      const s = {
+        assets: task.datasets,
+        algorithm,
+        output: task.output,
+        environment: env.id,
+        owner: task.consumerAddress,
+        maxJobDuration: task.maxJobDuration,
+        chainId: task.payment.chainId,
+        agreementId: '',
+        resources
+      }
+      const jobId = createHash('sha256').update(JSON.stringify(s)).digest('hex')
+      // let's calculate payment needed based on resources request and maxJobDuration
+      const cost = engine.calculateResourcesCost(
+        task.payment.resources,
+        env,
+        task.payment.chainId,
+        task.payment.token,
+        task.maxJobDuration
+      )
+      let agreementId
+      try {
+        agreementId = await engine.escrow.createLock(
+          task.payment.chainId,
+          jobId,
+          task.payment.token,
+          task.consumerAddress,
+          cost,
+          task.maxJobDuration
+        )
+      } catch (e) {
         return {
           stream: null,
           status: {
             httpStatus: 400,
-            error: `Invalid compute environment: ${task.environment}`
+            error: e
           }
         }
       }
-      // TODO - hardcoded values.
-      //  - validate providerFees -> will generate chainId & agreementId & validUntil
-      const { chainId } = foundValidCompute
-      const agreementId = foundValidCompute.txId
-      const { validUntil } = foundValidCompute
+      try {
+        const response = await engine.startComputeJob(
+          task.datasets,
+          algorithm,
+          task.output,
+          env.id,
+          task.consumerAddress,
+          task.maxJobDuration,
+          task.payment.resources,
+          {
+            chainId: task.payment.chainId,
+            token: task.payment.token,
+            lockTx: agreementId,
+            claimTx: null
+          }
+        )
+        CORE_LOGGER.logMessage(
+          'ComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
+          true
+        )
 
-      const response = await engine.startComputeJob(
-        task.datasets,
-        algorithm,
-        task.output,
-        envId,
-        task.consumerAddress,
-        validUntil,
-        chainId,
-        agreementId,
-        task.resources
-      )
-
-      CORE_LOGGER.logMessage(
-        'ComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
-        true
-      )
-
-      return {
-        stream: Readable.from(JSON.stringify(response)),
-        status: {
-          httpStatus: 200
+        return {
+          stream: Readable.from(JSON.stringify(response)),
+          status: {
+            httpStatus: 200
+          }
+        }
+      } catch (e) {
+        try {
+          await engine.escrow.cancelExpiredLocks(
+            task.payment.chainId,
+            jobId,
+            task.payment.token,
+            task.consumerAddress
+          )
+        } catch (e) {
+          // is fine if it fails
+        }
+        return {
+          stream: null,
+          status: {
+            httpStatus: 400,
+            error: e
+          }
         }
       }
     } catch (error) {
@@ -387,7 +440,7 @@ export class ComputeStartHandler extends CommandHandler {
 }
 
 export class FreeComputeStartHandler extends CommandHandler {
-  validate(command: ComputeStartCommand): ValidateParams {
+  validate(command: FreeComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
       'algorithm',
       'datasets',
@@ -480,6 +533,9 @@ export class FreeComputeStartHandler extends CommandHandler {
           true
         )
         await engine.checkIfResourcesAreAvailable(task.resources, env, true)
+        if (!task.maxJobDuration || task.maxJobDuration > env.free.maxJobDuration) {
+          task.maxJobDuration = env.free.maxJobDuration
+        }
       } catch (e) {
         console.error(e)
         return {
@@ -505,10 +561,9 @@ export class FreeComputeStartHandler extends CommandHandler {
         task.output,
         task.environment,
         task.consumerAddress,
-        null,
-        null,
-        null,
-        task.resources
+        task.maxJobDuration,
+        task.resources,
+        null
       )
 
       CORE_LOGGER.logMessage(

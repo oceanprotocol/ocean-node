@@ -36,7 +36,9 @@ function getInternalStructure(job: DBComputeJob): any {
     isStarted: job.isStarted,
     containerImage: job.containerImage,
     resources: job.resources,
-    isFree: job.isFree
+    isFree: job.isFree,
+    algoStartTimestamp: job.algoStartTimestamp,
+    algoStopTimestamp: job.algoStopTimestamp
   }
   return internalBlob
 }
@@ -89,6 +91,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   }
 
   createTable() {
+    /* although we have field called expiteTimestamp, we are actually storing maxJobDuration in it */
     const createTableSQL = `
       CREATE TABLE IF NOT EXISTS ${this.schema.name} (
         owner TEXT,
@@ -150,7 +153,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
           job.inputDID ? convertArrayToString(job.inputDID) : job.inputDID,
           job.algoDID,
           job.agreementId,
-          job.expireTimestamp,
+          job.maxJobDuration,
           job.environment,
           generateBlobFromJSON(job)
         ],
@@ -207,7 +210,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
             const all: DBComputeJob[] = rows.map((row) => {
               const body = generateJSONFromBlob(row.body)
               delete row.body
-              const job: DBComputeJob = { ...row, ...body }
+              const maxJobDuration = row.expireTimestamp
+              delete row.expireTimestamp
+              const job: DBComputeJob = { ...row, ...body, maxJobDuration }
               return job
             })
             resolve(all)
@@ -231,7 +236,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       job.owner,
       job.status,
       job.statusText,
-      job.expireTimestamp,
+      job.maxJobDuration,
       generateBlobFromJSON(job),
       job.dateFinished,
       job.jobId
@@ -277,7 +282,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
             const all: DBComputeJob[] = rows.map((row) => {
               const body = generateJSONFromBlob(row.body)
               delete row.body
-              const job: DBComputeJob = { ...row, ...body }
+              const maxJobDuration = row.expireTimestamp
+              delete row.expireTimestamp
+              const job: DBComputeJob = { ...row, ...body, maxJobDuration }
               return job
             })
             // filter them out
@@ -321,7 +328,9 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
             const all: DBComputeJob[] = rows.map((row) => {
               const body = generateJSONFromBlob(row.body)
               delete row.body
-              const job: DBComputeJob = { ...row, ...body }
+              const maxJobDuration = row.expireTimestamp
+              delete row.expireTimestamp
+              const job: DBComputeJob = { ...row, ...body, maxJobDuration }
               return job
             })
             if (!environment) {

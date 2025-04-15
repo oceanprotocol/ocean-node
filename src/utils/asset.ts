@@ -133,7 +133,7 @@ export function generateDDOHash(nftAddress: string, chainId: number): string | n
  * @param network name or chain id
  * @returns true if confidential evm
  */
-export function isConfidentialEVM(network: number): boolean {
+export function isConfidentialEVM(network: bigint): boolean {
   return KNOWN_CONFIDENTIAL_EVMS.includes(network)
 }
 
@@ -190,7 +190,7 @@ export async function isDataTokenTemplate4(
   }
 }
 
-export function isConfidentialChainDDO(ddoChain: number, ddoService: Service): boolean {
+export function isConfidentialChainDDO(ddoChain: bigint, ddoService: Service): boolean {
   const isConfidential = isConfidentialEVM(ddoChain)
   return isConfidential && (!ddoService.files || ddoService.files.length === 0)
 }
