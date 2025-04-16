@@ -310,4 +310,4 @@ jobs:
           restore-keys: ${{ runner.os }}-control-panel-${{ env.cache-name }}-
       - run: npm ci
       - name: Build control panel
-        run: npm run build:control-panel
+        run: npm run build:controlpanel
