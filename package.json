@@ -75,7 +75,7 @@
     "@libp2p/upnp-nat": "^1.2.1",
     "@libp2p/websockets": "^8.1.1",
     "@multiformats/multiaddr": "^10.2.0",
-    "@oceanprotocol/contracts": "^2.3.0-next.3",
+    "@oceanprotocol/contracts": "^2.3.0",
     "@rdfjs/dataset": "^2.0.1",
     "@rdfjs/types": "^1.1.0",
     "@types/lodash.clonedeep": "^4.5.7",
