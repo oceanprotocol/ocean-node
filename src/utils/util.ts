@@ -2,9 +2,7 @@ import { LOG_LEVELS_STR } from './logging/Logger.js'
 import { Readable, Stream } from 'stream'
 import { Interface } from 'ethers'
 import { PROVIDER_LOGGER } from './logging/common.js'
-import EventEmitter from 'node:events'
 // for auth stuff
-export const AUTH_CREDENTIALS_EVENT_EMITTER = new EventEmitter()
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }

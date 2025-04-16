@@ -19,19 +19,14 @@ import { Database } from '../../components/database/index.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { OceanNode } from '../../OceanNode.js'
 import { RPCS, SupportedNetwork } from '../../@types/blockchain.js'
-import { AUTH_CREDENTIALS_EVENT_EMITTER, streamToObject } from '../../utils/util.js'
-import {
-  addGenericEventListener,
-  expectedTimeoutFailure,
-  waitToIndex
-} from './testUtils.js'
+import { streamToObject } from '../../utils/util.js'
+import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 
 import {
   Blockchain,
   ENVIRONMENT_VARIABLES,
   EVENTS,
   PROTOCOL_COMMANDS,
-  UNAUTHORIZED_ACTION_EVENT,
   getConfiguration,
   printCurrentConfig
 } from '../../utils/index.js'
@@ -372,21 +367,9 @@ describe('Should run a complete node flow.', () => {
       nonAuthorizedAccount
     )
 
-    did = publishedDataset?.ddo.id
-
-    addGenericEventListener(
-      AUTH_CREDENTIALS_EVENT_EMITTER,
-      UNAUTHORIZED_ACTION_EVENT,
-      // in this case the data is the DID
-      (data: string) => {
-        console.log('Listened UNAUTHORIZED_ACTION_EVENT with data:', data)
-        assert(data !== null, 'Should have received an UNAUTHORIZED_ACTION_EVENT event')
-      }
-    )
-
     // will timeout
     const { ddo, wasTimeout } = await waitToIndex(
-      did,
+      publishedDataset?.ddo.id,
       EVENTS.METADATA_CREATED,
       DEFAULT_TEST_TIMEOUT
     )
