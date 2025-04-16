@@ -45,11 +45,7 @@ import {
   timestampToDateTime
 } from '../../utils/index.js'
 import { OceanNode } from '../../OceanNode.js'
-import {
-  asyncCallWithTimeout,
-  emitUnAuthorizedEvent,
-  streamToString
-} from '../../utils/util.js'
+import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
@@ -457,7 +453,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           INDEXER_LOGGER.error(
             `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS.name} group.`
           )
-          emitUnAuthorizedEvent(ddo.id)
           return
         }
       }
@@ -473,7 +468,6 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           INDEXER_LOGGER.error(
             `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.name} access group.`
           )
-          emitUnAuthorizedEvent(ddo.id)
           return
         }
       }

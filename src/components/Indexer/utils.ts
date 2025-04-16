@@ -24,7 +24,7 @@ import {
   DispenserCreatedEventProcessor
 } from './processor.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
-import { emitUnAuthorizedEvent, fetchEventFromTransaction } from '../../utils/util.js'
+import { fetchEventFromTransaction } from '../../utils/util.js'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { getOceanArtifactsAdressesByChainId } from '../../utils/address.js'
@@ -268,7 +268,6 @@ export const processChunkLogs = async (
                 `Metadata Proof validators list is empty`,
                 true
               )
-              emitUnAuthorizedEvent(validators)
               continue
               // do not process this one
             }
@@ -309,7 +308,6 @@ export const processChunkLogs = async (
               }
               // move on to the next (do not process this event)
               if (isAllowed === false) {
-                emitUnAuthorizedEvent(validators)
                 continue
               }
             } // end if (allowedValidatorsList) {
