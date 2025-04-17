@@ -40,7 +40,7 @@ import {
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { OrdableAssetResponse } from '../../../@types/Asset.js'
 import { PolicyServer } from '../../policyServer/index.js'
-import { Asset, DDO } from '@oceanprotocol/ddo-js'
+import { Asset, DDO, Service } from '@oceanprotocol/ddo-js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export function isOrderingAllowedForAsset(asset: Asset): OrdableAssetResponse {
@@ -193,7 +193,7 @@ export async function handleDownloadUrlCommand(
 
 export function validateFilesStructure(
   ddo: DDO,
-  service: any,
+  service: Service,
   decriptedFileObject: any
 ): boolean {
   if (

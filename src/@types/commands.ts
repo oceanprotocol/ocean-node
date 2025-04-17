@@ -1,5 +1,6 @@
 import { ValidateParams } from '../components/httpRoutes/validateCommands.js'
 import { P2PCommandResponse } from './OceanNode'
+import { DDO } from '@oceanprotocol/ddo-js'
 import type {
   ComputeAsset,
   ComputeAlgorithm,
@@ -77,7 +78,7 @@ export interface FindDDOCommand extends DDOCommand {
 // this one gets the raw ddo
 // https://github.com/oceanprotocol/ocean-node/issues/47
 export interface ValidateDDOCommand extends Command {
-  ddo: Record<string, any>
+  ddo: DDO
 }
 
 export interface StatusCommand extends Command {

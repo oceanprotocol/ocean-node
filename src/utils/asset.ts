@@ -25,7 +25,7 @@ export const AssetUtils = {
     const { services } = ddoInstance.getDDOFields()
 
     if (index >= 0 && index < services.length) {
-      return services[index]
+      return services[index] as Service
     }
     return null
   },
