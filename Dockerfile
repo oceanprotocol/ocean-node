@@ -27,8 +27,8 @@ COPY . /usr/src/app
 WORKDIR /usr/src/app/
 COPY --from=builder /usr/src/app/node_modules/ /usr/src/app/node_modules/
 RUN npm run build
-# Remove the dashboard folder to reduce the image size and avoid shipping development files
-RUN rm -rf dashboard
+# Remove the controlpanel folder to reduce the image size and avoid shipping development files
+RUN rm -rf controlpanel
 ENV P2P_ipV4BindTcpPort=9000
 EXPOSE 9000
 ENV P2P_ipV4BindWsPort=9001
