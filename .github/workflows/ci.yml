@@ -293,7 +293,7 @@ jobs:
         env:
           AVOID_LOOP_RUN: true
 
-  dashboard_build:
+  control_panel_build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -306,8 +306,8 @@ jobs:
           cache-name: cache-node-modules
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-dashboard-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: ${{ runner.os }}-dashboard-${{ env.cache-name }}-
+          key: ${{ runner.os }}-control-panel-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-control-panel-${{ env.cache-name }}-
       - run: npm ci
-      - name: Run dashboard build test
-        run: npm run test:dashboard
+      - name: Build control panel
+        run: npm run build:controlpanel

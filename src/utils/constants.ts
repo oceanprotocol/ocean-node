@@ -306,9 +306,10 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.ACCOUNT_PURGATORY_URL,
     required: false
   },
-  DASHBOARD: {
-    name: 'DASHBOARD',
-    value: process.env.DASHBOARD,
+  CONTROL_PANEL: {
+    name: 'CONTROL_PANEL',
+    // keep this for backwards compatibility for now
+    value: process.env.CONTROL_PANEL || process.env.DASHBOARD,
     required: false
   },
   MAX_REQ_PER_MINUTE: {
