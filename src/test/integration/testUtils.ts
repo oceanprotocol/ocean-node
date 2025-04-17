@@ -1,13 +1,12 @@
 import { INDEXER_DDO_EVENT_EMITTER } from '../../components/Indexer/index.js'
 import { Database } from '../../components/database/index.js'
-import { CORE_LOGGER, INDEXER_LOGGER } from '../../utils/logging/common.js'
+import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 
 import { JsonRpcSigner, JsonRpcProvider, getBytes } from 'ethers'
 import { DEFAULT_TEST_TIMEOUT } from '../utils/utils.js'
 import { getDatabase } from '../../utils/database.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { sleep } from '../../utils/util.js'
-import EventEmitter from 'events'
 // listen for indexer events
 export function addIndexerEventListener(eventName: string, ddoId: string, callback: any) {
   // add listener
@@ -17,27 +16,6 @@ export function addIndexerEventListener(eventName: string, ddoId: string, callba
       // remove it
       INDEXER_DDO_EVENT_EMITTER.removeListener(eventName, () => {})
       callback(did)
-    }
-  })
-}
-/**
- * Listen for any type of events
- * @param eventEmitter the event emiiter to attach to
- * @param eventName the event name
- * @param callback result function
- */
-export function addGenericEventListener(
-  eventEmitter: EventEmitter,
-  eventName: string,
-  callback: any
-) {
-  // add listener
-  eventEmitter.addListener(eventName, (data: any) => {
-    CORE_LOGGER.info(`Test suite - Listened event: "${eventName}" with data: ${data}`)
-    if (typeof callback === 'function') {
-      // always remove it (one shot only)
-      eventEmitter.removeListener(eventName, () => {})
-      callback(data)
     }
   })
 }
@@ -108,7 +86,6 @@ export const waitToIndex = async (
       // 2nd approach, whatever happens first (timeout or event emition)
       listening = true
       addIndexerEventListener(eventName, did, async (id: string) => {
-        INDEXER_LOGGER.info('Listened Indexer event: ' + eventName)
         clearTimeout(timeout)
         const res = await getIndexedDDOFromDB(id)
         result.ddo = res

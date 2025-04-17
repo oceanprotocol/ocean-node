@@ -95,9 +95,6 @@ export const EVENTS = {
   EXCHANGE_DEACTIVATED: 'ExchangeDeactivated'
 }
 
-// when something at access/credentials level fails
-export const UNAUTHORIZED_ACTION_EVENT = 'UnauthorizedAction'
-
 export const INDEXER_CRAWLING_EVENTS = {
   CRAWLING_STARTED: 'crawlingStarted',
   REINDEX_QUEUE_POP: 'popFromQueue', // this is for reindex tx, not chain
