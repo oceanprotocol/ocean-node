@@ -227,10 +227,6 @@ providerRoutes.get(
 
       if (response.stream) {
         res.status(response.status.httpStatus)
-        HTTP_LOGGER.logMessage(
-          `Headers: ${JSON.stringify(response.status.headers)}`,
-          true
-        )
 
         const safeHeaders = { ...response.status.headers }
         if (safeHeaders['content-length'] && safeHeaders['Transfer-Encoding']) {
@@ -238,7 +234,6 @@ providerRoutes.get(
         }
 
         res.set(safeHeaders)
-        HTTP_LOGGER.logMessage(`Sanitized Headers: ${JSON.stringify(safeHeaders)}`, true)
         response.stream.pipe(res)
       } else {
         res.status(response.status.httpStatus).send(response.status.error)
