@@ -92,6 +92,7 @@ export class C2DEngineDocker extends C2DEngine {
     // let's build the env.   Swarm and k8 will build multiple envs, based on arhitecture
     const config = await getConfiguration()
     const envConfig = await this.getC2DConfig().connection
+    CORE_LOGGER.logMessage(`envConfig: ${JSON.stringify(envConfig)}`)
     let sysinfo = null
     try {
       sysinfo = await this.docker.info()
@@ -114,6 +115,9 @@ export class C2DEngineDocker extends C2DEngine {
         if (fees === null) fees = {}
         if (!(feeChain in fees)) fees[feeChain] = []
         fees[feeChain] = envConfig.fees[feeChain]
+        CORE_LOGGER.logMessage(
+          `feeChain: ${feeChain}, envConfig.fees: ${JSON.stringify(envConfig.fees)}`
+        )
       }
 
       /* for (const chain of Object.keys(config.supportedNetworks)) {
