@@ -63,7 +63,6 @@ describe('DdoDatabase CRUD', () => {
 
   before(async () => {
     database = await new Database(typesenseConfig)
-    await database.ddo.deleteAllAssetsFromChain(ddoWithInvalidDid.chainId)
   })
 
   it('creates ddo schema as an array', () => {
