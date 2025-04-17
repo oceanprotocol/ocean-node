@@ -307,7 +307,9 @@ export const processChunkLogs = async (
                 isAllowed = true // no rules for this specific chain, so ignore this
               }
               // move on to the next (do not process this event)
-              if (isAllowed === false) continue
+              if (isAllowed === false) {
+                continue
+              }
             } // end if (allowedValidatorsList) {
           } // end if if (checkMetadataValidated) {
         }

@@ -7,7 +7,6 @@ import { DEFAULT_TEST_TIMEOUT } from '../utils/utils.js'
 import { getDatabase } from '../../utils/database.js'
 import { DDO } from '../../@types/DDO/DDO.js'
 import { sleep } from '../../utils/util.js'
-
 // listen for indexer events
 export function addIndexerEventListener(eventName: string, ddoId: string, callback: any) {
   // add listener

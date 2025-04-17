@@ -17,7 +17,6 @@ import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { Blockchain } from '../../../utils/blockchain.js'
 import { ethers, isAddress } from 'ethers'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import AccessListContract from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
 // import lzma from 'lzma-native'
 import lzmajs from 'lzma-purejs-requirejs'
 import {
@@ -44,6 +43,7 @@ import {
   wasNFTDeployedByOurFactory
 } from '../../Indexer/utils.js'
 import { deleteIndexedMetadataIfExists, validateDDOHash } from '../../../utils/asset.js'
+import { checkCredentialOnAccessList } from '../../../utils/credentials.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -200,44 +200,25 @@ export class DecryptDdoHandler extends CommandHandler {
         }
       }
 
-      // access lit checks, needs blockchain connection
+      // access list checks, needs blockchain connection
       const { authorizedDecryptersList } = config
-      if (authorizedDecryptersList && Object.keys(authorizedDecryptersList).length > 0) {
-        // check accessList
-        const chainsListed = Object.keys(authorizedDecryptersList)
-        // check the access lists for this chain
-        if (chainsListed.length > 0 && chainsListed.includes(chainId)) {
-          let isAllowed = false
-          for (const accessListAddress of authorizedDecryptersList[chainId]) {
-            // instantiate contract and check balanceOf
-            const accessListContract = new ethers.Contract(
-              accessListAddress,
-              AccessListContract.abi,
-              blockchain.getSigner()
-            )
 
-            // check access list contract
-            const balance = await accessListContract.balanceOf(
-              await blockchain.getSigner().getAddress()
-            )
-            if (Number(balance) > 0) {
-              isAllowed = true
-              break
-            }
-          }
-
-          if (!isAllowed) {
-            CORE_LOGGER.logMessage(
-              'Decrypt DDO: Decrypter not authorized per access list',
-              true
-            )
-            return {
-              stream: null,
-              status: {
-                httpStatus: 403,
-                error: 'Decrypt DDO: Decrypter not authorized per access list'
-              }
-            }
+      const isAllowed = await checkCredentialOnAccessList(
+        authorizedDecryptersList,
+        chainId,
+        decrypterAddress,
+        signer
+      )
+      if (!isAllowed) {
+        CORE_LOGGER.logMessage(
+          'Decrypt DDO: Decrypter not authorized per access list',
+          true
+        )
+        return {
+          stream: null,
+          status: {
+            httpStatus: 403,
+            error: `Decrypt DDO: Decrypter ${decrypterAddress} not authorized per access list`
           }
         }
       }
@@ -282,6 +263,7 @@ export class DecryptDdoHandler extends CommandHandler {
         try {
           encryptedDocument = ethers.getBytes(task.encryptedDocument)
           flags = Number(task.flags)
+          // eslint-disable-next-line prefer-destructuring
           documentHash = task.documentHash
         } catch (error) {
           CORE_LOGGER.logMessage(`Decrypt DDO: error ${error}`, true)
