@@ -31,6 +31,7 @@ import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 // import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
+import { DDOManager } from '@oceanprotocol/ddo-js'
 import { getNonceAsNumber, checkNonce, NonceResponse } from '../utils/nonceHandler.js'
 import { createHash } from 'crypto'
 
@@ -171,8 +172,15 @@ export class PaidComputeStartHandler extends CommandHandler {
           }
 
           const config = await getConfiguration()
+          const ddoInstance = DDOManager.getDDOClass(ddo)
+          const {
+            chainId: ddoChainId,
+            services,
+            metadata,
+            nftAddress
+          } = ddoInstance.getDDOFields()
           const { rpc, network, chainId, fallbackRPCs } =
-            config.supportedNetworks[ddo.chainId]
+            config.supportedNetworks[ddoChainId]
           const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
           const { ready, error } = await blockchain.isNetworkReady()
           if (!ready) {
@@ -203,7 +211,7 @@ export class PaidComputeStartHandler extends CommandHandler {
                 service.datatokenAddress,
                 signer
               )
-              if (isTemplate4 && (await isERC20Template4Active(ddo.chainId, signer))) {
+              if (isTemplate4 && (await isERC20Template4Active(ddoChainId, signer))) {
                 // we need to get the proper data for the signature
                 const consumeData =
                   task.consumerAddress +
@@ -238,12 +246,12 @@ export class PaidComputeStartHandler extends CommandHandler {
               }
             }
           }
-          if (ddo.metadata.type !== 'algorithm') {
+          if (metadata.type !== 'algorithm') {
             const validAlgoForDataset = await validateAlgoForDataset(
               task.algorithm.documentId,
               algoChecksums,
-              ddo,
-              ddo.services[0].id,
+              ddoInstance,
+              services[0].id,
               node
             )
             if (!validAlgoForDataset) {
@@ -251,7 +259,9 @@ export class PaidComputeStartHandler extends CommandHandler {
                 stream: null,
                 status: {
                   httpStatus: 400,
-                  error: `Algorithm ${task.algorithm.documentId} not allowed to run on the dataset: ${ddo.id}`
+                  error: `Algorithm ${
+                    task.algorithm.documentId
+                  } not allowed to run on the dataset: ${ddoInstance.getDid()}`
                 }
               }
             }
@@ -259,7 +269,7 @@ export class PaidComputeStartHandler extends CommandHandler {
 
           const provider = blockchain.getProvider()
           result.datatoken = service.datatokenAddress
-          result.chainId = ddo.chainId
+          result.chainId = ddoChainId
 
           if (!('transferTxId' in elem) || !elem.transferTxId) {
             const error = `Missing transferTxId for DDO ${elem.documentId}`
@@ -277,7 +287,7 @@ export class PaidComputeStartHandler extends CommandHandler {
             elem.transferTxId,
             env.consumerAddress,
             provider,
-            ddo.nftAddress,
+            nftAddress,
             service.datatokenAddress,
             AssetUtils.getServiceIndexById(ddo, service.id),
             service.timeout,
@@ -299,12 +309,9 @@ export class PaidComputeStartHandler extends CommandHandler {
             const { entrypoint, image, tag, checksum } = ddo.metadata.algorithm.container
             const container = { entrypoint, image, tag, checksum }
             algorithm.meta = {
-              language: ddo.metadata.algorithm.language,
-              version: ddo.metadata.algorithm.version,
+              language: metadata.algorithm.language,
+              version: metadata.algorithm.version,
               container
-            }
-            if ('format' in ddo.metadata.algorithm) {
-              algorithm.meta.format = ddo.metadata.algorithm.format
             }
           }
         }

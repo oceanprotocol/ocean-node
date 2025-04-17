@@ -32,7 +32,9 @@ import { CommandStatus, JobStatus } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
-import { ServicePrice } from '../../@types/DDO/IndexedMetadata.js'
+import { createHash } from 'crypto'
+import { ServicePrice } from '../../@types/IndexedMetadata.js'
+import { VersionedDDO } from '@oceanprotocol/ddo-js'
 
 let metadataEventProccessor: MetadataEventProcessor
 let metadataStateEventProcessor: MetadataStateEventProcessor
@@ -501,8 +503,11 @@ export function buildJobIdentifier(command: string, extra: string[]): JobStatus 
   }
 }
 
-export function findServiceIdByDatatoken(ddo: any, datatokenAddress: string): string {
-  for (const s of ddo.services) {
+export function findServiceIdByDatatoken(
+  ddo: VersionedDDO,
+  datatokenAddress: string
+): string {
+  for (const s of ddo.getDDOFields().services) {
     if (s.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase()) {
       return s.id
     }
@@ -609,15 +614,21 @@ export async function getPricesByDt(
   return prices
 }
 
-export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<any> {
-  if (!ddo.indexedMetadata) {
-    ddo.indexedMetadata = {}
+export async function getPricingStatsForDddo(
+  ddo: VersionedDDO,
+  signer: Signer
+): Promise<VersionedDDO> {
+  if (!ddo.getAssetFields().indexedMetadata) {
+    ddo.getDDOData().indexedMetadata = {}
   }
 
-  if (!Array.isArray(ddo.indexedMetadata.stats)) {
-    ddo.indexedMetadata.stats = []
+  if (!Array.isArray(ddo.getAssetFields().indexedMetadata.stats)) {
+    ddo.getDDOData().indexedMetadata.stats = []
   }
-  for (const service of ddo.services) {
+
+  const stats = ddo.getAssetFields().indexedMetadata?.stats || []
+
+  for (const service of ddo.getDDOFields().services) {
     const datatoken = new ethers.Contract(
       service.datatokenAddress,
       ERC20Template.abi,
@@ -639,9 +650,10 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
       )
     }
     if (dispensers.length === 0 && fixedRates.length === 0) {
-      ddo.indexedMetadata.stats.push({
+      stats.push({
         datatokenAddress: service.datatokenAddress,
         name: await datatoken.name(),
+        symbol: await datatoken.symbol(),
         serviceId: service.id,
         orders: 0,
         prices: []
@@ -661,9 +673,10 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
                 contract: dispenser,
                 token: service.datatokenAddress
               })
-              ddo.indexedMetadata.stats.push({
+              stats.push({
                 datatokenAddress: service.datatokenAddress,
                 name: await datatoken.name(),
+                symbol: await datatoken.symbol(),
                 serviceId: service.id,
                 orders: 0,
                 prices
@@ -696,9 +709,10 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
               contract: fixedRate[0],
               exchangeId: fixedRate[1]
             })
-            ddo.indexedMetadata.stats.push({
+            stats.push({
               datatokenAddress: service.datatokenAddress,
               name: await datatoken.name(),
+              symbol: await datatoken.symbol(),
               serviceId: service.id,
               orders: 0, // just created
               prices
@@ -712,5 +726,16 @@ export async function getPricingStatsForDddo(ddo: any, signer: Signer): Promise<
       }
     }
   }
+
+  ddo.updateFields({ indexedMetadata: { stats } })
   return ddo
+}
+
+export function getDid(nftAddress: string, chainId: number): string {
+  return (
+    'did:op:' +
+    createHash('sha256')
+      .update(getAddress(nftAddress) + chainId.toString(10))
+      .digest('hex')
+  )
 }

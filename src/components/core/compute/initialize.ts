@@ -30,6 +30,7 @@ import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { C2DEngineDocker, getAlgorithmImage } from '../../c2d/compute_engine_docker.js'
+import { DDOManager } from '@oceanprotocol/ddo-js'
 
 export class ComputeInitializeHandler extends CommandHandler {
   validate(command: ComputeInitializeCommand): ValidateParams {
@@ -177,7 +178,6 @@ export class ComputeInitializeHandler extends CommandHandler {
 
       // check algo
       let index = 0
-      const config = await getConfiguration()
       for (const elem of [...[task.algorithm], ...task.datasets]) {
         const result: any = { validOrder: false }
         if ('documentId' in elem && elem.documentId) {
@@ -217,8 +217,11 @@ export class ComputeInitializeHandler extends CommandHandler {
             }
           }
 
+          const ddoInstance = DDOManager.getDDOClass(ddo)
+          const { chainId: ddoChainId, nftAddress } = ddoInstance.getDDOFields()
+          const config = await getConfiguration()
           const { rpc, network, chainId, fallbackRPCs } =
-            config.supportedNetworks[ddo.chainId]
+            config.supportedNetworks[ddoChainId]
           const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)
           const { ready, error } = await blockchain.isNetworkReady()
           if (!ready) {
@@ -283,7 +286,7 @@ export class ComputeInitializeHandler extends CommandHandler {
                   CORE_LOGGER.error(
                     'Could not decrypt ddo files on template 4, missing consumer signature!'
                   )
-                } else if (await isERC20Template4Active(ddo.chainId, signer)) {
+                } else if (await isERC20Template4Active(ddoChainId, signer)) {
                   // we need to get the proper data for the signature
                   const consumeData =
                     task.consumerAddress +
@@ -326,7 +329,7 @@ export class ComputeInitializeHandler extends CommandHandler {
 
           const provider = blockchain.getProvider()
           result.datatoken = service.datatokenAddress
-          result.chainId = ddo.chainId
+          result.chainId = ddoChainId
           // start with assumption than we need new providerfees
           let validFee = {
             isValid: false,
@@ -339,7 +342,7 @@ export class ComputeInitializeHandler extends CommandHandler {
               elem.transferTxId,
               env.consumerAddress,
               provider,
-              ddo.nftAddress,
+              nftAddress,
               service.datatokenAddress,
               AssetUtils.getServiceIndexById(ddo, service.id),
               service.timeout,

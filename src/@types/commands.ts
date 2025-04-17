@@ -1,6 +1,6 @@
 import { ValidateParams } from '../components/httpRoutes/validateCommands.js'
-import { DDO } from './DDO/DDO'
 import { P2PCommandResponse } from './OceanNode'
+import { DDO } from '@oceanprotocol/ddo-js'
 import type {
   ComputeAsset,
   ComputeAlgorithm,

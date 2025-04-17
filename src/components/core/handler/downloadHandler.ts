@@ -20,7 +20,6 @@ import {
   isDataTokenTemplate4,
   isERC20Template4Active
 } from '../../../utils/asset.js'
-import { Service } from '../../../@types/DDO/Service.js'
 import { ArweaveStorage, IpfsStorage, Storage } from '../../storage/index.js'
 import {
   Blockchain,
@@ -38,13 +37,13 @@ import {
   validateCommandParameters,
   ValidateParams
 } from '../../httpRoutes/validateCommands.js'
-import { DDO } from '../../../@types/DDO/DDO.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { OrdableAssetResponse } from '../../../@types/Asset.js'
 import { PolicyServer } from '../../policyServer/index.js'
+import { Asset, DDO, Service } from '@oceanprotocol/ddo-js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
-export function isOrderingAllowedForAsset(asset: DDO): OrdableAssetResponse {
+export function isOrderingAllowedForAsset(asset: Asset): OrdableAssetResponse {
   if (!asset) {
     return {
       isOrdable: false,
@@ -371,7 +370,7 @@ export class DownloadHandler extends CommandHandler {
         }
       }
     }
-    let service: Service = AssetUtils.getServiceById(ddo, task.serviceId)
+    let service = AssetUtils.getServiceById(ddo, task.serviceId)
     if (!service) service = AssetUtils.getServiceByIndex(ddo, Number(task.serviceId))
     if (!service) throw new Error('Cannot find service')
 

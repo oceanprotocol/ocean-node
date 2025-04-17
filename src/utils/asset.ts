@@ -1,6 +1,5 @@
 import axios from 'axios'
-import { DDO } from '../@types/DDO/DDO'
-import { Service } from '../@types/DDO/Service'
+import { Service, DDOManager, DDO } from '@oceanprotocol/ddo-js'
 import { DDO_IDENTIFIER_PREFIX } from './constants.js'
 import { CORE_LOGGER } from './logging/common.js'
 import { createHash } from 'crypto'
@@ -15,20 +14,29 @@ import { getContractAddress, getNFTFactory } from '../components/Indexer/utils.j
 // this is an utility to extract information from the Asset services
 export const AssetUtils = {
   getServiceIndexById(asset: DDO, id: string): number | null {
-    for (let c = 0; c < asset.services.length; c++)
-      if (asset.services[c].id === id) return c
+    const ddoInstance = DDOManager.getDDOClass(asset)
+    const { services } = ddoInstance.getDDOFields()
+
+    for (let c = 0; c < services.length; c++) if (services[c].id === id) return c
     return null
   },
-  getServiceByIndex(asset: DDO, index: number): Service | null {
-    if (index >= 0 && index < asset.services.length) {
-      return asset.services[index]
+  getServiceByIndex(asset: DDO, index: number) {
+    const ddoInstance = DDOManager.getDDOClass(asset)
+    const { services } = ddoInstance.getDDOFields()
+
+    if (index >= 0 && index < services.length) {
+      return services[index] as Service
     }
     return null
   },
 
-  getServiceById(asset: DDO, id: string): Service | null {
-    const services = asset.services.filter((service: Service) => service.id === id)
-    return services.length ? services[0] : null
+  getServiceById(asset: DDO, id: string) {
+    const ddoInstance = DDOManager.getDDOClass(asset)
+    const { services } = ddoInstance.getDDOFields() as any
+
+    const filteredServices = services.filter((service: any) => service.id === id)
+
+    return filteredServices.length ? filteredServices[0] : null
   }
 }
 
@@ -91,10 +99,8 @@ export function validateDDOHash(
   return ddoID === hashAddressAndChain
 }
 
-export function deleteIndexedMetadataIfExists(
-  ddo: Record<string, any>
-): Record<string, any> {
-  const ddoCopy: Record<string, any> = structuredClone(ddo)
+export function deleteIndexedMetadataIfExists(ddo: DDO): DDO {
+  const ddoCopy: DDO = structuredClone(ddo)
   if ('indexedMetadata' in ddoCopy) {
     delete ddoCopy.indexedMetadata
     return ddoCopy
