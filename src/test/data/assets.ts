@@ -1,4 +1,4 @@
-import { Credentials } from '../../@types/DDO/Credentials'
+import { Credentials } from '@oceanprotocol/ddo-js'
 
 export const downloadAsset = {
   '@context': ['https://w3id.org/did/v1'],
@@ -79,6 +79,7 @@ const nftLevelCredentials: Credentials = {
 }
 
 const serviceLevelCredentials: Credentials = {
+  allow: [],
   deny: [
     {
       type: 'address',

@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 'v20.16.0'
+          node-version: 'v20.19.0'
       - name: Cache node_modules
         uses: actions/cache@v3
         env:
@@ -42,7 +42,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        node: ['18.20.4', 'v20.16.0', 'v22.5.1']
+        node: ['18.20.4', 'v20.19.0', 'v22.5.1']
 
     steps:
       - uses: actions/checkout@v4
@@ -66,7 +66,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 'v20.16.0'
+          node-version: 'v20.19.0'
       - name: Cache node_modules
         uses: actions/cache@v3
         env:
@@ -100,7 +100,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 'v20.16.0'
+          node-version: 'v20.19.0'
       - name: Cache node_modules
         uses: actions/cache@v3
         env:
@@ -180,7 +180,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 'v20.16.0'
+          node-version: 'v20.19.0'
 
       - name: Cache node_modules
         uses: actions/cache@v3
@@ -293,21 +293,21 @@ jobs:
         env:
           AVOID_LOOP_RUN: true
 
-  dashboard_build:
+  control_panel_build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 'v20.16.0'
+          node-version: 'v20.19.0'
       - name: Cache node_modules
         uses: actions/cache@v3
         env:
           cache-name: cache-node-modules
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-dashboard-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: ${{ runner.os }}-dashboard-${{ env.cache-name }}-
+          key: ${{ runner.os }}-control-panel-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-control-panel-${{ env.cache-name }}-
       - run: npm ci
-      - name: Run dashboard build test
-        run: npm run test:dashboard
+      - name: Build control panel
+        run: npm run build:controlpanel

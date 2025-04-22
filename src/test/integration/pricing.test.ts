@@ -39,6 +39,7 @@ import { OceanNode } from '../../OceanNode.js'
 import { getConfiguration } from '../../utils/config.js'
 import { encrypt } from '../../utils/crypt.js'
 import { EncryptMethod } from '../../@types/fileObject.js'
+import { Asset } from '@oceanprotocol/ddo-js'
 
 describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () => {
   let database: Database
@@ -54,7 +55,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
   let dispenserContract: ethers.Contract
   const chainId = 8996
   let assetDID: string
-  let resolvedDDO: Record<string, any> = {}
+  let resolvedDDO: Asset
   let genericAsset: any
   let setMetaDataTxReceipt: any
   let indexer: OceanIndexer

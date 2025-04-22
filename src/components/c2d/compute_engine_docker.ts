@@ -39,10 +39,10 @@ import { generateUniqueID } from '../database/sqliteCompute.js'
 import { AssetUtils } from '../../utils/asset.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
-import { Service } from '../../@types/DDO/Service.js'
 import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.js'
 import * as drc from 'docker-registry-client'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
+import { Service } from '@oceanprotocol/ddo-js'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []

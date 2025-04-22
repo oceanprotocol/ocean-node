@@ -1,5 +1,5 @@
-# Dahsboard
-dashboard/.env
+# Control panel
+controlpanel/.env
 
 # Docker compose
 **/docker-compose.yml
@@ -97,7 +97,7 @@ out
 .nuxt
 
 /dist/*
-!/dist/dashboard
+!/dist/controlpanel
 
 # Gatsby files
 .cache/

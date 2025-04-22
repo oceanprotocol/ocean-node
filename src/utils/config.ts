@@ -803,7 +803,9 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       autoDialInterval: getIntEnvValue(process.env.P2P_AUTODIALINTERVAL, 5000),
       enableNetworkStats: getBoolEnvValue('P2P_ENABLE_NETWORK_STATS', false)
     },
-    hasDashboard: process.env.DASHBOARD !== 'false',
+    // keep this for backwards compatibility for now
+    hasControlPanel:
+      process.env.CONTROL_PANEL !== 'false' || process.env.DASHBOARD !== 'false',
     httpPort: getIntEnvValue(process.env.HTTP_API_PORT, 8000),
     dbConfig: {
       url: getEnvValue(process.env.DB_URL, ''),

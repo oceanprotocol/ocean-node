@@ -13,8 +13,7 @@ import {
   ProviderFeeValidation,
   ProviderFees
 } from '../../../@types/Fees'
-import { DDO } from '../../../@types/DDO/DDO'
-import { Service } from '../../../@types/DDO/Service'
+import { Service, DDOManager, Asset } from '@oceanprotocol/ddo-js'
 import {
   getDatatokenDecimals,
   verifyMessage,
@@ -52,7 +51,7 @@ async function calculateProviderFeeAmount(
 }
 
 export async function createProviderFee(
-  asset: DDO,
+  asset: Asset,
   service: Service,
   validUntil: number
 ): Promise<ProviderFees> | undefined {
@@ -63,8 +62,9 @@ export async function createProviderFee(
     dt: service.datatokenAddress,
     id: service.id
   }
-  const providerWallet = await getProviderWallet(String(asset.chainId))
-
+  const ddoInstance = DDOManager.getDDOClass(asset)
+  const { chainId: assetChainId } = ddoInstance.getDDOFields()
+  const providerWallet = await getProviderWallet(String(assetChainId))
   const providerFeeAddress: string = providerWallet.address
   let providerFeeAmount: number
   let providerFeeAmountFormatted: BigNumberish
@@ -79,7 +79,7 @@ export async function createProviderFee(
   }
 
   if (providerFeeToken && providerFeeToken?.toLowerCase() !== ZeroAddress) {
-    const provider = await getJsonRpcProvider(asset.chainId)
+    const provider = await getJsonRpcProvider(assetChainId)
     const decimals = await getDatatokenDecimals(providerFeeToken, provider)
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
   } else {
@@ -218,7 +218,7 @@ export async function verifyProviderFees(
 // equiv to get_provider_fees
 // *** NOTE: provider.py => get_provider_fees ***
 export async function createFee(
-  asset: DDO,
+  asset: Asset,
   validUntil: number,
   computeEnv: string,
   service: Service

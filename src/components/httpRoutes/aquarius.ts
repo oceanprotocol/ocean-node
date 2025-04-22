@@ -6,11 +6,11 @@ import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
 import { FindDdoHandler, ValidateDDOHandler } from '../core/handler/ddoHandler.js'
 import { QueryDdoStateHandler, QueryHandler } from '../core/handler/queryHandler.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
-import { DDO } from '../../@types/DDO/DDO.js'
 import { QueryCommand } from '../../@types/commands.js'
 import { DatabaseFactory } from '../database/DatabaseFactory.js'
 import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
 import { getConfiguration } from '../../utils/index.js'
+import { DDO } from '@oceanprotocol/ddo-js'
 
 export const aquariusRoutes = express.Router()
 

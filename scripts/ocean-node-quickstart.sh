@@ -182,7 +182,7 @@ services:
       ALLOWED_ADMINS: '["$ALLOWED_ADMINS"]'
 #      ALLOWED_ADMINS_LIST: ''
 #      INDEXER_INTERVAL: ''
-      DASHBOARD: 'true'
+      CONTROL_PANEL: 'true'
 #      RATE_DENY_LIST: ''
 #      MAX_REQ_PER_MINUTE: ''
 #      MAX_CONNECTIONS_PER_MINUTE: ''
