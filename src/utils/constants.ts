@@ -18,8 +18,10 @@ export const PROTOCOL_COMMANDS = {
   VALIDATE_DDO: 'validateDDO',
   COMPUTE_GET_ENVIRONMENTS: 'getComputeEnvironments',
   COMPUTE_START: 'startCompute',
+  FREE_COMPUTE_START: 'freeStartCompute',
   COMPUTE_STOP: 'stopCompute',
   COMPUTE_GET_STATUS: 'getComputeStatus',
+  COMPUTE_GET_STREAMABLE_LOGS: 'getComputeStreamableLogs',
   COMPUTE_GET_RESULT: 'getComputeResult',
   COMPUTE_INITIALIZE: 'initializeCompute',
   STOP_NODE: 'stopNode',
@@ -50,9 +52,11 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.VALIDATE_DDO,
   PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS,
   PROTOCOL_COMMANDS.COMPUTE_START,
+  PROTOCOL_COMMANDS.FREE_COMPUTE_START,
   PROTOCOL_COMMANDS.COMPUTE_STOP,
   PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
   PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
+  PROTOCOL_COMMANDS.COMPUTE_GET_STREAMABLE_LOGS,
   PROTOCOL_COMMANDS.COMPUTE_INITIALIZE,
   PROTOCOL_COMMANDS.STOP_NODE,
   PROTOCOL_COMMANDS.REINDEX_TX,
@@ -287,6 +291,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.ALLOWED_ADMINS,
     required: false
   },
+  ALLOWED_ADMINS_LIST: {
+    name: 'ALLOWED_ADMINS_LIST',
+    value: process.env.ALLOWED_ADMINS_LIST,
+    required: false
+  },
   ASSET_PURGATORY_URL: {
     name: 'ASSET_PURGATORY_URL',
     value: process.env.ASSET_PURGATORY_URL,
@@ -297,9 +306,10 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     value: process.env.ACCOUNT_PURGATORY_URL,
     required: false
   },
-  DASHBOARD: {
-    name: 'DASHBOARD',
-    value: process.env.DASHBOARD,
+  CONTROL_PANEL: {
+    name: 'CONTROL_PANEL',
+    // keep this for backwards compatibility for now
+    value: process.env.CONTROL_PANEL || process.env.DASHBOARD,
     required: false
   },
   MAX_REQ_PER_MINUTE: {
@@ -358,6 +368,56 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   DB_TYPE: {
     name: 'DB_TYPE',
     value: process.env.DB_TYPE,
+    required: false
+  },
+  CRON_DELETE_DB_LOGS: {
+    name: 'CRON_DELETE_DB_LOGS',
+    value: process.env.CRON_DELETE_DB_LOGS,
+    required: false
+  },
+  CRON_CLEANUP_C2D_STORAGE: {
+    name: 'CRON_CLEANUP_C2D_STORAGE',
+    value: process.env.CRON_CLEANUP_C2D_STORAGE,
+    required: false
+  },
+  DOCKER_COMPUTE_ENVIRONMENTS: {
+    name: 'DOCKER_COMPUTE_ENVIRONMENTS',
+    value: process.env.DOCKER_COMPUTE_ENVIRONMENTS,
+    required: false
+  },
+  DOCKER_SOCKET_PATH: {
+    name: 'DOCKER_SOCKET_PATH',
+    value: process.env.DOCKER_SOCKET_PATH,
+    required: false
+  },
+  DOCKER_PROTOCOL: {
+    name: 'DOCKER_PROTOCOL',
+    value: process.env.DOCKER_PROTOCOL,
+    required: false
+  },
+  DOCKER_HOST: {
+    name: 'DOCKER_HOST',
+    value: process.env.DOCKER_HOST,
+    required: false
+  },
+  DOCKER_PORT: {
+    name: 'DOCKER_PORT',
+    value: process.env.DOCKER_PORT,
+    required: false
+  },
+  DOCKER_CA_PATH: {
+    name: 'DOCKER_CA_PATH',
+    value: process.env.DOCKER_CA_PATH,
+    required: false
+  },
+  DOCKER_CERT_PATH: {
+    name: 'DOCKER_CERT_PATH',
+    value: process.env.DOCKER_CERT_PATH,
+    required: false
+  },
+  DOCKER_KEY_PATH: {
+    name: 'DOCKER_KEY_PATH',
+    value: process.env.DOCKER_KEY_PATH,
     required: false
   },
   IS_BOOTSTRAP: {

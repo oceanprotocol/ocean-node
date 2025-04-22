@@ -27,7 +27,8 @@ import {
   ENVIRONMENT_VARIABLES,
   EVENTS,
   PROTOCOL_COMMANDS,
-  getConfiguration
+  getConfiguration,
+  printCurrentConfig
 } from '../../utils/index.js'
 import { DownloadHandler } from '../../components/core/handler/downloadHandler.js'
 import { GetDdoHandler } from '../../components/core/handler/ddoHandler.js'
@@ -79,6 +80,9 @@ describe('Should run a complete node flow.', () => {
   let signer: Signer
 
   before(async () => {
+    provider = new JsonRpcProvider('http://127.0.0.1:8545')
+    publisherAccount = (await provider.getSigner(0)) as Signer
+
     // override and save configuration (always before calling getConfig())
     previousConfiguration = await setupEnvironment(
       TEST_ENV_CONFIG_FILE,
@@ -89,6 +93,7 @@ describe('Should run a complete node flow.', () => {
           ENVIRONMENT_VARIABLES.PRIVATE_KEY,
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
+          ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS,
           ENVIRONMENT_VARIABLES.ADDRESS_FILE
         ],
         [
@@ -97,6 +102,9 @@ describe('Should run a complete node flow.', () => {
           '0xc594c6e5def4bab63ac29eed19a134c130388f74f019bc74b8f4389df2837a58',
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
           JSON.stringify(['0xe2DD09d719Da89e5a3D0F2549c7E24566e947260']),
+          JSON.stringify([
+            await publisherAccount.getAddress() // signer 0
+          ]),
           `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
         ]
       )
@@ -104,7 +112,7 @@ describe('Should run a complete node flow.', () => {
 
     config = await getConfiguration(true) // Force reload the configuration
     const database = await new Database(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(database)
+    oceanNode = await OceanNode.getInstance(config, database)
     const indexer = new OceanIndexer(database, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
 
@@ -117,9 +125,6 @@ describe('Should run a complete node flow.', () => {
       chain.fallbackRPCs
     )
 
-    provider = new JsonRpcProvider('http://127.0.0.1:8545')
-
-    publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccounts = [
       (await provider.getSigner(1)) as Signer,
       (await provider.getSigner(2)) as Signer,
@@ -229,7 +234,7 @@ describe('Should run a complete node flow.', () => {
       const transferTxId = orderTxIds[0]
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
-      const nonce = Math.floor(Date.now() / 1000).toString()
+      const nonce = Date.now().toString()
       const message = String(ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
@@ -271,7 +276,7 @@ describe('Should run a complete node flow.', () => {
       const transferTxId = orderTxIds[1]
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
-      const nonce = Math.floor(Date.now() / 1000).toString()
+      const nonce = Date.now().toString()
       const message = String(ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
@@ -312,7 +317,7 @@ describe('Should run a complete node flow.', () => {
       const transferTxId = orderTxIds[1]
 
       const wallet = new ethers.Wallet(consumerPrivateKey)
-      const nonce = Math.floor(Date.now() / 1000).toString()
+      const nonce = Date.now().toString()
       const message = String(ddo.id + nonce)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
@@ -342,6 +347,33 @@ describe('Should run a complete node flow.', () => {
     }, DEFAULT_TEST_TIMEOUT * 3)
 
     await doCheck()
+  })
+
+  it('should NOT allow to index the asset because address is not on AUTHORIZED_PUBLISHERS', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 2)
+    // this is not authorized
+    const nonAuthorizedAccount = (await provider.getSigner(4)) as Signer
+    const authorizedAccount = await publisherAccount.getAddress()
+
+    printCurrentConfig()
+    expect(
+      config.authorizedPublishers.length === 1 &&
+        config.authorizedPublishers[0] === authorizedAccount,
+      'Unable to set AUTHORIZED_PUBLISHERS'
+    )
+
+    const publishedDataset = await publishAsset(
+      downloadAssetWithCredentials,
+      nonAuthorizedAccount
+    )
+
+    // will timeout
+    const { ddo, wasTimeout } = await waitToIndex(
+      publishedDataset?.ddo.id,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT
+    )
+    assert(ddo === null && wasTimeout === true, 'DDO should NOT have been indexed')
   })
 
   after(async () => {

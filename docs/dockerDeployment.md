@@ -62,6 +62,23 @@ CONTAINER ID   IMAGE                             COMMAND                  CREATE
 858a59502302   typesense/typesense:26.0          "/opt/typesense-serv…"   17 seconds ago   Up 10 seconds   0.0.0.0:8108->8108/tcp, :::8108->8108/tcp                                                                  typesense
 ```
 
+## Upgrade Ocean Node
+
+Ocean Node container image is updated regularly. To upgrade to the latest version, run the following script. Required updated will be notified through our communication channels.
+
+```shell
+$ ./scripts/ocean-node-update.sh
+```
+
+If script is not executed you can change permissions and execute it.
+
+```shell
+$ chmod +x scripts/ocean-node-update.sh
+$ ./scripts/ocean-node-update.sh
+```
+
+---
+
 Additional notes:
 
 - the docker compose file generated will have the following format. For all available configurations, refer to the [Environment Variables](https://github.com/oceanprotocol/ocean-node/blob/main/docs/env.md) documentation
@@ -98,7 +115,7 @@ services:
       #      INDEXER_NETWORKS: '[]'
       ALLOWED_ADMINS: '["<<redacted>>"]'
       #      INDEXER_INTERVAL: ''
-      DASHBOARD: 'true'
+      CONTROL_PANEL: 'true'
       #      RATE_DENY_LIST: ''
       #      MAX_REQ_PER_MINUTE: ''
       #      MAX_CHECKSUM_LENGTH: ''

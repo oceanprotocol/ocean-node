@@ -1,6 +1,6 @@
 import { Stream } from 'stream'
 import { RPCS } from './blockchain'
-import { C2DClusterInfo } from './C2D'
+import { C2DClusterInfo } from './C2D/C2D'
 import { FeeStrategy } from './Fees'
 import { Schema } from '../components/database'
 
@@ -80,6 +80,7 @@ export interface OceanNodeDockerConfig {
 export interface AccessListContract {
   [chainId: string]: string[]
 }
+
 export interface OceanNodeConfig {
   authorizedDecrypters: string[]
   authorizedDecryptersList: AccessListContract | null
@@ -92,18 +93,19 @@ export interface OceanNodeConfig {
   p2pConfig: OceanNodeP2PConfig | null
   hasIndexer: boolean
   hasHttp: boolean
-  hasDashboard: boolean
+  hasControlPanel: boolean
   dbConfig?: OceanNodeDBConfig
   httpPort: number
   feeStrategy: FeeStrategy
   supportedNetworks?: RPCS
+  claimDurationTimeout: number
   indexingNetworks?: RPCS
   c2dClusters: C2DClusterInfo[]
   c2dNodeUri: string
-  dockerConfig?: OceanNodeDockerConfig
   accountPurgatoryUrl: string
   assetPurgatoryUrl: string
   allowedAdmins?: string[]
+  allowedAdminsList?: AccessListContract | null
   codeHash?: string
   rateLimit?: number // per request ip or peer
   maxConnections?: number // global, regardless of client address(es)
@@ -154,7 +156,7 @@ export interface OceanNodeStatus {
   codeHash?: string
   allowedAdmins?: string[]
   // detailed information
-  c2dClusters?: C2DClusterInfo[]
+  c2dClusters?: any[]
   supportedSchemas?: Schema[]
 }
 

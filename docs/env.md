@@ -23,7 +23,8 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `INDEXER_INTERVAL`: Sets the interval in milliseconds for the indexer to crawl. The default is 30 seconds if not set. Example: `10000`
 - `INDEXER_NETWORKS`: Specifies the networks the Indexer will crawl. If not set, the Indexer will index all networks defined in the RPCS environment variable. If set to an empty string, indexing will be disabled. Example: `[1, 137]`
 - `ALLOWED_ADMINS`: Sets the public address of accounts which have access to admin endpoints e.g. shutting down the node. Example: `"[\"0x967da4048cD07aB37855c090aAF366e4ce1b9F48\",\"0x388C818CA8B9251b393131C08a736A67ccB19297\"]"`
-- `DASHBOARD`: If `false` the dashboard will not run. If not set or `true` the dashboard will start with the node. Example: `false`
+- `ALLOWED_ADMINS_LIST`: Array of access list addresses (per chain) for accounts that have access to admin endpoints. Example: `"{ \"8996\": [\"0x123\",\"0x456\"]"`
+- `CONTROL_PANEL`: If `false` the control panel will not run. If not set or `true` the control panel will start with the node. Example: `false`
 - `RATE_DENY_LIST`: Blocked list of IPs and peer IDs. Example: `"{ \"peers\": [\"16Uiu2HAkuYfgjXoGcSSLSpRPD6XtUgV71t5RqmTmcqdbmrWY9MJo\"], \"ips\": [\"127.0.0.1\"] }"`
 - `MAX_REQ_PER_MINUTE`: Number of requests per minute allowed by the same client (IP or Peer id). Example: `30`
 - `MAX_CONNECTIONS_PER_MINUTE`: Max number of requests allowed per minute (all clients). Example: `120`
@@ -31,6 +32,10 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `IS_BOOTSTRAP`: Is this node to be used as bootstrap node or not. Default is `false`.
 - `AUTHORIZED_PUBLISHERS`: Authorized list of publishers. If present, Node will only index assets published by the accounts in the list. Example: `"[\"0x967da4048cD07aB37855c090aAF366e4ce1b9F48\",\"0x388C818CA8B9251b393131C08a736A67ccB19297\"]"`
 - `AUTHORIZED_PUBLISHERS_LIST`: AccessList contract addresses (per chain). If present, Node will only index assets published by the accounts present on the given access lists. Example: `"{ \"8996\": [\"0x967da4048cD07aB37855c090aAF366e4ce1b9F48\",\"0x388C818CA8B9251b393131C08a736A67ccB19297\"] }"`
+
+## Payments
+
+- `ESCROW_CLAIM_TIMEOUT`: Amount of time reserved to claim a escrow payment, in seconds. Defaults to `600`. Example: `600`
 
 ## Logs
 
@@ -89,3 +94,87 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 
 - `NODE1_PRIVATE_KEY`: Used on test environments, specifically CI, represents the private key for node 1. Example: `"0xfd5c1ccea015b6d663618850824154a3b3fb2882c46cefb05b9a93fea8c3d215"`
 - `NODE2_PRIVATE_KEY`: Used on test environments, specifically CI, represents the private key for node 2. Example: `"0x1263dc73bef43a9da06149c7e598f52025bf4027f1d6c13896b71e81bb9233fb"`
+
+## Cron Jobs
+
+- `CRON_DELETE_DB_LOGS`: Delete old logs from database Cron expression. Example: `0 0 * * *` (runs every day at midnight)
+- `CRON_CLEANUP_C2D_STORAGE`: Clear c2d expired resources/storage and delete old jobs. Example: `*/5 * * * *` (runs every 5 minutes)
+
+## Compute
+
+The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable is used to configure Docker-based compute environments in Ocean Node. This guide will walk you through the options available for defining `DOCKER_COMPUTE_ENVIRONMENTS` and how to set it up correctly.
+
+Example Configuration
+The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of objects, where each object represents a Docker compute environment configuration. Below is an example configuration:
+
+```json
+[
+  {
+    "socketPath": "/var/run/docker.sock",
+    "resources": [
+      {
+        "id": "disk",
+        "total": 1000000000
+      }
+    ],
+    "storageExpiry": 604800,
+    "maxJobDuration": 3600,
+    "fees": {
+      "1": [
+        {
+          "feeToken": "0x123",
+          "prices": [
+            {
+              "id": "cpu",
+              "price": 1
+            }
+          ]
+        }
+      ]
+    },
+    "free": {
+      "maxJobDuration": 60,
+      "maxJobs": 3,
+      "resources": [
+        {
+          "id": "cpu",
+          "max": 1
+        },
+        {
+          "id": "ram",
+          "max": 1000000000
+        },
+        {
+          "id": "disk",
+          "max": 1000000000
+        }
+      ]
+    }
+  }
+]
+```
+
+#### Configuration Options
+
+- **socketPath**: Path to the Docker socket (e.g., docker.sock).
+- **storageExpiry**: Amount of seconds for storage expiry.(Mandatory)
+- **maxJobDuration**: Maximum duration in seconds for a job.(Mandatory)
+- **fees**: Fee structure for the compute environment.
+  - **feeToken**: Token address for the fee.
+  - **prices**: Array of resource pricing information.
+    - **id**: Resource type (e.g., `cpu`, `ram`, `disk`).
+    - **price**: Price per unit of the resource.
+- **resources**: Array of resources available in the compute environment.
+  - **id**: Resource type (e.g., `cpu`, `ram`, `disk`).
+  - **total**: Total number of the resource available.
+  - **min**: Minimum number of the resource needed for a job.
+  - **max**: Maximum number of the resource for a job.
+- **free**: Optional configuration for free jobs.
+  - **storageExpiry**: Amount of seconds for storage expiry for free jobs.
+  - **maxJobDuration**: Maximum duration in seconds for a free job.
+  - **maxJobs**: Maximum number of simultaneous free jobs.
+  - **resources**: Array of resources available for free jobs.
+    - **id**: Resource type (e.g., `cpu`, `ram`, `disk`).
+    - **total**: Total number of the resource available.
+    - **min**: Minimum number of the resource needed for a job.
+    - **max**: Maximum number of the resource for a job.

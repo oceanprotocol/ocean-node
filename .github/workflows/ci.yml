@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 'v20.16.0'
+          node-version: 'v20.19.0'
       - name: Cache node_modules
         uses: actions/cache@v3
         env:
@@ -42,7 +42,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        node: ['18.20.4', 'v20.16.0', 'v22.5.1']
+        node: ['18.20.4', 'v20.19.0', 'v22.5.1']
 
     steps:
       - uses: actions/checkout@v4
@@ -66,7 +66,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 'v20.16.0'
+          node-version: 'v20.19.0'
       - name: Cache node_modules
         uses: actions/cache@v3
         env:
@@ -100,7 +100,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 'v20.16.0'
+          node-version: 'v20.19.0'
       - name: Cache node_modules
         uses: actions/cache@v3
         env:
@@ -125,28 +125,30 @@ jobs:
               DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
       - name: Run Barge
         working-directory: ${{ github.workspace }}/barge
+        env:
+          CONTRACTS_VERSION: escrow
         run: |
-          bash -x start_ocean.sh --no-aquarius --no-provider --no-dashboard --with-c2d --with-typesense 2>&1 > start_ocean.log &
+          bash -x start_ocean.sh --no-aquarius --no-provider --no-dashboard --with-typesense 2>&1 > start_ocean.log &
       - run: npm ci
       - run: npm run build
       - run: docker image ls
       - name: Delete default runner images
         run: |
           rm -rf /usr/share/swift/
-      - name: Wait for contracts deployment and C2D cluster to be ready
+      - name: Wait for contracts deployment
         working-directory: ${{ github.workspace }}/barge
         run: |
           for i in $(seq 1 250); do
-            sleep 10
-            [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" -a -f "$HOME/.ocean/ocean-c2d/ready" ] && break
+            sleep 5
+            [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" ] && break
             done
       - name: docker logs
-        run: docker logs ocean-ocean-contracts-1 && docker logs ocean-kindcluster-1 && docker logs ocean-computetodata-1 && docker logs ocean-typesense-1
+        run: docker logs ocean-ocean-contracts-1 && docker logs ocean-typesense-1
         if: ${{ failure() }}
       - name: integration tests
         run: npm run test:integration:cover
         env:
-          OPERATOR_SERVICE_URL: '["http://172.15.0.13:31000"]'
+          # OPERATOR_SERVICE_URL: '["http://172.15.0.13:31000"]'
           PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
           NODE1_PRIVATE_KEY: ${{ secrets.NODE1_PRIVATE_KEY }}
           NODE2_PRIVATE_KEY: ${{ secrets.NODE2_PRIVATE_KEY }}
@@ -178,7 +180,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 'v20.16.0'
+          node-version: 'v20.19.0'
 
       - name: Cache node_modules
         uses: actions/cache@v3
@@ -210,8 +212,9 @@ jobs:
       - name: Run Barge
         working-directory: ${{ github.workspace }}/barge
         run: |
-          bash -x start_ocean.sh --no-aquarius --no-provider --no-dashboard --with-c2d --with-typesense 2>&1 > start_ocean.log &
-
+          bash -x start_ocean.sh --no-aquarius --no-provider --no-dashboard --with-typesense 2>&1 > start_ocean.log &
+        env:
+          CONTRACTS_VERSION: escrow
       - run: npm ci
       - run: npm run build
       - run: docker image ls
@@ -224,7 +227,7 @@ jobs:
         run: |
           for i in $(seq 1 250); do
             sleep 10
-            [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" -a -f "$HOME/.ocean/ocean-c2d/ready" ] && break
+            [ -f "$HOME/.ocean/ocean-contracts/artifacts/ready" ] && break
           done
 
       - name: docker logs
@@ -287,22 +290,24 @@ jobs:
       - name: Run system tests
         working-directory: ${{ github.workspace }}/ocean-cli
         run: npm run test:system
+        env:
+          AVOID_LOOP_RUN: true
 
-  dashboard_build:
+  control_panel_build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 'v20.16.0'
+          node-version: 'v20.19.0'
       - name: Cache node_modules
         uses: actions/cache@v3
         env:
           cache-name: cache-node-modules
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-dashboard-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: ${{ runner.os }}-dashboard-${{ env.cache-name }}-
+          key: ${{ runner.os }}-control-panel-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-control-panel-${{ env.cache-name }}-
       - run: npm ci
-      - name: Run dashboard build test
-        run: npm run test:dashboard
+      - name: Build control panel
+        run: npm run build:controlpanel

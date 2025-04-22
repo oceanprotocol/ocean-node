@@ -1,14 +1,14 @@
 import { expect } from 'chai'
 import { PROTOCOL_COMMANDS, SUPPORTED_PROTOCOL_COMMANDS } from '../../utils/index.js'
 import { CoreHandlersRegistry } from '../../components/core/handler/coreHandlersRegistry.js'
-import { Handler } from '../../components/core/handler/handler.js'
+import { BaseHandler } from '../../components/core/handler/handler.js'
 import { OceanNode } from '../../OceanNode.js'
 import {
   ComputeGetEnvironmentsCommand,
   ComputeGetResultCommand,
   ComputeGetStatusCommand,
   ComputeInitializeCommand,
-  ComputeStartCommand,
+  PaidComputeStartCommand,
   ComputeStopCommand,
   DecryptDDOCommand,
   DownloadCommand,
@@ -39,7 +39,7 @@ import { StatusHandler } from '../../components/core/handler/statusHandler.js'
 import { FeesHandler } from '../../components/core/handler/feesHandler.js'
 import { FileInfoHandler } from '../../components/core/handler/fileInfoHandler.js'
 import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/environments.js'
-import { ComputeStartHandler } from '../../components/core/compute/startCompute.js'
+import { PaidComputeStartHandler } from '../../components/core/compute/startCompute.js'
 import { ComputeStopHandler } from '../../components/core/compute/stopCompute.js'
 import { ComputeGetStatusHandler } from '../../components/core/compute/getStatus.js'
 import { ComputeGetResultHandler } from '../../components/core/compute/getResults.js'
@@ -55,7 +55,7 @@ describe('Commands and handlers', () => {
     const node: OceanNode = OceanNode.getInstance()
     for (const command of SUPPORTED_PROTOCOL_COMMANDS) {
       expect(CoreHandlersRegistry.getInstance(node).getHandler(command)).to.be.instanceof(
-        Handler
+        BaseHandler
       )
     }
   })
@@ -203,25 +203,25 @@ describe('Commands and handlers', () => {
     // Stop Node Handler for Admin
     const stopNodeHandler: StopNodeHandler = CoreHandlersRegistry.getInstance(
       node
-    ).getHandler(PROTOCOL_COMMANDS.STOP_NODE)
+    ).getHandler(PROTOCOL_COMMANDS.STOP_NODE) as StopNodeHandler
     expect(stopNodeHandler).to.be.not.equal(null)
     // -----------------------------------------
     // Reindex Tx Handler
     const reindexTxHandler: ReindexTxHandler = CoreHandlersRegistry.getInstance(
       node
-    ).getHandler(PROTOCOL_COMMANDS.REINDEX_TX)
+    ).getHandler(PROTOCOL_COMMANDS.REINDEX_TX) as ReindexTxHandler
     expect(reindexTxHandler).to.be.not.equal(null)
     // -----------------------------------------
     // Reindex Chain Handler
     const reindexChainHandler: ReindexChainHandler = CoreHandlersRegistry.getInstance(
       node
-    ).getHandler(PROTOCOL_COMMANDS.REINDEX_CHAIN)
+    ).getHandler(PROTOCOL_COMMANDS.REINDEX_CHAIN) as ReindexChainHandler
     expect(reindexChainHandler).to.be.not.equal(null)
     // -----------------------------------------
     // CollectFeesHandler
     const collectFeesHandler: CollectFeesHandler = CoreHandlersRegistry.getInstance(
       node
-    ).getHandler(PROTOCOL_COMMANDS.COLLECT_FEES)
+    ).getHandler(PROTOCOL_COMMANDS.COLLECT_FEES) as CollectFeesHandler
     expect(collectFeesHandler).to.be.not.equal(null)
     // -----------------------------------------
     // FileInfoHandler
@@ -268,17 +268,18 @@ describe('Commands and handlers', () => {
     expect(getEnvHandler.validate(getEnvCommand).valid).to.be.equal(true)
     // -----------------------------------------
     // ComputeStartHandler
-    const startEnvHandler: ComputeStartHandler = CoreHandlersRegistry.getInstance(
+    const startEnvHandler: PaidComputeStartHandler = CoreHandlersRegistry.getInstance(
       node
     ).getHandler(PROTOCOL_COMMANDS.COMPUTE_START)
-    const startEnvCommand: ComputeStartCommand = {
+    const startEnvCommand: PaidComputeStartCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_START,
       consumerAddress: '',
       signature: '',
       nonce: '',
       environment: '',
       algorithm: undefined,
-      dataset: undefined
+      datasets: undefined,
+      payment: undefined
     }
     expect(startEnvHandler.validate(startEnvCommand).valid).to.be.equal(false)
     // -----------------------------------------
@@ -330,7 +331,9 @@ describe('Commands and handlers', () => {
       consumerAddress: 'abcdef',
       datasets: null,
       algorithm: undefined,
-      compute: undefined
+      payment: undefined,
+      environment: undefined,
+      maxJobDuration: 60
     }
     expect(initComputeHandler.validate(computeInitCommand).valid).to.be.equal(false)
   })

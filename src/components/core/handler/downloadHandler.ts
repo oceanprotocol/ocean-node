@@ -1,4 +1,4 @@
-import { Handler } from './handler.js'
+import { CommandHandler } from './handler.js'
 import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
 import {
   ENVIRONMENT_VARIABLES,
@@ -20,7 +20,6 @@ import {
   isDataTokenTemplate4,
   isERC20Template4Active
 } from '../../../utils/asset.js'
-import { Service } from '../../../@types/DDO/Service.js'
 import { ArweaveStorage, IpfsStorage, Storage } from '../../storage/index.js'
 import {
   Blockchain,
@@ -38,13 +37,13 @@ import {
   validateCommandParameters,
   ValidateParams
 } from '../../httpRoutes/validateCommands.js'
-import { DDO } from '../../../@types/DDO/DDO.js'
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { OrdableAssetResponse } from '../../../@types/Asset.js'
 import { PolicyServer } from '../../policyServer/index.js'
+import { Asset, DDO, Service } from '@oceanprotocol/ddo-js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
-export function isOrderingAllowedForAsset(asset: DDO): OrdableAssetResponse {
+export function isOrderingAllowedForAsset(asset: Asset): OrdableAssetResponse {
   if (!asset) {
     return {
       isOrdable: false,
@@ -207,7 +206,7 @@ export function validateFilesStructure(
   return true
 }
 
-export class DownloadHandler extends Handler {
+export class DownloadHandler extends CommandHandler {
   validate(command: DownloadCommand): ValidateParams {
     return validateCommandParameters(command, [
       'fileIndex',
@@ -234,7 +233,7 @@ export class DownloadHandler extends Handler {
     const ddo = await handler.findAndFormatDdo(task.documentId)
 
     if (ddo) {
-      CORE_LOGGER.logMessage('DDO for asset found: ' + ddo, true)
+      CORE_LOGGER.logMessage('DDO for asset found: ' + JSON.stringify(ddo), true)
     } else {
       CORE_LOGGER.logMessage(
         'No DDO for asset found. Cannot proceed with download.',
@@ -371,7 +370,7 @@ export class DownloadHandler extends Handler {
         }
       }
     }
-    let service: Service = AssetUtils.getServiceById(ddo, task.serviceId)
+    let service = AssetUtils.getServiceById(ddo, task.serviceId)
     if (!service) service = AssetUtils.getServiceByIndex(ddo, Number(task.serviceId))
     if (!service) throw new Error('Cannot find service')
 
@@ -446,9 +445,7 @@ export class DownloadHandler extends Handler {
       task.transferTxId,
       task.consumerAddress,
       provider,
-      service,
-      null,
-      null
+      service
     )
     if (!validFee.isValid) {
       return {
@@ -518,7 +515,7 @@ export class DownloadHandler extends Handler {
       let decriptedFileObject: any = null
       let decryptedFileData: any = null
       // check if confidential EVM
-      const confidentialEVM = isConfidentialChainDDO(ddo.chainId, service)
+      const confidentialEVM = isConfidentialChainDDO(BigInt(ddo.chainId), service)
       // check that files is missing and template 4 is active on the chain
       if (confidentialEVM) {
         const signer = blockchain.getSigner()

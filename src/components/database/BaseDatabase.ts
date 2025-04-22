@@ -5,7 +5,7 @@ import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
 import { TypesenseSchema } from './TypesenseSchemas.js'
 
-export abstract class AbstractNonceDatabase {
+export abstract class AbstractDatabase {
   protected config: OceanNodeDBConfig
   protected schema: TypesenseSchema
 
@@ -13,7 +13,8 @@ export abstract class AbstractNonceDatabase {
     this.config = config
     this.schema = schema
   }
-
+}
+export abstract class AbstractNonceDatabase extends AbstractDatabase {
   abstract create(address: string, nonce: number): Promise<any>
   abstract retrieve(address: string): Promise<any>
   abstract update(address: string, nonce: number): Promise<any>
@@ -30,30 +31,14 @@ export abstract class AbstractNonceDatabase {
   }
 }
 
-export abstract class AbstractIndexerDatabase {
-  protected config: OceanNodeDBConfig
-  protected schema: TypesenseSchema
-
-  constructor(config: OceanNodeDBConfig, schema?: TypesenseSchema) {
-    this.config = config
-    this.schema = schema
-  }
-
+export abstract class AbstractIndexerDatabase extends AbstractDatabase {
   abstract create(network: number, lastIndexedBlock: number): Promise<any>
   abstract retrieve(network: number): Promise<any>
   abstract update(network: number, lastIndexedBlock: number): Promise<any>
   abstract delete(network: number): Promise<any>
 }
 
-export abstract class AbstractLogDatabase {
-  protected config: OceanNodeDBConfig
-  protected schema: TypesenseSchema
-
-  constructor(config: OceanNodeDBConfig, schema?: TypesenseSchema) {
-    this.config = config
-    this.schema = schema
-  }
-
+export abstract class AbstractLogDatabase extends AbstractDatabase {
   abstract insertLog(logEntry: Record<string, any>): Promise<any>
   abstract retrieveLog(id: string): Promise<Record<string, any> | null>
   abstract retrieveMultipleLogs(
@@ -70,15 +55,7 @@ export abstract class AbstractLogDatabase {
   abstract getLogsCount(): Promise<number>
 }
 
-export abstract class AbstractDdoStateDatabase {
-  protected config: OceanNodeDBConfig
-  protected schema: TypesenseSchema
-
-  constructor(config: OceanNodeDBConfig, schema?: TypesenseSchema) {
-    this.config = config
-    this.schema = schema
-  }
-
+export abstract class AbstractDdoStateDatabase extends AbstractDatabase {
   abstract create(
     chainId: number,
     did: string,

@@ -19,7 +19,6 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
-import AccessListContract from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
 import { getDatabase } from '../../utils/database.js'
 import {
   PROTOCOL_COMMANDS,
@@ -35,7 +34,8 @@ import {
   wasNFTDeployedByOurFactory,
   getPricesByDt,
   doesDispenserAlreadyExist,
-  doesFreAlreadyExist
+  doesFreAlreadyExist,
+  getDid
 } from './utils.js'
 
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
@@ -50,8 +50,15 @@ import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
 import { DecryptDDOCommand } from '../../@types/commands.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { URLUtils } from '../../utils/url.js'
-import { makeDid } from '../core/utils/validateDdoHandler.js'
 import { PolicyServer } from '../policyServer/index.js'
+import {
+  DDO,
+  DDOManager,
+  DeprecatedDDO,
+  PriceType,
+  VersionedDDO
+} from '@oceanprotocol/ddo-js'
+import { checkCredentialOnAccessList } from '../../utils/credentials.js'
 class BaseEventProcessor {
   protected networkId: number
 
@@ -169,10 +176,19 @@ class BaseEventProcessor {
     }
   }
 
-  protected async createOrUpdateDDO(ddo: any, method: string): Promise<any> {
+  protected async createOrUpdateDDO(ddo: VersionedDDO, method: string): Promise<any> {
     try {
       const { ddo: ddoDatabase, ddoState } = await getDatabase()
-      const saveDDO = await ddoDatabase.update({ ...ddo })
+      if (ddo instanceof DeprecatedDDO) {
+        const { id, nftAddress } = ddo.getDDOFields()
+        await Promise.all([ddoDatabase.delete(id), ddoState.delete(id)])
+        const saveDDO = await ddoDatabase.create(ddo.getDDOData())
+        await ddoState.create(this.networkId, saveDDO.id, nftAddress, undefined, true)
+
+        return saveDDO
+      }
+
+      const saveDDO = await ddoDatabase.update({ ...ddo.getDDOData() })
       await ddoState.update(
         this.networkId,
         saveDDO.id,
@@ -186,14 +202,13 @@ class BaseEventProcessor {
       return saveDDO
     } catch (err) {
       const { ddoState } = await getDatabase()
-      await ddoState.update(
-        this.networkId,
-        ddo.id,
-        ddo.nftAddress,
-        ddo.indexedMetadata?.event?.tx,
-        true,
-        err.message
-      )
+      const { id, nftAddress } = ddo.getDDOFields()
+      const tx =
+        ddo instanceof DeprecatedDDO
+          ? undefined
+          : ddo.getAssetFields().indexedMetadata?.event?.txid
+
+      await ddoState.update(this.networkId, id, nftAddress, tx, true, err.message)
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
         `Error found on ${this.networkId} triggered by: ${method} while creating or updating DDO: ${err}`,
@@ -228,7 +243,8 @@ class BaseEventProcessor {
         `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
       )
       const nonce = Math.floor(Date.now() / 1000).toString()
-      const { keys } = await getConfiguration()
+      const config = await getConfiguration()
+      const { keys } = config
       const nodeId = keys.peerId.toString()
 
       const wallet: ethers.Wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string)
@@ -282,7 +298,7 @@ class BaseEventProcessor {
           throw new Error(message)
         }
       } else {
-        const node = OceanNode.getInstance(await getDatabase())
+        const node = OceanNode.getInstance(config, await getDatabase())
         if (nodeId === decryptorURL) {
           const decryptDDOTask: DecryptDDOCommand = {
             command: PROTOCOL_COMMANDS.DECRYPT_DDO,
@@ -430,7 +446,8 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       const clonedDdo = structuredClone(ddo)
       INDEXER_LOGGER.logMessage(`clonedDdo: ${JSON.stringify(clonedDdo)}`)
       const updatedDdo = deleteIndexedMetadataIfExists(clonedDdo)
-      if (updatedDdo.id !== makeDid(event.address, chainId.toString(10))) {
+      const ddoInstance = DDOManager.getDDOClass(updatedDdo)
+      if (updatedDdo.id !== ddoInstance.makeDid(event.address, chainId.toString(10))) {
         INDEXER_LOGGER.error(
           `Decrypted DDO ID is not matching the generated hash for DID.`
         )
@@ -458,64 +475,50 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       }
       if (authorizedPublishersList) {
         // check accessList
-        const chainsListed = Object.keys(authorizedPublishersList)
-        const chain = String(chainId)
-        // check the access lists for this chain
-        if (chainsListed.length > 0 && chainsListed.includes(chain)) {
-          let isAuthorized = false
-          for (const accessListAddress of authorizedPublishersList[chain]) {
-            const accessListContract = new ethers.Contract(
-              accessListAddress,
-              AccessListContract.abi,
-              signer
-            )
-            // if has at least 1 token than is is authorized
-            const balance = await accessListContract.balanceOf(owner)
-            if (Number(balance) > 0) {
-              isAuthorized = true
-              break
-            }
-          }
-          if (!isAuthorized) {
-            INDEXER_LOGGER.error(
-              `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.name} access group.`
-            )
-            return
-          }
-        }
-      }
-
-      did = ddo.id
-      // stuff that we overwrite
-      ddo.chainId = chainId
-      ddo.nftAddress = event.address
-      ddo.datatokens = await this.getTokenInfo(ddo.services, signer)
-
-      INDEXER_LOGGER.logMessage(
-        `Processed new DDO data ${ddo.id} with txHash ${event.transactionHash} from block ${event.blockNumber}`,
-        true
-      )
-
-      const previousDdo = await ddoDatabase.retrieve(ddo.id)
-      if (eventName === EVENTS.METADATA_CREATED) {
-        if (previousDdo && previousDdo.nft.state === MetadataStates.ACTIVE) {
-          INDEXER_LOGGER.logMessage(`DDO ${ddo.id} is already registered as active`, true)
-          await ddoState.update(
-            this.networkId,
-            did,
-            event.address,
-            event.transactionHash,
-            false,
-            `DDO ${ddo.id} is already registered as active`
+        const isAuthorized = await checkCredentialOnAccessList(
+          authorizedPublishersList,
+          String(chainId),
+          owner,
+          signer
+        )
+        if (!isAuthorized) {
+          INDEXER_LOGGER.error(
+            `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.name} access group.`
           )
           return
         }
       }
 
-      if (eventName === EVENTS.METADATA_UPDATED) {
-        if (!previousDdo) {
+      // stuff that we overwrite
+      did = ddoInstance.getDid()
+      const { services } = ddoInstance.getDDOFields()
+      ddoInstance.updateFields({
+        chainId,
+        nftAddress: event.address,
+        datatokens: await this.getTokenInfo(services, signer)
+      })
+
+      INDEXER_LOGGER.logMessage(
+        `Processed new DDO data ${ddoInstance.getDid()} with txHash ${
+          event.transactionHash
+        } from block ${event.blockNumber}`,
+        true
+      )
+
+      let previousDdoInstance
+      const previousDdo = await ddoDatabase.retrieve(ddoInstance.getDid())
+      if (previousDdo) {
+        previousDdoInstance = DDOManager.getDDOClass(previousDdo)
+      }
+
+      if (eventName === EVENTS.METADATA_CREATED) {
+        if (
+          previousDdoInstance &&
+          previousDdoInstance.getAssetFields().indexedMetadata.nft.state ===
+            MetadataStates.ACTIVE
+        ) {
           INDEXER_LOGGER.logMessage(
-            `Previous DDO with did ${ddo.id} was not found the database. Maybe it was deleted/hidden to some violation issues`,
+            `DDO ${ddoInstance.getDid()} is already registered as active`,
             true
           )
           await ddoState.update(
@@ -524,12 +527,30 @@ export class MetadataEventProcessor extends BaseEventProcessor {
             event.address,
             event.transactionHash,
             false,
-            `Previous DDO with did ${ddo.id} was not found the database. Maybe it was deleted/hidden to some violation issues`
+            `DDO ${ddoInstance.getDid()} is already registered as active`
+          )
+          return
+        }
+      }
+
+      if (eventName === EVENTS.METADATA_UPDATED) {
+        if (!previousDdoInstance) {
+          INDEXER_LOGGER.logMessage(
+            `Previous DDO with did ${ddoInstance.getDid()} was not found the database. Maybe it was deleted/hidden to some violation issues`,
+            true
+          )
+          await ddoState.update(
+            this.networkId,
+            did,
+            event.address,
+            event.transactionHash,
+            false,
+            `Previous DDO with did ${ddoInstance.getDid()} was not found the database. Maybe it was deleted/hidden to some violation issues`
           )
           return
         }
         const [isUpdateable, error] = this.isUpdateable(
-          previousDdo,
+          previousDdoInstance,
           event.transactionHash,
           event.blockNumber
         )
@@ -549,54 +570,60 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         }
       }
       const from = decodedEventData.args[0].toString()
-      let ddoUpdatedWithPricing = {}
+      let ddoUpdatedWithPricing
 
       // we need to store the event data (either metadata created or update and is updatable)
       if (
         [EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED].includes(eventName) &&
-        this.isValidDtAddressFromServices(ddo.services)
+        this.isValidDtAddressFromServices(ddoInstance.getDDOFields().services)
       ) {
-        const ddoWithPricing = await getPricingStatsForDddo(ddo, signer)
-        ddoWithPricing.indexedMetadata.nft = await this.getNFTInfo(
-          ddoWithPricing.nftAddress,
+        const ddoWithPricing = await getPricingStatsForDddo(ddoInstance, signer)
+        const nft = await this.getNFTInfo(
+          ddoWithPricing.getDDOFields().nftAddress,
           signer,
           owner,
           parseInt(decodedEventData.args[6])
         )
-        if (!ddoWithPricing.indexedMetadata.event) {
-          ddoWithPricing.indexedMetadata.event = {}
-        }
 
-        ddoWithPricing.indexedMetadata.event.tx = event.transactionHash
-        ddoWithPricing.indexedMetadata.event.from = from
-        ddoWithPricing.indexedMetadata.event.contract = event.address
+        let block
+        let datetime
         if (event.blockNumber) {
-          ddoWithPricing.indexedMetadata.event.block = event.blockNumber
+          block = event.blockNumber
           // try get block & timestamp from block (only wait 2.5 secs maximum)
           const promiseFn = provider.getBlock(event.blockNumber)
           const result = await asyncCallWithTimeout(promiseFn, 2500)
           if (result.data !== null && !result.timeout) {
-            ddoWithPricing.indexedMetadata.event.datetime = new Date(
-              result.data.timestamp * 1000
-            ).toJSON()
+            datetime = new Date(result.data.timestamp * 1000).toJSON()
           }
-        } else {
-          ddoWithPricing.indexedMetadata.event.block = -1
         }
+
+        const fieldsToUpdate = {
+          indexedMetadata: {
+            nft
+          },
+          event: {
+            tx: event.transactionHash,
+            from,
+            contract: event.address,
+            block,
+            datetime
+          }
+        }
+        ddoWithPricing.updateFields(fieldsToUpdate)
 
         // policyServer check
         const policyServer = new PolicyServer()
         let policyStatus
         if (eventName === EVENTS.METADATA_UPDATED)
           policyStatus = await policyServer.checkUpdateDDO(
-            ddoWithPricing,
+            ddoWithPricing.getDDOData() as DDO,
             this.networkId,
             event.transactionHash,
             event
           )
         else
           policyStatus = await policyServer.checknewDDO(
-            ddoWithPricing,
+            ddoWithPricing.getDDOData() as DDO,
             this.networkId,
             event.transactionHash,
             event
@@ -612,7 +639,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           )
           return
         }
-        ddoUpdatedWithPricing = structuredClone(ddoWithPricing)
+        ddoUpdatedWithPricing = ddoWithPricing
       }
       // always call, but only create instance once
       const purgatory = await Purgatory.getInstance()
@@ -622,7 +649,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         from,
         purgatory
       )
-      if (updatedDDO.indexedMetadata.purgatory.state === false) {
+      if (updatedDDO.getAssetFields().indexedMetadata.purgatory.state === false) {
         // TODO: insert in a different collection for purgatory DDOs
         const saveDDO = await this.createOrUpdateDDO(ddoUpdatedWithPricing, eventName)
         INDEXER_LOGGER.logMessage(`saved DDO: ${JSON.stringify(saveDDO)}`)
@@ -647,35 +674,50 @@ export class MetadataEventProcessor extends BaseEventProcessor {
   }
 
   async updatePurgatoryStateDdo(
-    ddo: any,
+    ddo: VersionedDDO,
     owner: string,
     purgatory: Purgatory
-  ): Promise<any> {
-    if (purgatory.isEnabled()) {
-      const state: boolean =
-        (await purgatory.isBannedAsset(ddo.id)) ||
-        (await purgatory.isBannedAccount(owner))
-      ddo.indexedMetadata.purgatory = {
-        state
-      }
-    } else {
-      ddo.indexedMetadata.purgatory = {
-        state: false
-      }
+  ): Promise<VersionedDDO> {
+    if (!purgatory.isEnabled()) {
+      ddo.updateFields({
+        indexedMetadata: {
+          purgatory: {
+            state: false
+          }
+        }
+      })
+
+      return ddo
     }
+
+    const state: boolean =
+      (await purgatory.isBannedAsset(ddo.getDid())) ||
+      (await purgatory.isBannedAccount(owner))
+    ddo.updateFields({
+      indexedMetadata: {
+        purgatory: {
+          state
+        }
+      }
+    })
+
     return ddo
   }
 
-  isUpdateable(previousDdo: any, txHash: string, block: number): [boolean, string] {
+  isUpdateable(
+    previousDdo: VersionedDDO,
+    txHash: string,
+    block: number
+  ): [boolean, string] {
     let errorMsg: string
-    const ddoTxId = previousDdo.indexedMetadata.event.tx
+    const ddoTxId = previousDdo.getAssetFields().indexedMetadata?.event?.txid
     // do not update if we have the same txid
     if (txHash === ddoTxId) {
       errorMsg = `Previous DDO has the same tx id, no need to update: event-txid=${txHash} <> asset-event-txid=${ddoTxId}`
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_DEBUG, errorMsg, true)
       return [false, errorMsg]
     }
-    const ddoBlock = previousDdo.indexedMetadata.event.block
+    const ddoBlock = previousDdo.getAssetFields().indexedMetadata?.event?.block
     // do not update if we have the same block
     if (block === ddoBlock) {
       errorMsg = `Asset was updated later (block: ${ddoBlock}) vs transaction block: ${block}`
@@ -711,32 +753,41 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
       createHash('sha256')
         .update(getAddress(event.address) + chainId.toString(10))
         .digest('hex')
+
     try {
       const { ddo: ddoDatabase } = await getDatabase()
-      let ddo = await ddoDatabase.retrieve(did)
+      const ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
         INDEXER_LOGGER.logMessage(
           `Detected MetadataState changed for ${did}, but it does not exists.`
         )
         return
       }
+
+      const ddoInstance = DDOManager.getDDOClass(ddo)
       INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
 
       if (
-        'nft' in ddo.indexedMetadata &&
-        ddo.indexedMetadata.nft.state !== metadataState
+        'nft' in ddoInstance.getAssetFields().indexedMetadata &&
+        ddoInstance.getAssetFields().indexedMetadata.nft.state !== metadataState
       ) {
-        let shortVersion = null
-
         if (
-          ddo.indexedMetadata.nft.state === MetadataStates.ACTIVE &&
+          ddoInstance.getAssetFields().indexedMetadata.nft.state ===
+            MetadataStates.ACTIVE &&
           [MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(metadataState)
         ) {
           INDEXER_LOGGER.logMessage(
-            `DDO became non-visible from ${ddo.indexedMetadata.nft.state} to ${metadataState}`
+            `DDO became non-visible from ${
+              ddoInstance.getAssetFields().indexedMetadata.nft.state
+            } to ${metadataState}`
           )
-          shortVersion = {
+
+          // We should keep it here, because in further development we'll store
+          // the previous structure of the non-visible DDOs (full version)
+          // in case their state changes back to active.
+          const shortDdoInstance = DDOManager.getDDOClass({
             id: ddo.id,
+            version: 'deprecated',
             chainId,
             nftAddress: ddo.nftAddress,
             indexedMetadata: {
@@ -744,28 +795,26 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
                 state: metadataState
               }
             }
-          }
-        }
+          })
 
-        // We should keep it here, because in further development we'll store
-        // the previous structure of the non-visible DDOs (full version)
-        // in case their state changes back to active.
-        ddo.indexedMetadata.nft.state = metadataState
-        if (shortVersion) {
-          ddo = shortVersion
+          const savedDDO = await this.createOrUpdateDDO(
+            shortDdoInstance,
+            EVENTS.METADATA_STATE
+          )
+          return savedDDO
         }
-      } else {
-        // Still update until we validate and polish schemas for DDO.
-        // But it should update ONLY if the first condition is met.
-        // Check https://github.com/oceanprotocol/aquarius/blob/84a560ea972485e46dd3c2cfc3cdb298b65d18fa/aquarius/events/processors.py#L663
-        ddo.indexedMetadata.nft = {
-          state: metadataState
-        }
+      }
+
+      // Still update until we validate and polish schemas for DDO.
+      // But it should update ONLY if the first condition is met.
+      // Check https://github.com/oceanprotocol/aquarius/blob/84a560ea972485e46dd3c2cfc3cdb298b65d18fa/aquarius/events/processors.py#L663
+      ddoInstance.getDDOData().indexedMetadata.nft = {
+        state: metadataState
       }
       INDEXER_LOGGER.logMessage(
         `Found did ${did} for state updating on network ${chainId}`
       )
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.METADATA_STATE)
+      const savedDDO = await this.createOrUpdateDDO(ddoInstance, EVENTS.METADATA_STATE)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -797,11 +846,7 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
     const datatokenContract = getDtContract(signer, event.address)
 
     const nftAddress = await datatokenContract.getERC721Address()
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase, order: orderDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -811,32 +856,40 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if (!ddo.indexedMetadata) {
-        ddo.indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      if (!ddoInstance.getAssetFields().indexedMetadata) {
+        ddoInstance.updateFields({ indexedMetadata: {} })
       }
 
-      if (!Array.isArray(ddo.indexedMetadata.stats)) {
-        ddo.indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
+        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
       }
+
       if (
-        ddo.indexedMetadata.stats.length !== 0 &&
-        ddo.services[serviceIndex].datatokenAddress?.toLowerCase() ===
+        ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0 &&
+        ddoInstance
+          .getDDOFields()
+          .services[serviceIndex].datatokenAddress?.toLowerCase() ===
           event.address?.toLowerCase()
       ) {
-        for (const stat of ddo.indexedMetadata.stats) {
+        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
           if (stat.datatokenAddress.toLowerCase() === event.address?.toLowerCase()) {
             stat.orders += 1
             break
           }
         }
-      } else if (ddo.indexedMetadata.stats.length === 0) {
-        ddo.indexedMetadata.stats.push({
+      } else if (ddoInstance.getAssetFields().indexedMetadata.stats.length === 0) {
+        const existingStats = ddoInstance.getAssetFields().indexedMetadata.stats
+        existingStats.push({
           datatokenAddress: event.address,
           name: await datatokenContract.name(),
-          serviceId: ddo.services[serviceIndex].id,
+          symbol: await datatokenContract.symbol(),
+          serviceId: ddoInstance.getDDOFields().services[serviceIndex].id,
           orders: 1,
           prices: await getPricesByDt(datatokenContract, signer)
         })
+
+        ddoInstance.updateFields({ indexedMetadata: { stats: existingStats } })
       }
       await orderDatabase.create(
         event.transactionHash,
@@ -844,14 +897,14 @@ export class OrderStartedEventProcessor extends BaseEventProcessor {
         timestamp,
         consumer,
         payer,
-        ddo.services[serviceIndex].datatokenAddress,
+        ddoInstance.getDDOFields().services[serviceIndex].datatokenAddress,
         nftAddress,
         did
       )
       INDEXER_LOGGER.logMessage(
         `Found did ${did} for order starting on network ${chainId}`
       )
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.ORDER_STARTED)
+      const savedDDO = await this.createOrUpdateDDO(ddoInstance, EVENTS.ORDER_STARTED)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -880,11 +933,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
     const datatokenContract = getDtContract(signer, event.address)
 
     const nftAddress = await datatokenContract.getERC721Address()
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase, order: orderDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -894,15 +943,17 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if (!ddo.indexedMetadata) {
-        ddo.indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      if (!ddoInstance.getAssetFields().indexedMetadata) {
+        ddoInstance.updateFields({ indexedMetadata: {} })
       }
 
-      if (!Array.isArray(ddo.indexedMetadata.stats)) {
-        ddo.indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
+        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
       }
-      if (ddo.indexedMetadata.stats.length !== 0) {
-        for (const stat of ddo.indexedMetadata.stats) {
+
+      if (ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0) {
+        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
           if (stat.datatokenAddress.toLowerCase() === event.address?.toLowerCase()) {
             stat.orders += 1
             break
@@ -910,19 +961,27 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         }
       } else {
         INDEXER_LOGGER.logMessage(`[OrderReused] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddo, event.address)
+        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, event.address)
         if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[OrderReused] - This datatoken does not contain this service. Invalid service id!`
           )
           return
         }
-        ddo.indexedMetadata.stats.push({
+        const existingStats = ddoInstance.getAssetFields().indexedMetadata.stats
+        existingStats.push({
           datatokenAddress: event.address,
           name: await datatokenContract.name(),
+          symbol: await datatokenContract.symbol(),
           serviceId: serviceIdToFind,
           orders: 1,
           prices: await getPricesByDt(datatokenContract, signer)
+        })
+
+        ddoInstance.updateFields({
+          indexedMetadata: {
+            stats: existingStats
+          }
         })
       }
 
@@ -953,7 +1012,7 @@ export class OrderReusedEventProcessor extends BaseEventProcessor {
         )
       }
 
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.ORDER_REUSED)
+      const savedDDO = await this.createOrUpdateDDO(ddoInstance, EVENTS.ORDER_REUSED)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -978,11 +1037,7 @@ export class DispenserCreatedEventProcessor extends BaseEventProcessor {
     const datatokenContract = getDtContract(signer, datatokenAddress)
 
     const nftAddress = await datatokenContract.getERC721Address()
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -992,21 +1047,23 @@ export class DispenserCreatedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if (!ddo.indexedMetadata) {
-        ddo.indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      if (!ddoInstance.getAssetFields().indexedMetadata) {
+        ddoInstance.updateFields({ indexedMetadata: {} })
       }
 
-      if (!Array.isArray(ddo.indexedMetadata.stats)) {
-        ddo.indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
+        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
       }
-      if (ddo.indexedMetadata.stats.length !== 0) {
-        for (const stat of ddo.indexedMetadata.stats) {
+
+      if (ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0) {
+        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
           if (
             stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
             !doesDispenserAlreadyExist(event.address, stat.prices)[0]
           ) {
             const price = {
-              type: 'dispenser',
+              type: 'dispenser' as PriceType,
               price: '0',
               contract: event.address,
               token: datatokenAddress
@@ -1019,23 +1076,27 @@ export class DispenserCreatedEventProcessor extends BaseEventProcessor {
         }
       } else {
         INDEXER_LOGGER.logMessage(`[DispenserCreated] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
+        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
         if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[DispenserCreated] - This datatoken does not contain this service. Invalid service id!`
           )
           return
         }
-        ddo.indexedMetadata.stats.push({
+        const { stats } = ddoInstance.getAssetFields().indexedMetadata
+        stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
+          symbol: await datatokenContract.symbol(),
           serviceId: serviceIdToFind,
           orders: 0,
           prices: await getPricesByDt(datatokenContract, signer)
         })
+
+        ddoInstance.updateFields({ indexedMetadata: { stats } })
       }
 
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.DISPENSER_CREATED)
+      const savedDDO = await this.createOrUpdateDDO(ddoInstance, EVENTS.DISPENSER_CREATED)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1060,11 +1121,7 @@ export class DispenserActivatedEventProcessor extends BaseEventProcessor {
     const datatokenContract = getDtContract(signer, datatokenAddress)
 
     const nftAddress = await datatokenContract.getERC721Address()
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -1074,15 +1131,17 @@ export class DispenserActivatedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if (!ddo.indexedMetadata) {
-        ddo.indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      if (!ddoInstance.getAssetFields().indexedMetadata) {
+        ddoInstance.updateFields({ indexedMetadata: {} })
       }
 
-      if (!Array.isArray(ddo.indexedMetadata.stats)) {
-        ddo.indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
+        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
       }
-      if (ddo.indexedMetadata.stats.length !== 0) {
-        for (const stat of ddo.indexedMetadata.stats) {
+
+      if (ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0) {
+        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
           if (
             stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
             !doesDispenserAlreadyExist(event.address, stat.prices)[0]
@@ -1100,7 +1159,7 @@ export class DispenserActivatedEventProcessor extends BaseEventProcessor {
         }
       } else {
         INDEXER_LOGGER.logMessage(`[DispenserActivated] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
+        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
         if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[DispenserActivated] - This datatoken does not contain this service. Invalid service id!`
@@ -1116,7 +1175,10 @@ export class DispenserActivatedEventProcessor extends BaseEventProcessor {
         })
       }
 
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.DISPENSER_ACTIVATED)
+      const savedDDO = await this.createOrUpdateDDO(
+        ddoInstance,
+        EVENTS.DISPENSER_ACTIVATED
+      )
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1141,11 +1203,7 @@ export class DispenserDeactivatedEventProcessor extends BaseEventProcessor {
     const datatokenContract = getDtContract(signer, datatokenAddress)
 
     const nftAddress = await datatokenContract.getERC721Address()
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -1155,15 +1213,17 @@ export class DispenserDeactivatedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if (!ddo.indexedMetadata) {
-        ddo.indexedMetadata = {}
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      if (!ddoInstance.getAssetFields().indexedMetadata) {
+        ddoInstance.updateFields({ indexedMetadata: {} })
       }
 
-      if (!Array.isArray(ddo.indexedMetadata.stats)) {
-        ddo.indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
+        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
       }
-      if (ddo.indexedMetadata.stats.length !== 0) {
-        for (const stat of ddo.indexedMetadata.stats) {
+
+      if (ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0) {
+        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
           if (
             stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
             doesDispenserAlreadyExist(event.address, stat.prices)[0]
@@ -1186,23 +1246,30 @@ export class DispenserDeactivatedEventProcessor extends BaseEventProcessor {
         INDEXER_LOGGER.logMessage(
           `[DispenserDeactivated] - No stats were found on the ddo`
         )
-        const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
+        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
         if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[DispenserDeactivated] - This datatoken does not contain this service. Invalid service id!`
           )
           return
         }
-        ddo.indexedMetadata.stats.push({
+        const { stats } = ddoInstance.getAssetFields().indexedMetadata
+        stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
+          symbol: await datatokenContract.symbol(),
           serviceId: serviceIdToFind,
           orders: 0,
           prices: await getPricesByDt(datatokenContract, signer)
         })
+
+        ddoInstance.updateFields({ indexedMetadata: { stats } })
       }
 
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.DISPENSER_DEACTIVATED)
+      const savedDDO = await this.createOrUpdateDDO(
+        ddoInstance,
+        EVENTS.DISPENSER_DEACTIVATED
+      )
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1229,11 +1296,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
     const datatokenAddress = exchange[1]
     const datatokenContract = getDtContract(signer, datatokenAddress)
     const nftAddress = await datatokenContract.getERC721Address()
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -1243,15 +1306,18 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if (!ddo.indexedMetadata) {
-        ddo.indexedMetadata = {}
+
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      if (!ddoInstance.getAssetFields().indexedMetadata) {
+        ddoInstance.updateFields({ indexedMetadata: {} })
       }
 
-      if (!Array.isArray(ddo.indexedMetadata.stats)) {
-        ddo.indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
+        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
       }
-      if (ddo.indexedMetadata.stats.length !== 0) {
-        for (const stat of ddo.indexedMetadata.stats) {
+
+      if (ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0) {
+        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
           if (
             stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
             !doesFreAlreadyExist(exchangeId, stat.prices)[0]
@@ -1270,23 +1336,31 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
         }
       } else {
         INDEXER_LOGGER.logMessage(`[ExchangeCreated] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
+        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
         if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[ExchangeCreated] - This datatoken does not contain this service. Invalid service id!`
           )
           return
         }
-        ddo.indexedMetadata.stats.push({
+
+        const { stats } = ddoInstance.getAssetFields().indexedMetadata
+        stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
+          symbol: await datatokenContract.symbol(),
           serviceId: serviceIdToFind,
           orders: 0,
           prices: await getPricesByDt(datatokenContract, signer)
         })
+
+        ddoInstance.updateFields({ indexedMetadata: { stats } })
       }
 
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_ACTIVATED)
+      const savedDDO = await this.createOrUpdateDDO(
+        ddoInstance,
+        EVENTS.EXCHANGE_ACTIVATED
+      )
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1317,11 +1391,7 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
     const datatokenAddress = exchange[1]
     const datatokenContract = getDtContract(signer, datatokenAddress)
     const nftAddress = await datatokenContract.getERC721Address()
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -1331,15 +1401,17 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if (!ddo.indexedMetadata) {
-        ddo.indexedMetadata = {}
+
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      if (!ddoInstance.getAssetFields().indexedMetadata) {
+        ddoInstance.updateFields({ indexedMetadata: {} })
       }
 
-      if (!Array.isArray(ddo.indexedMetadata.stats)) {
-        ddo.indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
+        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
       }
-      if (ddo.indexedMetadata.stats.length !== 0) {
-        for (const stat of ddo.indexedMetadata.stats) {
+      if (ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0) {
+        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
           if (
             stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
             !doesFreAlreadyExist(exchangeId, stat.prices)[0]
@@ -1358,23 +1430,30 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
         }
       } else {
         INDEXER_LOGGER.logMessage(`[ExchangeActivated] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
+        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
         if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[ExchangeActivated] - This datatoken does not contain this service. Invalid service id!`
           )
           return
         }
-        ddo.indexedMetadata.stats.push({
+        const { stats } = ddoInstance.getAssetFields().indexedMetadata
+        stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
+          symbol: await datatokenContract.symbol(),
           serviceId: serviceIdToFind,
           orders: 0,
           prices: await getPricesByDt(datatokenContract, signer)
         })
+
+        ddoInstance.updateFields({ indexedMetadata: { stats } })
       }
 
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_ACTIVATED)
+      const savedDDO = await this.createOrUpdateDDO(
+        ddoInstance,
+        EVENTS.EXCHANGE_ACTIVATED
+      )
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1401,11 +1480,7 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
     const datatokenAddress = exchange[1]
     const datatokenContract = getDtContract(signer, datatokenAddress)
     const nftAddress = await datatokenContract.getERC721Address()
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -1415,15 +1490,17 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if (!ddo.indexedMetadata) {
-        ddo.indexedMetadata = {}
+
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      if (!ddoInstance.getAssetFields().indexedMetadata) {
+        ddoInstance.updateFields({ indexedMetadata: {} })
       }
 
-      if (!Array.isArray(ddo.indexedMetadata.stats)) {
-        ddo.indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
+        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
       }
-      if (ddo.indexedMetadata.stats.length !== 0) {
-        for (const stat of ddo.indexedMetadata.stats) {
+      if (ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0) {
+        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
           if (
             stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
             doesFreAlreadyExist(exchangeId, stat.prices)[0]
@@ -1446,23 +1523,30 @@ export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
         INDEXER_LOGGER.logMessage(
           `[ExchangeDeactivated] - No stats were found on the ddo`
         )
-        const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
+        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
         if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[ExchangeDeactivated] - This datatoken does not contain this service. Invalid service id!`
           )
           return
         }
-        ddo.indexedMetadata.stats.push({
+        const { stats } = ddoInstance.getAssetFields().indexedMetadata
+        stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
+          symbol: await datatokenContract.symbol(),
           serviceId: serviceIdToFind,
           orders: 0,
           prices: await getPricesByDt(datatokenContract, signer)
         })
+
+        ddoInstance.updateFields({ indexedMetadata: { stats } })
       }
 
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_DEACTIVATED)
+      const savedDDO = await this.createOrUpdateDDO(
+        ddoInstance,
+        EVENTS.EXCHANGE_DEACTIVATED
+      )
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
@@ -1489,11 +1573,7 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
     const datatokenAddress = exchange[1]
     const datatokenContract = getDtContract(signer, datatokenAddress)
     const nftAddress = await datatokenContract.getERC721Address()
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(nftAddress) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(nftAddress, chainId)
     try {
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
@@ -1503,15 +1583,17 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
         )
         return
       }
-      if (!ddo.indexedMetadata) {
-        ddo.indexedMetadata = {}
+
+      const ddoInstance = DDOManager.getDDOClass(ddo)
+      if (!ddoInstance.getAssetFields().indexedMetadata) {
+        ddoInstance.updateFields({ indexedMetadata: {} })
       }
 
-      if (!Array.isArray(ddo.indexedMetadata.stats)) {
-        ddo.indexedMetadata.stats = []
+      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
+        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
       }
-      if (ddo.indexedMetadata.stats.length !== 0) {
-        for (const stat of ddo.indexedMetadata.stats) {
+      if (ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0) {
+        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
           if (
             stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
             doesFreAlreadyExist(exchangeId, stat.prices)[0]
@@ -1533,23 +1615,30 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
         INDEXER_LOGGER.logMessage(
           `[ExchangeRateChanged] - No stats were found on the ddo`
         )
-        const serviceIdToFind = findServiceIdByDatatoken(ddo, datatokenAddress)
+        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
         if (!serviceIdToFind) {
           INDEXER_LOGGER.logMessage(
             `[ExchangeRateChanged] - This datatoken does not contain this service. Invalid service id!`
           )
           return
         }
-        ddo.indexedMetadata.stats.push({
+        const { stats } = ddoInstance.getAssetFields().indexedMetadata
+        stats.push({
           datatokenAddress,
           name: await datatokenContract.name(),
+          symbol: await datatokenContract.symbol(),
           serviceId: serviceIdToFind,
           orders: 0,
-          prices: getPricesByDt(datatokenContract, signer)
+          prices: await getPricesByDt(datatokenContract, signer)
         })
+
+        ddoInstance.updateFields({ indexedMetadata: { stats } })
       }
 
-      const savedDDO = await this.createOrUpdateDDO(ddo, EVENTS.EXCHANGE_RATE_CHANGED)
+      const savedDDO = await this.createOrUpdateDDO(
+        ddoInstance,
+        EVENTS.EXCHANGE_RATE_CHANGED
+      )
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)

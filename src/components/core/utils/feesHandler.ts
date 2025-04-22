@@ -1,4 +1,4 @@
-import type { ComputeEnvironment } from '../../../@types/C2D.js'
+import type { ComputeResourcesPricingInfo } from '../../../@types/C2D/C2D.js'
 import {
   JsonRpcApiProvider,
   ethers,
@@ -13,8 +13,7 @@ import {
   ProviderFeeValidation,
   ProviderFees
 } from '../../../@types/Fees'
-import { DDO } from '../../../@types/DDO/DDO'
-import { Service } from '../../../@types/DDO/Service'
+import { Service, DDOManager, Asset } from '@oceanprotocol/ddo-js'
 import {
   getDatatokenDecimals,
   verifyMessage,
@@ -28,64 +27,59 @@ import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/template
 import { fetchEventFromTransaction } from '../../../utils/util.js'
 import { fetchTransactionReceipt } from './validateOrders.js'
 
+export function getEnvironmentPriceSchemaForResource(
+  prices: ComputeResourcesPricingInfo[],
+  id: string
+): number {
+  for (const pr of prices) {
+    if (pr.id === id) {
+      return pr.price
+    }
+  }
+  return 0
+}
 async function calculateProviderFeeAmount(
   validUntil: number,
-  computeEnv: ComputeEnvironment
+  chainId: string
   // asset?: DDO
 ): Promise<number> {
-  const now = new Date().getTime() / 1000
-  const seconds = validUntil - now
-  let providerFeeAmount: number
-  // we have different ways of computing providerFee
-  if (computeEnv) {
-    // it's a compute provider fee
-    providerFeeAmount = (seconds * parseFloat(String(computeEnv.priceMin))) / 60
-  } else {
-    // it's a download provider fee
-    // we should get asset file size, and do a proper fee managment according to time
-    // something like estimated 3 downloads per day
-    providerFeeAmount = (await getConfiguration()).feeStrategy.feeAmount.amount
-  }
+  // it's a download provider fee
+  // we should get asset file size, and do a proper fee management according to time
+  // something like estimated 3 downloads per day
+  const providerFeeAmount = (await getConfiguration()).feeStrategy.feeAmount.amount
   return providerFeeAmount
 }
 
 export async function createProviderFee(
-  asset: DDO,
+  asset: Asset,
   service: Service,
-  validUntil: number,
-  computeEnv: ComputeEnvironment,
-  computeValidUntil: number
+  validUntil: number
 ): Promise<ProviderFees> | undefined {
   // round for safety
   validUntil = Math.round(validUntil)
-  computeValidUntil = Math.round(computeValidUntil)
+
   const providerData = {
-    environment: computeEnv ? computeEnv.id : null,
-    timestamp: computeValidUntil || 0,
     dt: service.datatokenAddress,
     id: service.id
   }
-  const providerWallet = await getProviderWallet(String(asset.chainId))
-
+  const ddoInstance = DDOManager.getDDOClass(asset)
+  const { chainId: assetChainId } = ddoInstance.getDDOFields()
+  const providerWallet = await getProviderWallet(String(assetChainId))
   const providerFeeAddress: string = providerWallet.address
   let providerFeeAmount: number
   let providerFeeAmountFormatted: BigNumberish
-
-  let providerFeeToken: string
-  if (computeEnv) {
-    providerFeeToken = computeEnv.feeToken
-  } else {
-    // it's download, take it from config
-    providerFeeToken = await getProviderFeeToken(asset.chainId)
-  }
+  const providerFeeToken = await getProviderFeeToken(asset.chainId)
   if (providerFeeToken?.toLowerCase() === ZeroAddress) {
     providerFeeAmount = 0
   } else {
-    providerFeeAmount = await calculateProviderFeeAmount(validUntil, computeEnv)
+    providerFeeAmount = await calculateProviderFeeAmount(
+      validUntil,
+      String(asset.chainId)
+    )
   }
 
   if (providerFeeToken && providerFeeToken?.toLowerCase() !== ZeroAddress) {
-    const provider = await getJsonRpcProvider(asset.chainId)
+    const provider = await getJsonRpcProvider(assetChainId)
     const decimals = await getDatatokenDecimals(providerFeeToken, provider)
     providerFeeAmountFormatted = parseUnits(providerFeeAmount.toString(10), decimals)
   } else {
@@ -139,15 +133,15 @@ export async function verifyProviderFees(
   txId: string,
   userAddress: string,
   provider: JsonRpcApiProvider,
-  service: Service,
-  computeEnv?: string,
-  validUntil?: number // only for computeEnv
+  service: Service
 ): Promise<ProviderFeeValidation> {
+  /* given a transaction, check if there is a valid provider fee event
+   * We could have multiple orders, for multiple assets & providers
+   */
   if (!txId) {
     CORE_LOGGER.error('Invalid txId')
     return {
       isValid: false,
-      isComputeValid: false,
       message: 'Invalid txId',
       validUntil: 0
     }
@@ -156,21 +150,23 @@ export async function verifyProviderFees(
   const { chainId } = await provider.getNetwork()
   const providerWallet = await getProviderWallet(String(chainId))
   const contractInterface = new Interface(ERC20Template.abi)
+  const now = Math.round(new Date().getTime() / 1000)
   const txReceiptMined = await fetchTransactionReceipt(txId, provider)
+  const blockMined = await txReceiptMined.getBlock()
+
   if (!txReceiptMined) {
     const message = `Tx receipt cannot be processed, because tx id ${txId} was not mined.`
     CORE_LOGGER.error(message)
-    return { isValid: false, isComputeValid: false, message, validUntil: 0 }
+    return { isValid: false, message, validUntil: 0 }
   }
 
-  const now = Math.round(new Date().getTime() / 1000)
   const providerFeesEvents = fetchEventFromTransaction(
     txReceiptMined,
     'ProviderFee',
     contractInterface
   )
 
-  let allEventsValid = true
+  let foundValid = false
   let providerData
   for (const event of providerFeesEvents) {
     const providerAddress = event.args[0]?.toLowerCase()
@@ -181,53 +177,36 @@ export async function verifyProviderFees(
       providerData = JSON.parse(utf)
     } catch (e) {
       CORE_LOGGER.error('ProviderFee event JSON parsing failed')
-      allEventsValid = false
       continue
     }
 
     if (
-      !providerData ||
-      providerAddress !== providerWallet.address?.toLowerCase() ||
-      providerData.id !== service.id ||
-      providerData.dt?.toLowerCase() !== service.datatokenAddress?.toLowerCase() ||
-      !(now < validUntilContract || validUntilContract === 0)
+      providerData &&
+      providerAddress === providerWallet.address?.toLowerCase() &&
+      providerData.id === service.id &&
+      providerData.dt?.toLowerCase() === service.datatokenAddress?.toLowerCase()
     ) {
-      allEventsValid = false
-      break // Invalid event found, no need to check further
+      if (validUntilContract !== 0) {
+        // check if it's expired
+        if (now - blockMined.timestamp <= validUntilContract) {
+          foundValid = true
+          break
+        }
+      } else {
+        foundValid = true
+        break
+      }
     }
   }
 
-  if (!allEventsValid) {
-    const message = 'Not all ProviderFee events are valid'
+  if (!foundValid) {
+    const message = 'No valid providerFee events'
     CORE_LOGGER.error(message)
-    return { isValid: false, isComputeValid: false, message, validUntil: 0 }
-  }
-
-  // Compute environment validation
-  let isComputeValid = true
-  if (computeEnv) {
-    if (providerData.environment !== computeEnv) {
-      isComputeValid = false
-    }
-    if (validUntil > 0 && providerData.timestamp < validUntil) {
-      isComputeValid = false
-    }
-  }
-
-  if (!isComputeValid) {
-    const message = 'Compute environment validation failed'
-    CORE_LOGGER.error(message)
-    return {
-      isValid: true,
-      isComputeValid,
-      message,
-      validUntil: providerData ? providerData.timestamp : 0
-    }
+    return { isValid: false, message, validUntil: 0 }
   }
 
   return {
     isValid: true,
-    isComputeValid,
     message: 'Validation successful',
     validUntil: providerData.timestamp
   }
@@ -239,7 +218,7 @@ export async function verifyProviderFees(
 // equiv to get_provider_fees
 // *** NOTE: provider.py => get_provider_fees ***
 export async function createFee(
-  asset: DDO,
+  asset: Asset,
   validUntil: number,
   computeEnv: string,
   service: Service

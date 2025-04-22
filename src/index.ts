@@ -17,7 +17,7 @@ import { OCEAN_NODE_LOGGER } from './utils/logging/common.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import cors from 'cors'
-import { scheduleCronJobs } from './utils/logging/logDeleteCron.js'
+import { scheduleCronJobs } from './utils/cronjobs/scheduleCronJobs.js'
 import { requestValidator } from './components/httpRoutes/requestValidator.js'
 import { hasValidDBConfiguration } from './utils/database.js'
 
@@ -126,8 +126,8 @@ if (dbconn) {
 }
 
 // Singleton instance across application
-const oceanNode = OceanNode.getInstance(dbconn, node, provider, indexer)
-oceanNode.addC2DEngines(config)
+const oceanNode = OceanNode.getInstance(config, dbconn, node, provider, indexer)
+oceanNode.addC2DEngines()
 
 function removeExtraSlashes(req: any, res: any, next: any) {
   req.url = req.url.replace(/\/{2,}/g, '/')
@@ -139,14 +139,13 @@ if (config.hasHttp) {
   app.use(express.raw({ limit: '25mb' }))
   app.use(cors())
 
-  if (config.hasDashboard) {
+  if (config.hasControlPanel) {
     // Serve static files expected at the root, under the '/_next' path
-    app.use('/_next', express.static(path.join(__dirname, '/dashboard/_next')))
+    app.use('/_next', express.static(path.join(__dirname, '/controlpanel/_next')))
 
-    // Serve static files for Next.js under both '/dashboard' and '/controlpanel'
-    const dashboardPath = path.join(__dirname, '/dashboard')
-    app.use('/dashboard', express.static(dashboardPath))
-    app.use('/controlpanel', express.static(dashboardPath))
+    // Serve static files for Next.js under '/controlpanel'
+    const controlPanelPath = path.join(__dirname, '/controlpanel')
+    app.use('/controlpanel', express.static(controlPanelPath))
 
     // Custom middleware for SPA routing: Serve index.html for non-static asset requests
     const serveIndexHtml = (
@@ -158,10 +157,9 @@ if (config.hasHttp) {
         return next() // Skip this middleware if the request is for a static asset
       }
       // For any other requests, serve index.html
-      res.sendFile(path.join(dashboardPath, 'index.html'))
+      res.sendFile(path.join(controlPanelPath, 'index.html'))
     }
 
-    app.use('/dashboard', serveIndexHtml)
     app.use('/controlpanel', serveIndexHtml)
   }
 

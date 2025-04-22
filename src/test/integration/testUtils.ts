@@ -5,20 +5,18 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { JsonRpcSigner, JsonRpcProvider, getBytes } from 'ethers'
 import { DEFAULT_TEST_TIMEOUT } from '../utils/utils.js'
 import { getDatabase } from '../../utils/database.js'
-import { DDO } from '../../@types/DDO/DDO.js'
-import { sleep } from '../../utils/util.js'
+import { Asset } from '@oceanprotocol/ddo-js'
 
 // listen for indexer events
 export function addIndexerEventListener(eventName: string, ddoId: string, callback: any) {
-  // add listener
-  INDEXER_DDO_EVENT_EMITTER.addListener(eventName, (did: string) => {
-    INDEXER_LOGGER.info(`Test suite - Listened event: "${eventName}" for DDO: ${did}`)
-    if (ddoId === did && typeof callback === 'function') {
-      // remove it
-      INDEXER_DDO_EVENT_EMITTER.removeListener(eventName, () => {})
+  const listener = (did: string) => {
+    if (ddoId === did) {
       callback(did)
     }
-  })
+  }
+
+  INDEXER_DDO_EVENT_EMITTER.addListener(eventName, listener)
+  return listener
 }
 
 export const delay = (interval: number) => {
@@ -47,78 +45,42 @@ async function getIndexedDDOFromDB(did: string): Promise<any> {
 }
 
 export type WaitIndexResult = {
-  ddo: DDO | null
+  ddo: Asset | null
   wasTimeout: boolean
 }
-// WIP
+
 export const waitToIndex = async (
   did: string,
   eventName: string,
   testTimeout: number = DEFAULT_TEST_TIMEOUT,
   forceWaitForEvent?: boolean
 ): Promise<WaitIndexResult> => {
-  const result: WaitIndexResult = { ddo: null, wasTimeout: false }
-  let listening = false
-  let wait = true
-
-  const timeout = setTimeout(async () => {
-    const res = await getIndexedDDOFromDB(did)
-    result.ddo = res
-    result.wasTimeout = true
-    wait = false
-    return result
-  }, testTimeout - 5000) // little less (5 secs) than the initial timeout
-
-  while (wait) {
-    // we might want to wait for the event, on certain ocasions (ex: when we update something that already exists)
-    // otherwise we might get the still "unmodified" version
-    // ideally, the tests would call the waitToIndex() method before the action that triggers it
-    if (!forceWaitForEvent) {
-      // first try
-      const res = await getIndexedDDOFromDB(did)
-      if (res !== null) {
-        clearTimeout(timeout)
-        result.ddo = res
-        result.wasTimeout = false
-        wait = false
-        return result
-      }
-    } else if (!listening) {
-      // 2nd approach, whatever happens first (timeout or event emition)
-      listening = true
-      addIndexerEventListener(eventName, did, async (id: string) => {
-        clearTimeout(timeout)
-        const res = await getIndexedDDOFromDB(id)
-        result.ddo = res
-        result.wasTimeout = false
-        wait = false
-        return result
-      })
-    }
-    // hold your breath for a while
-    await sleep(1000)
+  if (!forceWaitForEvent) {
+    const ddo = await getIndexedDDOFromDB(did)
+    if (ddo) return { ddo, wasTimeout: false }
   }
-  return result
-}
-/** 
-export const waitToIndex = async (did: string, database: Database): Promise<any> => {
-  const timeout = setTimeout(() => {}, 1500)
-  let tries = 0
-  do {
-    try {
-      const ddo = await database.ddo.retrieve(did)
-      if (ddo) {
-        return ddo
-      }
-    } catch (e) {
-      INDEXER_LOGGER.logMessage(`Error could not retrieve the DDO ${did}: ${e}`)
-    }
-    await sleep(1500)
 
-    tries++
-  } while (tries < 100)
-  return null
-} */
+  return new Promise((resolve) => {
+    const listener = addIndexerEventListener(eventName, did, async () => {
+      clearTimeout(timeoutId)
+      const ddo = await getIndexedDDOFromDB(did)
+      INDEXER_DDO_EVENT_EMITTER.removeListener(eventName, listener)
+      resolve({ ddo, wasTimeout: false })
+    })
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const ddo = await getIndexedDDOFromDB(did)
+        INDEXER_DDO_EVENT_EMITTER.removeListener(eventName, listener)
+        resolve({ ddo, wasTimeout: true })
+      } catch (error) {
+        console.error('Error fetching DDO:', error)
+        INDEXER_DDO_EVENT_EMITTER.removeListener(eventName, listener)
+        resolve({ ddo: null, wasTimeout: true })
+      }
+    }, testTimeout - 5000)
+  })
+}
 
 export async function signMessage(
   message: string,

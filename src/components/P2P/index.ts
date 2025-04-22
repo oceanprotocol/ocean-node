@@ -3,12 +3,7 @@ import { P2PCommandResponse, TypesenseSearchResponse } from '../../@types/index'
 import EventEmitter from 'node:events'
 import clone from 'lodash.clonedeep'
 
-import {
-  // handlePeerConnect,
-  // handlePeerDiscovery,
-  // handlePeerDisconnect,
-  handleProtocolCommands
-} from './handlers.js'
+import { handleProtocolCommands } from './handlers.js'
 
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 

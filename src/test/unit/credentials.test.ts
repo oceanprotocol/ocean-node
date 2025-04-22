@@ -4,7 +4,6 @@ import {
   checkCredentials,
   hasAddressMatchAllRule
 } from '../../utils/credentials.js'
-import { Credentials } from '../../@types/DDO/Credentials.js'
 import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,
@@ -14,6 +13,7 @@ import {
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { homedir } from 'os'
 import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
+import { Credentials } from '@oceanprotocol/ddo-js'
 
 let envOverrides: OverrideEnvConfig[]
 
@@ -50,6 +50,7 @@ describe('credentials', () => {
   })
   it('should deny access with empty values in deny lists', async () => {
     const credentials: Credentials = {
+      allow: [],
       deny: [
         {
           type: 'address',
@@ -65,6 +66,7 @@ describe('credentials', () => {
   it('should deny access with "accessList" credentials (default behaviour if cannot check)', async () => {
     const consumerAddress = '0x123'
     const credentials: Credentials = {
+      allow: [],
       deny: [
         {
           type: 'accessList',
@@ -79,6 +81,7 @@ describe('credentials', () => {
 
   it('should deny access with empty values in allow lists', async () => {
     const credentials: Credentials = {
+      deny: [],
       allow: [
         {
           type: 'address',
@@ -92,6 +95,7 @@ describe('credentials', () => {
   })
   it('should allow access with address in allow list', async () => {
     const credentials: Credentials = {
+      deny: [],
       allow: [
         {
           type: 'address',
@@ -105,6 +109,7 @@ describe('credentials', () => {
   })
   it('should deny access with address not explicitly in deny list but also without any allow list', async () => {
     const credentials: Credentials = {
+      allow: [],
       deny: [
         {
           type: 'address',
@@ -157,6 +162,7 @@ describe('credentials', () => {
 
   it('should check correctly known credentials types', () => {
     const credentials: Credentials = {
+      allow: [],
       deny: [
         {
           type: 'unknow_type',

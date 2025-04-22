@@ -1,8 +1,5 @@
 import { DDOExample, ddov5, ddov7, ddoValidationSignature } from '../../data/ddo.js'
-import {
-  getValidationSignature,
-  validateObject
-} from '../../../components/core/utils/validateDdoHandler.js'
+import { getValidationSignature } from '../../../components/core/utils/validateDdoHandler.js'
 import { ENVIRONMENT_VARIABLES } from '../../../utils/index.js'
 
 import { expect } from 'chai'
@@ -12,6 +9,7 @@ import {
   buildEnvOverrideConfig,
   OverrideEnvConfig
 } from '../../utils/utils.js'
+import { DDOManager } from '@oceanprotocol/ddo-js'
 
 describe('Schema validation tests', async () => {
   let envOverrides: OverrideEnvConfig[]
@@ -37,7 +35,8 @@ describe('Schema validation tests', async () => {
   })
 
   it('should pass the validation on version 4.1.0', async () => {
-    const validationResult = await validateObject(DDOExample, 137, DDOExample.nftAddress)
+    const ddoInstance = DDOManager.getDDOClass(DDOExample)
+    const validationResult = await ddoInstance.validate()
     expect(validationResult[0]).to.eql(true)
     expect(validationResult[1]).to.eql({})
   })
@@ -45,21 +44,20 @@ describe('Schema validation tests', async () => {
     const copy = JSON.parse(JSON.stringify(DDOExample))
     copy['@context'] = ['https://w3id.org/did/v1']
     delete copy.metadata.created
-    const validationResult = await validateObject(copy, 137, copy.nftAddress)
+    const ddoInstance = DDOManager.getDDOClass(copy)
+    const validationResult = await ddoInstance.validate()
     expect(validationResult[0]).to.eql(false)
   })
   // TO DO after fixing regex for created & updated: it('should not pass due to invalid ISO timestamp on version 4.1.0', async () => {
   it('4.5.0 should pass the validation without service', async () => {
-    const validationResult = await validateObject(ddov5, 137, ddov5.nftAddress)
+    const ddoInstance = DDOManager.getDDOClass(ddov5)
+    const validationResult = await ddoInstance.validate()
     expect(validationResult[0]).to.eql(true)
     expect(validationResult[1]).to.eql({})
   })
   it('should pass the validation and return signature', async () => {
-    const validationResult = await validateObject(
-      ddoValidationSignature,
-      137,
-      ddov5.nftAddress
-    )
+    const ddoInstance = DDOManager.getDDOClass(ddoValidationSignature)
+    const validationResult = await ddoInstance.validate()
     expect(validationResult[0]).to.eql(true)
     expect(validationResult[1]).to.eql({})
     const signatureResult = await getValidationSignature(
@@ -75,7 +73,8 @@ describe('Schema validation tests', async () => {
   })
 
   it('should pass the validation on version 4.7.0', async () => {
-    const validationResult = await validateObject(ddov7, 137, ddov7.nftAddress)
+    const ddoInstance = DDOManager.getDDOClass(ddov7)
+    const validationResult = await ddoInstance.validate()
     console.log('Validation 4.7.0 result: ', validationResult)
     expect(validationResult[0]).to.eql(true)
     expect(validationResult[1]).to.eql({})
@@ -84,7 +83,8 @@ describe('Schema validation tests', async () => {
   it('should pass the validation on version 4.7.0 without credentials', async () => {
     const newDDO = structuredClone(ddov7)
     delete newDDO.services[0].credentials
-    const validationResult = await validateObject(newDDO, 137, newDDO.nftAddress)
+    const ddoInstance = DDOManager.getDDOClass(newDDO)
+    const validationResult = await ddoInstance.validate()
     expect(validationResult[0]).to.eql(true)
     expect(validationResult[1]).to.eql({})
   })

@@ -40,7 +40,7 @@ describe('Status command tests', async () => {
   const oceanP2P = new OceanP2P(config, db)
   const oceanIndexer = new OceanIndexer(db, config.indexingNetworks)
   const oceanProvider = new OceanProvider(db)
-  const oceanNode = OceanNode.getInstance(db, oceanP2P)
+  const oceanNode = OceanNode.getInstance(config, db, oceanP2P)
 
   after(async () => {
     // Restore original local setup / env variables after test
@@ -60,7 +60,7 @@ describe('Status command tests', async () => {
   })
   it('Ocean P2P should be initialized correctly', () => {
     expect(oceanNode.getP2PNode()).to.not.eql(null)
-    expect(OceanNode.getInstance(db).getP2PNode()).to.not.eql(null)
+    expect(OceanNode.getInstance(config, db).getP2PNode()).to.not.eql(null)
   })
   it('Ocean Indexer should be initialized correctly', () => {
     oceanNode.addIndexer(oceanIndexer)

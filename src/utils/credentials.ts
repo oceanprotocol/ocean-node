@@ -1,6 +1,6 @@
+import { Contract, ethers, EventLog, Signer } from 'ethers'
 import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
 import { AccessListContract } from '../@types/OceanNode.js'
-import { ethers, Signer } from 'ethers'
 import { CORE_LOGGER } from './logging/common.js'
 import {
   Credential,
@@ -12,6 +12,8 @@ import { getNFTContract } from '../components/Indexer/utils.js'
 import { isDefined } from './util.js'
 import { getConfiguration } from './config.js'
 import { getBlockchainHandler } from './blockchain.js'
+
+import { getOceanArtifactsAdressesByChainId } from './address.js'
 
 export function findCredential(
   credentials: Credential[],
@@ -259,4 +261,48 @@ export function isKnownCredentialType(credentialType: string): boolean {
       return type.toLowerCase() === credentialType.toLowerCase()
     }) > -1
   )
+}
+
+/**
+ * Gets the addresses present on the contract access list (the ones with balanceOf > 1)
+ * @param contractAcessList
+ * @param chainId
+ * @returns
+ */
+export async function getAccountsFromAccessList(
+  contractAcessList: Contract,
+  chainId: number,
+  startBlock?: number,
+  endBlock?: number
+): Promise<string[]> {
+  const resultAccounts: string[] = []
+  const networkArtifacts = getOceanArtifactsAdressesByChainId(chainId)
+  // some basic extra checks
+  if (!networkArtifacts || (startBlock && endBlock && endBlock > startBlock)) {
+    return resultAccounts
+  }
+
+  try {
+    const eventLogs: Array<EventLog> = (await contractAcessList.queryFilter(
+      'AddressAdded',
+      startBlock || networkArtifacts.startBlock,
+      endBlock || 'latest'
+    )) as Array<EventLog>
+    for (const log of eventLogs) {
+      // check the account address
+      if (log.args.length === 2 && Number(log.args[1] >= 1)) {
+        const address: string = log.args[0]
+        // still has it?
+        const balance = await contractAcessList.balanceOf(address)
+        if (Number(balance) >= 1) {
+          resultAccounts.push(address)
+        }
+      }
+    }
+  } catch (e) {
+    CORE_LOGGER.error(
+      `Cannot get accounts from accessList ${contractAcessList}: \n${e.message}`
+    )
+  }
+  return resultAccounts
 }

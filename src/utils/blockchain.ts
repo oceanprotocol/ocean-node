@@ -16,6 +16,14 @@ import { CORE_LOGGER } from './logging/common.js'
 import { sleep } from './util.js'
 import { ConnectionStatus, SupportedNetwork } from '../@types/blockchain.js'
 import { ValidateChainId } from '../@types/commands.js'
+import { KNOWN_CONFIDENTIAL_EVMS } from '../utils/address.js'
+
+const MIN_GAS_FEE_POLYGON = 30000000000 // minimum recommended 30 gwei polygon main and mumbai fees
+const MIN_GAS_FEE_SEPOLIA = 4000000000 // minimum 4 gwei for eth sepolia testnet
+const MIN_GAS_FEE_SAPPHIRE = 10000000000 // recommended for mainnet and testnet 10 gwei
+const POLYGON_NETWORK_ID = 137
+const MUMBAI_NETWORK_ID = 80001
+const SEPOLIA_NETWORK_ID = 11155111
 
 export class Blockchain {
   private signer: Signer
@@ -56,6 +64,10 @@ export class Blockchain {
 
   public getSupportedChain(): number {
     return this.chainId
+  }
+
+  public async getWalletAddress(): Promise<string> {
+    return await this.signer.getAddress()
   }
 
   public async isNetworkReady(): Promise<ConnectionStatus> {
@@ -152,11 +164,75 @@ export class Blockchain {
     // oldNetwork exists, it represents a changing network
     this.networkAvailable = newNetwork instanceof Network
   }
+
+  public async getFairGasPrice(gasFeeMultiplier: number): Promise<string> {
+    const price = await (await this.signer.provider.getFeeData()).gasPrice
+    const x = BigInt(price.toString())
+    if (gasFeeMultiplier) {
+      const res = BigInt(price.toString()) * BigInt(gasFeeMultiplier)
+      return res.toString(10)
+    } else return x.toString()
+  }
+
+  public async getGasOptions(estGas: bigint, gasFeeMultiplier: number): Promise<{}> {
+    const { chainId } = await this.signer.provider.getNetwork()
+    const feeHistory = await this.signer.provider.getFeeData()
+    const gasLimit = estGas + BigInt(20000)
+
+    if (feeHistory.maxPriorityFeePerGas) {
+      let aggressiveFeePriorityFeePerGas = feeHistory.maxPriorityFeePerGas.toString()
+      let aggressiveFeePerGas = feeHistory.maxFeePerGas.toString()
+      if (gasFeeMultiplier > 1) {
+        aggressiveFeePriorityFeePerGas = (
+          (feeHistory.maxPriorityFeePerGas * BigInt(gasFeeMultiplier * 100)) /
+          BigInt(100)
+        ).toString()
+        aggressiveFeePerGas = (
+          (feeHistory.maxFeePerGas * BigInt(gasFeeMultiplier * 100)) /
+          BigInt(100)
+        ).toString()
+      }
+      const overrides = {
+        gasLimit,
+        maxPriorityFeePerGas:
+          (chainId === BigInt(MUMBAI_NETWORK_ID) ||
+            chainId === BigInt(POLYGON_NETWORK_ID)) &&
+          Number(aggressiveFeePriorityFeePerGas) < MIN_GAS_FEE_POLYGON
+            ? MIN_GAS_FEE_POLYGON
+            : chainId === BigInt(SEPOLIA_NETWORK_ID) &&
+              Number(aggressiveFeePriorityFeePerGas) < MIN_GAS_FEE_SEPOLIA
+            ? MIN_GAS_FEE_SEPOLIA
+            : KNOWN_CONFIDENTIAL_EVMS.includes(chainId) &&
+              Number(aggressiveFeePriorityFeePerGas) < MIN_GAS_FEE_SAPPHIRE
+            ? MIN_GAS_FEE_SAPPHIRE
+            : Number(aggressiveFeePriorityFeePerGas),
+        maxFeePerGas:
+          (chainId === BigInt(MUMBAI_NETWORK_ID) ||
+            chainId === BigInt(POLYGON_NETWORK_ID)) &&
+          Number(aggressiveFeePerGas) < MIN_GAS_FEE_POLYGON
+            ? MIN_GAS_FEE_POLYGON
+            : chainId === BigInt(SEPOLIA_NETWORK_ID) &&
+              Number(aggressiveFeePerGas) < MIN_GAS_FEE_SEPOLIA
+            ? MIN_GAS_FEE_SEPOLIA
+            : KNOWN_CONFIDENTIAL_EVMS.includes(chainId) &&
+              Number(aggressiveFeePerGas) < MIN_GAS_FEE_SAPPHIRE
+            ? MIN_GAS_FEE_SAPPHIRE
+            : Number(aggressiveFeePerGas)
+      }
+      return overrides
+    } else {
+      const overrides = {
+        gasLimit,
+        gasPrice: feeHistory.gasPrice
+      }
+      return overrides
+    }
+  }
 }
 
 export async function getDatatokenDecimals(
   datatokenAddress: string,
-  provider: JsonRpcProvider
+  provider: ethers.Provider
 ): Promise<number> {
   const datatokenContract = new Contract(datatokenAddress, ERC20Template.abi, provider)
   try {

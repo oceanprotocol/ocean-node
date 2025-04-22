@@ -29,7 +29,7 @@ import {
   getOceanArtifactsAdressesByChainId
 } from '../../utils/address.js'
 import { createFee } from '../../components/core/utils/feesHandler.js'
-import { DDO } from '../../@types/DDO/DDO.js'
+import { Asset, DDO } from '@oceanprotocol/ddo-js'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
@@ -72,7 +72,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
   let datatokenAddress: string
   const chainId = 8996
   let assetDID: string
-  let resolvedDDO: Record<string, any> = {}
+  let resolvedDDO: Asset
   let genericAsset: any
   let setMetaDataTxReceipt: any
   let orderTxId: string
@@ -111,7 +111,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
     const config = await getConfiguration(true)
     database = await new Database(config.dbConfig)
-    oceanNode = await OceanNode.getInstance()
+    oceanNode = await OceanNode.getInstance(config, database)
     indexer = new OceanIndexer(database, mockSupportedNetworks)
     oceanNode.addIndexer(indexer)
     let artifactsAddresses = getOceanArtifactsAdressesByChainId(DEVELOPMENT_CHAIN_ID)
@@ -348,7 +348,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     const retrievedDDO: any = ddo
     if (retrievedDDO) {
       expect(retrievedDDO.indexedMetadata.nft).to.not.equal(undefined)
-      expect(retrievedDDO).to.have.nested.property('nft.state')
+      expect(retrievedDDO).to.have.nested.property('indexedMetadata.nft.state')
       // Expect the result from contract
       expect(retrievedDDO.indexedMetadata.nft.state).to.equal(
         parseInt(result[2].toString())
@@ -460,7 +460,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       true
     )
     if (ddo) {
-      const retrievedDDO: DDO = ddo
+      const retrievedDDO = ddo
       console.log('indexer retrieved ddo: ', JSON.stringify(retrievedDDO))
       for (const stat of retrievedDDO.indexedMetadata.stats) {
         if (stat.datatokenAddress === datatokenAddress) {
@@ -553,7 +553,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
       true
     )
 
-    const retrievedDDO: DDO = ddo
+    const retrievedDDO = ddo
 
     if (retrievedDDO) {
       for (const stat of retrievedDDO.indexedMetadata.stats) {
@@ -598,14 +598,14 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
     const { ddo, wasTimeout } = await waitToIndex(
       assetDID,
-      EVENTS.METADATA_UPDATED,
+      EVENTS.METADATA_STATE,
       DEFAULT_TEST_TIMEOUT,
       true
     )
     const resolvedDDO: any = ddo
     if (resolvedDDO) {
       // Expect a short version of the DDO
-      expect(Object.keys(resolvedDDO).length).to.equal(4)
+      expect(Object.keys(resolvedDDO).length).to.equal(5)
       expect(
         'id' in resolvedDDO &&
           'nftAddress' in resolvedDDO &&
