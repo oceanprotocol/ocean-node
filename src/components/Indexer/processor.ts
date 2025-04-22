@@ -59,6 +59,7 @@ import {
   VersionedDDO
 } from '@oceanprotocol/ddo-js'
 import { checkCredentialOnAccessList } from '../../utils/credentials.js'
+import { getNonce } from '../core/utils/nonceHandler.js'
 class BaseEventProcessor {
   protected networkId: number
 
@@ -242,7 +243,10 @@ class BaseEventProcessor {
       INDEXER_LOGGER.logMessage(
         `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
       )
-      const nonce = Math.floor(Date.now() / 1000).toString()
+
+      const { nonce: nonceDB } = await getDatabase()
+      const nonceHandlerResponse = await getNonce(nonceDB, eventCreator)
+      const nonce = await streamToString(nonceHandlerResponse.stream as Readable)
       const config = await getConfiguration()
       const { keys } = config
       const nodeId = keys.peerId.toString()
