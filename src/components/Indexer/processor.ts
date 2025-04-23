@@ -244,10 +244,11 @@ class BaseEventProcessor {
         `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
       )
 
-      const { nonce: nonceDB } = await getDatabase()
-      const nonceHandlerResponse = await getNonce(nonceDB, eventCreator)
-      const nonce = await streamToString(nonceHandlerResponse.stream as Readable)
-      const incrementedNonce = (Number(nonce) + 1).toString()
+      // const { nonce: nonceDB } = await getDatabase()
+      // const nonceHandlerResponse = await getNonce(nonceDB, eventCreator)
+      // const nonce = await streamToString(nonceHandlerResponse.stream as Readable)
+      // const incrementedNonce = (Number(nonce) + 1).toString()
+      const incrementedNonce = Date.now()
 
       const config = await getConfiguration()
       const { keys } = config
