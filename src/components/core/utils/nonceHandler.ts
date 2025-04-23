@@ -55,6 +55,7 @@ export async function getNonce(
   db: AbstractNonceDatabase,
   address: string
 ): Promise<P2PCommandResponse> {
+  DATABASE_LOGGER.logMessage('Retrieving nonce for address: ' + address, true)
   // get nonce from db
   try {
     const nonceResponse = await db.retrieve(address)
@@ -92,6 +93,8 @@ async function updateNonce(
   nonce: number
 ): Promise<NonceResponse> {
   try {
+    DATABASE_LOGGER.logMessage('Upting nonce for address: ' + address, true)
+
     // update nonce on db
     // it will create if none exists yet
     const resp = await db.update(address, nonce)
