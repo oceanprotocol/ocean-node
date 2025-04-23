@@ -4,10 +4,10 @@ import { AccessListContract } from '../@types/OceanNode.js'
 import { CORE_LOGGER } from './logging/common.js'
 import {
   Credential,
-  CREDENTIAL_TYPES,
   Credentials,
+  CREDENTIALS_TYPES,
   KNOWN_CREDENTIALS_TYPES
-} from '../@types/DDO/Credentials.js'
+} from '@oceanprotocol/ddo-js'
 import { getNFTContract } from '../components/Indexer/utils.js'
 import { isDefined } from './util.js'
 import { getConfiguration } from './config.js'
@@ -38,7 +38,7 @@ export function isAddressCredentialMatch(
   credential: Credential,
   consumerCredentials: Credential
 ): boolean {
-  if (credential?.type?.toLowerCase() !== CREDENTIAL_TYPES.ADDRESS) {
+  if (credential?.type?.toLowerCase() !== CREDENTIALS_TYPES.ADDRESS) {
     return false
   }
   if (credential.values.length > 0) {
@@ -50,7 +50,7 @@ export function isAddressCredentialMatch(
 }
 
 function isAddressMatchAll(credential: Credential): boolean {
-  if (credential?.type?.toLowerCase() !== CREDENTIAL_TYPES.ADDRESS) {
+  if (credential?.type?.toLowerCase() !== CREDENTIALS_TYPES.ADDRESS) {
     return false
   }
   if (credential.values.length > 0) {
@@ -83,7 +83,7 @@ export async function checkCredentials(
   chainId?: number
 ): Promise<boolean> {
   const consumerCredentials: Credential = {
-    type: CREDENTIAL_TYPES.ADDRESS, // 'address',
+    type: CREDENTIALS_TYPES.ADDRESS,
     values: [String(consumerAddress)?.toLowerCase()]
   }
 
@@ -100,7 +100,7 @@ export async function checkCredentials(
     let denyCount = 0
     for (const cred of credentials.deny) {
       const { type } = cred
-      if (type === CREDENTIAL_TYPES.ADDRESS) {
+      if (type === CREDENTIALS_TYPES.ADDRESS) {
         const accessDeny = isAddressCredentialMatch(cred, consumerCredentials)
         // credential is on deny list, so it should be blocked access
         if (accessDeny) {
@@ -122,7 +122,7 @@ export async function checkCredentials(
     let matchCount = 0
     for (const cred of credentials.allow) {
       const { type } = cred
-      if (type === CREDENTIAL_TYPES.ADDRESS) {
+      if (type === CREDENTIALS_TYPES.ADDRESS) {
         const accessAllow = isAddressCredentialMatch(cred, consumerCredentials)
         if (accessAllow || isAddressMatchAll(cred)) {
           // if no match_allow or 'any', its fine
@@ -132,7 +132,7 @@ export async function checkCredentials(
           // otherwise, match 'all', in this case the amount of matches should be the same of the amount of rules
           matchCount++
         }
-      } else if (type === CREDENTIAL_TYPES.ACCESS_LIST && chainId) {
+      } else if (type === CREDENTIALS_TYPES.ACCESS_LIST && chainId) {
         const config = await getConfiguration()
         const supportedNetwork = config.supportedNetworks[String(chainId)]
         if (supportedNetwork) {

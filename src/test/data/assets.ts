@@ -1,4 +1,4 @@
-import { Credentials } from '@oceanprotocol/ddo-js'
+import { Credentials, CREDENTIALS_TYPES } from '@oceanprotocol/ddo-js'
 
 export const downloadAsset = {
   '@context': ['https://w3id.org/did/v1'],
@@ -62,11 +62,11 @@ export const downloadAsset = {
 const nftLevelCredentials: Credentials = {
   allow: [
     {
-      type: 'address',
+      type: CREDENTIALS_TYPES.ADDRESS,
       values: ['0xBE5449a6A97aD46c8558A3356267Ee5D2731ab5e']
     },
     {
-      type: 'address',
+      type: CREDENTIALS_TYPES.ADDRESS,
       values: [
         '0xA78deb2Fa79463945C247991075E2a0e98Ba7A09',
         '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260'
@@ -75,7 +75,7 @@ const nftLevelCredentials: Credentials = {
   ],
   deny: [
     {
-      type: 'address',
+      type: CREDENTIALS_TYPES.ADDRESS,
       values: ['0x02354A1F160A3fd7ac8b02ee91F04104440B28E7']
     }
   ]
@@ -84,13 +84,13 @@ const nftLevelCredentials: Credentials = {
 const serviceLevelCredentials: Credentials = {
   deny: [
     {
-      type: 'address',
+      type: CREDENTIALS_TYPES.ADDRESS,
       values: ['0xA78deb2Fa79463945C247991075E2a0e98Ba7A09']
     }
   ],
   allow: [
     {
-      type: 'address',
+      type: CREDENTIALS_TYPES.ADDRESS,
       values: [
         '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260',
         '0xBE5449a6A97aD46c8558A3356267Ee5D2731ab5e'

@@ -1,3 +1,5 @@
+import { CREDENTIALS_TYPES } from '@oceanprotocol/ddo-js'
+
 export const ddo = {
   hashType: 'sha256',
   '@context': ['https://w3id.org/did/v1'],
@@ -71,13 +73,13 @@ export const genericAlgorithm = {
   credentials: {
     allow: [
       {
-        type: 'address',
+        type: CREDENTIALS_TYPES.ADDRESS,
         values: ['0xBE5449a6A97aD46c8558A3356267Ee5D2731ab5e']
       }
     ],
     deny: [
       {
-        type: 'address',
+        type: CREDENTIALS_TYPES.ADDRESS,
         values: ['0x123']
       }
     ]
@@ -124,13 +126,13 @@ export const genericDDO = {
   credentials: {
     allow: [
       {
-        type: 'address',
+        type: CREDENTIALS_TYPES.ADDRESS,
         values: ['0xBE5449a6A97aD46c8558A3356267Ee5D2731ab5e']
       }
     ],
     deny: [
       {
-        type: 'address',
+        type: CREDENTIALS_TYPES.ADDRESS,
         values: ['0x123']
       }
     ]
@@ -189,13 +191,13 @@ export const genericComputeDDO = {
   credentials: {
     allow: [
       {
-        type: 'address',
+        type: CREDENTIALS_TYPES.ADDRESS,
         values: ['0xBE5449a6A97aD46c8558A3356267Ee5D2731ab5e']
       }
     ],
     deny: [
       {
-        type: 'address',
+        type: CREDENTIALS_TYPES.ADDRESS,
         values: ['0x123']
       }
     ]
@@ -348,13 +350,13 @@ export const ddov7 = {
       credentials: {
         allow: [
           {
-            type: 'address',
+            type: CREDENTIALS_TYPES.ADDRESS,
             values: ['0x1234']
           }
         ],
         deny: [
           {
-            type: 'address',
+            type: CREDENTIALS_TYPES.ADDRESS,
             values: ['0xabcd']
           }
         ]
