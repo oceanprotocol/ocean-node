@@ -1,1656 +1,201 @@
-import {
-  Interface,
-  JsonRpcApiProvider,
-  Signer,
-  ZeroAddress,
-  ethers,
-  getAddress,
-  getBytes,
-  hexlify,
-  toUtf8Bytes,
-  toUtf8String
-} from 'ethers'
-import { createHash } from 'crypto'
-import { Readable } from 'node:stream'
-import axios from 'axios'
-import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
-import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
-import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
-import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
-import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
-import { getDatabase } from '../../utils/database.js'
-import {
-  PROTOCOL_COMMANDS,
-  EVENTS,
-  MetadataStates,
-  EVENT_HASHES,
-  ENVIRONMENT_VARIABLES
-} from '../../utils/constants.js'
-import {
-  findServiceIdByDatatoken,
-  getDtContract,
-  getPricingStatsForDddo,
-  wasNFTDeployedByOurFactory,
-  getPricesByDt,
-  doesDispenserAlreadyExist,
-  doesFreAlreadyExist,
-  getDid
-} from './utils.js'
-
+import { ethers, Signer, JsonRpcApiProvider, Interface, getAddress } from 'ethers'
+import { BlocksEvents, ProcessingEvents } from '../../@types/blockchain.js'
+import { EVENTS } from '../../utils/constants.js'
+import { getConfiguration } from '../../utils/config.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
-import { Purgatory } from './purgatory.js'
+import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { fetchEventFromTransaction } from '../../utils/util.js'
 import {
-  deleteIndexedMetadataIfExists,
-  getConfiguration,
-  timestampToDateTime
-} from '../../utils/index.js'
-import { OceanNode } from '../../OceanNode.js'
-import { asyncCallWithTimeout, streamToString } from '../../utils/util.js'
-import { DecryptDDOCommand } from '../../@types/commands.js'
-import { create256Hash } from '../../utils/crypt.js'
-import { URLUtils } from '../../utils/url.js'
-import { PolicyServer } from '../policyServer/index.js'
-import {
-  DDO,
-  DDOManager,
-  DeprecatedDDO,
-  PriceType,
-  VersionedDDO
-} from '@oceanprotocol/ddo-js'
-import { checkCredentialOnAccessList } from '../../utils/credentials.js'
-export abstract class BaseEventProcessor {
-  protected networkId: number
+  BaseEventProcessor,
+  MetadataEventProcessor,
+  MetadataStateEventProcessor,
+  OrderStartedEventProcessor,
+  OrderReusedEventProcessor,
+  DispenserCreatedEventProcessor,
+  DispenserActivatedEventProcessor,
+  DispenserDeactivatedEventProcessor,
+  ExchangeCreatedEventProcessor,
+  ExchangeActivatedEventProcessor,
+  ExchangeDeactivatedEventProcessor,
+  ExchangeRateChangedEventProcessor,
+  ProcessorConstructor
+} from './processors/index.js'
+import { findEventByKey } from './utils.js'
+import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import AccessListContract from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
 
-  constructor(chainId: number) {
-    this.networkId = chainId
+const EVENT_PROCESSOR_MAP: Record<string, ProcessorConstructor> = {
+  [EVENTS.METADATA_CREATED]: MetadataEventProcessor,
+  [EVENTS.METADATA_UPDATED]: MetadataEventProcessor,
+  [EVENTS.METADATA_STATE]: MetadataStateEventProcessor,
+  [EVENTS.ORDER_STARTED]: OrderStartedEventProcessor,
+  [EVENTS.ORDER_REUSED]: OrderReusedEventProcessor,
+  [EVENTS.DISPENSER_CREATED]: DispenserCreatedEventProcessor,
+  [EVENTS.DISPENSER_ACTIVATED]: DispenserActivatedEventProcessor,
+  [EVENTS.DISPENSER_DEACTIVATED]: DispenserDeactivatedEventProcessor,
+  [EVENTS.EXCHANGE_CREATED]: ExchangeCreatedEventProcessor,
+  [EVENTS.EXCHANGE_ACTIVATED]: ExchangeActivatedEventProcessor,
+  [EVENTS.EXCHANGE_DEACTIVATED]: ExchangeDeactivatedEventProcessor,
+  [EVENTS.EXCHANGE_RATE_CHANGED]: ExchangeRateChangedEventProcessor
+}
+
+const processorInstances = new Map<string, BaseEventProcessor>()
+
+function getEventProcessor(eventType: string, chainId: number): BaseEventProcessor {
+  const cacheKey = `${eventType}-${chainId}`
+
+  if (!processorInstances.has(cacheKey)) {
+    const ProcessorClass = EVENT_PROCESSOR_MAP[eventType]
+    if (!ProcessorClass) {
+      throw new Error(`No processor found for event type: ${eventType}`)
+    }
+    processorInstances.set(cacheKey, new ProcessorClass(chainId))
   }
 
-  protected isValidDtAddressFromServices(services: any[]): boolean {
-    for (const service of services) {
-      if (
-        service.datatokenAddress === '0x0' ||
-        service.datatokenAddress === ZeroAddress
-      ) {
-        return false
-      }
-    }
-    return true
-  }
+  return processorInstances.get(cacheKey)
+}
 
-  protected async getTokenInfo(services: any[], signer: Signer): Promise<any[]> {
-    const datatokens: any[] = []
+export const processChunkLogs = async (
+  logs: readonly ethers.Log[],
+  signer: Signer,
+  provider: JsonRpcApiProvider,
+  chainId: number
+): Promise<BlocksEvents> => {
+  const storeEvents: BlocksEvents = {}
+  if (logs.length > 0) {
+    const { allowedValidators, allowedValidatorsList } = await getConfiguration() //  getAllowedValidators()
+    const checkMetadataValidated =
+      allowedValidators.length > 0 ||
+      (allowedValidatorsList && Object.keys(allowedValidatorsList).length > 0)
+    for (const log of logs) {
+      const event = findEventByKey(log.topics[0])
 
-    for (const service of services) {
-      const datatoken = new ethers.Contract(
-        service.datatokenAddress,
-        ERC20Template.abi,
-        signer
-      )
-      let name: string
-      let symbol: string
-      if (
-        service.datatokenAddress === '0x0' ||
-        service.datatokenAddress === ZeroAddress
-      ) {
-        name = `Datatoken${services.indexOf(service)}`
-        symbol = `DT${services.indexOf(service)}`
-      } else {
-        name = await datatoken.name()
-        INDEXER_LOGGER.logMessage(`name.datatoken: ${name}`)
-        symbol = await datatoken.symbol()
-        INDEXER_LOGGER.logMessage(`symbol.datatoken: ${symbol}`)
-      }
-
-      datatokens.push({
-        address: service.datatokenAddress,
-        name,
-        symbol,
-        serviceId: service.id
-      })
-    }
-
-    return datatokens
-  }
-
-  protected async getEventData(
-    provider: JsonRpcApiProvider,
-    transactionHash: string,
-    abi: any,
-    eventType: string
-  ): Promise<ethers.LogDescription> {
-    const iface = new Interface(abi)
-    const receipt = await provider.getTransactionReceipt(transactionHash)
-
-    let eventHash: string
-    for (const [key, value] of Object.entries(EVENT_HASHES)) {
-      if (value.type === eventType) {
-        eventHash = key
-        break
-      }
-    }
-    if (eventHash === '') {
-      INDEXER_LOGGER.error(`Event hash couldn't be found!`)
-      return null
-    }
-
-    let eventObj: any
-    for (const log of receipt.logs) {
-      if (log.topics[0] === eventHash) {
-        eventObj = {
-          topics: log.topics,
-          data: log.data
-        }
-        break
-      }
-    }
-
-    if (!eventObj) {
-      INDEXER_LOGGER.error(
-        `Event object couldn't be retrieved! Event hash not present in logs topics`
-      )
-      return null
-    }
-
-    return iface.parseLog(eventObj)
-  }
-
-  protected async getNFTInfo(
-    nftAddress: string,
-    signer: Signer,
-    owner: string,
-    timestamp: number
-  ): Promise<any> {
-    const nftContract = new ethers.Contract(nftAddress, ERC721Template.abi, signer)
-    const state = parseInt((await nftContract.getMetaData())[2])
-    const id = parseInt(await nftContract.getId())
-    const tokenURI = await nftContract.tokenURI(id)
-    return {
-      state,
-      address: nftAddress,
-      name: await nftContract.name(),
-      symbol: await nftContract.symbol(),
-      owner,
-      created: timestampToDateTime(timestamp),
-      tokenURI
-    }
-  }
-
-  protected async createOrUpdateDDO(ddo: VersionedDDO, method: string): Promise<any> {
-    try {
-      const { ddo: ddoDatabase, ddoState } = await getDatabase()
-      if (ddo instanceof DeprecatedDDO) {
-        const { id, nftAddress } = ddo.getDDOFields()
-        await Promise.all([ddoDatabase.delete(id), ddoState.delete(id)])
-        const saveDDO = await ddoDatabase.create(ddo.getDDOData())
-        await ddoState.create(this.networkId, saveDDO.id, nftAddress, undefined, true)
-
-        return saveDDO
-      }
-
-      const saveDDO = await ddoDatabase.update({ ...ddo.getDDOData() })
-      await ddoState.update(
-        this.networkId,
-        saveDDO.id,
-        saveDDO.nftAddress,
-        saveDDO.indexedMetadata?.event?.tx,
-        true
-      )
-      INDEXER_LOGGER.logMessage(
-        `Saved or updated DDO  : ${saveDDO.id} from network: ${this.networkId} triggered by: ${method}`
-      )
-      return saveDDO
-    } catch (err) {
-      const { ddoState } = await getDatabase()
-      const { id, nftAddress } = ddo.getDDOFields()
-      const tx =
-        ddo instanceof DeprecatedDDO
-          ? undefined
-          : ddo.getAssetFields().indexedMetadata?.event?.txid
-
-      await ddoState.update(this.networkId, id, nftAddress, tx, true, err.message)
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `Error found on ${this.networkId} triggered by: ${method} while creating or updating DDO: ${err}`,
-        true
-      )
-    }
-  }
-
-  protected checkDdoHash(decryptedDocument: any, documentHashFromContract: any): boolean {
-    const utf8Bytes = toUtf8Bytes(JSON.stringify(decryptedDocument))
-    const expectedMetadata = hexlify(utf8Bytes)
-    if (create256Hash(expectedMetadata.toString()) !== documentHashFromContract) {
-      INDEXER_LOGGER.error(`DDO checksum does not match.`)
-      return false
-    }
-    return true
-  }
-
-  protected async decryptDDO(
-    decryptorURL: string,
-    flag: string,
-    eventCreator: string,
-    contractAddress: string,
-    chainId: number,
-    txId: string,
-    metadataHash: string,
-    metadata: any
-  ): Promise<any> {
-    let ddo
-    if (parseInt(flag) === 2) {
-      INDEXER_LOGGER.logMessage(
-        `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
-      )
-      const nonce = Math.floor(Date.now() / 1000).toString()
-      const config = await getConfiguration()
-      const { keys } = config
-      const nodeId = keys.peerId.toString()
-
-      const wallet: ethers.Wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string)
-
-      const message = String(
-        txId + contractAddress + keys.ethAddress + chainId.toString() + nonce
-      )
-      const consumerMessage = ethers.solidityPackedKeccak256(
-        ['bytes'],
-        [ethers.hexlify(ethers.toUtf8Bytes(message))]
-      )
-      const signature = await wallet.signMessage(consumerMessage)
-
-      if (URLUtils.isValidUrl(decryptorURL)) {
-        try {
-          const payload = {
-            transactionId: txId,
-            chainId,
-            decrypterAddress: keys.ethAddress,
-            dataNftAddress: contractAddress,
-            signature,
-            nonce
-          }
-          const response = await axios({
-            method: 'post',
-            url: `${decryptorURL}/api/services/decrypt`,
-            data: payload
-          })
-          if (response.status !== 200) {
-            const message = `bProvider exception on decrypt DDO. Status: ${response.status}, ${response.statusText}`
-            INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
-            throw new Error(message)
-          }
-
-          let responseHash
-          if (response.data instanceof Object) {
-            responseHash = create256Hash(JSON.stringify(response.data))
-            ddo = response.data
-          } else {
-            ddo = JSON.parse(response.data)
-            responseHash = create256Hash(ddo)
-          }
-          if (responseHash !== metadataHash) {
-            const msg = `Hash check failed: response=${ddo}, decrypted ddo hash=${responseHash}\n metadata hash=${metadataHash}`
-            INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, msg)
-            throw new Error(msg)
-          }
-        } catch (err) {
-          const message = `Provider exception on decrypt DDO. Status: ${err.message}`
-          INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
-          throw new Error(message)
-        }
-      } else {
-        const node = OceanNode.getInstance(config, await getDatabase())
-        if (nodeId === decryptorURL) {
-          const decryptDDOTask: DecryptDDOCommand = {
-            command: PROTOCOL_COMMANDS.DECRYPT_DDO,
-            transactionId: txId,
-            decrypterAddress: keys.ethAddress,
-            chainId,
-            encryptedDocument: metadata,
-            documentHash: metadataHash,
-            dataNftAddress: contractAddress,
-            signature,
-            nonce
-          }
-          try {
-            const response = await node
-              .getCoreHandlers()
-              .getHandler(PROTOCOL_COMMANDS.DECRYPT_DDO)
-              .handle(decryptDDOTask)
-            ddo = JSON.parse(await streamToString(response.stream as Readable))
-          } catch (error) {
-            const message = `Node exception on decrypt DDO. Status: ${error.message}`
-            INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
-            throw new Error(message)
-          }
-        } else {
-          try {
-            const p2pNode = await node.getP2PNode()
-            let isBinaryContent = false
-            const sink = async function (source: any) {
-              let first = true
-              for await (const chunk of source) {
-                if (first) {
-                  first = false
-                  try {
-                    const str = uint8ArrayToString(chunk.subarray()) // Obs: we need to specify the length of the subarrays
-                    const decoded = JSON.parse(str)
-                    if ('headers' in decoded) {
-                      if (str?.toLowerCase().includes('application/octet-stream')) {
-                        isBinaryContent = true
-                      }
-                    }
-                    if (decoded.httpStatus !== 200) {
-                      INDEXER_LOGGER.logMessage(
-                        `Error in sink method  : ${decoded.httpStatus} errro: ${decoded.error}`
+      if (event && Object.values(EVENTS).includes(event.type)) {
+        // only log & process the ones we support
+        INDEXER_LOGGER.logMessage(
+          `-- ${event.type} -- triggered for ${log.transactionHash}`,
+          true
+        )
+        if (
+          event.type === EVENTS.METADATA_CREATED ||
+          event.type === EVENTS.METADATA_UPDATED ||
+          event.type === EVENTS.METADATA_STATE
+        ) {
+          // ref: https://github.com/oceanprotocol/ocean-node/issues/257
+          if (checkMetadataValidated) {
+            const txReceipt = await provider.getTransactionReceipt(log.transactionHash)
+            const metadataProofs = fetchEventFromTransaction(
+              txReceipt,
+              'MetadataValidated',
+              new Interface(ERC20Template.abi)
+            )
+            if (!metadataProofs) {
+              INDEXER_LOGGER.log(
+                LOG_LEVELS_STR.LEVEL_ERROR,
+                `Metadata Proof validator not allowed`,
+                true
+              )
+              continue
+              // do not process this one
+            }
+            const validators: string[] = metadataProofs.map((metadataProof) =>
+              getAddress(metadataProof.args[0].toString())
+            )
+            // ALLOWED_VALIDATORS CHECK
+            const allowed = allowedValidators.filter(
+              (allowedValidator) => validators.indexOf(allowedValidator) !== -1
+            )
+            if (!allowed.length) {
+              INDEXER_LOGGER.log(
+                LOG_LEVELS_STR.LEVEL_ERROR,
+                `Metadata Proof validators list is empty`,
+                true
+              )
+              continue
+              // do not process this one
+            }
+            // ALLOWED_VALIDATORS_LIST
+            // by default it is OK
+            let isAllowed = true
+            if (allowedValidatorsList && validators.length > 0) {
+              // need to check then
+              isAllowed = false
+              // check accessList
+              const chainsListed = Object.keys(allowedValidatorsList)
+              const chain = String(chainId)
+              // check the access lists for this chain
+              if (chainsListed.length > 0 && chainsListed.includes(chain)) {
+                for (const accessListAddress of allowedValidatorsList[chain]) {
+                  // instantiate contract and check balanceOf
+                  const accessListContract = new ethers.Contract(
+                    accessListAddress,
+                    AccessListContract.abi,
+                    signer
+                  )
+                  for (const metaproofValidator of validators) {
+                    // if has at least 1 token than it is authorized
+                    // its enough one validator on the list
+                    const balance = await accessListContract.balanceOf(metaproofValidator)
+                    if (Number(balance) <= 0) {
+                      INDEXER_LOGGER.error(
+                        `Metadata validator: ${metaproofValidator} is NOT part of the access list group: ${accessListAddress}.`
                       )
-                      throw new Error('Error in sink method', decoded.error)
+                    } else {
+                      isAllowed = true
+                      break
                     }
-                  } catch (e) {
-                    INDEXER_LOGGER.logMessage(
-                      `Error in sink method  } error: ${e.message}`
-                    )
-                    throw new Error(`Error in sink method ${e.message}`)
-                  }
-                } else {
-                  if (isBinaryContent) {
-                    return chunk.subarray()
-                  } else {
-                    const str = uint8ArrayToString(chunk.subarray())
-                    return str
                   }
                 }
+              } else {
+                isAllowed = true // no rules for this specific chain, so ignore this
               }
-            }
-            const message = {
-              command: PROTOCOL_COMMANDS.DECRYPT_DDO,
-              transactionId: txId,
-              decrypterAddress: keys.ethAddress,
-              chainId,
-              encryptedDocument: metadata,
-              documentHash: metadataHash,
-              dataNftAddress: contractAddress,
-              signature,
-              nonce
-            }
-            const response = await p2pNode.sendTo(
-              decryptorURL,
-              JSON.stringify(message),
-              sink
-            )
-            ddo = JSON.parse(await streamToString(response.stream as Readable))
-          } catch (error) {
-            const message = `Node exception on decrypt DDO. Status: ${error.message}`
-            INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
-            throw new Error(message)
-          }
+              // move on to the next (do not process this event)
+              if (isAllowed === false) {
+                continue
+              }
+            } // end if (allowedValidatorsList) {
+          } // end if if (checkMetadataValidated) {
         }
-      }
-    } else {
-      INDEXER_LOGGER.logMessage(
-        `Decompressing DDO  from network: ${this.networkId} created by: ${eventCreator} ecnrypted by: ${decryptorURL}`
-      )
-      const byteArray = getBytes(metadata)
-      const utf8String = toUtf8String(byteArray)
-      ddo = JSON.parse(utf8String)
-    }
-
-    return ddo
-  }
-
-  public abstract processEvent(
-    event: ethers.Log,
-    chainId: number,
-    signer: Signer,
-    provider: JsonRpcApiProvider,
-    eventName?: string
-  ): Promise<any>
-}
-
-export class MetadataEventProcessor extends BaseEventProcessor {
-  async processEvent(
-    event: ethers.Log,
-    chainId: number,
-    signer: Signer,
-    provider: JsonRpcApiProvider,
-    eventName: string
-  ): Promise<any> {
-    let did = 'did:op'
-    try {
-      const { ddo: ddoDatabase, ddoState } = await getDatabase()
-      const wasDeployedByUs = await wasNFTDeployedByOurFactory(
-        chainId,
-        signer,
-        getAddress(event.address)
-      )
-
-      if (!wasDeployedByUs) {
-        INDEXER_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_ERROR,
-          `NFT not deployed by OPF factory`,
-          true
-        )
-        return
-      }
-      const decodedEventData = await this.getEventData(
-        provider,
-        event.transactionHash,
-        ERC721Template.abi,
-        eventName
-      )
-      const metadata = decodedEventData.args[4]
-      const metadataHash = decodedEventData.args[5]
-      const flag = decodedEventData.args[3]
-      const owner = decodedEventData.args[0]
-      const ddo = await this.decryptDDO(
-        decodedEventData.args[2],
-        flag,
-        owner,
-        event.address,
-        chainId,
-        event.transactionHash,
-        metadataHash,
-        metadata
-      )
-      const clonedDdo = structuredClone(ddo)
-      INDEXER_LOGGER.logMessage(`clonedDdo: ${JSON.stringify(clonedDdo)}`)
-      const updatedDdo = deleteIndexedMetadataIfExists(clonedDdo)
-      const ddoInstance = DDOManager.getDDOClass(updatedDdo)
-      if (updatedDdo.id !== ddoInstance.makeDid(event.address, chainId.toString(10))) {
-        INDEXER_LOGGER.error(
-          `Decrypted DDO ID is not matching the generated hash for DID.`
-        )
-        return
-      }
-      // for unencrypted DDOs
-      if (parseInt(flag) !== 2 && !this.checkDdoHash(updatedDdo, metadataHash)) {
-        return
-      }
-
-      // check authorized publishers
-      const { authorizedPublishers, authorizedPublishersList } = await getConfiguration()
-      if (authorizedPublishers.length > 0) {
-        // if is not there, do not index
-        const authorized: string[] = authorizedPublishers.filter((address) =>
-          // do a case insensitive search
-          address.toLowerCase().includes(owner.toLowerCase())
-        )
-        if (!authorized.length) {
-          INDEXER_LOGGER.error(
-            `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS.name} group.`
-          )
-          return
-        }
-      }
-      if (authorizedPublishersList) {
-        // check accessList
-        const isAuthorized = await checkCredentialOnAccessList(
-          authorizedPublishersList,
-          String(chainId),
-          owner,
-          signer
-        )
-        if (!isAuthorized) {
-          INDEXER_LOGGER.error(
-            `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.name} access group.`
-          )
-          return
-        }
-      }
-
-      // stuff that we overwrite
-      did = ddoInstance.getDid()
-      const { services } = ddoInstance.getDDOFields()
-      ddoInstance.updateFields({
-        chainId,
-        nftAddress: event.address,
-        datatokens: await this.getTokenInfo(services, signer)
-      })
-
-      INDEXER_LOGGER.logMessage(
-        `Processed new DDO data ${ddoInstance.getDid()} with txHash ${
-          event.transactionHash
-        } from block ${event.blockNumber}`,
-        true
-      )
-
-      let previousDdoInstance
-      const previousDdo = await ddoDatabase.retrieve(ddoInstance.getDid())
-      if (previousDdo) {
-        previousDdoInstance = DDOManager.getDDOClass(previousDdo)
-      }
-
-      if (eventName === EVENTS.METADATA_CREATED) {
-        if (
-          previousDdoInstance &&
-          previousDdoInstance.getAssetFields().indexedMetadata.nft.state ===
-            MetadataStates.ACTIVE
-        ) {
-          INDEXER_LOGGER.logMessage(
-            `DDO ${ddoInstance.getDid()} is already registered as active`,
-            true
-          )
-          await ddoState.update(
-            this.networkId,
-            did,
-            event.address,
-            event.transactionHash,
-            false,
-            `DDO ${ddoInstance.getDid()} is already registered as active`
-          )
-          return
-        }
-      }
-
-      if (eventName === EVENTS.METADATA_UPDATED) {
-        if (!previousDdoInstance) {
-          INDEXER_LOGGER.logMessage(
-            `Previous DDO with did ${ddoInstance.getDid()} was not found the database. Maybe it was deleted/hidden to some violation issues`,
-            true
-          )
-          await ddoState.update(
-            this.networkId,
-            did,
-            event.address,
-            event.transactionHash,
-            false,
-            `Previous DDO with did ${ddoInstance.getDid()} was not found the database. Maybe it was deleted/hidden to some violation issues`
-          )
-          return
-        }
-        const [isUpdateable, error] = this.isUpdateable(
-          previousDdoInstance,
-          event.transactionHash,
-          event.blockNumber
-        )
-        if (!isUpdateable) {
-          INDEXER_LOGGER.error(
-            `Error encountered when checking if the asset is eligiable for update: ${error}`
-          )
-          await ddoState.update(
-            this.networkId,
-            did,
-            event.address,
-            event.transactionHash,
-            false,
-            error
-          )
-          return
-        }
-      }
-      const from = decodedEventData.args[0].toString()
-      let ddoUpdatedWithPricing
-
-      // we need to store the event data (either metadata created or update and is updatable)
-      if (
-        [EVENTS.METADATA_CREATED, EVENTS.METADATA_UPDATED].includes(eventName) &&
-        this.isValidDtAddressFromServices(ddoInstance.getDDOFields().services)
-      ) {
-        const ddoWithPricing = await getPricingStatsForDddo(ddoInstance, signer)
-        const nft = await this.getNFTInfo(
-          ddoWithPricing.getDDOFields().nftAddress,
-          signer,
-          owner,
-          parseInt(decodedEventData.args[6])
-        )
-
-        let block
-        let datetime
-        if (event.blockNumber) {
-          block = event.blockNumber
-          // try get block & timestamp from block (only wait 2.5 secs maximum)
-          const promiseFn = provider.getBlock(event.blockNumber)
-          const result = await asyncCallWithTimeout(promiseFn, 2500)
-          if (result.data !== null && !result.timeout) {
-            datetime = new Date(result.data.timestamp * 1000).toJSON()
-          }
-        }
-
-        const fieldsToUpdate = {
-          indexedMetadata: {
-            nft
-          },
-          event: {
-            tx: event.transactionHash,
-            from,
-            contract: event.address,
-            block,
-            datetime
-          }
-        }
-        ddoWithPricing.updateFields(fieldsToUpdate)
-
-        // policyServer check
-        const policyServer = new PolicyServer()
-        let policyStatus
-        if (eventName === EVENTS.METADATA_UPDATED)
-          policyStatus = await policyServer.checkUpdateDDO(
-            ddoWithPricing.getDDOData() as DDO,
-            this.networkId,
-            event.transactionHash,
-            event
-          )
-        else
-          policyStatus = await policyServer.checknewDDO(
-            ddoWithPricing.getDDOData() as DDO,
-            this.networkId,
-            event.transactionHash,
-            event
-          )
-        if (!policyStatus.success) {
-          await ddoState.update(
-            this.networkId,
-            did,
-            event.address,
-            event.transactionHash,
-            false,
-            policyStatus.message
-          )
-          return
-        }
-        ddoUpdatedWithPricing = ddoWithPricing
-      }
-      // always call, but only create instance once
-      const purgatory = await Purgatory.getInstance()
-      // if purgatory is disabled just return false
-      const updatedDDO = await this.updatePurgatoryStateDdo(
-        ddoUpdatedWithPricing,
-        from,
-        purgatory
-      )
-      if (updatedDDO.getAssetFields().indexedMetadata.purgatory.state === false) {
-        // TODO: insert in a different collection for purgatory DDOs
-        const saveDDO = await this.createOrUpdateDDO(ddoUpdatedWithPricing, eventName)
-        INDEXER_LOGGER.logMessage(`saved DDO: ${JSON.stringify(saveDDO)}`)
-        return saveDDO
-      }
-    } catch (error) {
-      const { ddoState } = await getDatabase()
-      await ddoState.update(
-        this.networkId,
-        did,
-        event.address,
-        event.transactionHash,
-        false,
-        error.message
-      )
-      INDEXER_LOGGER.log(
-        LOG_LEVELS_STR.LEVEL_ERROR,
-        `Error processMetadataEvents: ${error}`,
-        true
-      )
-    }
-  }
-
-  async updatePurgatoryStateDdo(
-    ddo: VersionedDDO,
-    owner: string,
-    purgatory: Purgatory
-  ): Promise<VersionedDDO> {
-    if (!purgatory.isEnabled()) {
-      ddo.updateFields({
-        indexedMetadata: {
-          purgatory: {
-            state: false
-          }
-        }
-      })
-
-      return ddo
-    }
-
-    const state: boolean =
-      (await purgatory.isBannedAsset(ddo.getDid())) ||
-      (await purgatory.isBannedAccount(owner))
-    ddo.updateFields({
-      indexedMetadata: {
-        purgatory: {
-          state
-        }
-      }
-    })
-
-    return ddo
-  }
-
-  isUpdateable(
-    previousDdo: VersionedDDO,
-    txHash: string,
-    block: number
-  ): [boolean, string] {
-    let errorMsg: string
-    const ddoTxId = previousDdo.getAssetFields().indexedMetadata?.event?.txid
-    // do not update if we have the same txid
-    if (txHash === ddoTxId) {
-      errorMsg = `Previous DDO has the same tx id, no need to update: event-txid=${txHash} <> asset-event-txid=${ddoTxId}`
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_DEBUG, errorMsg, true)
-      return [false, errorMsg]
-    }
-    const ddoBlock = previousDdo.getAssetFields().indexedMetadata?.event?.block
-    // do not update if we have the same block
-    if (block === ddoBlock) {
-      errorMsg = `Asset was updated later (block: ${ddoBlock}) vs transaction block: ${block}`
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_DEBUG, errorMsg, true)
-      return [false, errorMsg]
-    }
-
-    return [true, '']
-  }
-}
-
-export class MetadataStateEventProcessor extends BaseEventProcessor {
-  async processEvent(
-    event: ethers.Log,
-    chainId: number,
-    _signer: Signer,
-    provider: JsonRpcApiProvider
-  ): Promise<any> {
-    INDEXER_LOGGER.logMessage(`Processing metadata state event...`, true)
-    const decodedEventData = await this.getEventData(
-      provider,
-      event.transactionHash,
-      ERC721Template.abi,
-      EVENTS.METADATA_STATE
-    )
-    const metadataState = parseInt(decodedEventData.args[1].toString())
-    INDEXER_LOGGER.logMessage(`Processed new metadata state ${metadataState} `, true)
-    INDEXER_LOGGER.logMessage(
-      `NFT address in processing MetadataState: ${event.address} `,
-      true
-    )
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(event.address) + chainId.toString(10))
-        .digest('hex')
-
-    try {
-      const { ddo: ddoDatabase } = await getDatabase()
-      const ddo = await ddoDatabase.retrieve(did)
-      if (!ddo) {
-        INDEXER_LOGGER.logMessage(
-          `Detected MetadataState changed for ${did}, but it does not exists.`
-        )
-        return
-      }
-
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      INDEXER_LOGGER.logMessage(`Found did ${did} on network ${chainId}`)
-
-      if (
-        'nft' in ddoInstance.getAssetFields().indexedMetadata &&
-        ddoInstance.getAssetFields().indexedMetadata.nft.state !== metadataState
-      ) {
-        if (
-          ddoInstance.getAssetFields().indexedMetadata.nft.state ===
-            MetadataStates.ACTIVE &&
-          [MetadataStates.REVOKED, MetadataStates.DEPRECATED].includes(metadataState)
-        ) {
-          INDEXER_LOGGER.logMessage(
-            `DDO became non-visible from ${
-              ddoInstance.getAssetFields().indexedMetadata.nft.state
-            } to ${metadataState}`
-          )
-
-          // We should keep it here, because in further development we'll store
-          // the previous structure of the non-visible DDOs (full version)
-          // in case their state changes back to active.
-          const shortDdoInstance = DDOManager.getDDOClass({
-            id: ddo.id,
-            version: 'deprecated',
+        if (event.type === EVENTS.TOKEN_URI_UPDATE) {
+          storeEvents[event.type] = 'TOKEN_URI_UPDATE'
+        } else {
+          const processor = getEventProcessor(event.type, chainId)
+          storeEvents[event.type] = await processor.processEvent(
+            log,
             chainId,
-            nftAddress: ddo.nftAddress,
-            indexedMetadata: {
-              nft: {
-                state: metadataState
-              }
-            }
-          })
-
-          const savedDDO = await this.createOrUpdateDDO(
-            shortDdoInstance,
-            EVENTS.METADATA_STATE
+            signer,
+            provider,
+            event.type
           )
-          return savedDDO
         }
       }
-
-      // Still update until we validate and polish schemas for DDO.
-      // But it should update ONLY if the first condition is met.
-      // Check https://github.com/oceanprotocol/aquarius/blob/84a560ea972485e46dd3c2cfc3cdb298b65d18fa/aquarius/events/processors.py#L663
-      ddoInstance.getDDOData().indexedMetadata.nft = {
-        state: metadataState
-      }
-      INDEXER_LOGGER.logMessage(
-        `Found did ${did} for state updating on network ${chainId}`
-      )
-      const savedDDO = await this.createOrUpdateDDO(ddoInstance, EVENTS.METADATA_STATE)
-      return savedDDO
-    } catch (err) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
     }
+
+    return storeEvents
   }
+
+  return {}
 }
 
-export class OrderStartedEventProcessor extends BaseEventProcessor {
-  async processEvent(
-    event: ethers.Log,
-    chainId: number,
-    signer: Signer,
-    provider: JsonRpcApiProvider
-  ): Promise<any> {
-    const decodedEventData = await this.getEventData(
-      provider,
-      event.transactionHash,
-      ERC20Template.abi,
-      EVENTS.ORDER_STARTED
-    )
-    const serviceIndex = parseInt(decodedEventData.args[3].toString())
-    const timestamp = parseInt(decodedEventData.args[4].toString())
-    const consumer = decodedEventData.args[0].toString()
-    const payer = decodedEventData.args[1].toString()
-    INDEXER_LOGGER.logMessage(
-      `Processed new order for service index ${serviceIndex} at ${timestamp}`,
-      true
-    )
-    const datatokenContract = getDtContract(signer, event.address)
+export const processBlocks = async (
+  blockLogs: ethers.Log[],
+  signer: Signer,
+  provider: JsonRpcApiProvider,
+  network: number,
+  lastIndexedBlock: number,
+  count: number
+): Promise<ProcessingEvents> => {
+  try {
+    const events: any[] | BlocksEvents =
+      blockLogs && blockLogs.length > 0
+        ? await processChunkLogs(blockLogs, signer, provider, network)
+        : []
 
-    const nftAddress = await datatokenContract.getERC721Address()
-    const did = getDid(nftAddress, chainId)
-    try {
-      const { ddo: ddoDatabase, order: orderDatabase } = await getDatabase()
-      const ddo = await ddoDatabase.retrieve(did)
-      if (!ddo) {
-        INDEXER_LOGGER.logMessage(
-          `Detected OrderStarted changed for ${did}, but it does not exists.`
-        )
-        return
-      }
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      if (!ddoInstance.getAssetFields().indexedMetadata) {
-        ddoInstance.updateFields({ indexedMetadata: {} })
-      }
-
-      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
-        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
-      }
-
-      if (
-        ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0 &&
-        ddoInstance
-          .getDDOFields()
-          .services[serviceIndex].datatokenAddress?.toLowerCase() ===
-          event.address?.toLowerCase()
-      ) {
-        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
-          if (stat.datatokenAddress.toLowerCase() === event.address?.toLowerCase()) {
-            stat.orders += 1
-            break
-          }
-        }
-      } else if (ddoInstance.getAssetFields().indexedMetadata.stats.length === 0) {
-        const existingStats = ddoInstance.getAssetFields().indexedMetadata.stats
-        existingStats.push({
-          datatokenAddress: event.address,
-          name: await datatokenContract.name(),
-          symbol: await datatokenContract.symbol(),
-          serviceId: ddoInstance.getDDOFields().services[serviceIndex].id,
-          orders: 1,
-          prices: await getPricesByDt(datatokenContract, signer)
-        })
-
-        ddoInstance.updateFields({ indexedMetadata: { stats: existingStats } })
-      }
-      await orderDatabase.create(
-        event.transactionHash,
-        'startOrder',
-        timestamp,
-        consumer,
-        payer,
-        ddoInstance.getDDOFields().services[serviceIndex].datatokenAddress,
-        nftAddress,
-        did
-      )
-      INDEXER_LOGGER.logMessage(
-        `Found did ${did} for order starting on network ${chainId}`
-      )
-      const savedDDO = await this.createOrUpdateDDO(ddoInstance, EVENTS.ORDER_STARTED)
-      return savedDDO
-    } catch (err) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
+    return {
+      lastBlock: lastIndexedBlock + count,
+      foundEvents: events
     }
-  }
-}
-
-export class OrderReusedEventProcessor extends BaseEventProcessor {
-  async processEvent(
-    event: ethers.Log,
-    chainId: number,
-    signer: Signer,
-    provider: JsonRpcApiProvider
-  ): Promise<any> {
-    const decodedEventData = await this.getEventData(
-      provider,
-      event.transactionHash,
-      ERC20Template.abi,
-      EVENTS.ORDER_REUSED
-    )
-    const startOrderId = decodedEventData.args[0].toString()
-    const timestamp = parseInt(decodedEventData.args[2].toString())
-    const payer = decodedEventData.args[1].toString()
-    INDEXER_LOGGER.logMessage(`Processed reused order at ${timestamp}`, true)
-
-    const datatokenContract = getDtContract(signer, event.address)
-
-    const nftAddress = await datatokenContract.getERC721Address()
-    const did = getDid(nftAddress, chainId)
-    try {
-      const { ddo: ddoDatabase, order: orderDatabase } = await getDatabase()
-      const ddo = await ddoDatabase.retrieve(did)
-      if (!ddo) {
-        INDEXER_LOGGER.logMessage(
-          `Detected OrderReused changed for ${did}, but it does not exists.`
-        )
-        return
-      }
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      if (!ddoInstance.getAssetFields().indexedMetadata) {
-        ddoInstance.updateFields({ indexedMetadata: {} })
-      }
-
-      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
-        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
-      }
-
-      if (ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0) {
-        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
-          if (stat.datatokenAddress.toLowerCase() === event.address?.toLowerCase()) {
-            stat.orders += 1
-            break
-          }
-        }
-      } else {
-        INDEXER_LOGGER.logMessage(`[OrderReused] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, event.address)
-        if (!serviceIdToFind) {
-          INDEXER_LOGGER.logMessage(
-            `[OrderReused] - This datatoken does not contain this service. Invalid service id!`
-          )
-          return
-        }
-        const existingStats = ddoInstance.getAssetFields().indexedMetadata.stats
-        existingStats.push({
-          datatokenAddress: event.address,
-          name: await datatokenContract.name(),
-          symbol: await datatokenContract.symbol(),
-          serviceId: serviceIdToFind,
-          orders: 1,
-          prices: await getPricesByDt(datatokenContract, signer)
-        })
-
-        ddoInstance.updateFields({
-          indexedMetadata: {
-            stats: existingStats
-          }
-        })
-      }
-
-      try {
-        const startOrder = await orderDatabase.retrieve(startOrderId)
-        if (!startOrder) {
-          INDEXER_LOGGER.logMessage(
-            `Detected OrderReused changed for order ${startOrderId}, but it does not exists.`
-          )
-          return
-        }
-        await orderDatabase.create(
-          event.transactionHash,
-          'reuseOrder',
-          timestamp,
-          startOrder.consumer,
-          payer,
-          event.address,
-          nftAddress,
-          did,
-          startOrderId
-        )
-      } catch (error) {
-        INDEXER_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_ERROR,
-          `Error retrieving startOrder for reuseOrder: ${error}`,
-          true
-        )
-      }
-
-      const savedDDO = await this.createOrUpdateDDO(ddoInstance, EVENTS.ORDER_REUSED)
-      return savedDDO
-    } catch (err) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
-    }
-  }
-}
-
-export class DispenserCreatedEventProcessor extends BaseEventProcessor {
-  async processEvent(
-    event: ethers.Log,
-    chainId: number,
-    signer: Signer,
-    provider: JsonRpcApiProvider
-  ): Promise<any> {
-    const decodedEventData = await this.getEventData(
-      provider,
-      event.transactionHash,
-      Dispenser.abi,
-      EVENTS.DISPENSER_CREATED
-    )
-    const datatokenAddress = decodedEventData.args[0].toString()
-    const datatokenContract = getDtContract(signer, datatokenAddress)
-
-    const nftAddress = await datatokenContract.getERC721Address()
-    const did = getDid(nftAddress, chainId)
-    try {
-      const { ddo: ddoDatabase } = await getDatabase()
-      const ddo = await ddoDatabase.retrieve(did)
-      if (!ddo) {
-        INDEXER_LOGGER.logMessage(
-          `Detected DispenserCreated changed for ${did}, but it does not exists.`
-        )
-        return
-      }
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      if (!ddoInstance.getAssetFields().indexedMetadata) {
-        ddoInstance.updateFields({ indexedMetadata: {} })
-      }
-
-      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
-        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
-      }
-
-      if (ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0) {
-        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
-          if (
-            stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
-            !doesDispenserAlreadyExist(event.address, stat.prices)[0]
-          ) {
-            const price = {
-              type: 'dispenser' as PriceType,
-              price: '0',
-              contract: event.address,
-              token: datatokenAddress
-            }
-            stat.prices.push(price)
-            break
-          } else if (doesDispenserAlreadyExist(event.address, stat.prices)[0]) {
-            break
-          }
-        }
-      } else {
-        INDEXER_LOGGER.logMessage(`[DispenserCreated] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
-        if (!serviceIdToFind) {
-          INDEXER_LOGGER.logMessage(
-            `[DispenserCreated] - This datatoken does not contain this service. Invalid service id!`
-          )
-          return
-        }
-        const { stats } = ddoInstance.getAssetFields().indexedMetadata
-        stats.push({
-          datatokenAddress,
-          name: await datatokenContract.name(),
-          symbol: await datatokenContract.symbol(),
-          serviceId: serviceIdToFind,
-          orders: 0,
-          prices: await getPricesByDt(datatokenContract, signer)
-        })
-
-        ddoInstance.updateFields({ indexedMetadata: { stats } })
-      }
-
-      const savedDDO = await this.createOrUpdateDDO(ddoInstance, EVENTS.DISPENSER_CREATED)
-      return savedDDO
-    } catch (err) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
-    }
-  }
-}
-
-export class DispenserActivatedEventProcessor extends BaseEventProcessor {
-  async processEvent(
-    event: ethers.Log,
-    chainId: number,
-    signer: Signer,
-    provider: JsonRpcApiProvider
-  ): Promise<any> {
-    const decodedEventData = await this.getEventData(
-      provider,
-      event.transactionHash,
-      Dispenser.abi,
-      EVENTS.DISPENSER_ACTIVATED
-    )
-    const datatokenAddress = decodedEventData.args[0].toString()
-    const datatokenContract = getDtContract(signer, datatokenAddress)
-
-    const nftAddress = await datatokenContract.getERC721Address()
-    const did = getDid(nftAddress, chainId)
-    try {
-      const { ddo: ddoDatabase } = await getDatabase()
-      const ddo = await ddoDatabase.retrieve(did)
-      if (!ddo) {
-        INDEXER_LOGGER.logMessage(
-          `Detected DispenserActivated changed for ${did}, but it does not exists.`
-        )
-        return
-      }
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      if (!ddoInstance.getAssetFields().indexedMetadata) {
-        ddoInstance.updateFields({ indexedMetadata: {} })
-      }
-
-      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
-        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
-      }
-
-      if (ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0) {
-        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
-          if (
-            stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
-            !doesDispenserAlreadyExist(event.address, stat.prices)[0]
-          ) {
-            stat.prices.push({
-              type: 'dispenser',
-              price: '0',
-              contract: event.address,
-              token: datatokenAddress
-            })
-            break
-          } else if (doesDispenserAlreadyExist(event.address, stat.prices)[0]) {
-            break
-          }
-        }
-      } else {
-        INDEXER_LOGGER.logMessage(`[DispenserActivated] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
-        if (!serviceIdToFind) {
-          INDEXER_LOGGER.logMessage(
-            `[DispenserActivated] - This datatoken does not contain this service. Invalid service id!`
-          )
-          return
-        }
-        ddo.indexedMetadata.stats.push({
-          datatokenAddress,
-          name: await datatokenContract.name(),
-          serviceId: serviceIdToFind,
-          orders: 0,
-          prices: await getPricesByDt(datatokenContract, signer)
-        })
-      }
-
-      const savedDDO = await this.createOrUpdateDDO(
-        ddoInstance,
-        EVENTS.DISPENSER_ACTIVATED
-      )
-      return savedDDO
-    } catch (err) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
-    }
-  }
-}
-
-export class DispenserDeactivatedEventProcessor extends BaseEventProcessor {
-  async processEvent(
-    event: ethers.Log,
-    chainId: number,
-    signer: Signer,
-    provider: JsonRpcApiProvider
-  ): Promise<any> {
-    const decodedEventData = await this.getEventData(
-      provider,
-      event.transactionHash,
-      Dispenser.abi,
-      EVENTS.DISPENSER_DEACTIVATED
-    )
-    const datatokenAddress = decodedEventData.args[0].toString()
-    const datatokenContract = getDtContract(signer, datatokenAddress)
-
-    const nftAddress = await datatokenContract.getERC721Address()
-    const did = getDid(nftAddress, chainId)
-    try {
-      const { ddo: ddoDatabase } = await getDatabase()
-      const ddo = await ddoDatabase.retrieve(did)
-      if (!ddo) {
-        INDEXER_LOGGER.logMessage(
-          `Detected DispenserDeactivated changed for ${did}, but it does not exists.`
-        )
-        return
-      }
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      if (!ddoInstance.getAssetFields().indexedMetadata) {
-        ddoInstance.updateFields({ indexedMetadata: {} })
-      }
-
-      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
-        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
-      }
-
-      if (ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0) {
-        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
-          if (
-            stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
-            doesDispenserAlreadyExist(event.address, stat.prices)[0]
-          ) {
-            const price = doesDispenserAlreadyExist(event.address, stat.prices)[1]
-            const index = stat.prices.indexOf(price)
-            stat.prices.splice(index, 1)
-            break
-          } else if (
-            stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
-            !doesDispenserAlreadyExist(event.address, stat.prices)[0]
-          ) {
-            INDEXER_LOGGER.logMessage(
-              `Detected DispenserDeactivated changed for ${event.address}, but dispenser does not exist in the DDO pricing.`
-            )
-            break
-          }
-        }
-      } else {
-        INDEXER_LOGGER.logMessage(
-          `[DispenserDeactivated] - No stats were found on the ddo`
-        )
-        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
-        if (!serviceIdToFind) {
-          INDEXER_LOGGER.logMessage(
-            `[DispenserDeactivated] - This datatoken does not contain this service. Invalid service id!`
-          )
-          return
-        }
-        const { stats } = ddoInstance.getAssetFields().indexedMetadata
-        stats.push({
-          datatokenAddress,
-          name: await datatokenContract.name(),
-          symbol: await datatokenContract.symbol(),
-          serviceId: serviceIdToFind,
-          orders: 0,
-          prices: await getPricesByDt(datatokenContract, signer)
-        })
-
-        ddoInstance.updateFields({ indexedMetadata: { stats } })
-      }
-
-      const savedDDO = await this.createOrUpdateDDO(
-        ddoInstance,
-        EVENTS.DISPENSER_DEACTIVATED
-      )
-      return savedDDO
-    } catch (err) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
-    }
-  }
-}
-
-export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
-  async processEvent(
-    event: ethers.Log,
-    chainId: number,
-    signer: Signer,
-    provider: JsonRpcApiProvider
-  ): Promise<any> {
-    const decodedEventData = await this.getEventData(
-      provider,
-      event.transactionHash,
-      FixedRateExchange.abi,
-      EVENTS.EXCHANGE_CREATED
-    )
-    const exchangeId = decodedEventData.args[0].toString()
-    const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
-    const exchange = await freContract.getExchange(exchangeId)
-    const datatokenAddress = exchange[1]
-    const datatokenContract = getDtContract(signer, datatokenAddress)
-    const nftAddress = await datatokenContract.getERC721Address()
-    const did = getDid(nftAddress, chainId)
-    try {
-      const { ddo: ddoDatabase } = await getDatabase()
-      const ddo = await ddoDatabase.retrieve(did)
-      if (!ddo) {
-        INDEXER_LOGGER.logMessage(
-          `Detected ExchangeCreated changed for ${did}, but it does not exists.`
-        )
-        return
-      }
-
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      if (!ddoInstance.getAssetFields().indexedMetadata) {
-        ddoInstance.updateFields({ indexedMetadata: {} })
-      }
-
-      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
-        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
-      }
-
-      if (ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0) {
-        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
-          if (
-            stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
-            !doesFreAlreadyExist(exchangeId, stat.prices)[0]
-          ) {
-            stat.prices.push({
-              type: 'fixedrate',
-              price: ethers.formatEther(exchange[5]),
-              contract: event.address,
-              token: exchange[3],
-              exchangeId
-            })
-            break
-          } else if (doesFreAlreadyExist(event.address, stat.prices)[0]) {
-            break
-          }
-        }
-      } else {
-        INDEXER_LOGGER.logMessage(`[ExchangeCreated] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
-        if (!serviceIdToFind) {
-          INDEXER_LOGGER.logMessage(
-            `[ExchangeCreated] - This datatoken does not contain this service. Invalid service id!`
-          )
-          return
-        }
-
-        const { stats } = ddoInstance.getAssetFields().indexedMetadata
-        stats.push({
-          datatokenAddress,
-          name: await datatokenContract.name(),
-          symbol: await datatokenContract.symbol(),
-          serviceId: serviceIdToFind,
-          orders: 0,
-          prices: await getPricesByDt(datatokenContract, signer)
-        })
-
-        ddoInstance.updateFields({ indexedMetadata: { stats } })
-      }
-
-      const savedDDO = await this.createOrUpdateDDO(
-        ddoInstance,
-        EVENTS.EXCHANGE_ACTIVATED
-      )
-      return savedDDO
-    } catch (err) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
-    }
-  }
-}
-
-export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
-  async processEvent(
-    event: ethers.Log,
-    chainId: number,
-    signer: Signer,
-    provider: JsonRpcApiProvider
-  ): Promise<any> {
-    const decodedEventData = await this.getEventData(
-      provider,
-      event.transactionHash,
-      FixedRateExchange.abi,
-      EVENTS.EXCHANGE_ACTIVATED
-    )
-    INDEXER_LOGGER.logMessage(`event: ${JSON.stringify(event)}`)
-    INDEXER_LOGGER.logMessage(
-      `decodedEventData in exchange activated: ${JSON.stringify(decodedEventData)}`
-    )
-    const exchangeId = decodedEventData.args[0].toString()
-    const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
-    const exchange = await freContract.getExchange(exchangeId)
-    const datatokenAddress = exchange[1]
-    const datatokenContract = getDtContract(signer, datatokenAddress)
-    const nftAddress = await datatokenContract.getERC721Address()
-    const did = getDid(nftAddress, chainId)
-    try {
-      const { ddo: ddoDatabase } = await getDatabase()
-      const ddo = await ddoDatabase.retrieve(did)
-      if (!ddo) {
-        INDEXER_LOGGER.logMessage(
-          `Detected ExchangeActivated changed for ${did}, but it does not exists.`
-        )
-        return
-      }
-
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      if (!ddoInstance.getAssetFields().indexedMetadata) {
-        ddoInstance.updateFields({ indexedMetadata: {} })
-      }
-
-      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
-        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
-      }
-      if (ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0) {
-        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
-          if (
-            stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
-            !doesFreAlreadyExist(exchangeId, stat.prices)[0]
-          ) {
-            stat.prices.push({
-              type: 'fixedrate',
-              price: ethers.formatEther(exchange[5]),
-              contract: event.address,
-              token: exchange[3],
-              exchangeId
-            })
-            break
-          } else if (doesFreAlreadyExist(event.address, stat.prices)[0]) {
-            break
-          }
-        }
-      } else {
-        INDEXER_LOGGER.logMessage(`[ExchangeActivated] - No stats were found on the ddo`)
-        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
-        if (!serviceIdToFind) {
-          INDEXER_LOGGER.logMessage(
-            `[ExchangeActivated] - This datatoken does not contain this service. Invalid service id!`
-          )
-          return
-        }
-        const { stats } = ddoInstance.getAssetFields().indexedMetadata
-        stats.push({
-          datatokenAddress,
-          name: await datatokenContract.name(),
-          symbol: await datatokenContract.symbol(),
-          serviceId: serviceIdToFind,
-          orders: 0,
-          prices: await getPricesByDt(datatokenContract, signer)
-        })
-
-        ddoInstance.updateFields({ indexedMetadata: { stats } })
-      }
-
-      const savedDDO = await this.createOrUpdateDDO(
-        ddoInstance,
-        EVENTS.EXCHANGE_ACTIVATED
-      )
-      return savedDDO
-    } catch (err) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
-    }
-  }
-}
-
-export class ExchangeDeactivatedEventProcessor extends BaseEventProcessor {
-  async processEvent(
-    event: ethers.Log,
-    chainId: number,
-    signer: Signer,
-    provider: JsonRpcApiProvider
-  ): Promise<any> {
-    const decodedEventData = await this.getEventData(
-      provider,
-      event.transactionHash,
-      FixedRateExchange.abi,
-      EVENTS.EXCHANGE_DEACTIVATED
-    )
-    const exchangeId = decodedEventData.args[0].toString()
-    const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
-    const exchange = await freContract.getExchange(exchangeId)
-    const datatokenAddress = exchange[1]
-    const datatokenContract = getDtContract(signer, datatokenAddress)
-    const nftAddress = await datatokenContract.getERC721Address()
-    const did = getDid(nftAddress, chainId)
-    try {
-      const { ddo: ddoDatabase } = await getDatabase()
-      const ddo = await ddoDatabase.retrieve(did)
-      if (!ddo) {
-        INDEXER_LOGGER.logMessage(
-          `Detected ExchangeDeactivated changed for ${did}, but it does not exists.`
-        )
-        return
-      }
-
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      if (!ddoInstance.getAssetFields().indexedMetadata) {
-        ddoInstance.updateFields({ indexedMetadata: {} })
-      }
-
-      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
-        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
-      }
-      if (ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0) {
-        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
-          if (
-            stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
-            doesFreAlreadyExist(exchangeId, stat.prices)[0]
-          ) {
-            const price = doesFreAlreadyExist(exchangeId, stat.prices)[1]
-            const index = stat.prices.indexOf(price)
-            stat.prices.splice(index, 1)
-            break
-          } else if (
-            stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
-            !doesFreAlreadyExist(exchangeId, stat.prices)[0]
-          ) {
-            INDEXER_LOGGER.logMessage(
-              `Detected ExchangeDeactivated changed for ${event.address}, but exchange ${exchangeId} does not exist in the DDO pricing.`
-            )
-            break
-          }
-        }
-      } else {
-        INDEXER_LOGGER.logMessage(
-          `[ExchangeDeactivated] - No stats were found on the ddo`
-        )
-        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
-        if (!serviceIdToFind) {
-          INDEXER_LOGGER.logMessage(
-            `[ExchangeDeactivated] - This datatoken does not contain this service. Invalid service id!`
-          )
-          return
-        }
-        const { stats } = ddoInstance.getAssetFields().indexedMetadata
-        stats.push({
-          datatokenAddress,
-          name: await datatokenContract.name(),
-          symbol: await datatokenContract.symbol(),
-          serviceId: serviceIdToFind,
-          orders: 0,
-          prices: await getPricesByDt(datatokenContract, signer)
-        })
-
-        ddoInstance.updateFields({ indexedMetadata: { stats } })
-      }
-
-      const savedDDO = await this.createOrUpdateDDO(
-        ddoInstance,
-        EVENTS.EXCHANGE_DEACTIVATED
-      )
-      return savedDDO
-    } catch (err) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
-    }
-  }
-}
-export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
-  async processEvent(
-    event: ethers.Log,
-    chainId: number,
-    signer: Signer,
-    provider: JsonRpcApiProvider
-  ): Promise<any> {
-    const decodedEventData = await this.getEventData(
-      provider,
-      event.transactionHash,
-      FixedRateExchange.abi,
-      EVENTS.EXCHANGE_RATE_CHANGED
-    )
-    const exchangeId = ethers.toUtf8Bytes(decodedEventData.args[0].toString())
-    const newRate = decodedEventData.args[2].toString()
-    const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
-    const exchange = await freContract.getExchange(exchangeId)
-    const datatokenAddress = exchange[1]
-    const datatokenContract = getDtContract(signer, datatokenAddress)
-    const nftAddress = await datatokenContract.getERC721Address()
-    const did = getDid(nftAddress, chainId)
-    try {
-      const { ddo: ddoDatabase } = await getDatabase()
-      const ddo = await ddoDatabase.retrieve(did)
-      if (!ddo) {
-        INDEXER_LOGGER.logMessage(
-          `Detected ExchangeRateChanged changed for ${did}, but it does not exists.`
-        )
-        return
-      }
-
-      const ddoInstance = DDOManager.getDDOClass(ddo)
-      if (!ddoInstance.getAssetFields().indexedMetadata) {
-        ddoInstance.updateFields({ indexedMetadata: {} })
-      }
-
-      if (!Array.isArray(ddoInstance.getAssetFields().indexedMetadata.stats)) {
-        ddoInstance.updateFields({ indexedMetadata: { stats: [] } })
-      }
-      if (ddoInstance.getAssetFields().indexedMetadata.stats.length !== 0) {
-        for (const stat of ddoInstance.getAssetFields().indexedMetadata.stats) {
-          if (
-            stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
-            doesFreAlreadyExist(exchangeId, stat.prices)[0]
-          ) {
-            const price = doesFreAlreadyExist(exchangeId, stat.prices)[1]
-            price.price = newRate
-            break
-          } else if (
-            stat.datatokenAddress.toLowerCase() === datatokenAddress.toLowerCase() &&
-            !doesFreAlreadyExist(exchangeId, stat.prices)[0]
-          ) {
-            INDEXER_LOGGER.logMessage(
-              `[ExchangeRateChanged] - Could not find the exchange in DDO ${did} prices`
-            )
-            return
-          }
-        }
-      } else {
-        INDEXER_LOGGER.logMessage(
-          `[ExchangeRateChanged] - No stats were found on the ddo`
-        )
-        const serviceIdToFind = findServiceIdByDatatoken(ddoInstance, datatokenAddress)
-        if (!serviceIdToFind) {
-          INDEXER_LOGGER.logMessage(
-            `[ExchangeRateChanged] - This datatoken does not contain this service. Invalid service id!`
-          )
-          return
-        }
-        const { stats } = ddoInstance.getAssetFields().indexedMetadata
-        stats.push({
-          datatokenAddress,
-          name: await datatokenContract.name(),
-          symbol: await datatokenContract.symbol(),
-          serviceId: serviceIdToFind,
-          orders: 0,
-          prices: await getPricesByDt(datatokenContract, signer)
-        })
-
-        ddoInstance.updateFields({ indexedMetadata: { stats } })
-      }
-
-      const savedDDO = await this.createOrUpdateDDO(
-        ddoInstance,
-        EVENTS.EXCHANGE_RATE_CHANGED
-      )
-      return savedDDO
-    } catch (err) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
-    }
+  } catch (error) {
+    throw new Error(` Error processing chunk of blocks events ${error.message}`)
   }
 }
