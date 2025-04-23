@@ -247,6 +247,8 @@ class BaseEventProcessor {
       const { nonce: nonceDB } = await getDatabase()
       const nonceHandlerResponse = await getNonce(nonceDB, eventCreator)
       const nonce = await streamToString(nonceHandlerResponse.stream as Readable)
+      const incrementedNonce = (Number(nonce) + 1).toString()
+
       const config = await getConfiguration()
       const { keys } = config
       const nodeId = keys.peerId.toString()
@@ -254,7 +256,7 @@ class BaseEventProcessor {
       const wallet: ethers.Wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string)
 
       const message = String(
-        txId + contractAddress + keys.ethAddress + chainId.toString() + nonce
+        txId + contractAddress + keys.ethAddress + chainId.toString() + incrementedNonce
       )
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
@@ -270,7 +272,7 @@ class BaseEventProcessor {
             decrypterAddress: keys.ethAddress,
             dataNftAddress: contractAddress,
             signature,
-            nonce
+            nonce: incrementedNonce
           }
           const response = await axios({
             method: 'post',
@@ -313,7 +315,7 @@ class BaseEventProcessor {
             documentHash: metadataHash,
             dataNftAddress: contractAddress,
             signature,
-            nonce
+            nonce: incrementedNonce
           }
           try {
             const response = await node
@@ -374,7 +376,7 @@ class BaseEventProcessor {
               documentHash: metadataHash,
               dataNftAddress: contractAddress,
               signature,
-              nonce
+              nonce: incrementedNonce
             }
             const response = await p2pNode.sendTo(
               decryptorURL,
