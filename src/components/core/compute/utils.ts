@@ -90,8 +90,10 @@ export async function validateAlgoForDataset(
       CORE_LOGGER.logMessage(`algoDID: ${algoDID}`)
       if (
         // if not set allow them all
-        !compute.publisherTrustedAlgorithms &&
-        !compute.publisherTrustedAlgorithmPublishers
+        (!compute.publisherTrustedAlgorithms &&
+          !compute.publisherTrustedAlgorithmPublishers) ||
+        (compute.publisherTrustedAlgorithms.length === 0 &&
+          compute.publisherTrustedAlgorithmPublishers.length === 0)
       ) {
         CORE_LOGGER.logMessage(
           `compute.publisherTrustedAlgorithms: ${compute.publisherTrustedAlgorithms}`
