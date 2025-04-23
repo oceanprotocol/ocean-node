@@ -76,20 +76,29 @@ export async function validateAlgoForDataset(
     const datasetService = services.find(
       (service: any) => service.id === datasetServiceId
     )
+    CORE_LOGGER.logMessage(`dataService: ${datasetService}`)
     if (!datasetService) {
       throw new Error('Dataset service not found')
     }
     const { compute } = datasetService
+    CORE_LOGGER.logMessage(`compute: ${JSON.stringify(compute)}`)
     if (datasetService.type !== 'compute' || !compute) {
       throw new Error('Service not compute')
     }
 
     if (algoDID) {
+      CORE_LOGGER.logMessage(`algoDID: ${algoDID}`)
       if (
         // if not set allow them all
         !compute.publisherTrustedAlgorithms &&
         !compute.publisherTrustedAlgorithmPublishers
       ) {
+        CORE_LOGGER.logMessage(
+          `compute.publisherTrustedAlgorithms: ${compute.publisherTrustedAlgorithms}`
+        )
+        CORE_LOGGER.logMessage(
+          `compute.publisherTrustedAlgorithmPublishers: ${compute.publisherTrustedAlgorithmPublishers}`
+        )
         return true
       }
       // if is set only allow if match
@@ -97,6 +106,7 @@ export async function validateAlgoForDataset(
         const trustedAlgo = compute.publisherTrustedAlgorithms.find(
           (algo: any) => algo.did === algoDID
         )
+        CORE_LOGGER.logMessage(`trustedAlgo: ${trustedAlgo}`)
         if (trustedAlgo) {
           return (
             trustedAlgo.filesChecksum === algoChecksums.files &&
