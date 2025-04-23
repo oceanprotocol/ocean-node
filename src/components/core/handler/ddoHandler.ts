@@ -105,7 +105,11 @@ export class DecryptDdoHandler extends CommandHandler {
       const existingNonce = await dbNonce.retrieve(decrypterAddress)
 
       if (existingNonce && existingNonce.nonce === nonce) {
-        CORE_LOGGER.logMessage(`Decrypt DDO: error ${task.nonce} duplicate nonce`, true)
+        CORE_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_ERROR,
+          `Decrypt DDO: duplicate nonce error decryptor addr ${decrypterAddress} nonce ${task.nonce} `,
+          true
+        )
         return {
           stream: null,
           status: {
