@@ -196,6 +196,6 @@ export const processBlocks = async (
       foundEvents: events
     }
   } catch (error) {
-    throw new Error(` Error processing chunk of blocks events ${error.message}`)
+    throw new Error(`Error processing chunk of blocks events ${error.message}`)
   }
 }

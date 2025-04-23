@@ -1,12 +1,12 @@
 import { DDOManager } from '@oceanprotocol/ddo-js'
-import { createHash } from 'crypto'
-import { ethers, Signer, JsonRpcApiProvider, getAddress } from 'ethers'
+import { ethers, Signer, JsonRpcApiProvider } from 'ethers'
 import { EVENTS, MetadataStates } from '../../../utils/constants.js'
 import { getDatabase } from '../../../utils/database.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../../utils/logging/Logger.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
+import { getDid } from '../utils.js'
 
 export class MetadataStateEventProcessor extends BaseEventProcessor {
   async processEvent(
@@ -28,11 +28,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
       `NFT address in processing MetadataState: ${event.address} `,
       true
     )
-    const did =
-      'did:op:' +
-      createHash('sha256')
-        .update(getAddress(event.address) + chainId.toString(10))
-        .digest('hex')
+    const did = getDid(event.address, chainId)
 
     try {
       const { ddo: ddoDatabase } = await getDatabase()
