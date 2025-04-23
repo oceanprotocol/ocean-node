@@ -59,7 +59,7 @@ import {
   VersionedDDO
 } from '@oceanprotocol/ddo-js'
 import { checkCredentialOnAccessList } from '../../utils/credentials.js'
-import { getNonce } from '../core/utils/nonceHandler.js'
+// import { getNonce } from '../core/utils/nonceHandler.js'
 class BaseEventProcessor {
   protected networkId: number
 
@@ -248,7 +248,7 @@ class BaseEventProcessor {
       // const nonceHandlerResponse = await getNonce(nonceDB, eventCreator)
       // const nonce = await streamToString(nonceHandlerResponse.stream as Readable)
       // const incrementedNonce = (Number(nonce) + 1).toString()
-      const incrementedNonce = Date.now()
+      const incrementedNonce = Date.now().toString()
 
       const config = await getConfiguration()
       const { keys } = config
