@@ -15,51 +15,118 @@ import { getBlockchainHandler } from './blockchain.js'
 
 import { getOceanArtifactsAdressesByChainId } from './address.js'
 
-export function findCredential(
-  credentials: Credential[],
-  consumerCredentials: Credential
-): Credential | undefined {
-  return credentials.find((credential) => {
-    if (Array.isArray(credential?.values)) {
-      if (credential.values.length > 0) {
-        const credentialType = String(credential?.type)?.toLowerCase()
-        const credentialValues = credential.values.map((v) => String(v)?.toLowerCase())
-        return (
-          credentialType === consumerCredentials.type &&
-          credentialValues.includes(consumerCredentials.values[0])
-        )
-      }
-    }
-    return false
-  })
+function isValidCredentialsList(credentials: Credential[]): boolean {
+  return Array.isArray(credentials) && credentials.length > 0
 }
 
-export function isAddressCredentialMatch(
+function isAddressCredentialMatch(
   credential: Credential,
   consumerCredentials: Credential
 ): boolean {
   if (credential?.type?.toLowerCase() !== CREDENTIALS_TYPES.ADDRESS) {
     return false
   }
-  if (credential.values.length > 0) {
-    const credentialValues = credential.values.map((v) => String(v)?.toLowerCase())
-    return credentialValues.includes(consumerCredentials.values[0])
+
+  const credentialValues = credential.values.map((v) => String(v)?.toLowerCase())
+  return credentialValues.includes(consumerCredentials.values[0])
+}
+
+function checkAddressCredential(
+  cred: Credential,
+  consumerCredentials: Credential,
+  credentials: Credentials
+): boolean {
+  const accessAllow = isAddressCredentialMatch(cred, consumerCredentials)
+  if (accessAllow || isAddressMatchAll(cred)) {
+    return !credentials.match_allow || credentials.match_allow === 'any'
+  }
+  return false
+}
+
+async function checkAccessListCredential(
+  cred: Credential,
+  consumerCredentials: Credential,
+  chainId?: number
+): Promise<boolean> {
+  if (cred.type !== CREDENTIALS_TYPES.ACCESS_LIST || !chainId) {
+    return false
   }
 
+  const config = await getConfiguration()
+  const supportedNetwork = config.supportedNetworks[String(chainId)]
+  if (!supportedNetwork) {
+    return false
+  }
+
+  const blockChain = getBlockchainHandler(supportedNetwork)
+  for (const accessListAddress of cred.values) {
+    if (
+      await findAccessListCredentials(
+        blockChain.getSigner(),
+        accessListAddress,
+        consumerCredentials.values[0]
+      )
+    ) {
+      return true
+    }
+  }
   return false
+}
+
+function checkDenyList(
+  credentials: Credentials,
+  consumerCredentials: Credential
+): boolean {
+  if (!isValidCredentialsList(credentials.deny)) {
+    return false
+  }
+
+  let denyCount = 0
+  for (const cred of credentials.deny) {
+    if (cred.type === CREDENTIALS_TYPES.ADDRESS) {
+      const accessDeny = isAddressCredentialMatch(cred, consumerCredentials)
+      if (accessDeny) {
+        if (!credentials.match_deny || credentials.match_deny === 'any') {
+          return true
+        }
+        denyCount++
+      }
+    }
+  }
+
+  return credentials.match_deny === 'all' && denyCount === credentials.deny.length
+}
+
+async function checkAllowList(
+  credentials: Credentials,
+  consumerCredentials: Credential,
+  chainId?: number
+): Promise<boolean> {
+  if (!isValidCredentialsList(credentials.allow)) {
+    return false
+  }
+
+  let matchCount = 0
+  for (const cred of credentials.allow) {
+    if (cred.type === CREDENTIALS_TYPES.ADDRESS) {
+      if (checkAddressCredential(cred, consumerCredentials, credentials)) {
+        return true
+      }
+      matchCount++
+    } else if (await checkAccessListCredential(cred, consumerCredentials, chainId)) {
+      return true
+    }
+  }
+
+  return credentials.match_allow === 'all' && matchCount === credentials.allow.length
 }
 
 function isAddressMatchAll(credential: Credential): boolean {
   if (credential?.type?.toLowerCase() !== CREDENTIALS_TYPES.ADDRESS) {
     return false
   }
-  if (credential.values.length > 0) {
-    const filteredValues: string[] = credential.values.filter((value: string) => {
-      return value?.toLowerCase() === '*' // address
-    })
-    return filteredValues.length > 0
-  }
-  return false
+
+  return credential.values.some((value) => value?.toLowerCase() === '*')
 }
 
 export function hasAddressMatchAllRule(credentials: Credential[]): boolean {
@@ -72,88 +139,27 @@ export function hasAddressMatchAllRule(credentials: Credential[]): boolean {
   return isDefined(creds)
 }
 
-/**
- * This method checks credentials
- * @param credentials credentials
- * @param consumerAddress consumer address
- */
 export async function checkCredentials(
   credentials: Credentials,
   consumerAddress: string,
   chainId?: number
 ): Promise<boolean> {
+  if (!credentials || (!credentials?.allow && !credentials?.deny)) {
+    return false
+  }
+
   const consumerCredentials: Credential = {
     type: CREDENTIALS_TYPES.ADDRESS,
     values: [String(consumerAddress)?.toLowerCase()]
   }
 
-  // if no address-based credentials are defined (both allow and deny lists are empty), access to the asset is restricted to everybody;
-  // to allow access to everybody, the symbol * will be used in the allow list;
-  // if a web3 address is present on both deny and allow lists, the deny list takes precedence
-  // and access to the asset is denied for the respective address.
-  const accessGranted = false
-  // check deny access
-  // https://github.com/oceanprotocol/ocean-node/issues/810
-  // for deny rules: if value does not exist or it's empty -> there is no deny list. if value list has at least one element, check it
+  const isDenied = checkDenyList(credentials, consumerCredentials)
+  if (isDenied) {
+    return false
+  }
 
-  if (Array.isArray(credentials?.deny) && credentials.deny.length > 0) {
-    let denyCount = 0
-    for (const cred of credentials.deny) {
-      const { type } = cred
-      if (type === CREDENTIALS_TYPES.ADDRESS) {
-        const accessDeny = isAddressCredentialMatch(cred, consumerCredentials)
-        // credential is on deny list, so it should be blocked access
-        if (accessDeny) {
-          if (!isDefined(credentials.match_deny) || credentials.match_deny === 'any') {
-            return false
-          }
-        }
-        denyCount++
-        // credential not found, so it really depends if we have a match on the allow list instead
-      }
-    }
-    if (credentials.match_deny === 'all' && denyCount === credentials.deny.length) {
-      return false
-    }
-  }
-  // check allow access
-  // for allow rules: if value does not exist or it's empty -> no one has access. if value list has at least one element, check it
-  if (Array.isArray(credentials?.allow) && credentials.allow.length > 0) {
-    let matchCount = 0
-    for (const cred of credentials.allow) {
-      const { type } = cred
-      if (type === CREDENTIALS_TYPES.ADDRESS) {
-        const accessAllow = isAddressCredentialMatch(cred, consumerCredentials)
-        if (accessAllow || isAddressMatchAll(cred)) {
-          // if no match_allow or 'any', its fine
-          if (!isDefined(credentials.match_allow) || credentials.match_allow === 'any') {
-            return true
-          }
-          // otherwise, match 'all', in this case the amount of matches should be the same of the amount of rules
-          matchCount++
-        }
-      } else if (type === CREDENTIALS_TYPES.ACCESS_LIST && chainId) {
-        const config = await getConfiguration()
-        const supportedNetwork = config.supportedNetworks[String(chainId)]
-        if (supportedNetwork) {
-          const blockChain = getBlockchainHandler(supportedNetwork)
-          for (const accessListContractAddress of cred.values) {
-            const balanceOk = await findAccessListCredentials(
-              blockChain.getSigner(),
-              accessListContractAddress,
-              consumerAddress
-            )
-            if (balanceOk) return true
-          }
-        }
-      }
-      // extend function to ACCESS_LIST (https://github.com/oceanprotocol/ocean-node/issues/804)
-    }
-    if (credentials.match_allow === 'all' && matchCount === credentials.allow.length) {
-      return true
-    }
-  }
-  return accessGranted
+  const isAllowed = await checkAllowList(credentials, consumerCredentials, chainId)
+  return isAllowed
 }
 
 export function areKnownCredentialTypes(credentials: Credentials): boolean {
