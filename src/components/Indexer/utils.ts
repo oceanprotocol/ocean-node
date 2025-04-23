@@ -21,7 +21,8 @@ import {
   ExchangeDeactivatedEventProcessor,
   ExchangeRateChangedEventProcessor,
   ExchangeCreatedEventProcessor,
-  DispenserCreatedEventProcessor
+  DispenserCreatedEventProcessor,
+  BaseEventProcessor
 } from './processor.js'
 import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { fetchEventFromTransaction } from '../../utils/util.js'
@@ -36,105 +37,37 @@ import { createHash } from 'crypto'
 import { ServicePrice } from '../../@types/IndexedMetadata.js'
 import { VersionedDDO } from '@oceanprotocol/ddo-js'
 
-let metadataEventProccessor: MetadataEventProcessor
-let metadataStateEventProcessor: MetadataStateEventProcessor
-let orderReusedEventProcessor: OrderReusedEventProcessor
-let orderStartedEventProcessor: OrderStartedEventProcessor
-let dispenserActivatedEventProcessor: DispenserActivatedEventProcessor
-let dispenserDeactivatedEventProcessor: DispenserDeactivatedEventProcessor
-let exchangeCreatedEventProcessor: ExchangeCreatedEventProcessor
-let exchangeActivatedEventProcessor: ExchangeActivatedEventProcessor
-let exchangeDeactivatedEventProcessor: ExchangeDeactivatedEventProcessor
-let exchangeNewRateEventProcessor: ExchangeRateChangedEventProcessor
-let dispenserCreatedEventProcessor: DispenserCreatedEventProcessor
+type ProcessorConstructor = new (chainId: number) => BaseEventProcessor
 
-function getExchangeCreatedEventProcessor(
-  chainId: number
-): ExchangeCreatedEventProcessor {
-  if (!exchangeCreatedEventProcessor) {
-    exchangeCreatedEventProcessor = new ExchangeCreatedEventProcessor(chainId)
-  }
-  return exchangeCreatedEventProcessor
+const EVENT_PROCESSOR_MAP: Record<string, ProcessorConstructor> = {
+  [EVENTS.METADATA_CREATED]: MetadataEventProcessor,
+  [EVENTS.METADATA_UPDATED]: MetadataEventProcessor,
+  [EVENTS.METADATA_STATE]: MetadataStateEventProcessor,
+  [EVENTS.ORDER_STARTED]: OrderStartedEventProcessor,
+  [EVENTS.ORDER_REUSED]: OrderReusedEventProcessor,
+  [EVENTS.DISPENSER_CREATED]: DispenserCreatedEventProcessor,
+  [EVENTS.DISPENSER_ACTIVATED]: DispenserActivatedEventProcessor,
+  [EVENTS.DISPENSER_DEACTIVATED]: DispenserDeactivatedEventProcessor,
+  [EVENTS.EXCHANGE_CREATED]: ExchangeCreatedEventProcessor,
+  [EVENTS.EXCHANGE_ACTIVATED]: ExchangeActivatedEventProcessor,
+  [EVENTS.EXCHANGE_DEACTIVATED]: ExchangeDeactivatedEventProcessor,
+  [EVENTS.EXCHANGE_RATE_CHANGED]: ExchangeRateChangedEventProcessor
 }
 
-function getMetadataEventProcessor(chainId: number): MetadataEventProcessor {
-  if (!metadataEventProccessor) {
-    metadataEventProccessor = new MetadataEventProcessor(chainId)
-  }
-  return metadataEventProccessor
-}
+const processorInstances = new Map<string, BaseEventProcessor>()
 
-function getMetadataStateEventProcessor(chainId: number): MetadataStateEventProcessor {
-  if (!metadataStateEventProcessor) {
-    metadataStateEventProcessor = new MetadataStateEventProcessor(chainId)
-  }
-  return metadataStateEventProcessor
-}
+function getEventProcessor(eventType: string, chainId: number): BaseEventProcessor {
+  const cacheKey = `${eventType}-${chainId}`
 
-function getOrderReusedEventProcessor(chainId: number): OrderReusedEventProcessor {
-  if (!orderReusedEventProcessor) {
-    orderReusedEventProcessor = new OrderReusedEventProcessor(chainId)
+  if (!processorInstances.has(cacheKey)) {
+    const ProcessorClass = EVENT_PROCESSOR_MAP[eventType]
+    if (!ProcessorClass) {
+      throw new Error(`No processor found for event type: ${eventType}`)
+    }
+    processorInstances.set(cacheKey, new ProcessorClass(chainId))
   }
-  return orderReusedEventProcessor
-}
 
-function getOrderStartedEventProcessor(chainId: number): OrderStartedEventProcessor {
-  if (!orderStartedEventProcessor) {
-    orderStartedEventProcessor = new OrderStartedEventProcessor(chainId)
-  }
-  return orderStartedEventProcessor
-}
-
-function getDispenserCreatedEventProcessor(
-  chainId: number
-): DispenserCreatedEventProcessor {
-  if (!dispenserCreatedEventProcessor) {
-    dispenserCreatedEventProcessor = new DispenserCreatedEventProcessor(chainId)
-  }
-  return dispenserCreatedEventProcessor
-}
-
-function getDispenserActivatedEventProcessor(
-  chainId: number
-): DispenserActivatedEventProcessor {
-  if (!dispenserActivatedEventProcessor) {
-    dispenserActivatedEventProcessor = new DispenserActivatedEventProcessor(chainId)
-  }
-  return dispenserActivatedEventProcessor
-}
-
-function getDispenserDeactivatedEventProcessor(
-  chainId: number
-): DispenserDeactivatedEventProcessor {
-  if (!dispenserDeactivatedEventProcessor) {
-    dispenserDeactivatedEventProcessor = new DispenserDeactivatedEventProcessor(chainId)
-  }
-  return dispenserDeactivatedEventProcessor
-}
-
-function getExchangeActivatedEventProcessor(
-  chainId: number
-): ExchangeActivatedEventProcessor {
-  if (!exchangeActivatedEventProcessor) {
-    exchangeActivatedEventProcessor = new ExchangeActivatedEventProcessor(chainId)
-  }
-  return exchangeActivatedEventProcessor
-}
-
-function getExchangeDeactivatedEventProcessor(
-  chainId: number
-): ExchangeDeactivatedEventProcessor {
-  if (!exchangeDeactivatedEventProcessor) {
-    exchangeDeactivatedEventProcessor = new ExchangeDeactivatedEventProcessor(chainId)
-  }
-  return exchangeDeactivatedEventProcessor
-}
-
-function getExchangeNewRateEventProcessor(chainId: number) {
-  if (!exchangeNewRateEventProcessor) {
-    exchangeNewRateEventProcessor = new ExchangeRateChangedEventProcessor(chainId)
-  }
-  return exchangeNewRateEventProcessor
+  return processorInstances.get(cacheKey)
 }
 
 export const getContractAddress = (chainId: number, contractName: string): string => {
@@ -315,100 +248,21 @@ export const processChunkLogs = async (
             } // end if (allowedValidatorsList) {
           } // end if if (checkMetadataValidated) {
         }
-        if (
-          event.type === EVENTS.METADATA_CREATED ||
-          event.type === EVENTS.METADATA_UPDATED
-        ) {
-          const processor = getMetadataEventProcessor(chainId)
-          const rets = await processor.processEvent(
+        if (event.type === EVENTS.TOKEN_URI_UPDATE) {
+          storeEvents[event.type] = processTokenUriUpadate()
+        } else {
+          const processor = getEventProcessor(event.type, chainId)
+          storeEvents[event.type] = await processor.processEvent(
             log,
             chainId,
             signer,
             provider,
             event.type
           )
-          if (rets) storeEvents[event.type] = rets
-        } else if (event.type === EVENTS.METADATA_STATE) {
-          const processor = getMetadataStateEventProcessor(chainId)
-          storeEvents[event.type] = await processor.processEvent(log, chainId, provider)
-        } else if (event.type === EVENTS.EXCHANGE_CREATED) {
-          const processor = getExchangeCreatedEventProcessor(chainId)
-          INDEXER_LOGGER.logMessage(`log for exchange created: ${JSON.stringify(log)}`)
-          storeEvents[event.type] = await processor.processEvent(
-            log,
-            chainId,
-            signer,
-            provider
-          )
-        } else if (event.type === EVENTS.EXCHANGE_RATE_CHANGED) {
-          const processor = getExchangeNewRateEventProcessor(chainId)
-          storeEvents[event.type] = await processor.processEvent(
-            log,
-            chainId,
-            signer,
-            provider
-          )
-        } else if (event.type === EVENTS.ORDER_STARTED) {
-          const processor = getOrderStartedEventProcessor(chainId)
-          storeEvents[event.type] = await processor.processEvent(
-            log,
-            chainId,
-            signer,
-            provider
-          )
-        } else if (event.type === EVENTS.ORDER_REUSED) {
-          const processor = getOrderReusedEventProcessor(chainId)
-          storeEvents[event.type] = await processor.processEvent(
-            log,
-            chainId,
-            signer,
-            provider
-          )
-        } else if (event.type === EVENTS.TOKEN_URI_UPDATE) {
-          storeEvents[event.type] = processTokenUriUpadate()
-        } else if (event.type === EVENTS.DISPENSER_ACTIVATED) {
-          const processor = getDispenserActivatedEventProcessor(chainId)
-          storeEvents[event.type] = await processor.processEvent(
-            log,
-            chainId,
-            signer,
-            provider
-          )
-        } else if (event.type === EVENTS.DISPENSER_CREATED) {
-          const processor = getDispenserCreatedEventProcessor(chainId)
-          storeEvents[event.type] = await processor.processEvent(
-            log,
-            chainId,
-            signer,
-            provider
-          )
-        } else if (event.type === EVENTS.DISPENSER_DEACTIVATED) {
-          const processor = getDispenserDeactivatedEventProcessor(chainId)
-          storeEvents[event.type] = await processor.processEvent(
-            log,
-            chainId,
-            signer,
-            provider
-          )
-        } else if (event.type === EVENTS.EXCHANGE_ACTIVATED) {
-          const processor = getExchangeActivatedEventProcessor(chainId)
-          storeEvents[event.type] = await processor.processEvent(
-            log,
-            chainId,
-            signer,
-            provider
-          )
-        } else if (event.type === EVENTS.EXCHANGE_DEACTIVATED) {
-          const processor = getExchangeDeactivatedEventProcessor(chainId)
-          storeEvents[event.type] = await processor.processEvent(
-            log,
-            chainId,
-            signer,
-            provider
-          )
         }
       }
-    } // end for loop
+    }
+
     return storeEvents
   }
 

@@ -59,7 +59,7 @@ import {
   VersionedDDO
 } from '@oceanprotocol/ddo-js'
 import { checkCredentialOnAccessList } from '../../utils/credentials.js'
-class BaseEventProcessor {
+export abstract class BaseEventProcessor {
   protected networkId: number
 
   constructor(chainId: number) {
@@ -396,6 +396,14 @@ class BaseEventProcessor {
 
     return ddo
   }
+
+  public abstract processEvent(
+    event: ethers.Log,
+    chainId: number,
+    signer: Signer,
+    provider: JsonRpcApiProvider,
+    eventName?: string
+  ): Promise<any>
 }
 
 export class MetadataEventProcessor extends BaseEventProcessor {
@@ -733,6 +741,7 @@ export class MetadataStateEventProcessor extends BaseEventProcessor {
   async processEvent(
     event: ethers.Log,
     chainId: number,
+    _signer: Signer,
     provider: JsonRpcApiProvider
   ): Promise<any> {
     INDEXER_LOGGER.logMessage(`Processing metadata state event...`, true)
