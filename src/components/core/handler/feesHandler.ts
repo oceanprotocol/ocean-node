@@ -100,7 +100,6 @@ export class FeesHandler extends CommandHandler {
     const nonceDB = this.getOceanNode().getDatabase().nonce
     const nonceHandlerResponse = await getNonce(nonceDB, task.consumerAddress)
     const nonce = await streamToString(nonceHandlerResponse.stream as Readable)
-    const incrementedNonce = (Number(nonce) + 1).toString()
 
     try {
       const providerFee = await createProviderFee(ddo, service, validUntil)
@@ -108,7 +107,7 @@ export class FeesHandler extends CommandHandler {
         const response: ProviderInitialize = {
           providerFee,
           datatoken: service?.datatokenAddress,
-          nonce: incrementedNonce,
+          nonce,
           computeAddress: task?.consumerAddress
         }
         return {

@@ -93,8 +93,7 @@ async function updateNonce(
   nonce: number
 ): Promise<NonceResponse> {
   try {
-    DATABASE_LOGGER.logMessage('Upting nonce for address: ' + address, true)
-
+    DATABASE_LOGGER.logMessage('Updating nonce for address: ' + address, true)
     // update nonce on db
     // it will create if none exists yet
     const resp = await db.update(address, nonce)
