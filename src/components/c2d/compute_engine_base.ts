@@ -12,11 +12,13 @@ import type {
   ComputeResource,
   ComputeResourcesPricingInfo,
   DBComputeJobPayment,
-  DBComputeJob
+  DBComputeJob,
+  dockerDeviceRequest
 } from '../../@types/C2D/C2D.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
+import { c } from 'tar'
 
 export abstract class C2DEngine {
   private clusterConfig: C2DClusterInfo
@@ -292,6 +294,61 @@ export abstract class C2DEngine {
       }
     }
     return null
+  }
+
+  public getDockerDeviceRequest(
+    requests: ComputeResourceRequest[],
+    resources: ComputeResource[]
+  ) {
+    if (!resources) return null
+    const ret: dockerDeviceRequest[] = []
+    for (const resource of requests) {
+      const res = this.getResource(resources, resource.id)
+      if (res.init && res.init.deviceRequests) {
+        ret.push(res.init.deviceRequests)
+      }
+    }
+    return ret
+  }
+
+  public getDockerAdvancedConfig(
+    requests: ComputeResourceRequest[],
+    resources: ComputeResource[]
+  ) {
+    const ret = {
+      Devices: [] as any[],
+      GroupAdd: [] as string[],
+      SecurityOpt: [] as string[]
+    }
+    for (const resource of requests) {
+      const res = this.getResource(resources, resource.id)
+      if (res.init && res.init.advanced) {
+        for (const [key, value] of Object.entries(res.init.advanced)) {
+          switch (key) {
+            case 'GroupAdd':
+              for (const grp of value as string[]) {
+                ret.GroupAdd.push(grp)
+              }
+              break
+            case 'Devices':
+              for (const device of value as string[]) {
+                ret.Devices.push({
+                  PathOnHost: device,
+                  PathInContainer: device,
+                  CgroupPermissions: null
+                })
+              }
+              break
+            case 'SecurityOpt':
+              for (const [secKeys, secValues] of Object.entries(value))
+                ret.SecurityOpt.push(secKeys + '=' + secValues)
+
+              break
+          }
+        }
+      }
+    }
+    return ret
   }
 
   public getEnvPricesForToken(

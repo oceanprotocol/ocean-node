@@ -150,6 +150,7 @@ export class C2DEngineDocker extends C2DEngine {
       max: sysinfo.MemTotal,
       min: 1e9
     })
+
     if (envConfig.resources) {
       for (const res of envConfig.resources) {
         // allow user to add other resources
@@ -160,6 +161,38 @@ export class C2DEngineDocker extends C2DEngine {
         }
       }
     }
+    /* push namedresources
+    if (sysinfo.GenericResources) {
+      for (const [key, value] of Object.entries(sysinfo.GenericResources)) {
+        for (const [type, val] of Object.entries(value)) {
+          // for (const resType in sysinfo.GenericResources) {
+          if (type === 'NamedResourceSpec') {
+            // if we have it, ignore it
+            const resourceId = val.Value
+            const resourceType = val.Kind
+            let found = false
+            for (const res of this.envs[0].resources) {
+              if (res.id === resourceId) {
+                found = true
+                break
+              }
+            }
+            if (!found) {
+              this.envs[0].resources.push({
+                id: resourceId,
+                kind: resourceType,
+                total: 1,
+                max: 1,
+                min: 0
+              })
+            }
+          }
+          console.log('type:' + type)
+          console.log(val)
+        }
+      }
+    }
+      */
     // limits for free env
     if ('free' in envConfig) {
       this.envs[0].free = {}
@@ -186,11 +219,18 @@ export class C2DEngineDocker extends C2DEngine {
      */
     if (!this.docker) return []
     const filteredEnvs = []
+    const systemInfo = this.docker ? await this.docker.info() : null
     for (const computeEnv of this.envs) {
       if (
         !chainId ||
         (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId)))
       ) {
+        // console.log('********************************')
+        // console.log(systemInfo.GenericResources)
+        // console.log('********************************')
+        // if (systemInfo.Runtimes) computeEnv.runtimes = systemInfo.Runtimes
+        // if (systemInfo.DefaultRuntime)
+        // computeEnv.defaultRuntime = systemInfo.DefaultRuntime
         const { totalJobs, totalFreeJobs, usedResources, usedFreeResources } =
           await this.getUsedResources(computeEnv)
         computeEnv.runningJobs = totalJobs
@@ -284,6 +324,7 @@ export class C2DEngineDocker extends C2DEngine {
     payment: DBComputeJobPayment
   ): Promise<ComputeJob[]> {
     if (!this.docker) return []
+    // TO DO - iterate over resources and get default runtime
     const isFree: boolean = !(payment && payment.lockTx)
     const jobId = generateUniqueID()
     // C2D - Check image, check arhitecture, etc
@@ -638,8 +679,7 @@ export class C2DEngineDocker extends C2DEngine {
       // create the volume & create container
       // TO DO C2D:  Choose driver & size
       // get env info
-      // const environment = await this.getJobEnvironment(job)
-
+      const envResource = this.envs[0].resources
       const volume: VolumeCreateOptions = {
         Name: job.jobId + '-volume'
       }
@@ -705,7 +745,19 @@ export class C2DEngineDocker extends C2DEngine {
         Volumes: mountVols,
         HostConfig: hostConfig
       }
-
+      // TO DO - iterate over resources and get default runtime
+      // TO DO - check resources and pass devices
+      const dockerDeviceRequest = this.getDockerDeviceRequest(job.resources, envResource)
+      if (dockerDeviceRequest) {
+        containerInfo.HostConfig.DeviceRequests = dockerDeviceRequest
+      }
+      const { Devices, GroupAdd, SecurityOpt } = this.getDockerAdvancedConfig(
+        job.resources,
+        envResource
+      )
+      if (Devices) containerInfo.HostConfig.Devices = Devices
+      if (GroupAdd) containerInfo.HostConfig.GroupAdd = GroupAdd
+      if (SecurityOpt) containerInfo.HostConfig.SecurityOpt = SecurityOpt
       if (job.algorithm.meta.container.entrypoint) {
         const newEntrypoint = job.algorithm.meta.container.entrypoint.replace(
           '$ALGO',
@@ -715,6 +767,10 @@ export class C2DEngineDocker extends C2DEngine {
       }
       console.log('CREATING CONTAINER')
       console.log(containerInfo)
+      console.log(containerInfo.HostConfig)
+      if (containerInfo.HostConfig.DeviceRequests)
+        console.log(containerInfo.HostConfig.DeviceRequests)
+
       const container = await this.createDockerContainer(containerInfo, true)
       if (container) {
         console.log('container: ', container)

@@ -466,7 +466,7 @@ export class FreeComputeStartHandler extends CommandHandler {
     }
     const thisNode = this.getOceanNode()
     // Validate nonce and signature
-    const nonceCheckResult: NonceResponse = await checkNonce(
+    /* const nonceCheckResult: NonceResponse = await checkNonce(
       thisNode.getDatabase().nonce,
       task.consumerAddress,
       parseInt(task.nonce),
@@ -488,6 +488,7 @@ export class FreeComputeStartHandler extends CommandHandler {
         }
       }
     }
+      */
     let engine = null
     try {
       // split compute env (which is already in hash-envId format) and get the hash
