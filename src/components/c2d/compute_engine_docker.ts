@@ -208,6 +208,11 @@ export class C2DEngineDocker extends C2DEngine {
     }
     this.envs[0].id =
       this.getC2DConfig().hash + '-' + create256Hash(JSON.stringify(this.envs[0]))
+
+    // only now set the timer
+    if (!this.cronTimer) {
+      this.setNewTimer()
+    }
   }
 
   // eslint-disable-next-line require-await

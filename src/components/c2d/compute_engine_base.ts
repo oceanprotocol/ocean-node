@@ -146,6 +146,14 @@ export abstract class C2DEngine {
     isFree: boolean
   ): ComputeResource {
     const paid = this.getResource(env.resources, id)
+    if (!paid) {
+      return {
+        id,
+        total: 0,
+        max: 0,
+        min: 0
+      }
+    }
     let free = null
     if (isFree && 'free' in env && 'resources' in env.free) {
       free = this.getResource(env.free.resources, id)
@@ -193,7 +201,7 @@ export abstract class C2DEngine {
     for (const device of elements) {
       let desired = this.getResourceRequest(resources, device)
       const minMax = this.getMaxMinResource(device, env, isFree)
-      if (!desired && minMax.min > 0) {
+      if (!desired && minMax.min >= 0) {
         // it's required
         desired = minMax.min
       } else {
@@ -209,7 +217,7 @@ export abstract class C2DEngine {
           )
         }
       }
-      properResources.push({ id: device, amount: minMax.min })
+      properResources.push({ id: device, amount: desired })
     }
 
     return properResources
