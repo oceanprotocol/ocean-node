@@ -59,6 +59,7 @@ import {
   VersionedDDO
 } from '@oceanprotocol/ddo-js'
 import { checkCredentialOnAccessList } from '../../utils/credentials.js'
+// import { getNonce } from '../core/utils/nonceHandler.js'
 class BaseEventProcessor {
   protected networkId: number
 
@@ -242,7 +243,9 @@ class BaseEventProcessor {
       INDEXER_LOGGER.logMessage(
         `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
       )
-      const nonce = Math.floor(Date.now() / 1000).toString()
+
+      const incrementedNonce = Date.now().toString()
+
       const config = await getConfiguration()
       const { keys } = config
       const nodeId = keys.peerId.toString()
@@ -250,7 +253,7 @@ class BaseEventProcessor {
       const wallet: ethers.Wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string)
 
       const message = String(
-        txId + contractAddress + keys.ethAddress + chainId.toString() + nonce
+        txId + contractAddress + keys.ethAddress + chainId.toString() + incrementedNonce
       )
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
@@ -266,7 +269,7 @@ class BaseEventProcessor {
             decrypterAddress: keys.ethAddress,
             dataNftAddress: contractAddress,
             signature,
-            nonce
+            nonce: incrementedNonce
           }
           const response = await axios({
             method: 'post',
@@ -309,7 +312,7 @@ class BaseEventProcessor {
             documentHash: metadataHash,
             dataNftAddress: contractAddress,
             signature,
-            nonce
+            nonce: incrementedNonce
           }
           try {
             const response = await node
@@ -370,7 +373,7 @@ class BaseEventProcessor {
               documentHash: metadataHash,
               dataNftAddress: contractAddress,
               signature,
-              nonce
+              nonce: incrementedNonce
             }
             const response = await p2pNode.sendTo(
               decryptorURL,
