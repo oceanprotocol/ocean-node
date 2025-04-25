@@ -326,31 +326,58 @@ export abstract class C2DEngine {
     const ret = {
       Devices: [] as any[],
       GroupAdd: [] as string[],
-      SecurityOpt: [] as string[]
+      SecurityOpt: [] as string[],
+      Binds: [] as string[],
+      CapAdd: [] as string[],
+      CapDrop: [] as string[],
+      IpcMode: null as string,
+      ShmSize: 0 as number
     }
     for (const resource of requests) {
       const res = this.getResource(resources, resource.id)
       if (res.init && res.init.advanced) {
         for (const [key, value] of Object.entries(res.init.advanced)) {
           switch (key) {
+            case 'IpcMode':
+              ret.IpcMode = value as string
+              break
+            case 'ShmSize':
+              ret.ShmSize = value as number
+              break
             case 'GroupAdd':
               for (const grp of value as string[]) {
-                ret.GroupAdd.push(grp)
+                if (!ret.GroupAdd.includes(grp)) ret.GroupAdd.push(grp)
+              }
+              break
+            case 'CapAdd':
+              for (const grp of value as string[]) {
+                if (!ret.CapAdd.includes(grp)) ret.CapAdd.push(grp)
+              }
+              break
+            case 'CapDrop':
+              for (const grp of value as string[]) {
+                if (!ret.CapDrop.includes(grp)) ret.CapDrop.push(grp)
               }
               break
             case 'Devices':
               for (const device of value as string[]) {
-                ret.Devices.push({
-                  PathOnHost: device,
-                  PathInContainer: device,
-                  CgroupPermissions: null
-                })
+                if (!ret.Devices.find((d) => d.PathOnHost === device))
+                  ret.Devices.push({
+                    PathOnHost: device,
+                    PathInContainer: device,
+                    CgroupPermissions: null
+                  })
               }
               break
             case 'SecurityOpt':
               for (const [secKeys, secValues] of Object.entries(value))
-                ret.SecurityOpt.push(secKeys + '=' + secValues)
-
+                if (!ret.SecurityOpt.includes(secKeys + '=' + secValues))
+                  ret.SecurityOpt.push(secKeys + '=' + secValues)
+              break
+            case 'Binds':
+              for (const [secKeys, secValues] of Object.entries(value))
+                if (!ret.Binds.includes(secKeys + '=' + secValues))
+                  ret.Binds.push(secKeys + '=' + secValues)
               break
           }
         }

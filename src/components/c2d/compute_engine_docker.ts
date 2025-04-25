@@ -757,13 +757,21 @@ export class C2DEngineDocker extends C2DEngine {
       if (dockerDeviceRequest) {
         containerInfo.HostConfig.DeviceRequests = dockerDeviceRequest
       }
-      const { Devices, GroupAdd, SecurityOpt } = this.getDockerAdvancedConfig(
-        job.resources,
-        envResource
-      )
-      if (Devices) containerInfo.HostConfig.Devices = Devices
-      if (GroupAdd) containerInfo.HostConfig.GroupAdd = GroupAdd
-      if (SecurityOpt) containerInfo.HostConfig.SecurityOpt = SecurityOpt
+      const advancedConfig = this.getDockerAdvancedConfig(job.resources, envResource)
+      if (advancedConfig.Devices)
+        containerInfo.HostConfig.Devices = advancedConfig.Devices
+      if (advancedConfig.GroupAdd)
+        containerInfo.HostConfig.GroupAdd = advancedConfig.GroupAdd
+      if (advancedConfig.SecurityOpt)
+        containerInfo.HostConfig.SecurityOpt = advancedConfig.SecurityOpt
+      if (advancedConfig.Binds) containerInfo.HostConfig.Binds = advancedConfig.Binds
+      if (advancedConfig.CapAdd) containerInfo.HostConfig.CapAdd = advancedConfig.CapAdd
+      if (advancedConfig.CapDrop)
+        containerInfo.HostConfig.CapDrop = advancedConfig.CapDrop
+      if (advancedConfig.IpcMode)
+        containerInfo.HostConfig.IpcMode = advancedConfig.IpcMode
+      if (advancedConfig.ShmSize)
+        containerInfo.HostConfig.ShmSize = advancedConfig.ShmSize
       if (job.algorithm.meta.container.entrypoint) {
         const newEntrypoint = job.algorithm.meta.container.entrypoint.replace(
           '$ALGO',

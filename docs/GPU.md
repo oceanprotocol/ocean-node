@@ -193,7 +193,7 @@ Start a free job using:
         "tag": "2.17.0-gpu",
         "entrypoint": "python $ALGO"
       },
-      "rawcode": "import tensorflow as tf\nprint(\"Num GPUs Available: \", len(tf.config.list_physical_devices('GPU')))\ngpus = tf.config.list_physical_devices('GPU')\nfor gpu in gpus:\n\tprint('Name:', gpu.name, '  Type:', gpu.device_type)"
+      "rawcode": "import tensorflow as tf\nsess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(log_device_placement=True))\nprint(\"Num GPUs Available: \", len(tf.config.list_physical_devices('GPU')))\ngpus = tf.config.list_physical_devices('GPU')\nfor gpu in gpus:\n\tprint('Name:', gpu.name, '  Type:', gpu.device_type)"
     }
   },
   "consumerAddress": "0xC7EC1970B09224B317c52d92f37F5e1E4fF6B687",
