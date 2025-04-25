@@ -539,6 +539,7 @@ export class C2DEngineDocker extends C2DEngine {
 
     if (jobs.length === 0) {
       CORE_LOGGER.info('No C2D jobs found for engine ' + this.getC2DConfig().hash)
+      this.setNewTimer()
       return
     } else {
       CORE_LOGGER.info(`Got ${jobs.length} jobs for engine ${this.getC2DConfig().hash}`)
