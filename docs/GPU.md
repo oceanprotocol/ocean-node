@@ -231,89 +231,83 @@ Name: /physical_device:GPU:0   Type: GPU
 
 First, install ROCm (https://rocm.docs.amd.com/projects/radeon/en/latest/docs/install/wsl/install-radeon.html)
 
-````
-
 Then define DOCKER_COMPUTE_ENVIRONMENTS with
+
 ```json
 [
-   {
-      "socketPath":"/var/run/docker.sock",
-      "resources":[
-         {
-            "id":"myGPU",
-            "description":"AMD Radeon RX 9070 XT",
-            "type":"gpu",
-            "total":1,
-            "init":{
-               "advanced":{
-                  "IpcMode":"host",
-                  "ShmSize":8589934592,
-                  "CapAdd":[
-                     "SYS_PTRACE"
-                  ],
-                  "Devices":[
-                     "/dev/dxg",
-                     "/dev/dri/card0"
-                  ],
-                  "Binds":[
-                     "/usr/lib/wsl/lib/libdxcore.so:/usr/lib/libdxcore.so",
-                     "/opt/rocm/lib/libhsa-runtime64.so.1:/opt/rocm/lib/libhsa-runtime64.so.1"
-                  ],
-                  "SecurityOpt":{
-                     "seccomp":"unconfined"
-                  }
-               }
+  {
+    "socketPath": "/var/run/docker.sock",
+    "resources": [
+      {
+        "id": "myGPU",
+        "description": "AMD Radeon RX 9070 XT",
+        "type": "gpu",
+        "total": 1,
+        "init": {
+          "advanced": {
+            "IpcMode": "host",
+            "ShmSize": 8589934592,
+            "CapAdd": ["SYS_PTRACE"],
+            "Devices": ["/dev/dxg", "/dev/dri/card0"],
+            "Binds": [
+              "/usr/lib/wsl/lib/libdxcore.so:/usr/lib/libdxcore.so",
+              "/opt/rocm/lib/libhsa-runtime64.so.1:/opt/rocm/lib/libhsa-runtime64.so.1"
+            ],
+            "SecurityOpt": {
+              "seccomp": "unconfined"
             }
-         },
-         {
-            "id":"disk",
-            "total":1000000000
-         }
-      ],
-      "storageExpiry":604800,
-      "maxJobDuration":3600,
-      "fees":{
-         "1":[
-            {
-               "feeToken":"0x123",
-               "prices":[
-                  {
-                     "id":"cpu",
-                     "price":1
-                  },
-                  {
-                     "id":"nyGPU",
-                     "price":3
-                  }
-               ]
-            }
-         ]
+          }
+        }
       },
-      "free":{
-         "maxJobDuration":60,
-         "maxJobs":3,
-         "resources":[
-            {
-               "id":"cpu",
-               "max":1
-            },
-            {
-               "id":"ram",
-               "max":1000000000
-            },
-            {
-               "id":"disk",
-               "max":1000000000
-            },
-            {
-               "id":"myGPU",
-               "max":1
-            }
-         ]
+      {
+        "id": "disk",
+        "total": 1000000000
       }
-   }
+    ],
+    "storageExpiry": 604800,
+    "maxJobDuration": 3600,
+    "fees": {
+      "1": [
+        {
+          "feeToken": "0x123",
+          "prices": [
+            {
+              "id": "cpu",
+              "price": 1
+            },
+            {
+              "id": "nyGPU",
+              "price": 3
+            }
+          ]
+        }
+      ]
+    },
+    "free": {
+      "maxJobDuration": 60,
+      "maxJobs": 3,
+      "resources": [
+        {
+          "id": "cpu",
+          "max": 1
+        },
+        {
+          "id": "ram",
+          "max": 1000000000
+        },
+        {
+          "id": "disk",
+          "max": 1000000000
+        },
+        {
+          "id": "myGPU",
+          "max": 1
+        }
+      ]
+    }
+  }
 ]
-````
+```
 
 aka
 
