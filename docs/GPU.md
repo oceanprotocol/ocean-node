@@ -226,3 +226,267 @@ I0000 00:00:1745561915.993799       1 cuda_executor.cc:1015] successful NUMA nod
 Num GPUs Available:  1
 Name: /physical_device:GPU:0   Type: GPU
 ```
+
+## AMD Radeon 9070 XT ON WSL2
+
+First, install ROCm (https://rocm.docs.amd.com/projects/radeon/en/latest/docs/install/wsl/install-radeon.html)
+
+````
+
+Then define DOCKER_COMPUTE_ENVIRONMENTS with
+```json
+[
+   {
+      "socketPath":"/var/run/docker.sock",
+      "resources":[
+         {
+            "id":"myGPU",
+            "description":"AMD Radeon RX 9070 XT",
+            "type":"gpu",
+            "total":1,
+            "init":{
+               "advanced":{
+                  "IpcMode":"host",
+                  "ShmSize":8589934592,
+                  "CapAdd":[
+                     "SYS_PTRACE"
+                  ],
+                  "Devices":[
+                     "/dev/dxg",
+                     "/dev/dri/card0"
+                  ],
+                  "Binds":[
+                     "/usr/lib/wsl/lib/libdxcore.so:/usr/lib/libdxcore.so",
+                     "/opt/rocm/lib/libhsa-runtime64.so.1:/opt/rocm/lib/libhsa-runtime64.so.1"
+                  ],
+                  "SecurityOpt":{
+                     "seccomp":"unconfined"
+                  }
+               }
+            }
+         },
+         {
+            "id":"disk",
+            "total":1000000000
+         }
+      ],
+      "storageExpiry":604800,
+      "maxJobDuration":3600,
+      "fees":{
+         "1":[
+            {
+               "feeToken":"0x123",
+               "prices":[
+                  {
+                     "id":"cpu",
+                     "price":1
+                  },
+                  {
+                     "id":"nyGPU",
+                     "price":3
+                  }
+               ]
+            }
+         ]
+      },
+      "free":{
+         "maxJobDuration":60,
+         "maxJobs":3,
+         "resources":[
+            {
+               "id":"cpu",
+               "max":1
+            },
+            {
+               "id":"ram",
+               "max":1000000000
+            },
+            {
+               "id":"disk",
+               "max":1000000000
+            },
+            {
+               "id":"myGPU",
+               "max":1
+            }
+         ]
+      }
+   }
+]
+````
+
+aka
+
+```bash
+export DOCKER_COMPUTE_ENVIRONMENTS="[{\"socketPath\":\"/var/run/docker.sock\",\"resources\":[{\"id\":\"myGPU\",\"description\":\"AMD Radeon RX 9070 XT\",\"type\":\"gpu\",\"total\":1,\"init\":{\"advanced\":{
+\"IpcMode\":\"host\",\"CapAdd\":[\"CAP_SYS_PTRACE\"],\"Devices\":[\"/dev/dxg\",\"/dev/dri/card0\"],\"Binds\":[\"/usr/lib/wsl/lib/libdxcore.so:/usr/lib/libdxcore.so\",\"/opt/rocm/lib/libhsa-runtime64.so.1:/opt/rocm/lib/libhsa-runtime64.so.1\"],\"SecurityOpt\":{\"seccomp\":\"unconfined\"}}}},{\"id\":\"disk\",\"total\":1000000000}],\"storageExpiry\":604800,\"maxJobDuration\":3600,\"fees\":{\"1\":[{\"feeToken\":\"0x123\",\"prices\":[{\"id\":\"cpu\",\"price\":1},{\"id\":\"nyGPU\",\"price\":3}]}]},\"free\":{\"maxJobDuration\":60,\"maxJobs\":3,\"resources\":[{\"id\":\"cpu\",\"max\":1},{\"id\":\"ram\",\"max\":1000000000},{\"id\":\"disk\",\"max\":1000000000},{\"id\":\"myGPU\",\"max\":1}]}}]"
+```
+
+you should have it in your compute envs:
+
+```bash
+root@gpu-1:/repos/ocean/ocean-node# curl http://localhost:8000/api/services/computeEnvironments
+```
+
+```json
+[
+  {
+    "id": "0xbb5773e734e1b188165dac88d9a3dc8ac28bc9f5624b45fa8bbd8fca043de7c1-0x2c2761f938cf186eeb81f71dee06ad7edb299493e39c316c390d0c0691e6585c",
+    "runningJobs": 0,
+    "consumerAddress": "0x4fb80776C8eb4cAbe7730dcBCdb1fa6ecD3c460E",
+    "platform": {
+      "architecture": "x86_64",
+      "os": "Ubuntu 24.04.2 LTS"
+    },
+    "fees": {
+      "1": [
+        {
+          "feeToken": "0x123",
+          "prices": [
+            {
+              "id": "cpu",
+              "price": 1
+            },
+            {
+              "id": "nyGPU",
+              "price": 3
+            }
+          ]
+        }
+      ]
+    },
+    "storageExpiry": 604800,
+    "maxJobDuration": 3600,
+    "resources": [
+      {
+        "id": "cpu",
+        "total": 16,
+        "max": 16,
+        "min": 1,
+        "inUse": 0
+      },
+      {
+        "id": "ram",
+        "total": 33617674240,
+        "max": 33617674240,
+        "min": 1000000000,
+        "inUse": 0
+      },
+      {
+        "id": "myGPU",
+        "description": "AMD Radeon RX 9070 XT",
+        "type": "gpu",
+        "total": 1,
+        "init": {
+          "advanced": {
+            "IpcMode": "host",
+            "CapAdd": ["CAP_SYS_PTRACE"],
+            "Devices": ["/dev/dxg", "/dev/dri/card0"],
+            "Binds": [
+              "/usr/lib/wsl/lib/libdxcore.so:/usr/lib/libdxcore.so",
+              "/opt/rocm/lib/libhsa-runtime64.so.1:/opt/rocm/lib/libhsa-runtime64.so.1"
+            ],
+            "SecurityOpt": {
+              "seccomp": "unconfined"
+            }
+          }
+        },
+        "max": 1,
+        "min": 0,
+        "inUse": 0
+      },
+      {
+        "id": "disk",
+        "total": 1000000000,
+        "max": 1000000000,
+        "min": 0,
+        "inUse": 0
+      }
+    ],
+    "free": {
+      "maxJobDuration": 60,
+      "maxJobs": 3,
+      "resources": [
+        {
+          "id": "cpu",
+          "max": 1,
+          "inUse": 0
+        },
+        {
+          "id": "ram",
+          "max": 1000000000,
+          "inUse": 0
+        },
+        {
+          "id": "disk",
+          "max": 1000000000,
+          "inUse": 0
+        },
+        {
+          "id": "myGPU",
+          "max": 1,
+          "inUse": 0
+        }
+      ]
+    },
+    "runningfreeJobs": 0
+  }
+]
+```
+
+Start a free job with
+
+```json
+{
+  "command": "freeStartCompute",
+  "datasets": [
+    {
+      "fileObject": {
+        "type": "url",
+        "url": "https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js",
+        "method": "get"
+      }
+    }
+  ],
+  "algorithm": {
+    "meta": {
+      "container": {
+        "image": "rocm/tensorflow",
+        "tag": "rocm6.4-py3.12-tf2.18-dev",
+        "entrypoint": "python $ALGO"
+      },
+      "rawcode": "import tensorflow as tf\nsess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(log_device_placement=True))\nprint(\"Num GPUs Available: \", len(tf.config.list_physical_devices('GPU')))\ngpus = tf.config.list_physical_devices('GPU')\nfor gpu in gpus:\n\tprint('Name:', gpu.name, '  Type:', gpu.device_type)"
+    }
+  },
+  "consumerAddress": "0xC7EC1970B09224B317c52d92f37F5e1E4fF6B687",
+  "signature": "123",
+  "nonce": 1,
+  "environment": "0xbb5773e734e1b188165dac88d9a3dc8ac28bc9f5624b45fa8bbd8fca043de7c1-0x2c2761f938cf186eeb81f71dee06ad7edb299493e39c316c390d0c0691e6585c",
+  "resources": [
+    {
+      "id": "cpu",
+      "amount": 1
+    },
+    {
+      "id": "myGPU",
+      "amount": 1
+    }
+  ]
+}
+```
+
+and get the results
+
+```bash
+2025-04-25 15:16:15.218050: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: SSE3 SSE4.1 SSE4.2 AVX AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1745594260.720023       1 gpu_device.cc:2022] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 2874 MB memory:  -> device: 0, name: AMD Radeon RX 9070 XT, pci bus id: 0000:0d:00.0
+2025-04-25 15:17:44.018225: I tensorflow/core/common_runtime/direct_session.cc:378] Device mapping:
+/job:localhost/replica:0/task:0/device:GPU:0 -> device: 0, name: AMD Radeon RX 9070 XT, pci bus id: 0000:0d:00.0
+
+Num GPUs Available:  1
+Name: /physical_device:GPU:0   Type: GPU
+Warning: Resource leak detected by SharedSignalPool, 385 Signals leaked.
+pid:1 tid:0x7f4476ac1740 [~VaMgr] frag_map_ size is not 1.
+```

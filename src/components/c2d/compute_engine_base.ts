@@ -365,7 +365,7 @@ export abstract class C2DEngine {
                   ret.Devices.push({
                     PathOnHost: device,
                     PathInContainer: device,
-                    CgroupPermissions: null
+                    CgroupPermissions: 'rwm'
                   })
               }
               break
@@ -375,9 +375,9 @@ export abstract class C2DEngine {
                   ret.SecurityOpt.push(secKeys + '=' + secValues)
               break
             case 'Binds':
-              for (const [secKeys, secValues] of Object.entries(value))
-                if (!ret.Binds.includes(secKeys + '=' + secValues))
-                  ret.Binds.push(secKeys + '=' + secValues)
+              for (const grp of value as string[]) {
+                if (!ret.Binds.includes(grp)) ret.Binds.push(grp)
+              }
               break
           }
         }
