@@ -87,8 +87,10 @@ export async function validateAlgoForDataset(
     if (algoDID) {
       if (
         // if not set allow them all
-        !compute.publisherTrustedAlgorithms &&
-        !compute.publisherTrustedAlgorithmPublishers
+        (!Array.isArray(compute.publisherTrustedAlgorithms) ||
+          compute.publisherTrustedAlgorithms.length === 0) &&
+        (!Array.isArray(compute.publisherTrustedAlgorithmPublishers) ||
+          compute.publisherTrustedAlgorithmPublishers.length === 0)
       ) {
         return true
       }

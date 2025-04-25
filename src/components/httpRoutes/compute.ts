@@ -72,6 +72,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       signature: (req.body.signature as string) || null,
       nonce: (req.body.nonce as string) || null,
       environment: (req.body.environment as string) || null,
+      maxJobDuration: (req.body.maxJobDuration as number) || null,
       algorithm: (req.body.algorithm as ComputeAlgorithm) || null,
       datasets: (req.body.datasets as unknown as ComputeAsset[]) || null,
       payment: (req.body.payment as unknown as ComputePayment) || null,
