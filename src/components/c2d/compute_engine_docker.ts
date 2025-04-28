@@ -284,6 +284,7 @@ export class C2DEngineDocker extends C2DEngine {
     payment: DBComputeJobPayment
   ): Promise<ComputeJob[]> {
     if (!this.docker) return []
+    CORE_LOGGER.logMessage(`payment: ${JSON.stringify(payment)}`)
     const isFree: boolean = !(payment && payment.lockTx)
     const jobId = generateUniqueID()
     // C2D - Check image, check arhitecture, etc
