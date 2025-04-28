@@ -13,7 +13,8 @@ import type {
   ComputeResult,
   RunningPlatform,
   ComputeEnvFeesStructure,
-  ComputeResourceRequest
+  ComputeResourceRequest,
+  ComputeEnvFees
 } from '../../@types/C2D/C2D.js'
 import { getConfiguration } from '../../utils/config.js'
 import { C2DEngine } from './compute_engine_base.js'
@@ -43,6 +44,7 @@ import { decryptFilesObject, omitDBComputeFieldsFromComputeJob } from './index.j
 import * as drc from 'docker-registry-client'
 import { ValidateParams } from '../httpRoutes/validateCommands.js'
 import { Service } from '@oceanprotocol/ddo-js'
+import { getOceanTokenAddressForChain } from '../../utils/address.js'
 
 export class C2DEngineDocker extends C2DEngine {
   private envs: ComputeEnvironment[] = []
@@ -113,7 +115,34 @@ export class C2DEngineDocker extends C2DEngine {
       if (supportedChains.includes(parseInt(feeChain))) {
         if (fees === null) fees = {}
         if (!(feeChain in fees)) fees[feeChain] = []
-        fees[feeChain] = envConfig.fees[feeChain]
+        const tmpFees: ComputeEnvFees[] = []
+        for (let i = 0; i < envConfig.fees[feeChain].length; i++) {
+          if (
+            envConfig.fees[feeChain][i].prices &&
+            envConfig.fees[feeChain][i].prices.length > 0
+          ) {
+            if (!envConfig.fees[feeChain][i].feeToken) {
+              const tokenAddress = await getOceanTokenAddressForChain(parseInt(feeChain))
+              if (tokenAddress) {
+                envConfig.fees[feeChain][i].feeToken = tokenAddress
+                tmpFees.push(envConfig.fees[feeChain][i])
+              } else {
+                CORE_LOGGER.error(
+                  `Unable to find Ocean token address for chain ${feeChain} and no custom token provided`
+                )
+              }
+            } else {
+              tmpFees.push(envConfig.fees[feeChain][i])
+            }
+          } else {
+            CORE_LOGGER.error(
+              `Unable to find prices for fee ${JSON.stringify(
+                envConfig.fees[feeChain][i]
+              )} on chain ${feeChain}`
+            )
+          }
+        }
+        fees[feeChain] = tmpFees
       }
 
       /* for (const chain of Object.keys(config.supportedNetworks)) {
