@@ -352,7 +352,13 @@ export class PaidComputeStartHandler extends CommandHandler {
         agreementId: '',
         resources
       }
-      const jobId = createHash('sha256').update(JSON.stringify(s)).digest('hex')
+      // job ID unicity
+      const timestamp =
+        BigInt(Date.now()) * 1_000_000n + (process.hrtime.bigint() % 1_000_000n)
+      const random = Math.random()
+      const jobId = createHash('sha256')
+        .update(JSON.stringify(s) + timestamp.toString() + random.toString())
+        .digest('hex')
       // let's calculate payment needed based on resources request and maxJobDuration
       const cost = engine.calculateResourcesCost(
         task.payment.resources,
