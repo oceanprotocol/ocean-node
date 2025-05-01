@@ -153,7 +153,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         environment: job.environment,
         owner: job.owner,
         maxJobDuration: job.maxJobDuration,
-        chainId: job.payment.chainId,
+        chainId: job.payment?.chainId || null,
         agreementId: job.agreementId,
         resources: job.resources
       }

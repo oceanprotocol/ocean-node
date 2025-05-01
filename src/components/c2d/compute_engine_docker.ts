@@ -323,7 +323,7 @@ export class C2DEngineDocker extends C2DEngine {
         environment,
         owner,
         maxJobDuration,
-        chainId: payment.chainId,
+        chainId: payment.chainId ? isFree === false : null,
         agreementId: '',
         resources
       }
