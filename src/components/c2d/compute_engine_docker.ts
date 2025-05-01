@@ -316,6 +316,7 @@ export class C2DEngineDocker extends C2DEngine {
     if (!this.docker) return []
     const isFree: boolean = !(payment && payment.lockTx)
     if (!jobId) {
+      const chainIdValue = payment && payment.chainId ? isFree === false : null
       const jobStructure = {
         assets,
         algorithm,
@@ -323,7 +324,7 @@ export class C2DEngineDocker extends C2DEngine {
         environment,
         owner,
         maxJobDuration,
-        chainId: payment.chainId ? isFree === false : null,
+        chainId: chainIdValue,
         agreementId: '',
         resources
       }
