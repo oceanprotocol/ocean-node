@@ -144,7 +144,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     `
-    let jobId
+    let jobId: string
     if (!job.jobId) {
       const jobStructure = {
         assets: job.assets,
