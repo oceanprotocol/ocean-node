@@ -310,11 +310,26 @@ export class C2DEngineDocker extends C2DEngine {
     owner: string,
     maxJobDuration: number,
     resources: ComputeResourceRequest[],
-    payment: DBComputeJobPayment
+    payment: DBComputeJobPayment,
+    jobId?: string
   ): Promise<ComputeJob[]> {
     if (!this.docker) return []
     const isFree: boolean = !(payment && payment.lockTx)
-    const jobId = generateUniqueID()
+    if (!jobId) {
+      const jobStructure = {
+        assets,
+        algorithm,
+        output,
+        environment,
+        owner,
+        maxJobDuration,
+        chainId: payment.chainId,
+        agreementId: '',
+        resources
+      }
+      jobId = generateUniqueID(jobStructure)
+    }
+
     // C2D - Check image, check arhitecture, etc
     const image = getAlgorithmImage(algorithm)
     // ex: node@sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36
