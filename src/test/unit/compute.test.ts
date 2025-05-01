@@ -19,6 +19,7 @@ import {
   convertStringToArray,
   STRING_SEPARATOR
 } from '../../components/database/sqliteCompute.js'
+import { homedir } from 'os'
 import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,
@@ -47,18 +48,12 @@ describe('Compute Jobs Database', () => {
     documentId: 'did:op:12345',
     serviceId: '0x12345abc'
   }
-  let paymentToken: string
+
   before(async () => {
-    const artifactsAddresses = getOceanArtifactsAdresses()
-    paymentToken = artifactsAddresses.development.Ocean
     envOverrides = buildEnvOverrideConfig(
       [ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS],
       [
-        '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":1000000000}],"storageExpiry":604800,"maxJobDuration":3600,"fees":{"' +
-          DEVELOPMENT_CHAIN_ID +
-          '":[{"feeToken":"' +
-          paymentToken +
-          '","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1000000000},{"id":"disk","max":1000000000}]}}]'
+        '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":1000000000}],"storageExpiry":604800,"maxJobDuration":3600,"fees":{"1":[{"feeToken":"0x123","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1000000000},{"id":"disk","max":1000000000}]}}]'
       ]
     )
     envOverrides = await setupEnvironment(null, envOverrides)
@@ -162,7 +157,7 @@ describe('Compute Jobs Database', () => {
       resources: [],
       agreementId: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
       payment: {
-        token: paymentToken,
+        token: '0x123',
         lockTx: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
         claimTx: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
         chainId: 8996
