@@ -19,7 +19,7 @@ import {
   convertStringToArray,
   STRING_SEPARATOR
 } from '../../components/database/sqliteCompute.js'
-import { homedir } from 'os'
+import os from 'os'
 import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,
@@ -30,9 +30,7 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { completeDBComputeJob, dockerImageManifest } from '../data/assets.js'
 import { omitDBComputeFieldsFromComputeJob } from '../../components/c2d/index.js'
-import os from 'os'
 import { checkManifestPlatform } from '../../components/c2d/compute_engine_docker.js'
-import { DEVELOPMENT_CHAIN_ID, getOceanArtifactsAdresses } from '../../utils/address.js'
 
 describe('Compute Jobs Database', () => {
   let envOverrides: OverrideEnvConfig[]
@@ -89,7 +87,7 @@ describe('Compute Jobs Database', () => {
       environment: 'some environment',
       agreementId: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
       payment: {
-        token: paymentToken,
+        token: '0x123',
         lockTx: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
         claimTx: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
         chainId: 8996
