@@ -291,7 +291,7 @@ export class DownloadHandler extends CommandHandler {
         ).success
       } else {
         accessGrantedDDOLevel = areKnownCredentialTypes(ddo.credentials)
-          ? checkCredentials(ddo.credentials, task.consumerAddress)
+          ? await checkCredentials(ddo.credentials, task.consumerAddress, ddo.chainId)
           : true
       }
       if (!accessGrantedDDOLevel) {
@@ -396,7 +396,7 @@ export class DownloadHandler extends CommandHandler {
           ).success)
       } else {
         accessGrantedServiceLevel = areKnownCredentialTypes(service.credentials)
-          ? checkCredentials(service.credentials, task.consumerAddress)
+          ? await checkCredentials(service.credentials, task.consumerAddress, chainId)
           : true
       }
 
