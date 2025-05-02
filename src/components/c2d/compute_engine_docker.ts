@@ -36,7 +36,6 @@ import {
 } from 'fs'
 import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
-import { generateUniqueID } from '../database/sqliteCompute.js'
 import { AssetUtils } from '../../utils/asset.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -311,25 +310,10 @@ export class C2DEngineDocker extends C2DEngine {
     maxJobDuration: number,
     resources: ComputeResourceRequest[],
     payment: DBComputeJobPayment,
-    jobId?: string
+    jobId: string
   ): Promise<ComputeJob[]> {
     if (!this.docker) return []
     const isFree: boolean = !(payment && payment.lockTx)
-    if (!jobId) {
-      const chainIdValue = payment && payment.chainId ? isFree === false : null
-      const jobStructure = {
-        assets,
-        algorithm,
-        output,
-        environment,
-        owner,
-        maxJobDuration,
-        chainId: chainIdValue,
-        agreementId: '',
-        resources
-      }
-      jobId = generateUniqueID(jobStructure)
-    }
 
     // C2D - Check image, check arhitecture, etc
     const image = getAlgorithmImage(algorithm)

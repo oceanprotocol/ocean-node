@@ -60,7 +60,7 @@ export abstract class C2DEngine {
     maxJobDuration: number,
     resources: ComputeResourceRequest[],
     payment: DBComputeJobPayment,
-    jobId?: string
+    jobId: string
   ): Promise<ComputeJob[]>
 
   public abstract stopComputeJob(

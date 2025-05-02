@@ -557,6 +557,16 @@ export class FreeComputeStartHandler extends CommandHandler {
           error: null
         }
       } */
+      const s = {
+        assets: task.datasets,
+        algorithm: task.algorithm,
+        output: task.output,
+        environment: task.environment,
+        owner: task.consumerAddress,
+        maxJobDuration: task.maxJobDuration,
+        resources: task.resources
+      }
+      const jobId = generateUniqueID(s)
       const response = await engine.startComputeJob(
         task.datasets,
         task.algorithm,
@@ -565,7 +575,8 @@ export class FreeComputeStartHandler extends CommandHandler {
         task.consumerAddress,
         task.maxJobDuration,
         task.resources,
-        null
+        null,
+        jobId
       )
 
       CORE_LOGGER.logMessage(
