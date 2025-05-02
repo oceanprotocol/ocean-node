@@ -91,14 +91,14 @@ export class ComputeGetResultHandler extends CommandHandler {
         task.index
       )
       const response: P2PCommandResponse = {
-        stream: respStream.stream,
+        stream: respStream?.stream,
         status: {
           httpStatus: 200
         }
       }
       // need to pass the headers properly
-      if (respStream.headers) {
-        response.status.headers = respStream.headers
+      if (respStream?.headers) {
+        response.status.headers = respStream?.headers
       }
       return response
     } catch (error) {
