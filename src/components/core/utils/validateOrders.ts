@@ -105,9 +105,6 @@ export async function validateOrderTransaction(
       break
     }
   }
-  CORE_LOGGER.logMessage(
-    `orderStartedEvent for validating order: ${JSON.stringify(orderEvent)}`
-  )
 
   if (!orderEvent) {
     return {
