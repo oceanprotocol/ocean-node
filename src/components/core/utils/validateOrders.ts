@@ -73,7 +73,10 @@ export async function validateOrderTransaction(
   )
 
   CORE_LOGGER.logMessage(
-    `orderReusedEvent for validating order: ${JSON.stringify(orderReusedEvent)}`
+    `orderReusedEvent for validating order: ${JSON.stringify(
+      orderReusedEvent,
+      (_, value) => (typeof value === 'bigint' ? value.toString() : value)
+    )}`
   )
 
   if (orderReusedEvent && orderReusedEvent?.length > 0) {
@@ -105,6 +108,12 @@ export async function validateOrderTransaction(
       break
     }
   }
+
+  CORE_LOGGER.logMessage(
+    `orderStartEvent for validating order: ${JSON.stringify(orderEvent, (_, value) =>
+      typeof value === 'bigint' ? value.toString() : value
+    )}`
+  )
 
   if (!orderEvent) {
     return {
