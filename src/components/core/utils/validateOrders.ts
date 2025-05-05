@@ -72,13 +72,6 @@ export async function validateOrderTransaction(
     contractInterface
   )
 
-  CORE_LOGGER.logMessage(
-    `orderReusedEvent for validating order: ${JSON.stringify(
-      orderReusedEvent,
-      (_, value) => (typeof value === 'bigint' ? value.toString() : value)
-    )}`
-  )
-
   if (orderReusedEvent && orderReusedEvent?.length > 0) {
     const reusedTxId = orderReusedEvent[0].args[0]
     txReceiptMined = await fetchTransactionReceipt(reusedTxId, provider)
@@ -108,12 +101,6 @@ export async function validateOrderTransaction(
       break
     }
   }
-
-  CORE_LOGGER.logMessage(
-    `orderStartEvent for validating order: ${JSON.stringify(orderEvent, (_, value) =>
-      typeof value === 'bigint' ? value.toString() : value
-    )}`
-  )
 
   if (!orderEvent) {
     return {
@@ -145,15 +132,10 @@ export async function validateOrderTransaction(
   const eventTimestamp = (await provider.getBlock(txReceiptMined.blockHash)).timestamp
 
   const currentTimestamp = Math.floor(Date.now() / 1000)
-  CORE_LOGGER.logMessage(`currentTimestamp for validating order: ${currentTimestamp}`)
-  CORE_LOGGER.logMessage(
-    `eventTimestamp of the order for validating order: ${eventTimestamp}`
-  )
 
   const timeElapsed = currentTimestamp - eventTimestamp
-  CORE_LOGGER.logMessage(`timeElapsed of the order for validating order: ${timeElapsed}`)
   CORE_LOGGER.logMessage(
-    `serviceTimeout of the order for validating order: ${serviceTimeout}`
+    `serviceTimeout ${serviceTimeout} vs. timeElapsed ${timeElapsed} when validating order.`
   )
 
   if (serviceTimeout !== 0 && timeElapsed > serviceTimeout) {
