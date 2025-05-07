@@ -111,6 +111,7 @@ export class PolicyServer {
 
   // TODO: when commands for initializeCompute and startCompute will be
   // implemented in policy server, we'll update these functions
+  // eslint-disable-next-line require-await
   async checkInitializeCompute(
     documentId: string,
     ddo: DDO,
@@ -122,7 +123,7 @@ export class PolicyServer {
   ): Promise<PolicyServerResult> {
     throw new Error('Not implemented yet in policy server')
   }
-
+  // eslint-disable-next-line require-await
   async checkStartCompute(
     documentId: string,
     ddo: DDO,
