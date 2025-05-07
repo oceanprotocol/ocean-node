@@ -183,6 +183,7 @@ export interface ComputeInitializeCommand extends Command {
   consumerAddress: string
   signature?: string
   maxJobDuration: number
+  policyServer?: any // object to pass to policy server
 }
 
 export interface FreeComputeStartCommand extends Command {
@@ -198,6 +199,7 @@ export interface FreeComputeStartCommand extends Command {
 }
 export interface PaidComputeStartCommand extends FreeComputeStartCommand {
   payment: ComputePayment
+  policyServer?: any // object to pass to policy server
 }
 
 export interface ComputeStopCommand extends Command {

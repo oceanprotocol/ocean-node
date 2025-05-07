@@ -109,6 +109,32 @@ export class PolicyServer {
     return await this.askServer(command)
   }
 
+  // TODO: when commands for initializeCompute and startCompute will be
+  // implemented in policy server, we'll update these functions
+  async checkInitializeCompute(
+    documentId: string,
+    ddo: DDO,
+    serviceId: string,
+    fileIndex: number,
+    transferTxId: string,
+    consumerAddress: string,
+    policyServer: any
+  ): Promise<PolicyServerResult> {
+    throw new Error('Not implemented yet in policy server')
+  }
+
+  async checkStartCompute(
+    documentId: string,
+    ddo: DDO,
+    serviceId: string,
+    fileIndex: number,
+    transferTxId: string,
+    consumerAddress: string,
+    policyServer: any
+  ): Promise<PolicyServerResult> {
+    throw new Error('Not implemented yet in policy server')
+  }
+
   async passThrough(request: any): Promise<PolicyServerResult> {
     return await this.askServer(request)
   }
