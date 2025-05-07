@@ -123,6 +123,7 @@ export class PolicyServer {
   ): Promise<PolicyServerResult> {
     throw new Error('Not implemented yet in policy server')
   }
+
   // eslint-disable-next-line require-await
   async checkStartCompute(
     documentId: string,
