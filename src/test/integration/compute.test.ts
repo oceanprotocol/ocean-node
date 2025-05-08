@@ -972,6 +972,7 @@ describe('Compute', () => {
     const response = await handler.handle(command)
     assert(response.status.httpStatus === 500, 'Failed to get 500 response')
     assert(response.stream === null, 'Should not get stream')
+    console.log(`response.status.error: ${response.status.error}`)
     assert(
       response.status.error.includes(
         freeComputeStartPayload.algorithm.meta.container.image
