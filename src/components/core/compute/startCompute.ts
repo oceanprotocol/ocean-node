@@ -597,6 +597,9 @@ export class FreeComputeStartHandler extends CommandHandler {
         }
       }
       for (const elem of [...[task.algorithm], ...task.datasets]) {
+        if (!('documentId' in elem)) {
+          continue
+        }
         const ddo = await new FindDdoHandler(this.getOceanNode()).findAndFormatDdo(
           elem.documentId
         )
