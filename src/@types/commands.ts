@@ -196,10 +196,10 @@ export interface FreeComputeStartCommand extends Command {
   output?: ComputeOutput
   resources?: ComputeResourceRequest[]
   maxJobDuration?: number
+  policyServer?: any // object to pass to policy server
 }
 export interface PaidComputeStartCommand extends FreeComputeStartCommand {
   payment: ComputePayment
-  policyServer?: any // object to pass to policy server
 }
 
 export interface ComputeStopCommand extends Command {

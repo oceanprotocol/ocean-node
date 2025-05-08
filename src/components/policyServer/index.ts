@@ -109,9 +109,8 @@ export class PolicyServer {
     return await this.askServer(command)
   }
 
-  // TODO: when commands for initializeCompute and startCompute will be
-  // implemented in policy server, we'll update these functions
-  // eslint-disable-next-line require-await
+  // use checkDownload functionality for initializeCompute and startCompute,
+  // it will do the same credentials checks
   async checkInitializeCompute(
     documentId: string,
     ddo: DDO,
@@ -121,10 +120,17 @@ export class PolicyServer {
     consumerAddress: string,
     policyServer: any
   ): Promise<PolicyServerResult> {
-    throw new Error('Not implemented yet in policy server')
+    return await this.checkDownload(
+      documentId,
+      ddo,
+      serviceId,
+      fileIndex,
+      transferTxId,
+      consumerAddress,
+      policyServer
+    )
   }
 
-  // eslint-disable-next-line require-await
   async checkStartCompute(
     documentId: string,
     ddo: DDO,
@@ -134,7 +140,15 @@ export class PolicyServer {
     consumerAddress: string,
     policyServer: any
   ): Promise<PolicyServerResult> {
-    throw new Error('Not implemented yet in policy server')
+    return await this.checkDownload(
+      documentId,
+      ddo,
+      serviceId,
+      fileIndex,
+      transferTxId,
+      consumerAddress,
+      policyServer
+    )
   }
 
   async passThrough(request: any): Promise<PolicyServerResult> {

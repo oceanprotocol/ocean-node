@@ -76,6 +76,7 @@ export async function validateAlgoForDataset(
     const datasetService = services.find(
       (service: any) => service.id === datasetServiceId
     )
+    CORE_LOGGER.logMessage(`datasetService: ${JSON.stringify(datasetService)}`)
     if (!datasetService) {
       throw new Error('Dataset service not found')
     }
@@ -85,6 +86,19 @@ export async function validateAlgoForDataset(
     }
 
     if (algoDID) {
+      CORE_LOGGER.logMessage(`has algoDid: ${algoDID}`)
+      CORE_LOGGER.logMessage(
+        `is array1: ${Array.isArray(compute.publisherTrustedAlgorithms)}`
+      )
+      CORE_LOGGER.logMessage(
+        `is array2: ${Array.isArray(compute.publisherTrustedAlgorithmPublishers)}`
+      )
+      CORE_LOGGER.logMessage(
+        `check length 1: ${compute.publisherTrustedAlgorithms.length}`
+      )
+      CORE_LOGGER.logMessage(
+        `check length 2: ${compute.publisherTrustedAlgorithmPublishers.length}`
+      )
       if (
         // if not set allow them all
         (!Array.isArray(compute.publisherTrustedAlgorithms) ||
@@ -92,6 +106,7 @@ export async function validateAlgoForDataset(
         (!Array.isArray(compute.publisherTrustedAlgorithmPublishers) ||
           compute.publisherTrustedAlgorithmPublishers.length === 0)
       ) {
+        CORE_LOGGER.logMessage(`has algoDid: ${algoDID}`)
         return true
       }
       // if is set only allow if match

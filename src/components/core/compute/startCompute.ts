@@ -596,6 +596,105 @@ export class FreeComputeStartHandler extends CommandHandler {
           }
         }
       }
+      for (const elem of [...[task.algorithm], ...task.datasets]) {
+        const ddo = await new FindDdoHandler(this.getOceanNode()).findAndFormatDdo(
+          elem.documentId
+        )
+        if (!ddo) {
+          const error = `DDO ${elem.documentId} not found`
+          return {
+            stream: null,
+            status: {
+              httpStatus: 500,
+              error
+            }
+          }
+        }
+        // check credentials (DDO level)
+        let accessGrantedDDOLevel: boolean
+        if (ddo.credentials) {
+          // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
+          // It will just use the existing code and let PolicyServer decide.
+          if (isPolicyServerConfigured() && task.policyServer) {
+            accessGrantedDDOLevel = await (
+              await new PolicyServer().checkStartCompute(
+                ddo.id,
+                ddo,
+                elem.serviceId,
+                0,
+                elem.transferTxId,
+                task.consumerAddress,
+                task.policyServer
+              )
+            ).success
+          } else {
+            accessGrantedDDOLevel = areKnownCredentialTypes(ddo.credentials)
+              ? checkCredentials(ddo.credentials, task.consumerAddress)
+              : true
+          }
+          if (!accessGrantedDDOLevel) {
+            CORE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
+            return {
+              stream: null,
+              status: {
+                httpStatus: 403,
+                error: `Error: Access to asset ${ddo.id} was denied`
+              }
+            }
+          }
+        }
+        const service = AssetUtils.getServiceById(ddo, elem.serviceId)
+        if (!service) {
+          const error = `Cannot find service ${elem.serviceId} in DDO ${elem.documentId}`
+          return {
+            stream: null,
+            status: {
+              httpStatus: 500,
+              error
+            }
+          }
+        }
+        // check credentials on service level
+        // if using a policy server and we are here it means that access was granted (they are merged/assessed together)
+        if (service.credentials) {
+          let accessGrantedServiceLevel: boolean
+          if (isPolicyServerConfigured() && task.policyServer) {
+            // we use the previous check or we do it again
+            // (in case there is no DDO level credentials and we only have Service level ones)
+            accessGrantedServiceLevel =
+              accessGrantedDDOLevel ||
+              (await (
+                await new PolicyServer().checkStartCompute(
+                  ddo.id,
+                  ddo,
+                  elem.serviceId,
+                  0,
+                  elem.transferTxId,
+                  task.consumerAddress,
+                  task.policyServer
+                )
+              ).success)
+          } else {
+            accessGrantedServiceLevel = areKnownCredentialTypes(service.credentials)
+              ? checkCredentials(service.credentials, task.consumerAddress)
+              : true
+          }
+
+          if (!accessGrantedServiceLevel) {
+            CORE_LOGGER.logMessage(
+              `Error: Access to service with id ${service.id} was denied`,
+              true
+            )
+            return {
+              stream: null,
+              status: {
+                httpStatus: 403,
+                error: `Error: Access to service with id ${service.id} was denied`
+              }
+            }
+          }
+        }
+      }
       try {
         const env = await engine.getComputeEnvironment(null, task.environment)
         if (!env) {
