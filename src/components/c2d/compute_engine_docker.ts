@@ -52,6 +52,9 @@ export class C2DEngineDocker extends C2DEngine {
   public docker: Dockerode
   private cronTimer: any
   private cronTime: number = 2000
+  private containerDataPath: string = '/data'
+
+
   public constructor(clusterConfig: C2DClusterInfo, db: C2DDatabase, escrow: Escrow) {
     super(clusterConfig, db, escrow)
 
@@ -692,13 +695,13 @@ export class C2DEngineDocker extends C2DEngine {
       }
 
       // create the container
-      const mountVols: any = { '/data': {} }
+      const mountVols: any = { [this.containerDataPath]: {} }
       const hostConfig: HostConfig = {
         Mounts: [
           {
             Type: 'volume',
             Source: volume.Name,
-            Target: '/data',
+            Target: this.containerDataPath,
             ReadOnly: false
           }
         ]
@@ -868,7 +871,7 @@ export class C2DEngineDocker extends C2DEngine {
         this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/outputs/outputs.tar'
       try {
         await pipeline(
-          await container.getArchive({ path: '/data/outputs' }),
+          await container.getArchive({ path: this.containerDataPath + '/outputs' }),
           createWriteStream(outputsArchivePath)
         )
       } catch (e) {
@@ -1171,9 +1174,8 @@ export class C2DEngineDocker extends C2DEngine {
         const container = await this.docker.getContainer(job.jobId + '-algoritm')
 
         try {
-          // await container2.putArchive(destination, {
           const stream = await container.putArchive(destination, {
-            path: '/data'
+            path: this.containerDataPath
           })
           console.log('PutArchive')
           console.log(stream)
