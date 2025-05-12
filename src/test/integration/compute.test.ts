@@ -1190,7 +1190,6 @@ describe('Compute', () => {
         const datasetDDOTest = ddo
         const datasetInstance = DDOManager.getDDOClass(datasetDDO)
         if (datasetDDOTest) {
-          console.log(`datasetDDOTest: ${JSON.stringify(datasetDDOTest)}`)
           const result = await validateAlgoForDataset(
             algoDDOTest.id,
             algoChecksums,
@@ -1198,7 +1197,11 @@ describe('Compute', () => {
             datasetDDOTest.services[0].id,
             oceanNode
           )
-          expect(result).to.equal(!setTrustedAlgosEmpty)
+          // datasetDDOTest does not have set
+          // publisherTrustedAlgorithms, nor
+          // publisherTrustedAlgorithmPublishers
+          // expect the result to be true
+          expect(result).to.equal(true)
         } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
       } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     })
