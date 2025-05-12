@@ -1190,6 +1190,7 @@ describe('Compute', () => {
         const datasetDDOTest = ddo
         const datasetInstance = DDOManager.getDDOClass(datasetDDO)
         if (datasetDDOTest) {
+          console.log(`datasetDDOTest: ${JSON.stringify(datasetDDOTest)}`)
           const result = await validateAlgoForDataset(
             algoDDOTest.id,
             algoChecksums,
