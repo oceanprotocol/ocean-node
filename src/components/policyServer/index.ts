@@ -109,23 +109,17 @@ export class PolicyServer {
     return await this.askServer(command)
   }
 
-  // use checkDownload functionality for initializeCompute and startCompute,
-  // it will do the same credentials checks
   async checkInitializeCompute(
     documentId: string,
     ddo: DDO,
     serviceId: string,
-    fileIndex: number,
-    transferTxId: string,
     consumerAddress: string,
     policyServer: any
   ): Promise<PolicyServerResult> {
-    return await this.checkDownload(
+    return await this.checkInitialize(
       documentId,
       ddo,
       serviceId,
-      fileIndex,
-      transferTxId,
       consumerAddress,
       policyServer
     )
@@ -140,7 +134,8 @@ export class PolicyServer {
     consumerAddress: string,
     policyServer: any
   ): Promise<PolicyServerResult> {
-    return await this.checkDownload(
+    const command = {
+      action: 'startCompute',
       documentId,
       ddo,
       serviceId,
@@ -148,7 +143,8 @@ export class PolicyServer {
       transferTxId,
       consumerAddress,
       policyServer
-    )
+    }
+    return await this.askServer(command)
   }
 
   async passThrough(request: any): Promise<PolicyServerResult> {
