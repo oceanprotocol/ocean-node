@@ -1109,23 +1109,20 @@ describe('Compute', () => {
       datasetDDO.services[0].compute = {
         allowRawAlgorithm: false,
         allowNetworkAccess: true,
-        publisherTrustedAlgorithmPublishers: [],
-        publisherTrustedAlgorithms: []
-      }
-
-      if (!setTrustedAlgosEmpty) {
-        datasetDDO.services[0].compute.publisherTrustedAlgorithmPublishers = [
-          publisherAddress
-        ]
-        datasetDDO.services[0].compute.publisherTrustedAlgorithms = [
-          {
-            did: algoDDO.id,
-            filesChecksum:
-              'f6a7b95e4a2e3028957f69fdd2dac27bd5103986b2171bc8bfee68b52f874dcd',
-            containerSectionChecksum:
-              'ba8885fcc7d366f058d6c3bb0b7bfe191c5f85cb6a4ee3858895342436c23504'
-          }
-        ]
+        publisherTrustedAlgorithmPublishers: setTrustedAlgosEmpty
+          ? []
+          : [publisherAddress],
+        publisherTrustedAlgorithms: setTrustedAlgosEmpty
+          ? []
+          : [
+              {
+                did: algoDDO.id,
+                filesChecksum:
+                  'f6a7b95e4a2e3028957f69fdd2dac27bd5103986b2171bc8bfee68b52f874dcd',
+                containerSectionChecksum:
+                  'ba8885fcc7d366f058d6c3bb0b7bfe191c5f85cb6a4ee3858895342436c23504'
+              }
+            ]
       }
 
       const metadata = hexlify(Buffer.from(JSON.stringify(datasetDDO)))
@@ -1200,6 +1197,7 @@ describe('Compute', () => {
             datasetDDOTest.services[0].id,
             oceanNode
           )
+          console.log(`result: ${result}`)
           console.log(`setTrustedAlgosEmpty: ${setTrustedAlgosEmpty}`)
           expect(result).to.equal(!setTrustedAlgosEmpty)
         } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
