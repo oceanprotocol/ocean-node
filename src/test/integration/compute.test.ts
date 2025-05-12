@@ -1197,8 +1197,6 @@ describe('Compute', () => {
             datasetDDOTest.services[0].id,
             oceanNode
           )
-          console.log(`result: ${result}`)
-          console.log(`setTrustedAlgosEmpty: ${setTrustedAlgosEmpty}`)
           expect(result).to.equal(!setTrustedAlgosEmpty)
         } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
       } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
