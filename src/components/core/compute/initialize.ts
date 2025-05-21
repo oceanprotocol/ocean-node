@@ -214,12 +214,10 @@ export class ComputeInitializeHandler extends CommandHandler {
             // It will just use the existing code and let PolicyServer decide.
             if (isPolicyServerConfigured() && task.policyServer) {
               accessGrantedDDOLevel = await (
-                await new PolicyServer().checkStartCompute(
+                await new PolicyServer().checkInitialize(
                   ddo.id,
                   ddo,
                   elem.serviceId,
-                  0,
-                  elem.transferTxId,
                   task.consumerAddress,
                   task.policyServer
                 )
@@ -261,12 +259,10 @@ export class ComputeInitializeHandler extends CommandHandler {
               accessGrantedServiceLevel =
                 accessGrantedDDOLevel ||
                 (await (
-                  await new PolicyServer().checkStartCompute(
+                  await new PolicyServer().checkInitialize(
                     ddo.id,
                     ddo,
                     elem.serviceId,
-                    0,
-                    elem.transferTxId,
                     task.consumerAddress,
                     task.policyServer
                   )

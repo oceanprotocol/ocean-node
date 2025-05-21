@@ -109,22 +109,6 @@ export class PolicyServer {
     return await this.askServer(command)
   }
 
-  async checkInitializeCompute(
-    documentId: string,
-    ddo: DDO,
-    serviceId: string,
-    consumerAddress: string,
-    policyServer: any
-  ): Promise<PolicyServerResult> {
-    return await this.checkInitialize(
-      documentId,
-      ddo,
-      serviceId,
-      consumerAddress,
-      policyServer
-    )
-  }
-
   async checkStartCompute(
     documentId: string,
     ddo: DDO,
