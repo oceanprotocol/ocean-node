@@ -209,19 +209,19 @@ export class ComputeInitializeHandler extends CommandHandler {
           }
           // check credentials (DDO level)
           let accessGrantedDDOLevel: boolean
+          const policyServer = new PolicyServer()
           if (ddo.credentials) {
             // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
             // It will just use the existing code and let PolicyServer decide.
             if (isPolicyServerConfigured() && task.policyServer) {
-              accessGrantedDDOLevel = await (
-                await new PolicyServer().checkInitialize(
-                  ddo.id,
-                  ddo,
-                  elem.serviceId,
-                  task.consumerAddress,
-                  task.policyServer
-                )
-              ).success
+              const response = await policyServer.checkInitialize(
+                ddo.id,
+                ddo,
+                elem.serviceId,
+                task.consumerAddress,
+                task.policyServer
+              )
+              accessGrantedDDOLevel = response.success
             } else {
               accessGrantedDDOLevel = areKnownCredentialTypes(ddo.credentials)
                 ? checkCredentials(ddo.credentials, task.consumerAddress)
@@ -256,17 +256,14 @@ export class ComputeInitializeHandler extends CommandHandler {
             if (isPolicyServerConfigured() && task.policyServer) {
               // we use the previous check or we do it again
               // (in case there is no DDO level credentials and we only have Service level ones)
-              accessGrantedServiceLevel =
-                accessGrantedDDOLevel ||
-                (await (
-                  await new PolicyServer().checkInitialize(
-                    ddo.id,
-                    ddo,
-                    elem.serviceId,
-                    task.consumerAddress,
-                    task.policyServer
-                  )
-                ).success)
+              const response = await policyServer.checkInitialize(
+                ddo.id,
+                ddo,
+                elem.serviceId,
+                task.consumerAddress,
+                task.policyServer
+              )
+              accessGrantedServiceLevel = accessGrantedDDOLevel || response.success
             } else {
               accessGrantedServiceLevel = areKnownCredentialTypes(service.credentials)
                 ? checkCredentials(service.credentials, task.consumerAddress)
