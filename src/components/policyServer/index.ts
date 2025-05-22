@@ -109,6 +109,28 @@ export class PolicyServer {
     return await this.askServer(command)
   }
 
+  async checkStartCompute(
+    documentId: string,
+    ddo: DDO,
+    serviceId: string,
+    fileIndex: number,
+    transferTxId: string,
+    consumerAddress: string,
+    policyServer: any
+  ): Promise<PolicyServerResult> {
+    const command = {
+      action: 'startCompute',
+      documentId,
+      ddo,
+      serviceId,
+      fileIndex,
+      transferTxId,
+      consumerAddress,
+      policyServer
+    }
+    return await this.askServer(command)
+  }
+
   async passThrough(request: any): Promise<PolicyServerResult> {
     return await this.askServer(request)
   }
