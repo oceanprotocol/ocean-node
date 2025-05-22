@@ -74,6 +74,7 @@ import {
 
 import { freeComputeStartPayload } from '../data/commands.js'
 import { DDOManager } from '@oceanprotocol/ddo-js'
+import { sleep } from '../..//utils/util.js'
 
 describe('Compute', () => {
   let previousConfiguration: OverrideEnvConfig[]
@@ -621,6 +622,7 @@ describe('Compute', () => {
   })
 
   it('should start a compute job', async () => {
+    await sleep(1000)
     // first check escrow auth
 
     let balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
