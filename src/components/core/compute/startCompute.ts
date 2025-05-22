@@ -64,7 +64,6 @@ export class PaidComputeStartHandler extends CommandHandler {
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
-
     try {
       const node = this.getOceanNode()
       // split compute env (which is already in hash-envId format) and get the hash
@@ -489,7 +488,6 @@ export class FreeComputeStartHandler extends CommandHandler {
         }
       }
     }
-
     let engine = null
     try {
       // split compute env (which is already in hash-envId format) and get the hash
