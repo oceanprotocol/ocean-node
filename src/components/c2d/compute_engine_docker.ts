@@ -222,7 +222,7 @@ export class C2DEngineDocker extends C2DEngine {
      */
     if (!this.docker) return []
     const filteredEnvs = []
-    const systemInfo = this.docker ? await this.docker.info() : null
+    // const systemInfo = this.docker ? await this.docker.info() : null
     for (const computeEnv of this.envs) {
       if (
         !chainId ||

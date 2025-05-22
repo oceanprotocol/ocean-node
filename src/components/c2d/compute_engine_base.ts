@@ -18,7 +18,6 @@ import type {
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
-import { c } from 'tar'
 
 export abstract class C2DEngine {
   private clusterConfig: C2DClusterInfo
