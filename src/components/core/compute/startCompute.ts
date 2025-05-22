@@ -64,8 +64,30 @@ export class PaidComputeStartHandler extends CommandHandler {
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
+    const node = this.getOceanNode()
+    const nonceCheckResult: NonceResponse = await checkNonce(
+      node.getDatabase().nonce,
+      task.consumerAddress,
+      parseInt(task.nonce),
+      task.signature,
+      String(task.nonce)
+    )
+
+    if (!nonceCheckResult.valid) {
+      CORE_LOGGER.logMessage(
+        'Invalid nonce or signature, unable to proceed: ' + nonceCheckResult.error,
+        true
+      )
+      return {
+        stream: null,
+        status: {
+          httpStatus: 500,
+          error:
+            'Invalid nonce or signature, unable to proceed: ' + nonceCheckResult.error
+        }
+      }
+    }
     try {
-      const node = this.getOceanNode()
       // split compute env (which is already in hash-envId format) and get the hash
       // then get env which might contain dashes as well
       const eIndex = task.environment.indexOf('-')
@@ -466,7 +488,7 @@ export class FreeComputeStartHandler extends CommandHandler {
     }
     const thisNode = this.getOceanNode()
     // Validate nonce and signature
-    /* const nonceCheckResult: NonceResponse = await checkNonce(
+    const nonceCheckResult: NonceResponse = await checkNonce(
       thisNode.getDatabase().nonce,
       task.consumerAddress,
       parseInt(task.nonce),
@@ -488,7 +510,7 @@ export class FreeComputeStartHandler extends CommandHandler {
         }
       }
     }
-      */
+
     let engine = null
     try {
       // split compute env (which is already in hash-envId format) and get the hash
