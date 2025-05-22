@@ -161,7 +161,7 @@ export class C2DEngineDocker extends C2DEngine {
         }
       }
     }
-    /* push namedresources
+    /* TODO  - get namedresources & discreete one 
     if (sysinfo.GenericResources) {
       for (const [key, value] of Object.entries(sysinfo.GenericResources)) {
         for (const [type, val] of Object.entries(value)) {
@@ -187,8 +187,6 @@ export class C2DEngineDocker extends C2DEngine {
               })
             }
           }
-          console.log('type:' + type)
-          console.log(val)
         }
       }
     }
@@ -230,6 +228,7 @@ export class C2DEngineDocker extends C2DEngine {
         !chainId ||
         (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId)))
       ) {
+        // TO DO - At some point in time we need to handle multiple runtimes
         // console.log('********************************')
         // console.log(systemInfo.GenericResources)
         // console.log('********************************')
@@ -779,11 +778,6 @@ export class C2DEngineDocker extends C2DEngine {
         )
         containerInfo.Entrypoint = newEntrypoint.split(' ')
       }
-      console.log('CREATING CONTAINER')
-      console.log(containerInfo)
-      console.log(containerInfo.HostConfig)
-      if (containerInfo.HostConfig.DeviceRequests)
-        console.log(containerInfo.HostConfig.DeviceRequests)
 
       const container = await this.createDockerContainer(containerInfo, true)
       if (container) {

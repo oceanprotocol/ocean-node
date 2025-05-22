@@ -179,8 +179,6 @@ root@gpu-1:/repos/ocean/ocean-node# curl http://localhost:8000/api/services/comp
 ]
 ```
 
-## Testing
-
 Start a free job using:
 
 ```json
