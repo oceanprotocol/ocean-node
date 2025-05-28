@@ -801,6 +801,7 @@ export class ValidateDDOHandler extends CommandHandler {
   }
 
   async handle(task: ValidateDDOCommand): Promise<P2PCommandResponse> {
+    const configuration = await getConfiguration()
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
@@ -810,6 +811,19 @@ export class ValidateDDOHandler extends CommandHandler {
       const validation = await ddoInstance.validate()
 
       const { ddo, publisherAddress, nonce, signature: signatureFromRequest } = task
+      if (configuration.validateUnsignedDDO === false) {
+        if (!publisherAddress || !nonce || !signatureFromRequest) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error:
+                'A signature is required to validate a DDO, please provide a signed message with the publisher address, nonce and signature'
+            }
+          }
+        }
+      }
+
       if (publisherAddress && nonce && signatureFromRequest) {
         const isValid = validateDdoSignedByPublisher(
           ddo,
