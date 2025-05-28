@@ -811,7 +811,12 @@ export class ValidateDDOHandler extends CommandHandler {
 
       const { ddo, publisherAddress, nonce, signature: signatureFromRequest } = task
       if (publisherAddress && nonce && signatureFromRequest) {
-        const isValid = validateDdoSignedByPublisher(ddo, nonce, signatureFromRequest, publisherAddress)
+        const isValid = validateDdoSignedByPublisher(
+          ddo,
+          nonce,
+          signatureFromRequest,
+          publisherAddress
+        )
         if (!isValid) {
           return {
             stream: null,
@@ -852,7 +857,12 @@ export class ValidateDDOHandler extends CommandHandler {
   }
 }
 
-export function validateDdoSignedByPublisher(ddo: DDO, nonce: string, signature: string, publisherAddress: string): boolean {
+export function validateDdoSignedByPublisher(
+  ddo: DDO,
+  nonce: string,
+  signature: string,
+  publisherAddress: string
+): boolean {
   const message = ddo.id + nonce
   const messageHash = ethers.solidityPackedKeccak256(
     ['bytes'],

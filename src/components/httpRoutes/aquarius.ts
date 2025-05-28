@@ -10,7 +10,6 @@ import { QueryCommand } from '../../@types/commands.js'
 import { DatabaseFactory } from '../database/DatabaseFactory.js'
 import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
 import { getConfiguration } from '../../utils/index.js'
-import { P2PCommandResponse } from '../../@types/index.js'
 
 export const aquariusRoutes = express.Router()
 
@@ -134,7 +133,6 @@ aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
 })
 
 aquariusRoutes.post(`${AQUARIUS_API_BASE_PATH}/assets/ddo/validate`, async (req, res) => {
-  let result: P2PCommandResponse
   const node = req.oceanNode
   try {
     if (!req.body) {
@@ -142,8 +140,8 @@ aquariusRoutes.post(`${AQUARIUS_API_BASE_PATH}/assets/ddo/validate`, async (req,
       return
     }
 
-    const requestBody = JSON.parse(req.body);
-    const { publisherAddress, nonce, signature } = requestBody;
+    const requestBody = JSON.parse(req.body)
+    const { publisherAddress, nonce, signature } = requestBody
 
     // This is for backward compatibility with the old way of sending the DDO
     const ddo = requestBody.ddo || JSON.parse(req.body)
