@@ -1009,7 +1009,10 @@ export class C2DEngineDocker extends C2DEngine {
       this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/transformations/algorithm'
     try {
       const customdataPath =
-        this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/inputs/algoCustomData.json'
+        this.getC2DConfig().tempFolder +
+        '/' +
+        job.jobId +
+        '/data/inputs/algoCustomData.json'
       writeFileSync(customdataPath, JSON.stringify(job.algorithm.algocustomdata ?? {}))
 
       let storage = null
