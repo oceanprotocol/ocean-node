@@ -396,17 +396,9 @@ export class DecryptDdoHandler extends CommandHandler {
           ['bytes'],
           [ethers.hexlify(ethers.toUtf8Bytes(message))]
         )
-        const addressFromHashSignature = ethers.verifyMessage(messageHash, task.signature)
-        const messageHashBytes = ethers.toBeArray(messageHash)
-        const addressFromBytesSignature = ethers.verifyMessage(
-          messageHashBytes,
-          task.signature
-        )
+        const addressFromSignature = ethers.verifyMessage(messageHash, task.signature)
 
-        if (
-          addressFromHashSignature?.toLowerCase() !== decrypterAddress?.toLowerCase() &&
-          addressFromBytesSignature?.toLowerCase() !== decrypterAddress?.toLowerCase()
-        ) {
+        if (addressFromSignature?.toLowerCase() !== decrypterAddress?.toLowerCase()) {
           throw new Error('address does not match')
         }
       } catch (error) {
@@ -817,6 +809,17 @@ export class ValidateDDOHandler extends CommandHandler {
       const ddoInstance = DDOManager.getDDOClass(task.ddo)
       const validation = await ddoInstance.validate()
 
+      const { ddo, publisherAddress, nonce, signature: signatureFromRequest } = task
+      if (publisherAddress && nonce && signatureFromRequest) {
+        const isValid = validateDdoSignedByPublisher(ddo, nonce, signatureFromRequest, publisherAddress)
+        if (!isValid) {
+          return {
+            stream: null,
+            status: { httpStatus: 400, error: 'Invalid signature' }
+          }
+        }
+      }
+
       if (validation[0] === false) {
         CORE_LOGGER.logMessageWithEmoji(
           `Validation failed with error: ${validation[1]}`,
@@ -847,6 +850,17 @@ export class ValidateDDOHandler extends CommandHandler {
       }
     }
   }
+}
+
+export function validateDdoSignedByPublisher(ddo: DDO, nonce: string, signature: string, publisherAddress: string): boolean {
+  const message = ddo.id + nonce
+  const messageHash = ethers.solidityPackedKeccak256(
+    ['bytes'],
+    [ethers.hexlify(ethers.toUtf8Bytes(message))]
+  )
+  const messageHashBytes = ethers.toBeArray(messageHash)
+  const recoveredAddress = ethers.verifyMessage(messageHashBytes, signature)
+  return recoveredAddress === publisherAddress
 }
 
 export function validateDDOIdentifier(identifier: string): ValidateParams {

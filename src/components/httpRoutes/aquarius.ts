@@ -10,7 +10,7 @@ import { QueryCommand } from '../../@types/commands.js'
 import { DatabaseFactory } from '../database/DatabaseFactory.js'
 import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
 import { getConfiguration } from '../../utils/index.js'
-import { DDO } from '@oceanprotocol/ddo-js'
+import { P2PCommandResponse } from '../../@types/index.js'
 
 export const aquariusRoutes = express.Router()
 
@@ -134,23 +134,33 @@ aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
 })
 
 aquariusRoutes.post(`${AQUARIUS_API_BASE_PATH}/assets/ddo/validate`, async (req, res) => {
+  let result: P2PCommandResponse
+  const node = req.oceanNode
   try {
-    if (!req.body || req.body === undefined) {
+    if (!req.body) {
       res.status(400).send('Missing DDO object')
       return
     }
-    const ddo = JSON.parse(req.body) as DDO
+
+    const requestBody = JSON.parse(req.body);
+    const { publisherAddress, nonce, signature } = requestBody;
+
+    // This is for backward compatibility with the old way of sending the DDO
+    const ddo = requestBody.ddo || JSON.parse(req.body)
 
     if (!ddo.version) {
       res.status(400).send('Missing DDO version')
       return
     }
 
-    const node = req.oceanNode
     const result = await new ValidateDDOHandler(node).handle({
       ddo,
+      publisherAddress,
+      nonce,
+      signature,
       command: PROTOCOL_COMMANDS.VALIDATE_DDO
     })
+
     if (result.stream) {
       const validationResult = JSON.parse(await streamToString(result.stream as Readable))
       res.json(validationResult)
