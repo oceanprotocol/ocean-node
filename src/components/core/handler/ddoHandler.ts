@@ -877,14 +877,19 @@ export function validateDdoSignedByPublisher(
   signature: string,
   publisherAddress: string
 ): boolean {
-  const message = ddo.id + nonce
-  const messageHash = ethers.solidityPackedKeccak256(
-    ['bytes'],
-    [ethers.hexlify(ethers.toUtf8Bytes(message))]
-  )
-  const messageHashBytes = ethers.toBeArray(messageHash)
-  const recoveredAddress = ethers.verifyMessage(messageHashBytes, signature)
-  return recoveredAddress === publisherAddress
+  try {
+    const message = ddo.id + nonce
+    const messageHash = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(messageHash)
+    const recoveredAddress = ethers.verifyMessage(messageHashBytes, signature)
+    return recoveredAddress === publisherAddress
+  } catch (error) {
+    CORE_LOGGER.logMessage(`Error: ${error}`, true)
+    return false
+  }
 }
 
 export function validateDDOIdentifier(identifier: string): ValidateParams {
