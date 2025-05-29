@@ -134,6 +134,9 @@ export async function validateOrderTransaction(
   const currentTimestamp = Math.floor(Date.now() / 1000)
 
   const timeElapsed = currentTimestamp - eventTimestamp
+  CORE_LOGGER.logMessage(
+    `serviceTimeout ${serviceTimeout} vs. timeElapsed ${timeElapsed} when validating order.`
+  )
 
   if (serviceTimeout !== 0 && timeElapsed > serviceTimeout) {
     return {
