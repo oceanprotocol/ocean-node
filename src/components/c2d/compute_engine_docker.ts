@@ -36,7 +36,6 @@ import {
 } from 'fs'
 import { pipeline } from 'node:stream/promises'
 import { CORE_LOGGER } from '../../utils/logging/common.js'
-import { generateUniqueID } from '../database/sqliteCompute.js'
 import { AssetUtils } from '../../utils/asset.js'
 import { FindDdoHandler } from '../core/handler/ddoHandler.js'
 import { OceanNode } from '../../OceanNode.js'
@@ -310,11 +309,12 @@ export class C2DEngineDocker extends C2DEngine {
     owner: string,
     maxJobDuration: number,
     resources: ComputeResourceRequest[],
-    payment: DBComputeJobPayment
+    payment: DBComputeJobPayment,
+    jobId: string
   ): Promise<ComputeJob[]> {
     if (!this.docker) return []
     const isFree: boolean = !(payment && payment.lockTx)
-    const jobId = generateUniqueID()
+
     // C2D - Check image, check arhitecture, etc
     const image = getAlgorithmImage(algorithm)
     // ex: node@sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36
@@ -1008,6 +1008,13 @@ export class C2DEngineDocker extends C2DEngine {
     const fullAlgoPath =
       this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/transformations/algorithm'
     try {
+      const customdataPath =
+        this.getC2DConfig().tempFolder +
+        '/' +
+        job.jobId +
+        '/data/inputs/algoCustomData.json'
+      writeFileSync(customdataPath, JSON.stringify(job.algorithm.algocustomdata ?? {}))
+
       let storage = null
 
       if (job.algorithm.meta.rawcode && job.algorithm.meta.rawcode.length > 0) {

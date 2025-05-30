@@ -33,9 +33,9 @@ import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { DDOManager } from '@oceanprotocol/ddo-js'
 import { getNonceAsNumber, checkNonce, NonceResponse } from '../utils/nonceHandler.js'
-import { createHash } from 'crypto'
 import { PolicyServer } from '../../policyServer/index.js'
 import { areKnownCredentialTypes, checkCredentials } from '../../../utils/credentials.js'
+import { generateUniqueID } from '../../database/sqliteCompute.js'
 
 export class PaidComputeStartHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
@@ -428,12 +428,7 @@ export class PaidComputeStartHandler extends CommandHandler {
         resources
       }
       // job ID unicity
-      const timestamp =
-        BigInt(Date.now()) * 1_000_000n + (process.hrtime.bigint() % 1_000_000n)
-      const random = Math.random()
-      const jobId = createHash('sha256')
-        .update(JSON.stringify(s) + timestamp.toString() + random.toString())
-        .digest('hex')
+      const jobId = generateUniqueID(s)
       // let's calculate payment needed based on resources request and maxJobDuration
       const cost = engine.calculateResourcesCost(
         task.payment.resources,
@@ -475,7 +470,8 @@ export class PaidComputeStartHandler extends CommandHandler {
             token: task.payment.token,
             lockTx: agreementId,
             claimTx: null
-          }
+          },
+          jobId
         )
         CORE_LOGGER.logMessage(
           'ComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
@@ -735,6 +731,16 @@ export class FreeComputeStartHandler extends CommandHandler {
           error: null
         }
       } */
+      const s = {
+        assets: task.datasets,
+        algorithm: task.algorithm,
+        output: task.output,
+        environment: task.environment,
+        owner: task.consumerAddress,
+        maxJobDuration: task.maxJobDuration,
+        resources: task.resources
+      }
+      const jobId = generateUniqueID(s)
       const response = await engine.startComputeJob(
         task.datasets,
         task.algorithm,
@@ -743,7 +749,8 @@ export class FreeComputeStartHandler extends CommandHandler {
         task.consumerAddress,
         task.maxJobDuration,
         task.resources,
-        null
+        null,
+        jobId
       )
 
       CORE_LOGGER.logMessage(

@@ -439,6 +439,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
     name: 'POLICY_SERVER_URL',
     value: process.env.POLICY_SERVER_URL,
     required: false
+  },
+  VALIDATE_UNSIGNED_DDO: {
+    name: 'VALIDATE_UNSIGNED_DDO',
+    value: process.env.VALIDATE_UNSIGNED_DDO,
+    required: false
   }
 }
 export const CONNECTION_HISTORY_DELETE_THRESHOLD = 300

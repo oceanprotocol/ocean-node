@@ -396,17 +396,9 @@ export class DecryptDdoHandler extends CommandHandler {
           ['bytes'],
           [ethers.hexlify(ethers.toUtf8Bytes(message))]
         )
-        const addressFromHashSignature = ethers.verifyMessage(messageHash, task.signature)
-        const messageHashBytes = ethers.toBeArray(messageHash)
-        const addressFromBytesSignature = ethers.verifyMessage(
-          messageHashBytes,
-          task.signature
-        )
+        const addressFromSignature = ethers.verifyMessage(messageHash, task.signature)
 
-        if (
-          addressFromHashSignature?.toLowerCase() !== decrypterAddress?.toLowerCase() &&
-          addressFromBytesSignature?.toLowerCase() !== decrypterAddress?.toLowerCase()
-        ) {
+        if (addressFromSignature?.toLowerCase() !== decrypterAddress?.toLowerCase()) {
           throw new Error('address does not match')
         }
       } catch (error) {
@@ -809,6 +801,7 @@ export class ValidateDDOHandler extends CommandHandler {
   }
 
   async handle(task: ValidateDDOCommand): Promise<P2PCommandResponse> {
+    const configuration = await getConfiguration()
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
@@ -816,6 +809,35 @@ export class ValidateDDOHandler extends CommandHandler {
     try {
       const ddoInstance = DDOManager.getDDOClass(task.ddo)
       const validation = await ddoInstance.validate()
+
+      const { ddo, publisherAddress, nonce, signature: signatureFromRequest } = task
+      if (configuration.validateUnsignedDDO === false) {
+        if (!publisherAddress || !nonce || !signatureFromRequest) {
+          return {
+            stream: null,
+            status: {
+              httpStatus: 400,
+              error:
+                'A signature is required to validate a DDO, please provide a signed message with the publisher address, nonce and signature'
+            }
+          }
+        }
+      }
+
+      if (publisherAddress && nonce && signatureFromRequest) {
+        const isValid = validateDdoSignedByPublisher(
+          ddo,
+          nonce,
+          signatureFromRequest,
+          publisherAddress
+        )
+        if (!isValid) {
+          return {
+            stream: null,
+            status: { httpStatus: 400, error: 'Invalid signature' }
+          }
+        }
+      }
 
       if (validation[0] === false) {
         CORE_LOGGER.logMessageWithEmoji(
@@ -846,6 +868,27 @@ export class ValidateDDOHandler extends CommandHandler {
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
       }
     }
+  }
+}
+
+export function validateDdoSignedByPublisher(
+  ddo: DDO,
+  nonce: string,
+  signature: string,
+  publisherAddress: string
+): boolean {
+  try {
+    const message = ddo.id + nonce
+    const messageHash = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(messageHash)
+    const recoveredAddress = ethers.verifyMessage(messageHashBytes, signature)
+    return recoveredAddress === publisherAddress
+  } catch (error) {
+    CORE_LOGGER.logMessage(`Error: ${error}`, true)
+    return false
   }
 }
 
