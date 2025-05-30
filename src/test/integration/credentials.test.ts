@@ -51,29 +51,45 @@ import {
   getOceanArtifactsAdressesByChainId
 } from '../../utils/address.js'
 import { publishAsset, orderAsset } from '../utils/assets.js'
-import { downloadAssetWithCredentials } from '../data/assets.js'
+import {
+  algoAsset,
+  computeAssetWithCredentials,
+  downloadAssetWithCredentials
+} from '../data/assets.js'
 import { ganachePrivateKeys } from '../utils/addresses.js'
 import { homedir } from 'os'
 import AccessListFactory from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessListFactory.sol/AccessListFactory.json' assert { type: 'json' }
 import AccessList from '@oceanprotocol/contracts/artifacts/contracts/accesslists/AccessList.sol/AccessList.json' assert { type: 'json' }
 import { deployAccessListContract, getContract } from '../utils/contracts.js'
+import { ComputeInitializeHandler } from '../../components/core/compute/initialize.js'
+import { ComputeAlgorithm, ComputeAsset } from '../../@types/index.js'
+import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/environments.js'
+import { ComputeInitializeCommand } from '../../@types/commands.js'
 
 describe('Should run a complete node flow.', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
   let provider: JsonRpcProvider
+  let computeEnvironments: any
+  let firstEnv: any
 
   let publisherAccount: Signer
   let consumerAccounts: Signer[]
   let consumerAddresses: string[]
 
   let ddo: any
+  let computeDdo: any
+  let algoDdo: any
   let did: string
+  let computeDid: string
+  let algoDid: string
   const orderTxIds: string[] = []
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
   let previousConfiguration: OverrideEnvConfig[]
+  let artifactsAddresses: any
+  let paymentToken: string
 
   let blockchain: Blockchain
   let contractAcessList: Contract
@@ -82,6 +98,8 @@ describe('Should run a complete node flow.', () => {
   before(async () => {
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
+    artifactsAddresses = getOceanArtifactsAdresses()
+    paymentToken = artifactsAddresses.development.Ocean
 
     // override and save configuration (always before calling getConfig())
     previousConfiguration = await setupEnvironment(
@@ -94,7 +112,8 @@ describe('Should run a complete node flow.', () => {
           ENVIRONMENT_VARIABLES.AUTHORIZED_DECRYPTERS,
           ENVIRONMENT_VARIABLES.ALLOWED_ADMINS,
           ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS,
-          ENVIRONMENT_VARIABLES.ADDRESS_FILE
+          ENVIRONMENT_VARIABLES.ADDRESS_FILE,
+          ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS
         ],
         [
           JSON.stringify(mockSupportedNetworks),
@@ -105,7 +124,12 @@ describe('Should run a complete node flow.', () => {
           JSON.stringify([
             await publisherAccount.getAddress() // signer 0
           ]),
-          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
+          `${homedir}/.ocean/ocean-contracts/artifacts/address.json`,
+          '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":1000000000}],"storageExpiry":604800,"maxJobDuration":3600,"fees":{"' +
+            DEVELOPMENT_CHAIN_ID +
+            '":[{"feeToken":"' +
+            paymentToken +
+            '","prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1000000000},{"id":"disk","max":1000000000}]}}]'
         ]
       )
     )
@@ -185,6 +209,13 @@ describe('Should run a complete node flow.', () => {
       publisherAccount
     )
 
+    const publishedComputeDataset = await publishAsset(
+      computeAssetWithCredentials,
+      publisherAccount
+    )
+
+    const publishedAlgo = await publishAsset(algoAsset, publisherAccount)
+
     did = publishedDataset.ddo.id
     const { ddo, wasTimeout } = await waitToIndex(
       did,
@@ -194,6 +225,30 @@ describe('Should run a complete node flow.', () => {
     if (!ddo) {
       assert(wasTimeout === true, 'published failed due to timeout!')
     }
+
+    computeDid = publishedComputeDataset.ddo.id
+    const resolvedComputeDdo = await waitToIndex(
+      computeDid,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT * 3
+    )
+    const ddoCompute = resolvedComputeDdo.ddo
+    const timeoutCompute = resolvedComputeDdo.wasTimeout
+    if (!ddoCompute) {
+      assert(timeoutCompute === true, 'published failed due to timeout!')
+    }
+
+    algoDid = publishedAlgo.ddo.id
+    const resolvedAlgo = await waitToIndex(
+      algoDid,
+      EVENTS.METADATA_CREATED,
+      DEFAULT_TEST_TIMEOUT * 3
+    )
+    const algo = resolvedAlgo.ddo
+    const timeoutAlgo = resolvedAlgo.wasTimeout
+    if (!algo) {
+      assert(timeoutAlgo === true, 'published failed due to timeout!')
+    }
   })
 
   it('should fetch the published ddo', async () => {
@@ -201,9 +256,25 @@ describe('Should run a complete node flow.', () => {
       command: PROTOCOL_COMMANDS.GET_DDO,
       id: did
     }
-    const response = await new GetDdoHandler(oceanNode).handle(getDDOTask)
+    let response = await new GetDdoHandler(oceanNode).handle(getDDOTask)
     ddo = await streamToObject(response.stream as Readable)
     assert(ddo.id === did, 'DDO id not matching')
+
+    const getComputeDDOTask = {
+      command: PROTOCOL_COMMANDS.GET_DDO,
+      id: computeDid
+    }
+    response = await new GetDdoHandler(oceanNode).handle(getComputeDDOTask)
+    computeDdo = await streamToObject(response.stream as Readable)
+    assert(computeDdo.id === computeDid, 'computeDdo id not matching')
+
+    const getAlgoDDOTask = {
+      command: PROTOCOL_COMMANDS.GET_DDO,
+      id: algoDid
+    }
+    response = await new GetDdoHandler(oceanNode).handle(getAlgoDDOTask)
+    algoDdo = await streamToObject(response.stream as Readable)
+    assert(algoDdo.id === algoDid, 'computeDdo id not matching')
   })
 
   it('should start an order for all consumers', async function () {
@@ -265,6 +336,115 @@ describe('Should run a complete node flow.', () => {
     }, DEFAULT_TEST_TIMEOUT * 3)
 
     await doCheck()
+  })
+
+  it('should initializeCompute work for first consumer', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+
+    const consumerAddress = consumerAddresses[0]
+
+    const dataset: ComputeAsset = {
+      documentId: computeDid,
+      serviceId: computeDdo.services[0].id
+    }
+    const algorithm: ComputeAlgorithm = {
+      documentId: algoDid,
+      serviceId: algoDdo.services[0].id
+    }
+    const getEnvironmentsTask = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS
+    }
+    const resp = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
+      getEnvironmentsTask
+    )
+    computeEnvironments = await streamToObject(resp.stream as Readable)
+    firstEnv = computeEnvironments[0]
+
+    const initializeComputeTask: ComputeInitializeCommand = {
+      datasets: [dataset],
+      algorithm,
+      environment: firstEnv.id,
+      payment: {
+        chainId: DEVELOPMENT_CHAIN_ID,
+        token: paymentToken
+      },
+      maxJobDuration: 2 * 60,
+      consumerAddress: consumerAddress,
+      command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
+    }
+    const response = await new ComputeInitializeHandler(oceanNode).handle(
+      initializeComputeTask
+    )
+    assert(response)
+    assert(response.stream, 'stream not present')
+    assert(response.status.httpStatus === 200, 'http status not 200')
+    expect(response.stream).to.be.instanceOf(Readable)
+  })
+
+  it('should NOT initializeCompute for second consumer - service level credentials', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+
+    const consumerAddress = consumerAddresses[1]
+
+    const dataset: ComputeAsset = {
+      documentId: computeDid,
+      serviceId: computeDdo.services[0].id
+    }
+    const algorithm: ComputeAlgorithm = {
+      documentId: algoDid,
+      serviceId: algoDdo.services[0].id
+    }
+    const initializeComputeTask: ComputeInitializeCommand = {
+      datasets: [dataset],
+      algorithm,
+      environment: firstEnv.id,
+      payment: {
+        chainId: DEVELOPMENT_CHAIN_ID,
+        token: paymentToken
+      },
+      maxJobDuration: 2 * 60,
+      consumerAddress: consumerAddress,
+      command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
+    }
+    const response = await new ComputeInitializeHandler(oceanNode).handle(
+      initializeComputeTask
+    )
+    assert(response)
+    assert(response.stream === null, 'stream is present')
+    assert(response.status.httpStatus === 403, 'http status not 403')
+  })
+
+  it('should NOT initializeCompute for third consumer - asset level credentials', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+
+    const consumerAddress = consumerAddresses[2]
+
+    const dataset: ComputeAsset = {
+      documentId: computeDid,
+      serviceId: computeDdo.services[0].id
+    }
+    const algorithm: ComputeAlgorithm = {
+      documentId: algoDid,
+      serviceId: algoDdo.services[0].id
+    }
+    const initializeComputeTask: ComputeInitializeCommand = {
+      datasets: [dataset],
+      algorithm,
+      environment: firstEnv.id,
+      payment: {
+        chainId: DEVELOPMENT_CHAIN_ID,
+        token: paymentToken
+      },
+      maxJobDuration: 2 * 60,
+      consumerAddress: consumerAddress,
+      command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
+    }
+    const response = await new ComputeInitializeHandler(oceanNode).handle(
+      initializeComputeTask
+    )
+    assert(response)
+    assert(response.stream === null, 'stream is present')
+    assert(response.status.httpStatus === 403, 'http status not 403')
   })
 
   it('should not allow to download the asset for second consumer - service level credentials', async function () {
