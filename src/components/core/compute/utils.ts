@@ -94,13 +94,7 @@ export async function validateAlgoForDataset(
       ) {
         return false
       }
-      if (
-        // if '*' allow them all
-        compute.publisherTrustedAlgorithms[0] === '*' &&
-        compute.publisherTrustedAlgorithmPublishers[0] === '*'
-      ) {
-        return true
-      }
+
       // if is set only allow if match
       if (compute.publisherTrustedAlgorithms) {
         // if '*' allow them all
