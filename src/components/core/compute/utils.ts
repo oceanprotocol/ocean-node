@@ -95,12 +95,18 @@ export async function validateAlgoForDataset(
         return false
       }
 
-      // if is set only allow if match
-      if (compute.publisherTrustedAlgorithms) {
-        // if '*' allow them all
-        if (compute.publisherTrustedAlgorithms[0] === '*') {
-          return true
-        }
+      if (
+        compute.publisherTrustedAlgorithms.includes('*') &&
+        compute.publisherTrustedAlgorithmPublishers.includes('*')
+      ) {
+        return true
+      }
+
+      if (
+        Array.isArray(compute.publisherTrustedAlgorithms) &&
+        compute.publisherTrustedAlgorithms.length > 0 &&
+        !compute.publisherTrustedAlgorithms.includes('*')
+      ) {
         const trustedAlgo = compute.publisherTrustedAlgorithms.find(
           (algo: any) => algo.did === algoDID
         )
@@ -112,11 +118,11 @@ export async function validateAlgoForDataset(
         }
         return false
       }
-      if (compute.publisherTrustedAlgorithmPublishers) {
-        // if '*' allow them all
-        if (compute.publisherTrustedAlgorithmPublishers[0] === '*') {
-          return true
-        }
+      if (
+        Array.isArray(compute.publisherTrustedAlgorithmPublishers) &&
+        compute.publisherTrustedAlgorithmPublishers.length > 0 &&
+        !compute.publisherTrustedAlgorithmPublishers.includes('*')
+      ) {
         const algoDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(algoDID)
         const algoInstance = DDOManager.getDDOClass(algoDDO)
         const { nftAddress } = algoInstance.getDDOFields()
