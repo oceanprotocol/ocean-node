@@ -20,6 +20,7 @@ import cors from 'cors'
 import { scheduleCronJobs } from './utils/cronjobs/scheduleCronJobs.js'
 import { requestValidator } from './components/httpRoutes/requestValidator.js'
 import { hasValidDBConfiguration } from './utils/database.js'
+import { authRoutes } from './components/httpRoutes/auth.js'
 
 const app: Express = express()
 
@@ -168,6 +169,10 @@ if (config.hasHttp) {
     req.oceanNode = oceanNode
     next()
   })
+
+
+  // Add auth routes before the main routes
+  app.use(authRoutes)
 
   // Integrate static file serving middleware
   app.use(removeExtraSlashes)

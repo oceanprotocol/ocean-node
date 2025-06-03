@@ -18,6 +18,7 @@ import { ElasticsearchSchema } from './ElasticSchemas.js'
 import { SQLLiteConfigDatabase } from './SQLLiteConfigDatabase.js'
 import { SQLLiteNonceDatabase } from './SQLLiteNonceDatabase.js'
 import { TypesenseSchema } from './TypesenseSchemas.js'
+import { AuthTokenDatabase } from './AuthTokenDatabase.js'
 
 export type Schema = ElasticsearchSchema | TypesenseSchema
 
@@ -30,6 +31,7 @@ export class Database {
   ddoState: AbstractDdoStateDatabase
   sqliteConfig: SQLLiteConfigDatabase
   c2d: C2DDatabase
+  authToken: AuthTokenDatabase
 
   constructor(private config: OceanNodeDBConfig) {
     return (async (): Promise<Database> => {
@@ -55,6 +57,7 @@ export class Database {
           this.logs = await DatabaseFactory.createLogDatabase(this.config)
           this.order = await DatabaseFactory.createOrderDatabase(this.config)
           this.ddoState = await DatabaseFactory.createDdoStateDatabase(this.config)
+          this.authToken = await DatabaseFactory.createAuthTokenDatabase(this.config)
         } else {
           DATABASE_LOGGER.info(
             'Invalid DB URL. Only Nonce and C2D Databases are initialized. Other databases are not available.'

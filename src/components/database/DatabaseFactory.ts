@@ -32,6 +32,7 @@ import { DB_TYPES } from '../../utils/index.js'
 import { C2DDatabase } from './C2DDatabase.js'
 import { SQLLiteNonceDatabase } from './SQLLiteNonceDatabase.js'
 import { SQLLiteConfigDatabase } from './SQLLiteConfigDatabase.js'
+import { AuthTokenDatabase } from './AuthTokenDatabase.js'
 
 export class DatabaseFactory {
   private static databaseMap = {
@@ -89,6 +90,10 @@ export class DatabaseFactory {
 
   static async createC2DDatabase(config: OceanNodeDBConfig): Promise<C2DDatabase> {
     return await new C2DDatabase(config, typesenseSchemas.c2dSchemas)
+  }
+
+  static async createAuthTokenDatabase(config: OceanNodeDBConfig): Promise<AuthTokenDatabase> {
+    return await new AuthTokenDatabase(config, typesenseSchemas.authTokenSchemas)
   }
 
   static createIndexerDatabase(
