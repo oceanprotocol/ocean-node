@@ -89,6 +89,7 @@
     "hyperdiff": "^2.0.16",
     "ip": "^2.0.1",
     "it-pipe": "^3.0.1",
+    "jsonwebtoken": "^9.0.2",
     "libp2p": "^1.8.0",
     "lodash.clonedeep": "^4.5.0",
     "lzma-purejs-requirejs": "^1.0.0",
