@@ -40,6 +40,7 @@ import {
 import { deleteIndexedMetadataIfExists, validateDDOHash } from '../../../utils/asset.js'
 import { Asset, DDO, DDOManager } from '@oceanprotocol/ddo-js'
 import { checkCredentialOnAccessList } from '../../../utils/credentials.js'
+import { ValidateTokenOrSignature } from '../../../utils/decorators/validate-token.decorator.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -800,6 +801,7 @@ export class ValidateDDOHandler extends CommandHandler {
     return validation
   }
 
+  @ValidateTokenOrSignature()
   async handle(task: ValidateDDOCommand): Promise<P2PCommandResponse> {
     const configuration = await getConfiguration()
     const validationResponse = await this.verifyParamsAndRateLimits(task)

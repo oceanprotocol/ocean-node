@@ -22,20 +22,12 @@ describe('Auth Token Tests', () => {
     const jwtToken = auth.getJWTToken(wallet.address, Date.now())
     await auth.insertToken(wallet.address, jwtToken, Date.now() + 1000, Date.now())
 
-    const result = await auth.validateAuthenticationOrToken(
-      wallet.address,
-      undefined,
-      jwtToken
-    )
+    const result = await auth.validateAuthenticationOrToken({ token: jwtToken })
     expect(result.valid).to.be.equal(true)
   })
 
   it('should fail validation with invalid token', async () => {
-    const result = await auth.validateAuthenticationOrToken(
-      wallet.address,
-      undefined,
-      'invalid-token'
-    )
+    const result = await auth.validateAuthenticationOrToken({ token: 'invalid-token' })
     expect(result.valid).to.be.equal(false)
   })
 
@@ -43,12 +35,11 @@ describe('Auth Token Tests', () => {
     const message = 'Test message'
     const invalidSignature = '0x' + '0'.repeat(130)
 
-    const result = await auth.validateAuthenticationOrToken(
-      wallet.address,
-      invalidSignature,
-      undefined,
-      message
-    )
+    const result = await auth.validateAuthenticationOrToken({
+      signature: invalidSignature,
+      message,
+      address: wallet.address
+    })
     expect(result.valid).to.be.equal(false)
   })
 

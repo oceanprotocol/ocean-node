@@ -38,7 +38,7 @@ export class CreateAuthTokenHandler extends CommandHandler {
       if (!isValid) {
         return {
           stream: null,
-          status: { httpStatus: 400, error: 'Invalid signature' }
+          status: { httpStatus: 401, error: 'Invalid signature' }
         }
       }
 

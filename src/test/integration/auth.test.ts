@@ -14,11 +14,15 @@ import {
 import { ENVIRONMENT_VARIABLES, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { RPCS } from '../../@types/blockchain.js'
-import axios from 'axios'
 import { OceanNode } from '../../OceanNode.js'
-import { CreateAuthTokenHandler } from '../../components/core/handler/authHandler.js'
+import {
+  CreateAuthTokenHandler,
+  InvalidateAuthTokenHandler
+} from '../../components/core/handler/authHandler.js'
 import { streamToObject } from '../../utils/util.js'
 import { Readable } from 'stream'
+import { expect } from 'chai'
+import { ValidateDDOHandler } from '../../components/core/handler/ddoHandler.js'
 
 describe('Auth Token Integration Tests', () => {
   let config: OceanNodeConfig
@@ -30,9 +34,6 @@ describe('Auth Token Integration Tests', () => {
   let oceanNode: OceanNode
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
-  const url = 'http://localhost:8000/api/services/auth'
-  const validateDdoUrl = 'http://localhost:8000/api/aquarius/assets/ddo/validate'
-
 
   before(async () => {
     previousConfiguration = await setupEnvironment(
@@ -61,47 +62,41 @@ describe('Auth Token Integration Tests', () => {
 
   const ddoValiationRequest = async (token: string) => {
     try {
-      const validateResponse = await axios.post(
-        `${validateDdoUrl}`,
-        {
-          ddo: {
-            id: 'did:op:f00896cc6f5f9f2c17be06dd28bd6be085e1406bb55274cbd2b65b7271e7b104',
-            '@context': [],
-            version: '4.1.0',
-            nftAddress: '0x3357cCd4e75536422b61F6aeda3ad38545b9b01F',
-            chainId: 11155111,
-            metadata: {
-              created: new Date().toISOString(),
-              updated: new Date().toISOString(),
-              type: 'dataset',
-              name: 'Test DDO',
-              description: 'Test DDO',
-              tags: [],
-              author: 'Test Author',
-              license: 'https://market.oceanprotocol.com/terms',
-              additionalInformation: {
-                termsAndConditions: true
-              }
-            },
-            services: [
-              {
-                id: 'ccb398c50d6abd5b456e8d7242bd856a1767a890b537c2f8c10ba8b8a10e6025',
-                type: 'compute',
-                files: '0x0',
-                datatokenAddress: '0x0Cf4BE72EAD0583deD382589aFcbF34F3E860Bdc',
-                serviceEndpoint: '',
-                timeout: 86400
-              }
-            ]
-          }
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/octet-stream'
-          }
+      const validateHandler = new ValidateDDOHandler(oceanNode)
+      const validateResponse = await validateHandler.handle({
+        command: PROTOCOL_COMMANDS.VALIDATE_DDO,
+        authorization: token,
+        ddo: {
+          id: 'did:op:f00896cc6f5f9f2c17be06dd28bd6be085e1406bb55274cbd2b65b7271e7b104',
+          '@context': [],
+          version: '4.1.0',
+          nftAddress: '0x3357cCd4e75536422b61F6aeda3ad38545b9b01F',
+          chainId: 11155111,
+          metadata: {
+            created: new Date().toISOString(),
+            updated: new Date().toISOString(),
+            type: 'dataset',
+            name: 'Test DDO',
+            description: 'Test DDO',
+            tags: [],
+            author: 'Test Author',
+            license: 'https://market.oceanprotocol.com/terms',
+            additionalInformation: {
+              termsAndConditions: true
+            }
+          },
+          services: [
+            {
+              id: 'ccb398c50d6abd5b456e8d7242bd856a1767a890b537c2f8c10ba8b8a10e6025',
+              type: 'compute',
+              files: '0x0',
+              datatokenAddress: '0x0Cf4BE72EAD0583deD382589aFcbF34F3E860Bdc',
+              serviceEndpoint: '',
+              timeout: 86400
+            }
+          ]
         }
-      )
+      })
 
       return validateResponse
     } catch (error) {
@@ -125,118 +120,106 @@ describe('Auth Token Integration Tests', () => {
         signature
       })
 
-      console.log({ handlerResponse })
+      const token = await streamToObject(handlerResponse.stream as Readable)
+      const testEndpointResponse = await ddoValiationRequest(token.token)
+      expect(testEndpointResponse.status.httpStatus).to.equal(200)
+    })
+
+    it('should handle token expiry', async function () {
+      this.timeout(DEFAULT_TEST_TIMEOUT)
+
+      const consumerAddress = await consumerAccount.getAddress()
+      const message = auth.getSignatureMessage()
+      const messageHash = getMessageHash(message)
+      const signature = await consumerAccount.signMessage(messageHash)
+
+      const validUntil = Date.now() + 1000
+      const handlerResponse = await new CreateAuthTokenHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+        address: consumerAddress,
+        signature,
+        validUntil
+      })
 
       const token = await streamToObject(handlerResponse.stream as Readable)
 
-      console.log({ token })
+      await new Promise((resolve) => setTimeout(resolve, 2000))
 
-
-
-      // const testEndpointResponse = await ddoValiationRequest(createResponse.data.token)
-      // expect(testEndpointResponse.status).to.equal(200)
+      const testEndpointResponse = await ddoValiationRequest(token.token)
+      expect(testEndpointResponse.status.httpStatus).to.equal(401)
     })
 
-    //   it('should handle token expiry', async function () {
-    //     this.timeout(DEFAULT_TEST_TIMEOUT)
+    it('should invalidate token', async function () {
+      this.timeout(DEFAULT_TEST_TIMEOUT)
 
-    //     const consumerAddress = await consumerAccount.getAddress()
-    //     const message = auth.getSignatureMessage()
-    //     const messageHash = getMessageHash(message)
-    //     const signature = await consumerAccount.signMessage(messageHash)
+      const consumerAddress = await consumerAccount.getAddress()
+      const message = auth.getSignatureMessage()
+      const messageHash = getMessageHash(message)
+      const signature = await consumerAccount.signMessage(messageHash)
 
-    //     // Create token with 1 second expiry
-    //     const validUntil = Date.now() + 1000
-    //     const createResponse = await axios.post(`${url}/token`, {
-    //       signature,
-    //       address: consumerAddress,
-    //       validUntil
-    //     })
-    //     expect(createResponse.status).to.equal(200)
+      const handlerResponse = await new CreateAuthTokenHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+        address: consumerAddress,
+        signature
+      })
 
-    //     // Wait for token to expire
-    //     await new Promise((resolve) => setTimeout(resolve, 2000))
+      const token = await streamToObject(handlerResponse.stream as Readable)
 
-    //     const testEndpointResponse = await ddoValiationRequest(createResponse.data.token)
-    //     expect(testEndpointResponse.status).to.equal(401)
-    //   })
+      await new InvalidateAuthTokenHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
+        address: consumerAddress,
+        signature,
+        token: token.token
+      })
 
-    //   it('should invalidate token', async function () {
-    //     this.timeout(DEFAULT_TEST_TIMEOUT)
+      const testEndpointResponse = await ddoValiationRequest(token.token)
+      expect(testEndpointResponse.status.httpStatus).to.equal(401)
+    })
 
-    //     const consumerAddress = await consumerAccount.getAddress()
-    //     const message = auth.getSignatureMessage()
-    //     const messageHash = getMessageHash(message)
-    //     const signature = await consumerAccount.signMessage(messageHash)
+    describe('Error Cases', () => {
+      it('should handle invalid signatures', async function () {
+        this.timeout(DEFAULT_TEST_TIMEOUT)
 
-    //     const createResponse = await axios.post(`${url}/token`, {
-    //       signature,
-    //       address: consumerAddress
-    //     })
-    //     const { token } = createResponse.data
+        const consumerAddress = await consumerAccount.getAddress()
 
-    //     await axios.post(`${url}/token/invalidate`, {
-    //       signature,
-    //       address: consumerAddress,
-    //       token
-    //     })
+        const response = await new CreateAuthTokenHandler(oceanNode).handle({
+          command: PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+          address: consumerAddress,
+          signature: '0xinvalid'
+        })
+        expect(response.status.httpStatus).to.equal(401)
+      })
 
-    //     const testEndpointResponse = await ddoValiationRequest(token)
-    //     expect(testEndpointResponse.status).to.equal(401)
-    //   })
+      it('should handle invalid tokens', async function () {
+        this.timeout(DEFAULT_TEST_TIMEOUT)
 
-    //   describe('Error Cases', () => {
-    //     it('should handle invalid signatures', async function () {
-    //       this.timeout(DEFAULT_TEST_TIMEOUT)
+        const testEndpointResponse = await ddoValiationRequest('invalid-token')
+        expect(testEndpointResponse.status.httpStatus).to.equal(401)
+      })
 
-    //       const consumerAddress = await consumerAccount.getAddress()
+      it('should handle missing parameters', async function () {
+        this.timeout(DEFAULT_TEST_TIMEOUT)
 
-    //       try {
-    //         await axios.post(`${url}/token`, {
-    //           signature: '0xinvalid',
-    //           address: consumerAddress
-    //         })
-    //         expect.fail('Should have thrown error for invalid signature')
-    //       } catch (error) {
-    //         expect(error.response.status).to.equal(400)
-    //       }
-    //     })
+        // Missing signature
+        const response = await new CreateAuthTokenHandler(oceanNode).handle({
+          command: PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+          address: await consumerAccount.getAddress(),
+          signature: undefined
+        })
+        expect(response.status.httpStatus).to.equal(400)
 
-    //     it('should handle invalid tokens', async function () {
-    //       this.timeout(DEFAULT_TEST_TIMEOUT)
+        // Missing address
+        const message = auth.getSignatureMessage()
+        const messageHash = getMessageHash(message)
+        const signature = await consumerAccount.signMessage(messageHash)
 
-    //       const testEndpointResponse = await ddoValiationRequest('invalid-token')
-    //       expect(testEndpointResponse.status).to.equal(401)
-    //     })
-
-    //     it('should handle missing parameters', async function () {
-    //       this.timeout(DEFAULT_TEST_TIMEOUT)
-
-    //       // Missing signature
-    //       try {
-    //         await axios.post(`${url}/token`, {
-    //           address: await consumerAccount.getAddress()
-    //         })
-    //         expect.fail('Should have thrown error for missing signature')
-    //       } catch (error) {
-    //         expect(error.response.status).to.equal(400)
-    //       }
-
-    //       // Missing address
-    //       try {
-    //         const message = auth.getSignatureMessage()
-    //         const messageHash = getMessageHash(message)
-    //         const signature = await consumerAccount.signMessage(messageHash)
-
-    //         await axios.post(`${url}/token`, {
-    //           signature
-    //         })
-    //         expect.fail('Should have thrown error for missing address')
-    //       } catch (error) {
-    //         expect(error.response.status).to.equal(400)
-    //       }
-    //     })
-    //   })
-    // })
+        const response2 = await new CreateAuthTokenHandler(oceanNode).handle({
+          command: PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+          address: undefined,
+          signature
+        })
+        expect(response2.status.httpStatus).to.equal(400)
+      })
+    })
   })
 })

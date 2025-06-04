@@ -65,21 +65,37 @@ export class Auth {
     return tokenEntry
   }
 
-  async validateAuthenticationOrToken(
-    address: string,
-    signature?: string,
-    token?: string,
+  /**
+   * Validates the authentication or token
+   * You need to provider either a token or an address, signature and message
+   * @param {string} token - The token to validate
+   * @param {string} address - The address to validate
+   * @param {string} signature - The signature to validate
+   * @param {string} message - The message to validate
+   * @returns The validation result
+   */
+  async validateAuthenticationOrToken({
+    token,
+    address,
+    signature,
+    message
+  }: {
+    token?: string
+    address?: string
+    signature?: string
     message?: string
-  ): Promise<CommonValidation> {
+  }): Promise<CommonValidation> {
     try {
       if (token) {
         const authToken = await this.validateToken(token)
-        if (authToken && authToken.address.toLowerCase() === address.toLowerCase()) {
+        if (authToken) {
           return { valid: true, error: '' }
         }
+
+        return { valid: false, error: 'Invalid token' }
       }
 
-      if (signature && message) {
+      if (signature && message && address) {
         const messageHashBytes = getMessageHash(message)
         const isValid = await verifyMessage(messageHashBytes, address, signature)
 
@@ -88,7 +104,11 @@ export class Auth {
         }
       }
 
-      return { valid: false, error: 'Invalid authentication' }
+      return {
+        valid: false,
+        error:
+          'Invalid authentication, you need to provide either a token or an address, signature and message'
+      }
     } catch (e) {
       return { valid: false, error: `Error during authentication validation: ${e}` }
     }

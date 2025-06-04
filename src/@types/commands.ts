@@ -19,6 +19,7 @@ import {
 export interface Command {
   command: string // command name
   node?: string // if not present it means current node
+  authorization?: string
 }
 
 export interface GetP2PPeerCommand extends Command {
