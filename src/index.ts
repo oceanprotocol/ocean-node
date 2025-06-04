@@ -170,7 +170,6 @@ if (config.hasHttp) {
     next()
   })
 
-
   // Add auth routes before the main routes
   app.use(authRoutes)
 

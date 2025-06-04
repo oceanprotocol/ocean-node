@@ -49,7 +49,9 @@ export class OceanNode {
     this.coreHandlers = CoreHandlersRegistry.getInstance(this)
     this.requestMap = new Map<string, RequestLimiter>()
     this.config = config
-    this.auth = new Auth(this.db.authToken)
+    if (this.db && this.db?.authToken) {
+      this.auth = new Auth(this.db.authToken)
+    }
     if (node) {
       node.setCoreHandlers(this.coreHandlers)
     }
