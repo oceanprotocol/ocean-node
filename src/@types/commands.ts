@@ -261,3 +261,15 @@ export interface StartStopIndexingCommand extends AdminCommand {
 export interface PolicyServerPassthroughCommand extends Command {
   policyServerPassthrough?: any
 }
+
+export interface CreateAuthTokenCommand extends Command {
+  address: string
+  signature: string
+  validUntil?: number | null
+}
+
+export interface InvalidateAuthTokenCommand extends Command {
+  address: string
+  signature: string
+  token: string
+}

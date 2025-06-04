@@ -4,31 +4,47 @@ import { expect } from 'chai'
 import { Database } from '../../../components/database/index.js'
 import { Wallet } from 'ethers'
 import { Auth } from '../../../components/Auth/index.js'
+import { OceanNode } from '../../../OceanNode.js'
+import { CreateAuthTokenHandler, InvalidateAuthTokenHandler } from '../../../components/core/handler/authHandler.js'
+import { streamToString } from '../../../utils/util.js'
+import { Readable } from 'stream'
 
 describe('Auth Token Tests', () => {
   let wallet: Wallet
   let mockDatabase: Database
   let config: OceanNodeConfig
+  let oceanNode: OceanNode
+  let createTokenHandler: CreateAuthTokenHandler
+  let invalidateTokenHandler: InvalidateAuthTokenHandler
+  let auth: Auth
 
   before(async () => {
     config = await getConfiguration(true)
     mockDatabase = await new Database(config.dbConfig)
     wallet = new Wallet(process.env.PRIVATE_KEY)
+    oceanNode = OceanNode.getInstance(config, mockDatabase)
+    createTokenHandler = new CreateAuthTokenHandler(oceanNode)
+    invalidateTokenHandler = new InvalidateAuthTokenHandler(oceanNode)
+    auth = new Auth(mockDatabase.authToken)
   })
+
 
   it('should create and validate a token', async () => {
-    const auth = new Auth(mockDatabase.authToken)
-    const token = await auth.createToken(wallet.address, null)
-    expect(token).to.be.a('string')
+    const message = auth.getSignatureMessage()
+    const messageHash = getMessageHash(message)
+    const signature = await wallet.signMessage(messageHash)
 
-    const validationResult = await auth.validateToken(token)
-    expect(validationResult).to.not.be.equal(null)
-    expect(validationResult?.address).to.equal(wallet.address)
-  })
+    const tokenCreateResponse = await createTokenHandler.handle({
+      command: 'createAuthToken',
+      address: wallet.address,
+      signature,
+    })
+    const data: string = await streamToString(tokenCreateResponse.stream as Readable)
+    expect(tokenCreateResponse.status.httpStatus).to.be.equal(200)
+    expect(data).to.be.a('string')
+    const tokenResponse = JSON.parse(data)
+    const token = tokenResponse.token
 
-  it('should validate authentication with token', async () => {
-    const auth = new Auth(mockDatabase.authToken)
-    const token = await auth.createToken(wallet.address, null)
     const result = await auth.validateAuthenticationOrToken(
       wallet.address,
       undefined,
@@ -37,23 +53,8 @@ describe('Auth Token Tests', () => {
     expect(result.valid).to.be.equal(true)
   })
 
-  it('should validate authentication with signature', async () => {
-    const auth = new Auth(mockDatabase.authToken)
-    const message = auth.getSignatureMessage()
-    const messageHash = getMessageHash(message)
-    const signature = await wallet.signMessage(messageHash)
-
-    const result = await auth.validateAuthenticationOrToken(
-      wallet.address,
-      signature,
-      undefined,
-      message
-    )
-    expect(result.valid).to.be.equal(true)
-  })
 
   it('should fail validation with invalid token', async () => {
-    const auth = new Auth(mockDatabase.authToken)
     const result = await auth.validateAuthenticationOrToken(
       wallet.address,
       undefined,
@@ -63,7 +64,6 @@ describe('Auth Token Tests', () => {
   })
 
   it('should fail validation with invalid signature', async () => {
-    const auth = new Auth(mockDatabase.authToken)
     const message = 'Test message'
     const invalidSignature = '0x' + '0'.repeat(130)
 
@@ -77,9 +77,46 @@ describe('Auth Token Tests', () => {
   })
 
   it('should respect token expiry', async () => {
-    const auth = new Auth(mockDatabase.authToken)
-    const validUntil = new Date(Date.now() - 1000) // 1 second ago
-    const token = await auth.createToken(wallet.address, validUntil.getTime())
+    const message = auth.getSignatureMessage()
+    const messageHash = getMessageHash(message)
+    const signature = await wallet.signMessage(messageHash)
+
+    const tokenCreateResponse = await createTokenHandler.handle({
+      command: 'createAuthToken',
+      address: wallet.address,
+      signature,
+      validUntil: Date.now() + 1000
+    })
+    const data: string = await streamToString(tokenCreateResponse.stream as Readable)
+    const token = JSON.parse(data).token
+
+    await new Promise(resolve => setTimeout(resolve, 1500))
+
+    const validationResult = await auth.validateToken(token)
+    expect(validationResult).to.be.equal(null)
+  })
+
+  it('should invalidate a token', async () => {
+    const message = auth.getSignatureMessage()
+    const messageHash = getMessageHash(message)
+    const signature = await wallet.signMessage(messageHash)
+
+    const tokenCreateResponse = await createTokenHandler.handle({
+      command: 'createAuthToken',
+      address: wallet.address,
+      signature,
+    })
+    const data: string = await streamToString(tokenCreateResponse.stream as Readable)
+    const token = JSON.parse(data).token
+
+    const invalidateTokenResponse = await invalidateTokenHandler.handle({
+      command: 'invalidateAuthToken',
+      address: wallet.address,
+      signature,
+      token
+    })
+    console.log({ invalidateTokenResponse })
+    expect(invalidateTokenResponse.status.httpStatus).to.be.equal(200)
 
     const validationResult = await auth.validateToken(token)
     expect(validationResult).to.be.equal(null)

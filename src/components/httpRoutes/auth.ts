@@ -1,6 +1,10 @@
 import express from 'express'
+import { SERVICES_API_BASE_PATH } from '../../utils/constants.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
-import { SERVICES_API_BASE_PATH } from '../../utils/index.js'
+import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
+import { CreateAuthTokenHandler, InvalidateAuthTokenHandler } from '../core/handler/authHandler.js'
+import { streamToString } from '../../utils/util.js'
+import { Readable } from 'stream'
 
 export const authRoutes = express.Router()
 
@@ -11,20 +15,23 @@ authRoutes.post(
     try {
       const { signature, address, validUntil } = req.body
 
-      console.log({ signature, address, validUntil })
-
       if (!signature || !address) {
         return res.status(400).json({ error: 'Missing required parameters' })
       }
 
-      const isValid = await req.oceanNode.getAuth().validateSignature(signature, address)
-      if (!isValid) {
-        return res.status(400).json({ error: 'Invalid signature' })
+      const response = await new CreateAuthTokenHandler(req.oceanNode).handle({
+        command: PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+        signature,
+        address,
+        validUntil
+      });
+
+      if (response.status.error) {
+        return res.status(response.status.httpStatus).json({ error: response.status.error })
       }
 
-      const token = await req.oceanNode.getAuth().createToken(address, validUntil)
-
-      res.json({ token })
+      const result = JSON.parse(await streamToString(response.stream as Readable))
+      res.json(result)
     } catch (error) {
       HTTP_LOGGER.error(`Error creating auth token: ${error}`)
       res.status(500).json({ error: 'Internal server error' })
@@ -43,17 +50,22 @@ authRoutes.post(
         return res.status(400).json({ error: 'Missing required parameters' })
       }
 
-      const isValid = await req.oceanNode.getAuth().validateSignature(signature, address)
-      if (!isValid) {
-        return res.status(400).json({ error: 'Invalid signature' })
+      const response = await new InvalidateAuthTokenHandler(req.oceanNode).handle({
+        command: PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
+        signature,
+        address,
+        token
+      })
+
+      if (response.status.error) {
+        return res.status(response.status.httpStatus).json({ error: response.status.error })
       }
 
-      await req.oceanNode.getAuth().invalidateToken(token)
-
-      res.json({ success: true })
+      const result = JSON.parse(await streamToString(response.stream as Readable))
+      res.json(result)
     } catch (error) {
-      HTTP_LOGGER.error(`Error deleting auth token: ${error}`)
-      res.status(500).json({ success: false, error: 'Internal server error' })
+      HTTP_LOGGER.error(`Error invalidating auth token: ${error}`)
+      res.status(500).json({ error: 'Internal server error' })
     }
   }
 )

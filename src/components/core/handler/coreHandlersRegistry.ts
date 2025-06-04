@@ -42,6 +42,8 @@ import {
   GetP2PNetworkStatsHandler,
   FindPeerHandler
 } from './p2p.js'
+import { CreateAuthTokenHandler, InvalidateAuthTokenHandler } from './authHandler.js'
+
 export type HandlerRegistry = {
   handlerName: string // name of the handler
   handlerImpl: BaseHandler // class that implements it
@@ -149,6 +151,14 @@ export class CoreHandlersRegistry {
       new GetP2PNetworkStatsHandler(node)
     )
     this.registerCoreHandler(PROTOCOL_COMMANDS.FIND_PEER, new FindPeerHandler(node))
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+      new CreateAuthTokenHandler(node)
+    )
+    this.registerCoreHandler(
+      PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
+      new InvalidateAuthTokenHandler(node)
+    )
   }
 
   public static getInstance(node: OceanNode): CoreHandlersRegistry {
