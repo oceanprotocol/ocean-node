@@ -5,7 +5,10 @@ import { Database } from '../../../components/database/index.js'
 import { Wallet } from 'ethers'
 import { Auth } from '../../../components/Auth/index.js'
 import { OceanNode } from '../../../OceanNode.js'
-import { CreateAuthTokenHandler, InvalidateAuthTokenHandler } from '../../../components/core/handler/authHandler.js'
+import {
+  CreateAuthTokenHandler,
+  InvalidateAuthTokenHandler
+} from '../../../components/core/handler/authHandler.js'
 import { streamToString } from '../../../utils/util.js'
 import { Readable } from 'stream'
 
@@ -28,7 +31,6 @@ describe('Auth Token Tests', () => {
     auth = new Auth(mockDatabase.authToken)
   })
 
-
   it('should create and validate a token', async () => {
     const message = auth.getSignatureMessage()
     const messageHash = getMessageHash(message)
@@ -37,13 +39,13 @@ describe('Auth Token Tests', () => {
     const tokenCreateResponse = await createTokenHandler.handle({
       command: 'createAuthToken',
       address: wallet.address,
-      signature,
+      signature
     })
     const data: string = await streamToString(tokenCreateResponse.stream as Readable)
     expect(tokenCreateResponse.status.httpStatus).to.be.equal(200)
     expect(data).to.be.a('string')
     const tokenResponse = JSON.parse(data)
-    const token = tokenResponse.token
+    const { token } = tokenResponse
 
     const result = await auth.validateAuthenticationOrToken(
       wallet.address,
@@ -52,7 +54,6 @@ describe('Auth Token Tests', () => {
     )
     expect(result.valid).to.be.equal(true)
   })
-
 
   it('should fail validation with invalid token', async () => {
     const result = await auth.validateAuthenticationOrToken(
@@ -88,9 +89,9 @@ describe('Auth Token Tests', () => {
       validUntil: Date.now() + 1000
     })
     const data: string = await streamToString(tokenCreateResponse.stream as Readable)
-    const token = JSON.parse(data).token
+    const { token } = JSON.parse(data)
 
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    await new Promise((resolve) => setTimeout(resolve, 1500))
 
     const validationResult = await auth.validateToken(token)
     expect(validationResult).to.be.equal(null)
@@ -104,10 +105,10 @@ describe('Auth Token Tests', () => {
     const tokenCreateResponse = await createTokenHandler.handle({
       command: 'createAuthToken',
       address: wallet.address,
-      signature,
+      signature
     })
     const data: string = await streamToString(tokenCreateResponse.stream as Readable)
-    const token = JSON.parse(data).token
+    const { token } = JSON.parse(data)
 
     const invalidateTokenResponse = await invalidateTokenHandler.handle({
       command: 'invalidateAuthToken',

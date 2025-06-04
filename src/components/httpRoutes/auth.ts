@@ -1,8 +1,10 @@
 import express from 'express'
-import { SERVICES_API_BASE_PATH } from '../../utils/constants.js'
+import { SERVICES_API_BASE_PATH, PROTOCOL_COMMANDS } from '../../utils/constants.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
-import { PROTOCOL_COMMANDS } from '../../utils/constants.js'
-import { CreateAuthTokenHandler, InvalidateAuthTokenHandler } from '../core/handler/authHandler.js'
+import {
+  CreateAuthTokenHandler,
+  InvalidateAuthTokenHandler
+} from '../core/handler/authHandler.js'
 import { streamToString } from '../../utils/util.js'
 import { Readable } from 'stream'
 
@@ -24,10 +26,12 @@ authRoutes.post(
         signature,
         address,
         validUntil
-      });
+      })
 
       if (response.status.error) {
-        return res.status(response.status.httpStatus).json({ error: response.status.error })
+        return res
+          .status(response.status.httpStatus)
+          .json({ error: response.status.error })
       }
 
       const result = JSON.parse(await streamToString(response.stream as Readable))
@@ -58,7 +62,9 @@ authRoutes.post(
       })
 
       if (response.status.error) {
-        return res.status(response.status.httpStatus).json({ error: response.status.error })
+        return res
+          .status(response.status.httpStatus)
+          .json({ error: response.status.error })
       }
 
       const result = JSON.parse(await streamToString(response.stream as Readable))

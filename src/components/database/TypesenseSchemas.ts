@@ -53,7 +53,6 @@ export type TypesenseSchemas = {
   logSchemas: TypesenseSchema
   orderSchema: TypesenseSchema
   ddoStateSchema: TypesenseSchema
-  authTokenSchemas: TypesenseSchema
 }
 const ddoSchemas = readJsonSchemas()
 export const typesenseSchemas: TypesenseSchemas = {
@@ -126,15 +125,6 @@ export const typesenseSchemas: TypesenseSchemas = {
       { name: 'txId', type: 'string' },
       { name: 'valid', type: 'bool' },
       { name: 'error', type: 'string' }
-    ]
-  },
-  authTokenSchemas: {
-    name: 'authTokens',
-    enable_nested_fields: true,
-    fields: [
-      { name: 'token', type: 'string' },
-      { name: 'address', type: 'string' },
-      { name: 'createdAt', type: 'int64' }
     ]
   }
 }
