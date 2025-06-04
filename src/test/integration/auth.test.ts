@@ -26,8 +26,9 @@ describe('Auth Token Integration Tests', () => {
   let previousConfiguration: OverrideEnvConfig[]
 
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
-  const url = 'http://localhost:8001/api/services/auth'
-  const validateDdoUrl = 'http://localhost:8001/api/aquarius/assets/ddo/validate'
+  const url = 'http://localhost:8000/api/services/auth'
+  const validateDdoUrl = 'http://localhost:8000/api/aquarius/assets/ddo/validate'
+
 
   before(async () => {
     previousConfiguration = await setupEnvironment(
