@@ -32,7 +32,6 @@ import { computeAsset, algoAsset } from '../data/assets.js'
 import { RPCS } from '../../@types/blockchain.js'
 import {
   DEFAULT_TEST_TIMEOUT,
-  OverrideEnvConfig,
   TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
@@ -51,7 +50,6 @@ import { createHash } from 'crypto'
 import { getAlgoChecksums } from '../../components/core/compute/utils.js'
 
 describe('Trusted algorithms Flow', () => {
-  let previousConfiguration: OverrideEnvConfig[]
   let config: OceanNodeConfig
   let dbconn: Database
   let oceanNode: OceanNode
@@ -68,7 +66,6 @@ describe('Trusted algorithms Flow', () => {
   let paymentTokenContract: any
   let escrowContract: any
   let providerFeesComputeDataset: ProviderFees
-  let providerFeesComputeAlgo: ProviderFees
   let indexer: OceanIndexer
   // const now = new Date().getTime() / 1000
   const computeJobDuration = 60 * 15 // 15 minutes from now should be enough
@@ -79,12 +76,6 @@ describe('Trusted algorithms Flow', () => {
   )
   // const chainId = DEVELOPMENT_CHAIN_ID
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
-  const chainId = DEVELOPMENT_CHAIN_ID
-  // randomly use a set of trusted algos or empty arrays
-  // should validate if set and match, invalidate otherwise
-  const setTrustedAlgosEmpty: boolean = Math.random() <= 0.5
-
-  let publisherAddress: string
   let factoryContract: Contract
   let algoDDO: any
   let datasetDDO: any
@@ -94,7 +85,7 @@ describe('Trusted algorithms Flow', () => {
   before(async () => {
     artifactsAddresses = getOceanArtifactsAdresses()
     paymentToken = artifactsAddresses.development.Ocean
-    previousConfiguration = await setupEnvironment(
+    await setupEnvironment(
       TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
         [
@@ -130,7 +121,6 @@ describe('Trusted algorithms Flow', () => {
     publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccount = (await provider.getSigner(1)) as Signer
 
-    publisherAddress = await publisherAccount.getAddress()
     algoDDO = { ...publishAlgoDDO }
     datasetDDO = { ...publishDatasetDDO }
     factoryContract = new ethers.Contract(
@@ -464,7 +454,9 @@ describe('Trusted algorithms Flow', () => {
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
-    let balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
+    const balance = await paymentTokenContract.balanceOf(
+      await consumerAccount.getAddress()
+    )
     await escrowContract
       .connect(consumerAccount)
       .authorize(
@@ -499,6 +491,7 @@ describe('Trusted algorithms Flow', () => {
     const jobs = await streamToObject(response.stream as Readable)
     // eslint-disable-next-line prefer-destructuring
     jobId = jobs[0].jobId
+    assert(jobId)
     // check escrow
     assert(locks.length > locksBefore, 'We should have locks')
     auth = await oceanNode.escrow.getAuthorizations(
