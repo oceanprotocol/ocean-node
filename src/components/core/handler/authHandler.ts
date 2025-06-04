@@ -7,7 +7,6 @@ import {
 import { ReadableString } from '../../P2P/handlers.js'
 import { Command } from '../../../@types/commands.js'
 import { Readable } from 'stream'
-import jwt from 'jsonwebtoken'
 
 export interface CreateAuthTokenCommand extends Command {
   address: string
@@ -44,21 +43,14 @@ export class CreateAuthTokenHandler extends CommandHandler {
       }
 
       const createdAt = Date.now()
-      const jwtToken = jwt.sign(
-        {
-          address: task.address,
-          createdAt
-        },
-        this.getOceanNode().getAuth().getJwtSecret()
-      )
+      const jwtToken = this.getOceanNode().getAuth().getJWTToken(task.address, createdAt)
 
-      const token = await this.getOceanNode()
+      await this.getOceanNode()
         .getAuth()
-        .getAuthTokenDatabase()
-        .createToken(jwtToken, task.address, task.validUntil, createdAt)
+        .insertToken(task.address, jwtToken, task.validUntil, createdAt)
 
       return {
-        stream: Readable.from(JSON.stringify({ token })),
+        stream: Readable.from(JSON.stringify({ token: jwtToken })),
         status: { httpStatus: 200, error: null }
       }
     } catch (error) {
@@ -92,10 +84,7 @@ export class InvalidateAuthTokenHandler extends CommandHandler {
         }
       }
 
-      await this.getOceanNode()
-        .getAuth()
-        .getAuthTokenDatabase()
-        .invalidateToken(task.token)
+      await this.getOceanNode().getAuth().invalidateToken(task.token)
 
       return {
         stream: new ReadableString(JSON.stringify({ success: true })),

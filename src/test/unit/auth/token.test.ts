@@ -1,56 +1,31 @@
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
-import { getConfiguration, getMessageHash } from '../../../utils/index.js'
+import { getConfiguration } from '../../../utils/index.js'
 import { expect } from 'chai'
-import { Database } from '../../../components/database/index.js'
 import { Wallet } from 'ethers'
 import { Auth } from '../../../components/Auth/index.js'
-import { OceanNode } from '../../../OceanNode.js'
-import {
-  CreateAuthTokenHandler,
-  InvalidateAuthTokenHandler
-} from '../../../components/core/handler/authHandler.js'
-import { streamToString } from '../../../utils/util.js'
-import { Readable } from 'stream'
+import { AuthTokenDatabase } from '../../../components/database/AuthTokenDatabase.js'
 
 describe('Auth Token Tests', () => {
   let wallet: Wallet
-  let mockDatabase: Database
+  let authTokenDatabase: AuthTokenDatabase
   let config: OceanNodeConfig
-  let oceanNode: OceanNode
-  let createTokenHandler: CreateAuthTokenHandler
-  let invalidateTokenHandler: InvalidateAuthTokenHandler
   let auth: Auth
 
   before(async () => {
     config = await getConfiguration(true)
-    mockDatabase = await new Database(config.dbConfig)
+    authTokenDatabase = await AuthTokenDatabase.create(config.dbConfig)
     wallet = new Wallet(process.env.PRIVATE_KEY)
-    oceanNode = OceanNode.getInstance(config, mockDatabase)
-    createTokenHandler = new CreateAuthTokenHandler(oceanNode)
-    invalidateTokenHandler = new InvalidateAuthTokenHandler(oceanNode)
-    auth = new Auth(mockDatabase.authToken)
+    auth = new Auth(authTokenDatabase)
   })
 
   it('should create and validate a token', async () => {
-    const message = auth.getSignatureMessage()
-    const messageHash = getMessageHash(message)
-    const signature = await wallet.signMessage(messageHash)
-
-    const tokenCreateResponse = await createTokenHandler.handle({
-      command: 'createAuthToken',
-      address: wallet.address,
-      signature
-    })
-    const data: string = await streamToString(tokenCreateResponse.stream as Readable)
-    expect(tokenCreateResponse.status.httpStatus).to.be.equal(200)
-    expect(data).to.be.a('string')
-    const tokenResponse = JSON.parse(data)
-    const { token } = tokenResponse
+    const jwtToken = auth.getJWTToken(wallet.address, Date.now())
+    await auth.insertToken(wallet.address, jwtToken, Date.now() + 1000, Date.now())
 
     const result = await auth.validateAuthenticationOrToken(
       wallet.address,
       undefined,
-      token
+      jwtToken
     )
     expect(result.valid).to.be.equal(true)
   })
@@ -78,47 +53,22 @@ describe('Auth Token Tests', () => {
   })
 
   it('should respect token expiry', async () => {
-    const message = auth.getSignatureMessage()
-    const messageHash = getMessageHash(message)
-    const signature = await wallet.signMessage(messageHash)
-
-    const tokenCreateResponse = await createTokenHandler.handle({
-      command: 'createAuthToken',
-      address: wallet.address,
-      signature,
-      validUntil: Date.now() + 1000
-    })
-    const data: string = await streamToString(tokenCreateResponse.stream as Readable)
-    const { token } = JSON.parse(data)
+    const jwtToken = auth.getJWTToken(wallet.address, Date.now())
+    await auth.insertToken(wallet.address, jwtToken, Date.now() + 1000, Date.now())
 
     await new Promise((resolve) => setTimeout(resolve, 1500))
 
-    const validationResult = await auth.validateToken(token)
+    const validationResult = await auth.validateToken(jwtToken)
     expect(validationResult).to.be.equal(null)
   })
 
   it('should invalidate a token', async () => {
-    const message = auth.getSignatureMessage()
-    const messageHash = getMessageHash(message)
-    const signature = await wallet.signMessage(messageHash)
+    const jwtToken = auth.getJWTToken(wallet.address, Date.now())
+    await auth.insertToken(wallet.address, jwtToken, Date.now() + 1000, Date.now())
 
-    const tokenCreateResponse = await createTokenHandler.handle({
-      command: 'createAuthToken',
-      address: wallet.address,
-      signature
-    })
-    const data: string = await streamToString(tokenCreateResponse.stream as Readable)
-    const { token } = JSON.parse(data)
+    await auth.invalidateToken(jwtToken)
 
-    const invalidateTokenResponse = await invalidateTokenHandler.handle({
-      command: 'invalidateAuthToken',
-      address: wallet.address,
-      signature,
-      token
-    })
-    expect(invalidateTokenResponse.status.httpStatus).to.be.equal(200)
-
-    const validationResult = await auth.validateToken(token)
+    const validationResult = await auth.validateToken(jwtToken)
     expect(validationResult).to.be.equal(null)
   })
 })

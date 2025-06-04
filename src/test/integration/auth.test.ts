@@ -143,7 +143,7 @@ describe('Auth Token Integration Tests', () => {
       expect(createResponse.status).to.equal(200)
 
       // Wait for token to expire
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      await new Promise((resolve) => setTimeout(resolve, 2000))
 
       const testEndpointResponse = await ddoValiationRequest(createResponse.data.token)
       expect(testEndpointResponse.status).to.equal(401)

@@ -1,5 +1,6 @@
 import { getMessageHash, verifyMessage } from '../../utils/index.js'
 import { AuthToken, AuthTokenDatabase } from '../database/AuthTokenDatabase.js'
+import jwt from 'jsonwebtoken'
 
 export interface CommonValidation {
   valid: boolean
@@ -25,8 +26,29 @@ export class Auth {
     return this.signatureMessage
   }
 
-  public getAuthTokenDatabase(): AuthTokenDatabase {
-    return this.authTokenDatabase
+  getJWTToken(address: string, createdAt: number): string {
+    const jwtToken = jwt.sign(
+      {
+        address,
+        createdAt
+      },
+      this.getJwtSecret()
+    )
+
+    return jwtToken
+  }
+
+  async insertToken(
+    address: string,
+    jwtToken: string,
+    validUntil: number,
+    createdAt: number
+  ): Promise<void> {
+    await this.authTokenDatabase.createToken(jwtToken, address, validUntil, createdAt)
+  }
+
+  async invalidateToken(jwtToken: string): Promise<void> {
+    await this.authTokenDatabase.invalidateToken(jwtToken)
   }
 
   async validateSignature(signature: string, address: string): Promise<boolean> {
