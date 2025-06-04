@@ -83,6 +83,7 @@ export interface ValidateDDOCommand extends Command {
   publisherAddress?: string
   nonce?: string
   signature?: string
+  message?: string
 }
 
 export interface StatusCommand extends Command {

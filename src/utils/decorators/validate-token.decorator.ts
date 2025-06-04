@@ -1,5 +1,7 @@
 import { P2PCommandResponse } from '../../@types'
 
+// This decorator validates the token or signature of the request
+// You can use it by adding @ValidateTokenOrSignature above the handler method
 export function ValidateTokenOrSignature() {
   return function (
     _target: Object,
@@ -10,7 +12,8 @@ export function ValidateTokenOrSignature() {
 
     descriptor.value = async function (...args: any[]): Promise<P2PCommandResponse> {
       const task = args[0]
-      const { authorization, signature, message, address } = task
+      const { authorization, signature, message } = task
+      const address = task.address || task.publisherAddress
       const jwt = authorization?.includes('Bearer')
         ? authorization.split(' ')[1]
         : authorization
