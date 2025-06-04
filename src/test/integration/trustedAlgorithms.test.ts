@@ -76,9 +76,6 @@ describe('Trusted algorithms Flow', () => {
   )
   // const chainId = DEVELOPMENT_CHAIN_ID
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
-  let factoryContract: Contract
-  let algoDDO: any
-  let datasetDDO: any
   let artifactsAddresses: any
   let initializeResponse: ProviderComputeInitializeResults
 
@@ -120,14 +117,6 @@ describe('Trusted algorithms Flow', () => {
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccount = (await provider.getSigner(1)) as Signer
-
-    algoDDO = { ...publishAlgoDDO }
-    datasetDDO = { ...publishDatasetDDO }
-    factoryContract = new ethers.Contract(
-      artifactsAddresses.development.ERC721Factory,
-      ERC721Factory.abi,
-      publisherAccount
-    )
     paymentTokenContract = new ethers.Contract(
       paymentToken,
       OceanToken.abi,
