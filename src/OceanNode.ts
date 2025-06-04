@@ -69,9 +69,10 @@ export class OceanNode {
     db?: Database,
     node?: OceanP2P,
     provider?: OceanProvider,
-    indexer?: OceanIndexer
+    indexer?: OceanIndexer,
+    newInstance: boolean = false
   ): OceanNode {
-    if (!OceanNode.instance) {
+    if (!OceanNode.instance || newInstance) {
       // prepare compute engines
       this.instance = new OceanNode(config, db, node, provider, indexer)
     }

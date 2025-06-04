@@ -18,11 +18,14 @@ import { RPCS } from '../../../@types/blockchain.js'
 import { Database } from '../../../components/database/index.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
 describe('Schema validation tests', () => {
-  let envOverrides: OverrideEnvConfig[]
+  const privateKey = process.env.PRIVATE_KEY
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
+
+  let envOverrides: OverrideEnvConfig[]
   let wallet: Wallet
   let database: Database
   let config: OceanNodeConfig
+  let oceanNode: OceanNode
 
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
@@ -42,10 +45,17 @@ describe('Schema validation tests', () => {
       ]
     )
     envOverrides = await setupEnvironment(null, envOverrides)
-    const privateKey = process.env.PRIVATE_KEY
     wallet = new ethers.Wallet(privateKey)
     config = await getConfiguration()
     database = await new Database(config.dbConfig)
+    oceanNode = await OceanNode.getInstance(
+      config,
+      database,
+      undefined,
+      undefined,
+      undefined,
+      true
+    )
   })
 
   after(() => {
@@ -124,8 +134,7 @@ describe('Schema validation tests', () => {
   })
 
   it('should fail validation when signature is missing', async () => {
-    const node = OceanNode.getInstance(config, database)
-    const handler = new ValidateDDOHandler(node)
+    const handler = new ValidateDDOHandler(oceanNode)
     const ddoInstance = DDOManager.getDDOClass(DDOExample)
     const task = {
       ddo: ddoInstance.getDDOData() as DDO,
@@ -139,8 +148,7 @@ describe('Schema validation tests', () => {
   })
 
   it('should fail validation when signature is invalid', async () => {
-    const node = OceanNode.getInstance(config, database)
-    const handler = new ValidateDDOHandler(node)
+    const handler = new ValidateDDOHandler(oceanNode)
     const ddoInstance = DDOManager.getDDOClass(DDOExample)
     const ddo: DDO = {
       ...(ddoInstance.getDDOData() as DDO)
@@ -159,8 +167,7 @@ describe('Schema validation tests', () => {
   })
 
   it('should pass validation with valid signature', async () => {
-    const node = OceanNode.getInstance(config, database)
-    const handler = new ValidateDDOHandler(node)
+    const handler = new ValidateDDOHandler(oceanNode)
     const ddoInstance = DDOManager.getDDOClass(ddoValidationSignature)
     const ddo = ddoInstance.getDDOData() as DDO
 
