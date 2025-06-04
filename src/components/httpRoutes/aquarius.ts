@@ -139,20 +139,16 @@ aquariusRoutes.post(
   async (req, res) => {
     const node = req.oceanNode
     try {
-      console.log({ reqDdo: req.body })
       if (!req.body) {
         res.status(400).send('Missing DDO object')
         return
       }
 
       const requestBody = JSON.parse(req.body)
-      console.log({ requestBody })
       const { publisherAddress, nonce, signature } = requestBody
-      console.log({ publisherAddress, nonce, signature })
 
       // This is for backward compatibility with the old way of sending the DDO
       const ddo = requestBody.ddo || JSON.parse(req.body)
-      console.log({ ddo })
 
       if (!ddo.version) {
         res.status(400).send('Missing DDO version')

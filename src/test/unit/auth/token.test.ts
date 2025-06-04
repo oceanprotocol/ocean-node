@@ -116,7 +116,6 @@ describe('Auth Token Tests', () => {
       signature,
       token
     })
-    console.log({ invalidateTokenResponse })
     expect(invalidateTokenResponse.status.httpStatus).to.be.equal(200)
 
     const validationResult = await auth.validateToken(token)

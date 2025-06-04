@@ -193,12 +193,8 @@ describe('Auth Token Integration Tests', () => {
       it('should handle invalid tokens', async function () {
         this.timeout(DEFAULT_TEST_TIMEOUT)
 
-        try {
-          const testEndpointResponse = await ddoValiationRequest('invalid-token')
-          expect(testEndpointResponse.status).to.equal(401)
-        } catch (error) {
-          console.log({ error })
-        }
+        const testEndpointResponse = await ddoValiationRequest('invalid-token')
+        expect(testEndpointResponse.status).to.equal(401)
       })
 
       it('should handle missing parameters', async function () {
