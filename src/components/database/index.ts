@@ -36,10 +36,12 @@ export class Database {
   constructor(private config: OceanNodeDBConfig) {
     return (async (): Promise<Database> => {
       try {
-        // these 2 are using SQL Lite provider
+        // these databases use SQLite provider
         this.nonce = await DatabaseFactory.createNonceDatabase(this.config)
         this.sqliteConfig = await DatabaseFactory.createConfigDatabase()
         this.c2d = await DatabaseFactory.createC2DDatabase(this.config)
+        this.authToken = await DatabaseFactory.createAuthTokenDatabase(this.config)
+
         // only for Typesense or Elasticsearch
         if (hasValidDBConfiguration(this.config)) {
           // add this DB transport too
@@ -57,10 +59,9 @@ export class Database {
           this.logs = await DatabaseFactory.createLogDatabase(this.config)
           this.order = await DatabaseFactory.createOrderDatabase(this.config)
           this.ddoState = await DatabaseFactory.createDdoStateDatabase(this.config)
-          this.authToken = await DatabaseFactory.createAuthTokenDatabase(this.config)
         } else {
           DATABASE_LOGGER.info(
-            'Invalid DB URL. Only Nonce and C2D Databases are initialized. Other databases are not available.'
+            'Invalid DB URL. Only Nonce, C2D, Auth Token and Config Databases are initialized. Other databases are not available.'
           )
         }
         return this

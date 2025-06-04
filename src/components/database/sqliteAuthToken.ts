@@ -10,7 +10,7 @@ interface AuthTokenDatabaseProvider {
     validUntil: number | null
   ): Promise<void>
   validateTokenEntry(token: string): Promise<AuthToken | null>
-  deleteTokenEntry(token: string): Promise<void>
+  invalidateTokenEntry(token: string): Promise<void>
 }
 
 export class SQLiteAuthToken implements AuthTokenDatabaseProvider {
@@ -26,12 +26,13 @@ export class SQLiteAuthToken implements AuthTokenDatabaseProvider {
         token TEXT PRIMARY KEY,
         address TEXT NOT NULL,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        validUntil DATETIME
+        validUntil DATETIME,
+        isValid BOOLEAN DEFAULT TRUE
       )
     `)
   }
 
-  async createToken(
+  createToken(
     token: string,
     address: string,
     createdAt: number,
@@ -52,12 +53,12 @@ export class SQLiteAuthToken implements AuthTokenDatabaseProvider {
     })
   }
 
-  async validateTokenEntry(token: string): Promise<AuthToken | null> {
+  validateTokenEntry(token: string): Promise<AuthToken | null> {
     const selectSQL = `
           SELECT * FROM authTokens WHERE token = ?
         `
     return new Promise<AuthToken | null>((resolve, reject) => {
-      this.db.get(selectSQL, [token], (err, row: AuthToken) => {
+      this.db.get(selectSQL, [token], async (err, row: AuthToken) => {
         if (err) {
           DATABASE_LOGGER.error(`Error validating auth token: ${err}`)
           reject(err)
@@ -65,6 +66,11 @@ export class SQLiteAuthToken implements AuthTokenDatabaseProvider {
         }
 
         if (!row) {
+          resolve(null)
+          return
+        }
+
+        if (!row.isValid) {
           resolve(null)
           return
         }
@@ -79,6 +85,8 @@ export class SQLiteAuthToken implements AuthTokenDatabaseProvider {
 
         if (validUntilDate < now) {
           resolve(null)
+          DATABASE_LOGGER.info(`Auth token ${token} is invalid`)
+          await this.invalidateTokenEntry(token)
           return
         }
 
@@ -87,14 +95,14 @@ export class SQLiteAuthToken implements AuthTokenDatabaseProvider {
     })
   }
 
-  async deleteTokenEntry(token: string): Promise<void> {
+  invalidateTokenEntry(token: string): Promise<void> {
     const deleteSQL = `
-          DELETE FROM authTokens WHERE token = ?
+          UPDATE authTokens SET isValid = FALSE WHERE token = ?
         `
     return new Promise<void>((resolve, reject) => {
       this.db.run(deleteSQL, [token], (err) => {
         if (err) {
-          DATABASE_LOGGER.error(`Error deleting auth token: ${err}`)
+          DATABASE_LOGGER.error(`Error invalidating auth token: ${err}`)
           reject(err)
         } else {
           resolve()

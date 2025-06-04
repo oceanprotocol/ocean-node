@@ -1,48 +1,59 @@
 import express from 'express'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
-import { OceanNode } from '../../OceanNode.js'
-import { Auth } from '../Auth/index.js'
+import { SERVICES_API_BASE_PATH } from '../../utils/index.js'
 
 export const authRoutes = express.Router()
-const oceanNode = OceanNode.getInstance()
-const auth = new Auth(oceanNode.getDatabase())
 
-authRoutes.post('/api/v1/auth/token', async (req, res) => {
+authRoutes.post(
+  `${SERVICES_API_BASE_PATH}/auth/token`,
+  express.json(),
+  async (req, res) => {
     try {
-        const { signature, address, validUntil } = req.body
+      const { signature, address, validUntil } = req.body
 
-        if (!signature || !address) {
-            return res.status(400).json({ error: 'Missing required parameters' })
-        }
+      console.log({ signature, address, validUntil })
 
-        const token = await auth.createToken(signature, address, validUntil)
+      if (!signature || !address) {
+        return res.status(400).json({ error: 'Missing required parameters' })
+      }
 
-        res.json({ token })
+      const isValid = await req.oceanNode.getAuth().validateSignature(signature, address)
+      if (!isValid) {
+        return res.status(400).json({ error: 'Invalid signature' })
+      }
+
+      const token = await req.oceanNode.getAuth().createToken(address, validUntil)
+
+      res.json({ token })
     } catch (error) {
-        HTTP_LOGGER.error(`Error creating auth token: ${error}`)
-        res.status(500).json({ error: 'Internal server error' })
+      HTTP_LOGGER.error(`Error creating auth token: ${error}`)
+      res.status(500).json({ error: 'Internal server error' })
     }
-})
+  }
+)
 
-authRoutes.delete('/api/v1/auth/token', async (req, res) => {
+authRoutes.post(
+  `${SERVICES_API_BASE_PATH}/auth/token/invalidate`,
+  express.json(),
+  async (req, res) => {
     try {
-        const { signature, address, token } = req.body
+      const { signature, address, token } = req.body
 
-        if (!signature || !address || !token) {
-            return res.status(400).json({ error: 'Missing required parameters' })
-        }
+      if (!signature || !address || !token) {
+        return res.status(400).json({ error: 'Missing required parameters' })
+      }
 
-        const tokenEntry = await auth.validateToken(token)
-        if (!tokenEntry) {
-            return res.status(401).json({ error: 'Invalid token' })
-        }
+      const isValid = await req.oceanNode.getAuth().validateSignature(signature, address)
+      if (!isValid) {
+        return res.status(400).json({ error: 'Invalid signature' })
+      }
 
-        await auth.deleteToken(token)
+      await req.oceanNode.getAuth().invalidateToken(token)
 
-        res.json({ success: true })
+      res.json({ success: true })
     } catch (error) {
-        HTTP_LOGGER.error(`Error deleting auth token: ${error}`)
-        res.status(500).json({ success: false, error: 'Internal server error' })
+      HTTP_LOGGER.error(`Error deleting auth token: ${error}`)
+      res.status(500).json({ success: false, error: 'Internal server error' })
     }
-})
-
+  }
+)

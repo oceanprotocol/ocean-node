@@ -52,7 +52,7 @@ export type TypesenseSchemas = {
   indexerSchemas: TypesenseSchema
   logSchemas: TypesenseSchema
   orderSchema: TypesenseSchema
-  ddoStateSchema: TypesenseSchema,
+  ddoStateSchema: TypesenseSchema
   authTokenSchemas: TypesenseSchema
 }
 const ddoSchemas = readJsonSchemas()
@@ -134,7 +134,7 @@ export const typesenseSchemas: TypesenseSchemas = {
     fields: [
       { name: 'token', type: 'string' },
       { name: 'address', type: 'string' },
-      { name: 'createdAt', type: 'int64' },
+      { name: 'createdAt', type: 'int64' }
     ]
   }
 }

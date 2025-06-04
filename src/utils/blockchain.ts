@@ -270,7 +270,7 @@ export async function verifyMessage(
   }
 }
 
-export async function getMessageHash(message: string): Promise<Uint8Array> {
+export function getMessageHash(message: string): Uint8Array {
   const messageHash = ethers.solidityPackedKeccak256(
     ['bytes'],
     [ethers.hexlify(ethers.toUtf8Bytes(message))]

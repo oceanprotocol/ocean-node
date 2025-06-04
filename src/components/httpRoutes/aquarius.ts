@@ -10,6 +10,7 @@ import { QueryCommand } from '../../@types/commands.js'
 import { DatabaseFactory } from '../database/DatabaseFactory.js'
 import { SearchQuery } from '../../@types/DDO/SearchQuery.js'
 import { getConfiguration } from '../../utils/index.js'
+import { validateAuthToken } from './middleware/authMiddleware.js'
 
 export const aquariusRoutes = express.Router()
 
@@ -132,41 +133,51 @@ aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
   }
 })
 
-aquariusRoutes.post(`${AQUARIUS_API_BASE_PATH}/assets/ddo/validate`, async (req, res) => {
-  const node = req.oceanNode
-  try {
-    if (!req.body) {
-      res.status(400).send('Missing DDO object')
-      return
+aquariusRoutes.post(
+  `${AQUARIUS_API_BASE_PATH}/assets/ddo/validate`,
+  validateAuthToken,
+  async (req, res) => {
+    const node = req.oceanNode
+    try {
+      console.log({ reqDdo: req.body })
+      if (!req.body) {
+        res.status(400).send('Missing DDO object')
+        return
+      }
+
+      const requestBody = JSON.parse(req.body)
+      console.log({ requestBody })
+      const { publisherAddress, nonce, signature } = requestBody
+      console.log({ publisherAddress, nonce, signature })
+
+      // This is for backward compatibility with the old way of sending the DDO
+      const ddo = requestBody.ddo || JSON.parse(req.body)
+      console.log({ ddo })
+
+      if (!ddo.version) {
+        res.status(400).send('Missing DDO version')
+        return
+      }
+
+      const result = await new ValidateDDOHandler(node).handle({
+        ddo,
+        publisherAddress,
+        nonce,
+        signature,
+        command: PROTOCOL_COMMANDS.VALIDATE_DDO
+      })
+
+      if (result.stream) {
+        const validationResult = JSON.parse(
+          await streamToString(result.stream as Readable)
+        )
+        res.json(validationResult)
+      } else {
+        res.status(result.status.httpStatus).send(result.status.error)
+      }
+    } catch (error) {
+      HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+      res.status(500).send('Internal Server Error')
     }
-
-    const requestBody = JSON.parse(req.body)
-    const { publisherAddress, nonce, signature } = requestBody
-
-    // This is for backward compatibility with the old way of sending the DDO
-    const ddo = requestBody.ddo || JSON.parse(req.body)
-
-    if (!ddo.version) {
-      res.status(400).send('Missing DDO version')
-      return
-    }
-
-    const result = await new ValidateDDOHandler(node).handle({
-      ddo,
-      publisherAddress,
-      nonce,
-      signature,
-      command: PROTOCOL_COMMANDS.VALIDATE_DDO
-    })
-
-    if (result.stream) {
-      const validationResult = JSON.parse(await streamToString(result.stream as Readable))
-      res.json(validationResult)
-    } else {
-      res.status(result.status.httpStatus).send(result.status.error)
-    }
-  } catch (error) {
-    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
-    res.status(500).send('Internal Server Error')
   }
-})
+)

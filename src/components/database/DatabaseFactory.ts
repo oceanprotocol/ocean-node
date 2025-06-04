@@ -92,8 +92,10 @@ export class DatabaseFactory {
     return await new C2DDatabase(config, typesenseSchemas.c2dSchemas)
   }
 
-  static async createAuthTokenDatabase(config: OceanNodeDBConfig): Promise<AuthTokenDatabase> {
-    return await new AuthTokenDatabase(config, typesenseSchemas.authTokenSchemas)
+  static async createAuthTokenDatabase(
+    config: OceanNodeDBConfig
+  ): Promise<AuthTokenDatabase> {
+    return await AuthTokenDatabase.create(config)
   }
 
   static createIndexerDatabase(
