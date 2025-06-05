@@ -1,16 +1,30 @@
 import { P2PCommandResponse } from '../../@types'
 
-// This decorator validates the token or signature of the request
-// You can use it by adding @ValidateTokenOrSignature above the handler method
-export function ValidateTokenOrSignature() {
+/**
+ * This decorator validates the token or signature of the request
+ * You can use it by adding @ValidateTokenOrSignature above the handler method
+ * @param skipValidation - If true, the validation will be skipped. You can also pass a function that returns a boolean.
+ */
+export function ValidateTokenOrSignature(
+  skipValidation?: boolean | (() => Promise<boolean>)
+) {
   return function (
     _target: Object,
     _propertyKey: string | symbol,
-    descriptor: TypedPropertyDescriptor<any>
-  ): TypedPropertyDescriptor<any> {
+    descriptor: TypedPropertyDescriptor<(...args: any[]) => Promise<P2PCommandResponse>>
+  ) {
     const originalMethod = descriptor.value
 
     descriptor.value = async function (...args: any[]): Promise<P2PCommandResponse> {
+      let shouldSkip = skipValidation
+      if (typeof skipValidation === 'function') {
+        shouldSkip = await skipValidation()
+      }
+
+      if (shouldSkip) {
+        return originalMethod.apply(this, args)
+      }
+
       const task = args[0]
       const { authorization, signature, message } = task
       const address = task.address || task.publisherAddress
@@ -33,7 +47,7 @@ export function ValidateTokenOrSignature() {
         return {
           status: {
             httpStatus: 401,
-            error: 'Invalid signature'
+            error: 'Invalid token or signature'
           },
           stream: null
         }
