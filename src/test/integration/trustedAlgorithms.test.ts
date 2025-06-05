@@ -63,8 +63,8 @@ describe('Trusted algorithms Flow', () => {
   let paymentToken: any
   let paymentTokenContract: any
   let escrowContract: any
-  let providerFeesComputeDataset: ProviderFees
   let indexer: OceanIndexer
+  let initializeResp: any
   // const now = new Date().getTime() / 1000
   const computeJobDuration = 60 * 15 // 15 minutes from now should be enough
   let firstEnv: ComputeEnvironment
@@ -224,14 +224,14 @@ describe('Trusted algorithms Flow', () => {
       consumerAddress: firstEnv.consumerAddress,
       command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
     }
-    const resp = await new ComputeInitializeHandler(oceanNode).handle(
+    initializeResp = await new ComputeInitializeHandler(oceanNode).handle(
       initializeComputeTask
     )
-    console.log(resp)
-    assert(resp, 'Failed to get response')
-    assert(resp.status.httpStatus === 200, 'Failed to get 200 response')
-    assert(resp.stream, 'Failed to get stream')
-    expect(resp.stream).to.be.instanceOf(Readable)
+    console.log(initializeResp)
+    assert(initializeResp, 'Failed to get response')
+    assert(initializeResp.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(initializeResp.stream, 'Failed to get stream')
+    expect(initializeResp.stream).to.be.instanceOf(Readable)
   })
 
   it('should start an order on dataset', async function () {
@@ -242,11 +242,25 @@ describe('Trusted algorithms Flow', () => {
       firstEnv.consumerAddress, // for compute, consumer is always address of compute env
       publisherAccount,
       oceanNode,
-      providerFeesComputeDataset
+      initializeResp.dataset[0].providerFee
     )
     assert(orderTxReceipt, 'order transaction failed')
     datasetOrderTxId = orderTxReceipt.hash
     assert(datasetOrderTxId, 'transaction id not found')
+  })
+  it('should start an order on algorithm', async function () {
+    const orderTxReceipt = await orderAsset(
+      publishedAlgoDataset.ddo,
+      0,
+      consumerAccount,
+      firstEnv.consumerAddress, // for compute, consumer is always address of compute env
+      publisherAccount,
+      oceanNode,
+      initializeResp.algorithm.providerFee
+    )
+    assert(orderTxReceipt, 'order transaction failed')
+    algoOrderTxId = orderTxReceipt.hash
+    assert(algoOrderTxId, 'transaction id not found')
   })
   it('should not start a compute job because algorithm is not trusted by dataset', async () => {
     let balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
