@@ -39,8 +39,12 @@ describe('Auth Token Integration Tests', () => {
     previousConfiguration = await setupEnvironment(
       TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
-        [ENVIRONMENT_VARIABLES.RPCS, ENVIRONMENT_VARIABLES.INDEXER_NETWORKS],
-        [JSON.stringify(mockSupportedNetworks), JSON.stringify([8996])]
+        [
+          ENVIRONMENT_VARIABLES.RPCS,
+          ENVIRONMENT_VARIABLES.INDEXER_NETWORKS,
+          ENVIRONMENT_VARIABLES.VALIDATE_UNSIGNED_DDO
+        ],
+        [JSON.stringify(mockSupportedNetworks), JSON.stringify([8996]), 'false']
       )
     )
 
