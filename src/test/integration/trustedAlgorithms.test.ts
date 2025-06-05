@@ -242,7 +242,7 @@ describe('Trusted algorithms Flow', () => {
       firstEnv.consumerAddress, // for compute, consumer is always address of compute env
       publisherAccount,
       oceanNode,
-      initializeResp.dataset[0].providerFee
+      initializeResp.datasets[0].providerFee
     )
     assert(orderTxReceipt, 'order transaction failed')
     datasetOrderTxId = orderTxReceipt.hash
