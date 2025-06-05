@@ -232,7 +232,7 @@ describe('Trusted algorithms Flow', () => {
     assert(resp.status.httpStatus === 200, 'Failed to get 200 response')
     assert(resp.stream, 'Failed to get stream')
     expect(resp.stream).to.be.instanceOf(Readable)
-    initializeResp = streamToObject(resp.stream as Readable)
+    initializeResp = await streamToObject(resp.stream as Readable)
   })
 
   it('should start an order on dataset', async function () {
