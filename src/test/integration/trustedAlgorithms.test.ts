@@ -25,7 +25,7 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { OceanIndexer } from '../../components/Indexer/index.js'
 import { Readable } from 'stream'
 import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
-import { streamToObject } from '../../utils/util.js'
+import { streamToObject, streamToString } from '../../utils/util.js'
 import { ethers, hexlify, JsonRpcProvider, Signer } from 'ethers'
 import { publishAsset, orderAsset } from '../utils/assets.js'
 import { computeAsset, algoAsset } from '../data/assets.js'
@@ -438,6 +438,9 @@ describe('Trusted algorithms Flow', () => {
     )
     const response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
     assert(response, 'Failed to get response')
+    console.log(response.status.httpStatus)
+    console.log(response.status.error)
+    console.log(await streamToString(response.stream as Readable))
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
