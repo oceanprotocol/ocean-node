@@ -161,8 +161,11 @@ export class CoreHandlersRegistry {
     )
   }
 
-  public static getInstance(node: OceanNode): CoreHandlersRegistry {
-    if (!CoreHandlersRegistry.instance) {
+  public static getInstance(
+    node: OceanNode,
+    newInstance: boolean = false
+  ): CoreHandlersRegistry {
+    if (!CoreHandlersRegistry.instance || newInstance) {
       this.instance = new CoreHandlersRegistry(node)
     }
     return this.instance
