@@ -252,8 +252,8 @@ export interface JobStatus {
   hash: string
 }
 export enum IndexingCommand {
-  STOP_THREAD = 'start',
-  START_THREAD = 'stop'
+  STOP_THREAD = 'stop',
+  START_THREAD = 'start'
 }
 export interface StartStopIndexingCommand extends AdminCommand {
   chainId?: number
