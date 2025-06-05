@@ -106,7 +106,14 @@ describe('Should test admin operations', () => {
 
     config = await getConfiguration(true) // Force reload the configuration
     dbconn = await new Database(config.dbConfig)
-    oceanNode = await OceanNode.getInstance(config, dbconn)
+    oceanNode = await OceanNode.getInstance(
+      config,
+      dbconn,
+      undefined,
+      undefined,
+      undefined,
+      true
+    )
     indexer = new OceanIndexer(dbconn, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
   })
