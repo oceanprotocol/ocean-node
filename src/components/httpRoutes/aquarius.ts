@@ -156,6 +156,7 @@ aquariusRoutes.post(`${AQUARIUS_API_BASE_PATH}/assets/ddo/validate`, async (req,
       publisherAddress,
       nonce,
       signature,
+      message: ddo.id + nonce,
       command: PROTOCOL_COMMANDS.VALIDATE_DDO
     })
 
