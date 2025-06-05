@@ -64,7 +64,6 @@ describe('Trusted algorithms Flow', () => {
   let paymentTokenContract: any
   let escrowContract: any
   let indexer: OceanIndexer
-  let initializeResp: any
   // const now = new Date().getTime() / 1000
   const computeJobDuration = 60 * 15 // 15 minutes from now should be enough
   let firstEnv: ComputeEnvironment
@@ -232,7 +231,9 @@ describe('Trusted algorithms Flow', () => {
     assert(resp.status.httpStatus === 200, 'Failed to get 200 response')
     assert(resp.stream, 'Failed to get stream')
     expect(resp.stream).to.be.instanceOf(Readable)
-    initializeResp = await streamToObject(resp.stream as Readable)
+    initializeResponse = (await streamToObject(
+      resp.stream as Readable
+    )) as ProviderComputeInitializeResults
   })
 
   it('should start an order on dataset', async function () {
@@ -243,7 +244,7 @@ describe('Trusted algorithms Flow', () => {
       firstEnv.consumerAddress, // for compute, consumer is always address of compute env
       publisherAccount,
       oceanNode,
-      initializeResp.datasets[0].providerFee
+      initializeResponse.datasets[0].providerFee
     )
     assert(orderTxReceipt, 'order transaction failed')
     datasetOrderTxId = orderTxReceipt.hash
@@ -257,7 +258,7 @@ describe('Trusted algorithms Flow', () => {
       firstEnv.consumerAddress, // for compute, consumer is always address of compute env
       publisherAccount,
       oceanNode,
-      initializeResp.algorithm.providerFee
+      initializeResponse.algorithm.providerFee
     )
     assert(orderTxReceipt, 'order transaction failed')
     algoOrderTxId = orderTxReceipt.hash
