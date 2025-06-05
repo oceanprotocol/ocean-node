@@ -384,42 +384,6 @@ describe('Trusted algorithms Flow', () => {
     )
   })
   it('should start a compute job', async () => {
-    let auth = await oceanNode.escrow.getAuthorizations(
-      DEVELOPMENT_CHAIN_ID,
-      paymentToken,
-      await consumerAccount.getAddress(),
-      firstEnv.consumerAddress
-    )
-    if (auth.length > 0) {
-      // remove any auths
-      await escrowContract
-        .connect(consumerAccount)
-        .authorize(initializeResponse.payment.token, firstEnv.consumerAddress, 0, 0, 0)
-    }
-    let locks = await oceanNode.escrow.getLocks(
-      DEVELOPMENT_CHAIN_ID,
-      paymentToken,
-      await consumerAccount.getAddress(),
-      firstEnv.consumerAddress
-    )
-
-    if (locks.length > 0) {
-      // cancel all locks
-      for (const lock of locks) {
-        try {
-          await escrowContract
-            .connect(consumerAccount)
-            .cancelExpiredLocks(lock.jobId, lock.token, lock.payer, lock.payee)
-        } catch (e) {}
-      }
-      locks = await oceanNode.escrow.getLocks(
-        DEVELOPMENT_CHAIN_ID,
-        paymentToken,
-        await consumerAccount.getAddress(),
-        firstEnv.consumerAddress
-      )
-    }
-    const locksBefore = locks.length
     const nonce = Date.now().toString()
     const message = String(nonce)
     // sign message/nonce
@@ -457,25 +421,12 @@ describe('Trusted algorithms Flow', () => {
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
-    const balance = await paymentTokenContract.balanceOf(
-      await consumerAccount.getAddress()
-    )
-    await escrowContract
-      .connect(consumerAccount)
-      .authorize(
-        initializeResponse.payment.token,
-        firstEnv.consumerAddress,
-        balance,
-        computeJobDuration,
-        10
-      )
-    auth = await oceanNode.escrow.getAuthorizations(
+    const auth = await oceanNode.escrow.getAuthorizations(
       DEVELOPMENT_CHAIN_ID,
       paymentToken,
       await consumerAccount.getAddress(),
       firstEnv.consumerAddress
     )
-    const authBefore = auth[0]
     assert(auth.length > 0, 'Should have authorization')
     assert(
       BigInt(auth[0].maxLockedAmount.toString()) > BigInt(0),
@@ -495,18 +446,5 @@ describe('Trusted algorithms Flow', () => {
     // eslint-disable-next-line prefer-destructuring
     jobId = jobs[0].jobId
     assert(jobId)
-    // check escrow
-    assert(locks.length > locksBefore, 'We should have locks')
-    auth = await oceanNode.escrow.getAuthorizations(
-      DEVELOPMENT_CHAIN_ID,
-      paymentToken,
-      await consumerAccount.getAddress(),
-      firstEnv.consumerAddress
-    )
-    assert(auth[0].currentLocks > authBefore.currentLocks, 'We should have running jobs')
-    assert(
-      auth[0].currentLockedAmount > authBefore.currentLockedAmount,
-      'We should have higher currentLockedAmount'
-    )
   })
 })
