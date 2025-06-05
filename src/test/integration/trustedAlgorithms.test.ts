@@ -224,14 +224,15 @@ describe('Trusted algorithms Flow', () => {
       consumerAddress: firstEnv.consumerAddress,
       command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
     }
-    initializeResp = await new ComputeInitializeHandler(oceanNode).handle(
+    const resp = await new ComputeInitializeHandler(oceanNode).handle(
       initializeComputeTask
     )
-    console.log(initializeResp)
-    assert(initializeResp, 'Failed to get response')
-    assert(initializeResp.status.httpStatus === 200, 'Failed to get 200 response')
-    assert(initializeResp.stream, 'Failed to get stream')
-    expect(initializeResp.stream).to.be.instanceOf(Readable)
+    console.log(resp)
+    assert(resp, 'Failed to get response')
+    assert(resp.status.httpStatus === 200, 'Failed to get 200 response')
+    assert(resp.stream, 'Failed to get stream')
+    expect(resp.stream).to.be.instanceOf(Readable)
+    initializeResp = streamToObject(resp.stream as Readable)
   })
 
   it('should start an order on dataset', async function () {
