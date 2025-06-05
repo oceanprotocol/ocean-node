@@ -32,10 +32,12 @@ import { computeAsset, algoAsset } from '../data/assets.js'
 import { RPCS } from '../../@types/blockchain.js'
 import {
   DEFAULT_TEST_TIMEOUT,
+  OverrideEnvConfig,
   TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   getMockSupportedNetworks,
-  setupEnvironment
+  setupEnvironment,
+  tearDownEnvironment
 } from '../utils/utils.js'
 
 import { ProviderComputeInitializeResults } from '../../@types/Fees.js'
@@ -48,6 +50,7 @@ import { createHash } from 'crypto'
 import { getAlgoChecksums } from '../../components/core/compute/utils.js'
 
 describe('Trusted algorithms Flow', () => {
+  let previousConfiguration: OverrideEnvConfig[]
   let config: OceanNodeConfig
   let dbconn: Database
   let oceanNode: OceanNode
@@ -79,7 +82,7 @@ describe('Trusted algorithms Flow', () => {
   before(async () => {
     artifactsAddresses = getOceanArtifactsAdresses()
     paymentToken = artifactsAddresses.development.Ocean
-    await setupEnvironment(
+    previousConfiguration = await setupEnvironment(
       TEST_ENV_CONFIG_FILE,
       buildEnvOverrideConfig(
         [
@@ -446,5 +449,9 @@ describe('Trusted algorithms Flow', () => {
     // eslint-disable-next-line prefer-destructuring
     jobId = jobs[0].jobId
     assert(jobId)
+  })
+  after(async () => {
+    await tearDownEnvironment(previousConfiguration)
+    indexer.stopAllThreads()
   })
 })
