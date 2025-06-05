@@ -38,7 +38,7 @@ import {
   setupEnvironment
 } from '../utils/utils.js'
 
-import { ProviderFees, ProviderComputeInitializeResults } from '../../@types/Fees.js'
+import { ProviderComputeInitializeResults } from '../../@types/Fees.js'
 import { homedir } from 'os'
 import { DEVELOPMENT_CHAIN_ID, getOceanArtifactsAdresses } from '../../utils/address.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
