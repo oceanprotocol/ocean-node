@@ -440,6 +440,8 @@ describe('Trusted algorithms Flow', () => {
       ' Should have maxLockCounts in auth'
     )
     const response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
+    console.log(`response: ${response.status.httpStatus}`)
+    console.log(`response: ${JSON.stringify(response)}`)
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
