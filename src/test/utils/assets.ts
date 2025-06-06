@@ -154,14 +154,14 @@ export async function orderAsset(
 
   if (!providerFees) {
     const oceanNodeConfig = await getConfiguration(true)
-    const statusCommand = {
+    const getFeesCommand = {
       command: PROTOCOL_COMMANDS.GET_FEES,
       ddoId: genericAsset.id,
       serviceId: service.id,
       consumerAddress,
       node: oceanNodeConfig.keys.peerId.toString()
     }
-    const response = await new FeesHandler(oceanNode).handle(statusCommand)
+    const response = await new FeesHandler(oceanNode).handle(getFeesCommand)
     const fees = await streamToObject(response.stream as Readable)
     providerFees = fees.providerFee
   }
