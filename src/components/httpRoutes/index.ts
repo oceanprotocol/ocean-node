@@ -13,8 +13,10 @@ import { queueRoutes } from './queue.js'
 import { jobsRoutes } from './jobs.js'
 import { addMapping, allRoutesMapping, findPathName } from './routeUtils.js'
 import { PolicyServerPassthroughRoute } from './policyServer.js'
+import { authRoutes } from './auth.js'
 
 export * from './getOceanPeers.js'
+export * from './auth.js'
 
 export const httpRoutes = express.Router()
 
@@ -56,6 +58,9 @@ httpRoutes.use(queueRoutes)
 httpRoutes.use(jobsRoutes)
 // policy server passthrough
 httpRoutes.use(PolicyServerPassthroughRoute)
+// auth routes
+httpRoutes.use(authRoutes)
+
 export function getAllServiceEndpoints() {
   httpRoutes.stack.forEach(addMapping.bind(null, []))
   const data: any = {}

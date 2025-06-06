@@ -270,6 +270,15 @@ export async function verifyMessage(
   }
 }
 
+export function getMessageHash(message: string): Uint8Array {
+  const messageHash = ethers.solidityPackedKeccak256(
+    ['bytes'],
+    [ethers.hexlify(ethers.toUtf8Bytes(message))]
+  )
+  const messageHashBytes = ethers.toBeArray(messageHash)
+  return messageHashBytes
+}
+
 export async function checkSupportedChainId(chainId: number): Promise<ValidateChainId> {
   const config = await getConfiguration()
   if (!chainId || !(`${chainId.toString()}` in config.supportedNetworks)) {
