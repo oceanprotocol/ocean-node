@@ -387,6 +387,23 @@ describe('Trusted algorithms Flow', () => {
     )
   })
   it('should start a compute job', async () => {
+    const locks = await oceanNode.escrow.getLocks(
+      DEVELOPMENT_CHAIN_ID,
+      paymentToken,
+      await consumerAccount.getAddress(),
+      firstEnv.consumerAddress
+    )
+
+    if (locks.length > 0) {
+      // cancel all locks
+      for (const lock of locks) {
+        try {
+          await escrowContract
+            .connect(consumerAccount)
+            .cancelExpiredLocks(lock.jobId, lock.token, lock.payer, lock.payee)
+        } catch (e) {}
+      }
+    }
     const nonce = Date.now().toString()
     const message = String(nonce)
     // sign message/nonce
