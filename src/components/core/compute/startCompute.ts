@@ -120,13 +120,19 @@ export class PaidComputeStartHandler extends CommandHandler {
         task.algorithm.serviceId,
         node
       )
-      if (!algoChecksums.container || !algoChecksums.files) {
-        CORE_LOGGER.error(`Error retrieveing algorithm checksums!`)
+
+      const isRawCodeAlgorithm = task.algorithm.meta.rawcode
+      const hasValidChecksums = algoChecksums.container && algoChecksums.files
+
+      if (!isRawCodeAlgorithm && !hasValidChecksums) {
+        const errorMessage =
+          'Failed to retrieve algorithm checksums. Both container and files checksums are required.'
+        CORE_LOGGER.error(errorMessage)
         return {
           stream: null,
           status: {
             httpStatus: 500,
-            error: `Error retrieveing algorithm checksums!`
+            error: errorMessage
           }
         }
       }
