@@ -86,15 +86,6 @@ export class Auth {
     message?: string
   }): Promise<CommonValidation> {
     try {
-      if (token) {
-        const authToken = await this.validateToken(token)
-        if (authToken) {
-          return { valid: true, error: '' }
-        }
-
-        return { valid: false, error: 'Invalid token' }
-      }
-
       if (signature && message && address) {
         const messageHashBytes = getMessageHash(message)
         const isValid = await verifyMessage(messageHashBytes, address, signature)
@@ -102,6 +93,15 @@ export class Auth {
         if (isValid) {
           return { valid: true, error: '' }
         }
+      }
+
+      if (token) {
+        const authToken = await this.validateToken(token)
+        if (authToken) {
+          return { valid: true, error: '' }
+        }
+
+        return { valid: false, error: 'Invalid token' }
       }
 
       return {
