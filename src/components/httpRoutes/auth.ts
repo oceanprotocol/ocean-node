@@ -15,7 +15,7 @@ authRoutes.post(
   express.json(),
   async (req, res) => {
     try {
-      const { signature, address, validUntil } = req.body
+      const { signature, address, nonce, validUntil } = req.body
 
       if (!signature || !address) {
         return res.status(400).json({ error: 'Missing required parameters' })
@@ -25,6 +25,7 @@ authRoutes.post(
         command: PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
         signature,
         address,
+        nonce,
         validUntil
       })
 
@@ -48,7 +49,7 @@ authRoutes.post(
   express.json(),
   async (req, res) => {
     try {
-      const { signature, address, token } = req.body
+      const { signature, address, nonce, token } = req.body
 
       if (!signature || !address || !token) {
         return res.status(400).json({ error: 'Missing required parameters' })
@@ -58,6 +59,7 @@ authRoutes.post(
         command: PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
         signature,
         address,
+        nonce,
         token
       })
 

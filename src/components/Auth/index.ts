@@ -1,6 +1,7 @@
-import { getMessageHash, verifyMessage } from '../../utils/index.js'
 import { AuthToken, AuthTokenDatabase } from '../database/AuthTokenDatabase.js'
 import jwt from 'jsonwebtoken'
+import { checkNonce, NonceResponse } from '../core/utils/nonceHandler.js'
+import { OceanNode } from '../../OceanNode.js'
 
 export interface CommonValidation {
   valid: boolean
@@ -10,26 +11,25 @@ export interface CommonValidation {
 export class Auth {
   private authTokenDatabase: AuthTokenDatabase
   private jwtSecret: string
-  private signatureMessage: string
 
   public constructor(authTokenDatabase: AuthTokenDatabase) {
     this.authTokenDatabase = authTokenDatabase
     this.jwtSecret = process.env.JWT_SECRET || 'ocean-node-secret'
-    this.signatureMessage = process.env.SIGNATURE_MESSAGE || 'token-auth'
   }
 
   public getJwtSecret(): string {
     return this.jwtSecret
   }
 
-  public getSignatureMessage(): string {
-    return this.signatureMessage
+  public getMessage(address: string, nonce: string): string {
+    return address + nonce
   }
 
-  getJWTToken(address: string, createdAt: number): string {
+  getJWTToken(address: string, nonce: string, createdAt: number): string {
     const jwtToken = jwt.sign(
       {
         address,
+        nonce,
         createdAt
       },
       this.getJwtSecret()
@@ -49,12 +49,6 @@ export class Auth {
 
   async invalidateToken(jwtToken: string): Promise<void> {
     await this.authTokenDatabase.invalidateToken(jwtToken)
-  }
-
-  async validateSignature(signature: string, address: string): Promise<boolean> {
-    const messageHashBytes = getMessageHash(this.signatureMessage)
-    const isValid = await verifyMessage(messageHashBytes, address, signature)
-    return isValid
   }
 
   async validateToken(token: string): Promise<AuthToken | null> {
@@ -77,21 +71,29 @@ export class Auth {
   async validateAuthenticationOrToken({
     token,
     address,
+    nonce,
     signature,
     message
   }: {
     token?: string
     address?: string
+    nonce?: string
     signature?: string
     message?: string
   }): Promise<CommonValidation> {
     try {
-      if (signature && message && address) {
-        const messageHashBytes = getMessageHash(message)
-        const isValid = await verifyMessage(messageHashBytes, address, signature)
+      if (signature && message && address && nonce) {
+        const oceanNode = OceanNode.getInstance()
+        const nonceCheckResult: NonceResponse = await checkNonce(
+          oceanNode.getDatabase().nonce,
+          address,
+          parseInt(nonce),
+          signature,
+          this.getMessage(address, nonce)
+        )
 
-        if (isValid) {
-          return { valid: true, error: '' }
+        if (!nonceCheckResult.valid) {
+          return { valid: false, error: nonceCheckResult.error }
         }
       }
 
@@ -107,7 +109,7 @@ export class Auth {
       return {
         valid: false,
         error:
-          'Invalid authentication, you need to provide either a token or an address, signature and message'
+          'Invalid authentication, you need to provide either a token or an address, signature, message and nonce'
       }
     } catch (e) {
       return { valid: false, error: `Error during authentication validation: ${e}` }

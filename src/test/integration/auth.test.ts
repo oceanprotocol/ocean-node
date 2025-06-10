@@ -64,6 +64,10 @@ describe('Auth Token Integration Tests', () => {
     await tearDownEnvironment(previousConfiguration)
   })
 
+  const getRandomNonce = () => {
+    return Date.now().toString()
+  }
+
   const ddoValiationRequest = async (token: string) => {
     try {
       const validateHandler = new ValidateDDOHandler(oceanNode)
@@ -114,14 +118,16 @@ describe('Auth Token Integration Tests', () => {
       this.timeout(DEFAULT_TEST_TIMEOUT)
 
       const consumerAddress = await consumerAccount.getAddress()
-      const message = auth.getSignatureMessage()
+      const nonce = getRandomNonce()
+      const message = auth.getMessage(consumerAddress, nonce)
       const messageHash = getMessageHash(message)
       const signature = await consumerAccount.signMessage(messageHash)
 
       const handlerResponse = await new CreateAuthTokenHandler(oceanNode).handle({
         command: PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
         address: consumerAddress,
-        signature
+        signature,
+        nonce
       })
 
       const token = await streamToObject(handlerResponse.stream as Readable)
@@ -133,7 +139,8 @@ describe('Auth Token Integration Tests', () => {
       this.timeout(DEFAULT_TEST_TIMEOUT)
 
       const consumerAddress = await consumerAccount.getAddress()
-      const message = auth.getSignatureMessage()
+      const nonce = getRandomNonce()
+      const message = auth.getMessage(consumerAddress, nonce)
       const messageHash = getMessageHash(message)
       const signature = await consumerAccount.signMessage(messageHash)
 
@@ -142,6 +149,7 @@ describe('Auth Token Integration Tests', () => {
         command: PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
         address: consumerAddress,
         signature,
+        nonce,
         validUntil
       })
 
@@ -157,22 +165,26 @@ describe('Auth Token Integration Tests', () => {
       this.timeout(DEFAULT_TEST_TIMEOUT)
 
       const consumerAddress = await consumerAccount.getAddress()
-      const message = auth.getSignatureMessage()
+      const nonce = getRandomNonce()
+      const message = auth.getMessage(consumerAddress, nonce)
       const messageHash = getMessageHash(message)
       const signature = await consumerAccount.signMessage(messageHash)
 
       const handlerResponse = await new CreateAuthTokenHandler(oceanNode).handle({
         command: PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
         address: consumerAddress,
-        signature
+        signature,
+        nonce
       })
 
       const token = await streamToObject(handlerResponse.stream as Readable)
+      const newNonce = getRandomNonce()
 
       await new InvalidateAuthTokenHandler(oceanNode).handle({
         command: PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
         address: consumerAddress,
         signature,
+        nonce: newNonce,
         token: token.token
       })
 
@@ -189,7 +201,8 @@ describe('Auth Token Integration Tests', () => {
         const response = await new CreateAuthTokenHandler(oceanNode).handle({
           command: PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
           address: consumerAddress,
-          signature: '0xinvalid'
+          signature: '0xinvalid',
+          nonce: getRandomNonce()
         })
         expect(response.status.httpStatus).to.equal(401)
       })
@@ -208,19 +221,22 @@ describe('Auth Token Integration Tests', () => {
         const response = await new CreateAuthTokenHandler(oceanNode).handle({
           command: PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
           address: await consumerAccount.getAddress(),
-          signature: undefined
+          signature: undefined,
+          nonce: getRandomNonce()
         })
         expect(response.status.httpStatus).to.equal(400)
 
         // Missing address
-        const message = auth.getSignatureMessage()
+        const nonce = getRandomNonce()
+        const message = auth.getMessage(await consumerAccount.getAddress(), nonce)
         const messageHash = getMessageHash(message)
         const signature = await consumerAccount.signMessage(messageHash)
 
         const response2 = await new CreateAuthTokenHandler(oceanNode).handle({
           command: PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
           address: undefined,
-          signature
+          signature,
+          nonce: getRandomNonce()
         })
         expect(response2.status.httpStatus).to.equal(400)
       })
