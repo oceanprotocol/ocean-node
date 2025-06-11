@@ -113,6 +113,7 @@ export interface OceanNodeConfig {
   unsafeURLs?: string[]
   isBootstrap?: boolean
   validateUnsignedDDO?: boolean
+  jwtSecret?: string
 }
 
 export interface P2PStatusResponse {

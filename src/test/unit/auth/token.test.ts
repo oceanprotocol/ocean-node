@@ -23,7 +23,7 @@ describe('Auth Token Tests', () => {
   }
 
   it('should create and validate a token', async () => {
-    const jwtToken = auth.getJWTToken(wallet.address, getRandomNonce(), Date.now())
+    const jwtToken = await auth.getJWTToken(wallet.address, getRandomNonce(), Date.now())
     await auth.insertToken(wallet.address, jwtToken, Date.now() + 1000, Date.now())
 
     const result = await auth.validateAuthenticationOrToken({ token: jwtToken })
@@ -47,7 +47,7 @@ describe('Auth Token Tests', () => {
   })
 
   it('should respect token expiry', async () => {
-    const jwtToken = auth.getJWTToken(wallet.address, getRandomNonce(), Date.now())
+    const jwtToken = await auth.getJWTToken(wallet.address, getRandomNonce(), Date.now())
     await auth.insertToken(wallet.address, jwtToken, Date.now() + 1000, Date.now())
 
     await new Promise((resolve) => setTimeout(resolve, 1500))
@@ -57,7 +57,7 @@ describe('Auth Token Tests', () => {
   })
 
   it('should invalidate a token', async () => {
-    const jwtToken = auth.getJWTToken(wallet.address, getRandomNonce(), Date.now())
+    const jwtToken = await auth.getJWTToken(wallet.address, getRandomNonce(), Date.now())
     await auth.insertToken(wallet.address, jwtToken, Date.now() + 1000, Date.now())
 
     await auth.invalidateToken(jwtToken)

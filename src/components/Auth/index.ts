@@ -2,6 +2,7 @@ import { AuthToken, AuthTokenDatabase } from '../database/AuthTokenDatabase.js'
 import jwt from 'jsonwebtoken'
 import { checkNonce, NonceResponse } from '../core/utils/nonceHandler.js'
 import { OceanNode } from '../../OceanNode.js'
+import { getConfiguration } from '../../utils/index.js'
 
 export interface CommonValidation {
   valid: boolean
@@ -10,29 +11,28 @@ export interface CommonValidation {
 
 export class Auth {
   private authTokenDatabase: AuthTokenDatabase
-  private jwtSecret: string
 
   public constructor(authTokenDatabase: AuthTokenDatabase) {
     this.authTokenDatabase = authTokenDatabase
-    this.jwtSecret = process.env.JWT_SECRET || 'ocean-node-secret'
   }
 
-  public getJwtSecret(): string {
-    return this.jwtSecret
+  public async getJwtSecret(): Promise<string> {
+    const config = await getConfiguration()
+    return config.jwtSecret
   }
 
   public getMessage(address: string, nonce: string): string {
     return address + nonce
   }
 
-  getJWTToken(address: string, nonce: string, createdAt: number): string {
+  async getJWTToken(address: string, nonce: string, createdAt: number): Promise<string> {
     const jwtToken = jwt.sign(
       {
         address,
         nonce,
         createdAt
       },
-      this.getJwtSecret()
+      await this.getJwtSecret()
     )
 
     return jwtToken
