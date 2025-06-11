@@ -72,17 +72,15 @@ export class Auth {
     token,
     address,
     nonce,
-    signature,
-    message
+    signature
   }: {
     token?: string
     address?: string
     nonce?: string
     signature?: string
-    message?: string
   }): Promise<CommonValidation> {
     try {
-      if (signature && message && address && nonce) {
+      if (signature && address && nonce) {
         const oceanNode = OceanNode.getInstance()
         const nonceCheckResult: NonceResponse = await checkNonce(
           oceanNode.getDatabase().nonce,
@@ -94,6 +92,10 @@ export class Auth {
 
         if (!nonceCheckResult.valid) {
           return { valid: false, error: nonceCheckResult.error }
+        }
+
+        if (nonceCheckResult.valid) {
+          return { valid: true, error: '' }
         }
       }
 

@@ -63,18 +63,6 @@ describe('Schema validation tests', () => {
     tearDownEnvironment(envOverrides)
   })
 
-  const getWalletSignature = async (ddo: DDO, date: number) => {
-    const message = ddo.id + date
-    const messageHash = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
-    )
-
-    const messageHashBytes = ethers.getBytes(messageHash)
-    const signature = await wallet.signMessage(messageHashBytes)
-    return signature
-  }
-
   it('should pass the validation on version 4.1.0', async () => {
     const ddoInstance = DDOManager.getDDOClass(DDOExample)
     const validationResult = await ddoInstance.validate()
@@ -170,16 +158,22 @@ describe('Schema validation tests', () => {
     const handler = new ValidateDDOHandler(oceanNode)
     const ddoInstance = DDOManager.getDDOClass(ddoValidationSignature)
     const ddo = ddoInstance.getDDOData() as DDO
-
-    const date = Date.now()
-    const signature = await getWalletSignature(ddo, date)
+    const auth = oceanNode.getAuth()
+    const publisherAddress = await wallet.getAddress()
+    const nonce = Date.now().toString()
+    const message = auth.getMessage(publisherAddress, nonce)
+    const messageHash = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(messageHash)
+    const signature = await wallet.signMessage(messageHashBytes)
 
     const task = {
       ddo,
-      publisherAddress: await wallet.getAddress(),
-      nonce: date.toString(),
+      publisherAddress,
+      nonce,
       signature,
-      message: ddo.id + date,
       command: PROTOCOL_COMMANDS.VALIDATE_DDO
     }
 

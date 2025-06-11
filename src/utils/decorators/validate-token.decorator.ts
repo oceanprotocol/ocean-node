@@ -26,7 +26,7 @@ export function ValidateTokenOrSignature(
       }
 
       const task = args[0]
-      const { authorization, signature, message } = task
+      const { authorization, signature, nonce } = task
       const address = task.address || task.publisherAddress
       const jwt = authorization?.includes('Bearer')
         ? authorization.split(' ')[1]
@@ -37,7 +37,7 @@ export function ValidateTokenOrSignature(
       const isAuthRequestValid = await auth.validateAuthenticationOrToken({
         token: jwt,
         signature,
-        message,
+        nonce,
         address
       })
       if (!isAuthRequestValid.valid) {

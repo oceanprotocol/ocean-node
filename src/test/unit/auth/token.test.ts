@@ -36,12 +36,11 @@ describe('Auth Token Tests', () => {
   })
 
   it('should fail validation with invalid signature', async () => {
-    const message = 'Test message'
     const invalidSignature = '0x' + '0'.repeat(130)
 
     const result = await auth.validateAuthenticationOrToken({
       signature: invalidSignature,
-      message,
+      nonce: getRandomNonce(),
       address: wallet.address
     })
     expect(result.valid).to.be.equal(false)
