@@ -261,3 +261,7 @@ export interface StartStopIndexingCommand extends AdminCommand {
 export interface PolicyServerPassthroughCommand extends Command {
   policyServerPassthrough?: any
 }
+
+export interface GetJobsCommand extends Command {
+  fromTimestamp?: string
+}

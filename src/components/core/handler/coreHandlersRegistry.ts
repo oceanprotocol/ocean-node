@@ -28,7 +28,8 @@ import {
   ComputeGetStatusHandler,
   ComputeGetResultHandler,
   ComputeInitializeHandler,
-  ComputeGetStreamableLogsHandler
+  ComputeGetStreamableLogsHandler,
+  GetJobsHandler
 } from '../compute/index.js'
 import { StopNodeHandler } from '../admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../admin/reindexTxHandler.js'
@@ -97,7 +98,7 @@ export class CoreHandlersRegistry {
       PROTOCOL_COMMANDS.POLICY_SERVER_PASSTHROUGH,
       new PolicyServerPassthroughHandler(node)
     )
-
+    this.registerCoreHandler(PROTOCOL_COMMANDS.GET_JOBS, new GetJobsHandler(node))
     this.registerCoreHandler(PROTOCOL_COMMANDS.VALIDATE_DDO, new ValidateDDOHandler(node))
     this.registerCoreHandler(
       PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS,
