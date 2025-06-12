@@ -33,6 +33,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `AUTHORIZED_PUBLISHERS`: Authorized list of publishers. If present, Node will only index assets published by the accounts in the list. Example: `"[\"0x967da4048cD07aB37855c090aAF366e4ce1b9F48\",\"0x388C818CA8B9251b393131C08a736A67ccB19297\"]"`
 - `AUTHORIZED_PUBLISHERS_LIST`: AccessList contract addresses (per chain). If present, Node will only index assets published by the accounts present on the given access lists. Example: `"{ \"8996\": [\"0x967da4048cD07aB37855c090aAF366e4ce1b9F48\",\"0x388C818CA8B9251b393131C08a736A67ccB19297\"] }"`
 - `VALIDATE_UNSIGNED_DDO`: If set to `false`, the node will not validate unsigned DDOs and will request a signed message with the publisher address, nonce and signature. Default is `true`. Example: `false`
+- `JWT_SECRET`: Secret used to sign JWT tokens. Default is `ocean-node-secret`. Example: `"my-secret-jwt-token"`
 
 ## Payments
 
