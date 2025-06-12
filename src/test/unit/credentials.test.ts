@@ -12,7 +12,8 @@ import {
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { homedir } from 'os'
-import { Credentials } from '@oceanprotocol/ddo-js'
+import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
+import { Credentials, CREDENTIALS_TYPES } from '@oceanprotocol/ddo-js'
 
 let envOverrides: OverrideEnvConfig[]
 
@@ -28,133 +29,140 @@ describe('credentials', () => {
     envOverrides = await setupEnvironment(null, envOverrides)
   })
 
-  it('should allow access with undefined or empty credentials', () => {
+  it('should deny access with undefined or empty credentials', async () => {
     const credentialsUndefined: Credentials = undefined
     const consumerAddress = '0x123'
-    const accessGranted1 = checkCredentials(credentialsUndefined, consumerAddress)
-    expect(accessGranted1).to.equal(true)
+    const accessGranted1 = await checkCredentials(credentialsUndefined, consumerAddress)
+    expect(accessGranted1).to.equal(false)
     const credentialsEmapty = {} as Credentials
-    const accessGranted2 = checkCredentials(credentialsEmapty, consumerAddress)
-    expect(accessGranted2).to.equal(true)
+    const accessGranted2 = await checkCredentials(credentialsEmapty, consumerAddress)
+    expect(accessGranted2).to.equal(false)
   })
-  it('should allow access with empty allow and deny lists', () => {
+
+  it('should deny access with empty allow and deny lists', async () => {
+    // if list does not exist or is empty access is denied
     const credentials: Credentials = {
       allow: [],
       deny: []
     }
     const consumerAddress = '0x123'
-    const accessGranted = checkCredentials(credentials, consumerAddress)
-    expect(accessGranted).to.equal(true)
-  })
-  it('should allow access with empty values in deny lists', () => {
-    const credentials: Credentials = {
-      allow: [],
-      deny: [
-        {
-          type: 'address',
-          values: []
-        }
-      ]
-    }
-    const consumerAddress = '0x123'
-    const accessGranted = checkCredentials(credentials, consumerAddress)
-    expect(accessGranted).to.equal(true)
-  })
-
-  it('should allow access with "accessList" credentials type', () => {
-    const consumerAddress = '0x123'
-    const credentials: Credentials = {
-      allow: [],
-      deny: [
-        {
-          type: 'accessList',
-          values: [consumerAddress]
-        }
-      ]
-    }
-
-    const accessGranted = checkCredentials(credentials, consumerAddress)
-    expect(accessGranted).to.equal(true)
-  })
-
-  it('should deny access with empty values in allow lists', () => {
-    const credentials: Credentials = {
-      deny: [],
-      allow: [
-        {
-          type: 'address',
-          values: []
-        }
-      ]
-    }
-    const consumerAddress = '0x123'
-    const accessGranted = checkCredentials(credentials, consumerAddress)
+    const accessGranted = await checkCredentials(credentials, consumerAddress)
     expect(accessGranted).to.equal(false)
   })
-  it('should allow access with address in allow list', () => {
+
+  it('should deny access with empty values in deny lists', async () => {
+    const credentials: Credentials = {
+      allow: [],
+      deny: [
+        {
+          type: CREDENTIALS_TYPES.ADDRESS,
+          values: []
+        }
+      ]
+    }
+    const consumerAddress = '0x123'
+    const accessGranted = await checkCredentials(credentials, consumerAddress)
+    expect(accessGranted).to.equal(false)
+  })
+
+  it('should deny access with "accessList" credentials (default behaviour if cannot check)', async () => {
+    const consumerAddress = '0x123'
+    const credentials: Credentials = {
+      allow: [],
+      deny: [
+        {
+          type: CREDENTIALS_TYPES.ACCESS_LIST,
+          values: [consumerAddress] // not a valid SC address anyway
+        }
+      ]
+    }
+
+    const accessGranted = await checkCredentials(credentials, consumerAddress)
+    expect(accessGranted).to.equal(false)
+  })
+
+  it('should deny access with empty values in allow lists', async () => {
     const credentials: Credentials = {
       deny: [],
       allow: [
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
+          values: []
+        }
+      ]
+    }
+    const consumerAddress = '0x123'
+    const accessGranted = await checkCredentials(credentials, consumerAddress)
+    expect(accessGranted).to.equal(false)
+  })
+
+  it('should allow access with address in allow list', async () => {
+    const credentials: Credentials = {
+      deny: [],
+      allow: [
+        {
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: ['0x123']
         }
       ]
     }
     const consumerAddress = '0x123'
-    const accessGranted = checkCredentials(credentials, consumerAddress)
+    const accessGranted = await checkCredentials(credentials, consumerAddress)
     expect(accessGranted).to.equal(true)
   })
-  it('should allow access with address not in deny list', () => {
+
+  it('should deny access with address not explicitly in deny list but also without any allow list', async () => {
     const credentials: Credentials = {
       allow: [],
       deny: [
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: ['0x456']
         }
       ]
     }
     const consumerAddress = '0x123'
-    const accessGranted = checkCredentials(credentials, consumerAddress)
-    expect(accessGranted).to.equal(true)
+    const accessGranted = await checkCredentials(credentials, consumerAddress)
+    expect(accessGranted).to.equal(false) // its not denied explicitly but not allowed either
   })
-  it('should deny access with address in deny list', () => {
+
+  it('should deny access with address in deny list', async () => {
     const credentials: Credentials = {
       allow: [
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: []
         }
       ],
       deny: [
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: ['0x123']
         }
       ]
     }
     const consumerAddress = '0x123'
-    const accessGranted = checkCredentials(credentials, consumerAddress)
+    const accessGranted = await checkCredentials(credentials, consumerAddress)
     expect(accessGranted).to.equal(false)
   })
-  it('should deny access with address not in allow list', () => {
+
+  it('should deny access with address not in allow list', async () => {
     const credentials: Credentials = {
       allow: [
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: ['0x456']
         }
       ],
       deny: [
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: []
         }
       ]
     }
     const consumerAddress = '0x123'
-    const accessGranted = checkCredentials(credentials, consumerAddress)
+    const accessGranted = await checkCredentials(credentials, consumerAddress)
     expect(accessGranted).to.equal(false)
   })
 
@@ -163,6 +171,7 @@ describe('credentials', () => {
       allow: [],
       deny: [
         {
+          // @ts-expect-error
           type: 'unknow_type',
           values: ['0x456']
         }
@@ -174,17 +183,17 @@ describe('credentials', () => {
     const credentialsOk: Credentials = {
       deny: [
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: ['0x456']
         }
       ],
       allow: [
         {
-          type: 'accessList',
+          type: CREDENTIALS_TYPES.ACCESS_LIST,
           values: ['0x456']
         },
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: ['0x678']
         }
       ]
@@ -195,12 +204,13 @@ describe('credentials', () => {
     const credentialsNOk: Credentials = {
       deny: [
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: ['0x456']
         }
       ],
       allow: [
         {
+          // @ts-expect-error
           type: 'not_valid_type',
           values: ['0x456']
         }
@@ -215,13 +225,13 @@ describe('credentials', () => {
       credentials: {
         allow: [
           {
-            type: 'address',
+            type: CREDENTIALS_TYPES.ADDRESS,
             values: ['*']
           }
         ],
         deny: [
           {
-            type: 'address',
+            type: CREDENTIALS_TYPES.ADDRESS,
             values: ['0x2222', '0x333']
           }
         ]
@@ -231,6 +241,79 @@ describe('credentials', () => {
     const creds2 = structuredClone(creds)
     creds2.credentials.allow[0].values = ['0x2222', '0x333']
     expect(hasAddressMatchAllRule(creds2.credentials.allow)).to.be.equal(false)
+  })
+
+  it('should deny access by default if no specific allow rule is a match', async () => {
+    const credentials: Credentials = {
+      allow: [
+        {
+          type: CREDENTIALS_TYPES.ADDRESS,
+          values: []
+        }
+      ],
+      deny: [
+        {
+          type: CREDENTIALS_TYPES.ADDRESS,
+          values: []
+        }
+      ]
+    }
+    const consumerAddress = '0x123'
+    const accessGranted = await checkCredentials(
+      credentials,
+      consumerAddress,
+      DEVELOPMENT_CHAIN_ID
+    )
+    expect(accessGranted).to.equal(false)
+  })
+
+  it('should allow acess with match_allow: any', async () => {
+    const credentials: Credentials = {
+      allow: [
+        {
+          type: CREDENTIALS_TYPES.ADDRESS,
+          values: ['0x123']
+        },
+        {
+          type: CREDENTIALS_TYPES.ACCESS_LIST,
+          values: ['0x456']
+        }
+      ],
+      deny: [],
+      match_allow: 'any'
+    }
+    const consumerAddress = '0x123'
+    const accessGranted = await checkCredentials(
+      credentials,
+      consumerAddress,
+      DEVELOPMENT_CHAIN_ID
+    )
+
+    expect(accessGranted).to.equal(true)
+  })
+
+  it('should deny access with match_allow: all', async () => {
+    const credentials: Credentials = {
+      allow: [
+        {
+          type: CREDENTIALS_TYPES.ADDRESS,
+          values: ['0x123']
+        },
+        {
+          type: CREDENTIALS_TYPES.ACCESS_LIST,
+          values: ['0x456']
+        }
+      ],
+      deny: [],
+      match_allow: 'all'
+    }
+    const consumerAddress = '0x123'
+    const accessGranted = await checkCredentials(
+      credentials,
+      consumerAddress,
+      DEVELOPMENT_CHAIN_ID
+    )
+    expect(accessGranted).to.equal(false)
   })
 
   after(async () => {
