@@ -121,7 +121,7 @@ export class PaidComputeStartHandler extends CommandHandler {
         node
       )
 
-      const isRawCodeAlgorithm = task.algorithm.meta.rawcode
+      const isRawCodeAlgorithm = task.algorithm.meta?.rawcode
       const hasValidChecksums = algoChecksums.container && algoChecksums.files
 
       if (!isRawCodeAlgorithm && !hasValidChecksums) {
