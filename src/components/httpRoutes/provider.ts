@@ -13,6 +13,7 @@ import { FeesHandler } from '../core/handler/feesHandler.js'
 import { BaseFileObject, EncryptMethod } from '../../@types/fileObject.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { getEncryptMethodFromString } from '../../utils/crypt.js'
+import { PolicyServerTask } from '../../@types/policyServer.js'
 
 export const providerRoutes = express.Router()
 
@@ -153,7 +154,7 @@ providerRoutes.get(`${SERVICES_API_BASE_PATH}/initialize`, async (req, res) => {
       serviceId: (req.query.serviceId as string) || null,
       consumerAddress: (req.query.consumerAddress as string) || null,
       validUntil: parseInt(req.query.validUntil as string) || null,
-      policyServer: req.query.policyServer || null
+      policyServer: (req.query.policyServer as PolicyServerTask) || null
     })
     if (result.stream) {
       const initializeREsponse = await streamToObject(result.stream as Readable)
@@ -220,7 +221,7 @@ providerRoutes.get(
         consumerAddress: consumerAddress as string,
         signature: signature as string,
         command: PROTOCOL_COMMANDS.DOWNLOAD,
-        policyServer: req.query.policyServer || null
+        policyServer: (req.query.policyServer as PolicyServerTask) || null
       }
 
       const response = await new DownloadHandler(req.oceanNode).handle(downloadTask)
