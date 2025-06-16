@@ -378,10 +378,8 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
 
     if (fromTimestamp) {
       selectSQL += ` WHERE body LIKE ?`
-      // Since algoStartTimestamp is stored in the JSON blob, we need to search within it
       params.push(`%"algoStartTimestamp":"${fromTimestamp}"%`)
       selectSQL += ` OR body LIKE ?`
-      // Also match cases where timestamp is after our fromTimestamp
       params.push(`%"algoStartTimestamp":"%`) // We'll filter exact timestamps in JS
     }
 
@@ -404,7 +402,6 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
             })
 
             if (fromTimestamp) {
-              // Filter in JS for more precise timestamp comparison
               const filtered = all.filter((job) => {
                 if (!job.algoStartTimestamp) return false
                 return job.algoStartTimestamp >= fromTimestamp

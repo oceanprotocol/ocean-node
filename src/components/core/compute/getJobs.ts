@@ -22,12 +22,12 @@ export class GetJobsHandler extends CommandHandler {
     }
 
     try {
-      const oceanNode = this.getOceanNode()
-      if (!oceanNode.database?.c2d) {
+      const { c2d } = this.getOceanNode().getDatabase()
+      if (!c2d) {
         throw new Error('Database not initialized')
       }
 
-      const jobs = await oceanNode.database.c2d.getAllJobs(task.fromTimestamp)
+      const jobs = await c2d.getAllJobs(task.fromTimestamp)
 
       return {
         status: {

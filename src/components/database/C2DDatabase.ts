@@ -70,6 +70,10 @@ export class C2DDatabase extends AbstractDatabase {
     return await this.provider.deleteJob(jobId)
   }
 
+  async getAllJobs(fromTimestamp?: string): Promise<boolean> {
+    return await this.provider.getAllJobs(fromTimestamp)
+  }
+
   /**
    *
    * @param environment compute environment to check for
