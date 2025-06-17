@@ -1,13 +1,14 @@
 // scheduleCronJobs.ts
 
 import { Database } from '../../components/database/index.js'
+import { OceanNode } from '../../OceanNode.js'
 import { ENVIRONMENT_VARIABLES } from '../constants.js'
 import { OCEAN_NODE_LOGGER } from '../logging/common.js'
 import * as cron from 'node-cron'
 
-export function scheduleCronJobs(dbconn: Database | null) {
-  scheduleDeleteLogsJob(dbconn)
-  scheduleCleanExpiredC2DJobs(dbconn)
+export function scheduleCronJobs(node: OceanNode) {
+  scheduleDeleteLogsJob(node.getDatabase())
+  scheduleCleanExpiredC2DJobs(node.getDatabase())
 }
 
 function scheduleDeleteLogsJob(dbconn: Database | null) {

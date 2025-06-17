@@ -404,19 +404,38 @@ returns list of logs
 
 ---
 
-## Advertise Did
+## Get providers for a string
 
-### `HTTP` GET /advertiseDid/?did=did:op:123"
+### `HTTP` GET /getProvidersForString/?input=did:op:123"
 
 #### Description
 
-returns empty if advertising did around peers was successful
+returns list of nodes providing the specific element(s) (dids, c2d resources, etc)
 
 #### Query Parameters
 
-| name | type   | required | description        |
-| ---- | ------ | -------- | ------------------ |
-| did  | string | v        | document id or did |
+| name  | type   | required | description            |
+| ----- | ------ | -------- | ---------------------- |
+| input | string | v        | did, c2d resource, etc |
+
+## Get providers for a list of strings
+
+### `HTTP` POST /getProvidersForStrings"
+
+#### Request
+
+```json
+{
+  [
+    "did:op:123",
+    "did:op:345"
+  ]
+}
+```
+
+#### Description
+
+returns list of nodes providing the specific element (dids, c2d resources, etc)
 
 ---
 
@@ -1338,6 +1357,7 @@ starts a free compute job and returns jobId if succesfull
 returns job status
 
 #### Parameters
+
 Required at least one of the following parameters:
 
 | name            | type   | required | description                          |
@@ -1399,7 +1419,7 @@ returns job result
 | jobId           | string | v        | jobId address to use as filter                                 |
 | signature       | string | v        | signature (consumerAddress + jobId + index.toString() + nonce) |
 | nonce           | string | v        | nonce for the request                                          |
-| index           | number | v        | index of result  (0 for main result, 1 for logs)               |
+| index           | number | v        | index of result (0 for main result, 1 for logs)                |
 
 #### Response
 

@@ -146,7 +146,7 @@ export class OceanP2P extends EventEmitter {
     // listen for indexer events and advertise did
     INDEXER_DDO_EVENT_EMITTER.addListener(EVENTS.METADATA_CREATED, (did) => {
       P2P_LOGGER.info(`Listened "${EVENTS.METADATA_CREATED}"`)
-      this.advertiseDid(did)
+      this.advertiseString(did)
     })
   }
 
@@ -755,7 +755,7 @@ export class OceanP2P extends EventEmitter {
     }
   }
 
-  async advertiseDid(did: string) {
+  async advertiseString(did: string) {
     P2P_LOGGER.logMessage('Advertising ' + did, true)
     try {
       const x = (await this.getAllOceanPeers()).length
@@ -779,9 +779,9 @@ export class OceanP2P extends EventEmitter {
     }
   }
 
-  async getProvidersForDid(did: string) {
-    P2P_LOGGER.logMessage('Fetching providers for ' + did, true)
-    const cid = await cidFromRawString(did)
+  async getProvidersForString(input: string) {
+    P2P_LOGGER.logMessage('Fetching providers for ' + input, true)
+    const cid = await cidFromRawString(input)
     const peersFound = []
     try {
       const f = await this._libp2p.contentRouting.findProviders(cid, {
@@ -792,7 +792,7 @@ export class OceanP2P extends EventEmitter {
         peersFound.push(value)
       }
     } catch (e) {
-      P2P_LOGGER.error('getProvidersForDid()' + e.message)
+      P2P_LOGGER.error('getProvidersForString()' + e.message)
     }
     return peersFound
   }
@@ -818,7 +818,7 @@ export class OceanP2P extends EventEmitter {
         P2P_LOGGER.logMessage(`Will republish cid for ${result[0].found} documents`, true)
         result[0].hits.forEach((hit: any) => {
           const ddo = hit.document
-          this.advertiseDid(ddo.id)
+          this.advertiseString(ddo.id)
           // populate hash table if not exists
           // (even if no peers are listening, it still goes to the pending publish table)
           if (!this._ddoDHT.dht.has(ddo.id)) {
@@ -893,7 +893,7 @@ export class OceanP2P extends EventEmitter {
         // if already added before, create() will return null, but still advertise it
         try {
           await db.create(ddo)
-          await this.advertiseDid(ddo.id)
+          await this.advertiseString(ddo.id)
           // populate hash table
           this.cacheDDO(ddo)
           count++
