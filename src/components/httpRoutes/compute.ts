@@ -281,10 +281,6 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/initializeCompute`, async (req, re
         return
       }
     }
-    if (!body.algorithm.documentId) {
-      res.status(400).send('Missing algorithm did')
-      return
-    }
     body.command = PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
     const result = await new ComputeInitializeHandler(req.oceanNode).handle(body)
     if (result.stream) {
