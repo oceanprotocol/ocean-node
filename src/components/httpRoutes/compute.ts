@@ -30,6 +30,7 @@ import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants
 import { Readable } from 'stream'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { PolicyServerTask } from '../../@types/policyServer.js'
 
 export const computeRoutes = express.Router()
 
@@ -76,7 +77,8 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       algorithm: (req.body.algorithm as ComputeAlgorithm) || null,
       datasets: (req.body.datasets as unknown as ComputeAsset[]) || null,
       payment: (req.body.payment as unknown as ComputePayment) || null,
-      resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null
+      resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null,
+      policyServer: (req.query.policyServer as PolicyServerTask) || null
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output as ComputeOutput
@@ -118,7 +120,8 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => 
       algorithm: (req.body.algorithm as ComputeAlgorithm) || null,
       datasets: (req.body.datasets as unknown as ComputeAsset[]) || null,
       resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null,
-      maxJobDuration: req.body.maxJobDuration || null
+      maxJobDuration: req.body.maxJobDuration || null,
+      policyServer: (req.query.policyServer as PolicyServerTask) || null
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output as ComputeOutput
