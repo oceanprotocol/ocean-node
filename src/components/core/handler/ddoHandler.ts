@@ -617,7 +617,7 @@ export class FindDdoHandler extends CommandHandler {
       }, 1000 * MAX_RESPONSE_WAIT_TIME_SECONDS)
 
       // check other providers for this ddo
-      const providers = await p2pNode.getProvidersForDid(task.id)
+      const providers = await p2pNode.getProvidersForString(task.id)
       // check if includes self and exclude from check list
       if (providers.length > 0) {
         // exclude this node from the providers list if present
