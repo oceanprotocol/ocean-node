@@ -435,12 +435,7 @@ returns list of nodes providing all specific elements.
 #### Request
 
 ```json
-{
-  [
-    "did:op:123",
-    "did:op:345"
-  ]
-}
+["{\"c2d\":{\"free\":false,\"disk\":1}}", "{\"c2d\":{\"free\":false,\"cpu\":1}}"]
 ```
 
 #### Response
