@@ -420,7 +420,17 @@ returns list of nodes providing the specific element(s) (dids, c2d resources, et
 
 ## Get providers for a list of strings
 
-### `HTTP` POST /getProvidersForStrings"
+### `HTTP` POST /getProvidersForStrings?timeout=10"
+
+#### Description
+
+returns list of nodes providing all specific elements.
+
+#### Query Parameters
+
+| name    | type   | required | description            |
+| ------- | ------ | -------- | ---------------------- |
+| timeout | string | optional | timeout in miliseconds |
 
 #### Request
 
@@ -433,9 +443,24 @@ returns list of nodes providing the specific element(s) (dids, c2d resources, et
 }
 ```
 
-#### Description
+#### Response
 
-returns list of nodes providing the specific element (dids, c2d resources, etc)
+```json
+[
+  {
+    "id": "16Uiu2HAmENNgCY1QAdQrPxipgUCQjyookUgpnbgXua4ZMju4Rkou",
+    "multiaddrs": [
+      "/ip4/10.255.255.254/tcp/41015/ws",
+      "/ip4/10.255.255.254/tcp/41347",
+      "/ip4/127.0.0.1/tcp/41015/ws",
+      "/ip4/127.0.0.1/tcp/41347",
+      "/ip4/172.27.58.101/tcp/41015/ws",
+      "/ip4/172.27.58.101/tcp/41347",
+      "/ip6/::1/tcp/37527"
+    ]
+  }
+]
+```
 
 ---
 

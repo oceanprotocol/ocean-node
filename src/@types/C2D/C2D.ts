@@ -30,7 +30,7 @@ export interface ComputeResourcesPricingInfo {
 export interface ComputeResource {
   id: ComputeResourceType
   type?: string
-  kind?: string
+  kind?: string // description of the resource
   total: number // total number of specific resource
   min: number // min number of resource needed for a job
   max: number // max number of resource for a job

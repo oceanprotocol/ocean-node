@@ -22,18 +22,36 @@ getProvidersForStringRoute.get(
   }
 )
 
-getProvidersForStringRoute.post('/getProvidersForStrings', async (req, res) => {
-  const { body } = req
-  const ret = Object()
-  if (Array.isArray(body) && body.every((item) => typeof item === 'string')) {
-    for (const input of body) {
-      const providers = await req.oceanNode
-        .getP2PNode()
-        .getProvidersForString(req.query.input as string)
-      ret[input] = providers
+export const getProvidersForStringsRoute = express.Router()
+getProvidersForStringsRoute.post(
+  '/getProvidersForStrings',
+  express.json(),
+  async (req, res) => {
+    try {
+      if (!req.body) {
+        res.status(400).send('Missing array of strings in request body.')
+        return
+      }
+      // const body = JSON.parse(req.body)
+      if (
+        Array.isArray(req.body) &&
+        req.body.every((item: unknown) => typeof item === 'string')
+      ) {
+        const timeout =
+          typeof req.query?.timeout === 'string'
+            ? parseInt(req.query.timeout, 10)
+            : undefined
+        const providers = await req.oceanNode
+          .getP2PNode()
+          .getProvidersForStrings(req.body, timeout)
+
+        res.json(providers)
+      } else {
+        res.status(400).send('Expected an array of strings.')
+      }
+    } catch (error) {
+      console.error('Error processing request:', error)
+      res.status(400).send(error)
     }
-    res.json(ret)
-  } else {
-    res.status(400).send('Expected an array of strings.')
   }
-})
+)
