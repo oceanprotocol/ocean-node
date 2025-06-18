@@ -20,6 +20,7 @@ import { PolicyServerTask } from './policyServer.js'
 export interface Command {
   command: string // command name
   node?: string // if not present it means current node
+  authorization?: string
 }
 
 export interface GetP2PPeerCommand extends Command {
@@ -83,6 +84,7 @@ export interface ValidateDDOCommand extends Command {
   publisherAddress?: string
   nonce?: string
   signature?: string
+  message?: string
 }
 
 export interface StatusCommand extends Command {
@@ -263,4 +265,16 @@ export interface StartStopIndexingCommand extends AdminCommand {
 
 export interface PolicyServerPassthroughCommand extends Command {
   policyServerPassthrough?: any
+}
+
+export interface CreateAuthTokenCommand extends Command {
+  address: string
+  signature: string
+  validUntil?: number | null
+}
+
+export interface InvalidateAuthTokenCommand extends Command {
+  address: string
+  signature: string
+  token: string
 }

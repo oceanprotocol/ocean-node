@@ -6,7 +6,7 @@ import { CORE_LOGGER } from './logging/common.js'
 import { getNFTContract } from '../components/Indexer/utils.js'
 import { isDefined } from './util.js'
 import { getOceanArtifactsAdressesByChainId } from './address.js'
-import { Credential, Credentials } from '@oceanprotocol/ddo-js'
+import { Credential, Credentials, CREDENTIALS_TYPES } from '@oceanprotocol/ddo-js'
 import { KNOWN_CREDENTIALS_TYPES } from '../@types/DDO/Credentials.js'
 
 export function findCredential(
@@ -53,7 +53,7 @@ export function hasAddressMatchAllRule(credentials: Credential[]): boolean {
  */
 export function checkCredentials(credentials: Credentials, consumerAddress: string) {
   const consumerCredentials: Credential = {
-    type: 'address',
+    type: CREDENTIALS_TYPES.ADDRESS,
     values: [String(consumerAddress)?.toLowerCase()]
   }
 

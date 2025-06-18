@@ -12,7 +12,7 @@ import {
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { homedir } from 'os'
-import { Credentials } from '@oceanprotocol/ddo-js'
+import { Credentials, CREDENTIALS_TYPES } from '@oceanprotocol/ddo-js'
 
 let envOverrides: OverrideEnvConfig[]
 
@@ -51,7 +51,7 @@ describe('credentials', () => {
       allow: [],
       deny: [
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: []
         }
       ]
@@ -67,7 +67,7 @@ describe('credentials', () => {
       allow: [],
       deny: [
         {
-          type: 'accessList',
+          type: CREDENTIALS_TYPES.ACCESS_LIST,
           values: [consumerAddress]
         }
       ]
@@ -82,7 +82,7 @@ describe('credentials', () => {
       deny: [],
       allow: [
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: []
         }
       ]
@@ -96,7 +96,7 @@ describe('credentials', () => {
       deny: [],
       allow: [
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: ['0x123']
         }
       ]
@@ -110,7 +110,7 @@ describe('credentials', () => {
       allow: [],
       deny: [
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: ['0x456']
         }
       ]
@@ -123,13 +123,13 @@ describe('credentials', () => {
     const credentials: Credentials = {
       allow: [
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: []
         }
       ],
       deny: [
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: ['0x123']
         }
       ]
@@ -142,13 +142,13 @@ describe('credentials', () => {
     const credentials: Credentials = {
       allow: [
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: ['0x456']
         }
       ],
       deny: [
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: []
         }
       ]
@@ -159,55 +159,26 @@ describe('credentials', () => {
   })
 
   it('should check correctly known credentials types', () => {
-    const credentials: Credentials = {
-      allow: [],
-      deny: [
-        {
-          type: 'unknow_type',
-          values: ['0x456']
-        }
-      ]
-    }
-    const isKnownType1 = areKnownCredentialTypes(credentials)
-    expect(isKnownType1).to.equal(false)
-
     const credentialsOk: Credentials = {
       deny: [
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: ['0x456']
         }
       ],
       allow: [
         {
-          type: 'accessList',
+          type: CREDENTIALS_TYPES.ACCESS_LIST,
           values: ['0x456']
         },
         {
-          type: 'address',
+          type: CREDENTIALS_TYPES.ADDRESS,
           values: ['0x678']
         }
       ]
     }
     const isKnownType2 = areKnownCredentialTypes(credentialsOk)
     expect(isKnownType2).to.equal(true)
-
-    const credentialsNOk: Credentials = {
-      deny: [
-        {
-          type: 'address',
-          values: ['0x456']
-        }
-      ],
-      allow: [
-        {
-          type: 'not_valid_type',
-          values: ['0x456']
-        }
-      ]
-    }
-    const isKnownType3 = areKnownCredentialTypes(credentialsNOk)
-    expect(isKnownType3).to.equal(false)
   })
 
   it('should check match all (*) rules', () => {
@@ -215,13 +186,13 @@ describe('credentials', () => {
       credentials: {
         allow: [
           {
-            type: 'address',
+            type: CREDENTIALS_TYPES.ADDRESS,
             values: ['*']
           }
         ],
         deny: [
           {
-            type: 'address',
+            type: CREDENTIALS_TYPES.ADDRESS,
             values: ['0x2222', '0x333']
           }
         ]

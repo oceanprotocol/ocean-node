@@ -265,6 +265,7 @@ jobs:
           DB_TYPE: 'elasticsearch'
           MAX_REQ_PER_MINUTE: 320
           MAX_CONNECTIONS_PER_MINUTE: 320
+          DOCKER_COMPUTE_ENVIRONMENTS: '[{"socketPath":"/var/run/docker.sock","resources":[{"id":"disk","total":1000000000}],"storageExpiry":604800,"maxJobDuration":3600,"fees":{"8996":[{"prices":[{"id":"cpu","price":1}]}]},"free":{"maxJobDuration":60,"maxJobs":3,"resources":[{"id":"cpu","max":1},{"id":"ram","max":1000000000},{"id":"disk","max":1000000000}]}}]'
       - name: Check Ocean Node is running
         run: |
           for i in $(seq 1 90); do
@@ -281,7 +282,7 @@ jobs:
         with:
           repository: 'oceanprotocol/ocean-cli'
           path: 'ocean-cli'
-          ref: 'main'
+          ref: 'fix-tests-for-node'
       - name: Setup Ocean CLI
         working-directory: ${{ github.workspace }}/ocean-cli
         run: |
