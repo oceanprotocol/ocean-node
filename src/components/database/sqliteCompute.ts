@@ -161,6 +161,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       job.jobId = jobId
     } else {
       const { jobId } = job
+      console.log('Using provided jobId:', jobId)
     }
 
     return new Promise<string>((resolve, reject) => {
