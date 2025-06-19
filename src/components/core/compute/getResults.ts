@@ -2,7 +2,6 @@ import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { CommandHandler } from '../handler/handler.js'
 import { ComputeGetResultCommand } from '../../../@types/commands.js'
-import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
 import {
   buildInvalidRequestMessage,
   validateCommandParameters,
@@ -38,33 +37,17 @@ export class ComputeGetResultHandler extends CommandHandler {
       return validationResponse
     }
 
-    let error = null
-
-    // signature message to check against
-    const message = task.consumerAddress + task.jobId + task.index.toString() + task.nonce
-    const nonceCheckResult: NonceResponse = await checkNonce(
-      this.getOceanNode().getDatabase().nonce,
+    const authValidationResponse = await this.validateTokenOrSignature(
+      task.authorization,
       task.consumerAddress,
-      parseInt(task.nonce),
+      task.nonce,
       task.signature,
-      message // task.jobId + task.index.toString()
+      String(task.consumerAddress + task.jobId + task.index.toString())
     )
-
-    if (!nonceCheckResult.valid) {
-      // eslint-disable-next-line prefer-destructuring
-      error = nonceCheckResult.error
+    if (authValidationResponse.status.httpStatus !== 200) {
+      return authValidationResponse
     }
 
-    if (error) {
-      CORE_LOGGER.logMessage(error, true)
-      return {
-        stream: null,
-        status: {
-          httpStatus: 400,
-          error
-        }
-      }
-    }
     // split jobId (which is already in hash-jobId format) and get the hash
     // then get jobId which might contain dashes as well
     const index = task.jobId.indexOf('-')

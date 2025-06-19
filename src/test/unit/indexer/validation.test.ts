@@ -158,10 +158,9 @@ describe('Schema validation tests', () => {
     const handler = new ValidateDDOHandler(oceanNode)
     const ddoInstance = DDOManager.getDDOClass(ddoValidationSignature)
     const ddo = ddoInstance.getDDOData() as DDO
-    const auth = oceanNode.getAuth()
     const publisherAddress = await wallet.getAddress()
     const nonce = Date.now().toString()
-    const message = auth.getMessage(publisherAddress, nonce)
+    const message = String(publisherAddress + nonce)
     const messageHash = ethers.solidityPackedKeccak256(
       ['bytes'],
       [ethers.hexlify(ethers.toUtf8Bytes(message))]

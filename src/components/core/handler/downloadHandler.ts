@@ -1,5 +1,4 @@
 import { CommandHandler } from './handler.js'
-import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
 import {
   ENVIRONMENT_VARIABLES,
   MetadataStates,
@@ -212,16 +211,24 @@ export class DownloadHandler extends CommandHandler {
       'fileIndex',
       'documentId',
       'serviceId',
-      'transferTxId',
-      'nonce',
-      'consumerAddress',
-      'signature'
+      'transferTxId'
     ])
   }
   // No encryption here yet
 
   async handle(task: DownloadCommand): Promise<P2PCommandResponse> {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
+    const isAuthRequestValid = await this.validateTokenOrSignature(
+      task.authorization,
+      task.consumerAddress,
+      task.nonce,
+      task.signature,
+      String(task.documentId + task.nonce)
+    )
+    if (isAuthRequestValid.status.httpStatus !== 200) {
+      return isAuthRequestValid
+    }
+
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
@@ -306,29 +313,6 @@ export class DownloadHandler extends CommandHandler {
       }
     }
 
-    // 3. Validate nonce and signature
-    const nonceCheckResult: NonceResponse = await checkNonce(
-      this.getOceanNode().getDatabase().nonce,
-      task.consumerAddress,
-      parseInt(task.nonce),
-      task.signature,
-      String(ddo.id + task.nonce)
-    )
-
-    if (!nonceCheckResult.valid) {
-      CORE_LOGGER.logMessage(
-        'Invalid nonce or signature, unable to proceed with download: ' +
-          nonceCheckResult.error,
-        true
-      )
-      return {
-        stream: null,
-        status: {
-          httpStatus: 500,
-          error: nonceCheckResult.error
-        }
-      }
-    }
     // from now on, we need blockchain checks
     const config = await getConfiguration()
     const { rpc, network, chainId, fallbackRPCs } = config.supportedNetworks[ddo.chainId]
