@@ -22,6 +22,7 @@ export const PROTOCOL_COMMANDS = {
   COMPUTE_STOP: 'stopCompute',
   COMPUTE_GET_STATUS: 'getComputeStatus',
   COMPUTE_GET_STREAMABLE_LOGS: 'getComputeStreamableLogs',
+  COMPUTE_GET_RESULT: 'getComputeResult',
   COMPUTE_INITIALIZE: 'computeInitialize',
   GET_JOBS: 'getJobs',
   STOP_NODE: 'stopNode',
