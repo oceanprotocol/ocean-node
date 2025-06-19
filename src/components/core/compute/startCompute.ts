@@ -67,7 +67,7 @@ export class PaidComputeStartHandler extends CommandHandler {
       task.consumerAddress,
       task.nonce,
       task.signature,
-      String(task.consumerAddress + task.datasets[0]?.documentId + task.nonce)
+      String(task.consumerAddress + task.nonce)
     )
 
     if (authValidationResponse.status.httpStatus !== 200) {

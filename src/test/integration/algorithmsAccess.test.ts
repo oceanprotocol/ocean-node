@@ -270,7 +270,7 @@ describe('Trusted algorithms Flow', () => {
   it('should not start a compute job because algorithm is not trusted by dataset', async () => {
     let balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
     const nonce = Date.now().toString()
-    const message = String(nonce)
+    const message = String((await consumerAccount.getAddress()) + nonce)
     // sign message/nonce
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
