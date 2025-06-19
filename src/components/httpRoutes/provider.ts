@@ -13,6 +13,9 @@ import { FeesHandler } from '../core/handler/feesHandler.js'
 import { BaseFileObject, EncryptMethod } from '../../@types/fileObject.js'
 import { P2PCommandResponse } from '../../@types/OceanNode.js'
 import { getEncryptMethodFromString } from '../../utils/crypt.js'
+import { ComputeGetEnvironmentsHandler } from '../core/compute/environments.js'
+import { GetJobsHandler } from '../core/compute/getJobs.js'
+import { ComputeGetStatusHandler } from '../core/compute/getStatus.js'
 
 export const providerRoutes = express.Router()
 
@@ -243,5 +246,65 @@ providerRoutes.get(
       res.status(500).send(error)
     }
     // res.sendStatus(200)
+  }
+)
+
+providerRoutes.get(`${SERVICES_API_BASE_PATH}/compute/environments`, async (req, res) => {
+  try {
+    const result = await new ComputeGetEnvironmentsHandler(req.oceanNode).handle({
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS
+    })
+    if (result.stream) {
+      const environments = await streamToObject(result.stream as Readable)
+      res.header('Content-Type', 'application/json')
+      res.status(200).send(environments)
+    } else {
+      res.status(result.status.httpStatus).send(result.status.error)
+    }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send('Internal Server Error')
+  }
+})
+
+providerRoutes.get(`${SERVICES_API_BASE_PATH}/compute/jobs`, async (req, res) => {
+  try {
+    const fromTimestamp = req.query.fromTimestamp as string
+    const result = await new GetJobsHandler(req.oceanNode).handle({
+      command: PROTOCOL_COMMANDS.GET_JOBS,
+      fromTimestamp
+    })
+    if (result.stream) {
+      const jobs = await streamToObject(result.stream as Readable)
+      res.header('Content-Type', 'application/json')
+      res.status(200).send(jobs)
+    } else {
+      res.status(result.status.httpStatus).send(result.status.error)
+    }
+  } catch (error) {
+    HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+    res.status(500).send('Internal Server Error')
+  }
+})
+
+providerRoutes.get(
+  `${SERVICES_API_BASE_PATH}/compute/jobs/:jobId/status`,
+  async (req, res) => {
+    try {
+      const result = await new ComputeGetStatusHandler(req.oceanNode).handle({
+        command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+        jobId: req.params.jobId
+      })
+      if (result.stream) {
+        const status = await streamToObject(result.stream as Readable)
+        res.header('Content-Type', 'application/json')
+        res.status(200).send(status)
+      } else {
+        res.status(result.status.httpStatus).send(result.status.error)
+      }
+    } catch (error) {
+      HTTP_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error: ${error}`)
+      res.status(500).send('Internal Server Error')
+    }
   }
 )

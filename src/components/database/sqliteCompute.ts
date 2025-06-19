@@ -16,6 +16,7 @@ interface ComputeDatabaseProvider {
   getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]>
   deleteJob(jobId: string): Promise<boolean>
   getFinishedJobs(): Promise<DBComputeJob[]>
+  getAllJobs(fromTimestamp?: string): Promise<DBComputeJob[]>
 }
 
 export function generateUniqueID(jobStructure: any): string {
@@ -30,7 +31,6 @@ export function generateUniqueID(jobStructure: any): string {
 
 function getInternalStructure(job: DBComputeJob): any {
   const internalBlob = {
-    clusterHash: job.clusterHash,
     configlogURL: job.configlogURL,
     publishlogURL: job.publishlogURL,
     algologURL: job.algologURL,
@@ -160,7 +160,8 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       jobId = generateUniqueID(jobStructure)
       job.jobId = jobId
     } else {
-      jobId = job.jobId
+      const { jobId } = job
+      console.log('Using provided jobId:', jobId)
     }
 
     return new Promise<string>((resolve, reject) => {
@@ -313,9 +314,6 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
             // filter them out
             const filtered = all.filter((job) => {
               let include = true
-              if (engine && engine !== job.clusterHash) {
-                include = false
-              }
               if (environment && environment !== job.environment) {
                 include = false
               }
@@ -368,6 +366,53 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
             DATABASE_LOGGER.info(
               'Could not find any jobs for the specified enviroment: ' + environment.id
             )
+            resolve([])
+          }
+        }
+      })
+    })
+  }
+
+  getAllJobs(fromTimestamp?: string): Promise<DBComputeJob[]> {
+    const params: any[] = []
+    let selectSQL = `SELECT * FROM ${this.schema.name}`
+
+    if (fromTimestamp) {
+      selectSQL += ` WHERE body LIKE ?`
+      params.push(`%"algoStartTimestamp":"${fromTimestamp}"%`)
+      selectSQL += ` OR body LIKE ?`
+      params.push(`%"algoStartTimestamp":"%`) // We'll filter exact timestamps in JS
+    }
+
+    selectSQL += ` ORDER BY dateCreated DESC`
+
+    return new Promise<DBComputeJob[]>((resolve, reject) => {
+      this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
+        if (err) {
+          DATABASE_LOGGER.error(err.message)
+          reject(err)
+        } else {
+          if (rows && rows.length > 0) {
+            const all: DBComputeJob[] = rows.map((row) => {
+              const body = generateJSONFromBlob(row.body)
+              delete row.body
+              const maxJobDuration = row.expireTimestamp
+              delete row.expireTimestamp
+              const job: DBComputeJob = { ...row, ...body, maxJobDuration }
+              return job
+            })
+
+            if (fromTimestamp) {
+              const filtered = all.filter((job) => {
+                if (!job.algoStartTimestamp) return false
+                return job.algoStartTimestamp >= fromTimestamp
+              })
+              resolve(filtered)
+            } else {
+              resolve(all)
+            }
+          } else {
+            DATABASE_LOGGER.info('No jobs found')
             resolve([])
           }
         }
