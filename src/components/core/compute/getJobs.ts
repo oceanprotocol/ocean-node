@@ -1,6 +1,6 @@
 import { Readable } from 'stream'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
-import { Command, GetJobsCommand } from '../../../@types/commands.js'
+import { GetJobsCommand } from '../../../@types/commands.js'
 import { CommandHandler } from '../handler/handler.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { buildInvalidRequestMessage } from '../../httpRoutes/validateCommands.js'
