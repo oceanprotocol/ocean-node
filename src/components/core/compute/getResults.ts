@@ -42,7 +42,7 @@ export class ComputeGetResultHandler extends CommandHandler {
       task.consumerAddress,
       task.nonce,
       task.signature,
-      String(task.consumerAddress + task.jobId + task.index.toString())
+      String(task.consumerAddress + task.jobId + task.index.toString() + task.nonce)
     )
     if (authValidationResponse.status.httpStatus !== 200) {
       return authValidationResponse
