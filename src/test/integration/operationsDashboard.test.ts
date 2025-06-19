@@ -352,7 +352,8 @@ describe('Should test admin operations', () => {
     // -----------------------------------------
     // IndexingThreadHandler
     const indexingHandler: IndexingThreadHandler = CoreHandlersRegistry.getInstance(
-      oceanNode
+      oceanNode,
+      true
     ).getHandler(PROTOCOL_COMMANDS.HANDLE_INDEXING_THREAD) as IndexingThreadHandler
 
     const signature = await getSignature(expiryTimestamp.toString())
@@ -379,6 +380,7 @@ describe('Should test admin operations', () => {
 
     // should exist a running thread for this network atm
     const response = await indexingHandler.handle(indexingStopCommand)
+    console.log({ responseStoppingThread: response })
     assert(response.stream, 'Failed to get stream when stoping thread')
     expect(response.status.httpStatus).to.be.equal(200)
 
