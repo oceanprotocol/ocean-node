@@ -407,8 +407,9 @@ describe('Trusted algorithms Flow', () => {
       }
     }
     const nonce = Date.now().toString()
-    const message = String(nonce)
-    // sign message/nonce
+    const message = String(
+      (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce
+    )
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
       [ethers.hexlify(ethers.toUtf8Bytes(message))]

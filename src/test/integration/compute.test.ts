@@ -576,7 +576,9 @@ describe('Compute', () => {
 
   it('should fail to start a compute job', async () => {
     const nonce = Date.now().toString()
-    const message = String(nonce)
+    const message = String(
+      (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce
+    )
     // sign message/nonce
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
@@ -672,7 +674,9 @@ describe('Compute', () => {
     }
     const locksBefore = locks.length
     const nonce = Date.now().toString()
-    const message = String(nonce)
+    const message = String(
+      (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce
+    )
     // sign message/nonce
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
