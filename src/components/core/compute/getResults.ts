@@ -11,10 +11,7 @@ import { isAddress } from 'ethers'
 
 export class ComputeGetResultHandler extends CommandHandler {
   validate(command: ComputeGetResultCommand): ValidateParams {
-    const validation = validateCommandParameters(command, [
-      'jobId',
-      'index'
-    ])
+    const validation = validateCommandParameters(command, ['jobId', 'index'])
     if (validation.valid) {
       if (command.consumerAddress && !isAddress(command.consumerAddress)) {
         return buildInvalidRequestMessage(
