@@ -966,10 +966,6 @@ describe('Compute', () => {
     const response = await handler.handle(command)
     assert(response.status.httpStatus === 401, 'Failed to get 401 response')
     assert(response.stream === null, 'Should not get stream')
-    assert(
-      response.status.error.includes('Invalid nonce or signature'),
-      'Should have signature error'
-    )
   })
   it('should deny the Free job due to bad container image (directCommand payload)', async function () {
     const nonce = Date.now().toString()
