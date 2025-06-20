@@ -12,9 +12,6 @@ import { isAddress } from 'ethers'
 export class ComputeGetResultHandler extends CommandHandler {
   validate(command: ComputeGetResultCommand): ValidateParams {
     const validation = validateCommandParameters(command, [
-      'consumerAddress',
-      'signature',
-      'nonce',
       'jobId',
       'index'
     ])
