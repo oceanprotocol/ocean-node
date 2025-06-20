@@ -40,7 +40,6 @@ import {
 import { deleteIndexedMetadataIfExists, validateDDOHash } from '../../../utils/asset.js'
 import { Asset, DDO, DDOManager } from '@oceanprotocol/ddo-js'
 import { checkCredentialOnAccessList } from '../../../utils/credentials.js'
-import { ValidateTokenOrSignature } from '../../../utils/decorators/validate-token.decorator.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -806,13 +805,26 @@ export class ValidateDDOHandler extends CommandHandler {
     return validation
   }
 
-  // Skip validation if allowed by env variable
-  @ValidateTokenOrSignature(skipValidation)
   async handle(task: ValidateDDOCommand): Promise<P2PCommandResponse> {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
+    const shouldSkipValidation = await skipValidation()
+    if (!shouldSkipValidation) {
+      const validationResponse = await this.validateTokenOrSignature(
+        task.authorization,
+        task.publisherAddress,
+        task.nonce,
+        task.signature,
+        String(task.publisherAddress + task.nonce)
+      )
+      if (validationResponse.status.httpStatus !== 200) {
+        return validationResponse
+      }
+    }
+
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
+
     try {
       const ddoInstance = DDOManager.getDDOClass(task.ddo)
       const validation = await ddoInstance.validate()

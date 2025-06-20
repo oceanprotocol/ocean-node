@@ -270,7 +270,9 @@ describe('Trusted algorithms Flow', () => {
   it('should not start a compute job because algorithm is not trusted by dataset', async () => {
     let balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
     const nonce = Date.now().toString()
-    const message = String(nonce)
+    const message = String(
+      (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce
+    )
     // sign message/nonce
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
@@ -405,8 +407,9 @@ describe('Trusted algorithms Flow', () => {
       }
     }
     const nonce = Date.now().toString()
-    const message = String(nonce)
-    // sign message/nonce
+    const message = String(
+      (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce
+    )
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
       [ethers.hexlify(ethers.toUtf8Bytes(message))]

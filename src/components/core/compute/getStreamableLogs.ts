@@ -2,7 +2,6 @@ import { P2PCommandResponse } from '../../../@types/index.js'
 import { CORE_LOGGER } from '../../../utils/logging/common.js'
 import { CommandHandler } from '../handler/handler.js'
 import { ComputeGetStreamableLogsCommand } from '../../../@types/commands.js'
-import { checkNonce, NonceResponse } from '../utils/nonceHandler.js'
 import { Stream } from 'stream'
 import {
   buildInvalidRequestMessage,
@@ -13,12 +12,7 @@ import { isAddress } from 'ethers'
 
 export class ComputeGetStreamableLogsHandler extends CommandHandler {
   validate(command: ComputeGetStreamableLogsCommand): ValidateParams {
-    const validation = validateCommandParameters(command, [
-      'consumerAddress',
-      'signature',
-      'nonce',
-      'jobId'
-    ])
+    const validation = validateCommandParameters(command, ['jobId'])
     if (validation.valid) {
       if (command.consumerAddress && !isAddress(command.consumerAddress)) {
         return buildInvalidRequestMessage(
@@ -30,37 +24,22 @@ export class ComputeGetStreamableLogsHandler extends CommandHandler {
   }
 
   async handle(task: ComputeGetStreamableLogsCommand): Promise<P2PCommandResponse> {
+    const oceanNode = this.getOceanNode()
+
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
-    const oceanNode = this.getOceanNode()
-    let error = null
 
-    // signature message to check against
-    const message = task.consumerAddress + task.jobId + task.nonce
-    const nonceCheckResult: NonceResponse = await checkNonce(
-      oceanNode.getDatabase().nonce,
+    const authValidationResponse = await this.validateTokenOrSignature(
+      task.authorization,
       task.consumerAddress,
-      parseInt(task.nonce),
+      task.nonce,
       task.signature,
-      message
+      String(task.consumerAddress + task.jobId + task.nonce)
     )
-
-    if (!nonceCheckResult.valid) {
-      // eslint-disable-next-line prefer-destructuring
-      error = nonceCheckResult.error
-    }
-
-    if (error) {
-      CORE_LOGGER.logMessage(error, true)
-      return {
-        stream: null,
-        status: {
-          httpStatus: 400,
-          error
-        }
-      }
+    if (authValidationResponse.status.httpStatus !== 200) {
+      return authValidationResponse
     }
 
     // split jobId (which is already in hash-jobId format) and get the hash

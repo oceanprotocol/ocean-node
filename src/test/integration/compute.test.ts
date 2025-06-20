@@ -576,7 +576,9 @@ describe('Compute', () => {
 
   it('should fail to start a compute job', async () => {
     const nonce = Date.now().toString()
-    const message = String(nonce)
+    const message = String(
+      (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce
+    )
     // sign message/nonce
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
@@ -672,7 +674,9 @@ describe('Compute', () => {
     }
     const locksBefore = locks.length
     const nonce = Date.now().toString()
-    const message = String(nonce)
+    const message = String(
+      (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce
+    )
     // sign message/nonce
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
@@ -752,7 +756,21 @@ describe('Compute', () => {
       BigInt(auth[0].maxLockCounts.toString()) > BigInt(0),
       ' Should have maxLockCounts in auth'
     )
-    response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
+    const nonce2 = Date.now().toString()
+    const message2 = String(
+      (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce2
+    )
+    const consumerMessage2 = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message2))]
+    )
+    const messageHashBytes2 = ethers.toBeArray(consumerMessage2)
+    const signature2 = await wallet.signMessage(messageHashBytes2)
+    response = await new PaidComputeStartHandler(oceanNode).handle({
+      ...startComputeTask,
+      nonce: nonce2,
+      signature: signature2
+    })
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
@@ -920,7 +938,7 @@ describe('Compute', () => {
   })
   it('should stop a compute job', async () => {
     const nonce = Date.now().toString()
-    const message = String(nonce)
+    const message = String((await consumerAccount.getAddress()) + (jobId || ''))
     // sign message/nonce
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
@@ -946,12 +964,8 @@ describe('Compute', () => {
     const command: FreeComputeStartCommand = freeComputeStartPayload
     const handler = new FreeComputeStartHandler(oceanNode)
     const response = await handler.handle(command)
-    assert(response.status.httpStatus === 500, 'Failed to get 500 response')
+    assert(response.status.httpStatus === 401, 'Failed to get 401 response')
     assert(response.stream === null, 'Should not get stream')
-    assert(
-      response.status.error.includes('Invalid nonce or signature'),
-      'Should have signature error'
-    )
   })
   it('should deny the Free job due to bad container image (directCommand payload)', async function () {
     const nonce = Date.now().toString()
