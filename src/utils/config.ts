@@ -831,7 +831,9 @@ async function getEnvConfig(isStartup?: boolean): Promise<OceanNodeConfig> {
       knownUnsafeURLs
     ),
     isBootstrap: getBoolEnvValue('IS_BOOTSTRAP', false),
-    claimDurationTimeout: getIntEnvValue(process.env.ESCROW_CLAIM_TIMEOUT, 600)
+    claimDurationTimeout: getIntEnvValue(process.env.ESCROW_CLAIM_TIMEOUT, 600),
+    validateUnsignedDDO: getBoolEnvValue('VALIDATE_UNSIGNED_DDO', true),
+    jwtSecret: getEnvValue(process.env.JWT_SECRET, 'ocean-node-secret')
   }
 
   if (!previousConfiguration) {

@@ -3,8 +3,6 @@ import {
   getCrawlingInterval,
   getDeployedContractBlock,
   getNetworkHeight,
-  processBlocks,
-  processChunkLogs,
   retrieveChunkEvents
 } from './utils.js'
 import { Blockchain } from '../../utils/blockchain.js'
@@ -16,6 +14,7 @@ import { INDEXER_LOGGER } from '../../utils/logging/common.js'
 import { getDatabase } from '../../utils/database.js'
 import { JsonRpcApiProvider, Log, Signer } from 'ethers'
 import { DEVELOPMENT_CHAIN_ID } from '../../utils/address.js'
+import { processBlocks, processChunkLogs } from './processor.js'
 
 export interface ReindexTask {
   txId: string

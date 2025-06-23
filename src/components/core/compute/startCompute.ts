@@ -33,7 +33,7 @@ import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { DDOManager } from '@oceanprotocol/ddo-js'
 import { getNonceAsNumber, checkNonce, NonceResponse } from '../utils/nonceHandler.js'
-import { createHash } from 'crypto'
+import { generateUniqueID } from '../../database/sqliteCompute.js'
 
 export class PaidComputeStartHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
@@ -120,13 +120,19 @@ export class PaidComputeStartHandler extends CommandHandler {
         task.algorithm.serviceId,
         node
       )
-      if (!algoChecksums.container || !algoChecksums.files) {
-        CORE_LOGGER.error(`Error retrieveing algorithm checksums!`)
+
+      const isRawCodeAlgorithm = task.algorithm.meta?.rawcode
+      const hasValidChecksums = algoChecksums.container && algoChecksums.files
+
+      if (!isRawCodeAlgorithm && !hasValidChecksums) {
+        const errorMessage =
+          'Failed to retrieve algorithm checksums. Both container and files checksums are required.'
+        CORE_LOGGER.error(errorMessage)
         return {
           stream: null,
           status: {
             httpStatus: 500,
-            error: `Error retrieveing algorithm checksums!`
+            error: errorMessage
           }
         }
       }
@@ -352,7 +358,8 @@ export class PaidComputeStartHandler extends CommandHandler {
         agreementId: '',
         resources
       }
-      const jobId = createHash('sha256').update(JSON.stringify(s)).digest('hex')
+      // job ID unicity
+      const jobId = generateUniqueID(s)
       // let's calculate payment needed based on resources request and maxJobDuration
       const cost = engine.calculateResourcesCost(
         task.payment.resources,
@@ -394,7 +401,8 @@ export class PaidComputeStartHandler extends CommandHandler {
             token: task.payment.token,
             lockTx: agreementId,
             claimTx: null
-          }
+          },
+          jobId
         )
         CORE_LOGGER.logMessage(
           'ComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
@@ -555,6 +563,16 @@ export class FreeComputeStartHandler extends CommandHandler {
           error: null
         }
       } */
+      const s = {
+        assets: task.datasets,
+        algorithm: task.algorithm,
+        output: task.output,
+        environment: task.environment,
+        owner: task.consumerAddress,
+        maxJobDuration: task.maxJobDuration,
+        resources: task.resources
+      }
+      const jobId = generateUniqueID(s)
       const response = await engine.startComputeJob(
         task.datasets,
         task.algorithm,
@@ -563,7 +581,8 @@ export class FreeComputeStartHandler extends CommandHandler {
         task.consumerAddress,
         task.maxJobDuration,
         task.resources,
-        null
+        null,
+        jobId
       )
 
       CORE_LOGGER.logMessage(

@@ -12,6 +12,7 @@ import { pipe } from 'it-pipe'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './utils/logging/Logger.js'
 import { BaseHandler } from './components/core/handler/handler.js'
 import { C2DEngines } from './components/c2d/compute_engines.js'
+import { Auth } from './components/Auth/index.js'
 
 export interface RequestLimiter {
   requester: string | string[] // IP address or peer ID
@@ -35,6 +36,7 @@ export class OceanNode {
   // requester
   private remoteCaller: string | string[]
   private requestMap: Map<string, RequestLimiter>
+  private auth: Auth
 
   // eslint-disable-next-line no-useless-constructor
   private constructor(
@@ -47,6 +49,9 @@ export class OceanNode {
     this.coreHandlers = CoreHandlersRegistry.getInstance(this)
     this.requestMap = new Map<string, RequestLimiter>()
     this.config = config
+    if (this.db && this.db?.authToken) {
+      this.auth = new Auth(this.db.authToken)
+    }
     if (node) {
       node.setCoreHandlers(this.coreHandlers)
     }
@@ -64,9 +69,10 @@ export class OceanNode {
     db?: Database,
     node?: OceanP2P,
     provider?: OceanProvider,
-    indexer?: OceanIndexer
+    indexer?: OceanIndexer,
+    newInstance: boolean = false
   ): OceanNode {
-    if (!OceanNode.instance) {
+    if (!OceanNode.instance || newInstance) {
       // prepare compute engines
       this.instance = new OceanNode(config, db, node, provider, indexer)
     }
@@ -134,6 +140,10 @@ export class OceanNode {
 
   public getRequestMap(): Map<string, RequestLimiter> {
     return this.requestMap
+  }
+
+  public getAuth(): Auth {
+    return this.auth
   }
 
   /**

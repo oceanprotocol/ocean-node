@@ -19,6 +19,7 @@ import {
   convertStringToArray,
   STRING_SEPARATOR
 } from '../../components/database/sqliteCompute.js'
+import os from 'os'
 import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,
@@ -29,7 +30,6 @@ import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { completeDBComputeJob, dockerImageManifest } from '../data/assets.js'
 import { omitDBComputeFieldsFromComputeJob } from '../../components/c2d/index.js'
-import os from 'os'
 import { checkManifestPlatform } from '../../components/c2d/compute_engine_docker.js'
 
 describe('Compute Jobs Database', () => {
@@ -46,6 +46,7 @@ describe('Compute Jobs Database', () => {
     documentId: 'did:op:12345',
     serviceId: '0x12345abc'
   }
+
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
       [ENVIRONMENT_VARIABLES.DOCKER_COMPUTE_ENVIRONMENTS],
@@ -83,6 +84,14 @@ describe('Compute Jobs Database', () => {
       isStarted: false,
       containerImage: 'some container image',
       resources: [],
+      environment: 'some environment',
+      agreementId: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
+      payment: {
+        token: '0x123',
+        lockTx: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
+        claimTx: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
+        chainId: 8996
+      },
       isFree: false,
       algoStartTimestamp: '0',
       algoStopTimestamp: '0'
@@ -139,10 +148,18 @@ describe('Compute Jobs Database', () => {
       stopRequested: false,
       algorithm,
       assets: [dataset],
+      environment: 'some environment',
       isRunning: false,
       isStarted: false,
       containerImage: 'another container image',
       resources: [],
+      agreementId: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
+      payment: {
+        token: '0x123',
+        lockTx: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
+        claimTx: '0xe2DD09d719Da89e5a3D0F2549c7E24566e947260fdc',
+        chainId: 8996
+      },
       isFree: false,
       algoStartTimestamp: '0',
       algoStopTimestamp: '0'

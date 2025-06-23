@@ -112,6 +112,8 @@ export interface OceanNodeConfig {
   denyList?: DenyList
   unsafeURLs?: string[]
   isBootstrap?: boolean
+  validateUnsignedDDO?: boolean
+  jwtSecret?: string
 }
 
 export interface P2PStatusResponse {

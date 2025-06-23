@@ -33,7 +33,9 @@ export const PROTOCOL_COMMANDS = {
   GET_P2P_PEER: 'getP2PPeer',
   GET_P2P_PEERS: 'getP2PPeers',
   GET_P2P_NETWORK_STATS: 'getP2PNetworkStats',
-  FIND_PEER: 'findPeer'
+  FIND_PEER: 'findPeer',
+  CREATE_AUTH_TOKEN: 'createAuthToken',
+  INVALIDATE_AUTH_TOKEN: 'invalidateAuthToken'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -67,7 +69,9 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.GET_P2P_PEER,
   PROTOCOL_COMMANDS.GET_P2P_PEERS,
   PROTOCOL_COMMANDS.GET_P2P_NETWORK_STATS,
-  PROTOCOL_COMMANDS.FIND_PEER
+  PROTOCOL_COMMANDS.FIND_PEER,
+  PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
+  PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN
 ]
 
 export const MetadataStates = {
@@ -438,6 +442,11 @@ export const ENVIRONMENT_VARIABLES: Record<any, EnvVariable> = {
   POLICY_SERVER_URL: {
     name: 'POLICY_SERVER_URL',
     value: process.env.POLICY_SERVER_URL,
+    required: false
+  },
+  VALIDATE_UNSIGNED_DDO: {
+    name: 'VALIDATE_UNSIGNED_DDO',
+    value: process.env.VALIDATE_UNSIGNED_DDO,
     required: false
   }
 }

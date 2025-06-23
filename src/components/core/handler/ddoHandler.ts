@@ -40,6 +40,7 @@ import {
 import { deleteIndexedMetadataIfExists, validateDDOHash } from '../../../utils/asset.js'
 import { Asset, DDO, DDOManager } from '@oceanprotocol/ddo-js'
 import { checkCredentialOnAccessList } from '../../../utils/credentials.js'
+import { ValidateTokenOrSignature } from '../../../utils/decorators/validate-token.decorator.js'
 
 const MAX_NUM_PROVIDERS = 5
 // after 60 seconds it returns whatever info we have available
@@ -396,17 +397,9 @@ export class DecryptDdoHandler extends CommandHandler {
           ['bytes'],
           [ethers.hexlify(ethers.toUtf8Bytes(message))]
         )
-        const addressFromHashSignature = ethers.verifyMessage(messageHash, task.signature)
-        const messageHashBytes = ethers.toBeArray(messageHash)
-        const addressFromBytesSignature = ethers.verifyMessage(
-          messageHashBytes,
-          task.signature
-        )
+        const addressFromSignature = ethers.verifyMessage(messageHash, task.signature)
 
-        if (
-          addressFromHashSignature?.toLowerCase() !== decrypterAddress?.toLowerCase() &&
-          addressFromBytesSignature?.toLowerCase() !== decrypterAddress?.toLowerCase()
-        ) {
+        if (addressFromSignature?.toLowerCase() !== decrypterAddress?.toLowerCase()) {
           throw new Error('address does not match')
         }
       } catch (error) {
@@ -562,7 +555,7 @@ export class FindDdoHandler extends CommandHandler {
             if (isResponseLegit) {
               const ddoInfo: FindDDOResponse = {
                 id: ddo.id,
-                lastUpdateTx: ddo.indexedMetadata.event.tx,
+                lastUpdateTx: ddo.indexedMetadata.event.txid,
                 lastUpdateTime: ddo.metadata.updated,
                 provider: peer
               }
@@ -798,6 +791,11 @@ export class FindDdoHandler extends CommandHandler {
   }
 }
 
+export async function skipValidation(): Promise<boolean> {
+  const configuration = await getConfiguration()
+  return configuration.validateUnsignedDDO
+}
+
 export class ValidateDDOHandler extends CommandHandler {
   validate(command: ValidateDDOCommand): ValidateParams {
     let validation = validateCommandParameters(command, ['ddo'])
@@ -808,6 +806,8 @@ export class ValidateDDOHandler extends CommandHandler {
     return validation
   }
 
+  // Skip validation if allowed by env variable
+  @ValidateTokenOrSignature(skipValidation)
   async handle(task: ValidateDDOCommand): Promise<P2PCommandResponse> {
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) {
@@ -846,6 +846,27 @@ export class ValidateDDOHandler extends CommandHandler {
         status: { httpStatus: 500, error: 'Unknown error: ' + error.message }
       }
     }
+  }
+}
+
+export function validateDdoSignedByPublisher(
+  ddo: DDO,
+  nonce: string,
+  signature: string,
+  publisherAddress: string
+): boolean {
+  try {
+    const message = ddo.id + nonce
+    const messageHash = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(messageHash)
+    const recoveredAddress = ethers.verifyMessage(messageHashBytes, signature)
+    return recoveredAddress === publisherAddress
+  } catch (error) {
+    CORE_LOGGER.logMessage(`Error: ${error}`, true)
+    return false
   }
 }
 
@@ -928,7 +949,7 @@ async function checkIfDDOResponseIsLegit(ddo: any): Promise<boolean> {
   }
 
   // check events on logs
-  const txId: string = indexedMetadata.event.tx // NOTE: DDO is txid, Asset is tx
+  const txId: string = indexedMetadata.event.tx || indexedMetadata.event.txid // NOTE: DDO is txid, Asset is tx
   if (!txId) {
     CORE_LOGGER.error(`DDO event missing tx data, cannot confirm transaction`)
     return false
