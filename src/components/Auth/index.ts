@@ -9,6 +9,14 @@ export interface CommonValidation {
   error: string
 }
 
+export interface AuthValidation {
+  token?: string
+  address?: string
+  nonce?: string
+  signature?: string
+  message?: string
+}
+
 export class Auth {
   private authTokenDatabase: AuthTokenDatabase
 
@@ -19,10 +27,6 @@ export class Auth {
   public async getJwtSecret(): Promise<string> {
     const config = await getConfiguration()
     return config.jwtSecret
-  }
-
-  public getMessage(address: string, nonce: string): string {
-    return address + nonce
   }
 
   async getJWTToken(address: string, nonce: string, createdAt: number): Promise<string> {
@@ -68,17 +72,10 @@ export class Auth {
    * @param {string} message - The message to validate
    * @returns The validation result
    */
-  async validateAuthenticationOrToken({
-    token,
-    address,
-    nonce,
-    signature
-  }: {
-    token?: string
-    address?: string
-    nonce?: string
-    signature?: string
-  }): Promise<CommonValidation> {
+  async validateAuthenticationOrToken(
+    authValidation: AuthValidation
+  ): Promise<CommonValidation> {
+    const { token, address, nonce, signature, message } = authValidation
     try {
       if (signature && address && nonce) {
         const oceanNode = OceanNode.getInstance()
@@ -87,7 +84,7 @@ export class Auth {
           address,
           parseInt(nonce),
           signature,
-          this.getMessage(address, nonce)
+          message
         )
 
         if (!nonceCheckResult.valid) {
