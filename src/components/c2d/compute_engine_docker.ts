@@ -727,11 +727,18 @@ export class C2DEngineDocker extends C2DEngine {
         `dockerDeviceRequest: ${JSON.stringify(dockerDeviceRequest)}`
       )
       if (diskSize && diskSize > 0) {
+        volume.Driver = 'local'
         volume.DriverOpts = {
-          o: 'size=' + String(diskSize)
+          type: 'tmpfs',
+          device: 'tmpfs',
+          o: 'size=' + String(diskSize) + 'm'
         }
       }
+      CORE_LOGGER.logMessage(`volume: ${JSON.stringify(volume)}`)
 
+      CORE_LOGGER.logMessage(
+        `dockerDeviceRequest: ${JSON.stringify(dockerDeviceRequest)}`
+      )
       const volumeCreated = await this.createDockerVolume(volume, true)
       if (!volumeCreated) {
         job.status = C2DStatusNumber.VolumeCreationFailed
