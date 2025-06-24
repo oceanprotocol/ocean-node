@@ -718,7 +718,14 @@ export class C2DEngineDocker extends C2DEngine {
         Name: job.jobId + '-volume'
       }
       // volume
+      CORE_LOGGER.logMessage(`job.resources: ${JSON.stringify(job.resources)}`)
+      CORE_LOGGER.logMessage(`envResource: ${JSON.stringify(envResource)}`)
       const diskSize = this.getResourceRequest(job.resources, 'disk')
+      CORE_LOGGER.logMessage(`diskSize: ${diskSize}`)
+      const dockerDeviceRequest = this.getDockerDeviceRequest(job.resources, envResource)
+      CORE_LOGGER.logMessage(
+        `dockerDeviceRequest: ${JSON.stringify(dockerDeviceRequest)}`
+      )
       if (diskSize && diskSize > 0) {
         volume.DriverOpts = {
           o: 'size=' + String(diskSize)
@@ -783,10 +790,6 @@ export class C2DEngineDocker extends C2DEngine {
       // TO DO - check resources and pass devices
       CORE_LOGGER.logMessage(`job.resources: ${JSON.stringify(job.resources)}`)
       CORE_LOGGER.logMessage(`envResource: ${JSON.stringify(envResource)}`)
-      const dockerDeviceRequest = this.getDockerDeviceRequest(job.resources, envResource)
-      CORE_LOGGER.logMessage(
-        `dockerDeviceRequest: ${JSON.stringify(dockerDeviceRequest)}`
-      )
       if (dockerDeviceRequest) {
         containerInfo.HostConfig.DeviceRequests = dockerDeviceRequest
       }
