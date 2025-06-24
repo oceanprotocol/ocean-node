@@ -86,7 +86,7 @@ describe('Commands and handlers', () => {
       command: PROTOCOL_COMMANDS.DOWNLOAD
     }
     expect(downloadHandler.validate(downloadCommand).valid).to.be.equal(true)
-    downloadCommand.nonce = null
+    downloadCommand.documentId = undefined
     expect(downloadHandler.validate(downloadCommand).valid).to.be.equal(false)
     // -----------------------------------------
     // DecryptDDOHandler
