@@ -214,7 +214,7 @@ export class ComputeInitializeHandler extends CommandHandler {
             // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
             // It will just use the existing code and let PolicyServer decide.
             if (isPolicyServerConfigured() && task.policyServer) {
-              const response = await policyServer.checkInitialize(
+              const response = await policyServer.checkStartCompute(
                 ddo.id,
                 ddo,
                 elem.serviceId,
@@ -256,7 +256,7 @@ export class ComputeInitializeHandler extends CommandHandler {
             if (isPolicyServerConfigured() && task.policyServer) {
               // we use the previous check or we do it again
               // (in case there is no DDO level credentials and we only have Service level ones)
-              const response = await policyServer.checkInitialize(
+              const response = await policyServer.checkStartCompute(
                 ddo.id,
                 ddo,
                 elem.serviceId,

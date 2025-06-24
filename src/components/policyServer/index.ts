@@ -69,30 +69,10 @@ export class PolicyServer {
     return await this.askServer(command)
   }
 
-  async checkInitialize(
-    documentId: string,
-    ddo: DDO,
-    serviceId: string,
-    consumerAddress: string,
-    policyServer: any
-  ): Promise<PolicyServerResult> {
-    const command = {
-      action: 'initialize',
-      documentId,
-      ddo,
-      serviceId,
-      consumerAddress,
-      policyServer
-    }
-    return await this.askServer(command)
-  }
-
   async checkDownload(
     documentId: string,
     ddo: DDO,
     serviceId: string,
-    fileIndex: number,
-    transferTxId: string,
     consumerAddress: string,
     policyServer: any
   ): Promise<PolicyServerResult> {
@@ -101,8 +81,6 @@ export class PolicyServer {
       documentId,
       ddo,
       serviceId,
-      fileIndex,
-      transferTxId,
       consumerAddress,
       policyServer
     }
@@ -113,8 +91,6 @@ export class PolicyServer {
     documentId: string,
     ddo: DDO,
     serviceId: string,
-    fileIndex: number,
-    transferTxId: string,
     consumerAddress: string,
     policyServer: any
   ): Promise<PolicyServerResult> {
@@ -123,8 +99,6 @@ export class PolicyServer {
       documentId,
       ddo,
       serviceId,
-      fileIndex,
-      transferTxId,
       consumerAddress,
       policyServer
     }

@@ -178,8 +178,6 @@ export class PaidComputeStartHandler extends CommandHandler {
                   ddo.id,
                   ddo,
                   elem.serviceId,
-                  0,
-                  elem.transferTxId,
                   task.consumerAddress,
                   task.policyServer
                 )
@@ -225,8 +223,6 @@ export class PaidComputeStartHandler extends CommandHandler {
                     ddo.id,
                     ddo,
                     elem.serviceId,
-                    0,
-                    elem.transferTxId,
                     task.consumerAddress,
                     task.policyServer
                   )
@@ -626,8 +622,6 @@ export class FreeComputeStartHandler extends CommandHandler {
               ddo.id,
               ddo,
               elem.serviceId,
-              0,
-              elem.transferTxId,
               task.consumerAddress,
               task.policyServer
             )
@@ -670,8 +664,6 @@ export class FreeComputeStartHandler extends CommandHandler {
               ddo.id,
               ddo,
               service.id,
-              0,
-              elem.transferTxId,
               task.consumerAddress,
               task.policyServer
             )
