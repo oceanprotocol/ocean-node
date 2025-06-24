@@ -718,13 +718,27 @@ export class C2DEngineDocker extends C2DEngine {
         Name: job.jobId + '-volume'
       }
       // volume
+      CORE_LOGGER.logMessage(`job.resources: ${JSON.stringify(job.resources)}`)
+      CORE_LOGGER.logMessage(`envResource: ${JSON.stringify(envResource)}`)
       const diskSize = this.getResourceRequest(job.resources, 'disk')
+      CORE_LOGGER.logMessage(`diskSize: ${diskSize}`)
+      const dockerDeviceRequest = this.getDockerDeviceRequest(job.resources, envResource)
+      CORE_LOGGER.logMessage(
+        `dockerDeviceRequest: ${JSON.stringify(dockerDeviceRequest)}`
+      )
       if (diskSize && diskSize > 0) {
+        volume.Driver = 'local'
         volume.DriverOpts = {
-          o: 'size=' + String(diskSize)
+          type: 'tmpfs',
+          device: 'tmpfs',
+          o: 'size=' + String(diskSize) + 'm'
         }
       }
+      CORE_LOGGER.logMessage(`volume: ${JSON.stringify(volume)}`)
 
+      CORE_LOGGER.logMessage(
+        `dockerDeviceRequest: ${JSON.stringify(dockerDeviceRequest)}`
+      )
       const volumeCreated = await this.createDockerVolume(volume, true)
       if (!volumeCreated) {
         job.status = C2DStatusNumber.VolumeCreationFailed
@@ -781,7 +795,8 @@ export class C2DEngineDocker extends C2DEngine {
       }
       // TO DO - iterate over resources and get default runtime
       // TO DO - check resources and pass devices
-      const dockerDeviceRequest = this.getDockerDeviceRequest(job.resources, envResource)
+      CORE_LOGGER.logMessage(`job.resources: ${JSON.stringify(job.resources)}`)
+      CORE_LOGGER.logMessage(`envResource: ${JSON.stringify(envResource)}`)
       if (dockerDeviceRequest) {
         containerInfo.HostConfig.DeviceRequests = dockerDeviceRequest
       }

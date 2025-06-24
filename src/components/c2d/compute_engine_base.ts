@@ -18,6 +18,7 @@ import type {
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
 import { Escrow } from '../core/utils/escrow.js'
+import { CORE_LOGGER } from '../../utils/logging/common.js'
 
 export abstract class C2DEngine {
   private clusterConfig: C2DClusterInfo
@@ -312,6 +313,8 @@ export abstract class C2DEngine {
     const ret: dockerDeviceRequest[] = []
     for (const resource of requests) {
       const res = this.getResource(resources, resource.id)
+      CORE_LOGGER.logMessage(`res docker devices: ${res}`)
+      CORE_LOGGER.logMessage(`res docker devices: ${JSON.stringify(resources)}`)
       if (res.init && res.init.deviceRequests) {
         ret.push(res.init.deviceRequests)
       }
