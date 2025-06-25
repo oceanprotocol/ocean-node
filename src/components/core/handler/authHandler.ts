@@ -31,7 +31,6 @@ export class CreateAuthTokenHandler extends CommandHandler {
   async handle(task: CreateAuthTokenCommand): Promise<P2PCommandResponse> {
     const { address, nonce, signature } = task
     const nonceDb = this.getOceanNode().getDatabase().nonce
-    const auth = this.getOceanNode().getAuth()
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
@@ -43,7 +42,7 @@ export class CreateAuthTokenHandler extends CommandHandler {
         address,
         parseInt(nonce),
         signature,
-        auth.getMessage(address, nonce)
+        String(address + nonce)
       )
 
       if (!nonceCheckResult.valid) {
@@ -83,7 +82,6 @@ export class InvalidateAuthTokenHandler extends CommandHandler {
   async handle(task: InvalidateAuthTokenCommand): Promise<P2PCommandResponse> {
     const { address, nonce, signature, token } = task
     const nonceDb = this.getOceanNode().getDatabase().nonce
-    const auth = this.getOceanNode().getAuth()
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
@@ -95,7 +93,7 @@ export class InvalidateAuthTokenHandler extends CommandHandler {
         address,
         parseInt(nonce),
         signature,
-        auth.getMessage(address, nonce)
+        String(address + nonce)
       )
       if (!isValid) {
         return {

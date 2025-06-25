@@ -201,6 +201,7 @@ providerRoutes.get(
       `Download request received: ${JSON.stringify(req.query)}`,
       true
     )
+    const authorization = req.headers?.authorization
     try {
       const {
         fileIndex,
@@ -221,7 +222,8 @@ providerRoutes.get(
         consumerAddress: consumerAddress as string,
         signature: signature as string,
         command: PROTOCOL_COMMANDS.DOWNLOAD,
-        policyServer: (req.query.policyServer as PolicyServerTask) || null
+        policyServer: (req.query.policyServer as PolicyServerTask) || null,
+        authorization: authorization as string
       }
 
       const response = await new DownloadHandler(req.oceanNode).handle(downloadTask)

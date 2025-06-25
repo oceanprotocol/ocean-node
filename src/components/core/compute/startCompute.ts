@@ -32,7 +32,7 @@ import { FindDdoHandler } from '../handler/ddoHandler.js'
 // import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { DDOManager } from '@oceanprotocol/ddo-js'
-import { getNonceAsNumber, checkNonce, NonceResponse } from '../utils/nonceHandler.js'
+import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { PolicyServer } from '../../policyServer/index.js'
 import { areKnownCredentialTypes, checkCredentials } from '../../../utils/credentials.js'
 import { generateUniqueID } from '../../database/sqliteCompute.js'
@@ -40,9 +40,6 @@ import { generateUniqueID } from '../../database/sqliteCompute.js'
 export class PaidComputeStartHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
     const commandValidation = validateCommandParameters(command, [
-      'consumerAddress',
-      'signature',
-      'nonce',
       'environment',
       'algorithm',
       'datasets',
@@ -66,6 +63,19 @@ export class PaidComputeStartHandler extends CommandHandler {
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
+
+    const authValidationResponse = await this.validateTokenOrSignature(
+      task.authorization,
+      task.consumerAddress,
+      task.nonce,
+      task.signature,
+      String(task.consumerAddress + task.datasets[0]?.documentId + task.nonce)
+    )
+
+    if (authValidationResponse.status.httpStatus !== 200) {
+      return authValidationResponse
+    }
+
     try {
       const node = this.getOceanNode()
       // split compute env (which is already in hash-envId format) and get the hash
@@ -523,9 +533,6 @@ export class FreeComputeStartHandler extends CommandHandler {
     const commandValidation = validateCommandParameters(command, [
       'algorithm',
       'datasets',
-      'consumerAddress',
-      'signature',
-      'nonce',
       'environment'
     ])
     if (commandValidation.valid) {
@@ -539,34 +546,23 @@ export class FreeComputeStartHandler extends CommandHandler {
   }
 
   async handle(task: FreeComputeStartCommand): Promise<P2PCommandResponse> {
+    const thisNode = this.getOceanNode()
     const validationResponse = await this.verifyParamsAndRateLimits(task)
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
-    const thisNode = this.getOceanNode()
-    // Validate nonce and signature
-    const nonceCheckResult: NonceResponse = await checkNonce(
-      thisNode.getDatabase().nonce,
+
+    const authValidationResponse = await this.validateTokenOrSignature(
+      task.authorization,
       task.consumerAddress,
-      parseInt(task.nonce),
+      task.nonce,
       task.signature,
       String(task.nonce)
     )
-
-    if (!nonceCheckResult.valid) {
-      CORE_LOGGER.logMessage(
-        'Invalid nonce or signature, unable to proceed: ' + nonceCheckResult.error,
-        true
-      )
-      return {
-        stream: null,
-        status: {
-          httpStatus: 500,
-          error:
-            'Invalid nonce or signature, unable to proceed: ' + nonceCheckResult.error
-        }
-      }
+    if (authValidationResponse.status.httpStatus !== 200) {
+      return authValidationResponse
     }
+
     let engine = null
     try {
       // split compute env (which is already in hash-envId format) and get the hash
