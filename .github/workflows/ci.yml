@@ -231,7 +231,7 @@ jobs:
           done
 
       - name: docker logs
-        run: docker logs ocean-ocean-contracts-1 && docker logs ocean-kindcluster-1 && docker logs ocean-computetodata-1 && docker logs ocean-typesense-1
+        run: docker logs ocean-contracts-1 && docker logs ocean-typesense-1
         if: ${{ failure() }}
 
       - name: Checkout Ocean Node

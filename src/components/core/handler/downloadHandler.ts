@@ -290,8 +290,6 @@ export class DownloadHandler extends CommandHandler {
             ddo.id,
             ddo,
             task.serviceId,
-            task.fileIndex,
-            task.transferTxId,
             task.consumerAddress,
             task.policyServer
           )
@@ -372,8 +370,6 @@ export class DownloadHandler extends CommandHandler {
               ddo.id,
               ddo,
               task.serviceId,
-              task.fileIndex,
-              task.transferTxId,
               task.consumerAddress,
               task.policyServer
             )
@@ -477,8 +473,6 @@ export class DownloadHandler extends CommandHandler {
       ddo.id,
       ddo,
       service.id,
-      task.fileIndex,
-      task.transferTxId,
       task.consumerAddress,
       task.policyServer
     )
