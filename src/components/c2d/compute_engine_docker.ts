@@ -178,6 +178,7 @@ export class C2DEngineDocker extends C2DEngine {
       max: sysinfo.MemTotal,
       min: 1e9
     })
+
     if (envConfig.resources) {
       for (const res of envConfig.resources) {
         // allow user to add other resources
@@ -188,6 +189,36 @@ export class C2DEngineDocker extends C2DEngine {
         }
       }
     }
+    /* TODO  - get namedresources & discreete one 
+    if (sysinfo.GenericResources) {
+      for (const [key, value] of Object.entries(sysinfo.GenericResources)) {
+        for (const [type, val] of Object.entries(value)) {
+          // for (const resType in sysinfo.GenericResources) {
+          if (type === 'NamedResourceSpec') {
+            // if we have it, ignore it
+            const resourceId = val.Value
+            const resourceType = val.Kind
+            let found = false
+            for (const res of this.envs[0].resources) {
+              if (res.id === resourceId) {
+                found = true
+                break
+              }
+            }
+            if (!found) {
+              this.envs[0].resources.push({
+                id: resourceId,
+                kind: resourceType,
+                total: 1,
+                max: 1,
+                min: 0
+              })
+            }
+          }
+        }
+      }
+    }
+      */
     // limits for free env
     if ('free' in envConfig) {
       this.envs[0].free = {}
@@ -203,6 +234,11 @@ export class C2DEngineDocker extends C2DEngine {
     }
     this.envs[0].id =
       this.getC2DConfig().hash + '-' + create256Hash(JSON.stringify(this.envs[0]))
+
+    // only now set the timer
+    if (!this.cronTimer) {
+      this.setNewTimer()
+    }
   }
 
   // eslint-disable-next-line require-await
@@ -214,11 +250,19 @@ export class C2DEngineDocker extends C2DEngine {
      */
     if (!this.docker) return []
     const filteredEnvs = []
+    // const systemInfo = this.docker ? await this.docker.info() : null
     for (const computeEnv of this.envs) {
       if (
         !chainId ||
         (computeEnv.fees && Object.hasOwn(computeEnv.fees, String(chainId)))
       ) {
+        // TO DO - At some point in time we need to handle multiple runtimes
+        // console.log('********************************')
+        // console.log(systemInfo.GenericResources)
+        // console.log('********************************')
+        // if (systemInfo.Runtimes) computeEnv.runtimes = systemInfo.Runtimes
+        // if (systemInfo.DefaultRuntime)
+        // computeEnv.defaultRuntime = systemInfo.DefaultRuntime
         const { totalJobs, totalFreeJobs, usedResources, usedFreeResources } =
           await this.getUsedResources(computeEnv)
         computeEnv.runningJobs = totalJobs
@@ -313,6 +357,7 @@ export class C2DEngineDocker extends C2DEngine {
     jobId: string
   ): Promise<ComputeJob[]> {
     if (!this.docker) return []
+    // TO DO - iterate over resources and get default runtime
     const isFree: boolean = !(payment && payment.lockTx)
 
     // C2D - Check image, check arhitecture, etc
@@ -522,6 +567,7 @@ export class C2DEngineDocker extends C2DEngine {
 
     if (jobs.length === 0) {
       CORE_LOGGER.info('No C2D jobs found for engine ' + this.getC2DConfig().hash)
+      this.setNewTimer()
       return
     } else {
       CORE_LOGGER.info(`Got ${jobs.length} jobs for engine ${this.getC2DConfig().hash}`)
@@ -577,7 +623,14 @@ export class C2DEngineDocker extends C2DEngine {
       ) {
         delete volume.DriverOpts
         CORE_LOGGER.info('Retrying again without DriverOpts options...')
-        return this.createDockerVolume(volume)
+        try {
+          return this.createDockerVolume(volume)
+        } catch (e) {
+          CORE_LOGGER.error(
+            `Unable to create docker volume without DriverOpts: ${e.message}`
+          )
+          return false
+        }
       }
       return false
     }
@@ -667,19 +720,19 @@ export class C2DEngineDocker extends C2DEngine {
       // create the volume & create container
       // TO DO C2D:  Choose driver & size
       // get env info
-      // const environment = await this.getJobEnvironment(job)
-
+      const envResource = this.envs[0].resources
       const volume: VolumeCreateOptions = {
         Name: job.jobId + '-volume'
       }
       // volume
-      const diskSize = this.getResourceRequest(job.resources, 'disk')
-      if (diskSize && diskSize > 0) {
+      /* const diskSize = this.getResourceRequest(job.resources, 'disk')
+       if (diskSize && diskSize > 0) {
         volume.DriverOpts = {
-          o: 'size=' + String(diskSize)
+          o: 'size=' + String(diskSize),
+          device: 'local',
+          type: 'local'
         }
-      }
-
+      } */
       const volumeCreated = await this.createDockerVolume(volume, true)
       if (!volumeCreated) {
         job.status = C2DStatusNumber.VolumeCreationFailed
@@ -704,11 +757,11 @@ export class C2DEngineDocker extends C2DEngine {
         ]
       }
       // disk
-      if (diskSize && diskSize > 0) {
-        hostConfig.StorageOpt = {
-          size: String(diskSize)
-        }
-      }
+      // if (diskSize && diskSize > 0) {
+      //  hostConfig.StorageOpt = {
+      //  size: String(diskSize)
+      // }
+      // }
       // ram
       const ramSize = this.getResourceRequest(job.resources, 'ram')
       if (ramSize && ramSize > 0) {
@@ -734,7 +787,27 @@ export class C2DEngineDocker extends C2DEngine {
         Volumes: mountVols,
         HostConfig: hostConfig
       }
-
+      // TO DO - iterate over resources and get default runtime
+      // TO DO - check resources and pass devices
+      const dockerDeviceRequest = this.getDockerDeviceRequest(job.resources, envResource)
+      if (dockerDeviceRequest) {
+        containerInfo.HostConfig.DeviceRequests = dockerDeviceRequest
+      }
+      const advancedConfig = this.getDockerAdvancedConfig(job.resources, envResource)
+      if (advancedConfig.Devices)
+        containerInfo.HostConfig.Devices = advancedConfig.Devices
+      if (advancedConfig.GroupAdd)
+        containerInfo.HostConfig.GroupAdd = advancedConfig.GroupAdd
+      if (advancedConfig.SecurityOpt)
+        containerInfo.HostConfig.SecurityOpt = advancedConfig.SecurityOpt
+      if (advancedConfig.Binds) containerInfo.HostConfig.Binds = advancedConfig.Binds
+      if (advancedConfig.CapAdd) containerInfo.HostConfig.CapAdd = advancedConfig.CapAdd
+      if (advancedConfig.CapDrop)
+        containerInfo.HostConfig.CapDrop = advancedConfig.CapDrop
+      if (advancedConfig.IpcMode)
+        containerInfo.HostConfig.IpcMode = advancedConfig.IpcMode
+      if (advancedConfig.ShmSize)
+        containerInfo.HostConfig.ShmSize = advancedConfig.ShmSize
       if (job.algorithm.meta.container.entrypoint) {
         const newEntrypoint = job.algorithm.meta.container.entrypoint.replace(
           '$ALGO',
@@ -742,11 +815,9 @@ export class C2DEngineDocker extends C2DEngine {
         )
         containerInfo.Entrypoint = newEntrypoint.split(' ')
       }
-      console.log('CREATING CONTAINER')
-      console.log(containerInfo)
       const container = await this.createDockerContainer(containerInfo, true)
       if (container) {
-        console.log('container: ', container)
+        console.log('Container created: ', container)
         job.status = C2DStatusNumber.Provisioning
         job.statusText = C2DStatusText.Provisioning
         await this.db.updateJob(job)
@@ -1004,7 +1075,7 @@ export class C2DEngineDocker extends C2DEngine {
     // So we cannot test this from the CLI for instance... Only Option is to actually send it encrypted
     // OR extract the files object from the passed DDO, decrypt it and use it
 
-    console.log(job.algorithm.fileObject)
+    // console.log(job.algorithm.fileObject)
     const fullAlgoPath =
       this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/transformations/algorithm'
     try {
