@@ -21,7 +21,7 @@ export async function p2pAnnounceC2D(node: OceanNode) {
               announce.push(obj)
             }
             if (resource.type === 'gpu' && resource.kind) {
-              obj.kind = resource.kind // add kind if available
+              obj.description = resource.description // add kind if available
               if (!announce.includes(obj)) {
                 announce.push(obj)
               }
