@@ -27,14 +27,36 @@ export interface ComputeResourcesPricingInfo {
   price: number // price per unit per minute
 }
 
+export interface ArgumentValues {
+  [key: string]: string | number | boolean | any[] // Supports multiple value types
+}
+
+export interface dockerDeviceRequest {
+  Driver: string
+  Count?: number
+  DeviceIDs: string[]
+  Capabilities?: any
+  Options?: any
+}
+
+// docker hw can be defined with either deviceRequests (simpler, if you have a driver), or in advanced way
+// advanced way means you have to defined different params like devices, cggroups, caps, etc
+export interface dockerHwInit {
+  deviceRequests?: dockerDeviceRequest
+  advanced?: ArgumentValues
+  runtime?: string
+}
+
 export interface ComputeResource {
   id: ComputeResourceType
+  description?: string
   type?: string
   kind?: string // description of the resource
   total: number // total number of specific resource
   min: number // min number of resource needed for a job
   max: number // max number of resource for a job
   inUse?: number // for display purposes
+  init?: dockerHwInit
 }
 export interface ComputeResourceRequest {
   id: string
@@ -77,6 +99,12 @@ export interface ComputeEnvironmentBaseConfig {
   platform: RunningPlatform
 }
 
+export interface ComputeRuntimes {
+  [key: string]: {
+    path?: string
+    runtimeArgs?: string[] // Optional runtime arguments
+  }
+}
 export interface ComputeEnvironment extends ComputeEnvironmentBaseConfig {
   id: string // v1
   runningJobs: number

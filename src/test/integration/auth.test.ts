@@ -1,6 +1,5 @@
 import { JsonRpcProvider, Signer, Wallet } from 'ethers'
 import { Database } from '../../components/database/index.js'
-import { Auth } from '../../components/Auth/index.js'
 import { getConfiguration, getMessageHash } from '../../utils/index.js'
 import {
   DEFAULT_TEST_TIMEOUT,
@@ -27,7 +26,6 @@ import { ValidateDDOHandler } from '../../components/core/handler/ddoHandler.js'
 describe('Auth Token Integration Tests', () => {
   let config: OceanNodeConfig
   let database: Database
-  let auth: Auth
   let provider: JsonRpcProvider
   let consumerAccount: Signer
   let previousConfiguration: OverrideEnvConfig[]
@@ -50,7 +48,6 @@ describe('Auth Token Integration Tests', () => {
 
     config = await getConfiguration(true)
     database = await new Database(config.dbConfig)
-    auth = new Auth(database.authToken)
     oceanNode = await OceanNode.getInstance(config, database)
 
     provider = new JsonRpcProvider(mockSupportedNetworks['8996'].rpc)
@@ -119,7 +116,7 @@ describe('Auth Token Integration Tests', () => {
 
       const consumerAddress = await consumerAccount.getAddress()
       const nonce = getRandomNonce()
-      const message = auth.getMessage(consumerAddress, nonce)
+      const message = String(consumerAddress + nonce)
       const messageHash = getMessageHash(message)
       const signature = await consumerAccount.signMessage(messageHash)
 
@@ -140,7 +137,7 @@ describe('Auth Token Integration Tests', () => {
 
       const consumerAddress = await consumerAccount.getAddress()
       const nonce = getRandomNonce()
-      const message = auth.getMessage(consumerAddress, nonce)
+      const message = String(consumerAddress + nonce)
       const messageHash = getMessageHash(message)
       const signature = await consumerAccount.signMessage(messageHash)
 
@@ -166,7 +163,7 @@ describe('Auth Token Integration Tests', () => {
 
       const consumerAddress = await consumerAccount.getAddress()
       const nonce = getRandomNonce()
-      const message = auth.getMessage(consumerAddress, nonce)
+      const message = String(consumerAddress + nonce)
       const messageHash = getMessageHash(message)
       const signature = await consumerAccount.signMessage(messageHash)
 
@@ -228,7 +225,7 @@ describe('Auth Token Integration Tests', () => {
 
         // Missing address
         const nonce = getRandomNonce()
-        const message = auth.getMessage(await consumerAccount.getAddress(), nonce)
+        const message = String((await consumerAccount.getAddress()) + nonce)
         const messageHash = getMessageHash(message)
         const signature = await consumerAccount.signMessage(messageHash)
 

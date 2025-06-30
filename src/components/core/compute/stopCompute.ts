@@ -12,12 +12,7 @@ import { isAddress } from 'ethers'
 
 export class ComputeStopHandler extends CommandHandler {
   validate(command: ComputeStopCommand): ValidateParams {
-    const validation = validateCommandParameters(command, [
-      'consumerAddress',
-      'signature',
-      'nonce',
-      'jobId'
-    ])
+    const validation = validateCommandParameters(command, ['jobId'])
     if (validation.valid) {
       if (!isAddress(command.consumerAddress)) {
         return buildInvalidRequestMessage(
@@ -33,6 +28,18 @@ export class ComputeStopHandler extends CommandHandler {
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
+
+    const authValidationResponse = await this.validateTokenOrSignature(
+      task.authorization,
+      task.consumerAddress,
+      task.nonce,
+      task.signature,
+      String(task.consumerAddress + (task.jobId || ''))
+    )
+    if (authValidationResponse.status.httpStatus !== 200) {
+      return authValidationResponse
+    }
+
     try {
       // split jobId (which is already in hash-jobId format) and get the hash
       // then get jobId which might contain dashes as well
