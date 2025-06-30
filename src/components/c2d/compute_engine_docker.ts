@@ -623,7 +623,14 @@ export class C2DEngineDocker extends C2DEngine {
       ) {
         delete volume.DriverOpts
         CORE_LOGGER.info('Retrying again without DriverOpts options...')
-        return this.createDockerVolume(volume)
+        try {
+          return this.createDockerVolume(volume)
+        } catch (e) {
+          CORE_LOGGER.error(
+            `Unable to create docker volume without DriverOpts: ${e.message}`
+          )
+          return false
+        }
       }
       return false
     }
@@ -718,13 +725,14 @@ export class C2DEngineDocker extends C2DEngine {
         Name: job.jobId + '-volume'
       }
       // volume
-      const diskSize = this.getResourceRequest(job.resources, 'disk')
-      if (diskSize && diskSize > 0) {
+      /* const diskSize = this.getResourceRequest(job.resources, 'disk')
+       if (diskSize && diskSize > 0) {
         volume.DriverOpts = {
-          o: 'size=' + String(diskSize)
+          o: 'size=' + String(diskSize),
+          device: 'local',
+          type: 'local'
         }
-      }
-
+      } */
       const volumeCreated = await this.createDockerVolume(volume, true)
       if (!volumeCreated) {
         job.status = C2DStatusNumber.VolumeCreationFailed
@@ -749,11 +757,11 @@ export class C2DEngineDocker extends C2DEngine {
         ]
       }
       // disk
-      if (diskSize && diskSize > 0) {
-        hostConfig.StorageOpt = {
-          size: String(diskSize)
-        }
-      }
+      // if (diskSize && diskSize > 0) {
+      //  hostConfig.StorageOpt = {
+      //  size: String(diskSize)
+      // }
+      // }
       // ram
       const ramSize = this.getResourceRequest(job.resources, 'ram')
       if (ramSize && ramSize > 0) {
@@ -807,10 +815,9 @@ export class C2DEngineDocker extends C2DEngine {
         )
         containerInfo.Entrypoint = newEntrypoint.split(' ')
       }
-
       const container = await this.createDockerContainer(containerInfo, true)
       if (container) {
-        console.log('container: ', container)
+        console.log('Container created: ', container)
         job.status = C2DStatusNumber.Provisioning
         job.statusText = C2DStatusText.Provisioning
         await this.db.updateJob(job)
@@ -1068,7 +1075,7 @@ export class C2DEngineDocker extends C2DEngine {
     // So we cannot test this from the CLI for instance... Only Option is to actually send it encrypted
     // OR extract the files object from the passed DDO, decrypt it and use it
 
-    console.log(job.algorithm.fileObject)
+    // console.log(job.algorithm.fileObject)
     const fullAlgoPath =
       this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/transformations/algorithm'
     try {
