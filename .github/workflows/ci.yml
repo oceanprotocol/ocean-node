@@ -282,7 +282,7 @@ jobs:
         with:
           repository: 'oceanprotocol/ocean-cli'
           path: 'ocean-cli'
-          ref: 'fix-tests-for-node'
+          ref: 'feature/fix-compute-dataset'
       - name: Setup Ocean CLI
         working-directory: ${{ github.workspace }}/ocean-cli
         run: |
