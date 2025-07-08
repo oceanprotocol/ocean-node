@@ -1,6 +1,10 @@
 /* eslint-disable security/detect-non-literal-fs-filename */
 import { Readable } from 'stream'
-import { C2DStatusNumber, C2DStatusText } from '../../@types/C2D/C2D.js'
+import {
+  C2DStatusNumber,
+  C2DStatusText,
+  DBComputeJobMetadata
+} from '../../@types/C2D/C2D.js'
 import type {
   C2DClusterInfo,
   ComputeEnvironment,

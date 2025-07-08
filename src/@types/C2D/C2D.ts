@@ -141,6 +141,9 @@ export interface ComputeResult {
   index?: number
 }
 
+export type DBComputeJobMetadata = {
+  [key: string]: string | number | boolean
+}
 export interface ComputeJob {
   owner: string
   did?: string
@@ -200,9 +203,6 @@ export interface DBComputeJobPayment {
   claimTx: string
 }
 
-export type DBComputeJobMetadata = {
-  [key: string]: string | number | boolean
-}
 // this is the internal structure
 export interface DBComputeJob extends ComputeJob {
   clusterHash: string

@@ -5,7 +5,8 @@ import type {
   ComputeAsset,
   ComputeAlgorithm,
   ComputeOutput,
-  ComputeResourceRequest
+  ComputeResourceRequest,
+  DBComputeJobMetadata
 } from './C2D/C2D.js'
 import {
   ArweaveFileObject,
