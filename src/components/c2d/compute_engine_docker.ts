@@ -1,6 +1,6 @@
 /* eslint-disable security/detect-non-literal-fs-filename */
 import { Readable } from 'stream'
-import { C2DStatusNumber, C2DStatusText, DBComputeJobMetadata } from '../../@types/C2D/C2D.js'
+import { C2DStatusNumber, C2DStatusText } from '../../@types/C2D/C2D.js'
 import type {
   C2DClusterInfo,
   ComputeEnvironment,
@@ -464,7 +464,7 @@ export class C2DEngineDocker extends C2DEngine {
         })
         index = index + 1
       }
-    } catch (e) { }
+    } catch (e) {}
     try {
       const outputStat = statSync(
         this.getC2DConfig().tempFolder + '/' + jobId + '/data/outputs/outputs.tar'
@@ -478,7 +478,7 @@ export class C2DEngineDocker extends C2DEngine {
         })
         index = index + 1
       }
-    } catch (e) { }
+    } catch (e) {}
     return res
   }
 
@@ -1315,7 +1315,7 @@ export class C2DEngineDocker extends C2DEngine {
         mkdirSync(baseFolder + '/data/outputs')
       if (!existsSync(baseFolder + '/data/logs')) mkdirSync(baseFolder + '/data/logs')
       if (!existsSync(baseFolder + '/tarData')) mkdirSync(baseFolder + '/tarData') // used to upload and download data
-    } catch (e) { }
+    } catch (e) {}
   }
 
   // clean up temporary files

@@ -235,7 +235,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
             const all: DBComputeJob[] = rows.map((row) => {
               const body = generateJSONFromBlob(row.body)
               delete row.body
-              const maxJobDuration = row.maxJobDuration
+              const maxJobDuration = row.expireTimestamp
               delete row.expireTimestamp
               const job: DBComputeJob = { ...row, ...body, maxJobDuration }
               return job

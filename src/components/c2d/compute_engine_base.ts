@@ -13,8 +13,7 @@ import type {
   ComputeResourcesPricingInfo,
   DBComputeJobPayment,
   DBComputeJob,
-  dockerDeviceRequest,
-  DBComputeJobMetadata
+  dockerDeviceRequest
 } from '../../@types/C2D/C2D.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
@@ -101,7 +100,7 @@ export abstract class C2DEngine {
           return true
         }
       }
-    } catch (e) { }
+    } catch (e) {}
     return false
   }
 
@@ -120,7 +119,7 @@ export abstract class C2DEngine {
           return c
         }
       }
-    } catch (e) { }
+    } catch (e) {}
     return null
   }
 
@@ -211,11 +210,11 @@ export abstract class C2DEngine {
         if (desired > minMax.max) {
           throw new Error(
             'Not enough ' +
-            device +
-            ' resources. Requested ' +
-            desired +
-            ', but max is ' +
-            minMax.max
+              device +
+              ' resources. Requested ' +
+              desired +
+              ', but max is ' +
+              minMax.max
           )
         }
       }

@@ -275,8 +275,9 @@ export class PaidComputeStartHandler extends CommandHandler {
                 stream: null,
                 status: {
                   httpStatus: 400,
-                  error: `Algorithm ${task.algorithm.documentId
-                    } not allowed to run on the dataset: ${ddoInstance.getDid()}`
+                  error: `Algorithm ${
+                    task.algorithm.documentId
+                  } not allowed to run on the dataset: ${ddoInstance.getDid()}`
                 }
               }
             }
@@ -560,8 +561,6 @@ export class FreeComputeStartHandler extends CommandHandler {
           error: null
         }
       } */
-      console.log('task.metadata', task.metadata)
-
       const s = {
         assets: task.datasets,
         algorithm: task.algorithm,
