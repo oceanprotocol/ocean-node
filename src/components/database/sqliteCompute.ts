@@ -44,7 +44,8 @@ function getInternalStructure(job: DBComputeJob): any {
     resources: job.resources,
     isFree: job.isFree,
     algoStartTimestamp: job.algoStartTimestamp,
-    algoStopTimestamp: job.algoStopTimestamp
+    algoStopTimestamp: job.algoStopTimestamp,
+    metadata: job.metadata
   }
   return internalBlob
 }
@@ -155,7 +156,8 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         maxJobDuration: job.maxJobDuration,
         chainId: job.payment?.chainId || null,
         agreementId: job.agreementId,
-        resources: job.resources
+        resources: job.resources,
+        metadata: job.metadata
       }
       jobId = generateUniqueID(jobStructure)
       job.jobId = jobId
@@ -233,7 +235,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
             const all: DBComputeJob[] = rows.map((row) => {
               const body = generateJSONFromBlob(row.body)
               delete row.body
-              const maxJobDuration = row.expireTimestamp
+              const maxJobDuration = row.maxJobDuration
               delete row.expireTimestamp
               const job: DBComputeJob = { ...row, ...body, maxJobDuration }
               return job

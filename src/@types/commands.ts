@@ -5,7 +5,8 @@ import type {
   ComputeAsset,
   ComputeAlgorithm,
   ComputeOutput,
-  ComputeResourceRequest
+  ComputeResourceRequest,
+  DBComputeJobMetadata
 } from './C2D/C2D.js'
 import {
   ArweaveFileObject,
@@ -30,8 +31,8 @@ export interface FindPeerCommand extends Command {
   timeout?: string
 }
 
-export interface GetP2PPeersCommand extends Command {}
-export interface GetP2PNetworkStatsCommand extends Command {}
+export interface GetP2PPeersCommand extends Command { }
+export interface GetP2PNetworkStatsCommand extends Command { }
 
 export interface AdminCommand extends Command {
   expiryTimestamp: number
@@ -72,7 +73,7 @@ export interface FileInfoCommand extends Command {
 export interface DDOCommand extends Command {
   id: string
 }
-export interface GetDdoCommand extends DDOCommand {}
+export interface GetDdoCommand extends DDOCommand { }
 export interface FindDDOCommand extends DDOCommand {
   force?: boolean
 }
@@ -89,8 +90,8 @@ export interface ValidateDDOCommand extends Command {
 export interface StatusCommand extends Command {
   detailed?: boolean
 }
-export interface DetailedStatusCommand extends StatusCommand {}
-export interface EchoCommand extends Command {}
+export interface DetailedStatusCommand extends StatusCommand { }
+export interface EchoCommand extends Command { }
 
 export interface QueryCommand extends Command {
   query: Record<string, any>
@@ -140,7 +141,7 @@ export interface GetFeesCommand extends Command {
   policyServer?: any // object to pass to policyServer
 }
 // admin commands
-export interface AdminStopNodeCommand extends AdminCommand {}
+export interface AdminStopNodeCommand extends AdminCommand { }
 export interface AdminReindexTxCommand extends AdminCommand {
   chainId: number
   txId: string
@@ -200,6 +201,7 @@ export interface FreeComputeStartCommand extends Command {
   output?: ComputeOutput
   resources?: ComputeResourceRequest[]
   maxJobDuration?: number
+  metadata?: DBComputeJobMetadata
 }
 export interface PaidComputeStartCommand extends FreeComputeStartCommand {
   payment: ComputePayment
