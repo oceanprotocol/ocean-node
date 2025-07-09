@@ -281,19 +281,19 @@ export class DownloadHandler extends CommandHandler {
 
     // check credentials (DDO level)
     let accessGrantedDDOLevel: boolean
+    const policyServer = new PolicyServer()
     if (ddo.credentials) {
       // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
       // It will just use the existing code and let PolicyServer decide.
       if (isPolicyServerConfigured()) {
-        accessGrantedDDOLevel = await (
-          await new PolicyServer().checkDownload(
-            ddo.id,
-            ddo,
-            task.serviceId,
-            task.consumerAddress,
-            task.policyServer
-          )
-        ).success
+        const response = await policyServer.checkDownload(
+          ddo.id,
+          ddo,
+          task.serviceId,
+          task.consumerAddress,
+          task.policyServer
+        )
+        accessGrantedDDOLevel = response.success
       } else {
         accessGrantedDDOLevel = areKnownCredentialTypes(ddo.credentials)
           ? checkCredentials(ddo.credentials, task.consumerAddress)
@@ -363,17 +363,14 @@ export class DownloadHandler extends CommandHandler {
       if (isPolicyServerConfigured()) {
         // we use the previous check or we do it again
         // (in case there is no DDO level credentials and we only have Service level ones)
-        accessGrantedServiceLevel =
-          accessGrantedDDOLevel ||
-          (await (
-            await new PolicyServer().checkDownload(
-              ddo.id,
-              ddo,
-              task.serviceId,
-              task.consumerAddress,
-              task.policyServer
-            )
-          ).success)
+        const response = await policyServer.checkDownload(
+          ddo.id,
+          ddo,
+          service.id,
+          task.consumerAddress,
+          task.policyServer
+        )
+        accessGrantedServiceLevel = accessGrantedDDOLevel || response.success
       } else {
         accessGrantedServiceLevel = areKnownCredentialTypes(service.credentials)
           ? checkCredentials(service.credentials, task.consumerAddress)
@@ -464,24 +461,6 @@ export class DownloadHandler extends CommandHandler {
         status: {
           httpStatus: 500,
           error: paymentValidation.message
-        }
-      }
-    }
-    // policyServer check
-    const policyServer = new PolicyServer()
-    const policyStatus = await policyServer.checkDownload(
-      ddo.id,
-      ddo,
-      service.id,
-      task.consumerAddress,
-      task.policyServer
-    )
-    if (!policyStatus.success) {
-      return {
-        stream: null,
-        status: {
-          httpStatus: 405,
-          error: policyStatus.message
         }
       }
     }

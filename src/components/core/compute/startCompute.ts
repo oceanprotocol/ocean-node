@@ -154,7 +154,7 @@ export class PaidComputeStartHandler extends CommandHandler {
         const result: any = { validOrder: false }
         if ('documentId' in elem && elem.documentId) {
           result.did = elem.documentId
-          result.serviceId = elem.documentId
+          result.serviceId = elem.serviceId
           const ddo = await new FindDdoHandler(node).findAndFormatDdo(elem.documentId)
           if (!ddo) {
             const error = `DDO ${elem.documentId} not found`
@@ -223,7 +223,7 @@ export class PaidComputeStartHandler extends CommandHandler {
           // if using a policy server and we are here it means that access was granted (they are merged/assessed together)
           if (service.credentials) {
             let accessGrantedServiceLevel: boolean
-            if (isPolicyServerConfigured() && task.policyServer) {
+            if (isPolicyServerConfigured()) {
               // we use the previous check or we do it again
               // (in case there is no DDO level credentials and we only have Service level ones)
               accessGrantedServiceLevel =
@@ -615,7 +615,7 @@ export class FreeComputeStartHandler extends CommandHandler {
         if (ddo.credentials) {
           // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
           // It will just use the existing code and let PolicyServer decide.
-          if (isPolicyServerConfigured() && task.policyServer) {
+          if (isPolicyServerConfigured()) {
             const response = await policyServer.checkStartCompute(
               ddo.id,
               ddo,
@@ -655,7 +655,7 @@ export class FreeComputeStartHandler extends CommandHandler {
         // if using a policy server and we are here it means that access was granted (they are merged/assessed together)
         if (service.credentials) {
           let accessGrantedServiceLevel: boolean
-          if (isPolicyServerConfigured() && task.policyServer) {
+          if (isPolicyServerConfigured()) {
             // we use the previous check or we do it again
             // (in case there is no DDO level credentials and we only have Service level ones)
             const response = await policyServer.checkStartCompute(
