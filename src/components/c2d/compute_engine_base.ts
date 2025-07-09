@@ -13,7 +13,8 @@ import type {
   ComputeResourcesPricingInfo,
   DBComputeJobPayment,
   DBComputeJob,
-  dockerDeviceRequest
+  dockerDeviceRequest,
+  DBComputeJobMetadata
 } from '../../@types/C2D/C2D.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
 import { C2DDatabase } from '../database/C2DDatabase.js'
@@ -61,7 +62,8 @@ export abstract class C2DEngine {
     maxJobDuration: number,
     resources: ComputeResourceRequest[],
     payment: DBComputeJobPayment,
-    jobId: string
+    jobId: string,
+    metadata?: DBComputeJobMetadata
   ): Promise<ComputeJob[]>
 
   public abstract stopComputeJob(
