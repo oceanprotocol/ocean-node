@@ -139,6 +139,7 @@ Your node is now running, the control panel will be available at `http://localho
 - [Logging & accessing logs](docs/networking.md)
 - [Control Panel: Local development](controlpanel/README.md)
 - [Docker Deployment Guide](docs/dockerDeployment.md)
+- [C2D GPU Guide](docs/GPU.md)
 
 ## Control Panel
 
