@@ -1275,17 +1275,18 @@ starts a free compute job and returns jobId if succesfull
 
 #### Parameters
 
-| name            | type   | required | description                               |
-| --------------- | ------ | -------- | ----------------------------------------- |
-| command         | string | v        | command name                              |
-| node            | string |          | if not present it means current node      |
-| consumerAddress | string | v        | consumer address                          |
-| signature       | string | v        | signature (msg=String(nonce) )            |
-| nonce           | string | v        | nonce for the request                     |
-| datasets        | object |          | list of ComputeAsset to be used as inputs |
-| algorithm       | object |          | ComputeAlgorithm definition               |
-| environment     | string | v        | compute environment to use                |
-| resources       | object |          | optional list of required resources       |
+| name            | type   | required | description                                              |
+| --------------- | ------ | -------- | -------------------------------------------------------- |
+| command         | string | v        | command name                                             |
+| node            | string |          | if not present it means current node                     |
+| consumerAddress | string | v        | consumer address                                         |
+| signature       | string | v        | signature (msg=String(nonce) )                           |
+| nonce           | string | v        | nonce for the request                                    |
+| datasets        | object |          | list of ComputeAsset to be used as inputs                |
+| algorithm       | object |          | ComputeAlgorithm definition                              |
+| environment     | string | v        | compute environment to use                               |
+| resources       | object |          | optional list of required resources                      |
+| metadata        | object |          | optional metadata for the job, data provided by the user |
 
 #### Request
 
@@ -1300,7 +1301,8 @@ starts a free compute job and returns jobId if succesfull
   "signature": "123",
   "nonce": 1,
   "environment": "0x7d187e4c751367be694497ead35e2937ece3c7f3b325dcb4f7571e5972d092bd-0xbeaf12703d708f39ef98c3d8939ce458553254176dbb69fe83d535883c4cee38",
-  "resources": [{ "id": "cpu", "amount": 1 }]
+  "resources": [{ "id": "cpu", "amount": 1 }],
+  "metadata": { "key": "value" }
 }
 ```
 
@@ -1324,7 +1326,8 @@ starts a free compute job and returns jobId if succesfull
       { "id": "ram", "amount": 1000000000 },
       { "id": "disk", "amount": 0 }
     ],
-    "isFree": true
+    "isFree": true,
+    "metadata": { "key": "value" }
   }
 ]
 ```
@@ -1338,6 +1341,7 @@ starts a free compute job and returns jobId if succesfull
 returns job status
 
 #### Parameters
+
 Required at least one of the following parameters:
 
 | name            | type   | required | description                          |
@@ -1378,7 +1382,8 @@ Required at least one of the following parameters:
         "amount": 1000000000
       }
     ],
-    "isFree": true
+    "isFree": true,
+    "metadata": { "key": "value" }
   }
 ]
 ```

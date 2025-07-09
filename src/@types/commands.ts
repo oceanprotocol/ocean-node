@@ -5,7 +5,8 @@ import type {
   ComputeAsset,
   ComputeAlgorithm,
   ComputeOutput,
-  ComputeResourceRequest
+  ComputeResourceRequest,
+  DBComputeJobMetadata
 } from './C2D/C2D.js'
 import {
   ArweaveFileObject,
@@ -200,6 +201,7 @@ export interface FreeComputeStartCommand extends Command {
   output?: ComputeOutput
   resources?: ComputeResourceRequest[]
   maxJobDuration?: number
+  metadata?: DBComputeJobMetadata
 }
 export interface PaidComputeStartCommand extends FreeComputeStartCommand {
   payment: ComputePayment

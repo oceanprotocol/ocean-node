@@ -1,6 +1,10 @@
 /* eslint-disable security/detect-non-literal-fs-filename */
 import { Readable } from 'stream'
-import { C2DStatusNumber, C2DStatusText } from '../../@types/C2D/C2D.js'
+import {
+  C2DStatusNumber,
+  C2DStatusText,
+  DBComputeJobMetadata
+} from '../../@types/C2D/C2D.js'
 import type {
   C2DClusterInfo,
   ComputeEnvironment,
@@ -354,7 +358,8 @@ export class C2DEngineDocker extends C2DEngine {
     maxJobDuration: number,
     resources: ComputeResourceRequest[],
     payment: DBComputeJobPayment,
-    jobId: string
+    jobId: string,
+    metadata?: DBComputeJobMetadata
   ): Promise<ComputeJob[]> {
     if (!this.docker) return []
     // TO DO - iterate over resources and get default runtime
@@ -371,6 +376,14 @@ export class C2DEngineDocker extends C2DEngine {
         )}`
       )
     }
+
+    if (metadata && Object.keys(metadata).length > 0) {
+      const metadataSize = JSON.stringify(metadata).length
+      if (metadataSize > 1024) {
+        throw new Error('Metadata size is too large')
+      }
+    }
+
     const envIdWithHash = environment && environment.indexOf('-') > -1
     const env = await this.getComputeEnvironment(
       payment && payment.chainId ? payment.chainId : null,
@@ -408,7 +421,8 @@ export class C2DEngineDocker extends C2DEngine {
       isFree,
       algoStartTimestamp: '0',
       algoStopTimestamp: '0',
-      payment
+      payment,
+      metadata
     }
     await this.makeJobFolders(job)
     // make sure we actually were able to insert on DB

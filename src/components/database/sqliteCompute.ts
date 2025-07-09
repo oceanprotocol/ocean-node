@@ -44,7 +44,8 @@ function getInternalStructure(job: DBComputeJob): any {
     resources: job.resources,
     isFree: job.isFree,
     algoStartTimestamp: job.algoStartTimestamp,
-    algoStopTimestamp: job.algoStopTimestamp
+    algoStopTimestamp: job.algoStopTimestamp,
+    metadata: job.metadata
   }
   return internalBlob
 }
@@ -155,7 +156,8 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         maxJobDuration: job.maxJobDuration,
         chainId: job.payment?.chainId || null,
         agreementId: job.agreementId,
-        resources: job.resources
+        resources: job.resources,
+        metadata: job.metadata
       }
       jobId = generateUniqueID(jobStructure)
       job.jobId = jobId

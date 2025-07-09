@@ -366,7 +366,8 @@ export class PaidComputeStartHandler extends CommandHandler {
         maxJobDuration: task.maxJobDuration,
         chainId: task.payment.chainId,
         agreementId: '',
-        resources
+        resources,
+        metadata: task.metadata
       }
       // job ID unicity
       const jobId = generateUniqueID(s)
@@ -412,7 +413,8 @@ export class PaidComputeStartHandler extends CommandHandler {
             lockTx: agreementId,
             claimTx: null
           },
-          jobId
+          jobId,
+          task.metadata
         )
         CORE_LOGGER.logMessage(
           'ComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
@@ -566,7 +568,8 @@ export class FreeComputeStartHandler extends CommandHandler {
         environment: task.environment,
         owner: task.consumerAddress,
         maxJobDuration: task.maxJobDuration,
-        resources: task.resources
+        resources: task.resources,
+        metadata: task.metadata
       }
       const jobId = generateUniqueID(s)
       const response = await engine.startComputeJob(
@@ -578,7 +581,8 @@ export class FreeComputeStartHandler extends CommandHandler {
         task.maxJobDuration,
         task.resources,
         null,
-        jobId
+        jobId,
+        task.metadata
       )
 
       CORE_LOGGER.logMessage(

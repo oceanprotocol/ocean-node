@@ -141,6 +141,9 @@ export interface ComputeResult {
   index?: number
 }
 
+export type DBComputeJobMetadata = {
+  [key: string]: string | number | boolean
+}
 export interface ComputeJob {
   owner: string
   did?: string
@@ -155,6 +158,7 @@ export interface ComputeJob {
   maxJobDuration?: number
   agreementId?: string
   environment?: string
+  metadata?: DBComputeJobMetadata
 }
 
 export interface ComputeOutput {
@@ -198,6 +202,7 @@ export interface DBComputeJobPayment {
   lockTx: string
   claimTx: string
 }
+
 // this is the internal structure
 export interface DBComputeJob extends ComputeJob {
   clusterHash: string
@@ -216,6 +221,7 @@ export interface DBComputeJob extends ComputeJob {
   algoStopTimestamp: string
   resources: ComputeResourceRequestWithPrice[]
   payment?: DBComputeJobPayment
+  metadata?: DBComputeJobMetadata
 }
 
 // make sure we keep them both in sync
