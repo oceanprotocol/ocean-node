@@ -884,7 +884,10 @@ describe('Compute', () => {
         transferTxId: algoOrderTxId,
         meta: publishedAlgoDataset.ddo.metadata.algorithm
       },
-      output: {}
+      output: {},
+      metadata: {
+        key: 'value'
+      }
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
@@ -916,6 +919,7 @@ describe('Compute', () => {
     assert(response.stream, 'Failed to get stream')
     expect(response.stream).to.be.instanceOf(Readable)
     const jobs = await streamToObject(response.stream as Readable)
+    expect(jobs[0].metadata).to.deep.equal({ key: 'value' })
     console.log(jobs)
   })
 
