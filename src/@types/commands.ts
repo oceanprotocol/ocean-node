@@ -266,6 +266,9 @@ export interface PolicyServerPassthroughCommand extends Command {
   policyServerPassthrough?: any
 }
 
+export interface GetJobsCommand extends Command {
+  fromTimestamp?: string
+}
 export interface CreateAuthTokenCommand extends Command {
   address: string
   signature: string
