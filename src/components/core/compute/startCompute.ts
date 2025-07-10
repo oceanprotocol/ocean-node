@@ -31,7 +31,7 @@ import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { FindDdoHandler } from '../handler/ddoHandler.js'
 // import { ProviderFeeValidation } from '../../../@types/Fees.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
-import { DDOManager } from '@oceanprotocol/ddo-js'
+import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { PolicyServer } from '../../policyServer/index.js'
 import { areKnownCredentialTypes, checkCredentials } from '../../../utils/credentials.js'
@@ -148,6 +148,7 @@ export class PaidComputeStartHandler extends CommandHandler {
           }
         }
       }
+      const policyServer = new PolicyServer()
       // check algo
       for (const elem of [...[task.algorithm], ...task.datasets]) {
         console.log(elem)
@@ -166,6 +167,14 @@ export class PaidComputeStartHandler extends CommandHandler {
               }
             }
           }
+          const ddoInstance = DDOManager.getDDOClass(ddo)
+          const {
+            chainId: ddoChainId,
+            services,
+            metadata,
+            nftAddress,
+            credentials
+          } = ddoInstance.getDDOFields()
           const isOrdable = isOrderingAllowedForAsset(ddo)
           if (!isOrdable.isOrdable) {
             CORE_LOGGER.error(isOrdable.reason)
@@ -179,22 +188,21 @@ export class PaidComputeStartHandler extends CommandHandler {
           }
           // check credentials (DDO level)
           let accessGrantedDDOLevel: boolean
-          if (ddo.credentials) {
+          if (credentials) {
             // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
             // It will just use the existing code and let PolicyServer decide.
-            if (isPolicyServerConfigured() && task.policyServer) {
-              accessGrantedDDOLevel = await (
-                await new PolicyServer().checkStartCompute(
-                  ddo.id,
-                  ddo,
-                  elem.serviceId,
-                  task.consumerAddress,
-                  task.policyServer
-                )
-              ).success
+            if (isPolicyServerConfigured()) {
+              const response = await policyServer.checkStartCompute(
+                ddo.id,
+                ddo,
+                elem.serviceId,
+                task.consumerAddress,
+                task.policyServer
+              )
+              accessGrantedDDOLevel = response.success
             } else {
-              accessGrantedDDOLevel = areKnownCredentialTypes(ddo.credentials)
-                ? checkCredentials(ddo.credentials, task.consumerAddress)
+              accessGrantedDDOLevel = areKnownCredentialTypes(credentials as Credentials)
+                ? checkCredentials(credentials as Credentials, task.consumerAddress)
                 : true
             }
             if (!accessGrantedDDOLevel) {
@@ -226,17 +234,14 @@ export class PaidComputeStartHandler extends CommandHandler {
             if (isPolicyServerConfigured()) {
               // we use the previous check or we do it again
               // (in case there is no DDO level credentials and we only have Service level ones)
-              accessGrantedServiceLevel =
-                accessGrantedDDOLevel ||
-                (await (
-                  await new PolicyServer().checkStartCompute(
-                    ddo.id,
-                    ddo,
-                    elem.serviceId,
-                    task.consumerAddress,
-                    task.policyServer
-                  )
-                ).success)
+              const response = await policyServer.checkStartCompute(
+                ddoInstance.getDid(),
+                ddo,
+                elem.serviceId,
+                task.consumerAddress,
+                task.policyServer
+              )
+              accessGrantedServiceLevel = accessGrantedDDOLevel || response.success
             } else {
               accessGrantedServiceLevel = areKnownCredentialTypes(service.credentials)
                 ? checkCredentials(service.credentials, task.consumerAddress)
@@ -259,13 +264,6 @@ export class PaidComputeStartHandler extends CommandHandler {
           }
 
           const config = await getConfiguration()
-          const ddoInstance = DDOManager.getDDOClass(ddo)
-          const {
-            chainId: ddoChainId,
-            services,
-            metadata,
-            nftAddress
-          } = ddoInstance.getDDOFields()
           const { rpc, network, chainId, fallbackRPCs } =
             config.supportedNetworks[ddoChainId]
           const blockchain = new Blockchain(rpc, network, chainId, fallbackRPCs)

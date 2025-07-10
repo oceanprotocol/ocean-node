@@ -39,7 +39,7 @@ import {
 import { sanitizeServiceFiles } from '../../../utils/util.js'
 import { OrdableAssetResponse } from '../../../@types/Asset.js'
 import { PolicyServer } from '../../policyServer/index.js'
-import { Asset, DDO, Service } from '@oceanprotocol/ddo-js'
+import { Asset, Credentials, DDO, DDOManager, Service } from '@oceanprotocol/ddo-js'
 export const FILE_ENCRYPTION_ALGORITHM = 'aes-256-cbc'
 
 export function isOrderingAllowedForAsset(asset: Asset): OrdableAssetResponse {
@@ -254,6 +254,8 @@ export class DownloadHandler extends CommandHandler {
         }
       }
     }
+    const ddoInstance = DDOManager.getDDOClass(ddo)
+    const policyServer = new PolicyServer()
 
     const isOrdable = isOrderingAllowedForAsset(ddo)
     if (!isOrdable.isOrdable) {
@@ -281,13 +283,14 @@ export class DownloadHandler extends CommandHandler {
 
     // check credentials (DDO level)
     let accessGrantedDDOLevel: boolean
-    const policyServer = new PolicyServer()
-    if (ddo.credentials) {
+
+    const { credentials } = ddoInstance.getDDOFields()
+    if (credentials) {
       // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
       // It will just use the existing code and let PolicyServer decide.
       if (isPolicyServerConfigured()) {
         const response = await policyServer.checkDownload(
-          ddo.id,
+          ddoInstance.getDid(),
           ddo,
           task.serviceId,
           task.consumerAddress,
@@ -295,8 +298,8 @@ export class DownloadHandler extends CommandHandler {
         )
         accessGrantedDDOLevel = response.success
       } else {
-        accessGrantedDDOLevel = areKnownCredentialTypes(ddo.credentials)
-          ? checkCredentials(ddo.credentials, task.consumerAddress)
+        accessGrantedDDOLevel = areKnownCredentialTypes(credentials as Credentials)
+          ? checkCredentials(credentials as Credentials, task.consumerAddress)
           : true
       }
       if (!accessGrantedDDOLevel) {
@@ -364,7 +367,7 @@ export class DownloadHandler extends CommandHandler {
         // we use the previous check or we do it again
         // (in case there is no DDO level credentials and we only have Service level ones)
         const response = await policyServer.checkDownload(
-          ddo.id,
+          ddoInstance.getDid(),
           ddo,
           service.id,
           task.consumerAddress,

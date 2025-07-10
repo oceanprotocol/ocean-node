@@ -30,7 +30,7 @@ import { FindDdoHandler } from '../handler/ddoHandler.js'
 import { isOrderingAllowedForAsset } from '../handler/downloadHandler.js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { C2DEngineDocker, getAlgorithmImage } from '../../c2d/compute_engine_docker.js'
-import { DDOManager } from '@oceanprotocol/ddo-js'
+import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
 import { areKnownCredentialTypes, checkCredentials } from '../../../utils/credentials.js'
 import { PolicyServer } from '../../policyServer/index.js'
 
@@ -180,6 +180,7 @@ export class ComputeInitializeHandler extends CommandHandler {
 
       // check algo
       let index = 0
+      const policyServer = new PolicyServer()
       for (const elem of [...[task.algorithm], ...task.datasets]) {
         const result: any = { validOrder: false }
         if ('documentId' in elem && elem.documentId) {
@@ -196,6 +197,12 @@ export class ComputeInitializeHandler extends CommandHandler {
               }
             }
           }
+          const ddoInstance = DDOManager.getDDOClass(ddo)
+          const {
+            chainId: ddoChainId,
+            nftAddress,
+            credentials
+          } = ddoInstance.getDDOFields()
           const isOrdable = isOrderingAllowedForAsset(ddo)
           if (!isOrdable.isOrdable) {
             CORE_LOGGER.error(isOrdable.reason)
@@ -209,13 +216,12 @@ export class ComputeInitializeHandler extends CommandHandler {
           }
           // check credentials (DDO level)
           let accessGrantedDDOLevel: boolean
-          const policyServer = new PolicyServer()
-          if (ddo.credentials) {
+          if (credentials) {
             // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
             // It will just use the existing code and let PolicyServer decide.
             if (isPolicyServerConfigured()) {
               const response = await policyServer.checkStartCompute(
-                ddo.id,
+                ddoInstance.getDid(),
                 ddo,
                 elem.serviceId,
                 task.consumerAddress,
@@ -223,8 +229,8 @@ export class ComputeInitializeHandler extends CommandHandler {
               )
               accessGrantedDDOLevel = response.success
             } else {
-              accessGrantedDDOLevel = areKnownCredentialTypes(ddo.credentials)
-                ? checkCredentials(ddo.credentials, task.consumerAddress)
+              accessGrantedDDOLevel = areKnownCredentialTypes(credentials as Credentials)
+                ? checkCredentials(credentials as Credentials, task.consumerAddress)
                 : true
             }
             if (!accessGrantedDDOLevel) {
@@ -284,9 +290,6 @@ export class ComputeInitializeHandler extends CommandHandler {
               }
             }
           }
-
-          const ddoInstance = DDOManager.getDDOClass(ddo)
-          const { chainId: ddoChainId, nftAddress } = ddoInstance.getDDOFields()
           const config = await getConfiguration()
           const { rpc, network, chainId, fallbackRPCs } =
             config.supportedNetworks[ddoChainId]
