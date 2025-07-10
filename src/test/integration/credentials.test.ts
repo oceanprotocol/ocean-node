@@ -66,7 +66,7 @@ import { ComputeAlgorithm, ComputeAsset } from '../../@types/index.js'
 import { ComputeGetEnvironmentsHandler } from '../../components/core/compute/environments.js'
 import { ComputeInitializeCommand } from '../../@types/commands.js'
 
-describe('Should run a complete node flow.', () => {
+describe('[Credentials Flow] - Should run a complete node flow.', () => {
   let config: OceanNodeConfig
   let oceanNode: OceanNode
   let provider: JsonRpcProvider
@@ -369,7 +369,7 @@ describe('Should run a complete node flow.', () => {
         token: paymentToken
       },
       maxJobDuration: 2 * 60,
-      consumerAddress: consumerAddress,
+      consumerAddress,
       command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
     }
     const response = await new ComputeInitializeHandler(oceanNode).handle(
@@ -403,7 +403,7 @@ describe('Should run a complete node flow.', () => {
         token: paymentToken
       },
       maxJobDuration: 2 * 60,
-      consumerAddress: consumerAddress,
+      consumerAddress,
       command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
     }
     const response = await new ComputeInitializeHandler(oceanNode).handle(
@@ -436,7 +436,7 @@ describe('Should run a complete node flow.', () => {
         token: paymentToken
       },
       maxJobDuration: 2 * 60,
-      consumerAddress: consumerAddress,
+      consumerAddress,
       command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
     }
     const response = await new ComputeInitializeHandler(oceanNode).handle(

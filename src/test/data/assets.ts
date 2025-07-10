@@ -22,7 +22,7 @@ export const downloadAsset = {
   services: [
     {
       id: 'ccb398c50d6abd5b456e8d7242bd856a1767a890b537c2f8c10ba8b8a10e6025',
-      type: 'download',
+      type: 'access',
       files: {
         files: [
           {
@@ -111,7 +111,7 @@ export const downloadAssetWithCredentials = {
   services: [
     {
       id: 'ccb398c50d6abd5b456e8d7242bd856a1767a890b537c2f8c10ba8b8a10e6025',
-      type: 'download',
+      type: 'access',
       files: {
         files: [
           {
@@ -190,8 +190,14 @@ export const computeAssetWithCredentials = {
       compute: {
         allowRawAlgorithm: false,
         allowNetworkAccess: true,
-        publisherTrustedAlgorithmPublishers: [] as any,
-        publisherTrustedAlgorithms: [] as any
+        publisherTrustedAlgorithmPublishers: ['*'],
+        publisherTrustedAlgorithms: [
+          {
+            did: '*',
+            filesChecksum: '*',
+            containerSectionChecksum: '*'
+          }
+        ]
       }
     }
   ],
@@ -269,8 +275,14 @@ export const algoAssetWithCredentials = {
       compute: {
         allowRawAlgorithm: false,
         allowNetworkAccess: true,
-        publisherTrustedAlgorithmPublishers: [] as any,
-        publisherTrustedAlgorithms: [] as any
+        publisherTrustedAlgorithmPublishers: ['*'],
+        publisherTrustedAlgorithms: [
+          {
+            did: '*',
+            filesChecksum: '*',
+            containerSectionChecksum: '*'
+          }
+        ]
       }
     }
   ],
@@ -330,8 +342,14 @@ export const computeAsset = {
       compute: {
         allowRawAlgorithm: false,
         allowNetworkAccess: true,
-        publisherTrustedAlgorithmPublishers: [] as any,
-        publisherTrustedAlgorithms: [] as any
+        publisherTrustedAlgorithmPublishers: ['*'],
+        publisherTrustedAlgorithms: [
+          {
+            did: '*',
+            filesChecksum: '*',
+            containerSectionChecksum: '*'
+          }
+        ]
       }
     }
   ],
@@ -407,8 +425,14 @@ export const algoAsset = {
       compute: {
         allowRawAlgorithm: false,
         allowNetworkAccess: true,
-        publisherTrustedAlgorithmPublishers: [] as any,
-        publisherTrustedAlgorithms: [] as any
+        publisherTrustedAlgorithmPublishers: ['*'],
+        publisherTrustedAlgorithms: [
+          {
+            did: '*',
+            filesChecksum: '*',
+            containerSectionChecksum: '*'
+          }
+        ]
       }
     }
   ],
