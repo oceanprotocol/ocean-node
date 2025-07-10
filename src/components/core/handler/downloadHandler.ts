@@ -255,6 +255,12 @@ export class DownloadHandler extends CommandHandler {
       }
     }
     const ddoInstance = DDOManager.getDDOClass(ddo)
+    const {
+      chainId: ddoChainId,
+      nftAddress,
+      metadata,
+      credentials
+    } = ddoInstance.getDDOFields()
     const policyServer = new PolicyServer()
 
     const isOrdable = isOrderingAllowedForAsset(ddo)
@@ -270,7 +276,7 @@ export class DownloadHandler extends CommandHandler {
     }
 
     // 2. Validate ddo and credentials
-    if (!ddo.chainId || !ddo.nftAddress || !ddo.metadata) {
+    if (!ddoChainId || !nftAddress || !metadata) {
       CORE_LOGGER.logMessage('Error: DDO malformed or disabled', true)
       return {
         stream: null,
@@ -283,8 +289,6 @@ export class DownloadHandler extends CommandHandler {
 
     // check credentials (DDO level)
     let accessGrantedDDOLevel: boolean
-
-    const { credentials } = ddoInstance.getDDOFields()
     if (credentials) {
       // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
       // It will just use the existing code and let PolicyServer decide.
@@ -303,12 +307,15 @@ export class DownloadHandler extends CommandHandler {
           : true
       }
       if (!accessGrantedDDOLevel) {
-        CORE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
+        CORE_LOGGER.logMessage(
+          `Error: Access to asset ${ddoInstance.getDid()} was denied`,
+          true
+        )
         return {
           stream: null,
           status: {
             httpStatus: 403,
-            error: `Error: Access to asset ${ddo.id} was denied`
+            error: `Error: Access to asset ${ddoInstance.getDid()} was denied`
           }
         }
       }
@@ -316,7 +323,7 @@ export class DownloadHandler extends CommandHandler {
 
     // from now on, we need blockchain checks
     const config = await getConfiguration()
-    const { rpc, network, chainId, fallbackRPCs } = config.supportedNetworks[ddo.chainId]
+    const { rpc, network, chainId, fallbackRPCs } = config.supportedNetworks[ddoChainId]
     let provider
     let blockchain
     try {

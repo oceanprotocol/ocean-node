@@ -206,12 +206,15 @@ export class PaidComputeStartHandler extends CommandHandler {
                 : true
             }
             if (!accessGrantedDDOLevel) {
-              CORE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
+              CORE_LOGGER.logMessage(
+                `Error: Access to asset ${ddoInstance.getDid()} was denied`,
+                true
+              )
               return {
                 stream: null,
                 status: {
                   httpStatus: 403,
-                  error: `Error: Access to asset ${ddo.id} was denied`
+                  error: `Error: Access to asset ${ddoInstance.getDid()} was denied`
                 }
               }
             }
@@ -590,6 +593,7 @@ export class FreeComputeStartHandler extends CommandHandler {
           }
         }
       }
+      const policyServer = new PolicyServer()
       for (const elem of [...[task.algorithm], ...task.datasets]) {
         if (!('documentId' in elem)) {
           continue
@@ -607,15 +611,16 @@ export class FreeComputeStartHandler extends CommandHandler {
             }
           }
         }
+        const ddoInstance = DDOManager.getDDOClass(ddo)
+        const { credentials } = ddoInstance.getDDOFields()
         // check credentials (DDO level)
         let accessGrantedDDOLevel: boolean
-        const policyServer = new PolicyServer()
-        if (ddo.credentials) {
+        if (credentials) {
           // if POLICY_SERVER_URL exists, then ocean-node will NOT perform any checks.
           // It will just use the existing code and let PolicyServer decide.
           if (isPolicyServerConfigured()) {
             const response = await policyServer.checkStartCompute(
-              ddo.id,
+              ddoInstance.getDid(),
               ddo,
               elem.serviceId,
               task.consumerAddress,
@@ -623,17 +628,20 @@ export class FreeComputeStartHandler extends CommandHandler {
             )
             accessGrantedDDOLevel = response.success
           } else {
-            accessGrantedDDOLevel = areKnownCredentialTypes(ddo.credentials)
-              ? checkCredentials(ddo.credentials, task.consumerAddress)
+            accessGrantedDDOLevel = areKnownCredentialTypes(credentials as Credentials)
+              ? checkCredentials(credentials as Credentials, task.consumerAddress)
               : true
           }
           if (!accessGrantedDDOLevel) {
-            CORE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
+            CORE_LOGGER.logMessage(
+              `Error: Access to asset ${ddoInstance.getDid()} was denied`,
+              true
+            )
             return {
               stream: null,
               status: {
                 httpStatus: 403,
-                error: `Error: Access to asset ${ddo.id} was denied`
+                error: `Error: Access to asset ${ddoInstance.getDid()} was denied`
               }
             }
           }

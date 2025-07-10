@@ -234,12 +234,15 @@ export class ComputeInitializeHandler extends CommandHandler {
                 : true
             }
             if (!accessGrantedDDOLevel) {
-              CORE_LOGGER.logMessage(`Error: Access to asset ${ddo.id} was denied`, true)
+              CORE_LOGGER.logMessage(
+                `Error: Access to asset ${ddoInstance.getDid()} was denied`,
+                true
+              )
               return {
                 stream: null,
                 status: {
                   httpStatus: 403,
-                  error: `Error: Access to asset ${ddo.id} was denied`
+                  error: `Error: Access to asset ${ddoInstance.getDid()} was denied`
                 }
               }
             }
