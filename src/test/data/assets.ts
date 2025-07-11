@@ -190,14 +190,14 @@ export const computeAssetWithCredentials = {
       compute: {
         allowRawAlgorithm: false,
         allowNetworkAccess: true,
-        publisherTrustedAlgorithmPublishers: ['*'],
+        publisherTrustedAlgorithmPublishers: ['*'] as any,
         publisherTrustedAlgorithms: [
           {
             did: '*',
             filesChecksum: '*',
             containerSectionChecksum: '*'
           }
-        ]
+        ] as any
       }
     }
   ],
@@ -275,14 +275,14 @@ export const algoAssetWithCredentials = {
       compute: {
         allowRawAlgorithm: false,
         allowNetworkAccess: true,
-        publisherTrustedAlgorithmPublishers: ['*'],
+        publisherTrustedAlgorithmPublishers: ['*'] as any,
         publisherTrustedAlgorithms: [
           {
             did: '*',
             filesChecksum: '*',
             containerSectionChecksum: '*'
           }
-        ]
+        ] as any
       }
     }
   ],
@@ -342,14 +342,14 @@ export const computeAsset = {
       compute: {
         allowRawAlgorithm: false,
         allowNetworkAccess: true,
-        publisherTrustedAlgorithmPublishers: ['*'],
+        publisherTrustedAlgorithmPublishers: ['*'] as any,
         publisherTrustedAlgorithms: [
           {
             did: '*',
             filesChecksum: '*',
             containerSectionChecksum: '*'
           }
-        ]
+        ] as any
       }
     }
   ],
@@ -408,7 +408,7 @@ export const algoAsset = {
   services: [
     {
       id: 'db164c1b981e4d2974e90e61bda121512e6909c1035c908d68933ae4cfaba6b0',
-      type: 'compute',
+      type: 'access',
       files: {
         files: [
           {
@@ -421,19 +421,7 @@ export const algoAsset = {
         ]
       },
       timeout: 86400,
-      serviceEndpoint: 'https://v4.provider.oceanprotocol.com',
-      compute: {
-        allowRawAlgorithm: false,
-        allowNetworkAccess: true,
-        publisherTrustedAlgorithmPublishers: ['*'],
-        publisherTrustedAlgorithms: [
-          {
-            did: '*',
-            filesChecksum: '*',
-            containerSectionChecksum: '*'
-          }
-        ]
-      }
+      serviceEndpoint: 'https://v4.provider.oceanprotocol.com'
     }
   ],
   stats: {
