@@ -51,7 +51,7 @@ export interface ComputeResource {
   id: ComputeResourceType
   description?: string
   type?: string
-  kind?: string
+  kind?: string // discreet, named, etc
   total: number // total number of specific resource
   min: number // min number of resource needed for a job
   max: number // max number of resource for a job

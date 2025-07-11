@@ -172,12 +172,14 @@ export class C2DEngineDocker extends C2DEngine {
     this.envs[0].resources = []
     this.envs[0].resources.push({
       id: 'cpu',
+      type: 'cpu',
       total: sysinfo.NCPU,
       max: sysinfo.NCPU,
       min: 1
     })
     this.envs[0].resources.push({
       id: 'ram',
+      type: 'ram',
       total: sysinfo.MemTotal,
       max: sysinfo.MemTotal,
       min: 1e9

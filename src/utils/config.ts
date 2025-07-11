@@ -492,7 +492,10 @@ function getDockerComputeEnvironments(isStartup?: boolean): C2DDockerConfig[] {
         let foundDisk = false
         if ('resources' in config) {
           for (const resource of config.resources) {
-            if (resource.id === 'disk' && resource.total) foundDisk = true
+            if (resource.id === 'disk' && resource.total) {
+              foundDisk = true
+              resource.type = 'disk'
+            }
           }
         }
         if (!foundDisk) {
