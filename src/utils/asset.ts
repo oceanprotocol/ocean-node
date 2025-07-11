@@ -2,6 +2,7 @@ import axios from 'axios'
 import { Service, DDOManager, DDO } from '@oceanprotocol/ddo-js'
 import { DDO_IDENTIFIER_PREFIX } from './constants.js'
 import { CORE_LOGGER } from './logging/common.js'
+import { GENERIC_EMOJIS, LOG_LEVELS_STR } from './logging/Logger.js'
 import { createHash } from 'crypto'
 import { ethers, getAddress, Signer } from 'ethers'
 import { KNOWN_CONFIDENTIAL_EVMS } from './address.js'
@@ -246,5 +247,36 @@ export async function getFilesObjectFromConfidentialEVM(
       'Unable to decrypt files object from Template4 on confidential EVM: ' + err.message
     )
     return null
+  }
+}
+
+export async function validateDDO(ddo: Record<string, any>): Promise<boolean> {
+  const ddoInstance = DDOManager.getDDOClass(ddo)
+  const ddoData = ddoInstance.getDDOData()
+  if ('indexedMetadata' in ddoData && ddoData.indexedMetadata?.nft?.state !== 0) {
+    // Skipping validation for short DDOs as it currently doesn't work
+    // TODO: DDO validation needs to be updated to consider the fields required by the schema
+    // See github issue: https://github.com/oceanprotocol/ocean-node/issues/256
+    return true
+  }
+
+  const validation = await ddoInstance.validate()
+  if (validation[0] === true) {
+    CORE_LOGGER.logMessageWithEmoji(
+      `Validation of DDO with did: ${ddo.id} has passed`,
+      true,
+      GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
+      LOG_LEVELS_STR.LEVEL_DEBUG
+    )
+    return true
+  } else {
+    CORE_LOGGER.logMessageWithEmoji(
+      `Validation of DDO with schema version ${ddo.version} failed with errors: ` +
+        JSON.stringify(validation[1]),
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_WARN
+    )
+    return false
   }
 }

@@ -14,6 +14,7 @@ import {
   AbstractOrderDatabase
 } from './BaseDatabase.js'
 import { DDOManager } from '@oceanprotocol/ddo-js'
+import { validateDDO } from '../../utils/asset.js'
 
 export class TypesenseOrderDatabase extends AbstractOrderDatabase {
   private provider: Typesense
@@ -388,37 +389,6 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
     return schema
   }
 
-  async validateDDO(ddo: Record<string, any>): Promise<boolean> {
-    const ddoInstance = DDOManager.getDDOClass(ddo)
-    const ddoData = ddoInstance.getDDOData()
-    if ('indexedMetadata' in ddoData && ddoData.indexedMetadata?.nft?.state !== 0) {
-      // Skipping validation for short DDOs as it currently doesn't work
-      // TODO: DDO validation needs to be updated to consider the fields required by the schema
-      // See github issue: https://github.com/oceanprotocol/ocean-node/issues/256
-      return true
-    }
-
-    const validation = await ddoInstance.validate()
-    if (validation[0] === true) {
-      DATABASE_LOGGER.logMessageWithEmoji(
-        `Validation of DDO with did: ${ddo.id} has passed`,
-        true,
-        GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
-        LOG_LEVELS_STR.LEVEL_INFO
-      )
-      return true
-    } else {
-      DATABASE_LOGGER.logMessageWithEmoji(
-        `Validation of DDO with schema version ${ddo.version} failed with errors: ` +
-          JSON.stringify(validation[1]),
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
-      return false
-    }
-  }
-
   async search(
     query: Record<string, any>,
     maxResultsPerPage?: number,
@@ -476,7 +446,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
       // avoid failure because of schema
       if (ddo?.indexedMetadata?.nft) delete ddo.nft
 
-      const validation = await this.validateDDO(ddo)
+      const validation = await validateDDO(ddo)
       if (validation === true) {
         return await this.provider
           .collections(schema.name)
@@ -539,7 +509,7 @@ export class TypesenseDdoDatabase extends AbstractDdoDatabase {
     try {
       // avoid issue with nft fields, due to schema
       if (ddo?.indexedMetadata?.nft) delete ddo.nft
-      const validation = await this.validateDDO(ddo)
+      const validation = await validateDDO(ddo)
       if (validation === true) {
         return await this.provider
           .collections(schema.name)

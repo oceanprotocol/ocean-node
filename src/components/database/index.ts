@@ -41,7 +41,6 @@ export class Database {
         this.sqliteConfig = await DatabaseFactory.createConfigDatabase()
         this.c2d = await DatabaseFactory.createC2DDatabase(this.config)
         this.authToken = await DatabaseFactory.createAuthTokenDatabase(this.config)
-
         // only for Typesense or Elasticsearch
         if (hasValidDBConfiguration(this.config)) {
           // add this DB transport too
