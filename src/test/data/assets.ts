@@ -190,14 +190,8 @@ export const computeAssetWithCredentials = {
       compute: {
         allowRawAlgorithm: false,
         allowNetworkAccess: true,
-        publisherTrustedAlgorithmPublishers: ['*'] as any,
-        publisherTrustedAlgorithms: [
-          {
-            did: '*',
-            filesChecksum: '*',
-            containerSectionChecksum: '*'
-          }
-        ] as any
+        publisherTrustedAlgorithmPublishers: [] as any,
+        publisherTrustedAlgorithms: [] as any
       }
     }
   ],
@@ -271,19 +265,7 @@ export const algoAssetWithCredentials = {
       },
       credentials: serviceLevelCredentials,
       timeout: 86400,
-      serviceEndpoint: 'https://v4.provider.oceanprotocol.com',
-      compute: {
-        allowRawAlgorithm: false,
-        allowNetworkAccess: true,
-        publisherTrustedAlgorithmPublishers: ['*'] as any,
-        publisherTrustedAlgorithms: [
-          {
-            did: '*',
-            filesChecksum: '*',
-            containerSectionChecksum: '*'
-          }
-        ] as any
-      }
+      serviceEndpoint: 'https://v4.provider.oceanprotocol.com'
     }
   ],
   stats: {
@@ -342,14 +324,8 @@ export const computeAsset = {
       compute: {
         allowRawAlgorithm: false,
         allowNetworkAccess: true,
-        publisherTrustedAlgorithmPublishers: ['*'] as any,
-        publisherTrustedAlgorithms: [
-          {
-            did: '*',
-            filesChecksum: '*',
-            containerSectionChecksum: '*'
-          }
-        ] as any
+        publisherTrustedAlgorithmPublishers: [] as any,
+        publisherTrustedAlgorithms: [] as any
       }
     }
   ],

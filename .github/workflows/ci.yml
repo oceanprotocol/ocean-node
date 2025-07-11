@@ -163,7 +163,7 @@ jobs:
           ASSET_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-assets.json'
           ACCOUNT_PURGATORY_URL: 'https://raw.githubusercontent.com/oceanprotocol/list-purgatory/main/list-accounts.json'
       - name: docker logs
-        run: docker logs ocean-ocean-contracts-1 && docker logs ocean-kindcluster-1 && docker logs ocean-computetodata-1 && docker logs ocean-typesense-1
+        run: docker logs ocean-ocean-contracts-1 && docker logs ocean-typesense-1
         if: ${{ failure() }}
       - uses: actions/upload-artifact@v4
         with:
