@@ -92,7 +92,7 @@ export const downloadAssetWithCredentials = {
   '@context': ['https://w3id.org/did/v1'],
   id: '',
   nftAddress: '',
-  version: '4.1.0',
+  version: '4.7.0',
   chainId: 80001,
   metadata: {
     created: '2021-12-20T14:35:20Z',
@@ -154,7 +154,7 @@ export const computeAssetWithCredentials = {
   '@context': ['https://w3id.org/did/v1'],
   id: '',
   nftAddress: '',
-  version: '4.1.0',
+  version: '4.7.0',
   chainId: 8996,
   metadata: {
     created: '2021-12-20T14:35:20Z',
@@ -222,7 +222,7 @@ export const algoAssetWithCredentials = {
   '@context': ['https://w3id.org/did/v1'],
   id: '',
   nftAddress: '',
-  version: '4.1.0',
+  version: '4.7.0',
   chainId: 8996,
   metadata: {
     created: '2023-08-01T17:09:39Z',
@@ -356,7 +356,7 @@ export const algoAsset = {
   '@context': ['https://w3id.org/did/v1'],
   id: '',
   nftAddress: '',
-  version: '4.1.0',
+  version: '4.7.0',
   chainId: 137,
   metadata: {
     created: '2023-08-01T17:09:39Z',

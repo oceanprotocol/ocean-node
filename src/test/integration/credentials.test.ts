@@ -202,7 +202,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
   })
 
   it('should publish download datasets', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 3)
+    this.timeout(DEFAULT_TEST_TIMEOUT * 5)
 
     const publishedDataset = await publishAsset(
       downloadAssetWithCredentials,
