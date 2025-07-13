@@ -139,6 +139,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     oceanNode = await OceanNode.getInstance(config, database)
     const indexer = new OceanIndexer(database, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
+    await oceanNode.addC2DEngines()
 
     const rpcs: RPCS = config.supportedNetworks
     const chain: SupportedNetwork = rpcs[String(DEVELOPMENT_CHAIN_ID)]
