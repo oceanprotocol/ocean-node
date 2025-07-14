@@ -57,9 +57,9 @@ export const retrieveChunkEvents = async (
       toBlock: lastIndexedBlock + count,
       topics: [eventHashes]
     }
-    console.log('Retrieving events from block', startIndex, 'to', details.toBlock)
+    // console.log('Retrieving events from block', startIndex, 'to', details.toBlock)
     const blockLogs = await provider.getLogs(details)
-    console.log(blockLogs)
+    // console.log(blockLogs)
     return blockLogs
   } catch (error) {
     console.error(

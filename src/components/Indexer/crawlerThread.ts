@@ -131,7 +131,6 @@ export async function processNetworkData(
 
   while (true) {
     let currentBlock
-    const finalBlock = 0
     if (!lockProccessing) {
       lockProccessing = true
       const lastIndexedBlock = await getLastIndexedBlock()
@@ -212,6 +211,8 @@ export async function processNetworkData(
             lastIndexedBlock
           )
         }
+      } else {
+        await sleep(interval)
       }
       await processReindex(provider, signer, rpcDetails.chainId)
       lockProccessing = false
@@ -220,7 +221,7 @@ export async function processNetworkData(
         `Processing already in progress for network ${rpcDetails.network}, waiting until finishing the current processing ...`
       )
     }
-    // await sleep(interval)
+
     // reindex chain command called
     if (REINDEX_BLOCK && !lockProccessing) {
       const networkHeight = await getNetworkHeight(provider)
