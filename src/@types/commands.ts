@@ -16,7 +16,6 @@ import {
   UrlFileObject,
   BaseFileObject
 } from './fileObject'
-import { PolicyServerTask } from './policyServer.js'
 
 export interface Command {
   command: string // command name
@@ -59,7 +58,7 @@ export interface DownloadCommand extends Command {
   consumerAddress: string
   signature: string
   aes_encrypted_key?: string // if not present it means download without encryption
-  policyServer?: PolicyServerTask // object to pass to policy server
+  policyServer?: any // object to pass to policy server
 }
 
 export interface FileInfoCommand extends Command {
@@ -139,7 +138,7 @@ export interface GetFeesCommand extends Command {
   serviceId: string
   consumerAddress?: string
   validUntil?: number // this allows a user to request a fee that is valid only for a limited period of time, less than service.timeout
-  policyServer?: PolicyServerTask // object to pass to policyServer
+  policyServer?: any // object to pass to policyServer
 }
 // admin commands
 export interface AdminStopNodeCommand extends AdminCommand {}
@@ -190,7 +189,7 @@ export interface ComputeInitializeCommand extends Command {
   consumerAddress: string
   signature?: string
   maxJobDuration: number
-  policyServer?: PolicyServerTask // object to pass to policy server
+  policyServer?: any // object to pass to policy server
 }
 
 export interface FreeComputeStartCommand extends Command {
@@ -203,7 +202,7 @@ export interface FreeComputeStartCommand extends Command {
   output?: ComputeOutput
   resources?: ComputeResourceRequest[]
   maxJobDuration?: number
-  policyServer?: PolicyServerTask // object to pass to policy server
+  policyServer?: any // object to pass to policy server
   metadata?: DBComputeJobMetadata
 }
 export interface PaidComputeStartCommand extends FreeComputeStartCommand {
