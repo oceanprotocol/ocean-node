@@ -142,8 +142,6 @@ export abstract class AbstractDdoDatabase {
     return (schema as TypesenseSchema).name !== undefined
   }
 
-  abstract validateDDO(ddo: Record<string, any>): Promise<boolean>
-
   abstract search(
     query: Record<string, any>,
     maxResultsPerPage?: number,

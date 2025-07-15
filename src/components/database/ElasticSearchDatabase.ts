@@ -11,7 +11,9 @@ import { OceanNodeDBConfig } from '../../@types'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+
 import { DDOManager } from '@oceanprotocol/ddo-js'
+import { validateDDO } from '../../utils/asset.js'
 
 export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
   private client: Client
@@ -491,37 +493,6 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     return schema
   }
 
-  async validateDDO(ddo: Record<string, any>): Promise<boolean> {
-    const ddoInstance = DDOManager.getDDOClass(ddo)
-    const ddoData = ddoInstance.getDDOData()
-    if ('indexedMetadata' in ddoData && ddoData.indexedMetadata?.nft?.state !== 0) {
-      // Skipping validation for short DDOs as it currently doesn't work
-      // TODO: DDO validation needs to be updated to consider the fields required by the schema
-      // See github issue: https://github.com/oceanprotocol/ocean-node/issues/256
-      return true
-    }
-
-    const validation = await ddoInstance.validate()
-    if (validation[0] === true) {
-      DATABASE_LOGGER.logMessageWithEmoji(
-        `Validation of DDO with did: ${ddo.id} has passed`,
-        true,
-        GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
-        LOG_LEVELS_STR.LEVEL_INFO
-      )
-      return true
-    } else {
-      DATABASE_LOGGER.logMessageWithEmoji(
-        `Validation of DDO with schema version ${ddo.version} failed with errors: ` +
-          JSON.stringify(validation[1]),
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
-      return false
-    }
-  }
-
   async search(query: Record<string, any>): Promise<any> {
     const results = []
     const maxPerPage = query.size || 100
@@ -594,7 +565,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     try {
       // avoid issue with nft fields, due to schema
       if (ddo?.indexedMetadata?.nft) delete ddo.nft
-      const validation = await this.validateDDO(ddo)
+      const validation = await validateDDO(ddo)
 
       if (validation === true) {
         const response = await this.client.index({
@@ -665,7 +636,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
     try {
       // avoid issue with nft fields, due to schema
       if (ddo?.indexedMetadata?.nft) delete ddo.nft
-      const validation = await this.validateDDO(ddo)
+      const validation = await validateDDO(ddo)
       if (validation === true) {
         const response: any = await this.client.update({
           index: schema.index,

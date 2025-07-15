@@ -52,13 +52,23 @@ export const retrieveChunkEvents = async (
   try {
     const eventHashes = Object.keys(EVENT_HASHES)
     const startIndex = lastIndexedBlock + 1
-    const blockLogs = await provider.getLogs({
+    const details = {
       fromBlock: startIndex,
       toBlock: lastIndexedBlock + count,
       topics: [eventHashes]
-    })
+    }
+    INDEXER_LOGGER.debug(
+      `Retrieving events from block ${startIndex} to ${lastIndexedBlock + count}`
+    )
+    const blockLogs = await provider.getLogs(details)
     return blockLogs
   } catch (error) {
+    INDEXER_LOGGER.error(
+      `Error retrieving events from block ${lastIndexedBlock + 1} to ${
+        lastIndexedBlock + count
+      }:`
+    )
+    INDEXER_LOGGER.error(error)
     throw new Error(` Error processing chunk of blocks events ${error.message}`)
   }
 }
