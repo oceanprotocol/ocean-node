@@ -187,7 +187,7 @@ export async function processNetworkData(
             startBlock,
             blocksToProcess
           )
-          console.log(
+          INDEXER_LOGGER.debug(
             `Processed ${processedBlocks.foundEvents.length} events from ${chunkEvents.length} logs`
           )
           currentBlock = await updateLastIndexedBlockNumber(
@@ -201,10 +201,8 @@ export async function processNetworkData(
           checkNewlyIndexedAssets(processedBlocks.foundEvents)
           chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
         } catch (error) {
-          INDEXER_LOGGER.log(
-            LOG_LEVELS_STR.LEVEL_ERROR,
-            `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `,
-            true
+          INDEXER_LOGGER.error(
+            `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `
           )
           await updateLastIndexedBlockNumber(
             startBlock + blocksToProcess,
