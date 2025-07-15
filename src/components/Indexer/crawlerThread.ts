@@ -204,10 +204,10 @@ export async function processNetworkData(
           INDEXER_LOGGER.error(
             `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `
           )
-          await updateLastIndexedBlockNumber(
-            startBlock + blocksToProcess,
-            lastIndexedBlock
-          )
+          // since something went wrong, we will not update the last indexed block
+          // so we will try to process the same chunk again
+          // after some sleep
+          await sleep(interval)
         }
       } else {
         await sleep(interval)
