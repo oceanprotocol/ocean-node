@@ -1,5 +1,6 @@
 import { Client } from '@elastic/elasticsearch'
 import { OceanNodeDBConfig } from '../../@types'
+
 export interface ElasticsearchRetryConfig {
   requestTimeout?: number
   pingTimeout?: number
@@ -25,36 +26,59 @@ export const DEFAULT_ELASTICSEARCH_CONFIG: Required<ElasticsearchRetryConfig> = 
   sniffOnConnectionFault: process.env.ELASTICSEARCH_SNIFF_ON_CONNECTION_FAULT !== 'false'
 }
 
+class ElasticsearchClientSingleton {
+  private static instance: any = null
+  private client: Client | null = null
+  private config: OceanNodeDBConfig | null = null
+
+  private constructor() {}
+
+  public static getInstance(): ElasticsearchClientSingleton {
+    if (!ElasticsearchClientSingleton.instance) {
+      ElasticsearchClientSingleton.instance = new ElasticsearchClientSingleton()
+    }
+    return ElasticsearchClientSingleton.instance
+  }
+
+  public getClient(
+    config: OceanNodeDBConfig,
+    customConfig: Partial<ElasticsearchRetryConfig> = {}
+  ): Client {
+    if (this.client && this.config) {
+      return this.client
+    }
+
+    const finalConfig = {
+      ...DEFAULT_ELASTICSEARCH_CONFIG,
+      ...customConfig
+    }
+
+    this.client = new Client({
+      node: config.url,
+      auth:
+        config.username && config.password
+          ? { username: config.username, password: config.password }
+          : undefined,
+      requestTimeout: finalConfig.requestTimeout,
+      pingTimeout: finalConfig.pingTimeout,
+      resurrectStrategy: finalConfig.resurrectStrategy,
+      maxRetries: finalConfig.maxRetries,
+      sniffOnStart: finalConfig.sniffOnStart,
+      sniffInterval: finalConfig.sniffInterval,
+      sniffOnConnectionFault: finalConfig.sniffOnConnectionFault
+    })
+
+    this.config = { ...config }
+    return this.client
+  }
+}
+
 export function createElasticsearchClientWithRetry(
   config: OceanNodeDBConfig,
   customConfig: Partial<ElasticsearchRetryConfig> = {}
 ): Client {
-  const finalConfig = {
-    ...DEFAULT_ELASTICSEARCH_CONFIG,
-    ...customConfig
-  }
-
-  return new Client({
-    node: config.url,
-    auth:
-      config.username && config.password
-        ? { username: config.username, password: config.password }
-        : undefined,
-    requestTimeout: finalConfig.requestTimeout,
-    pingTimeout: finalConfig.pingTimeout,
-    resurrectStrategy: finalConfig.resurrectStrategy,
-    maxRetries: finalConfig.maxRetries,
-    sniffOnStart: finalConfig.sniffOnStart,
-    sniffInterval: finalConfig.sniffInterval,
-    sniffOnConnectionFault: finalConfig.sniffOnConnectionFault
-  })
-}
-
-export function createElasticsearchClientWithCustomRetry(
-  config: OceanNodeDBConfig,
-  customRetryConfig: Partial<ElasticsearchRetryConfig>
-): Client {
-  return createElasticsearchClientWithRetry(config, customRetryConfig)
+  const singleton = ElasticsearchClientSingleton.getInstance()
+  return singleton.getClient(config, customConfig)
 }
 
 export function getElasticsearchConfig(
