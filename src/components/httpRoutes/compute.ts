@@ -30,7 +30,6 @@ import { PROTOCOL_COMMANDS, SERVICES_API_BASE_PATH } from '../../utils/constants
 import { Readable } from 'stream'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
 import { LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
-import { PolicyServerTask } from '../../@types/policyServer.js'
 
 export const computeRoutes = express.Router()
 
@@ -78,7 +77,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       datasets: (req.body.datasets as unknown as ComputeAsset[]) || null,
       payment: (req.body.payment as unknown as ComputePayment) || null,
       resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null,
-      policyServer: (req.query.policyServer as PolicyServerTask) || null,
+      policyServer: (req.query.policyServer as any) || null,
       metadata: req.body.metadata || null,
       authorization: req.headers?.authorization
     }
@@ -122,7 +121,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => 
       datasets: (req.body.datasets as unknown as ComputeAsset[]) || null,
       resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null,
       maxJobDuration: req.body.maxJobDuration || null,
-      policyServer: (req.query.policyServer as PolicyServerTask) || null,
+      policyServer: (req.query.policyServer as any) || null,
       metadata: req.body.metadata || null,
       authorization: req.headers?.authorization
     }
