@@ -404,19 +404,58 @@ returns list of logs
 
 ---
 
-## Advertise Did
+## Get providers for a string
 
-### `HTTP` GET /advertiseDid/?did=did:op:123"
+### `HTTP` GET /getProvidersForString/?input=did:op:123"
 
 #### Description
 
-returns empty if advertising did around peers was successful
+returns list of nodes providing the specific element(s) (dids, c2d resources, etc)
 
 #### Query Parameters
 
-| name | type   | required | description        |
-| ---- | ------ | -------- | ------------------ |
-| did  | string | v        | document id or did |
+| name  | type   | required | description            |
+| ----- | ------ | -------- | ---------------------- |
+| input | string | v        | did, c2d resource, etc |
+
+## Get providers for a list of strings
+
+### `HTTP` POST /getProvidersForStrings?timeout=10"
+
+#### Description
+
+returns list of nodes providing all specific elements.
+
+#### Query Parameters
+
+| name    | type   | required | description            |
+| ------- | ------ | -------- | ---------------------- |
+| timeout | string | optional | timeout in miliseconds |
+
+#### Request
+
+```json
+["{\"c2d\":{\"free\":false,\"disk\":1}}", "{\"c2d\":{\"free\":false,\"cpu\":1}}"]
+```
+
+#### Response
+
+```json
+[
+  {
+    "id": "16Uiu2HAmENNgCY1QAdQrPxipgUCQjyookUgpnbgXua4ZMju4Rkou",
+    "multiaddrs": [
+      "/ip4/10.255.255.254/tcp/41015/ws",
+      "/ip4/10.255.255.254/tcp/41347",
+      "/ip4/127.0.0.1/tcp/41015/ws",
+      "/ip4/127.0.0.1/tcp/41347",
+      "/ip4/172.27.58.101/tcp/41015/ws",
+      "/ip4/172.27.58.101/tcp/41347",
+      "/ip6/::1/tcp/37527"
+    ]
+  }
+]
+```
 
 ---
 
@@ -1404,7 +1443,7 @@ returns job result
 | jobId           | string | v        | jobId address to use as filter                                 |
 | signature       | string | v        | signature (consumerAddress + jobId + index.toString() + nonce) |
 | nonce           | string | v        | nonce for the request                                          |
-| index           | number | v        | index of result  (0 for main result, 1 for logs)               |
+| index           | number | v        | index of result (0 for main result, 1 for logs)                |
 
 #### Response
 
