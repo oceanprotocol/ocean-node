@@ -6,7 +6,7 @@ import {
   AbstractLogDatabase,
   AbstractOrderDatabase
 } from './BaseDatabase.js'
-import { createElasticsearchClient } from './ElasticsearchConfigHelper.js'
+import { createElasticsearchClientWithRetry } from './ElasticsearchConfigHelper.js'
 import { OceanNodeDBConfig } from '../../@types'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
@@ -21,7 +21,7 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
 
   constructor(config: OceanNodeDBConfig) {
     super(config)
-    this.client = new Client({ node: config.url })
+    this.client = createElasticsearchClientWithRetry(config)
     this.index = 'indexer'
 
     this.initializeIndex()
@@ -148,7 +148,7 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
 
   constructor(config: OceanNodeDBConfig) {
     super(config)
-    this.client = new Client({ node: config.url })
+    this.client = createElasticsearchClientWithRetry(config)
     this.index = 'ddo_state'
 
     this.initializeIndex()
@@ -320,7 +320,7 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
 
   constructor(config: OceanNodeDBConfig, schema: ElasticsearchSchema) {
     super(config, schema)
-    this.provider = createElasticsearchClient(config)
+    this.provider = createElasticsearchClientWithRetry(config)
   }
 
   getSchema(): ElasticsearchSchema {
@@ -466,7 +466,7 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
 
   constructor(config: OceanNodeDBConfig, schemas: ElasticsearchSchema[]) {
     super(config, schemas)
-    this.client = createElasticsearchClient(config)
+    this.client = createElasticsearchClientWithRetry(config)
   }
 
   getSchemas(): ElasticsearchSchema[] {
@@ -754,7 +754,7 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
 
   constructor(config: OceanNodeDBConfig) {
     super(config)
-    this.client = new Client({ node: config.url })
+    this.client = createElasticsearchClientWithRetry(config)
     this.index = 'log'
 
     this.initializeIndex()
