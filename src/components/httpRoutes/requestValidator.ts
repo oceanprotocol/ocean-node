@@ -16,47 +16,82 @@ export interface CommonValidation {
 }
 
 // hold data about last request made
-const connectionsData: RequestLimiter = {
-  lastRequestTime: Date.now(),
-  requester: '',
-  numRequests: 0
-}
+const connectionsData = new Map<string, RequestLimiter>()
 
-// midleware to validate client addresses against a denylist
-// it also checks the global rate limit
+// Middleware to validate IP and apply rate limiting
 export const requestValidator = async function (req: Request, res: Response, next: any) {
-  // Perform the validations.
-  const requestIP = req.headers['x-forwarded-for'] || req.socket.remoteAddress
-
-  // grab request time
-  const requestTime = Date.now()
-  if (requestTime - connectionsData.lastRequestTime > CONNECTIONS_RATE_INTERVAL) {
-    // last one was more than 1 minute ago? reset counter
-    connectionsData.numRequests = 0
-  }
-  // always increment counter
-  connectionsData.numRequests += 1
-  // update time and requester information
-  connectionsData.lastRequestTime = requestTime
-  connectionsData.requester = requestIP
+  const requestIP = (req.headers['x-forwarded-for'] ||
+    req.socket.remoteAddress ||
+    '') as string
 
   const configuration = await getConfiguration()
 
-  // check if IP is allowed or denied
   const ipValidation = await checkIP(requestIP, configuration)
-  // Validation failed, or an error occurred during the external request.
   if (!ipValidation.valid) {
-    res.status(403).send(ipValidation.error)
-    return
+    HTTP_LOGGER.logMessage(`IP denied: ${ipValidation.error}`)
+    return res.status(403).send(ipValidation.error)
   }
-  // check global rate limits (not ip related)
-  const requestRateValidation = checkConnectionsRateLimit(configuration, connectionsData)
+
+  const rateLimitCheck = checkRequestsRateLimit(requestIP, configuration)
+  if (!rateLimitCheck.valid) {
+    HTTP_LOGGER.logMessage(
+      `Exceeded limit of requests per minute ${configuration.rateLimit}: ${rateLimitCheck.error}`
+    )
+    return res.status(429).send(rateLimitCheck.error)
+  }
+
+  const requestRateValidation = checkConnectionsRateLimit(
+    configuration,
+    connectionsData.get(requestIP)
+  )
   if (!requestRateValidation.valid) {
+    HTTP_LOGGER.logMessage(
+      `Exceeded limit of connections per minute ${configuration.maxConnections}: ${requestRateValidation.error}`
+    )
     res.status(403).send(requestRateValidation.error)
     return
   }
-  // Validation passed.
+
   next()
+}
+
+function checkRequestsRateLimit(
+  requestIP: string,
+  configuration: OceanNodeConfig
+): CommonValidation {
+  const requestTime = Date.now()
+  const limit = configuration.rateLimit
+  let clientData = connectionsData.get(requestIP)
+
+  if (!clientData || clientData === undefined) {
+    clientData = {
+      lastRequestTime: requestTime,
+      requester: requestIP,
+      numRequests: 1
+    }
+    connectionsData.set(requestIP, clientData)
+    return { valid: true, error: '' }
+  }
+
+  const timeSinceLastRequest = requestTime - clientData.lastRequestTime
+  const windowExpired = timeSinceLastRequest > CONNECTIONS_RATE_INTERVAL
+
+  if (clientData.numRequests >= limit && !windowExpired) {
+    const waitTime = Math.ceil((CONNECTIONS_RATE_INTERVAL - timeSinceLastRequest) / 1000)
+    return {
+      valid: false,
+      error: `Rate limit exceeded. Try again in ${waitTime} seconds.`
+    }
+  }
+
+  if (windowExpired) {
+    clientData.numRequests = 1
+    clientData.lastRequestTime = requestTime
+    return { valid: true, error: '' }
+  }
+
+  clientData.numRequests += 1
+  return { valid: true, error: '' }
 }
 
 export function checkConnectionsRateLimit(
