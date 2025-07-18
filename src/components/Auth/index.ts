@@ -3,11 +3,7 @@ import jwt from 'jsonwebtoken'
 import { checkNonce, NonceResponse } from '../core/utils/nonceHandler.js'
 import { OceanNode } from '../../OceanNode.js'
 import { getConfiguration } from '../../utils/index.js'
-
-export interface CommonValidation {
-  valid: boolean
-  error: string
-}
+import { CommonValidation } from '../../utils/validators.js'
 
 export interface AuthValidation {
   token?: string

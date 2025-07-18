@@ -7,7 +7,7 @@ import AccessListContract from '@oceanprotocol/contracts/artifacts/contracts/acc
 import { getAccountsFromAccessList } from '../utils/credentials.js'
 import { OceanNodeConfig } from '../@types/OceanNode.js'
 import { LOG_LEVELS_STR } from './logging/Logger.js'
-import { CommonValidation } from '../components/httpRoutes/requestValidator.js'
+import { CommonValidation } from './validators.js'
 export async function validateAdminSignature(
   expiryTimestamp: number,
   signature: string
