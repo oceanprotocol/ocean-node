@@ -11,6 +11,7 @@ export interface ElasticsearchRetryConfig {
   sniffOnStart?: boolean
   sniffInterval?: number | false
   sniffOnConnectionFault?: boolean
+  healthCheckInterval?: number
 }
 
 export const DEFAULT_ELASTICSEARCH_CONFIG: Required<ElasticsearchRetryConfig> = {
@@ -25,7 +26,10 @@ export const DEFAULT_ELASTICSEARCH_CONFIG: Required<ElasticsearchRetryConfig> = 
     process.env.ELASTICSEARCH_SNIFF_INTERVAL === 'false'
       ? false
       : parseInt(process.env.ELASTICSEARCH_SNIFF_INTERVAL || '30000'),
-  sniffOnConnectionFault: process.env.ELASTICSEARCH_SNIFF_ON_CONNECTION_FAULT !== 'false'
+  sniffOnConnectionFault: process.env.ELASTICSEARCH_SNIFF_ON_CONNECTION_FAULT !== 'false',
+  healthCheckInterval: parseInt(
+    process.env.ELASTICSEARCH_HEALTH_CHECK_INTERVAL || '60000'
+  )
 }
 
 class ElasticsearchClientSingleton {
@@ -34,6 +38,9 @@ class ElasticsearchClientSingleton {
   private config: OceanNodeDBConfig | null = null
   private connectionAttempts: number = 0
   private lastConnectionTime: number = 0
+  private isRetrying: boolean = false
+  private healthCheckTimer: NodeJS.Timeout | null = null
+  private isMonitoring: boolean = false
 
   private constructor() {}
 
@@ -44,21 +51,175 @@ class ElasticsearchClientSingleton {
     return ElasticsearchClientSingleton.instance
   }
 
-  public getClient(
+  public async getClient(
     config: OceanNodeDBConfig,
     customConfig: Partial<ElasticsearchRetryConfig> = {}
-  ): Client {
+  ): Promise<Client> {
     if (this.client && this.config) {
-      return this.client
+      const isHealthy = await this.checkConnectionHealth()
+      if (isHealthy) {
+        this.startHealthMonitoring(config, customConfig)
+        return this.client
+      } else {
+        DATABASE_LOGGER.logMessageWithEmoji(
+          `Elasticsearch connection interrupted or failed to ${this.maskUrl(
+            this.config.url
+          )} - starting retry phase`,
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEL_WARN
+        )
+        this.closeConnectionSync()
+        return this.startRetryConnection(config, customConfig)
+      }
     }
 
-    return this.createNewConnection(config, customConfig)
+    const client = await this.createNewConnection(config, customConfig)
+    this.startHealthMonitoring(config, customConfig)
+    return client
   }
 
-  private createNewConnection(
+  private startHealthMonitoring(
     config: OceanNodeDBConfig,
     customConfig: Partial<ElasticsearchRetryConfig> = {}
-  ): Client {
+  ): void {
+    if (this.isMonitoring || !this.client) return
+
+    const finalConfig = {
+      ...DEFAULT_ELASTICSEARCH_CONFIG,
+      ...customConfig
+    }
+
+    this.isMonitoring = true
+    DATABASE_LOGGER.logMessageWithEmoji(
+      `Starting Elasticsearch connection monitoring (health check every ${finalConfig.healthCheckInterval}ms)`,
+      true,
+      GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
+      LOG_LEVELS_STR.LEVEL_DEBUG
+    )
+
+    this.healthCheckTimer = setInterval(async () => {
+      if (this.client && !this.isRetrying) {
+        const isHealthy = await this.checkConnectionHealth()
+        if (!isHealthy) {
+          DATABASE_LOGGER.logMessageWithEmoji(
+            `Elasticsearch connection lost during monitoring - triggering automatic reconnection`,
+            true,
+            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+            LOG_LEVELS_STR.LEVEL_WARN
+          )
+          this.closeConnectionSync()
+          try {
+            await this.startRetryConnection(config, customConfig)
+          } catch (error) {
+            DATABASE_LOGGER.logMessageWithEmoji(
+              `Automatic reconnection failed: ${error.message}`,
+              true,
+              GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+              LOG_LEVELS_STR.LEVEL_ERROR
+            )
+          }
+        }
+      }
+    }, finalConfig.healthCheckInterval)
+  }
+
+  private stopHealthMonitoring(): void {
+    if (this.healthCheckTimer) {
+      clearInterval(this.healthCheckTimer)
+      this.healthCheckTimer = null
+      this.isMonitoring = false
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Stopped Elasticsearch connection monitoring`,
+        true,
+        GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
+        LOG_LEVELS_STR.LEVEL_DEBUG
+      )
+    }
+  }
+
+  private async startRetryConnection(
+    config: OceanNodeDBConfig,
+    customConfig: Partial<ElasticsearchRetryConfig> = {}
+  ): Promise<Client> {
+    this.isRetrying = true
+    const finalConfig = {
+      ...DEFAULT_ELASTICSEARCH_CONFIG,
+      ...customConfig
+    }
+
+    DATABASE_LOGGER.logMessageWithEmoji(
+      `Starting Elasticsearch retry connection phase to ${this.maskUrl(
+        config.url
+      )} (max retries: ${finalConfig.maxRetries})`,
+      true,
+      GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
+      LOG_LEVELS_STR.LEVEL_INFO
+    )
+
+    for (let attempt = 1; attempt <= finalConfig.maxRetries; attempt++) {
+      try {
+        DATABASE_LOGGER.logMessageWithEmoji(
+          `Elasticsearch reconnection attempt ${attempt}/${
+            finalConfig.maxRetries
+          } to ${this.maskUrl(config.url)}`,
+          true,
+          GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
+          LOG_LEVELS_STR.LEVEL_INFO
+        )
+
+        const client = await this.createNewConnection(config, customConfig)
+        this.isRetrying = false
+        return client
+      } catch (error) {
+        if (attempt === finalConfig.maxRetries) {
+          this.isRetrying = false
+          DATABASE_LOGGER.logMessageWithEmoji(
+            `Elasticsearch retry connection failed after ${
+              finalConfig.maxRetries
+            } attempts to ${this.maskUrl(config.url)}: ${error.message}`,
+            true,
+            GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+            LOG_LEVELS_STR.LEVEL_ERROR
+          )
+          throw error
+        }
+
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 30000)
+        DATABASE_LOGGER.logMessageWithEmoji(
+          `Elasticsearch retry attempt ${attempt}/${finalConfig.maxRetries} failed, waiting ${delay}ms before next attempt: ${error.message}`,
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEL_WARN
+        )
+        await new Promise((resolve) => setTimeout(resolve, delay))
+      }
+    }
+
+    throw new Error('Maximum retry attempts reached')
+  }
+
+  private async checkConnectionHealth(): Promise<boolean> {
+    if (!this.client) return false
+
+    try {
+      await this.client.ping()
+      return true
+    } catch (error) {
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Elasticsearch connection health check failed: ${error.message}`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_DEBUG
+      )
+      return false
+    }
+  }
+
+  private async createNewConnection(
+    config: OceanNodeDBConfig,
+    customConfig: Partial<ElasticsearchRetryConfig> = {}
+  ): Promise<Client> {
     this.connectionAttempts++
     this.lastConnectionTime = Date.now()
 
@@ -68,7 +229,7 @@ class ElasticsearchClientSingleton {
     }
 
     try {
-      this.client = new Client({
+      const client = new Client({
         node: config.url,
         auth:
           config.username && config.password
@@ -83,6 +244,9 @@ class ElasticsearchClientSingleton {
         sniffOnConnectionFault: finalConfig.sniffOnConnectionFault
       })
 
+      await client.ping()
+
+      this.client = client
       this.config = { ...config }
 
       DATABASE_LOGGER.logMessageWithEmoji(
@@ -122,14 +286,43 @@ class ElasticsearchClientSingleton {
       return url.replace(/\/\/[^@]+@/, '//***:***@')
     }
   }
+
+  private closeConnectionSync(): void {
+    this.stopHealthMonitoring()
+    if (this.client) {
+      try {
+        this.client.close()
+      } catch (error) {
+        // silent close, no logging needed
+      }
+      this.client = null
+      this.config = null
+    }
+  }
+
+  public getConnectionStats(): {
+    attempts: number
+    lastConnection: number
+    connected: boolean
+    isRetrying: boolean
+    isMonitoring: boolean
+  } {
+    return {
+      attempts: this.connectionAttempts,
+      lastConnection: this.lastConnectionTime,
+      connected: this.client !== null,
+      isRetrying: this.isRetrying,
+      isMonitoring: this.isMonitoring
+    }
+  }
 }
 
-export function createElasticsearchClientWithRetry(
+export async function createElasticsearchClientWithRetry(
   config: OceanNodeDBConfig,
   customConfig: Partial<ElasticsearchRetryConfig> = {}
-): Client {
+): Promise<Client> {
   const singleton = ElasticsearchClientSingleton.getInstance()
-  return singleton.getClient(config, customConfig)
+  return await singleton.getClient(config, customConfig)
 }
 
 export function getElasticsearchConfig(
@@ -139,4 +332,15 @@ export function getElasticsearchConfig(
     ...DEFAULT_ELASTICSEARCH_CONFIG,
     ...retryConfig
   }
+}
+
+export function getElasticsearchConnectionStats(): {
+  attempts: number
+  lastConnection: number
+  connected: boolean
+  isRetrying: boolean
+  isMonitoring: boolean
+} {
+  const singleton = ElasticsearchClientSingleton.getInstance()
+  return singleton.getConnectionStats()
 }
