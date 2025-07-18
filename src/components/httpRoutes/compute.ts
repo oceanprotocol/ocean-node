@@ -77,7 +77,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       datasets: (req.body.datasets as unknown as ComputeAsset[]) || null,
       payment: (req.body.payment as unknown as ComputePayment) || null,
       resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null,
-      policyServer: (req.query.policyServer as any) || null,
+      policyServer: (req.body.policyServer as any) || null,
       metadata: req.body.metadata || null,
       authorization: req.headers?.authorization
     }
@@ -121,7 +121,7 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => 
       datasets: (req.body.datasets as unknown as ComputeAsset[]) || null,
       resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null,
       maxJobDuration: req.body.maxJobDuration || null,
-      policyServer: (req.query.policyServer as any) || null,
+      policyServer: (req.body.policyServer as any) || null,
       metadata: req.body.metadata || null,
       authorization: req.headers?.authorization
     }
