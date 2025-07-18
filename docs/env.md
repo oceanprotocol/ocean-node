@@ -35,6 +35,20 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 - `VALIDATE_UNSIGNED_DDO`: If set to `false`, the node will not validate unsigned DDOs and will request a signed message with the publisher address, nonce and signature. Default is `true`. Example: `false`
 - `JWT_SECRET`: Secret used to sign JWT tokens. Default is `ocean-node-secret`. Example: `"my-secret-jwt-token"`
 
+## Database
+
+- `DB_URL`: URL for connecting to the database. Required for running a database with the node. Example: `"http://localhost:8108/?apiKey=xyz"`
+- `DB_USERNAME`: Username for database authentication. Optional if not using authentication. Example: `"elastic"`
+- `DB_PASSWORD`: Password for database authentication. Optional if not using authentication. Example: `"password123"`
+- `ELASTICSEARCH_REQUEST_TIMEOUT`: Request timeout in milliseconds for Elasticsearch operations. Default is `60000`. Example: `60000`
+- `ELASTICSEARCH_PING_TIMEOUT`: Ping timeout in milliseconds for Elasticsearch health checks. Default is `5000`. Example: `5000`
+- `ELASTICSEARCH_RESURRECT_STRATEGY`: Strategy for bringing failed Elasticsearch nodes back online. Options are 'ping', 'optimistic', or 'none'. Default is `ping`. Example: `"ping"`
+- `ELASTICSEARCH_MAX_RETRIES`: Maximum number of retry attempts for failed Elasticsearch operations. Default is `5`. Example: `5`
+- `ELASTICSEARCH_SNIFF_ON_START`: Enable cluster node discovery on Elasticsearch client startup. Default is `true`. Example: `true`
+- `ELASTICSEARCH_SNIFF_INTERVAL`: Interval in milliseconds for periodic cluster health monitoring and node discovery. Set to 'false' to disable. Default is `30000`. Example: `30000`
+- `ELASTICSEARCH_SNIFF_ON_CONNECTION_FAULT`: Enable automatic cluster node discovery when connection faults occur. Default is `true`. Example: `true`
+- `ELASTICSEARCH_HEALTH_CHECK_INTERVAL`: Interval in milliseconds for proactive connection health monitoring. Default is `60000`. Example: `60000`
+
 ## Payments
 
 - `ESCROW_CLAIM_TIMEOUT`: Amount of time reserved to claim a escrow payment, in seconds. Defaults to `600`. Example: `600`
