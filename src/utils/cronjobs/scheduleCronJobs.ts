@@ -1,32 +1,21 @@
 // scheduleCronJobs.ts
 
 import { Database } from '../../components/database/index.js'
-import { OceanNode } from '../../OceanNode.js'
 import { ENVIRONMENT_VARIABLES } from '../constants.js'
 import { OCEAN_NODE_LOGGER } from '../logging/common.js'
 import * as cron from 'node-cron'
-import { p2pAnnounceDDOS } from './p2pAnnounceDDOS.js'
-import { p2pAnnounceC2D } from './p2pAnnounceC2D.js'
-import { sleep } from '../util.js'
 
-// republish any ddos we are providing to the network every 4 hours
-// (we can put smaller interval for testing purposes)
-const REPUBLISH_INTERVAL_HOURS = 1000 * 60 * 60 * 4 // 4 hours
-
-export async function scheduleCronJobs(node: OceanNode) {
-  await sleep(2000) // wait for 2 seconds to ensure the node is fully initialized
-  scheduleDeleteLogsJob(node.getDatabase())
-  scheduleCleanExpiredC2DJobs(node.getDatabase())
-
-  // execute p2pAnnounceDDOS immediately on startup
-  // and then every REPUBLISH_INTERVAL_HOURS
-  p2pAnnounceDDOS(node)
-  setInterval(() => p2pAnnounceDDOS(node), REPUBLISH_INTERVAL_HOURS)
-
-  // execute p2pAnnounceC2D immediately on startup
-  // and then every REPUBLISH_INTERVAL_HOURS
-  p2pAnnounceC2D(node)
-  setInterval(() => p2pAnnounceC2D(node), REPUBLISH_INTERVAL_HOURS)
+export function scheduleCronJobs(dbconn: Database | null) {
+  try {
+    scheduleDeleteLogsJob(dbconn)
+  } catch (e) {
+    OCEAN_NODE_LOGGER.error(`Error when deleting old logs: ${e.message}`)
+  }
+  try {
+    scheduleCleanExpiredC2DJobs(dbconn)
+  } catch (e) {
+    OCEAN_NODE_LOGGER.error(`Error when deleting expired c2d jobs: ${e.message}`)
+  }
 }
 
 function scheduleDeleteLogsJob(dbconn: Database | null) {
@@ -36,11 +25,15 @@ function scheduleDeleteLogsJob(dbconn: Database | null) {
     const expression =
       process.env[ENVIRONMENT_VARIABLES.CRON_DELETE_DB_LOGS.name] || '0 0 * * *'
     cron.schedule(expression, async () => {
-      const deletedLogsNum = await dbconn.logs.deleteOldLogs()
-      OCEAN_NODE_LOGGER.logMessage(
-        `${deletedLogsNum} old logs deleted successfully.`,
-        true
-      )
+      try {
+        const deletedLogsNum = await dbconn.logs.deleteOldLogs()
+        OCEAN_NODE_LOGGER.logMessage(
+          `${deletedLogsNum} old logs deleted successfully.`,
+          true
+        )
+      } catch (err) {
+        OCEAN_NODE_LOGGER.error(`Error deleting old logs: ${err.message}`)
+      }
     })
   } else {
     OCEAN_NODE_LOGGER.warn(
@@ -56,8 +49,12 @@ function scheduleCleanExpiredC2DJobs(dbconn: Database | null) {
     const expression =
       process.env[ENVIRONMENT_VARIABLES.CRON_CLEANUP_C2D_STORAGE.name] || '*/5 * * * *'
     cron.schedule(expression, async () => {
-      const deleted = await dbconn.c2d.cleanStorageExpiredJobs()
-      OCEAN_NODE_LOGGER.info(`${deleted} old C2D jobs cleaned successfully.`)
+      try {
+        const deleted = await dbconn.c2d.cleanStorageExpiredJobs()
+        OCEAN_NODE_LOGGER.info(`${deleted} expired C2D jobs cleaned successfully.`)
+      } catch (err) {
+        OCEAN_NODE_LOGGER.error(`Error deleting expired jobs: ${err.message}`)
+      }
     })
   } else {
     OCEAN_NODE_LOGGER.warn(
