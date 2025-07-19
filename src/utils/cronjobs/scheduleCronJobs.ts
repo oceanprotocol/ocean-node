@@ -1,21 +1,39 @@
 // scheduleCronJobs.ts
 
 import { Database } from '../../components/database/index.js'
+import { OceanNode } from '../../OceanNode.js'
 import { ENVIRONMENT_VARIABLES } from '../constants.js'
 import { OCEAN_NODE_LOGGER } from '../logging/common.js'
 import * as cron from 'node-cron'
+import { p2pAnnounceDDOS } from './p2pAnnounceDDOS.js'
+import { p2pAnnounceC2D } from './p2pAnnounceC2D.js'
+import { sleep } from '../util.js'
 
-export function scheduleCronJobs(dbconn: Database | null) {
+// republish any ddos we are providing to the network every 4 hours
+// (we can put smaller interval for testing purposes)
+const REPUBLISH_INTERVAL_HOURS = 1000 * 60 * 60 * 4 // 4 hours
+
+export async function scheduleCronJobs(node: OceanNode) {
+  await sleep(2000) // wait for 2 seconds to ensure the node is fully initialized
   try {
-    scheduleDeleteLogsJob(dbconn)
+    scheduleDeleteLogsJob(node.getDatabase())
   } catch (e) {
     OCEAN_NODE_LOGGER.error(`Error when deleting old logs: ${e.message}`)
   }
   try {
-    scheduleCleanExpiredC2DJobs(dbconn)
+    scheduleCleanExpiredC2DJobs(node.getDatabase())
   } catch (e) {
     OCEAN_NODE_LOGGER.error(`Error when deleting expired c2d jobs: ${e.message}`)
   }
+  // execute p2pAnnounceDDOS immediately on startup
+  // and then every REPUBLISH_INTERVAL_HOURS
+  p2pAnnounceDDOS(node)
+  setInterval(() => p2pAnnounceDDOS(node), REPUBLISH_INTERVAL_HOURS)
+
+  // execute p2pAnnounceC2D immediately on startup
+  // and then every REPUBLISH_INTERVAL_HOURS
+  p2pAnnounceC2D(node)
+  setInterval(() => p2pAnnounceC2D(node), REPUBLISH_INTERVAL_HOURS)
 }
 
 function scheduleDeleteLogsJob(dbconn: Database | null) {
