@@ -6,7 +6,7 @@ export class ElasticSearchDdoStateQuery implements IDdoStateQuery {
 
     if (did) {
       query = {
-        match: {
+        term: {
           did
         }
       }
@@ -14,7 +14,7 @@ export class ElasticSearchDdoStateQuery implements IDdoStateQuery {
 
     if (nft) {
       query = {
-        match: {
+        term: {
           nft
         }
       }
@@ -22,7 +22,7 @@ export class ElasticSearchDdoStateQuery implements IDdoStateQuery {
 
     if (txId) {
       query = {
-        match: {
+        term: {
           txId
         }
       }
