@@ -268,6 +268,13 @@ export interface PolicyServerPassthroughCommand extends Command {
   policyServerPassthrough?: any
 }
 
+export interface PolicyServerInitializeCommand extends Command {
+  documentId?: string
+  serviceId?: string
+  consumerAddress?: string
+  policyServer?: any
+}
+
 export interface CreateAuthTokenCommand extends Command {
   address: string
   signature: string
