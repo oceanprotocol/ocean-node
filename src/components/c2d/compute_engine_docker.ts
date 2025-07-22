@@ -976,8 +976,15 @@ export class C2DEngineDocker extends C2DEngine {
         console.error('Could not retrieve container: ' + e.message)
         job.isRunning = false
         job.dateFinished = String(Date.now() / 1000)
+        try {
+          const algoLogFile =
+            this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/algorithm.log'
+          writeFileSync(algoLogFile, String(e.message))
+        } catch (e) {
+          console.log('Failed to write')
+          console.log(e)
+        }
         await this.db.updateJob(job)
-        await this.cleanupJob(job)
         return
       }
       const outputsArchivePath =
