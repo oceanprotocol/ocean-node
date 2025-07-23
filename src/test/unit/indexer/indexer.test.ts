@@ -15,12 +15,14 @@ import {
   tearDownEnvironment,
   TEST_ENV_CONFIG_FILE
 } from '../../utils/utils.js'
+import sinon, { SinonSandbox } from 'sinon'
 
 describe('OceanIndexer', () => {
   let envOverrides: OverrideEnvConfig[]
   let oceanIndexer: OceanIndexer
   let mockDatabase: Database
   let config: OceanNodeConfig
+  let sandbox: SinonSandbox
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
       [ENVIRONMENT_VARIABLES.RPCS],
@@ -30,6 +32,18 @@ describe('OceanIndexer', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
+    sandbox = sinon.createSandbox()
+    sandbox.stub(Database, 'init').resolves({
+      nonce: {},
+      c2d: {},
+      authToken: {},
+      sqliteConfig: {},
+      ddo: {},
+      indexer: {},
+      logs: {},
+      order: {},
+      ddoState: {}
+    } as any)
     mockDatabase = await Database.init(config.dbConfig)
     console.log('mockDatabase: ', mockDatabase)
     console.log('config.dbConfig: ', JSON.stringify(config.dbConfig))
@@ -59,5 +73,6 @@ describe('OceanIndexer', () => {
   })
   after(async () => {
     await tearDownEnvironment(envOverrides)
+    sandbox.restore()
   })
 })
