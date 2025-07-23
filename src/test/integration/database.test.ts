@@ -386,7 +386,7 @@ describe('DdoStateQuery', () => {
     const query = (await DatabaseFactory.createDdoStateQuery(elasticConfig)).buildQuery(
       'did:op:abc123'
     )
-    expect(query.match.did).to.equal('did:op:abc123')
+    expect(query.term.did).to.equal('did:op:abc123')
   })
 
   it('should build Elasticsearch query for nft', async () => {
@@ -394,7 +394,7 @@ describe('DdoStateQuery', () => {
       undefined,
       'nft:op:abc123'
     )
-    expect(query.match.nft).to.equal('nft:op:abc123')
+    expect(query.term.nft).to.equal('nft:op:abc123')
   })
 
   it('should build Elasticsearch query for txId', async () => {
@@ -403,7 +403,7 @@ describe('DdoStateQuery', () => {
       undefined,
       'txId123'
     )
-    expect(query.match.txId).to.equal('txId123')
+    expect(query.term.txId).to.equal('txId123')
   })
 })
 

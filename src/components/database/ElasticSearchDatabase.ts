@@ -6,7 +6,7 @@ import {
   AbstractLogDatabase,
   AbstractOrderDatabase
 } from './BaseDatabase.js'
-import { createElasticsearchClient } from './ElasticsearchConfigHelper.js'
+import { createElasticsearchClientWithRetry } from './ElasticsearchConfigHelper.js'
 import { OceanNodeDBConfig } from '../../@types'
 import { ElasticsearchSchema } from './ElasticSchemas.js'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
@@ -21,10 +21,13 @@ export class ElasticsearchIndexerDatabase extends AbstractIndexerDatabase {
 
   constructor(config: OceanNodeDBConfig) {
     super(config)
-    this.client = new Client({ node: config.url })
     this.index = 'indexer'
 
-    this.initializeIndex()
+    return (async (): Promise<ElasticsearchIndexerDatabase> => {
+      this.client = await createElasticsearchClientWithRetry(config)
+      await this.initializeIndex()
+      return this
+    })() as unknown as ElasticsearchIndexerDatabase
   }
 
   private async initializeIndex() {
@@ -148,10 +151,13 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
 
   constructor(config: OceanNodeDBConfig) {
     super(config)
-    this.client = new Client({ node: config.url })
     this.index = 'ddo_state'
 
-    this.initializeIndex()
+    return (async (): Promise<ElasticsearchDdoStateDatabase> => {
+      this.client = await createElasticsearchClientWithRetry(config)
+      await this.initializeIndex()
+      return this
+    })() as unknown as ElasticsearchDdoStateDatabase
   }
 
   private async initializeIndex() {
@@ -231,11 +237,7 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
     try {
       const result = await this.client.search({
         index: this.index,
-        query: {
-          match: {
-            [query.query_by]: query.q
-          }
-        }
+        query
       })
       return result.hits.hits.map((hit: any) => {
         return normalizeDocumentId(hit._source, hit._id)
@@ -320,7 +322,11 @@ export class ElasticsearchOrderDatabase extends AbstractOrderDatabase {
 
   constructor(config: OceanNodeDBConfig, schema: ElasticsearchSchema) {
     super(config, schema)
-    this.provider = createElasticsearchClient(config)
+
+    return (async (): Promise<ElasticsearchOrderDatabase> => {
+      this.provider = await createElasticsearchClientWithRetry(config)
+      return this
+    })() as unknown as ElasticsearchOrderDatabase
   }
 
   getSchema(): ElasticsearchSchema {
@@ -466,7 +472,11 @@ export class ElasticsearchDdoDatabase extends AbstractDdoDatabase {
 
   constructor(config: OceanNodeDBConfig, schemas: ElasticsearchSchema[]) {
     super(config, schemas)
-    this.client = createElasticsearchClient(config)
+
+    return (async (): Promise<ElasticsearchDdoDatabase> => {
+      this.client = await createElasticsearchClientWithRetry(config)
+      return this
+    })() as unknown as ElasticsearchDdoDatabase
   }
 
   getSchemas(): ElasticsearchSchema[] {
@@ -754,10 +764,13 @@ export class ElasticsearchLogDatabase extends AbstractLogDatabase {
 
   constructor(config: OceanNodeDBConfig) {
     super(config)
-    this.client = new Client({ node: config.url })
     this.index = 'log'
 
-    this.initializeIndex()
+    return (async (): Promise<ElasticsearchLogDatabase> => {
+      this.client = await createElasticsearchClientWithRetry(config)
+      await this.initializeIndex()
+      return this
+    })() as unknown as ElasticsearchLogDatabase
   }
 
   private async initializeIndex() {
