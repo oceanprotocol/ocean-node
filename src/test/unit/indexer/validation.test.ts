@@ -18,15 +18,18 @@ import { ethers, Wallet } from 'ethers'
 import { RPCS } from '../../../@types/blockchain.js'
 import { Database } from '../../../components/database/index.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
+import sinon, { SinonSandbox } from 'sinon'
+
 describe('Schema validation tests', () => {
   const privateKey = process.env.PRIVATE_KEY
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
   let envOverrides: OverrideEnvConfig[]
   let wallet: Wallet
-  let database: Database
+  let mockDatabase: Database
   let config: OceanNodeConfig
   let oceanNode: OceanNode
+  let sandbox: SinonSandbox
 
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
@@ -47,11 +50,23 @@ describe('Schema validation tests', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     wallet = new ethers.Wallet(privateKey)
-    config = await getConfiguration()
-    database = await Database.init(config.dbConfig)
+    config = await getConfiguration(true)
+    sandbox = sinon.createSandbox()
+    sandbox.stub(Database, 'init').resolves({
+      nonce: {},
+      c2d: {},
+      authToken: {},
+      sqliteConfig: {},
+      ddo: {},
+      indexer: {},
+      logs: {},
+      order: {},
+      ddoState: {}
+    } as any)
+    mockDatabase = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(
       config,
-      database,
+      mockDatabase,
       undefined,
       undefined,
       undefined,
