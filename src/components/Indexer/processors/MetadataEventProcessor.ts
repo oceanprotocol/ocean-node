@@ -71,10 +71,26 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         INDEXER_LOGGER.error(
           `Decrypted DDO ID is not matching the generated hash for DID.`
         )
+        await ddoState.update(
+          this.networkId,
+          did,
+          event.address,
+          event.transactionHash,
+          false,
+          'Decrypted DDO ID does not match generated DID.'
+        )
         return
       }
       // for unencrypted DDOs
       if (parseInt(flag) !== 2 && !this.checkDdoHash(updatedDdo, metadataHash)) {
+        await ddoState.update(
+          this.networkId,
+          did,
+          event.address,
+          event.transactionHash,
+          false,
+          'Unencrypted DDO hash does not match metadata hash.'
+        )
         return
       }
 
@@ -90,6 +106,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           INDEXER_LOGGER.error(
             `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS.name} group.`
           )
+          await ddoState.update(
+            this.networkId,
+            did,
+            event.address,
+            event.transactionHash,
+            false,
+            `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS.name} group.`
+          )
           return
         }
       }
@@ -103,6 +127,14 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         )
         if (!isAuthorized) {
           INDEXER_LOGGER.error(
+            `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.name} access group.`
+          )
+          await ddoState.update(
+            this.networkId,
+            did,
+            event.address,
+            event.transactionHash,
+            false,
             `DDO owner ${owner} is NOT part of the ${ENVIRONMENT_VARIABLES.AUTHORIZED_PUBLISHERS_LIST.name} access group.`
           )
           return
