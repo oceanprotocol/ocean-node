@@ -10,6 +10,7 @@ import { Readable } from 'stream'
 import { streamToString } from '../../utils/util.js'
 import {
   OverrideEnvConfig,
+  TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   setupEnvironment,
   tearDownEnvironment
@@ -31,7 +32,7 @@ describe('Should validate files structure for download', () => {
       [ENVIRONMENT_VARIABLES.PRIVATE_KEY],
       ['0x3634cc4a3d2694a1186a7ce545f149e022eea103cc254d18d08675104bb4b5ac']
     )
-    envOverrides = await setupEnvironment(null, envOverrides)
+    envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
     db = await new Database(config.dbConfig)
     oceanNode = OceanNode.getInstance(config, db)

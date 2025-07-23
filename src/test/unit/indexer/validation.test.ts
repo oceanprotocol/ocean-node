@@ -7,7 +7,8 @@ import {
   tearDownEnvironment,
   buildEnvOverrideConfig,
   OverrideEnvConfig,
-  getMockSupportedNetworks
+  getMockSupportedNetworks,
+  TEST_ENV_CONFIG_FILE
 } from '../../utils/utils.js'
 import { DDOManager, DDO } from '@oceanprotocol/ddo-js'
 import { ValidateDDOHandler } from '../../../components/core/handler/ddoHandler.js'
@@ -44,7 +45,7 @@ describe('Schema validation tests', () => {
         JSON.stringify(mockSupportedNetworks)
       ]
     )
-    envOverrides = await setupEnvironment(null, envOverrides)
+    envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     wallet = new ethers.Wallet(privateKey)
     config = await getConfiguration()
     database = await new Database(config.dbConfig)

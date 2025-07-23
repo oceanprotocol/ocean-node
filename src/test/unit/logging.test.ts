@@ -5,6 +5,7 @@ import { expect } from 'chai'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
+  TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   setupEnvironment,
   tearDownEnvironment
@@ -25,7 +26,7 @@ describe('Logger instances and transports tests', async () => {
   before(() => {})
   // need to do it first
   envOverrides = await setupEnvironment(
-    null,
+    TEST_ENV_CONFIG_FILE,
     buildEnvOverrideConfig(
       [
         ENVIRONMENT_VARIABLES.NODE_ENV,

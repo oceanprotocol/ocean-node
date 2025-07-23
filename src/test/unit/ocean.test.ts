@@ -8,6 +8,7 @@ import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
 import { expect } from 'chai'
 import {
   OverrideEnvConfig,
+  TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   setupEnvironment,
   tearDownEnvironment
@@ -33,7 +34,7 @@ describe('Status command tests', async () => {
       JSON.stringify([1, 137])
     ]
   )
-  envOverrides = await setupEnvironment(null, envOverrides)
+  envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
   // because of this
   const config = await getConfiguration(true)
   const db = await new Database(config.dbConfig)
