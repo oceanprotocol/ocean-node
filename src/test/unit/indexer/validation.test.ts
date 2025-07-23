@@ -14,23 +14,21 @@ import { DDOManager, DDO } from '@oceanprotocol/ddo-js'
 import { ValidateDDOHandler } from '../../../components/core/handler/ddoHandler.js'
 import { OceanNode } from '../../../OceanNode.js'
 import { PROTOCOL_COMMANDS } from '../../../utils/constants.js'
-import { ethers, Wallet } from 'ethers'
 import { RPCS } from '../../../@types/blockchain.js'
 import { Database } from '../../../components/database/index.js'
 import { OceanNodeConfig } from '../../../@types/OceanNode.js'
 import sinon, { SinonSandbox } from 'sinon'
 
 describe('Schema validation tests', () => {
-  const privateKey = process.env.PRIVATE_KEY
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
 
   let envOverrides: OverrideEnvConfig[]
-  let wallet: Wallet
   let mockDatabase: Database
   let config: OceanNodeConfig
   let oceanNode: OceanNode
   let sandbox: SinonSandbox
 
+  // For token validation, please check integration test cases
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
       [
@@ -49,7 +47,6 @@ describe('Schema validation tests', () => {
       ]
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
-    wallet = new ethers.Wallet(privateKey)
     config = await getConfiguration(true)
     sandbox = sinon.createSandbox()
     sandbox.stub(Database, 'init').resolves({
@@ -168,32 +165,5 @@ describe('Schema validation tests', () => {
     const result = await handler.handle(task)
 
     expect(result.status.httpStatus).to.equal(401)
-  })
-
-  it('should pass validation with valid signature', async () => {
-    const handler = new ValidateDDOHandler(oceanNode)
-    const ddoInstance = DDOManager.getDDOClass(ddoValidationSignature)
-    const ddo = ddoInstance.getDDOData() as DDO
-    const publisherAddress = await wallet.getAddress()
-    const nonce = Date.now().toString()
-    const message = String(publisherAddress + nonce)
-    const messageHash = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
-    )
-    const messageHashBytes = ethers.toBeArray(messageHash)
-    const signature = await wallet.signMessage(messageHashBytes)
-
-    const task = {
-      ddo,
-      publisherAddress,
-      nonce,
-      signature,
-      command: PROTOCOL_COMMANDS.VALIDATE_DDO
-    }
-
-    const result = await handler.handle(task)
-
-    expect(result.status.httpStatus).to.equal(200)
   })
 })
