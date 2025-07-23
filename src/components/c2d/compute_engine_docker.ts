@@ -997,6 +997,7 @@ export class C2DEngineDocker extends C2DEngine {
           console.log(e)
         }
         await this.db.updateJob(job)
+        await this.cleanupJob(job)
         return
       }
       const outputsArchivePath =
@@ -1089,6 +1090,10 @@ export class C2DEngineDocker extends C2DEngine {
         }
         await container.remove()
       }
+    } catch (e) {
+      console.error('Container not found! ' + e.message)
+    }
+    try {
       const volume = await this.docker.getVolume(job.jobId + '-volume')
       if (volume) {
         try {
@@ -1097,17 +1102,33 @@ export class C2DEngineDocker extends C2DEngine {
           console.log(e)
         }
       }
+    } catch (e) {
+      console.error('Container volume not found! ' + e.message)
+    }
+    try {
       // remove folders
       rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/inputs', {
         recursive: true,
         force: true
       })
+    } catch (e) {
+      console.error(
+        `Could not delete inputs from path ${this.getC2DConfig().tempFolder} for job ID ${
+          job.jobId
+        }! ` + e.message
+      )
+    }
+    try {
       rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/transformations', {
         recursive: true,
         force: true
       })
     } catch (e) {
-      console.log(e)
+      console.error(
+        `Could not delete algorithms from path ${
+          this.getC2DConfig().tempFolder
+        } for job ID ${job.jobId}! ` + e.message
+      )
     }
   }
 
