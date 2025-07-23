@@ -26,6 +26,7 @@ import { streamToString } from '../../../utils/util.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
+import { fetchTransactionReceipt } from '../../core/utils/validateOrders.js'
 
 export abstract class BaseEventProcessor {
   protected networkId: number
@@ -88,39 +89,56 @@ export abstract class BaseEventProcessor {
     eventType: string
   ): Promise<ethers.LogDescription> {
     const iface = new Interface(abi)
-    const receipt = await provider.getTransactionReceipt(transactionHash)
-
-    let eventHash: string
-    for (const [key, value] of Object.entries(EVENT_HASHES)) {
-      if (value.type === eventType) {
-        eventHash = key
-        break
-      }
+    let receipt: ethers.TransactionReceipt
+    try {
+      receipt = await fetchTransactionReceipt(transactionHash, provider)
+    } catch (e) {
+      INDEXER_LOGGER.error(`Error retrieving receipt: ${e.message}`)
     }
-    if (eventHash === '') {
-      INDEXER_LOGGER.error(`Event hash couldn't be found!`)
-      return null
-    }
-
-    let eventObj: any
-    for (const log of receipt.logs) {
-      if (log.topics[0] === eventHash) {
-        eventObj = {
-          topics: log.topics,
-          data: log.data
+    INDEXER_LOGGER.logMessage(`Mined receipt: ${JSON.stringify(receipt)}`)
+    if (receipt) {
+      let eventHash: string
+      for (const [key, value] of Object.entries(EVENT_HASHES)) {
+        if (value.type === eventType) {
+          INDEXER_LOGGER.logMessage(`Found event hash: ${key}`)
+          INDEXER_LOGGER.logMessage(`Found event type: ${eventType}`)
+          eventHash = key
+          break
         }
-        break
       }
-    }
+      if (eventHash === '') {
+        INDEXER_LOGGER.error(`Event hash couldn't be found!`)
+        return null
+      }
 
-    if (!eventObj) {
-      INDEXER_LOGGER.error(
-        `Event object couldn't be retrieved! Event hash not present in logs topics`
-      )
-      return null
-    }
+      let eventObj: any
+      for (const log of receipt.logs) {
+        INDEXER_LOGGER.logMessage(`log.topics[0]: ${log.topics[0]}`)
+        INDEXER_LOGGER.logMessage(`log.data: ${log.data}`)
+        INDEXER_LOGGER.logMessage(`log.topic: ${log.topics}`)
+        if (log.topics[0] === eventHash) {
+          INDEXER_LOGGER.logMessage(`found log.topics[0]: ${log.topics[0]}`)
+          INDEXER_LOGGER.logMessage(`found log.data: ${log.data}`)
+          INDEXER_LOGGER.logMessage(`found log.topic: ${log.topics}`)
+          eventObj = {
+            topics: log.topics,
+            data: log.data
+          }
+          break
+        }
+      }
 
-    return iface.parseLog(eventObj)
+      if (!eventObj) {
+        INDEXER_LOGGER.error(
+          `Event object couldn't be retrieved! Event hash not present in logs topics`
+        )
+        return null
+      }
+
+      return iface.parseLog(eventObj)
+    } else {
+      INDEXER_LOGGER.error('Receipt could not be fetched')
+    }
   }
 
   protected async getNFTInfo(

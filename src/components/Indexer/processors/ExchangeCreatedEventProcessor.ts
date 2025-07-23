@@ -21,15 +21,32 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
     signer: Signer,
     provider: JsonRpcApiProvider
   ): Promise<any> {
+    INDEXER_LOGGER.logMessage(`FRE ABI: ${JSON.stringify(FixedRateExchange.abi)}`)
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
       FixedRateExchange.abi,
       EVENTS.EXCHANGE_CREATED
     )
-    const exchangeId = decodedEventData.args[0].toString()
+    INDEXER_LOGGER.logMessage(`exchange id: ${decodedEventData.args[0]}`)
+    INDEXER_LOGGER.logMessage(
+      `exchange id to string(): ${decodedEventData.args[0].toString()}`
+    )
+    const exchangeId = decodedEventData.args[0]
+    INDEXER_LOGGER.logMessage(`FRE ctr addr: ${event.address}`)
     const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
-    const exchange = await freContract.getExchange(exchangeId)
+    let exchange
+    try {
+      exchange = await freContract.getExchange(exchangeId)
+    } catch (e) {
+      INDEXER_LOGGER.error(`Could not fetch exchange details: ${e.message}`)
+    }
+    if (!exchange) {
+      INDEXER_LOGGER.error(
+        `Exchange not found...Aborting processing exchange created event`
+      )
+      return
+    }
     const datatokenAddress = exchange[1]
     const datatokenContract = getDtContract(signer, datatokenAddress)
     const nftAddress = await datatokenContract.getERC721Address()
