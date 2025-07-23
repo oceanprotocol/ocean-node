@@ -30,7 +30,7 @@ describe('OceanIndexer', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
-    mockDatabase = await new Database(config.dbConfig)
+    mockDatabase = await Database.init(config.dbConfig)
     console.log('mockDatabase: ', mockDatabase)
     console.log('config.dbConfig: ', JSON.stringify(config.dbConfig))
   })

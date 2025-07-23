@@ -48,7 +48,7 @@ describe('Schema validation tests', () => {
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     wallet = new ethers.Wallet(privateKey)
     config = await getConfiguration()
-    database = await new Database(config.dbConfig)
+    database = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(
       config,
       database,

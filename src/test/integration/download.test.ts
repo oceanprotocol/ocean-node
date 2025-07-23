@@ -88,7 +88,7 @@ describe('[Download Flow] - Should run a complete node flow.', () => {
     )
 
     config = await getConfiguration(true) // Force reload the configuration
-    database = await new Database(config.dbConfig)
+    database = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(config, database)
     indexer = new OceanIndexer(database, config.indexingNetworks)
     oceanNode.addIndexer(indexer)

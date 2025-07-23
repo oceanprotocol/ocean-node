@@ -37,7 +37,7 @@ describe('Status command tests', async () => {
   envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
   // because of this
   const config = await getConfiguration(true)
-  const db = await new Database(config.dbConfig)
+  const db = await Database.init(config.dbConfig)
   const oceanP2P = new OceanP2P(config, db)
   const oceanIndexer = new OceanIndexer(db, config.indexingNetworks)
   const oceanProvider = new OceanProvider(db)

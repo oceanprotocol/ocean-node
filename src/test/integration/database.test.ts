@@ -27,7 +27,7 @@ describe('Database', () => {
   let database: Database
 
   before(async () => {
-    database = await new Database(typesenseConfig)
+    database = await Database.init(typesenseConfig)
   })
 
   it('instance Database', () => {
@@ -62,7 +62,7 @@ describe('DdoDatabase CRUD', () => {
   }
 
   before(async () => {
-    database = await new Database(typesenseConfig)
+    database = await Database.init(typesenseConfig)
   })
 
   it('creates ddo schema as an array', () => {
@@ -89,7 +89,7 @@ describe('NonceDatabase CRUD - SQL lite (With typesense DB config)', () => {
   let database: Database
 
   before(async () => {
-    database = await new Database(typesenseConfig)
+    database = await Database.init(typesenseConfig)
   })
 
   it('check nonce DB instance of SQL Lite', () => {
@@ -125,7 +125,7 @@ describe('NonceDatabase CRUD (without Elastic or Typesense config)', () => {
   let database: Database
 
   before(async () => {
-    database = await new Database(emptyDBConfig)
+    database = await Database.init(emptyDBConfig)
   })
 
   it('check nonce DB instance of SQL Lite', () => {
@@ -162,7 +162,7 @@ describe('IndexerDatabase CRUD', () => {
   let existsPrevious: any = {}
 
   before(async () => {
-    database = await new Database(typesenseConfig)
+    database = await Database.init(typesenseConfig)
   })
 
   it('create indexer', async () => {
@@ -205,7 +205,7 @@ describe('OrderDatabase CRUD', () => {
   let database: Database
 
   before(async () => {
-    database = await new Database(typesenseConfig)
+    database = await Database.init(typesenseConfig)
   })
 
   it('create order', async () => {

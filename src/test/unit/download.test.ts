@@ -34,7 +34,7 @@ describe('Should validate files structure for download', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
-    db = await new Database(config.dbConfig)
+    db = await Database.init(config.dbConfig)
     oceanNode = OceanNode.getInstance(config, db)
   })
 

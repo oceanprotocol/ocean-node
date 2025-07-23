@@ -59,7 +59,7 @@ describe('Logger instances and transports tests', async () => {
     // will build the DB transport layer
     const config = await getConfiguration(true)
     // eslint-disable-next-line no-unused-vars
-    const DB = await new Database(config.dbConfig)
+    const DB = await Database.init(config.dbConfig)
     // Could generate Typesene error if DB is not running, but does not matter for this test
     OCEAN_NODE_LOGGER.logMessage('Should build DB transport layer')
 
