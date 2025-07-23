@@ -119,9 +119,28 @@ aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
 
     if (result.stream) {
       const queryResult = JSON.parse(await streamToString(result.stream as Readable))
-      if (queryResult[0].found) {
-        res.json(queryResult[0].hits[0])
+
+      if (
+        queryResult &&
+        typeof queryResult === 'object' &&
+        queryResult.found !== undefined
+      ) {
+        if (queryResult.found > 0 && queryResult.hits && queryResult.hits.length > 0) {
+          res.json(queryResult.hits[0].document || queryResult.hits[0])
+        } else {
+          res.status(404).send('Not found')
+        }
+      } else if (Array.isArray(queryResult)) {
+        if (queryResult.length > 0) {
+          res.json(queryResult[0])
+        } else {
+          res.status(404).send('Not found')
+        }
       } else {
+        HTTP_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_DEBUG,
+          `Query result structure (not found): ${JSON.stringify(queryResult)}`
+        )
         res.status(404).send('Not found')
       }
     } else {
