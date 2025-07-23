@@ -30,11 +30,14 @@ describe('OceanIndexer', () => {
     envOverrides = await setupEnvironment(null, envOverrides)
     config = await getConfiguration(true)
     mockDatabase = await new Database(config.dbConfig)
+    console.log('mockDatabase: ', mockDatabase)
+    console.log('config.dbConfig: ', JSON.stringify(config.dbConfig))
   })
 
   it('should start threads and handle worker events', async () => {
     oceanIndexer = new OceanIndexer(mockDatabase, config.supportedNetworks)
     assert(oceanIndexer, 'indexer should not be null')
+    console.log('mockDatabase: ', mockDatabase)
     expect(oceanIndexer.getDatabase().getConfig()).to.be.equal(mockDatabase.getConfig())
     expect(oceanIndexer.getIndexingQueue().length).to.be.equal(0)
     expect(oceanIndexer.getJobsPool().length).to.be.equal(0)
