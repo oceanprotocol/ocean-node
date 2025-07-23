@@ -96,12 +96,13 @@ aquariusRoutes.get(`${AQUARIUS_API_BASE_PATH}/state/ddo`, async (req, res) => {
   try {
     const config = await getConfiguration()
     const queryStrategy = await DatabaseFactory.createDdoStateQuery(config.dbConfig)
+
+    const did = req.query.did ? String(req.query.did) : undefined
+    const nft = req.query.nft ? String(req.query.nft) : undefined
+    const txId = req.query.txId ? String(req.query.txId) : undefined
+
     const queryDdoState: QueryCommand = {
-      query: queryStrategy.buildQuery(
-        String(req.query.did),
-        String(req.query.nft),
-        String(req.query.txId)
-      ),
+      query: queryStrategy.buildQuery(did, nft, txId),
       command: PROTOCOL_COMMANDS.QUERY
     }
 
