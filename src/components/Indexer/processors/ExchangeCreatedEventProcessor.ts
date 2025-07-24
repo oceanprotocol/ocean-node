@@ -35,10 +35,15 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
     const exchangeId = decodedEventData.args[0]
     INDEXER_LOGGER.logMessage(`FRE ctr addr: ${event.address}`)
     INDEXER_LOGGER.logMessage(`typeof exchangeId ${typeof exchangeId}`)
+    INDEXER_LOGGER.logMessage(`exchangeId ${exchangeId}`)
     const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
     let exchange
     try {
-      exchange = await freContract.getExchange(exchangeId)
+      // fix eval -> only for testing
+      // eslint-disable-next-line security/detect-eval-with-expression, no-eval
+      INDEXER_LOGGER.logMessage(`typeof eval(exchangeId) ${typeof eval(exchangeId)}`)
+      // eslint-disable-next-line security/detect-eval-with-expression, no-eval
+      exchange = await freContract.getExchange(eval(exchangeId))
     } catch (e) {
       INDEXER_LOGGER.error(`Could not fetch exchange details: ${e.message}`)
     }
@@ -46,6 +51,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
     try {
       INDEXER_LOGGER.logMessage(`Check if exchange exists in getExchanges`)
       exchanges = await freContract.getExchanges()
+      INDEXER_LOGGER.logMessage(`Exchange list: ${exchanges}`)
     } catch (e) {
       INDEXER_LOGGER.error(`Could not fetch exchanges list: ${e.message} `)
     }
