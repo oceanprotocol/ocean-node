@@ -210,6 +210,8 @@ export abstract class BaseEventProcessor {
       INDEXER_LOGGER.logMessage(
         `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
       )
+      const config = await getConfiguration()
+      const { keys } = config
       let nonce: string
       try {
         if (URLUtils.isValidUrl(decryptorURL)) {
@@ -227,8 +229,6 @@ export abstract class BaseEventProcessor {
       } catch (err) {
         nonce = Date.now().toString()
       }
-      const config = await getConfiguration()
-      const { keys } = config
       const nodeId = keys.peerId.toString()
 
       const wallet: ethers.Wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string)
