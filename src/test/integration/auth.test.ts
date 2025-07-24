@@ -47,7 +47,7 @@ describe('Auth Token Integration Tests', () => {
     )
 
     config = await getConfiguration(true)
-    database = await new Database(config.dbConfig)
+    database = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(config, database)
 
     provider = new JsonRpcProvider(mockSupportedNetworks['8996'].rpc)

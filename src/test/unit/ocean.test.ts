@@ -8,6 +8,7 @@ import { ENVIRONMENT_VARIABLES, getConfiguration } from '../../utils/index.js'
 import { expect } from 'chai'
 import {
   OverrideEnvConfig,
+  TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   setupEnvironment,
   tearDownEnvironment
@@ -33,10 +34,10 @@ describe('Status command tests', async () => {
       JSON.stringify([1, 137])
     ]
   )
-  envOverrides = await setupEnvironment(null, envOverrides)
+  envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
   // because of this
   const config = await getConfiguration(true)
-  const db = await new Database(config.dbConfig)
+  const db = await Database.init(config.dbConfig)
   const oceanP2P = new OceanP2P(config, db)
   const oceanIndexer = new OceanIndexer(db, config.indexingNetworks)
   const oceanProvider = new OceanProvider(db)
