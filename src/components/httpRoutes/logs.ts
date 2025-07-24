@@ -1,7 +1,7 @@
 import express from 'express'
 import { validateAdminSignature } from '../../utils/auth.js'
 import { HTTP_LOGGER } from '../../utils/logging/common.js'
-import { CommonValidation } from './requestValidator.js'
+import { CommonValidation } from '../../utils/validators.js'
 
 export const logRoutes = express.Router()
 
