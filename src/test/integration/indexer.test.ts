@@ -259,7 +259,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
 
   it('should store the ddo state in the db with no errors and retrieve it using did', async function () {
     const ddoState = await database.ddoState.retrieve(resolvedDDO.id)
-    console.log('ddoState: ', ddoState)
     assert(ddoState, 'ddoState not found')
     expect(resolvedDDO.id).to.equal(ddoState.did)
     expect(ddoState.valid).to.equal(true)
@@ -278,7 +277,6 @@ describe('Indexer stores a new metadata events and orders.', () => {
       command: PROTOCOL_COMMANDS.QUERY
     }
     const response = await queryDdoStateHandler.handle(queryDdoState)
-    console.log('queryDdoStateHandler response: ', response)
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')

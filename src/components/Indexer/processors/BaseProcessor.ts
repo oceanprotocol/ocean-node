@@ -206,7 +206,7 @@ export abstract class BaseEventProcessor {
     metadata: any
   ): Promise<any> {
     let ddo
-    if (parseInt(flag) === 2) {
+    if ((parseInt(flag) & 2) !== 0) {
       INDEXER_LOGGER.logMessage(
         `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
       )
@@ -219,6 +219,7 @@ export abstract class BaseEventProcessor {
             `${decryptorURL}/api/services/nonce?userAddress=${keys.ethAddress}`,
             { timeout: 2000 }
           )
+          console.log('nonceResponse: ', nonceResponse)
           nonce =
             nonceResponse.status === 200 && nonceResponse.data
               ? String(nonceResponse.data.nonce)
@@ -229,6 +230,7 @@ export abstract class BaseEventProcessor {
       } catch (err) {
         nonce = Date.now().toString()
       }
+      console.log('nonce: ', nonce)
       const nodeId = keys.peerId.toString()
 
       const wallet: ethers.Wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string)
