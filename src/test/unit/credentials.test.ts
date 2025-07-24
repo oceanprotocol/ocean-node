@@ -8,7 +8,8 @@ import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,
   setupEnvironment,
-  tearDownEnvironment
+  tearDownEnvironment,
+  TEST_ENV_CONFIG_FILE
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 import { homedir } from 'os'
@@ -25,7 +26,7 @@ describe('credentials', () => {
         `${homedir}/.ocean/ocean-contracts/artifacts/address.json`
       ]
     )
-    envOverrides = await setupEnvironment(null, envOverrides)
+    envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
   })
 
   it('should allow access with undefined or empty credentials', () => {

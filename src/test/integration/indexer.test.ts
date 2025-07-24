@@ -110,7 +110,7 @@ describe('Indexer stores a new metadata events and orders.', () => {
     )
 
     const config = await getConfiguration(true)
-    database = await new Database(config.dbConfig)
+    database = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(config, database)
     indexer = new OceanIndexer(database, mockSupportedNetworks)
     oceanNode.addIndexer(indexer)
@@ -692,7 +692,7 @@ describe('OceanIndexer - crawler threads', () => {
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
     config = await getConfiguration(true)
-    db = await new Database(config.dbConfig)
+    db = await Database.init(config.dbConfig)
   })
 
   it('should start a worker thread and handle RPCS "startBlock"', async () => {

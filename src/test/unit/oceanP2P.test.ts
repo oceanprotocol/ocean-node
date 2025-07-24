@@ -29,8 +29,8 @@ describe('OceanP2P Test', () => {
       '0x3634cc4a3d2694a1186a7ce545f149e022eea103cc254d18d08675104bb4b5ac'
     ]
   )
-  before(() => {
-    setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
+  before(async () => {
+    await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
   })
 
   it('Start instance of OceanP2P node1', async () => {

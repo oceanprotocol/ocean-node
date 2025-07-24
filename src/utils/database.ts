@@ -13,7 +13,7 @@ export async function getDatabase(forceReload: boolean = false): Promise<Databas
   if (!dbConnection || forceReload) {
     const { dbConfig } = await getConfiguration(true)
     if (dbConfig && dbConfig.url) {
-      dbConnection = await new Database(dbConfig)
+      dbConnection = await Database.init(dbConfig)
     }
   }
   return dbConnection

@@ -10,6 +10,7 @@ import { expect } from 'chai'
 import {
   DEFAULT_TEST_TIMEOUT,
   OverrideEnvConfig,
+  TEST_ENV_CONFIG_FILE,
   buildEnvOverrideConfig,
   setupEnvironment,
   tearDownEnvironment
@@ -146,7 +147,7 @@ describe('Test rate limitations and deny list settings', () => {
         3
       ]
     )
-    await setupEnvironment(null, envOverrides)
+    await setupEnvironment(TEST_ENV_CONFIG_FILE, envOverrides)
   })
 
   it('should read deny list of other peers and ips', async () => {
