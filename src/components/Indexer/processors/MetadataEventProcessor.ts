@@ -320,7 +320,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
       )
       INDEXER_LOGGER.log(
         LOG_LEVELS_STR.LEVEL_ERROR,
-        `Error processMetadataEvents: ${error}`,
+        `Error processMetadataEvents for did: ${did} and txHash: ${event.transactionHash} and error: ${error}`,
         true
       )
     }
