@@ -219,10 +219,9 @@ export abstract class BaseEventProcessor {
             `${decryptorURL}/api/services/nonce?userAddress=${keys.ethAddress}`,
             { timeout: 2000 }
           )
-          console.log('nonceResponse: ', nonceResponse)
           nonce =
             nonceResponse.status === 200 && nonceResponse.data
-              ? String(nonceResponse.data.nonce)
+              ? String(parseInt(nonceResponse.data.nonce) + 1)
               : Date.now().toString()
         } else {
           nonce = Date.now().toString()
