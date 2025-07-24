@@ -1,5 +1,5 @@
 import { DDOManager } from '@oceanprotocol/ddo-js'
-import { ethers, Signer, JsonRpcApiProvider } from 'ethers'
+import { ethers, Signer, JsonRpcApiProvider, ZeroAddress } from 'ethers'
 import { EVENTS } from '../../../utils/constants.js'
 import { getDatabase } from '../../../utils/database.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
@@ -13,6 +13,7 @@ import {
 } from '../utils.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
+import { getOceanArtifactsAdressesByChainId } from '../../../utils/address.js'
 
 export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
   async processEvent(
@@ -21,6 +22,9 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
     signer: Signer,
     provider: JsonRpcApiProvider
   ): Promise<any> {
+    const freContractAddress = ethers.getAddress(
+      getOceanArtifactsAdressesByChainId(chainId).FixedPrice
+    )
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
@@ -28,13 +32,31 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
       EVENTS.EXCHANGE_ACTIVATED
     )
     INDEXER_LOGGER.logMessage(`event: ${JSON.stringify(event)}`)
-    INDEXER_LOGGER.logMessage(
-      `decodedEventData in exchange activated: ${JSON.stringify(decodedEventData)}`
-    )
     const exchangeId = decodedEventData.args[0].toString()
-    const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
-    const exchange = await freContract.getExchange(exchangeId)
+    const freContract = new ethers.Contract(
+      freContractAddress,
+      FixedRateExchange.abi,
+      signer
+    )
+    let exchange
+    try {
+      exchange = await freContract.getExchange(exchangeId)
+    } catch (e) {
+      INDEXER_LOGGER.error(`Could not fetch exchange details: ${e.message}`)
+    }
+    if (!exchange) {
+      INDEXER_LOGGER.error(
+        `Exchange not found...Aborting processing exchange created event`
+      )
+      return null
+    }
     const datatokenAddress = exchange[1]
+    if (datatokenAddress === ZeroAddress) {
+      INDEXER_LOGGER.error(
+        `Datatoken address is ZERO ADDRESS. Cannot find DDO by ZERO ADDRESS contract.`
+      )
+      return null
+    }
     const datatokenContract = getDtContract(signer, datatokenAddress)
     const nftAddress = await datatokenContract.getERC721Address()
     const did = getDid(nftAddress, chainId)
@@ -45,7 +67,7 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
         INDEXER_LOGGER.logMessage(
           `Detected ExchangeActivated changed for ${did}, but it does not exists.`
         )
-        return
+        return null
       }
 
       const ddoInstance = DDOManager.getDDOClass(ddo)
@@ -81,7 +103,7 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
           INDEXER_LOGGER.logMessage(
             `[ExchangeActivated] - This datatoken does not contain this service. Invalid service id!`
           )
-          return
+          return null
         }
         const { stats } = ddoInstance.getAssetFields().indexedMetadata
         stats.push({

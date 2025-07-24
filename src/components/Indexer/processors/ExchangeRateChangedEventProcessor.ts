@@ -1,5 +1,5 @@
 import { DDOManager } from '@oceanprotocol/ddo-js'
-import { ethers, Signer, JsonRpcApiProvider } from 'ethers'
+import { ethers, Signer, JsonRpcApiProvider, ZeroAddress } from 'ethers'
 import { EVENTS } from '../../../utils/constants.js'
 import { getDatabase } from '../../../utils/database.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
@@ -13,6 +13,7 @@ import {
 } from '../utils.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
+import { getOceanArtifactsAdressesByChainId } from '../../../utils/address.js'
 
 export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
   async processEvent(
@@ -21,17 +22,41 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
     signer: Signer,
     provider: JsonRpcApiProvider
   ): Promise<any> {
+    const freContractAddress = ethers.getAddress(
+      getOceanArtifactsAdressesByChainId(chainId).FixedPrice
+    )
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
       FixedRateExchange.abi,
       EVENTS.EXCHANGE_RATE_CHANGED
     )
-    const exchangeId = ethers.toUtf8Bytes(decodedEventData.args[0].toString())
+    const exchangeId = decodedEventData.args[0]
     const newRate = decodedEventData.args[2].toString()
-    const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
-    const exchange = await freContract.getExchange(exchangeId)
+    const freContract = new ethers.Contract(
+      freContractAddress,
+      FixedRateExchange.abi,
+      signer
+    )
+    let exchange
+    try {
+      exchange = await freContract.getExchange(exchangeId)
+    } catch (e) {
+      INDEXER_LOGGER.error(`Could not fetch exchange details: ${e.message}`)
+    }
+    if (!exchange) {
+      INDEXER_LOGGER.error(
+        `Exchange not found...Aborting processing exchange created event`
+      )
+      return null
+    }
     const datatokenAddress = exchange[1]
+    if (datatokenAddress === ZeroAddress) {
+      INDEXER_LOGGER.error(
+        `Datatoken address is ZERO ADDRESS. Cannot find DDO by ZERO ADDRESS contract.`
+      )
+      return null
+    }
     const datatokenContract = getDtContract(signer, datatokenAddress)
     const nftAddress = await datatokenContract.getERC721Address()
     const did = getDid(nftAddress, chainId)
