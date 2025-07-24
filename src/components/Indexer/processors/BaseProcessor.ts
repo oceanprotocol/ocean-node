@@ -241,7 +241,8 @@ export abstract class BaseEventProcessor {
         ['bytes'],
         [ethers.hexlify(ethers.toUtf8Bytes(message))]
       )
-      const signature = await wallet.signMessage(consumerMessage)
+      // signMessage expects a string or bytes, so use getBytes
+      const signature = await wallet.signMessage(ethers.getBytes(consumerMessage))
 
       if (URLUtils.isValidUrl(decryptorURL)) {
         try {
