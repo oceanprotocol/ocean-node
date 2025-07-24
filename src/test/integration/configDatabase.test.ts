@@ -22,7 +22,7 @@ describe('Config Database', () => {
   let initialVersionNull: any
 
   before(async () => {
-    database = await new Database(versionConfig)
+    database = await Database.init(versionConfig)
 
     it('should have null version initially', async () => {
       initialVersionNull = await oceanIndexer.getDatabase().sqliteConfig.retrieveValue()
@@ -75,7 +75,7 @@ describe('VersionDatabase CRUD (without Elastic or Typesense config)', () => {
   let database: Database
 
   before(async () => {
-    database = await new Database(emptyDBConfig)
+    database = await Database.init(emptyDBConfig)
   })
 
   it('check version DB instance of SQL Lite', () => {

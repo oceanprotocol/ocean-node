@@ -145,7 +145,7 @@ describe('Compute', () => {
       )
     )
     config = await getConfiguration(true)
-    dbconn = await new Database(config.dbConfig)
+    dbconn = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(config, dbconn, null, null, null, true)
     indexer = new OceanIndexer(dbconn, config.indexingNetworks)
     oceanNode.addIndexer(indexer)

@@ -86,7 +86,10 @@ let node: OceanP2P = null
 let indexer = null
 let provider = null
 // If there is no DB URL only the nonce database will be available
-const dbconn: Database = await new Database(config.dbConfig)
+const dbconn: Database = await Database.init(config.dbConfig)
+if (!dbconn) {
+  OCEAN_NODE_LOGGER.error('Database failed to initialize')
+}
 
 if (!hasValidDBConfiguration(config.dbConfig)) {
   // once we create a database instance, we check the environment and possibly add the DB transport

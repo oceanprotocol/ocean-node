@@ -104,7 +104,7 @@ describe('Should encrypt and decrypt DDO', () => {
       publisherAccount
     )
     const config = await getConfiguration()
-    database = await new Database(config.dbConfig)
+    database = await Database.init(config.dbConfig)
     oceanNode = OceanNode.getInstance(config, database)
     // will be used later
     indexer = new OceanIndexer(database, mockSupportedNetworks)

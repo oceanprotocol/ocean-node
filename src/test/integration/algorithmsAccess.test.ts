@@ -108,7 +108,7 @@ describe('Trusted algorithms Flow', () => {
       )
     )
     config = await getConfiguration(true)
-    dbconn = await new Database(config.dbConfig)
+    dbconn = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(config, dbconn, null, null, null)
     indexer = new OceanIndexer(dbconn, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
