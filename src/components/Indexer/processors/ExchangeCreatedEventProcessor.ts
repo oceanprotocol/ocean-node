@@ -34,6 +34,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
     )
     const exchangeId = decodedEventData.args[0]
     INDEXER_LOGGER.logMessage(`FRE ctr addr: ${event.address}`)
+    INDEXER_LOGGER.logMessage(`typeof exchangeId ${typeof exchangeId}`)
     const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
     let exchange
     try {
@@ -41,9 +42,36 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
     } catch (e) {
       INDEXER_LOGGER.error(`Could not fetch exchange details: ${e.message}`)
     }
+    let exchanges
+    try {
+      INDEXER_LOGGER.logMessage(`Check if exchange exists in getExchanges`)
+      exchanges = await freContract.getExchanges()
+    } catch (e) {
+      INDEXER_LOGGER.error(`Could not fetch exchanges list: ${e.message} `)
+    }
+    if (!exchanges) {
+      INDEXER_LOGGER.error(
+        `List of Exchanges not found...Aborting processing exchange created event`
+      )
+    }
+    if (!exchanges.includes(exchangeId)) {
+      INDEXER_LOGGER.error(
+        `List of Exchanges do not include ${exchangeId}, typeof exchange id: ${typeof exchangeId}`
+      )
+    }
     if (!exchange) {
       INDEXER_LOGGER.error(
         `Exchange not found...Aborting processing exchange created event`
+      )
+    }
+    // try with getFunction
+    try {
+      const fn = await freContract.getFunction('getExchange(bytes32)')
+      INDEXER_LOGGER.error(`Get exchange fn: ${fn}`)
+      await fn.call(exchangeId)
+    } catch (e) {
+      INDEXER_LOGGER.error(
+        `Could not fetch exchange details with getFunction: ${e.message}`
       )
       return
     }
