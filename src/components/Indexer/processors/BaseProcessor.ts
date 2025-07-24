@@ -210,7 +210,23 @@ export abstract class BaseEventProcessor {
       INDEXER_LOGGER.logMessage(
         `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
       )
-      const nonce = Math.floor(Date.now() / 1000).toString()
+      let nonce: string
+      try {
+        if (URLUtils.isValidUrl(decryptorURL)) {
+          const nonceResponse = await axios.get(
+            `${decryptorURL}/api/services/nonce?userAddress=${keys.ethAddress}`
+          )
+          if (nonceResponse.status === 200 && nonceResponse.data) {
+            nonce = String(nonceResponse.data.nonce ?? nonceResponse.data)
+          } else {
+            nonce = Date.now().toString()
+          }
+        } else {
+          nonce = Date.now().toString()
+        }
+      } catch (err) {
+        nonce = Date.now().toString()
+      }
       const config = await getConfiguration()
       const { keys } = config
       const nodeId = keys.peerId.toString()
