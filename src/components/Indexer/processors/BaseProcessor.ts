@@ -216,13 +216,13 @@ export abstract class BaseEventProcessor {
       try {
         if (URLUtils.isValidUrl(decryptorURL)) {
           const nonceResponse = await axios.get(
-            `${decryptorURL}/api/services/nonce?userAddress=${keys.ethAddress}`
+            `${decryptorURL}/api/services/nonce?userAddress=${keys.ethAddress}`,
+            { timeout: 2000 }
           )
-          if (nonceResponse.status === 200 && nonceResponse.data) {
-            nonce = String(nonceResponse.data.nonce ?? nonceResponse.data)
-          } else {
-            nonce = Date.now().toString()
-          }
+          nonce =
+            nonceResponse.status === 200 && nonceResponse.data
+              ? String(nonceResponse.data.nonce)
+              : Date.now().toString()
         } else {
           nonce = Date.now().toString()
         }
