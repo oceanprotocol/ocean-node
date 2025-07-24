@@ -84,7 +84,7 @@ describe('Publish pricing scehmas and assert ddo stats - FRE & Dispenser', () =>
     )
 
     const config = await getConfiguration(true)
-    database = await new Database(config.dbConfig)
+    database = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance()
     indexer = new OceanIndexer(database, mockSupportedNetworks)
     oceanNode.addIndexer(indexer)

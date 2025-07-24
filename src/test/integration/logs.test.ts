@@ -37,7 +37,7 @@ describe('LogDatabase CRUD', () => {
       buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
     )
     const { dbConfig } = await getConfiguration(true)
-    database = await new Database(dbConfig)
+    database = await Database.init(dbConfig)
     // Initialize logger with the custom transport that writes to the LogDatabase
     logger = getCustomLoggerForModule(
       LOGGER_MODULE_NAMES.HTTP,
@@ -179,7 +179,7 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
     )
 
     const { dbConfig } = await getConfiguration(true)
-    database = await new Database(dbConfig)
+    database = await Database.init(dbConfig)
   })
 
   it('should retrieve logs with a specific moduleName', async () => {
@@ -245,7 +245,7 @@ describe('LogDatabase retrieveMultipleLogs with specific parameters', () => {
 
     before(async () => {
       const { dbConfig } = await getConfiguration(true)
-      database = await new Database(dbConfig)
+      database = await Database.init(dbConfig)
     })
 
     it('should insert a log for deletion', async () => {
@@ -348,7 +348,7 @@ describe('LogDatabase deleteOldLogs', () => {
       buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
     )
     const { dbConfig } = await getConfiguration(true)
-    database = await new Database(dbConfig)
+    database = await Database.init(dbConfig)
   })
 
   it('should insert an old log and a recent log', async () => {
@@ -413,7 +413,7 @@ describe('LogDatabase retrieveMultipleLogs with pagination', () => {
       buildEnvOverrideConfig([ENVIRONMENT_VARIABLES.LOG_DB], ['true'])
     )
     const { dbConfig } = await getConfiguration(true)
-    database = await new Database(dbConfig)
+    database = await Database.init(dbConfig)
 
     // Insert multiple log entries to ensure there are enough logs for pagination
     for (let i = 0; i < logCount; i++) {

@@ -33,42 +33,81 @@ export class Database {
   c2d: C2DDatabase
   authToken: AuthTokenDatabase
 
-  constructor(private config: OceanNodeDBConfig) {
-    return (async (): Promise<Database> => {
+  constructor(private config: OceanNodeDBConfig) {}
+
+  static async init(config: OceanNodeDBConfig): Promise<Database | null> {
+    const db = new Database(config)
+    try {
+      db.nonce = await DatabaseFactory.createNonceDatabase(config)
+    } catch (error) {
+      DATABASE_LOGGER.error(`Nonce database initialization failed: ${error}`)
+      return null
+    }
+    try {
+      db.sqliteConfig = await DatabaseFactory.createConfigDatabase()
+    } catch (error) {
+      DATABASE_LOGGER.error(`Config database initialization failed: ${error}`)
+      return null
+    }
+    try {
+      db.c2d = await DatabaseFactory.createC2DDatabase(config)
+    } catch (error) {
+      DATABASE_LOGGER.error(`C2D database initialization failed: ${error}`)
+      return null
+    }
+    try {
+      db.authToken = await DatabaseFactory.createAuthTokenDatabase(config)
+    } catch (error) {
+      DATABASE_LOGGER.error(`Auth database initialization failed: ${error}`)
+      return null
+    }
+
+    if (hasValidDBConfiguration(config)) {
+      if (USE_DB_TRANSPORT()) {
+        configureCustomDBTransport(db, DATABASE_LOGGER)
+      } else {
+        DATABASE_LOGGER.warn('LOG_DB is false. Logs will NOT be saved to DB!')
+      }
       try {
-        // these databases use SQLite provider
-        this.nonce = await DatabaseFactory.createNonceDatabase(this.config)
-        this.sqliteConfig = await DatabaseFactory.createConfigDatabase()
-        this.c2d = await DatabaseFactory.createC2DDatabase(this.config)
-        this.authToken = await DatabaseFactory.createAuthTokenDatabase(this.config)
-        // only for Typesense or Elasticsearch
-        if (hasValidDBConfiguration(this.config)) {
-          // add this DB transport too
-          // once we create a DB instance, the logger will be using this transport as well
-          // we cannot have this the other way around because of the dependencies cycle
-          if (USE_DB_TRANSPORT()) {
-            configureCustomDBTransport(this, DATABASE_LOGGER)
-          } else {
-            DATABASE_LOGGER.warn(
-              'Property "LOG_DB" is set to "false". This means logs will NOT be saved to database!'
-            )
-          }
-          this.ddo = await DatabaseFactory.createDdoDatabase(this.config)
-          this.indexer = await DatabaseFactory.createIndexerDatabase(this.config)
-          this.logs = await DatabaseFactory.createLogDatabase(this.config)
-          this.order = await DatabaseFactory.createOrderDatabase(this.config)
-          this.ddoState = await DatabaseFactory.createDdoStateDatabase(this.config)
-        } else {
-          DATABASE_LOGGER.info(
-            'Invalid DB URL. Only Nonce, C2D, Auth Token and Config Databases are initialized. Other databases are not available.'
-          )
-        }
-        return this
+        db.ddo = await DatabaseFactory.createDdoDatabase(config)
       } catch (error) {
-        DATABASE_LOGGER.error(`Database initialization failed: ${error}`)
+        DATABASE_LOGGER.error(`DDO database initialization failed: ${error}`)
         return null
       }
-    })() as unknown as Database
+      try {
+        db.indexer = await DatabaseFactory.createIndexerDatabase(config)
+      } catch (error) {
+        DATABASE_LOGGER.error(`Indexer database initialization failed: ${error}`)
+        return null
+      }
+
+      try {
+        db.logs = await DatabaseFactory.createLogDatabase(config)
+      } catch (error) {
+        DATABASE_LOGGER.error(`Logs database initialization failed: ${error}`)
+        return null
+      }
+
+      try {
+        db.order = await DatabaseFactory.createOrderDatabase(config)
+      } catch (error) {
+        DATABASE_LOGGER.error(`Order database initialization failed: ${error}`)
+        return null
+      }
+
+      try {
+        db.ddoState = await DatabaseFactory.createDdoStateDatabase(config)
+      } catch (error) {
+        DATABASE_LOGGER.error(`DDO State database initialization failed: ${error}`)
+        return null
+      }
+    } else {
+      DATABASE_LOGGER.info(
+        'Invalid DB URL. Only Nonce, C2D, Auth Token and Config Databases are initialized.'
+      )
+    }
+
+    return db
   }
 
   // useful to know which configuration was passed to DB

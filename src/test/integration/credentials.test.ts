@@ -135,7 +135,7 @@ describe('[Credentials Flow] - Should run a complete node flow.', () => {
     )
 
     config = await getConfiguration(true) // Force reload the configuration
-    const database = await new Database(config.dbConfig)
+    const database = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(config, database)
     const indexer = new OceanIndexer(database, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
