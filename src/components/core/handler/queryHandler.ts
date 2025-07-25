@@ -46,6 +46,17 @@ export class QueryDdoStateHandler extends QueryHandler {
     }
     try {
       const result = await this.getOceanNode().getDatabase().ddoState.search(task.query)
+
+      CORE_LOGGER.debug(`DDO State search result: ${JSON.stringify(result)}`)
+
+      if (result === null) {
+        CORE_LOGGER.error('Database search returned null')
+        return {
+          stream: null,
+          status: { httpStatus: 500, error: 'Database search failed' }
+        }
+      }
+
       return {
         stream: Readable.from(JSON.stringify(result)),
         status: { httpStatus: 200 }
