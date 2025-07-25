@@ -9,7 +9,8 @@ import {
   toUtf8Bytes,
   hexlify,
   getBytes,
-  toUtf8String
+  toUtf8String,
+  Signature
 } from 'ethers'
 import { Readable } from 'winston-transport'
 import { DecryptDDOCommand } from '../../../@types/commands.js'
@@ -254,8 +255,8 @@ export abstract class BaseEventProcessor {
       INDEXER_LOGGER.logMessage(
         `decryptDDO: message hash (keccak256): ${consumerMessage}`
       )
-      // Use signMessage with bytes to sign the hash directly (no prefix)
-      const signature = await wallet.signMessage(ethers.getBytes(consumerMessage))
+      const sig = await wallet.signingKey.sign(consumerMessage)
+      const signature = Signature.from(sig).serialized
       console.log('signature: ', signature)
       const oldSignature = await wallet.signMessage(consumerMessage)
       console.log('oldSignature: ', oldSignature)
