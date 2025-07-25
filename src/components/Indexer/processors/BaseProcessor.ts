@@ -206,6 +206,8 @@ export abstract class BaseEventProcessor {
     metadata: any
   ): Promise<any> {
     let ddo
+    // Log the flag value
+    INDEXER_LOGGER.logMessage(`decryptDDO: flag=${flag}`)
     if ((parseInt(flag) & 2) !== 0) {
       INDEXER_LOGGER.logMessage(
         `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
@@ -221,7 +223,7 @@ export abstract class BaseEventProcessor {
           )
           nonce =
             nonceResponse.status === 200 && nonceResponse.data
-              ? String(parseInt(nonceResponse.data.nonce) + 1)
+              ? String(nonceResponse.data.nonce)
               : Date.now().toString()
         } else {
           nonce = Date.now().toString()
@@ -233,16 +235,30 @@ export abstract class BaseEventProcessor {
       const nodeId = keys.peerId.toString()
 
       const wallet: ethers.Wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string)
+      const walletAddress = await wallet.getAddress()
+      INDEXER_LOGGER.logMessage(
+        `decryptDDO: wallet address used for signing: ${walletAddress}`
+      )
+      INDEXER_LOGGER.logMessage(
+        `decryptDDO: txId=${txId}, contractAddress=${contractAddress}, ethAddress=${keys.ethAddress}, chainId=${chainId}, nonce=${nonce}`
+      )
 
       const message = String(
         txId + contractAddress + keys.ethAddress + chainId.toString() + nonce
       )
+      INDEXER_LOGGER.logMessage(`decryptDDO: constructed message string: ${message}`)
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
         [ethers.hexlify(ethers.toUtf8Bytes(message))]
       )
-      // signMessage expects a string or bytes, so use getBytes
+      INDEXER_LOGGER.logMessage(
+        `decryptDDO: message hash (keccak256): ${consumerMessage}`
+      )
+      // Use signMessage with bytes to sign the hash directly (no prefix)
       const signature = await wallet.signMessage(ethers.getBytes(consumerMessage))
+      console.log('signature: ', signature)
+      const oldSignature = await wallet.signMessage(consumerMessage)
+      console.log('oldSignature: ', oldSignature)
 
       if (URLUtils.isValidUrl(decryptorURL)) {
         try {
@@ -254,6 +270,9 @@ export abstract class BaseEventProcessor {
             signature,
             nonce
           }
+          INDEXER_LOGGER.logMessage(
+            `decryptDDO: payload sent to provider: ${JSON.stringify(payload)}`
+          )
           const response = await axios({
             method: 'post',
             url: `${decryptorURL}/api/services/decrypt`,
