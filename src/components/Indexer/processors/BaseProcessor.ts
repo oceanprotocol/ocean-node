@@ -95,13 +95,10 @@ export abstract class BaseEventProcessor {
     } catch (e) {
       INDEXER_LOGGER.error(`Error retrieving receipt: ${e.message}`)
     }
-    INDEXER_LOGGER.logMessage(`Mined receipt: ${JSON.stringify(receipt)}`)
     if (receipt) {
       let eventHash: string
       for (const [key, value] of Object.entries(EVENT_HASHES)) {
         if (value.type === eventType) {
-          INDEXER_LOGGER.logMessage(`Found event hash: ${key}`)
-          INDEXER_LOGGER.logMessage(`Found event type: ${eventType}`)
           eventHash = key
           break
         }
@@ -113,13 +110,7 @@ export abstract class BaseEventProcessor {
 
       let eventObj: any
       for (const log of receipt.logs) {
-        INDEXER_LOGGER.logMessage(`log.topics[0]: ${log.topics[0]}`)
-        INDEXER_LOGGER.logMessage(`log.data: ${log.data}`)
-        INDEXER_LOGGER.logMessage(`log.topic: ${log.topics}`)
         if (log.topics[0] === eventHash) {
-          INDEXER_LOGGER.logMessage(`found log.topics[0]: ${log.topics[0]}`)
-          INDEXER_LOGGER.logMessage(`found log.data: ${log.data}`)
-          INDEXER_LOGGER.logMessage(`found log.topic: ${log.topics}`)
           eventObj = {
             topics: log.topics,
             data: log.data
