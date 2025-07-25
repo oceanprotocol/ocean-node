@@ -9,11 +9,11 @@ import {
   getDid,
   doesFreAlreadyExist,
   findServiceIdByDatatoken,
-  getPricesByDt
+  getPricesByDt,
+  isValidFreContract
 } from '../utils.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
 import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pools/fixedRate/FixedRateExchange.sol/FixedRateExchange.json' assert { type: 'json' }
-import { getOceanArtifactsAdressesByChainId } from '../../../utils/address.js'
 
 export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
   async processEvent(
@@ -22,9 +22,12 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
     signer: Signer,
     provider: JsonRpcApiProvider
   ): Promise<any> {
-    const freContractAddress = ethers.getAddress(
-      getOceanArtifactsAdressesByChainId(chainId).FixedPrice
-    )
+    if (!(await isValidFreContract(event.address, chainId, signer))) {
+      INDEXER_LOGGER.error(
+        `Fixed Rate Exhange contract ${event.address} is not approved by Router. Abort updating DDO pricing!`
+      )
+      return null
+    }
     const decodedEventData = await this.getEventData(
       provider,
       event.transactionHash,
@@ -33,11 +36,7 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
     )
     const exchangeId = decodedEventData.args[0]
     const newRate = decodedEventData.args[2].toString()
-    const freContract = new ethers.Contract(
-      freContractAddress,
-      FixedRateExchange.abi,
-      signer
-    )
+    const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
     let exchange
     try {
       exchange = await freContract.getExchange(exchangeId)
