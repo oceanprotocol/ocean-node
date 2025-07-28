@@ -9,8 +9,7 @@ import {
   toUtf8Bytes,
   hexlify,
   getBytes,
-  toUtf8String,
-  Signature
+  toUtf8String
 } from 'ethers'
 import { Readable } from 'winston-transport'
 import { DecryptDDOCommand } from '../../../@types/commands.js'
@@ -248,18 +247,41 @@ export abstract class BaseEventProcessor {
         txId + contractAddress + keys.ethAddress + chainId.toString() + nonce
       )
       INDEXER_LOGGER.logMessage(`decryptDDO: constructed message string: ${message}`)
+
       const consumerMessage = ethers.solidityPackedKeccak256(
         ['bytes'],
         [ethers.hexlify(ethers.toUtf8Bytes(message))]
       )
+
+      const messageBytes = ethers.toUtf8Bytes(message)
+      const alternativeHash = ethers.keccak256(messageBytes)
+
       INDEXER_LOGGER.logMessage(
-        `decryptDDO: message hash (keccak256): ${consumerMessage}`
+        `decryptDDO: solidityPackedKeccak256 hash: ${consumerMessage}`
       )
-      const sig = await wallet.signingKey.sign(consumerMessage)
-      const signature = Signature.from(sig).serialized
-      console.log('signature: ', signature)
-      const oldSignature = await wallet.signMessage(consumerMessage)
-      console.log('oldSignature: ', oldSignature)
+      INDEXER_LOGGER.logMessage(`decryptDDO: direct keccak256 hash: ${alternativeHash}`)
+
+      const hashToUse = alternativeHash
+
+      const signingKey = new ethers.SigningKey(process.env.PRIVATE_KEY as string)
+      const sig = signingKey.sign(hashToUse)
+
+      const signature = ethers.Signature.from({
+        r: sig.r,
+        s: sig.s,
+        v: sig.v
+      }).serialized
+
+      const recoveredAddress = ethers.recoverAddress(hashToUse, signature)
+      INDEXER_LOGGER.logMessage(
+        `decryptDDO: signature verification - recovered: ${recoveredAddress}, expected: ${keys.ethAddress}`
+      )
+
+      if (recoveredAddress.toLowerCase() !== keys.ethAddress.toLowerCase()) {
+        INDEXER_LOGGER.logMessage(`decryptDDO: WARNING - signature verification failed!`)
+      }
+
+      console.log('final signature: ', signature)
 
       if (URLUtils.isValidUrl(decryptorURL)) {
         try {
