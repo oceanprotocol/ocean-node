@@ -249,18 +249,54 @@ export abstract class BaseEventProcessor {
       INDEXER_LOGGER.logMessage(`decryptDDO: constructed message string: ${message}`)
 
       const messageBytes = ethers.toUtf8Bytes(message)
-      const messageHash = ethers.keccak256(messageBytes)
-
       INDEXER_LOGGER.logMessage(
-        `decryptDDO: message hash (Web3.keccak equivalent): ${messageHash}`
+        `decryptDDO: original message length: ${message.length} characters`
+      )
+      INDEXER_LOGGER.logMessage(
+        `decryptDDO: message bytes length: ${messageBytes.length} bytes`
+      )
+
+      const messageHash = ethers.solidityPackedKeccak256(['bytes'], [messageBytes])
+      const messageHashBytes = ethers.getBytes(messageHash)
+      INDEXER_LOGGER.logMessage(
+        `decryptDDO: message_hash (solidityKeccak): ${messageHash}`
+      )
+      INDEXER_LOGGER.logMessage(
+        `decryptDDO: message_hash bytes length: ${messageHashBytes.length} bytes`
+      )
+
+      const prefix = '\x19Ethereum Signed Message:\n32'
+      const prefixBytes = ethers.toUtf8Bytes(prefix)
+      INDEXER_LOGGER.logMessage(`decryptDDO: prefix: "${prefix}"`)
+      INDEXER_LOGGER.logMessage(
+        `decryptDDO: prefix bytes length: ${prefixBytes.length} bytes`
+      )
+
+      let paddedMessageHashBytes = messageHashBytes
+      if (messageHashBytes.length !== 32) {
+        INDEXER_LOGGER.logMessage(
+          `decryptDDO: WARNING - message hash is ${messageHashBytes.length} bytes, Python expects 32 bytes`
+        )
+        const padding = new Uint8Array(32 - messageHashBytes.length)
+        paddedMessageHashBytes = new Uint8Array([...messageHashBytes, ...padding])
+        INDEXER_LOGGER.logMessage(`decryptDDO: padded message_hash bytes to 32 bytes`)
+      }
+
+      const signableHash = ethers.solidityPackedKeccak256(
+        ['bytes', 'bytes'],
+        [prefixBytes, paddedMessageHashBytes]
+      )
+      INDEXER_LOGGER.logMessage(
+        `decryptDDO: signable_hash (with prefix): ${signableHash}`
       )
 
       const signingKey = new ethers.SigningKey(process.env.PRIVATE_KEY as string)
-      const sig = signingKey.sign(messageHash)
+      const sig = signingKey.sign(signableHash)
 
       const signature = ethers.Signature.from(sig).serialized
+      INDEXER_LOGGER.logMessage(`decryptDDO: raw signature: ${signature}`)
 
-      const recoveredAddress = ethers.recoverAddress(messageHash, signature)
+      const recoveredAddress = ethers.recoverAddress(signableHash, signature)
       INDEXER_LOGGER.logMessage(
         `decryptDDO: signature verification - recovered: ${recoveredAddress}, expected: ${keys.ethAddress}`
       )
