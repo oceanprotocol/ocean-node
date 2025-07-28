@@ -285,8 +285,8 @@ export abstract class BaseEventProcessor {
             url: `${decryptorURL}/api/services/decrypt`,
             data: payload
           })
-          if (response.status !== 200) {
-            const message = `bProvider exception on decrypt DDO. Status: ${response.status}, ${response.statusText}`
+          if (response.status !== 200 && response.status !== 201) {
+            const message = `Provider exception on decrypt DDO. Status: ${response.status}, ${response.statusText}`
             INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
             throw new Error(message)
           }
