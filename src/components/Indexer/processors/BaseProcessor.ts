@@ -223,7 +223,7 @@ export abstract class BaseEventProcessor {
           )
           nonce =
             nonceResponse.status === 200 && nonceResponse.data
-              ? String(nonceResponse.data.nonce)
+              ? String(nonceResponse.data.nonce + 1)
               : Date.now().toString()
         } else {
           nonce = Date.now().toString()
@@ -243,69 +243,27 @@ export abstract class BaseEventProcessor {
         `decryptDDO: txId=${txId}, contractAddress=${contractAddress}, ethAddress=${keys.ethAddress}, chainId=${chainId}, nonce=${nonce}`
       )
 
+      const useTxIdOrContractAddress = txId || contractAddress
       const message = String(
-        txId + contractAddress + keys.ethAddress + chainId.toString() + nonce
+        useTxIdOrContractAddress + keys.ethAddress + chainId.toString() + nonce
       )
-      INDEXER_LOGGER.logMessage(`decryptDDO: constructed message string: ${message}`)
 
-      const messageBytes = ethers.toUtf8Bytes(message)
+      INDEXER_LOGGER.logMessage(`decryptDDO: final message: ${message}`)
+
+      const messageHash = ethers.solidityPackedKeccak256(
+        ['bytes'],
+        [ethers.hexlify(ethers.toUtf8Bytes(message))]
+      )
+      INDEXER_LOGGER.logMessage(`decryptDDO: message hash: ${messageHash}`)
+
+      const signature = await wallet.signMessage(messageHash)
+
+      INDEXER_LOGGER.logMessage(`decryptDDO: signature: ${signature}`)
+
+      const recoveredAddress = ethers.verifyMessage(messageHash, signature)
       INDEXER_LOGGER.logMessage(
-        `decryptDDO: original message length: ${message.length} characters`
+        `decryptDDO: recovered address: ${recoveredAddress}, expected: ${keys.ethAddress}`
       )
-      INDEXER_LOGGER.logMessage(
-        `decryptDDO: message bytes length: ${messageBytes.length} bytes`
-      )
-
-      const messageHash = ethers.solidityPackedKeccak256(['bytes'], [messageBytes])
-      const messageHashBytes = ethers.getBytes(messageHash)
-      INDEXER_LOGGER.logMessage(
-        `decryptDDO: message_hash (solidityKeccak): ${messageHash}`
-      )
-      INDEXER_LOGGER.logMessage(
-        `decryptDDO: message_hash bytes length: ${messageHashBytes.length} bytes`
-      )
-
-      const prefix = '\x19Ethereum Signed Message:\n32'
-      const prefixBytes = ethers.toUtf8Bytes(prefix)
-      INDEXER_LOGGER.logMessage(`decryptDDO: prefix: "${prefix}"`)
-      INDEXER_LOGGER.logMessage(
-        `decryptDDO: prefix bytes length: ${prefixBytes.length} bytes`
-      )
-
-      let paddedMessageHashBytes = messageHashBytes
-      if (messageHashBytes.length !== 32) {
-        INDEXER_LOGGER.logMessage(
-          `decryptDDO: WARNING - message hash is ${messageHashBytes.length} bytes, Python expects 32 bytes`
-        )
-        const padding = new Uint8Array(32 - messageHashBytes.length)
-        paddedMessageHashBytes = new Uint8Array([...messageHashBytes, ...padding])
-        INDEXER_LOGGER.logMessage(`decryptDDO: padded message_hash bytes to 32 bytes`)
-      }
-
-      const signableHash = ethers.solidityPackedKeccak256(
-        ['bytes', 'bytes'],
-        [prefixBytes, paddedMessageHashBytes]
-      )
-      INDEXER_LOGGER.logMessage(
-        `decryptDDO: signable_hash (with prefix): ${signableHash}`
-      )
-
-      const signingKey = new ethers.SigningKey(process.env.PRIVATE_KEY as string)
-      const sig = signingKey.sign(signableHash)
-
-      const signature = ethers.Signature.from(sig).serialized
-      INDEXER_LOGGER.logMessage(`decryptDDO: raw signature: ${signature}`)
-
-      const recoveredAddress = ethers.recoverAddress(signableHash, signature)
-      INDEXER_LOGGER.logMessage(
-        `decryptDDO: signature verification - recovered: ${recoveredAddress}, expected: ${keys.ethAddress}`
-      )
-
-      if (recoveredAddress.toLowerCase() !== keys.ethAddress.toLowerCase()) {
-        INDEXER_LOGGER.logMessage(`decryptDDO: WARNING - signature verification failed!`)
-      }
-
-      console.log('final signature: ', signature)
 
       if (URLUtils.isValidUrl(decryptorURL)) {
         try {
