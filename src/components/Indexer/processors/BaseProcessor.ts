@@ -248,31 +248,19 @@ export abstract class BaseEventProcessor {
       )
       INDEXER_LOGGER.logMessage(`decryptDDO: constructed message string: ${message}`)
 
-      const consumerMessage = ethers.solidityPackedKeccak256(
-        ['bytes'],
-        [ethers.hexlify(ethers.toUtf8Bytes(message))]
-      )
-
       const messageBytes = ethers.toUtf8Bytes(message)
-      const alternativeHash = ethers.keccak256(messageBytes)
+      const messageHash = ethers.keccak256(messageBytes)
 
       INDEXER_LOGGER.logMessage(
-        `decryptDDO: solidityPackedKeccak256 hash: ${consumerMessage}`
+        `decryptDDO: message hash (Web3.keccak equivalent): ${messageHash}`
       )
-      INDEXER_LOGGER.logMessage(`decryptDDO: direct keccak256 hash: ${alternativeHash}`)
-
-      const hashToUse = alternativeHash
 
       const signingKey = new ethers.SigningKey(process.env.PRIVATE_KEY as string)
-      const sig = signingKey.sign(hashToUse)
+      const sig = signingKey.sign(messageHash)
 
-      const signature = ethers.Signature.from({
-        r: sig.r,
-        s: sig.s,
-        v: sig.v
-      }).serialized
+      const signature = ethers.Signature.from(sig).serialized
 
-      const recoveredAddress = ethers.recoverAddress(hashToUse, signature)
+      const recoveredAddress = ethers.recoverAddress(messageHash, signature)
       INDEXER_LOGGER.logMessage(
         `decryptDDO: signature verification - recovered: ${recoveredAddress}, expected: ${keys.ethAddress}`
       )
