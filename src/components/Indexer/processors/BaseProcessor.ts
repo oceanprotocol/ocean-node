@@ -223,7 +223,7 @@ export abstract class BaseEventProcessor {
           )
           nonce =
             nonceResponse.status === 200 && nonceResponse.data
-              ? String(nonceResponse.data.nonce + 1)
+              ? String(parseInt(nonceResponse.data.nonce) + 1)
               : Date.now().toString()
         } else {
           nonce = Date.now().toString()
@@ -256,7 +256,9 @@ export abstract class BaseEventProcessor {
       )
       INDEXER_LOGGER.logMessage(`decryptDDO: message hash: ${messageHash}`)
 
-      const signature = await wallet.signMessage(messageHash)
+      const signature = await wallet.signMessage(
+        new Uint8Array(ethers.toBeArray(messageHash))
+      )
 
       INDEXER_LOGGER.logMessage(`decryptDDO: signature: ${signature}`)
 
