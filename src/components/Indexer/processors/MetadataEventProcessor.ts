@@ -82,7 +82,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
         return
       }
       // for unencrypted DDOs
-      if (parseInt(flag) !== 2 && !this.checkDdoHash(updatedDdo, metadataHash)) {
+      if ((parseInt(flag) & 2) === 0 && !this.checkDdoHash(updatedDdo, metadataHash)) {
         INDEXER_LOGGER.error('Unencrypted DDO hash does not match metadata hash.')
         await ddoState.update(
           this.networkId,
