@@ -66,6 +66,10 @@ export class C2DDatabase extends AbstractDatabase {
     return await this.provider.getRunningJobs(engine, environment)
   }
 
+  async getAllFinishedJobs(): Promise<DBComputeJob[]> {
+    return await this.provider.getAllFinishedJobs()
+  }
+
   async deleteJob(jobId: string): Promise<boolean> {
     return await this.provider.deleteJob(jobId)
   }
@@ -117,18 +121,23 @@ export class C2DDatabase extends AbstractDatabase {
    */
   async cleanOrphanJobs(existingEnvironments: ComputeEnvironment[]) {
     const c2dDatabase = await (await getDatabase()).c2d
-    const finishedOrExpired: DBComputeJob[] = await this.provider.getFinishedJobs()
-    const envIds: string[] = existingEnvironments.map((env) => {
-      return env.id
-    })
     let cleaned = 0
-    for (const job of finishedOrExpired) {
-      if (job.environment && !envIds.includes(job.environment)) {
+
+    const envIds: string[] = existingEnvironments
+      .filter((env: any) => env && typeof env.id === 'string')
+      .map((env: any) => env.id)
+
+    // Get all finished jobs from DB, not just from known environments
+    const allJobs: DBComputeJob[] = await c2dDatabase.getAllFinishedJobs()
+
+    for (const job of allJobs) {
+      if (!job.environment || !envIds.includes(job.environment)) {
         if (await c2dDatabase.deleteJob(job.jobId)) {
           cleaned++
         }
       }
     }
+
     DATABASE_LOGGER.info('Cleaned ' + cleaned + ' orphan C2D jobs')
     return cleaned
   }
