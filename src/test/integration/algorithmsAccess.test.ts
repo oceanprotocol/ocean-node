@@ -44,6 +44,7 @@ import { ProviderComputeInitializeResults } from '../../@types/Fees.js'
 import { homedir } from 'os'
 import { DEVELOPMENT_CHAIN_ID, getOceanArtifactsAdresses } from '../../utils/address.js'
 import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC721Template.sol/ERC721Template.json' assert { type: 'json' }
+import OceanToken from '@oceanprotocol/contracts/artifacts/contracts/utils/OceanToken.sol/OceanToken.json' assert { type: 'json' }
 import EscrowJson from '@oceanprotocol/contracts/artifacts/contracts/escrow/Escrow.sol/Escrow.json' assert { type: 'json' }
 import { createHash } from 'crypto'
 import { getAlgoChecksums } from '../../components/core/compute/utils.js'
@@ -63,6 +64,7 @@ describe('Trusted algorithms Flow', () => {
   let datasetOrderTxId: any
   let algoOrderTxId: any
   let paymentToken: any
+  let paymentTokenContract: any
   let escrowContract: any
   let indexer: OceanIndexer
   // const now = new Date().getTime() / 1000
@@ -115,6 +117,11 @@ describe('Trusted algorithms Flow', () => {
     provider = new JsonRpcProvider('http://127.0.0.1:8545')
     publisherAccount = (await provider.getSigner(0)) as Signer
     consumerAccount = (await provider.getSigner(1)) as Signer
+    paymentTokenContract = new ethers.Contract(
+      paymentToken,
+      OceanToken.abi,
+      publisherAccount
+    )
     escrowContract = new ethers.Contract(
       artifactsAddresses.development.Escrow,
       EscrowJson.abi,
@@ -364,6 +371,25 @@ describe('Trusted algorithms Flow', () => {
   })
 
   it('should start a compute job', async () => {
+    // let's put funds in escrow & create an auth
+    const balance = await paymentTokenContract.balanceOf(
+      await consumerAccount.getAddress()
+    )
+    await paymentTokenContract
+      .connect(consumerAccount)
+      .approve(initializeResponse.payment.escrowAddress, balance)
+    await escrowContract
+      .connect(consumerAccount)
+      .deposit(initializeResponse.payment.token, balance)
+    await escrowContract
+      .connect(consumerAccount)
+      .authorize(
+        initializeResponse.payment.token,
+        firstEnv.consumerAddress,
+        balance,
+        computeJobDuration,
+        10
+      )
     const locks = await oceanNode.escrow.getLocks(
       DEVELOPMENT_CHAIN_ID,
       paymentToken,
