@@ -150,7 +150,7 @@ export const downloadAssetWithCredentials = {
   }
 }
 
-export const computeAssetWithCredentials = {
+export const computeAssetWithoutAccess = {
   '@context': ['https://w3id.org/did/v1'],
   id: '',
   nftAddress: '',
@@ -332,6 +332,72 @@ export const computeAsset = {
             containerSectionChecksum: '*'
           }
         ] as any
+      }
+    }
+  ],
+  event: {},
+  nft: {
+    address: '',
+    name: 'Ocean Data NFT',
+    symbol: 'OCEAN-NFT',
+    state: 5,
+    tokenURI: '',
+    owner: '',
+    created: ''
+  },
+  purgatory: {
+    state: false
+  },
+  datatokens: [] as any,
+  stats: {
+    allocated: 0,
+    orders: 0,
+    price: {
+      value: '0'
+    }
+  }
+}
+
+export const computeAssetWithNoAccess = {
+  '@context': ['https://w3id.org/did/v1'],
+  id: '',
+  nftAddress: '',
+  version: '4.1.0',
+  chainId: 8996,
+  metadata: {
+    created: '2021-12-20T14:35:20Z',
+    updated: '2021-12-20T14:35:20Z',
+    type: 'dataset',
+    name: 'cli fixed asset',
+    description: 'asset published using ocean.js cli tool',
+    tags: ['test'],
+    author: 'oceanprotocol',
+    license: 'https://market.oceanprotocol.com/terms',
+    additionalInformation: {
+      termsAndConditions: true
+    }
+  },
+  services: [
+    {
+      id: '1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36',
+      type: 'compute',
+      files: {
+        files: [
+          {
+            type: 'url',
+            url: 'https://raw.githubusercontent.com/oceanprotocol/testdatasets/main/shs_dataset_test.txt',
+            method: 'GET'
+          }
+        ]
+      },
+      datatokenAddress: '',
+      serviceEndpoint: 'https://v4.provider.oceanprotocol.com',
+      timeout: 86400,
+      compute: {
+        allowRawAlgorithm: false,
+        allowNetworkAccess: true,
+        publisherTrustedAlgorithmPublishers: [] as any,
+        publisherTrustedAlgorithms: [] as any
       }
     }
   ],
