@@ -1,5 +1,6 @@
 /* eslint-disable security/detect-non-literal-fs-filename */
 import { Readable } from 'stream'
+import os from 'os'
 import {
   C2DStatusNumber,
   C2DStatusText,
@@ -175,7 +176,8 @@ export class C2DEngineDocker extends C2DEngine {
       type: 'cpu',
       total: sysinfo.NCPU,
       max: sysinfo.NCPU,
-      min: 1
+      min: 1,
+      description: os.cpus()[0].model
     })
     this.envs[0].resources.push({
       id: 'ram',
