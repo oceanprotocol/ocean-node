@@ -28,7 +28,7 @@ import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 import { streamToObject } from '../../utils/util.js'
 import { ethers, hexlify, JsonRpcProvider, Signer } from 'ethers'
 import { publishAsset, orderAsset } from '../utils/assets.js'
-import { algoAsset, computeAssetWithoutAccess } from '../data/assets.js'
+import { algoAsset, computeAssetWithNoAccess } from '../data/assets.js'
 import { RPCS } from '../../@types/blockchain.js'
 import {
   DEFAULT_TEST_TIMEOUT,
@@ -138,7 +138,7 @@ describe('Trusted algorithms Flow', () => {
   it('should publish compute datasets & algos', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
     publishedComputeDataset = await publishAsset(
-      computeAssetWithoutAccess,
+      computeAssetWithNoAccess,
       publisherAccount
     )
     publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)

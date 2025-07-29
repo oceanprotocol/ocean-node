@@ -150,7 +150,7 @@ export const downloadAssetWithCredentials = {
   }
 }
 
-export const computeAssetWithoutAccess = {
+export const computeAssetWithCredentials = {
   '@context': ['https://w3id.org/did/v1'],
   id: '',
   nftAddress: '',
