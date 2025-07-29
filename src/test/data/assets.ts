@@ -190,8 +190,14 @@ export const computeAssetWithCredentials = {
       compute: {
         allowRawAlgorithm: false,
         allowNetworkAccess: true,
-        publisherTrustedAlgorithmPublishers: [] as any,
-        publisherTrustedAlgorithms: [] as any
+        publisherTrustedAlgorithmPublishers: ['*'] as any,
+        publisherTrustedAlgorithms: [
+          {
+            did: '*',
+            filesChecksum: '*',
+            containerSectionChecksum: '*'
+          }
+        ] as any
       }
     }
   ],
