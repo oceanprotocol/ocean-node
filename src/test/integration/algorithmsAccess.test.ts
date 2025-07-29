@@ -227,13 +227,13 @@ describe('Trusted algorithms Flow', () => {
     )
     console.log(resp)
     assert(resp, 'Failed to get response')
-    assert(response.status.httpStatus === 400, 'Failed to get 400 response')
+    assert(resp.status.httpStatus === 400, 'Failed to get 400 response')
     assert(
-      response.status.error ===
+      resp.status.error ===
         `Algorithm ${publishedAlgoDataset.ddo.id} not allowed to run on the dataset: ${publishedComputeDataset.ddo.id}`,
       'Inconsistent error message'
     )
-    assert(response.stream === null, 'Failed to get stream')
+    assert(resp.stream === null, 'Failed to get stream')
   })
 
   it('should add the algorithm to the dataset trusted algorithm list', async function () {
