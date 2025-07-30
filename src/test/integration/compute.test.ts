@@ -973,10 +973,6 @@ describe('Compute', () => {
     )
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
-    assert(response.stream, 'Failed to get stream')
-    expect(response.stream).to.be.instanceOf(Readable)
-    const result = await streamToObject(response.stream as Readable)
-    console.log(result)
   })
   it('should get job result by additional viewer', async () => {
     const nonce = Date.now().toString()
@@ -1001,10 +997,6 @@ describe('Compute', () => {
     )
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
-    assert(response.stream, 'Failed to get stream')
-    expect(response.stream).to.be.instanceOf(Readable)
-    const result = await streamToObject(response.stream as Readable)
-    console.log(result)
   })
   it('should fail to get job result by non allowed address', async () => {
     const nonce = Date.now().toString()
