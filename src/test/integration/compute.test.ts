@@ -962,7 +962,7 @@ describe('Compute', () => {
     const signature = await wallet.signMessage(messageHashBytes)
     const resultComputeTask: ComputeGetResultCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
-      consumerAddress: await consumerAccount.getAddress(),
+      consumerAddress: await wallet.getAddress(),
       jobId,
       signature,
       nonce,

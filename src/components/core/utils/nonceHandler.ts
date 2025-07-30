@@ -184,7 +184,18 @@ function validateNonceAndSignature(
   message: string = null
 ): NonceResponse {
   // check if is bigger than previous nonce
-
+  console.log(
+    'nonce: ',
+    nonce,
+    ' existingNonce: ',
+    existingNonce,
+    ' consumer: ',
+    consumer,
+    ' signature: ',
+    signature,
+    ' message: ',
+    message
+  )
   if (nonce > existingNonce) {
     // nonce good
     // now validate signature
@@ -196,6 +207,12 @@ function validateNonceAndSignature(
     const messageHashBytes = ethers.toBeArray(consumerMessage)
     const addressFromHashSignature = ethers.verifyMessage(consumerMessage, signature)
     const addressFromBytesSignature = ethers.verifyMessage(messageHashBytes, signature)
+    console.log(
+      'addressFromHashSignature: ',
+      addressFromHashSignature,
+      'addressFromBytesSignature: ',
+      addressFromBytesSignature
+    )
 
     if (
       ethers.getAddress(addressFromHashSignature)?.toLowerCase() ===
