@@ -961,7 +961,7 @@ describe('Compute', () => {
     const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await wallet.signMessage(messageHashBytes)
     const resultComputeTask: ComputeGetResultCommand = {
-      command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
       consumerAddress: await consumerAccount.getAddress(),
       jobId,
       signature,
@@ -990,7 +990,7 @@ describe('Compute', () => {
     const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await wallet2.signMessage(messageHashBytes)
     const resultComputeTask: ComputeGetResultCommand = {
-      command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
       consumerAddress: await wallet2.getAddress(),
       jobId,
       signature,
@@ -1018,7 +1018,7 @@ describe('Compute', () => {
     const messageHashBytes = ethers.toBeArray(consumerMessage)
     const signature = await wallet3.signMessage(messageHashBytes)
     const resultComputeTask: ComputeGetResultCommand = {
-      command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
       consumerAddress: await wallet3.getAddress(),
       jobId,
       signature,
