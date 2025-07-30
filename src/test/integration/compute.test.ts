@@ -897,7 +897,7 @@ describe('Compute', () => {
       metadata: {
         key: 'value'
       },
-      additionalViewers: [wallet2.address]
+      additionalViewers: [await wallet2.getAddress()]
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
@@ -968,6 +968,7 @@ describe('Compute', () => {
       nonce,
       index: 0
     }
+    console.log('resultComputeTask: ', resultComputeTask)
     const response = await new ComputeGetResultHandler(oceanNode).handle(
       resultComputeTask
     )
@@ -990,7 +991,7 @@ describe('Compute', () => {
     const signature = await wallet2.signMessage(messageHashBytes)
     const resultComputeTask: ComputeGetResultCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
-      consumerAddress: wallet2.address,
+      consumerAddress: await wallet2.getAddress(),
       jobId,
       signature,
       nonce,
@@ -1018,7 +1019,7 @@ describe('Compute', () => {
     const signature = await wallet3.signMessage(messageHashBytes)
     const resultComputeTask: ComputeGetResultCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
-      consumerAddress: wallet3.address,
+      consumerAddress: await wallet3.getAddress(),
       jobId,
       signature,
       nonce,
