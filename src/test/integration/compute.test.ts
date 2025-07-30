@@ -952,7 +952,7 @@ describe('Compute', () => {
   })
   it('should get job result by consumer', async () => {
     const nonce = Date.now().toString()
-    const message = String(nonce)
+    const message = String((await wallet.getAddress()) + jobId + '0' + nonce)
     // sign message/nonce
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
@@ -968,11 +968,9 @@ describe('Compute', () => {
       nonce,
       index: 0
     }
-    console.log('resultComputeTask: ', resultComputeTask)
     const response = await new ComputeGetResultHandler(oceanNode).handle(
       resultComputeTask
     )
-    console.log('response: ', response)
     assert(response, 'Failed to get response')
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
@@ -982,7 +980,7 @@ describe('Compute', () => {
   })
   it('should get job result by additional viewer', async () => {
     const nonce = Date.now().toString()
-    const message = String(nonce)
+    const message = String((await wallet2.getAddress()) + jobId + '0' + nonce)
     // sign message/nonce
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
@@ -1010,7 +1008,7 @@ describe('Compute', () => {
   })
   it('should fail to get job result by non allowed address', async () => {
     const nonce = Date.now().toString()
-    const message = String(nonce)
+    const message = String((await wallet3.getAddress()) + jobId + '0' + nonce)
     // sign message/nonce
     const consumerMessage = ethers.solidityPackedKeccak256(
       ['bytes'],
