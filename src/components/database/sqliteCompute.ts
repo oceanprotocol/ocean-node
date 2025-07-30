@@ -45,7 +45,8 @@ function getInternalStructure(job: DBComputeJob): any {
     isFree: job.isFree,
     algoStartTimestamp: job.algoStartTimestamp,
     algoStopTimestamp: job.algoStopTimestamp,
-    metadata: job.metadata
+    metadata: job.metadata,
+    additionalViewers: job.additionalViewers
   }
   return internalBlob
 }

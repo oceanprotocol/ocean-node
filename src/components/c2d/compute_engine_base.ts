@@ -63,7 +63,8 @@ export abstract class C2DEngine {
     resources: ComputeResourceRequest[],
     payment: DBComputeJobPayment,
     jobId: string,
-    metadata?: DBComputeJobMetadata
+    metadata?: DBComputeJobMetadata,
+    additionalViewers?: string[]
   ): Promise<ComputeJob[]>
 
   public abstract stopComputeJob(
