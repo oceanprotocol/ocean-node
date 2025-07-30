@@ -896,7 +896,8 @@ describe('Compute', () => {
       output: {},
       metadata: {
         key: 'value'
-      }
+      },
+      additionalViewers: [wallet2.address]
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
