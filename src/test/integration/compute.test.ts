@@ -958,10 +958,10 @@ describe('Compute', () => {
       [ethers.hexlify(ethers.toUtf8Bytes(message))]
     )
     const messageHashBytes = ethers.toBeArray(consumerMessage)
-    const signature = await consumerAccount.signMessage(messageHashBytes)
+    const signature = await wallet.signMessage(messageHashBytes)
     const resultComputeTask: ComputeGetResultCommand = {
       command: PROTOCOL_COMMANDS.COMPUTE_GET_STATUS,
-      consumerAddress: consumerAccount.address,
+      consumerAddress: await consumerAccount.getAddress(),
       jobId,
       signature,
       nonce,
