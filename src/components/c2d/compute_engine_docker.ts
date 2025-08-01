@@ -363,7 +363,8 @@ export class C2DEngineDocker extends C2DEngine {
     resources: ComputeResourceRequest[],
     payment: DBComputeJobPayment,
     jobId: string,
-    metadata?: DBComputeJobMetadata
+    metadata?: DBComputeJobMetadata,
+    additionalViewers?: string[]
   ): Promise<ComputeJob[]> {
     if (!this.docker) return []
     // TO DO - iterate over resources and get default runtime
@@ -426,7 +427,8 @@ export class C2DEngineDocker extends C2DEngine {
       algoStartTimestamp: '0',
       algoStopTimestamp: '0',
       payment,
-      metadata
+      metadata,
+      additionalViewers
     }
     await this.makeJobFolders(job)
     // make sure we actually were able to insert on DB
@@ -529,9 +531,19 @@ export class C2DEngineDocker extends C2DEngine {
     jobId: string,
     index: number
   ): Promise<{ stream: Readable; headers: any }> {
-    const jobs = await this.db.getJob(jobId, null, consumerAddress)
-    if (jobs.length === 0) {
-      return null
+    const jobs = await this.db.getJob(jobId, null, null)
+    if (jobs.length === 0 || jobs.length > 1) {
+      throw new Error(`Cannot find job with id ${jobId}`)
+    }
+    if (
+      jobs[0].owner !== consumerAddress &&
+      jobs[0].additionalViewers &&
+      !jobs[0].additionalViewers.includes(consumerAddress)
+    ) {
+      // consumerAddress is not the owner and not in additionalViewers
+      throw new Error(
+        `${consumerAddress} is not authorized to get results for job with id ${jobId}`
+      )
     }
     const results = await this.getResults(jobId)
     for (const i of results) {

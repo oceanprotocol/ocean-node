@@ -222,6 +222,7 @@ export interface DBComputeJob extends ComputeJob {
   resources: ComputeResourceRequestWithPrice[]
   payment?: DBComputeJobPayment
   metadata?: DBComputeJobMetadata
+  additionalViewers?: string[] // addresses of additional addresses that can get results
 }
 
 // make sure we keep them both in sync
