@@ -79,12 +79,12 @@ export async function validateAlgoForDataset(
     if (!datasetService) {
       throw new Error('Dataset service not found')
     }
-    const { compute } = datasetService
-    if (datasetService.type !== 'compute' && datasetService.type !== 'dataset') {
-      throw new Error('Service is not compute or dataset')
+    if (datasetService.type === 'access') {
+      return true
     }
-    if (!compute) {
-      throw new Error('Compute service not found')
+    const { compute } = datasetService
+    if (datasetService.type !== 'compute' || !compute) {
+      throw new Error('Service not compute')
     }
     const publishers = compute.publisherTrustedAlgorithmPublishers || []
     const algorithms = compute.publisherTrustedAlgorithms || []
