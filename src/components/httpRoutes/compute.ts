@@ -79,7 +79,8 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       resources: (req.body.resources as unknown as ComputeResourceRequest[]) || null,
       policyServer: (req.body.policyServer as any) || null,
       metadata: req.body.metadata || null,
-      authorization: req.headers?.authorization
+      authorization: req.headers?.authorization,
+      additionalViewers: (req.body.additionalViewers as unknown as string[]) || null
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output as ComputeOutput
@@ -123,7 +124,8 @@ computeRoutes.post(`${SERVICES_API_BASE_PATH}/freeCompute`, async (req, res) => 
       maxJobDuration: req.body.maxJobDuration || null,
       policyServer: (req.body.policyServer as any) || null,
       metadata: req.body.metadata || null,
-      authorization: req.headers?.authorization
+      authorization: req.headers?.authorization,
+      additionalViewers: (req.body.additionalViewers as unknown as string[]) || null
     }
     if (req.body.output) {
       startComputeTask.output = req.body.output as ComputeOutput

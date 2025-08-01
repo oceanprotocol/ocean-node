@@ -189,6 +189,11 @@ routesNames.set('PolicyServerPassthrough', {
   method: 'post'
 })
 
+routesNames.set('initializePSVerification', {
+  path: `${SERVICES_API_BASE_PATH}/initializePSVerification`,
+  method: 'post'
+})
+
 routesNames.set('generateAuthToken', {
   path: `${SERVICES_API_BASE_PATH}/auth/token`,
   method: 'post'

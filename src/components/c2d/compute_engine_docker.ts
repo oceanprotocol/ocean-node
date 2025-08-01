@@ -363,7 +363,8 @@ export class C2DEngineDocker extends C2DEngine {
     resources: ComputeResourceRequest[],
     payment: DBComputeJobPayment,
     jobId: string,
-    metadata?: DBComputeJobMetadata
+    metadata?: DBComputeJobMetadata,
+    additionalViewers?: string[]
   ): Promise<ComputeJob[]> {
     if (!this.docker) return []
     // TO DO - iterate over resources and get default runtime
@@ -426,7 +427,8 @@ export class C2DEngineDocker extends C2DEngine {
       algoStartTimestamp: '0',
       algoStopTimestamp: '0',
       payment,
-      metadata
+      metadata,
+      additionalViewers
     }
     await this.makeJobFolders(job)
     // make sure we actually were able to insert on DB
@@ -529,9 +531,19 @@ export class C2DEngineDocker extends C2DEngine {
     jobId: string,
     index: number
   ): Promise<{ stream: Readable; headers: any }> {
-    const jobs = await this.db.getJob(jobId, null, consumerAddress)
-    if (jobs.length === 0) {
-      return null
+    const jobs = await this.db.getJob(jobId, null, null)
+    if (jobs.length === 0 || jobs.length > 1) {
+      throw new Error(`Cannot find job with id ${jobId}`)
+    }
+    if (
+      jobs[0].owner !== consumerAddress &&
+      jobs[0].additionalViewers &&
+      !jobs[0].additionalViewers.includes(consumerAddress)
+    ) {
+      // consumerAddress is not the owner and not in additionalViewers
+      throw new Error(
+        `${consumerAddress} is not authorized to get results for job with id ${jobId}`
+      )
     }
     const results = await this.getResults(jobId)
     for (const i of results) {
@@ -880,13 +892,31 @@ export class C2DEngineDocker extends C2DEngine {
       }
     }
     if (job.status === C2DStatusNumber.RunningAlgorithm) {
-      const container = await this.docker.getContainer(job.jobId + '-algoritm')
-      const details = await container.inspect()
-      console.log('Container inspect')
-      console.log(details)
+      let container
+      let details
+      try {
+        container = await this.docker.getContainer(job.jobId + '-algoritm')
+        console.log(`Container retrieved: ${JSON.stringify(container)}`)
+        details = await container.inspect()
+        console.log('Container inspect')
+        console.log(details)
+      } catch (e) {
+        console.error(
+          'Could not retrieve container: ' +
+            e.message +
+            '\nBack to configuring volumes to create the container...'
+        )
+        job.isStarted = false
+        job.status = C2DStatusNumber.ConfiguringVolumes
+        job.statusText = C2DStatusText.ConfiguringVolumes
+        job.isRunning = false
+        await this.db.updateJob(job)
+        return
+      }
+
       if (job.isStarted === false) {
         // make sure is not started
-        if (details.State.Running === false) {
+        if (details && details.State.Running === false) {
           try {
             await container.start()
             job.isStarted = true
@@ -964,14 +994,35 @@ export class C2DEngineDocker extends C2DEngine {
       // get output
       job.status = C2DStatusNumber.JobFinished
       job.statusText = C2DStatusText.JobFinished
-      const container = await this.docker.getContainer(job.jobId + '-algoritm')
+      let container
+      try {
+        container = await this.docker.getContainer(job.jobId + '-algoritm')
+        console.log(`Container retrieved: ${JSON.stringify(container)}`)
+      } catch (e) {
+        console.error('Could not retrieve container: ' + e.message)
+        job.isRunning = false
+        job.dateFinished = String(Date.now() / 1000)
+        try {
+          const algoLogFile =
+            this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/algorithm.log'
+          writeFileSync(algoLogFile, String(e.message))
+        } catch (e) {
+          console.log('Failed to write')
+          console.log(e)
+        }
+        await this.db.updateJob(job)
+        await this.cleanupJob(job)
+        return
+      }
       const outputsArchivePath =
         this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/outputs/outputs.tar'
       try {
-        await pipeline(
-          await container.getArchive({ path: '/data/outputs' }),
-          createWriteStream(outputsArchivePath)
-        )
+        if (container) {
+          await pipeline(
+            await container.getArchive({ path: '/data/outputs' }),
+            createWriteStream(outputsArchivePath)
+          )
+        }
       } catch (e) {
         console.log(e)
         job.status = C2DStatusNumber.ResultsUploadFailed
@@ -1053,6 +1104,10 @@ export class C2DEngineDocker extends C2DEngine {
         }
         await container.remove()
       }
+    } catch (e) {
+      console.error('Container not found! ' + e.message)
+    }
+    try {
       const volume = await this.docker.getVolume(job.jobId + '-volume')
       if (volume) {
         try {
@@ -1061,17 +1116,33 @@ export class C2DEngineDocker extends C2DEngine {
           console.log(e)
         }
       }
+    } catch (e) {
+      console.error('Container volume not found! ' + e.message)
+    }
+    try {
       // remove folders
       rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/inputs', {
         recursive: true,
         force: true
       })
+    } catch (e) {
+      console.error(
+        `Could not delete inputs from path ${this.getC2DConfig().tempFolder} for job ID ${
+          job.jobId
+        }! ` + e.message
+      )
+    }
+    try {
       rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/transformations', {
         recursive: true,
         force: true
       })
     } catch (e) {
-      console.log(e)
+      console.error(
+        `Could not delete algorithms from path ${
+          this.getC2DConfig().tempFolder
+        } for job ID ${job.jobId}! ` + e.message
+      )
     }
   }
 
