@@ -28,7 +28,7 @@ import { expectedTimeoutFailure, waitToIndex } from './testUtils.js'
 import { streamToObject } from '../../utils/util.js'
 import { ethers, hexlify, JsonRpcProvider, Signer } from 'ethers'
 import { publishAsset, orderAsset } from '../utils/assets.js'
-import { computeAsset, algoAsset } from '../data/assets.js'
+import { algoAsset, computeAssetWithNoAccess } from '../data/assets.js'
 import { RPCS } from '../../@types/blockchain.js'
 import {
   DEFAULT_TEST_TIMEOUT,
@@ -137,7 +137,10 @@ describe('Trusted algorithms Flow', () => {
   // let's publish assets & algos
   it('should publish compute datasets & algos', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 2)
-    publishedComputeDataset = await publishAsset(computeAsset, publisherAccount)
+    publishedComputeDataset = await publishAsset(
+      computeAssetWithNoAccess,
+      publisherAccount
+    )
     publishedAlgoDataset = await publishAsset(algoAsset, publisherAccount)
     const computeDatasetResult = await waitToIndex(
       publishedComputeDataset.ddo.id,
@@ -194,6 +197,105 @@ describe('Trusted algorithms Flow', () => {
       )
     }
     firstEnv = computeEnvironments[0]
+  })
+
+  it('should not initialize compute without orders transaction IDs because algorithm is not trusted by dataset', async () => {
+    const dataset: ComputeAsset = {
+      documentId: publishedComputeDataset.ddo.id,
+      serviceId: publishedComputeDataset.ddo.services[0].id
+    }
+    const algorithm: ComputeAlgorithm = {
+      documentId: publishedAlgoDataset.ddo.id,
+      serviceId: publishedAlgoDataset.ddo.services[0].id
+    }
+    const getEnvironmentsTask = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_ENVIRONMENTS
+    }
+    const response = await new ComputeGetEnvironmentsHandler(oceanNode).handle(
+      getEnvironmentsTask
+    )
+    computeEnvironments = await streamToObject(response.stream as Readable)
+    firstEnv = computeEnvironments[0]
+
+    const initializeComputeTask: ComputeInitializeCommand = {
+      datasets: [dataset],
+      algorithm,
+      environment: firstEnv.id,
+      payment: {
+        chainId: DEVELOPMENT_CHAIN_ID,
+        token: paymentToken
+      },
+      maxJobDuration: computeJobDuration,
+      consumerAddress: firstEnv.consumerAddress,
+      command: PROTOCOL_COMMANDS.COMPUTE_INITIALIZE
+    }
+    const resp = await new ComputeInitializeHandler(oceanNode).handle(
+      initializeComputeTask
+    )
+    console.log(resp)
+    assert(resp, 'Failed to get response')
+    assert(resp.status.httpStatus === 400, 'Failed to get 400 response')
+    assert(
+      resp.status.error ===
+        `Algorithm ${publishedAlgoDataset.ddo.id} not allowed to run on the dataset: ${publishedComputeDataset.ddo.id}`,
+      'Inconsistent error message'
+    )
+    assert(resp.stream === null, 'Failed to get stream')
+  })
+
+  it('should add the algorithm to the dataset trusted algorithm list', async function () {
+    this.timeout(DEFAULT_TEST_TIMEOUT * 5)
+    const algoChecksums = await getAlgoChecksums(
+      publishedAlgoDataset.ddo.id,
+      publishedAlgoDataset.ddo.services[0].id,
+      oceanNode
+    )
+    publishedComputeDataset.ddo.services[0].compute = {
+      allowRawAlgorithm: false,
+      allowNetworkAccess: true,
+      publisherTrustedAlgorithmPublishers: [],
+      publisherTrustedAlgorithms: [
+        {
+          did: publishedAlgoDataset.ddo.id,
+          filesChecksum: algoChecksums.files,
+          containerSectionChecksum: algoChecksums.container
+        }
+      ]
+    }
+    const metadata = hexlify(Buffer.from(JSON.stringify(publishedComputeDataset.ddo)))
+    const hash = createHash('sha256').update(metadata).digest('hex')
+    const nftContract = new ethers.Contract(
+      publishedComputeDataset.ddo.nftAddress,
+      ERC721Template.abi,
+      publisherAccount
+    )
+    const setMetaDataTx = await nftContract.setMetaData(
+      0,
+      'http://v4.provider.oceanprotocol.com',
+      '0x123',
+      '0x00',
+      metadata,
+      '0x' + hash,
+      []
+    )
+    const txReceipt = await setMetaDataTx.wait()
+    assert(txReceipt, 'set metadata failed')
+    publishedComputeDataset = await waitToIndex(
+      publishedComputeDataset.ddo.id,
+      EVENTS.METADATA_UPDATED,
+      DEFAULT_TEST_TIMEOUT * 2,
+      true
+    )
+    assert(
+      publishedComputeDataset?.ddo?.services[0]?.compute?.publisherTrustedAlgorithms
+        .length > 0,
+      'Trusted algorithms not updated'
+    )
+    assert(
+      publishedComputeDataset?.ddo?.services[0]?.compute?.publisherTrustedAlgorithms[0]
+        .did === publishedAlgoDataset.ddo.id,
+      'Algorithm DID mismatch in trusted algorithms'
+    )
   })
 
   it('Initialize compute without orders transaction IDs', async () => {
@@ -267,47 +369,12 @@ describe('Trusted algorithms Flow', () => {
     algoOrderTxId = orderTxReceipt.hash
     assert(algoOrderTxId, 'transaction id not found')
   })
-  it('should not start a compute job because algorithm is not trusted by dataset', async () => {
-    let balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
-    const nonce = Date.now().toString()
-    const message = String(
-      (await consumerAccount.getAddress()) + publishedComputeDataset.ddo.id + nonce
-    )
-    // sign message/nonce
-    const consumerMessage = ethers.solidityPackedKeccak256(
-      ['bytes'],
-      [ethers.hexlify(ethers.toUtf8Bytes(message))]
-    )
-    const messageHashBytes = ethers.toBeArray(consumerMessage)
-    const signature = await wallet.signMessage(messageHashBytes)
-    const startComputeTask: PaidComputeStartCommand = {
-      command: PROTOCOL_COMMANDS.COMPUTE_START,
-      consumerAddress: await consumerAccount.getAddress(),
-      signature,
-      nonce,
-      environment: firstEnv.id,
-      datasets: [
-        {
-          documentId: publishedComputeDataset.ddo.id,
-          serviceId: publishedComputeDataset.ddo.services[0].id,
-          transferTxId: datasetOrderTxId
-        }
-      ],
-      algorithm: {
-        documentId: publishedAlgoDataset.ddo.id,
-        serviceId: publishedAlgoDataset.ddo.services[0].id,
-        transferTxId: algoOrderTxId,
-        meta: publishedAlgoDataset.ddo.metadata.algorithm
-      },
-      output: {},
-      payment: {
-        chainId: DEVELOPMENT_CHAIN_ID,
-        token: paymentToken
-      },
-      maxJobDuration: computeJobDuration
-    }
+
+  it('should start a compute job', async () => {
     // let's put funds in escrow & create an auth
-    balance = await paymentTokenContract.balanceOf(await consumerAccount.getAddress())
+    const balance = await paymentTokenContract.balanceOf(
+      await consumerAccount.getAddress()
+    )
     await paymentTokenContract
       .connect(consumerAccount)
       .approve(initializeResponse.payment.escrowAddress, balance)
@@ -323,72 +390,6 @@ describe('Trusted algorithms Flow', () => {
         computeJobDuration,
         10
       )
-
-    const response = await new PaidComputeStartHandler(oceanNode).handle(startComputeTask)
-    assert(response, 'Failed to get response')
-    assert(response.status.httpStatus === 400, 'Failed to get 400 response')
-    assert(
-      response.status.error ===
-        `Algorithm ${publishedAlgoDataset.ddo.id} not allowed to run on the dataset: ${publishedComputeDataset.ddo.id}`,
-      'Inconsistent error message'
-    )
-    assert(response.stream === null, 'Failed to get stream')
-  })
-  it('should add the algorithm to the dataset trusted algorithm list', async function () {
-    this.timeout(DEFAULT_TEST_TIMEOUT * 5)
-    const algoChecksums = await getAlgoChecksums(
-      publishedAlgoDataset.ddo.id,
-      publishedAlgoDataset.ddo.services[0].id,
-      oceanNode
-    )
-    publishedComputeDataset.ddo.services[0].compute = {
-      allowRawAlgorithm: false,
-      allowNetworkAccess: true,
-      publisherTrustedAlgorithmPublishers: [],
-      publisherTrustedAlgorithms: [
-        {
-          did: publishedAlgoDataset.ddo.id,
-          filesChecksum: algoChecksums.files,
-          containerSectionChecksum: algoChecksums.container
-        }
-      ]
-    }
-    const metadata = hexlify(Buffer.from(JSON.stringify(publishedComputeDataset.ddo)))
-    const hash = createHash('sha256').update(metadata).digest('hex')
-    const nftContract = new ethers.Contract(
-      publishedComputeDataset.ddo.nftAddress,
-      ERC721Template.abi,
-      publisherAccount
-    )
-    const setMetaDataTx = await nftContract.setMetaData(
-      0,
-      'http://v4.provider.oceanprotocol.com',
-      '0x123',
-      '0x00',
-      metadata,
-      '0x' + hash,
-      []
-    )
-    const txReceipt = await setMetaDataTx.wait()
-    assert(txReceipt, 'set metadata failed')
-    publishedComputeDataset = await waitToIndex(
-      publishedComputeDataset.ddo.id,
-      EVENTS.METADATA_UPDATED,
-      DEFAULT_TEST_TIMEOUT * 2,
-      true
-    )
-    assert(
-      publishedComputeDataset?.ddo?.services[0]?.compute?.publisherTrustedAlgorithms
-        .length > 0,
-      'Trusted algorithms not updated'
-    )
-    assert(
-      publishedComputeDataset?.ddo?.services[0]?.compute?.publisherTrustedAlgorithms[0]
-        .did === publishedAlgoDataset.ddo.id,
-      'Algorithm DID mismatch in trusted algorithms'
-    )
-  })
-  it('should start a compute job', async () => {
     const locks = await oceanNode.escrow.getLocks(
       DEVELOPMENT_CHAIN_ID,
       paymentToken,
