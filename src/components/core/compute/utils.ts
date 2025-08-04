@@ -79,6 +79,9 @@ export async function validateAlgoForDataset(
     if (!datasetService) {
       throw new Error('Dataset service not found')
     }
+    if (datasetService.type === 'access') {
+      return true
+    }
     const { compute } = datasetService
     if (datasetService.type !== 'compute' || !compute) {
       throw new Error('Service not compute')
