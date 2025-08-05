@@ -2,6 +2,7 @@ import { Client } from '@elastic/elasticsearch'
 import { OceanNodeDBConfig } from '../../@types'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
 import { GENERIC_EMOJIS, LOG_LEVELS_STR } from '../../utils/logging/Logger.js'
+import { DB_TYPES } from '../../utils/constants.js'
 
 export interface ElasticsearchRetryConfig {
   requestTimeout?: number
@@ -51,10 +52,26 @@ class ElasticsearchClientSingleton {
     return ElasticsearchClientSingleton.instance
   }
 
+  private isElasticsearchDatabase(config: OceanNodeDBConfig): boolean {
+    return config.dbType === DB_TYPES.ELASTIC_SEARCH
+  }
+
   public async getClient(
     config: OceanNodeDBConfig,
     customConfig: Partial<ElasticsearchRetryConfig> = {}
   ): Promise<Client> {
+    if (!this.isElasticsearchDatabase(config)) {
+      DATABASE_LOGGER.logMessageWithEmoji(
+        `Skipping Elasticsearch connection - database type is set to '${
+          config.dbType || 'unknown'
+        }', not '${DB_TYPES.ELASTIC_SEARCH}'`,
+        true,
+        GENERIC_EMOJIS.EMOJI_OCEAN_WAVE,
+        LOG_LEVELS_STR.LEVEL_DEBUG
+      )
+      throw new Error(`Database type '${config.dbType}' is not Elasticsearch`)
+    }
+
     if (this.client && this.config) {
       const isHealthy = await this.checkConnectionHealth()
       if (isHealthy) {
@@ -83,7 +100,7 @@ class ElasticsearchClientSingleton {
     config: OceanNodeDBConfig,
     customConfig: Partial<ElasticsearchRetryConfig> = {}
   ): void {
-    if (this.isMonitoring || !this.client) return
+    if (this.isMonitoring || !this.client || !this.isElasticsearchDatabase(config)) return
 
     const finalConfig = {
       ...DEFAULT_ELASTICSEARCH_CONFIG,
@@ -142,6 +159,10 @@ class ElasticsearchClientSingleton {
     config: OceanNodeDBConfig,
     customConfig: Partial<ElasticsearchRetryConfig> = {}
   ): Promise<Client> {
+    if (!this.isElasticsearchDatabase(config)) {
+      throw new Error(`Database type '${config.dbType}' is not Elasticsearch`)
+    }
+
     this.isRetrying = true
     const finalConfig = {
       ...DEFAULT_ELASTICSEARCH_CONFIG,
@@ -220,6 +241,10 @@ class ElasticsearchClientSingleton {
     config: OceanNodeDBConfig,
     customConfig: Partial<ElasticsearchRetryConfig> = {}
   ): Promise<Client> {
+    if (!this.isElasticsearchDatabase(config)) {
+      throw new Error(`Database type '${config.dbType}' is not Elasticsearch`)
+    }
+
     this.connectionAttempts++
     this.lastConnectionTime = Date.now()
 

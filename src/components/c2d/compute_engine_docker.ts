@@ -1,5 +1,6 @@
 /* eslint-disable security/detect-non-literal-fs-filename */
 import { Readable } from 'stream'
+import os from 'os'
 import {
   C2DStatusNumber,
   C2DStatusText,
@@ -175,7 +176,8 @@ export class C2DEngineDocker extends C2DEngine {
       type: 'cpu',
       total: sysinfo.NCPU,
       max: sysinfo.NCPU,
-      min: 1
+      min: 1,
+      description: os.cpus()[0].model
     })
     this.envs[0].resources.push({
       id: 'ram',
@@ -450,7 +452,19 @@ export class C2DEngineDocker extends C2DEngine {
     owner: string,
     agreementId?: string
   ): Promise<ComputeJob[]> {
-    return null
+    const jobs = await this.db.getJob(jobId, agreementId, owner)
+    if (jobs.length === 0) {
+      return []
+    }
+    const statusResults = []
+    for (const job of jobs) {
+      job.stopRequested = true
+      await this.db.updateJob(job)
+      const res: ComputeJob = omitDBComputeFieldsFromComputeJob(job)
+      statusResults.push(res)
+    }
+
+    return statusResults
   }
 
   // eslint-disable-next-line require-await

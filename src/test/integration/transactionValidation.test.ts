@@ -67,7 +67,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     )
 
     config = await getConfiguration(true) // Force reload the configuration
-    const dbconn = await new Database(config.dbConfig)
+    const dbconn = await Database.init(config.dbConfig)
     oceanNode = await OceanNode.getInstance(config, dbconn)
     indexer = new OceanIndexer(dbconn, config.indexingNetworks)
     oceanNode.addIndexer(indexer)
@@ -89,7 +89,7 @@ describe('validateOrderTransaction Function with Orders', () => {
     }
 
     const { dbConfig } = await getConfiguration(true)
-    database = await new Database(dbConfig)
+    database = await Database.init(dbConfig)
   })
 
   it('Start instance of Database', () => {
