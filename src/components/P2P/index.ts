@@ -772,7 +772,9 @@ export class OceanP2P extends EventEmitter {
       if (x > 0) {
         const multiAddrs = this._libp2p.components.addressManager.getAddresses()
         // console.log('multiaddrs: ', multiAddrs)
-        this._libp2p.contentRouting.provide(cid, multiAddrs)
+        this._libp2p.contentRouting.provide(cid, multiAddrs).catch((err: any) => {
+          P2P_LOGGER.error(`Error advertising DDO: ${err}`)
+        })
       } else {
         P2P_LOGGER.debug(
           'Could not find any Ocean peers. Nobody is listening at the moment, skipping...'
