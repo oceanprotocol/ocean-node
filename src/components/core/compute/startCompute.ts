@@ -489,7 +489,8 @@ export class PaidComputeStartHandler extends CommandHandler {
             claimTx: null
           },
           jobId,
-          task.metadata
+          task.metadata,
+          task.additionalViewers
         )
         CORE_LOGGER.logMessage(
           'ComputeStartCommand Response: ' + JSON.stringify(response, null, 2),
@@ -757,7 +758,8 @@ export class FreeComputeStartHandler extends CommandHandler {
         task.resources,
         null,
         jobId,
-        task.metadata
+        task.metadata,
+        task.additionalViewers
       )
 
       CORE_LOGGER.logMessage(
