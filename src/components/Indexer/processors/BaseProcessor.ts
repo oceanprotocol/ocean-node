@@ -263,7 +263,6 @@ export abstract class BaseEventProcessor {
       const nodeId = keys.peerId.toString()
 
       const wallet: ethers.Wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string)
-      const walletAddress = await wallet.getAddress()
 
       const useTxIdOrContractAddress = txId || contractAddress
       const message = String(
