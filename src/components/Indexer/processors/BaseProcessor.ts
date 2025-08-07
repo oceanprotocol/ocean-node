@@ -228,9 +228,9 @@ export abstract class BaseEventProcessor {
         if (URLUtils.isValidUrl(decryptorURL)) {
           if (
             decryptorURL === `http://localhost:${process.env.HTTP_API_PORT || '8000'}` ||
-            decryptorURL === `http://127.0.0.1:${= process.env.HTTP_API_PORT || '8000'}` ||
-            decryptorURL.includes(`localhost:${currentNodePort}`) ||
-            decryptorURL.includes(`127.0.0.1:${currentNodePort}`)
+            decryptorURL === `http://127.0.0.1:${process.env.HTTP_API_PORT || '8000'}` ||
+            decryptorURL.includes(`localhost:${process.env.HTTP_API_PORT || '8000'}`) ||
+            decryptorURL.includes(`127.0.0.1:${process.env.HTTP_API_PORT || '8000'}`)
           ) {
             const { nonce: nonceDB } = await getDatabase()
             const existingNonce = await nonceDB.retrieve(keys.ethAddress)
@@ -264,7 +264,6 @@ export abstract class BaseEventProcessor {
 
       const wallet: ethers.Wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string)
       const walletAddress = await wallet.getAddress()
-    
 
       const useTxIdOrContractAddress = txId || contractAddress
       const message = String(
@@ -275,7 +274,7 @@ export abstract class BaseEventProcessor {
         ['bytes'],
         [ethers.hexlify(ethers.toUtf8Bytes(message))]
       )
-â
+
       const signature = await wallet.signMessage(
         new Uint8Array(ethers.toBeArray(messageHash))
       )
