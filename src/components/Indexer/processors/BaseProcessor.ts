@@ -226,50 +226,59 @@ export abstract class BaseEventProcessor {
       let nonce: string
       try {
         if (URLUtils.isValidUrl(decryptorURL)) {
-          const nonceResponse = await axios.get(
-            `${decryptorURL}/api/services/nonce?userAddress=${keys.ethAddress}`,
-            { timeout: 2000 }
-          )
-          nonce =
-            nonceResponse.status === 200 && nonceResponse.data
-              ? String(parseInt(nonceResponse.data.nonce) + 1)
-              : Date.now().toString()
+          if (
+            decryptorURL === `http://localhost:${process.env.HTTP_API_PORT || '8000'}` ||
+            decryptorURL === `http://127.0.0.1:${= process.env.HTTP_API_PORT || '8000'}` ||
+            decryptorURL.includes(`localhost:${currentNodePort}`) ||
+            decryptorURL.includes(`127.0.0.1:${currentNodePort}`)
+          ) {
+            const { nonce: nonceDB } = await getDatabase()
+            const existingNonce = await nonceDB.retrieve(keys.ethAddress)
+            nonce =
+              existingNonce && existingNonce.nonce !== null
+                ? String(existingNonce.nonce + 1)
+                : Date.now().toString()
+          } else {
+            INDEXER_LOGGER.logMessage(
+              `decryptDDO: Making HTTP request to external node for nonce. DecryptorURL: ${decryptorURL}`
+            )
+            const nonceResponse = await axios.get(
+              `${decryptorURL}/api/services/nonce?userAddress=${keys.ethAddress}`,
+              { timeout: 2000 }
+            )
+            nonce =
+              nonceResponse.status === 200 && nonceResponse.data
+                ? String(parseInt(nonceResponse.data.nonce) + 1)
+                : Date.now().toString()
+          }
         } else {
           nonce = Date.now().toString()
         }
       } catch (err) {
+        INDEXER_LOGGER.logMessage(
+          `decryptDDO: Error getting nonce, using timestamp: ${err.message}`
+        )
         nonce = Date.now().toString()
       }
-      console.log('nonce: ', nonce)
       const nodeId = keys.peerId.toString()
 
       const wallet: ethers.Wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string)
       const walletAddress = await wallet.getAddress()
-      INDEXER_LOGGER.logMessage(
-        `decryptDDO: wallet address used for signing: ${walletAddress}`
-      )
-      INDEXER_LOGGER.logMessage(
-        `decryptDDO: txId=${txId}, contractAddress=${contractAddress}, ethAddress=${keys.ethAddress}, chainId=${chainId}, nonce=${nonce}`
-      )
+    
 
       const useTxIdOrContractAddress = txId || contractAddress
       const message = String(
         useTxIdOrContractAddress + keys.ethAddress + chainId.toString() + nonce
       )
 
-      INDEXER_LOGGER.logMessage(`decryptDDO: final message: ${message}`)
-
       const messageHash = ethers.solidityPackedKeccak256(
         ['bytes'],
         [ethers.hexlify(ethers.toUtf8Bytes(message))]
       )
-      INDEXER_LOGGER.logMessage(`decryptDDO: message hash: ${messageHash}`)
-
+â
       const signature = await wallet.signMessage(
         new Uint8Array(ethers.toBeArray(messageHash))
       )
-
-      INDEXER_LOGGER.logMessage(`decryptDDO: signature: ${signature}`)
 
       const recoveredAddress = ethers.verifyMessage(messageHash, signature)
       INDEXER_LOGGER.logMessage(
@@ -286,9 +295,6 @@ export abstract class BaseEventProcessor {
             signature,
             nonce
           }
-          INDEXER_LOGGER.logMessage(
-            `decryptDDO: payload sent to provider: ${JSON.stringify(payload)}`
-          )
           const response = await axios({
             method: 'post',
             url: `${decryptorURL}/api/services/decrypt`,
