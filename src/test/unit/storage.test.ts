@@ -169,7 +169,7 @@ describe('URL Storage tests', () => {
   it('Gets readable stream', async () => {
     file = {
       type: 'url',
-      url: 'https://raw.githubusercontent.com/oceanprotocol/contracts/refs/heads/main/addresses/address.json',
+      url: 'https://stock-api.oceanprotocol.com/stock/stock.json',
       method: 'get'
     }
     const storage = Storage.getStorageClass(file, config)
