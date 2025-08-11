@@ -204,6 +204,7 @@ export interface FreeComputeStartCommand extends Command {
   maxJobDuration?: number
   policyServer?: any // object to pass to policy server
   metadata?: DBComputeJobMetadata
+  additionalViewers?: string[] // addresses of additional addresses that can get results
 }
 export interface PaidComputeStartCommand extends FreeComputeStartCommand {
   payment: ComputePayment

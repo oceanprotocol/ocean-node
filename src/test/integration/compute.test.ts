@@ -6,14 +6,16 @@ import {
   ComputeGetStatusHandler,
   ComputeInitializeHandler,
   FreeComputeStartHandler,
-  PaidComputeStartHandler
+  PaidComputeStartHandler,
+  ComputeGetResultHandler
 } from '../../components/core/compute/index.js'
 import type {
   PaidComputeStartCommand,
   FreeComputeStartCommand,
   ComputeStopCommand,
   ComputeGetStatusCommand,
-  ComputeInitializeCommand
+  ComputeInitializeCommand,
+  ComputeGetResultCommand
 } from '../../@types/commands.js'
 import type {
   ComputeAsset,
@@ -102,6 +104,13 @@ describe('Compute', () => {
   const wallet = new ethers.Wallet(
     '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45209'
   )
+  const wallet2 = new ethers.Wallet(
+    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d45210'
+  )
+  const wallet3 = new ethers.Wallet(
+    '0xef4b441145c1d0f3b4bc6d61d29f5c6e502359481152f869247c7a4244d4521A'
+  )
+
   // const chainId = DEVELOPMENT_CHAIN_ID
   const mockSupportedNetworks: RPCS = getMockSupportedNetworks()
   const chainId = DEVELOPMENT_CHAIN_ID
@@ -887,7 +896,8 @@ describe('Compute', () => {
       output: {},
       metadata: {
         key: 'value'
-      }
+      },
+      additionalViewers: [await wallet2.getAddress()]
       // additionalDatasets?: ComputeAsset[]
       // output?: ComputeOutput
     }
@@ -940,6 +950,80 @@ describe('Compute', () => {
     const jobs = await streamToObject(response.stream as Readable)
     console.log(jobs)
   })
+  it('should get job result by consumer', async () => {
+    const nonce = Date.now().toString()
+    const message = String((await wallet.getAddress()) + jobId + '0' + nonce)
+    // sign message/nonce
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await wallet.signMessage(messageHashBytes)
+    const resultComputeTask: ComputeGetResultCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
+      consumerAddress: await wallet.getAddress(),
+      jobId,
+      signature,
+      nonce,
+      index: 0
+    }
+    const response = await new ComputeGetResultHandler(oceanNode).handle(
+      resultComputeTask
+    )
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+  })
+  it('should get job result by additional viewer', async () => {
+    const nonce = Date.now().toString()
+    const message = String((await wallet2.getAddress()) + jobId + '0' + nonce)
+    // sign message/nonce
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await wallet2.signMessage(messageHashBytes)
+    const resultComputeTask: ComputeGetResultCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
+      consumerAddress: await wallet2.getAddress(),
+      jobId,
+      signature,
+      nonce,
+      index: 0
+    }
+    const response = await new ComputeGetResultHandler(oceanNode).handle(
+      resultComputeTask
+    )
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 200, 'Failed to get 200 response')
+  })
+  it('should fail to get job result by non allowed address', async () => {
+    const nonce = Date.now().toString()
+    const message = String((await wallet3.getAddress()) + jobId + '0' + nonce)
+    // sign message/nonce
+    const consumerMessage = ethers.solidityPackedKeccak256(
+      ['bytes'],
+      [ethers.hexlify(ethers.toUtf8Bytes(message))]
+    )
+    const messageHashBytes = ethers.toBeArray(consumerMessage)
+    const signature = await wallet3.signMessage(messageHashBytes)
+    const resultComputeTask: ComputeGetResultCommand = {
+      command: PROTOCOL_COMMANDS.COMPUTE_GET_RESULT,
+      consumerAddress: await wallet3.getAddress(),
+      jobId,
+      signature,
+      nonce,
+      index: 0
+    }
+    const response = await new ComputeGetResultHandler(oceanNode).handle(
+      resultComputeTask
+    )
+    assert(response, 'Failed to get response')
+    assert(response.status.httpStatus === 500, 'Failed to get 500 response')
+    console.log(response.status.error)
+  })
+
   it('should stop a compute job', async () => {
     const nonce = Date.now().toString()
     const message = String((await consumerAccount.getAddress()) + (jobId || ''))
