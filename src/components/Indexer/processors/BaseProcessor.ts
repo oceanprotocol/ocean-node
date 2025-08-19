@@ -296,7 +296,8 @@ export abstract class BaseEventProcessor {
           const response = await axios({
             method: 'post',
             url: `${decryptorURL}/api/services/decrypt`,
-            data: payload
+            data: payload,
+            timeout: 30000
           })
           if (response.status !== 200 && response.status !== 201) {
             const message = `Provider exception on decrypt DDO. Status: ${response.status}, ${response.statusText}`
