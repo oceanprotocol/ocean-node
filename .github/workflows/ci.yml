@@ -125,10 +125,8 @@ jobs:
               DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
       - name: Run Barge
         working-directory: ${{ github.workspace }}/barge
-        env:
-          CONTRACTS_VERSION: escrow
         run: |
-          bash -x start_ocean.sh --no-aquarius --no-provider --no-dashboard --with-typesense 2>&1 > start_ocean.log &
+          bash -x start_ocean.sh --no-dashboard --with-typesense 2>&1 > start_ocean.log &
       - run: npm ci
       - run: npm run build
       - run: docker image ls
@@ -212,9 +210,7 @@ jobs:
       - name: Run Barge
         working-directory: ${{ github.workspace }}/barge
         run: |
-          bash -x start_ocean.sh --no-aquarius --no-provider --no-dashboard --with-typesense 2>&1 > start_ocean.log &
-        env:
-          CONTRACTS_VERSION: escrow
+          bash -x start_ocean.sh --no-dashboard --with-typesense 2>&1 > start_ocean.log &
       - run: npm ci
       - run: npm run build
       - run: docker image ls
