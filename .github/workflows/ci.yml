@@ -126,7 +126,7 @@ jobs:
       - name: Run Barge
         working-directory: ${{ github.workspace }}/barge
         run: |
-          bash -x start_ocean.sh --no-dashboard --with-typesense 2>&1 > start_ocean.log &
+          bash -x start_ocean.sh --no-node --with-typesense 2>&1 > start_ocean.log &
       - run: npm ci
       - run: npm run build
       - run: docker image ls
@@ -210,7 +210,7 @@ jobs:
       - name: Run Barge
         working-directory: ${{ github.workspace }}/barge
         run: |
-          bash -x start_ocean.sh --no-dashboard --with-typesense 2>&1 > start_ocean.log &
+          bash -x start_ocean.sh --no-node --with-typesense 2>&1 > start_ocean.log &
       - run: npm ci
       - run: npm run build
       - run: docker image ls
