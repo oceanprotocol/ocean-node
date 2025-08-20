@@ -52,6 +52,6 @@ export async function getFile(
   } catch (error) {
     const msg = 'Error occured while requesting the files: ' + error.message
     CORE_LOGGER.error(msg)
-    throw new Error(msg)
+    throw new Error('Unable to decrypt files, files not served by the current node!')
   }
 }
