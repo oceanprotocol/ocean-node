@@ -1,5 +1,5 @@
 import { DDOManager, PriceType } from '@oceanprotocol/ddo-js'
-import { ethers, Signer, JsonRpcApiProvider } from 'ethers'
+import { ethers, Signer, JsonRpcApiProvider, ZeroAddress } from 'ethers'
 import { EVENTS } from '../../../utils/constants.js'
 import { getDatabase } from '../../../utils/database.js'
 import { INDEXER_LOGGER } from '../../../utils/logging/common.js'
@@ -9,7 +9,8 @@ import {
   getDid,
   doesDispenserAlreadyExist,
   findServiceIdByDatatoken,
-  getPricesByDt
+  getPricesByDt,
+  isValidDispenserContract
 } from '../utils.js'
 import { BaseEventProcessor } from './BaseProcessor.js'
 import Dispenser from '@oceanprotocol/contracts/artifacts/contracts/pools/dispenser/Dispenser.sol/Dispenser.json' assert { type: 'json' }
@@ -28,6 +29,20 @@ export class DispenserCreatedEventProcessor extends BaseEventProcessor {
       EVENTS.DISPENSER_CREATED
     )
     const datatokenAddress = decodedEventData.args[0].toString()
+    if (!datatokenAddress) {
+      INDEXER_LOGGER.error(
+        `Datatoken address is not found in decoded event. Decoded event: ${JSON.stringify(
+          decodedEventData
+        )}`
+      )
+      return null
+    }
+    if (datatokenAddress === ZeroAddress) {
+      INDEXER_LOGGER.error(
+        `Datatoken address is ZERO ADDRESS. Cannot find DDO by ZERO ADDRESS contract.`
+      )
+      return null
+    }
     const datatokenContract = getDtContract(signer, datatokenAddress)
 
     const nftAddress = await datatokenContract.getERC721Address()
@@ -40,6 +55,13 @@ export class DispenserCreatedEventProcessor extends BaseEventProcessor {
           `Detected DispenserCreated changed for ${did}, but it does not exists.`
         )
         return
+      }
+      if (!(await isValidDispenserContract(event.address, chainId, signer))) {
+        INDEXER_LOGGER.warn(
+          `Dispenser contract ${event.address} is not approved by Router. 
+                  Abort updating DDO pricing! Returning the existing DDO...`
+        )
+        return ddo
       }
       const ddoInstance = DDOManager.getDDOClass(ddo)
       if (!ddoInstance.getAssetFields().indexedMetadata) {
