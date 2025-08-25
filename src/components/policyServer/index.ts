@@ -105,6 +105,24 @@ export class PolicyServer {
     return await this.askServer(command)
   }
 
+  async initializePSVerification(
+    documentId: string,
+    ddo: DDO,
+    serviceId: string,
+    consumerAddress: string,
+    policyServer: any
+  ): Promise<PolicyServerResult> {
+    const command = {
+      action: 'initiate',
+      documentId,
+      serviceId,
+      ddo,
+      consumerAddress,
+      policyServer
+    }
+    return await this.askServer(command)
+  }
+
   async passThrough(request: any): Promise<PolicyServerResult> {
     return await this.askServer(request)
   }
