@@ -215,25 +215,73 @@ export abstract class BaseEventProcessor {
     metadata: any
   ): Promise<any> {
     let ddo
-    if (parseInt(flag) === 2) {
+    // Log the flag value
+    INDEXER_LOGGER.logMessage(`decryptDDO: flag=${flag}`)
+    if ((parseInt(flag) & 2) !== 0) {
       INDEXER_LOGGER.logMessage(
         `Decrypting DDO  from network: ${this.networkId} created by: ${eventCreator} encrypted by: ${decryptorURL}`
       )
-      const nonce = Math.floor(Date.now() / 1000).toString()
       const config = await getConfiguration()
       const { keys } = config
+      let nonce: string
+      try {
+        if (URLUtils.isValidUrl(decryptorURL)) {
+          if (
+            decryptorURL === `http://localhost:${process.env.HTTP_API_PORT || '8000'}` ||
+            decryptorURL === `http://127.0.0.1:${process.env.HTTP_API_PORT || '8000'}` ||
+            decryptorURL.includes(`localhost:${process.env.HTTP_API_PORT || '8000'}`) ||
+            decryptorURL.includes(`127.0.0.1:${process.env.HTTP_API_PORT || '8000'}`)
+          ) {
+            const { nonce: nonceDB } = await getDatabase()
+            const existingNonce = await nonceDB.retrieve(keys.ethAddress)
+            nonce =
+              existingNonce && existingNonce.nonce !== null
+                ? String(existingNonce.nonce + 1)
+                : Date.now().toString()
+          } else {
+            INDEXER_LOGGER.logMessage(
+              `decryptDDO: Making HTTP request to external node for nonce. DecryptorURL: ${decryptorURL}`
+            )
+            const nonceResponse = await axios.get(
+              `${decryptorURL}/api/services/nonce?userAddress=${keys.ethAddress}`,
+              { timeout: 2000 }
+            )
+            nonce =
+              nonceResponse.status === 200 && nonceResponse.data
+                ? String(parseInt(nonceResponse.data.nonce) + 1)
+                : Date.now().toString()
+          }
+        } else {
+          nonce = Date.now().toString()
+        }
+      } catch (err) {
+        INDEXER_LOGGER.logMessage(
+          `decryptDDO: Error getting nonce, using timestamp: ${err.message}`
+        )
+        nonce = Date.now().toString()
+      }
       const nodeId = keys.peerId.toString()
 
       const wallet: ethers.Wallet = new ethers.Wallet(process.env.PRIVATE_KEY as string)
 
+      const useTxIdOrContractAddress = txId || contractAddress
       const message = String(
-        txId + contractAddress + keys.ethAddress + chainId.toString() + nonce
+        useTxIdOrContractAddress + keys.ethAddress + chainId.toString() + nonce
       )
-      const consumerMessage = ethers.solidityPackedKeccak256(
+
+      const messageHash = ethers.solidityPackedKeccak256(
         ['bytes'],
         [ethers.hexlify(ethers.toUtf8Bytes(message))]
       )
-      const signature = await wallet.signMessage(consumerMessage)
+
+      const signature = await wallet.signMessage(
+        new Uint8Array(ethers.toBeArray(messageHash))
+      )
+
+      const recoveredAddress = ethers.verifyMessage(messageHash, signature)
+      INDEXER_LOGGER.logMessage(
+        `decryptDDO: recovered address: ${recoveredAddress}, expected: ${keys.ethAddress}`
+      )
 
       if (URLUtils.isValidUrl(decryptorURL)) {
         try {
@@ -248,10 +296,11 @@ export abstract class BaseEventProcessor {
           const response = await axios({
             method: 'post',
             url: `${decryptorURL}/api/services/decrypt`,
-            data: payload
+            data: payload,
+            timeout: 30000
           })
-          if (response.status !== 200) {
-            const message = `bProvider exception on decrypt DDO. Status: ${response.status}, ${response.statusText}`
+          if (response.status !== 200 && response.status !== 201) {
+            const message = `Provider exception on decrypt DDO. Status: ${response.status}, ${response.statusText}`
             INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
             throw new Error(message)
           }

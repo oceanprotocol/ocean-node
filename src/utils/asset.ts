@@ -56,7 +56,8 @@ export async function fetchFileMetadata(
     const response = await axios({
       url,
       method: method || 'get',
-      responseType: 'stream'
+      responseType: 'stream',
+      timeout: 30000
     })
     contentType = response.headers['content-type']
     let totalSize = 0
