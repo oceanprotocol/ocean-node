@@ -128,7 +128,7 @@ jobs:
         env:
           CONTRACTS_VERSION: escrow
         run: |
-          bash -x start_ocean.sh --no-aquarius --no-provider --no-dashboard --with-typesense 2>&1 > start_ocean.log &
+          bash -x start_ocean.sh --with-typesense 2>&1 > start_ocean.log &
       - run: npm ci
       - run: npm run build
       - run: docker image ls
