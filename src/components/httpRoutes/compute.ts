@@ -164,7 +164,8 @@ computeRoutes.put(`${SERVICES_API_BASE_PATH}/compute`, async (req, res) => {
       signature: (req.query.signature as string) || null,
       nonce: (req.query.nonce as string) || null,
       jobId: (req.query.jobId as string) || null,
-      agreementId: (req.query.agreementId as string) || null
+      agreementId: (req.query.agreementId as string) || null,
+      authorization: req.headers?.authorization || null
     }
     const response = await new ComputeStopHandler(req.oceanNode).handle(stopComputeTask)
     const jobs = await streamToObject(response.stream as Readable)
