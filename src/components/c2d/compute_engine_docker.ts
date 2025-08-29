@@ -857,6 +857,13 @@ export class C2DEngineDocker extends C2DEngine {
         )
         containerInfo.Entrypoint = newEntrypoint.split(' ')
       }
+      if (job.algorithm.envs) {
+        const envVars: string[] = []
+        for (const key of Object.keys(job.algorithm.envs)) {
+          envVars.push(`${key}=${job.algorithm.envs[key]}`)
+        }
+        containerInfo.Env = envVars
+      }
       const container = await this.createDockerContainer(containerInfo, true)
       if (container) {
         console.log('Container created: ', container)

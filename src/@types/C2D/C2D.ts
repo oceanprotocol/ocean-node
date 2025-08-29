@@ -189,6 +189,7 @@ export interface ComputeAlgorithm {
   transferTxId?: string
   algocustomdata?: { [key: string]: any }
   userdata?: { [key: string]: any }
+  envs?: { [key: string]: any }
 }
 
 export interface AlgoChecksums {
