@@ -1242,6 +1242,7 @@ It can include information about the file object, document ID, service ID, trans
 - **transferTxId**: Optional. A string representing the transaction ID for the transfer of the compute algorithm.
 - **algocustomdata**: Optional. An object containing additional custom data related to the compute algorithm.
 - **userdata**: Optional. An object containing additional user-defined data related to the compute algorithm.
+- **envs**: Optional. Array of keys:values to be used as environment variables for algo.
 
 ```typescript
 export interface ComputeAlgorithm {
