@@ -10,6 +10,7 @@ import {
   buildInvalidRequestMessage,
   validateCommandParameters
 } from '../../httpRoutes/validateCommands.js'
+import { CORE_LOGGER } from '../../../utils/logging/common.js'
 
 import { PolicyServer } from '../../policyServer/index.js'
 
@@ -28,7 +29,18 @@ export class PolicyServerPassthroughHandler extends CommandHandler {
     if (this.shouldDenyTaskHandling(validationResponse)) {
       return validationResponse
     }
-
+    task.policyServerPassthrough.ddo = null
+    // resolve DDO first
+    try {
+      task.policyServerPassthrough.ddo = await this.getOceanNode()
+        .getDatabase()
+        .ddo.retrieve(task.policyServerPassthrough.documentId)
+    } catch (error) {
+      // just log it
+      CORE_LOGGER.warn(
+        `PolicyServerPassthroughHandler: DDO not found for documentId ${task.policyServerPassthrough.documentId}: ${error.message}`
+      )
+    }
     // policyServer check
     const policyServer = new PolicyServer()
     const policyStatus = await policyServer.passThrough(task.policyServerPassthrough)
