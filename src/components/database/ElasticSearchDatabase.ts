@@ -239,6 +239,7 @@ export class ElasticsearchDdoStateDatabase extends AbstractDdoStateDatabase {
         index: this.index,
         query
       })
+      console.log('Query result: ', result)
       return result.hits.hits.map((hit: any) => {
         return normalizeDocumentId(hit._source, hit._id)
       })
