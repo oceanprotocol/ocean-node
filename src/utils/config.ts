@@ -35,6 +35,7 @@ import { create256Hash } from './crypt.js'
 import { isDefined } from './util.js'
 import { fileURLToPath } from 'url'
 import path from 'path'
+import fs from 'fs'
 
 // usefull for lazy loading and avoid boilerplate on other places
 let previousConfiguration: OceanNodeConfig = null
@@ -672,6 +673,28 @@ export async function getConfiguration(
   }
 
   return previousConfiguration
+}
+
+export function loadConfigFromEnv(envVar: string = 'CONFIG_PATH'): OceanNodeConfig {
+  const configPath = process.env[envVar]
+
+  if (!configPath) {
+    throw new Error(`Environment variable "${envVar}" is not set.`)
+  }
+
+  const absolutePath = path.resolve(configPath)
+
+  if (!fs.existsSync(absolutePath)) {
+    throw new Error(`Config file not found at path: ${absolutePath}`)
+  }
+
+  const rawData = fs.readFileSync(absolutePath, 'utf-8')
+
+  try {
+    return JSON.parse(rawData) as OceanNodeConfig
+  } catch (err) {
+    throw new Error(`Invalid JSON in config file: ${absolutePath}. Error: ${err.message}`)
+  }
 }
 
 // we can just use the lazy version above "getConfiguration()" and specify if we want to reload from .env variables
