@@ -689,17 +689,17 @@ export function loadConfigFromEnv(envVar: string = 'CONFIG_PATH'): OceanNodeConf
     throw new Error(`Config file not found at path: ${absolutePath}`)
   }
 
-  // const privateKey = process.env.PRIVATE_KEY
-  // if (!privateKey || privateKey.length !== 66) {
-  //   // invalid private key
-  //   CONFIG_LOGGER.logMessageWithEmoji(
-  //     'Invalid PRIVATE_KEY env variable..',
-  //     true,
-  //     GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-  //     LOG_LEVELS_STR.LEVEL_ERROR
-  //   )
-  //   return null
-  // }
+  const privateKey = process.env.PRIVATE_KEY
+  if (!privateKey || privateKey.length !== 66) {
+    // invalid private key
+    CONFIG_LOGGER.logMessageWithEmoji(
+      'Invalid PRIVATE_KEY env variable..',
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
+    return null
+  }
 
   const rawData = fs.readFileSync(absolutePath, 'utf-8')
   let config: OceanNodeConfig
