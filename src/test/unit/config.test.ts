@@ -29,9 +29,9 @@ describe('Should validate configuration from JSON', () => {
 
   it('should have indexer', () => {
     expect(config.hasIndexer).to.be.equal(true)
-    expect(config.dbConfig).to.be.not(null)
-    expect(config.dbConfig.dbType).to.be.not('elasticsearch')
-    expect(config.dbConfig.url).to.be.not('http://localhost:9200')
+    expect(config.dbConfig).to.not.be.equal(null)
+    expect(config.dbConfig.dbType).to.be.equal('elasticsearch')
+    expect(config.dbConfig.url).to.be.equal('http://localhost:9200')
   })
 
   it('should have HTTP', () => {
@@ -60,9 +60,9 @@ describe('Should validate configuration from JSON', () => {
       '/dns6/node4.oceanprotocol.com/tcp/9003/ws/p2p/16Uiu2HAmSTVTArioKm2wVcyeASHYEsnx2ZNq467Z4GMDU4ErEPom'
     ]
     expect(config.hasP2P).to.be.equal(true)
-    expect(config.p2pConfig).to.be.not(null)
-    expect(config.p2pConfig.bootstrapNodes).to.be.not(null)
-    expect(config.p2pConfig.bootstrapNodes.length).to.be.not('0')
+    expect(config.p2pConfig).to.not.be.equal(null)
+    expect(config.p2pConfig.bootstrapNodes).to.not.be.equal(null)
+    expect(config.p2pConfig.bootstrapNodes.length).to.not.be.equal('0')
     expect(config.p2pConfig.bootstrapNodes).to.be.equal(bootstrapNodes)
   })
 
