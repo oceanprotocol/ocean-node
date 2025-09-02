@@ -15,7 +15,7 @@
     "build:controlpanel": "cd controlpanel && npm install --maxsockets 1 && NODE_ENV=production npx next build",
     "quickstart": "bash scripts/ocean-node-quickstart.sh",
     "setupEnv": "bash -c './src/helpers/scripts/setupNodeEnv.sh && source .env'",
-    "build-tests:tsc": "tsc --sourceMap --sourceRoot ./src/test && cp ./src/test/.env.test ./dist/test && cp ./src/test/.env.test2 ./dist/test",
+    "build-tests:tsc": "tsc --sourceMap --sourceRoot ./src/test && cp ./src/test/.env.test ./dist/test && cp ./src/test/.env.test2 ./",
     "client": "mkdir -p ./dist/helpers/scripts/output && node dist/helpers/scripts/clientExample.js",
     "clean": "if [ -d ./dist ]; then find ./dist -mindepth 1 -not -path './dist/controlpanel*' -delete; fi",
     "clean:all": "rm -rf ./dist/ ./doc/ ./.nyc_output",
