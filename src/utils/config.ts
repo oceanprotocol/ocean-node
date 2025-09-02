@@ -667,7 +667,7 @@ export async function getConfiguration(
     if (!process.env.CONFIG_PATH) {
       previousConfiguration = await getEnvConfig(isStartup)
     } else {
-      console.log(`entered here`)
+      CONFIG_LOGGER.warn(`entered here`)
       previousConfiguration = loadConfigFromEnv()
     }
   }
@@ -681,7 +681,7 @@ export async function getConfiguration(
 }
 
 export function loadConfigFromEnv(envVar: string = 'CONFIG_PATH'): OceanNodeConfig {
-  console.log(`entered here 2`)
+  CONFIG_LOGGER.warn(`entered here 2`)
   const configPath = process.env[envVar]
   const absolutePath = path.resolve(configPath)
 

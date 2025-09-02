@@ -17,6 +17,7 @@ describe('Should validate configuration from JSON', () => {
 
   it('should get indexer networks from config', async () => {
     config = await getConfiguration(true)
+    console.log(`config: ${JSON.stringify(config)}`)
     expect(config.indexingNetworks.length).to.be.equal(1)
   })
 
