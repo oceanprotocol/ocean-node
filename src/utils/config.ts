@@ -667,7 +667,7 @@ export async function getConfiguration(
     if (!process.env.CONFIG_PATH) {
       previousConfiguration = await getEnvConfig(isStartup)
     } else {
-      CONFIG_LOGGER.warn(`entered here`)
+      CONFIG_LOGGER.logMessage(`entered here`)
       previousConfiguration = loadConfigFromEnv()
     }
   }
@@ -681,9 +681,16 @@ export async function getConfiguration(
 }
 
 export function loadConfigFromEnv(envVar: string = 'CONFIG_PATH'): OceanNodeConfig {
-  CONFIG_LOGGER.warn(`entered here 2`)
+  CONFIG_LOGGER.logMessage(`entered here 2`)
   const configPath = process.env[envVar]
-  const absolutePath = path.resolve(configPath)
+  if (!configPath) {
+    throw new Error(`Environment variable "${envVar}" is not set.`)
+  }
+
+  // If the path is absolute, keep it; otherwise resolve relative to project root
+  const absolutePath = path.isAbsolute(configPath)
+    ? configPath
+    : path.resolve(process.cwd(), configPath)
 
   if (!fs.existsSync(absolutePath)) {
     throw new Error(`Config file not found at path: ${absolutePath}`)
