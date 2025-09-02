@@ -664,7 +664,12 @@ export async function getConfiguration(
   isStartup: boolean = false
 ): Promise<OceanNodeConfig> {
   if (!previousConfiguration || forceReload) {
-    previousConfiguration = await getEnvConfig(isStartup)
+    if (!process.env.CONFIG_PATH) {
+      previousConfiguration = await getEnvConfig(isStartup)
+    } else {
+      console.log(`entered here`)
+      previousConfiguration = loadConfigFromEnv()
+    }
   }
   if (!previousConfiguration.codeHash) {
     const __filename = fileURLToPath(import.meta.url)
@@ -676,25 +681,42 @@ export async function getConfiguration(
 }
 
 export function loadConfigFromEnv(envVar: string = 'CONFIG_PATH'): OceanNodeConfig {
+  console.log(`entered here 2`)
   const configPath = process.env[envVar]
-
-  if (!configPath) {
-    throw new Error(`Environment variable "${envVar}" is not set.`)
-  }
-
   const absolutePath = path.resolve(configPath)
 
   if (!fs.existsSync(absolutePath)) {
     throw new Error(`Config file not found at path: ${absolutePath}`)
   }
 
+  // const privateKey = process.env.PRIVATE_KEY
+  // if (!privateKey || privateKey.length !== 66) {
+  //   // invalid private key
+  //   CONFIG_LOGGER.logMessageWithEmoji(
+  //     'Invalid PRIVATE_KEY env variable..',
+  //     true,
+  //     GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+  //     LOG_LEVELS_STR.LEVEL_ERROR
+  //   )
+  //   return null
+  // }
+
   const rawData = fs.readFileSync(absolutePath, 'utf-8')
+  let config: OceanNodeConfig
 
   try {
-    return JSON.parse(rawData) as OceanNodeConfig
+    config = JSON.parse(rawData)
   } catch (err) {
     throw new Error(`Invalid JSON in config file: ${absolutePath}. Error: ${err.message}`)
   }
+  if (!previousConfiguration) {
+    previousConfiguration = config
+  } else if (configChanged(previousConfiguration, config)) {
+    CONFIG_LOGGER.warn(
+      'Detected Ocean Node Configuration change... This might have unintended effects'
+    )
+  }
+  return config
 }
 
 // we can just use the lazy version above "getConfiguration()" and specify if we want to reload from .env variables

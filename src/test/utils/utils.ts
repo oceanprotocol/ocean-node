@@ -13,6 +13,7 @@ const __dirname = path.dirname(__filename)
 
 // relative to test/utils (default value, but can use other paths)
 export const TEST_ENV_CONFIG_FILE = '../.env.test'
+export const TEST_ENV_CONFIG_PATH = '../.env.config'
 // use this if we need to override the default configuration while testing
 export interface OverrideEnvConfig {
   name: string // name of the var
