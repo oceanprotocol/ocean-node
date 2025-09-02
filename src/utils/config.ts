@@ -686,11 +686,13 @@ export function loadConfigFromEnv(envVar: string = 'CONFIG_PATH'): OceanNodeConf
   if (!configPath) {
     throw new Error(`Environment variable "${envVar}" is not set.`)
   }
+  const __filename = fileURLToPath(import.meta.url)
+  const __dirname = path.dirname(__filename)
 
   // If the path is absolute, keep it; otherwise resolve relative to project root
   const absolutePath = path.isAbsolute(configPath)
     ? configPath
-    : path.resolve(process.cwd(), configPath)
+    : path.resolve(__dirname, configPath)
 
   if (!fs.existsSync(absolutePath)) {
     throw new Error(`Config file not found at path: ${absolutePath}`)

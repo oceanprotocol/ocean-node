@@ -25,10 +25,6 @@ describe('Should validate configuration from JSON', () => {
   it('should have indexer', () => {
     expect(config.hasIndexer).to.be.equal(true)
     expect(Object.keys(config.indexingNetworks)[0]).to.be.equal('8996')
-  })
-
-  it('should have indexer', () => {
-    expect(config.hasIndexer).to.be.equal(true)
     expect(config.dbConfig).to.not.be.equal(null)
     expect(config.dbConfig.dbType).to.be.equal('elasticsearch')
     expect(config.dbConfig.url).to.be.equal('http://localhost:9200')
@@ -36,7 +32,7 @@ describe('Should validate configuration from JSON', () => {
 
   it('should have HTTP', () => {
     expect(config.hasHttp).to.be.equal(true)
-    expect(config.httpPort).to.be.equal(8081)
+    expect(config.httpPort).to.be.equal(8001)
     expect(config.httpPort).to.be.instanceOf(Number)
   })
 
