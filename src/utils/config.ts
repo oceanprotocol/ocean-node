@@ -664,7 +664,7 @@ export async function getConfiguration(
   isStartup: boolean = false
 ): Promise<OceanNodeConfig> {
   if (!previousConfiguration || forceReload) {
-    if (!process.env.CONFIG_PATH) {
+    if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.CONFIG_PATH)) {
       previousConfiguration = await getEnvConfig(isStartup)
     } else {
       CONFIG_LOGGER.logMessage(`entered here`)
