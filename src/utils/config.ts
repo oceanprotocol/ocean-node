@@ -685,13 +685,14 @@ export function loadConfigFromEnv(envVar: string = 'CONFIG_PATH'): OceanNodeConf
     throw new Error(`Environment variable "${envVar}" is not set.`)
   }
 
-  // If the path is absolute, keep it; otherwise resolve relative to project root
-  const absolutePath = path.isAbsolute(configPath)
-    ? configPath
-    : path.resolve(process.cwd(), configPath)
+  if (!path.isAbsolute(configPath)) {
+    throw new Error(
+      `Environment variable "${envVar}" must be an absolute path. Got: ${configPath}`
+    )
+  }
 
-  if (!fs.existsSync(absolutePath)) {
-    throw new Error(`Config file not found at path: ${absolutePath}`)
+  if (!fs.existsSync(configPath)) {
+    throw new Error(`Config file not found at path: ${configPath}`)
   }
 
   const privateKey = process.env.PRIVATE_KEY
@@ -706,13 +707,13 @@ export function loadConfigFromEnv(envVar: string = 'CONFIG_PATH'): OceanNodeConf
     return null
   }
 
-  const rawData = fs.readFileSync(absolutePath, 'utf-8')
+  const rawData = fs.readFileSync(configPath, 'utf-8')
   let config: OceanNodeConfig
 
   try {
     config = JSON.parse(rawData)
   } catch (err) {
-    throw new Error(`Invalid JSON in config file: ${absolutePath}. Error: ${err.message}`)
+    throw new Error(`Invalid JSON in config file: ${configPath}. Error: ${err.message}`)
   }
   if (!previousConfiguration) {
     previousConfiguration = config
