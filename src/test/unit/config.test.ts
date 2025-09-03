@@ -43,7 +43,6 @@ describe('Should validate configuration from JSON', () => {
   it('should have HTTP', () => {
     expect(config.hasHttp).to.be.equal(true)
     expect(config.httpPort).to.be.equal(8001)
-    expect(config.httpPort).to.be.instanceOf(Number)
   })
 
   it('should have P2P', () => {
