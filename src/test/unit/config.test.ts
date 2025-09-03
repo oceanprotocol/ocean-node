@@ -1,26 +1,18 @@
 import { expect } from 'chai'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { getConfiguration } from '../../utils/config.js'
-import {
-  OverrideEnvConfig,
-  TEST_ENV_CONFIG_PATH,
-  buildEnvOverrideConfig,
-  setupEnvironment,
-  tearDownEnvironment
-} from '../utils/utils.js'
-import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { TEST_ENV_CONFIG_PATH, setupEnvironment } from '../utils/utils.js'
 import { homedir } from 'os'
 
-let envOverrides: OverrideEnvConfig[]
 let config: OceanNodeConfig
 describe('Should validate configuration from JSON', () => {
   before(async () => {
-    envOverrides = buildEnvOverrideConfig(
-      [ENVIRONMENT_VARIABLES.CONFIG_PATH],
-      [`${homedir}/config.json`]
-    )
-    envOverrides = await setupEnvironment(TEST_ENV_CONFIG_PATH, envOverrides)
+    await setupEnvironment(TEST_ENV_CONFIG_PATH)
     config = await getConfiguration(true)
+  })
+
+  it('env should be configured correctly', () => {
+    expect(process.env.CONFIG_PATH).to.be.equal(`${homedir}/config.json`)
   })
 
   it('should get indexer networks from config', () => {
@@ -48,10 +40,6 @@ describe('Should validate configuration from JSON', () => {
     expect(config.hasP2P).to.be.equal(true)
     expect(config.p2pConfig).to.not.be.equal(null)
     expect(config.p2pConfig.bootstrapNodes).to.not.be.equal(null)
-    expect(config.p2pConfig.bootstrapNodes.length).to.be.equal('0')
-  })
-
-  after(async () => {
-    await tearDownEnvironment(envOverrides)
+    expect(config.p2pConfig.bootstrapNodes.length).to.be.equal(0)
   })
 })
