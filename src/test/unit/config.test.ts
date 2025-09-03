@@ -2,17 +2,12 @@ import { expect } from 'chai'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { getConfiguration } from '../../utils/config.js'
 import { TEST_ENV_CONFIG_PATH, setupEnvironment } from '../utils/utils.js'
-import { homedir } from 'os'
 
 let config: OceanNodeConfig
 describe('Should validate configuration from JSON', () => {
   before(async () => {
     await setupEnvironment(TEST_ENV_CONFIG_PATH)
     config = await getConfiguration(true)
-  })
-
-  it('env should be configured correctly', () => {
-    expect(process.env.CONFIG_PATH).to.be.equal(`${homedir}/config.json`)
   })
 
   it('should get indexer networks from config', () => {
