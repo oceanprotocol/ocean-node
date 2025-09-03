@@ -29,7 +29,7 @@
     "mocha": "mocha --node-env=test --config .mocharc.json",
     "mocha-light": "mocha --node-env=test --config .mocharc.json --exclude \"./dist/test/integration/compute.test.js\"",
     "test": "npm run lint && npm run test:unit:cover && npm run test:integration:cover",
-    "test:unit": "npm run build-tests && npm run mocha \"./dist/test/unit/config.test.js\"",
+    "test:unit": "npm run build-tests && npm run mocha \"./dist/test/unit/**/*.test.js\"",
     "test:integration": "npm run build-tests && npm run mocha \"./dist/test/integration/**/*.test.js\"",
     "test:computeunit": "npm run build-tests && npm run mocha \"./dist/test/unit/compute.test.js\"",
     "test:computeintegration": "npm run build-tests && npm run mocha \"./dist/test/integration/compute.test.js\"",
