@@ -17,7 +17,7 @@ describe('Should validate configuration from JSON', () => {
   before(async () => {
     envOverrides = buildEnvOverrideConfig(
       [ENVIRONMENT_VARIABLES.CONFIG_PATH],
-      [`${homedir}/.ocean/ocean-contracts/artifacts/config.json`]
+      [`${homedir}/ocean-node/config.json`]
     )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_PATH, envOverrides)
     config = await getConfiguration(true)
