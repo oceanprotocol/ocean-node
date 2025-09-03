@@ -67,16 +67,14 @@
         "password": "",
         "dbType": "elasticsearch"
     },
-    "supportedNetworks": [
-        {
-            "8996": {
-                "rpc": "http://127.0.0.1:8545",
-                "chainId": 8996,
-                "network": "development",
-                "chunkSize": 100
-            }
+    "supportedNetworks": {
+        "8996": {
+            "rpc": "http://127.0.0.1:8545",
+            "chainId": 8996,
+            "network": "development",
+            "chunkSize": 100
         }
-    ],
+    },
     "indexingNetworks": [
         8996
     ],

@@ -26,10 +26,10 @@ describe('Should validate configuration from JSON', () => {
   it('should get indexer networks from config', () => {
     expect(config.indexingNetworks.length).to.be.equal(1)
     expect(config.indexingNetworks[0]).to.be.equal(8996)
-    expect(config.supportedNetworks[0].chainId).to.be.equal(8996)
-    expect(config.supportedNetworks[0].rpc).to.be.equal('http://127.0.0.1:8545')
-    expect(config.supportedNetworks[0].network).to.be.equal('development')
-    expect(config.supportedNetworks[0].chunkSize).to.be.equal(100)
+    expect(config.supportedNetworks['8996'].chainId).to.be.equal(8996)
+    expect(config.supportedNetworks['8996'].rpc).to.be.equal('http://127.0.0.1:8545')
+    expect(config.supportedNetworks['8996'].network).to.be.equal('development')
+    expect(config.supportedNetworks['8996'].chunkSize).to.be.equal(100)
   })
 
   it('should have indexer', () => {
