@@ -24,9 +24,8 @@ describe('Should validate configuration from JSON', () => {
   })
 
   it('should get indexer networks from config', () => {
-    console.log(`config: ${JSON.stringify(config)}`)
     expect(config.indexingNetworks.length).to.be.equal(1)
-    expect(config.indexingNetworks[0]).to.be.equal('8996')
+    expect(config.indexingNetworks[0]).to.be.equal(8996)
     expect(Object.keys(config.supportedNetworks[0])).to.be.equal('8996')
     expect(config.supportedNetworks[0].chainId).to.be.equal(8996)
     expect(config.supportedNetworks[0].rpc).to.be.equal('http://127.0.0.1:8545')
