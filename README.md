@@ -61,10 +61,10 @@ The `PRIVATE_KEY` is the only mandatory environmental variable, you must include
 2.1. If the config is a JSON file, run:
 
 ```
-export CONFIG_PATH='<path_to_json_file>'
+export CONFIG_PATH='<absolute_path_to_json_file>'
 ```
 
-Config file can be either relative, either absolute path.
+Config file should be absolute path.
 
 3.  Quick start the Ocean Node with PM2
 
