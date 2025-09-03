@@ -4,14 +4,21 @@ import { getConfiguration } from '../../utils/config.js'
 import {
   OverrideEnvConfig,
   TEST_ENV_CONFIG_PATH,
+  buildEnvOverrideConfig,
   setupEnvironment,
   tearDownEnvironment
 } from '../utils/utils.js'
+import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
+import { homedir } from 'os'
 
 let envOverrides: OverrideEnvConfig[]
 let config: OceanNodeConfig
 describe('Should validate configuration from JSON', () => {
   before(async () => {
+    envOverrides = buildEnvOverrideConfig(
+      [ENVIRONMENT_VARIABLES.CONFIG_PATH],
+      [`${homedir}/.ocean/ocean-contracts/artifacts/config.json`]
+    )
     envOverrides = await setupEnvironment(TEST_ENV_CONFIG_PATH, envOverrides)
     config = await getConfiguration(true)
   })

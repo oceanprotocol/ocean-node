@@ -36,6 +36,7 @@ import { isDefined } from './util.js'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import fs from 'fs'
+import os from 'os'
 
 // usefull for lazy loading and avoid boilerplate on other places
 let previousConfiguration: OceanNodeConfig = null
@@ -680,9 +681,19 @@ export async function getConfiguration(
 }
 
 export function loadConfigFromEnv(envVar: string = 'CONFIG_PATH'): OceanNodeConfig {
-  const configPath = process.env[envVar]
+  let configPath = process.env[envVar]
   if (!configPath) {
     throw new Error(`Environment variable "${envVar}" is not set.`)
+  }
+  // Expand $HOME if present
+  if (configPath.startsWith('$HOME')) {
+    const home = process.env.HOME || os.homedir()
+    if (!home) {
+      throw new Error(
+        `"${envVar}" contains $HOME but HOME is not set in the environment.`
+      )
+    }
+    configPath = path.join(home, configPath.slice('$HOME'.length))
   }
 
   if (!path.isAbsolute(configPath)) {
