@@ -5,6 +5,7 @@ import {
   buildEnvOverrideConfig,
   OverrideEnvConfig,
   setupEnvironment,
+  tearDownEnvironment,
   TEST_ENV_CONFIG_FILE
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
