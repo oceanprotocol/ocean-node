@@ -37,4 +37,8 @@ describe('Should validate configuration from JSON', () => {
     expect(config.p2pConfig.bootstrapNodes).to.not.be.equal(null)
     expect(config.p2pConfig.bootstrapNodes.length).to.be.equal(0)
   })
+  after(() => {
+    delete process.env.CONFIG_PATH
+    delete process.env.PRIVATE_KEY
+  })
 })
