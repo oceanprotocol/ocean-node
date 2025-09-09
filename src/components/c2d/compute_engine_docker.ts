@@ -1109,6 +1109,16 @@ export class C2DEngineDocker extends C2DEngine {
     } catch (e) {
       // console.error('Container volume not found! ' + e.message)
     }
+    if (job.algorithm.meta.container && job.algorithm.meta.container.dockerfile) {
+      const image = getAlgorithmImage(job.algorithm, job.jobId)
+      if (image) {
+        try {
+          await this.docker.getImage(image).remove({ force: true })
+        } catch (e) {
+          console.log('Could not delete image: ' + image + ' : ' + e.message)
+        }
+      }
+    }
     try {
       // remove folders
       rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/inputs', {
