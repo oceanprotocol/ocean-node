@@ -1,6 +1,6 @@
 export const freeComputeStartPayload = {
   command: 'freeStartCompute',
-  consumerAddress: '0x00',
+  consumerAddress: '0xeB5ae11175008E8f178d57d0152678a863FbB887',
   environment: '',
   nonce: '1',
   signature: '0x123',
