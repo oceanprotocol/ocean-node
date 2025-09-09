@@ -30,12 +30,14 @@ import { Storage } from '../storage/index.js'
 import Dockerode from 'dockerode'
 import type { ContainerCreateOptions, HostConfig, VolumeCreateOptions } from 'dockerode'
 import * as tar from 'tar'
+import * as tarStream from 'tar-stream'
 import {
   createWriteStream,
   existsSync,
   mkdirSync,
   rmSync,
   writeFileSync,
+  appendFileSync,
   statSync,
   createReadStream
 } from 'fs'
@@ -108,10 +110,11 @@ export class C2DEngineDocker extends C2DEngine {
     }
     // console.log(sysinfo)
     let fees: ComputeEnvFeesStructure = null
-
     const supportedChains: number[] = []
-    for (const chain of Object.keys(config.supportedNetworks)) {
-      supportedChains.push(parseInt(chain))
+    if (config.supportedNetworks) {
+      for (const chain of Object.keys(config.supportedNetworks)) {
+        supportedChains.push(parseInt(chain))
+      }
     }
     for (const feeChain of Object.keys(envConfig.fees)) {
       // for (const feeConfig of envConfig.fees) {
@@ -370,18 +373,6 @@ export class C2DEngineDocker extends C2DEngine {
     // TO DO - iterate over resources and get default runtime
     const isFree: boolean = !(payment && payment.lockTx)
 
-    // C2D - Check image, check arhitecture, etc
-    const image = getAlgorithmImage(algorithm)
-    // ex: node@sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36
-    if (!image) {
-      // send a 500 with the error message
-      throw new Error(
-        `Unable to extract docker image ${image} from algoritm: ${JSON.stringify(
-          algorithm
-        )}`
-      )
-    }
-
     if (metadata && Object.keys(metadata).length > 0) {
       const metadataSize = JSON.stringify(metadata).length
       if (metadataSize > 1024) {
@@ -398,9 +389,18 @@ export class C2DEngineDocker extends C2DEngine {
     if (!env) {
       throw new Error(`Invalid environment ${environment}`)
     }
-    const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
-    if (!validation.valid)
-      throw new Error(`Unable to validate docker image ${image}: ${validation.reason}`)
+    // C2D - Check image, check arhitecture, etc
+    const image = getAlgorithmImage(algorithm, jobId)
+    // ex: node@sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36
+    if (!image) {
+      // send a 500 with the error message
+      throw new Error(
+        `Unable to extract docker image ${image} from algoritm: ${JSON.stringify(
+          algorithm
+        )}`
+      )
+    }
+
     const job: DBComputeJob = {
       clusterHash: this.getC2DConfig().hash,
       containerImage: image,
@@ -430,13 +430,31 @@ export class C2DEngineDocker extends C2DEngine {
       metadata,
       additionalViewers
     }
+
+    if (algorithm.meta.container && algorithm.meta.container.dockerfile) {
+      // we need to build the image
+      job.status = C2DStatusNumber.BuildImage
+      job.statusText = C2DStatusText.BuildImage
+    } else {
+      // already built, we need to validate it
+      const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
+      if (!validation.valid)
+        throw new Error(`Unable to validate docker image ${image}: ${validation.reason}`)
+      job.status = C2DStatusNumber.PullImage
+      job.statusText = C2DStatusText.PullImage
+    }
+
     await this.makeJobFolders(job)
     // make sure we actually were able to insert on DB
     const addedId = await this.db.newJob(job)
     if (!addedId) {
       return []
     }
-
+    if (algorithm.meta.container && algorithm.meta.container.dockerfile) {
+      this.buildImage(job)
+    } else {
+      this.pullImage(job)
+    }
     // only now set the timer
     if (!this.cronTimer) {
       this.setNewTimer()
@@ -473,6 +491,20 @@ export class C2DEngineDocker extends C2DEngine {
   protected async getResults(jobId: string): Promise<ComputeResult[]> {
     const res: ComputeResult[] = []
     let index = 0
+    try {
+      const logStat = statSync(
+        this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/image.log'
+      )
+      if (logStat) {
+        res.push({
+          filename: 'image.log',
+          filesize: logStat.size,
+          type: 'imageLog',
+          index
+        })
+        index = index + 1
+      }
+    } catch (e) {}
     try {
       const logStat = statSync(
         this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/algorithm.log'
@@ -552,6 +584,16 @@ export class C2DEngineDocker extends C2DEngine {
           return {
             stream: createReadStream(
               this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/algorithm.log'
+            ),
+            headers: {
+              'Content-Type': 'text/plain'
+            }
+          }
+        }
+        if (i.type === 'imageLog') {
+          return {
+            stream: createReadStream(
+              this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/image.log'
             ),
             headers: {
               'Content-Type': 'text/plain'
@@ -686,7 +728,7 @@ export class C2DEngineDocker extends C2DEngine {
     //  - monitor running containers and stop them if over limits
     //  - monitor disc space and clean up
     /* steps:
-       - instruct docker to pull image
+       - wait until image is ready
        - create volume
        - after image is ready, create the container
        - download assets & algo into temp folder
@@ -699,65 +741,6 @@ export class C2DEngineDocker extends C2DEngine {
        - delete the container
        - delete the volume
        */
-    if (job.status === C2DStatusNumber.JobStarted) {
-      // pull docker image
-      try {
-        const pullStream = await this.docker.pull(job.containerImage)
-        await new Promise((resolve, reject) => {
-          let wroteStatusBanner = false
-          this.docker.modem.followProgress(
-            pullStream,
-            (err: any, res: any) => {
-              // onFinished
-              if (err) return reject(err)
-              CORE_LOGGER.info('############# Pull docker image complete ##############')
-              resolve(res)
-            },
-            (progress: any) => {
-              // onProgress
-              if (!wroteStatusBanner) {
-                wroteStatusBanner = true
-                CORE_LOGGER.info('############# Pull docker image status: ##############')
-              }
-              // only write the status banner once, its cleaner
-              CORE_LOGGER.info(progress.status)
-            }
-          )
-        })
-      } catch (err) {
-        CORE_LOGGER.error(
-          `Unable to pull docker image: ${job.containerImage}: ${err.message}`
-        )
-        job.status = C2DStatusNumber.PullImageFailed
-        job.statusText = C2DStatusText.PullImageFailed
-        job.isRunning = false
-        job.dateFinished = String(Date.now() / 1000)
-        await this.db.updateJob(job)
-        await this.cleanupJob(job)
-        return
-      }
-
-      job.status = C2DStatusNumber.PullImage
-      job.statusText = C2DStatusText.PullImage
-      await this.db.updateJob(job)
-      return // now we wait until image is ready
-    }
-    if (job.status === C2DStatusNumber.PullImage) {
-      try {
-        const imageInfo = await this.docker.getImage(job.containerImage)
-        console.log('imageInfo', imageInfo)
-        const details = await imageInfo.inspect()
-        console.log('details:', details)
-        job.status = C2DStatusNumber.ConfiguringVolumes
-        job.statusText = C2DStatusText.ConfiguringVolumes
-        await this.db.updateJob(job)
-        // now we can move forward
-      } catch (e) {
-        // not ready yet
-        CORE_LOGGER.error(`Unable to inspect docker image: ${e.message}`)
-      }
-      return
-    }
     if (job.status === C2DStatusNumber.ConfiguringVolumes) {
       // create the volume & create container
       // TO DO C2D:  Choose driver & size
@@ -1112,7 +1095,7 @@ export class C2DEngineDocker extends C2DEngine {
         await container.remove()
       }
     } catch (e) {
-      console.error('Container not found! ' + e.message)
+      // console.error('Container not found! ' + e.message)
     }
     try {
       const volume = await this.docker.getVolume(job.jobId + '-volume')
@@ -1124,7 +1107,7 @@ export class C2DEngineDocker extends C2DEngine {
         }
       }
     } catch (e) {
-      console.error('Container volume not found! ' + e.message)
+      // console.error('Container volume not found! ' + e.message)
     }
     try {
       // remove folders
@@ -1158,6 +1141,115 @@ export class C2DEngineDocker extends C2DEngine {
       recursive: true,
       force: true
     })
+  }
+
+  private async pullImage(originaljob: DBComputeJob) {
+    const job = JSON.parse(JSON.stringify(originaljob)) as DBComputeJob
+    const imageLogFile =
+      this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/image.log'
+    try {
+      const pullStream = await this.docker.pull(job.containerImage)
+      await new Promise((resolve, reject) => {
+        let wroteStatusBanner = false
+        this.docker.modem.followProgress(
+          pullStream,
+          (err: any, res: any) => {
+            // onFinished
+            if (err) {
+              appendFileSync(imageLogFile, String(err.message))
+              return reject(err)
+            }
+            CORE_LOGGER.debug('############# Pull docker image complete ##############')
+            resolve(res)
+          },
+          (progress: any) => {
+            // onProgress
+            if (!wroteStatusBanner) {
+              wroteStatusBanner = true
+              CORE_LOGGER.debug('############# Pull docker image status: ##############')
+            }
+            // only write the status banner once, its cleaner
+            let logText = ''
+            if (progress.id) logText += progress.id + ' : ' + progress.status
+            else logText = progress.status
+            CORE_LOGGER.debug("Pulling image for jobId '" + job.jobId + "': " + logText)
+            console.log(progress)
+            appendFileSync(imageLogFile, logText + '\n')
+          }
+        )
+      })
+      job.status = C2DStatusNumber.ConfiguringVolumes
+      job.statusText = C2DStatusText.ConfiguringVolumes
+      this.db.updateJob(job)
+    } catch (err) {
+      CORE_LOGGER.error(
+        `Unable to pull docker image: ${job.containerImage}: ${err.message}`
+      )
+      job.status = C2DStatusNumber.PullImageFailed
+      job.statusText = C2DStatusText.PullImageFailed
+      job.isRunning = false
+      job.dateFinished = String(Date.now() / 1000)
+      await this.db.updateJob(job)
+      await this.cleanupJob(job)
+    }
+  }
+
+  private async buildImage(originaljob: DBComputeJob) {
+    const job = JSON.parse(JSON.stringify(originaljob)) as DBComputeJob
+    const imageLogFile =
+      this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/image.log'
+    try {
+      const pack = tarStream.pack()
+
+      // Append the Dockerfile to the tar archive
+      pack.entry({ name: 'Dockerfile' }, job.algorithm.meta.container.dockerfile)
+      pack.finalize()
+
+      // Build the image using the tar stream as context
+      const buildStream = await this.docker.buildImage(pack, {
+        t: job.containerImage
+      })
+
+      // Optional: listen to build output
+      buildStream.on('data', (data) => {
+        try {
+          const text = JSON.parse(data.toString('utf8'))
+          CORE_LOGGER.debug(
+            "Building image for jobId '" + job.jobId + "': " + text.stream.trim()
+          )
+          appendFileSync(imageLogFile, String(text.stream))
+        } catch (e) {
+          // console.log('non json build data: ', data.toString('utf8'))
+        }
+      })
+
+      await new Promise<void>((resolve, reject) => {
+        buildStream.on('end', () => {
+          CORE_LOGGER.debug(`Image '${job.containerImage}' built successfully.`)
+
+          resolve()
+        })
+        buildStream.on('error', (err) => {
+          CORE_LOGGER.debug(`Error building image '${job.containerImage}':` + err.message)
+          appendFileSync(imageLogFile, String(err.message))
+          reject(err)
+        })
+      })
+      job.status = C2DStatusNumber.ConfiguringVolumes
+      job.statusText = C2DStatusText.ConfiguringVolumes
+      this.db.updateJob(job)
+    } catch (err) {
+      CORE_LOGGER.error(
+        `Unable to build docker image: ${job.containerImage}: ${err.message}`
+      )
+      appendFileSync(imageLogFile, String(err.message))
+      job.status = C2DStatusNumber.BuildImageFailed
+      job.statusText = C2DStatusText.BuildImageFailed
+      job.isRunning = false
+      job.dateFinished = String(Date.now() / 1000)
+      await this.db.updateJob(job)
+      await this.cleanupJob(job)
+    }
   }
 
   private async uploadData(
@@ -1445,9 +1537,12 @@ export class C2DEngineDocker extends C2DEngine {
 
 // this uses the docker engine, but exposes only one env, the free one
 
-export function getAlgorithmImage(algorithm: ComputeAlgorithm): string {
+export function getAlgorithmImage(algorithm: ComputeAlgorithm, jobId: string): string {
   if (!algorithm.meta || !algorithm.meta.container) {
     return null
+  }
+  if (algorithm.meta.container.dockerfile) {
+    return jobId.toLowerCase() + '-image:latest'
   }
   let { image } = algorithm.meta.container
   if (algorithm.meta.container.checksum)

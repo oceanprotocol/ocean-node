@@ -33,7 +33,7 @@ import { C2DEngineDocker, getAlgorithmImage } from '../../c2d/compute_engine_doc
 import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
 import { areKnownCredentialTypes, checkCredentials } from '../../../utils/credentials.js'
 import { PolicyServer } from '../../policyServer/index.js'
-import { getAlgoChecksums, validateAlgoForDataset } from './utils.js'
+import { generateUniqueID, getAlgoChecksums, validateAlgoForDataset } from './utils.js'
 
 export class ComputeInitializeHandler extends CommandHandler {
   validate(command: ComputeInitializeCommand): ValidateParams {
@@ -366,7 +366,7 @@ export class ComputeInitializeHandler extends CommandHandler {
             }
           }
           if (hasDockerImages) {
-            const algoImage = getAlgorithmImage(task.algorithm)
+            const algoImage = getAlgorithmImage(task.algorithm, generateUniqueID(task))
             if (algoImage) {
               const validation: ValidateParams = await C2DEngineDocker.checkDockerImage(
                 algoImage,

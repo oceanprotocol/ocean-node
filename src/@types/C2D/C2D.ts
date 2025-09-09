@@ -129,6 +129,7 @@ export interface C2DDockerConfig {
 }
 
 export type ComputeResultType =
+  | 'imageLog'
   | 'algorithmLog'
   | 'output'
   | 'configurationLog'
@@ -235,6 +236,10 @@ export enum C2DStatusNumber {
   // eslint-disable-next-line no-unused-vars
   PullImageFailed = 11,
   // eslint-disable-next-line no-unused-vars
+  BuildImage = 12,
+  // eslint-disable-next-line no-unused-vars
+  BuildImageFailed = 13,
+  // eslint-disable-next-line no-unused-vars
   ConfiguringVolumes = 20,
   // eslint-disable-next-line no-unused-vars
   VolumeCreationFailed = 21,
@@ -270,6 +275,10 @@ export enum C2DStatusText {
   PullImage = 'Pulling algorithm image',
   // eslint-disable-next-line no-unused-vars
   PullImageFailed = 'Pulling algorithm image failed',
+  // eslint-disable-next-line no-unused-vars
+  BuildImage = 'Building algorithm image',
+  // eslint-disable-next-line no-unused-vars
+  BuildImageFailed = 'Building algorithm image failed',
   // eslint-disable-next-line no-unused-vars
   ConfiguringVolumes = 'Configuring volumes',
   // eslint-disable-next-line no-unused-vars

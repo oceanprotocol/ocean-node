@@ -6,7 +6,7 @@ import {
   PaidComputeStartCommand
 } from '../../../@types/commands.js'
 import { CommandHandler } from '../handler/handler.js'
-import { getAlgoChecksums, validateAlgoForDataset } from './utils.js'
+import { generateUniqueID, getAlgoChecksums, validateAlgoForDataset } from './utils.js'
 import {
   ValidateParams,
   buildInvalidRequestMessage,
@@ -35,7 +35,6 @@ import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { PolicyServer } from '../../policyServer/index.js'
 import { areKnownCredentialTypes, checkCredentials } from '../../../utils/credentials.js'
-import { generateUniqueID } from '../../database/sqliteCompute.js'
 
 export class PaidComputeStartHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {
@@ -397,8 +396,9 @@ export class PaidComputeStartHandler extends CommandHandler {
           result.validOrder = elem.transferTxId
 
           if (!('meta' in algorithm) && ddo.metadata.type === 'algorithm') {
-            const { entrypoint, image, tag, checksum } = ddo.metadata.algorithm.container
-            const container = { entrypoint, image, tag, checksum }
+            const { entrypoint, image, tag, checksum, dockerfile } =
+              ddo.metadata.algorithm.container
+            const container = { entrypoint, image, tag, checksum, dockerfile }
             algorithm.meta = {
               language: metadata.algorithm.language,
               version: metadata.algorithm.version,
