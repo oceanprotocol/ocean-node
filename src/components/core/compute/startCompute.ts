@@ -558,7 +558,7 @@ export class FreeComputeStartHandler extends CommandHandler {
       return validationResponse
     }
 
-    /* const authValidationResponse = await this.validateTokenOrSignature(
+    const authValidationResponse = await this.validateTokenOrSignature(
       task.authorization,
       task.consumerAddress,
       task.nonce,
@@ -567,7 +567,7 @@ export class FreeComputeStartHandler extends CommandHandler {
     )
     if (authValidationResponse.status.httpStatus !== 200) {
       return authValidationResponse
-    } */
+    }
 
     let engine = null
     try {
