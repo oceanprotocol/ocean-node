@@ -396,9 +396,8 @@ export class PaidComputeStartHandler extends CommandHandler {
           result.validOrder = elem.transferTxId
 
           if (!('meta' in algorithm) && ddo.metadata.type === 'algorithm') {
-            const { entrypoint, image, tag, checksum, dockerfile } =
-              ddo.metadata.algorithm.container
-            const container = { entrypoint, image, tag, checksum, dockerfile }
+            const { entrypoint, image, tag, checksum } = ddo.metadata.algorithm.container
+            const container = { entrypoint, image, tag, checksum }
             algorithm.meta = {
               language: metadata.algorithm.language,
               version: metadata.algorithm.version,
@@ -559,7 +558,7 @@ export class FreeComputeStartHandler extends CommandHandler {
       return validationResponse
     }
 
-    const authValidationResponse = await this.validateTokenOrSignature(
+    /* const authValidationResponse = await this.validateTokenOrSignature(
       task.authorization,
       task.consumerAddress,
       task.nonce,
@@ -568,7 +567,7 @@ export class FreeComputeStartHandler extends CommandHandler {
     )
     if (authValidationResponse.status.httpStatus !== 200) {
       return authValidationResponse
-    }
+    } */
 
     let engine = null
     try {

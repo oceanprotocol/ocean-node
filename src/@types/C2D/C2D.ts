@@ -1,4 +1,4 @@
-import { MetadataAlgorithm } from '@oceanprotocol/ddo-js'
+import { MetadataAlgorithm, ConsumerParameter } from '@oceanprotocol/ddo-js'
 import type { BaseFileObject } from '../fileObject.js'
 export enum C2DClusterType {
   // eslint-disable-next-line no-unused-vars
@@ -181,12 +181,22 @@ export interface ComputeAsset {
   transferTxId?: string
   userdata?: { [key: string]: any }
 }
-
+export interface ExtendedMetadataAlgorithm extends MetadataAlgorithm {
+  container: {
+    // retain existing properties
+    entrypoint: string
+    image: string
+    tag: string
+    checksum: string
+    dockerfile?: string // optional
+    consumerParameters?: ConsumerParameter[]
+  }
+}
 export interface ComputeAlgorithm {
   documentId?: string
   serviceId?: string
   fileObject?: BaseFileObject
-  meta?: MetadataAlgorithm
+  meta?: ExtendedMetadataAlgorithm
   transferTxId?: string
   algocustomdata?: { [key: string]: any }
   userdata?: { [key: string]: any }
