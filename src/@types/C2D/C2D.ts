@@ -253,6 +253,8 @@ export enum C2DStatusNumber {
   // eslint-disable-next-line no-unused-vars
   AlgorithmFailed = 41,
   // eslint-disable-next-line no-unused-vars
+  DiskQuotaExceeded = 42,
+  // eslint-disable-next-line no-unused-vars
   FilteringResults = 50,
   // eslint-disable-next-line no-unused-vars
   PublishingResults = 60,
@@ -288,6 +290,8 @@ export enum C2DStatusText {
   RunningAlgorithm = 'Running algorithm ',
   // eslint-disable-next-line no-unused-vars
   AlgorithmFailed = 'Failed to run algorithm',
+  // eslint-disable-next-line no-unused-vars
+  DiskQuotaExceeded = 'Job terminated: DISK QUOTA EXCEEDED',
   // eslint-disable-next-line no-unused-vars
   FilteringResults = 'Filtering results',
   // eslint-disable-next-line no-unused-vars
