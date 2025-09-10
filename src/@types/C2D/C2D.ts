@@ -189,6 +189,7 @@ export interface ExtendedMetadataAlgorithm extends MetadataAlgorithm {
     tag: string
     checksum: string
     dockerfile?: string // optional
+    additionalDockerFiles?: { [key: string]: any }
     consumerParameters?: ConsumerParameter[]
   }
 }

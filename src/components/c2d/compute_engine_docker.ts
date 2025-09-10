@@ -400,7 +400,18 @@ export class C2DEngineDocker extends C2DEngine {
         )}`
       )
     }
-
+    let additionalDockerFiles: { [key: string]: any } = null
+    if (
+      algorithm.meta &&
+      algorithm.meta.container &&
+      algorithm.meta.container.additionalDockerFiles
+    ) {
+      additionalDockerFiles = JSON.parse(
+        JSON.stringify(algorithm.meta.container.additionalDockerFiles)
+      )
+      // make sure that we don't keep them in the db structure
+      algorithm.meta.container.additionalDockerFiles = null
+    }
     const job: DBComputeJob = {
       clusterHash: this.getC2DConfig().hash,
       containerImage: image,
@@ -451,7 +462,7 @@ export class C2DEngineDocker extends C2DEngine {
       return []
     }
     if (algorithm.meta.container && algorithm.meta.container.dockerfile) {
-      this.buildImage(job)
+      this.buildImage(job, additionalDockerFiles)
     } else {
       this.pullImage(job)
     }
@@ -1204,7 +1215,10 @@ export class C2DEngineDocker extends C2DEngine {
     }
   }
 
-  private async buildImage(originaljob: DBComputeJob) {
+  private async buildImage(
+    originaljob: DBComputeJob,
+    additionalDockerFiles: { [key: string]: any }
+  ) {
     const job = JSON.parse(JSON.stringify(originaljob)) as DBComputeJob
     const imageLogFile =
       this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/logs/image.log'
@@ -1213,6 +1227,12 @@ export class C2DEngineDocker extends C2DEngine {
 
       // Append the Dockerfile to the tar archive
       pack.entry({ name: 'Dockerfile' }, job.algorithm.meta.container.dockerfile)
+      // Append any additional files to the tar archive
+      if (additionalDockerFiles) {
+        for (const filePath of Object.keys(additionalDockerFiles)) {
+          pack.entry({ name: filePath }, additionalDockerFiles[filePath])
+        }
+      }
       pack.finalize()
 
       // Build the image using the tar stream as context
