@@ -1224,7 +1224,6 @@ export class C2DEngineDocker extends C2DEngine {
         return 0
       }
 
-      // Execute du command inside the container - simpler approach
       const exec = await container.exec({
         Cmd: ['du', '-sb', path],
         AttachStdout: true,
