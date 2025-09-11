@@ -58,6 +58,7 @@ export class C2DEngineDocker extends C2DEngine {
   public docker: Dockerode
   private cronTimer: any
   private cronTime: number = 2000
+  private jobImageSizes: Map<string, number> = new Map()
   public constructor(clusterConfig: C2DClusterInfo, db: C2DDatabase, escrow: Escrow) {
     super(clusterConfig, db, escrow)
 
@@ -923,6 +924,9 @@ export class C2DEngineDocker extends C2DEngine {
             job.isStarted = true
             job.algoStartTimestamp = String(Date.now() / 1000)
             await this.db.updateJob(job)
+            CORE_LOGGER.info(`Container started successfully for job ${job.jobId}`)
+
+            await this.measureContainerBaseSize(job, container)
             return
           } catch (e) {
             // container failed to start
@@ -952,7 +956,12 @@ export class C2DEngineDocker extends C2DEngine {
           }
         }
       } else {
-        // is running, we need to stop it..
+        const canContinue = await this.monitorDiskUsage(job)
+        if (!canContinue) {
+          // Job was terminated due to disk quota exceeded
+          return
+        }
+
         console.log('running, need to stop it?')
         const timeNow = Date.now() / 1000
         const expiry = parseFloat(job.algoStartTimestamp) + job.maxJobDuration
@@ -1043,6 +1052,8 @@ export class C2DEngineDocker extends C2DEngine {
     //  - get algo logs
     //  - delete volume
     //  - delete container
+
+    this.jobImageSizes.delete(job.jobId)
 
     // payments
     if (!job.isFree && job.payment) {
@@ -1162,6 +1173,130 @@ export class C2DEngineDocker extends C2DEngine {
       recursive: true,
       force: true
     })
+  }
+
+  private getDiskQuota(job: DBComputeJob): number {
+    if (!job.resources) return 0
+
+    const diskResource = job.resources.find((resource) => resource.id === 'disk')
+    return diskResource ? diskResource.amount : 0
+  }
+
+  // Inspect the real runtime size of the container
+  private async measureContainerBaseSize(
+    job: DBComputeJob,
+    container: Dockerode.Container
+  ): Promise<void> {
+    try {
+      if (this.jobImageSizes.has(job.jobId)) {
+        CORE_LOGGER.debug(`Using cached base size for job ${job.jobId.slice(-8)}`)
+        return
+      }
+
+      // Wait for container filesystem to stabilize
+      await new Promise((resolve) => setTimeout(resolve, 3000))
+
+      const actualBaseSize = await this.getContainerDiskUsage(container.id, '/')
+      this.jobImageSizes.set(job.jobId, actualBaseSize)
+
+      CORE_LOGGER.info(
+        `Base container ${job.containerImage} runtime size: ${(
+          actualBaseSize /
+          1024 /
+          1024 /
+          1024
+        ).toFixed(2)}GB`
+      )
+    } catch (error) {
+      CORE_LOGGER.error(`Failed to measure base container size: ${error.message}`)
+      this.jobImageSizes.set(job.jobId, 0)
+    }
+  }
+
+  private async getContainerDiskUsage(
+    containerName: string,
+    path: string = '/data'
+  ): Promise<number> {
+    try {
+      const container = this.docker.getContainer(containerName)
+      const containerInfo = await container.inspect()
+
+      if (!containerInfo.State.Running) {
+        CORE_LOGGER.debug(
+          `Container ${containerName} is not running, cannot check disk usage`
+        )
+        return 0
+      }
+
+      const exec = await container.exec({
+        Cmd: ['du', '-sb', path],
+        AttachStdout: true,
+        AttachStderr: true
+      })
+
+      const stream = await exec.start({ Detach: false, Tty: false })
+
+      const chunks: Buffer[] = []
+      for await (const chunk of stream) {
+        chunks.push(chunk as Buffer)
+      }
+
+      const output = Buffer.concat(chunks).toString()
+
+      const match = output.match(/(\d+)\s/)
+      return match ? parseInt(match[1], 10) : 0
+    } catch (error) {
+      CORE_LOGGER.error(
+        `Failed to get container disk usage for ${containerName}: ${error.message}`
+      )
+      return 0
+    }
+  }
+
+  private async monitorDiskUsage(job: DBComputeJob): Promise<boolean> {
+    const diskQuota = this.getDiskQuota(job)
+    if (diskQuota <= 0) return true
+
+    const containerName = job.jobId + '-algoritm'
+    const totalUsage = await this.getContainerDiskUsage(containerName, '/')
+    const baseImageSize = this.jobImageSizes.get(job.jobId) || 0
+    const algorithmUsage = Math.max(0, totalUsage - baseImageSize)
+
+    const usageGB = (algorithmUsage / 1024 / 1024 / 1024).toFixed(2)
+    const quotaGB = (diskQuota / 1024 / 1024 / 1024).toFixed(1)
+    const usagePercent = ((algorithmUsage / diskQuota) * 100).toFixed(1)
+
+    CORE_LOGGER.info(
+      `Job ${job.jobId.slice(-8)} disk: ${usageGB}GB / ${quotaGB}GB (${usagePercent}%)`
+    )
+
+    if (algorithmUsage > diskQuota) {
+      CORE_LOGGER.warn(
+        `DISK QUOTA EXCEEDED - Stopping job ${job.jobId}: ${usageGB}GB used, ${quotaGB}GB allowed`
+      )
+
+      try {
+        const container = this.docker.getContainer(containerName)
+        await container.stop()
+        CORE_LOGGER.info(`Container stopped for job ${job.jobId}`)
+      } catch (e) {
+        CORE_LOGGER.warn(`Could not stop container: ${e.message}`)
+      }
+
+      job.status = C2DStatusNumber.DiskQuotaExceeded
+      job.statusText = C2DStatusText.DiskQuotaExceeded
+      job.isRunning = false
+      job.isStarted = false
+      job.algoStopTimestamp = String(Date.now() / 1000)
+      job.dateFinished = String(Date.now() / 1000)
+
+      await this.db.updateJob(job)
+      CORE_LOGGER.info(`Job ${job.jobId} terminated - DISK QUOTA EXCEEDED`)
+
+      return false
+    }
+
+    return true
   }
 
   private async pullImage(originaljob: DBComputeJob) {
