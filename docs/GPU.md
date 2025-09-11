@@ -122,7 +122,7 @@ root@gpu-1:/repos/ocean/ocean-node# curl http://localhost:8000/api/services/comp
   {
     "id": "0xd6b10b27aab01a72070a5164c07d0517755838b9cb9857e2d5649287ec3aaaa2-0x66073c81f833deaa2f8e2a508f69cf78f8a99b17ba1a64f369af921750f93914",
     "runningJobs": 0,
-    "consumerAddress": "0x4fb80776C8eb4cAbe7730dcBCdb1fa6ecD3c460E",
+    "consumerAddress": "0x00",
     "platform": { "architecture": "x86_64", "os": "Ubuntu 22.04.3 LTS" },
     "fees": {
       "1": [
@@ -194,7 +194,7 @@ Start a free job using:
       "rawcode": "import tensorflow as tf\nsess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(log_device_placement=True))\nprint(\"Num GPUs Available: \", len(tf.config.list_physical_devices('GPU')))\ngpus = tf.config.list_physical_devices('GPU')\nfor gpu in gpus:\n\tprint('Name:', gpu.name, '  Type:', gpu.device_type)"
     }
   },
-  "consumerAddress": "0xC7EC1970B09224B317c52d92f37F5e1E4fF6B687",
+  "consumerAddress": "0x00",
   "signature": "123",
   "nonce": 1,
   "environment": "0xd6b10b27aab01a72070a5164c07d0517755838b9cb9857e2d5649287ec3aaaa2-0x66073c81f833deaa2f8e2a508f69cf78f8a99b17ba1a64f369af921750f93914",
@@ -325,7 +325,7 @@ root@gpu-1:/repos/ocean/ocean-node# curl http://localhost:8000/api/services/comp
   {
     "id": "0xbb5773e734e1b188165dac88d9a3dc8ac28bc9f5624b45fa8bbd8fca043de7c1-0x2c2761f938cf186eeb81f71dee06ad7edb299493e39c316c390d0c0691e6585c",
     "runningJobs": 0,
-    "consumerAddress": "0x4fb80776C8eb4cAbe7730dcBCdb1fa6ecD3c460E",
+    "consumerAddress": "0x00",
     "platform": {
       "architecture": "x86_64",
       "os": "Ubuntu 24.04.2 LTS"
@@ -450,7 +450,7 @@ Start a free job with
       "rawcode": "import tensorflow as tf\nsess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(log_device_placement=True))\nprint(\"Num GPUs Available: \", len(tf.config.list_physical_devices('GPU')))\ngpus = tf.config.list_physical_devices('GPU')\nfor gpu in gpus:\n\tprint('Name:', gpu.name, '  Type:', gpu.device_type)"
     }
   },
-  "consumerAddress": "0xC7EC1970B09224B317c52d92f37F5e1E4fF6B687",
+  "consumerAddress": "0x00",
   "signature": "123",
   "nonce": 1,
   "environment": "0xbb5773e734e1b188165dac88d9a3dc8ac28bc9f5624b45fa8bbd8fca043de7c1-0x2c2761f938cf186eeb81f71dee06ad7edb299493e39c316c390d0c0691e6585c",
