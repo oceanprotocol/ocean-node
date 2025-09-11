@@ -291,7 +291,7 @@ export enum C2DStatusText {
   // eslint-disable-next-line no-unused-vars
   AlgorithmFailed = 'Failed to run algorithm',
   // eslint-disable-next-line no-unused-vars
-  DiskQuotaExceeded = 'Job terminated: DISK QUOTA EXCEEDED',
+  DiskQuotaExceeded = 'Error: disk quota exceeded',
   // eslint-disable-next-line no-unused-vars
   FilteringResults = 'Filtering results',
   // eslint-disable-next-line no-unused-vars
