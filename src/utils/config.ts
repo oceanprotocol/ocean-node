@@ -67,6 +67,7 @@ export const OceanNodeConfigSchema = z.object({
   dbConfig: OceanNodeDBConfigSchema.optional(),
 
   httpPort: z.number().int(),
+  rateLimit: z.union([z.number(), z.object({})]).optional(),
   feeStrategy: FeeStrategySchema,
 
   supportedNetworks: RPCSSchema.optional(),
@@ -83,7 +84,6 @@ export const OceanNodeConfigSchema = z.object({
   allowedAdminsList: AccessListContractSchema.nullable().optional(),
 
   codeHash: z.string().optional(),
-  rateLimit: z.number().optional(),
   maxConnections: z.number().optional(),
   denyList: DenyListSchema.optional(),
   unsafeURLs: z.array(z.string()).optional(),
@@ -795,7 +795,6 @@ export function buildMergedConfig(): OceanNodeConfig {
   const baseConfig = loadConfigFromEnv()
 
   const overrides = {
-    httpPort: process.env.HTTP_PORT ? Number(process.env.HTTP_PORT) : undefined,
     jwtSecret: process.env.JWT_SECRET,
     dbConfig: {
       url: process.env.DB_URL,
