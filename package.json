@@ -105,7 +105,8 @@
     "uuid": "^11.1.0",
     "winston": "^3.11.0",
     "winston-daily-rotate-file": "^4.7.1",
-    "winston-transport": "^4.6.0"
+    "winston-transport": "^4.6.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/chai": "^4.3.10",

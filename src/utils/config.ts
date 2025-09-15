@@ -37,7 +37,62 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
+import { z } from 'zod'
 
+const AccessListContractSchema = z.any()
+const OceanNodeKeysSchema = z.any()
+const OceanNodeP2PConfigSchema = z.any()
+const OceanNodeDBConfigSchema = z.any()
+const FeeStrategySchema = z.any()
+const RPCSSchema = z.any()
+const C2DClusterInfoSchema = z.any()
+const DenyListSchema = z.any()
+
+export const OceanNodeConfigSchema = z.object({
+  authorizedDecrypters: z.array(z.string()),
+  authorizedDecryptersList: AccessListContractSchema.nullable(),
+  allowedValidators: z.array(z.string()),
+  allowedValidatorsList: AccessListContractSchema.nullable(),
+  authorizedPublishers: z.array(z.string()),
+  authorizedPublishersList: AccessListContractSchema.nullable(),
+
+  keys: OceanNodeKeysSchema,
+
+  hasP2P: z.boolean(),
+  p2pConfig: OceanNodeP2PConfigSchema.nullable(),
+  hasIndexer: z.boolean(),
+  hasHttp: z.boolean(),
+  hasControlPanel: z.boolean(),
+
+  dbConfig: OceanNodeDBConfigSchema.optional(),
+
+  httpPort: z.number().int(),
+  feeStrategy: FeeStrategySchema,
+
+  supportedNetworks: RPCSSchema.optional(),
+
+  claimDurationTimeout: z.number().int(),
+  indexingNetworks: RPCSSchema.optional(),
+
+  c2dClusters: z.array(C2DClusterInfoSchema),
+  c2dNodeUri: z.string(),
+  accountPurgatoryUrl: z.string(),
+  assetPurgatoryUrl: z.string(),
+
+  allowedAdmins: z.array(z.string()).optional(),
+  allowedAdminsList: AccessListContractSchema.nullable().optional(),
+
+  codeHash: z.string().optional(),
+  rateLimit: z.number().optional(),
+  maxConnections: z.number().optional(),
+  denyList: DenyListSchema.optional(),
+  unsafeURLs: z.array(z.string()).optional(),
+  isBootstrap: z.boolean().optional(),
+  validateUnsignedDDO: z.boolean().optional(),
+  jwtSecret: z.string().optional()
+})
+
+export type OceanNodeConfigParsed = z.infer<typeof OceanNodeConfigSchema>
 // usefull for lazy loading and avoid boilerplate on other places
 let previousConfiguration: OceanNodeConfig = null
 
@@ -668,7 +723,7 @@ export async function getConfiguration(
     if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.CONFIG_PATH)) {
       previousConfiguration = await getEnvConfig(isStartup)
     } else {
-      previousConfiguration = loadConfigFromEnv()
+      previousConfiguration = buildMergedConfig()
     }
   }
   if (!previousConfiguration.codeHash) {
@@ -734,6 +789,27 @@ export function loadConfigFromEnv(envVar: string = 'CONFIG_PATH'): OceanNodeConf
     )
   }
   return config
+}
+
+export function buildMergedConfig(): OceanNodeConfig {
+  const baseConfig = loadConfigFromEnv()
+
+  const overrides = {
+    httpPort: process.env.HTTP_PORT ? Number(process.env.HTTP_PORT) : undefined,
+    jwtSecret: process.env.JWT_SECRET,
+    dbConfig: {
+      url: process.env.DB_URL,
+      username: process.env.DB_USERNAME,
+      password: process.env.DB_PASSWORD,
+      dbType: process.env.DB_TYPE
+    }
+  }
+  const merged = {
+    ...baseConfig,
+    ...overrides
+  }
+
+  return OceanNodeConfigSchema.parse(merged) as OceanNodeConfig
 }
 
 // we can just use the lazy version above "getConfiguration()" and specify if we want to reload from .env variables
