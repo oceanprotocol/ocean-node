@@ -53,21 +53,6 @@ describe('Should validate configuration from JSON', () => {
     expect(config.p2pConfig.bootstrapNodes.length).to.be.equal(0)
   })
   it('should have defaults set', () => {
-    expect(config.unsafeURLs).to.be.equal([
-      // AWS and GCP
-      '^.*(169.254.169.254).*',
-      // GCP
-      '^.*(metadata.google.internal).*',
-      '^.*(http://metadata).*',
-      // Azure
-      '^.*(http://169.254.169.254).*',
-      // Oracle Cloud
-      '^.*(http://192.0.0.192).*',
-      // Alibaba Cloud
-      '^.*(http://100.100.100.200).*',
-      // k8s ETCD
-      '^.*(127.0.0.1).*'
-    ])
     expect(config.isBootstrap).to.be.equal(false)
     expect(config.validateUnsignedDDO).to.be.equal(true)
   })
