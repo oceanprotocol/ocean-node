@@ -35,7 +35,129 @@ import { create256Hash } from './crypt.js'
 import { isDefined } from './util.js'
 import { fileURLToPath } from 'url'
 import path from 'path'
+import fs from 'fs'
+import os from 'os'
+import { z } from 'zod'
 
+const AccessListContractSchema = z.any()
+const OceanNodeKeysSchema = z.any()
+
+const OceanNodeDBConfigSchema = z.any()
+const FeeStrategySchema = z.any()
+const RPCSSchema = z.any()
+const C2DClusterInfoSchema = z.any()
+const DenyListSchema = z.any()
+
+const OceanNodeP2PConfigSchema = z.object({
+  bootstrapNodes: z.array(z.string()).optional().default(defaultBootstrapAddresses),
+  bootstrapTimeout: z.number().int().optional().default(2000),
+  bootstrapTagName: z.string().optional().default('bootstrap'),
+  bootstrapTagValue: z.number().int().optional().default(50),
+  enableIPV4: z.boolean().optional().default(true),
+  enableIPV6: z.boolean().optional().default(true),
+  ipV4BindAddress: z.string().optional().default('0.0.0.0'),
+  ipV4BindTcpPort: z.number().int().optional().default(0),
+  ipV4BindWsPort: z.number().int().optional().default(0),
+  ipV6BindAddress: z.string().optional().default('::1'),
+  ipV6BindTcpPort: z.number().int().optional().default(0),
+  ipV6BindWsPort: z.number().int().optional().default(0),
+  pubsubPeerDiscoveryInterval: z.number().int().optional().default(1000),
+  dhtMaxInboundStreams: z.number().int().optional().default(500),
+  dhtMaxOutboundStreams: z.number().int().optional().default(500),
+  mDNSInterval: z.number().int().optional().default(20e3),
+  connectionsMaxParallelDials: z.number().int().optional().default(15),
+  connectionsDialTimeout: z.number().int().optional().default(30e3),
+  upnp: z.boolean().optional().default(true),
+  autoNat: z.boolean().optional().default(true),
+  enableCircuitRelayServer: z.boolean().optional().default(false),
+  enableCircuitRelayClient: z.boolean().optional().default(false),
+  circuitRelays: z.number().int().optional().default(0),
+  announcePrivateIp: z.boolean().optional().default(false),
+  filterAnnouncedAddresses: z
+    .array(z.string())
+    .optional()
+    .default([
+      '127.0.0.0/8',
+      '10.0.0.0/8',
+      '172.16.0.0/12',
+      '192.168.0.0/16',
+      '100.64.0.0/10',
+      '169.254.0.0/16',
+      '192.0.0.0/24',
+      '192.0.2.0/24',
+      '198.51.100.0/24',
+      '203.0.113.0/24',
+      '224.0.0.0/4',
+      '240.0.0.0/4'
+    ]),
+  minConnections: z.number().int().optional().default(1),
+  maxConnections: z.number().int().optional().default(300),
+  autoDialPeerRetryThreshold: z.number().int().optional().default(120000),
+  autoDialConcurrency: z.number().int().optional().default(5),
+  maxPeerAddrsToDial: z.number().int().optional().default(5),
+  autoDialInterval: z.number().int().optional().default(5000),
+  enableNetworkStats: z.boolean().optional().default(false)
+})
+
+export const OceanNodeConfigSchema = z.object({
+  authorizedDecrypters: z.array(z.string()),
+  authorizedDecryptersList: AccessListContractSchema.nullable(),
+  allowedValidators: z.array(z.string()),
+  allowedValidatorsList: AccessListContractSchema.nullable(),
+  authorizedPublishers: z.array(z.string()),
+  authorizedPublishersList: AccessListContractSchema.nullable(),
+
+  keys: OceanNodeKeysSchema,
+
+  hasP2P: z.boolean(),
+  p2pConfig: OceanNodeP2PConfigSchema.nullable(),
+  hasIndexer: z.boolean(),
+  hasHttp: z.boolean(),
+  hasControlPanel: z.boolean(),
+
+  dbConfig: OceanNodeDBConfigSchema.optional(),
+
+  httpPort: z.number().int(),
+  rateLimit: z.union([z.number(), z.object({})]).optional(),
+  feeStrategy: FeeStrategySchema,
+
+  supportedNetworks: RPCSSchema.optional(),
+
+  claimDurationTimeout: z.number().int().default(600),
+  indexingNetworks: RPCSSchema.optional(),
+
+  c2dClusters: z.array(C2DClusterInfoSchema),
+  c2dNodeUri: z.string(),
+  accountPurgatoryUrl: z.string(),
+  assetPurgatoryUrl: z.string(),
+
+  allowedAdmins: z.array(z.string()).optional(),
+  allowedAdminsList: AccessListContractSchema.nullable().optional(),
+
+  codeHash: z.string().optional(),
+  maxConnections: z.number().optional(),
+  denyList: DenyListSchema.optional(),
+  unsafeURLs: z.array(z.string()).optional().default([
+    // AWS and GCP
+    '^.*(169.254.169.254).*',
+    // GCP
+    '^.*(metadata.google.internal).*',
+    '^.*(http://metadata).*',
+    // Azure
+    '^.*(http://169.254.169.254).*',
+    // Oracle Cloud
+    '^.*(http://192.0.0.192).*',
+    // Alibaba Cloud
+    '^.*(http://100.100.100.200).*',
+    // k8s ETCD
+    '^.*(127.0.0.1).*'
+  ]),
+  isBootstrap: z.boolean().optional().default(false),
+  validateUnsignedDDO: z.boolean().optional().default(true),
+  jwtSecret: z.string().optional()
+})
+
+export type OceanNodeConfigParsed = z.infer<typeof OceanNodeConfigSchema>
 // usefull for lazy loading and avoid boilerplate on other places
 let previousConfiguration: OceanNodeConfig = null
 
@@ -663,7 +785,11 @@ export async function getConfiguration(
   isStartup: boolean = false
 ): Promise<OceanNodeConfig> {
   if (!previousConfiguration || forceReload) {
-    previousConfiguration = await getEnvConfig(isStartup)
+    if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.CONFIG_PATH)) {
+      previousConfiguration = await getEnvConfig(isStartup)
+    } else {
+      previousConfiguration = buildMergedConfig()
+    }
   }
   if (!previousConfiguration.codeHash) {
     const __filename = fileURLToPath(import.meta.url)
@@ -672,6 +798,82 @@ export async function getConfiguration(
   }
 
   return previousConfiguration
+}
+
+export function loadConfigFromEnv(envVar: string = 'CONFIG_PATH'): OceanNodeConfig {
+  let configPath = process.env[envVar]
+  if (!configPath) {
+    throw new Error(`Environment variable "${envVar}" is not set.`)
+  }
+  // Expand $HOME if present
+  if (configPath.startsWith('$HOME')) {
+    const home = process.env.HOME || os.homedir()
+    if (!home) {
+      throw new Error(
+        `"${envVar}" contains $HOME but HOME is not set in the environment.`
+      )
+    }
+    configPath = path.join(home, configPath.slice('$HOME'.length))
+  }
+
+  if (!path.isAbsolute(configPath)) {
+    throw new Error(
+      `Environment variable "${envVar}" must be an absolute path. Got: ${configPath}`
+    )
+  }
+
+  if (!fs.existsSync(configPath)) {
+    throw new Error(`Config file not found at path: ${configPath}`)
+  }
+
+  const privateKey = process.env.PRIVATE_KEY
+  if (!privateKey || privateKey.length !== 66) {
+    // invalid private key
+    CONFIG_LOGGER.logMessageWithEmoji(
+      'Invalid PRIVATE_KEY env variable..',
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
+    return null
+  }
+
+  const rawData = fs.readFileSync(configPath, 'utf-8')
+  let config: OceanNodeConfig
+
+  try {
+    config = JSON.parse(rawData)
+  } catch (err) {
+    throw new Error(`Invalid JSON in config file: ${configPath}. Error: ${err.message}`)
+  }
+  if (!previousConfiguration) {
+    previousConfiguration = config
+  } else if (configChanged(previousConfiguration, config)) {
+    CONFIG_LOGGER.warn(
+      'Detected Ocean Node Configuration change... This might have unintended effects'
+    )
+  }
+  return config
+}
+
+export function buildMergedConfig(): OceanNodeConfig {
+  const baseConfig = loadConfigFromEnv()
+
+  const overrides = {
+    jwtSecret: process.env.JWT_SECRET,
+    dbConfig: {
+      url: process.env.DB_URL,
+      username: process.env.DB_USERNAME,
+      password: process.env.DB_PASSWORD,
+      dbType: process.env.DB_TYPE
+    }
+  }
+  const merged = {
+    ...baseConfig,
+    ...overrides
+  }
+
+  return OceanNodeConfigSchema.parse(merged) as OceanNodeConfig
 }
 
 // we can just use the lazy version above "getConfiguration()" and specify if we want to reload from .env variables
