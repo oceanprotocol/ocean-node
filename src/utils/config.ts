@@ -41,12 +41,63 @@ import { z } from 'zod'
 
 const AccessListContractSchema = z.any()
 const OceanNodeKeysSchema = z.any()
-const OceanNodeP2PConfigSchema = z.any()
+
 const OceanNodeDBConfigSchema = z.any()
 const FeeStrategySchema = z.any()
 const RPCSSchema = z.any()
 const C2DClusterInfoSchema = z.any()
 const DenyListSchema = z.any()
+
+const OceanNodeP2PConfigSchema = z.object({
+  bootstrapNodes: z.array(z.string()).optional().default(defaultBootstrapAddresses),
+  bootstrapTimeout: z.number().int().optional().default(2000),
+  bootstrapTagName: z.string().optional().default('bootstrap'),
+  bootstrapTagValue: z.number().int().optional().default(50),
+  enableIPV4: z.boolean().optional().default(true),
+  enableIPV6: z.boolean().optional().default(true),
+  ipV4BindAddress: z.string().optional().default('0.0.0.0'),
+  ipV4BindTcpPort: z.number().int().optional().default(0),
+  ipV4BindWsPort: z.number().int().optional().default(0),
+  ipV6BindAddress: z.string().optional().default('::1'),
+  ipV6BindTcpPort: z.number().int().optional().default(0),
+  ipV6BindWsPort: z.number().int().optional().default(0),
+  pubsubPeerDiscoveryInterval: z.number().int().optional().default(1000),
+  dhtMaxInboundStreams: z.number().int().optional().default(500),
+  dhtMaxOutboundStreams: z.number().int().optional().default(500),
+  mDNSInterval: z.number().int().optional().default(20e3),
+  connectionsMaxParallelDials: z.number().int().optional().default(15),
+  connectionsDialTimeout: z.number().int().optional().default(30e3),
+  upnp: z.boolean().optional().default(true),
+  autoNat: z.boolean().optional().default(true),
+  enableCircuitRelayServer: z.boolean().optional().default(false),
+  enableCircuitRelayClient: z.boolean().optional().default(false),
+  circuitRelays: z.number().int().optional().default(0),
+  announcePrivateIp: z.boolean().optional().default(false),
+  filterAnnouncedAddresses: z
+    .array(z.string())
+    .optional()
+    .default([
+      '127.0.0.0/8',
+      '10.0.0.0/8',
+      '172.16.0.0/12',
+      '192.168.0.0/16',
+      '100.64.0.0/10',
+      '169.254.0.0/16',
+      '192.0.0.0/24',
+      '192.0.2.0/24',
+      '198.51.100.0/24',
+      '203.0.113.0/24',
+      '224.0.0.0/4',
+      '240.0.0.0/4'
+    ]),
+  minConnections: z.number().int().optional().default(1),
+  maxConnections: z.number().int().optional().default(300),
+  autoDialPeerRetryThreshold: z.number().int().optional().default(120000),
+  autoDialConcurrency: z.number().int().optional().default(5),
+  maxPeerAddrsToDial: z.number().int().optional().default(5),
+  autoDialInterval: z.number().int().optional().default(5000),
+  enableNetworkStats: z.boolean().optional().default(false)
+})
 
 export const OceanNodeConfigSchema = z.object({
   authorizedDecrypters: z.array(z.string()),
@@ -72,7 +123,7 @@ export const OceanNodeConfigSchema = z.object({
 
   supportedNetworks: RPCSSchema.optional(),
 
-  claimDurationTimeout: z.number().int(),
+  claimDurationTimeout: z.number().int().default(600),
   indexingNetworks: RPCSSchema.optional(),
 
   c2dClusters: z.array(C2DClusterInfoSchema),
@@ -86,9 +137,23 @@ export const OceanNodeConfigSchema = z.object({
   codeHash: z.string().optional(),
   maxConnections: z.number().optional(),
   denyList: DenyListSchema.optional(),
-  unsafeURLs: z.array(z.string()).optional(),
-  isBootstrap: z.boolean().optional(),
-  validateUnsignedDDO: z.boolean().optional(),
+  unsafeURLs: z.array(z.string()).optional().default([
+    // AWS and GCP
+    '^.*(169.254.169.254).*',
+    // GCP
+    '^.*(metadata.google.internal).*',
+    '^.*(http://metadata).*',
+    // Azure
+    '^.*(http://169.254.169.254).*',
+    // Oracle Cloud
+    '^.*(http://192.0.0.192).*',
+    // Alibaba Cloud
+    '^.*(http://100.100.100.200).*',
+    // k8s ETCD
+    '^.*(127.0.0.1).*'
+  ]),
+  isBootstrap: z.boolean().optional().default(false),
+  validateUnsignedDDO: z.boolean().optional().default(true),
   jwtSecret: z.string().optional()
 })
 
