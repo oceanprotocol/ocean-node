@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import { getConfiguration } from '../../utils/config.js'
+import { getConfiguration, loadConfigFromEnv } from '../../utils/config.js'
 import { TEST_ENV_CONFIG_PATH, setupEnvironment } from '../utils/utils.js'
 
 let config: OceanNodeConfig
@@ -22,8 +22,11 @@ describe('Should validate configuration from JSON', () => {
   it('should have indexer', () => {
     expect(config.hasIndexer).to.be.equal(true)
     expect(config.dbConfig).to.not.be.equal(null)
-    expect(config.dbConfig.dbType).to.be.equal('elasticsearch')
-    expect(config.dbConfig.url).to.be.equal('http://localhost:9200')
+    // it is exported in the env vars, so it should overwrite the config.json
+    expect(config.dbConfig.dbType).to.be.equal('typesense')
+    const configFile = loadConfigFromEnv()
+    expect(config.dbConfig.dbType).to.not.be.equal(configFile.dbConfig.dbType)
+    expect(config.dbConfig.url).to.be.equal('http://localhost:8108/?apiKey=xyz')
   })
 
   it('should have HTTP', () => {
