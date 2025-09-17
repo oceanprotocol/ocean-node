@@ -33,6 +33,7 @@ import { C2DEngineDocker, getAlgorithmImage } from '../../c2d/compute_engine_doc
 import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
 import { areKnownCredentialTypes, checkCredentials } from '../../../utils/credentials.js'
 import { PolicyServer } from '../../policyServer/index.js'
+import { generateUniqueID, getAlgoChecksums, validateAlgoForDataset } from './utils.js'
 
 export class ComputeInitializeHandler extends CommandHandler {
   validate(command: ComputeInitializeCommand): ValidateParams {
@@ -85,6 +86,28 @@ export class ComputeInitializeHandler extends CommandHandler {
           status: {
             httpStatus: 500,
             error: 'Invalid C2D Environment'
+          }
+        }
+      }
+
+      const algoChecksums = await getAlgoChecksums(
+        task.algorithm.documentId,
+        task.algorithm.serviceId,
+        node
+      )
+
+      const isRawCodeAlgorithm = task.algorithm.meta?.rawcode
+      const hasValidChecksums = algoChecksums.container && algoChecksums.files
+
+      if (!isRawCodeAlgorithm && !hasValidChecksums) {
+        const errorMessage =
+          'Failed to retrieve algorithm checksums. Both container and files checksums are required.'
+        CORE_LOGGER.error(errorMessage)
+        return {
+          stream: null,
+          status: {
+            httpStatus: 500,
+            error: errorMessage
           }
         }
       }
@@ -201,7 +224,8 @@ export class ComputeInitializeHandler extends CommandHandler {
           const {
             chainId: ddoChainId,
             nftAddress,
-            credentials
+            credentials,
+            metadata
           } = ddoInstance.getDDOFields()
           const isOrdable = isOrderingAllowedForAsset(ddo)
           if (!isOrdable.isOrdable) {
@@ -211,6 +235,30 @@ export class ComputeInitializeHandler extends CommandHandler {
               status: {
                 httpStatus: 500,
                 error: isOrdable.reason
+              }
+            }
+          }
+          if (metadata.type !== 'algorithm') {
+            const index = task.datasets.findIndex(
+              (d) => d.documentId === ddoInstance.getDid()
+            )
+            const safeIndex = index === -1 ? 0 : index
+            const validAlgoForDataset = await validateAlgoForDataset(
+              task.algorithm.documentId,
+              algoChecksums,
+              ddoInstance,
+              task.datasets[safeIndex].serviceId,
+              node
+            )
+            if (!validAlgoForDataset) {
+              return {
+                stream: null,
+                status: {
+                  httpStatus: 400,
+                  error: `Algorithm ${
+                    task.algorithm.documentId
+                  } not allowed to run on the dataset: ${ddoInstance.getDid()}`
+                }
               }
             }
           }
@@ -318,7 +366,7 @@ export class ComputeInitializeHandler extends CommandHandler {
             }
           }
           if (hasDockerImages) {
-            const algoImage = getAlgorithmImage(task.algorithm)
+            const algoImage = getAlgorithmImage(task.algorithm, generateUniqueID(task))
             if (algoImage) {
               const validation: ValidateParams = await C2DEngineDocker.checkDockerImage(
                 algoImage,

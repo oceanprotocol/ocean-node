@@ -1,4 +1,4 @@
-import { MetadataAlgorithm } from '@oceanprotocol/ddo-js'
+import { MetadataAlgorithm, ConsumerParameter } from '@oceanprotocol/ddo-js'
 import type { BaseFileObject } from '../fileObject.js'
 export enum C2DClusterType {
   // eslint-disable-next-line no-unused-vars
@@ -129,6 +129,7 @@ export interface C2DDockerConfig {
 }
 
 export type ComputeResultType =
+  | 'imageLog'
   | 'algorithmLog'
   | 'output'
   | 'configurationLog'
@@ -180,15 +181,27 @@ export interface ComputeAsset {
   transferTxId?: string
   userdata?: { [key: string]: any }
 }
-
+export interface ExtendedMetadataAlgorithm extends MetadataAlgorithm {
+  container: {
+    // retain existing properties
+    entrypoint: string
+    image: string
+    tag: string
+    checksum: string
+    dockerfile?: string // optional
+    additionalDockerFiles?: { [key: string]: any }
+    consumerParameters?: ConsumerParameter[]
+  }
+}
 export interface ComputeAlgorithm {
   documentId?: string
   serviceId?: string
   fileObject?: BaseFileObject
-  meta?: MetadataAlgorithm
+  meta?: ExtendedMetadataAlgorithm
   transferTxId?: string
   algocustomdata?: { [key: string]: any }
   userdata?: { [key: string]: any }
+  envs?: { [key: string]: any }
 }
 
 export interface AlgoChecksums {
@@ -234,6 +247,10 @@ export enum C2DStatusNumber {
   // eslint-disable-next-line no-unused-vars
   PullImageFailed = 11,
   // eslint-disable-next-line no-unused-vars
+  BuildImage = 12,
+  // eslint-disable-next-line no-unused-vars
+  BuildImageFailed = 13,
+  // eslint-disable-next-line no-unused-vars
   ConfiguringVolumes = 20,
   // eslint-disable-next-line no-unused-vars
   VolumeCreationFailed = 21,
@@ -251,6 +268,8 @@ export enum C2DStatusNumber {
   RunningAlgorithm = 40,
   // eslint-disable-next-line no-unused-vars
   AlgorithmFailed = 41,
+  // eslint-disable-next-line no-unused-vars
+  DiskQuotaExceeded = 42,
   // eslint-disable-next-line no-unused-vars
   FilteringResults = 50,
   // eslint-disable-next-line no-unused-vars
@@ -270,6 +289,10 @@ export enum C2DStatusText {
   // eslint-disable-next-line no-unused-vars
   PullImageFailed = 'Pulling algorithm image failed',
   // eslint-disable-next-line no-unused-vars
+  BuildImage = 'Building algorithm image',
+  // eslint-disable-next-line no-unused-vars
+  BuildImageFailed = 'Building algorithm image failed',
+  // eslint-disable-next-line no-unused-vars
   ConfiguringVolumes = 'Configuring volumes',
   // eslint-disable-next-line no-unused-vars
   VolumeCreationFailed = 'Volume creation failed',
@@ -287,6 +310,8 @@ export enum C2DStatusText {
   RunningAlgorithm = 'Running algorithm ',
   // eslint-disable-next-line no-unused-vars
   AlgorithmFailed = 'Failed to run algorithm',
+  // eslint-disable-next-line no-unused-vars
+  DiskQuotaExceeded = 'Error: disk quota exceeded',
   // eslint-disable-next-line no-unused-vars
   FilteringResults = 'Filtering results',
   // eslint-disable-next-line no-unused-vars

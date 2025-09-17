@@ -1242,6 +1242,7 @@ It can include information about the file object, document ID, service ID, trans
 - **transferTxId**: Optional. A string representing the transaction ID for the transfer of the compute algorithm.
 - **algocustomdata**: Optional. An object containing additional custom data related to the compute algorithm.
 - **userdata**: Optional. An object containing additional user-defined data related to the compute algorithm.
+- **envs**: Optional. Array of keys:values to be used as environment variables for algo.
 
 ```typescript
 export interface ComputeAlgorithm {
@@ -1337,7 +1338,7 @@ starts a free compute job and returns jobId if succesfull
   "algorithm": {
     "meta": { "container": { "image": "ubuntu", "entrypoint": "/bin/bash'" } }
   },
-  "consumerAddress": "0xC7EC1970B09224B317c52d92f37F5e1E4fF6B687",
+  "consumerAddress": "0x00",
   "signature": "123",
   "nonce": 1,
   "environment": "0x7d187e4c751367be694497ead35e2937ece3c7f3b325dcb4f7571e5972d092bd-0xbeaf12703d708f39ef98c3d8939ce458553254176dbb69fe83d535883c4cee38",
@@ -1351,7 +1352,7 @@ starts a free compute job and returns jobId if succesfull
 ```json
 [
   {
-    "owner": "0xC7EC1970B09224B317c52d92f37F5e1E4fF6B687",
+    "owner": "0x00",
     "jobId": "0x7d187e4c751367be694497ead35e2937ece3c7f3b325dcb4f7571e5972d092bd-a4ad237d-dfd8-404c-a5d6-b8fc3a1f66d3",
     "dateCreated": "1742291065.119",
     "dateFinished": null,
@@ -1395,7 +1396,7 @@ Required at least one of the following parameters:
 ```json
 [
   {
-    "owner": "0xC7EC1970B09224B317c52d92f37F5e1E4fF6B687",
+    "owner": "0x00",
     "did": null,
     "jobId": "a4ad237d-dfd8-404c-a5d6-b8fc3a1f66d3",
     "dateCreated": "1742291065.119",
