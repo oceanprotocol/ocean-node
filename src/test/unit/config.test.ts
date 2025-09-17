@@ -1,12 +1,24 @@
 import { expect } from 'chai'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
 import { getConfiguration, loadConfigFromEnv } from '../../utils/config.js'
-import { TEST_ENV_CONFIG_PATH, setupEnvironment } from '../utils/utils.js'
+import {
+  OverrideEnvConfig,
+  TEST_ENV_CONFIG_PATH,
+  buildEnvOverrideConfig,
+  setupEnvironment,
+  tearDownEnvironment
+} from '../utils/utils.js'
+import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 
 let config: OceanNodeConfig
 describe('Should validate configuration from JSON', () => {
+  let envOverrides: OverrideEnvConfig[]
   before(async () => {
-    await setupEnvironment(TEST_ENV_CONFIG_PATH)
+    envOverrides = buildEnvOverrideConfig(
+      [ENVIRONMENT_VARIABLES.DB_TYPE, ENVIRONMENT_VARIABLES.DB_URL],
+      ['typesense', 'http://localhost:8108/?apiKey=xyz']
+    )
+    envOverrides = await setupEnvironment(TEST_ENV_CONFIG_PATH, envOverrides)
     config = await getConfiguration(true)
   })
 
@@ -59,8 +71,9 @@ describe('Should validate configuration from JSON', () => {
     expect(config.isBootstrap).to.be.equal(false)
     expect(config.validateUnsignedDDO).to.be.equal(true)
   })
-  after(() => {
+  after(async () => {
     delete process.env.CONFIG_PATH
     delete process.env.PRIVATE_KEY
+    await tearDownEnvironment(envOverrides)
   })
 })
