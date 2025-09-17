@@ -108,7 +108,7 @@ export const processChunkLogs = async (
             if (!allowed.length) {
               INDEXER_LOGGER.log(
                 LOG_LEVELS_STR.LEVEL_ERROR,
-                `Metadata Proof validators list is empty`,
+                `Metadata Proof validators list is empty. Block/event for tx ${log.transactionHash} was NOT processed due to no allowed validators.`,
                 true
               )
               continue
@@ -151,6 +151,11 @@ export const processChunkLogs = async (
               }
               // move on to the next (do not process this event)
               if (isAllowed === false) {
+                INDEXER_LOGGER.log(
+                  LOG_LEVELS_STR.LEVEL_ERROR,
+                  `Block/event for tx ${log.transactionHash} was NOT processed because none of the metadata validators are part of the access list group(s) for chain ${chainId}.`,
+                  true
+                )
                 continue
               }
             } // end if (allowedValidatorsList) {
