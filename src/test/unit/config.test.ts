@@ -5,8 +5,7 @@ import {
   OverrideEnvConfig,
   TEST_ENV_CONFIG_PATH,
   buildEnvOverrideConfig,
-  setupEnvironment,
-  tearDownEnvironment
+  setupEnvironment
 } from '../utils/utils.js'
 import { ENVIRONMENT_VARIABLES } from '../../utils/constants.js'
 
@@ -56,9 +55,8 @@ describe('Should validate configuration from JSON', () => {
     expect(config.isBootstrap).to.be.equal(false)
     expect(config.validateUnsignedDDO).to.be.equal(true)
   })
-  after(async () => {
+  after(() => {
     delete process.env.CONFIG_PATH
     delete process.env.PRIVATE_KEY
-    await tearDownEnvironment(envOverrides)
   })
 })
