@@ -27,6 +27,7 @@ import ERC721Template from '@oceanprotocol/contracts/artifacts/contracts/templat
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import ERC20Template from '@oceanprotocol/contracts/artifacts/contracts/templates/ERC20TemplateEnterprise.sol/ERC20TemplateEnterprise.json' assert { type: 'json' }
 import { fetchTransactionReceipt } from '../../core/utils/validateOrders.js'
+import { withRetrial } from '../utils.js'
 
 export abstract class BaseEventProcessor {
   protected networkId: number
@@ -293,17 +294,37 @@ export abstract class BaseEventProcessor {
             signature,
             nonce
           }
-          const response = await axios({
-            method: 'post',
-            url: `${decryptorURL}/api/services/decrypt`,
-            data: payload,
-            timeout: 30000
+          const response = await withRetrial(async () => {
+            try {
+              const res = await axios.post(
+                `${decryptorURL}/api/services/decrypt`,
+                payload
+              )
+
+              if (res.status !== 200) {
+                const message = `bProvider exception on decrypt DDO. Status: ${res.status}, ${res.statusText}`
+                INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
+                throw new Error(message) // do NOT retry
+              }
+
+              return res
+            } catch (err: any) {
+              // Retry ONLY on ECONNREFUSED
+              if (
+                err.code === 'ECONNREFUSED' ||
+                (err.message && err.message.includes('ECONNREFUSED'))
+              ) {
+                INDEXER_LOGGER.log(
+                  LOG_LEVELS_STR.LEVEL_ERROR,
+                  `Decrypt request failed with ECONNREFUSED, retrying...`,
+                  true
+                )
+                throw err
+              }
+
+              throw err
+            }
           })
-          if (response.status !== 200 && response.status !== 201) {
-            const message = `Provider exception on decrypt DDO. Status: ${response.status}, ${response.statusText}`
-            INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
-            throw new Error(message)
-          }
 
           let responseHash
           if (response.data instanceof Object) {

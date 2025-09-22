@@ -431,3 +431,27 @@ export function getDid(nftAddress: string, chainId: number): string {
       .digest('hex')
   )
 }
+
+export async function withRetrial<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 5,
+  delay: number = 2000
+): Promise<T> {
+  let lastError: Error
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+
+      if (attempt === maxRetries - 1) {
+        throw lastError
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, delay))
+    }
+  }
+
+  throw lastError
+}

@@ -13,7 +13,7 @@ import {
   PROTOCOL_COMMANDS
 } from '../../utils/index.js'
 import { CommandStatus, JobStatus } from '../../@types/commands.js'
-import { buildJobIdentifier, getDeployedContractBlock } from './utils.js'
+import { buildJobIdentifier, getDeployedContractBlock, withRetrial } from './utils.js'
 import { create256Hash } from '../../utils/crypt.js'
 import { isReachableConnection } from '../../utils/database.js'
 import { sleep } from '../../utils/util.js'
@@ -214,7 +214,7 @@ export class OceanIndexer {
   }
 
   private setupEventListeners(worker: Worker, chainId: number) {
-    worker.on('message', (event: any) => {
+    worker.on('message', async (event: any) => {
       if (event.data) {
         if (
           [
@@ -266,10 +266,18 @@ export class OceanIndexer {
           INDEXER_CRAWLING_EVENT_EMITTER.emit(event.method, event.data)
         }
       } else {
-        INDEXER_LOGGER.log(
-          LOG_LEVELS_STR.LEVEL_ERROR,
-          'Missing event data (ddo) on postMessage. Something is wrong!',
-          true
+        await withRetrial(
+          async () => {
+            INDEXER_LOGGER.log(
+              LOG_LEVELS_STR.LEVEL_ERROR,
+              'Missing event data (ddo) on postMessage. Something is wrong!',
+              true
+            )
+            worker.emit('message', event)
+            await Promise.resolve()
+          },
+          3,
+          1000
         )
       }
     })
