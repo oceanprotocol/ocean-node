@@ -256,7 +256,8 @@ export abstract class BaseEventProcessor {
           nonce = Date.now().toString()
         }
       } catch (err) {
-        INDEXER_LOGGER.logMessage(
+        INDEXER_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_ERROR,
           `decryptDDO: Error getting nonce, using timestamp: ${err.message}`
         )
         nonce = Date.now().toString()
