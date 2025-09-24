@@ -215,69 +215,81 @@ export class OceanIndexer {
 
   private setupEventListeners(worker: Worker, chainId: number) {
     worker.on('message', async (event: any) => {
-      if (event.data) {
-        if (
-          [
-            EVENTS.METADATA_CREATED,
-            EVENTS.METADATA_UPDATED,
-            EVENTS.METADATA_STATE,
-            EVENTS.ORDER_STARTED,
-            EVENTS.ORDER_REUSED,
-            EVENTS.DISPENSER_ACTIVATED,
-            EVENTS.DISPENSER_DEACTIVATED,
-            EVENTS.EXCHANGE_ACTIVATED,
-            EVENTS.EXCHANGE_DEACTIVATED,
-            EVENTS.EXCHANGE_RATE_CHANGED
-          ].includes(event.method)
-        ) {
-          // will emit the metadata created/updated event and advertise it to the other peers (on create only)
-          INDEXER_LOGGER.logMessage(
-            `Emiting "${event.method}" for DDO : ${event.data.id} from network: ${chainId} `
-          )
-          INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
-          // remove from indexing list
-        } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP) {
-          // remove this one from the queue (means we processed the reindex for this tx)
-          INDEXING_QUEUE = INDEXING_QUEUE.filter(
-            (task) => task.txId !== event.data.txId && task.chainId !== event.data.chainId
-          )
-          // reindex tx successfully done
-          INDEXER_CRAWLING_EVENT_EMITTER.emit(
-            INDEXER_CRAWLING_EVENTS.REINDEX_TX, // explicitly set constant value for readability
-            event.data
-          )
-          this.updateJobStatus(
-            PROTOCOL_COMMANDS.REINDEX_TX,
-            create256Hash([event.data.chainId, event.data.txId].join('')),
-            CommandStatus.SUCCESS
-          )
-        } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN) {
-          // we should listen to this on the dashboard for instance
-          INDEXER_CRAWLING_EVENT_EMITTER.emit(
-            INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
-            event.data
-          )
-          this.updateJobStatus(
-            PROTOCOL_COMMANDS.REINDEX_CHAIN,
-            create256Hash([event.data.chainId].join('')),
-            event.data.result ? CommandStatus.SUCCESS : CommandStatus.FAILURE
-          )
-        } else if (event.method === INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED) {
-          INDEXER_CRAWLING_EVENT_EMITTER.emit(event.method, event.data)
-        }
-      } else {
+      try {
         await withRetrial(
           async () => {
-            INDEXER_LOGGER.log(
-              LOG_LEVELS_STR.LEVEL_ERROR,
-              'Missing event data (ddo) on postMessage. Something is wrong!',
-              true
-            )
-            worker.emit('message', event)
-            await Promise.resolve()
+            if (!event.data) {
+              await Promise.resolve() // ensures this callback is async
+              INDEXER_LOGGER.log(
+                LOG_LEVELS_STR.LEVEL_ERROR,
+                'Missing event data (ddo) on postMessage. Something is wrong!',
+                true
+              )
+              throw new Error('MISSING_EVENT_DATA')
+            }
+
+            if (
+              [
+                EVENTS.METADATA_CREATED,
+                EVENTS.METADATA_UPDATED,
+                EVENTS.METADATA_STATE,
+                EVENTS.ORDER_STARTED,
+                EVENTS.ORDER_REUSED,
+                EVENTS.DISPENSER_ACTIVATED,
+                EVENTS.DISPENSER_DEACTIVATED,
+                EVENTS.EXCHANGE_ACTIVATED,
+                EVENTS.EXCHANGE_DEACTIVATED,
+                EVENTS.EXCHANGE_RATE_CHANGED
+              ].includes(event.method)
+            ) {
+              INDEXER_LOGGER.logMessage(
+                `Emiting "${event.method}" for DDO : ${event.data.id} from network: ${chainId} `
+              )
+              await Promise.resolve(
+                INDEXER_DDO_EVENT_EMITTER.emit(event.method, event.data.id)
+              )
+            } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_QUEUE_POP) {
+              INDEXING_QUEUE = INDEXING_QUEUE.filter(
+                (task) =>
+                  task.txId !== event.data.txId && task.chainId !== event.data.chainId
+              )
+              await Promise.resolve(
+                INDEXER_CRAWLING_EVENT_EMITTER.emit(
+                  INDEXER_CRAWLING_EVENTS.REINDEX_TX,
+                  event.data
+                )
+              )
+              this.updateJobStatus(
+                PROTOCOL_COMMANDS.REINDEX_TX,
+                create256Hash([event.data.chainId, event.data.txId].join('')),
+                CommandStatus.SUCCESS
+              )
+            } else if (event.method === INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN) {
+              await Promise.resolve(
+                INDEXER_CRAWLING_EVENT_EMITTER.emit(
+                  INDEXER_CRAWLING_EVENTS.REINDEX_CHAIN,
+                  event.data
+                )
+              )
+              this.updateJobStatus(
+                PROTOCOL_COMMANDS.REINDEX_CHAIN,
+                create256Hash([event.data.chainId].join('')),
+                event.data.result ? CommandStatus.SUCCESS : CommandStatus.FAILURE
+              )
+            } else if (event.method === INDEXER_CRAWLING_EVENTS.CRAWLING_STARTED) {
+              await Promise.resolve(
+                INDEXER_CRAWLING_EVENT_EMITTER.emit(event.method, event.data)
+              )
+            }
           },
           3,
           1000
+        )
+      } catch (err) {
+        INDEXER_LOGGER.log(
+          LOG_LEVELS_STR.LEVEL_ERROR,
+          `Worker handler failed after retries: ${err?.message ?? err}`,
+          true
         )
       }
     })
