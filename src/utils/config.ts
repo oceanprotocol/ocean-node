@@ -803,7 +803,12 @@ export async function getConfiguration(
 export function loadConfigFromEnv(envVar: string = 'CONFIG_PATH'): OceanNodeConfig {
   let configPath = process.env[envVar]
   if (!configPath) {
-    throw new Error(`Environment variable "${envVar}" is not set.`)
+    if (!fs.existsSync(path.join(process.cwd(), 'config.json'))) {
+      throw new Error(
+        `Config file not found. Neither environment variable "${envVar}" is set nor does ${configPath} exist.`
+      )
+    }
+    configPath = path.join(process.cwd(), 'config.json')
   }
   // Expand $HOME if present
   if (configPath.startsWith('$HOME')) {
