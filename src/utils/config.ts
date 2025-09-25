@@ -788,7 +788,7 @@ export async function getConfiguration(
     if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.CONFIG_PATH)) {
       previousConfiguration = await getEnvConfig(isStartup)
     } else {
-      previousConfiguration = buildMergedConfig()
+      previousConfiguration = await buildMergedConfig()
     }
   }
   if (!previousConfiguration.codeHash) {
@@ -861,17 +861,105 @@ export function loadConfigFromEnv(envVar: string = 'CONFIG_PATH'): OceanNodeConf
   return config
 }
 
-export function buildMergedConfig(): OceanNodeConfig {
+export async function buildMergedConfig(): Promise<OceanNodeConfig> {
   const baseConfig = loadConfigFromEnv()
 
+  let dhtFilterOption
+  switch (parseInt(process.env.P2P_DHT_FILTER, 0)) {
+    case 1:
+      dhtFilterOption = dhtFilterMethod.filterPrivate
+      break
+    case 2:
+      dhtFilterOption = dhtFilterMethod.filterPublic
+      break
+    default:
+      dhtFilterOption = dhtFilterMethod.filterNone
+  }
+
+  const privateKey = process.env.PRIVATE_KEY
+  if (!privateKey || privateKey.length !== 66) {
+    // invalid private key
+    CONFIG_LOGGER.logMessageWithEmoji(
+      'Invalid PRIVATE_KEY env variable..',
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
+    return null
+  }
+
   const overrides = {
+    authorizedDecrypters: getAuthorizedDecrypters(true),
+    authorizedDecryptersList: getAuthorizedDecryptersList(true),
+    allowedValidators: getAllowedValidators(true),
+    allowedValidatorsList: getAllowedValidatorsList(true),
+    authorizedPublishers: getAuthorizedPublishers(true),
+    authorizedPublishersList: getAuthorizedPublishersList(true),
+    keys: await getPeerIdFromPrivateKey(privateKey),
     jwtSecret: process.env.JWT_SECRET,
     dbConfig: {
       url: process.env.DB_URL,
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       dbType: process.env.DB_TYPE
-    }
+    },
+    httpPort: process.env.HTTP_API_PORT,
+    p2pConfig: {
+      bootstrapNodes: JSON.parse(process.env.P2P_BOOTSTRAP_NODES),
+      bootstrapTimeout: parseInt(process.env.P2P_BOOTSTRAP_TIMEOUT),
+      bootstrapTagName: process.env.P2P_BOOTSTRAP_TAGNAME,
+      bootstrapTagValue: parseInt(process.env.P2P_BOOTSTRAP_TAGVALUE),
+      bootstrapTTL: parseInt(process.env.P2P_BOOTSTRAP_TTL),
+      enableIPV4: process.env.P2P_ENABLE_IPV4,
+      enableIPV6: process.env.P2P_ENABLE_IPV6,
+      ipV4BindAddress: process.env.P2P_ipV4BindAddress,
+      ipV4BindTcpPort: parseInt(process.env.P2P_ipV4BindTcpPort),
+      ipV4BindWsPort: parseInt(process.env.P2P_ipV4BindWsPort),
+      ipV6BindAddress: process.env.P2P_ipV6BindAddress,
+      ipV6BindTcpPort: parseInt(process.env.P2P_ipV6BindTcpPort),
+      ipV6BindWsPort: parseInt(process.env.P2P_ipV6BindWsPort),
+      announceAddresses: JSON.parse(process.env.P2P_ANNOUNCE_ADDRESSES),
+      pubsubPeerDiscoveryInterval: parseInt(process.env.P2P_pubsubPeerDiscoveryInterval),
+      dhtMaxInboundStreams: parseInt(process.env.P2P_dhtMaxInboundStreams),
+      dhtMaxOutboundStreams: parseInt(process.env.P2P_dhtMaxOutboundStreams),
+      dhtFilter: dhtFilterOption,
+      mDNSInterval: parseInt(process.env.P2P_mDNSInterval),
+      connectionsMaxParallelDials: parseInt(process.env.P2P_connectionsMaxParallelDials),
+      connectionsDialTimeout: parseInt(process.env.P2P_connectionsDialTimeout),
+      upnp: process.env.P2P_ENABLE_UPNP,
+      autoNat: process.env.P2P_ENABLE_AUTONAT,
+      enableCircuitRelayServer: process.env.P2P_ENABLE_CIRCUIT_RELAY_SERVER,
+      enableCircuitRelayClient: process.env.P2P_ENABLE_CIRCUIT_RELAY_CLIENT,
+      circuitRelays: parseInt(process.env.P2P_CIRCUIT_RELAYS),
+      announcePrivateIp: process.env.P2P_ANNOUNCE_PRIVATE,
+      filterAnnouncedAddresses: JSON.parse(process.env.P2P_FILTER_ANNOUNCED_ADDRESSES),
+      minConnections: parseInt(process.env.P2P_MIN_CONNECTIONS),
+      maxConnections: parseInt(process.env.P2P_MAX_CONNECTIONS),
+      autoDialPeerRetryThreshold: parseInt(process.env.P2P_AUTODIALPEERRETRYTHRESHOLD),
+      autoDialConcurrency: parseInt(process.env.P2P_AUTODIALCONCURRENCY),
+      maxPeerAddrsToDial: parseInt(process.env.P2P_MAXPEERADDRSTODIAL),
+      autoDialInterval: parseInt(process.env.P2P_AUTODIALINTERVAL),
+      enableNetworkStats: process.env.P2P_ENABLE_NETWORK_STATS
+    },
+    hasControlPanel:
+      process.env.CONTROL_PANEL !== 'false' || process.env.DASHBOARD !== 'false',
+    supportedNetworks: JSON.parse(process.env.RPCS),
+    indexingNetworks: getIndexingNetworks(this.supportedNetworks),
+    hasIndexer: !!(!!getEnvValue(process.env.DB_URL, '') && !!this.indexingNetworks),
+    feeStrategy: getOceanNodeFees(this.supportedNetworks, true),
+    c2dClusters: getC2DClusterEnvironment(true),
+    c2dNodeUri: process.env.C2D_NODE_URI,
+    accountPurgatoryUrl: process.env.ACCOUNT_PURGATORY_URL,
+    assetPurgatoryUrl: process.env.ASSET_PURGATORY_URL,
+    allowedAdmins: getAllowedAdmins(true),
+    allowedAdminsList: getAllowedAdminsList(true),
+    rateLimit: getRateLimit(true),
+    maxConnections: getConnectionsLimit(true),
+    denyList: getDenyList(true),
+    unsafeURLs: JSON.parse(process.env.UNSAFE_URLS),
+    isBootstrap: process.env.IS_BOOTSTRAP,
+    claimDurationTimeout: parseInt(process.env.ESCROW_CLAIM_TIMEOUT),
+    validateUnsignedDDO: process.env.VALIDATE_UNSIGNED_DDO
   }
   const merged = {
     ...baseConfig,
