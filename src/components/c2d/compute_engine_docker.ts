@@ -165,7 +165,7 @@ export class C2DEngineDocker extends C2DEngine {
       consumerAddress: config.keys.ethAddress,
       platform: {
         architecture: sysinfo.Architecture,
-        os: sysinfo.OperatingSystem
+        os: sysinfo.OSType
       },
       fees
     })
