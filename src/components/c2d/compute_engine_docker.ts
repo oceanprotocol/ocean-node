@@ -165,7 +165,7 @@ export class C2DEngineDocker extends C2DEngine {
       consumerAddress: config.keys.ethAddress,
       platform: {
         architecture: sysinfo.Architecture,
-        os: sysinfo.OperatingSystem
+        os: sysinfo.OSType
       },
       fees
     })
@@ -322,24 +322,31 @@ export class C2DEngineDocker extends C2DEngine {
      */
       const client = drc.createClientV2({ name: info.localName })
       const tagOrDigest = info.tag || info.digest
-
       // try get manifest from registry
       return await new Promise<any>((resolve, reject) => {
         client.getManifest(
           { ref: tagOrDigest, maxSchemaVersion: 2 },
           function (err: any, manifest: any) {
             client.close()
-            if (manifest) {
-              return resolve({
-                valid: checkManifestPlatform(manifest.platform, platform)
-              })
-            }
-
             if (err) {
               CORE_LOGGER.error(
                 `Unable to get Manifest for image ${image}: ${err.message}`
               )
               reject(err)
+            }
+            const platforms = []
+            if (Array.isArray(manifest.manifests)) {
+              for (const entry of manifest.manifests) {
+                platforms.push(entry.platform)
+              }
+              const isValidPlatform = platforms.some((entry: any) =>
+                checkManifestPlatform(entry, platform)
+              )
+              return resolve({ valid: isValidPlatform })
+            } else {
+              return resolve({
+                valid: checkManifestPlatform(manifest.platform, platform)
+              })
             }
           }
         )
@@ -451,7 +458,9 @@ export class C2DEngineDocker extends C2DEngine {
       // already built, we need to validate it
       const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
       if (!validation.valid)
-        throw new Error(`Unable to validate docker image ${image}: ${validation.reason}`)
+        throw new Error(
+          `Cannot find image ${image} for ${env.platform.architecture}. Maybe it does not exist or it's build for other arhitectures.`
+        )
       job.status = C2DStatusNumber.PullImage
       job.statusText = C2DStatusText.PullImage
     }
@@ -1726,6 +1735,9 @@ export function checkManifestPlatform(
   envPlatform?: RunningPlatform
 ): boolean {
   if (!manifestPlatform || !envPlatform) return true // skips if not present
+  if (envPlatform.architecture === 'amd64') envPlatform.architecture = 'x86_64' // x86_64 is compatible with amd64
+  if (manifestPlatform.architecture === 'amd64') manifestPlatform.architecture = 'x86_64' // x86_64 is compatible with amd64
+
   if (
     envPlatform.architecture !== manifestPlatform.architecture ||
     envPlatform.os !== manifestPlatform.os
