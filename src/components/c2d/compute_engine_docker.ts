@@ -458,7 +458,9 @@ export class C2DEngineDocker extends C2DEngine {
       // already built, we need to validate it
       const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
       if (!validation.valid)
-        throw new Error(`Unable to validate docker image ${image}: ${validation.reason}`)
+        throw new Error(
+          `Image ${image} does not exist or it's not compatible with our arhitecture`
+        )
       job.status = C2DStatusNumber.PullImage
       job.statusText = C2DStatusText.PullImage
     }
