@@ -1315,7 +1315,9 @@ export class C2DEngineDocker extends C2DEngine {
               appendFileSync(imageLogFile, String(err.message))
               return reject(err)
             }
-            CORE_LOGGER.debug('############# Pull docker image complete ##############')
+            const logText = `Successfully pulled image: ${job.containerImage}`
+            CORE_LOGGER.debug(logText)
+            appendFileSync(imageLogFile, logText + '\n')
             resolve(res)
           },
           (progress: any) => {
@@ -1338,9 +1340,9 @@ export class C2DEngineDocker extends C2DEngine {
       job.statusText = C2DStatusText.ConfiguringVolumes
       this.db.updateJob(job)
     } catch (err) {
-      CORE_LOGGER.error(
-        `Unable to pull docker image: ${job.containerImage}: ${err.message}`
-      )
+      const logText = `Unable to pull docker image: ${job.containerImage}: ${err.message}`
+      CORE_LOGGER.error(logText)
+      appendFileSync(imageLogFile, logText)
       job.status = C2DStatusNumber.PullImageFailed
       job.statusText = C2DStatusText.PullImageFailed
       job.isRunning = false
