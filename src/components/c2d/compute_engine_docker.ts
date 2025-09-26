@@ -322,24 +322,31 @@ export class C2DEngineDocker extends C2DEngine {
      */
       const client = drc.createClientV2({ name: info.localName })
       const tagOrDigest = info.tag || info.digest
-
       // try get manifest from registry
       return await new Promise<any>((resolve, reject) => {
         client.getManifest(
           { ref: tagOrDigest, maxSchemaVersion: 2 },
           function (err: any, manifest: any) {
             client.close()
-            if (manifest) {
-              return resolve({
-                valid: checkManifestPlatform(manifest.platform, platform)
-              })
-            }
-
             if (err) {
               CORE_LOGGER.error(
                 `Unable to get Manifest for image ${image}: ${err.message}`
               )
               reject(err)
+            }
+            const platforms = []
+            if (Array.isArray(manifest.manifests)) {
+              for (const entry of manifest.manifests) {
+                platforms.push(entry.platform)
+              }
+              const isValidPlatform = platforms.some((entry: any) =>
+                checkManifestPlatform(entry, platform)
+              )
+              return resolve({ valid: isValidPlatform })
+            } else {
+              return resolve({
+                valid: checkManifestPlatform(manifest.platform, platform)
+              })
             }
           }
         )
