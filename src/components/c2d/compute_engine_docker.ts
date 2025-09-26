@@ -1735,6 +1735,9 @@ export function checkManifestPlatform(
   envPlatform?: RunningPlatform
 ): boolean {
   if (!manifestPlatform || !envPlatform) return true // skips if not present
+  if (envPlatform.architecture === 'amd64') envPlatform.architecture = 'x86_64' // x86_64 is compatible with amd64
+  if (manifestPlatform.architecture === 'amd64') manifestPlatform.architecture = 'x86_64' // x86_64 is compatible with amd64
+
   if (
     envPlatform.architecture !== manifestPlatform.architecture ||
     envPlatform.os !== manifestPlatform.os
