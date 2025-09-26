@@ -459,7 +459,7 @@ export class C2DEngineDocker extends C2DEngine {
       const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
       if (!validation.valid)
         throw new Error(
-          `Cannot find Image ${image} for ${env.platform.architecture}. Maybe it does not exist or it's build for other arhitectures.`
+          `Cannot find image ${image} for ${env.platform.architecture}. Maybe it does not exist or it's build for other arhitectures.`
         )
       job.status = C2DStatusNumber.PullImage
       job.statusText = C2DStatusText.PullImage
