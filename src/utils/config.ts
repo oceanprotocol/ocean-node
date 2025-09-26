@@ -788,7 +788,7 @@ export async function getConfiguration(
     if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.CONFIG_PATH)) {
       previousConfiguration = await getEnvConfig(isStartup)
     } else {
-      previousConfiguration = await buildMergedConfig()
+      previousConfiguration = buildMergedConfig()
     }
   }
   if (!previousConfiguration.codeHash) {
@@ -861,7 +861,15 @@ export function loadConfigFromEnv(envVar: string = 'CONFIG_PATH'): OceanNodeConf
   return config
 }
 
-export async function buildMergedConfig(): Promise<OceanNodeConfig> {
+const parseJsonEnv = <T>(env: string | undefined, fallback: T): T => {
+  try {
+    return env ? JSON.parse(env) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+export function buildMergedConfig(): OceanNodeConfig {
   const baseConfig = loadConfigFromEnv()
 
   let dhtFilterOption
@@ -888,79 +896,192 @@ export async function buildMergedConfig(): Promise<OceanNodeConfig> {
     return null
   }
 
-  const overrides = {
-    authorizedDecrypters: getAuthorizedDecrypters(true),
-    authorizedDecryptersList: getAuthorizedDecryptersList(true),
-    allowedValidators: getAllowedValidators(true),
-    allowedValidatorsList: getAllowedValidatorsList(true),
-    authorizedPublishers: getAuthorizedPublishers(true),
-    authorizedPublishersList: getAuthorizedPublishersList(true),
-    keys: await getPeerIdFromPrivateKey(privateKey),
-    jwtSecret: process.env.JWT_SECRET,
-    dbConfig: {
-      url: process.env.DB_URL,
-      username: process.env.DB_USERNAME,
-      password: process.env.DB_PASSWORD,
-      dbType: process.env.DB_TYPE
-    },
-    httpPort: process.env.HTTP_API_PORT,
+  const overrides: Partial<OceanNodeConfig> = {
+    ...(process.env.JWT_SECRET && { jwtSecret: process.env.JWT_SECRET }),
+    ...(process.env.DB_URL && {
+      dbConfig: {
+        url: process.env.DB_URL,
+        username: process.env.DB_USERNAME ?? baseConfig.dbConfig?.username ?? '',
+        password: process.env.DB_PASSWORD ?? baseConfig.dbConfig?.password ?? '',
+        dbType: process.env.DB_TYPE ?? baseConfig.dbConfig?.dbType ?? 'elasticsearch'
+      }
+    }),
+    authorizedDecrypters: process.env.AUTHORIZED_DECRYPTERS
+      ? getAuthorizedDecrypters(true)
+      : baseConfig.authorizedDecrypters,
+
+    authorizedDecryptersList: process.env.AUTHORIZED_DECRYPTERS_LIST
+      ? getAuthorizedDecryptersList(true)
+      : baseConfig.authorizedDecryptersList,
+
+    allowedValidators: process.env.ALLOWED_VALIDATORS
+      ? getAllowedValidators(true)
+      : baseConfig.allowedValidators,
+
+    allowedValidatorsList: process.env.ALLOWED_VALIDATORS_LIST
+      ? getAllowedValidatorsList(true)
+      : baseConfig.allowedValidatorsList,
+
+    authorizedPublishers: process.env.ALLOWED_ADMINS
+      ? getAuthorizedPublishers(true)
+      : baseConfig.authorizedPublishers,
+
+    authorizedPublishersList: process.env.ALLOWED_ADMINS_LIST
+      ? getAuthorizedPublishersList(true)
+      : baseConfig.authorizedPublishersList,
+
+    ...(process.env.HTTP_API_PORT && { httpPort: Number(process.env.HTTP_API_PORT) }),
+
     p2pConfig: {
-      bootstrapNodes: JSON.parse(process.env.P2P_BOOTSTRAP_NODES),
-      bootstrapTimeout: parseInt(process.env.P2P_BOOTSTRAP_TIMEOUT),
-      bootstrapTagName: process.env.P2P_BOOTSTRAP_TAGNAME,
-      bootstrapTagValue: parseInt(process.env.P2P_BOOTSTRAP_TAGVALUE),
-      bootstrapTTL: parseInt(process.env.P2P_BOOTSTRAP_TTL),
-      enableIPV4: process.env.P2P_ENABLE_IPV4,
-      enableIPV6: process.env.P2P_ENABLE_IPV6,
-      ipV4BindAddress: process.env.P2P_ipV4BindAddress,
-      ipV4BindTcpPort: parseInt(process.env.P2P_ipV4BindTcpPort),
-      ipV4BindWsPort: parseInt(process.env.P2P_ipV4BindWsPort),
-      ipV6BindAddress: process.env.P2P_ipV6BindAddress,
-      ipV6BindTcpPort: parseInt(process.env.P2P_ipV6BindTcpPort),
-      ipV6BindWsPort: parseInt(process.env.P2P_ipV6BindWsPort),
-      announceAddresses: JSON.parse(process.env.P2P_ANNOUNCE_ADDRESSES),
-      pubsubPeerDiscoveryInterval: parseInt(process.env.P2P_pubsubPeerDiscoveryInterval),
-      dhtMaxInboundStreams: parseInt(process.env.P2P_dhtMaxInboundStreams),
-      dhtMaxOutboundStreams: parseInt(process.env.P2P_dhtMaxOutboundStreams),
-      dhtFilter: dhtFilterOption,
-      mDNSInterval: parseInt(process.env.P2P_mDNSInterval),
-      connectionsMaxParallelDials: parseInt(process.env.P2P_connectionsMaxParallelDials),
-      connectionsDialTimeout: parseInt(process.env.P2P_connectionsDialTimeout),
-      upnp: process.env.P2P_ENABLE_UPNP,
-      autoNat: process.env.P2P_ENABLE_AUTONAT,
-      enableCircuitRelayServer: process.env.P2P_ENABLE_CIRCUIT_RELAY_SERVER,
-      enableCircuitRelayClient: process.env.P2P_ENABLE_CIRCUIT_RELAY_CLIENT,
-      circuitRelays: parseInt(process.env.P2P_CIRCUIT_RELAYS),
-      announcePrivateIp: process.env.P2P_ANNOUNCE_PRIVATE,
-      filterAnnouncedAddresses: JSON.parse(process.env.P2P_FILTER_ANNOUNCED_ADDRESSES),
-      minConnections: parseInt(process.env.P2P_MIN_CONNECTIONS),
-      maxConnections: parseInt(process.env.P2P_MAX_CONNECTIONS),
-      autoDialPeerRetryThreshold: parseInt(process.env.P2P_AUTODIALPEERRETRYTHRESHOLD),
-      autoDialConcurrency: parseInt(process.env.P2P_AUTODIALCONCURRENCY),
-      maxPeerAddrsToDial: parseInt(process.env.P2P_MAXPEERADDRSTODIAL),
-      autoDialInterval: parseInt(process.env.P2P_AUTODIALINTERVAL),
+      ...baseConfig.p2pConfig,
+
+      bootstrapNodes: parseJsonEnv(
+        process.env.P2P_BOOTSTRAP_NODES,
+        baseConfig.p2pConfig?.bootstrapNodes ?? []
+      ),
+      bootstrapTimeout: process.env.P2P_BOOTSTRAP_TIMEOUT
+        ? parseInt(process.env.P2P_BOOTSTRAP_TIMEOUT, 10)
+        : baseConfig.p2pConfig?.bootstrapTimeout,
+      bootstrapTagName:
+        process.env.P2P_BOOTSTRAP_TAGNAME ?? baseConfig.p2pConfig?.bootstrapTagName,
+      bootstrapTagValue: process.env.P2P_BOOTSTRAP_TAGVALUE
+        ? parseInt(process.env.P2P_BOOTSTRAP_TAGVALUE, 10)
+        : baseConfig.p2pConfig?.bootstrapTagValue,
+      bootstrapTTL: process.env.P2P_BOOTSTRAP_TTL
+        ? parseInt(process.env.P2P_BOOTSTRAP_TTL, 10)
+        : baseConfig.p2pConfig?.bootstrapTTL,
+
+      enableIPV4: process.env.P2P_ENABLE_IPV4
+        ? process.env.P2P_ENABLE_IPV4 === 'true'
+        : baseConfig.p2pConfig?.enableIPV4,
+      enableIPV6: process.env.P2P_ENABLE_IPV6
+        ? process.env.P2P_ENABLE_IPV6 === 'true'
+        : baseConfig.p2pConfig?.enableIPV6,
+
+      ipV4BindAddress:
+        process.env.P2P_IP_V4_BIND_ADDRESS ?? baseConfig.p2pConfig?.ipV4BindAddress,
+      ipV4BindTcpPort: process.env.P2P_IP_V4_BIND_TCP_PORT
+        ? parseInt(process.env.P2P_IP_V4_BIND_TCP_PORT, 10)
+        : baseConfig.p2pConfig?.ipV4BindTcpPort,
+      ipV4BindWsPort: process.env.P2P_IP_V4_BIND_WS_PORT
+        ? parseInt(process.env.P2P_IP_V4_BIND_WS_PORT, 10)
+        : baseConfig.p2pConfig?.ipV4BindWsPort,
+
+      ipV6BindAddress:
+        process.env.P2P_IP_V6_BIND_ADDRESS ?? baseConfig.p2pConfig?.ipV6BindAddress,
+      ipV6BindTcpPort: process.env.P2P_IP_V6_BIND_TCP_PORT
+        ? parseInt(process.env.P2P_IP_V6_BIND_TCP_PORT, 10)
+        : baseConfig.p2pConfig?.ipV6BindTcpPort,
+      ipV6BindWsPort: process.env.P2P_IP_V6_BIND_WS_PORT
+        ? parseInt(process.env.P2P_IP_V6_BIND_WS_PORT, 10)
+        : baseConfig.p2pConfig?.ipV6BindWsPort,
+
+      announceAddresses: parseJsonEnv(
+        process.env.P2P_ANNOUNCE_ADDRESSES,
+        baseConfig.p2pConfig?.announceAddresses ?? []
+      ),
+      pubsubPeerDiscoveryInterval: process.env.P2P_PUBSUB_PEER_DISCOVERY_INTERVAL
+        ? parseInt(process.env.P2P_PUBSUB_PEER_DISCOVERY_INTERVAL, 10)
+        : baseConfig.p2pConfig?.pubsubPeerDiscoveryInterval,
+
+      dhtMaxInboundStreams: process.env.P2P_DHT_MAX_INBOUND_STREAMS
+        ? parseInt(process.env.P2P_DHT_MAX_INBOUND_STREAMS, 10)
+        : baseConfig.p2pConfig?.dhtMaxInboundStreams,
+      dhtMaxOutboundStreams: process.env.P2P_DHT_MAX_OUTBOUND_STREAMS
+        ? parseInt(process.env.P2P_DHT_MAX_OUTBOUND_STREAMS, 10)
+        : baseConfig.p2pConfig?.dhtMaxOutboundStreams,
+      dhtFilter: dhtFilterOption ?? baseConfig.p2pConfig?.dhtFilter,
+
+      mDNSInterval: process.env.P2P_MDNS_INTERVAL
+        ? parseInt(process.env.P2P_MDNS_INTERVAL, 10)
+        : baseConfig.p2pConfig?.mDNSInterval,
+
+      connectionsMaxParallelDials: process.env.P2P_CONNECTIONS_MAX_PARALLEL_DIALS
+        ? parseInt(process.env.P2P_CONNECTIONS_MAX_PARALLEL_DIALS, 10)
+        : baseConfig.p2pConfig?.connectionsMaxParallelDials,
+      connectionsDialTimeout: process.env.P2P_CONNECTIONS_DIAL_TIMEOUT
+        ? parseInt(process.env.P2P_CONNECTIONS_DIAL_TIMEOUT, 10)
+        : baseConfig.p2pConfig?.connectionsDialTimeout,
+
+      upnp: process.env.P2P_ENABLE_UPNP
+        ? process.env.P2P_ENABLE_UPNP === 'true'
+        : baseConfig.p2pConfig?.upnp,
+      autoNat: process.env.P2P_ENABLE_AUTONAT
+        ? process.env.P2P_ENABLE_AUTONAT === 'true'
+        : baseConfig.p2pConfig?.autoNat,
+
+      enableCircuitRelayServer: process.env.P2P_ENABLE_CIRCUIT_RELAY_SERVER
+        ? process.env.P2P_ENABLE_CIRCUIT_RELAY_SERVER === 'true'
+        : baseConfig.p2pConfig?.enableCircuitRelayServer,
+      enableCircuitRelayClient: process.env.P2P_ENABLE_CIRCUIT_RELAY_CLIENT
+        ? process.env.P2P_ENABLE_CIRCUIT_RELAY_CLIENT === 'true'
+        : baseConfig.p2pConfig?.enableCircuitRelayClient,
+
+      circuitRelays: process.env.P2P_CIRCUIT_RELAYS
+        ? parseInt(process.env.P2P_CIRCUIT_RELAYS, 10)
+        : baseConfig.p2pConfig?.circuitRelays,
+      announcePrivateIp: process.env.P2P_ANNOUNCE_PRIVATE
+        ? process.env.P2P_ANNOUNCE_PRIVATE === 'true'
+        : baseConfig.p2pConfig?.announcePrivateIp,
+
+      filterAnnouncedAddresses: parseJsonEnv(
+        process.env.P2P_FILTER_ANNOUNCED_ADDRESSES,
+        baseConfig.p2pConfig?.filterAnnouncedAddresses ?? []
+      ),
+
+      minConnections: process.env.P2P_MIN_CONNECTIONS
+        ? parseInt(process.env.P2P_MIN_CONNECTIONS, 10)
+        : baseConfig.p2pConfig?.minConnections,
+      maxConnections: process.env.P2P_MAX_CONNECTIONS
+        ? parseInt(process.env.P2P_MAX_CONNECTIONS, 10)
+        : baseConfig.p2pConfig?.maxConnections,
+
+      autoDialPeerRetryThreshold: process.env.P2P_AUTODIAL_PEER_RETRY_THRESHOLD
+        ? parseInt(process.env.P2P_AUTODIAL_PEER_RETRY_THRESHOLD, 10)
+        : baseConfig.p2pConfig?.autoDialPeerRetryThreshold,
+      autoDialConcurrency: process.env.P2P_AUTODIAL_CONCURRENCY
+        ? parseInt(process.env.P2P_AUTODIAL_CONCURRENCY, 10)
+        : baseConfig.p2pConfig?.autoDialConcurrency,
+      maxPeerAddrsToDial: process.env.P2P_MAX_PEER_ADDRS_TO_DIAL
+        ? parseInt(process.env.P2P_MAX_PEER_ADDRS_TO_DIAL, 10)
+        : baseConfig.p2pConfig?.maxPeerAddrsToDial,
+      autoDialInterval: process.env.P2P_AUTODIAL_INTERVAL
+        ? parseInt(process.env.P2P_AUTODIAL_INTERVAL, 10)
+        : baseConfig.p2pConfig?.autoDialInterval,
+
       enableNetworkStats: process.env.P2P_ENABLE_NETWORK_STATS
+        ? process.env.P2P_ENABLE_NETWORK_STATS === 'true'
+        : baseConfig.p2pConfig?.enableNetworkStats
     },
-    hasControlPanel:
-      process.env.CONTROL_PANEL !== 'false' || process.env.DASHBOARD !== 'false',
-    supportedNetworks: JSON.parse(process.env.RPCS),
-    indexingNetworks: getIndexingNetworks(this.supportedNetworks),
-    hasIndexer: !!(!!getEnvValue(process.env.DB_URL, '') && !!this.indexingNetworks),
-    feeStrategy: getOceanNodeFees(this.supportedNetworks, true),
-    c2dClusters: getC2DClusterEnvironment(true),
-    c2dNodeUri: process.env.C2D_NODE_URI,
-    accountPurgatoryUrl: process.env.ACCOUNT_PURGATORY_URL,
-    assetPurgatoryUrl: process.env.ASSET_PURGATORY_URL,
-    allowedAdmins: getAllowedAdmins(true),
-    allowedAdminsList: getAllowedAdminsList(true),
-    rateLimit: getRateLimit(true),
-    maxConnections: getConnectionsLimit(true),
-    denyList: getDenyList(true),
-    unsafeURLs: JSON.parse(process.env.UNSAFE_URLS),
-    isBootstrap: process.env.IS_BOOTSTRAP,
-    claimDurationTimeout: parseInt(process.env.ESCROW_CLAIM_TIMEOUT),
-    validateUnsignedDDO: process.env.VALIDATE_UNSIGNED_DDO
+
+    ...(process.env.CONTROL_PANEL && {
+      hasControlPanel: process.env.CONTROL_PANEL !== 'false'
+    }),
+    ...(process.env.RPCS && {
+      supportedNetworks: parseJsonEnv(
+        process.env.RPCS,
+        baseConfig.supportedNetworks ?? {}
+      )
+    }),
+    ...(process.env.C2D_NODE_URI && { c2dNodeUri: process.env.C2D_NODE_URI }),
+    ...(process.env.ACCOUNT_PURGATORY_URL && {
+      accountPurgatoryUrl: process.env.ACCOUNT_PURGATORY_URL
+    }),
+    ...(process.env.ASSET_PURGATORY_URL && {
+      assetPurgatoryUrl: process.env.ASSET_PURGATORY_URL
+    }),
+    ...(process.env.UNSAFE_URLS && {
+      unsafeURLs: parseJsonEnv(process.env.UNSAFE_URLS, baseConfig.unsafeURLs ?? [])
+    }),
+    ...(process.env.IS_BOOTSTRAP && { isBootstrap: process.env.IS_BOOTSTRAP === 'true' }),
+    ...(process.env.ESCROW_CLAIM_TIMEOUT && {
+      claimDurationTimeout: parseInt(process.env.ESCROW_CLAIM_TIMEOUT, 10)
+    }),
+    ...(process.env.VALIDATE_UNSIGNED_DDO && {
+      validateUnsignedDDO: process.env.VALIDATE_UNSIGNED_DDO === 'true'
+    })
   }
+
   const merged = {
     ...baseConfig,
     ...overrides
