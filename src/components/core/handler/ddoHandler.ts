@@ -389,8 +389,10 @@ export class DecryptDdoHandler extends CommandHandler {
 
       // check signature
       try {
+        const useTxIdOrContractAddress = transactionId || dataNftAddress
+
         const message = String(
-          transactionId + dataNftAddress + decrypterAddress + chainId + nonce
+          useTxIdOrContractAddress + decrypterAddress + chainId + nonce
         )
         const messageHash = ethers.solidityPackedKeccak256(
           ['bytes'],
