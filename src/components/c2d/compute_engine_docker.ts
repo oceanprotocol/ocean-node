@@ -685,7 +685,6 @@ export class C2DEngineDocker extends C2DEngine {
   ): Promise<Dockerode.Container> | null {
     try {
       const container = await this.docker.createContainer(containerInfo)
-      console.log('container: ', container)
       return container
     } catch (e) {
       CORE_LOGGER.error(`Unable to create docker container: ${e.message}`)
@@ -700,6 +699,16 @@ export class C2DEngineDocker extends C2DEngine {
         // Retry without that option because it does not work
         return this.createDockerContainer(containerInfo)
       }
+      return null
+    }
+  }
+
+  private async inspectContainer(container: Dockerode.Container): Promise<any> {
+    try {
+      const data = await container.inspect()
+      return data.State
+    } catch (e) {
+      CORE_LOGGER.error(`Unable to inspect docker container: ${e.message}`)
       return null
     }
   }
@@ -1024,6 +1033,9 @@ export class C2DEngineDocker extends C2DEngine {
         await this.cleanupJob(job)
         return
       }
+      const state = await this.inspectContainer(container)
+      job.error.OOMKilled = state.OOMKilled
+      job.error.exitCode = state.ExitCode
       const outputsArchivePath =
         this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/outputs/outputs.tar'
       try {
