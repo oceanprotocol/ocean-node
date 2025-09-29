@@ -332,7 +332,8 @@ export class C2DEngineDocker extends C2DEngine {
               CORE_LOGGER.error(
                 `Unable to get Manifest for image ${image}: ${err.message}`
               )
-              reject(err)
+              resolve({ valid: false, reason: err.message, status: 404 })
+              // reject(err)
             }
             const platforms = []
             if (Array.isArray(manifest.manifests)) {
