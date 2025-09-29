@@ -146,7 +146,7 @@ export type DBComputeJobMetadata = {
   [key: string]: string | number | boolean
 }
 
-export interface ComputeJobError {
+export interface ComputeJobTerminationDetails {
   OOMKilled: boolean
   exitCode: number
 }
@@ -165,7 +165,7 @@ export interface ComputeJob {
   agreementId?: string
   environment?: string
   metadata?: DBComputeJobMetadata
-  error?: ComputeJobError
+  terminationDetails?: ComputeJobTerminationDetails
 }
 
 export interface ComputeOutput {
