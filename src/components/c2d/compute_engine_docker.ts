@@ -1034,8 +1034,8 @@ export class C2DEngineDocker extends C2DEngine {
         return
       }
       const state = await this.inspectContainer(container)
-      job.error.OOMKilled = state.OOMKilled
-      job.error.exitCode = state.ExitCode
+      job.terminationDetails.OOMKilled = state.OOMKilled
+      job.terminationDetails.exitCode = state.ExitCode
       const outputsArchivePath =
         this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/outputs/outputs.tar'
       try {
