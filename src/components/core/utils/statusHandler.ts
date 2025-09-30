@@ -14,6 +14,7 @@ import { OceanNode } from '../../../OceanNode.js'
 import { typesenseSchemas } from '../../database/TypesenseSchemas.js'
 import { SupportedNetwork } from '../../../@types/blockchain.js'
 import { getAdminAddresses } from '../../../utils/auth.js'
+import HumanHasher from 'humanhash'
 
 const supportedStorageTypes: StorageTypes = {
   url: true,
@@ -106,9 +107,11 @@ export async function status(
 
   // no previous status?
   if (!nodeStatus) {
+    const publicKeyHex = Buffer.from(config.keys.publicKey).toString('hex')
     nodeStatus = {
       id: nodeId && nodeId !== undefined ? nodeId : config.keys.peerId.toString(), // get current node ID
-      publicKey: Buffer.from(config.keys.publicKey).toString('hex'),
+      publicKey: publicKeyHex,
+      friendlyName: new HumanHasher().humanize(publicKeyHex),
       address: config.keys.ethAddress,
       version: process.env.npm_package_version,
       http: config.hasHttp,

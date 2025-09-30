@@ -146,6 +146,7 @@ export interface StorageTypes {
 export interface OceanNodeStatus {
   id: string
   publicKey: string
+  friendlyName: string
   address: string
   version: string
   http: boolean
