@@ -35,7 +35,129 @@ import { create256Hash } from './crypt.js'
 import { isDefined } from './util.js'
 import { fileURLToPath } from 'url'
 import path from 'path'
+import fs from 'fs'
+import os from 'os'
+import { z } from 'zod'
 
+const AccessListContractSchema = z.any()
+const OceanNodeKeysSchema = z.any()
+
+const OceanNodeDBConfigSchema = z.any()
+const FeeStrategySchema = z.any()
+const RPCSSchema = z.any()
+const C2DClusterInfoSchema = z.any()
+const DenyListSchema = z.any()
+
+const OceanNodeP2PConfigSchema = z.object({
+  bootstrapNodes: z.array(z.string()).optional().default(defaultBootstrapAddresses),
+  bootstrapTimeout: z.number().int().optional().default(2000),
+  bootstrapTagName: z.string().optional().default('bootstrap'),
+  bootstrapTagValue: z.number().int().optional().default(50),
+  enableIPV4: z.boolean().optional().default(true),
+  enableIPV6: z.boolean().optional().default(true),
+  ipV4BindAddress: z.string().optional().default('0.0.0.0'),
+  ipV4BindTcpPort: z.number().int().optional().default(0),
+  ipV4BindWsPort: z.number().int().optional().default(0),
+  ipV6BindAddress: z.string().optional().default('::1'),
+  ipV6BindTcpPort: z.number().int().optional().default(0),
+  ipV6BindWsPort: z.number().int().optional().default(0),
+  pubsubPeerDiscoveryInterval: z.number().int().optional().default(1000),
+  dhtMaxInboundStreams: z.number().int().optional().default(500),
+  dhtMaxOutboundStreams: z.number().int().optional().default(500),
+  mDNSInterval: z.number().int().optional().default(20e3),
+  connectionsMaxParallelDials: z.number().int().optional().default(15),
+  connectionsDialTimeout: z.number().int().optional().default(30e3),
+  upnp: z.boolean().optional().default(true),
+  autoNat: z.boolean().optional().default(true),
+  enableCircuitRelayServer: z.boolean().optional().default(false),
+  enableCircuitRelayClient: z.boolean().optional().default(false),
+  circuitRelays: z.number().int().optional().default(0),
+  announcePrivateIp: z.boolean().optional().default(false),
+  filterAnnouncedAddresses: z
+    .array(z.string())
+    .optional()
+    .default([
+      '127.0.0.0/8',
+      '10.0.0.0/8',
+      '172.16.0.0/12',
+      '192.168.0.0/16',
+      '100.64.0.0/10',
+      '169.254.0.0/16',
+      '192.0.0.0/24',
+      '192.0.2.0/24',
+      '198.51.100.0/24',
+      '203.0.113.0/24',
+      '224.0.0.0/4',
+      '240.0.0.0/4'
+    ]),
+  minConnections: z.number().int().optional().default(1),
+  maxConnections: z.number().int().optional().default(300),
+  autoDialPeerRetryThreshold: z.number().int().optional().default(120000),
+  autoDialConcurrency: z.number().int().optional().default(5),
+  maxPeerAddrsToDial: z.number().int().optional().default(5),
+  autoDialInterval: z.number().int().optional().default(5000),
+  enableNetworkStats: z.boolean().optional().default(false)
+})
+
+export const OceanNodeConfigSchema = z.object({
+  authorizedDecrypters: z.array(z.string()),
+  authorizedDecryptersList: AccessListContractSchema.nullable(),
+  allowedValidators: z.array(z.string()),
+  allowedValidatorsList: AccessListContractSchema.nullable(),
+  authorizedPublishers: z.array(z.string()),
+  authorizedPublishersList: AccessListContractSchema.nullable(),
+
+  keys: OceanNodeKeysSchema,
+
+  hasP2P: z.boolean(),
+  p2pConfig: OceanNodeP2PConfigSchema.nullable(),
+  hasIndexer: z.boolean(),
+  hasHttp: z.boolean(),
+  hasControlPanel: z.boolean(),
+
+  dbConfig: OceanNodeDBConfigSchema.optional(),
+
+  httpPort: z.number().int(),
+  rateLimit: z.union([z.number(), z.object({})]).optional(),
+  feeStrategy: FeeStrategySchema,
+
+  supportedNetworks: RPCSSchema.optional(),
+
+  claimDurationTimeout: z.number().int().default(600),
+  indexingNetworks: RPCSSchema.optional(),
+
+  c2dClusters: z.array(C2DClusterInfoSchema),
+  c2dNodeUri: z.string(),
+  accountPurgatoryUrl: z.string(),
+  assetPurgatoryUrl: z.string(),
+
+  allowedAdmins: z.array(z.string()).optional(),
+  allowedAdminsList: AccessListContractSchema.nullable().optional(),
+
+  codeHash: z.string().optional(),
+  maxConnections: z.number().optional(),
+  denyList: DenyListSchema.optional(),
+  unsafeURLs: z.array(z.string()).optional().default([
+    // AWS and GCP
+    '^.*(169.254.169.254).*',
+    // GCP
+    '^.*(metadata.google.internal).*',
+    '^.*(http://metadata).*',
+    // Azure
+    '^.*(http://169.254.169.254).*',
+    // Oracle Cloud
+    '^.*(http://192.0.0.192).*',
+    // Alibaba Cloud
+    '^.*(http://100.100.100.200).*',
+    // k8s ETCD
+    '^.*(127.0.0.1).*'
+  ]),
+  isBootstrap: z.boolean().optional().default(false),
+  validateUnsignedDDO: z.boolean().optional().default(true),
+  jwtSecret: z.string().optional()
+})
+
+export type OceanNodeConfigParsed = z.infer<typeof OceanNodeConfigSchema>
 // usefull for lazy loading and avoid boilerplate on other places
 let previousConfiguration: OceanNodeConfig = null
 
@@ -663,7 +785,11 @@ export async function getConfiguration(
   isStartup: boolean = false
 ): Promise<OceanNodeConfig> {
   if (!previousConfiguration || forceReload) {
-    previousConfiguration = await getEnvConfig(isStartup)
+    if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.CONFIG_PATH)) {
+      previousConfiguration = await getEnvConfig(isStartup)
+    } else {
+      previousConfiguration = buildMergedConfig()
+    }
   }
   if (!previousConfiguration.codeHash) {
     const __filename = fileURLToPath(import.meta.url)
@@ -672,6 +798,296 @@ export async function getConfiguration(
   }
 
   return previousConfiguration
+}
+
+export function loadConfigFromEnv(envVar: string = 'CONFIG_PATH'): OceanNodeConfig {
+  let configPath = process.env[envVar]
+  if (!configPath) {
+    if (!fs.existsSync(path.join(process.cwd(), 'config.json'))) {
+      throw new Error(
+        `Config file not found. Neither environment variable "${envVar}" is set nor does ${configPath} exist.`
+      )
+    }
+    configPath = path.join(process.cwd(), 'config.json')
+  }
+  // Expand $HOME if present
+  if (configPath.startsWith('$HOME')) {
+    const home = process.env.HOME || os.homedir()
+    if (!home) {
+      throw new Error(
+        `"${envVar}" contains $HOME but HOME is not set in the environment.`
+      )
+    }
+    configPath = path.join(home, configPath.slice('$HOME'.length))
+  }
+
+  if (!path.isAbsolute(configPath)) {
+    throw new Error(
+      `Environment variable "${envVar}" must be an absolute path. Got: ${configPath}`
+    )
+  }
+
+  if (!fs.existsSync(configPath)) {
+    throw new Error(`Config file not found at path: ${configPath}`)
+  }
+
+  const privateKey = process.env.PRIVATE_KEY
+  if (!privateKey || privateKey.length !== 66) {
+    // invalid private key
+    CONFIG_LOGGER.logMessageWithEmoji(
+      'Invalid PRIVATE_KEY env variable..',
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
+    return null
+  }
+
+  const rawData = fs.readFileSync(configPath, 'utf-8')
+  let config: OceanNodeConfig
+
+  try {
+    config = JSON.parse(rawData)
+  } catch (err) {
+    throw new Error(`Invalid JSON in config file: ${configPath}. Error: ${err.message}`)
+  }
+  if (!previousConfiguration) {
+    previousConfiguration = config
+  } else if (configChanged(previousConfiguration, config)) {
+    CONFIG_LOGGER.warn(
+      'Detected Ocean Node Configuration change... This might have unintended effects'
+    )
+  }
+  return config
+}
+
+const parseJsonEnv = <T>(env: string | undefined, fallback: T): T => {
+  try {
+    return env ? JSON.parse(env) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+export function buildMergedConfig(): OceanNodeConfig {
+  const baseConfig = loadConfigFromEnv()
+
+  let dhtFilterOption
+  switch (parseInt(process.env.P2P_DHT_FILTER, 0)) {
+    case 1:
+      dhtFilterOption = dhtFilterMethod.filterPrivate
+      break
+    case 2:
+      dhtFilterOption = dhtFilterMethod.filterPublic
+      break
+    default:
+      dhtFilterOption = dhtFilterMethod.filterNone
+  }
+
+  const privateKey = process.env.PRIVATE_KEY
+  if (!privateKey || privateKey.length !== 66) {
+    // invalid private key
+    CONFIG_LOGGER.logMessageWithEmoji(
+      'Invalid PRIVATE_KEY env variable..',
+      true,
+      GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+      LOG_LEVELS_STR.LEVEL_ERROR
+    )
+    return null
+  }
+
+  const overrides: Partial<OceanNodeConfig> = {
+    ...(process.env.JWT_SECRET && { jwtSecret: process.env.JWT_SECRET }),
+    ...(process.env.DB_URL && {
+      dbConfig: {
+        url: process.env.DB_URL,
+        username: process.env.DB_USERNAME ?? baseConfig.dbConfig?.username ?? '',
+        password: process.env.DB_PASSWORD ?? baseConfig.dbConfig?.password ?? '',
+        dbType: process.env.DB_TYPE ?? baseConfig.dbConfig?.dbType ?? 'elasticsearch'
+      }
+    }),
+    authorizedDecrypters: process.env.AUTHORIZED_DECRYPTERS
+      ? getAuthorizedDecrypters(true)
+      : baseConfig.authorizedDecrypters,
+
+    authorizedDecryptersList: process.env.AUTHORIZED_DECRYPTERS_LIST
+      ? getAuthorizedDecryptersList(true)
+      : baseConfig.authorizedDecryptersList,
+
+    allowedValidators: process.env.ALLOWED_VALIDATORS
+      ? getAllowedValidators(true)
+      : baseConfig.allowedValidators,
+
+    allowedValidatorsList: process.env.ALLOWED_VALIDATORS_LIST
+      ? getAllowedValidatorsList(true)
+      : baseConfig.allowedValidatorsList,
+
+    authorizedPublishers: process.env.ALLOWED_ADMINS
+      ? getAuthorizedPublishers(true)
+      : baseConfig.authorizedPublishers,
+
+    authorizedPublishersList: process.env.ALLOWED_ADMINS_LIST
+      ? getAuthorizedPublishersList(true)
+      : baseConfig.authorizedPublishersList,
+
+    ...(process.env.HTTP_API_PORT && { httpPort: Number(process.env.HTTP_API_PORT) }),
+
+    p2pConfig: {
+      ...baseConfig.p2pConfig,
+
+      bootstrapNodes: parseJsonEnv(
+        process.env.P2P_BOOTSTRAP_NODES,
+        baseConfig.p2pConfig?.bootstrapNodes ?? []
+      ),
+      bootstrapTimeout: process.env.P2P_BOOTSTRAP_TIMEOUT
+        ? parseInt(process.env.P2P_BOOTSTRAP_TIMEOUT, 10)
+        : baseConfig.p2pConfig?.bootstrapTimeout,
+      bootstrapTagName:
+        process.env.P2P_BOOTSTRAP_TAGNAME ?? baseConfig.p2pConfig?.bootstrapTagName,
+      bootstrapTagValue: process.env.P2P_BOOTSTRAP_TAGVALUE
+        ? parseInt(process.env.P2P_BOOTSTRAP_TAGVALUE, 10)
+        : baseConfig.p2pConfig?.bootstrapTagValue,
+      bootstrapTTL: process.env.P2P_BOOTSTRAP_TTL
+        ? parseInt(process.env.P2P_BOOTSTRAP_TTL, 10)
+        : baseConfig.p2pConfig?.bootstrapTTL,
+
+      enableIPV4: process.env.P2P_ENABLE_IPV4
+        ? process.env.P2P_ENABLE_IPV4 === 'true'
+        : baseConfig.p2pConfig?.enableIPV4,
+      enableIPV6: process.env.P2P_ENABLE_IPV6
+        ? process.env.P2P_ENABLE_IPV6 === 'true'
+        : baseConfig.p2pConfig?.enableIPV6,
+
+      ipV4BindAddress:
+        process.env.P2P_IP_V4_BIND_ADDRESS ?? baseConfig.p2pConfig?.ipV4BindAddress,
+      ipV4BindTcpPort: process.env.P2P_IP_V4_BIND_TCP_PORT
+        ? parseInt(process.env.P2P_IP_V4_BIND_TCP_PORT, 10)
+        : baseConfig.p2pConfig?.ipV4BindTcpPort,
+      ipV4BindWsPort: process.env.P2P_IP_V4_BIND_WS_PORT
+        ? parseInt(process.env.P2P_IP_V4_BIND_WS_PORT, 10)
+        : baseConfig.p2pConfig?.ipV4BindWsPort,
+
+      ipV6BindAddress:
+        process.env.P2P_IP_V6_BIND_ADDRESS ?? baseConfig.p2pConfig?.ipV6BindAddress,
+      ipV6BindTcpPort: process.env.P2P_IP_V6_BIND_TCP_PORT
+        ? parseInt(process.env.P2P_IP_V6_BIND_TCP_PORT, 10)
+        : baseConfig.p2pConfig?.ipV6BindTcpPort,
+      ipV6BindWsPort: process.env.P2P_IP_V6_BIND_WS_PORT
+        ? parseInt(process.env.P2P_IP_V6_BIND_WS_PORT, 10)
+        : baseConfig.p2pConfig?.ipV6BindWsPort,
+
+      announceAddresses: parseJsonEnv(
+        process.env.P2P_ANNOUNCE_ADDRESSES,
+        baseConfig.p2pConfig?.announceAddresses ?? []
+      ),
+      pubsubPeerDiscoveryInterval: process.env.P2P_PUBSUB_PEER_DISCOVERY_INTERVAL
+        ? parseInt(process.env.P2P_PUBSUB_PEER_DISCOVERY_INTERVAL, 10)
+        : baseConfig.p2pConfig?.pubsubPeerDiscoveryInterval,
+
+      dhtMaxInboundStreams: process.env.P2P_DHT_MAX_INBOUND_STREAMS
+        ? parseInt(process.env.P2P_DHT_MAX_INBOUND_STREAMS, 10)
+        : baseConfig.p2pConfig?.dhtMaxInboundStreams,
+      dhtMaxOutboundStreams: process.env.P2P_DHT_MAX_OUTBOUND_STREAMS
+        ? parseInt(process.env.P2P_DHT_MAX_OUTBOUND_STREAMS, 10)
+        : baseConfig.p2pConfig?.dhtMaxOutboundStreams,
+      dhtFilter: dhtFilterOption ?? baseConfig.p2pConfig?.dhtFilter,
+
+      mDNSInterval: process.env.P2P_MDNS_INTERVAL
+        ? parseInt(process.env.P2P_MDNS_INTERVAL, 10)
+        : baseConfig.p2pConfig?.mDNSInterval,
+
+      connectionsMaxParallelDials: process.env.P2P_CONNECTIONS_MAX_PARALLEL_DIALS
+        ? parseInt(process.env.P2P_CONNECTIONS_MAX_PARALLEL_DIALS, 10)
+        : baseConfig.p2pConfig?.connectionsMaxParallelDials,
+      connectionsDialTimeout: process.env.P2P_CONNECTIONS_DIAL_TIMEOUT
+        ? parseInt(process.env.P2P_CONNECTIONS_DIAL_TIMEOUT, 10)
+        : baseConfig.p2pConfig?.connectionsDialTimeout,
+
+      upnp: process.env.P2P_ENABLE_UPNP
+        ? process.env.P2P_ENABLE_UPNP === 'true'
+        : baseConfig.p2pConfig?.upnp,
+      autoNat: process.env.P2P_ENABLE_AUTONAT
+        ? process.env.P2P_ENABLE_AUTONAT === 'true'
+        : baseConfig.p2pConfig?.autoNat,
+
+      enableCircuitRelayServer: process.env.P2P_ENABLE_CIRCUIT_RELAY_SERVER
+        ? process.env.P2P_ENABLE_CIRCUIT_RELAY_SERVER === 'true'
+        : baseConfig.p2pConfig?.enableCircuitRelayServer,
+      enableCircuitRelayClient: process.env.P2P_ENABLE_CIRCUIT_RELAY_CLIENT
+        ? process.env.P2P_ENABLE_CIRCUIT_RELAY_CLIENT === 'true'
+        : baseConfig.p2pConfig?.enableCircuitRelayClient,
+
+      circuitRelays: process.env.P2P_CIRCUIT_RELAYS
+        ? parseInt(process.env.P2P_CIRCUIT_RELAYS, 10)
+        : baseConfig.p2pConfig?.circuitRelays,
+      announcePrivateIp: process.env.P2P_ANNOUNCE_PRIVATE
+        ? process.env.P2P_ANNOUNCE_PRIVATE === 'true'
+        : baseConfig.p2pConfig?.announcePrivateIp,
+
+      filterAnnouncedAddresses: parseJsonEnv(
+        process.env.P2P_FILTER_ANNOUNCED_ADDRESSES,
+        baseConfig.p2pConfig?.filterAnnouncedAddresses ?? []
+      ),
+
+      minConnections: process.env.P2P_MIN_CONNECTIONS
+        ? parseInt(process.env.P2P_MIN_CONNECTIONS, 10)
+        : baseConfig.p2pConfig?.minConnections,
+      maxConnections: process.env.P2P_MAX_CONNECTIONS
+        ? parseInt(process.env.P2P_MAX_CONNECTIONS, 10)
+        : baseConfig.p2pConfig?.maxConnections,
+
+      autoDialPeerRetryThreshold: process.env.P2P_AUTODIAL_PEER_RETRY_THRESHOLD
+        ? parseInt(process.env.P2P_AUTODIAL_PEER_RETRY_THRESHOLD, 10)
+        : baseConfig.p2pConfig?.autoDialPeerRetryThreshold,
+      autoDialConcurrency: process.env.P2P_AUTODIAL_CONCURRENCY
+        ? parseInt(process.env.P2P_AUTODIAL_CONCURRENCY, 10)
+        : baseConfig.p2pConfig?.autoDialConcurrency,
+      maxPeerAddrsToDial: process.env.P2P_MAX_PEER_ADDRS_TO_DIAL
+        ? parseInt(process.env.P2P_MAX_PEER_ADDRS_TO_DIAL, 10)
+        : baseConfig.p2pConfig?.maxPeerAddrsToDial,
+      autoDialInterval: process.env.P2P_AUTODIAL_INTERVAL
+        ? parseInt(process.env.P2P_AUTODIAL_INTERVAL, 10)
+        : baseConfig.p2pConfig?.autoDialInterval,
+
+      enableNetworkStats: process.env.P2P_ENABLE_NETWORK_STATS
+        ? process.env.P2P_ENABLE_NETWORK_STATS === 'true'
+        : baseConfig.p2pConfig?.enableNetworkStats
+    },
+
+    ...(process.env.CONTROL_PANEL && {
+      hasControlPanel: process.env.CONTROL_PANEL !== 'false'
+    }),
+    ...(process.env.RPCS && {
+      supportedNetworks: parseJsonEnv(
+        process.env.RPCS,
+        baseConfig.supportedNetworks ?? {}
+      )
+    }),
+    ...(process.env.C2D_NODE_URI && { c2dNodeUri: process.env.C2D_NODE_URI }),
+    ...(process.env.ACCOUNT_PURGATORY_URL && {
+      accountPurgatoryUrl: process.env.ACCOUNT_PURGATORY_URL
+    }),
+    ...(process.env.ASSET_PURGATORY_URL && {
+      assetPurgatoryUrl: process.env.ASSET_PURGATORY_URL
+    }),
+    ...(process.env.UNSAFE_URLS && {
+      unsafeURLs: parseJsonEnv(process.env.UNSAFE_URLS, baseConfig.unsafeURLs ?? [])
+    }),
+    ...(process.env.IS_BOOTSTRAP && { isBootstrap: process.env.IS_BOOTSTRAP === 'true' }),
+    ...(process.env.ESCROW_CLAIM_TIMEOUT && {
+      claimDurationTimeout: parseInt(process.env.ESCROW_CLAIM_TIMEOUT, 10)
+    }),
+    ...(process.env.VALIDATE_UNSIGNED_DDO && {
+      validateUnsignedDDO: process.env.VALIDATE_UNSIGNED_DDO === 'true'
+    })
+  }
+
+  const merged = {
+    ...baseConfig,
+    ...overrides
+  }
+
+  return OceanNodeConfigSchema.parse(merged) as OceanNodeConfig
 }
 
 // we can just use the lazy version above "getConfiguration()" and specify if we want to reload from .env variables
