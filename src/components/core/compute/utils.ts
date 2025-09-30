@@ -31,7 +31,8 @@ export async function getAlgoChecksums(
 ): Promise<AlgoChecksums> {
   const checksums: AlgoChecksums = {
     files: '',
-    container: ''
+    container: '',
+    serviceId: algoServiceId
   }
   try {
     const algoDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(algoDID)

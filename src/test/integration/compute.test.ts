@@ -1256,6 +1256,7 @@ describe('Compute', () => {
         expect(algoChecksums.container).to.equal(
           'ba8885fcc7d366f058d6c3bb0b7bfe191c5f85cb6a4ee3858895342436c23504'
         )
+        expect(algoChecksums.serviceId).to.equal(algoDDOTest.services[0].id)
       } else expect(expectedTimeoutFailure(this.test.title)).to.be.equal(wasTimeout)
     })
 
