@@ -58,6 +58,14 @@ export PRIVATE_KEY="0x_your_private_key_here"
 
 The `PRIVATE_KEY` is the only mandatory environmental variable, you must include the `0x` at the front of your private key. Additional configurations can be set as needed. For all available configurations, refer to the [Environment Variables](docs/env.md) documentation.
 
+2.1. If the config is a JSON file, run:
+
+```
+export CONFIG_PATH='<absolute_path_to_json_file>'
+```
+
+Config file should be absolute path.
+
 3.  Quick start the Ocean Node with PM2
 
 ```bash
