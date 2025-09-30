@@ -165,7 +165,7 @@ export class C2DEngineDocker extends C2DEngine {
       consumerAddress: config.keys.ethAddress,
       platform: {
         architecture: sysinfo.Architecture,
-        os: sysinfo.OperatingSystem
+        os: sysinfo.OSType
       },
       fees
     })
@@ -310,48 +310,33 @@ export class C2DEngineDocker extends C2DEngine {
   ): Promise<ValidateParams> {
     try {
       const info = drc.default.parseRepoAndRef(image)
-      /**
-     * info:  {
-        index: { name: 'docker.io', official: true },
-        official: true,
-        remoteName: 'library/node',
-        localName: 'node',
-        canonicalName: 'docker.io/node',
-        digest: 'sha256:1155995dda741e93afe4b1c6ced2d01734a6ec69865cc0997daf1f4db7259a36'
-      }
-     */
       const client = drc.createClientV2({ name: info.localName })
-      const tagOrDigest = info.tag || info.digest
+      const ref = info.tag || info.digest
 
-      // try get manifest from registry
-      return await new Promise<any>((resolve, reject) => {
-        client.getManifest(
-          { ref: tagOrDigest, maxSchemaVersion: 2 },
-          function (err: any, manifest: any) {
-            client.close()
-            if (manifest) {
-              return resolve({
-                valid: checkManifestPlatform(manifest.platform, platform)
-              })
-            }
-
-            if (err) {
-              CORE_LOGGER.error(
-                `Unable to get Manifest for image ${image}: ${err.message}`
-              )
-              reject(err)
-            }
-          }
-        )
+      const manifest = await new Promise<any>((resolve, reject) => {
+        client.getManifest({ ref, maxSchemaVersion: 2 }, (err: any, result: any) => {
+          client.close()
+          err ? reject(err) : resolve(result)
+        })
       })
-    } catch (err) {
-      // show all aggregated errors, if present
-      const aggregated = err.errors && err.errors.length > 0
-      aggregated ? CORE_LOGGER.error(JSON.stringify(err.errors)) : CORE_LOGGER.error(err)
+
+      const platforms = Array.isArray(manifest.manifests)
+        ? manifest.manifests.map((entry: any) => entry.platform)
+        : [manifest.platform]
+
+      const isValidPlatform = platforms.some((entry: any) =>
+        checkManifestPlatform(entry, platform)
+      )
+
+      return { valid: isValidPlatform }
+    } catch (err: any) {
+      CORE_LOGGER.error(`Unable to get Manifest for image ${image}: ${err.message}`)
+      if (err.errors?.length) CORE_LOGGER.error(JSON.stringify(err.errors))
+
       return {
         valid: false,
         status: 404,
-        reason: aggregated ? JSON.stringify(err.errors) : err.message
+        reason: err.errors?.length ? JSON.stringify(err.errors) : err.message
       }
     }
   }
@@ -450,8 +435,11 @@ export class C2DEngineDocker extends C2DEngine {
     } else {
       // already built, we need to validate it
       const validation = await C2DEngineDocker.checkDockerImage(image, env.platform)
+      console.log('Validation: ', validation)
       if (!validation.valid)
-        throw new Error(`Unable to validate docker image ${image}: ${validation.reason}`)
+        throw new Error(
+          `Cannot find image ${image} for ${env.platform.architecture}. Maybe it does not exist or it's build for other arhitectures.`
+        )
       job.status = C2DStatusNumber.PullImage
       job.statusText = C2DStatusText.PullImage
     }
@@ -1726,6 +1714,9 @@ export function checkManifestPlatform(
   envPlatform?: RunningPlatform
 ): boolean {
   if (!manifestPlatform || !envPlatform) return true // skips if not present
+  if (envPlatform.architecture === 'amd64') envPlatform.architecture = 'x86_64' // x86_64 is compatible with amd64
+  if (manifestPlatform.architecture === 'amd64') manifestPlatform.architecture = 'x86_64' // x86_64 is compatible with amd64
+
   if (
     envPlatform.architecture !== manifestPlatform.architecture ||
     envPlatform.os !== manifestPlatform.os
