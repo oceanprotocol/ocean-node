@@ -5,7 +5,7 @@ services:
       - 9200:9200
       - 9300:9300
     volumes:
-      - ./esdata:/usr/share/elasticsearch/data
+      - esdata:/usr/share/elasticsearch/data
     environment:
       ES_JAVA_OPTS: "-Xms512m -Xmx512m"
       MAX_MAP_COUNT: "64000"
