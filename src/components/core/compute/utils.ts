@@ -31,7 +31,8 @@ export async function getAlgoChecksums(
 ): Promise<AlgoChecksums> {
   const checksums: AlgoChecksums = {
     files: '',
-    container: ''
+    container: '',
+    serviceId: algoServiceId
   }
   try {
     const algoDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(algoDID)
@@ -76,6 +77,7 @@ export async function validateAlgoForDataset(
   algoChecksums: {
     files: string
     container: string
+    serviceId?: string
   },
   ddoInstance: VersionedDDO,
   datasetServiceId: string,
@@ -115,6 +117,12 @@ export async function validateAlgoForDataset(
           const containerMatch =
             algo.containerSectionChecksum === '*' ||
             algo.containerSectionChecksum === algoChecksums.container
+          if ('serviceId' in Object.keys(algo)) {
+            const serviceIdMatch =
+              algo.serviceId === '*' || algo.serviceId === algoChecksums.serviceId
+            return didMatch && filesMatch && containerMatch && serviceIdMatch
+          }
+
           return didMatch && filesMatch && containerMatch
         })
 

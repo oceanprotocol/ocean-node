@@ -213,6 +213,7 @@ export interface ComputeAlgorithm {
 export interface AlgoChecksums {
   files: string
   container: string
+  serviceId?: string
 }
 
 export interface DBComputeJobPayment {
