@@ -117,7 +117,7 @@ export async function validateAlgoForDataset(
           const containerMatch =
             algo.containerSectionChecksum === '*' ||
             algo.containerSectionChecksum === algoChecksums.container
-          if ('serviceId' in Object.keys(algo)) {
+          if ('serviceId' in algo) {
             const serviceIdMatch =
               algo.serviceId === '*' || algo.serviceId === algoChecksums.serviceId
             return didMatch && filesMatch && containerMatch && serviceIdMatch
