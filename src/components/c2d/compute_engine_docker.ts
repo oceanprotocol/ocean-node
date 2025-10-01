@@ -101,8 +101,6 @@ export class C2DEngineDocker extends C2DEngine {
     // let's build the env.   Swarm and k8 will build multiple envs, based on arhitecture
     const config = await getConfiguration()
     const envConfig = await this.getC2DConfig().connection
-    console.log(config)
-    console.log(envConfig)
     let sysinfo = null
     try {
       sysinfo = await this.docker.info()
