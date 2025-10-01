@@ -1489,7 +1489,7 @@ export class C2DEngineDocker extends C2DEngine {
     const configLogPath = jobFolderPath + '/data/logs/configuration.log'
 
     try {
-      writeFileSync(
+      appendFileSync(
         configLogPath,
         "Writing algocustom data to '/data/inputs/algoCustomData.json'\n"
       )
@@ -1504,7 +1504,7 @@ export class C2DEngineDocker extends C2DEngine {
 
       if (job.algorithm.meta.rawcode && job.algorithm.meta.rawcode.length > 0) {
         // we have the code, just write it
-        writeFileSync(configLogPath, `Writing raw algo code to ${fullAlgoPath}\n`)
+        appendFileSync(configLogPath, `Writing raw algo code to ${fullAlgoPath}\n`)
         writeFileSync(fullAlgoPath, job.algorithm.meta.rawcode)
       } else {
         // do we have a files object?
@@ -1516,7 +1516,7 @@ export class C2DEngineDocker extends C2DEngine {
               storage = Storage.getStorageClass(job.algorithm.fileObject, config)
             } catch (e) {
               CORE_LOGGER.error(`Unable to get storage class for algorithm: ${e.message}`)
-              writeFileSync(
+              appendFileSync(
                 configLogPath,
                 `Unable to get storage class for algorithm: ${e.message}\n`
               )
@@ -1538,7 +1538,7 @@ export class C2DEngineDocker extends C2DEngine {
               storage = Storage.getStorageClass(decryptedFileObject, config)
             } catch (e) {
               CORE_LOGGER.error(`Unable to decrypt algorithm files object: ${e.message}`)
-              writeFileSync(
+              appendFileSync(
                 configLogPath,
                 `Unable to decrypt algorithm files object: ${e.message}\n`
               )
@@ -1554,7 +1554,7 @@ export class C2DEngineDocker extends C2DEngine {
             'algorithm file object seems to be missing, checking "serviceId" and "documentId"...'
           )
           const { serviceId, documentId } = job.algorithm
-          writeFileSync(
+          appendFileSync(
             configLogPath,
             `Using ${documentId} and serviceId ${serviceId} to get algorithm files.\n`
           )
@@ -1569,7 +1569,7 @@ export class C2DEngineDocker extends C2DEngine {
               CORE_LOGGER.error(
                 `Could not find service with ID ${serviceId} in DDO ${documentId}`
               )
-              writeFileSync(
+              appendFileSync(
                 configLogPath,
                 `Could not find service with ID ${serviceId} in DDO ${documentId}\n`
               )
@@ -1584,7 +1584,7 @@ export class C2DEngineDocker extends C2DEngine {
               storage = Storage.getStorageClass(decryptedFileObject, config)
             } catch (e) {
               CORE_LOGGER.error(`Unable to decrypt algorithm files object: ${e.message}`)
-              writeFileSync(
+              appendFileSync(
                 configLogPath,
                 `Unable to decrypt algorithm files object: ${e.message}\n`
               )
@@ -1605,7 +1605,7 @@ export class C2DEngineDocker extends C2DEngine {
           CORE_LOGGER.info(
             'Could not extract any files object from the compute algorithm, skipping...'
           )
-          writeFileSync(
+          appendFileSync(
             configLogPath,
             'Could not extract any files object from the compute algorithm, skipping...\n'
           )
@@ -1615,7 +1615,7 @@ export class C2DEngineDocker extends C2DEngine {
       CORE_LOGGER.error(
         'Unable to write algorithm to path: ' + fullAlgoPath + ': ' + e.message
       )
-      writeFileSync(
+      appendFileSync(
         configLogPath,
         'Unable to write algorithm to path: ' + fullAlgoPath + ': ' + e.message + '\n'
       )
@@ -1631,7 +1631,7 @@ export class C2DEngineDocker extends C2DEngine {
       let storage = null
       let fileInfo = null
       console.log('checking now asset: ', i)
-      writeFileSync(configLogPath, `Downloading asset ${i} to /data/inputs/\n`)
+      appendFileSync(configLogPath, `Downloading asset ${i} to /data/inputs/\n`)
       // without this check it would break if no fileObject is present
       if (asset.fileObject) {
         try {
@@ -1650,7 +1650,7 @@ export class C2DEngineDocker extends C2DEngine {
           })
         } catch (e) {
           CORE_LOGGER.error(`Unable to get storage class for asset: ${e.message}`)
-          writeFileSync(
+          appendFileSync(
             configLogPath,
             `Unable to get storage class for asset: ${e.message}\n`
           )
@@ -1662,7 +1662,7 @@ export class C2DEngineDocker extends C2DEngine {
       } else {
         // we need to go the hard way
         const { serviceId, documentId } = asset
-        writeFileSync(
+        appendFileSync(
           configLogPath,
           `Using ${documentId} and serviceId ${serviceId} for this asset.\n`
         )
@@ -1682,7 +1682,7 @@ export class C2DEngineDocker extends C2DEngine {
             })
           } catch (e) {
             CORE_LOGGER.error(`Unable to get storage class for asset: ${e.message}`)
-            writeFileSync(
+            appendFileSync(
               configLogPath,
               `Unable to get storage class for asset: ${e.message}\n`
             )
@@ -1696,7 +1696,7 @@ export class C2DEngineDocker extends C2DEngine {
 
       if (storage && fileInfo) {
         const fullPath = jobFolderPath + '/data/inputs/' + fileInfo[0].name
-        writeFileSync(configLogPath, `Downloading asset to ${fullPath}\n`)
+        appendFileSync(configLogPath, `Downloading asset to ${fullPath}\n`)
         try {
           await pipeline(
             (await storage.getReadableStream()).stream,
@@ -1706,7 +1706,7 @@ export class C2DEngineDocker extends C2DEngine {
           CORE_LOGGER.error(
             'Unable to write input data to path: ' + fullPath + ': ' + e.message
           )
-          writeFileSync(
+          appendFileSync(
             configLogPath,
             'Unable to write input data to path: ' + fullPath + ': ' + e.message + '\n'
           )
@@ -1719,14 +1719,14 @@ export class C2DEngineDocker extends C2DEngine {
         CORE_LOGGER.info(
           'Could not extract any files object from the compute asset, skipping...'
         )
-        writeFileSync(
+        appendFileSync(
           configLogPath,
           'Could not extract any files object from the compute asset, skipping...\n'
         )
       }
     }
     CORE_LOGGER.info('All good with data provisioning, will start uploading it...')
-    writeFileSync(
+    appendFileSync(
       configLogPath,
       'All good with data provisioning, will start uploading it...\n'
     )
@@ -1759,7 +1759,7 @@ export class C2DEngineDocker extends C2DEngine {
 
           console.log('Done uploading')
         } catch (e) {
-          writeFileSync(
+          appendFileSync(
             configLogPath,
             'Data upload to container failed: ' + e.message + '\n'
           )
@@ -1770,11 +1770,11 @@ export class C2DEngineDocker extends C2DEngine {
         }
       } else {
         CORE_LOGGER.debug('No data to upload, empty tar.gz')
-        writeFileSync(configLogPath, `No data to upload, empty tar.gz\n`)
+        appendFileSync(configLogPath, `No data to upload, empty tar.gz\n`)
       }
     } catch (e) {
       CORE_LOGGER.debug(e.message)
-      writeFileSync(configLogPath, `Error creating data archive: ${e.message}\n`)
+      appendFileSync(configLogPath, `Error creating data archive: ${e.message}\n`)
       return {
         status: C2DStatusNumber.DataProvisioningFailed,
         statusText: C2DStatusText.DataProvisioningFailed
