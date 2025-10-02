@@ -85,7 +85,7 @@
     "assetPurgatoryUrl": "",
     "allowedAdmins": [],
     "allowedAdminsList": [],
-    "rateLimit": {},
+    "rateLimit": 300,
     "maxConnections": 300,
     "denyList": [],
     "unsafeURLs": [],
