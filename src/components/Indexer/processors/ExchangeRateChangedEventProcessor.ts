@@ -21,21 +21,26 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
     signer: Signer,
     provider: JsonRpcApiProvider
   ): Promise<any> {
-    const decodedEventData = await this.getEventData(
-      provider,
-      event.transactionHash,
-      FixedRateExchange.abi,
-      EVENTS.EXCHANGE_RATE_CHANGED
-    )
-    const exchangeId = ethers.toUtf8Bytes(decodedEventData.args[0].toString())
-    const newRate = decodedEventData.args[2].toString()
-    const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
-    const exchange = await freContract.getExchange(exchangeId)
-    const datatokenAddress = exchange[1]
-    const datatokenContract = getDtContract(signer, datatokenAddress)
-    const nftAddress = await datatokenContract.getERC721Address()
-    const did = getDid(nftAddress, chainId)
     try {
+      const decodedEventData = await this.getEventData(
+        provider,
+        event.transactionHash,
+        FixedRateExchange.abi,
+        EVENTS.EXCHANGE_RATE_CHANGED
+      )
+      const exchangeId = ethers.toUtf8Bytes(decodedEventData.args[0].toString())
+      const newRate = decodedEventData.args[2].toString()
+      const freContract = new ethers.Contract(
+        event.address,
+        FixedRateExchange.abi,
+        signer
+      )
+      const exchange = await freContract.getExchange(exchangeId)
+      const datatokenAddress = exchange[1]
+      const datatokenContract = getDtContract(signer, datatokenAddress)
+      const nftAddress = await datatokenContract.getERC721Address()
+      const did = getDid(nftAddress, chainId)
+
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
@@ -102,7 +107,11 @@ export class ExchangeRateChangedEventProcessor extends BaseEventProcessor {
       )
       return savedDDO
     } catch (err) {
-      INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
+      INDEXER_LOGGER.log(
+        LOG_LEVELS_STR.LEVEL_ERROR,
+        `Error processing ExchangeRateChangedEvent: ${err}`,
+        true
+      )
     }
   }
 }
