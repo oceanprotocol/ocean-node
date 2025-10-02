@@ -1,0 +1,17 @@
+services:
+  elasticsearch:
+    image: elasticsearch:8.5.1
+    ports:
+      - 9200:9200
+      - 9300:9300
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    environment:
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      MAX_MAP_COUNT: "64000"
+      discovery.type: "single-node"
+      ELASTIC_PASSWORD: "changeme"
+      xpack.security.enabled: "false"
+      xpack.security.http.ssl.enabled: "false"
+volumes:
+  esdata:
