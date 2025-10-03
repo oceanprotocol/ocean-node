@@ -316,7 +316,7 @@ export class DecryptDdoHandler extends CommandHandler {
 
       let decryptedDocument: Buffer
       // check if DDO is ECIES encrypted
-      if ((parseInt(flag) & 2) !== 0) {
+      if ((flags & 2) !== 0) {
         try {
           decryptedDocument = await decrypt(encryptedDocument, EncryptMethod.ECIES)
         } catch (error) {
