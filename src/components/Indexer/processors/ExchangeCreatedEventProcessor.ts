@@ -21,20 +21,26 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
     signer: Signer,
     provider: JsonRpcApiProvider
   ): Promise<any> {
-    const decodedEventData = await this.getEventData(
-      provider,
-      event.transactionHash,
-      FixedRateExchange.abi,
-      EVENTS.EXCHANGE_CREATED
-    )
-    const exchangeId = decodedEventData.args[0].toString()
-    const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
-    const exchange = await freContract.getExchange(exchangeId)
-    const datatokenAddress = exchange[1]
-    const datatokenContract = getDtContract(signer, datatokenAddress)
-    const nftAddress = await datatokenContract.getERC721Address()
-    const did = getDid(nftAddress, chainId)
     try {
+      const decodedEventData = await this.getEventData(
+        provider,
+        event.transactionHash,
+        FixedRateExchange.abi,
+        EVENTS.EXCHANGE_CREATED
+      )
+      const exchangeId = decodedEventData.args[0].toString()
+      const freContract = new ethers.Contract(
+        event.address,
+        FixedRateExchange.abi,
+        signer
+      )
+      const exchange = await freContract.getExchange(exchangeId)
+
+      const datatokenAddress = exchange[1]
+      const datatokenContract = getDtContract(signer, datatokenAddress)
+      const nftAddress = await datatokenContract.getERC721Address()
+      const did = getDid(nftAddress, chainId)
+
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
