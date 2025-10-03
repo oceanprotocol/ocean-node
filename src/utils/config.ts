@@ -49,36 +49,42 @@ const DenyListSchema = z.object({
   peers: z.array(z.string()).default([]),
   ips: z.array(z.string()).default([])
 })
-const C2DDockerConfigSchema = z.array(z.object({
-  socketPath: z.string(),
-  resources: z.array(z.object({
-    id: z.string(),
-    total: z.number()
-  })),
-  storageExpiry: z.number().int().optional().default(604800),
-  maxJobDuration: z.number().int().optional().default(3600),
-  fees: z.record(
-    z.string(),
-    z.array(
+const C2DDockerConfigSchema = z.array(
+  z.object({
+    socketPath: z.string(),
+    resources: z.array(
       z.object({
-        prices: z.array(
-          z.object({
-            id: z.string(),
-            price: z.number()
-          })
-        )
+        id: z.string(),
+        total: z.number()
       })
-    )
-  ),
-  free: z.object({
+    ),
+    storageExpiry: z.number().int().optional().default(604800),
     maxJobDuration: z.number().int().optional().default(3600),
-    maxJobs: z.number().int().optional().default(3),
-    resources: z.array(z.object({
-      id: z.string(),
-      max: z.number()
-    }))
+    fees: z.record(
+      z.string(),
+      z.array(
+        z.object({
+          prices: z.array(
+            z.object({
+              id: z.string(),
+              price: z.number()
+            })
+          )
+        })
+      )
+    ),
+    free: z.object({
+      maxJobDuration: z.number().int().optional().default(3600),
+      maxJobs: z.number().int().optional().default(3),
+      resources: z.array(
+        z.object({
+          id: z.string(),
+          max: z.number()
+        })
+      )
+    })
   })
-}))
+)
 
 const OceanNodeP2PConfigSchema = z.object({
   bootstrapNodes: z.array(z.string()).optional().default(defaultBootstrapAddresses),
@@ -457,7 +463,17 @@ function getOceanNodeFees(supportedNetworks: RPCS, isStartup?: boolean): FeeStra
 
       nodeFeesAmount = { amount: 0, unit: 'MB' }
     } else {
-      nodeFeesAmount = JSON.parse(process.env.FEE_AMOUNT) as FeeAmount
+      try {
+        nodeFeesAmount = JSON.parse(process.env.FEE_AMOUNT) as FeeAmount
+      } catch (error) {
+        CONFIG_LOGGER.logMessageWithEmoji(
+          `Invalid "${ENVIRONMENT_VARIABLES.FEE_AMOUNT.name}" env variable => ${process.env.FEE_AMOUNT}...`,
+          true,
+          GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+          LOG_LEVELS_STR.LEVEL_ERROR
+        )
+        nodeFeesAmount = { amount: 0, unit: 'MB' }
+      }
     }
     if (!existsEnvironmentVariable(ENVIRONMENT_VARIABLES.FEE_TOKENS)) {
       // try to get first for artifacts address if available
@@ -891,7 +907,19 @@ export async function buildMergedConfig(): Promise<OceanNodeConfig> {
 
   let interfaces
   if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.INTERFACES)) {
-    interfaces = JSON.parse(process.env.INTERFACES)
+    try {
+      interfaces = JSON.parse(process.env.INTERFACES)
+    } catch (error) {
+      CONFIG_LOGGER.logMessageWithEmoji(
+        `Invalid "${ENVIRONMENT_VARIABLES.INTERFACES.name}" env variable => ${process.env.INTERFACES}...`,
+        true,
+        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
+        LOG_LEVELS_STR.LEVEL_ERROR
+      )
+      interfaces = []
+      if (baseConfig.hasHttp) interfaces.push('HTTP')
+      if (baseConfig.hasP2P) interfaces.push('P2P')
+    }
   } else {
     interfaces = []
     if (baseConfig.hasHttp) interfaces.push('HTTP')
