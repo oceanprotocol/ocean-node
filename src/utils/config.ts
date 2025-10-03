@@ -909,6 +909,11 @@ export async function buildMergedConfig(): Promise<OceanNodeConfig> {
   if (existsEnvironmentVariable(ENVIRONMENT_VARIABLES.INTERFACES)) {
     try {
       interfaces = JSON.parse(process.env.INTERFACES)
+      if (Array.isArray(interfaces) && interfaces.length === 0) {
+        interfaces = []
+        if (baseConfig.hasHttp) interfaces.push('HTTP')
+        if (baseConfig.hasP2P) interfaces.push('P2P')
+      }
     } catch (error) {
       CONFIG_LOGGER.logMessageWithEmoji(
         `Invalid "${ENVIRONMENT_VARIABLES.INTERFACES.name}" env variable => ${process.env.INTERFACES}...`,
