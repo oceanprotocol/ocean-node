@@ -82,7 +82,7 @@ Here is the full definition of DOCKER_COMPUTE_ENVIRONMENTS:
           }
         }
       },
-      { "id": "disk", "total": 1000000000 }
+      { "id": "disk", "total": 1 }
     ],
     "storageExpiry": 604800,
     "maxJobDuration": 3600,
@@ -102,8 +102,8 @@ Here is the full definition of DOCKER_COMPUTE_ENVIRONMENTS:
       "maxJobs": 3,
       "resources": [
         { "id": "cpu", "max": 1 },
-        { "id": "ram", "max": 1000000000 },
-        { "id": "disk", "max": 1000000000 },
+        { "id": "ram", "max": 1 },
+        { "id": "disk", "max": 1 },
         { "id": "myGPU", "max": 1 }
       ]
     }
@@ -141,9 +141,9 @@ root@gpu-1:/repos/ocean/ocean-node# curl http://localhost:8000/api/services/comp
       { "id": "cpu", "total": 8, "max": 8, "min": 1, "inUse": 0 },
       {
         "id": "ram",
-        "total": 24888963072,
-        "max": 24888963072,
-        "min": 1000000000,
+        "total": 23,
+        "max": 23,
+        "min": 1,
         "inUse": 0
       },
       {
@@ -162,15 +162,15 @@ root@gpu-1:/repos/ocean/ocean-node# curl http://localhost:8000/api/services/comp
         "min": 0,
         "inUse": 0
       },
-      { "id": "disk", "total": 1000000000, "max": 1000000000, "min": 0, "inUse": 0 }
+      { "id": "disk", "total": 1, "max": 1, "min": 0, "inUse": 0 }
     ],
     "free": {
       "maxJobDuration": 60,
       "maxJobs": 3,
       "resources": [
         { "id": "cpu", "max": 1, "inUse": 0 },
-        { "id": "ram", "max": 1000000000, "inUse": 0 },
-        { "id": "disk", "max": 1000000000, "inUse": 0 },
+        { "id": "ram", "max": 1, "inUse": 0 },
+        { "id": "disk", "max": 1, "inUse": 0 },
         { "id": "myGPU", "max": 1, "inUse": 0 }
       ]
     },
@@ -259,7 +259,7 @@ Then define DOCKER_COMPUTE_ENVIRONMENTS with
       },
       {
         "id": "disk",
-        "total": 1000000000
+        "total": 1
       }
     ],
     "storageExpiry": 604800,
@@ -291,11 +291,11 @@ Then define DOCKER_COMPUTE_ENVIRONMENTS with
         },
         {
           "id": "ram",
-          "max": 1000000000
+          "max": 1
         },
         {
           "id": "disk",
-          "max": 1000000000
+          "max": 1
         },
         {
           "id": "myGPU",
@@ -311,7 +311,7 @@ aka
 
 ```bash
 export DOCKER_COMPUTE_ENVIRONMENTS="[{\"socketPath\":\"/var/run/docker.sock\",\"resources\":[{\"id\":\"myGPU\",\"description\":\"AMD Radeon RX 9070 XT\",\"type\":\"gpu\",\"total\":1,\"init\":{\"advanced\":{
-\"IpcMode\":\"host\",\"CapAdd\":[\"CAP_SYS_PTRACE\"],\"Devices\":[\"/dev/dxg\",\"/dev/dri/card0\"],\"Binds\":[\"/usr/lib/wsl/lib/libdxcore.so:/usr/lib/libdxcore.so\",\"/opt/rocm/lib/libhsa-runtime64.so.1:/opt/rocm/lib/libhsa-runtime64.so.1\"],\"SecurityOpt\":{\"seccomp\":\"unconfined\"}}}},{\"id\":\"disk\",\"total\":1000000000}],\"storageExpiry\":604800,\"maxJobDuration\":3600,\"fees\":{\"1\":[{\"feeToken\":\"0x123\",\"prices\":[{\"id\":\"cpu\",\"price\":1},{\"id\":\"nyGPU\",\"price\":3}]}]},\"free\":{\"maxJobDuration\":60,\"maxJobs\":3,\"resources\":[{\"id\":\"cpu\",\"max\":1},{\"id\":\"ram\",\"max\":1000000000},{\"id\":\"disk\",\"max\":1000000000},{\"id\":\"myGPU\",\"max\":1}]}}]"
+\"IpcMode\":\"host\",\"CapAdd\":[\"CAP_SYS_PTRACE\"],\"Devices\":[\"/dev/dxg\",\"/dev/dri/card0\"],\"Binds\":[\"/usr/lib/wsl/lib/libdxcore.so:/usr/lib/libdxcore.so\",\"/opt/rocm/lib/libhsa-runtime64.so.1:/opt/rocm/lib/libhsa-runtime64.so.1\"],\"SecurityOpt\":{\"seccomp\":\"unconfined\"}}}},{\"id\":\"disk\",\"total\":10}],\"storageExpiry\":604800,\"maxJobDuration\":3600,\"fees\":{\"1\":[{\"feeToken\":\"0x123\",\"prices\":[{\"id\":\"cpu\",\"price\":1},{\"id\":\"nyGPU\",\"price\":3}]}]},\"free\":{\"maxJobDuration\":60,\"maxJobs\":3,\"resources\":[{\"id\":\"cpu\",\"max\":1},{\"id\":\"ram\",\"max\":1},{\"id\":\"disk\",\"max\":1},{\"id\":\"myGPU\",\"max\":1}]}}]"
 ```
 
 you should have it in your compute envs:
@@ -359,9 +359,9 @@ root@gpu-1:/repos/ocean/ocean-node# curl http://localhost:8000/api/services/comp
       },
       {
         "id": "ram",
-        "total": 33617674240,
-        "max": 33617674240,
-        "min": 1000000000,
+        "total": 31,
+        "max": 31,
+        "min": 1,
         "inUse": 0
       },
       {
@@ -389,8 +389,8 @@ root@gpu-1:/repos/ocean/ocean-node# curl http://localhost:8000/api/services/comp
       },
       {
         "id": "disk",
-        "total": 1000000000,
-        "max": 1000000000,
+        "total": 10,
+        "max": 10,
         "min": 0,
         "inUse": 0
       }
@@ -406,12 +406,12 @@ root@gpu-1:/repos/ocean/ocean-node# curl http://localhost:8000/api/services/comp
         },
         {
           "id": "ram",
-          "max": 1000000000,
+          "max": 1,
           "inUse": 0
         },
         {
           "id": "disk",
-          "max": 1000000000,
+          "max": 1,
           "inUse": 0
         },
         {

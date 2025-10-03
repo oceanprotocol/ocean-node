@@ -186,9 +186,9 @@ export class C2DEngineDocker extends C2DEngine {
     this.envs[0].resources.push({
       id: 'ram',
       type: 'ram',
-      total: sysinfo.MemTotal,
-      max: sysinfo.MemTotal,
-      min: 1e9
+      total: Math.floor(sysinfo.MemTotal / 1024 / 1024 / 1024),
+      max: Math.floor(sysinfo.MemTotal / 1024 / 1024 / 1024),
+      min: 1
     })
 
     if (envConfig.resources) {
@@ -425,7 +425,8 @@ export class C2DEngineDocker extends C2DEngine {
       algoStopTimestamp: '0',
       payment,
       metadata,
-      additionalViewers
+      additionalViewers,
+      terminationDetails: { exitCode: null, OOMKilled: null }
     }
 
     if (algorithm.meta.container && algorithm.meta.container.dockerfile) {
@@ -799,7 +800,7 @@ export class C2DEngineDocker extends C2DEngine {
       // ram
       const ramSize = this.getResourceRequest(job.resources, 'ram')
       if (ramSize && ramSize > 0) {
-        hostConfig.Memory = ramSize
+        hostConfig.Memory = ramSize * 1024 * 1024 * 1024 // config is in GB, docker wants bytes
         // set swap to same memory value means no swap (otherwise it use like 2X mem)
         hostConfig.MemorySwap = hostConfig.Memory
       }
@@ -1226,7 +1227,6 @@ export class C2DEngineDocker extends C2DEngine {
     try {
       const container = this.docker.getContainer(containerName)
       const containerInfo = await container.inspect()
-
       if (!containerInfo.State.Running) {
         CORE_LOGGER.debug(
           `Container ${containerName} is not running, cannot check disk usage`
@@ -1269,7 +1269,7 @@ export class C2DEngineDocker extends C2DEngine {
     const algorithmUsage = Math.max(0, totalUsage - baseImageSize)
 
     const usageGB = (algorithmUsage / 1024 / 1024 / 1024).toFixed(2)
-    const quotaGB = (diskQuota / 1024 / 1024 / 1024).toFixed(1)
+    const quotaGB = diskQuota.toFixed(1)
     const usagePercent = ((algorithmUsage / diskQuota) * 100).toFixed(1)
 
     CORE_LOGGER.info(
