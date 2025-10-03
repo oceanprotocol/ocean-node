@@ -1,6 +1,6 @@
 import { Stream } from 'stream'
 import { RPCS } from './blockchain'
-import { C2DClusterInfo } from './C2D/C2D'
+import { C2DClusterInfo, C2DDockerConfig } from './C2D/C2D'
 import { FeeStrategy } from './Fees'
 import { Schema } from '../components/database'
 
@@ -82,6 +82,7 @@ export interface AccessListContract {
 }
 
 export interface OceanNodeConfig {
+  dockerComputeEnvironments: C2DDockerConfig[]
   authorizedDecrypters: string[]
   authorizedDecryptersList: AccessListContract | null
   allowedValidators: string[]

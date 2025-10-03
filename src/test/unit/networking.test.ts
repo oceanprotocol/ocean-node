@@ -72,7 +72,7 @@ describe('Test available network interfaces', () => {
       null,
       buildEnvOverrideConfig(
         [ENVIRONMENT_VARIABLES.INTERFACES],
-        [JSON.stringify(['p2p'])]
+        [JSON.stringify(['P2P'])]
       )
     )
     const interfaces = JSON.parse(process.env.INTERFACES) as string[]
@@ -88,7 +88,7 @@ describe('Test available network interfaces', () => {
       null,
       buildEnvOverrideConfig(
         [ENVIRONMENT_VARIABLES.INTERFACES],
-        [JSON.stringify(['http'])]
+        [JSON.stringify(['HTTP'])]
       )
     )
     const interfaces = JSON.parse(process.env.INTERFACES) as string[]
