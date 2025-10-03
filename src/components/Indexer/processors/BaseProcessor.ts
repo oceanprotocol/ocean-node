@@ -226,31 +226,17 @@ export abstract class BaseEventProcessor {
       let nonce: string
       try {
         if (URLUtils.isValidUrl(decryptorURL)) {
-          if (
-            decryptorURL === `http://localhost:${process.env.HTTP_API_PORT || '8000'}` ||
-            decryptorURL === `http://127.0.0.1:${process.env.HTTP_API_PORT || '8000'}` ||
-            decryptorURL.includes(`localhost:${process.env.HTTP_API_PORT || '8000'}`) ||
-            decryptorURL.includes(`127.0.0.1:${process.env.HTTP_API_PORT || '8000'}`)
-          ) {
-            const { nonce: nonceDB } = await getDatabase()
-            const existingNonce = await nonceDB.retrieve(keys.ethAddress)
-            nonce =
-              existingNonce && existingNonce.nonce !== null
-                ? String(existingNonce.nonce + 1)
-                : Date.now().toString()
-          } else {
-            INDEXER_LOGGER.logMessage(
-              `decryptDDO: Making HTTP request to external node for nonce. DecryptorURL: ${decryptorURL}`
-            )
-            const nonceResponse = await axios.get(
-              `${decryptorURL}/api/services/nonce?userAddress=${keys.ethAddress}`,
-              { timeout: 2000 }
-            )
-            nonce =
-              nonceResponse.status === 200 && nonceResponse.data
-                ? String(parseInt(nonceResponse.data.nonce) + 1)
-                : Date.now().toString()
-          }
+          INDEXER_LOGGER.logMessage(
+            `decryptDDO: Making HTTP request for nonce. DecryptorURL: ${decryptorURL}`
+          )
+          const nonceResponse = await axios.get(
+            `${decryptorURL}/api/services/nonce?userAddress=${keys.ethAddress}`,
+            { timeout: 2000 }
+          )
+          nonce =
+            nonceResponse.status === 200 && nonceResponse.data
+              ? String(parseInt(nonceResponse.data.nonce) + 1)
+              : Date.now().toString()
         } else {
           nonce = Date.now().toString()
         }
