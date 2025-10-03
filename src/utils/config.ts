@@ -45,7 +45,10 @@ const OceanNodeDBConfigSchema = z.any()
 const FeeStrategySchema = z.any()
 const RPCSSchema = z.any()
 const C2DClusterInfoSchema = z.any()
-const DenyListSchema = z.any()
+const DenyListSchema = z.object({
+  peers: z.array(z.string()).default([]),
+  ips: z.array(z.string()).default([])
+})
 // TODO: Enforce schema
 const C2DDockerConfigSchema = z.array(z.any())
 

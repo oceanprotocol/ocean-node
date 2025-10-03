@@ -87,7 +87,10 @@
     "allowedAdminsList": [],
     "rateLimit": {},
     "maxConnections": 300,
-    "denyList": [],
+    "denyList": {
+        "peers": [],
+        "ips": []
+    },
     "unsafeURLs": [],
     "isBootstrap": false,
     "claimDurationTimeout": 600,
