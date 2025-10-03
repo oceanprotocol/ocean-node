@@ -102,7 +102,7 @@
             "resources": [
                 {
                     "id": "disk",
-                    "total": 1000000000
+                    "total": 1
                 }
             ],
             "storageExpiry": 604800,

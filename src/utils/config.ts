@@ -49,8 +49,36 @@ const DenyListSchema = z.object({
   peers: z.array(z.string()).default([]),
   ips: z.array(z.string()).default([])
 })
-// TODO: Enforce schema
-const C2DDockerConfigSchema = z.array(z.any())
+const C2DDockerConfigSchema = z.array(z.object({
+  socketPath: z.string(),
+  resources: z.array(z.object({
+    id: z.string(),
+    total: z.number()
+  })),
+  storageExpiry: z.number().int().optional().default(604800),
+  maxJobDuration: z.number().int().optional().default(3600),
+  fees: z.record(
+    z.string(),
+    z.array(
+      z.object({
+        prices: z.array(
+          z.object({
+            id: z.string(),
+            price: z.number()
+          })
+        )
+      })
+    )
+  ),
+  free: z.object({
+    maxJobDuration: z.number().int().optional().default(3600),
+    maxJobs: z.number().int().optional().default(3),
+    resources: z.array(z.object({
+      id: z.string(),
+      max: z.number()
+    }))
+  })
+}))
 
 const OceanNodeP2PConfigSchema = z.object({
   bootstrapNodes: z.array(z.string()).optional().default(defaultBootstrapAddresses),
