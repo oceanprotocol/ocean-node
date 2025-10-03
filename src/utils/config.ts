@@ -184,14 +184,6 @@ export async function getPeerIdFromPrivateKey(
   }
 }
 
-// function getEnvValue(env: any, defaultValue: any) {
-//   /* Gets value for an ENV var, returning defaultValue if not defined */
-//   if (env === null || env === undefined || (env as string).length === 0) {
-//     return defaultValue
-//   }
-//   return env as string
-// }
-
 function getIntEnvValue(env: any, defaultValue: number) {
   /* Gets int value for an ENV var, returning defaultValue if not defined */
   const num = parseInt(env, 10)
