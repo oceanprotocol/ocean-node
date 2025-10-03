@@ -14,6 +14,16 @@ import { createHash } from 'crypto'
 import { FindDdoHandler } from '../../core/handler/ddoHandler.js'
 import { DDOManager, VersionedDDO } from '@oceanprotocol/ddo-js'
 
+export function generateUniqueID(jobStructure: any): string {
+  const timestamp =
+    BigInt(Date.now()) * 1_000_000n + (process.hrtime.bigint() % 1_000_000n)
+  const random = Math.random()
+  const jobId = createHash('sha256')
+    .update(JSON.stringify(jobStructure) + timestamp.toString() + random.toString())
+    .digest('hex')
+  return jobId
+}
+
 export async function getAlgoChecksums(
   algoDID: string,
   algoServiceId: string,
@@ -21,7 +31,8 @@ export async function getAlgoChecksums(
 ): Promise<AlgoChecksums> {
   const checksums: AlgoChecksums = {
     files: '',
-    container: ''
+    container: '',
+    serviceId: algoServiceId
   }
   try {
     const algoDDO = await new FindDdoHandler(oceanNode).findAndFormatDdo(algoDID)
@@ -66,6 +77,7 @@ export async function validateAlgoForDataset(
   algoChecksums: {
     files: string
     container: string
+    serviceId?: string
   },
   ddoInstance: VersionedDDO,
   datasetServiceId: string,
@@ -105,6 +117,12 @@ export async function validateAlgoForDataset(
           const containerMatch =
             algo.containerSectionChecksum === '*' ||
             algo.containerSectionChecksum === algoChecksums.container
+          if ('serviceId' in algo) {
+            const serviceIdMatch =
+              algo.serviceId === '*' || algo.serviceId === algoChecksums.serviceId
+            return didMatch && filesMatch && containerMatch && serviceIdMatch
+          }
+
           return didMatch && filesMatch && containerMatch
         })
 

@@ -6,7 +6,7 @@ import {
   PaidComputeStartCommand
 } from '../../../@types/commands.js'
 import { CommandHandler } from '../handler/handler.js'
-import { getAlgoChecksums, validateAlgoForDataset } from './utils.js'
+import { generateUniqueID, getAlgoChecksums, validateAlgoForDataset } from './utils.js'
 import {
   ValidateParams,
   buildInvalidRequestMessage,
@@ -35,7 +35,6 @@ import { Credentials, DDOManager } from '@oceanprotocol/ddo-js'
 import { getNonceAsNumber } from '../utils/nonceHandler.js'
 import { PolicyServer } from '../../policyServer/index.js'
 import { areKnownCredentialTypes, checkCredentials } from '../../../utils/credentials.js'
-import { generateUniqueID } from '../../database/sqliteCompute.js'
 
 export class PaidComputeStartHandler extends CommandHandler {
   validate(command: PaidComputeStartCommand): ValidateParams {

@@ -7,7 +7,6 @@ import {
 } from '../../@types/C2D/C2D.js'
 import sqlite3, { RunResult } from 'sqlite3'
 import { DATABASE_LOGGER } from '../../utils/logging/common.js'
-import { createHash } from 'crypto'
 
 interface ComputeDatabaseProvider {
   newJob(job: DBComputeJob): Promise<string>
@@ -16,16 +15,6 @@ interface ComputeDatabaseProvider {
   getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]>
   deleteJob(jobId: string): Promise<boolean>
   getFinishedJobs(): Promise<DBComputeJob[]>
-}
-
-export function generateUniqueID(jobStructure: any): string {
-  const timestamp =
-    BigInt(Date.now()) * 1_000_000n + (process.hrtime.bigint() % 1_000_000n)
-  const random = Math.random()
-  const jobId = createHash('sha256')
-    .update(JSON.stringify(jobStructure) + timestamp.toString() + random.toString())
-    .digest('hex')
-  return jobId
 }
 
 function getInternalStructure(job: DBComputeJob): any {
@@ -46,7 +35,8 @@ function getInternalStructure(job: DBComputeJob): any {
     algoStartTimestamp: job.algoStartTimestamp,
     algoStopTimestamp: job.algoStopTimestamp,
     metadata: job.metadata,
-    additionalViewers: job.additionalViewers
+    additionalViewers: job.additionalViewers,
+    terminationDetails: job.terminationDetails
   }
   return internalBlob
 }
@@ -146,25 +136,6 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     `
-    let jobId: string
-    if (!job.jobId) {
-      const jobStructure = {
-        assets: job.assets,
-        algorithm: job.algorithm,
-        output: {},
-        environment: job.environment,
-        owner: job.owner,
-        maxJobDuration: job.maxJobDuration,
-        chainId: job.payment?.chainId || null,
-        agreementId: job.agreementId,
-        resources: job.resources,
-        metadata: job.metadata
-      }
-      jobId = generateUniqueID(jobStructure)
-      job.jobId = jobId
-    } else {
-      jobId = job.jobId
-    }
 
     return new Promise<string>((resolve, reject) => {
       this.db.run(
@@ -172,7 +143,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         [
           job.owner,
           job.did,
-          jobId,
+          job.jobId,
           job.dateCreated || String(Date.now() / 1000), // seconds from epoch,
           job.status || C2DStatusNumber.JobStarted,
           job.statusText || C2DStatusText.JobStarted,
@@ -188,8 +159,8 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
             DATABASE_LOGGER.error('Could not insert C2D job on DB: ' + err.message)
             reject(err)
           } else {
-            DATABASE_LOGGER.info('Successfully inserted job with id:' + jobId)
-            resolve(jobId)
+            DATABASE_LOGGER.info('Successfully inserted job with id:' + job.jobId)
+            resolve(job.jobId)
           }
         }
       )
