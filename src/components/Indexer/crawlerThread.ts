@@ -127,6 +127,7 @@ export async function processNetworkData(
   // we can override the default value of 30 secs, by setting process.env.INDEXER_INTERVAL
   const interval = getCrawlingInterval()
   let { chunkSize } = rpcDetails
+  let successfulRetrievalCount = 0
   let lockProccessing = false
 
   while (true) {
@@ -166,6 +167,7 @@ export async function processNetworkData(
             startBlock,
             blocksToProcess
           )
+          successfulRetrievalCount++
         } catch (error) {
           INDEXER_LOGGER.log(
             LOG_LEVELS_STR.LEVEL_WARN,
@@ -173,6 +175,7 @@ export async function processNetworkData(
             true
           )
           chunkSize = Math.floor(chunkSize / 2) < 1 ? 1 : Math.floor(chunkSize / 2)
+          successfulRetrievalCount = 0
           INDEXER_LOGGER.logMessage(
             `network: ${rpcDetails.network} Reducing chunk size  ${chunkSize} `,
             true
@@ -199,11 +202,20 @@ export async function processNetworkData(
             currentBlock = lastIndexedBlock
           }
           checkNewlyIndexedAssets(processedBlocks.foundEvents)
-          chunkSize = chunkSize !== 1 ? chunkSize : rpcDetails.chunkSize
+          // Revert to original chunk size after 3 successful retrieveChunkEvents calls
+          if (successfulRetrievalCount >= 3 && chunkSize < rpcDetails.chunkSize) {
+            chunkSize = rpcDetails.chunkSize
+            successfulRetrievalCount = 0
+            INDEXER_LOGGER.logMessage(
+              `network: ${rpcDetails.network} Reverting chunk size back to original ${chunkSize} after 3 successful calls`,
+              true
+            )
+          }
         } catch (error) {
           INDEXER_LOGGER.error(
             `Processing event from network failed network: ${rpcDetails.network} Error: ${error.message} `
           )
+          successfulRetrievalCount = 0
           // since something went wrong, we will not update the last indexed block
           // so we will try to process the same chunk again
           // after some sleep

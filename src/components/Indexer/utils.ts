@@ -17,6 +17,7 @@ import FixedRateExchange from '@oceanprotocol/contracts/artifacts/contracts/pool
 import { createHash } from 'crypto'
 import { ServicePrice } from '../../@types/IndexedMetadata.js'
 import { VersionedDDO } from '@oceanprotocol/ddo-js'
+import FactoryRouter from '@oceanprotocol/contracts/artifacts/contracts/pools/FactoryRouter.sol/FactoryRouter.json' assert { type: 'json' }
 
 export const getContractAddress = (chainId: number, contractName: string): string => {
   const addressFile = getOceanArtifactsAdressesByChainId(chainId)
@@ -24,6 +25,34 @@ export const getContractAddress = (chainId: number, contractName: string): strin
     return getAddress(addressFile[contractName])
   }
   return ''
+}
+
+export const isValidFreContract = async (
+  address: string,
+  chainId: number,
+  signer: Signer
+) => {
+  const router = getContractAddress(chainId, 'Router')
+  const routerContract = new ethers.Contract(router, FactoryRouter.abi, signer)
+  try {
+    return await routerContract.isFixedRateContract(address)
+  } catch (e) {
+    INDEXER_LOGGER.error(`Could not fetch FRE contract status: ${e.message}`)
+  }
+}
+
+export const isValidDispenserContract = async (
+  address: string,
+  chainId: number,
+  signer: Signer
+) => {
+  const router = getContractAddress(chainId, 'Router')
+  const routerContract = new ethers.Contract(router, FactoryRouter.abi, signer)
+  try {
+    return await routerContract.isDispenserContract(address)
+  } catch (e) {
+    INDEXER_LOGGER.error(`Could not fetch dispenser contract status: ${e.message}`)
+  }
 }
 
 export const getDeployedContractBlock = (network: number) => {
