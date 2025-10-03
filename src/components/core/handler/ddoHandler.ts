@@ -316,7 +316,7 @@ export class DecryptDdoHandler extends CommandHandler {
 
       let decryptedDocument: Buffer
       // check if DDO is ECIES encrypted
-      if (flags & 2) {
+      if ((parseInt(flag) & 2) !== 0) {
         try {
           decryptedDocument = await decrypt(encryptedDocument, EncryptMethod.ECIES)
         } catch (error) {
@@ -329,9 +329,7 @@ export class DecryptDdoHandler extends CommandHandler {
             }
           }
         }
-      }
-
-      if (flags & 1) {
+      } else {
         try {
           decryptedDocument = lzmajs.decompressFile(decryptedDocument)
           /*
