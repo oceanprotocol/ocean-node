@@ -1270,13 +1270,16 @@ export class C2DEngineDocker extends C2DEngine {
 
     const usageGB = (algorithmUsage / 1024 / 1024 / 1024).toFixed(2)
     const quotaGB = diskQuota.toFixed(1)
-    const usagePercent = ((algorithmUsage / diskQuota) * 100).toFixed(1)
+    const usagePercent = (
+      (algorithmUsage / 1024 / 1024 / 1024 / diskQuota) *
+      100
+    ).toFixed(1)
 
     CORE_LOGGER.info(
       `Job ${job.jobId.slice(-8)} disk: ${usageGB}GB / ${quotaGB}GB (${usagePercent}%)`
     )
 
-    if (algorithmUsage > diskQuota) {
+    if (algorithmUsage / 1024 / 1024 / 1024 > diskQuota) {
       CORE_LOGGER.warn(
         `DISK QUOTA EXCEEDED - Stopping job ${job.jobId}: ${usageGB}GB used, ${quotaGB}GB allowed`
       )
