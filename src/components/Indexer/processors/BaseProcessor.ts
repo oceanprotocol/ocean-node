@@ -260,11 +260,10 @@ export abstract class BaseEventProcessor {
         [ethers.hexlify(ethers.toUtf8Bytes(message))]
       )
 
-      const signature = await wallet.signMessage(
-        new Uint8Array(ethers.toBeArray(messageHash))
-      )
+      const messageHashBytes = ethers.getBytes(messageHash)
+      const signature = await wallet.signMessage(messageHashBytes)
 
-      const recoveredAddress = ethers.verifyMessage(messageHash, signature)
+      const recoveredAddress = ethers.verifyMessage(messageHashBytes, signature)
       INDEXER_LOGGER.logMessage(
         `decryptDDO: recovered address: ${recoveredAddress}, expected: ${keys.ethAddress}`
       )
