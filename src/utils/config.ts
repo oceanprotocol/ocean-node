@@ -913,6 +913,8 @@ export async function buildMergedConfig(): Promise<OceanNodeConfig> {
         interfaces = []
         if (baseConfig.hasHttp) interfaces.push('HTTP')
         if (baseConfig.hasP2P) interfaces.push('P2P')
+      } else if (Array.isArray(interfaces)) {
+        interfaces = interfaces.map((iface: string) => iface.toUpperCase())
       }
     } catch (error) {
       CONFIG_LOGGER.logMessageWithEmoji(
