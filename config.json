@@ -85,8 +85,8 @@
     "assetPurgatoryUrl": "",
     "allowedAdmins": [],
     "allowedAdminsList": [],
-    "rateLimit": {},
-    "maxConnections": 300,
+    "rateLimit": 320,
+    "maxConnections": 320,
     "denyList": {
         "peers": [],
         "ips": []
