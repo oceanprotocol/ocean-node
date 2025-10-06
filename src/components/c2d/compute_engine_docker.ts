@@ -857,9 +857,8 @@ export class C2DEngineDocker extends C2DEngine {
       }
       const cpus = this.getResourceRequest(job.resources, 'cpu')
       if (cpus && cpus > 0) {
-        const systemInfo = this.docker ? await this.docker.info() : null
         hostConfig.CpuPeriod = 100000 // 100 miliseconds is usually the default
-        hostConfig.CpuQuota = Math.floor((cpus / systemInfo.NCPU) * hostConfig.CpuPeriod)
+        hostConfig.CpuQuota = Math.floor(cpus * hostConfig.CpuPeriod)
       }
       const containerInfo: ContainerCreateOptions = {
         name: job.jobId + '-algoritm',
