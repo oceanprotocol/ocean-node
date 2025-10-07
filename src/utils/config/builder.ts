@@ -29,8 +29,9 @@ function mapEnvToConfig(
 ): Record<string, string> {
   const result: Record<string, string> = {}
   for (const [envKey, configKey] of Object.entries(mapping)) {
-    if (env[envKey]) {
-      result[configKey] = env[envKey]
+    const value = env[envKey]
+    if (value !== undefined && value !== 'undefined') {
+      result[configKey] = value
     }
   }
   return result
@@ -40,14 +41,17 @@ function preprocessConfigData(data: any): void {
   if (data.INTERFACES) {
     try {
       const interfaces = JSON.parse(data.INTERFACES).map((i: string) => i.toUpperCase())
-      data.hasHttp = interfaces.includes('HTTP')
-      data.hasP2P = interfaces.includes('P2P')
+      if (interfaces.length > 0) {
+        data.hasHttp = interfaces.includes('HTTP')
+        data.hasP2P = interfaces.includes('P2P')
+      }
     } catch (error) {
       CONFIG_LOGGER.warn(`Failed to parse INTERFACES: ${error.message}`)
     }
     delete data.INTERFACES
   }
 
+  // Transform DB_* env vars to dbConfig
   if (data.DB_URL) {
     data.dbConfig = {
       url: data.DB_URL,
@@ -61,6 +65,7 @@ function preprocessConfigData(data: any): void {
     delete data.DB_TYPE
   }
 
+  // Transform FEE_* env vars to feeStrategy
   if (data.FEE_AMOUNT && data.FEE_TOKENS) {
     try {
       const feeAmount = JSON.parse(data.FEE_AMOUNT)

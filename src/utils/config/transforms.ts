@@ -13,7 +13,10 @@ export const booleanFromString = z.union([z.boolean(), z.string()]).transform((v
 })
 
 export const jsonFromString = <T>(schema: z.ZodType<T>) =>
-  z.union([schema, z.string()]).transform((v) => {
+  z.union([schema, z.string(), z.undefined()]).transform((v) => {
+    if (v === undefined || v === 'undefined') {
+      return undefined
+    }
     if (typeof v === 'string') {
       try {
         return JSON.parse(v)

@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { getAddress } from 'ethers'
 import { dhtFilterMethod } from '../../@types/OceanNode.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
-import { defaultBootstrapAddresses } from '../constants.js'
+import { defaultBootstrapAddresses, DEFAULT_RATE_LIMIT_PER_MINUTE } from '../constants.js'
 import { CONFIG_LOGGER } from '../logging/common.js'
 import { numberFromString, booleanFromString, jsonFromString } from './transforms.js'
 import { DEFAULT_UNSAFE_URLS, DEFAULT_FILTER_ANNOUNCED_ADDRESSES } from './constants.js'
@@ -258,7 +258,7 @@ export const OceanNodeConfigSchema = z
     httpPort: numberFromString.refine((port) => port >= 1 && port <= 65535, {
       message: 'HTTP port must be between 1 and 65535'
     }),
-    rateLimit: numberFromString.optional(),
+    rateLimit: numberFromString.optional().default(DEFAULT_RATE_LIMIT_PER_MINUTE),
 
     supportedNetworks: jsonFromString(RPCSSchema).optional(),
 
@@ -285,7 +285,7 @@ export const OceanNodeConfigSchema = z
 
     codeHash: z.string().optional(),
     maxConnections: numberFromString.optional(),
-    denyList: jsonFromString(DenyListSchema).optional(),
+    denyList: jsonFromString(DenyListSchema).optional().default({ peers: [], ips: [] }),
     unsafeURLs: jsonFromString(z.array(z.string()))
       .optional()
       .default([...DEFAULT_UNSAFE_URLS]),
