@@ -62,10 +62,10 @@
     "hasControlPanel": true,
     "httpPort": 8001,
     "dbConfig": {
-        "url": "http://localhost:9200",
+        "url": "http://localhost:8108/?apiKey=xyz",
         "username": "",
         "password": "",
-        "dbType": "elasticsearch"
+        "dbType": "typesense"
     },
     "supportedNetworks": {
         "8996": {
@@ -85,8 +85,8 @@
     "assetPurgatoryUrl": "",
     "allowedAdmins": [],
     "allowedAdminsList": [],
-    "rateLimit": 50000,
-    "maxConnections": 50000,
+    "rateLimit": 320,
+    "maxConnections": 320,
     "denyList": {
         "peers": [],
         "ips": []
@@ -102,44 +102,14 @@
             "resources": [
                 {
                     "id": "disk",
-                    "total": 1000000000
+                    "total": 1
                 }
             ],
             "storageExpiry": 604800,
             "maxJobDuration": 3600,
             "fees": {
-                "11155111": [
+                "8996": [
                     {
-                        "feeToken": "0x1B083D8584dd3e6Ff37d04a6e7e82b5F622f3985",
-                        "prices": [
-                            {
-                                "id": "cpu",
-                                "price": 1
-                            }
-                        ]
-                    },
-                    {
-                        "feeToken": "0xfff9976782d46cc05630d1f6ebab18b2324d6b14",
-                        "prices": [
-                            {
-                                "id": "cpu",
-                                "price": 1
-                            }
-                        ]
-                    }
-                ],
-                "11155420": [
-                    {
-                        "feeToken": "0xf26c6C93f9f1d725e149d95f8E7B2334a406aD10",
-                        "prices": [
-                            {
-                                "id": "cpu",
-                                "price": 1
-                            }
-                        ]
-                    },
-                    {
-                        "feeToken": "0x4200000000000000000000000000000000000006",
                         "prices": [
                             {
                                 "id": "cpu",
@@ -159,11 +129,11 @@
                     },
                     {
                         "id": "ram",
-                        "max": 1000000000
+                        "max": 1
                     },
                     {
                         "id": "disk",
-                        "max": 1000000000
+                        "max": 1
                     }
                 ]
             }
