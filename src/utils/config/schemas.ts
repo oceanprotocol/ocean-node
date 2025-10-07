@@ -2,10 +2,14 @@ import { z } from 'zod'
 import { getAddress } from 'ethers'
 import { dhtFilterMethod } from '../../@types/OceanNode.js'
 import { C2DClusterType } from '../../@types/C2D/C2D.js'
-import { defaultBootstrapAddresses, DEFAULT_RATE_LIMIT_PER_MINUTE } from '../constants.js'
 import { CONFIG_LOGGER } from '../logging/common.js'
 import { numberFromString, booleanFromString, jsonFromString } from './transforms.js'
-import { DEFAULT_UNSAFE_URLS, DEFAULT_FILTER_ANNOUNCED_ADDRESSES } from './constants.js'
+import {
+  DEFAULT_BOOTSTRAP_ADDRESSES,
+  DEFAULT_RATE_LIMIT_PER_MINUTE,
+  DEFAULT_UNSAFE_URLS,
+  DEFAULT_FILTER_ANNOUNCED_ADDRESSES
+} from './constants.js'
 
 function isValidUrl(urlString: string): boolean {
   try {
@@ -147,9 +151,9 @@ export const C2DClusterInfoSchema = z.object({
 })
 
 export const OceanNodeP2PConfigSchema = z.object({
-  bootstrapNodes: jsonFromString(z.array(z.string()))
-    .optional()
-    .default(defaultBootstrapAddresses),
+  bootstrapNodes: jsonFromString(z.array(z.string())).default([
+    ...DEFAULT_BOOTSTRAP_ADDRESSES
+  ]),
   bootstrapTimeout: numberFromString.optional().default(2000),
   bootstrapTagName: z.string().optional().default('bootstrap'),
   bootstrapTagValue: numberFromString.optional().default(50),
