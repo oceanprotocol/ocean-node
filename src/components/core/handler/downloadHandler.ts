@@ -1,9 +1,5 @@
 import { CommandHandler } from './handler.js'
-import {
-  ENVIRONMENT_VARIABLES,
-  MetadataStates,
-  PROTOCOL_COMMANDS
-} from '../../../utils/constants.js'
+import { MetadataStates, PROTOCOL_COMMANDS } from '../../../utils/constants.js'
 import { P2PCommandResponse } from '../../../@types/OceanNode.js'
 import { verifyProviderFees } from '../utils/feesHandler.js'
 import { decrypt } from '../../../utils/crypt.js'
@@ -19,10 +15,9 @@ import {
   isDataTokenTemplate4,
   isERC20Template4Active
 } from '../../../utils/asset.js'
-import { ArweaveStorage, IpfsStorage, Storage } from '../../storage/index.js'
+import { Storage } from '../../storage/index.js'
 import {
   Blockchain,
-  existsEnvironmentVariable,
   getConfiguration,
   isPolicyServerConfigured
 } from '../../../utils/index.js'
@@ -75,12 +70,12 @@ export async function handleDownloadUrlCommand(
   try {
     // Determine the type of storage and get a readable stream
     const storage = Storage.getStorageClass(task.fileObject, config)
-    if (
-      storage instanceof ArweaveStorage &&
-      !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.ARWEAVE_GATEWAY)
-    ) {
+
+    // Validate storage configuration (checks if gateways are configured)
+    const [isValid, validationError] = storage.validate()
+    if (!isValid) {
       CORE_LOGGER.logMessageWithEmoji(
-        'Failure executing downloadURL task: Oean-node does not support arweave storage type files! ',
+        `Failure executing downloadURL task: ${validationError}`,
         true,
         GENERIC_EMOJIS.EMOJI_CROSS_MARK,
         LOG_LEVELS_STR.LEVEL_ERROR
@@ -89,24 +84,7 @@ export async function handleDownloadUrlCommand(
         stream: null,
         status: {
           httpStatus: 501,
-          error: 'Error: Oean-node does not support arweave storage type files!'
-        }
-      }
-    } else if (
-      storage instanceof IpfsStorage &&
-      !existsEnvironmentVariable(ENVIRONMENT_VARIABLES.IPFS_GATEWAY)
-    ) {
-      CORE_LOGGER.logMessageWithEmoji(
-        'Failure executing downloadURL task: Oean-node does not support ipfs storage type files! ',
-        true,
-        GENERIC_EMOJIS.EMOJI_CROSS_MARK,
-        LOG_LEVELS_STR.LEVEL_ERROR
-      )
-      return {
-        stream: null,
-        status: {
-          httpStatus: 501,
-          error: 'Error: Oean-node does not support ipfs storage type files!'
+          error: `Error: ${validationError}`
         }
       }
     }

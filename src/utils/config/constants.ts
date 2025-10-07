@@ -9,6 +9,8 @@ export const ENV_TO_CONFIG_MAPPING = {
   HTTP_API_PORT: 'httpPort',
   CONTROL_PANEL: 'hasControlPanel',
   RPCS: 'supportedNetworks',
+  IPFS_GATEWAY: 'ipfsGateway',
+  ARWEAVE_GATEWAY: 'arweaveGateway',
   ACCOUNT_PURGATORY_URL: 'accountPurgatoryUrl',
   ASSET_PURGATORY_URL: 'assetPurgatoryUrl',
   UNSAFE_URLS: 'unsafeURLs',

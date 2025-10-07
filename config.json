@@ -80,6 +80,8 @@
     ],
     "feeStrategy": {},
     "c2dClusters": [],
+    "ipfsGateway": "https://ipfs.io/",
+    "arweaveGateway": "https://arweave.net/",
     "accountPurgatoryUrl": null,
     "assetPurgatoryUrl": null,
     "allowedAdmins": [],

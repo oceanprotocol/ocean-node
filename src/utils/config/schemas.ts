@@ -264,6 +264,9 @@ export const OceanNodeConfigSchema = z
     }),
     rateLimit: numberFromString.optional().default(DEFAULT_RATE_LIMIT_PER_MINUTE),
 
+    ipfsGateway: z.string().nullable().optional(),
+    arweaveGateway: z.string().nullable().optional(),
+
     supportedNetworks: jsonFromString(RPCSSchema).optional(),
 
     claimDurationTimeout: numberFromString.default(600),

@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import { OceanNodeConfig } from '../../@types/OceanNode.js'
-import { getConfiguration, loadConfigFromEnv } from '../../utils/config.js'
+import { getConfiguration, loadConfigFromFile } from '../../utils/config.js'
 import {
   OverrideEnvConfig,
   TEST_ENV_CONFIG_PATH,
@@ -35,7 +35,7 @@ describe('Should validate configuration from JSON', () => {
     expect(config.dbConfig).to.not.be.equal(null)
     // it is exported in the env vars, so it should overwrite the config.json
     expect(config.dbConfig.dbType).to.be.equal('typesense')
-    const configFile = loadConfigFromEnv()
+    const configFile = loadConfigFromFile(process.env.CONFIG_PATH)
     expect(config.dbConfig.dbType).to.not.be.equal(configFile.dbConfig.dbType)
     expect(config.dbConfig.url).to.be.equal('http://localhost:8108/?apiKey=xyz')
   })

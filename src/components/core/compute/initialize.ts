@@ -74,6 +74,7 @@ export class ComputeInitializeHandler extends CommandHandler {
     let resourcesNeeded
     try {
       const node = this.getOceanNode()
+      const config = await getConfiguration()
       try {
         // split compute env (which is already in hash-envId format) and get the hash
         // then get env which might contain dashes as well
@@ -93,7 +94,8 @@ export class ComputeInitializeHandler extends CommandHandler {
       const algoChecksums = await getAlgoChecksums(
         task.algorithm.documentId,
         task.algorithm.serviceId,
-        node
+        node,
+        config
       )
 
       const isRawCodeAlgorithm = task.algorithm.meta?.rawcode
