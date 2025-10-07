@@ -21,24 +21,30 @@ export class ExchangeActivatedEventProcessor extends BaseEventProcessor {
     signer: Signer,
     provider: JsonRpcApiProvider
   ): Promise<any> {
-    const decodedEventData = await this.getEventData(
-      provider,
-      event.transactionHash,
-      FixedRateExchange.abi,
-      EVENTS.EXCHANGE_ACTIVATED
-    )
-    INDEXER_LOGGER.logMessage(`event: ${JSON.stringify(event)}`)
-    INDEXER_LOGGER.logMessage(
-      `decodedEventData in exchange activated: ${JSON.stringify(decodedEventData)}`
-    )
-    const exchangeId = decodedEventData.args[0].toString()
-    const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
-    const exchange = await freContract.getExchange(exchangeId)
-    const datatokenAddress = exchange[1]
-    const datatokenContract = getDtContract(signer, datatokenAddress)
-    const nftAddress = await datatokenContract.getERC721Address()
-    const did = getDid(nftAddress, chainId)
     try {
+      const decodedEventData = await this.getEventData(
+        provider,
+        event.transactionHash,
+        FixedRateExchange.abi,
+        EVENTS.EXCHANGE_ACTIVATED
+      )
+      INDEXER_LOGGER.logMessage(`event: ${JSON.stringify(event)}`)
+      INDEXER_LOGGER.logMessage(
+        `decodedEventData in exchange activated: ${JSON.stringify(decodedEventData)}`
+      )
+      const exchangeId = decodedEventData.args[0].toString()
+      const freContract = new ethers.Contract(
+        event.address,
+        FixedRateExchange.abi,
+        signer
+      )
+      const exchange = await freContract.getExchange(exchangeId)
+
+      const datatokenAddress = exchange[1]
+      const datatokenContract = getDtContract(signer, datatokenAddress)
+      const nftAddress = await datatokenContract.getERC721Address()
+      const did = getDid(nftAddress, chainId)
+
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
