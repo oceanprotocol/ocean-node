@@ -125,11 +125,13 @@ export class PaidComputeStartHandler extends CommandHandler {
         }
       }
       const { algorithm } = task
+      const config = await getConfiguration()
 
       const algoChecksums = await getAlgoChecksums(
         task.algorithm.documentId,
         task.algorithm.serviceId,
-        node
+        node,
+        config
       )
 
       const isRawCodeAlgorithm = task.algorithm.meta?.rawcode

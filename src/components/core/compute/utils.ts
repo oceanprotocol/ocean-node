@@ -1,5 +1,6 @@
 import { OceanNode } from '../../../OceanNode.js'
 import { AlgoChecksums } from '../../../@types/C2D/C2D.js'
+import { OceanNodeConfig } from '../../../@types/OceanNode.js'
 import {
   ArweaveFileObject,
   IpfsFileObject,
@@ -27,7 +28,8 @@ export function generateUniqueID(jobStructure: any): string {
 export async function getAlgoChecksums(
   algoDID: string,
   algoServiceId: string,
-  oceanNode: OceanNode
+  oceanNode: OceanNode,
+  config: OceanNodeConfig
 ): Promise<AlgoChecksums> {
   const checksums: AlgoChecksums = {
     files: '',
@@ -46,12 +48,9 @@ export async function getAlgoChecksums(
         file.type === 'url'
           ? (file as UrlFileObject).url
           : file.type === 'arweave'
-          ? urlJoin(
-              process.env.ARWEAVE_GATEWAY,
-              (file as ArweaveFileObject).transactionId
-            )
+          ? urlJoin(config.arweaveGateway, (file as ArweaveFileObject).transactionId)
           : file.type === 'ipfs'
-          ? urlJoin(process.env.IPFS_GATEWAY, (file as IpfsFileObject).hash)
+          ? urlJoin(config.ipfsGateway, (file as IpfsFileObject).hash)
           : null
 
       const { contentChecksum } = await fetchFileMetadata(url, 'get', false)

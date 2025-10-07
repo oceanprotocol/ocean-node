@@ -245,10 +245,12 @@ describe('Trusted algorithms Flow', () => {
 
   it('should add the algorithm to the dataset trusted algorithm list', async function () {
     this.timeout(DEFAULT_TEST_TIMEOUT * 5)
+    const config = await getConfiguration()
     const algoChecksums = await getAlgoChecksums(
       publishedAlgoDataset.ddo.id,
       publishedAlgoDataset.ddo.services[0].id,
-      oceanNode
+      oceanNode,
+      config
     )
     publishedComputeDataset.ddo.services[0].compute = {
       allowRawAlgorithm: false,
