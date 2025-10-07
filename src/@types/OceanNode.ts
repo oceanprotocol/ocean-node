@@ -104,7 +104,6 @@ export interface OceanNodeConfig {
   claimDurationTimeout: number
   indexingNetworks?: RPCS
   c2dClusters: C2DClusterInfo[]
-  c2dNodeUri?: string | null
   accountPurgatoryUrl: string | null
   assetPurgatoryUrl: string | null
   allowedAdmins?: string[]
