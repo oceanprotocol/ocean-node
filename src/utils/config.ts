@@ -1,6 +1,6 @@
 import { CONFIG_LOGGER } from './logging/common.js'
 import { isDefined } from './util.js'
-import { getConfiguration } from './config/builder.js'
+import { getConfiguration, loadConfigFromFile } from './config/builder.js'
 export * from './config/index.js'
 
 export function existsEnvironmentVariable(envVariable: any, log = false): boolean {
@@ -19,7 +19,6 @@ export function existsEnvironmentVariable(envVariable: any, log = false): boolea
 }
 
 export function loadConfigFromEnv(envVar: string = 'CONFIG_PATH') {
-  const { loadConfigFromFile } = require('./config/builder.js')
   return loadConfigFromFile(process.env[envVar])
 }
 
