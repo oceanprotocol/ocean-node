@@ -166,7 +166,7 @@ export function buildC2DClusters(
   return clusters
 }
 
-export function loadConfigFromFile(configPath?: string): OceanNodeConfig {
+export function getConfigFilePath(configPath?: string): string {
   if (!configPath) {
     configPath = process.env.CONFIG_PATH || path.join(process.cwd(), 'config.json')
   }
@@ -187,6 +187,12 @@ export function loadConfigFromFile(configPath?: string): OceanNodeConfig {
   ) {
     throw new Error(`Config path must be absolute. Got: ${configPath}`)
   }
+
+  return configPath
+}
+
+export function loadConfigFromFile(configPath?: string): OceanNodeConfig {
+  configPath = getConfigFilePath(configPath)
 
   if (!fs.existsSync(configPath)) {
     throw new Error(`Config file not found at path: ${configPath}`)

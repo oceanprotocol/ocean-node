@@ -159,6 +159,12 @@ export interface AdminReindexChainCommand extends AdminCommand {
   block?: number
 }
 
+export interface AdminFetchConfigCommand extends AdminCommand {}
+
+export interface AdminPushConfigCommand extends AdminCommand {
+  config: Record<string, any>
+}
+
 export interface ICommandHandler {
   handle(command: Command): Promise<P2PCommandResponse>
   verifyParamsAndRateLimits(task: Command): Promise<P2PCommandResponse>
