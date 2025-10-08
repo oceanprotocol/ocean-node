@@ -22,43 +22,38 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
     signer: Signer,
     provider: JsonRpcApiProvider
   ): Promise<any> {
-    if (!(await isValidFreContract(event.address, chainId, signer))) {
-      INDEXER_LOGGER.error(
-        `Fixed Rate Exhange contract ${event.address} is not approved by Router. Abort updating DDO pricing!`
-      )
-      return null
-    }
-    const decodedEventData = await this.getEventData(
-      provider,
-      event.transactionHash,
-      FixedRateExchange.abi,
-      EVENTS.EXCHANGE_CREATED
-    )
-    const exchangeId = decodedEventData.args[0]
-    const freContract = new ethers.Contract(event.address, FixedRateExchange.abi, signer)
-    let exchange
     try {
-      exchange = await freContract.getExchange(exchangeId)
-    } catch (e) {
-      INDEXER_LOGGER.error(`Could not fetch exchange details: ${e.message}`)
-    }
-    if (!exchange) {
-      INDEXER_LOGGER.error(
-        `Exchange not found...Aborting processing exchange created event`
+      if (!(await isValidFreContract(event.address, chainId, signer))) {
+        INDEXER_LOGGER.error(
+          `Fixed Rate Exhange contract ${event.address} is not approved by Router. Abort updating DDO pricing!`
+        )
+        return null
+      }
+      const decodedEventData = await this.getEventData(
+        provider,
+        event.transactionHash,
+        FixedRateExchange.abi,
+        EVENTS.EXCHANGE_CREATED
       )
-      return null
-    }
-    const datatokenAddress = exchange[1]
-    if (datatokenAddress === ZeroAddress) {
-      INDEXER_LOGGER.error(
-        `Datatoken address is ZERO ADDRESS. Cannot find DDO by ZERO ADDRESS contract.`
+      const exchangeId = decodedEventData.args[0].toString()
+      const freContract = new ethers.Contract(
+        event.address,
+        FixedRateExchange.abi,
+        signer
       )
-      return null
-    }
-    const datatokenContract = getDtContract(signer, datatokenAddress)
-    const nftAddress = await datatokenContract.getERC721Address()
-    const did = getDid(nftAddress, chainId)
-    try {
+      const exchange = await freContract.getExchange(exchangeId)
+
+      const datatokenAddress = exchange[1]
+      if (datatokenAddress === ZeroAddress) {
+        INDEXER_LOGGER.error(
+          `Datatoken address is ZERO ADDRESS. Cannot find DDO by ZERO ADDRESS contract.`
+        )
+        return null
+      }
+      const datatokenContract = getDtContract(signer, datatokenAddress)
+      const nftAddress = await datatokenContract.getERC721Address()
+      const did = getDid(nftAddress, chainId)
+
       const { ddo: ddoDatabase } = await getDatabase()
       const ddo = await ddoDatabase.retrieve(did)
       if (!ddo) {
@@ -120,7 +115,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
 
       const savedDDO = await this.createOrUpdateDDO(
         ddoInstance,
-        EVENTS.EXCHANGE_ACTIVATED
+        EVENTS.EXCHANGE_CREATED
       )
       return savedDDO
     } catch (err) {

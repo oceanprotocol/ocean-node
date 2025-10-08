@@ -508,6 +508,20 @@ export class C2DEngineDocker extends C2DEngine {
     } catch (e) {}
     try {
       const logStat = statSync(
+        this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/configuration.log'
+      )
+      if (logStat) {
+        res.push({
+          filename: 'configuration.log',
+          filesize: logStat.size,
+          type: 'configurationLog',
+          index
+        })
+        index = index + 1
+      }
+    } catch (e) {}
+    try {
+      const logStat = statSync(
         this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/algorithm.log'
       )
       if (logStat) {
@@ -529,6 +543,20 @@ export class C2DEngineDocker extends C2DEngine {
           filename: 'outputs.tar',
           filesize: outputStat.size,
           type: 'output',
+          index
+        })
+        index = index + 1
+      }
+    } catch (e) {}
+    try {
+      const logStat = statSync(
+        this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/publish.log'
+      )
+      if (logStat) {
+        res.push({
+          filename: 'publish.log',
+          filesize: logStat.size,
+          type: 'publishLog',
           index
         })
         index = index + 1
@@ -585,6 +613,29 @@ export class C2DEngineDocker extends C2DEngine {
           return {
             stream: createReadStream(
               this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/algorithm.log'
+            ),
+            headers: {
+              'Content-Type': 'text/plain'
+            }
+          }
+        }
+        if (i.type === 'configurationLog') {
+          return {
+            stream: createReadStream(
+              this.getC2DConfig().tempFolder +
+                '/' +
+                jobId +
+                '/data/logs/configuration.log'
+            ),
+            headers: {
+              'Content-Type': 'text/plain'
+            }
+          }
+        }
+        if (i.type === 'publishLog') {
+          return {
+            stream: createReadStream(
+              this.getC2DConfig().tempFolder + '/' + jobId + '/data/logs/publish.log'
             ),
             headers: {
               'Content-Type': 'text/plain'
@@ -1270,13 +1321,16 @@ export class C2DEngineDocker extends C2DEngine {
 
     const usageGB = (algorithmUsage / 1024 / 1024 / 1024).toFixed(2)
     const quotaGB = diskQuota.toFixed(1)
-    const usagePercent = ((algorithmUsage / diskQuota) * 100).toFixed(1)
+    const usagePercent = (
+      (algorithmUsage / 1024 / 1024 / 1024 / diskQuota) *
+      100
+    ).toFixed(1)
 
     CORE_LOGGER.info(
       `Job ${job.jobId.slice(-8)} disk: ${usageGB}GB / ${quotaGB}GB (${usagePercent}%)`
     )
 
-    if (algorithmUsage > diskQuota) {
+    if (algorithmUsage / 1024 / 1024 / 1024 > diskQuota) {
       CORE_LOGGER.warn(
         `DISK QUOTA EXCEEDED - Stopping job ${job.jobId}: ${usageGB}GB used, ${quotaGB}GB allowed`
       )
@@ -1433,25 +1487,15 @@ export class C2DEngineDocker extends C2DEngine {
       status: C2DStatusNumber.RunningAlgorithm,
       statusText: C2DStatusText.RunningAlgorithm
     }
-    // for testing purposes
-    // if (!job.algorithm.fileObject) {
-    //   console.log('no file object')
-    //   const file: UrlFileObject = {
-    //     type: 'url',
-    //     url: 'https://raw.githubusercontent.com/oceanprotocol/test-algorithm/master/javascript/algo.js',
-    //     method: 'get'
-    //   }
-    //   job.algorithm.fileObject = file
-    // }
-    // download algo
-    // TODO: we currently DO NOT have a way to set this field unencrypted (once we publish the asset its encrypted)
-    // So we cannot test this from the CLI for instance... Only Option is to actually send it encrypted
-    // OR extract the files object from the passed DDO, decrypt it and use it
+    const jobFolderPath = this.getC2DConfig().tempFolder + '/' + job.jobId
+    const fullAlgoPath = jobFolderPath + '/data/transformations/algorithm'
+    const configLogPath = jobFolderPath + '/data/logs/configuration.log'
 
-    // console.log(job.algorithm.fileObject)
-    const fullAlgoPath =
-      this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/transformations/algorithm'
     try {
+      appendFileSync(
+        configLogPath,
+        "Writing algocustom data to '/data/inputs/algoCustomData.json'\n"
+      )
       const customdataPath =
         this.getC2DConfig().tempFolder +
         '/' +
@@ -1463,6 +1507,7 @@ export class C2DEngineDocker extends C2DEngine {
 
       if (job.algorithm.meta.rawcode && job.algorithm.meta.rawcode.length > 0) {
         // we have the code, just write it
+        appendFileSync(configLogPath, `Writing raw algo code to ${fullAlgoPath}\n`)
         writeFileSync(fullAlgoPath, job.algorithm.meta.rawcode)
       } else {
         // do we have a files object?
@@ -1470,17 +1515,41 @@ export class C2DEngineDocker extends C2DEngine {
           // is it unencrypted?
           if (job.algorithm.fileObject.type) {
             // we can get the storage directly
-            storage = Storage.getStorageClass(job.algorithm.fileObject, config)
+            try {
+              storage = Storage.getStorageClass(job.algorithm.fileObject, config)
+            } catch (e) {
+              CORE_LOGGER.error(`Unable to get storage class for algorithm: ${e.message}`)
+              appendFileSync(
+                configLogPath,
+                `Unable to get storage class for algorithm: ${e.message}\n`
+              )
+              return {
+                status: C2DStatusNumber.AlgorithmProvisioningFailed,
+                statusText: C2DStatusText.AlgorithmProvisioningFailed
+              }
+            }
           } else {
             // ok, maybe we have this encrypted instead
             CORE_LOGGER.info(
               'algorithm file object seems to be encrypted, checking it...'
             )
             // 1. Decrypt the files object
-            const decryptedFileObject = await decryptFilesObject(job.algorithm.fileObject)
-            console.log('decryptedFileObject: ', decryptedFileObject)
-            // 2. Get default storage settings
-            storage = Storage.getStorageClass(decryptedFileObject, config)
+            try {
+              const decryptedFileObject = await decryptFilesObject(
+                job.algorithm.fileObject
+              )
+              storage = Storage.getStorageClass(decryptedFileObject, config)
+            } catch (e) {
+              CORE_LOGGER.error(`Unable to decrypt algorithm files object: ${e.message}`)
+              appendFileSync(
+                configLogPath,
+                `Unable to decrypt algorithm files object: ${e.message}\n`
+              )
+              return {
+                status: C2DStatusNumber.AlgorithmProvisioningFailed,
+                statusText: C2DStatusText.AlgorithmProvisioningFailed
+              }
+            }
           }
         } else {
           // no files object, try to get information from documentId and serviceId
@@ -1488,25 +1557,49 @@ export class C2DEngineDocker extends C2DEngine {
             'algorithm file object seems to be missing, checking "serviceId" and "documentId"...'
           )
           const { serviceId, documentId } = job.algorithm
+          appendFileSync(
+            configLogPath,
+            `Using ${documentId} and serviceId ${serviceId} to get algorithm files.\n`
+          )
           // we can get it from this info
           if (serviceId && documentId) {
             const algoDdo = await new FindDdoHandler(
               OceanNode.getInstance()
             ).findAndFormatDdo(documentId)
-            console.log('algo ddo:', algoDdo)
             // 1. Get the service
             const service: Service = AssetUtils.getServiceById(algoDdo, serviceId)
-
-            // 2. Decrypt the files object
-            const decryptedFileObject = await decryptFilesObject(service.files)
-            console.log('decryptedFileObject: ', decryptedFileObject)
-            // 4. Get default storage settings
-            storage = Storage.getStorageClass(decryptedFileObject, config)
+            if (!service) {
+              CORE_LOGGER.error(
+                `Could not find service with ID ${serviceId} in DDO ${documentId}`
+              )
+              appendFileSync(
+                configLogPath,
+                `Could not find service with ID ${serviceId} in DDO ${documentId}\n`
+              )
+              return {
+                status: C2DStatusNumber.AlgorithmProvisioningFailed,
+                statusText: C2DStatusText.AlgorithmProvisioningFailed
+              }
+            }
+            try {
+              // 2. Decrypt the files object
+              const decryptedFileObject = await decryptFilesObject(service.files)
+              storage = Storage.getStorageClass(decryptedFileObject, config)
+            } catch (e) {
+              CORE_LOGGER.error(`Unable to decrypt algorithm files object: ${e.message}`)
+              appendFileSync(
+                configLogPath,
+                `Unable to decrypt algorithm files object: ${e.message}\n`
+              )
+              return {
+                status: C2DStatusNumber.AlgorithmProvisioningFailed,
+                statusText: C2DStatusText.AlgorithmProvisioningFailed
+              }
+            }
           }
         }
 
         if (storage) {
-          console.log('fullAlgoPath', fullAlgoPath)
           await pipeline(
             (await storage.getReadableStream()).stream,
             createWriteStream(fullAlgoPath)
@@ -1515,11 +1608,19 @@ export class C2DEngineDocker extends C2DEngine {
           CORE_LOGGER.info(
             'Could not extract any files object from the compute algorithm, skipping...'
           )
+          appendFileSync(
+            configLogPath,
+            'Could not extract any files object from the compute algorithm, skipping...\n'
+          )
         }
       }
     } catch (e) {
       CORE_LOGGER.error(
         'Unable to write algorithm to path: ' + fullAlgoPath + ': ' + e.message
+      )
+      appendFileSync(
+        configLogPath,
+        'Unable to write algorithm to path: ' + fullAlgoPath + ': ' + e.message + '\n'
       )
       return {
         status: C2DStatusNumber.AlgorithmProvisioningFailed,
@@ -1532,53 +1633,73 @@ export class C2DEngineDocker extends C2DEngine {
       const asset = job.assets[i]
       let storage = null
       let fileInfo = null
-      console.log('checking now asset: ', asset)
+      console.log('checking now asset: ', i)
+      appendFileSync(configLogPath, `Downloading asset ${i} to /data/inputs/\n`)
       // without this check it would break if no fileObject is present
       if (asset.fileObject) {
-        if (asset.fileObject.type) {
-          storage = Storage.getStorageClass(asset.fileObject, config)
-        } else {
-          CORE_LOGGER.info('asset file object seems to be encrypted, checking it...')
-          // get the encrypted bytes
-          const filesObject: any = await decryptFilesObject(asset.fileObject)
-          storage = Storage.getStorageClass(filesObject, config)
-        }
+        try {
+          if (asset.fileObject.type) {
+            storage = Storage.getStorageClass(asset.fileObject, config)
+          } else {
+            CORE_LOGGER.info('asset file object seems to be encrypted, checking it...')
+            // get the encrypted bytes
+            const filesObject: any = await decryptFilesObject(asset.fileObject)
+            storage = Storage.getStorageClass(filesObject, config)
+          }
 
-        // we need the file info for the name (but could be something else here)
-        fileInfo = await storage.getFileInfo({
-          type: storage.getStorageType(asset.fileObject)
-        })
+          // we need the file info for the name (but could be something else here)
+          fileInfo = await storage.getFileInfo({
+            type: storage.getStorageType(asset.fileObject)
+          })
+        } catch (e) {
+          CORE_LOGGER.error(`Unable to get storage class for asset: ${e.message}`)
+          appendFileSync(
+            configLogPath,
+            `Unable to get storage class for asset: ${e.message}\n`
+          )
+          return {
+            status: C2DStatusNumber.DataProvisioningFailed,
+            statusText: C2DStatusText.DataProvisioningFailed
+          }
+        }
       } else {
         // we need to go the hard way
         const { serviceId, documentId } = asset
+        appendFileSync(
+          configLogPath,
+          `Using ${documentId} and serviceId ${serviceId} for this asset.\n`
+        )
         if (serviceId && documentId) {
           // need to get the file
-          const ddo = await new FindDdoHandler(OceanNode.getInstance()).findAndFormatDdo(
-            documentId
-          )
-
-          // 2. Get the service
-          const service: Service = AssetUtils.getServiceById(ddo, serviceId)
-          // 3. Decrypt the url
-          const decryptedFileObject = await decryptFilesObject(service.files)
-          console.log('decryptedFileObject: ', decryptedFileObject)
-          storage = Storage.getStorageClass(decryptedFileObject, config)
-
-          fileInfo = await storage.getFileInfo({
-            type: storage.getStorageType(decryptedFileObject)
-          })
+          try {
+            const ddo = await new FindDdoHandler(
+              OceanNode.getInstance()
+            ).findAndFormatDdo(documentId)
+            // 2. Get the service
+            const service: Service = AssetUtils.getServiceById(ddo, serviceId)
+            // 3. Decrypt the url
+            const decryptedFileObject = await decryptFilesObject(service.files)
+            storage = Storage.getStorageClass(decryptedFileObject, config)
+            fileInfo = await storage.getFileInfo({
+              type: storage.getStorageType(decryptedFileObject)
+            })
+          } catch (e) {
+            CORE_LOGGER.error(`Unable to get storage class for asset: ${e.message}`)
+            appendFileSync(
+              configLogPath,
+              `Unable to get storage class for asset: ${e.message}\n`
+            )
+            return {
+              status: C2DStatusNumber.DataProvisioningFailed,
+              statusText: C2DStatusText.DataProvisioningFailed
+            }
+          }
         }
       }
 
       if (storage && fileInfo) {
-        const fullPath =
-          this.getC2DConfig().tempFolder +
-          '/' +
-          job.jobId +
-          '/data/inputs/' +
-          fileInfo[0].name
-
-        console.log('asset full path: ' + fullPath)
+        const fullPath = jobFolderPath + '/data/inputs/' + fileInfo[0].name
+        appendFileSync(configLogPath, `Downloading asset to ${fullPath}\n`)
         try {
           await pipeline(
             (await storage.getReadableStream()).stream,
@@ -1587,6 +1708,10 @@ export class C2DEngineDocker extends C2DEngine {
         } catch (e) {
           CORE_LOGGER.error(
             'Unable to write input data to path: ' + fullPath + ': ' + e.message
+          )
+          appendFileSync(
+            configLogPath,
+            'Unable to write input data to path: ' + fullPath + ': ' + e.message + '\n'
           )
           return {
             status: C2DStatusNumber.DataProvisioningFailed,
@@ -1597,13 +1722,20 @@ export class C2DEngineDocker extends C2DEngine {
         CORE_LOGGER.info(
           'Could not extract any files object from the compute asset, skipping...'
         )
+        appendFileSync(
+          configLogPath,
+          'Could not extract any files object from the compute asset, skipping...\n'
+        )
       }
     }
     CORE_LOGGER.info('All good with data provisioning, will start uploading it...')
+    appendFileSync(
+      configLogPath,
+      'All good with data provisioning, will start uploading it...\n'
+    )
     // now, we have to create a tar arhive
-    const folderToTar = this.getC2DConfig().tempFolder + '/' + job.jobId + '/data'
-    const destination =
-      this.getC2DConfig().tempFolder + '/' + job.jobId + '/tarData/upload.tar.gz'
+    const folderToTar = jobFolderPath + '/data'
+    const destination = jobFolderPath + '/tarData/upload.tar.gz'
     try {
       tar.create(
         {
@@ -1615,7 +1747,6 @@ export class C2DEngineDocker extends C2DEngine {
         ['./']
       )
       // check if tar.gz actually exists
-      console.log('Start uploading')
 
       if (existsSync(destination)) {
         // now, upload it to the container
@@ -1631,8 +1762,10 @@ export class C2DEngineDocker extends C2DEngine {
 
           console.log('Done uploading')
         } catch (e) {
-          console.log('Data upload failed')
-          console.log(e)
+          appendFileSync(
+            configLogPath,
+            'Data upload to container failed: ' + e.message + '\n'
+          )
           return {
             status: C2DStatusNumber.DataUploadFailed,
             statusText: C2DStatusText.DataUploadFailed
@@ -1640,20 +1773,26 @@ export class C2DEngineDocker extends C2DEngine {
         }
       } else {
         CORE_LOGGER.debug('No data to upload, empty tar.gz')
+        appendFileSync(configLogPath, `No data to upload, empty tar.gz\n`)
       }
     } catch (e) {
       CORE_LOGGER.debug(e.message)
+      appendFileSync(configLogPath, `Error creating data archive: ${e.message}\n`)
+      return {
+        status: C2DStatusNumber.DataProvisioningFailed,
+        statusText: C2DStatusText.DataProvisioningFailed
+      }
     }
 
-    rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/inputs', {
+    rmSync(jobFolderPath + '/data/inputs', {
       recursive: true,
       force: true
     })
-    rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/data/transformations', {
+    rmSync(jobFolderPath + '/data/transformations', {
       recursive: true,
       force: true
     })
-    rmSync(this.getC2DConfig().tempFolder + '/' + job.jobId + '/tarData', {
+    rmSync(jobFolderPath + '/tarData', {
       recursive: true,
       force: true
     })
