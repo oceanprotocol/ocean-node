@@ -113,10 +113,7 @@ export class ExchangeCreatedEventProcessor extends BaseEventProcessor {
         ddoInstance.updateFields({ indexedMetadata: { stats } })
       }
 
-      const savedDDO = await this.createOrUpdateDDO(
-        ddoInstance,
-        EVENTS.EXCHANGE_CREATED
-      )
+      const savedDDO = await this.createOrUpdateDDO(ddoInstance, EVENTS.EXCHANGE_CREATED)
       return savedDDO
     } catch (err) {
       INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, `Error retrieving DDO: ${err}`, true)
