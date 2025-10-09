@@ -35,7 +35,8 @@ export const PROTOCOL_COMMANDS = {
   GET_P2P_NETWORK_STATS: 'getP2PNetworkStats',
   FIND_PEER: 'findPeer',
   CREATE_AUTH_TOKEN: 'createAuthToken',
-  INVALIDATE_AUTH_TOKEN: 'invalidateAuthToken'
+  INVALIDATE_AUTH_TOKEN: 'invalidateAuthToken',
+  JOBS: 'jobs'
 }
 // more visible, keep then close to make sure we always update both
 export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
@@ -71,7 +72,8 @@ export const SUPPORTED_PROTOCOL_COMMANDS: string[] = [
   PROTOCOL_COMMANDS.GET_P2P_NETWORK_STATS,
   PROTOCOL_COMMANDS.FIND_PEER,
   PROTOCOL_COMMANDS.CREATE_AUTH_TOKEN,
-  PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN
+  PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
+  PROTOCOL_COMMANDS.JOBS
 ]
 
 export const MetadataStates = {
