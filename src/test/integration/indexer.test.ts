@@ -280,13 +280,23 @@ describe('Indexer stores a new metadata events and orders.', () => {
     assert(response.status.httpStatus === 200, 'Failed to get 200 response')
     assert(response.stream, 'Failed to get stream')
     const result = await streamToObject(response.stream as Readable)
-    if (result) {
-      // Elastic Search returns Array type
-      const ddoState = Array.isArray(result) ? result[0] : result.hits[0].document
-      expect(resolvedDDO.id).to.equal(ddoState.did)
-      expect(ddoState.valid).to.equal(true)
-      expect(ddoState.error).to.equal(' ')
+    assert(result, 'Failed to get result from stream')
+
+    let ddoState
+    if (Array.isArray(result)) {
+      assert(result.length > 0, 'No ddo state found in results array')
+      ddoState = result[0]
+    } else if (result.hits && Array.isArray(result.hits)) {
+      assert(result.hits.length > 0, 'No ddo state found in results hits')
+      ddoState = result.hits[0].document
+    } else {
+      assert.fail('Unexpected result format from database')
     }
+
+    assert(ddoState, 'ddoState is undefined')
+    expect(resolvedDDO.id).to.equal(ddoState.did)
+    expect(ddoState.valid).to.equal(true)
+    expect(ddoState.error).to.equal(' ')
 
     // add txId check once we have that as change merged and the event will be indexed
   })
