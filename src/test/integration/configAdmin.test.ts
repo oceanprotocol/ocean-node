@@ -19,8 +19,6 @@ import { PushConfigHandler } from '../../components/core/admin/pushConfigHandler
 import { streamToObject } from '../../utils/util.js'
 import { Readable } from 'stream'
 import { expect } from 'chai'
-import fs from 'fs'
-import path from 'path'
 
 describe('Config Admin Endpoints Integration Tests', () => {
   let config: OceanNodeConfig
@@ -59,21 +57,6 @@ describe('Config Admin Endpoints Integration Tests', () => {
   })
 
   after(async () => {
-    // Clean up test backup directories if they exist
-    const backupDir = path.join(process.cwd(), 'config_backups')
-    if (fs.existsSync(backupDir)) {
-      const files = fs.readdirSync(backupDir)
-      for (const file of files) {
-        if (file.startsWith('config.backup.')) {
-          const filePath = path.join(backupDir, file)
-          const stats = fs.statSync(filePath)
-          if (Date.now() - stats.mtimeMs < 3600000) {
-            fs.unlinkSync(filePath)
-          }
-        }
-      }
-    }
-
     await tearDownEnvironment(previousConfiguration)
   })
 
@@ -83,7 +66,7 @@ describe('Config Admin Endpoints Integration Tests', () => {
   }
 
   describe('Fetch Config Tests', () => {
-    it('should fetch current config with last backup info', async function () {
+    it('should fetch current config', async function () {
       this.timeout(DEFAULT_TEST_TIMEOUT)
 
       const expiryTimestamp = Date.now() + 60000
@@ -99,11 +82,28 @@ describe('Config Admin Endpoints Integration Tests', () => {
 
       const response = await streamToObject(handlerResponse.stream as Readable)
       expect(response).to.be.an('object')
-      expect(response).to.have.property('config')
-      expect(response).to.have.property('lastBackup')
-      expect(response.config).to.be.an('object')
-      expect(response.config).to.have.property('hasHttp')
-      expect(response.config).to.have.property('hasP2P')
+      expect(response).to.have.property('hasHttp')
+      expect(response).to.have.property('hasP2P')
+    })
+
+    it('should hide private key in fetched config', async function () {
+      this.timeout(DEFAULT_TEST_TIMEOUT)
+
+      const expiryTimestamp = Date.now() + 60000
+      const signature = await getAdminSignature(expiryTimestamp)
+
+      const handlerResponse = await new FetchConfigHandler(oceanNode).handle({
+        command: PROTOCOL_COMMANDS.FETCH_CONFIG,
+        expiryTimestamp,
+        signature
+      })
+
+      expect(handlerResponse.status.httpStatus).to.equal(200)
+
+      const response = await streamToObject(handlerResponse.stream as Readable)
+      expect(response).to.have.property('keys')
+      expect(response.keys).to.have.property('privateKey')
+      expect(response.keys.privateKey).to.equal('[*** HIDDEN CONTENT ***]')
     })
 
     it('should reject fetch config with signature from non-admin', async function () {
@@ -164,10 +164,9 @@ describe('Config Admin Endpoints Integration Tests', () => {
       expect(handlerResponse.status.httpStatus).to.equal(200)
 
       const response = await streamToObject(handlerResponse.stream as Readable)
-      expect(response).to.have.property('message')
-      expect(response).to.have.property('config')
-      expect(response.config.rateLimit).to.equal(100)
-      expect(response.config.maxConnections).to.equal(200)
+      expect(response).to.be.an('object')
+      expect(response.rateLimit).to.equal(100)
+      expect(response.maxConnections).to.equal(200)
 
       const savedConfig = loadConfigFromFile()
       expect(savedConfig.rateLimit).to.equal(100)
@@ -198,9 +197,7 @@ describe('Config Admin Endpoints Integration Tests', () => {
         signature
       })
 
-      const { config: currentConfig } = await streamToObject(
-        fetchResponse.stream as Readable
-      )
+      const currentConfig = await streamToObject(fetchResponse.stream as Readable)
 
       const partialConfig = {
         rateLimit: 75
@@ -213,9 +210,7 @@ describe('Config Admin Endpoints Integration Tests', () => {
         config: partialConfig
       })
 
-      const { config: updatedConfig } = await streamToObject(
-        pushResponse.stream as Readable
-      )
+      const updatedConfig = await streamToObject(pushResponse.stream as Readable)
 
       expect(updatedConfig.rateLimit).to.equal(75)
       expect(updatedConfig.maxConnections).to.equal(currentConfig.maxConnections)
@@ -228,24 +223,25 @@ describe('Config Admin Endpoints Integration Tests', () => {
       })
     })
 
-    it('should create backup before pushing config', async function () {
+    it('should hide private key in push config response', async function () {
       this.timeout(DEFAULT_TEST_TIMEOUT)
 
       const expiryTimestamp = Date.now() + 60000
       const signature = await getAdminSignature(expiryTimestamp)
 
-      const backupDir = path.join(process.cwd(), 'config_backups')
-      const filesBefore = fs.existsSync(backupDir) ? fs.readdirSync(backupDir).length : 0
-
-      await new PushConfigHandler(oceanNode).handle({
+      const response = await new PushConfigHandler(oceanNode).handle({
         command: PROTOCOL_COMMANDS.PUSH_CONFIG,
         expiryTimestamp,
         signature,
-        config: { rateLimit: 85 }
+        config: { rateLimit: 50 }
       })
 
-      const filesAfter = fs.readdirSync(backupDir).length
-      expect(filesAfter).to.be.greaterThan(filesBefore)
+      expect(response.status.httpStatus).to.equal(200)
+
+      const updatedConfig = await streamToObject(response.stream as Readable)
+      expect(updatedConfig).to.have.property('keys')
+      expect(updatedConfig.keys).to.have.property('privateKey')
+      expect(updatedConfig.keys.privateKey).to.equal('[*** HIDDEN CONTENT ***]')
 
       await new PushConfigHandler(oceanNode).handle({
         command: PROTOCOL_COMMANDS.PUSH_CONFIG,

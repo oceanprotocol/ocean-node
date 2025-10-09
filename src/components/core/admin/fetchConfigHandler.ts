@@ -7,8 +7,6 @@ import {
 } from '../../httpRoutes/validateCommands.js'
 import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { loadConfigFromFile } from '../../../utils/config/index.js'
-import fs from 'fs'
-import path from 'path'
 
 export class FetchConfigHandler extends AdminCommandHandler {
   async validate(command: AdminFetchConfigCommand): Promise<ValidateParams> {
@@ -25,32 +23,12 @@ export class FetchConfigHandler extends AdminCommandHandler {
 
     try {
       const config = loadConfigFromFile()
-      const backupDir = path.join(process.cwd(), 'config_backups')
-
-      if (!fs.existsSync(backupDir)) {
-        return null
-      }
-
-      const files = fs.readdirSync(backupDir)
-      const backupFiles = files
-        .filter((file) => file.startsWith('config.backup.') && file.endsWith('.json'))
-        .map((file) => ({
-          path: path.join(backupDir, file),
-          mtime: fs.statSync(path.join(backupDir, file)).mtime
-        }))
-        .sort((a, b) => b.mtime.getTime() - a.mtime.getTime())
-
-      const lastBackup = backupFiles.length > 0 ? backupFiles[0].path : null
-
-      const response = {
-        config,
-        lastBackup
-      }
+      config.keys.privateKey = '[*** HIDDEN CONTENT ***]'
 
       return new Promise<P2PCommandResponse>((resolve) => {
         resolve({
           status: { httpStatus: 200 },
-          stream: new ReadableString(JSON.stringify(response))
+          stream: new ReadableString(JSON.stringify(config))
         })
       })
     } catch (error) {

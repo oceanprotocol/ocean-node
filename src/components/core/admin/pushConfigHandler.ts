@@ -11,7 +11,6 @@ import { ReadableString } from '../../P2P/handleProtocolCommands.js'
 import { getConfiguration, getConfigFilePath } from '../../../utils/config/index.js'
 import { OceanNodeConfigSchema } from '../../../utils/config/schemas.js'
 import fs from 'fs'
-import path from 'path'
 
 export class PushConfigHandler extends AdminCommandHandler {
   async validate(command: AdminPushConfigCommand): Promise<ValidateParams> {
@@ -56,23 +55,17 @@ export class PushConfigHandler extends AdminCommandHandler {
       const configContent = fs.readFileSync(configPath, 'utf-8')
       const currentConfig = JSON.parse(configContent)
 
-      this.createBackup(configContent)
-
       const mergedConfig = { ...currentConfig, ...task.config }
       this.saveConfigToFile(mergedConfig)
 
-      await getConfiguration(true, false)
+      const newConfig = await getConfiguration(true, false)
+      newConfig.keys.privateKey = '[*** HIDDEN CONTENT ***]'
       CORE_LOGGER.logMessage('Configuration reloaded successfully')
-
-      const response = {
-        message: 'Config updated and node reloaded successfully',
-        config: mergedConfig
-      }
 
       return new Promise<P2PCommandResponse>((resolve) => {
         resolve({
           status: { httpStatus: 200 },
-          stream: new ReadableString(JSON.stringify(response))
+          stream: new ReadableString(JSON.stringify(newConfig))
         })
       })
     } catch (error) {
@@ -84,18 +77,6 @@ export class PushConfigHandler extends AdminCommandHandler {
         })
       })
     }
-  }
-
-  private createBackup(configContent: string): void {
-    const backupDir = path.join(process.cwd(), 'config_backups')
-    if (!fs.existsSync(backupDir)) {
-      fs.mkdirSync(backupDir, { recursive: true })
-    }
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const backupPath = path.join(backupDir, `config.backup.${timestamp}.json`)
-    fs.writeFileSync(backupPath, configContent, 'utf-8')
-    CORE_LOGGER.logMessage(`Config backup created at: ${backupPath}`)
   }
 
   private saveConfigToFile(config: Record<string, any>): void {
