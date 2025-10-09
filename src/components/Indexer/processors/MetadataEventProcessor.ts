@@ -169,8 +169,28 @@ export class MetadataEventProcessor extends BaseEventProcessor {
           previousDdoInstance.getAssetFields().indexedMetadata.nft.state ===
             MetadataStates.ACTIVE
         ) {
+          const previousTxId =
+            previousDdoInstance.getAssetFields().indexedMetadata?.event?.txid
+          // If it's the same transaction being reprocessed, just skip (idempotent)
+          if (previousTxId === event.transactionHash) {
+            INDEXER_LOGGER.logMessage(
+              `DDO ${ddoInstance.getDid()} already indexed from same transaction ${
+                event.transactionHash
+              }. Skipping reprocessing.`,
+              true
+            )
+            await ddoState.update(
+              this.networkId,
+              did,
+              event.address,
+              event.transactionHash,
+              true,
+              ' '
+            )
+            return
+          }
           INDEXER_LOGGER.logMessage(
-            `DDO ${ddoInstance.getDid()} is already registered as active`,
+            `DDO ${ddoInstance.getDid()} is already registered as active from different transaction ${previousTxId}`,
             true
           )
           await ddoState.update(
@@ -179,7 +199,7 @@ export class MetadataEventProcessor extends BaseEventProcessor {
             event.address,
             event.transactionHash,
             false,
-            `DDO ${ddoInstance.getDid()} is already registered as active`
+            `DDO ${ddoInstance.getDid()} is already registered as active from transaction ${previousTxId}`
           )
           return
         }

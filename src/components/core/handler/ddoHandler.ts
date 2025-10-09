@@ -316,7 +316,7 @@ export class DecryptDdoHandler extends CommandHandler {
 
       let decryptedDocument: Buffer
       // check if DDO is ECIES encrypted
-      if (flags & 2) {
+      if ((flags & 2) !== 0) {
         try {
           decryptedDocument = await decrypt(encryptedDocument, EncryptMethod.ECIES)
         } catch (error) {
@@ -329,9 +329,7 @@ export class DecryptDdoHandler extends CommandHandler {
             }
           }
         }
-      }
-
-      if (flags & 1) {
+      } else {
         try {
           decryptedDocument = lzmajs.decompressFile(decryptedDocument)
           /*
@@ -398,9 +396,17 @@ export class DecryptDdoHandler extends CommandHandler {
           ['bytes'],
           [ethers.hexlify(ethers.toUtf8Bytes(message))]
         )
-        const addressFromSignature = ethers.verifyMessage(messageHash, task.signature)
+        const messageHashBytes = ethers.getBytes(messageHash)
+        const addressFromHashSignature = ethers.verifyMessage(messageHash, task.signature)
+        const addressFromBytesSignature = ethers.verifyMessage(
+          messageHashBytes,
+          task.signature
+        )
 
-        if (addressFromSignature?.toLowerCase() !== decrypterAddress?.toLowerCase()) {
+        if (
+          addressFromHashSignature?.toLowerCase() !== decrypterAddress?.toLowerCase() &&
+          addressFromBytesSignature?.toLowerCase() !== decrypterAddress?.toLowerCase()
+        ) {
           throw new Error('address does not match')
         }
       } catch (error) {
@@ -875,9 +881,14 @@ export function validateDdoSignedByPublisher(
       ['bytes'],
       [ethers.hexlify(ethers.toUtf8Bytes(message))]
     )
-    const messageHashBytes = ethers.toBeArray(messageHash)
-    const recoveredAddress = ethers.verifyMessage(messageHashBytes, signature)
-    return recoveredAddress === publisherAddress
+    const messageHashBytes = ethers.getBytes(messageHash)
+    // Try both verification methods for backward compatibility
+    const addressFromHashSignature = ethers.verifyMessage(messageHash, signature)
+    const addressFromBytesSignature = ethers.verifyMessage(messageHashBytes, signature)
+    return (
+      addressFromHashSignature?.toLowerCase() === publisherAddress?.toLowerCase() ||
+      addressFromBytesSignature?.toLowerCase() === publisherAddress?.toLowerCase()
+    )
   } catch (error) {
     CORE_LOGGER.logMessage(`Error: ${error}`, true)
     return false

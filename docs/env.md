@@ -5,6 +5,7 @@ Environmental variables are also tracked in `ENVIRONMENT_VARIABLES` within `src/
 ## Core
 
 - `PRIVATE_KEY` (Required): The private key for the node, required for node operations. Example: `"0x1d751ded5a32226054cd2e71261039b65afb9ee1c746d055dd699b1150a5befc"`
+- `CONFIG_PATH`: Absolute path to JSON config file
 - `RPCS`: JSON object defining RPC endpoints for various networks. Example: `"{ \"11155420\":{ \"rpc\":\"https://sepolia.optimism.io\", \"fallbackRPCs\": [\"https://public.stackup.sh/api/v1/node/optimism-sepolia\"], \"chainId\": 11155420, \"network\": \"optimism-sepolia\", \"chunkSize\": 1000 }}"`
 - `DB_URL`: URL for connecting to the database. Required for running a database with the node. Example: `"http://localhost:8108/?apiKey=xyz"`
 - `IPFS_GATEWAY`: The gateway URL for IPFS, used for downloading files from IPFS. Example: `"https://ipfs.io/"`
@@ -123,6 +124,8 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable is used to configure Dock
 Example Configuration
 The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of objects, where each object represents a Docker compute environment configuration. Below is an example configuration:
 
+`Disk` and `Ram` resources are always expressed in GB.
+
 ```json
 [
   {
@@ -130,7 +133,7 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
     "resources": [
       {
         "id": "disk",
-        "total": 1000000000
+        "total": 10
       }
     ],
     "storageExpiry": 604800,
@@ -158,11 +161,11 @@ The `DOCKER_COMPUTE_ENVIRONMENTS` environment variable should be a JSON array of
         },
         {
           "id": "ram",
-          "max": 1000000000
+          "max": 1
         },
         {
           "id": "disk",
-          "max": 1000000000
+          "max": 1
         }
       ]
     }

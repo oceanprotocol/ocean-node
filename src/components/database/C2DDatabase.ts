@@ -9,7 +9,7 @@ import { AbstractDatabase } from './BaseDatabase.js'
 import { OceanNode } from '../../OceanNode.js'
 import { getDatabase } from '../../utils/database.js'
 import { getConfiguration } from '../../utils/index.js'
-
+import { generateUniqueID } from '../core/compute/utils.js'
 export class C2DDatabase extends AbstractDatabase {
   private provider: SQLiteCompute
 
@@ -32,6 +32,7 @@ export class C2DDatabase extends AbstractDatabase {
   }
 
   async newJob(job: DBComputeJob): Promise<string> {
+    if (!job.jobId) job.jobId = generateUniqueID(job)
     const jobId = await this.provider.newJob(job)
     return jobId
   }
