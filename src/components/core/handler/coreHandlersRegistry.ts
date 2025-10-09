@@ -35,6 +35,8 @@ import { ReindexTxHandler } from '../admin/reindexTxHandler.js'
 import { ReindexChainHandler } from '../admin/reindexChainHandler.js'
 import { IndexingThreadHandler } from '../admin/IndexingThreadHandler.js'
 import { CollectFeesHandler } from '../admin/collectFeesHandler.js'
+import { FetchConfigHandler } from '../admin/fetchConfigHandler.js'
+import { PushConfigHandler } from '../admin/pushConfigHandler.js'
 import { AdminCommandHandler } from '../admin/adminHandler.js'
 import {
   GetP2PPeerHandler,
@@ -159,6 +161,8 @@ export class CoreHandlersRegistry {
       PROTOCOL_COMMANDS.INVALIDATE_AUTH_TOKEN,
       new InvalidateAuthTokenHandler(node)
     )
+    this.registerCoreHandler(PROTOCOL_COMMANDS.FETCH_CONFIG, new FetchConfigHandler(node))
+    this.registerCoreHandler(PROTOCOL_COMMANDS.PUSH_CONFIG, new PushConfigHandler(node))
   }
 
   public static getInstance(

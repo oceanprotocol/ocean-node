@@ -1,10 +1,6 @@
 import { z } from 'zod'
 import { CONFIG_LOGGER } from '../logging/common.js'
 
-export const numberFromString = z
-  .union([z.number(), z.string()])
-  .transform((v) => (typeof v === 'string' ? parseInt(v, 10) : v))
-
 export const booleanFromString = z.union([z.boolean(), z.string()]).transform((v) => {
   if (typeof v === 'string') {
     return v === 'true' || v === '1' || v.toLowerCase() === 'yes'
