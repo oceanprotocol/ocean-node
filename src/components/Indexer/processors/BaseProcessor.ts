@@ -232,7 +232,7 @@ export abstract class BaseEventProcessor {
           )
           const nonceResponse = await axios.get(
             `${decryptorURL}/api/services/nonce?userAddress=${keys.ethAddress}`,
-            { timeout: 2000 }
+            { timeout: 20000 }
           )
           nonce =
             nonceResponse.status === 200 && nonceResponse.data
@@ -282,17 +282,18 @@ export abstract class BaseEventProcessor {
           }
           const response = await withRetrial(async () => {
             try {
-              const res = await axios.post(
-                `${decryptorURL}/api/services/decrypt`,
-                payload
-              )
+              const res = await axios({
+                method: 'post',
+                url: `${decryptorURL}/api/services/decrypt`,
+                data: payload,
+                timeout: 30000
+              })
 
-              if (res.status !== 200) {
+              if (res.status !== 200 && res.status !== 201) {
                 const message = `bProvider exception on decrypt DDO. Status: ${res.status}, ${res.statusText}`
                 INDEXER_LOGGER.log(LOG_LEVELS_STR.LEVEL_ERROR, message)
                 throw new Error(message) // do NOT retry
               }
-
               return res
             } catch (err: any) {
               // Retry ONLY on ECONNREFUSED
