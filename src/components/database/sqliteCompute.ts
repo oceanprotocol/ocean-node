@@ -371,8 +371,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
           } else {
             environment
               ? DATABASE_LOGGER.info(
-                  'No jobs found for the specified enviroment: ' +
-                    environment?.id
+                  'No jobs found for the specified enviroment: ' + environment?.id
                 )
               : DATABASE_LOGGER.info('No jobs found')
             resolve([])
