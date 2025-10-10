@@ -384,7 +384,7 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     let selectSQL = `SELECT * from ${this.schema.name}`
 
     if(fromTimestamp) {
-      selectSQL += ` WHERE algoStartTimestamp >= ?`
+      selectSQL += ` WHERE dateCreated >= ?`
     }
 
     return new Promise<DBComputeJob[]>((resolve, reject) => {
@@ -395,11 +395,11 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
         } else {
           if(rows && rows.length > 0) {
             const all: DBComputeJob[] = rows.map((row) => {
-              const body = generateBlobFromJSON(row.body)
+              const body = generateJSONFromBlob(row.body)
               delete row.body
               const maxJobDuration = row.expireTimestamp
               delete row.expireTimestamp
-              const job: DBComputeJob = {...row, ...body, maxJobDuration}
+              const job: DBComputeJob = { ...row, ...body, maxJobDuration }
               return job
             })
 
