@@ -383,17 +383,19 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
   getAllJobs(fromTimestamp?: string): Promise<DBComputeJob[]> {
     let selectSQL = `SELECT * from ${this.schema.name}`
 
-    if(fromTimestamp) {
+    if (fromTimestamp) {
       selectSQL += ` WHERE dateCreated >= ?`
     }
 
+    selectSQL += ` ORDER BY dateCreated DESC`
+
     return new Promise<DBComputeJob[]>((resolve, reject) => {
       this.db.all(selectSQL, fromTimestamp, (err, rows: any[] | undefined) => {
-        if(err) {
+        if (err) {
           DATABASE_LOGGER.error(err.message)
           reject(err)
         } else {
-          if(rows && rows.length > 0) {
+          if (rows && rows.length > 0) {
             const all: DBComputeJob[] = rows.map((row) => {
               const body = generateJSONFromBlob(row.body)
               delete row.body

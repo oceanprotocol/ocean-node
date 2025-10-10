@@ -340,9 +340,9 @@ describe('Commands and handlers', () => {
     expect(initComputeHandler.validate(computeInitCommand).valid).to.be.equal(false)
     // -----------------------------------------
     // JobsHandler
-    const jobsHandler: GetJobsHandler = CoreHandlersRegistry.getInstance(
-      node
-    ).getHandler(PROTOCOL_COMMANDS.JOBS)
+    const jobsHandler: GetJobsHandler = CoreHandlersRegistry.getInstance(node).getHandler(
+      PROTOCOL_COMMANDS.JOBS
+    )
     const getJobsCommand: GetJobsCommand = {
       command: PROTOCOL_COMMANDS.JOBS
     }
