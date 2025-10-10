@@ -21,7 +21,8 @@ import {
   NonceCommand,
   QueryCommand,
   StatusCommand,
-  ValidateDDOCommand
+  ValidateDDOCommand,
+  GetJobsCommand
 } from '../../@types/commands.js'
 import { NonceHandler } from '../../components/core/handler/nonceHandler.js'
 import { DownloadHandler } from '../../components/core/handler/downloadHandler.js'
@@ -48,6 +49,7 @@ import { StopNodeHandler } from '../../components/core/admin/stopNodeHandler.js'
 import { ReindexTxHandler } from '../../components/core/admin/reindexTxHandler.js'
 import { ReindexChainHandler } from '../../components/core/admin/reindexChainHandler.js'
 import { CollectFeesHandler } from '../../components/core/admin/collectFeesHandler.js'
+import { GetJobsHandler } from '../../components/core/handler/getJobs.js'
 
 describe('Commands and handlers', () => {
   it('Check that all supported commands have registered handlers', () => {
@@ -336,5 +338,15 @@ describe('Commands and handlers', () => {
       maxJobDuration: 60
     }
     expect(initComputeHandler.validate(computeInitCommand).valid).to.be.equal(false)
+    // -----------------------------------------
+    // JobsHandler
+    const jobsHandler: GetJobsHandler = CoreHandlersRegistry.getInstance(
+      node
+    ).getHandler(PROTOCOL_COMMANDS.JOBS)
+    const getJobsCommand: GetJobsCommand = {
+      command: PROTOCOL_COMMANDS.JOBS
+    }
+    expect(jobsHandler.validate(getJobsCommand).valid).to.be.equal(true)
+    // -----------------------------------------
   })
 })
