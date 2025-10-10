@@ -341,11 +341,17 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
 
   getFinishedJobs(environment?: ComputeEnvironment): Promise<DBComputeJob[]> {
     // get jobs that already finished (have results), for this environment, and clear storage + job if expired
-    const selectSQL = `
-    SELECT * FROM ${this.schema.name} WHERE environment = ? AND dateFinished IS NOT NULL OR results IS NOT NULL
+    let selectSQL = `
+    SELECT * FROM ${this.schema.name} WHERE (dateFinished IS NOT NULL OR results IS NOT NULL)
   `
+    const params: string[] = []
+    if (environment) {
+      selectSQL += 'AND environment = ?'
+      params.push(environment.id)
+    }
+
     return new Promise<DBComputeJob[]>((resolve, reject) => {
-      this.db.all(selectSQL, [environment.id], (err, rows: any[] | undefined) => {
+      this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
         if (err) {
           DATABASE_LOGGER.error(err.message)
           reject(err)
@@ -361,18 +367,14 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
               const job: DBComputeJob = { ...row, ...body, maxJobDuration }
               return job
             })
-            if (!environment) {
-              resolve(all)
-            }
-            // filter them out
-            const filtered = all.filter((job) => {
-              return environment && environment.id === job.environment
-            })
-            resolve(filtered)
+            resolve(all)
           } else {
-            DATABASE_LOGGER.info(
-              'Could not find any jobs for the specified enviroment: ' + environment.id
-            )
+            environment
+              ? DATABASE_LOGGER.info(
+                  'No jobs found for the specified enviroment: ' +
+                    environment?.id
+                )
+              : DATABASE_LOGGER.info('No jobs found')
             resolve([])
           }
         }
