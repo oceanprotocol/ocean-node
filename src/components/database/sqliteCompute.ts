@@ -14,8 +14,10 @@ interface ComputeDatabaseProvider {
   updateJob(job: DBComputeJob): Promise<number>
   getRunningJobs(engine?: string, environment?: string): Promise<DBComputeJob[]>
   deleteJob(jobId: string): Promise<boolean>
-  getFinishedJobs(): Promise<DBComputeJob[]>
-  getAllJobs(fromTimestamp?: string): Promise<DBComputeJob[]>
+  getFinishedJobs(
+    environments?: string[],
+    fromTimestamp?: string
+  ): Promise<DBComputeJob[]>
 }
 
 function getInternalStructure(job: DBComputeJob): any {
@@ -309,46 +311,26 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
     })
   }
 
-  getAllFinishedJobs(): Promise<DBComputeJob[]> {
-    const selectSQL = `
-      SELECT * FROM ${this.schema.name} WHERE dateFinished IS NOT NULL OR results IS NOT NULL
-    `
-
-    return new Promise<DBComputeJob[]>((resolve, reject) => {
-      this.db.all(selectSQL, (err, rows: any[] | undefined) => {
-        if (err) {
-          DATABASE_LOGGER.error(err.message)
-          reject(err)
-        } else {
-          if (rows && rows.length > 0) {
-            const all: DBComputeJob[] = rows.map((row) => {
-              const body = generateJSONFromBlob(row.body)
-              delete row.body
-              const maxJobDuration = row.expireTimestamp
-              delete row.expireTimestamp
-              const job: DBComputeJob = { ...row, ...body, maxJobDuration }
-              return job
-            })
-            resolve(all)
-          } else {
-            DATABASE_LOGGER.info('Could not find any running C2D jobs!')
-            resolve([])
-          }
-        }
-      })
-    })
-  }
-
-  getFinishedJobs(environment?: ComputeEnvironment): Promise<DBComputeJob[]> {
-    // get jobs that already finished (have results), for this environment, and clear storage + job if expired
+  getFinishedJobs(
+    environments?: string[],
+    fromTimestamp?: string
+  ): Promise<DBComputeJob[]> {
     let selectSQL = `
     SELECT * FROM ${this.schema.name} WHERE (dateFinished IS NOT NULL OR results IS NOT NULL)
   `
     const params: string[] = []
-    if (environment) {
-      selectSQL += 'AND environment = ?'
-      params.push(environment.id)
+    if (environments && environments.length > 0) {
+      const placeholders = environments.map(() => '?').join(',')
+      selectSQL += ` AND environment IN (${placeholders})`
+      params.push(...environments)
     }
+
+    if (fromTimestamp) {
+      selectSQL += ` AND dateFinished >= ?`
+      params.push(fromTimestamp)
+    }
+
+    selectSQL += ` ORDER BY dateFinished DESC`
 
     return new Promise<DBComputeJob[]>((resolve, reject) => {
       this.db.all(selectSQL, params, (err, rows: any[] | undefined) => {
@@ -369,46 +351,11 @@ export class SQLiteCompute implements ComputeDatabaseProvider {
             })
             resolve(all)
           } else {
-            environment
+            environments
               ? DATABASE_LOGGER.info(
-                  'No jobs found for the specified enviroment: ' + environment?.id
+                  'No jobs found for the specified enviroments: ' + environments.join(',')
                 )
               : DATABASE_LOGGER.info('No jobs found')
-            resolve([])
-          }
-        }
-      })
-    })
-  }
-
-  getAllJobs(fromTimestamp?: string): Promise<DBComputeJob[]> {
-    let selectSQL = `SELECT * from ${this.schema.name}`
-
-    if (fromTimestamp) {
-      selectSQL += ` WHERE dateCreated >= ?`
-    }
-
-    selectSQL += ` ORDER BY dateCreated DESC`
-
-    return new Promise<DBComputeJob[]>((resolve, reject) => {
-      this.db.all(selectSQL, fromTimestamp, (err, rows: any[] | undefined) => {
-        if (err) {
-          DATABASE_LOGGER.error(err.message)
-          reject(err)
-        } else {
-          if (rows && rows.length > 0) {
-            const all: DBComputeJob[] = rows.map((row) => {
-              const body = generateJSONFromBlob(row.body)
-              delete row.body
-              const maxJobDuration = row.expireTimestamp
-              delete row.expireTimestamp
-              const job: DBComputeJob = { ...row, ...body, maxJobDuration }
-              return job
-            })
-
-            resolve(all)
-          } else {
-            DATABASE_LOGGER.info('No jobs found')
             resolve([])
           }
         }
