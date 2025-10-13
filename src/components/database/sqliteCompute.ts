@@ -2,7 +2,6 @@ import { typesenseSchemas, TypesenseSchema } from './TypesenseSchemas.js'
 import {
   C2DStatusNumber,
   C2DStatusText,
-  ComputeEnvironment,
   type DBComputeJob
 } from '../../@types/C2D/C2D.js'
 import sqlite3, { RunResult } from 'sqlite3'
