@@ -940,6 +940,10 @@ export async function buildMergedConfig(): Promise<OceanNodeConfig> {
     ? getSupportedChains()
     : baseConfig.supportedNetworks
 
+  if (!indexingNetworks) {
+    indexingNetworks = supportedNetworks
+  }
+
   const overrides: Partial<OceanNodeConfig> = {
     keys,
     supportedNetworks,
